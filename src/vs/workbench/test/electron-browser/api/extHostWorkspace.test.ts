@@ -5,10 +5,9 @@
 
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
-import { basename } from 'path';
+import { basename } from 'vs/base/common/path';
 import { ExtHostWorkspaceProvider } from 'vs/workbench/api/node/extHostWorkspace';
 import { TestRPCProtocol } from './testRPCProtocol';
-import { normalize } from 'vs/base/common/paths';
 import { IWorkspaceFolderData } from 'vs/platform/workspace/common/workspace';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { NullLogService } from 'vs/platform/log/common/log';
@@ -32,11 +31,7 @@ suite('ExtHostWorkspace', function () {
 
 	function assertAsRelativePath(workspace: ExtHostWorkspaceProvider, input: string, expected: string, includeWorkspace?: boolean) {
 		const actual = workspace.getRelativePath(input, includeWorkspace);
-		if (actual === expected) {
-			assert.ok(true);
-		} else {
-			assert.equal(actual, normalize(expected, true));
-		}
+		assert.equal(actual, expected);
 	}
 
 	test('asRelativePath', () => {
@@ -57,16 +52,16 @@ suite('ExtHostWorkspace', function () {
 		const input = '/home/aeschli/workspaces/samples/docker';
 		const ws = new ExtHostWorkspaceProvider(new TestRPCProtocol(), { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService(), new Counter());
 
-		assertAsRelativePath(ws, (input), input);
+		assertAsRelativePath(ws, input, input);
 
 		const input2 = '/home/aeschli/workspaces/samples/docker/a.file';
-		assertAsRelativePath(ws, (input2), 'a.file');
+		assertAsRelativePath(ws, input2, 'a.file');
 	});
 
 	test('asRelativePath, no workspace', function () {
 		const ws = new ExtHostWorkspaceProvider(new TestRPCProtocol(), null!, new NullLogService(), new Counter());
-		assertAsRelativePath(ws, (''), '');
-		assertAsRelativePath(ws, ('/foo/bar'), '/foo/bar');
+		assertAsRelativePath(ws, '', '');
+		assertAsRelativePath(ws, '/foo/bar', '/foo/bar');
 	});
 
 	test('asRelativePath, multiple folders', function () {

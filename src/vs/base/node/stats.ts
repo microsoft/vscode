@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { readdir, stat, exists, readFile } from 'fs';
-import { join } from 'path';
+import { join } from 'vs/base/common/path';
 import { parse, ParseError } from 'vs/base/common/json';
 
 export interface WorkspaceStatItem {

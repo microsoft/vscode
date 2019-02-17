@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import * as path from 'path';
 import * as crypto from 'crypto';
+import * as path from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
 import { writeFileAndFlushSync } from 'vs/base/node/extfs';
 import * as arrays from 'vs/base/common/arrays';
@@ -17,7 +17,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { URI } from 'vs/base/common/uri';
 import { isEqual as areResourcesEquals, getComparisonKey, hasToIgnoreCase } from 'vs/base/common/resources';
-import { isEqual } from 'vs/base/common/paths';
+import { isEqual } from 'vs/base/common/extpath';
 import { Schemas } from 'vs/base/common/network';
 import { writeFile, readFile, readdir, exists, del, rename } from 'vs/base/node/pfs';
 

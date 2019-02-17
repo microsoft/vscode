@@ -20,7 +20,7 @@ import {
 } from 'vs/workbench/contrib/debug/common/debug';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { commonSuffixLength } from 'vs/base/common/strings';
-import { posix } from 'vs/base/common/paths.node';
+import { posix } from 'vs/base/common/path';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
@@ -879,7 +879,7 @@ export class DebugModel implements IDebugModel {
 
 			this.exceptionBreakpoints = data.map(d => {
 				const ebp = this.exceptionBreakpoints.filter(ebp => ebp.filter === d.filter).pop();
-				return new ExceptionBreakpoint(d.filter, d.label, ebp ? ebp.enabled : d.default);
+				return new ExceptionBreakpoint(d.filter, d.label, ebp ? ebp.enabled : !!d.default);
 			});
 			this._onDidChangeBreakpoints.fire(undefined);
 		}

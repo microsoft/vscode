@@ -26,7 +26,7 @@ import { IDataSource, ITree, IRenderer, ContextMenuEvent } from 'vs/base/parts/t
 import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
 import { ActionBar, IActionItemProvider, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { URI } from 'vs/base/common/uri';
-import { basename } from 'vs/base/common/paths';
+import { dirname, basename } from 'vs/base/common/resources';
 import { LIGHT, FileThemeIcon, FolderThemeIcon, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { FileKind } from 'vs/platform/files/common/files';
 import { WorkbenchTreeController } from 'vs/platform/list/browser/listService';
@@ -43,7 +43,6 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IMarkdownRenderResult } from 'vs/editor/contrib/markdown/markdownRenderer';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { dirname } from 'vs/base/common/resources';
 
 export class CustomTreeViewPanel extends ViewletPanel {
 
@@ -508,7 +507,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		if (this.tree) {
 			return this.tree.reveal(item);
 		}
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 
 	private activate() {
@@ -583,7 +582,7 @@ class TreeDataSource implements IDataSource {
 	}
 
 	hasChildren(tree: ITree, node: ITreeItem): boolean {
-		return this.treeView.dataProvider && node.collapsibleState !== TreeItemCollapsibleState.None;
+		return !!this.treeView.dataProvider && node.collapsibleState !== TreeItemCollapsibleState.None;
 	}
 
 	getChildren(tree: ITree, node: ITreeItem): Promise<any[]> {
@@ -677,7 +676,7 @@ class TreeRenderer implements IRenderer {
 
 	renderElement(tree: ITree, node: ITreeItem, templateId: string, templateData: ITreeExplorerTemplateData): void {
 		const resource = node.resourceUri ? URI.revive(node.resourceUri) : null;
-		const treeItemLabel: ITreeItemLabel = node.label ? node.label : resource ? { label: basename(resource.path) } : undefined;
+		const treeItemLabel: ITreeItemLabel = node.label ? node.label : resource ? { label: basename(resource) } : undefined;
 		const description = isString(node.description) ? node.description : resource && node.description === true ? this.labelService.getUriLabel(dirname(resource), { relative: true }) : undefined;
 		const label = treeItemLabel ? treeItemLabel.label : undefined;
 		const matches = treeItemLabel && treeItemLabel.highlights ? treeItemLabel.highlights.map(([start, end]) => ({ start, end })) : undefined;

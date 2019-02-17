@@ -8,7 +8,7 @@ import * as collections from 'vs/base/common/collections';
 import * as glob from 'vs/base/common/glob';
 import { untildify } from 'vs/base/common/labels';
 import { values } from 'vs/base/common/map';
-import * as path from 'vs/base/common/paths.node';
+import * as path from 'vs/base/common/path';
 import { isEqual } from 'vs/base/common/resources';
 import * as strings from 'vs/base/common/strings';
 import { URI as uri } from 'vs/base/common/uri';

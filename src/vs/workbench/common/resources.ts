@@ -4,11 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import * as paths from 'vs/base/common/paths';
 import * as objects from 'vs/base/common/objects';
 import { Event, Emitter } from 'vs/base/common/event';
-import { relative } from 'vs/base/common/paths.node';
-import { basename, extname } from 'vs/base/common/resources';
+import { basename, extname, relativePath } from 'vs/base/common/resources';
 import { RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -197,9 +195,9 @@ export class ResourceGlobMatcher extends Disposable {
 		// but can match on "src/file.txt"
 		let resourcePathToMatch: string;
 		if (folder) {
-			resourcePathToMatch = paths.normalize(relative(folder.uri.fsPath, resource.fsPath));
+			resourcePathToMatch = relativePath(folder.uri, resource)!; // always uses forward slashes
 		} else {
-			resourcePathToMatch = resource.fsPath;
+			resourcePathToMatch = resource.fsPath; // TODO@isidor: support non-file URIs
 		}
 
 		return !!expressionForRoot(resourcePathToMatch);

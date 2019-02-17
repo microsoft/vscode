@@ -358,6 +358,10 @@ export class FindInput extends Widget {
 			this._onCaseSensitiveKeyDown.fire(e);
 		}));
 
+		if (this._showOptionButtons) {
+			this.inputBox.inputElement.style.paddingRight = (this.caseSensitive.width() + this.wholeWords.width() + this.regex.width()) + 'px';
+		}
+
 		// Arrow-Key support to navigate between options
 		let indexes = [this.caseSensitive.domNode, this.wholeWords.domNode, this.regex.domNode];
 		this.onkeydown(this.domNode, (event: IKeyboardEvent) => {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as os from 'os';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
 import pkg from 'vs/platform/node/package';
 import { URI as Uri } from 'vs/base/common/uri';

@@ -371,6 +371,11 @@ const editorConfiguration: IConfigurationNode = {
 			'description': nls.localize('find.globalFindClipboard', "Controls whether the Find Widget should read or modify the shared find clipboard on macOS."),
 			'included': platform.isMacintosh
 		},
+		'editor.find.addExtraSpaceOnTop': {
+			'type': 'boolean',
+			'default': true,
+			'description': nls.localize('find.addExtraSpaceOnTop', "Controls whether the Find Widget should add extra lines on top of the editor. When true, you can scroll beyond the first line when the Find Widget is visible.")
+		},
 		'editor.wordWrap': {
 			'type': 'string',
 			'enum': ['off', 'on', 'wordWrapColumn', 'bounded'],
@@ -831,6 +836,11 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.lightbulbEnabled,
 			'description': nls.localize('codeActions', "Enables the code action lightbulb in the editor.")
+		},
+		'editor.maxTokenizationLineLength': {
+			'type': 'integer',
+			'default': 20_000,
+			'description': nls.localize('maxTokenizationLineLength', "Lines above this length will not be tokenized for performance reasons")
 		},
 		'editor.codeActionsOnSave': {
 			'type': 'object',

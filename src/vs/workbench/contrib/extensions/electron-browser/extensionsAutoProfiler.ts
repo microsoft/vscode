@@ -11,7 +11,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { tmpdir } from 'os';
-import { join } from 'path';
+import { join } from 'vs/base/common/path';
 import { writeFile } from 'vs/base/node/pfs';
 import { IExtensionHostProfileService, ReportExtensionIssueAction } from 'vs/workbench/contrib/extensions/electron-browser/runtimeExtensionsEditor';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';

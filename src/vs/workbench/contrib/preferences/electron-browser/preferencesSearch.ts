@@ -290,8 +290,8 @@ class RemoteSearchProvider implements ISearchProvider {
 					const defaultValue = value ? JSON.parse(value) : value;
 
 					const packageName = r['packagename'];
-					let extensionName: string;
-					let extensionPublisher: string;
+					let extensionName: string | undefined;
+					let extensionPublisher: string | undefined;
 					if (packageName && packageName.indexOf('##') >= 0) {
 						[extensionPublisher, extensionName] = packageName.split('##');
 					}

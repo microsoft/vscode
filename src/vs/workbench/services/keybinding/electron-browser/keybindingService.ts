@@ -15,7 +15,7 @@ import { Keybinding, ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { ConfigWatcher } from 'vs/base/node/config';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Extensions as ConfigExtensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -279,6 +279,8 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		@IWindowService private readonly windowService: IWindowService
 	) {
 		super(contextKeyService, commandService, telemetryService, notificationService, statusBarService);
+
+		updateSchema();
 
 		let dispatchConfig = getDispatchConfig(configurationService);
 		configurationService.onDidChangeConfiguration((e) => {
@@ -569,10 +571,29 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 }
 
 let schemaId = 'vscode://schemas/keybindings';
+let commandsSchemas: IJSONSchema[] = [];
 let schema: IJSONSchema = {
 	'id': schemaId,
 	'type': 'array',
 	'title': nls.localize('keybindings.json.title', "Keybindings configuration"),
+	'definitions': {
+		'editorGroupsSchema': {
+			'type': 'array',
+			'items': {
+				'type': 'object',
+				'properties': {
+					'groups': {
+						'$ref': '#/definitions/editorGroupsSchema',
+						'default': [{}, {}]
+					},
+					'size': {
+						'type': 'number',
+						'default': 0.5
+					}
+				}
+			}
+		}
+	},
 	'items': {
 		'required': ['key'],
 		'type': 'object',
@@ -593,12 +614,39 @@ let schema: IJSONSchema = {
 			'args': {
 				'description': nls.localize('keybindings.json.args', "Arguments to pass to the command to execute.")
 			}
-		}
+		},
+		'allOf': commandsSchemas
 	}
 };
 
 let schemaRegistry = Registry.as<IJSONContributionRegistry>(Extensions.JSONContribution);
 schemaRegistry.registerSchema(schemaId, schema);
+
+function updateSchema() {
+	const allCommands = CommandsRegistry.getCommands();
+	for (let commandId in allCommands) {
+		const commandDescription = allCommands[commandId].description;
+		if (!commandDescription || !commandDescription.args || commandDescription.args.length !== 1 || !commandDescription.args[0].schema) {
+			continue;
+		}
+
+		const argsSchema = commandDescription.args[0].schema;
+		const addition = {
+			'if': {
+				'properties': {
+					'command': { 'const': commandId }
+				}
+			},
+			'then': {
+				'properties': {
+					'args': argsSchema
+				}
+			}
+		};
+
+		commandsSchemas.push(addition);
+	}
+}
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigExtensions.Configuration);
 const keyboardConfiguration: IConfigurationNode = {

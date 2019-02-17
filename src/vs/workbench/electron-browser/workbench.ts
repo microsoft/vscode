@@ -59,7 +59,7 @@ import { ProgressService2 } from 'vs/workbench/services/progress/browser/progres
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { LifecyclePhase, StartupKind, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase, StartupKind, ILifecycleService, WillShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWindowService, IWindowConfiguration, IPath, MenuBarVisibility, getTitleBarStyle, IWindowsService } from 'vs/platform/windows/common/windows';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IMenuService, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
@@ -146,7 +146,7 @@ import { WorkspaceService, DefaultConfigurationExportHelper } from 'vs/workbench
 import { JSONEditingService } from 'vs/workbench/services/configuration/node/jsonEditingService';
 import { WorkspaceEditingService } from 'vs/workbench/services/workspace/node/workspaceEditingService';
 import { IPCClient, getDelayedChannel } from 'vs/base/parts/ipc/node/ipc';
-import { LogStorageAction, StorageService } from 'vs/platform/storage/node/storageService';
+import { LogStorageAction } from 'vs/platform/storage/node/storageService';
 import { HashService } from 'vs/workbench/services/hash/node/hashService';
 import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
 import { DialogChannel } from 'vs/platform/dialogs/node/dialogIpc';
@@ -175,7 +175,7 @@ import { LifecycleService } from 'vs/platform/lifecycle/electron-browser/lifecyc
 import { ToggleDevToolsAction } from 'vs/workbench/electron-browser/actions/developerActions';
 import { registerWindowDriver } from 'vs/platform/driver/electron-browser/driver';
 import { IExtensionUrlHandler, ExtensionUrlHandler } from 'vs/workbench/services/extensions/electron-browser/inactiveExtensionUrlHandler';
-import { WorkbenchThemeService } from 'vs/workbench/services/themes/electron-browser/workbenchThemeService';
+import { WorkbenchThemeService } from 'vs/workbench/services/themes/browser/workbenchThemeService';
 import { DialogService, FileDialogService } from 'vs/workbench/services/dialogs/electron-browser/dialogService';
 import { ShowPreviousWindowTab, MoveWindowTabToNewWindow, MergeAllWindowTabs, ShowNextWindowTab, ToggleWindowTabsBar, NewWindowTab, OpenRecentAction, ReloadWindowAction, ReloadWindowWithExtensionsDisabledAction } from 'vs/workbench/electron-browser/actions/windowActions';
 import { IBroadcastService, BroadcastService } from 'vs/workbench/services/broadcast/electron-browser/broadcastService';
@@ -260,6 +260,12 @@ export class Workbench extends Disposable implements IPartService {
 	private static readonly closeWhenEmptyConfigurationKey = 'window.closeWhenEmpty';
 	private static readonly fontAliasingConfigurationKey = 'workbench.fontAliasing';
 
+	private readonly _onShutdown = this._register(new Emitter<void>());
+	get onShutdown(): Event<void> { return this._onShutdown.event; }
+
+	private readonly _onWillShutdown = this._register(new Emitter<WillShutdownEvent>());
+	get onWillShutdown(): Event<WillShutdownEvent> { return this._onWillShutdown.event; }
+
 	_serviceBrand: any;
 
 	private previousErrorValue: string;
@@ -336,7 +342,7 @@ export class Workbench extends Disposable implements IPartService {
 		private mainProcessClient: IPCClient,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IStorageService private readonly storageService: StorageService,
+		@IStorageService private readonly storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: WorkspaceService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@ILogService private readonly logService: ILogService,
@@ -346,10 +352,10 @@ export class Workbench extends Disposable implements IPartService {
 
 		this.workbenchParams = { configuration, serviceCollection };
 
-		this.hasInitialFilesToOpen =
+		this.hasInitialFilesToOpen = !!(
 			(configuration.filesToCreate && configuration.filesToCreate.length > 0) ||
 			(configuration.filesToOpen && configuration.filesToOpen.length > 0) ||
-			(configuration.filesToDiff && configuration.filesToDiff.length > 0);
+			(configuration.filesToDiff && configuration.filesToDiff.length > 0));
 
 		this.registerErrorHandler();
 	}
@@ -405,6 +411,9 @@ export class Workbench extends Disposable implements IPartService {
 
 	private doStartup(): Promise<void> {
 		this.workbenchStarted = true;
+
+		// Logging
+		this.logService.trace('workbench configuration', JSON.stringify(this.configuration));
 
 		// ARIA
 		setARIAContainer(document.body);
@@ -550,8 +559,11 @@ export class Workbench extends Disposable implements IPartService {
 
 		serviceCollection.set(ILifecycleService, this.lifecycleService);
 
-		this._register(this.lifecycleService.onWillShutdown(event => event.join(this.storageService.close())));
-		this._register(this.lifecycleService.onShutdown(() => this.dispose()));
+		this._register(this.lifecycleService.onWillShutdown(event => this._onWillShutdown.fire(event)));
+		this._register(this.lifecycleService.onShutdown(() => {
+			this._onShutdown.fire();
+			this.dispose();
+		}));
 
 		// Request Service
 		serviceCollection.set(IRequestService, new SyncDescriptor(RequestService, undefined, true));
@@ -775,7 +787,7 @@ export class Workbench extends Disposable implements IPartService {
 
 		this.instantiationService.createInstance(DefaultConfigurationExportHelper);
 
-		this.configurationService.acquireInstantiationService(this.getInstantiationService());
+		this.configurationService.acquireInstantiationService(this.instantiationService);
 	}
 
 	//#region event handling
@@ -932,7 +944,7 @@ export class Workbench extends Disposable implements IPartService {
 		}
 
 		const newMenubarVisibility = this.configurationService.getValue<MenuBarVisibility>(Workbench.menubarVisibilityConfigurationKey);
-		this.setMenubarVisibility(newMenubarVisibility, skipLayout);
+		this.setMenubarVisibility(newMenubarVisibility, !!skipLayout);
 	}
 
 	//#endregion
@@ -964,7 +976,7 @@ export class Workbench extends Disposable implements IPartService {
 			const activeControl = this.editorService.activeControl;
 			const visibleEditors = this.editorService.visibleControls;
 
-			textCompareEditorActive.set(activeControl && activeControl.getId() === TEXT_DIFF_EDITOR_ID);
+			textCompareEditorActive.set(!!activeControl && activeControl.getId() === TEXT_DIFF_EDITOR_ID);
 			textCompareEditorVisible.set(visibleEditors.some(control => control.getId() === TEXT_DIFF_EDITOR_ID));
 
 			if (visibleEditors.length > 0) {
@@ -1001,7 +1013,7 @@ export class Workbench extends Disposable implements IPartService {
 		const inputFocused = InputFocusedContext.bindTo(this.contextKeyService);
 
 		function activeElementIsInput(): boolean {
-			return document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA');
+			return !!document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA');
 		}
 
 		function trackInputFocus(): void {
@@ -1073,7 +1085,7 @@ export class Workbench extends Disposable implements IPartService {
 		}).then(() => mark('didRestoreEditors')));
 
 		// Restore Sidebar
-		let viewletIdToRestore: string;
+		let viewletIdToRestore: string | undefined;
 		if (!this.sideBarHidden) {
 			this.sideBarVisibleContext.set(true);
 
@@ -1543,10 +1555,6 @@ export class Workbench extends Disposable implements IPartService {
 		registerNotificationCommands(this.notificationsCenter, this.notificationsToasts);
 	}
 
-	getInstantiationService(): IInstantiationService {
-		return this.instantiationService;
-	}
-
 	private saveState(e: IWillSaveStateEvent): void {
 		if (this.zenMode.active) {
 			this.storageService.store(Workbench.zenModeActiveStorageKey, true, StorageScope.WORKSPACE);
@@ -1644,13 +1652,13 @@ export class Workbench extends Disposable implements IPartService {
 		let offset = 0;
 		if (this.isVisible(Parts.TITLEBAR_PART)) {
 			if (this.workbenchGrid instanceof Grid) {
-				offset = this.gridHasView(this.titlebarPartView) ? this.workbenchGrid.getViewSize2(this.titlebarPartView).height : 0;
+				offset = this.titlebarPart.maximumHeight;
 			} else {
 				offset = this.workbenchGrid.partLayoutInfo.titlebar.height;
-			}
 
-			if (isMacintosh || this.menubarVisibility === 'hidden') {
-				offset /= getZoomFactor();
+				if (isMacintosh || this.menubarVisibility === 'hidden') {
+					offset /= getZoomFactor();
+				}
 			}
 		}
 

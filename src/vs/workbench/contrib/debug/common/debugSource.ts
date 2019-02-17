@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { URI as uri } from 'vs/base/common/uri';
-import { normalize, isAbsolute } from 'vs/base/common/paths.node';
+import { normalize, isAbsolute } from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import { DEBUG_SCHEME } from 'vs/workbench/contrib/debug/common/debug';
 import { IRange } from 'vs/editor/common/core/range';

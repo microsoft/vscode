@@ -227,7 +227,7 @@ export class FileDialogService implements IFileDialogService {
 		if (schema !== Schemas.file) {
 			const title = nls.localize('openFileOrFolder.title', 'Open File Or Folder');
 			const availableFileSystems = [schema, Schemas.file]; // always allow file as well
-			return this.pickRemoteResourceAndOpen({ canSelectFiles: true, canSelectFolders: true, canSelectMany: false, defaultUri: options.defaultUri, title, availableFileSystems }, options.forceNewWindow, true);
+			return this.pickRemoteResourceAndOpen({ canSelectFiles: true, canSelectFolders: true, canSelectMany: false, defaultUri: options.defaultUri, title, availableFileSystems }, !!options.forceNewWindow, true);
 		}
 
 		return this.windowService.pickFileFolderAndOpen(this.toNativeOpenDialogOptions(options));
@@ -243,7 +243,7 @@ export class FileDialogService implements IFileDialogService {
 		if (schema !== Schemas.file) {
 			const title = nls.localize('openFile.title', 'Open File');
 			const availableFileSystems = [schema, Schemas.file]; // always allow file as well
-			return this.pickRemoteResourceAndOpen({ canSelectFiles: true, canSelectFolders: false, canSelectMany: false, defaultUri: options.defaultUri, title, availableFileSystems }, options.forceNewWindow, true);
+			return this.pickRemoteResourceAndOpen({ canSelectFiles: true, canSelectFolders: false, canSelectMany: false, defaultUri: options.defaultUri, title, availableFileSystems }, !!options.forceNewWindow, true);
 		}
 
 		return this.windowService.pickFileAndOpen(this.toNativeOpenDialogOptions(options));
@@ -259,7 +259,7 @@ export class FileDialogService implements IFileDialogService {
 		if (schema !== Schemas.file) {
 			const title = nls.localize('openFolder.title', 'Open Folder');
 			const availableFileSystems = [schema, Schemas.file]; // always allow file as well
-			return this.pickRemoteResourceAndOpen({ canSelectFiles: false, canSelectFolders: true, canSelectMany: false, defaultUri: options.defaultUri, title, availableFileSystems }, options.forceNewWindow, false);
+			return this.pickRemoteResourceAndOpen({ canSelectFiles: false, canSelectFolders: true, canSelectMany: false, defaultUri: options.defaultUri, title, availableFileSystems }, !!options.forceNewWindow, false);
 		}
 
 		return this.windowService.pickFolderAndOpen(this.toNativeOpenDialogOptions(options));
@@ -276,7 +276,7 @@ export class FileDialogService implements IFileDialogService {
 			const title = nls.localize('openWorkspace.title', 'Open Workspace');
 			const filters: FileFilter[] = [{ name: nls.localize('filterName.workspace', 'Workspace'), extensions: [WORKSPACE_EXTENSION] }];
 			const availableFileSystems = [schema, Schemas.file]; // always allow file as well
-			return this.pickRemoteResourceAndOpen({ canSelectFiles: true, canSelectFolders: false, canSelectMany: false, defaultUri: options.defaultUri, title, filters, availableFileSystems }, options.forceNewWindow, false);
+			return this.pickRemoteResourceAndOpen({ canSelectFiles: true, canSelectFolders: false, canSelectMany: false, defaultUri: options.defaultUri, title, filters, availableFileSystems }, !!options.forceNewWindow, false);
 
 		}
 
@@ -295,6 +295,7 @@ export class FileDialogService implements IFileDialogService {
 	showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
 		const schema = this.getFileSystemSchema(options);
 		if (schema !== Schemas.file) {
+			options.availableFileSystems = [schema, Schemas.file]; // always allow file as well
 			return this.saveRemoteResource(options);
 		}
 

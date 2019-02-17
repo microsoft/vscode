@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { basename, posix, extname } from 'vs/base/common/paths.node';
+import { basename, posix, extname } from 'vs/base/common/path';
 import { endsWith, startsWithUTF8BOM, startsWith } from 'vs/base/common/strings';
 import { coalesce } from 'vs/base/common/arrays';
 import { match } from 'vs/base/common/glob';

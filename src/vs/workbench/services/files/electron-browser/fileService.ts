@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as paths from 'path';
+import * as paths from 'vs/base/common/path';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as crypto from 'crypto';
 import * as assert from 'assert';
 import { isParent, FileOperation, FileOperationEvent, IContent, IFileService, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IUpdateContentOptions, FileChangeType, FileChangesEvent, ICreateFileOptions, IContentData, ITextSnapshot, IFilesConfiguration, IFileSystemProviderRegistrationEvent, IFileSystemProvider } from 'vs/platform/files/common/files';
 import { MAX_FILE_SIZE, MAX_HEAP_SIZE } from 'vs/platform/files/node/files';
-import { isEqualOrParent } from 'vs/base/common/paths';
+import { isEqualOrParent } from 'vs/base/common/extpath';
 import { ResourceMap } from 'vs/base/common/map';
 import * as arrays from 'vs/base/common/arrays';
 import * as objects from 'vs/base/common/objects';
@@ -311,7 +311,7 @@ export class FileService extends Disposable implements IFileService {
 
 			// Return early if file is too large to load
 			if (typeof stat.size === 'number') {
-				if (stat.size > Math.max(this.environmentService.args['max-memory'] * 1024 * 1024 || 0, MAX_HEAP_SIZE)) {
+				if (stat.size > Math.max(parseInt(this.environmentService.args['max-memory']) * 1024 * 1024 || 0, MAX_HEAP_SIZE)) {
 					return onStatError(new FileOperationError(
 						nls.localize('fileTooLargeForHeapError', "To open a file of this size, you need to restart VS Code and allow it to use more memory"),
 						FileOperationResult.FILE_EXCEED_MEMORY_LIMIT
@@ -485,7 +485,7 @@ export class FileService extends Disposable implements IFileService {
 							currentPosition += bytesRead;
 						}
 
-						if (totalBytesRead > Math.max(this.environmentService.args['max-memory'] * 1024 * 1024 || 0, MAX_HEAP_SIZE)) {
+						if (totalBytesRead > Math.max(parseInt(this.environmentService.args['max-memory']) * 1024 * 1024 || 0, MAX_HEAP_SIZE)) {
 							finish(new FileOperationError(
 								nls.localize('fileTooLargeForHeapError', "To open a file of this size, you need to restart VS Code and allow it to use more memory"),
 								FileOperationResult.FILE_EXCEED_MEMORY_LIMIT
@@ -839,11 +839,11 @@ export class FileService extends Disposable implements IFileService {
 	}
 
 	moveFile(source: uri, target: uri, overwrite?: boolean): Promise<IFileStat> {
-		return this.moveOrCopyFile(source, target, false, overwrite);
+		return this.moveOrCopyFile(source, target, false, !!overwrite);
 	}
 
 	copyFile(source: uri, target: uri, overwrite?: boolean): Promise<IFileStat> {
-		return this.moveOrCopyFile(source, target, true, overwrite);
+		return this.moveOrCopyFile(source, target, true, !!overwrite);
 	}
 
 	private moveOrCopyFile(source: uri, target: uri, keepCopy: boolean, overwrite: boolean): Promise<IFileStat> {
@@ -915,7 +915,7 @@ export class FileService extends Disposable implements IFileService {
 			return this.doMoveItemToTrash(resource);
 		}
 
-		return this.doDelete(resource, options && options.recursive);
+		return this.doDelete(resource, !!(options && options.recursive));
 	}
 
 	private doMoveItemToTrash(resource: uri): Promise<void> {

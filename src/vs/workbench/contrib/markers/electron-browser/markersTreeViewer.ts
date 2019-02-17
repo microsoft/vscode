@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import * as network from 'vs/base/common/network';
-import * as paths from 'vs/base/common/paths.node';
+import * as paths from 'vs/base/common/path';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
@@ -303,7 +303,7 @@ class MarkerWidget extends Disposable {
 		const viewModel = this.markersViewModel.getViewModel(marker);
 		const multiline = viewModel && viewModel.multiline;
 		const action = new Action('problems.action.toggleMultiline');
-		action.enabled = viewModel && marker.lines.length > 1;
+		action.enabled = !!viewModel && marker.lines.length > 1;
 		action.tooltip = multiline ? localize('single line', "Show message in single line") : localize('multi line', "Show message in multiple lines");
 		action.class = multiline ? 'octicon octicon-chevron-up' : 'octicon octicon-chevron-down';
 		action.run = () => { if (viewModel) { viewModel.multiline = !viewModel.multiline; } return Promise.resolve(); };

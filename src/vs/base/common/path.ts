@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// extracted from nodejs commit 'https://github.com/nodejs/node/tree/43dd49c9782848c25e5b03448c8a0f923f13c158'
+// NOTE: VSCode's copy of nodejs path library to be usable in common (non-node) namespace
+// Copied from: https://github.com/nodejs/node/tree/43dd49c9782848c25e5b03448c8a0f923f13c158
 
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -178,6 +179,14 @@ function _format(sep, pathObject) {
 	return dir + sep + base;
 }
 
+interface ParsedPath {
+	root: string;
+	dir: string;
+	base: string;
+	ext: string;
+	name: string;
+}
+
 interface IPath {
 	normalize(path: string): string;
 	isAbsolute(path: string): boolean;
@@ -188,9 +197,9 @@ interface IPath {
 	basename(path: string, ext?: string): string;
 	extname(path: string): string;
 	format(pathObject): string;
-	parse(path: string): object;
+	parse(path: string): ParsedPath;
 	toNamespacedPath(path: string): string;
-	sep: string;
+	sep: '\\' | '/';
 	delimiter: string;
 	win32: IPath | null;
 	posix: IPath | null;
@@ -1572,7 +1581,7 @@ const posix: IPath = {
 		return _format('/', pathObject);
 	},
 
-	parse(path: string): object {
+	parse(path: string): ParsedPath {
 		validateString(path, 'path');
 
 		let ret = { root: '', dir: '', base: '', ext: '', name: '' };

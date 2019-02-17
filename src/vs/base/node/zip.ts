@@ -4,21 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import { createWriteStream, WriteStream } from 'fs';
 import { Readable } from 'stream';
 import { nfcall, ninvoke, Sequencer, createCancelablePromise } from 'vs/base/common/async';
 import { mkdirp, rimraf } from 'vs/base/node/pfs';
 import { open as _openZip, Entry, ZipFile } from 'yauzl';
 import * as yazl from 'yazl';
-import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 
 export interface IExtractOptions {
 	overwrite?: boolean;
 
-	/**
+	/**	
 	 * Source path within the ZIP archive. Only the files contained in this
 	 * path will be extracted.
 	 */
@@ -104,12 +103,11 @@ function extractEntry(stream: Readable, fileName: string, mode: number, targetPa
 	}));
 }
 
-function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, logService: ILogService, token: CancellationToken): Promise<void> {
+function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, token: CancellationToken): Promise<void> {
 	let last = createCancelablePromise<void>(() => Promise.resolve());
 	let extractedEntriesCount = 0;
 
 	Event.once(token.onCancellationRequested)(() => {
-		logService.debug(targetPath, 'Cancelled.');
 		last.cancel();
 		zipfile.close();
 	});
@@ -195,7 +193,7 @@ export function zip(zipPath: string, files: IFile[]): Promise<string> {
 	});
 }
 
-export function extract(zipPath: string, targetPath: string, options: IExtractOptions = {}, logService: ILogService, token: CancellationToken): Promise<void> {
+export function extract(zipPath: string, targetPath: string, options: IExtractOptions = {}, token: CancellationToken): Promise<void> {
 	const sourcePathRegex = new RegExp(options.sourcePath ? `^${options.sourcePath}` : '');
 
 	let promise = openZip(zipPath, true);
@@ -204,7 +202,7 @@ export function extract(zipPath: string, targetPath: string, options: IExtractOp
 		promise = promise.then(zipfile => rimraf(targetPath).then(() => zipfile));
 	}
 
-	return promise.then(zipfile => extractZip(zipfile, targetPath, { sourcePathRegex }, logService, token));
+	return promise.then(zipfile => extractZip(zipfile, targetPath, { sourcePathRegex }, token));
 }
 
 function read(zipPath: string, filePath: string): Promise<Readable> {

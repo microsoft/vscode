@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as crypto from 'crypto';
-import { relative } from 'path';
+import { relative } from 'vs/base/common/path';
 import { coalesce, equals } from 'vs/base/common/arrays';
 import { illegalArgument } from 'vs/base/common/errors';
 import { IRelativePattern } from 'vs/base/common/glob';
@@ -428,6 +428,24 @@ export class Selection extends Range {
 			active: this.active,
 			anchor: this.anchor
 		};
+	}
+}
+
+export class ResolvedAuthority {
+	readonly host: string;
+	readonly port: number;
+	debugListenPort?: number;
+	debugConnectPort?: number;
+
+	constructor(host: string, port: number) {
+		if (typeof host !== 'string' || host.length === 0) {
+			throw illegalArgument('host');
+		}
+		if (typeof port !== 'number' || port === 0 || Math.round(port) !== port) {
+			throw illegalArgument('port');
+		}
+		this.host = host;
+		this.port = Math.round(port);
 	}
 }
 
@@ -1041,15 +1059,15 @@ export class CodeAction {
 export class CodeActionKind {
 	private static readonly sep = '.';
 
-	public static readonly Empty = new CodeActionKind('');
-	public static readonly QuickFix = CodeActionKind.Empty.append('quickfix');
-	public static readonly Refactor = CodeActionKind.Empty.append('refactor');
-	public static readonly RefactorExtract = CodeActionKind.Refactor.append('extract');
-	public static readonly RefactorInline = CodeActionKind.Refactor.append('inline');
-	public static readonly RefactorRewrite = CodeActionKind.Refactor.append('rewrite');
-	public static readonly Source = CodeActionKind.Empty.append('source');
-	public static readonly SourceOrganizeImports = CodeActionKind.Source.append('organizeImports');
-	public static readonly SourceFixAll = CodeActionKind.Source.append('fixAll');
+	public static Empty;
+	public static QuickFix;
+	public static Refactor;
+	public static RefactorExtract;
+	public static RefactorInline;
+	public static RefactorRewrite;
+	public static Source;
+	public static SourceOrganizeImports;
+	public static SourceFixAll;
 
 	constructor(
 		public readonly value: string
@@ -1067,6 +1085,15 @@ export class CodeActionKind {
 		return this.value === other.value || startsWith(other.value, this.value + CodeActionKind.sep);
 	}
 }
+CodeActionKind.Empty = new CodeActionKind('');
+CodeActionKind.QuickFix = CodeActionKind.Empty.append('quickfix');
+CodeActionKind.Refactor = CodeActionKind.Empty.append('refactor');
+CodeActionKind.RefactorExtract = CodeActionKind.Refactor.append('extract');
+CodeActionKind.RefactorInline = CodeActionKind.Refactor.append('inline');
+CodeActionKind.RefactorRewrite = CodeActionKind.Refactor.append('rewrite');
+CodeActionKind.Source = CodeActionKind.Empty.append('source');
+CodeActionKind.SourceOrganizeImports = CodeActionKind.Source.append('organizeImports');
+CodeActionKind.SourceFixAll = CodeActionKind.Source.append('fixAll');
 
 @es5ClassCompat
 export class SelectionRangeKind {
@@ -1117,6 +1144,19 @@ export class CodeLens {
 		return !!this.command;
 	}
 }
+
+
+export class CodeInset {
+
+	range: Range;
+	height?: number;
+
+	constructor(range: Range, height?: number) {
+		this.range = range;
+		this.height = height;
+	}
+}
+
 
 @es5ClassCompat
 export class MarkdownString {
@@ -1967,17 +2007,21 @@ export enum TreeItemCollapsibleState {
 	Expanded = 2
 }
 
+@es5ClassCompat
 export class ThemeIcon {
-	static readonly File = new ThemeIcon('file');
 
-	static readonly Folder = new ThemeIcon('folder');
+	static File: ThemeIcon;
+	static Folder: ThemeIcon;
 
 	readonly id: string;
 
-	private constructor(id: string) {
+	constructor(id: string) {
 		this.id = id;
 	}
 }
+ThemeIcon.File = new ThemeIcon('file');
+ThemeIcon.Folder = new ThemeIcon('folder');
+
 
 @es5ClassCompat
 export class ThemeColor {

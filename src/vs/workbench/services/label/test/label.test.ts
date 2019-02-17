@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { TestEnvironmentService, TestContextService, TestWindowService } from 'vs/workbench/test/workbenchTestServices';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { URI } from 'vs/base/common/uri';
-import { sep } from 'vs/base/common/paths.node';
+import { sep } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 
@@ -24,7 +24,7 @@ suite('URI Label', () => {
 			scheme: 'file',
 			formatting: {
 				label: '${path}',
-				separator: sep === '/' ? '/' : '\\',
+				separator: sep,
 				tildify: !isWindows,
 				normalizeDriveLetter: isWindows
 			}

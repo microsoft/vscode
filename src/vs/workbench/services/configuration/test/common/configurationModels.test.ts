@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { join } from 'vs/base/common/paths';
+import { join } from 'vs/base/common/extpath';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { FolderSettingsModelParser, WorkspaceConfigurationChangeEvent, StandaloneConfigurationModelParser, AllKeysConfigurationChangeEvent, Configuration } from 'vs/workbench/services/configuration/common/configurationModels';
 import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';

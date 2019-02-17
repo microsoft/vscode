@@ -19,9 +19,9 @@ import { ITheme, Extensions as ThemingExtensions, IThemingRegistry } from 'vs/pl
 import { Event, Emitter } from 'vs/base/common/event';
 import { registerFileIconThemeSchemas } from 'vs/workbench/services/themes/common/fileIconThemeSchema';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { ColorThemeStore } from 'vs/workbench/services/themes/electron-browser/colorThemeStore';
-import { FileIconThemeStore } from 'vs/workbench/services/themes/electron-browser/fileIconThemeStore';
-import { FileIconThemeData } from 'vs/workbench/services/themes/electron-browser/fileIconThemeData';
+import { ColorThemeStore } from 'vs/workbench/services/themes/browser/colorThemeStore';
+import { FileIconThemeStore } from 'vs/workbench/services/themes/common/fileIconThemeStore';
+import { FileIconThemeData } from 'vs/workbench/services/themes/common/fileIconThemeData';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { removeClasses, addClasses } from 'vs/base/browser/dom';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';

@@ -11,7 +11,7 @@ import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { ITreeNode, ITreeRenderer, ITreeDragAndDrop, ITreeDragOverReaction } from 'vs/base/browser/ui/tree/tree';
 import { IAction } from 'vs/base/common/actions';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
-import * as paths from 'vs/base/common/paths.node';
+import * as paths from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -135,7 +135,7 @@ export class FolderMatchRenderer extends Disposable implements ITreeRenderer<Fol
 			actions.push(this.instantiationService.createInstance(ReplaceAllInFolderAction, this.searchView.getControl(), folderMatch));
 		}
 
-		actions.push(new RemoveAction(this.searchView, this.searchView.getControl(), folderMatch));
+		actions.push(new RemoveAction(this.searchView.getControl(), folderMatch));
 		templateData.actions.push(actions, { icon: true, label: false });
 	}
 
@@ -197,7 +197,7 @@ export class FileMatchRenderer extends Disposable implements ITreeRenderer<FileM
 		if (this.searchModel.isReplaceActive() && count > 0) {
 			actions.push(this.instantiationService.createInstance(ReplaceAllAction, this.searchView, fileMatch));
 		}
-		actions.push(new RemoveAction(this.searchView, this.searchView.getControl(), fileMatch));
+		actions.push(new RemoveAction(this.searchView.getControl(), fileMatch));
 		templateData.actions.push(actions, { icon: true, label: false });
 	}
 
@@ -271,9 +271,9 @@ export class MatchRenderer extends Disposable implements ITreeRenderer<Match, vo
 
 		templateData.actions.clear();
 		if (this.searchModel.isReplaceActive()) {
-			templateData.actions.push([this.instantiationService.createInstance(ReplaceAction, this.searchView.getControl(), match, this.searchView), new RemoveAction(this.searchView, this.searchView.getControl(), match)], { icon: true, label: false });
+			templateData.actions.push([this.instantiationService.createInstance(ReplaceAction, this.searchView.getControl(), match, this.searchView), new RemoveAction(this.searchView.getControl(), match)], { icon: true, label: false });
 		} else {
-			templateData.actions.push([new RemoveAction(this.searchView, this.searchView.getControl(), match)], { icon: true, label: false });
+			templateData.actions.push([new RemoveAction(this.searchView.getControl(), match)], { icon: true, label: false });
 		}
 	}
 
@@ -308,8 +308,8 @@ export class SearchAccessibilityProvider implements IAccessibilityProvider<Rende
 	) {
 	}
 
-	getAriaLabel(element: RenderableMatch): string {
-		if (element instanceof FolderMatch) {
+	getAriaLabel(element: RenderableMatch): string | null {
+		if (element instanceof BaseFolderMatch) {
 			return element.hasResource() ?
 				nls.localize('folderMatchAriaLabel', "{0} matches in folder root {1}, Search result", element.count(), element.name()) :
 				nls.localize('otherFilesAriaLabel', "{0} matches outside of the workspace, Search result", element.count());
@@ -334,7 +334,7 @@ export class SearchAccessibilityProvider implements IAccessibilityProvider<Rende
 
 			return nls.localize('searchResultAria', "Found term {0} at column position {1} in line with text {2}", matchString, range.startColumn + 1, matchText);
 		}
-		return undefined;
+		return null;
 	}
 }
 

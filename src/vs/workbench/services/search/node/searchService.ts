@@ -60,6 +60,8 @@ export class SearchService extends Disposable implements ISearchService {
 			list = this.textSearchProviders;
 		} else if (type === SearchProviderType.fileIndex) {
 			list = this.fileIndexProviders;
+		} else {
+			throw new Error('Unknown SearchProviderType');
 		}
 
 		list.set(scheme, provider);
@@ -321,7 +323,7 @@ export class SearchService extends Disposable implements ISearchService {
 				});
 			}
 		} else if (query.type === QueryType.Text) {
-			let errorType: string;
+			let errorType: string | undefined;
 			if (err) {
 				errorType = err.code === SearchErrorCode.regexParseError ? 'regex' :
 					err.code === SearchErrorCode.unknownEncoding ? 'encoding' :

@@ -598,7 +598,7 @@ export class FolderMatch extends BaseFolderMatch {
  * and their sort order is undefined.
  */
 export function searchMatchComparer(elementA: RenderableMatch, elementB: RenderableMatch): number {
-	if (elementA instanceof FolderMatch && elementB instanceof FolderMatch) {
+	if (elementA instanceof BaseFolderMatch && elementB instanceof BaseFolderMatch) {
 		return elementA.index() - elementB.index();
 	}
 

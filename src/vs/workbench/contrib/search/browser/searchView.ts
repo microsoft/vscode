@@ -17,7 +17,6 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Iterator } from 'vs/base/common/iterator';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import * as paths from 'vs/base/common/paths';
 import * as env from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
@@ -56,12 +55,13 @@ import * as Constants from 'vs/workbench/contrib/search/common/constants';
 import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { IReplaceService } from 'vs/workbench/contrib/search/common/replace';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/contrib/search/common/search';
-import { FileMatch, FileMatchOrMatch, FolderMatch, IChangeEvent, ISearchWorkbenchService, Match, RenderableMatch, searchMatchComparer, SearchModel, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
+import { FileMatch, FileMatchOrMatch, FolderMatch, IChangeEvent, ISearchWorkbenchService, Match, RenderableMatch, searchMatchComparer, SearchModel, SearchResult, BaseFolderMatch } from 'vs/workbench/contrib/search/common/searchModel';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPreferencesService, ISettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { relativePath } from 'vs/base/common/resources';
 
 const $ = dom.$;
 
@@ -116,7 +116,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 	private currentSelectedFileMatch: FileMatch;
 
-	private readonly selectCurrentMatchEmitter: Emitter<string>;
+	private readonly selectCurrentMatchEmitter: Emitter<string | undefined>;
 	private delayedRefresh: Delayer<void>;
 	private changedWhileHidden: boolean;
 
@@ -443,7 +443,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			this.tree.setChildren(null, this.createResultIterator(collapseResults));
 		} else {
 			event.elements.forEach(element => {
-				if (element instanceof FolderMatch) {
+				if (element instanceof BaseFolderMatch) {
 					// The folder may or may not be in the tree. Refresh the whole thing.
 					this.tree.setChildren(null, this.createResultIterator(collapseResults));
 					return;
@@ -496,9 +496,9 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		return Iterator.map(matchesIt, r => (<ITreeElement<RenderableMatch>>{ element: r }));
 	}
 
-	private createIterator(match: FolderMatch | FileMatch | SearchResult, collapseResults: ISearchConfigurationProperties['collapseResults']): Iterator<ITreeElement<RenderableMatch>> {
+	private createIterator(match: BaseFolderMatch | FileMatch | SearchResult, collapseResults: ISearchConfigurationProperties['collapseResults']): Iterator<ITreeElement<RenderableMatch>> {
 		return match instanceof SearchResult ? this.createResultIterator(collapseResults) :
-			match instanceof FolderMatch ? this.createFolderIterator(match, collapseResults) :
+			match instanceof BaseFolderMatch ? this.createFolderIterator(match, collapseResults) :
 				this.createFileIterator(match);
 	}
 
@@ -704,7 +704,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	}
 
 	selectNextMatch(): void {
-		const [selected]: RenderableMatch[] = this.tree.getSelection();
+		const [selected] = this.tree.getSelection();
 
 		// Expand the initial selected node, if needed
 		if (selected instanceof FileMatch) {
@@ -742,7 +742,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	}
 
 	selectPreviousMatch(): void {
-		const [selected]: RenderableMatch[] = this.tree.getSelection();
+		const [selected] = this.tree.getSelection();
 		let navigator = this.tree.navigate(selected);
 
 		let prev = navigator.previous();
@@ -757,7 +757,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 				// This is complicated because .last will set the navigator to the last FileMatch,
 				// so expand it and FF to its last child
 				this.tree.expand(prev);
-				let tmp: RenderableMatch;
+				let tmp: RenderableMatch | null;
 				while (tmp = navigator.next()) {
 					prev = tmp;
 				}
@@ -967,7 +967,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		}
 	}
 
-	private getSearchTextFromEditor(allowUnselectedWord: boolean): string {
+	private getSearchTextFromEditor(allowUnselectedWord: boolean): string | null {
 		if (!this.editorService.activeEditor) {
 			return null;
 		}
@@ -985,7 +985,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			}
 		}
 
-		if (!isCodeEditor(activeTextEditorWidget)) {
+		if (!isCodeEditor(activeTextEditorWidget) || !activeTextEditorWidget.hasModel()) {
 			return null;
 		}
 
@@ -1076,16 +1076,16 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		}
 	}
 
-	searchInFolders(resources: URI[], pathToRelative: (from: string, to: string) => string): void {
+	searchInFolders(resources: URI[]): void {
 		const folderPaths: string[] = [];
 		const workspace = this.contextService.getWorkspace();
 
 		if (resources) {
 			resources.forEach(resource => {
-				let folderPath: string;
+				let folderPath: string | undefined;
 				if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
 					// Show relative path from the root for single-root mode
-					folderPath = paths.normalize(pathToRelative(workspace.folders[0].uri.fsPath, resource.fsPath));
+					folderPath = relativePath(workspace.folders[0].uri, resource); // always uses forward slashes
 					if (folderPath && folderPath !== '.') {
 						folderPath = './' + folderPath;
 					}
@@ -1097,14 +1097,14 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 						// If this root is the only one with its basename, use a relative ./ path. If there is another, use an absolute path
 						const isUniqueFolder = workspace.folders.filter(folder => folder.name === owningRootName).length === 1;
 						if (isUniqueFolder) {
-							const relativePath = paths.normalize(pathToRelative(owningFolder.uri.fsPath, resource.fsPath));
-							if (relativePath === '.') {
+							const relPath = relativePath(owningFolder.uri, resource); // always uses forward slashes
+							if (relPath === '') {
 								folderPath = `./${owningFolder.name}`;
 							} else {
 								folderPath = `./${owningFolder.name}/${relativePath}`;
 							}
 						} else {
-							folderPath = resource.fsPath;
+							folderPath = resource.fsPath; // TODO rob: handle on-file URIs
 						}
 					}
 				}

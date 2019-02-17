@@ -85,16 +85,14 @@ export class KeybindingParser {
 			return null;
 		}
 
-		let [firstPart, remains] = this.parseSimpleKeybinding(input);
-		let chordPart: SimpleKeybinding | null = null;
-		if (remains.length > 0) {
-			[chordPart] = this.parseSimpleKeybinding(remains);
-		}
+		let parts: SimpleKeybinding[] = [];
+		let part: SimpleKeybinding;
 
-		if (chordPart) {
-			return new ChordKeybinding(firstPart, chordPart);
-		}
-		return firstPart;
+		do {
+			[part, input] = this.parseSimpleKeybinding(input);
+			parts.push(part);
+		} while (input.length > 0);
+		return new ChordKeybinding(parts);
 	}
 
 	private static parseSimpleUserBinding(input: string): [SimpleKeybinding | ScanCodeBinding, string] {
@@ -110,6 +108,7 @@ export class KeybindingParser {
 	}
 
 	static parseUserBinding(input: string): [SimpleKeybinding | ScanCodeBinding | null, SimpleKeybinding | ScanCodeBinding | null] {
+		// TODO@chords: allow users to define N chords
 		if (!input) {
 			return [null, null];
 		}

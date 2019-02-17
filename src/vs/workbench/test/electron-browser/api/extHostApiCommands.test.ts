@@ -27,10 +27,11 @@ import { MainContext, ExtHostContext } from 'vs/workbench/api/node/extHost.proto
 import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
 import * as vscode from 'vscode';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import 'vs/workbench/contrib/search/electron-browser/search.contribution';
+import 'vs/workbench/contrib/search/browser/search.contribution';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { ITextModel } from 'vs/editor/common/model';
 import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { dispose } from 'vs/base/common/lifecycle';
 
 const defaultSelector = { scheme: 'far' };
 const model: ITextModel = EditorModel.createFromString(
@@ -137,10 +138,8 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		mainThread.dispose();
 	});
 
-	teardown(function () {
-		while (disposables.length) {
-			disposables.pop().dispose();
-		}
+	teardown(() => {
+		disposables = dispose(disposables);
 		return rpcProtocol.sync();
 	});
 
@@ -664,9 +663,9 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 				assert.equal(first.command!.title, 'Title');
 				assert.equal(first.command!.command, 'cmd');
-				assert.equal(first.command!.arguments[0], 1);
-				assert.equal(first.command!.arguments[1], true);
-				assert.equal(first.command!.arguments[2], complexArg);
+				assert.equal(first.command!.arguments![0], 1);
+				assert.equal(first.command!.arguments![1], true);
+				assert.equal(first.command!.arguments![2], complexArg);
 			});
 		});
 	});

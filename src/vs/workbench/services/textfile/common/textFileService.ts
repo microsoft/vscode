@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import * as paths from 'vs/base/common/paths';
+import * as extpath from 'vs/base/common/extpath';
 import * as errors from 'vs/base/common/errors';
 import * as objects from 'vs/base/common/objects';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -146,7 +146,7 @@ export class TextFileService extends Disposable implements ITextFileService {
 
 		// Build the file filter by using our known languages
 		const ext: string = defaultUri ? extname(defaultUri) : undefined;
-		let matchingFilter: IFilter;
+		let matchingFilter: IFilter | undefined;
 		const filters: IFilter[] = coalesce(this.modeService.getRegisteredLanguageNames().map(languageName => {
 			const extensions = this.modeService.getExtensions(languageName);
 			if (!extensions || !extensions.length) {
@@ -299,7 +299,7 @@ export class TextFileService extends Disposable implements ITextFileService {
 			// closed is the only VS Code window open, except for on Mac where hot exit is only
 			// ever activated when quit is requested.
 
-			let doBackup: boolean;
+			let doBackup: boolean | undefined;
 			switch (reason) {
 				case ShutdownReason.CLOSE:
 					if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.configuredHotExit === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE) {
@@ -515,7 +515,7 @@ export class TextFileService extends Disposable implements ITextFileService {
 			}
 		}
 
-		return this.saveAll([resource], options).then(result => result.results.length === 1 && result.results[0].success);
+		return this.saveAll([resource], options).then(result => result.results.length === 1 && !!result.results[0].success);
 	}
 
 	saveAll(includeUntitled?: boolean, options?: ISaveOptions): Promise<ITextFileOperationResult>;
@@ -794,7 +794,7 @@ export class TextFileService extends Disposable implements ITextFileService {
 	}
 
 	revert(resource: URI, options?: IRevertOptions): Promise<boolean> {
-		return this.revertAll([resource], options).then(result => result.results.length === 1 && result.results[0].success);
+		return this.revertAll([resource], options).then(result => result.results.length === 1 && !!result.results[0].success);
 	}
 
 	revertAll(resources?: URI[], options?: IRevertOptions): Promise<ITextFileOperationResult> {
@@ -908,7 +908,7 @@ export class TextFileService extends Disposable implements ITextFileService {
 						// Otherwise a parent folder of the source is being moved, so we need
 						// to compute the target resource based on that
 						else {
-							targetModelResource = sourceModelResource.with({ path: paths.join(target.path, sourceModelResource.path.substr(source.path.length + 1)) });
+							targetModelResource = sourceModelResource.with({ path: extpath.join(target.path, sourceModelResource.path.substr(source.path.length + 1)) });
 						}
 
 						// Remember as dirty target model to load after the operation

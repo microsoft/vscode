@@ -5,7 +5,7 @@
 
 import { Storage, SQLiteStorageDatabase, IStorageDatabase, ISQLiteStorageDatabaseOptions, IStorageItemsChangeEvent } from 'vs/base/node/storage';
 import { generateUuid } from 'vs/base/common/uuid';
-import { join } from 'path';
+import { join } from 'vs/base/common/path';
 import { tmpdir } from 'os';
 import { equal, ok } from 'assert';
 import { mkdirp, del, writeFile, exists, unlink } from 'vs/base/node/pfs';

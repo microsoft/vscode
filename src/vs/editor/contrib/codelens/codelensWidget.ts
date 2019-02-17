@@ -99,7 +99,7 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 		this._commands = Object.create(null);
 		const symbols = coalesce(inSymbols);
 		if (isFalsyOrEmpty(symbols)) {
-			this._domNode.innerHTML = 'no commands';
+			this._domNode.innerHTML = '<span>no commands</span>';
 			return;
 		}
 

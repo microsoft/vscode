@@ -16,6 +16,56 @@
 
 declare module 'vscode' {
 
+	//#region Alex - resolvers
+
+	export class ResolvedAuthority {
+		readonly host: string;
+		readonly port: number;
+		debugListenPort?: number;
+		debugConnectPort?: number;
+
+		constructor(host: string, port: number);
+	}
+
+	export interface RemoteAuthorityResolver {
+		resolve(authority: string): ResolvedAuthority | Thenable<ResolvedAuthority>;
+	}
+
+	export namespace workspace {
+		export function registerRemoteAuthorityResolver(authorityPrefix: string, resolver: RemoteAuthorityResolver): Disposable;
+	}
+
+	//#endregion
+
+
+	// #region Joh - code insets
+
+	/**
+	 */
+	export class CodeInset {
+		range: Range;
+		height?: number;
+		constructor(range: Range, height?: number);
+	}
+
+	export interface CodeInsetProvider {
+		onDidChangeCodeInsets?: Event<void>;
+		provideCodeInsets(document: TextDocument, token: CancellationToken): ProviderResult<CodeInset[]>;
+		resolveCodeInset(codeInset: CodeInset, webview: Webview, token: CancellationToken): ProviderResult<CodeInset>;
+	}
+
+	export namespace languages {
+
+		/**
+		 * Register a code inset provider.
+		 *
+		 */
+		export function registerCodeInsetProvider(selector: DocumentSelector, provider: CodeInsetProvider): Disposable;
+	}
+
+	//#endregion
+
+
 	//#region Joh - selection range provider
 
 	export class SelectionRangeKind {
@@ -823,6 +873,8 @@ declare module 'vscode' {
 
 	interface CommentReaction {
 		readonly label?: string;
+		readonly iconPath?: string | Uri;
+		count?: number;
 		readonly hasReacted?: boolean;
 	}
 
@@ -1168,36 +1220,12 @@ declare module 'vscode' {
 		executionWithExtensionCallback?: ProcessExecution | ShellExecution | CustomTaskExecution;
 	}
 
-	//#region CodeAction.isPreferred - mjbvz
-	export interface CodeAction {
-		/**
-		 * Marks this as a preferred action. Preferred actions are used by the `auto fix` command.
-		 *
-		 * A quick fix should be marked preferred if it properly addresses the underlying error.
-		 * A refactoring should be marked preferred if it is the most reasonable choice of actions to take.
-		 */
-		isPreferred?: boolean;
-	}
-	//#endregion
-
 	//#region Tasks
 	export interface TaskPresentationOptions {
 		/**
 		 * Controls whether the task is executed in a specific terminal group using split panes.
 		 */
 		group?: string;
-	}
-	//#endregion
-
-	//#region Autofix - mjbvz
-	export namespace CodeActionKind {
-		/**
-		 * Base kind for auto-fix source actions: `source.fixAll`.
-		 *
-		 * Fix all actions automatically fix errors that have a clear fix that do not require user input.
-		 * They should not suppress errors or perform unsafe fixes such as generating new types or classes.
-		 */
-		export const SourceFixAll: CodeActionKind;
 	}
 	//#endregion
 }

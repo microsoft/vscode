@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
-
+import * as path from 'vs/base/common/path';
 import * as nls from 'vs/nls';
 import * as Objects from 'vs/base/common/objects';
 import * as Types from 'vs/base/common/types';
@@ -15,7 +14,7 @@ import { LinkedMap, Touch } from 'vs/base/common/map';
 import Severity from 'vs/base/common/severity';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import * as TPath from 'vs/base/common/paths';
+import { isUNC } from 'vs/base/common/extpath';
 
 import { win32 } from 'vs/base/node/processes';
 
@@ -778,7 +777,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 				}
 				windowsShellArgs = true;
 				let basename = path.basename(shellLaunchConfig.executable!).toLowerCase();
-				if (basename === 'cmd.exe' && ((options.cwd && TPath.isUNC(options.cwd)) || (!options.cwd && TPath.isUNC(process.cwd())))) {
+				if (basename === 'cmd.exe' && ((options.cwd && isUNC(options.cwd)) || (!options.cwd && isUNC(process.cwd())))) {
 					return undefined;
 				}
 				if ((basename === 'powershell.exe') || (basename === 'pwsh.exe')) {
@@ -858,23 +857,14 @@ export class TerminalTaskSystem implements ITaskSystem {
 
 		if (options.cwd) {
 			let cwd = options.cwd;
-			let p: typeof path;
-			// This must be normalized to the OS
-			if (platform === Platform.Platform.Windows) {
-				p = path.win32 as any;
-			} else if (platform === Platform.Platform.Linux || platform === Platform.Platform.Mac) {
-				p = path.posix as any;
-			} else {
-				p = path;
-			}
-			if (!p.isAbsolute(cwd)) {
+			if (!path.isAbsolute(cwd)) {
 				let workspaceFolder = task.getWorkspaceFolder();
 				if (workspaceFolder && (workspaceFolder.uri.scheme === 'file')) {
-					cwd = p.join(workspaceFolder.uri.fsPath, cwd);
+					cwd = path.join(workspaceFolder.uri.fsPath, cwd);
 				}
 			}
 			// This must be normalized to the OS
-			shellLaunchConfig.cwd = p.normalize(cwd);
+			shellLaunchConfig.cwd = path.normalize(cwd);
 		}
 		if (options.env) {
 			shellLaunchConfig.env = options.env;

@@ -7,7 +7,7 @@ import 'vs/css!./media/fileactions';
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import { isWindows, isLinux } from 'vs/base/common/platform';
-import * as paths from 'vs/base/common/paths';
+import * as extpath from 'vs/base/common/extpath';
 import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -17,7 +17,7 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { VIEWLET_ID, IExplorerService } from 'vs/workbench/contrib/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService, AutoSaveConfiguration } from 'vs/platform/files/common/files';
-import { toResource, IUntitledResourceInput } from 'vs/workbench/common/editor';
+import { toResource, IUntitledResourceInput, ITextEditor } from 'vs/workbench/common/editor';
 import { ExplorerViewlet } from 'vs/workbench/contrib/files/electron-browser/explorerViewlet';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
@@ -40,7 +40,6 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Constants } from 'vs/editor/common/core/uint';
 import { CLOSE_EDITORS_AND_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { IViewlet } from 'vs/workbench/common/viewlet';
 import { coalesce } from 'vs/base/common/arrays';
 import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
@@ -117,7 +116,7 @@ export class NewFileAction extends BaseErrorReportingAction {
 		let folder: ExplorerItem;
 		const element = this.getElement();
 		if (element) {
-			folder = element.isDirectory ? element : element.parent;
+			folder = element.isDirectory ? element : element.parent!;
 		} else {
 			folder = this.explorerService.roots[0];
 		}
@@ -173,7 +172,7 @@ export class NewFolderAction extends BaseErrorReportingAction {
 		let folder: ExplorerItem;
 		const element = this.getElement();
 		if (element) {
-			folder = element.isDirectory ? element : element.parent;
+			folder = element.isDirectory ? element : element.parent!;
 		} else {
 			folder = this.explorerService.roots[0];
 		}
@@ -245,7 +244,7 @@ class BaseDeleteFileAction extends BaseErrorReportingAction {
 	) {
 		super('moveFileToTrash', MOVE_FILE_TO_TRASH_LABEL, notificationService);
 
-		this.useTrash = useTrash && elements.every(e => !paths.isUNC(e.resource.fsPath)); // on UNC shares there is no trash
+		this.useTrash = useTrash && elements.every(e => !extpath.isUNC(e.resource.fsPath)); // on UNC shares there is no trash
 		this.enabled = this.elements && this.elements.every(e => !e.isReadonly);
 	}
 
@@ -351,7 +350,7 @@ class BaseDeleteFileAction extends BaseErrorReportingAction {
 						.then(undefined, (error: any) => {
 							// Handle error to delete file(s) from a modal confirmation dialog
 							let errorMessage: string;
-							let detailMessage: string;
+							let detailMessage: string | undefined;
 							let primaryButton: string;
 							if (this.useTrash) {
 								errorMessage = isWindows ? nls.localize('binFailed', "Failed to delete using the Recycle Bin. Do you want to permanently delete instead?") : nls.localize('trashFailed', "Failed to delete using the Trash. Do you want to permanently delete instead?");
@@ -469,16 +468,16 @@ class PasteFileAction extends BaseErrorReportingAction {
 			// Find target
 			let target: ExplorerItem;
 			if (this.element.resource.toString() === fileToPaste.toString()) {
-				target = this.element.parent;
+				target = this.element.parent!;
 			} else {
-				target = this.element.isDirectory ? this.element : this.element.parent;
+				target = this.element.isDirectory ? this.element : this.element.parent!;
 			}
 
 			const targetFile = findValidPasteFileTarget(target, { resource: fileToPaste, isDirectory: fileToPasteStat.isDirectory, allowOverwirte: pasteShouldMove });
 
 			// Copy File
 			const promise = pasteShouldMove ? this.fileService.moveFile(fileToPaste, targetFile) : this.fileService.copyFile(fileToPaste, targetFile);
-			return promise.then(stat => {
+			return promise.then<ITextEditor | undefined>(stat => {
 				if (pasteShouldMove) {
 					// Cut is done. Make sure to clear cut state.
 					this.explorerService.setToCopy([], false);
@@ -504,7 +503,7 @@ export function findValidPasteFileTarget(targetFolder: ExplorerItem, fileToPaste
 			break;
 		}
 
-		name = incrementFileName(name, fileToPaste.isDirectory);
+		name = incrementFileName(name, !!fileToPaste.isDirectory);
 		candidate = resources.joinPath(targetFolder.resource, name);
 	}
 
@@ -708,7 +707,7 @@ export abstract class BaseSaveAllAction extends BaseErrorReportingAction {
 	public run(context?: any): Promise<boolean> {
 		return this.doRun(context).then(() => true, error => {
 			this.onError(error);
-			return null;
+			return false;
 		});
 	}
 
@@ -890,7 +889,7 @@ export class ShowOpenedFileInNewWindow extends Action {
 	}
 }
 
-export function validateFileName(item: ExplorerItem, name: string): string {
+export function validateFileName(item: ExplorerItem, name: string): string | null {
 	// Produce a well formed file name
 	name = getWellFormedFileName(name);
 
@@ -916,7 +915,7 @@ export function validateFileName(item: ExplorerItem, name: string): string {
 	}
 
 	// Invalid File name
-	if (names.some((folderName) => !paths.isValidBasename(folderName))) {
+	if (names.some((folderName) => !extpath.isValidBasename(folderName))) {
 		return nls.localize('invalidFileNameError', "The name **{0}** is not valid as a file or folder name. Please choose a different name.", trimLongName(name));
 	}
 
@@ -978,7 +977,7 @@ export class CompareWithClipboardAction extends Action {
 	}
 
 	public run(): Promise<any> {
-		const resource: URI = toResource(this.editorService.activeEditor, { supportSideBySide: true });
+		const resource = toResource(this.editorService.activeEditor, { supportSideBySide: true });
 		if (resource && (this.fileService.canHandleResource(resource) || resource.scheme === Schemas.untitled)) {
 			if (!this.registrationDisposal) {
 				const provider = this.instantiationService.createInstance(ClipboardContentProvider);
@@ -1018,7 +1017,7 @@ class ClipboardContentProvider implements ITextModelContentProvider {
 }
 
 interface IExplorerContext {
-	stat: ExplorerItem;
+	stat?: ExplorerItem;
 	selection: ExplorerItem[];
 }
 
@@ -1030,7 +1029,7 @@ function getContext(listWidget: ListWidget): IExplorerContext {
 	const selection = tree.getSelection();
 
 	// Only respect the selection if user clicked inside it (focus belongs to it)
-	return { stat, selection: selection && selection.indexOf(stat) >= 0 ? selection : [] };
+	return { stat, selection: selection && typeof stat !== 'undefined' && selection.indexOf(stat) >= 0 ? selection : [] };
 }
 
 // TODO@isidor these commands are calling into actions due to the complex inheritance action structure.
@@ -1040,7 +1039,7 @@ function openExplorerAndRunAction(accessor: ServicesAccessor, constructor: ICons
 	const listService = accessor.get(IListService);
 	const viewletService = accessor.get(IViewletService);
 	const activeViewlet = viewletService.getActiveViewlet();
-	let explorerPromise: Promise<IViewlet> = Promise.resolve(activeViewlet);
+	let explorerPromise = Promise.resolve(activeViewlet);
 	if (!activeViewlet || activeViewlet.getId() !== VIEWLET_ID) {
 		explorerPromise = viewletService.openViewlet(VIEWLET_ID, true);
 	}

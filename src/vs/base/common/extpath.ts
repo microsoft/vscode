@@ -6,24 +6,10 @@
 import { isWindows } from 'vs/base/common/platform';
 import { startsWithIgnoreCase, equalsIgnoreCase } from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
-import { sep, posix } from 'vs/base/common/paths.node';
+import { sep, posix } from 'vs/base/common/path';
 
 function isPathSeparator(code: number) {
 	return code === CharCode.Slash || code === CharCode.Backslash;
-}
-
-/**
- * @returns the base name of a path.
- */
-export function basename(path: string): string {
-	const idx = ~path.lastIndexOf('/') || ~path.lastIndexOf('\\');
-	if (idx === 0) {
-		return path;
-	} else if (~idx === path.length - 1) {
-		return basename(path.substring(0, path.length - 1));
-	} else {
-		return path.substr(~idx + 1);
-	}
 }
 
 const _posixBadPath = /(\/\.\.?\/)|(\/\.\.?)$|^(\.\.?\/)|(\/\/+)|(\\)/;
@@ -35,10 +21,19 @@ function _isNormal(path: string, win: boolean): boolean {
 		: !_posixBadPath.test(path);
 }
 
-export function normalize(path: undefined, toOSPath?: boolean): undefined;
-export function normalize(path: null, toOSPath?: boolean): null;
-export function normalize(path: string, toOSPath?: boolean): string;
-export function normalize(path: string | null | undefined, toOSPath?: boolean): string | null | undefined {
+/**
+ * Takes a Windows OS path and changes backward slashes to forward slashes.
+ * This should only be done for OS paths from Windows (or user provided paths potentially from Windows).
+ * Using it on a Linux or MaxOS path might change it.
+ */
+export function toSlashes(osPath: string) {
+	return osPath.replace(/[\\/]/g, '/');
+}
+
+export function normalizeWithSlashes(path: undefined): undefined;
+export function normalizeWithSlashes(path: null): null;
+export function normalizeWithSlashes(path: string): string;
+export function normalizeWithSlashes(path: string | null | undefined): string | null | undefined {
 
 	if (path === null || path === undefined) {
 		return path;
@@ -49,12 +44,11 @@ export function normalize(path: string | null | undefined, toOSPath?: boolean): 
 		return '.';
 	}
 
-	const wantsBackslash = !!(isWindows && toOSPath);
-	if (_isNormal(path, wantsBackslash)) {
+	if (_isNormal(path, false)) {
 		return path;
 	}
 
-	const sep = wantsBackslash ? '\\' : '/';
+	const sep = '/';
 	const root = getRoot(path, sep);
 
 	// skip the root-portion of the path
@@ -121,7 +115,7 @@ export const join: (...parts: string[]) => string = function () {
 		value += part;
 	}
 
-	return normalize(value);
+	return normalizeWithSlashes(value);
 };
 
 

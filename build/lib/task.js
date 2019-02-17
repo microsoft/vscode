@@ -13,25 +13,20 @@ function _isPromise(p) {
     return false;
 }
 function _renderTime(time) {
-    if (time < 1000) {
-        return `${time.toFixed(2)} ms`;
-    }
-    let seconds = time / 1000;
-    if (seconds < 60) {
-        return `${seconds.toFixed(1)} s`;
-    }
-    let minutes = Math.floor(seconds / 60);
-    seconds -= minutes * 60;
-    return `${minutes} m and ${seconds} s`;
+    return `${Math.round(time)} ms`;
 }
 async function _execute(task) {
-    const name = task.displayName || task.name || `<anonymous>`;
-    fancyLog('Starting', ansiColors.cyan(name), '...');
+    const name = task.taskName || task.displayName || `<anonymous>`;
+    if (!task._tasks) {
+        fancyLog('Starting', ansiColors.cyan(name), '...');
+    }
     const startTime = process.hrtime();
     await _doExecute(task);
     const elapsedArr = process.hrtime(startTime);
     const elapsedNanoseconds = (elapsedArr[0] * 1e9 + elapsedArr[1]);
-    fancyLog(`Finished`, ansiColors.cyan(name), 'after', ansiColors.green(_renderTime(elapsedNanoseconds / 1e6)));
+    if (!task._tasks) {
+        fancyLog(`Finished`, ansiColors.cyan(name), 'after', ansiColors.magenta(_renderTime(elapsedNanoseconds / 1e6)));
+    }
 }
 async function _doExecute(task) {
     // Always invoke as if it were a callback task
@@ -63,16 +58,39 @@ async function _doExecute(task) {
     });
 }
 function series(...tasks) {
-    return async () => {
+    const result = async () => {
         for (let i = 0; i < tasks.length; i++) {
             await _execute(tasks[i]);
         }
     };
+    result._tasks = tasks;
+    return result;
 }
 exports.series = series;
 function parallel(...tasks) {
-    return async () => {
+    const result = async () => {
         await Promise.all(tasks.map(t => _execute(t)));
     };
+    result._tasks = tasks;
+    return result;
 }
 exports.parallel = parallel;
+function define(name, task) {
+    if (task._tasks) {
+        // This is a composite task
+        const lastTask = task._tasks[task._tasks.length - 1];
+        if (lastTask._tasks || lastTask.taskName) {
+            // This is a composite task without a real task function
+            // => generate a fake task function
+            return define(name, series(task, () => Promise.resolve()));
+        }
+        lastTask.taskName = name;
+        task.displayName = name;
+        return task;
+    }
+    // This is a simple task
+    task.taskName = name;
+    task.displayName = name;
+    return task;
+}
+exports.define = define;

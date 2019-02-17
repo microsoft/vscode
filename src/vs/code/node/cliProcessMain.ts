@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import * as semver from 'semver';
 
 import { sequence } from 'vs/base/common/async';
@@ -39,6 +39,8 @@ import { areSameExtensions, adoptToGalleryExtensionId, getGalleryExtensionId } f
 import { URI } from 'vs/base/common/uri';
 import { getManifest } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 import { IExtensionManifest, ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { isUIExtension } from 'vs/platform/extensions/node/extensionsUtil';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 const notFound = (id: string) => localize('notFound', "Extension '{0}' not found.", id);
 const notInstalled = (id: string) => localize('notInstalled', "Extension '{0}' is not installed.", id);
@@ -66,7 +68,9 @@ export function getIdAndVersion(id: string): [string, string | undefined] {
 export class Main {
 
 	constructor(
+		private readonly remote: boolean,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService
 	) { }
@@ -112,26 +116,30 @@ export class Main {
 		return failed.length ? Promise.reject(localize('installation failed', "Failed Installing Extensions: {0}", failed.join(', '))) : Promise.resolve();
 	}
 
-	private installExtension(extension: string, force: boolean): Promise<any> {
+	private async installExtension(extension: string, force: boolean): Promise<any> {
 		if (/\.vsix$/i.test(extension)) {
 			extension = path.isAbsolute(extension) ? extension : path.join(process.cwd(), extension);
 
-			return this.validate(extension, force)
-				.then(valid => {
-					if (valid) {
-						return this.extensionManagementService.install(URI.file(extension)).then(() => {
-							console.log(localize('successVsixInstall', "Extension '{0}' was successfully installed!", getBaseLabel(extension)));
-						}, error => {
-							if (isPromiseCanceledError(error)) {
-								console.log(localize('cancelVsixInstall', "Cancelled installing Extension '{0}'.", getBaseLabel(extension)));
-								return null;
-							} else {
-								return Promise.reject(error);
-							}
-						});
+			const manifest = await getManifest(extension);
+			if (this.remote && isUIExtension(manifest, this.configurationService)) {
+				console.log(localize('notSupportedUIExtension', "Can't install extension {0} since UI Extensions are not supported", getBaseLabel(extension)));
+				return null;
+			}
+			const valid = await this.validate(manifest, force);
+
+			if (valid) {
+				return this.extensionManagementService.install(URI.file(extension)).then(() => {
+					console.log(localize('successVsixInstall', "Extension '{0}' was successfully installed!", getBaseLabel(extension)));
+				}, error => {
+					if (isPromiseCanceledError(error)) {
+						console.log(localize('cancelVsixInstall', "Cancelled installing Extension '{0}'.", getBaseLabel(extension)));
+						return null;
+					} else {
+						return Promise.reject(error);
 					}
-					return null;
 				});
+			}
+			return null;
 		}
 
 		const [id, version] = getIdAndVersion(extension);
@@ -148,9 +156,15 @@ export class Main {
 					}
 					return Promise.reject(err);
 				})
-				.then(extension => {
+				.then(async extension => {
 					if (!extension) {
 						return Promise.reject(new Error(`${notFound(version ? `${id}@${version}` : id)}\n${useId}`));
+					}
+
+					const manifest = await this.extensionGalleryService.getManifest(extension, CancellationToken.None);
+					if (this.remote && manifest && isUIExtension(manifest, this.configurationService)) {
+						console.log(localize('notSupportedUIExtension', "Can't install extension {0} since UI Extensions are not supported", extension.identifier.id));
+						return null;
 					}
 
 					const [installedExtension] = installed.filter(e => areSameExtensions(e.identifier, { id }));
@@ -177,9 +191,7 @@ export class Main {
 
 
 
-	private async validate(vsix: string, force: boolean): Promise<boolean> {
-		const manifest = await getManifest(vsix);
-
+	private async validate(manifest: IExtensionManifest, force: boolean): Promise<boolean> {
 		if (!manifest) {
 			throw new Error('Invalid vsix');
 		}
@@ -290,7 +302,7 @@ export function main(argv: ParsedArgs): Promise<void> {
 			}
 
 			const instantiationService2 = instantiationService.createChild(services);
-			const main = instantiationService2.createInstance(Main);
+			const main = instantiationService2.createInstance(Main, false);
 
 			return main.run(argv).then(() => {
 				// Dispose the AI adapter so that remaining data gets flushed.

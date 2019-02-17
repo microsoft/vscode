@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as strings from 'vs/base/common/strings';
-import { sep } from 'vs/base/common/paths.node';
+import { sep } from 'vs/base/common/path';
 import { IdleValue } from 'vs/base/common/async';
 
 let intlFileNameCollator: IdleValue<{ collator: Intl.Collator, collatorIsNumeric: boolean }>;

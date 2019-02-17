@@ -8,14 +8,14 @@ import { URI } from 'vs/base/common/uri';
 import * as typeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import { EditorViewColumn } from 'vs/workbench/api/shared/editor';
 import * as vscode from 'vscode';
-import { ExtHostWebviewsShape, IMainContext, MainContext, MainThreadWebviewsShape, WebviewPanelHandle, WebviewPanelViewState } from './extHost.protocol';
+import { ExtHostWebviewsShape, IMainContext, MainContext, MainThreadWebviewsShape, WebviewPanelHandle, WebviewPanelViewState, WebviewInsetHandle } from './extHost.protocol';
 import { Disposable } from './extHostTypes';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 
 type IconPath = URI | { light: URI, dark: URI };
 
 export class ExtHostWebview implements vscode.Webview {
-	private readonly _handle: WebviewPanelHandle;
+	private readonly _handle: WebviewPanelHandle | WebviewInsetHandle;
 	private readonly _proxy: MainThreadWebviewsShape;
 	private _html: string;
 	private _options: vscode.WebviewOptions;
@@ -25,7 +25,7 @@ export class ExtHostWebview implements vscode.Webview {
 	public readonly onDidReceiveMessage: Event<any> = this._onMessageEmitter.event;
 
 	constructor(
-		handle: WebviewPanelHandle,
+		handle: WebviewPanelHandle | WebviewInsetHandle,
 		proxy: MainThreadWebviewsShape,
 		options: vscode.WebviewOptions
 	) {
@@ -243,7 +243,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadWebviews);
 	}
 
-	public createWebview(
+	public createWebviewPanel(
 		extension: IExtensionDescription,
 		viewType: string,
 		title: string,
@@ -333,7 +333,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		}
 
 		const webview = new ExtHostWebview(webviewHandle, this._proxy, options);
-		const revivedPanel = new ExtHostWebviewPanel(webviewHandle, this._proxy, viewType, title, typeof position === 'number' ? typeConverters.ViewColumn.to(position) : undefined, options, webview);
+		const revivedPanel = new ExtHostWebviewPanel(webviewHandle, this._proxy, viewType, title, typeof position === 'number' && position >= 0 ? typeConverters.ViewColumn.to(position) : undefined, options, webview);
 		this._webviewPanels.set(webviewHandle, revivedPanel);
 		return Promise.resolve(serializer.deserializeWebviewPanel(revivedPanel, state));
 	}

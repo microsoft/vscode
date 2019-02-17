@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as paths from 'vs/base/common/paths.node';
+import * as paths from 'vs/base/common/path';
 import * as types from 'vs/base/common/types';
 import * as objects from 'vs/base/common/objects';
 import { IStringDictionary } from 'vs/base/common/collections';
@@ -115,12 +115,12 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 	private resolveString(folderUri: uri, value: string, commandValueMapping: IStringDictionary<string>): { replaced: string, variableName: string, resolvedValue: string } {
 
 		const filePath = this._context.getFilePath();
-		let variableName: string;
-		let resolvedValue: string;
+		let variableName: string | undefined;
+		let resolvedValue: string | undefined;
 		const replaced = value.replace(AbstractVariableResolverService.VARIABLE_REGEXP, (match: string, variable: string) => {
 
 			variableName = variable;
-			let argument: string;
+			let argument: string | undefined;
 			const parts = variable.split(':');
 			if (parts && parts.length > 1) {
 				variable = parts[0];
@@ -236,7 +236,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 
 						case 'relativeFile':
 							if (folderUri) {
-								return resolvedValue = paths.posix.normalize(paths.relative(folderUri.fsPath, filePath));
+								return resolvedValue = paths.normalize(paths.relative(folderUri.fsPath, filePath));
 							}
 							return resolvedValue = filePath;
 

@@ -9,7 +9,7 @@ import 'vs/editor/editor.all';
 
 import 'vs/workbench/api/electron-browser/extensionHost.contribution';
 
-import 'vs/workbench/electron-browser/shell.contribution';
+import 'vs/workbench/electron-browser/main.contribution';
 import 'vs/workbench/browser/workbench.contribution';
 
 import 'vs/workbench/electron-browser/main';
@@ -74,7 +74,7 @@ import 'vs/workbench/contrib/stats/node/stats.contribution';
 import 'vs/workbench/contrib/splash/electron-browser/partsSplash.contribution';
 
 // Search
-import 'vs/workbench/contrib/search/electron-browser/search.contribution';
+import 'vs/workbench/contrib/search/browser/search.contribution';
 import 'vs/workbench/contrib/search/browser/searchView';
 import 'vs/workbench/contrib/search/browser/openAnythingHandler';
 
@@ -140,6 +140,9 @@ import 'vs/workbench/contrib/snippets/browser/insertSnippet';
 import 'vs/workbench/contrib/snippets/browser/configureSnippets';
 import 'vs/workbench/contrib/snippets/browser/tabCompletion';
 
+// Formatter Help
+import 'vs/workbench/contrib/format/browser/format.contribution';
+
 // Send a Smile
 import 'vs/workbench/contrib/feedback/electron-browser/feedback.contribution';
 
@@ -174,6 +177,9 @@ import 'vs/workbench/contrib/outline/browser/outline.contribution';
 
 // Experiments
 import 'vs/workbench/contrib/experiments/electron-browser/experiments.contribution';
+
+// Code Insets
+import 'vs/workbench/contrib/codeinset/electron-browser/codeInset.contribution';
 
 // Issues
 import 'vs/workbench/contrib/issue/electron-browser/issue.contribution';

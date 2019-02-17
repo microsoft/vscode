@@ -28,7 +28,7 @@ export interface IWebviewEditorService {
 		title: string,
 		showOptions: ICreateWebViewShowOptions,
 		options: WebviewInputOptions,
-		extensionLocation: URI,
+		extensionLocation: URI | undefined,
 		events: WebviewEvents
 	): WebviewEditorInput;
 
@@ -39,7 +39,7 @@ export interface IWebviewEditorService {
 		iconPath: { light: URI, dark: URI } | undefined,
 		state: any,
 		options: WebviewInputOptions,
-		extensionLocation: URI
+		extensionLocation: URI | undefined,
 	): WebviewEditorInput;
 
 	revealWebview(
@@ -90,7 +90,7 @@ export function areWebviewInputOptionsEqual(a: WebviewInputOptions, b: WebviewIn
 export class WebviewEditorService implements IWebviewEditorService {
 	_serviceBrand: any;
 
-	private readonly _revivers = new Map<string, WebviewReviver[]>();
+	private readonly _revivers = new Map<string, WebviewReviver>();
 	private _awaitingRevival: { input: WebviewEditorInput, resolve: (x: any) => void }[] = [];
 
 	constructor(
@@ -104,7 +104,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 		title: string,
 		showOptions: ICreateWebViewShowOptions,
 		options: vscode.WebviewOptions,
-		extensionLocation: URI,
+		extensionLocation: URI | undefined,
 		events: WebviewEvents
 	): WebviewEditorInput {
 		const webviewInput = this._instantiationService.createInstance(WebviewEditorInput, viewType, undefined, title, options, {}, events, extensionLocation, undefined);
@@ -120,7 +120,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 		if (webview.group === group.id) {
 			this._editorService.openEditor(webview, { preserveFocus }, webview.group);
 		} else {
-			this._editorGroupService.getGroup(webview.group).moveEditor(webview, group, { preserveFocus });
+			this._editorGroupService.getGroup(webview.group!).moveEditor(webview, group, { preserveFocus });
 		}
 	}
 
@@ -146,7 +146,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 					// A reviver may not be registered yet. Put into queue and resolve promise when we can revive
 					let resolve: (value: void) => void;
 					const promise = new Promise<void>(r => { resolve = r; });
-					this._awaitingRevival.push({ input: webview, resolve });
+					this._awaitingRevival.push({ input: webview, resolve: resolve! });
 					return promise;
 				});
 			}
@@ -160,15 +160,13 @@ export class WebviewEditorService implements IWebviewEditorService {
 		reviver: WebviewReviver
 	): IDisposable {
 		if (this._revivers.has(viewType)) {
-			this._revivers.get(viewType).push(reviver);
-		} else {
-			this._revivers.set(viewType, [reviver]);
+			throw new Error(`Reviver for ${viewType} already registered`);
 		}
-
+		this._revivers.set(viewType, reviver);
 
 		// Resolve any pending views
-		const toRevive = this._awaitingRevival.filter(x => x.input.viewType === viewType);
-		this._awaitingRevival = this._awaitingRevival.filter(x => x.input.viewType !== viewType);
+		const toRevive = this._awaitingRevival.filter(x => reviver.canRevive(x.input));
+		this._awaitingRevival = this._awaitingRevival.filter(x => !reviver.canRevive(x.input));
 
 		for (const input of toRevive) {
 			reviver.reviveWebview(input.input).then(() => input.resolve(undefined));
@@ -183,23 +181,19 @@ export class WebviewEditorService implements IWebviewEditorService {
 		webview: WebviewEditorInput
 	): boolean {
 		const viewType = webview.viewType;
-		return this._revivers.has(viewType) && this._revivers.get(viewType).some(reviver => reviver.canRevive(webview));
+		const reviver = this._revivers.get(viewType);
+		return !!reviver && reviver.canRevive(webview);
 	}
 
 	private async tryRevive(
 		webview: WebviewEditorInput
 	): Promise<boolean> {
-		const revivers = this._revivers.get(webview.viewType);
-		if (!revivers) {
+		const reviver = this._revivers.get(webview.viewType);
+		if (!reviver || !reviver.canRevive(webview)) {
 			return false;
 		}
 
-		for (const reviver of revivers) {
-			if (reviver.canRevive(webview)) {
-				await reviver.reviveWebview(webview);
-				return true;
-			}
-		}
-		return false;
+		await reviver.reviveWebview(webview);
+		return true;
 	}
 }

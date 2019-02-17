@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import * as os from 'os';
-import { extract } from 'vs/platform/node/zip';
+import { extract } from 'vs/base/node/zip';
 import { generateUuid } from 'vs/base/common/uuid';
 import { rimraf, exists } from 'vs/base/node/pfs';
-import { NullLogService } from 'vs/platform/log/common/log';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { createCancelablePromise } from 'vs/base/common/async';
 
@@ -21,7 +20,7 @@ suite('Zip', () => {
 		const fixture = path.join(fixtures, 'extract.zip');
 		const target = path.join(os.tmpdir(), generateUuid());
 
-		return createCancelablePromise(token => extract(fixture, target, {}, new NullLogService(), token)
+		return createCancelablePromise(token => extract(fixture, target, {}, token)
 			.then(() => exists(path.join(target, 'extension')))
 			.then(exists => assert(exists))
 			.then(() => rimraf(target)));

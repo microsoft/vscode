@@ -25,7 +25,7 @@ import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
 import { IMarker, IMarkerData } from 'vs/platform/markers/common/markers';
-import { basename } from 'vs/base/common/paths';
+import { basename } from 'vs/base/common/resources';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/opener';
@@ -488,7 +488,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			for (const { message, resource, startLineNumber, startColumn } of relatedInformation) {
 				const item = dom.append(listElement, $('li'));
 				const a = dom.append(item, $('a'));
-				a.innerText = `${basename(resource.path)}(${startLineNumber}, ${startColumn})`;
+				a.innerText = `${basename(resource)}(${startLineNumber}, ${startColumn})`;
 				a.style.cursor = 'pointer';
 				a.onclick = e => {
 					e.stopPropagation();

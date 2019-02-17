@@ -70,7 +70,7 @@ export class ExtHostComments implements ExtHostCommentsShape {
 			startDraftLabel: provider.startDraftLabel,
 			deleteDraftLabel: provider.deleteDraftLabel,
 			finishDraftLabel: provider.finishDraftLabel,
-			reactionGroup: provider.reactionGroup
+			reactionGroup: provider.reactionGroup ? provider.reactionGroup.map(reaction => convertToReaction(provider, reaction)) : undefined
 		});
 		this.registerListeners(handle, extensionId, provider);
 
@@ -156,7 +156,7 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		const handlerData = this._documentProviders.get(handle);
 
 		return asPromise(() => {
-			return handlerData.provider.addReaction(document, convertFromComment(comment), reaction);
+			return handlerData.provider.addReaction(document, convertFromComment(comment), convertFromReaction(reaction));
 		});
 	}
 
@@ -164,7 +164,7 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		const document = this._documents.getDocument(URI.revive(uri));
 		const handlerData = this._documentProviders.get(handle);
 		return asPromise(() => {
-			return handlerData.provider.deleteReaction(document, convertFromComment(comment), reaction);
+			return handlerData.provider.deleteReaction(document, convertFromComment(comment), convertFromReaction(reaction));
 		});
 	}
 
@@ -250,7 +250,13 @@ function convertFromComment(comment: modes.Comment): vscode.Comment {
 		canEdit: comment.canEdit,
 		canDelete: comment.canDelete,
 		isDraft: comment.isDraft,
-		commentReactions: comment.commentReactions
+		commentReactions: comment.commentReactions ? comment.commentReactions.map(reaction => {
+			return {
+				label: reaction.label,
+				count: reaction.count,
+				hasReacted: reaction.hasReacted
+			};
+		}) : undefined
 	};
 }
 
@@ -258,8 +264,6 @@ function convertToComment(provider: vscode.DocumentCommentProvider | vscode.Work
 	const canEdit = !!(provider as vscode.DocumentCommentProvider).editComment && vscodeComment.canEdit;
 	const canDelete = !!(provider as vscode.DocumentCommentProvider).deleteComment && vscodeComment.canDelete;
 	const iconPath = vscodeComment.userIconPath ? vscodeComment.userIconPath.toString() : vscodeComment.gravatar;
-	const providerCanDeleteReaction = !!(provider as vscode.DocumentCommentProvider).deleteReaction;
-	const providerCanAddReaction = !!(provider as vscode.DocumentCommentProvider).addReaction;
 
 	return {
 		commentId: vscodeComment.commentId,
@@ -270,12 +274,27 @@ function convertToComment(provider: vscode.DocumentCommentProvider | vscode.Work
 		canDelete: canDelete,
 		command: vscodeComment.command ? commandsConverter.toInternal(vscodeComment.command) : null,
 		isDraft: vscodeComment.isDraft,
-		commentReactions: vscodeComment.commentReactions.map(reaction => {
-			return {
-				label: reaction.label,
-				hasReacted: reaction.hasReacted,
-				canEdit: (reaction.hasReacted && providerCanDeleteReaction) || (!reaction.hasReacted && providerCanAddReaction)
-			};
-		})
+		commentReactions: vscodeComment.commentReactions ? vscodeComment.commentReactions.map(reaction => convertToReaction(provider, reaction)) : undefined
+	};
+}
+
+function convertToReaction(provider: vscode.DocumentCommentProvider | vscode.WorkspaceCommentProvider, reaction: vscode.CommentReaction): modes.CommentReaction {
+	const providerCanDeleteReaction = !!(provider as vscode.DocumentCommentProvider).deleteReaction;
+	const providerCanAddReaction = !!(provider as vscode.DocumentCommentProvider).addReaction;
+
+	return {
+		label: reaction.label,
+		iconPath: reaction.iconPath ? extHostTypeConverter.pathOrURIToURI(reaction.iconPath) : undefined,
+		count: reaction.count,
+		hasReacted: reaction.hasReacted,
+		canEdit: (reaction.hasReacted && providerCanDeleteReaction) || (!reaction.hasReacted && providerCanAddReaction)
+	};
+}
+
+function convertFromReaction(reaction: modes.CommentReaction): vscode.CommentReaction {
+	return {
+		label: reaction.label,
+		count: reaction.count,
+		hasReacted: reaction.hasReacted
 	};
 }

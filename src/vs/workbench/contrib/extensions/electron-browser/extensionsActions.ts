@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { IAction, Action } from 'vs/base/common/actions';
 import { Throttler, Delayer } from 'vs/base/common/async';
 import * as DOM from 'vs/base/browser/dom';
-import * as paths from 'vs/base/common/paths';
+import * as extpath from 'vs/base/common/extpath';
 import { Event } from 'vs/base/common/event';
 import * as json from 'vs/base/common/json';
 import { ActionItem, Separator, IActionItemOptions } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -190,12 +190,12 @@ export class InstallAction extends ExtensionAction {
 				if (SetColorThemeAction.getColorThemes(colorThemes, this.extension).length) {
 					const action = this.instantiationService.createInstance(SetColorThemeAction, colorThemes);
 					action.extension = extension;
-					return action.run(true);
+					return action.run({ showCurrentTheme: true, ignoreFocusLost: true });
 				}
 				if (SetFileIconThemeAction.getFileIconThemes(fileIconThemes, this.extension).length) {
 					const action = this.instantiationService.createInstance(SetFileIconThemeAction, fileIconThemes);
 					action.extension = extension;
-					return action.run(true);
+					return action.run({ showCurrentTheme: true, ignoreFocusLost: true });
 				}
 			}
 		}
@@ -360,7 +360,7 @@ export class CombinedInstallAction extends ExtensionAction {
 			return this.uninstallAction.run();
 		}
 
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 
 	dispose(): void {
@@ -492,7 +492,7 @@ export abstract class ExtensionDropDownAction extends ExtensionAction {
 		if (this._actionItem) {
 			this._actionItem.showMenu(actionGroups, disposeActionsOnHide);
 		}
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 
 	dispose(): void {
@@ -690,7 +690,7 @@ export class ExtensionInfoAction extends ExtensionAction {
 		const clipboardStr = `${name}\n${id}\n${description}\n${verision}\n${publisher}${link ? '\n' + link : ''}`;
 
 		clipboard.writeText(clipboardStr);
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 
@@ -835,7 +835,7 @@ export abstract class ExtensionEditorDropDownAction extends ExtensionDropDownAct
 		} else {
 			return super.run({ actionGroups: [this.actions], disposeActionsOnHide: false });
 		}
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 
@@ -1158,7 +1158,7 @@ export class SetColorThemeAction extends ExtensionAction {
 		this.class = this.enabled ? SetColorThemeAction.EnabledClass : SetColorThemeAction.DisabledClass;
 	}
 
-	async run(showCurrentTheme: boolean): Promise<any> {
+	async run({ showCurrentTheme, ignoreFocusLost }: { showCurrentTheme: boolean, ignoreFocusLost: boolean } = { showCurrentTheme: false, ignoreFocusLost: false }): Promise<any> {
 		this.update();
 		if (!this.enabled) {
 			return;
@@ -1181,7 +1181,8 @@ export class SetColorThemeAction extends ExtensionAction {
 			picks,
 			{
 				placeHolder: localize('select color theme', "Select Color Theme"),
-				onDidFocus: item => delayer.trigger(() => this.workbenchThemeService.setColorTheme(item.id, undefined))
+				onDidFocus: item => delayer.trigger(() => this.workbenchThemeService.setColorTheme(item.id, undefined)),
+				ignoreFocusLost
 			});
 		let confValue = this.configurationService.inspect(COLOR_THEME_SETTING);
 		const target = typeof confValue.workspace !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
@@ -1229,7 +1230,7 @@ export class SetFileIconThemeAction extends ExtensionAction {
 		this.class = this.enabled ? SetFileIconThemeAction.EnabledClass : SetFileIconThemeAction.DisabledClass;
 	}
 
-	async run(showCurrentTheme: boolean): Promise<any> {
+	async run({ showCurrentTheme, ignoreFocusLost }: { showCurrentTheme: boolean, ignoreFocusLost: boolean } = { showCurrentTheme: false, ignoreFocusLost: false }): Promise<any> {
 		await this.update();
 		if (!this.enabled) {
 			return;
@@ -1252,7 +1253,8 @@ export class SetFileIconThemeAction extends ExtensionAction {
 			picks,
 			{
 				placeHolder: localize('select file icon theme', "Select File Icon Theme"),
-				onDidFocus: item => delayer.trigger(() => this.workbenchThemeService.setFileIconTheme(item.id, undefined))
+				onDidFocus: item => delayer.trigger(() => this.workbenchThemeService.setFileIconTheme(item.id, undefined)),
+				ignoreFocusLost
 			});
 		let confValue = this.configurationService.inspect(ICON_THEME_SETTING);
 		const target = typeof confValue.workspace !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
@@ -1592,7 +1594,7 @@ export class IgnoreExtensionRecommendationAction extends Action {
 
 	public run(): Promise<any> {
 		this.extensionsTipsService.toggleIgnoredRecommendation(this.extension.identifier.id, true);
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 
 	dispose(): void {
@@ -1622,7 +1624,7 @@ export class UndoIgnoreExtensionRecommendationAction extends Action {
 
 	public run(): Promise<any> {
 		this.extensionsTipsService.toggleIgnoredRecommendation(this.extension.identifier.id, false);
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 
 	dispose(): void {
@@ -2042,7 +2044,7 @@ export class ConfigureWorkspaceRecommendedExtensionsAction extends AbstractConfi
 	public run(): Promise<void> {
 		switch (this.contextService.getWorkbenchState()) {
 			case WorkbenchState.FOLDER:
-				return this.openExtensionsFile(this.contextService.getWorkspace().folders[0].toResource(paths.join('.vscode', 'extensions.json')));
+				return this.openExtensionsFile(this.contextService.getWorkspace().folders[0].toResource(extpath.join('.vscode', 'extensions.json')));
 			case WorkbenchState.WORKSPACE:
 				return this.openWorkspaceConfigurationFile(this.contextService.getWorkspace().configuration!);
 		}
@@ -2087,7 +2089,7 @@ export class ConfigureWorkspaceFolderRecommendedExtensionsAction extends Abstrac
 		return Promise.resolve(pickFolderPromise)
 			.then(workspaceFolder => {
 				if (workspaceFolder) {
-					return this.openExtensionsFile(workspaceFolder.toResource(paths.join('.vscode', 'extensions.json')));
+					return this.openExtensionsFile(workspaceFolder.toResource(extpath.join('.vscode', 'extensions.json')));
 				}
 				return null;
 			});
@@ -2140,7 +2142,7 @@ export class AddToWorkspaceFolderRecommendationsAction extends AbstractConfigure
 				if (!workspaceFolder) {
 					return Promise.resolve();
 				}
-				const configurationFile = workspaceFolder.toResource(paths.join('.vscode', 'extensions.json'));
+				const configurationFile = workspaceFolder.toResource(extpath.join('.vscode', 'extensions.json'));
 				return this.getWorkspaceFolderExtensionsConfigContent(configurationFile).then(content => {
 					const extensionIdLowerCase = extensionId.id.toLowerCase();
 					if (shouldRecommend) {
@@ -2346,7 +2348,7 @@ export class StatusLabelAction extends Action implements IExtensionContainer {
 	}
 
 	run(): Promise<any> {
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 
 }
@@ -2371,7 +2373,7 @@ export class MaliciousStatusLabelAction extends ExtensionAction {
 	}
 
 	run(): Promise<any> {
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 
@@ -2518,14 +2520,14 @@ export class OpenExtensionsFolderAction extends Action {
 	}
 
 	run(): Promise<void> {
-		const extensionsHome = this.environmentService.extensionsPath;
+		const extensionsHome = URI.file(this.environmentService.extensionsPath);
 
-		return Promise.resolve(this.fileService.resolveFile(URI.file(extensionsHome))).then(file => {
+		return Promise.resolve(this.fileService.resolveFile(extensionsHome)).then(file => {
 			let itemToShow: string;
 			if (file.children && file.children.length > 0) {
 				itemToShow = file.children[0].resource.fsPath;
 			} else {
-				itemToShow = paths.normalize(extensionsHome, true);
+				itemToShow = extensionsHome.fsPath;
 			}
 
 			return this.windowsService.showItemInFolder(itemToShow);
@@ -2558,7 +2560,7 @@ export class InstallVSIXAction extends Action {
 			buttonLabel: mnemonicButtonLabel(localize({ key: 'installButton', comment: ['&& denotes a mnemonic'] }, "&&Install"))
 		})).then(result => {
 			if (!result) {
-				return Promise.resolve(null);
+				return Promise.resolve();
 			}
 
 			return Promise.all(result.map(vsix => this.extensionsWorkbenchService.install(vsix)))

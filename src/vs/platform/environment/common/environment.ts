@@ -62,7 +62,7 @@ export interface ParsedArgs {
 	'disable-updates'?: string;
 	'disable-crash-reporter'?: string;
 	'skip-add-to-recently-opened'?: boolean;
-	'max-memory'?: number;
+	'max-memory'?: string;
 	'file-write'?: boolean;
 	'file-chmod'?: boolean;
 	'upload-logs'?: string;

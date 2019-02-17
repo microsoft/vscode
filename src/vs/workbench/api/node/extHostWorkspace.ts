@@ -3,15 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { join, relative } from 'path';
+import { join } from 'vs/base/common/path';
 import { delta as arrayDelta, mapArrayOrNot } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { Counter } from 'vs/base/common/numbers';
-import { normalize } from 'vs/base/common/paths';
 import { isLinux } from 'vs/base/common/platform';
-import { basenameOrAuthority, dirname, isEqual } from 'vs/base/common/resources';
+import { basenameOrAuthority, dirname, isEqual, relativePath } from 'vs/base/common/resources';
 import { compare } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
@@ -131,7 +130,7 @@ class ExtHostWorkspaceImpl extends Workspace {
 	getWorkspaceFolder(uri: URI, resolveParent?: boolean): vscode.WorkspaceFolder | undefined {
 		if (resolveParent && this._structure.get(uri.toString())) {
 			// `uri` is a workspace folder so we check for its parent
-			uri = dirname(uri)!;
+			uri = dirname(uri);
 		}
 		return this._structure.findSubstr(uri.toString());
 	}
@@ -326,19 +325,22 @@ export class ExtHostWorkspaceProvider {
 
 	getRelativePath(pathOrUri: string | vscode.Uri, includeWorkspace?: boolean): string | undefined {
 
+		let resource: URI | undefined;
 		let path: string | undefined;
 		if (typeof pathOrUri === 'string') {
+			resource = URI.file(pathOrUri);
 			path = pathOrUri;
 		} else if (typeof pathOrUri !== 'undefined') {
+			resource = pathOrUri;
 			path = pathOrUri.fsPath;
 		}
 
-		if (!path) {
+		if (!resource) {
 			return path;
 		}
 
 		const folder = this.getWorkspaceFolder(
-			typeof pathOrUri === 'string' ? URI.file(pathOrUri) : pathOrUri,
+			resource,
 			true
 		);
 
@@ -350,11 +352,11 @@ export class ExtHostWorkspaceProvider {
 			includeWorkspace = this._actualWorkspace.folders.length > 1;
 		}
 
-		let result = relative(folder.uri.fsPath, path);
-		if (includeWorkspace) {
+		let result = relativePath(folder.uri, resource);
+		if (includeWorkspace && folder.name) {
 			result = `${folder.name}/${result}`;
 		}
-		return normalize(result, true);
+		return result;
 	}
 
 	private trySetWorkspaceFolders(folders: vscode.WorkspaceFolder[]): void {

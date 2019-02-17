@@ -31,7 +31,7 @@ export class ClosePanelAction extends Action {
 
 	run(): Promise<any> {
 		this.partService.setPanelHidden(true);
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 
@@ -50,7 +50,7 @@ export class TogglePanelAction extends Action {
 
 	run(): Promise<any> {
 		this.partService.setPanelHidden(this.partService.isVisible(Parts.PANEL_PART));
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 
@@ -73,7 +73,7 @@ class FocusPanelAction extends Action {
 		// Show panel
 		if (!this.partService.isVisible(Parts.PANEL_PART)) {
 			this.partService.setPanelHidden(false);
-			return Promise.resolve(null);
+			return Promise.resolve();
 		}
 
 		// Focus into active panel
@@ -82,7 +82,7 @@ class FocusPanelAction extends Action {
 			panel.focus();
 		}
 
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 
@@ -120,7 +120,7 @@ export class TogglePanelPositionAction extends Action {
 		const position = this.partService.getPanelPosition();
 
 		this.partService.setPanelPosition(position === Position.BOTTOM ? Position.RIGHT : Position.BOTTOM);
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 
 	dispose(): void {
@@ -162,7 +162,7 @@ export class ToggleMaximizedPanelAction extends Action {
 		}
 
 		this.partService.toggleMaximizedPanel();
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 
 	dispose(): void {
@@ -184,7 +184,7 @@ export class PanelActivityAction extends ActivityAction {
 	run(event: any): Promise<any> {
 		this.panelService.openPanel(this.activity.id, true);
 		this.activate();
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 
@@ -202,17 +202,19 @@ export class SwitchPanelViewAction extends Action {
 		const pinnedPanels = this.panelService.getPinnedPanels();
 		const activePanel = this.panelService.getActivePanel();
 		if (!activePanel) {
-			return Promise.resolve(null);
+			return Promise.resolve();
 		}
-		let targetPanelId: string;
+		let targetPanelId: string | undefined;
 		for (let i = 0; i < pinnedPanels.length; i++) {
 			if (pinnedPanels[i].id === activePanel.getId()) {
 				targetPanelId = pinnedPanels[(i + pinnedPanels.length + offset) % pinnedPanels.length].id;
 				break;
 			}
 		}
-		this.panelService.openPanel(targetPanelId, true);
-		return Promise.resolve(null);
+		if (typeof targetPanelId === 'string') {
+			this.panelService.openPanel(targetPanelId, true);
+		}
+		return Promise.resolve();
 	}
 }
 

@@ -5,7 +5,7 @@
 
 import { compareAnything } from 'vs/base/common/comparers';
 import { matchesPrefix, IMatch, matchesCamelCase, isUpper } from 'vs/base/common/filters';
-import { sep } from 'vs/base/common/paths.node';
+import { sep } from 'vs/base/common/path';
 import { isWindows, isLinux } from 'vs/base/common/platform';
 import { stripWildcards, equalsIgnoreCase } from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
