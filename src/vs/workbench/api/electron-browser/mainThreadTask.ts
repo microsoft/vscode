@@ -518,7 +518,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 		});
 	}
 
-	public $customTaskExecutionComplete(id: string, result: number | undefined): Promise<void> {
+	public $customTaskExecutionComplete(id: string, result?: number): Promise<void> {
 		return new Promise<void>((resolve, reject) => {
 			this._taskService.getActiveTasks().then((tasks) => {
 				for (let task of tasks) {

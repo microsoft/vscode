@@ -288,7 +288,6 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 
 	public get activeTerminal(): ExtHostTerminal { return this._activeTerminal; }
 	public get terminals(): ExtHostTerminal[] { return this._terminals; }
-	public get terminalRenderers(): ExtHostTerminalRenderer[] { return this._terminalRenderers; }
 
 	private readonly _onDidCloseTerminal: Emitter<vscode.Terminal> = new Emitter<vscode.Terminal>();
 	public get onDidCloseTerminal(): Event<vscode.Terminal> { return this._onDidCloseTerminal && this._onDidCloseTerminal.event; }
@@ -338,7 +337,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 			throw new Error('Only expected instance extension host terminal type');
 		}
 		// Check to see if the extension host already knows about this terminal.
-		for (const terminalRenderer of this.terminalRenderers) {
+		for (const terminalRenderer of this._terminalRenderers) {
 			if (terminalRenderer._id === terminal._id) {
 				return terminalRenderer;
 			}

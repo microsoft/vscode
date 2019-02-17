@@ -722,7 +722,7 @@ class TaskService extends Disposable implements ITaskService {
 		if (!this._taskSystem) {
 			return Promise.resolve();
 		}
-		return this._taskSystem.extensionCallbackTaskComplete(task, result);
+		return this._taskSystem.customTaskExecutionComplete(task, result);
 	}
 
 	public getTask(folder: IWorkspaceFolder | string, identifier: string | TaskIdentifier, compareId: boolean = false): Promise<Task | undefined> {

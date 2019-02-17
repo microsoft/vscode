@@ -265,10 +265,10 @@ export class TerminalTaskSystem implements ITaskSystem {
 		return Object.keys(this.activeTasks).map(key => this.activeTasks[key].task);
 	}
 
-	public extensionCallbackTaskComplete(task: Task, result: number | undefined): Promise<void> {
+	public customTaskExecutionComplete(task: Task, result?: number): Promise<void> {
 		let activeTerminal = this.activeTasks[task.getMapKey()];
 		if (!activeTerminal) {
-			return Promise.reject(new Error('Expected to have a terminal for an extension callback task'));
+			return Promise.reject(new Error('Expected to have a terminal for an custom execution task'));
 		}
 
 		return new Promise<void>((resolve) => {
@@ -1114,7 +1114,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 	}
 
 	private collectCommandVariables(variables: Set<string>, command: CommandConfiguration, task: CustomTask | ContributedTask): void {
-		// An extension callback should have everything it needs already as it provided
+		// The custom execution should have everything it needs already as it provided
 		// the callback.
 		if (command.runtime === RuntimeType.CustomTaskExecution) {
 			return;

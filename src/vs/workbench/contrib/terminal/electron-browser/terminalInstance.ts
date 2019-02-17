@@ -212,8 +212,8 @@ export class TerminalInstance implements ITerminalInstance {
 	public get shellLaunchConfig(): IShellLaunchConfig { return this._shellLaunchConfig; }
 	public get commandTracker(): TerminalCommandTracker { return this._commandTracker; }
 
-	private readonly _onExit = new Emitter<number>();
-	public get onExit(): Event<number> { return this._onExit.event; }
+	private readonly _onExit = new Emitter<number | undefined>();
+	public get onExit(): Event<number | undefined> { return this._onExit.event; }
 	private readonly _onDisposed = new Emitter<ITerminalInstance>();
 	public get onDisposed(): Event<ITerminalInstance> { return this._onDisposed.event; }
 	private readonly _onFocused = new Emitter<ITerminalInstance>();
@@ -753,9 +753,9 @@ export class TerminalInstance implements ITerminalInstance {
 		this._disposables = lifecycle.dispose(this._disposables);
 	}
 
-	public finishedWithRenderer(result: number | undefined): void {
+	public finishedWithRenderer(result?: number): void {
 		// The use of this API is for cases where there is no backing process
-		// behind a terminal instance (such as when executing an extension callback task).
+		// behind a terminal instance (such as when executing an custom execution task).
 		// There is no associated string, error text, etc, as the consumer of the renderer
 		// can simply output  the text to the renderer themselves.
 		// All this code does is handle the "wait on exit" condition.
@@ -990,7 +990,8 @@ export class TerminalInstance implements ITerminalInstance {
 	private _onProcessOrExtensionCallbackExit(exitCode?: number): void {
 		// Use 'typeof exitCode' because simply doing if (exitCode) would return false for both "not undefined" and a value of 0
 		// which is not the intention.
-		if (typeof exitCode === `number`) {
+		const isExitCodeSpecified: boolean = (typeof exitCode === `number`);
+		if (isExitCodeSpecified) {
 			this._logService.debug(`Terminal process exit (id: ${this.id}) with code ${exitCode}`);
 		}
 
@@ -1002,7 +1003,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._isExiting = true;
 		let exitCodeMessage: string;
 
-		if (typeof exitCode === `number`) {
+		if (isExitCodeSpecified) {
 			exitCodeMessage = nls.localize('terminal.integrated.exitedWithCode', 'The terminal process terminated with exit code: {0}', exitCode);
 		}
 
@@ -1013,7 +1014,7 @@ export class TerminalInstance implements ITerminalInstance {
 		// Only trigger wait on exit when the exit was *not* triggered by the
 		// user (via the `workbench.action.terminal.kill` command).
 		if (this._shellLaunchConfig.waitOnExit && (!this._processManager || this._processManager.processState !== ProcessState.KILLED_BY_USER)) {
-			if (typeof exitCode === `number`) {
+			if (isExitCodeSpecified) {
 				this._xterm.writeln(exitCodeMessage!);
 			}
 			if (typeof this._shellLaunchConfig.waitOnExit === 'string') {
@@ -1029,8 +1030,8 @@ export class TerminalInstance implements ITerminalInstance {
 			}
 		} else {
 			this.dispose();
-			if (typeof exitCode === `number`) {
-				if (this._processManager && this._processManager!.processState === ProcessState.KILLED_DURING_LAUNCH) {
+			if (isExitCodeSpecified) {
+				if (this._processManager && this._processManager.processState === ProcessState.KILLED_DURING_LAUNCH) {
 					let args = '';
 					if (typeof this._shellLaunchConfig.args === 'string') {
 						args = this._shellLaunchConfig.args;
@@ -1057,7 +1058,7 @@ export class TerminalInstance implements ITerminalInstance {
 			}
 		}
 
-		this._onExit.fire((typeof exitCode === `number`) ? exitCode : 0);
+		this._onExit.fire(exitCode);
 	}
 
 	private _attachPressAnyKeyToCloseListener() {
@@ -1104,10 +1105,10 @@ export class TerminalInstance implements ITerminalInstance {
 
 		if (this._processManager) {
 			// TODO: Why is this a string-null check failure without the "!"?
-			// The process manager can indeed be undefined when using an extension callback
+			// The process manager can indeed be undefined when using a custom execution
 			// as a task, and the if check is correct.
 			// The "force assume to be not-null !" operator was there before the addition
-			// of extension callback as task functionality.
+			// of custom execution as task functionality.
 			this._processManager!.onProcessData(data => this._onProcessData(data));
 		}
 	}

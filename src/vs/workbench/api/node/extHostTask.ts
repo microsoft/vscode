@@ -403,7 +403,7 @@ class CustomTaskExecutionData implements IDisposable {
 
 		this._disposables.push(this.terminalService.onDidCloseTerminal(this.onDidCloseTerminal.bind(this)));
 
-		// Regardless of how the task completes, we are done with this extension callback task execution.
+		// Regardless of how the task completes, we are done with this custom execution task.
 		this.callbackData.callback(terminalRenderer, this._cancellationSource.token).then(
 			(success) => {
 				this.result = success;
@@ -515,8 +515,7 @@ export class ExtHostTask implements ExtHostTaskShape {
 	}
 
 	public async $onDidStartTask(execution: TaskExecutionDTO, terminalId: number): Promise<void> {
-		// Once a terminal is spun up for the extension callback task execution
-		// this event will be fired.
+		// Once a terminal is spun up for the custom execution task this event will be fired.
 		// At that point, we need to actually start the callback, but
 		// only if it hasn't already begun.
 		const extensionCallback: CustomTaskExecutionData | undefined = this._providedCustomTaskExecutions.get(execution.id);
@@ -591,19 +590,19 @@ export class ExtHostTask implements ExtHostTaskShape {
 			return Promise.reject(new Error('no handler found'));
 		}
 
-		// For extension callback tasks, we need to store the execution objects locally
+		// For custom execution tasks, we need to store the execution objects locally
 		// since we obviously cannot send callback functions through the proxy.
 		// So, clear out any existing ones.
 		this._providedCustomTaskExecutions.clear();
 
 		// Set up a list of task ID promises that we can wait on
 		// before returning the provided tasks. The ensures that
-		// our task IDs are calculated for any extension callback tasks.
+		// our task IDs are calculated for any custom execution tasks.
 		// Knowing this ID ahead of time is needed because when a task
-		// start event is fired this is when the extension callback is called.
+		// start event is fired this is when the custom execution is called.
 		// The task start event is also the first time we see the ID from the main
 		// thread, which is too late for us because we need to save an map
-		// from an ID to an extension callback function. (Kind of a cart before the horse problem).
+		// from an ID to the custom execution function. (Kind of a cart before the horse problem).
 		let taskIdPromises: Promise<void>[] = [];
 		let fetchPromise = asPromise(() => handler.provider.provideTasks(CancellationToken.None)).then(value => {
 			const taskDTOs: TaskDTO[] = [];
