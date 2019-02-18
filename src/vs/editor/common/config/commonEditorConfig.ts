@@ -264,6 +264,11 @@ const editorConfiguration: IConfigurationNode = {
 			'default': 'on',
 			'description': nls.localize('lineNumbers', "Controls the display of line numbers.")
 		},
+		'editor.renderFinalNewline': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.viewInfo.renderFinalNewline,
+			'description': nls.localize('renderFinalNewline', "Render last line number when the file ends with a newline.")
+		},
 		'editor.rulers': {
 			'type': 'array',
 			'items': {
