@@ -13,7 +13,7 @@ import { IAction, Action } from 'vs/base/common/actions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import * as DOM from 'vs/base/browser/dom';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { isMacintosh, isLinux } from 'vs/base/common/platform';
+import { isMacintosh, isLinux, AccessibilitySupport } from 'vs/base/common/platform';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -32,6 +32,7 @@ import { MenuBar } from 'vs/base/browser/ui/menu/menubar';
 import { SubmenuAction } from 'vs/base/browser/ui/menu/menu';
 import { attachMenuStyler } from 'vs/platform/theme/common/styler';
 import { assign } from 'vs/base/common/objects';
+import { getAccessibilitySupport } from 'vs/base/browser/browser';
 
 export class MenubarControl extends Disposable {
 
@@ -133,6 +134,8 @@ export class MenubarControl extends Disposable {
 
 		this.notifyExistingLinuxUser();
 
+		this.notifyUserOfCustomMenubarAccessibility();
+
 		this.registerListeners();
 	}
 
@@ -190,6 +193,10 @@ export class MenubarControl extends Disposable {
 		if (this.keys.some(key => event.affectsConfiguration(key))) {
 			this.updateMenubar();
 		}
+
+		if (event.affectsConfiguration('editor.accessibilitySupport')) {
+			this.notifyUserOfCustomMenubarAccessibility();
+		}
 	}
 
 	private onRecentlyOpenedChange(): void {
@@ -213,10 +220,10 @@ export class MenubarControl extends Disposable {
 			return;
 		}
 
-		const message = nls.localize('menubar.linuxTitlebarRevertNotification', "We have updated the default title bar on Linux to use the native setting. If you prefer, you can go back to the custom setting ");
+		const message = nls.localize('menubar.linuxTitlebarRevertNotification', "We have updated the default title bar on Linux to use the native setting. If you prefer, you can go back to the custom setting.");
 		this.notificationService.prompt(Severity.Info, message, [
 			{
-				label: nls.localize('goToSetting', "Open Settings"),
+				label: nls.localize('goToSetting', "Go to setting"),
 				run: () => {
 					return this.preferencesService.openGlobalSettings(undefined, { query: 'window.titleBarStyle' });
 				}
@@ -234,6 +241,41 @@ export class MenubarControl extends Disposable {
 				}
 			}
 		]);
+
+		this.storageService.store('menubar/linuxTitlebarRevertNotified', true, StorageScope.GLOBAL);
+	}
+
+	private notifyUserOfCustomMenubarAccessibility(): void {
+		if (isMacintosh) {
+			return;
+		}
+
+		const hasBeenNotified = this.storageService.getBoolean('menubar/accessibleMenubarNotified', StorageScope.GLOBAL, false);
+		const usingCustomMenubar = getTitleBarStyle(this.configurationService, this.environmentService) === 'custom';
+		const detected = getAccessibilitySupport() === AccessibilitySupport.Enabled;
+		const config = this.configurationService.getValue('editor.accessibilitySupport');
+
+		if (hasBeenNotified || usingCustomMenubar || !(config === 'on' || (config === 'auto' && detected))) {
+			return;
+		}
+
+		const message = nls.localize('menubar.customTitlebarAccessibilityNotification', "Accessibility support is enabled for you. For the most accessible experience, we recommend the custom title bar style.");
+		this.notificationService.prompt(Severity.Info, message, [
+			{
+				label: nls.localize('goToSetting', "Go to setting"),
+				run: () => {
+					return this.preferencesService.openGlobalSettings(undefined, { query: 'window.titleBarStyle' });
+				}
+			},
+			{
+				label: nls.localize('neverShowAgain', "Don't Show Again"),
+				run: () => {
+					this.storageService.store('menubar/accessibleMenubarNotified', true, StorageScope.GLOBAL);
+				}
+			}
+		]);
+
+		this.storageService.store('menubar/accessibleMenubarNotified', true, StorageScope.GLOBAL);
 	}
 
 	private registerListeners(): void {
