@@ -2582,7 +2582,11 @@ declare namespace monaco.editor {
 		 * Defaults to true.
 		 */
 		lineNumbers?: 'on' | 'off' | 'relative' | 'interval' | ((lineNumber: number) => string);
-		displayBlankLastLineNumber?: boolean;
+		/**
+		 * Render last line number when the file ends with a newline.
+		 * Defaults to true on Windows/Mac and to false on Linux.
+		*/
+		renderFinalNewline?: boolean;
 		/**
 		 * Should the corresponding line be selected when clicking on the line number?
 		 * Defaults to true.
@@ -3220,7 +3224,7 @@ declare namespace monaco.editor {
 		readonly ariaLabel: string;
 		readonly renderLineNumbers: RenderLineNumbersType;
 		readonly renderCustomLineNumbers: ((lineNumber: number) => string) | null;
-		readonly displayBlankLastLineNumber: boolean;
+		readonly renderFinalNewline: boolean;
 		readonly selectOnLineNumbers: boolean;
 		readonly glyphMargin: boolean;
 		readonly revealHorizontalRightPadding: number;
