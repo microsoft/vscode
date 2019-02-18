@@ -31,14 +31,14 @@ export function connectProxyResolver(
 	extHostLogService: ExtHostLogService,
 	mainThreadTelemetry: MainThreadTelemetryShape
 ) {
-	const agents = createProxyAgents(extHostWorkspace, configProvider, extHostLogService, mainThreadTelemetry);
-	const lookup = createPatchedModules(configProvider, agents);
+	const resolveProxy = setupProxyResolution(extHostWorkspace, configProvider, extHostLogService, mainThreadTelemetry);
+	const lookup = createPatchedModules(configProvider, resolveProxy);
 	return configureModuleLoading(extensionService, lookup);
 }
 
 const maxCacheEntries = 5000; // Cache can grow twice that much due to 'oldCache'.
 
-function createProxyAgents(
+function setupProxyResolution(
 	extHostWorkspace: ExtHostWorkspaceProvider,
 	configProvider: ExtHostConfigProvider,
 	extHostLogService: ExtHostLogService,
@@ -168,11 +168,7 @@ function createProxyAgents(
 			});
 	}
 
-	const httpAgent: http.Agent = new ProxyAgent({ resolveProxy });
-	(<any>httpAgent).defaultPort = 80;
-	const httpsAgent: http.Agent = new ProxyAgent({ resolveProxy });
-	(<any>httpsAgent).defaultPort = 443;
-	return { http: httpAgent, https: httpsAgent };
+	return resolveProxy;
 }
 
 function collectResult(results: ConnectionResult[], resolveProxy: string, connection: string, req: http.ClientRequest) {
@@ -218,7 +214,7 @@ function proxyFromConfigURL(configURL: string) {
 	return undefined;
 }
 
-function createPatchedModules(configProvider: ExtHostConfigProvider, agents: { http: http.Agent; https: http.Agent; }) {
+function createPatchedModules(configProvider: ExtHostConfigProvider, resolveProxy: ReturnType<typeof setupProxyResolution>) {
 	const setting = {
 		config: configProvider.getConfiguration('http')
 			.get<string>('proxySupport') || 'off'
@@ -230,23 +226,23 @@ function createPatchedModules(configProvider: ExtHostConfigProvider, agents: { h
 
 	return {
 		http: {
-			off: assign({}, http, patches(http, agents.http, agents.https, { config: 'off' }, true)),
-			on: assign({}, http, patches(http, agents.http, agents.https, { config: 'on' }, true)),
-			override: assign({}, http, patches(http, agents.http, agents.https, { config: 'override' }, true)),
-			onRequest: assign({}, http, patches(http, agents.http, agents.https, setting, true)),
-			default: assign(http, patches(http, agents.http, agents.https, setting, false)) // run last
+			off: assign({}, http, patches(http, resolveProxy, { config: 'off' }, true)),
+			on: assign({}, http, patches(http, resolveProxy, { config: 'on' }, true)),
+			override: assign({}, http, patches(http, resolveProxy, { config: 'override' }, true)),
+			onRequest: assign({}, http, patches(http, resolveProxy, setting, true)),
+			default: assign(http, patches(http, resolveProxy, setting, false)) // run last
 		},
 		https: {
-			off: assign({}, https, patches(https, agents.https, agents.http, { config: 'off' }, true)),
-			on: assign({}, https, patches(https, agents.https, agents.http, { config: 'on' }, true)),
-			override: assign({}, https, patches(https, agents.https, agents.http, { config: 'override' }, true)),
-			onRequest: assign({}, https, patches(https, agents.https, agents.http, setting, true)),
-			default: assign(https, patches(https, agents.https, agents.http, setting, false)) // run last
+			off: assign({}, https, patches(https, resolveProxy, { config: 'off' }, true)),
+			on: assign({}, https, patches(https, resolveProxy, { config: 'on' }, true)),
+			override: assign({}, https, patches(https, resolveProxy, { config: 'override' }, true)),
+			onRequest: assign({}, https, patches(https, resolveProxy, setting, true)),
+			default: assign(https, patches(https, resolveProxy, setting, false)) // run last
 		}
 	};
 }
 
-function patches(originals: typeof http | typeof https, agent: http.Agent, otherAgent: http.Agent, setting: { config: string; }, onRequest: boolean) {
+function patches(originals: typeof http | typeof https, resolveProxy: ReturnType<typeof setupProxyResolution>, setting: { config: string; }, onRequest: boolean) {
 	return {
 		get: patch(originals.get),
 		request: patch(originals.request)
@@ -270,7 +266,7 @@ function patches(originals: typeof http | typeof https, agent: http.Agent, other
 				return original.apply(null, arguments as unknown as any[]);
 			}
 
-			if (!options.socketPath && (config === 'override' || config === 'on' && !options.agent) && options.agent !== agent && options.agent !== otherAgent) {
+			if (!options.socketPath && (config === 'override' || config === 'on' && !options.agent) && !(options.agent instanceof ProxyAgent)) {
 				if (url) {
 					const parsed = typeof url === 'string' ? new nodeurl.URL(url) : url;
 					const urlOptions = {
@@ -286,7 +282,11 @@ function patches(originals: typeof http | typeof https, agent: http.Agent, other
 				} else {
 					options = { ...options };
 				}
-				options.agent = agent;
+				options.agent = new ProxyAgent({
+					resolveProxy,
+					defaultPort: originals === https ? 443 : 80,
+					originalAgent: options.agent
+				});
 				return original(options, callback);
 			}
 

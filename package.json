@@ -48,7 +48,7 @@
     "vscode-chokidar": "1.6.5",
     "vscode-debugprotocol": "^1.34.0-pre.0",
     "vscode-nsfw": "1.1.1",
-    "vscode-proxy-agent": "0.3.0",
+    "vscode-proxy-agent": "0.4.0",
     "vscode-ripgrep": "^1.2.5",
     "vscode-sqlite3": "4.0.7",
     "vscode-textmate": "^4.0.1",
