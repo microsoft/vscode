@@ -308,8 +308,8 @@ export class ExplorerView extends ViewletPanel {
 			const isSingleFolder = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER;
 			const resource = stat ? stat.resource : isSingleFolder ? this.contextService.getWorkspace().folders[0].uri : undefined;
 			this.resourceContext.set(resource);
-			this.folderContext.set((isSingleFolder && !stat) || stat && stat.isDirectory);
-			this.readonlyContext.set(stat && stat.isReadonly);
+			this.folderContext.set((isSingleFolder && !stat) || !!stat && stat.isDirectory);
+			this.readonlyContext.set(!!stat && stat.isReadonly);
 			this.rootContext.set(!stat || (stat && stat.isRoot));
 		}));
 

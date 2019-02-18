@@ -4,13 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
-import { join, normalize } from 'vs/base/common/paths';
 import * as platform from 'vs/base/common/platform';
 import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { IFolderQuery, QueryType } from 'vs/platform/search/common/search';
+import { IFolderQuery, QueryType } from 'vs/workbench/services/search/common/search';
 import { Engine as FileSearchEngine, FileWalker } from 'vs/workbench/services/search/node/fileSearch';
 import { IRawFileMatch } from 'vs/workbench/services/search/node/search';
 
@@ -188,7 +187,7 @@ suite('FileSearchEngine', () => {
 		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: ROOT_FOLDER_QUERY,
-			filePattern: normalize(join('examples', 'com*'), true)
+			filePattern: path.join('examples', 'com*')
 		});
 
 		let count = 0;

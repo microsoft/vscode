@@ -6,8 +6,8 @@
 import * as os from 'os';
 import * as cp from 'child_process';
 import * as fs from 'fs';
-import * as path from 'path';
 
+import * as path from 'vs/base/common/path';
 import { localize } from 'vs/nls';
 import product from 'vs/platform/node/product';
 import { IRequestService } from 'vs/platform/request/node/request';

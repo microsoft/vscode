@@ -291,7 +291,7 @@ export class RemoteFileService extends FileService {
 
 		// soft-groupBy, keep order, don't rearrange/merge groups
 		let groups: Array<typeof toResolve> = [];
-		let group: typeof toResolve;
+		let group: typeof toResolve | undefined;
 		for (const request of toResolve) {
 			if (!group || group[0].resource.scheme !== request.resource.scheme) {
 				group = [];
@@ -505,7 +505,7 @@ export class RemoteFileService extends FileService {
 			return super.del(resource, options);
 		} else {
 			return this._withProvider(resource).then(RemoteFileService._throwIfFileSystemIsReadonly).then(provider => {
-				return provider.delete(resource, { recursive: options && options.recursive }).then(() => {
+				return provider.delete(resource, { recursive: !!(options && options.recursive) }).then(() => {
 					this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.DELETE));
 				});
 			});
@@ -593,7 +593,7 @@ export class RemoteFileService extends FileService {
 
 			if (source.scheme === target.scheme && (provider.capabilities & FileSystemProviderCapabilities.FileFolderCopy)) {
 				// good: provider supports copy withing scheme
-				return provider.copy(source, target, { overwrite }).then(() => {
+				return provider.copy(source, target, { overwrite: !!overwrite }).then(() => {
 					return this.resolveFile(target);
 				}).then(fileStat => {
 					this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.COPY, fileStat));
@@ -620,7 +620,7 @@ export class RemoteFileService extends FileService {
 							provider, target,
 							new StringSnapshot(content.value),
 							content.encoding,
-							{ create: true, overwrite }
+							{ create: true, overwrite: !!overwrite }
 						).then(fileStat => {
 							this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.COPY, fileStat));
 							return fileStat;

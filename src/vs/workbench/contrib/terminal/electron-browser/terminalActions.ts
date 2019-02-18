@@ -40,23 +40,23 @@ export const TERMINAL_PICKER_PREFIX = 'term ';
 function getCwdForSplit(configHelper: ITerminalConfigHelper, instance: ITerminalInstance, folders?: IWorkspaceFolder[], commandService?: ICommandService): Promise<string | URI> {
 	switch (configHelper.config.splitCwd) {
 		case 'workspaceRoot':
-			let pathPromise: Promise<string | URI>;
-			if (folders.length === 0) {
-				pathPromise = Promise.resolve('');
-			} else if (folders.length === 1) {
-				pathPromise = Promise.resolve(folders[0].uri);
-			} else if (folders.length > 1) {
-				// Only choose a path when there's more than 1 folder
-				const options: IPickOptions<IQuickPickItem> = {
-					placeHolder: nls.localize('workbench.action.terminal.newWorkspacePlaceholder', "Select current working directory for new terminal")
-				};
-				pathPromise = commandService.executeCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, [options]).then(workspace => {
-					if (!workspace) {
-						// Don't split the instance if the workspace picker was canceled
-						return undefined;
-					}
-					return Promise.resolve(workspace.uri);
-				});
+			let pathPromise: Promise<string | URI> = Promise.resolve('');
+			if (folders !== undefined && commandService !== undefined) {
+				if (folders.length === 1) {
+					pathPromise = Promise.resolve(folders[0].uri);
+				} else if (folders.length > 1) {
+					// Only choose a path when there's more than 1 folder
+					const options: IPickOptions<IQuickPickItem> = {
+						placeHolder: nls.localize('workbench.action.terminal.newWorkspacePlaceholder', "Select current working directory for new terminal")
+					};
+					pathPromise = commandService.executeCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, [options]).then(workspace => {
+						if (!workspace) {
+							// Don't split the instance if the workspace picker was canceled
+							return undefined;
+						}
+						return Promise.resolve(workspace.uri);
+					});
+				}
 			}
 			return pathPromise;
 		case 'initial':
@@ -137,7 +137,7 @@ export class QuickKillTerminalAction extends Action {
 		if (instance) {
 			instance.dispose(true);
 		}
-		return Promise.resolve(timeout(50)).then(result => this.quickOpenService.show(TERMINAL_PICKER_PREFIX, null));
+		return Promise.resolve(timeout(50)).then(result => this.quickOpenService.show(TERMINAL_PICKER_PREFIX, undefined));
 	}
 }
 
@@ -291,7 +291,7 @@ export class SendSequenceTerminalCommand extends Command {
 		const workspaceContextService = accessor.get(IWorkspaceContextService);
 		const historyService = accessor.get(IHistoryService);
 		const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(Schemas.file);
-		const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) : null;
+		const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) || undefined : undefined;
 		const resolvedText = configurationResolverService.resolve(lastActiveWorkspaceRoot, args.text);
 		terminalInstance.sendText(resolvedText, false);
 	}
@@ -324,7 +324,7 @@ export class CreateNewTerminalAction extends Action {
 			}
 		}
 
-		let instancePromise: Promise<ITerminalInstance>;
+		let instancePromise: Promise<ITerminalInstance | null>;
 		if (folders.length <= 1) {
 			// Allow terminal service to handle the path when there is only a
 			// single root
@@ -651,7 +651,7 @@ export class RunSelectedTextInTerminalAction extends Action {
 			return Promise.resolve(undefined);
 		}
 		let editor = this.codeEditorService.getFocusedCodeEditor();
-		if (!editor) {
+		if (!editor || !editor.hasModel()) {
 			return Promise.resolve(undefined);
 		}
 		let selection = editor.getSelection();
@@ -687,7 +687,7 @@ export class RunActiveFileInTerminalAction extends Action {
 			return Promise.resolve(undefined);
 		}
 		const editor = this.codeEditorService.getActiveCodeEditor();
-		if (!editor) {
+		if (!editor || !editor.hasModel()) {
 			return Promise.resolve(undefined);
 		}
 		const uri = editor.getModel().uri;
@@ -1050,7 +1050,7 @@ export class QuickOpenTermAction extends Action {
 	}
 
 	public run(): Promise<void> {
-		return this.quickOpenService.show(TERMINAL_PICKER_PREFIX, null);
+		return this.quickOpenService.show(TERMINAL_PICKER_PREFIX, undefined);
 	}
 }
 
@@ -1071,7 +1071,7 @@ export class RenameTerminalQuickOpenAction extends RenameTerminalAction {
 		super.run(this.terminal)
 			// This timeout is needed to make sure the previous quickOpen has time to close before we show the next one
 			.then(() => timeout(50))
-			.then(result => this.quickOpenService.show(TERMINAL_PICKER_PREFIX, null));
+			.then(result => this.quickOpenService.show(TERMINAL_PICKER_PREFIX, undefined));
 		return Promise.resolve(null);
 	}
 }

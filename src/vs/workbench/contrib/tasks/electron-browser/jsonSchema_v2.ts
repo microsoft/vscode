@@ -177,7 +177,7 @@ const group: IJSONSchema = {
 
 const taskType: IJSONSchema = {
 	type: 'string',
-	enum: ['shell', 'process'],
+	enum: ['shell'],
 	default: 'shell',
 	description: nls.localize('JsonSchema.tasks.type', 'Defines whether the task is run as a process or as a command inside a shell.')
 };
@@ -358,7 +358,11 @@ TaskDefinitionRegistry.onReady().then(() => {
 		};
 		if (taskType.required) {
 			schema.required = taskType.required.slice();
+		} else {
+			schema.required = [];
 		}
+		// Customized tasks require that the task type be set.
+		schema.required.push('type');
 		if (taskType.properties) {
 			for (let key of Object.keys(taskType.properties)) {
 				let property = taskType.properties[key];
@@ -375,6 +379,10 @@ customize.properties!.customize = {
 	type: 'string',
 	deprecationMessage: nls.localize('JsonSchema.tasks.customize.deprecated', 'The customize property is deprecated. See the 1.14 release notes on how to migrate to the new task customization approach')
 };
+if (!customize.required) {
+	customize.required = [];
+}
+customize.required.push('customize');
 taskDefinitions.push(customize);
 
 let definitions = Objects.deepClone(commonSchemaDefinitions);
@@ -423,6 +431,17 @@ taskDescriptionProperties.isTestCommand.deprecationMessage = nls.localize(
 	'The property isTestCommand is deprecated. Use the group property instead. See also the 1.14 release notes.'
 );
 
+// Process tasks are almost identical schema-wise to shell tasks, but they are required to have a command
+const processTask = Objects.deepClone(taskDescription);
+processTask.properties!.type = {
+	type: 'string',
+	enum: ['process'],
+	default: 'shell',
+	description: nls.localize('JsonSchema.tasks.type', 'Defines whether the task is run as a process or as a command inside a shell.')
+};
+processTask.required!.push('command');
+
+taskDefinitions.push(processTask);
 
 taskDefinitions.push({
 	$ref: '#/definitions/taskDescription'
@@ -433,7 +452,6 @@ let tasks = definitionsTaskRunnerConfigurationProperties.tasks;
 tasks.items = {
 	oneOf: taskDefinitions
 };
-
 
 definitionsTaskRunnerConfigurationProperties.inputs = inputsSchema.definitions!.inputs;
 

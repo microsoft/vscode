@@ -166,6 +166,10 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this._register(this.pluginManager.onDidUpdateConfig(update => {
 			this.configurePlugin(update.pluginId, update.config);
 		}));
+
+		this._register(this.pluginManager.onDidChangePlugins(() => {
+			this.restartTsServer();
+		}));
 	}
 
 	public get configuration() {

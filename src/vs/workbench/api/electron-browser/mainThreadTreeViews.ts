@@ -45,7 +45,10 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		return this.viewsService.openView(treeViewId, options.focus)
 			.then(() => {
 				const viewer = this.getTreeView(treeViewId);
-				return this.reveal(viewer, this._dataProviders.get(treeViewId), item, parentChain, options);
+				if (viewer) {
+					return this.reveal(viewer, this._dataProviders.get(treeViewId)!, item, parentChain, options);
+				}
+				return undefined;
 			});
 	}
 
@@ -56,7 +59,7 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 			const itemsToRefresh = dataProvider.getItemsToRefresh(itemsToRefreshByHandle);
 			return viewer.refresh(itemsToRefresh.length ? itemsToRefresh : undefined);
 		}
-		return null;
+		return Promise.resolve();
 	}
 
 	$setMessage(treeViewId: string, message: string | IMarkdownString): void {

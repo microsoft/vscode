@@ -186,7 +186,7 @@ export class LabelService implements ILabelService {
 		}
 
 		// Workspace: Untitled
-		if (isEqualOrParent(workspace.configPath, URI.file(this.environmentService.workspacesHome))) {
+		if (isEqualOrParent(workspace.configPath, this.environmentService.untitledWorkspacesHome)) {
 			return localize('untitledWorkspace', "Untitled (Workspace)");
 		}
 
@@ -194,7 +194,7 @@ export class LabelService implements ILabelService {
 		const filename = basename(workspace.configPath);
 		const workspaceName = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
 		if (options && options.verbose) {
-			return localize('workspaceNameVerbose', "{0} (Workspace)", this.getUriLabel(joinPath(dirname(workspace.configPath)!, workspaceName)));
+			return localize('workspaceNameVerbose', "{0} (Workspace)", this.getUriLabel(joinPath(dirname(workspace.configPath), workspaceName)));
 		}
 
 		return localize('workspaceName', "{0} (Workspace)", workspaceName);

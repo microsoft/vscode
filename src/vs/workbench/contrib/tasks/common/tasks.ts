@@ -223,7 +223,7 @@ export interface PresentationOptions {
 
 export namespace PresentationOptions {
 	export const defaults: PresentationOptions = {
-		echo: false, reveal: RevealKind.Always, focus: false, panel: PanelKind.Shared, showReuseMessage: true, clear: false
+		echo: true, reveal: RevealKind.Always, focus: false, panel: PanelKind.Shared, showReuseMessage: true, clear: false
 	};
 }
 
@@ -350,7 +350,7 @@ export interface WorkspaceTaskSource extends BaseTaskSource {
 
 export interface ExtensionTaskSource extends BaseTaskSource {
 	readonly kind: 'extension';
-	readonly extension: string;
+	readonly extension?: string;
 	readonly scope: TaskScope;
 	readonly workspaceFolder: IWorkspaceFolder | undefined;
 }

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as cp from 'child_process';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import * as processes from 'vs/base/node/processes';
 import * as nls from 'vs/nls';
 import { assign } from 'vs/base/common/objects';

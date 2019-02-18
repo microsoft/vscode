@@ -233,7 +233,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 
 	private updateBreakpoints(modelData: IDebugEditorModelData, newBreakpoints: IBreakpoint[]): void {
 		const desiredDecorations = this.createBreakpointDecorations(modelData.model, newBreakpoints);
-		let breakpointDecorationIds: string[];
+		let breakpointDecorationIds: string[] | undefined;
 		try {
 			this.ignoreDecorationsChangedEvent = true;
 			breakpointDecorationIds = modelData.model.deltaDecorations(modelData.breakpointDecorations.map(bpd => bpd.decorationId), desiredDecorations);
@@ -267,7 +267,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 
 	private getBreakpointDecorationOptions(breakpoint: IBreakpoint): IModelDecorationOptions {
 		const { className, message } = getBreakpointMessageAndClassName(this.debugService, breakpoint);
-		let glyphMarginHoverMessage: MarkdownString;
+		let glyphMarginHoverMessage: MarkdownString | undefined;
 
 		if (message) {
 			if (breakpoint.condition || breakpoint.hitCondition) {

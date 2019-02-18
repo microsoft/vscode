@@ -7,7 +7,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, combinedDisposable, dispose } from 'vs/base/common/lifecycle';
 import { values } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
-import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, isCodeEditor, isDiffEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditor } from 'vs/editor/common/editorCommon';
@@ -70,7 +70,7 @@ class TextEditorSnapshot {
 	readonly id: string;
 
 	constructor(
-		readonly editor: ICodeEditor,
+		readonly editor: IActiveCodeEditor,
 	) {
 		this.id = `${editor.getId()},${editor.getModel().id}`;
 	}
@@ -85,8 +85,8 @@ class DocumentAndEditorStateDelta {
 		readonly addedDocuments: ITextModel[],
 		readonly removedEditors: TextEditorSnapshot[],
 		readonly addedEditors: TextEditorSnapshot[],
-		readonly oldActiveEditor: string,
-		readonly newActiveEditor: string,
+		readonly oldActiveEditor: string | undefined,
+		readonly newActiveEditor: string | undefined,
 	) {
 		this.isEmpty = this.removedDocuments.length === 0
 			&& this.addedDocuments.length === 0
@@ -131,7 +131,7 @@ class DocumentAndEditorState {
 	constructor(
 		readonly documents: Set<ITextModel>,
 		readonly textEditors: Map<string, TextEditorSnapshot>,
-		readonly activeEditor: string,
+		readonly activeEditor: string | undefined,
 	) {
 		//
 	}
@@ -230,14 +230,14 @@ class MainThreadDocumentAndEditorStateComputer {
 
 		// editor: only take those that have a not too large model
 		const editors = new Map<string, TextEditorSnapshot>();
-		let activeEditor: string | null = null;
+		let activeEditor: string | null = null; // Strict null work. This doesn't like being undefined!
 
 		for (const editor of this._codeEditorService.listCodeEditors()) {
 			if (editor.isSimpleWidget) {
 				continue;
 			}
 			const model = editor.getModel();
-			if (model && shouldSynchronizeModel(model)
+			if (editor.hasModel() && model && shouldSynchronizeModel(model)
 				&& !model.isDisposed() // model disposed
 				&& Boolean(this._modelService.getModel(model.uri)) // model disposing, the flag didn't flip yet but the model service already removed it
 			) {
@@ -282,7 +282,7 @@ class MainThreadDocumentAndEditorStateComputer {
 		}
 	}
 
-	private _getActiveEditorFromPanel(): IEditor {
+	private _getActiveEditorFromPanel(): IEditor | undefined {
 		let panel = this._panelService.getActivePanel();
 		if (panel instanceof BaseTextEditor && isCodeEditor(panel.getControl())) {
 			return panel.getControl();
@@ -444,8 +444,8 @@ export class MainThreadDocumentsAndEditors {
 		};
 	}
 
-	private _findEditorPosition(editor: MainThreadTextEditor): EditorViewColumn {
-		for (let workbenchEditor of this._editorService.visibleControls) {
+	private _findEditorPosition(editor: MainThreadTextEditor): EditorViewColumn | undefined {
+		for (const workbenchEditor of this._editorService.visibleControls) {
 			if (editor.matches(workbenchEditor)) {
 				return editorGroupToViewColumn(this._editorGroupService, workbenchEditor.group);
 			}
@@ -453,8 +453,8 @@ export class MainThreadDocumentsAndEditors {
 		return undefined;
 	}
 
-	findTextEditorIdFor(editor: IWorkbenchEditor): string {
-		for (let id in this._textEditors) {
+	findTextEditorIdFor(editor: IWorkbenchEditor): string | undefined {
+		for (const id in this._textEditors) {
 			if (this._textEditors[id].matches(editor)) {
 				return id;
 			}

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { dirname, basename, distinctParents, joinPath, isEqual, isEqualOrParent, hasToIgnoreCase, normalizePath, isAbsolutePath, isMalformedFileUri } from 'vs/base/common/resources';
+import { dirname, basename, distinctParents, joinPath, isEqual, isEqualOrParent, hasToIgnoreCase, normalizePath, isAbsolutePath, isMalformedFileUri, relativePath, removeTrailingPathSeparator, hasTrailingPathSeparator } from 'vs/base/common/resources';
 import { URI, setUriThrowOnMissingScheme } from 'vs/base/common/uri';
 import { isWindows } from 'vs/base/common/platform';
 
@@ -42,23 +42,23 @@ suite('Resources', () => {
 
 	test('dirname', () => {
 		if (isWindows) {
-			assert.equal(dirname(URI.file('c:\\some\\file\\test.txt'))!.toString(), 'file:///c%3A/some/file');
-			assert.equal(dirname(URI.file('c:\\some\\file'))!.toString(), 'file:///c%3A/some');
-			assert.equal(dirname(URI.file('c:\\some\\file\\'))!.toString(), 'file:///c%3A/some');
-			assert.equal(dirname(URI.file('c:\\some'))!.toString(), 'file:///c%3A/');
-			assert.equal(dirname(URI.file('C:\\some'))!.toString(), 'file:///c%3A/');
-			assert.equal(dirname(URI.file('c:\\'))!.toString(), 'file:///c%3A/');
+			assert.equal(dirname(URI.file('c:\\some\\file\\test.txt')).toString(), 'file:///c%3A/some/file');
+			assert.equal(dirname(URI.file('c:\\some\\file')).toString(), 'file:///c%3A/some');
+			assert.equal(dirname(URI.file('c:\\some\\file\\')).toString(), 'file:///c%3A/some');
+			assert.equal(dirname(URI.file('c:\\some')).toString(), 'file:///c%3A/');
+			assert.equal(dirname(URI.file('C:\\some')).toString(), 'file:///c%3A/');
+			assert.equal(dirname(URI.file('c:\\')).toString(), 'file:///c%3A/');
 		} else {
-			assert.equal(dirname(URI.file('/some/file/test.txt'))!.toString(), 'file:///some/file');
-			assert.equal(dirname(URI.file('/some/file/'))!.toString(), 'file:///some');
-			assert.equal(dirname(URI.file('/some/file'))!.toString(), 'file:///some');
+			assert.equal(dirname(URI.file('/some/file/test.txt')).toString(), 'file:///some/file');
+			assert.equal(dirname(URI.file('/some/file/')).toString(), 'file:///some');
+			assert.equal(dirname(URI.file('/some/file')).toString(), 'file:///some');
 		}
-		assert.equal(dirname(URI.parse('foo://a/some/file/test.txt'))!.toString(), 'foo://a/some/file');
-		assert.equal(dirname(URI.parse('foo://a/some/file/'))!.toString(), 'foo://a/some');
-		assert.equal(dirname(URI.parse('foo://a/some/file'))!.toString(), 'foo://a/some');
-		assert.equal(dirname(URI.parse('foo://a/some'))!.toString(), 'foo://a/');
-		assert.equal(dirname(URI.parse('foo://a/'))!.toString(), 'foo://a/');
-		assert.equal(dirname(URI.parse('foo://a'))!.toString(), 'foo://a');
+		assert.equal(dirname(URI.parse('foo://a/some/file/test.txt')).toString(), 'foo://a/some/file');
+		assert.equal(dirname(URI.parse('foo://a/some/file/')).toString(), 'foo://a/some');
+		assert.equal(dirname(URI.parse('foo://a/some/file')).toString(), 'foo://a/some');
+		assert.equal(dirname(URI.parse('foo://a/some')).toString(), 'foo://a/');
+		assert.equal(dirname(URI.parse('foo://a/')).toString(), 'foo://a/');
+		assert.equal(dirname(URI.parse('foo://a')).toString(), 'foo://a');
 
 		// does not explode (https://github.com/Microsoft/vscode/issues/41987)
 		dirname(URI.from({ scheme: 'file', authority: '/users/someone/portal.h' }));
@@ -166,6 +166,102 @@ suite('Resources', () => {
 		assert.equal(isAbsolutePath(URI.parse('foo://a/foo/.')), true);
 	});
 
+	function assertTrailingSeparator(u1: URI, expected: boolean) {
+		assert.equal(hasTrailingPathSeparator(u1), expected, u1.toString());
+	}
+
+	function assertRemoveTrailingSeparator(u1: URI, expected: URI) {
+		assertEqualURI(removeTrailingPathSeparator(u1), expected, u1.toString());
+	}
+
+	test('trailingPathSeparator', () => {
+		assertTrailingSeparator(URI.parse('foo://a/foo'), false);
+		assertTrailingSeparator(URI.parse('foo://a/foo/'), true);
+		assertTrailingSeparator(URI.parse('foo://a/'), false);
+		assertTrailingSeparator(URI.parse('foo://a'), false);
+
+		assertRemoveTrailingSeparator(URI.parse('foo://a/foo'), URI.parse('foo://a/foo'));
+		assertRemoveTrailingSeparator(URI.parse('foo://a/foo/'), URI.parse('foo://a/foo'));
+		assertRemoveTrailingSeparator(URI.parse('foo://a/'), URI.parse('foo://a/'));
+		assertRemoveTrailingSeparator(URI.parse('foo://a'), URI.parse('foo://a'));
+
+		if (isWindows) {
+			assertTrailingSeparator(URI.file('c:\\a\\foo'), false);
+			assertTrailingSeparator(URI.file('c:\\a\\foo\\'), true);
+			assertTrailingSeparator(URI.file('c:\\'), false);
+			assertTrailingSeparator(URI.file('\\\\server\\share\\some\\'), true);
+			assertTrailingSeparator(URI.file('\\\\server\\share\\'), false);
+
+			assertRemoveTrailingSeparator(URI.file('c:\\a\\foo'), URI.file('c:\\a\\foo'));
+			assertRemoveTrailingSeparator(URI.file('c:\\a\\foo\\'), URI.file('c:\\a\\foo'));
+			assertRemoveTrailingSeparator(URI.file('c:\\'), URI.file('c:\\'));
+			assertRemoveTrailingSeparator(URI.file('\\\\server\\share\\some\\'), URI.file('\\\\server\\share\\some'));
+			assertRemoveTrailingSeparator(URI.file('\\\\server\\share\\'), URI.file('\\\\server\\share\\'));
+		} else {
+			assertTrailingSeparator(URI.file('/foo/bar'), false);
+			assertTrailingSeparator(URI.file('/foo/bar/'), true);
+			assertTrailingSeparator(URI.file('/'), false);
+
+			assertRemoveTrailingSeparator(URI.file('/foo/bar'), URI.file('/foo/bar'));
+			assertRemoveTrailingSeparator(URI.file('/foo/bar/'), URI.file('/foo/bar'));
+			assertRemoveTrailingSeparator(URI.file('/'), URI.file('/'));
+		}
+	});
+
+	function assertEqualURI(actual: URI, expected: URI, message?: string) {
+		if (!isEqual(expected, actual)) {
+			assert.equal(expected.toString(), actual.toString(), message);
+		}
+	}
+
+	function assertRelativePath(u1: URI, u2: URI, expectedPath: string | undefined, ignoreJoin?: boolean) {
+		assert.equal(relativePath(u1, u2), expectedPath, `from ${u1.toString()} to ${u2.toString()}`);
+		if (expectedPath !== undefined && !ignoreJoin) {
+			assertEqualURI(removeTrailingPathSeparator(joinPath(u1, expectedPath)), removeTrailingPathSeparator(u2), 'joinPath on relativePath should be equal');
+		}
+	}
+
+	test('relativePath', () => {
+		assertRelativePath(URI.parse('foo://a/foo'), URI.parse('foo://a/foo/bar'), 'bar');
+		assertRelativePath(URI.parse('foo://a/foo'), URI.parse('foo://a/foo/bar/'), 'bar');
+		assertRelativePath(URI.parse('foo://a/foo'), URI.parse('foo://a/foo/bar/goo'), 'bar/goo');
+		assertRelativePath(URI.parse('foo://a/'), URI.parse('foo://a/foo/bar/goo'), 'foo/bar/goo');
+		assertRelativePath(URI.parse('foo://a/foo/xoo'), URI.parse('foo://a/foo/bar'), '../bar');
+		assertRelativePath(URI.parse('foo://a/foo/xoo/yoo'), URI.parse('foo://a'), '../../..');
+		assertRelativePath(URI.parse('foo://a/foo'), URI.parse('foo://a/foo/'), '');
+		assertRelativePath(URI.parse('foo://a/foo/'), URI.parse('foo://a/foo'), '');
+		assertRelativePath(URI.parse('foo://a/foo/'), URI.parse('foo://a/foo/'), '');
+		assertRelativePath(URI.parse('foo://a/foo'), URI.parse('foo://a/foo'), '');
+		assertRelativePath(URI.parse('foo://a'), URI.parse('foo://a'), '');
+		assertRelativePath(URI.parse('foo://a/'), URI.parse('foo://a/'), '');
+		assertRelativePath(URI.parse('foo://a/'), URI.parse('foo://a'), '');
+		assertRelativePath(URI.parse('foo://a/foo?q'), URI.parse('foo://a/foo/bar#h'), 'bar');
+		assertRelativePath(URI.parse('foo://'), URI.parse('foo://a/b'), undefined);
+		assertRelativePath(URI.parse('foo://a2/b'), URI.parse('foo://a/b'), undefined);
+		assertRelativePath(URI.parse('goo://a/b'), URI.parse('foo://a/b'), undefined);
+
+		if (isWindows) {
+			assertRelativePath(URI.file('c:\\foo\\bar'), URI.file('c:\\foo\\bar'), '');
+			assertRelativePath(URI.file('c:\\foo\\bar\\huu'), URI.file('c:\\foo\\bar'), '..');
+			assertRelativePath(URI.file('c:\\foo\\bar\\a1\\a2'), URI.file('c:\\foo\\bar'), '../..');
+			assertRelativePath(URI.file('c:\\foo\\bar\\'), URI.file('c:\\foo\\bar\\a1\\a2'), 'a1/a2');
+			assertRelativePath(URI.file('c:\\foo\\bar\\'), URI.file('c:\\foo\\bar\\a1\\a2\\'), 'a1/a2');
+			assertRelativePath(URI.file('c:\\'), URI.file('c:\\foo\\bar'), 'foo/bar');
+			assertRelativePath(URI.file('\\\\server\\share\\some\\'), URI.file('\\\\server\\share\\some\\path'), 'path');
+			assertRelativePath(URI.file('\\\\server\\share\\some\\'), URI.file('\\\\server\\share2\\some\\path'), '../../share2/some/path', true); // ignore joinPath assert: path.join is not root aware
+		} else {
+			assertRelativePath(URI.file('/a/foo'), URI.file('/a/foo/bar'), 'bar');
+			assertRelativePath(URI.file('/a/foo'), URI.file('/a/foo/bar/'), 'bar');
+			assertRelativePath(URI.file('/a/foo'), URI.file('/a/foo/bar/goo'), 'bar/goo');
+			assertRelativePath(URI.file('/a/'), URI.file('/a/foo/bar/goo'), 'foo/bar/goo');
+			assertRelativePath(URI.file('/'), URI.file('/a/foo/bar/goo'), 'a/foo/bar/goo');
+			assertRelativePath(URI.file('/a/foo/xoo'), URI.file('/a/foo/bar'), '../bar');
+			assertRelativePath(URI.file('/a/foo/xoo/yoo'), URI.file('/a'), '../../..');
+			assertRelativePath(URI.file('/a/foo'), URI.file('/a/foo/'), '');
+			assertRelativePath(URI.file('/a/foo'), URI.file('/b/foo/'), '../../b/foo');
+		}
+	});
+
 	test('isEqual', () => {
 		let fileURI = isWindows ? URI.file('c:\\foo\\bar') : URI.file('/foo/bar');
 		let fileURI2 = isWindows ? URI.file('C:\\foo\\Bar') : URI.file('/foo/Bar');
@@ -184,6 +280,8 @@ suite('Resources', () => {
 		assert.equal(isEqual(fileURI3, fileURI4, false), false);
 
 		assert.equal(isEqual(fileURI, fileURI3, true), false);
+
+		assert.equal(isEqual(URI.parse('foo://server'), URI.parse('foo://server/')), true);
 	});
 
 	test('isEqualOrParent', () => {

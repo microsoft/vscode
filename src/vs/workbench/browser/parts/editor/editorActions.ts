@@ -428,7 +428,7 @@ export class OpenToSideFromQuickOpenAction extends Action {
 		if (entry) {
 			const input = entry.getInput();
 			if (input instanceof EditorInput) {
-				return this.editorService.openEditor(input, entry.getOptions(), SIDE_GROUP);
+				return this.editorService.openEditor(input, entry.getOptions() || undefined, SIDE_GROUP);
 			}
 
 			const resourceInput = input as IResourceInput;
@@ -441,7 +441,7 @@ export class OpenToSideFromQuickOpenAction extends Action {
 	}
 }
 
-export function toEditorQuickOpenEntry(element: any): IEditorQuickOpenEntry {
+export function toEditorQuickOpenEntry(element: any): IEditorQuickOpenEntry | null {
 
 	// QuickOpenEntryGroup
 	if (element instanceof QuickOpenEntryGroup) {
@@ -491,13 +491,13 @@ export class CloseOneEditorAction extends Action {
 	}
 
 	run(context?: IEditorCommandsContext): Promise<any> {
-		let group: IEditorGroup;
-		let editorIndex: number;
+		let group: IEditorGroup | undefined;
+		let editorIndex: number | undefined;
 		if (context) {
 			group = this.editorGroupService.getGroup(context.groupId);
 
 			if (group) {
-				editorIndex = context.editorIndex; // only allow editor at index if group is valid
+				editorIndex = context.editorIndex!; // only allow editor at index if group is valid
 			}
 		}
 
@@ -579,7 +579,7 @@ export class CloseLeftEditorsInGroupAction extends Action {
 	}
 }
 
-function getTarget(editorService: IEditorService, editorGroupService: IEditorGroupsService, context?: IEditorIdentifier): { editor: IEditorInput, group: IEditorGroup } {
+function getTarget(editorService: IEditorService, editorGroupService: IEditorGroupsService, context?: IEditorIdentifier): { editor: IEditorInput | null, group: IEditorGroup } {
 	if (context) {
 		return { editor: context.editor, group: editorGroupService.getGroup(context.groupId) };
 	}
@@ -593,7 +593,7 @@ export abstract class BaseCloseAllAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		clazz: string,
+		clazz: string | undefined,
 		private textFileService: ITextFileService,
 		protected editorGroupService: IEditorGroupsService
 	) {
@@ -629,9 +629,9 @@ export abstract class BaseCloseAllAction extends Action {
 
 			let saveOrRevertPromise: Promise<boolean>;
 			if (confirm === ConfirmResult.DONT_SAVE) {
-				saveOrRevertPromise = this.textFileService.revertAll(null, { soft: true }).then(() => true);
+				saveOrRevertPromise = this.textFileService.revertAll(undefined, { soft: true }).then(() => true);
 			} else {
-				saveOrRevertPromise = this.textFileService.saveAll(true).then(res => res.results.every(r => r.success));
+				saveOrRevertPromise = this.textFileService.saveAll(true).then(res => res.results.every(r => !!r.success));
 			}
 
 			return saveOrRevertPromise.then(success => {
@@ -704,7 +704,7 @@ export class CloseEditorsInOtherGroupsAction extends Action {
 		const groupToSkip = context ? this.editorGroupService.getGroup(context.groupId) : this.editorGroupService.activeGroup;
 		return Promise.all(this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).map(g => {
 			if (g.id === groupToSkip.id) {
-				return Promise.resolve(null);
+				return Promise.resolve();
 			}
 
 			return g.closeAllEditors();
@@ -732,7 +732,7 @@ export class CloseEditorInAllGroupsAction extends Action {
 			return Promise.all(this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).map(g => g.closeEditor(activeEditor)));
 		}
 
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 
@@ -763,7 +763,7 @@ export class BaseMoveGroupAction extends Action {
 		return Promise.resolve(true);
 	}
 
-	private findTargetGroup(sourceGroup: IEditorGroup): IEditorGroup {
+	private findTargetGroup(sourceGroup: IEditorGroup): IEditorGroup | undefined {
 		const targetNeighbours: GroupDirection[] = [this.direction];
 
 		// Allow the target group to be in alternative locations to support more
@@ -930,7 +930,7 @@ export abstract class BaseNavigateEditorAction extends Action {
 		return group.openEditor(editor);
 	}
 
-	protected abstract navigate(): IEditorIdentifier;
+	protected abstract navigate(): IEditorIdentifier | undefined;
 }
 
 export class OpenNextEditor extends BaseNavigateEditorAction {
@@ -947,7 +947,7 @@ export class OpenNextEditor extends BaseNavigateEditorAction {
 		super(id, label, editorGroupService, editorService);
 	}
 
-	protected navigate(): IEditorIdentifier {
+	protected navigate(): IEditorIdentifier | undefined {
 
 		// Navigate in active group if possible
 		const activeGroup = this.editorGroupService.activeGroup;
@@ -982,7 +982,7 @@ export class OpenPreviousEditor extends BaseNavigateEditorAction {
 		super(id, label, editorGroupService, editorService);
 	}
 
-	protected navigate(): IEditorIdentifier {
+	protected navigate(): IEditorIdentifier | undefined {
 
 		// Navigate in active group if possible
 		const activeGroup = this.editorGroupService.activeGroup;
@@ -1105,7 +1105,7 @@ export class NavigateForwardAction extends Action {
 	run(): Promise<any> {
 		this.historyService.forward();
 
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 
@@ -1121,7 +1121,7 @@ export class NavigateBackwardsAction extends Action {
 	run(): Promise<any> {
 		this.historyService.back();
 
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 
@@ -1137,7 +1137,7 @@ export class NavigateToLastEditLocationAction extends Action {
 	run(): Promise<any> {
 		this.historyService.openLastEditLocation();
 
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 
@@ -1153,7 +1153,7 @@ export class NavigateLastAction extends Action {
 	run(): Promise<any> {
 		this.historyService.last();
 
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 
@@ -1296,7 +1296,7 @@ export class OpenPreviousEditorFromHistoryAction extends Action {
 	run(): Promise<any> {
 		const keys = this.keybindingService.lookupKeybindings(this.id);
 
-		this.quickOpenService.show(null, { quickNavigateConfiguration: { keybindings: keys } });
+		this.quickOpenService.show(undefined, { quickNavigateConfiguration: { keybindings: keys } });
 
 		return Promise.resolve(true);
 	}
@@ -1314,7 +1314,7 @@ export class OpenNextRecentlyUsedEditorAction extends Action {
 	run(): Promise<any> {
 		this.historyService.forward(true);
 
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 
@@ -1330,7 +1330,7 @@ export class OpenPreviousRecentlyUsedEditorAction extends Action {
 	run(): Promise<any> {
 		this.historyService.back(true);
 
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 

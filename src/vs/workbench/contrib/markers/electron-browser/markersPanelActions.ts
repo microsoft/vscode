@@ -58,7 +58,7 @@ export class ShowProblemsPanelAction extends Action {
 
 	public run(): Promise<any> {
 		this.panelService.openPanel(Constants.MARKERS_PANEL_ID, true);
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 

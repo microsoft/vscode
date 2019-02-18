@@ -60,7 +60,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 		// the actual implementation for #set
 
 		this._checkDisposed();
-		let toSync: vscode.Uri[];
+		let toSync: vscode.Uri[] = [];
 		let hasChanged = true;
 
 		if (first instanceof URI) {
@@ -81,7 +81,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 		} else if (Array.isArray(first)) {
 			// update many rows
 			toSync = [];
-			let lastUri: vscode.Uri;
+			let lastUri: vscode.Uri | undefined;
 
 			// ensure stable-sort
 			mergeSort(first, DiagnosticCollection._compareIndexedTuplesByUri);
@@ -255,7 +255,7 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadDiagnostics);
 	}
 
-	createDiagnosticCollection(name: string): vscode.DiagnosticCollection {
+	createDiagnosticCollection(name?: string): vscode.DiagnosticCollection {
 		let { _collections, _proxy, _onDidChangeDiagnostics } = this;
 		let owner: string;
 		if (!name) {
@@ -272,7 +272,7 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 
 		const result = new class extends DiagnosticCollection {
 			constructor() {
-				super(name, owner, ExtHostDiagnostics._maxDiagnosticsPerFile, _proxy, _onDidChangeDiagnostics);
+				super(name!, owner, ExtHostDiagnostics._maxDiagnosticsPerFile, _proxy, _onDidChangeDiagnostics);
 				_collections.set(owner, this);
 			}
 			dispose() {
@@ -286,6 +286,7 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 
 	getDiagnostics(resource: vscode.Uri): vscode.Diagnostic[];
 	getDiagnostics(): [vscode.Uri, vscode.Diagnostic[]][];
+	getDiagnostics(resource?: vscode.Uri): vscode.Diagnostic[] | [vscode.Uri, vscode.Diagnostic[]][];
 	getDiagnostics(resource?: vscode.Uri): vscode.Diagnostic[] | [vscode.Uri, vscode.Diagnostic[]][] {
 		if (resource) {
 			return this._getDiagnostics(resource);

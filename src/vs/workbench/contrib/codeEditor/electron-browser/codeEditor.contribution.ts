@@ -6,7 +6,7 @@
 import '../browser/menuPreventer';
 import './accessibility';
 import './inspectKeybindings';
-import './largeFileOptimizations';
+import '../browser/largeFileOptimizations';
 import './selectionClipboard';
 import './sleepResumeRepaintMinimap';
 import './textMate/inspectTMScopes';

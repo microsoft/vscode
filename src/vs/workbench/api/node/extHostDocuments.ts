@@ -56,7 +56,7 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 		return this._documentsAndEditors.allDocuments();
 	}
 
-	public getDocumentData(resource: vscode.Uri): ExtHostDocumentData {
+	public getDocumentData(resource: vscode.Uri): ExtHostDocumentData | undefined {
 		if (!resource) {
 			return undefined;
 		}
@@ -65,6 +65,14 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 			return data;
 		}
 		return undefined;
+	}
+
+	public getDocument(resource: vscode.Uri): vscode.TextDocument {
+		const data = this.getDocumentData(resource);
+		if (!data || !data.document) {
+			throw new Error('Unable to retrieve document from URI');
+		}
+		return data.document;
 	}
 
 	public ensureDocumentData(uri: URI): Promise<ExtHostDocumentData> {
@@ -143,7 +151,7 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 		});
 	}
 
-	public setWordDefinitionFor(modeId: string, wordDefinition: RegExp): void {
+	public setWordDefinitionFor(modeId: string, wordDefinition: RegExp | undefined): void {
 		setWordDefinitionFor(modeId, wordDefinition);
 	}
 }

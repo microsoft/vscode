@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode, Keybinding, KeybindingType, SimpleKeybinding, createKeybinding } from 'vs/base/common/keyCodes';
+import { KeyCode, Keybinding, SimpleKeybinding, createKeybinding } from 'vs/base/common/keyCodes';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { CommandsRegistry, ICommandHandler, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -210,11 +210,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 
 	private _registerDefaultKeybinding(keybinding: Keybinding, commandId: string, commandArgs: any, weight1: number, weight2: number, when: ContextKeyExpr | null | undefined): void {
 		if (OS === OperatingSystem.Windows) {
-			if (keybinding.type === KeybindingType.Chord) {
-				this._assertNoCtrlAlt(keybinding.firstPart, commandId);
-			} else {
-				this._assertNoCtrlAlt(keybinding, commandId);
-			}
+			this._assertNoCtrlAlt(keybinding.parts[0], commandId);
 		}
 		this._coreKeybindings.push({
 			keybinding: keybinding,

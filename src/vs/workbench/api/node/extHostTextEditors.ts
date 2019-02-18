@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
+import * as arrays from 'vs/base/common/arrays';
 import { ExtHostEditorsShape, IEditorPropertiesChangeData, IMainContext, ITextDocumentShowOptions, ITextEditorPositionData, MainContext, MainThreadTextEditorsShape } from 'vs/workbench/api/node/extHost.protocol';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
 import { ExtHostTextEditor, TextEditorDecorationType } from 'vs/workbench/api/node/extHostTextEditor';
@@ -42,7 +43,7 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 		this._extHostDocumentsAndEditors.onDidChangeActiveTextEditor(e => this._onDidChangeActiveTextEditor.fire(e));
 	}
 
-	getActiveTextEditor(): ExtHostTextEditor {
+	getActiveTextEditor(): ExtHostTextEditor | undefined {
 		return this._extHostDocumentsAndEditors.activeEditor();
 	}
 
@@ -106,7 +107,7 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 			textEditor._acceptSelections(selections);
 		}
 		if (data.visibleRanges) {
-			const visibleRanges = data.visibleRanges.map(TypeConverters.Range.to);
+			const visibleRanges = arrays.coalesce(data.visibleRanges.map(TypeConverters.Range.to));
 			textEditor._acceptVisibleRanges(visibleRanges);
 		}
 
@@ -127,7 +128,7 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 			});
 		}
 		if (data.visibleRanges) {
-			const visibleRanges = data.visibleRanges.map(TypeConverters.Range.to);
+			const visibleRanges = arrays.coalesce(data.visibleRanges.map(TypeConverters.Range.to));
 			this._onDidChangeTextEditorVisibleRanges.fire({
 				textEditor,
 				visibleRanges

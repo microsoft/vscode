@@ -276,7 +276,7 @@
 }
 
 .extension-editor > .body > .content table code:not(:empty) {
-	font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback";
+	font-family: var(--monaco-monospace-font);
 	font-size: 90%;
 	background-color: rgba(128, 128, 128, 0.17);
 	border-radius: 4px;

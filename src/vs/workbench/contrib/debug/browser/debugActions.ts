@@ -104,7 +104,7 @@ export class ConfigureAction extends AbstractDebugAction {
 	public run(event?: any): Promise<any> {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			this.notificationService.info(nls.localize('noFolderDebugConfig', "Please first open a folder in order to do advanced debug configuration."));
-			return Promise.resolve(null);
+			return Promise.resolve();
 		}
 
 		const sideBySide = !!(event && (event.ctrlKey || event.metaKey));
@@ -267,7 +267,7 @@ export class StepOverAction extends AbstractDebugAction {
 			thread = this.debugService.getViewModel().focusedThread;
 		}
 
-		return thread ? thread.next() : Promise.resolve(null);
+		return thread ? thread.next() : Promise.resolve();
 	}
 
 	protected isEnabled(state: State): boolean {
@@ -288,7 +288,7 @@ export class StepIntoAction extends AbstractDebugAction {
 			thread = this.debugService.getViewModel().focusedThread;
 		}
 
-		return thread ? thread.stepIn() : Promise.resolve(null);
+		return thread ? thread.stepIn() : Promise.resolve();
 	}
 
 	protected isEnabled(state: State): boolean {
@@ -309,7 +309,7 @@ export class StepOutAction extends AbstractDebugAction {
 			thread = this.debugService.getViewModel().focusedThread;
 		}
 
-		return thread ? thread.stepOut() : Promise.resolve(null);
+		return thread ? thread.stepOut() : Promise.resolve();
 	}
 
 	protected isEnabled(state: State): boolean {
@@ -369,7 +369,7 @@ export class ContinueAction extends AbstractDebugAction {
 			thread = this.debugService.getViewModel().focusedThread;
 		}
 
-		return thread ? thread.continue() : Promise.resolve(null);
+		return thread ? thread.continue() : Promise.resolve();
 	}
 
 	protected isEnabled(state: State): boolean {
@@ -395,7 +395,7 @@ export class PauseAction extends AbstractDebugAction {
 			}
 		}
 
-		return thread ? thread.pause() : Promise.resolve(null);
+		return thread ? thread.pause() : Promise.resolve();
 	}
 
 	protected isEnabled(state: State): boolean {
@@ -416,7 +416,7 @@ export class TerminateThreadAction extends AbstractDebugAction {
 			thread = this.debugService.getViewModel().focusedThread;
 		}
 
-		return thread ? thread.terminate() : Promise.resolve(null);
+		return thread ? thread.terminate() : Promise.resolve();
 	}
 
 	protected isEnabled(state: State): boolean {
@@ -567,7 +567,7 @@ export class AddFunctionBreakpointAction extends AbstractDebugAction {
 
 	public run(): Promise<any> {
 		this.debugService.addFunctionBreakpoint();
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 
 	protected isEnabled(state: State): boolean {
@@ -589,12 +589,12 @@ export class SetValueAction extends AbstractDebugAction {
 			this.debugService.getViewModel().setSelectedExpression(this.variable);
 		}
 
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 
 	protected isEnabled(state: State): boolean {
 		const session = this.debugService.getViewModel().focusedSession;
-		return super.isEnabled(state) && state === State.Stopped && session && session.capabilities.supportsSetVariable;
+		return !!(super.isEnabled(state) && state === State.Stopped && session && session.capabilities.supportsSetVariable);
 	}
 }
 
@@ -628,7 +628,7 @@ export class EditWatchExpressionAction extends AbstractDebugAction {
 
 	public run(expression: Expression): Promise<any> {
 		this.debugService.getViewModel().setSelectedExpression(expression);
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 
@@ -661,7 +661,7 @@ export class RemoveWatchExpressionAction extends AbstractDebugAction {
 
 	public run(expression: Expression): Promise<any> {
 		this.debugService.removeWatchExpressions(expression.getId());
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 
@@ -676,7 +676,7 @@ export class RemoveAllWatchExpressionsAction extends AbstractDebugAction {
 
 	public run(): Promise<any> {
 		this.debugService.removeWatchExpressions();
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 
 	protected isEnabled(state: State): boolean {
@@ -727,7 +727,7 @@ export class FocusReplAction extends Action {
 
 	public run(): Promise<any> {
 		this.panelService.openPanel(REPL_ID, true);
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 
@@ -769,13 +769,13 @@ export class StepBackAction extends AbstractDebugAction {
 			thread = this.debugService.getViewModel().focusedThread;
 		}
 
-		return thread ? thread.stepBack() : Promise.resolve(null);
+		return thread ? thread.stepBack() : Promise.resolve();
 	}
 
 	protected isEnabled(state: State): boolean {
 		const session = this.debugService.getViewModel().focusedSession;
-		return super.isEnabled(state) && state === State.Stopped &&
-			session && session.capabilities.supportsStepBack;
+		return !!(super.isEnabled(state) && state === State.Stopped &&
+			session && session.capabilities.supportsStepBack);
 	}
 }
 
@@ -792,13 +792,13 @@ export class ReverseContinueAction extends AbstractDebugAction {
 			thread = this.debugService.getViewModel().focusedThread;
 		}
 
-		return thread ? thread.reverseContinue() : Promise.resolve(null);
+		return thread ? thread.reverseContinue() : Promise.resolve();
 	}
 
 	protected isEnabled(state: State): boolean {
 		const session = this.debugService.getViewModel().focusedSession;
-		return super.isEnabled(state) && state === State.Stopped &&
-			session && session.capabilities.supportsStepBack;
+		return !!(super.isEnabled(state) && state === State.Stopped &&
+			session && session.capabilities.supportsStepBack);
 	}
 }
 

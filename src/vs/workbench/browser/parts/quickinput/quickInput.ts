@@ -1162,7 +1162,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 					}
 					validation.then(result => {
 						if (value === validationValue) {
-							input.validationMessage = result;
+							input.validationMessage = result || undefined;
 						}
 					});
 				}),
@@ -1418,6 +1418,6 @@ export class BackAction extends Action {
 
 	public run(): Promise<any> {
 		this.quickInputService.back();
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }

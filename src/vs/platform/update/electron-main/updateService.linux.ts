@@ -15,7 +15,7 @@ import { createUpdateURL, AbstractUpdateService } from 'vs/platform/update/elect
 import { asJson } from 'vs/base/node/request';
 import { shell } from 'electron';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import { spawn } from 'child_process';
 import { realpath } from 'fs';
 
