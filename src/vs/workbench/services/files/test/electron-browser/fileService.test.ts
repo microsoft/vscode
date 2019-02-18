@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import * as os from 'os';
 import * as assert from 'assert';
 import { FileService } from 'vs/workbench/services/files/electron-browser/fileService';

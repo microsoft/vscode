@@ -2433,6 +2433,7 @@ declare namespace monaco.editor {
 		 * Controls if Find in Selection flag is turned on when multiple lines of text are selected in the editor.
 		 */
 		autoFindInSelection: boolean;
+		addExtraSpaceOnTop?: boolean;
 	}
 
 	/**
@@ -3169,6 +3170,7 @@ declare namespace monaco.editor {
 	export interface InternalEditorFindOptions {
 		readonly seedSearchStringFromSelection: boolean;
 		readonly autoFindInSelection: boolean;
+		readonly addExtraSpaceOnTop: boolean;
 	}
 
 	export interface InternalEditorHoverOptions {
@@ -4968,7 +4970,7 @@ declare namespace monaco.languages {
 		/**
 		 * The highlight kind, default is [text](#DocumentHighlightKind.Text).
 		 */
-		kind: DocumentHighlightKind;
+		kind?: DocumentHighlightKind;
 	}
 
 	/**
@@ -5167,7 +5169,6 @@ declare namespace monaco.languages {
 	 * the formatting-feature.
 	 */
 	export interface DocumentFormattingEditProvider {
-		displayName?: string;
 		/**
 		 * Provide formatting edits for a whole document.
 		 */
@@ -5179,7 +5180,6 @@ declare namespace monaco.languages {
 	 * the formatting-feature.
 	 */
 	export interface DocumentRangeFormattingEditProvider {
-		displayName?: string;
 		/**
 		 * Provide formatting edits for a range in a document.
 		 *
@@ -5211,7 +5211,7 @@ declare namespace monaco.languages {
 	 */
 	export interface ILink {
 		range: IRange;
-		url?: string;
+		url?: Uri | string;
 	}
 
 	/**
@@ -5303,7 +5303,7 @@ declare namespace monaco.languages {
 		/**
 		 * Provide ranges that should be selected from the given position.
 		 */
-		provideSelectionRanges(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<SelectionRange[]>;
+		provideSelectionRanges(model: editor.ITextModel, positions: Position[], token: CancellationToken): ProviderResult<SelectionRange[][]>;
 	}
 
 	export interface FoldingContext {

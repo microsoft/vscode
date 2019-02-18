@@ -45,6 +45,7 @@ import { createFileIconThemableTreeContainerScope } from 'vs/workbench/browser/p
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IAsyncDataTreeViewState } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { FuzzyScore } from 'vs/base/common/filters';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 export class ExplorerView extends ViewletPanel {
 	static readonly ID: string = 'workbench.explorer.fileView';
@@ -84,7 +85,8 @@ export class ExplorerView extends ViewletPanel {
 		@IMenuService private readonly menuService: IMenuService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IExplorerService private readonly explorerService: IExplorerService,
-		@IStorageService private readonly storageService: IStorageService
+		@IStorageService private readonly storageService: IStorageService,
+		@IClipboardService private clipboardService: IClipboardService
 	) {
 		super({ ...(options as IViewletPanelOptions), id: ExplorerView.ID, ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService);
 
@@ -306,8 +308,8 @@ export class ExplorerView extends ViewletPanel {
 			const isSingleFolder = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER;
 			const resource = stat ? stat.resource : isSingleFolder ? this.contextService.getWorkspace().folders[0].uri : undefined;
 			this.resourceContext.set(resource);
-			this.folderContext.set((isSingleFolder && !stat) || stat && stat.isDirectory);
-			this.readonlyContext.set(stat && stat.isReadonly);
+			this.folderContext.set((isSingleFolder && !stat) || !!stat && stat.isDirectory);
+			this.readonlyContext.set(!!stat && stat.isReadonly);
 			this.rootContext.set(!stat || (stat && stat.isRoot));
 		}));
 
@@ -397,6 +399,9 @@ export class ExplorerView extends ViewletPanel {
 
 	private onContextMenu(e: ITreeContextMenuEvent<ExplorerItem>): void {
 		const stat = e.element;
+
+		// update dynamic contexts
+		this.fileCopiedContextKey.set(this.clipboardService.hasResources());
 
 		const selection = this.tree.getSelection();
 		this.contextMenuService.showContextMenu({

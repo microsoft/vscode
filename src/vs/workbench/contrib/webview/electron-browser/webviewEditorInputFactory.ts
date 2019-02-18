@@ -19,7 +19,7 @@ interface SerializedWebview {
 	readonly id: number;
 	readonly title: string;
 	readonly options: WebviewInputOptions;
-	readonly extensionLocation: string | UriComponents;
+	readonly extensionLocation: string | UriComponents | undefined;
 	readonly state: any;
 	readonly iconPath: SerializedIconPath | undefined;
 }
@@ -34,7 +34,7 @@ export class WebviewEditorInputFactory implements IEditorInputFactory {
 
 	public serialize(
 		input: WebviewEditorInput
-	): string {
+	): string | null {
 		// Has no state, don't revive
 		if (!input.state) {
 			return null;

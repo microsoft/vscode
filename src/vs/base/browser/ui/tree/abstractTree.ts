@@ -150,7 +150,15 @@ function asListOptions<T, TFilterData, TRef>(modelProvider: () => ITreeModel<T, 
 				return options.keyboardNavigationLabelProvider!.getKeyboardNavigationLabel(node.element);
 			}
 		},
-		enableKeyboardNavigation: options.simpleKeyboardNavigation
+		enableKeyboardNavigation: options.simpleKeyboardNavigation,
+		ariaSetProvider: {
+			getSetSize(node) {
+				return node.parent!.visibleChildrenCount;
+			},
+			getPosInSet(node) {
+				return node.visibleChildIndex + 1;
+			}
+		}
 	};
 }
 
@@ -229,8 +237,6 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 
 		const indent = TreeRenderer.DefaultIndent + (node.depth - 1) * this.indent;
 		templateData.twistie.style.marginLeft = `${indent}px`;
-		templateData.container.setAttribute('aria-posinset', String(node.visibleChildIndex + 1));
-		templateData.container.setAttribute('aria-setsize', String(node.parent!.visibleChildrenCount));
 		this.update(node, templateData);
 
 		this.renderer.renderElement(node, index, templateData.templateData);
@@ -712,7 +718,7 @@ export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTr
 	readonly dnd?: ITreeDragAndDrop<T>;
 	readonly autoExpandSingleChildren?: boolean;
 	readonly keyboardNavigationEventFilter?: IKeyboardNavigationEventFilter;
-	readonly expandOnlyOnTwistieClick?: boolean;
+	readonly expandOnlyOnTwistieClick?: boolean | ((e: T) => boolean);
 }
 
 function dfs<T, TFilterData>(node: ITreeNode<T, TFilterData>, fn: (node: ITreeNode<T, TFilterData>) => void): void {
@@ -825,7 +831,15 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 			return super.onPointer(e);
 		}
 
-		if (this.tree.expandOnlyOnTwistieClick && !onTwistie) {
+		let expandOnlyOnTwistieClick = false;
+
+		if (typeof this.tree.expandOnlyOnTwistieClick === 'function') {
+			expandOnlyOnTwistieClick = this.tree.expandOnlyOnTwistieClick(node.element);
+		} else {
+			expandOnlyOnTwistieClick = !!this.tree.expandOnlyOnTwistieClick;
+		}
+
+		if (expandOnlyOnTwistieClick && !onTwistie) {
 			return super.onPointer(e);
 		}
 
@@ -834,7 +848,7 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 		const recursive = e.browserEvent.altKey;
 		model.setCollapsed(location, undefined, recursive);
 
-		if (this.tree.expandOnlyOnTwistieClick && onTwistie) {
+		if (expandOnlyOnTwistieClick && onTwistie) {
 			return;
 		}
 
@@ -952,7 +966,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 	// Options TODO@joao expose options only, not Optional<>
 	get openOnSingleClick(): boolean { return typeof this._options.openOnSingleClick === 'undefined' ? true : this._options.openOnSingleClick; }
-	get expandOnlyOnTwistieClick(): boolean { return typeof this._options.expandOnlyOnTwistieClick === 'undefined' ? false : this._options.expandOnlyOnTwistieClick; }
+	get expandOnlyOnTwistieClick(): boolean | ((e: T) => boolean) { return typeof this._options.expandOnlyOnTwistieClick === 'undefined' ? false : this._options.expandOnlyOnTwistieClick; }
 
 	get onDidDispose(): Event<void> { return this.view.onDidDispose; }
 

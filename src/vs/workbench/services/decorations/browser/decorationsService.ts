@@ -301,7 +301,7 @@ class DecorationProviderWrapper {
 
 		const source = new CancellationTokenSource();
 		const dataOrThenable = this._provider.provideDecorations(uri, source.token);
-		if (!isThenable(dataOrThenable)) {
+		if (!isThenable<IDecorationData | Promise<IDecorationData | undefined> | undefined>(dataOrThenable)) {
 			// sync -> we have a result now
 			return this._keepItem(uri, dataOrThenable);
 

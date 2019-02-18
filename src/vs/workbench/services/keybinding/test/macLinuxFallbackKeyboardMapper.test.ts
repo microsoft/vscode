@@ -27,7 +27,7 @@ suite('keyboardMapper - MAC fallback', () => {
 				userSettingsLabel: 'cmd+z',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['meta+Z', null],
+				dispatchParts: ['meta+Z'],
 			}]
 		);
 	});
@@ -65,7 +65,7 @@ suite('keyboardMapper - MAC fallback', () => {
 				userSettingsLabel: 'cmd+z',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['meta+Z', null],
+				dispatchParts: ['meta+Z'],
 			}
 		);
 	});
@@ -105,7 +105,7 @@ suite('keyboardMapper - MAC fallback', () => {
 				userSettingsLabel: 'cmd+',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: [null, null],
+				dispatchParts: [null],
 			}
 		);
 	});
@@ -129,7 +129,7 @@ suite('keyboardMapper - LINUX fallback', () => {
 				userSettingsLabel: 'ctrl+z',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['ctrl+Z', null],
+				dispatchParts: ['ctrl+Z'],
 			}]
 		);
 	});
@@ -167,7 +167,7 @@ suite('keyboardMapper - LINUX fallback', () => {
 				userSettingsLabel: 'ctrl+z',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['ctrl+Z', null],
+				dispatchParts: ['ctrl+Z'],
 			}
 		);
 	});
@@ -201,7 +201,7 @@ suite('keyboardMapper - LINUX fallback', () => {
 				userSettingsLabel: 'ctrl+,',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['ctrl+,', null],
+				dispatchParts: ['ctrl+,'],
 			}]
 		);
 	});
@@ -224,7 +224,7 @@ suite('keyboardMapper - LINUX fallback', () => {
 				userSettingsLabel: 'ctrl+',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: [null, null],
+				dispatchParts: [null],
 			}
 		);
 	});

@@ -282,7 +282,7 @@ export class RenameAction extends EditorAction {
 
 	runCommand(accessor: ServicesAccessor, args: [URI, IPosition]): void | Promise<void> {
 		const editorService = accessor.get(ICodeEditorService);
-		const [uri, pos] = args || [undefined, undefined];
+		const [uri, pos] = Array.isArray(args) && args || [undefined, undefined];
 
 		if (URI.isUri(uri) && Position.isIPosition(pos)) {
 			return editorService.openCodeEditor({ resource: uri }, editorService.getActiveCodeEditor()).then(editor => {

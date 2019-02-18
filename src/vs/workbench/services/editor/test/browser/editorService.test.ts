@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as paths from 'vs/base/common/paths';
+import * as extpath from 'vs/base/common/extpath';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
@@ -120,7 +120,7 @@ suite('Editor service', () => {
 				assert.equal(visibleEditorChangeEventCounter, 1);
 
 				// Close input
-				return editor.group.closeEditor(input).then(() => {
+				return editor.group!.closeEditor(input).then(() => {
 					assert.equal(didCloseEditorListenerCounter, 1);
 					assert.equal(activeEditorChangeEventCounter, 2);
 					assert.equal(visibleEditorChangeEventCounter, 2);
@@ -260,7 +260,7 @@ suite('Editor service', () => {
 		class MyEditor extends BaseEditor {
 
 			constructor(id: string) {
-				super(id, null, new TestThemeService(), new TestStorageService());
+				super(id, undefined, new TestThemeService(), new TestStorageService());
 			}
 
 			getId(): string {
@@ -403,7 +403,7 @@ suite('Editor service', () => {
 
 		// 1.) open, open same, open other, close
 		let editor = await service.openEditor(input, { pinned: true });
-		const group = editor.group;
+		const group = editor.group!;
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
 
@@ -604,5 +604,5 @@ function toResource(path: string) {
 }
 
 function toFileResource(self: any, path: string) {
-	return URI.file(paths.join('C:\\', Buffer.from(self.test.fullTitle()).toString('base64'), path));
+	return URI.file(extpath.join('C:\\', Buffer.from(self.test.fullTitle()).toString('base64'), path));
 }

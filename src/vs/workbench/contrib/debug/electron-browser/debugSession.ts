@@ -436,7 +436,7 @@ export class DebugSession implements IDebugSession {
 		} else {
 			// create a Source
 
-			let sourceRef: number;
+			let sourceRef: number | undefined;
 			if (resource.query) {
 				const data = Source.getEncodedDebugData(resource);
 				sourceRef = data.sourceReference;

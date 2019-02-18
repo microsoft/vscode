@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
-import { join, isEqual, isEqualOrParent } from 'vs/base/common/paths';
+import { join, isEqual, isEqualOrParent } from 'vs/base/common/extpath';
 import { FileChangeType, FileChangesEvent, isParent } from 'vs/platform/files/common/files';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 

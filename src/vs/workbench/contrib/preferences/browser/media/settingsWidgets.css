@@ -16,7 +16,7 @@
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude .setting-exclude-sibling {
 	display: inline-block;
 	line-height: 22px;
-	font-family: var(--monospace-font);
+	font-family: var(--monaco-monospace-font);
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude .setting-exclude-sibling {

@@ -57,7 +57,7 @@ export interface ITaskService {
 	configureAction(): Action;
 	build(): Promise<ITaskSummary>;
 	runTest(): Promise<ITaskSummary>;
-	run(task: Task, options?: ProblemMatcherRunOptions): Promise<ITaskSummary>;
+	run(task: Task | undefined, options?: ProblemMatcherRunOptions): Promise<ITaskSummary>;
 	inTerminal(): boolean;
 	isActive(): Promise<boolean>;
 	getActiveTasks(): Promise<Task[]>;

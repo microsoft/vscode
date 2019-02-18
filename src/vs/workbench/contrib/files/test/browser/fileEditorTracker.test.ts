@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { FileEditorTracker } from 'vs/workbench/contrib/files/browser/editors/fileEditorTracker';
 import { URI } from 'vs/base/common/uri';
-import { join } from 'vs/base/common/paths';
+import { join } from 'vs/base/common/extpath';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { workbenchInstantiationService, TestTextFileService, TestFileService } from 'vs/workbench/test/workbenchTestServices';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -47,7 +47,7 @@ suite('Files - FileEditorTracker', () => {
 
 		return accessor.textFileService.models.loadOrCreate(resource).then((model: TextFileEditorModel) => {
 			model.textEditorModel.setValue('Super Good');
-			assert.equal(snapshotToString(model.createSnapshot()), 'Super Good');
+			assert.equal(snapshotToString(model.createSnapshot()!), 'Super Good');
 
 			return model.save().then(() => {
 
@@ -55,7 +55,7 @@ suite('Files - FileEditorTracker', () => {
 				accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.UPDATED }]));
 
 				return timeout(0).then(() => { // due to event updating model async
-					assert.equal(snapshotToString(model.createSnapshot()), 'Hello Html');
+					assert.equal(snapshotToString(model.createSnapshot()!), 'Hello Html');
 
 					tracker.dispose();
 				});

@@ -7,7 +7,7 @@ import 'vs/css!./media/scmViewlet';
 import { localize } from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { domEvent, stop } from 'vs/base/browser/event';
-import { basename } from 'vs/base/common/paths';
+import { basename } from 'vs/base/common/resources';
 import { IDisposable, dispose, combinedDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { PanelViewlet, ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { append, $, addClass, toggleClass, trackFocus, Dimension, addDisposableListener, removeClass } from 'vs/base/browser/dom';
@@ -170,7 +170,7 @@ class ProviderRenderer implements IListRenderer<ISCMRepository, RepositoryTempla
 		const disposables: IDisposable[] = [];
 
 		if (repository.provider.rootUri) {
-			templateData.title.textContent = basename(repository.provider.rootUri.fsPath);
+			templateData.title.textContent = basename(repository.provider.rootUri);
 			templateData.type.textContent = repository.provider.label;
 		} else {
 			templateData.title.textContent = repository.provider.label;
@@ -361,7 +361,7 @@ class MainPanel extends ViewletPanel {
 	}
 
 	private restoreSelection(): void {
-		let selection: number[];
+		let selection: number[] | undefined;
 
 		if (this.previousSelection) {
 			selection = this.previousSelection
@@ -574,7 +574,7 @@ const scmResourceIdentityProvider = new class implements IIdentityProvider<ISCMR
 const scmKeyboardNavigationLabelProvider = new class implements IKeyboardNavigationLabelProvider<ISCMResourceGroup | ISCMResource> {
 	getKeyboardNavigationLabel(e: ISCMResourceGroup | ISCMResource) {
 		if (isSCMResource(e)) {
-			return basename(e.sourceUri.fsPath);
+			return basename(e.sourceUri);
 		} else {
 			return e.label;
 		}
@@ -773,7 +773,7 @@ export class RepositoryPanel extends ViewletPanel {
 		let type: string;
 
 		if (this.repository.provider.rootUri) {
-			title = basename(this.repository.provider.rootUri.fsPath);
+			title = basename(this.repository.provider.rootUri);
 			type = this.repository.provider.label;
 		} else {
 			title = this.repository.provider.label;
@@ -782,7 +782,7 @@ export class RepositoryPanel extends ViewletPanel {
 
 		super.renderHeaderTitle(container, title);
 		addClass(container, 'scm-provider');
-		append(container, $('span.type', null, type));
+		append(container, $('span.type', undefined, type));
 		const onContextMenu = Event.map(stop(domEvent(container, 'contextmenu')), e => new StandardMouseEvent(e));
 		onContextMenu(this.onContextMenu, this, this.disposables);
 	}
@@ -1097,7 +1097,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 		this.el = parent;
 		addClass(this.el, 'scm-viewlet');
 		addClass(this.el, 'empty');
-		append(parent, $('div.empty-message', null, localize('no open repo', "No source control providers registered.")));
+		append(parent, $('div.empty-message', undefined, localize('no open repo', "No source control providers registered.")));
 
 		this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
 		this.scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.disposables);

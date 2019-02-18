@@ -40,7 +40,7 @@ export class MacLinuxFallbackKeyboardMapper implements IKeyboardMapper {
 			keyboardEvent.metaKey,
 			keyboardEvent.keyCode
 		);
-		return new USLayoutResolvedKeybinding(keybinding, this._OS);
+		return new USLayoutResolvedKeybinding(keybinding.toChord(), this._OS);
 	}
 
 	private _scanCodeToKeyCode(scanCode: ScanCode): KeyCode {
@@ -120,11 +120,15 @@ export class MacLinuxFallbackKeyboardMapper implements IKeyboardMapper {
 	public resolveUserBinding(firstPart: SimpleKeybinding | ScanCodeBinding | null, chordPart: SimpleKeybinding | ScanCodeBinding | null): ResolvedKeybinding[] {
 		const _firstPart = this._resolveSimpleUserBinding(firstPart);
 		const _chordPart = this._resolveSimpleUserBinding(chordPart);
-		if (_firstPart && _chordPart) {
-			return [new USLayoutResolvedKeybinding(new ChordKeybinding(_firstPart, _chordPart), this._OS)];
-		}
+		let parts: SimpleKeybinding[] = [];
 		if (_firstPart) {
-			return [new USLayoutResolvedKeybinding(_firstPart, this._OS)];
+			parts.push(_firstPart);
+		}
+		if (_chordPart) {
+			parts.push(_chordPart);
+		}
+		if (parts.length > 0) {
+			return [new USLayoutResolvedKeybinding(new ChordKeybinding(parts), this._OS)];
 		}
 		return [];
 	}

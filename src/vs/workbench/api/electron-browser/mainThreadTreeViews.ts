@@ -45,7 +45,10 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		return this.viewsService.openView(treeViewId, options.focus)
 			.then(() => {
 				const viewer = this.getTreeView(treeViewId);
-				return this.reveal(viewer, this._dataProviders.get(treeViewId), item, parentChain, options);
+				if (viewer) {
+					return this.reveal(viewer, this._dataProviders.get(treeViewId)!, item, parentChain, options);
+				}
+				return undefined;
 			});
 	}
 
@@ -56,7 +59,7 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 			const itemsToRefresh = dataProvider.getItemsToRefresh(itemsToRefreshByHandle);
 			return viewer.refresh(itemsToRefresh.length ? itemsToRefresh : undefined);
 		}
-		return null;
+		return Promise.resolve();
 	}
 
 	$setMessage(treeViewId: string, message: string | IMarkdownString): void {
@@ -66,7 +69,7 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		}
 	}
 
-	private async reveal(treeView: ITreeView, dataProvider: TreeViewDataProvider, item: ITreeItem, parentChain: ITreeItem[], options: IRevealOptions): Promise<void> {
+	private async reveal(treeView: ITreeView, dataProvider: TreeViewDataProvider, itemIn: ITreeItem, parentChain: ITreeItem[], options: IRevealOptions): Promise<void> {
 		options = options ? options : { select: false, focus: false };
 		const select = isUndefinedOrNull(options.select) ? false : options.select;
 		const focus = isUndefinedOrNull(options.focus) ? false : options.focus;
@@ -79,7 +82,7 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		for (const parent of parentChain) {
 			await treeView.expand(parent);
 		}
-		item = dataProvider.getItem(item.handle);
+		const item = dataProvider.getItem(itemIn.handle);
 		if (item) {
 			await treeView.reveal(item);
 			if (select) {
@@ -91,13 +94,13 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 			let itemsToExpand = [item];
 			for (; itemsToExpand.length > 0 && expand > 0; expand--) {
 				await treeView.expand(itemsToExpand);
-				itemsToExpand = itemsToExpand.reduce((result, item) => {
-					item = dataProvider.getItem(item.handle);
+				itemsToExpand = itemsToExpand.reduce((result, itemValue) => {
+					const item = dataProvider.getItem(itemValue.handle);
 					if (item && item.children && item.children.length) {
 						result.push(...item.children);
 					}
 					return result;
-				}, []);
+				}, [] as ITreeItem[]);
 			}
 		}
 	}
@@ -109,7 +112,7 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		this._register(treeView.onDidChangeVisibility(isVisible => this._proxy.$setVisible(treeViewId, isVisible)));
 	}
 
-	private getTreeView(treeViewId: string): ITreeView {
+	private getTreeView(treeViewId: string): ITreeView | null {
 		const viewDescriptor: ITreeViewDescriptor = <ITreeViewDescriptor>ViewsRegistry.getView(treeViewId);
 		return viewDescriptor ? viewDescriptor.treeView : null;
 	}
@@ -174,7 +177,7 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 		return itemsToRefresh;
 	}
 
-	getItem(treeItemHandle: string): ITreeItem {
+	getItem(treeItemHandle: string): ITreeItem | undefined {
 		return this.itemsMap.get(treeItemHandle);
 	}
 
@@ -194,7 +197,7 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 	}
 
 	private updateTreeItem(current: ITreeItem, treeItem: ITreeItem): void {
-		treeItem.children = treeItem.children ? treeItem.children : null;
+		treeItem.children = treeItem.children ? treeItem.children : undefined;
 		if (current) {
 			const properties = distinct([...Object.keys(current), ...Object.keys(treeItem)]);
 			for (const property of properties) {

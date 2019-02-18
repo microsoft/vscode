@@ -52,7 +52,7 @@ export class PerfviewInput extends ResourceEditorInput {
 	) {
 		super(
 			localize('name', "Startup Performance"),
-			undefined,
+			null,
 			PerfviewInput.Uri,
 			textModelResolverService, hashService
 		);
@@ -85,7 +85,11 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 			const langId = this._modeService.create('markdown');
 			this._model = this._modelService.getModel(resource) || this._modelService.createModel('Loading...', langId, resource);
 
-			this._modelDisposables.push(langId.onDidChange(e => this._model.setMode(e)));
+			this._modelDisposables.push(langId.onDidChange(e => {
+				if (this._model) {
+					this._model.setMode(e);
+				}
+			}));
 			this._modelDisposables.push(langId);
 			this._modelDisposables.push(this._extensionService.onDidChangeExtensionsStatus(this._updateModel, this));
 
@@ -102,7 +106,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 			this._lifecycleService.when(LifecyclePhase.Eventually),
 			this._extensionService.whenInstalledExtensionsRegistered()
 		]).then(([metrics]) => {
-			if (!this._model.isDisposed()) {
+			if (this._model && !this._model.isDisposed()) {
 
 				let stats = this._envService.args['prof-modules'] ? LoaderStats.get() : undefined;
 				let md = new MarkdownBuilder();
@@ -126,9 +130,15 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		md.heading(2, 'System Info');
 		md.li(`${product.nameShort}: ${pkg.version} (${product.commit || '0000000'})`);
 		md.li(`OS: ${metrics.platform}(${metrics.release})`);
-		md.li(`CPUs: ${metrics.cpus.model}(${metrics.cpus.count} x ${metrics.cpus.speed})`);
-		md.li(`Memory(System): ${(metrics.totalmem / (1024 * 1024 * 1024)).toFixed(2)} GB(${(metrics.freemem / (1024 * 1024 * 1024)).toFixed(2)}GB free)`);
-		md.li(`Memory(Process): ${(metrics.meminfo.workingSetSize / 1024).toFixed(2)} MB working set(${(metrics.meminfo.peakWorkingSetSize / 1024).toFixed(2)}MB peak, ${(metrics.meminfo.privateBytes / 1024).toFixed(2)}MB private, ${(metrics.meminfo.sharedBytes / 1024).toFixed(2)}MB shared)`);
+		if (metrics.cpus) {
+			md.li(`CPUs: ${metrics.cpus.model}(${metrics.cpus.count} x ${metrics.cpus.speed})`);
+		}
+		if (typeof metrics.totalmem === 'number' && typeof metrics.freemem === 'number') {
+			md.li(`Memory(System): ${(metrics.totalmem / (1024 * 1024 * 1024)).toFixed(2)} GB(${(metrics.freemem / (1024 * 1024 * 1024)).toFixed(2)}GB free)`);
+		}
+		if (metrics.meminfo) {
+			md.li(`Memory(Process): ${(metrics.meminfo.workingSetSize / 1024).toFixed(2)} MB working set(${(metrics.meminfo.peakWorkingSetSize / 1024).toFixed(2)}MB peak, ${(metrics.meminfo.privateBytes / 1024).toFixed(2)}MB private, ${(metrics.meminfo.sharedBytes / 1024).toFixed(2)}MB shared)`);
+		}
 		md.li(`VM(likelyhood): ${metrics.isVMLikelyhood}%`);
 		md.li(`Initial Startup: ${metrics.initialStartup}`);
 		md.li(`Has ${metrics.windowCount - 1} other windows`);
@@ -138,7 +148,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 
 	private _addSummaryTable(md: MarkdownBuilder, metrics: IStartupMetrics, stats?: LoaderStats): void {
 
-		const table: (string | number)[][] = [];
+		const table: Array<Array<string | number | undefined>> = [];
 		table.push(['start => app.isReady', metrics.timers.ellapsedAppReady, '[main]', `initial startup: ${metrics.initialStartup}`]);
 		table.push(['nls:start => nls:end', metrics.timers.ellapsedNlsGeneration, '[main]', `initial startup: ${metrics.initialStartup}`]);
 		table.push(['require(main.bundle.js)', metrics.initialStartup ? perf.getDuration('willLoadMainBundle', 'didLoadMainBundle') : undefined, '[main]', `initial startup: ${metrics.initialStartup}`]);
@@ -333,7 +343,7 @@ class MarkdownBuilder {
 		return this;
 	}
 
-	table(header: string[], rows: { toString() }[][]) {
+	table(header: string[], rows: Array<Array<{ toString(): string } | undefined>>) {
 		let lengths: number[] = [];
 		header.forEach((cell, ci) => {
 			lengths[ci] = cell.length;
@@ -357,7 +367,9 @@ class MarkdownBuilder {
 		// cells
 		rows.forEach(row => {
 			row.forEach((cell, ci) => {
-				this.value += `| ${cell + repeat(' ', lengths[ci] - cell.toString().length)} `;
+				if (typeof cell !== 'undefined') {
+					this.value += `| ${cell + repeat(' ', lengths[ci] - cell.toString().length)} `;
+				}
 			});
 			this.value += '|\n';
 		});

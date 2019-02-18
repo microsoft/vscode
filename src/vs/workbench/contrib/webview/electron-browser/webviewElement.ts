@@ -15,18 +15,20 @@ import { DARK, ITheme, IThemeService, LIGHT } from 'vs/platform/theme/common/the
 import { registerFileProtocol, WebviewProtocol } from 'vs/workbench/contrib/webview/electron-browser/webviewProtocols';
 import { areWebviewInputOptionsEqual } from './webviewEditorService';
 import { WebviewFindWidget } from './webviewFindWidget';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { endsWith } from 'vs/base/common/strings';
 import { isMacintosh } from 'vs/base/common/platform';
 
 export interface WebviewOptions {
-	readonly allowScripts?: boolean;
 	readonly allowSvgs?: boolean;
-	readonly svgWhiteList?: string[];
 	readonly useSameOriginForRoot?: boolean;
-	readonly localResourceRoots?: ReadonlyArray<URI>;
 	readonly extensionLocation?: URI;
+}
+
+export interface WebviewContentOptions {
+	readonly allowScripts?: boolean;
+	readonly svgWhiteList?: string[];
+	readonly localResourceRoots?: ReadonlyArray<URI>;
+	readonly disableFindView?: boolean;
 }
 
 interface IKeydownEvent {
@@ -88,13 +90,9 @@ class SvgBlocker extends Disposable {
 
 	constructor(
 		webview: Electron.WebviewTag,
-		private readonly _options: WebviewOptions,
+		private readonly _options: WebviewContentOptions,
 	) {
 		super();
-
-		if (this._options.allowSvgs) {
-			return;
-		}
 
 		let loaded = false;
 		this._register(addDisposableListener(webview, 'did-start-loading', () => {
@@ -134,9 +132,6 @@ class SvgBlocker extends Disposable {
 	}
 
 	private isAllowedSvg(uri: URI): boolean {
-		if (this._options.allowSvgs) {
-			return true;
-		}
 		if (this._options.svgWhiteList) {
 			return this._options.svgWhiteList.indexOf(uri.authority.toLowerCase()) >= 0;
 		}
@@ -146,8 +141,7 @@ class SvgBlocker extends Disposable {
 
 class WebviewKeyboardHandler extends Disposable {
 	constructor(
-		private readonly _webview: Electron.WebviewTag,
-		private readonly _keybindingService: IKeybindingService
+		private readonly _webview: Electron.WebviewTag
 	) {
 		super();
 
@@ -203,23 +197,14 @@ class WebviewKeyboardHandler extends Disposable {
 	}
 
 	private handleKeydown(event: IKeydownEvent): void {
-		// return;
 		// Create a fake KeyboardEvent from the data provided
-		const emulatedKeyboardEvent = new KeyboardEvent('keydown', {
-			code: event.code,
-			key: event.key,
-			keyCode: event.keyCode,
-			shiftKey: event.shiftKey,
-			altKey: event.altKey,
-			ctrlKey: event.ctrlKey,
-			metaKey: event.metaKey,
-			repeat: event.repeat
-		} as KeyboardEvent);
-
-		// Dispatch through our keybinding service
-		// Note: we set the <webview> as target of the event so that scoped context key
-		// services function properly to enable commands like select all and find.
-		this._keybindingService.dispatchEvent(new StandardKeyboardEvent(emulatedKeyboardEvent), this._webview);
+		const emulatedKeyboardEvent = new KeyboardEvent('keydown', event);
+		// Force override the target
+		Object.defineProperty(emulatedKeyboardEvent, 'target', {
+			get: () => this._webview
+		});
+		// And re-dispatch
+		window.dispatchEvent(emulatedKeyboardEvent);
 	}
 }
 
@@ -239,16 +224,16 @@ export class WebviewElement extends Disposable {
 
 	constructor(
 		private readonly _styleElement: Element,
-		private _options: WebviewOptions,
+		private readonly _options: WebviewOptions,
+		private _contentOptions: WebviewContentOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IFileService fileService: IFileService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService
+		@IFileService fileService: IFileService
 	) {
 		super();
 		this._webview = document.createElement('webview');
-		this._webview.setAttribute('partition', this._options.allowSvgs ? 'webview' : `webview${Date.now()}`);
+		this._webview.setAttribute('partition', `webview${Date.now()}`);
 
 		this._webview.setAttribute('webpreferences', 'contextIsolation=yes');
 
@@ -276,14 +261,16 @@ export class WebviewElement extends Disposable {
 			new WebviewProtocolProvider(
 				this._webview,
 				this._options.extensionLocation,
-				() => (this._options.localResourceRoots || []),
+				() => (this._contentOptions.localResourceRoots || []),
 				environmentService,
 				fileService));
 
-		const svgBlocker = this._register(new SvgBlocker(this._webview, this._options));
-		svgBlocker.onDidBlockSvg(() => this.onDidBlockSvg());
+		if (!this._options.allowSvgs) {
+			const svgBlocker = this._register(new SvgBlocker(this._webview, this._contentOptions));
+			svgBlocker.onDidBlockSvg(() => this.onDidBlockSvg());
+		}
 
-		this._register(new WebviewKeyboardHandler(this._webview, this._keybindingService));
+		this._register(new WebviewKeyboardHandler(this._webview));
 
 		this._register(addDisposableListener(this._webview, 'console-message', function (e: { level: number; message: string; line: number; sourceId: string; }) {
 			console.log(`[Embedded Page] ${e.message}`);
@@ -348,14 +335,18 @@ export class WebviewElement extends Disposable {
 			this._send('devtools-opened');
 		}));
 
-		this._webviewFindWidget = this._register(instantiationService.createInstance(WebviewFindWidget, this));
+		if (!this.options || !this.options.disableFindView) {
+			this._webviewFindWidget = this._register(instantiationService.createInstance(WebviewFindWidget, this));
+		}
 
 		this.style(this._themeService.getTheme());
 		this._register(this._themeService.onThemeChange(this.style, this));
 	}
 
 	public mountTo(parent: HTMLElement) {
-		parent.appendChild(this._webviewFindWidget.getDomNode()!);
+		if (this._webviewFindWidget) {
+			parent.appendChild(this._webviewFindWidget.getDomNode()!);
+		}
 		parent.appendChild(this._webview);
 	}
 
@@ -366,8 +357,8 @@ export class WebviewElement extends Disposable {
 			}
 		}
 
-		this._webview = undefined;
-		this._webviewFindWidget = undefined;
+		this._webview = undefined!;
+		this._webviewFindWidget = undefined!;
 		super.dispose();
 	}
 
@@ -397,15 +388,15 @@ export class WebviewElement extends Disposable {
 		this._state = value;
 	}
 
-	public set options(value: WebviewOptions) {
-		if (this._options && areWebviewInputOptionsEqual(value, this._options)) {
+	public set options(value: WebviewContentOptions) {
+		if (this._contentOptions && areWebviewInputOptionsEqual(value, this._contentOptions)) {
 			return;
 		}
 
-		this._options = value;
+		this._contentOptions = value;
 		this._send('content', {
 			contents: this._contents,
-			options: this._options,
+			options: this._contentOptions,
 			state: this._state
 		});
 	}
@@ -414,20 +405,20 @@ export class WebviewElement extends Disposable {
 		this._contents = value;
 		this._send('content', {
 			contents: value,
-			options: this._options,
+			options: this._contentOptions,
 			state: this._state
 		});
 	}
 
-	public update(value: string, options: WebviewOptions, retainContextWhenHidden: boolean) {
-		if (retainContextWhenHidden && value === this._contents && this._options && areWebviewInputOptionsEqual(options, this._options)) {
+	public update(value: string, options: WebviewContentOptions, retainContextWhenHidden: boolean) {
+		if (retainContextWhenHidden && value === this._contents && this._contentOptions && areWebviewInputOptionsEqual(options, this._contentOptions)) {
 			return;
 		}
 		this._contents = value;
-		this._options = options;
+		this._contentOptions = options;
 		this._send('content', {
 			contents: this._contents,
-			options: this._options,
+			options: this._contentOptions,
 			state: this._state
 		});
 	}
@@ -483,8 +474,9 @@ export class WebviewElement extends Disposable {
 		const activeTheme = ApiThemeClassName.fromTheme(theme);
 		this._send('styles', styles, activeTheme);
 
-		this._webviewFindWidget.updateTheme(theme);
-
+		if (this._webviewFindWidget) {
+			this._webviewFindWidget.updateTheme(theme);
+		}
 	}
 
 	public layout(): void {
@@ -552,11 +544,15 @@ export class WebviewElement extends Disposable {
 	}
 
 	public showFind() {
-		this._webviewFindWidget.reveal();
+		if (this._webviewFindWidget) {
+			this._webviewFindWidget.reveal();
+		}
 	}
 
 	public hideFind() {
-		this._webviewFindWidget.hide();
+		if (this._webviewFindWidget) {
+			this._webviewFindWidget.hide();
+		}
 	}
 
 	public reload() {

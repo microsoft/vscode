@@ -136,13 +136,13 @@ export class RatingsWidget extends ExtensionWidget {
 			}
 		}
 		this.container.title = this.extension.ratingCount === 1 ? localize('ratedBySingleUser', "Rated by 1 user")
-			: this.extension.ratingCount > 1 ? localize('ratedByUsers', "Rated by {0} users", this.extension.ratingCount) : localize('noRating', "No rating");
+			: typeof this.extension.ratingCount === 'number' && this.extension.ratingCount > 1 ? localize('ratedByUsers', "Rated by {0} users", this.extension.ratingCount) : localize('noRating', "No rating");
 	}
 }
 
 export class RecommendationWidget extends ExtensionWidget {
 
-	private element: HTMLElement;
+	private element?: HTMLElement;
 	private disposables: IDisposable[] = [];
 
 	constructor(
@@ -161,7 +161,7 @@ export class RecommendationWidget extends ExtensionWidget {
 		if (this.element) {
 			this.parent.removeChild(this.element);
 		}
-		this.element = null;
+		this.element = undefined;
 		this.disposables = dispose(this.disposables);
 	}
 
@@ -232,6 +232,9 @@ export class RemoteBadgeWidget extends ExtensionWidget {
 			append(this.element, $('span.octicon.octicon-file-symlink-directory'));
 
 			const applyBadgeStyle = () => {
+				if (!this.element) {
+					return;
+				}
 				const bgColor = this.themeService.getTheme().getColor(STATUS_BAR_HOST_NAME_BACKGROUND);
 				const fgColor = this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY ? this.themeService.getTheme().getColor(STATUS_BAR_NO_FOLDER_FOREGROUND) : this.themeService.getTheme().getColor(STATUS_BAR_FOREGROUND);
 				this.element.style.backgroundColor = bgColor ? bgColor.toString() : '';
@@ -241,7 +244,11 @@ export class RemoteBadgeWidget extends ExtensionWidget {
 			this.themeService.onThemeChange(applyBadgeStyle, this, this.disposables);
 			this.workspaceContextService.onDidChangeWorkbenchState(applyBadgeStyle, this, this.disposables);
 
-			const updateTitle = () => this.element.title = localize('remote extension title', "Extension in {0}", this.labelService.getHostLabel());
+			const updateTitle = () => {
+				if (this.element) {
+					this.element.title = localize('remote extension title', "Extension in {0}", this.labelService.getHostLabel());
+				}
+			};
 			this.labelService.onDidChangeFormatters(() => updateTitle(), this, this.disposables);
 			updateTitle();
 		}

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { join } from 'path';
+import { join } from 'vs/base/common/path';
 import { readdir, readFile, rimraf } from 'vs/base/node/pfs';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';

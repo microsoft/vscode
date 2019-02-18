@@ -58,10 +58,10 @@ suite('Debug - Link Detector', () => {
 
 		assert.equal(1, output.children.length);
 		assert.equal('SPAN', output.tagName);
-		assert.equal('A', output.firstElementChild.tagName);
+		assert.equal('A', output.firstElementChild!.tagName);
 		assert(expectedOutput.test(output.outerHTML));
-		assertElementIsLink(output.firstElementChild);
-		assert.equal(isWindows ? 'C:/foo/bar.js:12:34' : '/Users/foo/bar.js:12:34', output.firstElementChild.textContent);
+		assertElementIsLink(output.firstElementChild!);
+		assert.equal(isWindows ? 'C:/foo/bar.js:12:34' : '/Users/foo/bar.js:12:34', output.firstElementChild!.textContent);
 	});
 
 	test('relativeLink', () => {

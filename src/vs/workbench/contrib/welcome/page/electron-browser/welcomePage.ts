@@ -6,7 +6,7 @@
 import 'vs/css!./welcomePage';
 import { URI } from 'vs/base/common/uri';
 import * as strings from 'vs/base/common/strings';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import * as arrays from 'vs/base/common/arrays';
 import { WalkThroughInput } from 'vs/workbench/contrib/welcome/walkThrough/node/walkThroughInput';
@@ -14,7 +14,7 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { onUnexpectedError, isPromiseCanceledError } from 'vs/base/common/errors';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IWindowService, URIType } from 'vs/platform/windows/common/windows';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
@@ -41,6 +41,7 @@ import { areSameExtensions } from 'vs/platform/extensionManagement/common/extens
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { joinPath } from 'vs/base/common/resources';
 
 used();
 
@@ -73,9 +74,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 								.then(files => {
 									const file = arrays.find(files.sort(), file => strings.startsWith(file.toLowerCase(), 'readme'));
 									if (file) {
-										return folderUri.with({
-											path: path.posix.join(folderUri.path, file)
-										});
+										return joinPath(folderUri, file);
 									}
 									return undefined;
 								}, onUnexpectedError);
@@ -344,15 +343,19 @@ class WelcomePage {
 		return workspaces.map(workspace => {
 			let label: string;
 			let resource: URI;
+			let typeHint: URIType | undefined;
 			if (isSingleFolderWorkspaceIdentifier(workspace)) {
 				resource = workspace;
 				label = this.labelService.getWorkspaceLabel(workspace);
+				typeHint = 'folder';
 			} else if (isWorkspaceIdentifier(workspace)) {
 				label = this.labelService.getWorkspaceLabel(workspace);
-				resource = URI.file(workspace.configPath);
+				resource = workspace.configPath;
+				typeHint = 'file';
 			} else {
 				label = getBaseLabel(workspace);
 				resource = URI.file(workspace);
+				typeHint = 'file';
 			}
 
 			const li = document.createElement('li');
@@ -389,7 +392,7 @@ class WelcomePage {
 					id: 'openRecentFolder',
 					from: telemetryFrom
 				});
-				this.windowService.openWindow([resource], { forceNewWindow: e.ctrlKey || e.metaKey });
+				this.windowService.openWindow([{ uri: resource, typeHint }], { forceNewWindow: e.ctrlKey || e.metaKey });
 				e.preventDefault();
 				e.stopPropagation();
 			});

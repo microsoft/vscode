@@ -21,7 +21,6 @@ import { TabsTitleControl } from 'vs/workbench/browser/parts/editor/tabsTitleCon
 import { EditorControl } from 'vs/workbench/browser/parts/editor/editorControl';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ProgressService } from 'vs/workbench/services/progress/browser/progressService';
-import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { localize } from 'vs/nls';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
@@ -33,7 +32,7 @@ import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch
 import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
 import { IEditorGroupsAccessor, IEditorGroupView, IEditorPartOptionsChangeEvent, getActiveTextEditorOptions, IEditorOpeningEvent } from 'vs/workbench/browser/parts/editor/editor';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { join } from 'vs/base/common/paths';
+import { join } from 'vs/base/common/extpath';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ActionRunner, IAction, Action } from 'vs/base/common/actions';
@@ -45,6 +44,7 @@ import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemAc
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { isErrorWithActions, IErrorWithActions } from 'vs/base/common/errorsWithActions';
 import { URI } from 'vs/base/common/uri';
+import { IActiveEditor } from 'vs/workbench/services/editor/common/editorService';
 
 export class EditorGroupView extends Themable implements IEditorGroupView {
 
@@ -108,7 +108,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private editorContainer: HTMLElement;
 	private editorControl: EditorControl;
 
-	private ignoreOpenEditorErrors: boolean;
 	private disposedEditorsWorker: RunOnceWorker<EditorInput>;
 
 	private mapEditorToPendingConfirmation: Map<EditorInput, Promise<boolean>> = new Map<EditorInput, Promise<boolean>>();
@@ -652,15 +651,15 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this._group.count;
 	}
 
-	get activeControl(): BaseEditor {
-		return this.editorControl ? this.editorControl.activeControl : undefined;
+	get activeControl(): IActiveEditor | undefined {
+		return this.editorControl ? this.editorControl.activeControl || undefined : undefined;
 	}
 
-	get activeEditor(): EditorInput {
+	get activeEditor(): EditorInput | null {
 		return this._group.activeEditor;
 	}
 
-	get previewEditor(): EditorInput {
+	get previewEditor(): EditorInput | null {
 		return this._group.previewEditor;
 	}
 
@@ -680,7 +679,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this.editors;
 	}
 
-	getEditor(index: number): EditorInput {
+	getEditor(index: number): EditorInput | null {
 		return this._group.getEditor(index);
 	}
 
@@ -818,7 +817,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Report error only if this was not us restoring previous error state or
 		// we are told to ignore errors that occur from opening an editor
-		if (this.isRestored && !isPromiseCanceledError(error) && !this.ignoreOpenEditorErrors) {
+		if (this.isRestored && !isPromiseCanceledError(error) && (!options || !options.ignoreError)) {
 			const actions: INotificationActions = { primary: [] };
 			if (isErrorWithActions(error)) {
 				actions.primary = (error as IErrorWithActions).actions;
@@ -858,7 +857,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		let result: IEditor;
 
 		// Use the first editor as active editor
-		const { editor, options } = editors.shift();
+		const { editor, options } = editors.shift()!;
 		return this.openEditor(editor, options).then(activeEditor => {
 			result = activeEditor; // this can be NULL if the opening failed
 
@@ -1020,20 +1019,18 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Open next active if there are more to show
 		const nextActiveEditor = this._group.activeEditor;
 		if (nextActiveEditor) {
+			const options = EditorOptions.create({ preserveFocus: !focusNext });
 
 			// When closing an editor due to an error we can end up in a loop where we continue closing
 			// editors that fail to open (e.g. when the file no longer exists). We do not want to show
 			// repeated errors in this case to the user. As such, if we open the next editor and we are
 			// in a scope of a previous editor failing, we silence the input errors until the editor is
-			// opened.
+			// opened by setting ignoreError: true.
 			if (fromError) {
-				this.ignoreOpenEditorErrors = true;
+				options.ignoreError = true;
 			}
 
-			const options = !focusNext ? EditorOptions.create({ preserveFocus: true }) : undefined;
-			this.openEditor(nextActiveEditor, options).then(() => {
-				this.ignoreOpenEditorErrors = false;
-			});
+			this.openEditor(nextActiveEditor, options);
 		}
 
 		// Otherwise we are empty, so clear from editor control and send event

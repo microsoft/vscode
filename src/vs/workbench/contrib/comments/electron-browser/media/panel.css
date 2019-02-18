@@ -42,7 +42,7 @@
 }
 
 .comments-panel .comments-panel-container .tree-container .comment-container .text code {
-	font-family: var(--monospace-font);
+	font-family: var(--monaco-monospace-font);
 }
 
 .comments-panel .comments-panel-container .message-box-container {

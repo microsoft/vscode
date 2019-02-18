@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as paths from 'vs/base/common/paths';
 import { URI } from 'vs/base/common/uri';
 import { toResource, IEditorCommandsContext } from 'vs/workbench/common/editor';
-import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService, IURIToOpen } from 'vs/platform/windows/common/windows';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -39,6 +38,7 @@ import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { basename } from 'vs/base/common/resources';
 
 // Commands
 
@@ -76,17 +76,13 @@ export const ResourceSelectedForCompareContext = new RawContextKey<boolean>('res
 export const REMOVE_ROOT_FOLDER_COMMAND_ID = 'removeRootFolder';
 export const REMOVE_ROOT_FOLDER_LABEL = nls.localize('removeFolderFromWorkspace', "Remove Folder from Workspace");
 
-export const openWindowCommand = (accessor: ServicesAccessor, input: Array<string | URI> | { fileURIs: URI[], folderURIs: URI[], forceNewWindow: boolean, forceReuseWindow?: boolean, diffMode?: boolean, addMode?: boolean }, forceNewWindow: boolean) => {
+export const openWindowCommand = (accessor: ServicesAccessor, input: Array<string | URI> | { urisToOpen: IURIToOpen[], forceNewWindow: boolean, forceReuseWindow?: boolean, diffMode?: boolean, addMode?: boolean }, forceNewWindow: boolean) => {
 	const windowService = accessor.get(IWindowService);
+
 	if (Array.isArray(input)) {
-		windowService.openWindow(input.map(p => typeof p === 'string' ? URI.file(p) : p), { forceNewWindow });
+		windowService.openWindow(input.map(p => ({ uri: typeof p === 'string' ? URI.file(p) : p }), { forceNewWindow }));
 	} else if (input) {
-		if (Array.isArray(input.folderURIs) && input.folderURIs.length) {
-			windowService.openWindow(input.folderURIs, { forceNewWindow: input.forceNewWindow, diffMode: input.diffMode, addMode: input.addMode, forceReuseWindow: input.forceReuseWindow });
-		}
-		if (Array.isArray(input.fileURIs) && input.fileURIs.length) {
-			windowService.openWindow(input.fileURIs, { forceNewWindow: input.forceNewWindow, forceOpenWorkspaceAsFile: true, diffMode: input.diffMode, addMode: input.addMode, forceReuseWindow: input.forceReuseWindow });
-		}
+		windowService.openWindow(input.urisToOpen, { forceNewWindow: input.forceNewWindow, diffMode: input.diffMode, addMode: input.addMode, forceReuseWindow: input.forceReuseWindow });
 	}
 };
 
@@ -249,7 +245,7 @@ CommandsRegistry.registerCommand({
 
 		if (resources.length) {
 			return textFileService.revertAll(resources, { force: true }).then(undefined, error => {
-				notificationService.error(nls.localize('genericRevertError', "Failed to revert '{0}': {1}", resources.map(r => paths.basename(r.fsPath)).join(', '), toErrorMessage(error, false)));
+				notificationService.error(nls.localize('genericRevertError', "Failed to revert '{0}': {1}", resources.map(r => basename(r)).join(', '), toErrorMessage(error, false)));
 			});
 		}
 
@@ -304,7 +300,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const uri = getResourceForCommand(resource, accessor.get(IListService), editorService);
 
 		if (uri && uri.scheme === Schemas.file /* only files on disk supported for now */) {
-			const name = paths.basename(uri.fsPath);
+			const name = basename(uri);
 			const editorLabel = nls.localize('modifiedLabel', "{0} (on disk) ↔ {1}", name, name);
 
 			return editorService.openEditor({ leftResource: uri.with({ scheme: COMPARE_WITH_SAVED_SCHEMA }), rightResource: uri, label: editorLabel }).then(() => undefined);
@@ -361,9 +357,9 @@ CommandsRegistry.registerCommand({
 
 function revealResourcesInOS(resources: URI[], windowsService: IWindowsService, notificationService: INotificationService, workspaceContextService: IWorkspaceContextService): void {
 	if (resources.length) {
-		sequence(resources.map(r => () => windowsService.showItemInFolder(paths.normalize(r.fsPath, true))));
+		sequence(resources.map(r => () => windowsService.showItemInFolder(r.fsPath)));
 	} else if (workspaceContextService.getWorkspace().folders.length) {
-		windowsService.showItemInFolder(paths.normalize(workspaceContextService.getWorkspace().folders[0].uri.fsPath, true));
+		windowsService.showItemInFolder(workspaceContextService.getWorkspace().folders[0].uri.fsPath);
 	} else {
 		notificationService.info(nls.localize('openFileToReveal', "Open a file first to reveal"));
 	}

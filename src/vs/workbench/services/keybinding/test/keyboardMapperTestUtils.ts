@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { Keybinding, ResolvedKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { ScanCodeBinding } from 'vs/base/common/scanCode';
@@ -19,7 +19,7 @@ export interface IResolvedKeybinding {
 	userSettingsLabel: string | null;
 	isWYSIWYG: boolean;
 	isChord: boolean;
-	dispatchParts: [string | null, string | null];
+	dispatchParts: (string | null)[];
 }
 
 function toIResolvedKeybinding(kb: ResolvedKeybinding): IResolvedKeybinding {

@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { OperatingSystem } from 'vs/base/common/platform';
+import { illegalArgument } from 'vs/base/common/errors';
+import { Modifiers, UILabelProvider, AriaLabelProvider, ElectronAcceleratorLabelProvider, UserSettingsLabelProvider } from 'vs/base/common/keybindingLabels';
 
 /**
  * Virtual Key Codes, the value does not hold any inherent meaning.
@@ -417,12 +419,12 @@ export function createKeybinding(keybinding: number, OS: OperatingSystem): Keybi
 	const firstPart = (keybinding & 0x0000FFFF) >>> 0;
 	const chordPart = (keybinding & 0xFFFF0000) >>> 16;
 	if (chordPart !== 0) {
-		return new ChordKeybinding(
+		return new ChordKeybinding([
 			createSimpleKeybinding(firstPart, OS),
-			createSimpleKeybinding(chordPart, OS),
-		);
+			createSimpleKeybinding(chordPart, OS)
+		]);
 	}
-	return createSimpleKeybinding(firstPart, OS);
+	return new ChordKeybinding([createSimpleKeybinding(firstPart, OS)]);
 }
 
 export function createSimpleKeybinding(keybinding: number, OS: OperatingSystem): SimpleKeybinding {
@@ -439,14 +441,7 @@ export function createSimpleKeybinding(keybinding: number, OS: OperatingSystem):
 	return new SimpleKeybinding(ctrlKey, shiftKey, altKey, metaKey, keyCode);
 }
 
-export const enum KeybindingType {
-	Simple = 1,
-	Chord = 2
-}
-
 export class SimpleKeybinding {
-	public readonly type = KeybindingType.Simple;
-
 	public readonly ctrlKey: boolean;
 	public readonly shiftKey: boolean;
 	public readonly altKey: boolean;
@@ -461,10 +456,7 @@ export class SimpleKeybinding {
 		this.keyCode = keyCode;
 	}
 
-	public equals(other: Keybinding): boolean {
-		if (other.type !== KeybindingType.Simple) {
-			return false;
-		}
+	public equals(other: SimpleKeybinding): boolean {
 		return (
 			this.ctrlKey === other.ctrlKey
 			&& this.shiftKey === other.shiftKey
@@ -492,6 +484,10 @@ export class SimpleKeybinding {
 		);
 	}
 
+	public toChord(): ChordKeybinding {
+		return new ChordKeybinding([this]);
+	}
+
 	/**
 	 * Does this keybinding refer to the key code of a modifier and it also has the modifier flag?
 	 */
@@ -506,22 +502,43 @@ export class SimpleKeybinding {
 }
 
 export class ChordKeybinding {
-	public readonly type = KeybindingType.Chord;
+	public readonly parts: SimpleKeybinding[];
 
-	public readonly firstPart: SimpleKeybinding;
-	public readonly chordPart: SimpleKeybinding;
-
-	constructor(firstPart: SimpleKeybinding, chordPart: SimpleKeybinding) {
-		this.firstPart = firstPart;
-		this.chordPart = chordPart;
+	constructor(parts: SimpleKeybinding[]) {
+		if (parts.length === 0) {
+			throw illegalArgument(`parts`);
+		}
+		this.parts = parts;
 	}
 
 	public getHashCode(): string {
-		return `${this.firstPart.getHashCode()};${this.chordPart.getHashCode()}`;
+		let result = '';
+		for (let i = 0, len = this.parts.length; i < len; i++) {
+			if (i !== 0) {
+				result += ';';
+			}
+			result += this.parts[i].getHashCode();
+		}
+		return result;
+	}
+
+	public equals(other: ChordKeybinding | null): boolean {
+		if (other === null) {
+			return false;
+		}
+		if (this.parts.length !== other.parts.length) {
+			return false;
+		}
+		for (let i = 0; i < this.parts.length; i++) {
+			if (!this.parts[i].equals(other.parts[i])) {
+				return false;
+			}
+		}
+		return true;
 	}
 }
 
-export type Keybinding = SimpleKeybinding | ChordKeybinding;
+export type Keybinding = ChordKeybinding;
 
 export class ResolvedKeybindingPart {
 	readonly ctrlKey: boolean;
@@ -574,12 +591,82 @@ export abstract class ResolvedKeybinding {
 	public abstract isChord(): boolean;
 
 	/**
-	 * Returns the firstPart, chordPart that should be used for dispatching.
+	 * Returns the parts that comprise of the keybinding.
+	 * Simple keybindings return one element.
 	 */
-	public abstract getDispatchParts(): [string | null, string | null];
+	public abstract getParts(): ResolvedKeybindingPart[];
+
 	/**
-	 * Returns the firstPart, chordPart of the keybinding.
-	 * For simple keybindings, the second element will be null.
+	 * Returns the parts that should be used for dispatching.
 	 */
-	public abstract getParts(): [ResolvedKeybindingPart, ResolvedKeybindingPart | null];
+	public abstract getDispatchParts(): (string | null)[];
+}
+
+export abstract class BaseResolvedKeybinding<T extends Modifiers> extends ResolvedKeybinding {
+
+	protected readonly _os: OperatingSystem;
+	protected readonly _parts: T[];
+
+	constructor(os: OperatingSystem, parts: T[]) {
+		super();
+		if (parts.length === 0) {
+			throw illegalArgument(`parts`);
+		}
+		this._os = os;
+		this._parts = parts;
+	}
+
+	public getLabel(): string | null {
+		return UILabelProvider.toLabel(this._os, this._parts, (keybinding) => this._getLabel(keybinding));
+	}
+
+	public getAriaLabel(): string | null {
+		return AriaLabelProvider.toLabel(this._os, this._parts, (keybinding) => this._getAriaLabel(keybinding));
+	}
+
+	public getElectronAccelerator(): string | null {
+		if (this._parts.length > 1) {
+			// Electron cannot handle chords
+			return null;
+		}
+		return ElectronAcceleratorLabelProvider.toLabel(this._os, this._parts, (keybinding) => this._getElectronAccelerator(keybinding));
+	}
+
+	public getUserSettingsLabel(): string | null {
+		return UserSettingsLabelProvider.toLabel(this._os, this._parts, (keybinding) => this._getUserSettingsLabel(keybinding));
+	}
+
+	public isWYSIWYG(): boolean {
+		return this._parts.every((keybinding) => this._isWYSIWYG(keybinding));
+	}
+
+	public isChord(): boolean {
+		return (this._parts.length > 1);
+	}
+
+	public getParts(): ResolvedKeybindingPart[] {
+		return this._parts.map((keybinding) => this._getPart(keybinding));
+	}
+
+	private _getPart(keybinding: T): ResolvedKeybindingPart {
+		return new ResolvedKeybindingPart(
+			keybinding.ctrlKey,
+			keybinding.shiftKey,
+			keybinding.altKey,
+			keybinding.metaKey,
+			this._getLabel(keybinding),
+			this._getAriaLabel(keybinding)
+		);
+	}
+
+	public getDispatchParts(): (string | null)[] {
+		return this._parts.map((keybinding) => this._getDispatchPart(keybinding));
+	}
+
+	protected abstract _getLabel(keybinding: T): string | null;
+	protected abstract _getAriaLabel(keybinding: T): string | null;
+	protected abstract _getElectronAccelerator(keybinding: T): string | null;
+	protected abstract _getUserSettingsLabel(keybinding: T): string | null;
+	protected abstract _isWYSIWYG(keybinding: T): boolean;
+	protected abstract _getDispatchPart(keybinding: T): string | null;
 }

@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { Platform } from 'vs/base/common/platform';
 import { TerminalLinkHandler, LineColumnInfo } from 'vs/workbench/contrib/terminal/electron-browser/terminalLinkHandler';
 import * as strings from 'vs/base/common/strings';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import * as sinon from 'sinon';
 
 class TestTerminalLinkHandler extends TerminalLinkHandler {

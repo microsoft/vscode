@@ -71,7 +71,7 @@ export const DataTransfers = {
 	TEXT: 'text/plain'
 };
 
-export function applyDragImage(event: DragEvent, label: string, clazz: string): void {
+export function applyDragImage(event: DragEvent, label: string | null, clazz: string): void {
 	const dragImage = document.createElement('div');
 	dragImage.className = clazz;
 	dragImage.textContent = label;

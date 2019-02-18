@@ -20,7 +20,7 @@ import { HideWebViewEditorFindCommand, OpenWebviewDeveloperToolsAction, ReloadWe
 import { WebviewEditor } from './webviewEditor';
 import { WebviewEditorInput } from './webviewEditorInput';
 import { IWebviewEditorService, WebviewEditorService } from './webviewEditorService';
-import { InputFocusedContextKey } from 'vs/platform/workbench/common/contextkeys';
+import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
 import { isMacintosh } from 'vs/base/common/platform';
 
 (Registry.as<IEditorRegistry>(EditorExtensions.Editors)).registerEditor(new EditorDescriptor(

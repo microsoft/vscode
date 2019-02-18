@@ -55,7 +55,7 @@ export function getCustomDataPathsFromAllExtensions(): string[] {
 			contributes.html.experimental.customData &&
 			Array.isArray(contributes.html.experimental.customData)
 		) {
-			const relativePaths: string[] = contributes.html.customData;
+			const relativePaths: string[] = contributes.html.experimental.customData;
 			relativePaths.forEach(rp => {
 				dataPaths.push(path.resolve(extension.extensionPath, rp));
 			});
