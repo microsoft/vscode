@@ -216,7 +216,7 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 
 	updateOptions(options: ITreeRendererOptions = {}): void {
 		if (typeof this.indent !== 'undefined') {
-			this.indent = clamp(options.indent, 0, 20);
+			this.indent = clamp(options.indent, 0, 40);
 		}
 
 		this.renderedNodes.forEach((templateData, node) => {
