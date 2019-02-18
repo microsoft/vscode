@@ -38,6 +38,7 @@ import { MacLinuxFallbackKeyboardMapper } from 'vs/workbench/services/keybinding
 import { IMacLinuxKeyboardMapping, MacLinuxKeyboardMapper, macLinuxKeyboardMappingEquals } from 'vs/workbench/services/keybinding/common/macLinuxKeyboardMapper';
 import { IWindowsKeyboardMapping, WindowsKeyboardMapper, windowsKeyboardMappingEquals } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
 import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export class KeyboardMapperFactory {
 	public static readonly INSTANCE = new KeyboardMapperFactory();
@@ -276,7 +277,8 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IStatusbarService statusBarService: IStatusbarService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IWindowService private readonly windowService: IWindowService
+		@IWindowService private readonly windowService: IWindowService,
+		@IExtensionService extensionService: IExtensionService
 	) {
 		super(contextKeyService, commandService, telemetryService, notificationService, statusBarService);
 
@@ -315,6 +317,9 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			KeybindingsRegistry.setExtensionKeybindings(keybindings);
 			this.updateResolver({ source: KeybindingSource.Default });
 		});
+
+		updateSchema();
+		this._register(extensionService.onDidRegisterExtensions(() => updateSchema()));
 
 		this._register(this.userKeybindings.onDidUpdateConfiguration(event => this.updateResolver({
 			source: KeybindingSource.User,
@@ -627,6 +632,10 @@ let schemaRegistry = Registry.as<IJSONContributionRegistry>(Extensions.JSONContr
 schemaRegistry.registerSchema(schemaId, schema);
 
 function updateSchema() {
+	commandsSchemas.length = 0;
+	commandsEnum.length = 0;
+	commandsEnumDescriptions.length = 0;
+
 	const allCommands = CommandsRegistry.getCommands();
 	for (let commandId in allCommands) {
 		const commandDescription = allCommands[commandId].description;
