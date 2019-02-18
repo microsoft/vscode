@@ -1754,29 +1754,16 @@ export class Workbench extends Disposable implements IPartService {
 		}
 	}
 
-	private gridHasView(view: View): boolean {
-		if (!(this.workbenchGrid instanceof Grid)) {
-			return false;
-		}
-
-		try {
-			this.workbenchGrid.getViewSize(view);
-			return true;
-		} catch {
-			return false;
-		}
-	}
-
 	private updateGrid(): void {
 		if (!(this.workbenchGrid instanceof Grid)) {
 			return;
 		}
 
-		let panelInGrid = this.gridHasView(this.panelPartView);
-		let sidebarInGrid = this.gridHasView(this.sidebarPartView);
-		let activityBarInGrid = this.gridHasView(this.activitybarPartView);
-		let statusBarInGrid = this.gridHasView(this.statusbarPartView);
-		let titlebarInGrid = this.gridHasView(this.titlebarPartView);
+		let panelInGrid = this.workbenchGrid.hasView(this.panelPartView);
+		let sidebarInGrid = this.workbenchGrid.hasView(this.sidebarPartView);
+		let activityBarInGrid = this.workbenchGrid.hasView(this.activitybarPartView);
+		let statusBarInGrid = this.workbenchGrid.hasView(this.statusbarPartView);
+		let titlebarInGrid = this.workbenchGrid.hasView(this.titlebarPartView);
 
 		// Add parts to grid
 		if (!statusBarInGrid) {
