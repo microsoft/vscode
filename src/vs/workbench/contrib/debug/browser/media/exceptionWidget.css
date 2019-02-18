@@ -19,7 +19,7 @@
 
 .monaco-editor .zone-widget .zone-widget-container.exception-widget .description,
 .monaco-editor .zone-widget .zone-widget-container.exception-widget .stack-trace {
-	font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback";
+	font-family: var(--monaco-monospace-font);
 }
 
 .monaco-editor .zone-widget .zone-widget-container.exception-widget .stack-trace {

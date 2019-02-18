@@ -128,8 +128,7 @@
 	font-family: inherit;
 	border: 1px solid transparent;
 }
-
-
+																		
 .vs .monaco-workbench .feedback-form .cancel {
 	background: url('close.svg') center center no-repeat;
 }
