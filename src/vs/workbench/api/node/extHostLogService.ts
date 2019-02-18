@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { joinWithSlashes } from 'vs/base/common/extpath';
+import { join } from 'vs/base/common/path';
 import { ILogService, DelegatedLogService, LogLevel } from 'vs/platform/log/common/log';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { ExtHostLogServiceShape } from 'vs/workbench/api/node/extHost.protocol';
 import { ExtensionHostLogFileName } from 'vs/workbench/services/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-
 
 export class ExtHostLogService extends DelegatedLogService implements ILogService, ExtHostLogServiceShape {
 
@@ -23,7 +23,7 @@ export class ExtHostLogService extends DelegatedLogService implements ILogServic
 	) {
 		super(createSpdLogService(ExtensionHostLogFileName, logLevel, logsPath));
 		this._logsPath = logsPath;
-		this.logFile = URI.file(joinWithSlashes(logsPath, `${ExtensionHostLogFileName}.log`));
+		this.logFile = URI.file(join(logsPath, `${ExtensionHostLogFileName}.log`));
 	}
 
 	$setLevel(level: LogLevel): void {

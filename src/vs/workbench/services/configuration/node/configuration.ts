@@ -22,7 +22,7 @@ import * as extfs from 'vs/base/node/extfs';
 import { JSONEditingService } from 'vs/workbench/services/configuration/node/jsonEditingService';
 import { WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { extname } from 'vs/base/common/path';
+import { extname, join } from 'vs/base/common/path';
 import { equals } from 'vs/base/common/objects';
 import { Schemas } from 'vs/base/common/network';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -307,7 +307,7 @@ class CachedWorkspaceConfiguration extends Disposable implements IWorkspaceConfi
 	}
 
 	private createPaths(workspaceIdentifier: IWorkspaceIdentifier) {
-		this.cachedWorkspacePath = extpath.joinWithSlashes(this.environmentService.userDataPath, 'CachedConfigurations', 'workspaces', workspaceIdentifier.id);
+		this.cachedWorkspacePath = join(this.environmentService.userDataPath, 'CachedConfigurations', 'workspaces', workspaceIdentifier.id);
 		this.cachedConfigurationPath = extpath.joinWithSlashes(this.cachedWorkspacePath, 'workspace.json');
 	}
 }
@@ -553,7 +553,7 @@ export class CachedFolderConfiguration extends Disposable implements IFolderConf
 		environmentService: IEnvironmentService) {
 		super();
 		this.cachedFolderPath = extpath.joinWithSlashes(environmentService.userDataPath, 'CachedConfigurations', 'folders', createHash('md5').update(extpath.joinWithSlashes(folder.path, configFolderRelativePath)).digest('hex'));
-		this.cachedConfigurationPath = extpath.joinWithSlashes(this.cachedFolderPath, 'configuration.json');
+		this.cachedConfigurationPath = join(this.cachedFolderPath, 'configuration.json');
 		this.configurationModel = new ConfigurationModel();
 	}
 
