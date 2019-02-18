@@ -10,8 +10,8 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 export class ResolvedKeybindingItem {
 	_resolvedKeybindingItemBrand: void;
 
-	public readonly keypressParts: string[];
 	public readonly resolvedKeybinding: ResolvedKeybinding | null;
+	public readonly keypressParts: string[];
 	public readonly bubble: boolean;
 	public readonly command: string | null;
 	public readonly commandArgs: any;
@@ -20,15 +20,24 @@ export class ResolvedKeybindingItem {
 
 	constructor(resolvedKeybinding: ResolvedKeybinding | null, command: string | null, commandArgs: any, when: ContextKeyExpr | null, isDefault: boolean) {
 		this.resolvedKeybinding = resolvedKeybinding;
-		if (resolvedKeybinding) {
-			this.keypressParts = resolvedKeybinding.getDispatchParts();
-		} else {
-			this.keypressParts = [];
-		}
+		this.keypressParts = resolvedKeybinding ? removeElementsAfterNulls(resolvedKeybinding.getDispatchParts()) : [];
 		this.bubble = (command ? command.charCodeAt(0) === CharCode.Caret : false);
 		this.command = this.bubble ? command!.substr(1) : command;
 		this.commandArgs = commandArgs;
 		this.when = when;
 		this.isDefault = isDefault;
 	}
+}
+
+export function removeElementsAfterNulls<T>(arr: (T | null)[]): T[] {
+	let result: T[] = [];
+	for (let i = 0, len = arr.length; i < len; i++) {
+		const element = arr[i];
+		if (!element) {
+			// stop processing at first encountered null
+			return result;
+		}
+		result.push(element);
+	}
+	return result;
 }

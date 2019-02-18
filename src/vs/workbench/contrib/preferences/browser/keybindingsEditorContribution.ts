@@ -272,11 +272,12 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 			return false;
 		}
 
-		for (let i = 0, length = aParts.length; i < length; i++) {
+		for (let i = 0, len = aParts.length; i < len; i++) {
 			if (!this._userBindingEquals(aParts[i], bParts[i])) {
 				return false;
 			}
 		}
+
 		return true;
 	}
 

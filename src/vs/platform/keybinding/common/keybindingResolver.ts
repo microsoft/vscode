@@ -45,6 +45,7 @@ export class KeybindingResolver {
 				continue;
 			}
 
+			// TODO@chords
 			this._addKeyPress(k.keypressParts[0], k);
 		}
 	}
@@ -53,9 +54,11 @@ export class KeybindingResolver {
 		if (defaultKb.command !== command) {
 			return false;
 		}
+		// TODO@chords
 		if (keypressFirstPart && defaultKb.keypressParts[0] !== keypressFirstPart) {
 			return false;
 		}
+		// TODO@chords
 		if (keypressChordPart && defaultKb.keypressParts[1] !== keypressChordPart) {
 			return false;
 		}
@@ -84,6 +87,7 @@ export class KeybindingResolver {
 			}
 
 			const command = override.command.substr(1);
+			// TODO@chords
 			const keypressFirstPart = override.keypressParts[0];
 			const keypressChordPart = override.keypressParts[1];
 			const when = override.when;
@@ -117,6 +121,7 @@ export class KeybindingResolver {
 			const conflictIsChord = (conflict.keypressParts.length > 1);
 			const itemIsChord = (item.keypressParts.length > 1);
 
+			// TODO@chords
 			if (conflictIsChord && itemIsChord && conflict.keypressParts[1] !== item.keypressParts[1]) {
 				// The conflict only shares the chord start with this command
 				continue;
@@ -247,6 +252,7 @@ export class KeybindingResolver {
 			lookupMap = [];
 			for (let i = 0, len = candidates.length; i < len; i++) {
 				let candidate = candidates[i];
+				// TODO@chords
 				if (candidate.keypressParts[1] === keypress) {
 					lookupMap.push(candidate);
 				}
@@ -266,6 +272,7 @@ export class KeybindingResolver {
 			return null;
 		}
 
+		// TODO@chords
 		if (currentChord === null && result.keypressParts.length > 1 && result.keypressParts[1] !== null) {
 			return {
 				enterChord: true,

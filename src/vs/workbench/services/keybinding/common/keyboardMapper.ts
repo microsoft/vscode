@@ -11,7 +11,7 @@ export interface IKeyboardMapper {
 	dumpDebugInfo(): string;
 	resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding[];
 	resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding;
-	resolveUserBinding(firstPart: Array<SimpleKeybinding | ScanCodeBinding>): ResolvedKeybinding[];
+	resolveUserBinding(firstPart: (SimpleKeybinding | ScanCodeBinding)[]): ResolvedKeybinding[];
 }
 
 export class CachedKeyboardMapper implements IKeyboardMapper {
@@ -43,7 +43,7 @@ export class CachedKeyboardMapper implements IKeyboardMapper {
 		return this._actual.resolveKeyboardEvent(keyboardEvent);
 	}
 
-	public resolveUserBinding(parts: Array<SimpleKeybinding | ScanCodeBinding>): ResolvedKeybinding[] {
+	public resolveUserBinding(parts: (SimpleKeybinding | ScanCodeBinding)[]): ResolvedKeybinding[] {
 		return this._actual.resolveUserBinding(parts);
 	}
 }

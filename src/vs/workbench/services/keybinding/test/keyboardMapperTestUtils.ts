@@ -44,7 +44,7 @@ export function assertResolveKeyboardEvent(mapper: IKeyboardMapper, keyboardEven
 	assert.deepEqual(actual, expected);
 }
 
-export function assertResolveUserBinding(mapper: IKeyboardMapper, parts: Array<SimpleKeybinding | ScanCodeBinding>, expected: IResolvedKeybinding[]): void {
+export function assertResolveUserBinding(mapper: IKeyboardMapper, parts: (SimpleKeybinding | ScanCodeBinding)[], expected: IResolvedKeybinding[]): void {
 	let actual: IResolvedKeybinding[] = mapper.resolveUserBinding(parts).map(toIResolvedKeybinding);
 	assert.deepEqual(actual, expected);
 }
