@@ -631,6 +631,7 @@ function updateSchema() {
 		}
 
 		const argsSchema = commandDescription.args[0].schema;
+		const argsRequired = Array.isArray(argsSchema.required) && argsSchema.required.length > 0;
 		const addition = {
 			'if': {
 				'properties': {
@@ -638,6 +639,7 @@ function updateSchema() {
 				}
 			},
 			'then': {
+				'required': [].concat(argsRequired ? ['args'] : []),
 				'properties': {
 					'args': argsSchema
 				}
