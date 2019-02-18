@@ -54,7 +54,11 @@ function doWrapping(individualLines: boolean, args: any) {
 			return;
 		}
 	}
-	const syntax = 'html';
+	args = args || {};
+	if (!args['language']) {
+		args['language'] = editor.document.languageId;
+	}
+	const syntax = getSyntaxFromArgs(args) || 'html';
 	const rootNode = parseDocument(editor.document, false);
 
 	let inPreview = false;

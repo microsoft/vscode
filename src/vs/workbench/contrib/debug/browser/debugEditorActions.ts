@@ -49,7 +49,7 @@ class ToggleBreakpointAction extends EditorAction {
 			return debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber }], 'debugEditorActions.toggleBreakpointAction');
 		}
 
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 
@@ -217,7 +217,7 @@ class ShowDebugHoverAction extends EditorAction {
 		const position = editor.getPosition();
 		const word = editor.getModel().getWordAtPosition(position);
 		if (!word) {
-			return Promise.resolve(null);
+			return Promise.resolve();
 		}
 
 		const range = new Range(position.lineNumber, position.column, position.lineNumber, word.endColumn);

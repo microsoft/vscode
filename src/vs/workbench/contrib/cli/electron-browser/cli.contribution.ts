@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import * as cp from 'child_process';
 import * as pfs from 'vs/base/node/pfs';
 import * as platform from 'vs/base/common/platform';

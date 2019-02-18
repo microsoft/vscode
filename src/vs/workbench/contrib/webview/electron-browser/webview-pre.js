@@ -197,7 +197,7 @@
 
 			newDocument.querySelectorAll('a').forEach(a => {
 				if (!a.title) {
-					a.title = a.href;
+					a.title = a.getAttribute('href');
 				}
 			});
 

@@ -40,7 +40,6 @@
  */
 
 .xterm {
-	font-family: courier-new, courier, monospace;
 	font-feature-settings: "liga" 0;
 	position: relative;
 	user-select: none;

@@ -9342,10 +9342,10 @@ vscode-chokidar@1.6.5:
   optionalDependencies:
     vscode-fsevents "0.3.10"
 
-vscode-debugprotocol@1.33.0:
-  version "1.33.0"
-  resolved "https://registry.yarnpkg.com/vscode-debugprotocol/-/vscode-debugprotocol-1.33.0.tgz#334d2e76ac965f33437a0298441facdcad377d99"
-  integrity sha512-d+l4lrEz6OP2kmGpweqe37x9H7icAMV8S4m8azTWGAIlNJxBP4rlSTnZa7NMLcbgqWkWG9lTGY7fJ+rSPaW7yg==
+vscode-debugprotocol@^1.34.0-pre.0:
+  version "1.34.0-pre.0"
+  resolved "https://registry.yarnpkg.com/vscode-debugprotocol/-/vscode-debugprotocol-1.34.0-pre.0.tgz#ba2110875f1127c9ce773351e1054b85fab67c00"
+  integrity sha512-JjrlTpUG7uFO5yctHQcx8zLbnyw30cUMVaKw0GEiski0lJ1w8A8zXP18MUqDJN7dMHqcB4r6PsuicUOgjLIFJA==
 
 vscode-fsevents@0.3.10:
   version "0.3.10"
@@ -9380,10 +9380,10 @@ vscode-languageserver@^5.1.0:
     vscode-languageserver-protocol "3.13.0"
     vscode-uri "^1.0.6"
 
-vscode-nls-dev@3.2.4:
-  version "3.2.4"
-  resolved "https://registry.yarnpkg.com/vscode-nls-dev/-/vscode-nls-dev-3.2.4.tgz#9eb92a539fb1ee675836b6aeab8a2846c281c8d9"
-  integrity sha512-mWERxHbifhuNZomuL3iRyw2LTwKnoKoA8fjWJrlfnbOUF9EN/tbDT0ly2GnOEvLRq0hzEzZNqKLWu0jXPDs7UA==
+vscode-nls-dev@3.2.5:
+  version "3.2.5"
+  resolved "https://registry.yarnpkg.com/vscode-nls-dev/-/vscode-nls-dev-3.2.5.tgz#bea2b6e0cae709c48144180585e1a511edc9fb8d"
+  integrity sha512-eiNkwDHgTjP1h23BCOmAlXbFVembGokALYIvID5LMBzYppOiJzN/rGatHBlThQl6lnHWv599UEre6/AbjioYYw==
   dependencies:
     ansi-colors "^3.2.3"
     clone "^2.1.1"
@@ -9442,10 +9442,10 @@ vscode-uri@^1.0.6:
   resolved "https://registry.yarnpkg.com/vscode-uri/-/vscode-uri-1.0.6.tgz#6b8f141b0bbc44ad7b07e94f82f168ac7608ad4d"
   integrity sha512-sLI2L0uGov3wKVb9EB+vIQBl9tVP90nqRvxSoJ35vI3NjxE8jfsE5DSOhWgSunHSZmKS4OCi2jrtfxK7uyp2ww==
 
-vscode-xterm@3.12.0-beta2:
-  version "3.12.0-beta2"
-  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.12.0-beta2.tgz#fbbf6d1926e0628d4e0b85b1bfdefa2b0bf40df6"
-  integrity sha512-NhLYyJXjwLXXzn+NYEOkAtTxbdbAGkjztabE2Vy8j4fXXOwHHHg6KurMCbL7bd8BOEMIPrTIw6zLhzfexs5Vhw==
+vscode-xterm@3.12.0-beta4:
+  version "3.12.0-beta4"
+  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.12.0-beta4.tgz#b8ed223e00e6b53efea62e7c7dce5bc2ac556df3"
+  integrity sha512-coUhJoIIjSlIZ33VCxI6EEyEKSqet41753wfSy/Av3UCv1oiwrrCRfvLdRYC+qdabWDtVy5K7aYYDh1k7WsVeA==
 
 vso-node-api@6.1.2-preview:
   version "6.1.2-preview"

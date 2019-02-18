@@ -13,7 +13,7 @@ import { virtualMachineHint } from 'vs/base/node/id';
 import { repeat, pad } from 'vs/base/common/strings';
 import { isWindows } from 'vs/base/common/platform';
 import { app } from 'electron';
-import { basename } from 'path';
+import { basename } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 

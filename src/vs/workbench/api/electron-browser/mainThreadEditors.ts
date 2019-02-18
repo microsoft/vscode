@@ -36,7 +36,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 	private _documentsAndEditors: MainThreadDocumentsAndEditors;
 	private _toDispose: IDisposable[];
 	private _textEditorsListenersMap: { [editorId: string]: IDisposable[]; };
-	private _editorPositionData: ITextEditorPositionData;
+	private _editorPositionData: ITextEditorPositionData | null;
 	private _registeredDecorationTypes: { [decorationType: string]: boolean; };
 
 	constructor(
@@ -145,7 +145,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 				options: { preserveFocus: false }
 			}, viewColumnToEditorGroup(this._editorGroupService, position)).then(() => { return; });
 		}
-		return undefined;
+		return Promise.resolve();
 	}
 
 	$tryHideEditor(id: string): Promise<void> {
@@ -158,7 +158,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 				}
 			}
 		}
-		return undefined;
+		return Promise.resolve();
 	}
 
 	$trySetSelections(id: string, selections: ISelection[]): Promise<void> {
@@ -192,7 +192,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
 		this._documentsAndEditors.getEditor(id).revealRange(range, revealType);
-		return undefined;
+		return Promise.resolve();
 	}
 
 	$trySetOptions(id: string, options: ITextEditorConfigurationUpdate): Promise<void> {

@@ -5,7 +5,7 @@
 
 import { execFile } from 'child_process';
 import * as os from 'os';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -13,7 +13,6 @@ import { debounce } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import * as lifecycle from 'vs/base/common/lifecycle';
-import * as paths from 'vs/base/common/paths';
 import * as platform from 'vs/base/common/platform';
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
 import * as nls from 'vs/nls';
@@ -924,7 +923,7 @@ export class TerminalInstance implements ITerminalInstance {
 
 	private _refreshSelectionContextKey() {
 		const activePanel = this._panelService.getActivePanel();
-		const isActive = activePanel && activePanel.getId() === TERMINAL_PANEL_ID;
+		const isActive = !!activePanel && activePanel.getId() === TERMINAL_PANEL_ID;
 
 		this._terminalHasTextContextKey.set(isActive && this.hasSelection());
 	}
@@ -1245,7 +1244,7 @@ export class TerminalInstance implements ITerminalInstance {
 			return;
 		}
 		if (eventFromProcess) {
-			title = paths.basename(title);
+			title = path.basename(title);
 			if (platform.isWindows) {
 				// Remove the .exe extension
 				title = title.split('.exe')[0];

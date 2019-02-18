@@ -5,11 +5,11 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { join } from 'vs/base/common/paths';
 import { ISettingsEditorModel, ISearchResult } from 'vs/workbench/services/preferences/common/preferences';
 import { IEditor } from 'vs/workbench/common/editor';
 import { IKeybindingItemEntry } from 'vs/workbench/services/preferences/common/keybindingsEditorModel';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Event } from 'vs/base/common/event';
 
 export interface IWorkbenchSettingsConfiguration {
 	workbench: {
@@ -45,7 +45,9 @@ export interface ISearchProvider {
 
 export interface IKeybindingsEditor extends IEditor {
 
-	activeKeybindingEntry: IKeybindingItemEntry;
+	readonly activeKeybindingEntry: IKeybindingItemEntry;
+	readonly onDefineWhenExpression: Event<IKeybindingItemEntry>;
+	readonly onLayout: Event<void>;
 
 	search(filter: string): void;
 	focusSearch(): void;
@@ -53,7 +55,11 @@ export interface IKeybindingsEditor extends IEditor {
 	focusKeybindings(): void;
 	recordSearchKeys(): void;
 	toggleSortByPrecedence(): void;
-	defineKeybinding(keybindingEntry: IKeybindingItemEntry): Promise<any>;
+	layoutColumns(columns: HTMLElement[]): void;
+	selectKeybinding(keybindingEntry: IKeybindingItemEntry): void;
+	defineKeybinding(keybindingEntry: IKeybindingItemEntry): Promise<void>;
+	defineWhenExpression(keybindingEntry: IKeybindingItemEntry): void;
+	updateKeybinding(keybindingEntry: IKeybindingItemEntry, key: string, when: string | undefined): Promise<any>;
 	removeKeybinding(keybindingEntry: IKeybindingItemEntry): Promise<any>;
 	resetKeybinding(keybindingEntry: IKeybindingItemEntry): Promise<any>;
 	copyKeybinding(keybindingEntry: IKeybindingItemEntry): void;
@@ -88,6 +94,7 @@ export const KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS = 'keybindings.edit
 export const KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS = 'keybindings.editor.recordSearchKeys';
 export const KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE = 'keybindings.editor.toggleSortByPrecedence';
 export const KEYBINDINGS_EDITOR_COMMAND_DEFINE = 'keybindings.editor.defineKeybinding';
+export const KEYBINDINGS_EDITOR_COMMAND_DEFINE_WHEN = 'keybindings.editor.defineWhenExpression';
 export const KEYBINDINGS_EDITOR_COMMAND_REMOVE = 'keybindings.editor.removeKeybinding';
 export const KEYBINDINGS_EDITOR_COMMAND_RESET = 'keybindings.editor.resetKeybinding';
 export const KEYBINDINGS_EDITOR_COMMAND_COPY = 'keybindings.editor.copyKeybindingEntry';
@@ -98,7 +105,6 @@ export const KEYBINDINGS_EDITOR_CLEAR_INPUT = 'keybindings.editor.showDefaultKey
 export const KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS = 'keybindings.editor.showDefaultKeybindings';
 export const KEYBINDINGS_EDITOR_SHOW_USER_KEYBINDINGS = 'keybindings.editor.showUserKeybindings';
 
-export const FOLDER_SETTINGS_PATH = join('.vscode', 'settings.json');
 export const DEFAULT_SETTINGS_EDITOR_SETTING = 'workbench.settings.openDefaultSettings';
 
 export const MODIFIED_SETTING_TAG = 'modified';

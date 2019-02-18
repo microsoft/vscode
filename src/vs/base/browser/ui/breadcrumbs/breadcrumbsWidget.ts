@@ -200,8 +200,8 @@ export class BreadcrumbsWidget {
 		return this._items[this._focusedItemIdx];
 	}
 
-	setFocused(item: BreadcrumbsItem, payload?: any): void {
-		this._focus(this._items.indexOf(item), payload);
+	setFocused(item: BreadcrumbsItem | undefined, payload?: any): void {
+		this._focus(this._items.indexOf(item!), payload);
 	}
 
 	focusPrev(payload?: any): any {
@@ -256,8 +256,8 @@ export class BreadcrumbsWidget {
 		return this._items[this._selectedItemIdx];
 	}
 
-	setSelection(item: BreadcrumbsItem, payload?: any): void {
-		this._select(this._items.indexOf(item), payload);
+	setSelection(item: BreadcrumbsItem | undefined, payload?: any): void {
+		this._select(this._items.indexOf(item!), payload);
 	}
 
 	private _select(nth: number, payload: any): void {

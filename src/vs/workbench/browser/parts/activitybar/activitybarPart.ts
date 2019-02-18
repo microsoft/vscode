@@ -6,7 +6,7 @@
 import 'vs/css!./media/activitybarpart';
 import * as nls from 'vs/nls';
 import { illegalArgument } from 'vs/base/common/errors';
-import { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { GlobalActivityExtensions, IGlobalActivityRegistry } from 'vs/workbench/common/activity';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -50,6 +50,16 @@ export class ActivitybarPart extends Part implements ISerializableView {
 	private static readonly ACTION_HEIGHT = 50;
 	private static readonly PINNED_VIEWLETS = 'workbench.activity.pinnedViewlets';
 
+	element: HTMLElement;
+
+	readonly minimumWidth: number = 50;
+	readonly maximumWidth: number = 50;
+	readonly minimumHeight: number = 0;
+	readonly maximumHeight: number = Number.POSITIVE_INFINITY;
+
+	private _onDidChange = this._register(new Emitter<{ width: number; height: number; }>());
+	get onDidChange(): Event<{ width: number, height: number }> { return this._onDidChange.event; }
+
 	private dimension: Dimension;
 
 	private globalActionBar: ActionBar;
@@ -58,15 +68,6 @@ export class ActivitybarPart extends Part implements ISerializableView {
 	private cachedViewlets: ICachedViewlet[] = [];
 	private compositeBar: CompositeBar;
 	private compositeActions: { [compositeId: string]: { activityAction: ViewletActivityAction, pinnedAction: ToggleCompositePinnedAction } } = Object.create(null);
-
-	element: HTMLElement;
-	minimumWidth: number = 50;
-	maximumWidth: number = 50;
-	minimumHeight: number = 0;
-	maximumHeight: number = Number.POSITIVE_INFINITY;
-
-	private _onDidChange = new Emitter<{ width: number; height: number; }>();
-	readonly onDidChange = this._onDidChange.event;
 
 	constructor(
 		id: string,

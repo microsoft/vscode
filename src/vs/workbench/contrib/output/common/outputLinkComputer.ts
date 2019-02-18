@@ -6,11 +6,12 @@
 import { IMirrorModel, IWorkerContext } from 'vs/editor/common/services/editorSimpleWorker';
 import { ILink } from 'vs/editor/common/modes';
 import { URI } from 'vs/base/common/uri';
-import * as paths from 'vs/base/common/paths';
+import * as extpath from 'vs/base/common/extpath';
 import * as resources from 'vs/base/common/resources';
 import * as strings from 'vs/base/common/strings';
-import * as arrays from 'vs/base/common/arrays';
 import { Range } from 'vs/editor/common/core/range';
+import { isWindows } from 'vs/base/common/platform';
+import { Schemas } from 'vs/base/common/network';
 
 export interface ICreateData {
 	workspaceFolders: string[];
@@ -86,11 +87,11 @@ export class OutputLinkComputer {
 	public static createPatterns(workspaceFolder: URI): RegExp[] {
 		const patterns: RegExp[] = [];
 
-		const workspaceFolderPath = workspaceFolder.scheme === 'file' ? workspaceFolder.fsPath : workspaceFolder.path;
-		const workspaceFolderVariants = arrays.distinct([
-			paths.normalize(workspaceFolderPath, true),
-			paths.normalize(workspaceFolderPath, false)
-		]);
+		const workspaceFolderPath = workspaceFolder.scheme === Schemas.file ? workspaceFolder.fsPath : workspaceFolder.path;
+		const workspaceFolderVariants = [workspaceFolderPath];
+		if (isWindows && workspaceFolder.scheme === Schemas.file) {
+			workspaceFolderVariants.push(extpath.toSlashes(workspaceFolderPath));
+		}
 
 		workspaceFolderVariants.forEach(workspaceFolderVariant => {
 			const validPathCharacterPattern = '[^\\s\\(\\):<>"]';

@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import * as platform from 'vs/base/common/platform';
 import * as fs from 'fs';
 import * as os from 'os';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import * as pfs from 'vs/base/node/pfs';
 import { URI as Uri, URI } from 'vs/base/common/uri';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';

@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
-import { ITextQuery, QueryType } from 'vs/platform/search/common/search';
+import { ITextQuery, QueryType } from 'vs/workbench/services/search/common/search';
 import { TextSearchManager } from 'vs/workbench/services/search/node/textSearchManager';
 import * as vscode from 'vscode';
 

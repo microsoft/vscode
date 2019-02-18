@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as paths from 'vs/base/common/paths';
+import { basename } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import * as pfs from 'vs/base/node/pfs';
@@ -69,7 +69,7 @@ class ThemeDocument {
 			return this._generateExplanation('default', color);
 		}
 
-		let expected = Color.fromHex(matchingRule.settings.foreground);
+		let expected = Color.fromHex(matchingRule.settings.foreground!);
 		if (!color.equals(expected)) {
 			throw new Error(`[${this._theme.label}]: Unexpected color ${Color.Format.CSS.formatHexA(color)} for ${scopes}. Expected ${Color.Format.CSS.formatHexA(expected)} coming in from ${matchingRule.rawSelector}`);
 		}
@@ -78,7 +78,7 @@ class ThemeDocument {
 
 	private _findMatchingThemeRule(scopes: string): ThemeRule {
 		if (!this._cache[scopes]) {
-			this._cache[scopes] = findMatchingThemeRule(this._theme, scopes.split(' '));
+			this._cache[scopes] = findMatchingThemeRule(this._theme, scopes.split(' '))!;
 		}
 		return this._cache[scopes];
 	}
@@ -112,7 +112,7 @@ class Snapper {
 
 				result[resultLen++] = {
 					text: tokenText,
-					color: colorMap[color]
+					color: colorMap![color]
 				};
 			}
 
@@ -178,16 +178,16 @@ class Snapper {
 		let defaultThemes = themeDatas.filter(themeData => !!getThemeName(themeData.id));
 		for (let defaultTheme of defaultThemes) {
 			let themeId = defaultTheme.id;
-			let success = await this.themeService.setColorTheme(themeId, null);
+			let success = await this.themeService.setColorTheme(themeId, undefined);
 			if (success) {
 				let themeName = getThemeName(themeId);
-				result[themeName] = {
+				result[themeName!] = {
 					document: new ThemeDocument(this.themeService.getColorTheme()),
 					tokens: this._themedTokenize(grammar, lines)
 				};
 			}
 		}
-		await this.themeService.setColorTheme(currentTheme.id, null);
+		await this.themeService.setColorTheme(currentTheme.id, undefined);
 		return result;
 	}
 
@@ -215,7 +215,7 @@ class Snapper {
 
 	public captureSyntaxTokens(fileName: string, content: string): Promise<IToken[]> {
 		const modeId = this.modeService.getModeIdByFilepathOrFirstLine(fileName);
-		return this.textMateService.createGrammar(modeId).then((grammar) => {
+		return this.textMateService.createGrammar(modeId!).then((grammar) => {
 			let lines = content.split(/\r\n|\r|\n/);
 
 			let result = this._tokenize(grammar, lines);
@@ -231,7 +231,7 @@ CommandsRegistry.registerCommand('_workbench.captureSyntaxTokens', function (acc
 
 	let process = (resource: URI) => {
 		let filePath = resource.fsPath;
-		let fileName = paths.basename(filePath);
+		let fileName = basename(filePath);
 		let snapper = accessor.get(IInstantiationService).createInstance(Snapper);
 
 		return pfs.readFile(filePath).then(content => {
@@ -240,8 +240,8 @@ CommandsRegistry.registerCommand('_workbench.captureSyntaxTokens', function (acc
 	};
 
 	if (!resource) {
-		let editorService = accessor.get(IEditorService);
-		let file = toResource(editorService.activeEditor, { filter: 'file' });
+		const editorService = accessor.get(IEditorService);
+		const file = editorService.activeEditor ? toResource(editorService.activeEditor, { filter: 'file' }) : null;
 		if (file) {
 			process(file).then(result => {
 				console.log(result);

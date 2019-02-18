@@ -684,7 +684,7 @@ export function createXlfFilesForExtensions(): ThroughStream {
 			}
 			return _xlf;
 		}
-		gulp.src([`./extensions/${extensionName}/package.nls.json`, `./extensions/${extensionName}/**/nls.metadata.json`]).pipe(through(function (file: File) {
+		gulp.src([`./extensions/${extensionName}/package.nls.json`, `./extensions/${extensionName}/**/nls.metadata.json`], { allowEmpty: true }).pipe(through(function (file: File) {
 			if (file.isBuffer()) {
 				const buffer: Buffer = file.contents as Buffer;
 				const basename = path.basename(file.path);

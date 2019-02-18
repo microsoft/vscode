@@ -54,7 +54,28 @@ class InsertSnippetAction extends EditorAction {
 			id: 'editor.action.insertSnippet',
 			label: nls.localize('snippet.suggestions.label', "Insert Snippet"),
 			alias: 'Insert Snippet',
-			precondition: EditorContextKeys.writable
+			precondition: EditorContextKeys.writable,
+			description: {
+				description: `Insert Snippet`,
+				args: [{
+					name: 'args',
+					schema: {
+						'type': 'object',
+						'properties': {
+							'snippet': {
+								'type': 'string'
+							},
+							'langId': {
+								'type': 'string',
+
+							},
+							'name': {
+								'type': 'string'
+							}
+						},
+					}
+				}]
+			}
 		});
 	}
 

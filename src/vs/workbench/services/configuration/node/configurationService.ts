@@ -22,7 +22,7 @@ import { Configuration, WorkspaceConfigurationChangeEvent, AllKeysConfigurationC
 import { IWorkspaceConfigurationService, FOLDER_CONFIG_FOLDER_NAME, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationNode, IConfigurationRegistry, Extensions, IConfigurationPropertySchema, allSettings, windowSettings, resourceSettings, applicationSettings } from 'vs/platform/configuration/common/configurationRegistry';
-import { IWorkspaceIdentifier, isWorkspaceIdentifier, IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, isSingleFolderWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload, IEmptyWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, isWorkspaceIdentifier, IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, isSingleFolderWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload, IEmptyWorkspaceInitializationPayload, massageFolderPathForWorkspace } from 'vs/platform/workspaces/common/workspaces';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import product from 'vs/platform/node/product';
@@ -31,7 +31,6 @@ import { ConfigurationEditingService } from 'vs/workbench/services/configuration
 import { WorkspaceConfiguration, FolderConfiguration } from 'vs/workbench/services/configuration/node/configuration';
 import { JSONEditingService } from 'vs/workbench/services/configuration/node/jsonEditingService';
 import { Schemas } from 'vs/base/common/network';
-import { massageFolderPathForWorkspace } from 'vs/platform/workspaces/node/workspaces';
 import { UserConfiguration } from 'vs/platform/configuration/node/configuration';
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { localize } from 'vs/nls';

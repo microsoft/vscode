@@ -10,12 +10,11 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IQuickInputService, IQuickPickItem, IQuickPick } from 'vs/platform/quickinput/common/quickInput';
 import { URI } from 'vs/base/common/uri';
 import { isWindows } from 'vs/base/common/platform';
-import { ISaveDialogOptions, IOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
+import { ISaveDialogOptions, IOpenDialogOptions, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IWindowService, IURIToOpen } from 'vs/platform/windows/common/windows';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 
 interface FileQuickPickItem extends IQuickPickItem {
@@ -28,7 +27,7 @@ const INVALID_FILE_CHARS = isWindows ? /[\\/:\*\?"<>\|]/g : /[\\/]/g;
 const WINDOWS_FORBIDDEN_NAMES = /^(con|prn|aux|clock\$|nul|lpt[0-9]|com[0-9])$/i;
 
 export class RemoteFileDialog {
-
+	private fallbackPickerButton = { iconPath: this.getAlternateDialogIcons(), tooltip: 'Use Alternate File System' };
 	private acceptButton = { iconPath: this.getIcons('accept.svg'), tooltip: 'Select' };
 	private cancelButton = { iconPath: this.getIcons('cancel.svg'), tooltip: 'Cancel' };
 	private currentFolder: URI;
@@ -43,40 +42,37 @@ export class RemoteFileDialog {
 		@IWindowService private readonly windowService: IWindowService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IEditorService private readonly editorService: IEditorService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 	) {
 		this.remoteAuthority = this.windowService.getConfiguration().remoteAuthority;
 	}
 
-	public async showOpenDialog(options: IOpenDialogOptions = {}): Promise<void> {
-		if (!this.remoteAuthority) {
-			this.notificationService.info(nls.localize('remoteFileDialog.notConnectedToRemote', 'Not connected to a remote.'));
-			return Promise.resolve();
-		}
+	public async showOpenDialog(options: IOpenDialogOptions = {}): Promise<IURIToOpen[] | undefined> {
 		const defaultUri = options.defaultUri ? options.defaultUri : URI.from({ scheme: REMOTE_HOST_SCHEME, authority: this.remoteAuthority, path: '/' });
+		if (!this.remoteFileService.canHandleResource(defaultUri)) {
+			this.notificationService.info(nls.localize('remoteFileDialog.notConnectedToRemote', 'File system provider for {0} is not available.', defaultUri.toString()));
+			return Promise.resolve(undefined);
+		}
+
 		const title = nls.localize('remoteFileDialog.openTitle', 'Open File or Folder');
-		return this.pickResource({ title, defaultUri, canSelectFiles: true, canSelectFolders: true }).then(async fileFolderUri => {
+		return this.pickResource({ title, defaultUri, canSelectFiles: true, canSelectFolders: true, availableFileSystems: options.availableFileSystems }).then(async fileFolderUri => {
 			if (fileFolderUri) {
 				const stat = await this.remoteFileService.resolveFile(fileFolderUri);
-				if (stat.isDirectory) {
-					return this.windowService.openWindow([{ uri: fileFolderUri, typeHint: 'folder' }]);
-				} else {
-					return this.editorService.openEditor({ resource: fileFolderUri }).then(() => {
-						return Promise.resolve();
-					});
-				}
+				return <IURIToOpen[]>[{ uri: fileFolderUri, typeHint: stat.isDirectory ? 'folder' : 'file' }];
+
 			}
-			return Promise.resolve();
+			return Promise.resolve(undefined);
 		});
 	}
 
 	public showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
-		if (!this.remoteAuthority) {
-			this.notificationService.info(nls.localize('remoteFileDialog.notConnectedToRemote', 'Not connected to a remote.'));
+		const defaultUri = options.defaultUri ? options.defaultUri : URI.from({ scheme: REMOTE_HOST_SCHEME, authority: this.remoteAuthority, path: '/' });
+		if (!this.remoteFileService.canHandleResource(defaultUri)) {
+			this.notificationService.info(nls.localize('remoteFileDialog.notConnectedToRemote', 'File system provider for {0} is not available.', defaultUri.toString()));
 			return Promise.resolve(undefined);
 		}
-		const defaultUri = options.defaultUri ? options.defaultUri : URI.from({ scheme: REMOTE_HOST_SCHEME, authority: this.remoteAuthority, path: '/' });
+
 		return new Promise<URI | undefined>((resolve) => {
 			let saveNameBox = this.quickInputService.createInputBox();
 			saveNameBox.title = options.title;
@@ -87,11 +83,21 @@ export class RemoteFileDialog {
 			saveNameBox.onDidChangeValue(v => {
 				saveNameBox.validationMessage = this.isValidBaseName(v) ? void 0 : nls.localize('remoteFileDialog.error.invalidfilename', 'Not a valid file name');
 			});
+			saveNameBox.buttons = [this.fallbackPickerButton];
+			saveNameBox.onDidTriggerButton(button => {
+				if (button === this.fallbackPickerButton) {
+					options.availableFileSystems.shift();
+					this.fileDialogService.showSaveDialog(options).then(result => {
+						resolve(result);
+					});
+				}
+				saveNameBox.dispose();
+			});
 			saveNameBox.onDidAccept(_ => {
 				const name = saveNameBox.value;
 				if (this.isValidBaseName(name)) {
 					saveNameBox.hide();
-					this.pickResource({ defaultUri: defaultUri, canSelectFolders: true, title: nls.localize('remoteFileDialogerror.titleFolderPage', 'Folder for \'{0}\'', name) }, { step: 2, totalSteps: 2 }).then(folderUri => {
+					this.pickResource({ defaultUri: defaultUri, canSelectFolders: true, title: nls.localize('remoteFileDialogerror.titleFolderPage', 'Folder for \'{0}\'', name), availableFileSystems: options.availableFileSystems }, { step: 2, totalSteps: 2 }).then(folderUri => {
 						if (folderUri) {
 							resolve(this.remoteUriFrom(this.remotePathJoin(folderUri, name)));
 						} else {
@@ -130,9 +136,19 @@ export class RemoteFileDialog {
 			let isAcceptHandled = false;
 
 			this.currentFolder = homedir;
-			this.filePickBox.buttons = [this.acceptButton, this.cancelButton];
+			if (options.availableFileSystems.length > 1) {
+				this.filePickBox.buttons = [this.fallbackPickerButton, this.acceptButton, this.cancelButton];
+			} else {
+				this.filePickBox.buttons = [this.acceptButton, this.cancelButton];
+			}
 			this.filePickBox.onDidTriggerButton(button => {
-				if (button === this.acceptButton) {
+				if (button === this.fallbackPickerButton) {
+					options.availableFileSystems.shift();
+					isResolved = true;
+					this.fileDialogService.pickFileAndOpen(options).then(result => {
+						resolve(result ? result[0] : undefined);
+					});
+				} else if (button === this.acceptButton) {
 					resolve(this.currentFolder);
 					isResolved = true;
 				}
@@ -206,20 +222,18 @@ export class RemoteFileDialog {
 		}
 	}
 
-	private updateItems(newFolder: URI | null) {
-		if (newFolder) {
-			this.currentFolder = newFolder;
-			this.filePickBox.placeholder = this.labelService.getUriLabel(newFolder, { endWithSeparator: true });
-			this.filePickBox.value = '';
-			this.filePickBox.busy = true;
-			this.createItems(this.currentFolder).then(items => {
-				this.filePickBox.items = items;
-				if (this.allowFolderSelection) {
-					this.filePickBox.activeItems = [];
-				}
-				this.filePickBox.busy = false;
-			});
-		}
+	private updateItems(newFolder: URI) {
+		this.currentFolder = newFolder;
+		this.filePickBox.placeholder = this.labelService.getUriLabel(newFolder, { endWithSeparator: true });
+		this.filePickBox.value = '';
+		this.filePickBox.busy = true;
+		this.createItems(this.currentFolder).then(items => {
+			this.filePickBox.items = items;
+			if (this.allowFolderSelection) {
+				this.filePickBox.activeItems = [];
+			}
+			this.filePickBox.busy = false;
+		});
 	}
 
 	private isValidBaseName(name: string): boolean {
@@ -257,14 +271,14 @@ export class RemoteFileDialog {
 
 	private basenameWithTrailingSlash(fullPath: URI): string {
 		const child = this.labelService.getUriLabel(fullPath, { endWithSeparator: true });
-		const parent = this.labelService.getUriLabel(resources.dirname(fullPath)!, { endWithSeparator: true });
+		const parent = this.labelService.getUriLabel(resources.dirname(fullPath), { endWithSeparator: true });
 		return child.substring(parent.length);
 	}
 
 	private createBackItem(currFolder: URI): FileQuickPickItem | null {
 		const parentFolder = resources.dirname(currFolder)!;
 		if (!resources.isEqual(currFolder, parentFolder)) {
-			return { label: '..', uri: resources.dirname(currFolder)!, isFolder: true };
+			return { label: '..', uri: resources.dirname(currFolder), isFolder: true };
 		}
 		return null;
 	}
@@ -316,6 +330,13 @@ export class RemoteFileDialog {
 		return {
 			light: URI.parse(require.toUrl(`vs/workbench/services/dialogs/media/light/${name}`)),
 			dark: URI.parse(require.toUrl(`vs/workbench/services/dialogs/media/dark/${name}`))
+		};
+	}
+
+	private getAlternateDialogIcons(): { light: URI, dark: URI } {
+		return {
+			dark: URI.parse(require.toUrl(`vs/editor/contrib/suggest/media/Folder_inverse_16x.svg`)),
+			light: URI.parse(require.toUrl(`vs/editor/contrib/suggest/media/Folder_16x.svg`))
 		};
 	}
 }

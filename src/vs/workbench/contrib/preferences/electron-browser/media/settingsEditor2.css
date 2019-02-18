@@ -398,7 +398,7 @@
 .settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-description-markdown code {
 	line-height: 15px;
 	/** For some reason, this is needed, otherwise <code> will take up 20px height */
-	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+	font-family: var(--monaco-monospace-font);
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-enumDescription {

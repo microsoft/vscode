@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { buffer } from 'vs/platform/node/zip';
+import { buffer } from 'vs/base/node/zip';
 import { localize } from 'vs/nls';
 import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 

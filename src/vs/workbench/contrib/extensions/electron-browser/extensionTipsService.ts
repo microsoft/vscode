@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import * as paths from 'vs/base/common/paths';
+import { join } from 'vs/base/common/path';
 import { forEach } from 'vs/base/common/collections';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { match } from 'vs/base/common/glob';
@@ -22,7 +22,7 @@ import { ShowRecommendedExtensionsAction, InstallWorkspaceRecommendedExtensionsA
 import Severity from 'vs/base/common/severity';
 import { IWorkspaceContextService, IWorkspaceFolder, IWorkspace, IWorkspaceFoldersChangeEvent, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IExtensionsConfiguration, ConfigurationKey, ShowRecommendationsOnlyOnDemandKey, IExtensionsViewlet, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtensionsConfiguration, ConfigurationKey, ShowRecommendationsOnlyOnDemandKey, IExtensionsViewlet, IExtensionsWorkbenchService, EXTENSIONS_CONFIG } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import * as pfs from 'vs/base/node/pfs';
@@ -45,6 +45,7 @@ import { IExperimentService, ExperimentActionType, ExperimentState } from 'vs/wo
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { getKeywordsForExtension } from 'vs/workbench/contrib/extensions/electron-browser/extensionsUtils';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { extname } from 'vs/base/common/resources';
 
 const milliSecondsInADay = 1000 * 60 * 60 * 24;
 const choiceNever = localize('neverShowAgain', "Don't Show Again");
@@ -333,7 +334,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	 * Parse the extensions.json files for given workspace folder and return the recommendations
 	 */
 	private resolveWorkspaceFolderExtensionConfig(workspaceFolder: IWorkspaceFolder): Promise<IExtensionsConfigContent | null> {
-		const extensionsJsonUri = workspaceFolder.toResource(paths.join('.vscode', 'extensions.json'));
+		const extensionsJsonUri = workspaceFolder.toResource(EXTENSIONS_CONFIG);
 
 		return Promise.resolve(this.fileService.resolveFile(extensionsJsonUri)
 			.then(() => this.fileService.resolveContent(extensionsJsonUri))
@@ -586,7 +587,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			return;
 		}
 
-		let fileExtension = paths.extname(uri.path);
+		let fileExtension = extname(uri);
 		if (fileExtension) {
 			if (processedFileExtensions.indexOf(fileExtension) > -1) {
 				return;
@@ -903,8 +904,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 					.replace('%APPDATA%', process.env['APPDATA']!);
 				promises.push(findExecutable(exeName, windowsPath));
 			} else {
-				promises.push(findExecutable(exeName, paths.join('/usr/local/bin', exeName)));
-				promises.push(findExecutable(exeName, paths.join(homeDir, exeName)));
+				promises.push(findExecutable(exeName, join('/usr/local/bin', exeName)));
+				promises.push(findExecutable(exeName, join(homeDir, exeName)));
 			}
 		});
 

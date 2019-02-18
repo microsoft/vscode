@@ -415,7 +415,7 @@ class WordHighlighter {
 		this._hasWordHighlights.set(this.hasDecorations());
 	}
 
-	private static _getDecorationOptions(kind: DocumentHighlightKind): ModelDecorationOptions {
+	private static _getDecorationOptions(kind: DocumentHighlightKind | undefined): ModelDecorationOptions {
 		if (kind === DocumentHighlightKind.Write) {
 			return this._WRITE_OPTIONS;
 		} else if (kind === DocumentHighlightKind.Text) {

@@ -264,6 +264,11 @@ const editorConfiguration: IConfigurationNode = {
 			'default': 'on',
 			'description': nls.localize('lineNumbers', "Controls the display of line numbers.")
 		},
+		'editor.renderFinalNewline': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.viewInfo.renderFinalNewline,
+			'description': nls.localize('renderFinalNewline', "Render last line number when the file ends with a newline.")
+		},
 		'editor.rulers': {
 			'type': 'array',
 			'items': {
@@ -282,6 +287,20 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_MODEL_DEFAULTS.tabSize,
 			'minimum': 1,
 			'markdownDescription': nls.localize('tabSize', "The number of spaces a tab is equal to. This setting is overridden based on the file contents when `#editor.detectIndentation#` is on.")
+		},
+		'editor.indentSize': {
+			'anyOf': [
+				{
+					'type': 'string',
+					'enum': ['tabSize']
+				},
+				{
+					'type': 'number',
+					'minimum': 1
+				}
+			],
+			'default': 'tabSize',
+			'markdownDescription': nls.localize('indentSize', "The number of spaces used for indentation or 'tabSize' to use the value from `#editor.tabSize#`. This setting is overridden based on the file contents when `#editor.detectIndentation#` is on.")
 		},
 		'editor.insertSpaces': {
 			'type': 'boolean',
@@ -370,6 +389,11 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.contribInfo.find.globalFindClipboard,
 			'description': nls.localize('find.globalFindClipboard', "Controls whether the Find Widget should read or modify the shared find clipboard on macOS."),
 			'included': platform.isMacintosh
+		},
+		'editor.find.addExtraSpaceOnTop': {
+			'type': 'boolean',
+			'default': true,
+			'description': nls.localize('find.addExtraSpaceOnTop', "Controls whether the Find Widget should add extra lines on top of the editor. When true, you can scroll beyond the first line when the Find Widget is visible.")
 		},
 		'editor.wordWrap': {
 			'type': 'string',
@@ -831,6 +855,11 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.lightbulbEnabled,
 			'description': nls.localize('codeActions', "Enables the code action lightbulb in the editor.")
+		},
+		'editor.maxTokenizationLineLength': {
+			'type': 'integer',
+			'default': 20_000,
+			'description': nls.localize('maxTokenizationLineLength', "Lines above this length will not be tokenized for performance reasons")
 		},
 		'editor.codeActionsOnSave': {
 			'type': 'object',

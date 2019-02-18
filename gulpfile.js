@@ -10,26 +10,24 @@ require('events').EventEmitter.defaultMaxListeners = 100;
 
 const gulp = require('gulp');
 const util = require('./build/lib/util');
+const task = require('./build/lib/task');
 const path = require('path');
 const compilation = require('./build/lib/compilation');
 const { monacoTypecheckTask/* , monacoTypecheckWatchTask */ } = require('./build/gulpfile.editor');
 const { compileExtensionsTask, watchExtensionsTask } = require('./build/gulpfile.extensions');
 
 // Fast compile for development time
-const compileClientTask = util.task.series(util.rimraf('out'), compilation.compileTask('src', 'out', false));
-compileClientTask.displayName = 'compile-client';
-gulp.task(compileClientTask.displayName, compileClientTask);
+const compileClientTask = task.define('compile-client', task.series(util.rimraf('out'), compilation.compileTask('src', 'out', false)));
+gulp.task(compileClientTask);
 
-const watchClientTask = util.task.series(util.rimraf('out'), compilation.watchTask('out', false));
-watchClientTask.displayName = 'watch-client';
-gulp.task(watchClientTask.displayName, watchClientTask);
+const watchClientTask = task.define('watch-client', task.series(util.rimraf('out'), compilation.watchTask('out', false)));
+gulp.task(watchClientTask);
 
 // All
-const compileTask = util.task.parallel(monacoTypecheckTask, compileClientTask, compileExtensionsTask);
-compileTask.displayName = 'compile';
-gulp.task(compileTask.displayName, compileTask);
+const compileTask = task.define('compile', task.parallel(monacoTypecheckTask, compileClientTask, compileExtensionsTask));
+gulp.task(compileTask);
 
-gulp.task('watch', util.task.parallel(/* monacoTypecheckWatchTask, */ watchClientTask, watchExtensionsTask));
+gulp.task(task.define('watch', task.parallel(/* monacoTypecheckWatchTask, */ watchClientTask, watchExtensionsTask)));
 
 // Default
 gulp.task('default', compileTask);

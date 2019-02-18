@@ -41,7 +41,7 @@ import { ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { CollapseAction2 } from 'vs/workbench/browser/viewlet';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { OutlineConfigKeys, OutlineViewFiltered, OutlineViewFocused } from '../../../../editor/contrib/documentSymbols/outline';
+import { OutlineConfigKeys, OutlineViewFocused, OutlineViewFiltered } from 'vs/editor/contrib/documentSymbols/outline';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { OutlineDataSource, OutlineItemComparator, OutlineSortOrder, OutlineVirtualDelegate, OutlineGroupRenderer, OutlineElementRenderer, OutlineItem, OutlineIdentityProvider, OutlineNavigationLabelProvider } from 'vs/editor/contrib/documentSymbols/outlineTree';
 import { IDataTreeViewState } from 'vs/base/browser/ui/tree/dataTree';
@@ -430,7 +430,7 @@ export class OutlinePanel extends ViewletPanel {
 		}
 
 		let textModel = editor.getModel();
-		let loadingMessage: IDisposable;
+		let loadingMessage: IDisposable | undefined;
 		if (!oldModel) {
 			loadingMessage = new TimeoutTimer(
 				() => this._showMessage(localize('loading', "Loading document symbols for '{0}'...", basename(textModel.uri))),
@@ -448,17 +448,12 @@ export class OutlinePanel extends ViewletPanel {
 			return this._showMessage(localize('no-symbols', "No symbols found in document '{0}'", basename(textModel.uri)));
 		}
 
-		let newSize = TreeElement.size(newModel);
-		if (newSize > 7500) {
-			// this is a workaround for performance issues with the tree: https://github.com/Microsoft/vscode/issues/18180
-			return this._showMessage(localize('too-many-symbols', "We are sorry, but this file is too large for showing an outline."));
-		}
-
 		dom.removeClass(this._domNode, 'message');
 
 		if (event && oldModel && textModel.getLineCount() >= 25) {
 			// heuristic: when the symbols-to-lines ratio changes by 50% between edits
 			// wait a little (and hope that the next change isn't as drastic).
+			let newSize = TreeElement.size(newModel);
 			let newLength = textModel.getValueLength();
 			let newRatio = newSize / newLength;
 			let oldSize = TreeElement.size(oldModel);

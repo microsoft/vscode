@@ -386,10 +386,10 @@ class ResourceLabelWidget extends IconLabel {
 		}
 
 		if (this.label) {
-			const configuredLangId = getConfiguredLangId(this.modelService, this.label.resource);
+			const configuredLangId = this.label.resource ? getConfiguredLangId(this.modelService, this.label.resource) : null;
 			if (this.lastKnownConfiguredLangId !== configuredLangId) {
 				clearIconCache = true;
-				this.lastKnownConfiguredLangId = configuredLangId;
+				this.lastKnownConfiguredLangId = configuredLangId || undefined;
 			}
 		}
 
@@ -428,7 +428,7 @@ class ResourceLabelWidget extends IconLabel {
 			iconLabelOptions.extraClasses = this.computedIconClasses.slice(0);
 		}
 		if (this.options && this.options.extraClasses) {
-			iconLabelOptions.extraClasses.push(...this.options.extraClasses);
+			iconLabelOptions.extraClasses!.push(...this.options.extraClasses);
 		}
 
 		if (this.options && this.options.fileDecorations && resource) {
@@ -444,11 +444,11 @@ class ResourceLabelWidget extends IconLabel {
 				}
 
 				if (this.options.fileDecorations.colors) {
-					iconLabelOptions.extraClasses.push(deco.labelClassName);
+					iconLabelOptions.extraClasses!.push(deco.labelClassName);
 				}
 
 				if (this.options.fileDecorations.badges) {
-					iconLabelOptions.extraClasses.push(deco.badgeClassName);
+					iconLabelOptions.extraClasses!.push(deco.badgeClassName);
 				}
 			}
 		}
