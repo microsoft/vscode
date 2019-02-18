@@ -5,15 +5,13 @@
 
 import { SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
-import { OperatingSystem } from 'vs/base/common/platform';
 import { ScanCodeBinding } from 'vs/base/common/scanCode';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 
 export interface IUserKeybindingItem {
-	firstPart: SimpleKeybinding | ScanCodeBinding | null;
-	chordPart: SimpleKeybinding | ScanCodeBinding | null;
+	parts: (SimpleKeybinding | ScanCodeBinding)[];
 	command: string | null;
 	commandArgs?: any;
 	when: ContextKeyExpr | null;
@@ -21,7 +19,7 @@ export interface IUserKeybindingItem {
 
 export class KeybindingIO {
 
-	public static writeKeybindingItem(out: OutputBuilder, item: ResolvedKeybindingItem, OS: OperatingSystem): void {
+	public static writeKeybindingItem(out: OutputBuilder, item: ResolvedKeybindingItem): void {
 		if (!item.resolvedKeybinding) {
 			return;
 		}
@@ -41,14 +39,13 @@ export class KeybindingIO {
 		out.write('}');
 	}
 
-	public static readUserKeybindingItem(input: IUserFriendlyKeybinding, OS: OperatingSystem): IUserKeybindingItem {
-		const [firstPart, chordPart] = (typeof input.key === 'string' ? KeybindingParser.parseUserBinding(input.key) : [null, null]);
+	public static readUserKeybindingItem(input: IUserFriendlyKeybinding): IUserKeybindingItem {
+		const parts = (typeof input.key === 'string' ? KeybindingParser.parseUserBinding(input.key) : []);
 		const when = (typeof input.when === 'string' ? ContextKeyExpr.deserialize(input.when) : null);
 		const command = (typeof input.command === 'string' ? input.command : null);
 		const commandArgs = (typeof input.args !== 'undefined' ? input.args : undefined);
 		return {
-			firstPart: firstPart,
-			chordPart: chordPart,
+			parts: parts,
 			command: command,
 			commandArgs: commandArgs,
 			when: when

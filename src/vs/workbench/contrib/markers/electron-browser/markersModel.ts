@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as paths from 'vs/base/common/paths';
+import { basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { IMarker, MarkerSeverity, IRelatedInformation, IMarkerData } from 'vs/platform/markers/common/markers';
@@ -47,7 +47,7 @@ export class ResourceMarkers {
 	get path(): string { return this.resource.fsPath; }
 
 	@memoize
-	get name(): string { return paths.basename(this.resource.fsPath); }
+	get name(): string { return basename(this.resource); }
 
 	@memoize
 	get hash(): string {

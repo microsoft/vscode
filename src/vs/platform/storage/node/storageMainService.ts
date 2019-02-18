@@ -9,7 +9,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IStorage, Storage, SQLiteStorageDatabase, ISQLiteStorageDatabaseLoggingOptions, InMemoryStorageDatabase } from 'vs/base/node/storage';
-import { join } from 'path';
+import { join } from 'vs/base/common/path';
 import { mark } from 'vs/base/common/performance';
 import { exists, readdir } from 'vs/base/node/pfs';
 import { Database } from 'vscode-sqlite3';

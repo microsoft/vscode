@@ -8,7 +8,7 @@ import { StorageScope } from 'vs/platform/storage/common/storage';
 import { TestStorageService } from 'vs/workbench/test/workbenchTestServices';
 import { StorageService } from 'vs/platform/storage/node/storageService';
 import { generateUuid } from 'vs/base/common/uuid';
-import { join } from 'path';
+import { join } from 'vs/base/common/path';
 import { tmpdir } from 'os';
 import { mkdirp, del } from 'vs/base/node/pfs';
 import { NullLogService } from 'vs/platform/log/common/log';

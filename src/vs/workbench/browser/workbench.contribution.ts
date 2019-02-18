@@ -154,7 +154,7 @@ configurationRegistry.registerConfiguration({
 		'workbench.settings.openDefaultKeybindings': {
 			'type': 'boolean',
 			'description': nls.localize('openDefaultKeybindings', "Controls whether opening keybinding settings also opens an editor showing all default keybindings."),
-			'default': true
+			'default': false
 		},
 		'workbench.sideBar.location': {
 			'type': 'string',

@@ -656,7 +656,7 @@ suite('Workbench editor groups', () => {
 		config.setUserConfiguration('workbench', { editor: { focusRecentEditorAfterClose: false } });
 		inst.stub(IConfigurationService, config);
 
-		const group = inst.createInstance(EditorGroup);
+		const group = inst.createInstance(EditorGroup, undefined);
 		const events = groupListener(group);
 
 		const input1 = input();

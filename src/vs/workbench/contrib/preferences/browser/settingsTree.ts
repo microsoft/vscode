@@ -100,14 +100,14 @@ export function resolveExtensionsSettings(groups: ISettingsGroup[]): ITOCEntry {
 }
 
 function _resolveSettingsTree(tocData: ITOCEntry, allSettings: Set<ISetting>): ITOCEntry {
-	let children: ITOCEntry[];
+	let children: ITOCEntry[] | undefined;
 	if (tocData.children) {
 		children = tocData.children
 			.map(child => _resolveSettingsTree(child, allSettings))
 			.filter(child => (child.children && child.children.length) || (child.settings && child.settings.length));
 	}
 
-	let settings: ISetting[];
+	let settings: ISetting[] | undefined;
 	if (tocData.settings) {
 		settings = arrays.flatten(tocData.settings.map(pattern => getMatchingSettings(allSettings, <string>pattern)));
 	}
@@ -460,7 +460,7 @@ export abstract class AbstractSettingRenderer implements ITreeRenderer<SettingsT
 						};
 						this._onDidClickSettingLink.fire(e);
 					} else {
-						let uri: URI;
+						let uri: URI | undefined;
 						try {
 							uri = URI.parse(content);
 						} catch (err) {

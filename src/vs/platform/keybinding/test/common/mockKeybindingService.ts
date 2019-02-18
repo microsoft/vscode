@@ -98,7 +98,7 @@ export class MockKeybindingService implements IKeybindingService {
 			keyboardEvent.metaKey,
 			keyboardEvent.keyCode
 		);
-		return this.resolveKeybinding(keybinding)[0];
+		return this.resolveKeybinding(keybinding.toChord())[0];
 	}
 
 	public resolveUserBinding(userBinding: string): ResolvedKeybinding[] {

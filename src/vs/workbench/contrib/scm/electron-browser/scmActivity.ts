@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { basename } from 'vs/base/common/paths';
+import { basename } from 'vs/base/common/resources';
 import { IDisposable, dispose, Disposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { VIEWLET_ID, ISCMService, ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
@@ -184,7 +184,7 @@ export class StatusBarController implements IWorkbenchContribution {
 
 		const commands = repository.provider.statusBarCommands || [];
 		const label = repository.provider.rootUri
-			? `${basename(repository.provider.rootUri.fsPath)} (${repository.provider.label})`
+			? `${basename(repository.provider.rootUri)} (${repository.provider.label})`
 			: repository.provider.label;
 
 		const disposables = commands.map(c => this.statusbarService.addEntry({

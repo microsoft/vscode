@@ -146,6 +146,9 @@ export class WatermarkContribution implements IWorkbenchContribution {
 
 	private create(): void {
 		const container = this.partService.getContainer(Parts.EDITOR_PART);
+		if (!container) {
+			throw new Error('Could not find container');
+		}
 		container.classList.add('has-watermark');
 
 		this.watermark = $('.watermark');
@@ -176,7 +179,10 @@ export class WatermarkContribution implements IWorkbenchContribution {
 	private destroy(): void {
 		if (this.watermark) {
 			this.watermark.remove();
-			this.partService.getContainer(Parts.EDITOR_PART).classList.remove('has-watermark');
+			const container = this.partService.getContainer(Parts.EDITOR_PART);
+			if (container) {
+				container.classList.remove('has-watermark');
+			}
 			this.dispose();
 		}
 	}

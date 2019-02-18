@@ -16,9 +16,9 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 export class CodeActionContextMenu {
 
 	private _visible: boolean;
-	private _onDidExecuteCodeAction = new Emitter<void>();
 
-	readonly onDidExecuteCodeAction: Event<void> = this._onDidExecuteCodeAction.event;
+	private readonly _onDidExecuteCodeAction = new Emitter<void>();
+	public readonly onDidExecuteCodeAction: Event<void> = this._onDidExecuteCodeAction.event;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -69,7 +69,7 @@ export class CodeActionContextMenu {
 		this._editor.render();
 
 		// Translate to absolute editor position
-		const cursorCoords = this._editor.getScrolledVisiblePosition(this._editor.getPosition());
+		const cursorCoords = this._editor.getScrolledVisiblePosition(position);
 		const editorCoords = getDomNodePagePosition(this._editor.getDomNode());
 		const x = editorCoords.left + cursorCoords.left;
 		const y = editorCoords.top + cursorCoords.top + cursorCoords.height;

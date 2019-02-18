@@ -25,10 +25,10 @@ import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/con
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ISearchConfigurationProperties } from 'vs/platform/search/common/search';
+import { ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
 import { attachFindInputBoxStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ContextScopedFindInput, ContextScopedHistoryInputBox } from 'vs/platform/widget/browser/contextScopedHistoryWidget';
+import { ContextScopedFindInput, ContextScopedHistoryInputBox } from 'vs/platform/browser/contextScopedHistoryWidget';
 import { appendKeyBindingLabel, isSearchViewFocused } from 'vs/workbench/contrib/search/browser/searchActions';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -185,7 +185,7 @@ export class SearchWidget extends Widget {
 	}
 
 	isReplaceActive(): boolean {
-		return this.replaceActive.get();
+		return !!this.replaceActive.get();
 	}
 
 	getReplaceValue(): string {

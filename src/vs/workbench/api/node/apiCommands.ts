@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { tmpdir } from 'os';
-import { posix } from 'path';
+import { join } from 'vs/base/common/path';
 import * as vscode from 'vscode';
 import { URI } from 'vs/base/common/uri';
 import { isMalformedFileUri } from 'vs/base/common/resources';
@@ -65,7 +65,24 @@ export class OpenFolderAPICommand {
 		return executor.executeCommand('_files.windowOpen', { urisToOpen: [{ uri }], forceNewWindow });
 	}
 }
-CommandsRegistry.registerCommand(OpenFolderAPICommand.ID, adjustHandler(OpenFolderAPICommand.execute));
+CommandsRegistry.registerCommand({
+	id: OpenFolderAPICommand.ID,
+	handler: adjustHandler(OpenFolderAPICommand.execute),
+	description: {
+		description: `Open a folder`,
+		args: [{
+			name: 'uri',
+			schema: {
+				'type': 'string'
+			}
+		}, {
+			name: 'forceNewWindow',
+			schema: {
+				'type': 'boolean'
+			}
+		}]
+	}
+});
 
 export class DiffAPICommand {
 	public static ID = 'vscode.diff';
@@ -126,11 +143,35 @@ export class SetEditorLayoutAPICommand {
 		return executor.executeCommand('layoutEditorGroups', layout);
 	}
 }
-CommandsRegistry.registerCommand(SetEditorLayoutAPICommand.ID, adjustHandler(SetEditorLayoutAPICommand.execute));
+CommandsRegistry.registerCommand({
+	id: SetEditorLayoutAPICommand.ID,
+	handler: adjustHandler(SetEditorLayoutAPICommand.execute),
+	description: {
+		description: 'Set Editor Layout',
+		args: [{
+			name: 'args',
+			schema: {
+				'type': 'object',
+				'required': ['groups'],
+				'properties': {
+					'orientation': {
+						'type': 'number',
+						'default': 0,
+						'enum': [0, 1]
+					},
+					'groups': {
+						'$ref': '#/definitions/editorGroupsSchema', // defined in keybindingService.ts ...
+						'default': [{}, {}],
+					}
+				}
+			}
+		}]
+	}
+});
 
 CommandsRegistry.registerCommand('_workbench.downloadResource', function (accessor: ServicesAccessor, resource: URI) {
 	const downloadService = accessor.get(IDownloadService);
-	const location = posix.join(tmpdir(), generateUuid());
+	const location = join(tmpdir(), generateUuid());
 
 	return downloadService.download(resource, location).then(() => URI.file(location));
 });

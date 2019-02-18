@@ -10,6 +10,18 @@ import { createRandomFile } from '../utils';
 
 suite('languages namespace tests', () => {
 
+	function positionToString(p: vscode.Position) {
+		return `[${p.character}/${p.line}]`;
+	}
+
+	function rangeToString(r: vscode.Range) {
+		return `[${positionToString(r.start)}/${positionToString(r.end)}]`;
+	}
+
+	function assertEqualRange(actual: vscode.Range, expected: vscode.Range, message?: string) {
+		assert.equal(rangeToString(actual), rangeToString(expected), message);
+	}
+
 	test('setTextDocumentLanguage -> close/open event', async function () {
 		const file = await createRandomFile('foo\nbar\nbar');
 		const doc = await vscode.workspace.openTextDocument(file);
@@ -75,6 +87,31 @@ suite('languages namespace tests', () => {
 		}
 		assert.ok(tuples.length >= 1);
 		assert.ok(found);
+	});
+
+	test('link detector', async function () {
+		const uri = await createRandomFile('class A { // http://a.com }', undefined, '.java');
+		const doc = await vscode.workspace.openTextDocument(uri);
+
+		const target = vscode.Uri.parse('file://foo/bar');
+		const range = new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 5));
+
+		const linkProvider: vscode.DocumentLinkProvider = {
+			provideDocumentLinks: _doc => {
+				return [new vscode.DocumentLink(range, target)];
+			}
+		};
+		vscode.languages.registerDocumentLinkProvider({ language: 'java', scheme: 'file' }, linkProvider);
+
+		const links = await vscode.commands.executeCommand<vscode.DocumentLink[]>('vscode.executeLinkProvider', doc.uri);
+		assert.equal(2, links && links.length);
+		let [link1, link2] = links!.sort((l1, l2) => l1.range.start.compareTo(l2.range.start));
+
+		assert.equal(target.toString(), link1.target && link1.target.toString());
+		assertEqualRange(range, link1.range);
+
+		assert.equal('http://a.com/', link2.target && link2.target.toString());
+		assertEqualRange(new vscode.Range(new vscode.Position(0, 13), new vscode.Position(0, 25)), link2.range);
 	});
 
 	test('diagnostics & CodeActionProvider', async function () {
@@ -144,4 +181,5 @@ suite('languages namespace tests', () => {
 		assert.ok(ran);
 		assert.equal(result!.items[0].label, 'foo');
 	});
+
 });
