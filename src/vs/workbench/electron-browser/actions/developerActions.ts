@@ -171,6 +171,7 @@ export class ToggleScreencastModeAction extends Action {
 		keyboardMarker.style.color = 'white';
 		keyboardMarker.style.lineHeight = '100px';
 		keyboardMarker.style.textAlign = 'center';
+		keyboardMarker.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif';
 		keyboardMarker.style.fontSize = '56px';
 		keyboardMarker.style.display = 'none';
 
