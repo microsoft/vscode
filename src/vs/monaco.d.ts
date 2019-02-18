@@ -1717,10 +1717,6 @@ declare namespace monaco.editor {
 		 */
 		normalizeIndentation(str: string): string;
 		/**
-		 * Get what is considered to be one indent (e.g. a tab character or 4 spaces, etc.).
-		 */
-		getOneIndent(): string;
-		/**
 		 * Change the options of this model.
 		 */
 		updateOptions(newOpts: ITextModelUpdateOptions): void;

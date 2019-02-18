@@ -30,8 +30,9 @@ export class TypeOperations {
 		for (let i = 0, len = selections.length; i < len; i++) {
 			commands[i] = new ShiftCommand(selections[i], {
 				isUnshift: false,
+				tabSize: config.tabSize,
 				indentSize: config.indentSize,
-				oneIndent: config.oneIndent,
+				insertSpaces: config.insertSpaces,
 				useTabStops: config.useTabStops
 			});
 		}
@@ -43,8 +44,9 @@ export class TypeOperations {
 		for (let i = 0, len = selections.length; i < len; i++) {
 			commands[i] = new ShiftCommand(selections[i], {
 				isUnshift: true,
+				tabSize: config.tabSize,
 				indentSize: config.indentSize,
-				oneIndent: config.oneIndent,
+				insertSpaces: config.insertSpaces,
 				useTabStops: config.useTabStops
 			});
 		}
@@ -53,24 +55,12 @@ export class TypeOperations {
 
 	public static shiftIndent(config: CursorConfiguration, indentation: string, count?: number): string {
 		count = count || 1;
-		let desiredIndentCount = ShiftCommand.shiftIndentCount(indentation, indentation.length + count, config.indentSize);
-		let newIndentation = '';
-		for (let i = 0; i < desiredIndentCount; i++) {
-			newIndentation += '\t';
-		}
-
-		return newIndentation;
+		return ShiftCommand.shiftIndent(indentation, indentation.length + count, config.tabSize, config.indentSize, config.insertSpaces);
 	}
 
 	public static unshiftIndent(config: CursorConfiguration, indentation: string, count?: number): string {
 		count = count || 1;
-		let desiredIndentCount = ShiftCommand.unshiftIndentCount(indentation, indentation.length + count, config.indentSize);
-		let newIndentation = '';
-		for (let i = 0; i < desiredIndentCount; i++) {
-			newIndentation += '\t';
-		}
-
-		return newIndentation;
+		return ShiftCommand.unshiftIndent(indentation, indentation.length + count, config.tabSize, config.indentSize, config.insertSpaces);
 	}
 
 	private static _distributedPaste(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[], text: string[]): EditOperationResult {
@@ -253,8 +243,9 @@ export class TypeOperations {
 
 				commands[i] = new ShiftCommand(selection, {
 					isUnshift: false,
+					tabSize: config.tabSize,
 					indentSize: config.indentSize,
-					oneIndent: config.oneIndent,
+					insertSpaces: config.insertSpaces,
 					useTabStops: config.useTabStops
 				});
 			}

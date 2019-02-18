@@ -653,7 +653,7 @@ declare module 'vscode' {
 		 * The number of spaces to insert when [insertSpaces](#TextEditorOptions.insertSpaces) is true.
 		 *
 		 * When getting a text editor's options, this property will always be a number (resolved).
-		 * When setting a text editor's options, this property is optional and it can be a number or `"tab"`.
+		 * When setting a text editor's options, this property is optional and it can be a number or `"tabSize"`.
 		 */
 		indentSize?: number | string;
 

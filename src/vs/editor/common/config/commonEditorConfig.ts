@@ -292,15 +292,15 @@ const editorConfiguration: IConfigurationNode = {
 			'anyOf': [
 				{
 					'type': 'string',
-					'enum': ['tab']
+					'enum': ['tabSize']
 				},
 				{
 					'type': 'number',
 					'minimum': 1
 				}
 			],
-			'default': 'tab',
-			'markdownDescription': nls.localize('indentSize', "The number of spaces used for indentation or 'tab' to use the value from `#editor.tabSize#`. This setting is overridden based on the file contents when `#editor.detectIndentation#` is on.")
+			'default': 'tabSize',
+			'markdownDescription': nls.localize('indentSize', "The number of spaces used for indentation or 'tabSize' to use the value from `#editor.tabSize#`. This setting is overridden based on the file contents when `#editor.detectIndentation#` is on.")
 		},
 		'editor.insertSpaces': {
 			'type': 'boolean',

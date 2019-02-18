@@ -206,9 +206,9 @@ export class ExtHostTextEditorOptions implements vscode.TextEditorOptions {
 		return this._indentSize;
 	}
 
-	private _validateIndentSize(value: number | string): number | 'tab' | null {
-		if (value === 'tab') {
-			return 'tab';
+	private _validateIndentSize(value: number | string): number | 'tabSize' | null {
+		if (value === 'tabSize') {
+			return 'tabSize';
 		}
 		if (typeof value === 'number') {
 			let r = Math.floor(value);
@@ -318,7 +318,7 @@ export class ExtHostTextEditorOptions implements vscode.TextEditorOptions {
 
 		if (typeof newOptions.indentSize !== 'undefined') {
 			let indentSize = this._validateIndentSize(newOptions.indentSize);
-			if (indentSize === 'tab') {
+			if (indentSize === 'tabSize') {
 				hasUpdate = true;
 				bulkConfigurationUpdate.indentSize = indentSize;
 			} else if (typeof indentSize === 'number' && this._indentSize !== indentSize) {

@@ -140,7 +140,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		}
 
 		let indentSize = tabSize;
-		if (config.editor && typeof config.editor.indentSize !== 'undefined' && config.editor.indentSize !== 'tab') {
+		if (config.editor && typeof config.editor.indentSize !== 'undefined' && config.editor.indentSize !== 'tabSize') {
 			let parsedIndentSize = parseInt(config.editor.indentSize, 10);
 			if (!isNaN(parsedIndentSize)) {
 				indentSize = parsedIndentSize;
@@ -222,8 +222,8 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		if (currentOptions
 			&& (currentOptions.detectIndentation === newOptions.detectIndentation)
 			&& (currentOptions.insertSpaces === newOptions.insertSpaces)
-			&& (currentOptions.indentSize === newOptions.indentSize)
 			&& (currentOptions.tabSize === newOptions.tabSize)
+			&& (currentOptions.indentSize === newOptions.indentSize)
 			&& (currentOptions.trimAutoWhitespace === newOptions.trimAutoWhitespace)
 		) {
 			// Same indent opts, no need to touch the model
@@ -238,8 +238,8 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		} else {
 			model.updateOptions({
 				insertSpaces: newOptions.insertSpaces,
-				indentSize: newOptions.indentSize,
 				tabSize: newOptions.tabSize,
+				indentSize: newOptions.indentSize,
 				trimAutoWhitespace: newOptions.trimAutoWhitespace
 			});
 		}

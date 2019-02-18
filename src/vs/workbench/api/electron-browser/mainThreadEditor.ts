@@ -83,8 +83,8 @@ export class MainThreadTextEditorProperties {
 		const modelOptions = model.getOptions();
 		return {
 			insertSpaces: modelOptions.insertSpaces,
-			indentSize: modelOptions.indentSize,
 			tabSize: modelOptions.tabSize,
+			indentSize: modelOptions.indentSize,
 			cursorStyle: cursorStyle,
 			lineNumbers: lineNumbers
 		};
@@ -350,7 +350,7 @@ export class MainThreadTextEditor {
 			newOpts.tabSize = newConfiguration.tabSize;
 		}
 		if (typeof newConfiguration.indentSize !== 'undefined') {
-			if (newConfiguration.indentSize === 'tab') {
+			if (newConfiguration.indentSize === 'tabSize') {
 				newOpts.indentSize = newOpts.tabSize || creationOpts.tabSize;
 			} else {
 				newOpts.indentSize = newConfiguration.indentSize;

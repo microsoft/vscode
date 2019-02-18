@@ -374,6 +374,7 @@ export class TextModelResolvedOptions {
 	public equals(other: TextModelResolvedOptions): boolean {
 		return (
 			this.tabSize === other.tabSize
+			&& this.indentSize === other.indentSize
 			&& this.insertSpaces === other.insertSpaces
 			&& this.defaultEOL === other.defaultEOL
 			&& this.trimAutoWhitespace === other.trimAutoWhitespace
@@ -956,11 +957,6 @@ export interface ITextModel {
 	 * Normalize a string containing whitespace according to indentation rules (converts to spaces or to tabs).
 	 */
 	normalizeIndentation(str: string): string;
-
-	/**
-	 * Get what is considered to be one indent (e.g. a tab character or 4 spaces, etc.).
-	 */
-	getOneIndent(): string;
 
 	/**
 	 * Change the options of this model.

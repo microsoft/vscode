@@ -268,7 +268,7 @@ suite('ExtHostTextEditorOptions', () => {
 	});
 
 	test('indentSize can request to use tabSize', () => {
-		opts.indentSize = 'tab';
+		opts.indentSize = 'tabSize';
 		assertState(opts, {
 			tabSize: 4,
 			indentSize: 4,
@@ -276,7 +276,7 @@ suite('ExtHostTextEditorOptions', () => {
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: TextEditorLineNumbersStyle.On
 		});
-		assert.deepEqual(calls, [{ indentSize: 'tab' }]);
+		assert.deepEqual(calls, [{ indentSize: 'tabSize' }]);
 	});
 
 	test('indentSize cannot request indentation detection', () => {

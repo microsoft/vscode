@@ -46,8 +46,9 @@ class DocBlockCommentMode extends MockMode {
 function testShiftCommand(lines: string[], languageIdentifier: LanguageIdentifier | null, useTabStops: boolean, selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
 	testCommand(lines, languageIdentifier, selection, (sel) => new ShiftCommand(sel, {
 		isUnshift: false,
+		tabSize: 4,
 		indentSize: 4,
-		oneIndent: '\t',
+		insertSpaces: false,
 		useTabStops: useTabStops,
 	}), expectedLines, expectedSelection);
 }
@@ -55,8 +56,9 @@ function testShiftCommand(lines: string[], languageIdentifier: LanguageIdentifie
 function testUnshiftCommand(lines: string[], languageIdentifier: LanguageIdentifier | null, useTabStops: boolean, selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
 	testCommand(lines, languageIdentifier, selection, (sel) => new ShiftCommand(sel, {
 		isUnshift: true,
+		tabSize: 4,
 		indentSize: 4,
-		oneIndent: '\t',
+		insertSpaces: false,
 		useTabStops: useTabStops,
 	}), expectedLines, expectedSelection);
 }
@@ -667,8 +669,9 @@ suite('Editor Commands - ShiftCommand', () => {
 			new Selection(1, 1, 13, 1),
 			(sel) => new ShiftCommand(sel, {
 				isUnshift: false,
+				tabSize: 4,
 				indentSize: 4,
-				oneIndent: '    ',
+				insertSpaces: true,
 				useTabStops: false
 			}),
 			[
@@ -711,8 +714,9 @@ suite('Editor Commands - ShiftCommand', () => {
 			new Selection(1, 1, 13, 1),
 			(sel) => new ShiftCommand(sel, {
 				isUnshift: true,
+				tabSize: 4,
 				indentSize: 4,
-				oneIndent: '    ',
+				insertSpaces: true,
 				useTabStops: false
 			}),
 			[
@@ -755,8 +759,9 @@ suite('Editor Commands - ShiftCommand', () => {
 			new Selection(1, 1, 13, 1),
 			(sel) => new ShiftCommand(sel, {
 				isUnshift: true,
+				tabSize: 4,
 				indentSize: 4,
-				oneIndent: '\t',
+				insertSpaces: false,
 				useTabStops: false
 			}),
 			[
@@ -799,8 +804,9 @@ suite('Editor Commands - ShiftCommand', () => {
 			new Selection(1, 1, 13, 1),
 			(sel) => new ShiftCommand(sel, {
 				isUnshift: true,
+				tabSize: 4,
 				indentSize: 4,
-				oneIndent: '    ',
+				insertSpaces: true,
 				useTabStops: false
 			}),
 			[
@@ -832,8 +838,9 @@ suite('Editor Commands - ShiftCommand', () => {
 			new Selection(1, 1, 1, 13),
 			(sel) => new ShiftCommand(sel, {
 				isUnshift: false,
+				tabSize: 4,
 				indentSize: 4,
-				oneIndent: '\t',
+				insertSpaces: false,
 				useTabStops: true
 			}),
 			[
@@ -854,98 +861,96 @@ suite('Editor Commands - ShiftCommand', () => {
 			return r;
 		};
 
-		let testOutdent = (indentSize: number, oneIndent: string, lineText: string, expectedIndents: number) => {
+		let testOutdent = (tabSize: number, indentSize: number, insertSpaces: boolean, lineText: string, expectedIndents: number) => {
+			const oneIndent = insertSpaces ? repeatStr(' ', indentSize) : '\t';
 			let expectedIndent = repeatStr(oneIndent, expectedIndents);
 			if (lineText.length > 0) {
-				_assertUnshiftCommand(indentSize, oneIndent, [lineText + 'aaa'], [createSingleEditOp(expectedIndent, 1, 1, 1, lineText.length + 1)]);
+				_assertUnshiftCommand(tabSize, indentSize, insertSpaces, [lineText + 'aaa'], [createSingleEditOp(expectedIndent, 1, 1, 1, lineText.length + 1)]);
 			} else {
-				_assertUnshiftCommand(indentSize, oneIndent, [lineText + 'aaa'], []);
+				_assertUnshiftCommand(tabSize, indentSize, insertSpaces, [lineText + 'aaa'], []);
 			}
 		};
 
-		let testIndent = (indentSize: number, oneIndent: string, lineText: string, expectedIndents: number) => {
+		let testIndent = (tabSize: number, indentSize: number, insertSpaces: boolean, lineText: string, expectedIndents: number) => {
+			const oneIndent = insertSpaces ? repeatStr(' ', indentSize) : '\t';
 			let expectedIndent = repeatStr(oneIndent, expectedIndents);
-			_assertShiftCommand(indentSize, oneIndent, [lineText + 'aaa'], [createSingleEditOp(expectedIndent, 1, 1, 1, lineText.length + 1)]);
+			_assertShiftCommand(tabSize, indentSize, insertSpaces, [lineText + 'aaa'], [createSingleEditOp(expectedIndent, 1, 1, 1, lineText.length + 1)]);
 		};
 
-		let testIndentation = (indentSize: number, lineText: string, expectedOnOutdent: number, expectedOnIndent: number) => {
-			let spaceIndent = '';
-			for (let i = 0; i < indentSize; i++) {
-				spaceIndent += ' ';
-			}
+		let testIndentation = (tabSize: number, indentSize: number, lineText: string, expectedOnOutdent: number, expectedOnIndent: number) => {
+			testOutdent(tabSize, indentSize, true, lineText, expectedOnOutdent);
+			testOutdent(tabSize, indentSize, false, lineText, expectedOnOutdent);
 
-			testOutdent(indentSize, spaceIndent, lineText, expectedOnOutdent);
-			testOutdent(indentSize, '\t', lineText, expectedOnOutdent);
-
-			testIndent(indentSize, spaceIndent, lineText, expectedOnIndent);
-			testIndent(indentSize, '\t', lineText, expectedOnIndent);
+			testIndent(tabSize, indentSize, true, lineText, expectedOnIndent);
+			testIndent(tabSize, indentSize, false, lineText, expectedOnIndent);
 		};
 
 		// insertSpaces: true
 		// 0 => 0
-		testIndentation(4, '', 0, 1);
+		testIndentation(4, 4, '', 0, 1);
 
 		// 1 => 0
-		testIndentation(4, '\t', 0, 2);
-		testIndentation(4, ' ', 0, 1);
-		testIndentation(4, ' \t', 0, 2);
-		testIndentation(4, '  ', 0, 1);
-		testIndentation(4, '  \t', 0, 2);
-		testIndentation(4, '   ', 0, 1);
-		testIndentation(4, '   \t', 0, 2);
-		testIndentation(4, '    ', 0, 2);
+		testIndentation(4, 4, '\t', 0, 2);
+		testIndentation(4, 4, ' ', 0, 1);
+		testIndentation(4, 4, ' \t', 0, 2);
+		testIndentation(4, 4, '  ', 0, 1);
+		testIndentation(4, 4, '  \t', 0, 2);
+		testIndentation(4, 4, '   ', 0, 1);
+		testIndentation(4, 4, '   \t', 0, 2);
+		testIndentation(4, 4, '    ', 0, 2);
 
 		// 2 => 1
-		testIndentation(4, '\t\t', 1, 3);
-		testIndentation(4, '\t ', 1, 2);
-		testIndentation(4, '\t \t', 1, 3);
-		testIndentation(4, '\t  ', 1, 2);
-		testIndentation(4, '\t  \t', 1, 3);
-		testIndentation(4, '\t   ', 1, 2);
-		testIndentation(4, '\t   \t', 1, 3);
-		testIndentation(4, '\t    ', 1, 3);
-		testIndentation(4, ' \t\t', 1, 3);
-		testIndentation(4, ' \t ', 1, 2);
-		testIndentation(4, ' \t \t', 1, 3);
-		testIndentation(4, ' \t  ', 1, 2);
-		testIndentation(4, ' \t  \t', 1, 3);
-		testIndentation(4, ' \t   ', 1, 2);
-		testIndentation(4, ' \t   \t', 1, 3);
-		testIndentation(4, ' \t    ', 1, 3);
-		testIndentation(4, '  \t\t', 1, 3);
-		testIndentation(4, '  \t ', 1, 2);
-		testIndentation(4, '  \t \t', 1, 3);
-		testIndentation(4, '  \t  ', 1, 2);
-		testIndentation(4, '  \t  \t', 1, 3);
-		testIndentation(4, '  \t   ', 1, 2);
-		testIndentation(4, '  \t   \t', 1, 3);
-		testIndentation(4, '  \t    ', 1, 3);
-		testIndentation(4, '   \t\t', 1, 3);
-		testIndentation(4, '   \t ', 1, 2);
-		testIndentation(4, '   \t \t', 1, 3);
-		testIndentation(4, '   \t  ', 1, 2);
-		testIndentation(4, '   \t  \t', 1, 3);
-		testIndentation(4, '   \t   ', 1, 2);
-		testIndentation(4, '   \t   \t', 1, 3);
-		testIndentation(4, '   \t    ', 1, 3);
-		testIndentation(4, '    \t', 1, 3);
-		testIndentation(4, '     ', 1, 2);
-		testIndentation(4, '     \t', 1, 3);
-		testIndentation(4, '      ', 1, 2);
-		testIndentation(4, '      \t', 1, 3);
-		testIndentation(4, '       ', 1, 2);
-		testIndentation(4, '       \t', 1, 3);
-		testIndentation(4, '        ', 1, 3);
+		testIndentation(4, 4, '\t\t', 1, 3);
+		testIndentation(4, 4, '\t ', 1, 2);
+		testIndentation(4, 4, '\t \t', 1, 3);
+		testIndentation(4, 4, '\t  ', 1, 2);
+		testIndentation(4, 4, '\t  \t', 1, 3);
+		testIndentation(4, 4, '\t   ', 1, 2);
+		testIndentation(4, 4, '\t   \t', 1, 3);
+		testIndentation(4, 4, '\t    ', 1, 3);
+		testIndentation(4, 4, ' \t\t', 1, 3);
+		testIndentation(4, 4, ' \t ', 1, 2);
+		testIndentation(4, 4, ' \t \t', 1, 3);
+		testIndentation(4, 4, ' \t  ', 1, 2);
+		testIndentation(4, 4, ' \t  \t', 1, 3);
+		testIndentation(4, 4, ' \t   ', 1, 2);
+		testIndentation(4, 4, ' \t   \t', 1, 3);
+		testIndentation(4, 4, ' \t    ', 1, 3);
+		testIndentation(4, 4, '  \t\t', 1, 3);
+		testIndentation(4, 4, '  \t ', 1, 2);
+		testIndentation(4, 4, '  \t \t', 1, 3);
+		testIndentation(4, 4, '  \t  ', 1, 2);
+		testIndentation(4, 4, '  \t  \t', 1, 3);
+		testIndentation(4, 4, '  \t   ', 1, 2);
+		testIndentation(4, 4, '  \t   \t', 1, 3);
+		testIndentation(4, 4, '  \t    ', 1, 3);
+		testIndentation(4, 4, '   \t\t', 1, 3);
+		testIndentation(4, 4, '   \t ', 1, 2);
+		testIndentation(4, 4, '   \t \t', 1, 3);
+		testIndentation(4, 4, '   \t  ', 1, 2);
+		testIndentation(4, 4, '   \t  \t', 1, 3);
+		testIndentation(4, 4, '   \t   ', 1, 2);
+		testIndentation(4, 4, '   \t   \t', 1, 3);
+		testIndentation(4, 4, '   \t    ', 1, 3);
+		testIndentation(4, 4, '    \t', 1, 3);
+		testIndentation(4, 4, '     ', 1, 2);
+		testIndentation(4, 4, '     \t', 1, 3);
+		testIndentation(4, 4, '      ', 1, 2);
+		testIndentation(4, 4, '      \t', 1, 3);
+		testIndentation(4, 4, '       ', 1, 2);
+		testIndentation(4, 4, '       \t', 1, 3);
+		testIndentation(4, 4, '        ', 1, 3);
 
 		// 3 => 2
-		testIndentation(4, '         ', 2, 3);
+		testIndentation(4, 4, '         ', 2, 3);
 
-		function _assertUnshiftCommand(indentSize: number, oneIndent: string, text: string[], expected: IIdentifiedSingleEditOperation[]): void {
+		function _assertUnshiftCommand(tabSize: number, indentSize: number, insertSpaces: boolean, text: string[], expected: IIdentifiedSingleEditOperation[]): void {
 			return withEditorModel(text, (model) => {
 				let op = new ShiftCommand(new Selection(1, 1, text.length + 1, 1), {
 					isUnshift: true,
+					tabSize: tabSize,
 					indentSize: indentSize,
-					oneIndent: oneIndent,
+					insertSpaces: insertSpaces,
 					useTabStops: true
 				});
 				let actual = getEditOperation(model, op);
@@ -953,12 +958,13 @@ suite('Editor Commands - ShiftCommand', () => {
 			});
 		}
 
-		function _assertShiftCommand(indentSize: number, oneIndent: string, text: string[], expected: IIdentifiedSingleEditOperation[]): void {
+		function _assertShiftCommand(tabSize: number, indentSize: number, insertSpaces: boolean, text: string[], expected: IIdentifiedSingleEditOperation[]): void {
 			return withEditorModel(text, (model) => {
 				let op = new ShiftCommand(new Selection(1, 1, text.length + 1, 1), {
 					isUnshift: false,
+					tabSize: tabSize,
 					indentSize: indentSize,
-					oneIndent: oneIndent,
+					insertSpaces: insertSpaces,
 					useTabStops: true
 				});
 				let actual = getEditOperation(model, op);
