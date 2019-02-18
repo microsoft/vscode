@@ -5,6 +5,7 @@
 
 import { localize } from 'vs/nls';
 import * as extpath from 'vs/base/common/extpath';
+import { join } from 'vs/base/common/path';
 import { forEach } from 'vs/base/common/collections';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { match } from 'vs/base/common/glob';
@@ -904,8 +905,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 					.replace('%APPDATA%', process.env['APPDATA']!);
 				promises.push(findExecutable(exeName, windowsPath));
 			} else {
-				promises.push(findExecutable(exeName, extpath.joinWithSlashes('/usr/local/bin', exeName)));
-				promises.push(findExecutable(exeName, extpath.joinWithSlashes(homeDir, exeName)));
+				promises.push(findExecutable(exeName, join('/usr/local/bin', exeName)));
+				promises.push(findExecutable(exeName, join(homeDir, exeName)));
 			}
 		});
 
