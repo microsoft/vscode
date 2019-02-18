@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { joinWithSlashes } from 'vs/base/common/extpath';
+import { join } from 'vs/base/common/path';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { FolderSettingsModelParser, WorkspaceConfigurationChangeEvent, StandaloneConfigurationModelParser, AllKeysConfigurationChangeEvent, Configuration } from 'vs/workbench/services/configuration/common/configurationModels';
 import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -123,76 +123,76 @@ suite('WorkspaceConfigurationChangeEvent', () => {
 
 		assert.ok(testObject.affectsConfiguration('window.zoomLevel'));
 		assert.ok(testObject.affectsConfiguration('window.zoomLevel', URI.file('folder1')));
-		assert.ok(testObject.affectsConfiguration('window.zoomLevel', URI.file(joinWithSlashes('folder1', 'file1'))));
+		assert.ok(testObject.affectsConfiguration('window.zoomLevel', URI.file(join('folder1', 'file1'))));
 		assert.ok(!testObject.affectsConfiguration('window.zoomLevel', URI.file('file1')));
 		assert.ok(!testObject.affectsConfiguration('window.zoomLevel', URI.file('file2')));
-		assert.ok(!testObject.affectsConfiguration('window.zoomLevel', URI.file(joinWithSlashes('folder2', 'file2'))));
-		assert.ok(!testObject.affectsConfiguration('window.zoomLevel', URI.file(joinWithSlashes('folder3', 'file3'))));
+		assert.ok(!testObject.affectsConfiguration('window.zoomLevel', URI.file(join('folder2', 'file2'))));
+		assert.ok(!testObject.affectsConfiguration('window.zoomLevel', URI.file(join('folder3', 'file3'))));
 
 		assert.ok(testObject.affectsConfiguration('window.restoreFullscreen'));
-		assert.ok(testObject.affectsConfiguration('window.restoreFullscreen', URI.file(joinWithSlashes('folder1', 'file1'))));
+		assert.ok(testObject.affectsConfiguration('window.restoreFullscreen', URI.file(join('folder1', 'file1'))));
 		assert.ok(testObject.affectsConfiguration('window.restoreFullscreen', URI.file('folder1')));
 		assert.ok(!testObject.affectsConfiguration('window.restoreFullscreen', URI.file('file1')));
 		assert.ok(!testObject.affectsConfiguration('window.restoreFullscreen', URI.file('file2')));
-		assert.ok(!testObject.affectsConfiguration('window.restoreFullscreen', URI.file(joinWithSlashes('folder2', 'file2'))));
-		assert.ok(!testObject.affectsConfiguration('window.restoreFullscreen', URI.file(joinWithSlashes('folder3', 'file3'))));
+		assert.ok(!testObject.affectsConfiguration('window.restoreFullscreen', URI.file(join('folder2', 'file2'))));
+		assert.ok(!testObject.affectsConfiguration('window.restoreFullscreen', URI.file(join('folder3', 'file3'))));
 
 		assert.ok(testObject.affectsConfiguration('window.restoreWindows'));
 		assert.ok(testObject.affectsConfiguration('window.restoreWindows', URI.file('folder2')));
-		assert.ok(testObject.affectsConfiguration('window.restoreWindows', URI.file(joinWithSlashes('folder2', 'file2'))));
+		assert.ok(testObject.affectsConfiguration('window.restoreWindows', URI.file(join('folder2', 'file2'))));
 		assert.ok(!testObject.affectsConfiguration('window.restoreWindows', URI.file('file2')));
-		assert.ok(!testObject.affectsConfiguration('window.restoreWindows', URI.file(joinWithSlashes('folder1', 'file1'))));
-		assert.ok(!testObject.affectsConfiguration('window.restoreWindows', URI.file(joinWithSlashes('folder3', 'file3'))));
+		assert.ok(!testObject.affectsConfiguration('window.restoreWindows', URI.file(join('folder1', 'file1'))));
+		assert.ok(!testObject.affectsConfiguration('window.restoreWindows', URI.file(join('folder3', 'file3'))));
 
 		assert.ok(testObject.affectsConfiguration('window.title'));
 		assert.ok(testObject.affectsConfiguration('window.title', URI.file('folder1')));
-		assert.ok(testObject.affectsConfiguration('window.title', URI.file(joinWithSlashes('folder1', 'file1'))));
+		assert.ok(testObject.affectsConfiguration('window.title', URI.file(join('folder1', 'file1'))));
 		assert.ok(testObject.affectsConfiguration('window.title', URI.file('folder2')));
-		assert.ok(testObject.affectsConfiguration('window.title', URI.file(joinWithSlashes('folder2', 'file2'))));
+		assert.ok(testObject.affectsConfiguration('window.title', URI.file(join('folder2', 'file2'))));
 		assert.ok(testObject.affectsConfiguration('window.title', URI.file('folder3')));
-		assert.ok(testObject.affectsConfiguration('window.title', URI.file(joinWithSlashes('folder3', 'file3'))));
+		assert.ok(testObject.affectsConfiguration('window.title', URI.file(join('folder3', 'file3'))));
 		assert.ok(testObject.affectsConfiguration('window.title', URI.file('file1')));
 		assert.ok(testObject.affectsConfiguration('window.title', URI.file('file2')));
 		assert.ok(testObject.affectsConfiguration('window.title', URI.file('file3')));
 
 		assert.ok(testObject.affectsConfiguration('window'));
 		assert.ok(testObject.affectsConfiguration('window', URI.file('folder1')));
-		assert.ok(testObject.affectsConfiguration('window', URI.file(joinWithSlashes('folder1', 'file1'))));
+		assert.ok(testObject.affectsConfiguration('window', URI.file(join('folder1', 'file1'))));
 		assert.ok(testObject.affectsConfiguration('window', URI.file('folder2')));
-		assert.ok(testObject.affectsConfiguration('window', URI.file(joinWithSlashes('folder2', 'file2'))));
+		assert.ok(testObject.affectsConfiguration('window', URI.file(join('folder2', 'file2'))));
 		assert.ok(testObject.affectsConfiguration('window', URI.file('folder3')));
-		assert.ok(testObject.affectsConfiguration('window', URI.file(joinWithSlashes('folder3', 'file3'))));
+		assert.ok(testObject.affectsConfiguration('window', URI.file(join('folder3', 'file3'))));
 		assert.ok(testObject.affectsConfiguration('window', URI.file('file1')));
 		assert.ok(testObject.affectsConfiguration('window', URI.file('file2')));
 		assert.ok(testObject.affectsConfiguration('window', URI.file('file3')));
 
 		assert.ok(testObject.affectsConfiguration('workbench.editor.enablePreview'));
 		assert.ok(testObject.affectsConfiguration('workbench.editor.enablePreview', URI.file('folder2')));
-		assert.ok(testObject.affectsConfiguration('workbench.editor.enablePreview', URI.file(joinWithSlashes('folder2', 'file2'))));
+		assert.ok(testObject.affectsConfiguration('workbench.editor.enablePreview', URI.file(join('folder2', 'file2'))));
 		assert.ok(!testObject.affectsConfiguration('workbench.editor.enablePreview', URI.file('folder1')));
-		assert.ok(!testObject.affectsConfiguration('workbench.editor.enablePreview', URI.file(joinWithSlashes('folder1', 'file1'))));
+		assert.ok(!testObject.affectsConfiguration('workbench.editor.enablePreview', URI.file(join('folder1', 'file1'))));
 		assert.ok(!testObject.affectsConfiguration('workbench.editor.enablePreview', URI.file('folder3')));
 
 		assert.ok(testObject.affectsConfiguration('workbench.editor'));
 		assert.ok(testObject.affectsConfiguration('workbench.editor', URI.file('folder2')));
-		assert.ok(testObject.affectsConfiguration('workbench.editor', URI.file(joinWithSlashes('folder2', 'file2'))));
+		assert.ok(testObject.affectsConfiguration('workbench.editor', URI.file(join('folder2', 'file2'))));
 		assert.ok(!testObject.affectsConfiguration('workbench.editor', URI.file('folder1')));
-		assert.ok(!testObject.affectsConfiguration('workbench.editor', URI.file(joinWithSlashes('folder1', 'file1'))));
+		assert.ok(!testObject.affectsConfiguration('workbench.editor', URI.file(join('folder1', 'file1'))));
 		assert.ok(!testObject.affectsConfiguration('workbench.editor', URI.file('folder3')));
 
 		assert.ok(testObject.affectsConfiguration('workbench'));
 		assert.ok(testObject.affectsConfiguration('workbench', URI.file('folder2')));
-		assert.ok(testObject.affectsConfiguration('workbench', URI.file(joinWithSlashes('folder2', 'file2'))));
+		assert.ok(testObject.affectsConfiguration('workbench', URI.file(join('folder2', 'file2'))));
 		assert.ok(!testObject.affectsConfiguration('workbench', URI.file('folder1')));
 		assert.ok(!testObject.affectsConfiguration('workbench', URI.file('folder3')));
 
 		assert.ok(!testObject.affectsConfiguration('files'));
 		assert.ok(!testObject.affectsConfiguration('files', URI.file('folder1')));
-		assert.ok(!testObject.affectsConfiguration('files', URI.file(joinWithSlashes('folder1', 'file1'))));
+		assert.ok(!testObject.affectsConfiguration('files', URI.file(join('folder1', 'file1'))));
 		assert.ok(!testObject.affectsConfiguration('files', URI.file('folder2')));
-		assert.ok(!testObject.affectsConfiguration('files', URI.file(joinWithSlashes('folder2', 'file2'))));
+		assert.ok(!testObject.affectsConfiguration('files', URI.file(join('folder2', 'file2'))));
 		assert.ok(!testObject.affectsConfiguration('files', URI.file('folder3')));
-		assert.ok(!testObject.affectsConfiguration('files', URI.file(joinWithSlashes('folder3', 'file3'))));
+		assert.ok(!testObject.affectsConfiguration('files', URI.file(join('folder3', 'file3'))));
 	});
 
 });
