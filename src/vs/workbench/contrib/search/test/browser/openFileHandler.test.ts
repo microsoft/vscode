@@ -8,7 +8,7 @@ import * as errors from 'vs/base/common/errors';
 import * as objects from 'vs/base/common/objects';
 import { CacheState } from 'vs/workbench/contrib/search/browser/openFileHandler';
 import { DeferredPromise } from 'vs/base/test/common/utils';
-import { QueryType, IFileQuery } from 'vs/platform/search/common/search';
+import { QueryType, IFileQuery } from 'vs/workbench/services/search/common/search';
 
 suite('CacheState', () => {
 

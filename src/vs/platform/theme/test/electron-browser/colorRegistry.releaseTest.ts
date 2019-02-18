@@ -14,7 +14,7 @@ import { buttonBackground } from 'vs/workbench/contrib/welcome/page/electron-bro
 import { embeddedEditorBackground } from 'vs/workbench/contrib/welcome/walkThrough/electron-browser/walkThroughPart';
 import { request, asText } from 'vs/base/node/request';
 import * as pfs from 'vs/base/node/pfs';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import * as assert from 'assert';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { CancellationToken } from 'vs/base/common/cancellation';

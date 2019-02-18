@@ -5,7 +5,7 @@
 
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { ISearchConfiguration, ISearchConfigurationProperties } from 'vs/platform/search/common/search';
+import { ISearchConfiguration, ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
 import { SymbolKind, Location, ProviderResult } from 'vs/editor/common/modes';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { URI } from 'vs/base/common/uri';

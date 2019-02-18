@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import * as paths from 'vs/base/common/paths';
+import { basename } from 'vs/base/common/resources';
 import { Action } from 'vs/base/common/actions';
 import { URI } from 'vs/base/common/uri';
 import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
@@ -44,7 +44,7 @@ const conflictEditorHelp = nls.localize('userGuide', "Use the actions in the edi
 export class SaveErrorHandler extends Disposable implements ISaveErrorHandler, IWorkbenchContribution {
 	private messages: ResourceMap<INotificationHandle>;
 	private conflictResolutionContext: IContextKey<boolean>;
-	private activeConflictResolutionResource: URI;
+	private activeConflictResolutionResource?: URI;
 
 	constructor(
 		@INotificationService private readonly notificationService: INotificationService,
@@ -77,7 +77,7 @@ export class SaveErrorHandler extends Disposable implements ISaveErrorHandler, I
 
 	private onActiveEditorChanged(): void {
 		let isActiveEditorSaveConflictResolution = false;
-		let activeConflictResolutionResource: URI;
+		let activeConflictResolutionResource: URI | undefined;
 
 		const activeInput = this.editorService.activeEditor;
 		if (activeInput instanceof DiffEditorInput && activeInput.originalInput instanceof ResourceEditorInput && activeInput.modifiedInput instanceof FileEditorInput) {
@@ -118,15 +118,15 @@ export class SaveErrorHandler extends Disposable implements ISaveErrorHandler, I
 
 				message = conflictEditorHelp;
 
-				actions.primary.push(this.instantiationService.createInstance(ResolveConflictLearnMoreAction));
-				actions.secondary.push(this.instantiationService.createInstance(DoNotShowResolveConflictLearnMoreAction));
+				actions.primary!.push(this.instantiationService.createInstance(ResolveConflictLearnMoreAction));
+				actions.secondary!.push(this.instantiationService.createInstance(DoNotShowResolveConflictLearnMoreAction));
 			}
 
 			// Otherwise show the message that will lead the user into the save conflict editor.
 			else {
-				message = nls.localize('staleSaveError', "Failed to save '{0}': The content on disk is newer. Please compare your version with the one on disk.", paths.basename(resource.fsPath));
+				message = nls.localize('staleSaveError', "Failed to save '{0}': The content on disk is newer. Please compare your version with the one on disk.", basename(resource));
 
-				actions.primary.push(this.instantiationService.createInstance(ResolveSaveConflictAction, model));
+				actions.primary!.push(this.instantiationService.createInstance(ResolveSaveConflictAction, model));
 			}
 		}
 
@@ -138,41 +138,41 @@ export class SaveErrorHandler extends Disposable implements ISaveErrorHandler, I
 
 			// Save Elevated
 			if (isPermissionDenied || triedToMakeWriteable) {
-				actions.primary.push(this.instantiationService.createInstance(SaveElevatedAction, model, triedToMakeWriteable));
+				actions.primary!.push(this.instantiationService.createInstance(SaveElevatedAction, model, triedToMakeWriteable));
 			}
 
 			// Overwrite
 			else if (isReadonly) {
-				actions.primary.push(this.instantiationService.createInstance(OverwriteReadonlyAction, model));
+				actions.primary!.push(this.instantiationService.createInstance(OverwriteReadonlyAction, model));
 			}
 
 			// Retry
 			else {
-				actions.primary.push(this.instantiationService.createInstance(ExecuteCommandAction, SAVE_FILE_COMMAND_ID, nls.localize('retry', "Retry")));
+				actions.primary!.push(this.instantiationService.createInstance(ExecuteCommandAction, SAVE_FILE_COMMAND_ID, nls.localize('retry', "Retry")));
 			}
 
 			// Save As
-			actions.primary.push(this.instantiationService.createInstance(ExecuteCommandAction, SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_AS_LABEL));
+			actions.primary!.push(this.instantiationService.createInstance(ExecuteCommandAction, SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_AS_LABEL));
 
 			// Discard
-			actions.primary.push(this.instantiationService.createInstance(ExecuteCommandAction, REVERT_FILE_COMMAND_ID, nls.localize('discard', "Discard")));
+			actions.primary!.push(this.instantiationService.createInstance(ExecuteCommandAction, REVERT_FILE_COMMAND_ID, nls.localize('discard', "Discard")));
 
 			if (isReadonly) {
 				if (triedToMakeWriteable) {
-					message = isWindows ? nls.localize('readonlySaveErrorAdmin', "Failed to save '{0}': File is write protected. Select 'Overwrite as Admin' to retry as administrator.", paths.basename(resource.fsPath)) : nls.localize('readonlySaveErrorSudo', "Failed to save '{0}': File is write protected. Select 'Overwrite as Sudo' to retry as superuser.", paths.basename(resource.fsPath));
+					message = isWindows ? nls.localize('readonlySaveErrorAdmin', "Failed to save '{0}': File is write protected. Select 'Overwrite as Admin' to retry as administrator.", basename(resource)) : nls.localize('readonlySaveErrorSudo', "Failed to save '{0}': File is write protected. Select 'Overwrite as Sudo' to retry as superuser.", basename(resource));
 				} else {
-					message = nls.localize('readonlySaveError', "Failed to save '{0}': File is write protected. Select 'Overwrite' to attempt to remove protection.", paths.basename(resource.fsPath));
+					message = nls.localize('readonlySaveError', "Failed to save '{0}': File is write protected. Select 'Overwrite' to attempt to remove protection.", basename(resource));
 				}
 			} else if (isPermissionDenied) {
-				message = isWindows ? nls.localize('permissionDeniedSaveError', "Failed to save '{0}': Insufficient permissions. Select 'Retry as Admin' to retry as administrator.", paths.basename(resource.fsPath)) : nls.localize('permissionDeniedSaveErrorSudo', "Failed to save '{0}': Insufficient permissions. Select 'Retry as Sudo' to retry as superuser.", paths.basename(resource.fsPath));
+				message = isWindows ? nls.localize('permissionDeniedSaveError', "Failed to save '{0}': Insufficient permissions. Select 'Retry as Admin' to retry as administrator.", basename(resource)) : nls.localize('permissionDeniedSaveErrorSudo', "Failed to save '{0}': Insufficient permissions. Select 'Retry as Sudo' to retry as superuser.", basename(resource));
 			} else {
-				message = nls.localize('genericSaveError', "Failed to save '{0}': {1}", paths.basename(resource.fsPath), toErrorMessage(error, false));
+				message = nls.localize('genericSaveError', "Failed to save '{0}': {1}", basename(resource), toErrorMessage(error, false));
 			}
 		}
 
 		// Show message and keep function to hide in case the file gets saved/reverted
 		const handle = this.notificationService.notify({ severity: Severity.Error, message, actions });
-		Event.once(handle.onDidClose)(() => dispose(...actions.primary, ...actions.secondary));
+		Event.once(handle.onDidClose)(() => dispose(...actions.primary!, ...actions.secondary!));
 		this.messages.set(model.getResource(), handle);
 	}
 
@@ -186,7 +186,10 @@ export class SaveErrorHandler extends Disposable implements ISaveErrorHandler, I
 const pendingResolveSaveConflictMessages: INotificationHandle[] = [];
 function clearPendingResolveSaveConflictMessages(): void {
 	while (pendingResolveSaveConflictMessages.length > 0) {
-		pendingResolveSaveConflictMessages.pop().close();
+		const item = pendingResolveSaveConflictMessages.pop();
+		if (item) {
+			item.close();
+		}
 	}
 }
 
@@ -237,7 +240,7 @@ class ResolveSaveConflictAction extends Action {
 	run(): Promise<any> {
 		if (!this.model.isDisposed()) {
 			const resource = this.model.getResource();
-			const name = paths.basename(resource.fsPath);
+			const name = basename(resource);
 			const editorLabel = nls.localize('saveConflictDiffLabel', "{0} (on disk) ↔ {1} (in {2}) - Resolve save conflict", name, name, this.environmentService.appNameLong);
 
 			return this.editorService.openEditor(
@@ -254,11 +257,11 @@ class ResolveSaveConflictAction extends Action {
 
 				// Show additional help how to resolve the save conflict
 				const actions: INotificationActions = { primary: [], secondary: [] };
-				actions.primary.push(this.instantiationService.createInstance(ResolveConflictLearnMoreAction));
-				actions.secondary.push(this.instantiationService.createInstance(DoNotShowResolveConflictLearnMoreAction));
+				actions.primary!.push(this.instantiationService.createInstance(ResolveConflictLearnMoreAction));
+				actions.secondary!.push(this.instantiationService.createInstance(DoNotShowResolveConflictLearnMoreAction));
 
 				const handle = this.notificationService.notify({ severity: Severity.Info, message: conflictEditorHelp, actions });
-				Event.once(handle.onDidClose)(() => dispose(...actions.primary, ...actions.secondary));
+				Event.once(handle.onDidClose)(() => dispose(...actions.primary!, ...actions.secondary!));
 				pendingResolveSaveConflictMessages.push(handle);
 			});
 		}

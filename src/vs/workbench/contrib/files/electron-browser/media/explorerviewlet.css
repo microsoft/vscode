@@ -120,8 +120,8 @@
 	line-height: normal;
 }
 
-.linux > .monaco-workbench .explorer-viewlet .explorer-item .monaco-inputbox,
-.mac > .monaco-workbench .explorer-viewlet .explorer-item .monaco-inputbox {
+.monaco-workbench.linux .explorer-viewlet .explorer-item .monaco-inputbox,
+.monaco-workbench.mac .explorer-viewlet .explorer-item .monaco-inputbox {
 	height: 22px;
 }
 

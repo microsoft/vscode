@@ -18,6 +18,8 @@ import { IExtensionManifest, ExtensionType } from 'vs/platform/extensions/common
 export const VIEWLET_ID = 'workbench.view.extensions';
 export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(VIEWLET_ID);
 
+export const EXTENSIONS_CONFIG = '.vscode/extensions.json';
+
 export interface IExtensionsViewlet extends IViewlet {
 	search(text: string): void;
 }

@@ -83,7 +83,7 @@ function codeActionsComparator(a: CodeAction, b: CodeAction): number {
 }
 
 registerLanguageCommand('_executeCodeActionProvider', function (accessor, args) {
-	const { resource, range } = args;
+	const { resource, range, kind } = args;
 	if (!(resource instanceof URI) || !Range.isIRange(range)) {
 		throw illegalArgument();
 	}
@@ -96,6 +96,6 @@ registerLanguageCommand('_executeCodeActionProvider', function (accessor, args) 
 	return getCodeActions(
 		model,
 		model.validateRange(range),
-		{ type: 'manual', filter: { includeSourceActions: true } },
+		{ type: 'manual', filter: { includeSourceActions: true, kind: kind ? new CodeActionKind(kind) : undefined } },
 		CancellationToken.None);
 });

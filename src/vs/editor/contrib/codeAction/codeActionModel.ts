@@ -169,18 +169,18 @@ export namespace CodeActionsState {
 
 export class CodeActionModel {
 
-	private _editor: ICodeEditor;
-	private _markerService: IMarkerService;
 	private _codeActionOracle?: CodeActionOracle;
 	private _state: CodeActionsState.State = CodeActionsState.Empty;
 	private _onDidChangeState = new Emitter<CodeActionsState.State>();
 	private _disposables: IDisposable[] = [];
 	private readonly _supportedCodeActions: IContextKey<string>;
 
-	constructor(editor: ICodeEditor, markerService: IMarkerService, contextKeyService: IContextKeyService, private readonly _progressService: IProgressService) {
-		this._editor = editor;
-		this._markerService = markerService;
-
+	constructor(
+		private readonly _editor: ICodeEditor,
+		private readonly _markerService: IMarkerService,
+		contextKeyService: IContextKeyService,
+		private readonly _progressService: IProgressService
+	) {
 		this._supportedCodeActions = SUPPORTED_CODE_ACTIONS.bindTo(contextKeyService);
 
 		this._disposables.push(this._editor.onDidChangeModel(() => this._update()));
@@ -206,7 +206,7 @@ export class CodeActionModel {
 		}
 
 		if (this._state.type === CodeActionsState.Type.Triggered) {
-			// this._state.actions.cancel();
+			this._state.actions.cancel();
 		}
 		this.setState(CodeActionsState.Empty);
 

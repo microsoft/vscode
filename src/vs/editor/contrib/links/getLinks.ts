@@ -33,14 +33,18 @@ export class Link implements ILink {
 		return this._link.range;
 	}
 
-	get url(): string | undefined {
+	get url(): URI | string | undefined {
 		return this._link.url;
 	}
 
 	resolve(token: CancellationToken): Promise<URI> {
 		if (this._link.url) {
 			try {
-				return Promise.resolve(URI.parse(this._link.url));
+				if (typeof this._link.url === 'string') {
+					return Promise.resolve(URI.parse(this._link.url));
+				} else {
+					return Promise.resolve(this._link.url);
+				}
 			} catch (e) {
 				return Promise.reject(new Error('invalid'));
 			}

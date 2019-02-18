@@ -5,7 +5,7 @@
 
 import * as sinon from 'sinon';
 import * as assert from 'assert';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as uuid from 'vs/base/common/uuid';

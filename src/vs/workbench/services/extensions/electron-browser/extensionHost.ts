@@ -21,7 +21,7 @@ import { IRemoteConsoleLog, log, parse } from 'vs/base/node/console';
 import { findFreePort, randomPort } from 'vs/base/node/ports';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
 import { Protocol, generateRandomPipeName, BufferedProtocol } from 'vs/base/parts/ipc/node/ipc.net';
-import { IBroadcast, IBroadcastService } from 'vs/platform/broadcast/electron-browser/broadcastService';
+import { IBroadcast, IBroadcastService } from 'vs/workbench/services/broadcast/electron-browser/broadcastService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { EXTENSION_ATTACH_BROADCAST_CHANNEL, EXTENSION_CLOSE_EXTHOST_BROADCAST_CHANNEL, EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_RELOAD_BROADCAST_CHANNEL, EXTENSION_TERMINATE_BROADCAST_CHANNEL } from 'vs/platform/extensions/common/extensionHost';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -34,7 +34,6 @@ import { IWindowService, IWindowsService } from 'vs/platform/windows/common/wind
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IInitData } from 'vs/workbench/api/node/extHost.protocol';
 import { MessageType, createMessageOfType, isMessageOfType } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
-import { ICrashReporterService } from 'vs/workbench/services/crashReporter/electron-browser/crashReporterService';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 
 export interface IExtensionHostStarter {
@@ -101,7 +100,6 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@ICrashReporterService private readonly _crashReporterService: ICrashReporterService,
 		@ILogService private readonly _logService: ILogService,
 		@ILabelService private readonly _labelService: ILabelService
 	) {
@@ -196,7 +194,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 					}
 				}
 
-				const crashReporterOptions = this._crashReporterService.getChildProcessStartOptions('extensionHost');
+				const crashReporterOptions = undefined; // TODO@electron pass this in as options to the extension host after verifying this actually works
 				if (crashReporterOptions) {
 					opts.env.CRASH_REPORTER_START_OPTIONS = JSON.stringify(crashReporterOptions);
 				}
@@ -437,11 +435,11 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 					},
 					workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? undefined : {
 						configuration: workspace.configuration || undefined,
-						folders: workspace.folders,
 						id: workspace.id,
 						name: this._labelService.getWorkspaceLabel(workspace)
 					},
 					resolvedExtensions: [],
+					hostExtensions: [],
 					extensions: extensionDescriptions,
 					telemetryInfo,
 					logLevel: this._logService.getLevel(),

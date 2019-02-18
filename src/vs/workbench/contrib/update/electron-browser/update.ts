@@ -35,7 +35,7 @@ function showReleaseNotes(instantiationService: IInstantiationService, version: 
 		releaseNotesManager = instantiationService.createInstance(ReleaseNotesManager);
 	}
 
-	return instantiationService.invokeFunction(accessor => releaseNotesManager.show(accessor, version));
+	return instantiationService.invokeFunction(accessor => releaseNotesManager!.show(accessor, version));
 }
 
 export class OpenLatestReleaseNotesInBrowserAction extends Action {
@@ -43,7 +43,7 @@ export class OpenLatestReleaseNotesInBrowserAction extends Action {
 	constructor(
 		@IOpenerService private readonly openerService: IOpenerService
 	) {
-		super('update.openLatestReleaseNotes', nls.localize('releaseNotes', "Release Notes"), null, true);
+		super('update.openLatestReleaseNotes', nls.localize('releaseNotes', "Release Notes"), undefined, true);
 	}
 
 	run(): Promise<any> {
@@ -63,7 +63,7 @@ export abstract class AbstractShowReleaseNotesAction extends Action {
 		private version: string,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
-		super(id, label, null, true);
+		super(id, label, undefined, true);
 	}
 
 	run(): Promise<boolean> {
@@ -461,7 +461,7 @@ export class UpdateContribution implements IGlobalActivity {
 
 		// if version != stored version, save version and date
 		if (currentVersion !== lastKnownVersion) {
-			this.storageService.store('update/lastKnownVersion', currentVersion, StorageScope.GLOBAL);
+			this.storageService.store('update/lastKnownVersion', currentVersion!, StorageScope.GLOBAL);
 			this.storageService.store('update/updateNotificationTime', currentMillis, StorageScope.GLOBAL);
 		}
 
@@ -510,7 +510,7 @@ export class UpdateContribution implements IGlobalActivity {
 				return new Action('update.checking', nls.localize('checkingForUpdates', "Checking For Updates..."), undefined, false);
 
 			case StateType.AvailableForDownload:
-				return new Action('update.downloadNow', nls.localize('download now', "Download Now"), null, true, () =>
+				return new Action('update.downloadNow', nls.localize('download now', "Download Now"), undefined, true, () =>
 					this.updateService.downloadUpdate());
 
 			case StateType.Downloading:

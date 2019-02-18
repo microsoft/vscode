@@ -163,6 +163,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 	public static DEFAULT_CREATION_OPTIONS: model.ITextModelCreationOptions = {
 		isForSimpleWidget: false,
 		tabSize: EDITOR_MODEL_DEFAULTS.tabSize,
+		indentSize: EDITOR_MODEL_DEFAULTS.indentSize,
 		insertSpaces: EDITOR_MODEL_DEFAULTS.insertSpaces,
 		detectIndentation: false,
 		defaultEOL: model.DefaultEndOfLine.LF,
@@ -179,6 +180,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 			const guessedIndentation = guessIndentation(textBuffer, options.tabSize, options.insertSpaces);
 			return new model.TextModelResolvedOptions({
 				tabSize: guessedIndentation.tabSize,
+				indentSize: guessedIndentation.tabSize, // TODO@Alex: guess indentSize independent of tabSize
 				insertSpaces: guessedIndentation.insertSpaces,
 				trimAutoWhitespace: options.trimAutoWhitespace,
 				defaultEOL: options.defaultEOL
@@ -187,6 +189,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 		return new model.TextModelResolvedOptions({
 			tabSize: options.tabSize,
+			indentSize: options.indentSize,
 			insertSpaces: options.insertSpaces,
 			trimAutoWhitespace: options.trimAutoWhitespace,
 			defaultEOL: options.defaultEOL
@@ -590,11 +593,13 @@ export class TextModel extends Disposable implements model.ITextModel {
 	public updateOptions(_newOpts: model.ITextModelUpdateOptions): void {
 		this._assertNotDisposed();
 		let tabSize = (typeof _newOpts.tabSize !== 'undefined') ? _newOpts.tabSize : this._options.tabSize;
+		let indentSize = (typeof _newOpts.indentSize !== 'undefined') ? _newOpts.indentSize : this._options.indentSize;
 		let insertSpaces = (typeof _newOpts.insertSpaces !== 'undefined') ? _newOpts.insertSpaces : this._options.insertSpaces;
 		let trimAutoWhitespace = (typeof _newOpts.trimAutoWhitespace !== 'undefined') ? _newOpts.trimAutoWhitespace : this._options.trimAutoWhitespace;
 
 		let newOpts = new model.TextModelResolvedOptions({
 			tabSize: tabSize,
+			indentSize: indentSize,
 			insertSpaces: insertSpaces,
 			defaultEOL: this._options.defaultEOL,
 			trimAutoWhitespace: trimAutoWhitespace
@@ -615,15 +620,16 @@ export class TextModel extends Disposable implements model.ITextModel {
 		let guessedIndentation = guessIndentation(this._buffer, defaultTabSize, defaultInsertSpaces);
 		this.updateOptions({
 			insertSpaces: guessedIndentation.insertSpaces,
-			tabSize: guessedIndentation.tabSize
+			tabSize: guessedIndentation.tabSize,
+			indentSize: guessedIndentation.tabSize, // TODO@Alex: guess indentSize independent of tabSize
 		});
 	}
 
-	private static _normalizeIndentationFromWhitespace(str: string, tabSize: number, insertSpaces: boolean): string {
+	private static _normalizeIndentationFromWhitespace(str: string, indentSize: number, insertSpaces: boolean): string {
 		let spacesCnt = 0;
 		for (let i = 0; i < str.length; i++) {
 			if (str.charAt(i) === '\t') {
-				spacesCnt += tabSize;
+				spacesCnt += indentSize;
 			} else {
 				spacesCnt++;
 			}
@@ -631,8 +637,8 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 		let result = '';
 		if (!insertSpaces) {
-			let tabsCnt = Math.floor(spacesCnt / tabSize);
-			spacesCnt = spacesCnt % tabSize;
+			let tabsCnt = Math.floor(spacesCnt / indentSize);
+			spacesCnt = spacesCnt % indentSize;
 			for (let i = 0; i < tabsCnt; i++) {
 				result += '\t';
 			}
@@ -645,33 +651,17 @@ export class TextModel extends Disposable implements model.ITextModel {
 		return result;
 	}
 
-	public static normalizeIndentation(str: string, tabSize: number, insertSpaces: boolean): string {
+	public static normalizeIndentation(str: string, indentSize: number, insertSpaces: boolean): string {
 		let firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(str);
 		if (firstNonWhitespaceIndex === -1) {
 			firstNonWhitespaceIndex = str.length;
 		}
-		return TextModel._normalizeIndentationFromWhitespace(str.substring(0, firstNonWhitespaceIndex), tabSize, insertSpaces) + str.substring(firstNonWhitespaceIndex);
+		return TextModel._normalizeIndentationFromWhitespace(str.substring(0, firstNonWhitespaceIndex), indentSize, insertSpaces) + str.substring(firstNonWhitespaceIndex);
 	}
 
 	public normalizeIndentation(str: string): string {
 		this._assertNotDisposed();
-		return TextModel.normalizeIndentation(str, this._options.tabSize, this._options.insertSpaces);
-	}
-
-	public getOneIndent(): string {
-		this._assertNotDisposed();
-		let tabSize = this._options.tabSize;
-		let insertSpaces = this._options.insertSpaces;
-
-		if (insertSpaces) {
-			let result = '';
-			for (let i = 0; i < tabSize; i++) {
-				result += ' ';
-			}
-			return result;
-		} else {
-			return '\t';
-		}
+		return TextModel.normalizeIndentation(str, this._options.indentSize, this._options.insertSpaces);
 	}
 
 	//#endregion
@@ -2574,7 +2564,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 					// Use the line's indent
 					up_belowContentLineIndex = upLineNumber - 1;
 					up_belowContentLineIndent = currentIndent;
-					upLineIndentLevel = Math.ceil(currentIndent / this._options.tabSize);
+					upLineIndentLevel = Math.ceil(currentIndent / this._options.indentSize);
 				} else {
 					up_resolveIndents(upLineNumber);
 					upLineIndentLevel = this._getIndentLevelForWhitespaceLine(offSide, up_aboveContentLineIndent, up_belowContentLineIndent);
@@ -2609,7 +2599,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 					// Use the line's indent
 					down_aboveContentLineIndex = downLineNumber - 1;
 					down_aboveContentLineIndent = currentIndent;
-					downLineIndentLevel = Math.ceil(currentIndent / this._options.tabSize);
+					downLineIndentLevel = Math.ceil(currentIndent / this._options.indentSize);
 				} else {
 					down_resolveIndents(downLineNumber);
 					downLineIndentLevel = this._getIndentLevelForWhitespaceLine(offSide, down_aboveContentLineIndent, down_belowContentLineIndent);
@@ -2657,7 +2647,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 				// Use the line's indent
 				aboveContentLineIndex = lineNumber - 1;
 				aboveContentLineIndent = currentIndent;
-				result[resultIndex] = Math.ceil(currentIndent / this._options.tabSize);
+				result[resultIndex] = Math.ceil(currentIndent / this._options.indentSize);
 				continue;
 			}
 
@@ -2704,20 +2694,20 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 		} else if (aboveContentLineIndent < belowContentLineIndent) {
 			// we are inside the region above
-			return (1 + Math.floor(aboveContentLineIndent / this._options.tabSize));
+			return (1 + Math.floor(aboveContentLineIndent / this._options.indentSize));
 
 		} else if (aboveContentLineIndent === belowContentLineIndent) {
 			// we are in between two regions
-			return Math.ceil(belowContentLineIndent / this._options.tabSize);
+			return Math.ceil(belowContentLineIndent / this._options.indentSize);
 
 		} else {
 
 			if (offSide) {
 				// same level as region below
-				return Math.ceil(belowContentLineIndent / this._options.tabSize);
+				return Math.ceil(belowContentLineIndent / this._options.indentSize);
 			} else {
 				// we are inside the region that ends below
-				return (1 + Math.floor(belowContentLineIndent / this._options.tabSize));
+				return (1 + Math.floor(belowContentLineIndent / this._options.indentSize));
 			}
 
 		}

@@ -150,11 +150,9 @@ export class MenuBar extends Disposable {
 		this._register(DOM.addDisposableListener(this.container, DOM.EventType.FOCUS_OUT, (e) => {
 			let event = e as FocusEvent;
 
-			if (event.relatedTarget) {
-				if (!this.container.contains(event.relatedTarget as HTMLElement)) {
-					this.focusToReturn = undefined;
-					this.setUnfocusedState();
-				}
+			if (!event.relatedTarget || !this.container.contains(event.relatedTarget as HTMLElement)) {
+				this.focusToReturn = undefined;
+				this.setUnfocusedState();
 			}
 		}));
 

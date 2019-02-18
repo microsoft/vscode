@@ -42,7 +42,7 @@
 }
 
 .comments-panel .comments-panel-container .tree-container .comment-container .text code {
-	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+	font-family: var(--monaco-monospace-font);
 }
 
 .comments-panel .comments-panel-container .message-box-container {

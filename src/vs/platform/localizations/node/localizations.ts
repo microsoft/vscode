@@ -16,7 +16,7 @@ import product from 'vs/platform/node/product';
 import { distinct, equals } from 'vs/base/common/arrays';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
-import { posix } from 'path';
+import { join } from 'vs/base/common/path';
 
 interface ILanguagePack {
 	hash: string;
@@ -105,7 +105,7 @@ class LanguagePacksCache extends Disposable {
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
-		this.languagePacksFilePath = posix.join(environmentService.userDataPath, 'languagepacks.json');
+		this.languagePacksFilePath = join(environmentService.userDataPath, 'languagepacks.json');
 		this.languagePacksFileLimiter = new Queue();
 	}
 
@@ -151,7 +151,7 @@ class LanguagePacksCache extends Disposable {
 					languagePack.extensions.push({ extensionIdentifier, version: extension.manifest.version });
 				}
 				for (const translation of localizationContribution.translations) {
-					languagePack.translations[translation.id] = posix.join(extension.location.fsPath, translation.path);
+					languagePack.translations[translation.id] = join(extension.location.fsPath, translation.path);
 				}
 			}
 		}

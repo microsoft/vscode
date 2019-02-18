@@ -7,6 +7,12 @@ import { IExtensionDescription } from 'vs/workbench/services/extensions/common/e
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { Emitter } from 'vs/base/common/event';
 
+export class DeltaExtensionsResult {
+	constructor(
+		public readonly removedDueToLooping: IExtensionDescription[]
+	) { }
+}
+
 export class ExtensionDescriptionRegistry {
 	private readonly _onDidChange = new Emitter<void>();
 	public readonly onDidChange = this._onDidChange.event;
@@ -60,17 +66,118 @@ export class ExtensionDescriptionRegistry {
 		this._onDidChange.fire(undefined);
 	}
 
-	public deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]) {
-		this._extensionDescriptions = this._extensionDescriptions.concat(toAdd);
-		const toRemoveSet = new Set<string>();
-		toRemove.forEach(extensionId => toRemoveSet.add(ExtensionIdentifier.toKey(extensionId)));
-		this._extensionDescriptions = this._extensionDescriptions.filter(extension => !toRemoveSet.has(ExtensionIdentifier.toKey(extension.identifier)));
+	public deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): DeltaExtensionsResult {
+		if (toAdd.length > 0) {
+			this._extensionDescriptions = this._extensionDescriptions.concat(toAdd);
+		}
+
+		// Immediately remove looping extensions!
+		const looping = ExtensionDescriptionRegistry._findLoopingExtensions(this._extensionDescriptions);
+		toRemove = toRemove.concat(looping.map(ext => ext.identifier));
+
+		if (toRemove.length > 0) {
+			const toRemoveSet = new Set<string>();
+			toRemove.forEach(extensionId => toRemoveSet.add(ExtensionIdentifier.toKey(extensionId)));
+			this._extensionDescriptions = this._extensionDescriptions.filter(extension => !toRemoveSet.has(ExtensionIdentifier.toKey(extension.identifier)));
+		}
+
 		this._initialize();
 		this._onDidChange.fire(undefined);
+		return new DeltaExtensionsResult(looping);
+	}
+
+	private static _findLoopingExtensions(extensionDescriptions: IExtensionDescription[]): IExtensionDescription[] {
+		const G = new class {
+
+			private _arcs = new Map<string, string[]>();
+			private _nodesSet = new Set<string>();
+			private _nodesArr: string[] = [];
+
+			addNode(id: string): void {
+				if (!this._nodesSet.has(id)) {
+					this._nodesSet.add(id);
+					this._nodesArr.push(id);
+				}
+			}
+
+			addArc(from: string, to: string): void {
+				this.addNode(from);
+				this.addNode(to);
+				if (this._arcs.has(from)) {
+					this._arcs.get(from)!.push(to);
+				} else {
+					this._arcs.set(from, [to]);
+				}
+			}
+
+			getArcs(id: string): string[] {
+				if (this._arcs.has(id)) {
+					return this._arcs.get(id)!;
+				}
+				return [];
+			}
+
+			hasOnlyGoodArcs(id: string, good: Set<string>): boolean {
+				const dependencies = G.getArcs(id);
+				for (let i = 0; i < dependencies.length; i++) {
+					if (!good.has(dependencies[i])) {
+						return false;
+					}
+				}
+				return true;
+			}
+
+			getNodes(): string[] {
+				return this._nodesArr;
+			}
+		};
+
+		let descs = new Map<string, IExtensionDescription>();
+		for (let extensionDescription of extensionDescriptions) {
+			const extensionId = ExtensionIdentifier.toKey(extensionDescription.identifier);
+			descs.set(extensionId, extensionDescription);
+			if (extensionDescription.extensionDependencies) {
+				for (let _depId of extensionDescription.extensionDependencies) {
+					const depId = ExtensionIdentifier.toKey(_depId);
+					G.addArc(extensionId, depId);
+				}
+			}
+		}
+
+		// initialize with all extensions with no dependencies.
+		let good = new Set<string>();
+		G.getNodes().filter(id => G.getArcs(id).length === 0).forEach(id => good.add(id));
+
+		// all other extensions will be processed below.
+		let nodes = G.getNodes().filter(id => !good.has(id));
+
+		let madeProgress: boolean;
+		do {
+			madeProgress = false;
+
+			// find one extension which has only good deps
+			for (let i = 0; i < nodes.length; i++) {
+				const id = nodes[i];
+
+				if (G.hasOnlyGoodArcs(id, good)) {
+					nodes.splice(i, 1);
+					i--;
+					good.add(id);
+					madeProgress = true;
+				}
+			}
+		} while (madeProgress);
+
+		// The remaining nodes are bad and have loops
+		return nodes.map(id => descs.get(id)!);
 	}
 
 	public containsActivationEvent(activationEvent: string): boolean {
 		return this._activationMap.has(activationEvent);
+	}
+
+	public containsExtension(extensionId: ExtensionIdentifier): boolean {
+		return this._extensionsMap.has(ExtensionIdentifier.toKey(extensionId));
 	}
 
 	public getExtensionDescriptionsForActivationEvent(activationEvent: string): IExtensionDescription[] {
@@ -82,8 +189,8 @@ export class ExtensionDescriptionRegistry {
 		return this._extensionsArr.slice(0);
 	}
 
-	public getExtensionDescription(extensionId: ExtensionIdentifier | string): IExtensionDescription | null {
+	public getExtensionDescription(extensionId: ExtensionIdentifier | string): IExtensionDescription | undefined {
 		const extension = this._extensionsMap.get(ExtensionIdentifier.toKey(extensionId));
-		return extension ? extension : null;
+		return extension ? extension : undefined;
 	}
 }

@@ -62,7 +62,7 @@ export class ViewletActivityAction extends ActivityAction {
 		if (sideBarVisible && activeViewlet && activeViewlet.getId() === this.activity.id) {
 			this.logAction('hide');
 			this.partService.setSideBarHidden(true);
-			return Promise.resolve(null);
+			return Promise.resolve();
 		}
 
 		this.logAction('show');
@@ -97,7 +97,7 @@ export class ToggleViewletAction extends Action {
 		// Hide sidebar if selected viewlet already visible
 		if (sideBarVisible && activeViewlet && activeViewlet.getId() === this._viewlet.id) {
 			this.partService.setSideBarHidden(true);
-			return Promise.resolve(null);
+			return Promise.resolve();
 		}
 
 		return this.viewletService.openViewlet(this._viewlet.id, true);
@@ -211,9 +211,9 @@ class SwitchSideBarViewAction extends Action {
 
 		const activeViewlet = this.viewletService.getActiveViewlet();
 		if (!activeViewlet) {
-			return Promise.resolve(null);
+			return Promise.resolve();
 		}
-		let targetViewletId: string;
+		let targetViewletId: string | undefined;
 		for (let i = 0; i < pinnedViewletIds.length; i++) {
 			if (pinnedViewletIds[i] === activeViewlet.getId()) {
 				targetViewletId = pinnedViewletIds[(i + pinnedViewletIds.length + offset) % pinnedViewletIds.length];

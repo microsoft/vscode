@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import * as platform from 'vs/base/common/platform';
 import * as os from 'os';
 import * as fs from 'fs';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import * as pfs from 'vs/base/node/pfs';
 import { URI as Uri } from 'vs/base/common/uri';
 import { BackupFileService, BackupFilesModel, hashPath } from 'vs/workbench/services/backup/node/backupFileService';

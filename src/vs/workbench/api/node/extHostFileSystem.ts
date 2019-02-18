@@ -8,7 +8,7 @@ import { MainContext, IMainContext, ExtHostFileSystemShape, MainThreadFileSystem
 import * as vscode from 'vscode';
 import * as files from 'vs/platform/files/common/files';
 import { IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
-import { FileChangeType, DocumentLink } from 'vs/workbench/api/node/extHostTypes';
+import { FileChangeType } from 'vs/workbench/api/node/extHostTypes';
 import * as typeConverter from 'vs/workbench/api/node/extHostTypeConverters';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFeatures';
 import { Schemas } from 'vs/base/common/network';
@@ -94,11 +94,9 @@ class FsLinkProvider {
 		}, this._stateMachine);
 
 		for (const link of links) {
-			try {
-				let uri = URI.parse(link.url, true);
-				result.push(new DocumentLink(typeConverter.Range.to(link.range), uri));
-			} catch (err) {
-				// ignore
+			let docLink = typeConverter.DocumentLink.to(link);
+			if (docLink.target) {
+				result.push(docLink);
 			}
 		}
 		return result;

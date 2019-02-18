@@ -38,7 +38,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 	constructor(
 		private modeId: string,
 		private resource: URI,
-		private hasAssociatedFilePath: boolean,
+		private _hasAssociatedFilePath: boolean,
 		private initialValue: string,
 		private preferredEncoding: string,
 		@IModeService modeService: IModeService,
@@ -54,6 +54,10 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 		this.contentChangeEventScheduler = this._register(new RunOnceScheduler(() => this._onDidChangeContent.fire(), UntitledEditorModel.DEFAULT_CONTENT_CHANGE_BUFFER_DELAY));
 
 		this.registerListeners();
+	}
+
+	get hasAssociatedFilePath(): boolean {
+		return this._hasAssociatedFilePath;
 	}
 
 	protected getOrCreateMode(modeService: IModeService, modeId: string, firstLineText?: string): ILanguageSelection {
@@ -145,7 +149,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 			const hasBackup = !!backupTextBufferFactory;
 
 			// untitled associated to file path are dirty right away as well as untitled with content
-			this.setDirty(this.hasAssociatedFilePath || hasBackup);
+			this.setDirty(this._hasAssociatedFilePath || hasBackup);
 
 			let untitledContents: ITextBufferFactory;
 			if (backupTextBufferFactory) {
@@ -182,7 +186,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 
 		// mark the untitled editor as non-dirty once its content becomes empty and we do
 		// not have an associated path set. we never want dirty indicator in that case.
-		if (!this.hasAssociatedFilePath && this.textEditorModel.getLineCount() === 1 && this.textEditorModel.getLineContent(1) === '') {
+		if (!this._hasAssociatedFilePath && this.textEditorModel.getLineCount() === 1 && this.textEditorModel.getLineContent(1) === '') {
 			this.setDirty(false);
 		}
 

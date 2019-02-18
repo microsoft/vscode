@@ -128,7 +128,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const args = repository.provider.acceptInputCommand.arguments;
 
 		const commandService = accessor.get(ICommandService);
-		return commandService.executeCommand(id, ...args);
+		return commandService.executeCommand(id, ...(args || []));
 	}
 });
 

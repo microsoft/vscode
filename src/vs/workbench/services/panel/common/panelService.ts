@@ -25,12 +25,12 @@ export interface IPanelService {
 	/**
 	 * Opens a panel with the given identifier and pass keyboard focus to it if specified.
 	 */
-	openPanel(id: string, focus?: boolean): IPanel;
+	openPanel(id: string, focus?: boolean): IPanel | null;
 
 	/**
 	 * Returns the current active panel or null if none
 	 */
-	getActivePanel(): IPanel;
+	getActivePanel(): IPanel | null;
 
 	/**
 	 * * Returns all built-in panels following the default order (Problems - Output - Debug Console - Terminal)

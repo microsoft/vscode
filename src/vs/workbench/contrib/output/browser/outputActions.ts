@@ -193,7 +193,7 @@ export class OpenLogOutputFile extends Action {
 
 	private update(): void {
 		const outputChannelDescriptor = this.getOutputChannelDescriptor();
-		this.enabled = outputChannelDescriptor && outputChannelDescriptor.file && outputChannelDescriptor.log;
+		this.enabled = !!(outputChannelDescriptor && outputChannelDescriptor.file && outputChannelDescriptor.log);
 	}
 
 	public run(): Promise<any> {

@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { basename, normalize, join, dirname } from 'path';
 import * as fs from 'fs';
+import { basename, normalize, join, dirname } from 'vs/base/common/path';
 import { localize } from 'vs/nls';
 import * as arrays from 'vs/base/common/arrays';
 import { assign, mixin, equals } from 'vs/base/common/objects';
@@ -34,8 +34,7 @@ import { normalizeNFC } from 'vs/base/common/normalization';
 import { URI } from 'vs/base/common/uri';
 import { Queue, timeout } from 'vs/base/common/async';
 import { exists } from 'vs/base/node/pfs';
-import { getComparisonKey, isEqual, normalizePath, basename as resourcesBasename, fsPath } from 'vs/base/common/resources';
-import { endsWith } from 'vs/base/common/strings';
+import { getComparisonKey, isEqual, normalizePath, basename as resourcesBasename, originalFSPath, hasTrailingPathSeparator, removeTrailingPathSeparator } from 'vs/base/common/resources';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 import { restoreWindowsState, WindowsStateStorageData, getWindowsStateStoreData } from 'vs/code/electron-main/windowsStateStorage';
 
@@ -511,7 +510,7 @@ export class WindowsManager implements IWindowsMainService {
 		// Handle folders to add by looking for the last active workspace (not on initial startup)
 		if (!openConfig.initialStartup && foldersToAdd.length > 0) {
 			const authority = getRemoteAuthority(foldersToAdd[0]);
-			const lastActiveWindow = authority ? this.getLastActiveWindowForAuthority(authority) : undefined;
+			const lastActiveWindow = this.getLastActiveWindowForAuthority(authority);
 			if (lastActiveWindow) {
 				usedWindows.push(this.doAddFoldersToExistingWindow(lastActiveWindow, foldersToAdd));
 			}
@@ -531,7 +530,7 @@ export class WindowsManager implements IWindowsMainService {
 				newWindow: openFilesInNewWindow,
 				context: openConfig.context,
 				fileUri: fileToCheck && fileToCheck.fileUri,
-				workspaceResolver: workspace => workspace.configPath.scheme === Schemas.file ? this.workspacesMainService.resolveWorkspaceSync(fsPath(workspace.configPath)) : null
+				localWorkspaceResolver: workspace => workspace.configPath.scheme === Schemas.file ? this.workspacesMainService.resolveLocalWorkspaceSync(workspace.configPath) : null
 			});
 
 			// We found a window to open the files in
@@ -602,10 +601,11 @@ export class WindowsManager implements IWindowsMainService {
 					return; // ignore folders that are already open
 				}
 
-				const fileInputsForWindow = (fileInputs && !fileInputs.remoteAuthority) ? fileInputs : undefined;
+				const remoteAuthority = getRemoteAuthority(workspaceToOpen.configPath);
+				const fileInputsForWindow = (fileInputs && fileInputs.remoteAuthority === remoteAuthority) ? fileInputs : undefined;
 
 				// Do open folder
-				usedWindows.push(this.doOpenFolderOrWorkspace(openConfig, { workspace: workspaceToOpen }, openFolderInNewWindow, fileInputsForWindow));
+				usedWindows.push(this.doOpenFolderOrWorkspace(openConfig, { workspace: workspaceToOpen, remoteAuthority }, openFolderInNewWindow, fileInputsForWindow));
 
 				// Reset these because we handled them
 				if (fileInputsForWindow) {
@@ -762,8 +762,6 @@ export class WindowsManager implements IWindowsMainService {
 	}
 
 	private getPathsToOpen(openConfig: IOpenConfiguration): IPathToOpen[] {
-		debugger;
-
 		let windowsToOpen: IPathToOpen[];
 		let isCommandLineOrAPICall = false;
 
@@ -981,13 +979,8 @@ export class WindowsManager implements IWindowsMainService {
 
 
 		// remove trailing slash
-		const uriPath = uri.path;
-
-		if (endsWith(uriPath, '/')) {
-			if (uriPath.length > 2) {
-				// only remove if the path has some content
-				uri = uri.with({ path: uriPath.substr(0, uriPath.length - 1) });
-			}
+		if (hasTrailingPathSeparator(uri)) {
+			uri = removeTrailingPathSeparator(uri);
 			if (!typeHint) {
 				typeHint = 'folder';
 			}
@@ -1051,7 +1044,7 @@ export class WindowsManager implements IWindowsMainService {
 
 					// Workspace (unless disabled via flag)
 					if (!options.forceOpenWorkspaceAsFile) {
-						const workspace = this.workspacesMainService.resolveWorkspaceSync(candidate);
+						const workspace = this.workspacesMainService.resolveLocalWorkspaceSync(URI.file(candidate));
 						if (workspace) {
 							return { workspace: { id: workspace.id, configPath: workspace.configPath }, remoteAuthority };
 						}
@@ -1158,7 +1151,7 @@ export class WindowsManager implements IWindowsMainService {
 					}
 				} else {
 					if (workspaceToOpen.configPath.scheme === Schemas.file) {
-						cliArgs = [fsPath(workspaceToOpen.configPath)];
+						cliArgs = [originalFSPath(workspaceToOpen.configPath)];
 					} else {
 						fileUris = [workspaceToOpen.configPath.toString()];
 					}
@@ -1552,7 +1545,7 @@ export class WindowsManager implements IWindowsMainService {
 		return getLastActiveWindow(WindowsManager.WINDOWS);
 	}
 
-	getLastActiveWindowForAuthority(remoteAuthority: string): ICodeWindow | undefined {
+	getLastActiveWindowForAuthority(remoteAuthority: string | undefined): ICodeWindow | undefined {
 		return getLastActiveWindow(WindowsManager.WINDOWS.filter(w => w.remoteAuthority === remoteAuthority));
 	}
 
@@ -2128,7 +2121,7 @@ class WorkspacesManager {
 				return workspace.scheme === Schemas.file ? dirname(workspace.fsPath) : undefined;
 			}
 
-			const resolvedWorkspace = workspace.configPath.scheme === Schemas.file && this.workspacesMainService.resolveWorkspaceSync(workspace.configPath.fsPath);
+			const resolvedWorkspace = workspace.configPath.scheme === Schemas.file && this.workspacesMainService.resolveLocalWorkspaceSync(workspace.configPath);
 			if (resolvedWorkspace && resolvedWorkspace.folders.length > 0) {
 				for (const folder of resolvedWorkspace.folders) {
 					if (folder.uri.scheme === Schemas.file) {
