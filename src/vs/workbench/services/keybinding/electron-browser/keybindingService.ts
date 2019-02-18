@@ -578,7 +578,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 let schemaId = 'vscode://schemas/keybindings';
 let commandsSchemas: IJSONSchema[] = [];
 let commandsEnum: string[] = [];
-let commandsEnumDescriptions: string[] = [];
+let commandsEnumDescriptions: (string | null | undefined)[] = [];
 let schema: IJSONSchema = {
 	'id': schemaId,
 	'type': 'array',
@@ -613,7 +613,7 @@ let schema: IJSONSchema = {
 			'command': {
 				'type': 'string',
 				'enum': commandsEnum,
-				'enumDescriptions': commandsEnumDescriptions,
+				'enumDescriptions': <any>commandsEnumDescriptions,
 				'description': nls.localize('keybindings.json.command', "Name of the command to execute"),
 			},
 			'when': {
@@ -658,7 +658,7 @@ function updateSchema() {
 				}
 			},
 			'then': {
-				'required': [].concat(argsRequired ? ['args'] : []),
+				'required': (<string[]>[]).concat(argsRequired ? ['args'] : []),
 				'properties': {
 					'args': argsSchema
 				}
