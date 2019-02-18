@@ -93,14 +93,10 @@ function streql(value: string, start: number, end: number, other: string): boole
 	return start + other.length === end && value.indexOf(other, start) === start;
 }
 
-export const join: (...parts: string[]) => string = function () {
-	// Not using a function with var-args because of how TS compiles
-	// them to JS - it would result in 2*n runtime cost instead
-	// of 1*n, where n is parts.length.
-
+export function joinWithSlashes(...parts: string[]): string {
 	let value = '';
-	for (let i = 0; i < arguments.length; i++) {
-		let part = arguments[i];
+	for (let i = 0; i < parts.length; i++) {
+		let part = parts[i];
 		if (i > 0) {
 			// add the separater between two parts unless
 			// there already is one
@@ -116,7 +112,7 @@ export const join: (...parts: string[]) => string = function () {
 	}
 
 	return normalizeWithSlashes(value);
-};
+}
 
 
 // #region extpath

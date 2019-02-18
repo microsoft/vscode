@@ -32,7 +32,7 @@ import { FilterOptions } from 'vs/workbench/contrib/markers/electron-browser/mar
 import { IExpression, getEmptyExpression } from 'vs/base/common/glob';
 import { mixin, deepClone } from 'vs/base/common/objects';
 import { IWorkspaceFolder, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { join } from 'vs/base/common/extpath';
+import { joinWithSlashes } from 'vs/base/common/extpath';
 import { isAbsolute } from 'vs/base/common/path';
 import { FilterData, Filter, VirtualDelegate, ResourceMarkersRenderer, MarkerRenderer, RelatedInformationRenderer, TreeElement, MarkersTreeAccessibilityProvider, MarkersViewModel, ResourceDragAndDrop } from 'vs/workbench/contrib/markers/electron-browser/markersTreeViewer';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -288,7 +288,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		return Object.keys(expr)
 			.reduce((absExpr: IExpression, key: string) => {
 				if (expr[key] && !isAbsolute(key)) {
-					const absPattern = join(root, key);
+					const absPattern = joinWithSlashes(root, key);
 					absExpr[absPattern] = expr[key];
 				}
 

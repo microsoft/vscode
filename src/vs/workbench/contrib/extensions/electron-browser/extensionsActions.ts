@@ -2044,7 +2044,7 @@ export class ConfigureWorkspaceRecommendedExtensionsAction extends AbstractConfi
 	public run(): Promise<void> {
 		switch (this.contextService.getWorkbenchState()) {
 			case WorkbenchState.FOLDER:
-				return this.openExtensionsFile(this.contextService.getWorkspace().folders[0].toResource(extpath.join('.vscode', 'extensions.json')));
+				return this.openExtensionsFile(this.contextService.getWorkspace().folders[0].toResource(extpath.joinWithSlashes('.vscode', 'extensions.json')));
 			case WorkbenchState.WORKSPACE:
 				return this.openWorkspaceConfigurationFile(this.contextService.getWorkspace().configuration!);
 		}
@@ -2089,7 +2089,7 @@ export class ConfigureWorkspaceFolderRecommendedExtensionsAction extends Abstrac
 		return Promise.resolve(pickFolderPromise)
 			.then(workspaceFolder => {
 				if (workspaceFolder) {
-					return this.openExtensionsFile(workspaceFolder.toResource(extpath.join('.vscode', 'extensions.json')));
+					return this.openExtensionsFile(workspaceFolder.toResource(extpath.joinWithSlashes('.vscode', 'extensions.json')));
 				}
 				return null;
 			});
@@ -2142,7 +2142,7 @@ export class AddToWorkspaceFolderRecommendationsAction extends AbstractConfigure
 				if (!workspaceFolder) {
 					return Promise.resolve();
 				}
-				const configurationFile = workspaceFolder.toResource(extpath.join('.vscode', 'extensions.json'));
+				const configurationFile = workspaceFolder.toResource(extpath.joinWithSlashes('.vscode', 'extensions.json'));
 				return this.getWorkspaceFolderExtensionsConfigContent(configurationFile).then(content => {
 					const extensionIdLowerCase = extensionId.id.toLowerCase();
 					if (shouldRecommend) {

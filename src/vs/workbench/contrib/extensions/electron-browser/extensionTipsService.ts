@@ -334,7 +334,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	 * Parse the extensions.json files for given workspace folder and return the recommendations
 	 */
 	private resolveWorkspaceFolderExtensionConfig(workspaceFolder: IWorkspaceFolder): Promise<IExtensionsConfigContent | null> {
-		const extensionsJsonUri = workspaceFolder.toResource(extpath.join('.vscode', 'extensions.json'));
+		const extensionsJsonUri = workspaceFolder.toResource(extpath.joinWithSlashes('.vscode', 'extensions.json'));
 
 		return Promise.resolve(this.fileService.resolveFile(extensionsJsonUri)
 			.then(() => this.fileService.resolveContent(extensionsJsonUri))
@@ -904,8 +904,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 					.replace('%APPDATA%', process.env['APPDATA']!);
 				promises.push(findExecutable(exeName, windowsPath));
 			} else {
-				promises.push(findExecutable(exeName, extpath.join('/usr/local/bin', exeName)));
-				promises.push(findExecutable(exeName, extpath.join(homeDir, exeName)));
+				promises.push(findExecutable(exeName, extpath.joinWithSlashes('/usr/local/bin', exeName)));
+				promises.push(findExecutable(exeName, extpath.joinWithSlashes(homeDir, exeName)));
 			}
 		});
 

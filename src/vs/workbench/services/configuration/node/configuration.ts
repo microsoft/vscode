@@ -307,8 +307,8 @@ class CachedWorkspaceConfiguration extends Disposable implements IWorkspaceConfi
 	}
 
 	private createPaths(workspaceIdentifier: IWorkspaceIdentifier) {
-		this.cachedWorkspacePath = extpath.join(this.environmentService.userDataPath, 'CachedConfigurations', 'workspaces', workspaceIdentifier.id);
-		this.cachedConfigurationPath = extpath.join(this.cachedWorkspacePath, 'workspace.json');
+		this.cachedWorkspacePath = extpath.joinWithSlashes(this.environmentService.userDataPath, 'CachedConfigurations', 'workspaces', workspaceIdentifier.id);
+		this.cachedConfigurationPath = extpath.joinWithSlashes(this.cachedWorkspacePath, 'workspace.json');
 	}
 }
 
@@ -552,8 +552,8 @@ export class CachedFolderConfiguration extends Disposable implements IFolderConf
 		configFolderRelativePath: string,
 		environmentService: IEnvironmentService) {
 		super();
-		this.cachedFolderPath = extpath.join(environmentService.userDataPath, 'CachedConfigurations', 'folders', createHash('md5').update(extpath.join(folder.path, configFolderRelativePath)).digest('hex'));
-		this.cachedConfigurationPath = extpath.join(this.cachedFolderPath, 'configuration.json');
+		this.cachedFolderPath = extpath.joinWithSlashes(environmentService.userDataPath, 'CachedConfigurations', 'folders', createHash('md5').update(extpath.joinWithSlashes(folder.path, configFolderRelativePath)).digest('hex'));
+		this.cachedConfigurationPath = extpath.joinWithSlashes(this.cachedFolderPath, 'configuration.json');
 		this.configurationModel = new ConfigurationModel();
 	}
 

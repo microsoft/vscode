@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
-import { join } from 'vs/base/common/extpath';
+import { joinWithSlashes } from 'vs/base/common/extpath';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { workbenchInstantiationService, TestTextFileService } from 'vs/workbench/test/workbenchTestServices';
@@ -18,7 +18,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { timeout } from 'vs/base/common/async';
 
 function toResource(self, path) {
-	return URI.file(join('C:\\', Buffer.from(self.test.fullTitle()).toString('base64'), path));
+	return URI.file(joinWithSlashes('C:\\', Buffer.from(self.test.fullTitle()).toString('base64'), path));
 }
 
 class ServiceAccessor {

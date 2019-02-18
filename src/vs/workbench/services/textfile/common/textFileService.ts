@@ -908,7 +908,7 @@ export class TextFileService extends Disposable implements ITextFileService {
 						// Otherwise a parent folder of the source is being moved, so we need
 						// to compute the target resource based on that
 						else {
-							targetModelResource = sourceModelResource.with({ path: extpath.join(target.path, sourceModelResource.path.substr(source.path.length + 1)) });
+							targetModelResource = sourceModelResource.with({ path: extpath.joinWithSlashes(target.path, sourceModelResource.path.substr(source.path.length + 1)) });
 						}
 
 						// Remember as dirty target model to load after the operation

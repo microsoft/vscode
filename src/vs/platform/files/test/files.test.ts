@@ -5,23 +5,23 @@
 
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
-import { join, isEqual, isEqualOrParent } from 'vs/base/common/extpath';
+import { joinWithSlashes, isEqual, isEqualOrParent } from 'vs/base/common/extpath';
 import { FileChangeType, FileChangesEvent, isParent } from 'vs/platform/files/common/files';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 
 suite('Files', () => {
 
 	function toResource(path) {
-		return URI.file(join('C:\\', path));
+		return URI.file(joinWithSlashes('C:\\', path));
 	}
 
 	test('FileChangesEvent', () => {
 		let changes = [
-			{ resource: URI.file(join('C:\\', '/foo/updated.txt')), type: FileChangeType.UPDATED },
-			{ resource: URI.file(join('C:\\', '/foo/otherupdated.txt')), type: FileChangeType.UPDATED },
-			{ resource: URI.file(join('C:\\', '/added.txt')), type: FileChangeType.ADDED },
-			{ resource: URI.file(join('C:\\', '/bar/deleted.txt')), type: FileChangeType.DELETED },
-			{ resource: URI.file(join('C:\\', '/bar/folder')), type: FileChangeType.DELETED }
+			{ resource: URI.file(joinWithSlashes('C:\\', '/foo/updated.txt')), type: FileChangeType.UPDATED },
+			{ resource: URI.file(joinWithSlashes('C:\\', '/foo/otherupdated.txt')), type: FileChangeType.UPDATED },
+			{ resource: URI.file(joinWithSlashes('C:\\', '/added.txt')), type: FileChangeType.ADDED },
+			{ resource: URI.file(joinWithSlashes('C:\\', '/bar/deleted.txt')), type: FileChangeType.DELETED },
+			{ resource: URI.file(joinWithSlashes('C:\\', '/bar/folder')), type: FileChangeType.DELETED }
 		];
 
 		let r1 = new FileChangesEvent(changes);
