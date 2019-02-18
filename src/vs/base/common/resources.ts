@@ -42,7 +42,10 @@ export function isEqualOrParent(base: URI, parentCandidate: URI, ignoreCase = ha
 	return false;
 }
 
-function isEqualAuthority(a1: string, a2: string) {
+/**
+ * Tests wheter the two authorities are the same
+ */
+export function isEqualAuthority(a1: string, a2: string) {
 	return a1 === a2 || equalsIgnoreCase(a1, a2);
 }
 
@@ -207,6 +210,21 @@ export function relativePath(from: URI, to: URI): string | undefined {
 		return isWindows ? extpath.toSlashes(relativePath) : relativePath;
 	}
 	return paths.posix.relative(from.path || '/', to.path || '/');
+}
+
+/**
+ * Resolves a absolute or relative path against a base URI.
+ */
+export function resolvePath(base: URI, path: string): URI {
+	let resolvedPath: string;
+	if (base.scheme === Schemas.file) {
+		resolvedPath = URI.file(paths.resolve(originalFSPath(base), path)).path;
+	} else {
+		resolvedPath = paths.posix.resolve(base.path, path);
+	}
+	return base.with({
+		path: resolvedPath
+	});
 }
 
 export function distinctParents<T>(items: T[], resourceAccessor: (item: T) => URI): T[] {
