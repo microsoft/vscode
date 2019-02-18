@@ -2212,6 +2212,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 			].join('\n'),
 			{
 				tabSize: 13,
+				indentSize: 13,
 			}
 		);
 
@@ -3122,7 +3123,10 @@ suite('Editor Controller - Indentation Rules', () => {
 				'}a}'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { tabSize: 2 }
+			modelOpts: {
+				tabSize: 2,
+				indentSize: 2
+			}
 		}, (model, cursor) => {
 			moveTo(cursor, 3, 3, false);
 			assertCursor(cursor, new Selection(3, 3, 3, 3));
@@ -3594,7 +3598,10 @@ suite('Editor Controller - Indentation Rules', () => {
 				'',
 				')',
 			].join('\n'),
-			{ tabSize: 2 },
+			{
+				tabSize: 2,
+				indentSize: 2
+			},
 			mode.getLanguageIdentifier()
 		);
 
