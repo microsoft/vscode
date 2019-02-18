@@ -14,31 +14,31 @@ import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageCo
 
 export interface IShiftCommandOpts {
 	isUnshift: boolean;
-	tabSize: number;
+	indentSize: number;
 	oneIndent: string;
 	useTabStops: boolean;
 }
 
 export class ShiftCommand implements ICommand {
 
-	public static unshiftIndentCount(line: string, column: number, tabSize: number): number {
+	public static unshiftIndentCount(line: string, column: number, indentSize: number): number {
 		// Determine the visible column where the content starts
-		let contentStartVisibleColumn = CursorColumns.visibleColumnFromColumn(line, column, tabSize);
+		let contentStartVisibleColumn = CursorColumns.visibleColumnFromColumn(line, column, indentSize);
 
-		let desiredTabStop = CursorColumns.prevTabStop(contentStartVisibleColumn, tabSize);
+		let desiredTabStop = CursorColumns.prevTabStop(contentStartVisibleColumn, indentSize);
 
-		// The `desiredTabStop` is a multiple of `tabSize` => determine the number of indents
-		return desiredTabStop / tabSize;
+		// The `desiredTabStop` is a multiple of `indentSize` => determine the number of indents
+		return desiredTabStop / indentSize;
 	}
 
-	public static shiftIndentCount(line: string, column: number, tabSize: number): number {
+	public static shiftIndentCount(line: string, column: number, indentSize: number): number {
 		// Determine the visible column where the content starts
-		let contentStartVisibleColumn = CursorColumns.visibleColumnFromColumn(line, column, tabSize);
+		let contentStartVisibleColumn = CursorColumns.visibleColumnFromColumn(line, column, indentSize);
 
-		let desiredTabStop = CursorColumns.nextTabStop(contentStartVisibleColumn, tabSize);
+		let desiredTabStop = CursorColumns.nextTabStop(contentStartVisibleColumn, indentSize);
 
-		// The `desiredTabStop` is a multiple of `tabSize` => determine the number of indents
-		return desiredTabStop / tabSize;
+		// The `desiredTabStop` is a multiple of `indentSize` => determine the number of indents
+		return desiredTabStop / indentSize;
 	}
 
 	private _opts: IShiftCommandOpts;
@@ -70,7 +70,7 @@ export class ShiftCommand implements ICommand {
 			endLine = endLine - 1;
 		}
 
-		const tabSize = this._opts.tabSize;
+		const indentSize = this._opts.indentSize;
 		const oneIndent = this._opts.oneIndent;
 		const shouldIndentEmptyLines = (startLine === endLine);
 
@@ -108,8 +108,8 @@ export class ShiftCommand implements ICommand {
 				}
 
 				if (lineNumber > 1) {
-					let contentStartVisibleColumn = CursorColumns.visibleColumnFromColumn(lineText, indentationEndIndex + 1, tabSize);
-					if (contentStartVisibleColumn % tabSize !== 0) {
+					let contentStartVisibleColumn = CursorColumns.visibleColumnFromColumn(lineText, indentationEndIndex + 1, indentSize);
+					if (contentStartVisibleColumn % indentSize !== 0) {
 						// The current line is "miss-aligned", so let's see if this is expected...
 						// This can only happen when it has trailing commas in the indent
 						if (model.isCheapToTokenize(lineNumber - 1)) {
@@ -117,7 +117,7 @@ export class ShiftCommand implements ICommand {
 							if (enterAction) {
 								extraSpaces = previousLineExtraSpaces;
 								if (enterAction.appendText) {
-									for (let j = 0, lenJ = enterAction.appendText.length; j < lenJ && extraSpaces < tabSize; j++) {
+									for (let j = 0, lenJ = enterAction.appendText.length; j < lenJ && extraSpaces < indentSize; j++) {
 										if (enterAction.appendText.charCodeAt(j) === CharCode.Space) {
 											extraSpaces++;
 										} else {
@@ -149,9 +149,9 @@ export class ShiftCommand implements ICommand {
 
 				let desiredIndentCount: number;
 				if (this._opts.isUnshift) {
-					desiredIndentCount = ShiftCommand.unshiftIndentCount(lineText, indentationEndIndex + 1, tabSize);
+					desiredIndentCount = ShiftCommand.unshiftIndentCount(lineText, indentationEndIndex + 1, indentSize);
 				} else {
-					desiredIndentCount = ShiftCommand.shiftIndentCount(lineText, indentationEndIndex + 1, tabSize);
+					desiredIndentCount = ShiftCommand.shiftIndentCount(lineText, indentationEndIndex + 1, indentSize);
 				}
 
 				// Fill `indents`, as needed
@@ -193,7 +193,7 @@ export class ShiftCommand implements ICommand {
 
 				if (this._opts.isUnshift) {
 
-					indentationEndIndex = Math.min(indentationEndIndex, tabSize);
+					indentationEndIndex = Math.min(indentationEndIndex, indentSize);
 					for (let i = 0; i < indentationEndIndex; i++) {
 						const chr = lineText.charCodeAt(i);
 						if (chr === CharCode.Tab) {

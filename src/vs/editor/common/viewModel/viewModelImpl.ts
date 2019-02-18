@@ -452,6 +452,10 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		return this.model.getOptions().tabSize;
 	}
 
+	public getIndentSize(): number {
+		return this.model.getOptions().indentSize;
+	}
+
 	public getLineCount(): number {
 		return this.lines.getViewLineCount();
 	}

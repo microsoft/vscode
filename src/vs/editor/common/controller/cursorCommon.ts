@@ -73,7 +73,7 @@ export class CursorConfiguration {
 	_cursorMoveConfigurationBrand: void;
 
 	public readonly readOnly: boolean;
-	public readonly tabSize: number;
+	public readonly indentSize: number;
 	public readonly insertSpaces: boolean;
 	public readonly oneIndent: string;
 	public readonly pageSize: number;
@@ -121,7 +121,7 @@ export class CursorConfiguration {
 		let c = configuration.editor;
 
 		this.readOnly = c.readOnly;
-		this.tabSize = modelOptions.tabSize;
+		this.indentSize = modelOptions.indentSize;
 		this.insertSpaces = modelOptions.insertSpaces;
 		this.oneIndent = oneIndent;
 		this.pageSize = Math.max(1, Math.floor(c.layoutInfo.height / c.fontInfo.lineHeight) - 2);
@@ -176,7 +176,7 @@ export class CursorConfiguration {
 	}
 
 	public normalizeIndentation(str: string): string {
-		return TextModel.normalizeIndentation(str, this.tabSize, this.insertSpaces);
+		return TextModel.normalizeIndentation(str, this.indentSize, this.insertSpaces);
 	}
 
 	private static _getElectricCharacters(languageIdentifier: LanguageIdentifier): string[] | null {
@@ -508,7 +508,7 @@ export class CursorColumns {
 		return this.isHighSurrogate(model, lineNumber, column - 2);
 	}
 
-	public static visibleColumnFromColumn(lineContent: string, column: number, tabSize: number): number {
+	public static visibleColumnFromColumn(lineContent: string, column: number, indentSize: number): number {
 		let endOffset = lineContent.length;
 		if (endOffset > column - 1) {
 			endOffset = column - 1;
@@ -518,7 +518,7 @@ export class CursorColumns {
 		for (let i = 0; i < endOffset; i++) {
 			let charCode = lineContent.charCodeAt(i);
 			if (charCode === CharCode.Tab) {
-				result = this.nextTabStop(result, tabSize);
+				result = this.nextTabStop(result, indentSize);
 			} else if (strings.isFullWidthCharacter(charCode)) {
 				result = result + 2;
 			} else {
@@ -529,10 +529,10 @@ export class CursorColumns {
 	}
 
 	public static visibleColumnFromColumn2(config: CursorConfiguration, model: ICursorSimpleModel, position: Position): number {
-		return this.visibleColumnFromColumn(model.getLineContent(position.lineNumber), position.column, config.tabSize);
+		return this.visibleColumnFromColumn(model.getLineContent(position.lineNumber), position.column, config.indentSize);
 	}
 
-	public static columnFromVisibleColumn(lineContent: string, visibleColumn: number, tabSize: number): number {
+	public static columnFromVisibleColumn(lineContent: string, visibleColumn: number, indentSize: number): number {
 		if (visibleColumn <= 0) {
 			return 1;
 		}
@@ -545,7 +545,7 @@ export class CursorColumns {
 
 			let afterVisibleColumn: number;
 			if (charCode === CharCode.Tab) {
-				afterVisibleColumn = this.nextTabStop(beforeVisibleColumn, tabSize);
+				afterVisibleColumn = this.nextTabStop(beforeVisibleColumn, indentSize);
 			} else if (strings.isFullWidthCharacter(charCode)) {
 				afterVisibleColumn = beforeVisibleColumn + 2;
 			} else {
@@ -570,7 +570,7 @@ export class CursorColumns {
 	}
 
 	public static columnFromVisibleColumn2(config: CursorConfiguration, model: ICursorSimpleModel, lineNumber: number, visibleColumn: number): number {
-		let result = this.columnFromVisibleColumn(model.getLineContent(lineNumber), visibleColumn, config.tabSize);
+		let result = this.columnFromVisibleColumn(model.getLineContent(lineNumber), visibleColumn, config.indentSize);
 
 		let minColumn = model.getLineMinColumn(lineNumber);
 		if (result < minColumn) {
@@ -588,15 +588,15 @@ export class CursorColumns {
 	/**
 	 * ATTENTION: This works with 0-based columns (as oposed to the regular 1-based columns)
 	 */
-	public static nextTabStop(visibleColumn: number, tabSize: number): number {
-		return visibleColumn + tabSize - visibleColumn % tabSize;
+	public static nextTabStop(visibleColumn: number, indentSize: number): number {
+		return visibleColumn + indentSize - visibleColumn % indentSize;
 	}
 
 	/**
 	 * ATTENTION: This works with 0-based columns (as oposed to the regular 1-based columns)
 	 */
-	public static prevTabStop(column: number, tabSize: number): number {
-		return column - 1 - (column - 1) % tabSize;
+	public static prevTabStop(column: number, indentSize: number): number {
+		return column - 1 - (column - 1) % indentSize;
 	}
 }
 

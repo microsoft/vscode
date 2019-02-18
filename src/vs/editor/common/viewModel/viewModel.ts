@@ -130,6 +130,7 @@ export interface IViewModel {
 	getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range;
 
 	getTabSize(): number;
+	getIndentSize(): number;
 	getLineCount(): number;
 	getLineContent(lineNumber: number): string;
 	getLineLength(lineNumber: number): number;

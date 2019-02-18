@@ -92,7 +92,7 @@ export class MoveOperations {
 	}
 
 	public static down(config: CursorConfiguration, model: ICursorSimpleModel, lineNumber: number, column: number, leftoverVisibleColumns: number, count: number, allowMoveOnLastLine: boolean): CursorPosition {
-		const currentVisibleColumn = CursorColumns.visibleColumnFromColumn(model.getLineContent(lineNumber), column, config.tabSize) + leftoverVisibleColumns;
+		const currentVisibleColumn = CursorColumns.visibleColumnFromColumn(model.getLineContent(lineNumber), column, config.indentSize) + leftoverVisibleColumns;
 
 		lineNumber = lineNumber + count;
 		let lineCount = model.getLineCount();
@@ -113,7 +113,7 @@ export class MoveOperations {
 			}
 		}
 
-		leftoverVisibleColumns = currentVisibleColumn - CursorColumns.visibleColumnFromColumn(model.getLineContent(lineNumber), column, config.tabSize);
+		leftoverVisibleColumns = currentVisibleColumn - CursorColumns.visibleColumnFromColumn(model.getLineContent(lineNumber), column, config.indentSize);
 
 		return new CursorPosition(lineNumber, column, leftoverVisibleColumns);
 	}
@@ -151,7 +151,7 @@ export class MoveOperations {
 	}
 
 	public static up(config: CursorConfiguration, model: ICursorSimpleModel, lineNumber: number, column: number, leftoverVisibleColumns: number, count: number, allowMoveOnFirstLine: boolean): CursorPosition {
-		const currentVisibleColumn = CursorColumns.visibleColumnFromColumn(model.getLineContent(lineNumber), column, config.tabSize) + leftoverVisibleColumns;
+		const currentVisibleColumn = CursorColumns.visibleColumnFromColumn(model.getLineContent(lineNumber), column, config.indentSize) + leftoverVisibleColumns;
 
 		lineNumber = lineNumber - count;
 		if (lineNumber < 1) {
@@ -171,7 +171,7 @@ export class MoveOperations {
 			}
 		}
 
-		leftoverVisibleColumns = currentVisibleColumn - CursorColumns.visibleColumnFromColumn(model.getLineContent(lineNumber), column, config.tabSize);
+		leftoverVisibleColumns = currentVisibleColumn - CursorColumns.visibleColumnFromColumn(model.getLineContent(lineNumber), column, config.indentSize);
 
 		return new CursorPosition(lineNumber, column, leftoverVisibleColumns);
 	}
