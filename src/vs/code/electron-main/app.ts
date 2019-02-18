@@ -63,9 +63,8 @@ import { hasArgs } from 'vs/platform/environment/node/argv';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { registerContextMenuListener } from 'vs/base/parts/contextmenu/electron-main/contextmenu';
 import { storeBackgroundColor } from 'vs/code/electron-main/theme';
-import { joinWithSlashes } from 'vs/base/common/extpath';
 import { homedir } from 'os';
-import { sep } from 'vs/base/common/path';
+import { join, sep } from 'vs/base/common/path';
 import { localize } from 'vs/nls';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from 'vs/platform/remote/node/remoteAgentFileSystemChannel';
@@ -396,7 +395,7 @@ export class CodeApplication extends Disposable {
 
 			recordingStopped = true; // only once
 
-			contentTracing.stopRecording(joinWithSlashes(homedir(), `${product.applicationName}-${Math.random().toString(16).slice(-4)}.trace.txt`), path => {
+			contentTracing.stopRecording(join(homedir(), `${product.applicationName}-${Math.random().toString(16).slice(-4)}.trace.txt`), path => {
 				if (!timeout) {
 					this.windowsMainService.showMessageBox({
 						type: 'info',

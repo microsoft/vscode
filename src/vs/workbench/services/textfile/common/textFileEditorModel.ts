@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as extpath from 'vs/base/common/extpath';
+import { join } from 'vs/base/common/path';
 import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { guessMimeTypes } from 'vs/base/common/mime';
@@ -784,12 +784,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		// Check for locale file
-		if (isEqual(this.resource, URI.file(extpath.joinWithSlashes(this.environmentService.appSettingsHome, 'locale.json')), !isLinux)) {
+		if (isEqual(this.resource, URI.file(join(this.environmentService.appSettingsHome, 'locale.json')), !isLinux)) {
 			return 'locale';
 		}
 
 		// Check for snippets
-		if (isEqualOrParent(this.resource, URI.file(extpath.joinWithSlashes(this.environmentService.appSettingsHome, 'snippets')))) {
+		if (isEqualOrParent(this.resource, URI.file(join(this.environmentService.appSettingsHome, 'snippets')))) {
 			return 'snippets';
 		}
 

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as extpath from 'vs/base/common/extpath';
+import { join } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import { canceled } from 'vs/base/common/errors';
 
@@ -49,7 +49,7 @@ export class DeferredPromise<T> {
 }
 
 export function toResource(this: any, path: string) {
-	return URI.file(extpath.joinWithSlashes('C:\\', Buffer.from(this.test.fullTitle()).toString('base64'), path));
+	return URI.file(join('C:\\', Buffer.from(this.test.fullTitle()).toString('base64'), path));
 }
 
 export function suiteRepeat(n: number, description: string, callback: (this: any) => void): void {

@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-import { joinWithSlashes } from 'vs/base/common/extpath';
+import { join } from 'vs/base/common/path';
 import { workbenchInstantiationService, TestFileService } from 'vs/workbench/test/workbenchTestServices';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { IFileService, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
@@ -30,7 +30,7 @@ class ServiceAccessor {
 }
 
 function toResource(path: string): URI {
-	return URI.file(joinWithSlashes('C:\\', path));
+	return URI.file(join('C:\\', path));
 }
 
 suite('Files - TextFileEditorModelManager', () => {

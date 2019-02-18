@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { FileEditorTracker } from 'vs/workbench/contrib/files/browser/editors/fileEditorTracker';
 import { URI } from 'vs/base/common/uri';
-import { joinWithSlashes } from 'vs/base/common/extpath';
+import { join } from 'vs/base/common/path';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { workbenchInstantiationService, TestTextFileService, TestFileService } from 'vs/workbench/test/workbenchTestServices';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -17,7 +17,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { timeout } from 'vs/base/common/async';
 
 function toResource(self: any, path: string) {
-	return URI.file(joinWithSlashes('C:\\', Buffer.from(self.test.fullTitle()).toString('base64'), path));
+	return URI.file(join('C:\\', Buffer.from(self.test.fullTitle()).toString('base64'), path));
 }
 
 class ServiceAccessor {
