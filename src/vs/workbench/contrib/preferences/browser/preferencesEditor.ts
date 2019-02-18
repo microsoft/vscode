@@ -499,7 +499,7 @@ class PreferencesRenderersController extends Disposable {
 			this.consolidateAndUpdate(defaultFilterResult, editableFilterResult);
 			this._lastFilterResult = defaultFilterResult;
 
-			return defaultFilterResult && defaultFilterResult.exactMatch;
+			return !!(defaultFilterResult && defaultFilterResult.exactMatch);
 		});
 	}
 

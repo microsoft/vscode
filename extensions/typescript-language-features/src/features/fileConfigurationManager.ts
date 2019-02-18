@@ -173,15 +173,15 @@ export default class FileConfigurationManager extends Disposable {
 			return {};
 		}
 
-		const preferences = vscode.workspace.getConfiguration(
+		const config = vscode.workspace.getConfiguration(
 			isTypeScriptDocument(document) ? 'typescript.preferences' : 'javascript.preferences',
 			document.uri);
 
 		return {
-			quotePreference: this.getQuoteStylePreference(preferences),
-			importModuleSpecifierPreference: getImportModuleSpecifierPreference(preferences),
+			quotePreference: this.getQuoteStylePreference(config),
+			importModuleSpecifierPreference: getImportModuleSpecifierPreference(config),
 			allowTextChangesInNewFiles: document.uri.scheme === 'file',
-			providePrefixAndSuffixTextForRename: true,
+			providePrefixAndSuffixTextForRename: config.get<boolean>('renameShorthandProperties', true),
 			allowRenameOfImportPath: true,
 		};
 	}

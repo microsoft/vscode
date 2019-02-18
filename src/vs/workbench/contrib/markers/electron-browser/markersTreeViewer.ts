@@ -303,7 +303,7 @@ class MarkerWidget extends Disposable {
 		const viewModel = this.markersViewModel.getViewModel(marker);
 		const multiline = viewModel && viewModel.multiline;
 		const action = new Action('problems.action.toggleMultiline');
-		action.enabled = viewModel && marker.lines.length > 1;
+		action.enabled = !!viewModel && marker.lines.length > 1;
 		action.tooltip = multiline ? localize('single line', "Show message in single line") : localize('multi line', "Show message in multiple lines");
 		action.class = multiline ? 'octicon octicon-chevron-up' : 'octicon octicon-chevron-down';
 		action.run = () => { if (viewModel) { viewModel.multiline = !viewModel.multiline; } return Promise.resolve(); };

@@ -8,7 +8,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IWindowService } from 'vs/platform/windows/common/windows';
-import { join } from 'vs/base/common/extpath';
+import { joinWithSlashes } from 'vs/base/common/extpath';
 import { basename, dirname, extname } from 'vs/base/common/path';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { timeout } from 'vs/base/common/async';
@@ -89,14 +89,14 @@ async function computePicks(snippetService: ISnippetsService, envService: IEnvir
 		}
 	}
 
-	const dir = join(envService.appSettingsHome, 'snippets');
+	const dir = joinWithSlashes(envService.appSettingsHome, 'snippets');
 	for (const mode of modeService.getRegisteredModes()) {
 		const label = modeService.getLanguageName(mode);
 		if (label && !seen.has(mode)) {
 			future.push({
 				label: mode,
 				description: `(${label})`,
-				filepath: join(dir, `${mode}.json`),
+				filepath: joinWithSlashes(dir, `${mode}.json`),
 				hint: true
 			});
 		}
@@ -207,7 +207,7 @@ CommandsRegistry.registerCommand(id, async (accessor): Promise<any> => {
 	const globalSnippetPicks: SnippetPick[] = [{
 		scope: nls.localize('new.global_scope', 'global'),
 		label: nls.localize('new.global', "New Global Snippets file..."),
-		uri: URI.file(join(envService.appSettingsHome, 'snippets'))
+		uri: URI.file(joinWithSlashes(envService.appSettingsHome, 'snippets'))
 	}];
 
 	const workspaceSnippetPicks: SnippetPick[] = [];

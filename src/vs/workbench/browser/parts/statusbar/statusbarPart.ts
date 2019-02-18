@@ -27,10 +27,9 @@ import { Color } from 'vs/base/common/color';
 import { addClass, EventHelper, createStyleSheet, addDisposableListener, Dimension } from 'vs/base/browser/dom';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { ISerializableView } from 'vs/base/browser/ui/grid/grid';
 import { Parts } from 'vs/workbench/services/part/common/partService';
-
 
 export class StatusbarPart extends Part implements IStatusbarService, ISerializableView {
 	_serviceBrand: any;
@@ -39,17 +38,16 @@ export class StatusbarPart extends Part implements IStatusbarService, ISerializa
 	private static readonly ALIGNMENT_PROP = 'statusbar-entry-alignment';
 
 	element: HTMLElement;
+
+	readonly minimumWidth: number = 0;
+	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
+	readonly minimumHeight: number = 22;
+	readonly maximumHeight: number = 22;
+
+	private _onDidChange = this._register(new Emitter<{ width: number; height: number; }>());
+	get onDidChange(): Event<{ width: number, height: number }> { return this._onDidChange.event; }
+
 	private statusMsgDispose: IDisposable;
-
-
-	minimumWidth: number = 0;
-	maximumWidth: number = Number.POSITIVE_INFINITY;
-	minimumHeight: number = 22;
-	maximumHeight: number = 22;
-
-	private _onDidChange = new Emitter<{ width: number; height: number; }>();
-	readonly onDidChange = this._onDidChange.event;
-
 	private styleElement: HTMLStyleElement;
 
 	constructor(

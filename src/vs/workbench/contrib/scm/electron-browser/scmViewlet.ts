@@ -361,7 +361,7 @@ class MainPanel extends ViewletPanel {
 	}
 
 	private restoreSelection(): void {
-		let selection: number[];
+		let selection: number[] | undefined;
 
 		if (this.previousSelection) {
 			selection = this.previousSelection

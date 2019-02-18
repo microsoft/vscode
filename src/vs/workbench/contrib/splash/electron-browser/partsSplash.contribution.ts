@@ -20,7 +20,7 @@ import { IPartService, Parts, Position } from 'vs/workbench/services/part/common
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
-import { join } from 'vs/base/common/extpath';
+import { joinWithSlashes } from 'vs/base/common/extpath';
 
 class PartsSplash {
 
@@ -70,7 +70,7 @@ class PartsSplash {
 			statusBarHeight: getTotalHeight(this._partService.getContainer(Parts.STATUSBAR_PART)!),
 		};
 		this._fileService.updateContent(
-			URI.file(join(this._envService.userDataPath, 'rapid_render.json')),
+			URI.file(joinWithSlashes(this._envService.userDataPath, 'rapid_render.json')),
 			JSON.stringify({
 				id: PartsSplash._splashElementId,
 				colorInfo,

@@ -114,7 +114,7 @@ export interface IInputOptions {
 	/**
 	 * an optional function that is used to validate user input.
 	 */
-	validateInput?: (input: string) => Promise<string>;
+	validateInput?: (input: string) => Promise<string | null | undefined>;
 }
 
 export interface IQuickInput {

@@ -412,7 +412,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		}
 
 		const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
-		let candidates: Promise<Debugger[]>;
+		let candidates: Promise<Debugger[]> | undefined;
 		if (isCodeEditor(activeTextEditorWidget)) {
 			const model = activeTextEditorWidget.getModel();
 			const language = model ? model.getLanguageIdentifier().language : undefined;

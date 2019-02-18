@@ -139,7 +139,7 @@
 .monaco-workbench .monaco-list-row .expression {
 	overflow: hidden;
 	text-overflow: ellipsis;
-	font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback";
+	font-family: var(--monaco-monospace-font);
 }
 
 .monaco-workbench.mac .monaco-list-row .expression {

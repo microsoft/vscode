@@ -182,6 +182,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 			case Verbosity.SHORT:
 				title = this.shortTitle;
 				break;
+			default:
 			case Verbosity.MEDIUM:
 				title = this.mediumTitle;
 				break;

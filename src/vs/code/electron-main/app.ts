@@ -63,7 +63,7 @@ import { hasArgs } from 'vs/platform/environment/node/argv';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { registerContextMenuListener } from 'vs/base/parts/contextmenu/electron-main/contextmenu';
 import { storeBackgroundColor } from 'vs/code/electron-main/theme';
-import { join } from 'vs/base/common/extpath';
+import { joinWithSlashes } from 'vs/base/common/extpath';
 import { homedir } from 'os';
 import { sep } from 'vs/base/common/path';
 import { localize } from 'vs/nls';
@@ -396,7 +396,7 @@ export class CodeApplication extends Disposable {
 
 			recordingStopped = true; // only once
 
-			contentTracing.stopRecording(join(homedir(), `${product.applicationName}-${Math.random().toString(16).slice(-4)}.trace.txt`), path => {
+			contentTracing.stopRecording(joinWithSlashes(homedir(), `${product.applicationName}-${Math.random().toString(16).slice(-4)}.trace.txt`), path => {
 				if (!timeout) {
 					this.windowsMainService.showMessageBox({
 						type: 'info',

@@ -24,7 +24,7 @@ export class OpenLogsFolderAction extends Action {
 	}
 
 	run(): Promise<void> {
-		return this.windowsService.showItemInFolder(extpath.join(this.environmentService.logsPath, 'main.log'));
+		return this.windowsService.showItemInFolder(extpath.joinWithSlashes(this.environmentService.logsPath, 'main.log'));
 	}
 }
 

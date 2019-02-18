@@ -19,7 +19,7 @@ import { toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { fsPath, dirname as resourcesDirname, isEqualOrParent, joinPath } from 'vs/base/common/resources';
+import { originalFSPath, dirname as resourcesDirname, isEqualOrParent, joinPath } from 'vs/base/common/resources';
 
 export interface IStoredWorkspace {
 	folders: IStoredWorkspaceFolder[];
@@ -142,7 +142,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 
 				// File URI
 				if (folderResource.scheme === Schemas.file) {
-					storedWorkspace = { path: massageFolderPathForWorkspace(fsPath(folderResource), untitledWorkspaceConfigFolder, []) };
+					storedWorkspace = { path: massageFolderPathForWorkspace(originalFSPath(folderResource), untitledWorkspaceConfigFolder, []) };
 				}
 
 				// Any URI
@@ -165,7 +165,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 	}
 
 	getWorkspaceId(configPath: URI): string {
-		let workspaceConfigPath = configPath.scheme === Schemas.file ? fsPath(configPath) : configPath.toString();
+		let workspaceConfigPath = configPath.scheme === Schemas.file ? originalFSPath(configPath) : configPath.toString();
 		if (!isLinux) {
 			workspaceConfigPath = workspaceConfigPath.toLowerCase(); // sanitize for platform file system
 		}
@@ -190,7 +190,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 			throw new Error('Only local workspaces can be saved with this API. Use WorkspaceEditingService.saveWorkspaceAs on the renderer instead.');
 		}
 
-		const configPath = fsPath(workspace.configPath);
+		const configPath = originalFSPath(workspace.configPath);
 
 		// Return early if target is same as source
 		if (isEqual(configPath, targetConfigPath, !isLinux)) {
@@ -221,7 +221,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 	}
 
 	private doDeleteUntitledWorkspaceSync(workspace: IWorkspaceIdentifier): void {
-		const configPath = fsPath(workspace.configPath);
+		const configPath = originalFSPath(workspace.configPath);
 		try {
 			// Delete Workspace
 			delSync(dirname(configPath));

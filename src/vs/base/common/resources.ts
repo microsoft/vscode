@@ -33,22 +33,21 @@ export function basenameOrAuthority(resource: URI): string {
 export function isEqualOrParent(base: URI, parentCandidate: URI, ignoreCase = hasToIgnoreCase(base)): boolean {
 	if (base.scheme === parentCandidate.scheme) {
 		if (base.scheme === Schemas.file) {
-			return extpath.isEqualOrParent(fsPath(base), fsPath(parentCandidate), ignoreCase);
+			return extpath.isEqualOrParent(originalFSPath(base), originalFSPath(parentCandidate), ignoreCase);
 		}
-		if (isEqualAuthority(base.authority, parentCandidate.authority, ignoreCase)) {
+		if (isEqualAuthority(base.authority, parentCandidate.authority)) {
 			return extpath.isEqualOrParent(base.path, parentCandidate.path, ignoreCase, '/');
 		}
 	}
 	return false;
 }
 
-function isEqualAuthority(a1: string, a2: string, ignoreCase?: boolean) {
-	return a1 === a2 || ignoreCase && a1 && a2 && equalsIgnoreCase(a1, a2);
+function isEqualAuthority(a1: string, a2: string) {
+	return a1 === a2 || equalsIgnoreCase(a1, a2);
 }
 
 export function isEqual(first: URI | undefined, second: URI | undefined, ignoreCase = hasToIgnoreCase(first)): boolean {
-	const identityEquals = (first === second);
-	if (identityEquals) {
+	if (first === second) {
 		return true;
 	}
 
@@ -56,11 +55,12 @@ export function isEqual(first: URI | undefined, second: URI | undefined, ignoreC
 		return false;
 	}
 
-	if (ignoreCase) {
-		return equalsIgnoreCase(first.toString(), second.toString());
+	if (first.scheme !== second.scheme || !isEqualAuthority(first.authority, second.authority)) {
+		return false;
 	}
 
-	return first.toString() === second.toString();
+	const p1 = first.path || '/', p2 = second.path || '/';
+	return p1 === p2 || ignoreCase && equalsIgnoreCase(p1 || '/', p2 || '/');
 }
 
 export function basename(resource: URI): string {
@@ -82,7 +82,7 @@ export function dirname(resource: URI): URI {
 		return resource;
 	}
 	if (resource.scheme === Schemas.file) {
-		return URI.file(paths.dirname(fsPath(resource)));
+		return URI.file(paths.dirname(originalFSPath(resource)));
 	}
 	let dirname = paths.posix.dirname(resource.path);
 	if (resource.authority && dirname.length && dirname.charCodeAt(0) !== CharCode.Slash) {
@@ -104,9 +104,9 @@ export function dirname(resource: URI): URI {
 export function joinPath(resource: URI, ...pathFragment: string[]): URI {
 	let joinedPath: string;
 	if (resource.scheme === Schemas.file) {
-		joinedPath = URI.file(paths.join(fsPath(resource), ...pathFragment)).path;
+		joinedPath = URI.file(paths.join(originalFSPath(resource), ...pathFragment)).path;
 	} else {
-		joinedPath = paths.posix.join(resource.path, ...pathFragment);
+		joinedPath = paths.posix.join(resource.path || '/', ...pathFragment);
 	}
 	return resource.with({
 		path: joinedPath
@@ -125,7 +125,7 @@ export function normalizePath(resource: URI): URI {
 	}
 	let normalizedPath: string;
 	if (resource.scheme === Schemas.file) {
-		normalizedPath = URI.file(paths.normalize(fsPath(resource))).path;
+		normalizedPath = URI.file(paths.normalize(originalFSPath(resource))).path;
 	} else {
 		normalizedPath = paths.posix.normalize(resource.path);
 	}
@@ -138,7 +138,7 @@ export function normalizePath(resource: URI): URI {
  * Returns the fsPath of an URI where the drive letter is not normalized.
  * See #56403.
  */
-export function fsPath(uri: URI): string {
+export function originalFSPath(uri: URI): string {
 	let value: string;
 	const uriPath = uri.path;
 	if (uri.authority && uriPath.length > 1 && uri.scheme === 'file') {
@@ -165,10 +165,48 @@ export function fsPath(uri: URI): string {
  * Returns true if the URI path is absolute.
  */
 export function isAbsolutePath(resource: URI): boolean {
+	return !!resource.path && resource.path[0] === '/';
+}
+
+/**
+ * Returns true if the URI path has a trailing path separator
+ */
+export function hasTrailingPathSeparator(resource: URI): boolean {
 	if (resource.scheme === Schemas.file) {
-		return paths.isAbsolute(fsPath(resource));
+		const fsp = originalFSPath(resource);
+		return fsp.length > extpath.getRoot(fsp).length && fsp[fsp.length - 1] === paths.sep;
+	} else {
+		let p = resource.path;
+		return p.length > 1 && p.charCodeAt(p.length - 1) === CharCode.Slash; // ignore the slash at offset 0
 	}
-	return paths.posix.isAbsolute(resource.path);
+}
+
+
+/**
+ * Removes a trailing path seperator, if theres one.
+ * Important: Doesn't remove the first slash, it would make the URI invalid
+ */
+export function removeTrailingPathSeparator(resource: URI): URI {
+	if (hasTrailingPathSeparator(resource)) {
+		return resource.with({ path: resource.path.substr(0, resource.path.length - 1) });
+	}
+	return resource;
+}
+
+
+/**
+ * Returns a relative path between two URIs. If the URIs don't have the same schema or authority, `undefined` is returned.
+ * The returned relative path always uses forward slashes.
+ */
+export function relativePath(from: URI, to: URI): string | undefined {
+	if (from.scheme !== to.scheme || !isEqualAuthority(from.authority, to.authority)) {
+		return undefined;
+	}
+	if (from.scheme === Schemas.file) {
+		const relativePath = paths.relative(from.path, to.path);
+		return isWindows ? extpath.toSlashes(relativePath) : relativePath;
+	}
+	return paths.posix.relative(from.path || '/', to.path || '/');
 }
 
 export function distinctParents<T>(items: T[], resourceAccessor: (item: T) => URI): T[] {

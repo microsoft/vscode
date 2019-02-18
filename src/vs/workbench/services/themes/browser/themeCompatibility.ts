@@ -8,8 +8,6 @@ import { Color } from 'vs/base/common/color';
 import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 
 import * as editorColorRegistry from 'vs/editor/common/view/editorColorRegistry';
-import * as wordHighlighter from 'vs/editor/contrib/wordHighlighter/wordHighlighter';
-import { peekViewEditorMatchHighlight, peekViewResultsMatchHighlight } from 'vs/editor/contrib/referenceSearch/referencesWidget';
 
 const settingToColorIdMapping: { [settingId: string]: string[] } = {};
 function addSettingMapping(settingId: string, colorId: string) {
@@ -56,11 +54,11 @@ addSettingMapping('selectionHighlightColor', colorRegistry.editorSelectionHighli
 addSettingMapping('findMatchHighlight', colorRegistry.editorFindMatchHighlight);
 addSettingMapping('currentFindMatchHighlight', colorRegistry.editorFindMatch);
 addSettingMapping('hoverHighlight', colorRegistry.editorHoverHighlight);
-addSettingMapping('wordHighlight', wordHighlighter.editorWordHighlight);
-addSettingMapping('wordHighlightStrong', wordHighlighter.editorWordHighlightStrong);
+addSettingMapping('wordHighlight', 'editor.wordHighlightBackground'); // inlined to avoid editor/contrib dependenies
+addSettingMapping('wordHighlightStrong', 'editor.wordHighlightStrongBackground');
 addSettingMapping('findRangeHighlight', colorRegistry.editorFindRangeHighlight);
-addSettingMapping('findMatchHighlight', peekViewResultsMatchHighlight);
-addSettingMapping('referenceHighlight', peekViewEditorMatchHighlight);
+addSettingMapping('findMatchHighlight', 'peekViewResult.matchHighlightBackground');
+addSettingMapping('referenceHighlight', 'peekViewEditor.matchHighlightBackground');
 addSettingMapping('lineHighlight', editorColorRegistry.editorLineHighlight);
 addSettingMapping('rangeHighlight', editorColorRegistry.editorRangeHighlight);
 addSettingMapping('caret', editorColorRegistry.editorCursorForeground);

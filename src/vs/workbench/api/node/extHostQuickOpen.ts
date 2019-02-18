@@ -25,7 +25,7 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 	private _commands: ExtHostCommands;
 
 	private _onDidSelectItem: (handle: number) => void;
-	private _validateInput: (input: string) => string | Thenable<string>;
+	private _validateInput?: (input: string) => string | undefined | null | Thenable<string | undefined | null>;
 
 	private _sessions = new Map<number, ExtHostQuickInput>();
 
@@ -72,10 +72,10 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 
 					let item = items[handle];
 					let label: string;
-					let description: string;
-					let detail: string;
-					let picked: boolean;
-					let alwaysShow: boolean;
+					let description: string | undefined;
+					let detail: string | undefined;
+					let picked: boolean | undefined;
+					let alwaysShow: boolean | undefined;
 
 					if (typeof item === 'string') {
 						label = item;
@@ -99,7 +99,7 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 				// handle selection changes
 				if (options && typeof options.onDidSelectItem === 'function') {
 					this._onDidSelectItem = (handle) => {
-						options.onDidSelectItem(items[handle]);
+						options.onDidSelectItem!(items[handle]);
 					};
 				}
 
@@ -137,7 +137,7 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 	showInput(options?: InputBoxOptions, token: CancellationToken = CancellationToken.None): Promise<string> {
 
 		// global validate fn used in callback below
-		this._validateInput = options && options.validateInput;
+		this._validateInput = options ? options.validateInput : undefined;
 
 		return this._proxy.$input(options, typeof this._validateInput === 'function', token)
 			.then(undefined, err => {
@@ -149,11 +149,11 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 			});
 	}
 
-	$validateInput(input: string): Promise<string> {
+	$validateInput(input: string): Promise<string | null | undefined> {
 		if (this._validateInput) {
-			return asPromise(() => this._validateInput(input));
+			return asPromise(() => this._validateInput!(input));
 		}
-		return undefined;
+		return Promise.resolve(undefined);
 	}
 
 	// ---- workspace folder picker

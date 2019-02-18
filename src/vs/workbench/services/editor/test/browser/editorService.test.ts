@@ -604,5 +604,5 @@ function toResource(path: string) {
 }
 
 function toFileResource(self: any, path: string) {
-	return URI.file(extpath.join('C:\\', Buffer.from(self.test.fullTitle()).toString('base64'), path));
+	return URI.file(extpath.joinWithSlashes('C:\\', Buffer.from(self.test.fullTitle()).toString('base64'), path));
 }

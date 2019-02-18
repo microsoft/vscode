@@ -175,7 +175,7 @@ import { LifecycleService } from 'vs/platform/lifecycle/electron-browser/lifecyc
 import { ToggleDevToolsAction } from 'vs/workbench/electron-browser/actions/developerActions';
 import { registerWindowDriver } from 'vs/platform/driver/electron-browser/driver';
 import { IExtensionUrlHandler, ExtensionUrlHandler } from 'vs/workbench/services/extensions/electron-browser/inactiveExtensionUrlHandler';
-import { WorkbenchThemeService } from 'vs/workbench/services/themes/electron-browser/workbenchThemeService';
+import { WorkbenchThemeService } from 'vs/workbench/services/themes/browser/workbenchThemeService';
 import { DialogService, FileDialogService } from 'vs/workbench/services/dialogs/electron-browser/dialogService';
 import { ShowPreviousWindowTab, MoveWindowTabToNewWindow, MergeAllWindowTabs, ShowNextWindowTab, ToggleWindowTabsBar, NewWindowTab, OpenRecentAction, ReloadWindowAction, ReloadWindowWithExtensionsDisabledAction } from 'vs/workbench/electron-browser/actions/windowActions';
 import { IBroadcastService, BroadcastService } from 'vs/workbench/services/broadcast/electron-browser/broadcastService';
@@ -352,10 +352,10 @@ export class Workbench extends Disposable implements IPartService {
 
 		this.workbenchParams = { configuration, serviceCollection };
 
-		this.hasInitialFilesToOpen =
+		this.hasInitialFilesToOpen = !!(
 			(configuration.filesToCreate && configuration.filesToCreate.length > 0) ||
 			(configuration.filesToOpen && configuration.filesToOpen.length > 0) ||
-			(configuration.filesToDiff && configuration.filesToDiff.length > 0);
+			(configuration.filesToDiff && configuration.filesToDiff.length > 0));
 
 		this.registerErrorHandler();
 	}
@@ -944,7 +944,7 @@ export class Workbench extends Disposable implements IPartService {
 		}
 
 		const newMenubarVisibility = this.configurationService.getValue<MenuBarVisibility>(Workbench.menubarVisibilityConfigurationKey);
-		this.setMenubarVisibility(newMenubarVisibility, skipLayout);
+		this.setMenubarVisibility(newMenubarVisibility, !!skipLayout);
 	}
 
 	//#endregion
@@ -976,7 +976,7 @@ export class Workbench extends Disposable implements IPartService {
 			const activeControl = this.editorService.activeControl;
 			const visibleEditors = this.editorService.visibleControls;
 
-			textCompareEditorActive.set(activeControl && activeControl.getId() === TEXT_DIFF_EDITOR_ID);
+			textCompareEditorActive.set(!!activeControl && activeControl.getId() === TEXT_DIFF_EDITOR_ID);
 			textCompareEditorVisible.set(visibleEditors.some(control => control.getId() === TEXT_DIFF_EDITOR_ID));
 
 			if (visibleEditors.length > 0) {
@@ -1013,7 +1013,7 @@ export class Workbench extends Disposable implements IPartService {
 		const inputFocused = InputFocusedContext.bindTo(this.contextKeyService);
 
 		function activeElementIsInput(): boolean {
-			return document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA');
+			return !!document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA');
 		}
 
 		function trackInputFocus(): void {
@@ -1085,7 +1085,7 @@ export class Workbench extends Disposable implements IPartService {
 		}).then(() => mark('didRestoreEditors')));
 
 		// Restore Sidebar
-		let viewletIdToRestore: string;
+		let viewletIdToRestore: string | undefined;
 		if (!this.sideBarHidden) {
 			this.sideBarVisibleContext.set(true);
 
@@ -1652,13 +1652,13 @@ export class Workbench extends Disposable implements IPartService {
 		let offset = 0;
 		if (this.isVisible(Parts.TITLEBAR_PART)) {
 			if (this.workbenchGrid instanceof Grid) {
-				offset = this.gridHasView(this.titlebarPartView) ? this.workbenchGrid.getViewSize2(this.titlebarPartView).height : 0;
+				offset = this.titlebarPart.maximumHeight;
 			} else {
 				offset = this.workbenchGrid.partLayoutInfo.titlebar.height;
-			}
 
-			if (isMacintosh || this.menubarVisibility === 'hidden') {
-				offset /= getZoomFactor();
+				if (isMacintosh || this.menubarVisibility === 'hidden') {
+					offset /= getZoomFactor();
+				}
 			}
 		}
 

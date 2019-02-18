@@ -188,7 +188,7 @@ export function getResource(filename: string, matcher: ProblemMatcher): URI {
 	if (kind === FileLocationKind.Absolute) {
 		fullPath = filename;
 	} else if ((kind === FileLocationKind.Relative) && matcher.filePrefix) {
-		fullPath = Extpath.join(matcher.filePrefix, filename);
+		fullPath = Extpath.joinWithSlashes(matcher.filePrefix, filename);
 	}
 	if (fullPath === undefined) {
 		throw new Error('FileLocationKind is not actionable. Does the matcher have a filePrefix? This should never happen.');

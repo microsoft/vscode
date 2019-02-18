@@ -85,7 +85,7 @@ class ToggleCenteredLayout extends Action {
 	run(): Promise<any> {
 		this.partService.centerEditorLayout(!this.partService.isEditorLayoutCentered());
 
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 
@@ -137,7 +137,7 @@ export class ToggleEditorLayoutAction extends Action {
 		const newOrientation = (this.editorGroupService.orientation === GroupOrientation.VERTICAL) ? GroupOrientation.HORIZONTAL : GroupOrientation.VERTICAL;
 		this.editorGroupService.setGroupOrientation(newOrientation);
 
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 
 	dispose(): void {
@@ -153,7 +153,7 @@ CommandsRegistry.registerCommand('_workbench.editor.setGroupOrientation', functi
 
 	editorGroupService.setGroupOrientation(orientation);
 
-	return Promise.resolve(null);
+	return Promise.resolve();
 });
 
 const group = viewCategory;
@@ -231,7 +231,7 @@ export class ToggleEditorVisibilityAction extends Action {
 		const hideEditor = this.partService.isVisible(Parts.EDITOR_PART);
 		this.partService.setEditorHidden(hideEditor);
 
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 
 }
@@ -258,7 +258,7 @@ export class ToggleSidebarVisibilityAction extends Action {
 		const hideSidebar = this.partService.isVisible(Parts.SIDEBAR_PART);
 		this.partService.setSideBarHidden(hideSidebar);
 
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 
@@ -362,7 +362,7 @@ class ToggleZenMode extends Action {
 	run(): Promise<any> {
 		this.partService.toggleZenMode();
 
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 

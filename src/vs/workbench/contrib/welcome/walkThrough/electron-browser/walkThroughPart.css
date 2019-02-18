@@ -98,7 +98,7 @@
 
 .monaco-workbench .part.editor > .content .walkThroughContent code,
 .monaco-workbench .part.editor > .content .walkThroughContent .shortcut {
-	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+	font-family: var(--monaco-monospace-font);
 	font-size: 14px;
 	line-height: 19px;
 }

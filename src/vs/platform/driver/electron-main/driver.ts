@@ -107,7 +107,7 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 		}
 		const webContents = window.win.webContents;
 		const noModifiedKeybinding = new SimpleKeybinding(false, false, false, false, keybinding.keyCode);
-		const resolvedKeybinding = new USLayoutResolvedKeybinding(noModifiedKeybinding, OS);
+		const resolvedKeybinding = new USLayoutResolvedKeybinding(noModifiedKeybinding.toChord(), OS);
 		const keyCode = resolvedKeybinding.getElectronAccelerator();
 
 		const modifiers: string[] = [];

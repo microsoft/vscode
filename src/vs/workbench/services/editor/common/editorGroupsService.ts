@@ -8,6 +8,7 @@ import { createDecorator, ServiceIdentifier, ServicesAccessor } from 'vs/platfor
 import { IEditorInput, IEditor, GroupIdentifier, IEditorInputWithOptions, CloseDirection } from 'vs/workbench/common/editor';
 import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IActiveEditor } from 'vs/workbench/services/editor/common/editorService';
 
 export const IEditorGroupsService = createDecorator<IEditorGroupsService>('editorGroupsService');
 
@@ -332,19 +333,19 @@ export interface IEditorGroup {
 	/**
 	 * The active control is the currently visible control of the group.
 	 */
-	readonly activeControl: IEditor;
+	readonly activeControl: IActiveEditor | undefined;
 
 	/**
 	 * The active editor is the currently visible editor of the group
 	 * within the current active control.
 	 */
-	readonly activeEditor: IEditorInput;
+	readonly activeEditor: IEditorInput | null;
 
 	/**
 	 * The editor in the group that is in preview mode if any. There can
 	 * only ever be one editor in preview mode.
 	 */
-	readonly previewEditor: IEditorInput;
+	readonly previewEditor: IEditorInput | null;
 
 	/**
 	 * The number of opend editors in this group.
@@ -359,7 +360,7 @@ export interface IEditorGroup {
 	/**
 	 * Returns the editor at a specific index of the group.
 	 */
-	getEditor(index: number): IEditorInput;
+	getEditor(index: number): IEditorInput | null;
 
 	/**
 	 * Get all editors that are currently opened in the group optionally
@@ -379,7 +380,7 @@ export interface IEditorGroup {
 	 * @returns a promise that resolves around an IEditor instance unless
 	 * the call failed, or the editor was not opened as active editor.
 	 */
-	openEditor(editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions): Promise<IEditor>;
+	openEditor(editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions): Promise<IEditor | null>;
 
 	/**
 	 * Opens editors in this group.
@@ -389,7 +390,7 @@ export interface IEditorGroup {
 	 * a group can only ever have one active editor, even if many editors are
 	 * opened, the result will only be one editor.
 	 */
-	openEditors(editors: IEditorInputWithOptions[]): Promise<IEditor>;
+	openEditors(editors: IEditorInputWithOptions[]): Promise<IEditor | null>;
 
 	/**
 	 * Find out if the provided editor is opened in the group.

@@ -507,7 +507,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		if (this.tree) {
 			return this.tree.reveal(item);
 		}
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 
 	private activate() {
@@ -582,7 +582,7 @@ class TreeDataSource implements IDataSource {
 	}
 
 	hasChildren(tree: ITree, node: ITreeItem): boolean {
-		return this.treeView.dataProvider && node.collapsibleState !== TreeItemCollapsibleState.None;
+		return !!this.treeView.dataProvider && node.collapsibleState !== TreeItemCollapsibleState.None;
 	}
 
 	getChildren(tree: ITree, node: ITreeItem): Promise<any[]> {

@@ -163,7 +163,7 @@ export class TestContextService implements IWorkspaceContextService {
 	}
 
 	public toResource(workspaceRelativePath: string): URI {
-		return URI.file(extpath.join('C:\\', workspaceRelativePath));
+		return URI.file(extpath.joinWithSlashes('C:\\', workspaceRelativePath));
 	}
 
 	public isCurrentWorkspace(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): boolean {
@@ -629,7 +629,7 @@ export class TestEditorGroup implements IEditorGroupView {
 	constructor(public id: number) { }
 
 	get group(): EditorGroup { throw new Error('not implemented'); }
-	activeControl: IEditor;
+	activeControl: IActiveEditor;
 	activeEditor: IEditorInput;
 	previewEditor: IEditorInput;
 	count: number;
@@ -1476,5 +1476,5 @@ export class TestViewletService implements IViewletService {
 }
 
 export function getRandomTestPath(tmpdir: string, ...segments: string[]): string {
-	return extpath.join(tmpdir, ...segments, generateUuid());
+	return extpath.joinWithSlashes(tmpdir, ...segments, generateUuid());
 }

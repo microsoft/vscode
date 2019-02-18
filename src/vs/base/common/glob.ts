@@ -18,7 +18,6 @@ export interface IExpression {
 export interface IRelativePattern {
 	base: string;
 	pattern: string;
-	pathToRelative(from: string, to: string): string;
 }
 
 export function getEmptyExpression(): IExpression {
@@ -336,7 +335,7 @@ function wrapRelativePattern(parsedPattern: ParsedStringPattern, arg2: string | 
 			return null;
 		}
 
-		return parsedPattern(arg2.pathToRelative(arg2.base, path), basename);
+		return parsedPattern(paths.relative(arg2.base, path), basename);
 	};
 }
 
@@ -516,7 +515,7 @@ function listToMap(list: string[]) {
 export function isRelativePattern(obj: any): obj is IRelativePattern {
 	const rp = obj as IRelativePattern;
 
-	return rp && typeof rp.base === 'string' && typeof rp.pattern === 'string' && typeof rp.pathToRelative === 'function';
+	return rp && typeof rp.base === 'string' && typeof rp.pattern === 'string';
 }
 
 /**

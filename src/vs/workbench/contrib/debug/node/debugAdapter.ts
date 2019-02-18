@@ -441,7 +441,7 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 		const result: IDebuggerContribution = Object.create(null);
 		if (contribution.runtime) {
 			if (contribution.runtime.indexOf('./') === 0) {	// TODO
-				result.runtime = extpath.join(extensionFolderPath, contribution.runtime);
+				result.runtime = extpath.joinWithSlashes(extensionFolderPath, contribution.runtime);
 			} else {
 				result.runtime = contribution.runtime;
 			}
@@ -451,7 +451,7 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 		}
 		if (contribution.program) {
 			if (!path.isAbsolute(contribution.program)) {
-				result.program = extpath.join(extensionFolderPath, contribution.program);
+				result.program = extpath.joinWithSlashes(extensionFolderPath, contribution.program);
 			} else {
 				result.program = contribution.program;
 			}

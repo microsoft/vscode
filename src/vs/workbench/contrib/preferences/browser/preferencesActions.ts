@@ -239,7 +239,7 @@ export class ConfigureLanguageBasedSettingsAction extends Action {
 		const picks: IQuickPickItem[] = languages.sort().map((lang, index) => {
 			const description: string = nls.localize('languageDescriptionConfigured', "({0})", this.modeService.getModeIdForLanguageName(lang.toLowerCase()));
 			// construct a fake resource to be able to show nice icons if any
-			let fakeResource: URI;
+			let fakeResource: URI | undefined;
 			const extensions = this.modeService.getExtensions(lang);
 			if (extensions && extensions.length) {
 				fakeResource = URI.file(extensions[0]);

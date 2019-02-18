@@ -49,7 +49,7 @@ export class DeferredPromise<T> {
 }
 
 export function toResource(this: any, path: string) {
-	return URI.file(extpath.join('C:\\', Buffer.from(this.test.fullTitle()).toString('base64'), path));
+	return URI.file(extpath.joinWithSlashes('C:\\', Buffer.from(this.test.fullTitle()).toString('base64'), path));
 }
 
 export function suiteRepeat(n: number, description: string, callback: (this: any) => void): void {

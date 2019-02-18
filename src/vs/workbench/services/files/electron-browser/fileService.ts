@@ -311,7 +311,7 @@ export class FileService extends Disposable implements IFileService {
 
 			// Return early if file is too large to load
 			if (typeof stat.size === 'number') {
-				if (stat.size > Math.max(this.environmentService.args['max-memory'] * 1024 * 1024 || 0, MAX_HEAP_SIZE)) {
+				if (stat.size > Math.max(parseInt(this.environmentService.args['max-memory']) * 1024 * 1024 || 0, MAX_HEAP_SIZE)) {
 					return onStatError(new FileOperationError(
 						nls.localize('fileTooLargeForHeapError', "To open a file of this size, you need to restart VS Code and allow it to use more memory"),
 						FileOperationResult.FILE_EXCEED_MEMORY_LIMIT
@@ -485,7 +485,7 @@ export class FileService extends Disposable implements IFileService {
 							currentPosition += bytesRead;
 						}
 
-						if (totalBytesRead > Math.max(this.environmentService.args['max-memory'] * 1024 * 1024 || 0, MAX_HEAP_SIZE)) {
+						if (totalBytesRead > Math.max(parseInt(this.environmentService.args['max-memory']) * 1024 * 1024 || 0, MAX_HEAP_SIZE)) {
 							finish(new FileOperationError(
 								nls.localize('fileTooLargeForHeapError', "To open a file of this size, you need to restart VS Code and allow it to use more memory"),
 								FileOperationResult.FILE_EXCEED_MEMORY_LIMIT
@@ -839,11 +839,11 @@ export class FileService extends Disposable implements IFileService {
 	}
 
 	moveFile(source: uri, target: uri, overwrite?: boolean): Promise<IFileStat> {
-		return this.moveOrCopyFile(source, target, false, overwrite);
+		return this.moveOrCopyFile(source, target, false, !!overwrite);
 	}
 
 	copyFile(source: uri, target: uri, overwrite?: boolean): Promise<IFileStat> {
-		return this.moveOrCopyFile(source, target, true, overwrite);
+		return this.moveOrCopyFile(source, target, true, !!overwrite);
 	}
 
 	private moveOrCopyFile(source: uri, target: uri, keepCopy: boolean, overwrite: boolean): Promise<IFileStat> {
@@ -915,7 +915,7 @@ export class FileService extends Disposable implements IFileService {
 			return this.doMoveItemToTrash(resource);
 		}
 
-		return this.doDelete(resource, options && options.recursive);
+		return this.doDelete(resource, !!(options && options.recursive));
 	}
 
 	private doMoveItemToTrash(resource: uri): Promise<void> {

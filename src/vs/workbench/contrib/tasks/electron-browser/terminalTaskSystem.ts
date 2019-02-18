@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as path from 'vs/base/common/path';
-
 import * as nls from 'vs/nls';
 import * as Objects from 'vs/base/common/objects';
 import * as Types from 'vs/base/common/types';
@@ -815,23 +814,14 @@ export class TerminalTaskSystem implements ITaskSystem {
 
 		if (options.cwd) {
 			let cwd = options.cwd;
-			let p: typeof path;
-			// This must be normalized to the OS
-			if (platform === Platform.Platform.Windows) {
-				p = path.win32 as any;
-			} else if (platform === Platform.Platform.Linux || platform === Platform.Platform.Mac) {
-				p = path.posix as any;
-			} else {
-				p = path;
-			}
-			if (!p.isAbsolute(cwd)) {
+			if (!path.isAbsolute(cwd)) {
 				let workspaceFolder = task.getWorkspaceFolder();
 				if (workspaceFolder && (workspaceFolder.uri.scheme === 'file')) {
-					cwd = p.join(workspaceFolder.uri.fsPath, cwd);
+					cwd = path.join(workspaceFolder.uri.fsPath, cwd);
 				}
 			}
 			// This must be normalized to the OS
-			shellLaunchConfig.cwd = p.normalize(cwd);
+			shellLaunchConfig.cwd = path.normalize(cwd);
 		}
 		if (options.env) {
 			shellLaunchConfig.env = options.env;

@@ -288,8 +288,8 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 		return this.range;
 	}
 
-	getInput(): IEditorInput {
-		return this.editorService.activeEditor;
+	getInput(): IEditorInput | null {
+		return this.editorService.activeEditor || null;
 	}
 
 	getOptions(pinned?: boolean): ITextEditorOptions {
@@ -312,7 +312,7 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 		// Check for sideBySide use
 		const sideBySide = context.keymods.ctrlCmd;
 		if (sideBySide) {
-			this.editorService.openEditor(this.getInput(), this.getOptions(context.keymods.alt), SIDE_GROUP);
+			this.editorService.openEditor(this.getInput()!, this.getOptions(context.keymods.alt), SIDE_GROUP);
 		}
 
 		// Apply selection and focus
@@ -337,8 +337,8 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 			activeTextEditorWidget.revealRangeInCenter(range, ScrollType.Smooth);
 
 			// Decorate if possible
-			if (types.isFunction(activeTextEditorWidget.changeDecorations)) {
-				this.handler.decorateOutline(this.range, range, activeTextEditorWidget, this.editorService.activeControl.group!);
+			if (this.editorService.activeControl && types.isFunction(activeTextEditorWidget.changeDecorations)) {
+				this.handler.decorateOutline(this.range, range, activeTextEditorWidget, this.editorService.activeControl.group);
 			}
 		}
 
@@ -401,7 +401,9 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		// Remember view state to be able to restore on cancel
 		if (!this.lastKnownEditorViewState) {
 			const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
-			this.lastKnownEditorViewState = activeTextEditorWidget.saveViewState();
+			if (activeTextEditorWidget) {
+				this.lastKnownEditorViewState = activeTextEditorWidget.saveViewState();
+			}
 		}
 
 		// Resolve Outline Model

@@ -86,6 +86,13 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	private static readonly EDITOR_PART_UI_STATE_STORAGE_KEY = 'editorpart.state';
 	private static readonly EDITOR_PART_CENTERED_VIEW_STORAGE_KEY = 'editorpart.centeredview';
 
+	element: HTMLElement;
+
+	private _onDidChange = this._register(new Emitter<{ width: number; height: number; }>());
+	get onDidChange(): Event<{ width: number, height: number }> { return this._onDidChange.event; }
+
+	readonly priority: LayoutPriority = LayoutPriority.High;
+
 	//#region Events
 
 	private readonly _onDidLayout: Emitter<Dimension> = this._register(new Emitter<Dimension>());
@@ -134,13 +141,6 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 
 	private _whenRestored: Promise<void>;
 	private whenRestoredResolve: () => void;
-
-	element: HTMLElement;
-
-	private _onDidChange = new Emitter<{ width: number; height: number; }>();
-	readonly onDidChange = this._onDidChange.event;
-
-	priority: LayoutPriority = LayoutPriority.High;
 
 	constructor(
 		id: string,

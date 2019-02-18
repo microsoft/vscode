@@ -562,7 +562,7 @@ export class TabsTitleControl extends TitleControl {
 		disposables.push(addDisposableListener(tab, EventType.DBLCLICK, (e: MouseEvent) => {
 			EventHelper.stop(e);
 
-			this.group.pinEditor(this.group.getEditor(index));
+			this.group.pinEditor(this.group.getEditor(index) || undefined);
 		}));
 
 		// Context menu
@@ -670,7 +670,8 @@ export class TabsTitleControl extends TitleControl {
 
 	private updateDropFeedback(element: HTMLElement, isDND: boolean, index?: number): void {
 		const isTab = (typeof index === 'number');
-		const isActiveTab = isTab && this.group.isActive(this.group.getEditor(index));
+		const editor = typeof index === 'number' ? this.group.getEditor(index) : null;
+		const isActiveTab = isTab && !!editor && this.group.isActive(editor);
 
 		// Background
 		const noDNDBackgroundColor = isTab ? this.getColor(isActiveTab ? TAB_ACTIVE_BACKGROUND : TAB_INACTIVE_BACKGROUND) : null;
@@ -1032,7 +1033,7 @@ export class TabsTitleControl extends TitleControl {
 		}
 	}
 
-	private getTab(editor: IEditorInput): HTMLElement {
+	private getTab(editor: IEditorInput): HTMLElement | undefined {
 		const editorIndex = this.group.getIndexOfEditor(editor);
 		if (editorIndex >= 0) {
 			return this.tabsContainer.children[editorIndex] as HTMLElement;
@@ -1193,12 +1194,12 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		const editorGroupHeaderTabsBackground = theme.getColor(EDITOR_GROUP_HEADER_TABS_BACKGROUND);
 		const editorDragAndDropBackground = theme.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND);
 
-		let adjustedTabBackground: Color;
+		let adjustedTabBackground: Color | undefined;
 		if (editorGroupHeaderTabsBackground && editorBackgroundColor) {
 			adjustedTabBackground = editorGroupHeaderTabsBackground.flatten(editorBackgroundColor, editorBackgroundColor, workbenchBackground);
 		}
 
-		let adjustedTabDragBackground: Color;
+		let adjustedTabDragBackground: Color | undefined;
 		if (editorGroupHeaderTabsBackground && editorBackgroundColor && editorDragAndDropBackground && editorBackgroundColor) {
 			adjustedTabDragBackground = editorGroupHeaderTabsBackground.flatten(editorBackgroundColor, editorDragAndDropBackground, editorBackgroundColor, workbenchBackground);
 		}

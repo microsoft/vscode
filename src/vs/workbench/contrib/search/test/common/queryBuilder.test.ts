@@ -908,7 +908,7 @@ function fixPath(...slashPathParts: string[]): string {
 		slashPathParts.unshift('c:');
 	}
 
-	return extpath.join(...slashPathParts);
+	return extpath.joinWithSlashes(...slashPathParts);
 }
 
 function normalizeExpression(expression: IExpression | undefined): IExpression | undefined {

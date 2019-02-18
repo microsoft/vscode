@@ -21,7 +21,7 @@ import Severity from 'vs/base/common/severity';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { URI } from 'vs/base/common/uri';
-import { join } from 'vs/base/common/extpath';
+import { joinWithSlashes } from 'vs/base/common/extpath';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -82,7 +82,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 					[{
 						label: updateAndRestart ? localize('yes', "Yes") : localize('restart now', "Restart Now"),
 						run: () => {
-							const file = URI.file(join(this.environmentService.appSettingsHome, 'locale.json'));
+							const file = URI.file(joinWithSlashes(this.environmentService.appSettingsHome, 'locale.json'));
 							const updatePromise = updateAndRestart ? this.jsonEditingService.write(file, { key: 'locale', value: locale }, true) : Promise.resolve(undefined);
 							updatePromise.then(() => this.windowsService.relaunch({}), e => this.notificationService.error(e));
 						}

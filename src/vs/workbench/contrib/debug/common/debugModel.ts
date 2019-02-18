@@ -879,7 +879,7 @@ export class DebugModel implements IDebugModel {
 
 			this.exceptionBreakpoints = data.map(d => {
 				const ebp = this.exceptionBreakpoints.filter(ebp => ebp.filter === d.filter).pop();
-				return new ExceptionBreakpoint(d.filter, d.label, ebp ? ebp.enabled : d.default);
+				return new ExceptionBreakpoint(d.filter, d.label, ebp ? ebp.enabled : !!d.default);
 			});
 			this._onDidChangeBreakpoints.fire(undefined);
 		}

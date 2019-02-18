@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { join } from 'vs/base/common/extpath';
+import { joinWithSlashes } from 'vs/base/common/extpath';
 import { ILogService, DelegatedLogService, LogLevel } from 'vs/platform/log/common/log';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { ExtHostLogServiceShape } from 'vs/workbench/api/node/extHost.protocol';
@@ -23,7 +23,7 @@ export class ExtHostLogService extends DelegatedLogService implements ILogServic
 	) {
 		super(createSpdLogService(ExtensionHostLogFileName, logLevel, logsPath));
 		this._logsPath = logsPath;
-		this.logFile = URI.file(join(logsPath, `${ExtensionHostLogFileName}.log`));
+		this.logFile = URI.file(joinWithSlashes(logsPath, `${ExtensionHostLogFileName}.log`));
 	}
 
 	$setLevel(level: LogLevel): void {
@@ -31,6 +31,6 @@ export class ExtHostLogService extends DelegatedLogService implements ILogServic
 	}
 
 	getLogDirectory(extensionID: ExtensionIdentifier): string {
-		return join(this._logsPath, extensionID.value);
+		return joinWithSlashes(this._logsPath, extensionID.value);
 	}
 }

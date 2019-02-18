@@ -15,7 +15,7 @@ import { Keybinding, ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { ConfigWatcher } from 'vs/base/node/config';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Extensions as ConfigExtensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -38,6 +38,7 @@ import { MacLinuxFallbackKeyboardMapper } from 'vs/workbench/services/keybinding
 import { IMacLinuxKeyboardMapping, MacLinuxKeyboardMapper, macLinuxKeyboardMappingEquals } from 'vs/workbench/services/keybinding/common/macLinuxKeyboardMapper';
 import { IWindowsKeyboardMapping, WindowsKeyboardMapper, windowsKeyboardMappingEquals } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
 import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export class KeyboardMapperFactory {
 	public static readonly INSTANCE = new KeyboardMapperFactory();
@@ -276,9 +277,12 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IStatusbarService statusBarService: IStatusbarService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IWindowService private readonly windowService: IWindowService
+		@IWindowService private readonly windowService: IWindowService,
+		@IExtensionService extensionService: IExtensionService
 	) {
 		super(contextKeyService, commandService, telemetryService, notificationService, statusBarService);
+
+		updateSchema();
 
 		let dispatchConfig = getDispatchConfig(configurationService);
 		configurationService.onDidChangeConfiguration((e) => {
@@ -313,6 +317,9 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			KeybindingsRegistry.setExtensionKeybindings(keybindings);
 			this.updateResolver({ source: KeybindingSource.Default });
 		});
+
+		updateSchema();
+		this._register(extensionService.onDidRegisterExtensions(() => updateSchema()));
 
 		this._register(this.userKeybindings.onDidUpdateConfiguration(event => this.updateResolver({
 			source: KeybindingSource.User,
@@ -569,10 +576,31 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 }
 
 let schemaId = 'vscode://schemas/keybindings';
+let commandsSchemas: IJSONSchema[] = [];
+let commandsEnum: string[] = [];
+let commandsEnumDescriptions: (string | null | undefined)[] = [];
 let schema: IJSONSchema = {
 	'id': schemaId,
 	'type': 'array',
 	'title': nls.localize('keybindings.json.title', "Keybindings configuration"),
+	'definitions': {
+		'editorGroupsSchema': {
+			'type': 'array',
+			'items': {
+				'type': 'object',
+				'properties': {
+					'groups': {
+						'$ref': '#/definitions/editorGroupsSchema',
+						'default': [{}, {}]
+					},
+					'size': {
+						'type': 'number',
+						'default': 0.5
+					}
+				}
+			}
+		}
+	},
 	'items': {
 		'required': ['key'],
 		'type': 'object',
@@ -584,6 +612,8 @@ let schema: IJSONSchema = {
 			},
 			'command': {
 				'type': 'string',
+				'enum': commandsEnum,
+				'enumDescriptions': <any>commandsEnumDescriptions,
 				'description': nls.localize('keybindings.json.command', "Name of the command to execute"),
 			},
 			'when': {
@@ -593,12 +623,51 @@ let schema: IJSONSchema = {
 			'args': {
 				'description': nls.localize('keybindings.json.args', "Arguments to pass to the command to execute.")
 			}
-		}
+		},
+		'allOf': commandsSchemas
 	}
 };
 
 let schemaRegistry = Registry.as<IJSONContributionRegistry>(Extensions.JSONContribution);
 schemaRegistry.registerSchema(schemaId, schema);
+
+function updateSchema() {
+	commandsSchemas.length = 0;
+	commandsEnum.length = 0;
+	commandsEnumDescriptions.length = 0;
+
+	const allCommands = CommandsRegistry.getCommands();
+	for (let commandId in allCommands) {
+		const commandDescription = allCommands[commandId].description;
+
+		if (!/^_/.test(commandId)) {
+			commandsEnum.push(commandId);
+			commandsEnumDescriptions.push(commandDescription && commandDescription.description);
+		}
+
+		if (!commandDescription || !commandDescription.args || commandDescription.args.length !== 1 || !commandDescription.args[0].schema) {
+			continue;
+		}
+
+		const argsSchema = commandDescription.args[0].schema;
+		const argsRequired = Array.isArray(argsSchema.required) && argsSchema.required.length > 0;
+		const addition = {
+			'if': {
+				'properties': {
+					'command': { 'const': commandId }
+				}
+			},
+			'then': {
+				'required': (<string[]>[]).concat(argsRequired ? ['args'] : []),
+				'properties': {
+					'args': argsSchema
+				}
+			}
+		};
+
+		commandsSchemas.push(addition);
+	}
+}
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigExtensions.Configuration);
 const keyboardConfiguration: IConfigurationNode = {

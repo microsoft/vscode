@@ -228,7 +228,10 @@ export class WebviewEditorInput extends EditorInput {
 		if (!this._container) {
 			this._container = document.createElement('div');
 			this._container.id = `webview-${this._id}`;
-			this._partService.getContainer(Parts.EDITOR_PART).appendChild(this._container);
+			const part = this._partService.getContainer(Parts.EDITOR_PART);
+			if (part) {
+				part.appendChild(this._container);
+			}
 		}
 		return this._container;
 	}

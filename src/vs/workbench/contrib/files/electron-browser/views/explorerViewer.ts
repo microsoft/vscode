@@ -26,7 +26,6 @@ import { localize } from 'vs/nls';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { once } from 'vs/base/common/functional';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { normalize } from 'vs/base/common/extpath';
 import { equals, deepClone } from 'vs/base/common/objects';
 import * as path from 'vs/base/common/path';
 import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
@@ -313,7 +312,8 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 
 		// Hide those that match Hidden Patterns
 		const cached = this.hiddenExpressionPerRoot.get(stat.root.resource.toString());
-		if (cached && cached.parsed(normalize(path.relative(stat.root.resource.path, stat.resource.path), true), stat.name, name => !!stat.parent.getChild(name))) {
+		if (cached && cached.parsed(path.normalize(path.relative(stat.root.resource.path, stat.resource.path)), stat.name, name => !!stat.parent.getChild(name))) {
+			// review (isidor): is path.normalize necessary? path.relative already returns an os path
 			return false; // hidden through pattern
 		}
 
@@ -472,7 +472,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			if (!target) {
 				// Droping onto the empty area. Do not accept if items dragged are already
 				// children of the root unless we are copying the file
-				if (!isCopy && items.every(i => i.parent && i.parent.isRoot)) {
+				if (!isCopy && items.every(i => !!i.parent && i.parent.isRoot)) {
 					return false;
 				}
 
@@ -746,7 +746,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		}
 
 		const folders = this.contextService.getWorkspace().folders;
-		let targetIndex: number;
+		let targetIndex: number | undefined;
 		const workspaceCreationData: IWorkspaceFolderCreationData[] = [];
 		const rootsToMove: IWorkspaceFolderCreationData[] = [];
 

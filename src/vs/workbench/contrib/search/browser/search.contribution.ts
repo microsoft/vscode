@@ -5,7 +5,6 @@
 
 import 'vs/css!./media/search.contribution';
 
-import { relative } from 'vs/base/common/path';
 import { Action } from 'vs/base/common/actions';
 import { distinct } from 'vs/base/common/arrays';
 import { illegalArgument } from 'vs/base/common/errors';
@@ -123,7 +122,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: (accessor, args: any) => {
 		const searchView = getSearchView(accessor.get(IViewletService), accessor.get(IPanelService));
 		const tree: WorkbenchObjectTree<RenderableMatch> = searchView.getControl();
-		accessor.get(IInstantiationService).createInstance(RemoveAction, searchView, tree, tree.getFocus()[0]).run();
+		accessor.get(IInstantiationService).createInstance(RemoveAction, tree, tree.getFocus()[0]).run();
 	}
 });
 
@@ -358,7 +357,7 @@ const searchInFolderCommand: ICommandHandler = (accessor, resource?: URI) => {
 					}
 				});
 
-				searchView.searchInFolders(distinct(folders, folder => folder.toString()), (from, to) => relative(from, to));
+				searchView.searchInFolders(distinct(folders, folder => folder.toString()));
 			});
 		}
 
@@ -394,7 +393,7 @@ CommandsRegistry.registerCommand({
 	id: FIND_IN_WORKSPACE_ID,
 	handler: (accessor) => {
 		return openSearchView(accessor.get(IViewletService), accessor.get(IPanelService), true).then(searchView => {
-			searchView.searchInFolders(null, (from, to) => relative(from, to));
+			searchView.searchInFolders(null);
 		});
 	}
 });

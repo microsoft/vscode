@@ -33,7 +33,7 @@ export const VIEWLET_ID = 'workbench.view.explorer';
 export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(VIEWLET_ID);
 
 export interface IEditableData {
-	validationMessage: (value: string) => string;
+	validationMessage: (value: string) => string | null;
 	onFinish: (value: string, success: boolean) => void;
 }
 
@@ -47,7 +47,7 @@ export interface IExplorerService {
 	readonly onDidSelectItem: Event<{ item?: ExplorerItem, reveal?: boolean }>;
 	readonly onDidCopyItems: Event<{ items: ExplorerItem[], cut: boolean, previouslyCutItems: ExplorerItem[] | undefined }>;
 
-	setEditable(stat: ExplorerItem, data: IEditableData): void;
+	setEditable(stat: ExplorerItem, data: IEditableData | null): void;
 	getEditableData(stat: ExplorerItem): IEditableData | undefined;
 	isEditable(stat: ExplorerItem): boolean;
 	findClosest(resource: URI): ExplorerItem | null;

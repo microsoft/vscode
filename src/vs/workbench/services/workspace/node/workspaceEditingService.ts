@@ -62,7 +62,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		}
 
 		// Add Folders
-		if (wantsToAdd && !wantsToDelete) {
+		if (wantsToAdd && !wantsToDelete && Array.isArray(foldersToAdd)) {
 			return this.doAddFolders(foldersToAdd, index, donotNotifyError);
 		}
 
@@ -78,16 +78,16 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 			// other folders, we handle this specially and just enter workspace
 			// mode with the folders that are being added.
 			if (this.includesSingleFolderWorkspace(foldersToDelete)) {
-				return this.createAndEnterWorkspace(foldersToAdd);
+				return this.createAndEnterWorkspace(foldersToAdd!);
 			}
 
 			// if we are not in workspace-state, we just add the folders
 			if (this.contextService.getWorkbenchState() !== WorkbenchState.WORKSPACE) {
-				return this.doAddFolders(foldersToAdd, index, donotNotifyError);
+				return this.doAddFolders(foldersToAdd!, index, donotNotifyError);
 			}
 
 			// finally, update folders within the workspace
-			return this.doUpdateFolders(foldersToAdd, foldersToDelete, index, donotNotifyError);
+			return this.doUpdateFolders(foldersToAdd!, foldersToDelete, index, donotNotifyError);
 		}
 	}
 
@@ -176,7 +176,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		const windows = await this.windowsService.getWindows();
 
 		// Prevent overwriting a workspace that is currently opened in another window
-		if (windows.some(window => window.workspace && isEqual(window.workspace.configPath, path))) {
+		if (windows.some(window => !!window.workspace && isEqual(window.workspace.configPath, path))) {
 			const options: MessageBoxOptions = {
 				type: 'info',
 				buttons: [nls.localize('ok', "OK")],
@@ -256,7 +256,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 
 					// Reinitialize backup service
 					if (this.backupFileService instanceof BackupFileService) {
-						this.backupFileService.initialize(result.backupPath);
+						this.backupFileService.initialize(result.backupPath!);
 					}
 
 					// Reinitialize configuration service
