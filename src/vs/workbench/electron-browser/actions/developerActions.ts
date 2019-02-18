@@ -212,7 +212,8 @@ export class ToggleScreencastModeAction extends Action {
 		ToggleScreencastModeAction.disposable = toDisposable(() => {
 			mouseListener.dispose();
 			keyboardListener.dispose();
-			container.removeChild(mouseMarker);
+			mouseMarker.remove();
+			keyboardMarker.remove();
 		});
 	}
 }
