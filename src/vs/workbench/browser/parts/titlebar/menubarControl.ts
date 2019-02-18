@@ -220,18 +220,12 @@ export class MenubarControl extends Disposable {
 			return;
 		}
 
-		const message = nls.localize('menubar.linuxTitlebarRevertNotification', "We have updated the default title bar on Linux to use the native setting. If you prefer, you can go back to the custom setting.");
+		const message = nls.localize('menubar.linuxTitlebarRevertNotification', "We have updated the default title bar on Linux to use the native setting. If you prefer, you can go back to the custom setting. More information is available in our [online documentation](https://go.microsoft.com/fwlink/?linkid=2074137).");
 		this.notificationService.prompt(Severity.Info, message, [
 			{
-				label: nls.localize('goToSetting', "Go to setting"),
+				label: nls.localize('goToSetting', "Open Settings"),
 				run: () => {
 					return this.preferencesService.openGlobalSettings(undefined, { query: 'window.titleBarStyle' });
-				}
-			},
-			{
-				label: nls.localize('moreInfo', "More Info"),
-				run: () => {
-					window.open('https://go.microsoft.com/fwlink/?linkid=2074137');
 				}
 			},
 			{
@@ -262,7 +256,7 @@ export class MenubarControl extends Disposable {
 		const message = nls.localize('menubar.customTitlebarAccessibilityNotification', "Accessibility support is enabled for you. For the most accessible experience, we recommend the custom title bar style.");
 		this.notificationService.prompt(Severity.Info, message, [
 			{
-				label: nls.localize('goToSetting', "Go to setting"),
+				label: nls.localize('goToSetting', "Open Settings"),
 				run: () => {
 					return this.preferencesService.openGlobalSettings(undefined, { query: 'window.titleBarStyle' });
 				}
