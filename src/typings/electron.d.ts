@@ -1,4 +1,4 @@
-// Type definitions for Electron 4.0.4
+// Type definitions for Electron 4.0.5
 // Project: http://electronjs.org/
 // Definitions by: The Electron Team <https://github.com/electron/electron>
 // Definitions: https://github.com/electron/electron-typescript-definitions
@@ -473,6 +473,49 @@ declare namespace Electron {
 		addListener(event: 'ready', listener: (launchInfo: any) => void): this;
 		removeListener(event: 'ready', listener: (launchInfo: any) => void): this;
 		/**
+		 * Emitted when remote.getBuiltin() is called in the renderer process of
+		 * webContents. Calling event.preventDefault() will prevent the module from being
+		 * returned. Custom value can be returned by setting event.returnValue.
+		 */
+		on(event: 'remote-get-builtin', listener: (event: Event,
+			webContents: WebContents,
+			moduleName: string) => void): this;
+		once(event: 'remote-get-builtin', listener: (event: Event,
+			webContents: WebContents,
+			moduleName: string) => void): this;
+		addListener(event: 'remote-get-builtin', listener: (event: Event,
+			webContents: WebContents,
+			moduleName: string) => void): this;
+		removeListener(event: 'remote-get-builtin', listener: (event: Event,
+			webContents: WebContents,
+			moduleName: string) => void): this;
+		/**
+		 * Emitted when remote.getCurrentWebContents() is called in the renderer process of
+		 * webContents. Calling event.preventDefault() will prevent the object from being
+		 * returned. Custom value can be returned by setting event.returnValue.
+		 */
+		on(event: 'remote-get-current-web-contents', listener: (event: Event,
+			webContents: WebContents) => void): this;
+		once(event: 'remote-get-current-web-contents', listener: (event: Event,
+			webContents: WebContents) => void): this;
+		addListener(event: 'remote-get-current-web-contents', listener: (event: Event,
+			webContents: WebContents) => void): this;
+		removeListener(event: 'remote-get-current-web-contents', listener: (event: Event,
+			webContents: WebContents) => void): this;
+		/**
+		 * Emitted when remote.getCurrentWindow() is called in the renderer process of
+		 * webContents. Calling event.preventDefault() will prevent the object from being
+		 * returned. Custom value can be returned by setting event.returnValue.
+		 */
+		on(event: 'remote-get-current-window', listener: (event: Event,
+			webContents: WebContents) => void): this;
+		once(event: 'remote-get-current-window', listener: (event: Event,
+			webContents: WebContents) => void): this;
+		addListener(event: 'remote-get-current-window', listener: (event: Event,
+			webContents: WebContents) => void): this;
+		removeListener(event: 'remote-get-current-window', listener: (event: Event,
+			webContents: WebContents) => void): this;
+		/**
 		 * Emitted when remote.getGlobal() is called in the renderer process of
 		 * webContents. Calling event.preventDefault() will prevent the global from being
 		 * returned. Custom value can be returned by setting event.returnValue.
@@ -489,6 +532,23 @@ declare namespace Electron {
 		removeListener(event: 'remote-get-global', listener: (event: Event,
 			webContents: WebContents,
 			globalName: string) => void): this;
+		/**
+		 * Emitted when <webview>.getWebContents() is called in the renderer process of
+		 * webContents. Calling event.preventDefault() will prevent the object from being
+		 * returned. Custom value can be returned by setting event.returnValue.
+		 */
+		on(event: 'remote-get-guest-web-contents', listener: (event: Event,
+			webContents: WebContents,
+			guestWebContents: WebContents) => void): this;
+		once(event: 'remote-get-guest-web-contents', listener: (event: Event,
+			webContents: WebContents,
+			guestWebContents: WebContents) => void): this;
+		addListener(event: 'remote-get-guest-web-contents', listener: (event: Event,
+			webContents: WebContents,
+			guestWebContents: WebContents) => void): this;
+		removeListener(event: 'remote-get-guest-web-contents', listener: (event: Event,
+			webContents: WebContents,
+			guestWebContents: WebContents) => void): this;
 		/**
 		 * Emitted when remote.require() is called in the renderer process of webContents.
 		 * Calling event.preventDefault() will prevent the module from being returned.
@@ -5884,6 +5944,37 @@ declare namespace Electron {
 			name: string,
 			version: string) => void): this;
 		/**
+		 * Emitted when remote.getBuiltin() is called in the renderer process. Calling
+		 * event.preventDefault() will prevent the module from being returned. Custom value
+		 * can be returned by setting event.returnValue.
+		 */
+		on(event: 'remote-get-builtin', listener: (event: Event,
+			moduleName: string) => void): this;
+		once(event: 'remote-get-builtin', listener: (event: Event,
+			moduleName: string) => void): this;
+		addListener(event: 'remote-get-builtin', listener: (event: Event,
+			moduleName: string) => void): this;
+		removeListener(event: 'remote-get-builtin', listener: (event: Event,
+			moduleName: string) => void): this;
+		/**
+		 * Emitted when remote.getCurrentWebContents() is called in the renderer process.
+		 * Calling event.preventDefault() will prevent the object from being returned.
+		 * Custom value can be returned by setting event.returnValue.
+		 */
+		on(event: 'remote-get-current-web-contents', listener: (event: Event) => void): this;
+		once(event: 'remote-get-current-web-contents', listener: (event: Event) => void): this;
+		addListener(event: 'remote-get-current-web-contents', listener: (event: Event) => void): this;
+		removeListener(event: 'remote-get-current-web-contents', listener: (event: Event) => void): this;
+		/**
+		 * Emitted when remote.getCurrentWindow() is called in the renderer process.
+		 * Calling event.preventDefault() will prevent the object from being returned.
+		 * Custom value can be returned by setting event.returnValue.
+		 */
+		on(event: 'remote-get-current-window', listener: (event: Event) => void): this;
+		once(event: 'remote-get-current-window', listener: (event: Event) => void): this;
+		addListener(event: 'remote-get-current-window', listener: (event: Event) => void): this;
+		removeListener(event: 'remote-get-current-window', listener: (event: Event) => void): this;
+		/**
 		 * Emitted when remote.getGlobal() is called in the renderer process. Calling
 		 * event.preventDefault() will prevent the global from being returned. Custom value
 		 * can be returned by setting event.returnValue.
@@ -5896,6 +5987,19 @@ declare namespace Electron {
 			globalName: string) => void): this;
 		removeListener(event: 'remote-get-global', listener: (event: Event,
 			globalName: string) => void): this;
+		/**
+		 * Emitted when <webview>.getWebContents() is called in the renderer process.
+		 * Calling event.preventDefault() will prevent the object from being returned.
+		 * Custom value can be returned by setting event.returnValue.
+		 */
+		on(event: 'remote-get-guest-web-contents', listener: (event: Event,
+			guestWebContents: WebContents) => void): this;
+		once(event: 'remote-get-guest-web-contents', listener: (event: Event,
+			guestWebContents: WebContents) => void): this;
+		addListener(event: 'remote-get-guest-web-contents', listener: (event: Event,
+			guestWebContents: WebContents) => void): this;
+		removeListener(event: 'remote-get-guest-web-contents', listener: (event: Event,
+			guestWebContents: WebContents) => void): this;
 		/**
 		 * Emitted when remote.require() is called in the renderer process. Calling
 		 * event.preventDefault() will prevent the module from being returned. Custom value
@@ -6108,13 +6212,13 @@ declare namespace Electron {
 		 * called with callback(image). The image is an instance of NativeImage that stores
 		 * data of the snapshot. Omitting rect will capture the whole visible page.
 		 */
-		capturePage(callback: (image: NativeImage) => void): void;
+		capturePage(rect: Rectangle, callback: (image: NativeImage) => void): void;
 		/**
 		 * Captures a snapshot of the page within rect. Upon completion callback will be
 		 * called with callback(image). The image is an instance of NativeImage that stores
 		 * data of the snapshot. Omitting rect will capture the whole visible page.
 		 */
-		capturePage(rect: Rectangle, callback: (image: NativeImage) => void): void;
+		capturePage(callback: (image: NativeImage) => void): void;
 		/**
 		 * Clears the navigation history.
 		 */
@@ -6182,6 +6286,7 @@ declare namespace Electron {
 		getPrinters(): PrinterInfo[];
 		getProcessId(): number;
 		getTitle(): string;
+		getType(): ('backgroundPage' | 'window' | 'browserView' | 'remote' | 'webview' | 'offscreen');
 		getURL(): string;
 		getUserAgent(): string;
 		getWebRTCIPHandlingPolicy(): string;
