@@ -214,9 +214,8 @@ function getElectron(arch) {
 gulp.task(task.define('electron', task.series(util.rimraf('.build/electron'), getElectron(process.arch))));
 gulp.task(task.define('electron-ia32', task.series(util.rimraf('.build/electron'), getElectron('ia32'))));
 gulp.task(task.define('electron-x64', task.series(util.rimraf('.build/electron'), getElectron('x64'))));
-gulp.task(task.define('electron-arm', task.series(util.rimraf('.build/electron'), getElectron('arm'))));
+gulp.task(task.define('electron-arm', task.series(util.rimraf('.build/electron'), getElectron('armv7l'))));
 gulp.task(task.define('electron-arm64', task.series(util.rimraf('.build/electron'), getElectron('arm64'))));
-
 
 /**
  * Compute checksums for some files.
