@@ -8,7 +8,7 @@ import { Git, CommitOptions, Stash, ForcePushMode } from './git';
 import { Repository, Resource, ResourceGroupType } from './repository';
 import { Model } from './model';
 import { toGitUri, fromGitUri } from './uri';
-import { grep, isDescendant, pathEquals } from './util';
+import { grep, isDescendant, pathEquals, dispose } from './util';
 import { applyLineChanges, intersectDiffWithRange, toLineRanges, invertLineChange, getModifiedRange } from './staging';
 import * as path from 'path';
 import { lstat, Stats } from 'fs';
@@ -2182,6 +2182,6 @@ export class CommandCenter {
 	}
 
 	dispose(): void {
-		this.disposables.forEach(d => d.dispose());
+		this.disposables = dispose(this.disposables);
 	}
 }
