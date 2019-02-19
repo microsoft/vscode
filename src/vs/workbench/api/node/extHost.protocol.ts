@@ -127,8 +127,8 @@ export interface MainThreadCommentsShape extends IDisposable {
 }
 
 export interface MainThreadConfigurationShape extends IDisposable {
-	$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any, resource: UriComponents): Promise<void>;
-	$removeConfigurationOption(target: ConfigurationTarget, key: string, resource: UriComponents): Promise<void>;
+	$updateConfigurationOption(target: ConfigurationTarget | null, key: string, value: any, resource: UriComponents | undefined): Promise<void>;
+	$removeConfigurationOption(target: ConfigurationTarget | null, key: string, resource: UriComponents | undefined): Promise<void>;
 }
 
 export interface MainThreadDiagnosticsShape extends IDisposable {
