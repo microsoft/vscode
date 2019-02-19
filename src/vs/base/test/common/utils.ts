@@ -6,6 +6,7 @@
 import { join } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import { canceled } from 'vs/base/common/errors';
+import { isWindows } from 'vs/base/common/platform';
 
 export type ValueCallback<T = any> = (value: T | Promise<T>) => void;
 
@@ -49,7 +50,11 @@ export class DeferredPromise<T> {
 }
 
 export function toResource(this: any, path: string) {
-	return URI.file(join('C:\\', Buffer.from(this.test.fullTitle()).toString('base64'), path));
+	if (isWindows) {
+		return URI.file(join('C:\\', Buffer.from(this.test.fullTitle()).toString('base64'), path));
+	}
+
+	return URI.file(join('/', Buffer.from(this.test.fullTitle()).toString('base64'), path));
 }
 
 export function suiteRepeat(n: number, description: string, callback: (this: any) => void): void {
