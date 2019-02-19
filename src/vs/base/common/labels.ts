@@ -356,31 +356,10 @@ export function template(template: string, values: { [key: string]: string | ISe
  */
 export function mnemonicMenuLabel(label: string, forceDisableMnemonics?: boolean): string {
 	if (isMacintosh || forceDisableMnemonics) {
-		// Remove mnemonic sequence and convert to a format that electron accepts
-		return label.replace(/\(&&\w\)|&&&?/g, str => {
-			if (str[0] === '(') {
-				// handle parenthetical case e.g @#$% (&F) and remove mnemonic hint
-				return '';
-			} else if (str.length === 2) {
-				// '&&' -> ''
-				return '';
-			} else if (str.length === 3) {
-				// for '&&&' ('&' escape),
-				if (isMacintosh) {
-					// mac electron just needs single '&'
-					return '&';
-				} else {
-					// windows and linux needs '&&' for escape
-					return '&&';
-				}
-			}
-			return '';
-		});
+		return label.replace(/\(&&\w\)|&&/g, '').replace(/&/g, isMacintosh ? '&' : '&&');
 	}
 
-	// Electron UI treats '&' as mnemonic character and '&&' as escape
-	// VS Code uses '&' and '&&' as mnemonic character and '&&&' as escape sequence
-	return label.replace(/&{2,3}/g, str => str.length === 2 ? '&' : '&&');
+	return label.replace(/&&|&/g, m => m === '&' ? '&&' : '&');
 }
 
 /**

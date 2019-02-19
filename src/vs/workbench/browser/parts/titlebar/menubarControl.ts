@@ -32,7 +32,7 @@ import { MenuBar } from 'vs/base/browser/ui/menu/menubar';
 import { SubmenuAction } from 'vs/base/browser/ui/menu/menu';
 import { attachMenuStyler } from 'vs/platform/theme/common/styler';
 import { assign } from 'vs/base/common/objects';
-import { mnemonicMenuLabel } from 'vs/base/common/labels';
+import { mnemonicMenuLabel, unmnemonicLabel } from 'vs/base/common/labels';
 import { getAccessibilitySupport } from 'vs/base/browser/browser';
 
 export class MenubarControl extends Disposable {
@@ -376,8 +376,7 @@ export class MenubarControl extends Disposable {
 			typeHint = 'file';
 		}
 
-		// Escape '&' character with '&&&'
-		label = label.replace(/&/g, '&&&');
+		label = unmnemonicLabel(label);
 
 		const ret: IAction = new Action(commandId, label, undefined, undefined, (event) => {
 			const openInNewWindow = event && ((!isMacintosh && (event.ctrlKey || event.shiftKey)) || (isMacintosh && (event.metaKey || event.altKey)));
@@ -471,7 +470,7 @@ export class MenubarControl extends Disposable {
 	private insertActionsBefore(nextAction: IAction, target: IAction[]): void {
 		switch (nextAction.id) {
 			case 'workbench.action.openRecent':
-				target.push(...(this.getOpenRecentActions().map(action => { action.label = mnemonicMenuLabel(action.label); return action; })));
+				target.push(...this.getOpenRecentActions());
 				break;
 
 			case 'workbench.action.showAboutDialog':
