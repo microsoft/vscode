@@ -1171,7 +1171,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 				matchLines: 1,
 				charsPerLine
 			},
-			isSmartCase: this.configurationService.getValue<ISearchConfiguration>().search.smartCase
+			isSmartCase: this.configurationService.getValue<ISearchConfiguration>().search.smartCase,
+			expandPatterns: true
 		};
 		const folderResources = this.contextService.getWorkspace().folders;
 
