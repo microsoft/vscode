@@ -17,9 +17,8 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ICommand } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
+import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
 import { CopyLinesCommand } from 'vs/editor/contrib/linesOperations/copyLinesCommand';
-import { DeleteLinesCommand } from 'vs/editor/contrib/linesOperations/deleteLinesCommand';
 import { MoveLinesCommand } from 'vs/editor/contrib/linesOperations/moveLinesCommand';
 import { SortLinesCommand } from 'vs/editor/contrib/linesOperations/sortLinesCommand';
 import { MenuId } from 'vs/platform/actions/common/actions';
@@ -262,9 +261,9 @@ export class TrimTrailingWhitespaceAction extends EditorAction {
 }
 
 // delete lines
-
 interface IDeleteLinesOperation {
 	startLineNumber: number;
+	selectionStartColumn: number;
 	endLineNumber: number;
 	positionColumn: number;
 }
@@ -289,13 +288,34 @@ export class DeleteLinesAction extends EditorAction {
 
 		let ops = this._getLinesToRemove(editor);
 
-		// Finally, construct the delete lines commands
-		let commands: ICommand[] = ops.map((op) => {
-			return new DeleteLinesCommand(op.startLineNumber, op.endLineNumber, op.positionColumn);
+		let model: ITextModel | null = editor.getModel();
+		if (model!.getLineCount() === 1 && model!.getLineMaxColumn(1) === 1) {
+			// Model is empty
+			return;
+		}
+
+		let edits: IIdentifiedSingleEditOperation[] = ops.map((op) => {
+			let startLineNumber = op.startLineNumber;
+			let endLineNumber = op.endLineNumber;
+
+			let startColumn = 1;
+			let endColumn = model!.getLineMaxColumn(endLineNumber);
+			if (endLineNumber < model!.getLineCount()) {
+				endLineNumber += 1;
+				endColumn = 1;
+			} else if (startLineNumber > 1) {
+				startLineNumber -= 1;
+				startColumn = model!.getLineMaxColumn(startLineNumber);
+			}
+			return EditOperation.replace(new Selection(startLineNumber, startColumn, endLineNumber, endColumn), '');
+		});
+
+		let cursorState: Selection[] = ops.map((op) => {
+			return new Selection(op.startLineNumber, op.selectionStartColumn, op.startLineNumber, op.selectionStartColumn);
 		});
 
 		editor.pushUndoStop();
-		editor.executeCommands(this.id, commands);
+		editor.executeEdits(this.id, edits, cursorState);
 		editor.pushUndoStop();
 	}
 
@@ -314,9 +334,11 @@ export class DeleteLinesAction extends EditorAction {
 
 			return {
 				startLineNumber: s.startLineNumber,
+				selectionStartColumn: s.selectionStartColumn,
 				endLineNumber: endLineNumber,
 				positionColumn: s.positionColumn
 			};
+
 		});
 
 		// Sort delete operations
@@ -337,7 +359,7 @@ export class DeleteLinesAction extends EditorAction {
 			} else {
 				// Push previous operation
 				mergedOperations.push(previousOperation);
-				previousOperation = operations[i];
+				previousOperation = selections[i];
 			}
 		}
 		// Push the last operation
