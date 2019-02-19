@@ -186,6 +186,8 @@ import { ExtensionService } from 'vs/workbench/services/extensions/electron-brow
 import { TextResourcePropertiesService } from 'vs/workbench/services/textfile/electron-browser/textResourcePropertiesService';
 import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
 import { TextMateService } from 'vs/workbench/services/textMate/electron-browser/TMSyntax';
+import { IWindowsRegistryService } from 'vs/platform/windowsRegistry/common/windowsRegistry';
+import { WindowsRegistryService } from 'vs/platform/windowsRegistry/node/windowsRegistryService';
 
 interface WorkbenchParams {
 	configuration: IWindowConfiguration;
@@ -719,6 +721,9 @@ export class Workbench extends Disposable implements IPartService {
 		serviceCollection.set(IEditorGroupsService, this.editorPart);
 		this.editorService = this.instantiationService.createInstance(EditorService);
 		serviceCollection.set(IEditorService, this.editorService);
+
+		// Windows Registry
+		serviceCollection.set(IWindowsRegistryService, new SyncDescriptor(WindowsRegistryService));
 
 		// Title bar
 		this.titlebarPart = this.instantiationService.createInstance(TitlebarPart, Identifiers.TITLEBAR_PART);

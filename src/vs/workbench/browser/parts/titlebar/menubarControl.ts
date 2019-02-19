@@ -33,6 +33,7 @@ import { SubmenuAction } from 'vs/base/browser/ui/menu/menu';
 import { attachMenuStyler } from 'vs/platform/theme/common/styler';
 import { assign } from 'vs/base/common/objects';
 import { getAccessibilitySupport } from 'vs/base/browser/browser';
+import { IWindowsRegistryService, WindowsRegistryHive } from 'vs/platform/windowsRegistry/common/windowsRegistry';
 
 export class MenubarControl extends Disposable {
 
@@ -75,6 +76,7 @@ export class MenubarControl extends Disposable {
 	private menuUpdater: RunOnceScheduler;
 	private container: HTMLElement;
 	private recentlyOpened: IRecentlyOpened;
+	private alwaysOnMnemonics: boolean;
 
 	private readonly _onVisibilityChange: Emitter<boolean>;
 	private readonly _onFocusStateChange: Emitter<boolean>;
@@ -95,7 +97,8 @@ export class MenubarControl extends Disposable {
 		@IStorageService private readonly storageService: IStorageService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IWindowsRegistryService private readonly windowsRegistryService: IWindowsRegistryService
 	) {
 
 		super();
@@ -496,12 +499,28 @@ export class MenubarControl extends Disposable {
 				}
 			));
 
+			try {
+				this.windowsRegistryService.getValue(
+					WindowsRegistryHive.HKEY_CURRENT_USER,
+					'\\Control Panel\\Accessibility\\Keyboard Preference',
+					'On').then(regItem => {
+						if (regItem) {
+							this.alwaysOnMnemonics = regItem.value === '1';
+						}
+					});
+			} catch {
+				this.alwaysOnMnemonics = false;
+				this.menubar.update({ enableMnemonics: this.currentEnableMenuBarMnemonics, visibility: this.currentMenubarVisibility, getKeybinding: (action) => this.keybindingService.lookupKeybinding(action.id), alwaysOnMnemonics: this.alwaysOnMnemonics });
+
+			}
+
+
 			this._register(this.menubar.onFocusStateChange(e => this._onFocusStateChange.fire(e)));
 			this._register(this.menubar.onVisibilityChange(e => this._onVisibilityChange.fire(e)));
 
 			this._register(attachMenuStyler(this.menubar, this.themeService));
 		} else {
-			this.menubar.update({ enableMnemonics: this.currentEnableMenuBarMnemonics, visibility: this.currentMenubarVisibility, getKeybinding: (action) => this.keybindingService.lookupKeybinding(action.id) });
+			this.menubar.update({ enableMnemonics: this.currentEnableMenuBarMnemonics, visibility: this.currentMenubarVisibility, getKeybinding: (action) => this.keybindingService.lookupKeybinding(action.id), alwaysOnMnemonics: this.alwaysOnMnemonics });
 		}
 
 		// Update the menu actions
