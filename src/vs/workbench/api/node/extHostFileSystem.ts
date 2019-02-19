@@ -13,7 +13,7 @@ import * as typeConverter from 'vs/workbench/api/node/extHostTypeConverters';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFeatures';
 import { Schemas } from 'vs/base/common/network';
 import { ResourceLabelFormatter } from 'vs/platform/label/common/label';
-import { State, StateMachine, LinkComputer } from 'vs/editor/common/modes/linkComputer';
+import { State, StateMachine, LinkComputer, Edge } from 'vs/editor/common/modes/linkComputer';
 import { commonPrefixLength } from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
 
@@ -41,8 +41,8 @@ class FsLinkProvider {
 			// sort and compute common prefix with previous scheme
 			// then build state transitions based on the data
 			const schemes = this._schemes.sort();
-			const edges = [];
-			let prevScheme: string;
+			const edges: Edge[] = [];
+			let prevScheme: string | undefined;
 			let prevState: State;
 			let nextState = State.LastKnownState;
 			for (const scheme of schemes) {
@@ -178,7 +178,7 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 					// dropping events for wrong scheme
 					continue;
 				}
-				let newType: files.FileChangeType;
+				let newType: files.FileChangeType | undefined;
 				switch (type) {
 					case FileChangeType.Changed:
 						newType = files.FileChangeType.UPDATED;
