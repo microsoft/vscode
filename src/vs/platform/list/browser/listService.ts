@@ -1144,7 +1144,7 @@ configurationRegistry.registerConfiguration({
 			'type': 'number',
 			'default': 8,
 			minimum: 0,
-			maximum: 20,
+			maximum: 40,
 			'description': localize('tree indent setting', "Controls tree indentation in pixels.")
 		},
 		[keyboardNavigationSettingKey]: {
