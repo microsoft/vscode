@@ -233,7 +233,7 @@ function convertFromCommentThread(commentThread: modes.CommentThread): vscode.Co
 }
 
 function convertFromComment(comment: modes.Comment): vscode.Comment {
-	let userIconPath: URI;
+	let userIconPath: URI | undefined;
 	if (comment.userIconPath) {
 		try {
 			userIconPath = URI.parse(comment.userIconPath);

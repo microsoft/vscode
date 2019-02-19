@@ -363,7 +363,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		if (!this._variableResolver) {
 			this._variableResolver = new ExtHostVariableResolverService(workspaceProvider, this._editorsService, configProvider);
 		}
-		let ws: IWorkspaceFolder;
+		let ws: IWorkspaceFolder | undefined;
 		const folder = this.getFolder(folderUri, workspaceProvider);
 		if (folder) {
 			ws = {
