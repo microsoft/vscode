@@ -1149,6 +1149,16 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		`);
 	}
 
+	// High Contrast Border Color for Editor Actions
+	const contrastBorderColor = theme.getColor(contrastBorder);
+	if (contrastBorder) {
+		collector.addRule(`
+			.monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions {
+				outline: 1px solid ${contrastBorderColor}
+			}
+		`);
+	}
+
 	// Hover Background
 	const tabHoverBackground = theme.getColor(TAB_HOVER_BACKGROUND);
 	if (tabHoverBackground) {
