@@ -141,20 +141,20 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 	abstract get templateId(): string;
 
 	renderTemplate(container: HTMLElement): IExpressionTemplateData {
-		const data: IExpressionTemplateData = Object.create(null);
-		data.expression = dom.append(container, $('.expression'));
-		data.name = dom.append(data.expression, $('span.name'));
-		data.value = dom.append(data.expression, $('span.value'));
-		data.label = new HighlightedLabel(data.name, false);
+		const expression = dom.append(container, $('.expression'));
+		const name = dom.append(expression, $('span.name'));
+		const value = dom.append(expression, $('span.value'));
+		const label = new HighlightedLabel(name, false);
 
-		data.inputBoxContainer = dom.append(data.expression, $('.inputBoxContainer'));
+		const inputBoxContainer = dom.append(expression, $('.inputBoxContainer'));
+		const toDispose: IDisposable[] = [];
 
-		data.enableInputBox = (expression: IExpression, options: IInputBoxOptions) => {
-			data.name.style.display = 'none';
-			data.value.style.display = 'none';
-			data.inputBoxContainer.style.display = 'initial';
+		const enableInputBox = (expression: IExpression, options: IInputBoxOptions) => {
+			name.style.display = 'none';
+			value.style.display = 'none';
+			inputBoxContainer.style.display = 'initial';
 
-			const inputBox = new InputBox(data.inputBoxContainer, this.contextViewService, {
+			const inputBox = new InputBox(inputBoxContainer, this.contextViewService, {
 				placeholder: options.placeholder,
 				ariaLabel: options.ariaLabel
 			});
@@ -165,7 +165,8 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 			inputBox.select();
 
 			let disposed = false;
-			data.toDispose = [inputBox, styler];
+			toDispose.push(inputBox);
+			toDispose.push(styler);
 
 			const wrapUp = (renamed: boolean) => {
 				if (!disposed) {
@@ -174,15 +175,15 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 					options.onFinish(inputBox.value, renamed);
 
 					// need to remove the input box since this template will be reused.
-					data.inputBoxContainer.removeChild(inputBox.element);
-					data.name.style.display = 'initial';
-					data.value.style.display = 'initial';
-					data.inputBoxContainer.style.display = 'none';
-					dispose(data.toDispose);
+					inputBoxContainer.removeChild(inputBox.element);
+					name.style.display = 'initial';
+					value.style.display = 'initial';
+					inputBoxContainer.style.display = 'none';
+					dispose(toDispose);
 				}
 			};
 
-			data.toDispose.push(dom.addStandardDisposableListener(inputBox.inputElement, 'keydown', (e: IKeyboardEvent) => {
+			toDispose.push(dom.addStandardDisposableListener(inputBox.inputElement, 'keydown', (e: IKeyboardEvent) => {
 				const isEscape = e.equals(KeyCode.Escape);
 				const isEnter = e.equals(KeyCode.Enter);
 				if (isEscape || isEnter) {
@@ -191,17 +192,17 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 					wrapUp(isEnter);
 				}
 			}));
-			data.toDispose.push(dom.addDisposableListener(inputBox.inputElement, 'blur', () => {
+			toDispose.push(dom.addDisposableListener(inputBox.inputElement, 'blur', () => {
 				wrapUp(true);
 			}));
-			data.toDispose.push(dom.addDisposableListener(inputBox.inputElement, 'click', e => {
+			toDispose.push(dom.addDisposableListener(inputBox.inputElement, 'click', e => {
 				// Do not expand / collapse selected elements
 				e.preventDefault();
 				e.stopPropagation();
 			}));
 		};
 
-		return data;
+		return { expression, name, value, label, enableInputBox, inputBoxContainer, toDispose };
 	}
 
 	renderElement(node: ITreeNode<IExpression, FuzzyScore>, index: number, data: IExpressionTemplateData): void {

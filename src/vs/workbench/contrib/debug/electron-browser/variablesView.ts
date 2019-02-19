@@ -210,11 +210,10 @@ class ScopesRenderer implements ITreeRenderer<IScope, FuzzyScore, IScopeTemplate
 	}
 
 	renderTemplate(container: HTMLElement): IScopeTemplateData {
-		let data: IScopeTemplateData = Object.create(null);
-		data.name = dom.append(container, $('.scope'));
-		data.label = new HighlightedLabel(data.name, false);
+		const name = dom.append(container, $('.scope'));
+		const label = new HighlightedLabel(name, false);
 
-		return data;
+		return { name, label };
 	}
 
 	renderElement(element: ITreeNode<IScope, FuzzyScore>, index: number, templateData: IScopeTemplateData): void {

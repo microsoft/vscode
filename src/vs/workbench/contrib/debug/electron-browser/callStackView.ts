@@ -365,14 +365,13 @@ class SessionsRenderer implements ITreeRenderer<IDebugSession, FuzzyScore, ISess
 	}
 
 	renderTemplate(container: HTMLElement): ISessionTemplateData {
-		let data: ISessionTemplateData = Object.create(null);
-		data.session = dom.append(container, $('.session'));
-		data.name = dom.append(data.session, $('.name'));
-		data.state = dom.append(data.session, $('.state'));
-		data.stateLabel = dom.append(data.state, $('span.label'));
-		data.label = new HighlightedLabel(data.name, false);
+		const session = dom.append(container, $('.session'));
+		const name = dom.append(session, $('.name'));
+		const state = dom.append(session, $('.state'));
+		const stateLabel = dom.append(state, $('span.label'));
+		const label = new HighlightedLabel(name, false);
 
-		return data;
+		return { session, name, state, stateLabel, label };
 	}
 
 	renderElement(element: ITreeNode<IDebugSession, FuzzyScore>, index: number, data: ISessionTemplateData): void {
@@ -435,16 +434,15 @@ class StackFramesRenderer implements ITreeRenderer<IStackFrame, FuzzyScore, ISta
 	}
 
 	renderTemplate(container: HTMLElement): IStackFrameTemplateData {
-		const data: IStackFrameTemplateData = Object.create(null);
-		data.stackFrame = dom.append(container, $('.stack-frame'));
-		const labelDiv = dom.append(data.stackFrame, $('span.label.expression'));
-		data.file = dom.append(data.stackFrame, $('.file'));
-		data.fileName = dom.append(data.file, $('span.file-name'));
-		const wrapper = dom.append(data.file, $('span.line-number-wrapper'));
-		data.lineNumber = dom.append(wrapper, $('span.line-number'));
-		data.label = new HighlightedLabel(labelDiv, false);
+		const stackFrame = dom.append(container, $('.stack-frame'));
+		const labelDiv = dom.append(stackFrame, $('span.label.expression'));
+		const file = dom.append(stackFrame, $('.file'));
+		const fileName = dom.append(file, $('span.file-name'));
+		const wrapper = dom.append(file, $('span.line-number-wrapper'));
+		const lineNumber = dom.append(wrapper, $('span.line-number'));
+		const label = new HighlightedLabel(labelDiv, false);
 
-		return data;
+		return { file, fileName, label, lineNumber, stackFrame };
 	}
 
 	renderElement(element: ITreeNode<IStackFrame, FuzzyScore>, index: number, data: IStackFrameTemplateData): void {
@@ -483,10 +481,9 @@ class ErrorsRenderer implements ITreeRenderer<string, FuzzyScore, IErrorTemplate
 	}
 
 	renderTemplate(container: HTMLElement): IErrorTemplateData {
-		const data: IErrorTemplateData = Object.create(null);
-		data.label = dom.append(container, $('.error'));
+		const label = dom.append(container, $('.error'));
 
-		return data;
+		return { label };
 	}
 
 	renderElement(element: ITreeNode<string, FuzzyScore>, index: number, data: IErrorTemplateData): void {
@@ -509,10 +506,9 @@ class LoadMoreRenderer implements ITreeRenderer<ThreadAndSessionIds, FuzzyScore,
 	}
 
 	renderTemplate(container: HTMLElement): IErrorTemplateData {
-		const data: ILabelTemplateData = Object.create(null);
-		data.label = dom.append(container, $('.load-more'));
+		const label = dom.append(container, $('.load-more'));
 
-		return data;
+		return { label };
 	}
 
 	renderElement(element: ITreeNode<ThreadAndSessionIds, FuzzyScore>, index: number, data: ILabelTemplateData): void {
@@ -532,10 +528,9 @@ class ShowMoreRenderer implements ITreeRenderer<IStackFrame[], FuzzyScore, ILabe
 	}
 
 	renderTemplate(container: HTMLElement): IErrorTemplateData {
-		let data: ILabelTemplateData = Object.create(null);
-		data.label = dom.append(container, $('.show-more'));
+		const label = dom.append(container, $('.show-more'));
 
-		return data;
+		return { label };
 	}
 
 	renderElement(element: ITreeNode<IStackFrame[], FuzzyScore>, index: number, data: ILabelTemplateData): void {
