@@ -659,7 +659,7 @@ export interface SelectionKeyboardEvent extends KeyboardEvent {
 	preserveFocus?: boolean;
 }
 
-export function getSelectionKeyboardEvent(typeArg: string, preserveFocus?: boolean): SelectionKeyboardEvent {
+export function getSelectionKeyboardEvent(typeArg = 'keydown', preserveFocus?: boolean): SelectionKeyboardEvent {
 	const e = new KeyboardEvent(typeArg);
 	(<SelectionKeyboardEvent>e).preserveFocus = preserveFocus;
 
