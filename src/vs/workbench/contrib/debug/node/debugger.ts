@@ -7,6 +7,7 @@ import * as nls from 'vs/nls';
 import { Client as TelemetryClient } from 'vs/base/parts/ipc/node/ipc.cp';
 import * as strings from 'vs/base/common/strings';
 import * as objects from 'vs/base/common/objects';
+import { isObject } from 'vs/base/common/types';
 import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
 import { IJSONSchema, IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -46,11 +47,40 @@ export class Debugger implements IDebugger {
 
 	public merge(otherDebuggerContribution: IDebuggerContribution, extensionDescription: IExtensionDescription): void {
 
+		/**
+		 * Copies all properties of source into destination. The optional parameter "overwrite" allows to control
+		 * if existing non-structured properties on the destination should be overwritten or not. Defaults to true (overwrite).
+		 */
+		function mixin(destination: any, source: any, overwrite: boolean = true): any {
+
+			if (!isObject(destination)) {
+				return source;
+			}
+
+			if (isObject(source)) {
+				Object.keys(source).forEach(key => {
+					if (isObject(destination[key]) && isObject(source[key])) {
+						mixin(destination[key], source[key], overwrite);
+					} else {
+						if (key in destination) {
+							if (overwrite) {
+								destination[key] = source[key];
+							}
+						} else {
+							destination[key] = source[key];
+						}
+					}
+				});
+			}
+
+			return destination;
+		}
+
 		// remember all extensions that have been merged for this debugger
 		this.mergedExtensionDescriptions.push(extensionDescription);
 
-		// merge new debugger contribution into existing contributions.
-		objects.mixin(this.debuggerContribution, otherDebuggerContribution, extensionDescription.isBuiltin);
+		// merge new debugger contribution into existing contributions (and don't overwrite values in built-in extensions)
+		mixin(this.debuggerContribution, otherDebuggerContribution, extensionDescription.isBuiltin);
 
 		// remember the extension that is considered the "main" debugger contribution
 		if (isDebuggerMainContribution(otherDebuggerContribution)) {
