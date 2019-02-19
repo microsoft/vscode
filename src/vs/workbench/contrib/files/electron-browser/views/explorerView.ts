@@ -475,7 +475,7 @@ export class ExplorerView extends ViewletPanel {
 			input = roots;
 		}
 
-		const rawViewState = workSpaceUpdate? JSON.stringify(this.tree.getViewState()):this.storageService.get(ExplorerView.TREE_VIEW_STATE_STORAGE_KEY, StorageScope.WORKSPACE);
+		const rawViewState = workSpaceUpdate ? JSON.stringify(this.tree.getViewState()) : this.storageService.get(ExplorerView.TREE_VIEW_STATE_STORAGE_KEY, StorageScope.WORKSPACE);
 		let viewState: IAsyncDataTreeViewState | undefined;
 
 		if (rawViewState) {
