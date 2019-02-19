@@ -900,14 +900,16 @@ suite('Editor Contrib - Line Operations', () => {
 		});
 	});
 
-	function testDeleteLinesCommand(initialText: string[], initialSelection: Selection, resultingText: string[], resultingSelection: Selection): void {
+	function testDeleteLinesCommand(initialText: string[], _initialSelections: Selection | Selection[], resultingText: string[], _resultingSelections: Selection | Selection[]): void {
+		const initialSelections = Array.isArray(_initialSelections) ? _initialSelections : [_initialSelections];
+		const resultingSelections = Array.isArray(_resultingSelections) ? _resultingSelections : [_resultingSelections];
 		withTestCodeEditor(initialText, {}, (editor) => {
-			editor.setSelection(initialSelection);
+			editor.setSelections(initialSelections);
 			const deleteLinesAction = new DeleteLinesAction();
 			deleteLinesAction.run(null!, editor);
 
 			assert.equal(editor.getValue(), resultingText.join('\n'));
-			assert.deepEqual(editor.getSelection(), resultingSelection);
+			assert.deepEqual(editor.getSelections(), resultingSelections);
 		});
 	}
 
@@ -1085,6 +1087,62 @@ suite('Editor Contrib - Line Operations', () => {
 				'third line'
 			],
 			new Selection(3, 2, 3, 2)
+		);
+	});
+
+	test('multicursor 1', function () {
+		testDeleteLinesCommand(
+			[
+				'class P {',
+				'',
+				'    getA() {',
+				'        if (true) {',
+				'            return "a";',
+				'        }',
+				'    }',
+				'',
+				'    getB() {',
+				'        if (true) {',
+				'            return "b";',
+				'        }',
+				'    }',
+				'',
+				'    getC() {',
+				'        if (true) {',
+				'            return "c";',
+				'        }',
+				'    }',
+				'}',
+			],
+			[
+				new Selection(4, 1, 5, 1),
+				new Selection(10, 1, 11, 1),
+				new Selection(16, 1, 17, 1),
+			],
+			[
+				'class P {',
+				'',
+				'    getA() {',
+				'            return "a";',
+				'        }',
+				'    }',
+				'',
+				'    getB() {',
+				'            return "b";',
+				'        }',
+				'    }',
+				'',
+				'    getC() {',
+				'            return "c";',
+				'        }',
+				'    }',
+				'}',
+			],
+			[
+				new Selection(4, 1, 4, 1),
+				new Selection(9, 1, 9, 1),
+				new Selection(14, 1, 14, 1),
+			]
 		);
 	});
 });
