@@ -793,12 +793,15 @@ export class WindowsManager implements IWindowsMainService {
 		// folders should be added to the existing window.
 		if (!openConfig.addMode && isCommandLineOrAPICall) {
 			const foldersToOpen = windowsToOpen.filter(path => !!path.folderUri);
-			if (foldersToOpen.length > 1 && foldersToOpen.every(f => f.folderUri!.scheme === Schemas.file)) {
-				const workspace = this.workspacesMainService.createUntitledWorkspaceSync(foldersToOpen.map(folder => ({ uri: folder.folderUri! })));
+			if (foldersToOpen.length > 1) {
+				let remoteAuthority = foldersToOpen[0].remoteAuthority;
+				if (foldersToOpen.every(f => f.remoteAuthority === remoteAuthority)) { // only if all folder have the same authority
+					const workspace = this.workspacesMainService.createUntitledWorkspaceSync(foldersToOpen.map(folder => ({ uri: folder.folderUri! })));
 
-				// Add workspace and remove folders thereby
-				windowsToOpen.push({ workspace, remoteAuthority: foldersToOpen[0].remoteAuthority });
-				windowsToOpen = windowsToOpen.filter(path => !path.folderUri);
+					// Add workspace and remove folders thereby
+					windowsToOpen.push({ workspace, remoteAuthority });
+					windowsToOpen = windowsToOpen.filter(path => !path.folderUri);
+				}
 			}
 		}
 
