@@ -38,7 +38,7 @@ export class ExplorerService implements IExplorerService {
 	private _onDidCopyItems = new Emitter<{ items: ExplorerItem[], cut: boolean, previouslyCutItems: ExplorerItem[] | undefined }>();
 	private disposables: IDisposable[] = [];
 	private editableStats = new Map<ExplorerItem, IEditableData>();
-	private _sortOrder: SortOrder;
+	private sortOrder: SortOrder;
 	private cutItems: ExplorerItem[] | undefined;
 
 	constructor(
@@ -72,10 +72,6 @@ export class ExplorerService implements IExplorerService {
 
 	get onDidCopyItems(): Event<{ items: ExplorerItem[], cut: boolean, previouslyCutItems: ExplorerItem[] | undefined }> {
 		return this._onDidCopyItems.event;
-	}
-
-	get sortOrder(): SortOrder {
-		return this._sortOrder;
 	}
 
 	// Memoized locals
@@ -315,7 +311,7 @@ export class ExplorerService implements IExplorerService {
 			}
 
 			// Handle updated files/folders if we sort by modified
-			if (this._sortOrder === SortOrderConfiguration.MODIFIED) {
+			if (this.sortOrder === SortOrderConfiguration.MODIFIED) {
 				const updated = e.getUpdated();
 
 				// Check updated: Refresh if updated file/folder part of resolved root
@@ -334,7 +330,7 @@ export class ExplorerService implements IExplorerService {
 
 	private filterToViewRelevantEvents(e: FileChangesEvent): FileChangesEvent {
 		return new FileChangesEvent(e.changes.filter(change => {
-			if (change.type === FileChangeType.UPDATED && this._sortOrder !== SortOrderConfiguration.MODIFIED) {
+			if (change.type === FileChangeType.UPDATED && this.sortOrder !== SortOrderConfiguration.MODIFIED) {
 				return false; // we only are about updated if we sort by modified time
 			}
 
@@ -352,13 +348,9 @@ export class ExplorerService implements IExplorerService {
 
 	private onConfigurationUpdated(configuration: IFilesConfiguration, event?: IConfigurationChangeEvent): void {
 		const configSortOrder = configuration && configuration.explorer && configuration.explorer.sortOrder || 'default';
-		if (this._sortOrder !== configSortOrder) {
-			const shouldFire = this._sortOrder !== undefined;
-			this._sortOrder = configSortOrder;
-			if (shouldFire) {
-				this._onDidChangeRoots.fire();
-			}
-		}
+		// There is no need to notify about changes from here, because from now
+		// Sort Order is private internal variable used to filter events only.
+		this.sortOrder = configSortOrder;
 	}
 
 	dispose(): void {

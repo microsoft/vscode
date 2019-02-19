@@ -19,7 +19,7 @@ import { ITreeRenderer, ITreeNode, ITreeFilter, TreeVisibility, TreeFilterResult
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { IFilesConfiguration, IExplorerService, IEditableData } from 'vs/workbench/contrib/files/common/files';
+import { IFilesConfiguration, IExplorerService, IEditableData, SortOrder } from 'vs/workbench/contrib/files/common/files';
 import { dirname, joinPath, isEqualOrParent, basename, hasToIgnoreCase, distinctParents } from 'vs/base/common/resources';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { localize } from 'vs/nls';
@@ -270,7 +270,7 @@ interface CachedParsedExpression {
 	parsed: glob.ParsedExpression;
 }
 
-export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
+export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore>, IDisposable {
 	private hiddenExpressionPerRoot: Map<string, CachedParsedExpression>;
 	private workspaceFolderChangeListener: IDisposable;
 
@@ -290,8 +290,8 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 			const excludesConfig: glob.IExpression = (configuration && configuration.files && configuration.files.exclude) || Object.create(null);
 
 			if (!needsRefresh) {
-				const cached = this.hiddenExpressionPerRoot.get(folder.uri.toString());
-				needsRefresh = !cached || !equals(cached.original, excludesConfig);
+				const current = this.hiddenExpressionPerRoot.get(folder.uri.toString());
+				needsRefresh = !current || !equals(current.original, excludesConfig);
 			}
 
 			const excludesConfigCopy = deepClone(excludesConfig); // do not keep the config, as it gets mutated under our hoods
@@ -311,8 +311,8 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 		}
 
 		// Hide those that match Hidden Patterns
-		const cached = this.hiddenExpressionPerRoot.get(stat.root.resource.toString());
-		if (cached && cached.parsed(path.normalize(path.relative(stat.root.resource.path, stat.resource.path)), stat.name, name => !!stat.parent.getChild(name))) {
+		const current = this.hiddenExpressionPerRoot.get(stat.root.resource.toString());
+		if (current && current.parsed(path.normalize(path.relative(stat.root.resource.path, stat.resource.path)), stat.name, name => !!stat.parent.getChild(name))) {
 			// review (isidor): is path.normalize necessary? path.relative already returns an os path
 			return false; // hidden through pattern
 		}
@@ -326,12 +326,36 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 }
 
 // // Explorer Sorter
-export class FileSorter implements ITreeSorter<ExplorerItem> {
+export class FilesSorter implements ITreeSorter<ExplorerItem>, IDisposable {
+	private sortOrder: Map<string, SortOrder>;
 
 	constructor(
-		@IExplorerService private readonly explorerService: IExplorerService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
-	) { }
+	) {
+		this.sortOrder = new Map<string, SortOrder>(); // sort order for each directory.
+	}
+
+	updateConfiguration(): boolean {
+		let needsRefresh = false;
+
+		this.contextService.getWorkspace().folders.forEach(folder => {
+			// Check is 'explorer.sortOrder' was changed for this folder
+			let configuration = this.configurationService.getValue<IFilesConfiguration>({ resource: folder.uri });
+			const configSortOrder = configuration && configuration.explorer && configuration.explorer.sortOrder || 'default';
+
+			if (!needsRefresh) {
+				const current = this.sortOrder.get(folder.uri.toString());
+				if (current !== configSortOrder) {
+					needsRefresh = true;
+				}
+			}
+
+			this.sortOrder.set(folder.uri.toString(), configSortOrder);
+		});
+
+		return needsRefresh;
+	}
 
 	public compare(statA: ExplorerItem, statB: ExplorerItem): number {
 		// Do not sort roots
@@ -347,7 +371,7 @@ export class FileSorter implements ITreeSorter<ExplorerItem> {
 			return 1;
 		}
 
-		const sortOrder = this.explorerService.sortOrder;
+		const sortOrder = this.sortOrder.get(statA.root.resource.toString());
 
 		// Sort Directories
 		switch (sortOrder) {
@@ -408,6 +432,8 @@ export class FileSorter implements ITreeSorter<ExplorerItem> {
 				return compareFileNames(statA.name, statB.name);
 		}
 	}
+
+	public dispose(): void { }
 }
 
 export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {

@@ -31,7 +31,7 @@ import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IViewletPanelOptions, ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { ExplorerDelegate, ExplorerAccessibilityProvider, ExplorerDataSource, FilesRenderer, FilesFilter, FileSorter, FileDragAndDrop } from 'vs/workbench/contrib/files/electron-browser/views/explorerViewer';
+import { ExplorerDelegate, ExplorerAccessibilityProvider, ExplorerDataSource, FilesRenderer, FilesFilter, FilesSorter, FileDragAndDrop } from 'vs/workbench/contrib/files/electron-browser/views/explorerViewer';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
@@ -53,6 +53,7 @@ export class ExplorerView extends ViewletPanel {
 
 	private tree: WorkbenchAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>;
 	private filter: FilesFilter;
+	private sorter: FilesSorter;
 
 	private resourceContext: ResourceContextKey;
 	private folderContext: IContextKey<boolean>;
@@ -265,6 +266,10 @@ export class ExplorerView extends ViewletPanel {
 	private createTree(container: HTMLElement): void {
 		this.filter = this.instantiationService.createInstance(FilesFilter);
 		this.disposables.push(this.filter);
+
+		this.sorter = this.instantiationService.createInstance(FilesSorter);
+		this.disposables.push(this.sorter);
+
 		const explorerLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility } as IResourceLabelsContainer);
 		this.disposables.push(explorerLabels);
 
@@ -292,7 +297,7 @@ export class ExplorerView extends ViewletPanel {
 				},
 				multipleSelectionSupport: true,
 				filter: this.filter,
-				sorter: this.instantiationService.createInstance(FileSorter),
+				sorter: this.sorter,
 				dnd: this.instantiationService.createInstance(FileDragAndDrop),
 				autoExpandSingleChildren: true
 			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
@@ -383,7 +388,13 @@ export class ExplorerView extends ViewletPanel {
 		// Push down config updates to components of viewer
 		let needsRefresh = false;
 		if (this.filter) {
-			needsRefresh = this.filter.updateConfiguration();
+			let filteringHasToBeRepeated = this.filter.updateConfiguration();
+			needsRefresh = filteringHasToBeRepeated;
+		}
+
+		if (this.sorter) {
+			let sortingHasToBeRepeated = this.sorter.updateConfiguration();
+			needsRefresh = needsRefresh || sortingHasToBeRepeated;
 		}
 
 		if (event && !needsRefresh) {
