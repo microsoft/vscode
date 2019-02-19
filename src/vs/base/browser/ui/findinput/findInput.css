@@ -13,10 +13,6 @@
 	width: 100%;
 }
 
-.monaco-findInput .monaco-inputbox > .wrapper > .input {
-	width: 100% !important;
-}
-
 .monaco-findInput > .controls {
 	position: absolute;
 	top: 3px;
