@@ -5,7 +5,6 @@
 
 import { URI } from 'vs/base/common/uri';
 import { createHash } from 'crypto';
-import * as extpath from 'vs/base/common/extpath';
 import * as resources from 'vs/base/common/resources';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as pfs from 'vs/base/node/pfs';
@@ -308,7 +307,7 @@ class CachedWorkspaceConfiguration extends Disposable implements IWorkspaceConfi
 
 	private createPaths(workspaceIdentifier: IWorkspaceIdentifier) {
 		this.cachedWorkspacePath = join(this.environmentService.userDataPath, 'CachedConfigurations', 'workspaces', workspaceIdentifier.id);
-		this.cachedConfigurationPath = extpath.joinWithSlashes(this.cachedWorkspacePath, 'workspace.json');
+		this.cachedConfigurationPath = join(this.cachedWorkspacePath, 'workspace.json');
 	}
 }
 
@@ -552,7 +551,7 @@ export class CachedFolderConfiguration extends Disposable implements IFolderConf
 		configFolderRelativePath: string,
 		environmentService: IEnvironmentService) {
 		super();
-		this.cachedFolderPath = extpath.joinWithSlashes(environmentService.userDataPath, 'CachedConfigurations', 'folders', createHash('md5').update(extpath.joinWithSlashes(folder.path, configFolderRelativePath)).digest('hex'));
+		this.cachedFolderPath = join(environmentService.userDataPath, 'CachedConfigurations', 'folders', createHash('md5').update(join(folder.path, configFolderRelativePath)).digest('hex'));
 		this.cachedConfigurationPath = join(this.cachedFolderPath, 'configuration.json');
 		this.configurationModel = new ConfigurationModel();
 	}

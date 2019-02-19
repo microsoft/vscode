@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { joinWithSlashes } from 'vs/base/common/extpath';
 import { join } from 'vs/base/common/path';
 import { ILogService, DelegatedLogService, LogLevel } from 'vs/platform/log/common/log';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
@@ -31,6 +30,6 @@ export class ExtHostLogService extends DelegatedLogService implements ILogServic
 	}
 
 	getLogDirectory(extensionID: ExtensionIdentifier): string {
-		return joinWithSlashes(this._logsPath, extensionID.value);
+		return join(this._logsPath, extensionID.value);
 	}
 }
