@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, IActionOptions, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { ReplaceCommand, ReplaceCommandThatPreservesSelection } from 'vs/editor/common/commands/replaceCommand';
 import { TrimTrailingWhitespaceCommand } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
@@ -261,6 +261,7 @@ export class TrimTrailingWhitespaceAction extends EditorAction {
 }
 
 // delete lines
+
 interface IDeleteLinesOperation {
 	startLineNumber: number;
 	selectionStartColumn: number;
@@ -285,47 +286,50 @@ export class DeleteLinesAction extends EditorAction {
 	}
 
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
+		if (!editor.hasModel()) {
+			return;
+		}
 
 		let ops = this._getLinesToRemove(editor);
 
-		let model: ITextModel | null = editor.getModel();
-		if (model!.getLineCount() === 1 && model!.getLineMaxColumn(1) === 1) {
+		let model: ITextModel = editor.getModel();
+		if (model.getLineCount() === 1 && model.getLineMaxColumn(1) === 1) {
 			// Model is empty
 			return;
 		}
 
-		let edits: IIdentifiedSingleEditOperation[] = ops.map((op) => {
+		let linesDeleted = 0;
+		let edits: IIdentifiedSingleEditOperation[] = [];
+		let cursorState: Selection[] = [];
+		for (let i = 0, len = ops.length; i < len; i++) {
+			const op = ops[i];
+
 			let startLineNumber = op.startLineNumber;
 			let endLineNumber = op.endLineNumber;
 
 			let startColumn = 1;
-			let endColumn = model!.getLineMaxColumn(endLineNumber);
-			if (endLineNumber < model!.getLineCount()) {
+			let endColumn = model.getLineMaxColumn(endLineNumber);
+			if (endLineNumber < model.getLineCount()) {
 				endLineNumber += 1;
 				endColumn = 1;
 			} else if (startLineNumber > 1) {
 				startLineNumber -= 1;
-				startColumn = model!.getLineMaxColumn(startLineNumber);
+				startColumn = model.getLineMaxColumn(startLineNumber);
 			}
-			return EditOperation.replace(new Selection(startLineNumber, startColumn, endLineNumber, endColumn), '');
-		});
 
-		let cursorState: Selection[] = ops.map((op) => {
-			return new Selection(op.startLineNumber, op.selectionStartColumn, op.startLineNumber, op.selectionStartColumn);
-		});
+			edits.push(EditOperation.replace(new Selection(startLineNumber, startColumn, endLineNumber, endColumn), ''));
+			cursorState.push(new Selection(startLineNumber - linesDeleted, op.positionColumn, startLineNumber - linesDeleted, op.positionColumn));
+			linesDeleted += (op.endLineNumber - op.startLineNumber + 1);
+		}
 
 		editor.pushUndoStop();
 		editor.executeEdits(this.id, edits, cursorState);
 		editor.pushUndoStop();
 	}
 
-	private _getLinesToRemove(editor: ICodeEditor): IDeleteLinesOperation[] {
+	private _getLinesToRemove(editor: IActiveCodeEditor): IDeleteLinesOperation[] {
 		// Construct delete operations
-		let selections = editor.getSelections();
-		if (selections === null) {
-			return [];
-		}
-		let operations: IDeleteLinesOperation[] = selections.map((s) => {
+		let operations: IDeleteLinesOperation[] = editor.getSelections().map((s) => {
 
 			let endLineNumber = s.endLineNumber;
 			if (s.startLineNumber < s.endLineNumber && s.endColumn === 1) {
@@ -338,7 +342,6 @@ export class DeleteLinesAction extends EditorAction {
 				endLineNumber: endLineNumber,
 				positionColumn: s.positionColumn
 			};
-
 		});
 
 		// Sort delete operations
@@ -359,7 +362,7 @@ export class DeleteLinesAction extends EditorAction {
 			} else {
 				// Push previous operation
 				mergedOperations.push(previousOperation);
-				previousOperation = selections[i];
+				previousOperation = operations[i];
 			}
 		}
 		// Push the last operation
@@ -467,10 +470,10 @@ export class InsertLineAfterAction extends EditorAction {
 
 export abstract class AbstractDeleteAllToBoundaryAction extends EditorAction {
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const primaryCursor = editor.getSelection();
-		if (primaryCursor === null) {
+		if (!editor.hasModel()) {
 			return;
 		}
+		const primaryCursor = editor.getSelection();
 
 		let rangesToDelete = this._getRangesToDelete(editor);
 		// merge overlapping selections
@@ -505,7 +508,7 @@ export abstract class AbstractDeleteAllToBoundaryAction extends EditorAction {
 	 */
 	protected abstract _getEndCursorState(primaryCursor: Range, rangesToDelete: Range[]): Selection[];
 
-	protected abstract _getRangesToDelete(editor: ICodeEditor): Range[];
+	protected abstract _getRangesToDelete(editor: IActiveCodeEditor): Range[];
 }
 
 export class DeleteAllLeftAction extends AbstractDeleteAllToBoundaryAction {
@@ -554,7 +557,7 @@ export class DeleteAllLeftAction extends AbstractDeleteAllToBoundaryAction {
 		return endCursorState;
 	}
 
-	_getRangesToDelete(editor: ICodeEditor): Range[] {
+	_getRangesToDelete(editor: IActiveCodeEditor): Range[] {
 		let selections = editor.getSelections();
 		if (selections === null) {
 			return [];
@@ -572,7 +575,7 @@ export class DeleteAllLeftAction extends AbstractDeleteAllToBoundaryAction {
 			if (selection.isEmpty()) {
 				if (selection.startColumn === 1) {
 					let deleteFromLine = Math.max(1, selection.startLineNumber - 1);
-					let deleteFromColumn = selection.startLineNumber === 1 ? 1 : model!.getLineContent(deleteFromLine).length + 1;
+					let deleteFromColumn = selection.startLineNumber === 1 ? 1 : model.getLineContent(deleteFromLine).length + 1;
 					return new Range(deleteFromLine, deleteFromColumn, selection.startLineNumber, 1);
 				} else {
 					return new Range(selection.startLineNumber, 1, selection.startLineNumber, selection.startColumn);
@@ -623,7 +626,7 @@ export class DeleteAllRightAction extends AbstractDeleteAllToBoundaryAction {
 		return endCursorState;
 	}
 
-	_getRangesToDelete(editor: ICodeEditor): Range[] {
+	_getRangesToDelete(editor: IActiveCodeEditor): Range[] {
 		let model = editor.getModel();
 		if (model === null) {
 			return [];
@@ -637,7 +640,7 @@ export class DeleteAllRightAction extends AbstractDeleteAllToBoundaryAction {
 
 		let rangesToDelete: Range[] = selections.map((sel) => {
 			if (sel.isEmpty()) {
-				const maxColumn = model!.getLineMaxColumn(sel.startLineNumber);
+				const maxColumn = model.getLineMaxColumn(sel.startLineNumber);
 
 				if (sel.startColumn === maxColumn) {
 					return new Range(sel.startLineNumber, sel.startColumn, sel.startLineNumber + 1, 1);
