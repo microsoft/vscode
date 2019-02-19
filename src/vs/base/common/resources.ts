@@ -317,7 +317,8 @@ export class ResourceGlobMatcher {
 	matches(resource: URI): boolean {
 		const rootExpression = this.expressionsByRoot.findSubstr(resource.toString());
 		if (rootExpression) {
-			if (!!rootExpression.expression(relativePath(rootExpression.root, resource))) {
+			const path = relativePath(rootExpression.root, resource);
+			if (path && !!rootExpression.expression(path)) {
 				return true;
 			}
 		}
