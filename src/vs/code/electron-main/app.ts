@@ -72,7 +72,6 @@ import { ResolvedAuthority } from 'vs/platform/remote/common/remoteAuthorityReso
 import { SnapUpdateService } from 'vs/platform/update/electron-main/updateService.snap';
 import { IStorageMainService, StorageMainService } from 'vs/platform/storage/node/storageMainService';
 import { GlobalStorageDatabaseChannel } from 'vs/platform/storage/node/storageIpc';
-import { generateUuid } from 'vs/base/common/uuid';
 import { startsWith } from 'vs/base/common/strings';
 import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainService';
 import { IBackupMainService } from 'vs/platform/backup/common/backup';
@@ -460,6 +459,7 @@ export class CodeApplication extends Disposable {
 
 		const appInstantiationService = this.instantiationService.createChild(services);
 
+		// Init services that require it
 		return appInstantiationService.invokeFunction(accessor => Promise.all([
 			this.initStorageService(accessor),
 			this.initBackupService(accessor)
@@ -472,35 +472,8 @@ export class CodeApplication extends Disposable {
 		// Ensure to close storage on shutdown
 		this.lifecycleService.onWillShutdown(e => e.join(storageMainService.close()));
 
-		// Initialize storage service
-		return storageMainService.initialize().then(undefined, error => {
-			errors.onUnexpectedError(error);
-			this.logService.error(error);
-		}).then(() => {
+		return Promise.resolve();
 
-			// Apply global telemetry values as part of the initialization
-			// These are global across all windows and thereby should be
-			// written from the main process once.
-
-			const telemetryInstanceId = 'telemetry.instanceId';
-			const instanceId = storageMainService.get(telemetryInstanceId, undefined);
-			if (instanceId === undefined) {
-				storageMainService.store(telemetryInstanceId, generateUuid());
-			}
-
-			const telemetryFirstSessionDate = 'telemetry.firstSessionDate';
-			const firstSessionDate = storageMainService.get(telemetryFirstSessionDate, undefined);
-			if (firstSessionDate === undefined) {
-				storageMainService.store(telemetryFirstSessionDate, new Date().toUTCString());
-			}
-
-			const telemetryCurrentSessionDate = 'telemetry.currentSessionDate';
-			const telemetryLastSessionDate = 'telemetry.lastSessionDate';
-			const lastSessionDate = storageMainService.get(telemetryCurrentSessionDate, undefined); // previous session date was the "current" one at that time
-			const currentSessionDate = new Date().toUTCString(); // current session date is "now"
-			storageMainService.store(telemetryLastSessionDate, typeof lastSessionDate === 'undefined' ? null : lastSessionDate);
-			storageMainService.store(telemetryCurrentSessionDate, currentSessionDate);
-		});
 	}
 
 	private initBackupService(accessor: ServicesAccessor): Promise<void> {
@@ -544,7 +517,7 @@ export class CodeApplication extends Disposable {
 		this.electronIpcServer.registerChannel('url', urlChannel);
 
 		const storageMainService = accessor.get(IStorageMainService);
-		const storageChannel = this._register(new GlobalStorageDatabaseChannel(storageMainService as StorageMainService));
+		const storageChannel = this._register(new GlobalStorageDatabaseChannel(this.logService, storageMainService as StorageMainService));
 		this.electronIpcServer.registerChannel('storage', storageChannel);
 
 		// Log level management
