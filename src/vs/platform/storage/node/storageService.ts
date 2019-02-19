@@ -36,6 +36,8 @@ export class StorageService extends Disposable implements IStorageService {
 	private workspaceStorage: IStorage;
 	private workspaceStorageListener: IDisposable;
 
+	private initializePromise: Promise<void>;
+
 	constructor(
 		globalStorageDatabase: IStorageDatabase,
 		@ILogService private readonly logService: ILogService,
@@ -53,6 +55,14 @@ export class StorageService extends Disposable implements IStorageService {
 	}
 
 	initialize(payload: IWorkspaceInitializationPayload): Promise<void> {
+		if (!this.initializePromise) {
+			this.initializePromise = this.doInitialize(payload);
+		}
+
+		return this.initializePromise;
+	}
+
+	private doInitialize(payload: IWorkspaceInitializationPayload): Promise<void> {
 		return Promise.all([
 			this.initializeGlobalStorage(),
 			this.initializeWorkspaceStorage(payload)
@@ -227,7 +237,7 @@ export class StorageService extends Disposable implements IStorageService {
 				workspaceItemsParsed.set(key, safeParse(value));
 			});
 
-			console.group(`Storage: Global (integrity: ${result[2]}, load: ${getDuration('main:willInitGlobalStorage', 'main:didInitGlobalStorage')}, path: ${this.environmentService.globalStorageHome})`);
+			console.group(`Storage: Global (integrity: ${result[2]}, path: ${this.environmentService.globalStorageHome})`);
 			let globalValues: { key: string, value: string }[] = [];
 			globalItems.forEach((value, key) => {
 				globalValues.push({ key, value });
