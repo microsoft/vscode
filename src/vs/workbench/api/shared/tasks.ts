@@ -66,8 +66,8 @@ export interface ShellExecutionDTO {
 	options?: ShellExecutionOptionsDTO;
 }
 
-export interface CustomTaskExecutionDTO {
-	customTaskExecution: 'customTaskExecution';
+export interface CustomExecutionDTO {
+	customExecution: 'customExecution';
 }
 
 export interface TaskSourceDTO {
@@ -84,7 +84,7 @@ export interface TaskHandleDTO {
 export interface TaskDTO {
 	_id: string;
 	name?: string;
-	execution: ProcessExecutionDTO | ShellExecutionDTO | CustomTaskExecutionDTO;
+	execution: ProcessExecutionDTO | ShellExecutionDTO | CustomExecutionDTO;
 	definition: TaskDefinitionDTO;
 	isBackground?: boolean;
 	source: TaskSourceDTO;

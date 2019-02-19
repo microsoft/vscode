@@ -1708,7 +1708,7 @@ export enum TaskScope {
 	Workspace = 2
 }
 
-export class CustomTaskExecution implements vscode.CustomTaskExecution {
+export class CustomExecution implements vscode.CustomExecution {
 	private _callback: (args: vscode.TerminalRenderer, cancellationToken: vscode.CancellationToken) => Thenable<number | undefined>;
 
 	constructor(callback: (args: vscode.TerminalRenderer, cancellationToken: vscode.CancellationToken) => Thenable<number | undefined>) {
@@ -1717,7 +1717,7 @@ export class CustomTaskExecution implements vscode.CustomTaskExecution {
 
 	public computeId(): string {
 		const hash = crypto.createHash('md5');
-		hash.update('customTaskExecution');
+		hash.update('customExecution');
 		hash.update(generateUuid());
 		return hash.digest('hex');
 	}
@@ -1732,9 +1732,9 @@ export class CustomTaskExecution implements vscode.CustomTaskExecution {
 }
 
 @es5ClassCompat
-export class Task implements vscode.TaskWithCustomTaskExecution {
+export class Task implements vscode.Task2 {
 
-	private static ExtensionCallbackType: string = 'customTaskExecution';
+	private static ExtensionCallbackType: string = 'customExecution';
 	private static ProcessType: string = 'process';
 	private static ShellType: string = 'shell';
 	private static EmptyType: string = '$empty';
@@ -1744,7 +1744,7 @@ export class Task implements vscode.TaskWithCustomTaskExecution {
 	private _definition: vscode.TaskDefinition;
 	private _scope: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder | undefined;
 	private _name: string;
-	private _execution: ProcessExecution | ShellExecution | CustomTaskExecution | undefined;
+	private _execution: ProcessExecution | ShellExecution | CustomExecution | undefined;
 	private _problemMatchers: string[];
 	private _hasDefinedMatchers: boolean;
 	private _isBackground: boolean;
@@ -1753,8 +1753,8 @@ export class Task implements vscode.TaskWithCustomTaskExecution {
 	private _presentationOptions: vscode.TaskPresentationOptions;
 	private _runOptions: vscode.RunOptions;
 
-	constructor(definition: vscode.TaskDefinition, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomTaskExecution, problemMatchers?: string | string[]);
-	constructor(definition: vscode.TaskDefinition, scope: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomTaskExecution, problemMatchers?: string | string[]);
+	constructor(definition: vscode.TaskDefinition, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution, problemMatchers?: string | string[]);
+	constructor(definition: vscode.TaskDefinition, scope: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution, problemMatchers?: string | string[]);
 	constructor(definition: vscode.TaskDefinition, arg2: string | (vscode.TaskScope.Global | vscode.TaskScope.Workspace) | vscode.WorkspaceFolder, arg3: any, arg4?: any, arg5?: any, arg6?: any) {
 		this.definition = definition;
 		let problemMatchers: string | string[];
@@ -1819,7 +1819,7 @@ export class Task implements vscode.TaskWithCustomTaskExecution {
 				type: Task.ShellType,
 				id: this._execution.computeId()
 			};
-		} else if (this._execution instanceof CustomTaskExecution) {
+		} else if (this._execution instanceof CustomExecution) {
 			this._definition = {
 				type: Task.ExtensionCallbackType,
 				id: this._execution.computeId()
@@ -1866,18 +1866,18 @@ export class Task implements vscode.TaskWithCustomTaskExecution {
 	}
 
 	get execution(): ProcessExecution | ShellExecution | undefined {
-		return (this._execution instanceof CustomTaskExecution) ? undefined : this._execution;
+		return (this._execution instanceof CustomExecution) ? undefined : this._execution;
 	}
 
 	set execution(value: ProcessExecution | ShellExecution | undefined) {
-		this.executionWithExtensionCallback = value;
+		this.execution2 = value;
 	}
 
-	get executionWithExtensionCallback(): ProcessExecution | ShellExecution | CustomTaskExecution | undefined {
+	get execution2(): ProcessExecution | ShellExecution | CustomExecution | undefined {
 		return this._execution;
 	}
 
-	set executionWithExtensionCallback(value: ProcessExecution | ShellExecution | CustomTaskExecution | undefined) {
+	set execution2(value: ProcessExecution | ShellExecution | CustomExecution | undefined) {
 		if (value === null) {
 			value = undefined;
 		}

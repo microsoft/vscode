@@ -105,7 +105,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 		return true;
 	}
 
-	public customTaskExecutionComplete(task: Task, result?: number): Promise<void> {
+	public customExecutionComplete(task: Task, result?: number): Promise<void> {
 		throw new TaskError(Severity.Error, 'Custom execution task completion is never expected in the process task system.', TaskErrors.UnknownError);
 	}
 

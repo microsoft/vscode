@@ -332,18 +332,16 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		return renderer;
 	}
 
-	public async createTerminalRendererForTerminal(terminal: vscode.Terminal): Promise<vscode.TerminalRenderer> {
-		if (!(terminal instanceof ExtHostTerminal)) {
-			throw new Error('Only expected instance extension host terminal type');
-		}
+	public async resolveTerminalRenderer(id: number): Promise<vscode.TerminalRenderer> {
 		// Check to see if the extension host already knows about this terminal.
 		for (const terminalRenderer of this._terminalRenderers) {
-			if (terminalRenderer._id === terminal._id) {
+			if (terminalRenderer._id === id) {
 				return terminalRenderer;
 			}
 		}
 
-		const dimensions = await this._proxy.$terminalGetDimensions(terminal._id);
+		const dimensions = await this._proxy.$terminalGetDimensions(id);
+		const terminal = this._getTerminalById(id);
 		const renderer = new ExtHostTerminalRenderer(this._proxy, terminal.name, terminal, terminal._id, dimensions.cols, dimensions.rows);
 		this._terminalRenderers.push(renderer);
 
@@ -415,31 +413,18 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		}
 	}
 
-	public $acceptTerminalOpened(id: number, name: string, isRendererOnly: boolean, cols: number, rows: number): void {
-		let index = this._getTerminalObjectIndexById(this._terminals, id);
+	public $acceptTerminalOpened(id: number, name: string): void {
+		const index = this._getTerminalObjectIndexById(this._terminals, id);
 		if (index !== null) {
+			// The terminal has already been created (via createTerminal*), only fire the event
 			this._onDidOpenTerminal.fire(this.terminals[index]);
-		}
-
-		let renderer = this._getTerminalRendererById(id);
-
-		// If this is a terminal created by one of the public createTerminal* APIs
-		// then @acceptTerminalOpened was called from the main thread task
-		// to indicate that the terminal is ready for use.
-		// In those cases, we don't need to create the extension host objects
-		// as they already exist, but, we do still need to fire the events
-		// to our consumers.
-		if ((renderer !== null) && (index !== null)) {
 			return;
 		}
 
-		// The extension host did not know about this terminal, so create extension host
-		// objects to represent them.
-		if (!index) {
-			const terminal = new ExtHostTerminal(this._proxy, name, id, renderer ? RENDERER_NO_PROCESS_ID : undefined);
-			index = this._terminals.push(terminal);
-			this._onDidOpenTerminal.fire(terminal);
-		}
+		const renderer = this._getTerminalRendererById(id);
+		const terminal = new ExtHostTerminal(this._proxy, name, id, renderer ? RENDERER_NO_PROCESS_ID : undefined);
+		this._terminals.push(terminal);
+		this._onDidOpenTerminal.fire(terminal);
 	}
 
 	public $acceptTerminalProcessId(id: number, processId: number): void {

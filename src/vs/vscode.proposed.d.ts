@@ -1184,7 +1184,7 @@ declare module 'vscode' {
 	/**
 	 * Class used to execute an extension callback as a task.
 	 */
-	export class CustomTaskExecution {
+	export class CustomExecution {
 		/**
 		 * @param callback The callback that will be called when the extension callback task is executed.
 		 */
@@ -1199,7 +1199,7 @@ declare module 'vscode' {
 	/**
 	 * A task to execute
 	 */
-	export class TaskWithCustomTaskExecution extends Task {
+	export class Task2 extends Task {
 		/**
 		 * Creates a new task.
 		 *
@@ -1212,12 +1212,12 @@ declare module 'vscode' {
 		 *  or '$eslint'. Problem matchers can be contributed by an extension using
 		 *  the `problemMatchers` extension point.
 		 */
-		constructor(taskDefinition: TaskDefinition, scope: WorkspaceFolder | TaskScope.Global | TaskScope.Workspace, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomTaskExecution, problemMatchers?: string | string[]);
+		constructor(taskDefinition: TaskDefinition, scope: WorkspaceFolder | TaskScope.Global | TaskScope.Workspace, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution, problemMatchers?: string | string[]);
 
 		/**
 		 * The task's execution engine
 		 */
-		executionWithExtensionCallback?: ProcessExecution | ShellExecution | CustomTaskExecution;
+		execution2?: ProcessExecution | ShellExecution | CustomExecution;
 	}
 
 	//#region Tasks

@@ -265,7 +265,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		return Object.keys(this.activeTasks).map(key => this.activeTasks[key].task);
 	}
 
-	public customTaskExecutionComplete(task: Task, result?: number): Promise<void> {
+	public customExecutionComplete(task: Task, result?: number): Promise<void> {
 		let activeTerminal = this.activeTasks[task.getMapKey()];
 		if (!activeTerminal) {
 			return Promise.reject(new Error('Expected to have a terminal for an custom execution task'));
@@ -549,7 +549,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 				let processStartedSignaled = false;
 				terminal.processReady.then(() => {
 					if (!processStartedSignaled) {
-						if (task.command.runtime !== RuntimeType.CustomTaskExecution) {
+						if (task.command.runtime !== RuntimeType.CustomExecution) {
 							this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal!.processId!));
 						}
 						processStartedSignaled = true;
@@ -621,7 +621,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 				let processStartedSignaled = false;
 				terminal.processReady.then(() => {
 					if (!processStartedSignaled) {
-						if (task.command.runtime !== RuntimeType.CustomTaskExecution) {
+						if (task.command.runtime !== RuntimeType.CustomExecution) {
 							this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal!.processId!));
 						}
 						processStartedSignaled = true;
@@ -825,7 +825,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 				}
 			}
 		} else {
-			let commandExecutable = task.command.runtime !== RuntimeType.CustomTaskExecution ? CommandString.value(command) : undefined;
+			let commandExecutable = task.command.runtime !== RuntimeType.CustomExecution ? CommandString.value(command) : undefined;
 			let executable = !isShellCommand
 				? this.resolveVariable(variableResolver, '${' + TerminalTaskSystem.ProcessVarName + '}')
 				: commandExecutable;
@@ -896,7 +896,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		let command: CommandString | undefined;
 		let args: CommandString[] | undefined;
 
-		if (task.command.runtime === RuntimeType.CustomTaskExecution) {
+		if (task.command.runtime === RuntimeType.CustomExecution) {
 			this.currentTask.shellLaunchConfig = {
 				isRendererOnly: true,
 				waitOnExit,
@@ -1116,7 +1116,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 	private collectCommandVariables(variables: Set<string>, command: CommandConfiguration, task: CustomTask | ContributedTask): void {
 		// The custom execution should have everything it needs already as it provided
 		// the callback.
-		if (command.runtime === RuntimeType.CustomTaskExecution) {
+		if (command.runtime === RuntimeType.CustomExecution) {
 			return;
 		}
 

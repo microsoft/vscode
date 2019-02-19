@@ -30,7 +30,7 @@ import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostC
 import { ExtHostContext, MainThreadTaskShape, ExtHostTaskShape, MainContext, IExtHostContext } from 'vs/workbench/api/node/extHost.protocol';
 import {
 	TaskDefinitionDTO, TaskExecutionDTO, ProcessExecutionOptionsDTO, TaskPresentationOptionsDTO,
-	ProcessExecutionDTO, ShellExecutionDTO, ShellExecutionOptionsDTO, CustomTaskExecutionDTO, TaskDTO, TaskSourceDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO, TaskSystemInfoDTO,
+	ProcessExecutionDTO, ShellExecutionDTO, ShellExecutionOptionsDTO, CustomExecutionDTO, TaskDTO, TaskSourceDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO, TaskSystemInfoDTO,
 	RunOptionsDTO
 } from 'vs/workbench/api/shared/tasks';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
@@ -138,7 +138,7 @@ namespace ProcessExecutionOptionsDTO {
 }
 
 namespace ProcessExecutionDTO {
-	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CustomTaskExecutionDTO): value is ProcessExecutionDTO {
+	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CustomExecutionDTO): value is ProcessExecutionDTO {
 		let candidate = value as ProcessExecutionDTO;
 		return candidate && !!candidate.process;
 	}
@@ -206,7 +206,7 @@ namespace ShellExecutionOptionsDTO {
 }
 
 namespace ShellExecutionDTO {
-	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CustomTaskExecutionDTO): value is ShellExecutionDTO {
+	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CustomExecutionDTO): value is ShellExecutionDTO {
 		let candidate = value as ShellExecutionDTO;
 		return candidate && (!!candidate.commandLine || !!candidate.command);
 	}
@@ -237,21 +237,21 @@ namespace ShellExecutionDTO {
 	}
 }
 
-namespace CustomTaskExecutionDTO {
-	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CustomTaskExecutionDTO): value is CustomTaskExecutionDTO {
-		let candidate = value as CustomTaskExecutionDTO;
-		return candidate && candidate.customTaskExecution === 'customTaskExecution';
+namespace CustomExecutionDTO {
+	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CustomExecutionDTO): value is CustomExecutionDTO {
+		let candidate = value as CustomExecutionDTO;
+		return candidate && candidate.customExecution === 'customExecution';
 	}
 
-	export function from(value: CommandConfiguration): CustomTaskExecutionDTO {
+	export function from(value: CommandConfiguration): CustomExecutionDTO {
 		return {
-			customTaskExecution: 'customTaskExecution'
+			customExecution: 'customExecution'
 		};
 	}
 
-	export function to(value: CustomTaskExecutionDTO): CommandConfiguration {
+	export function to(value: CustomExecutionDTO): CommandConfiguration {
 		return {
-			runtime: RuntimeType.CustomTaskExecution,
+			runtime: RuntimeType.CustomExecution,
 			presentation: undefined
 		};
 	}
@@ -358,8 +358,8 @@ namespace TaskDTO {
 				command = ShellExecutionDTO.to(task.execution);
 			} else if (ProcessExecutionDTO.is(task.execution)) {
 				command = ProcessExecutionDTO.to(task.execution);
-			} else if (CustomTaskExecutionDTO.is(task.execution)) {
-				command = CustomTaskExecutionDTO.to(task.execution);
+			} else if (CustomExecutionDTO.is(task.execution)) {
+				command = CustomExecutionDTO.to(task.execution);
 			}
 		}
 
@@ -518,7 +518,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 		});
 	}
 
-	public $customTaskExecutionComplete(id: string, result?: number): Promise<void> {
+	public $customExecutionComplete(id: string, result?: number): Promise<void> {
 		return new Promise<void>((resolve, reject) => {
 			this._taskService.getActiveTasks().then((tasks) => {
 				for (let task of tasks) {

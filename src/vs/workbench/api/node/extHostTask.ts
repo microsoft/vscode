@@ -22,7 +22,7 @@ import {
 	TaskDefinitionDTO, TaskExecutionDTO, TaskPresentationOptionsDTO,
 	ProcessExecutionOptionsDTO, ProcessExecutionDTO,
 	ShellExecutionOptionsDTO, ShellExecutionDTO,
-	CustomTaskExecutionDTO,
+	CustomExecutionDTO,
 	TaskDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO, TaskSystemInfoDTO, TaskSetDTO
 } from '../shared/tasks';
 import { ExtHostVariableResolverService } from 'vs/workbench/api/node/extHostDebugService';
@@ -79,7 +79,7 @@ namespace ProcessExecutionOptionsDTO {
 }
 
 namespace ProcessExecutionDTO {
-	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CustomTaskExecutionDTO): value is ProcessExecutionDTO {
+	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CustomExecutionDTO): value is ProcessExecutionDTO {
 		let candidate = value as ProcessExecutionDTO;
 		return candidate && !!candidate.process;
 	}
@@ -120,7 +120,7 @@ namespace ShellExecutionOptionsDTO {
 }
 
 namespace ShellExecutionDTO {
-	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CustomTaskExecutionDTO): value is ShellExecutionDTO {
+	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CustomExecutionDTO): value is ShellExecutionDTO {
 		let candidate = value as ShellExecutionDTO;
 		return candidate && (!!candidate.commandLine || !!candidate.command);
 	}
@@ -153,15 +153,15 @@ namespace ShellExecutionDTO {
 	}
 }
 
-namespace CustomTaskExecutionDTO {
-	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CustomTaskExecutionDTO): value is CustomTaskExecutionDTO {
-		let candidate = value as CustomTaskExecutionDTO;
-		return candidate && candidate.customTaskExecution === 'customTaskExecution';
+namespace CustomExecutionDTO {
+	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CustomExecutionDTO): value is CustomExecutionDTO {
+		let candidate = value as CustomExecutionDTO;
+		return candidate && candidate.customExecution === 'customExecution';
 	}
 
-	export function from(value: vscode.CustomTaskExecution): CustomTaskExecutionDTO {
+	export function from(value: vscode.CustomExecution): CustomExecutionDTO {
 		return {
-			customTaskExecution: 'customTaskExecution'
+			customExecution: 'customExecution'
 		};
 	}
 }
@@ -199,13 +199,13 @@ namespace TaskDTO {
 		if (value === undefined || value === null) {
 			return undefined;
 		}
-		let execution: ShellExecutionDTO | ProcessExecutionDTO | CustomTaskExecutionDTO;
+		let execution: ShellExecutionDTO | ProcessExecutionDTO | CustomExecutionDTO;
 		if (value.execution instanceof types.ProcessExecution) {
 			execution = ProcessExecutionDTO.from(value.execution);
 		} else if (value.execution instanceof types.ShellExecution) {
 			execution = ShellExecutionDTO.from(value.execution);
-		} else if ((<vscode.TaskWithCustomTaskExecution>value).executionWithExtensionCallback && (<vscode.TaskWithCustomTaskExecution>value).executionWithExtensionCallback instanceof types.CustomTaskExecution) {
-			execution = CustomTaskExecutionDTO.from(<types.CustomTaskExecution>(<vscode.TaskWithCustomTaskExecution>value).executionWithExtensionCallback);
+		} else if ((<vscode.Task2>value).execution2 && (<vscode.Task2>value).execution2 instanceof types.CustomExecution) {
+			execution = CustomExecutionDTO.from(<types.CustomExecution>(<vscode.Task2>value).execution2);
 		}
 
 		let definition: TaskDefinitionDTO = TaskDefinitionDTO.from(value.definition);
@@ -336,16 +336,16 @@ interface HandlerData {
 	extension: IExtensionDescription;
 }
 
-class CustomTaskExecutionData implements IDisposable {
+class CustomExecutionData implements IDisposable {
 	private _cancellationSource?: CancellationTokenSource;
-	private readonly _onTaskExecutionComplete: Emitter<CustomTaskExecutionData> = new Emitter<CustomTaskExecutionData>();
+	private readonly _onTaskExecutionComplete: Emitter<CustomExecutionData> = new Emitter<CustomExecutionData>();
 	private readonly _disposables: IDisposable[] = [];
 	private terminal?: vscode.Terminal;
 	private terminalId?: number;
 	public result: number | undefined;
 
 	constructor(
-		private readonly callbackData: vscode.CustomTaskExecution,
+		private readonly callbackData: vscode.CustomExecution,
 		private readonly terminalService: ExtHostTerminalService) {
 	}
 
@@ -353,7 +353,7 @@ class CustomTaskExecutionData implements IDisposable {
 		dispose(this._disposables);
 	}
 
-	public get onTaskExecutionComplete(): Event<CustomTaskExecutionData> {
+	public get onTaskExecutionComplete(): Event<CustomExecutionData> {
 		return this._onTaskExecutionComplete.event;
 	}
 
@@ -396,7 +396,7 @@ class CustomTaskExecutionData implements IDisposable {
 		}
 
 		this.terminal = callbackTerminals[0];
-		const terminalRenderer: vscode.TerminalRenderer = await this.terminalService.createTerminalRendererForTerminal(this.terminal);
+		const terminalRenderer: vscode.TerminalRenderer = await this.terminalService.resolveTerminalRenderer(terminalId);
 
 		this._cancellationSource = new CancellationTokenSource();
 		this._disposables.push(this._cancellationSource);
@@ -424,8 +424,8 @@ export class ExtHostTask implements ExtHostTaskShape {
 	private _handleCounter: number;
 	private _handlers: Map<number, HandlerData>;
 	private _taskExecutions: Map<string, TaskExecutionImpl>;
-	private _providedCustomTaskExecutions: Map<string, CustomTaskExecutionData>;
-	private _activeCustomTaskExecutions: Map<string, CustomTaskExecutionData>;
+	private _providedCustomExecutions: Map<string, CustomExecutionData>;
+	private _activeCustomExecutions: Map<string, CustomExecutionData>;
 
 	private readonly _onDidExecuteTask: Emitter<vscode.TaskStartEvent> = new Emitter<vscode.TaskStartEvent>();
 	private readonly _onDidTerminateTask: Emitter<vscode.TaskEndEvent> = new Emitter<vscode.TaskEndEvent>();
@@ -447,8 +447,8 @@ export class ExtHostTask implements ExtHostTaskShape {
 		this._handleCounter = 0;
 		this._handlers = new Map<number, HandlerData>();
 		this._taskExecutions = new Map<string, TaskExecutionImpl>();
-		this._providedCustomTaskExecutions = new Map<string, CustomTaskExecutionData>();
-		this._activeCustomTaskExecutions = new Map<string, CustomTaskExecutionData>();
+		this._providedCustomExecutions = new Map<string, CustomExecutionData>();
+		this._activeCustomExecutions = new Map<string, CustomExecutionData>();
 	}
 
 	public registerTaskProvider(extension: IExtensionDescription, provider: vscode.TaskProvider): vscode.Disposable {
@@ -518,16 +518,16 @@ export class ExtHostTask implements ExtHostTaskShape {
 		// Once a terminal is spun up for the custom execution task this event will be fired.
 		// At that point, we need to actually start the callback, but
 		// only if it hasn't already begun.
-		const extensionCallback: CustomTaskExecutionData | undefined = this._providedCustomTaskExecutions.get(execution.id);
+		const extensionCallback: CustomExecutionData | undefined = this._providedCustomExecutions.get(execution.id);
 		if (extensionCallback) {
-			if (this._activeCustomTaskExecutions.get(execution.id) !== undefined) {
+			if (this._activeCustomExecutions.get(execution.id) !== undefined) {
 				throw new Error('We should not be trying to start the same custom task executions twice.');
 			}
 
-			this._activeCustomTaskExecutions.set(execution.id, extensionCallback);
+			this._activeCustomExecutions.set(execution.id, extensionCallback);
 
 			const taskExecutionComplete: IDisposable = extensionCallback.onTaskExecutionComplete(() => {
-				this.customTaskExecutionComplete(execution);
+				this.customExecutionComplete(execution);
 				taskExecutionComplete.dispose();
 			});
 
@@ -548,7 +548,7 @@ export class ExtHostTask implements ExtHostTaskShape {
 		const workspaceProvider = await this._workspaceService.getWorkspaceProvider();
 		const _execution = this.getTaskExecution(execution, workspaceProvider);
 		this._taskExecutions.delete(execution.id);
-		this.customTaskExecutionComplete(execution);
+		this.customExecutionComplete(execution);
 		this._onDidTerminateTask.fire({
 			execution: _execution
 		});
@@ -593,7 +593,7 @@ export class ExtHostTask implements ExtHostTaskShape {
 		// For custom execution tasks, we need to store the execution objects locally
 		// since we obviously cannot send callback functions through the proxy.
 		// So, clear out any existing ones.
-		this._providedCustomTaskExecutions.clear();
+		this._providedCustomExecutions.clear();
 
 		// Set up a list of task ID promises that we can wait on
 		// before returning the provided tasks. The ensures that
@@ -614,13 +614,13 @@ export class ExtHostTask implements ExtHostTaskShape {
 				const taskDTO: TaskDTO = TaskDTO.from(task, handler.extension);
 				taskDTOs.push(taskDTO);
 
-				if (CustomTaskExecutionDTO.is(taskDTO.execution)) {
+				if (CustomExecutionDTO.is(taskDTO.execution)) {
 					taskIdPromises.push(new Promise((resolve) => {
 						// The ID is calculated on the main thread task side, so, let's call into it here.
 						// We need the task id's pre-computed for custom task executions because when OnDidStartTask
 						// is invoked, we have to be able to map it back to our data.
 						this._proxy.$createTaskId(taskDTO).then((taskId) => {
-							this._providedCustomTaskExecutions.set(taskId, new CustomTaskExecutionData(<vscode.CustomTaskExecution>(<vscode.TaskWithCustomTaskExecution>task).executionWithExtensionCallback, this._terminalService));
+							this._providedCustomExecutions.set(taskId, new CustomExecutionData(<vscode.CustomExecution>(<vscode.Task2>task).execution2, this._terminalService));
 							resolve();
 						});
 					}));
@@ -698,11 +698,11 @@ export class ExtHostTask implements ExtHostTaskShape {
 		return result;
 	}
 
-	private customTaskExecutionComplete(execution: TaskExecutionDTO): void {
-		const extensionCallback: CustomTaskExecutionData | undefined = this._activeCustomTaskExecutions.get(execution.id);
+	private customExecutionComplete(execution: TaskExecutionDTO): void {
+		const extensionCallback: CustomExecutionData | undefined = this._activeCustomExecutions.get(execution.id);
 		if (extensionCallback) {
-			this._activeCustomTaskExecutions.delete(execution.id);
-			this._proxy.$customTaskExecutionComplete(execution.id, extensionCallback.result);
+			this._activeCustomExecutions.delete(execution.id);
+			this._proxy.$customExecutionComplete(execution.id, extensionCallback.result);
 			extensionCallback.dispose();
 		}
 	}
