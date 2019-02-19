@@ -955,11 +955,11 @@ export class Workbench extends Disposable implements IPartService {
 		IsMacContext.bindTo(this.contextKeyService);
 		IsLinuxContext.bindTo(this.contextKeyService);
 		IsWindowsContext.bindTo(this.contextKeyService);
+		SupportsWorkspacesContext.bindTo(this.contextKeyService);
 		const supportsOpenFileFolderContextKey = SupportsOpenFileFolderContext.bindTo(this.contextKeyService);
-		const supportsWorkspacesContextKey = SupportsWorkspacesContext.bindTo(this.contextKeyService);
+		SupportsWorkspacesContext.bindTo(this.contextKeyService);
 		if (this.windowService.getConfiguration().remoteAuthority) {
 			supportsOpenFileFolderContextKey.set(true);
-			supportsWorkspacesContextKey.set(false);
 		}
 
 		const sidebarVisibleContextRaw = new RawContextKey<boolean>('sidebarVisible', false);
