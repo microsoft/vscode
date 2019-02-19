@@ -5,36 +5,33 @@
 
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
-import { join, isEqual, isEqualOrParent } from 'vs/base/common/extpath';
+import { isEqual, isEqualOrParent } from 'vs/base/common/extpath';
 import { FileChangeType, FileChangesEvent, isParent } from 'vs/platform/files/common/files';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { toResource } from 'vs/base/test/common/utils';
 
 suite('Files', () => {
 
-	function toResource(path) {
-		return URI.file(join('C:\\', path));
-	}
-
-	test('FileChangesEvent', () => {
+	test('FileChangesEvent', function () {
 		let changes = [
-			{ resource: URI.file(join('C:\\', '/foo/updated.txt')), type: FileChangeType.UPDATED },
-			{ resource: URI.file(join('C:\\', '/foo/otherupdated.txt')), type: FileChangeType.UPDATED },
-			{ resource: URI.file(join('C:\\', '/added.txt')), type: FileChangeType.ADDED },
-			{ resource: URI.file(join('C:\\', '/bar/deleted.txt')), type: FileChangeType.DELETED },
-			{ resource: URI.file(join('C:\\', '/bar/folder')), type: FileChangeType.DELETED }
+			{ resource: toResource.call(this, '/foo/updated.txt'), type: FileChangeType.UPDATED },
+			{ resource: toResource.call(this, '/foo/otherupdated.txt'), type: FileChangeType.UPDATED },
+			{ resource: toResource.call(this, '/added.txt'), type: FileChangeType.ADDED },
+			{ resource: toResource.call(this, '/bar/deleted.txt'), type: FileChangeType.DELETED },
+			{ resource: toResource.call(this, '/bar/folder'), type: FileChangeType.DELETED }
 		];
 
 		let r1 = new FileChangesEvent(changes);
 
-		assert(!r1.contains(toResource('/foo'), FileChangeType.UPDATED));
-		assert(r1.contains(toResource('/foo/updated.txt'), FileChangeType.UPDATED));
-		assert(!r1.contains(toResource('/foo/updated.txt'), FileChangeType.ADDED));
-		assert(!r1.contains(toResource('/foo/updated.txt'), FileChangeType.DELETED));
+		assert(!r1.contains(toResource.call(this, '/foo'), FileChangeType.UPDATED));
+		assert(r1.contains(toResource.call(this, '/foo/updated.txt'), FileChangeType.UPDATED));
+		assert(!r1.contains(toResource.call(this, '/foo/updated.txt'), FileChangeType.ADDED));
+		assert(!r1.contains(toResource.call(this, '/foo/updated.txt'), FileChangeType.DELETED));
 
-		assert(r1.contains(toResource('/bar/folder'), FileChangeType.DELETED));
-		assert(r1.contains(toResource('/bar/folder/somefile'), FileChangeType.DELETED));
-		assert(r1.contains(toResource('/bar/folder/somefile/test.txt'), FileChangeType.DELETED));
-		assert(!r1.contains(toResource('/bar/folder2/somefile'), FileChangeType.DELETED));
+		assert(r1.contains(toResource.call(this, '/bar/folder'), FileChangeType.DELETED));
+		assert(r1.contains(toResource.call(this, '/bar/folder/somefile'), FileChangeType.DELETED));
+		assert(r1.contains(toResource.call(this, '/bar/folder/somefile/test.txt'), FileChangeType.DELETED));
+		assert(!r1.contains(toResource.call(this, '/bar/folder2/somefile'), FileChangeType.DELETED));
 
 		assert.strictEqual(5, r1.changes.length);
 		assert.strictEqual(1, r1.getAdded().length);

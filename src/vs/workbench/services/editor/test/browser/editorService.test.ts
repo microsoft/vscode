@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as extpath from 'vs/base/common/extpath';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
@@ -27,6 +26,7 @@ import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorIn
 import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { timeout } from 'vs/base/common/async';
+import { toResource } from 'vs/base/test/common/utils';
 
 export class TestEditorControl extends BaseEditor {
 
@@ -180,11 +180,11 @@ suite('Editor service', () => {
 		const service: EditorService = <any>instantiationService.createInstance(EditorService);
 
 		// Cached Input (Files)
-		const fileResource1 = toFileResource(this, '/foo/bar/cache1.js');
+		const fileResource1 = toResource.call(this, '/foo/bar/cache1.js');
 		const fileInput1 = service.createInput({ resource: fileResource1 });
 		assert.ok(fileInput1);
 
-		const fileResource2 = toFileResource(this, '/foo/bar/cache2.js');
+		const fileResource2 = toResource.call(this, '/foo/bar/cache2.js');
 		const fileInput2 = service.createInput({ resource: fileResource2 });
 		assert.ok(fileInput2);
 
@@ -202,11 +202,11 @@ suite('Editor service', () => {
 		assert.ok(!fileInput1AgainAndAgain.isDisposed());
 
 		// Cached Input (Resource)
-		const resource1 = toResource.call(this, '/foo/bar/cache1.js');
+		const resource1 = URI.from({ scheme: 'custom', path: '/foo/bar/cache1.js' });
 		const input1 = service.createInput({ resource: resource1 });
 		assert.ok(input1);
 
-		const resource2 = toResource.call(this, '/foo/bar/cache2.js');
+		const resource2 = URI.from({ scheme: 'custom', path: '/foo/bar/cache2.js' });
 		const input2 = service.createInput({ resource: resource2 });
 		assert.ok(input2);
 
@@ -229,13 +229,13 @@ suite('Editor service', () => {
 		const service: EditorService = <any>instantiationService.createInstance(EditorService);
 
 		// Untyped Input (file)
-		let input = service.createInput({ resource: toFileResource(this, '/index.html'), options: { selection: { startLineNumber: 1, startColumn: 1 } } });
+		let input = service.createInput({ resource: toResource.call(this, '/index.html'), options: { selection: { startLineNumber: 1, startColumn: 1 } } });
 		assert(input instanceof FileEditorInput);
 		let contentInput = <FileEditorInput>input;
-		assert.strictEqual(contentInput.getResource().fsPath, toFileResource(this, '/index.html').fsPath);
+		assert.strictEqual(contentInput.getResource().fsPath, toResource.call(this, '/index.html').fsPath);
 
 		// Untyped Input (file, encoding)
-		input = service.createInput({ resource: toFileResource(this, '/index.html'), encoding: 'utf16le', options: { selection: { startLineNumber: 1, startColumn: 1 } } });
+		input = service.createInput({ resource: toResource.call(this, '/index.html'), encoding: 'utf16le', options: { selection: { startLineNumber: 1, startColumn: 1 } } });
 		assert(input instanceof FileEditorInput);
 		contentInput = <FileEditorInput>input;
 		assert.equal(contentInput.getPreferredEncoding(), 'utf16le');
@@ -598,11 +598,3 @@ suite('Editor service', () => {
 		assert.ok(!failingEditor);
 	});
 });
-
-function toResource(path: string) {
-	return URI.from({ scheme: 'custom', path });
-}
-
-function toFileResource(self: any, path: string) {
-	return URI.file(extpath.join('C:\\', Buffer.from(self.test.fullTitle()).toString('base64'), path));
-}

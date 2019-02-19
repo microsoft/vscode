@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as extpath from 'vs/base/common/extpath';
-import { dirname } from 'vs/base/common/path';
+import { join, dirname } from 'vs/base/common/path';
 import * as strings from 'vs/base/common/strings';
 import * as extfs from 'vs/base/node/extfs';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -185,7 +184,7 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 		@IModeService modeService: IModeService,
 		@ILogService logService: ILogService
 	) {
-		super({ ...outputChannelDescriptor, file: URI.file(extpath.join(outputDir, `${outputChannelDescriptor.id}.log`)) }, modelUri, fileService, modelService, modeService);
+		super({ ...outputChannelDescriptor, file: URI.file(join(outputDir, `${outputChannelDescriptor.id}.log`)) }, modelUri, fileService, modelService, modeService);
 
 		// Use one rotating file to check for main file reset
 		this.appender = new OutputAppender(this.id, this.file.fsPath);
@@ -447,7 +446,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 	) {
 		super();
 		this.activeChannelIdInStorage = this.storageService.get(OUTPUT_ACTIVE_CHANNEL_KEY, StorageScope.WORKSPACE, null);
-		this.outputDir = extpath.join(environmentService.logsPath, `output_${windowService.getCurrentWindowId()}_${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}`);
+		this.outputDir = join(environmentService.logsPath, `output_${windowService.getCurrentWindowId()}_${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}`);
 
 		// Register as text model content provider for output
 		textModelResolverService.registerTextModelContentProvider(OUTPUT_SCHEME, this);

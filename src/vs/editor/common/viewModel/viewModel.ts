@@ -10,7 +10,7 @@ import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { INewScrollPosition } from 'vs/editor/common/editorCommon';
-import { EndOfLinePreference, IActiveIndentGuideInfo, IModelDecorationOptions } from 'vs/editor/common/model';
+import { EndOfLinePreference, IActiveIndentGuideInfo, IModelDecorationOptions, TextModelResolvedOptions } from 'vs/editor/common/model';
 import { IViewEventListener } from 'vs/editor/common/view/viewEvents';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
@@ -129,7 +129,7 @@ export interface IViewModel {
 	getCompletelyVisibleViewRange(): Range;
 	getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range;
 
-	getTabSize(): number;
+	getOptions(): TextModelResolvedOptions;
 	getLineCount(): number;
 	getLineContent(lineNumber: number): string;
 	getLineLength(lineNumber: number): number;

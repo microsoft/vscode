@@ -48,7 +48,9 @@ export class ExplorerService implements IExplorerService {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IClipboardService private clipboardService: IClipboardService,
 		@IEditorService private editorService: IEditorService
-	) { }
+	) {
+		this._sortOrder = this.configurationService.getValue('explorer.sortOrder');
+	}
 
 	get roots(): ExplorerItem[] {
 		return this.model.roots;

@@ -142,6 +142,7 @@ export class ExtHostTextEditorOptions implements vscode.TextEditorOptions {
 	private _id: string;
 
 	private _tabSize: number;
+	private _indentSize: number;
 	private _insertSpaces: boolean;
 	private _cursorStyle: TextEditorCursorStyle;
 	private _lineNumbers: TextEditorLineNumbersStyle;
@@ -154,6 +155,7 @@ export class ExtHostTextEditorOptions implements vscode.TextEditorOptions {
 
 	public _accept(source: IResolvedTextEditorConfiguration): void {
 		this._tabSize = source.tabSize;
+		this._indentSize = source.indentSize;
 		this._insertSpaces = source.insertSpaces;
 		this._cursorStyle = source.cursorStyle;
 		this._lineNumbers = source.lineNumbers;
@@ -197,6 +199,47 @@ export class ExtHostTextEditorOptions implements vscode.TextEditorOptions {
 		}
 		warnOnError(this._proxy.$trySetOptions(this._id, {
 			tabSize: tabSize
+		}));
+	}
+
+	public get indentSize(): number | string {
+		return this._indentSize;
+	}
+
+	private _validateIndentSize(value: number | string): number | 'tabSize' | null {
+		if (value === 'tabSize') {
+			return 'tabSize';
+		}
+		if (typeof value === 'number') {
+			let r = Math.floor(value);
+			return (r > 0 ? r : null);
+		}
+		if (typeof value === 'string') {
+			let r = parseInt(value, 10);
+			if (isNaN(r)) {
+				return null;
+			}
+			return (r > 0 ? r : null);
+		}
+		return null;
+	}
+
+	public set indentSize(value: number | string) {
+		let indentSize = this._validateIndentSize(value);
+		if (indentSize === null) {
+			// ignore invalid call
+			return;
+		}
+		if (typeof indentSize === 'number') {
+			if (this._indentSize === indentSize) {
+				// nothing to do
+				return;
+			}
+			// reflect the new indentSize value immediately
+			this._indentSize = indentSize;
+		}
+		warnOnError(this._proxy.$trySetOptions(this._id, {
+			indentSize: indentSize
 		}));
 	}
 
@@ -270,6 +313,19 @@ export class ExtHostTextEditorOptions implements vscode.TextEditorOptions {
 				this._tabSize = tabSize;
 				hasUpdate = true;
 				bulkConfigurationUpdate.tabSize = tabSize;
+			}
+		}
+
+		if (typeof newOptions.indentSize !== 'undefined') {
+			let indentSize = this._validateIndentSize(newOptions.indentSize);
+			if (indentSize === 'tabSize') {
+				hasUpdate = true;
+				bulkConfigurationUpdate.indentSize = indentSize;
+			} else if (typeof indentSize === 'number' && this._indentSize !== indentSize) {
+				// reflect the new indentSize value immediately
+				this._indentSize = indentSize;
+				hasUpdate = true;
+				bulkConfigurationUpdate.indentSize = indentSize;
 			}
 		}
 

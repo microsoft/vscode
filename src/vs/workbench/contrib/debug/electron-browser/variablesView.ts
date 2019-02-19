@@ -138,9 +138,9 @@ export class VariablesView extends ViewletPanel {
 		const element = e.element;
 		if (element instanceof Variable && !!element.value) {
 			const actions: IAction[] = [];
-			const variable = <Variable>element;
+			const variable = element as Variable;
 			actions.push(new SetValueAction(SetValueAction.ID, SetValueAction.LABEL, variable, this.debugService, this.keybindingService));
-			actions.push(new CopyValueAction(CopyValueAction.ID, CopyValueAction.LABEL, variable, this.debugService));
+			actions.push(new CopyValueAction(CopyValueAction.ID, CopyValueAction.LABEL, variable, 'variables', this.debugService));
 			actions.push(new CopyEvaluatePathAction(CopyEvaluatePathAction.ID, CopyEvaluatePathAction.LABEL, variable));
 			actions.push(new Separator());
 			actions.push(new AddToWatchExpressionsAction(AddToWatchExpressionsAction.ID, AddToWatchExpressionsAction.LABEL, variable, this.debugService, this.keybindingService));
@@ -210,11 +210,10 @@ class ScopesRenderer implements ITreeRenderer<IScope, FuzzyScore, IScopeTemplate
 	}
 
 	renderTemplate(container: HTMLElement): IScopeTemplateData {
-		let data: IScopeTemplateData = Object.create(null);
-		data.name = dom.append(container, $('.scope'));
-		data.label = new HighlightedLabel(data.name, false);
+		const name = dom.append(container, $('.scope'));
+		const label = new HighlightedLabel(name, false);
 
-		return data;
+		return { name, label };
 	}
 
 	renderElement(element: ITreeNode<IScope, FuzzyScore>, index: number, templateData: IScopeTemplateData): void {

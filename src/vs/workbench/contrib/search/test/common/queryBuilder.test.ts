@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { IExpression } from 'vs/base/common/glob';
-import * as extpath from 'vs/base/common/extpath';
+import { join } from 'vs/base/common/path';
 import { URI as uri } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -12,7 +12,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IFolderQuery, IPatternInfo, QueryType, ITextQuery, IFileQuery } from 'vs/workbench/services/search/common/search';
 import { IWorkspaceContextService, toWorkspaceFolders, Workspace } from 'vs/platform/workspace/common/workspace';
-import { ISearchPathsResult, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
+import { ISearchPathsInfo, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { TestContextService, TestEnvironmentService } from 'vs/workbench/test/workbenchTestServices';
 
 const DEFAULT_EDITOR_CONFIG = {};
@@ -86,7 +86,10 @@ suite('QueryBuilder', () => {
 		assertEqualTextQueries(
 			queryBuilder.text(
 				PATTERN_INFO,
-				[ROOT_1_URI]
+				[ROOT_1_URI],
+				{
+					expandPatterns: true // verify that this doesn't affect patterns from configuration
+				}
 			),
 			{
 				contentPattern: PATTERN_INFO,
@@ -108,7 +111,53 @@ suite('QueryBuilder', () => {
 			queryBuilder.text(
 				PATTERN_INFO,
 				[ROOT_1_URI],
-				{ includePattern: './bar' }
+				{
+					includePattern: 'bar',
+					expandPatterns: true
+				}
+			),
+			{
+				contentPattern: PATTERN_INFO,
+				folderQueries: [{
+					folder: ROOT_1_URI
+				}],
+				includePattern: {
+					'**/bar': true,
+					'**/bar/**': true
+				},
+				type: QueryType.Text
+			});
+
+		assertEqualTextQueries(
+			queryBuilder.text(
+				PATTERN_INFO,
+				[ROOT_1_URI],
+				{
+					includePattern: 'bar'
+				}
+			),
+			{
+				contentPattern: PATTERN_INFO,
+				folderQueries: [{
+					folder: ROOT_1_URI
+				}],
+				includePattern: {
+					'bar': true
+				},
+				type: QueryType.Text
+			});
+	});
+
+	test('simple include with ./ syntax', () => {
+
+		assertEqualTextQueries(
+			queryBuilder.text(
+				PATTERN_INFO,
+				[ROOT_1_URI],
+				{
+					includePattern: './bar',
+					expandPatterns: true
+				}
 			),
 			{
 				contentPattern: PATTERN_INFO,
@@ -126,7 +175,10 @@ suite('QueryBuilder', () => {
 			queryBuilder.text(
 				PATTERN_INFO,
 				[ROOT_1_URI],
-				{ includePattern: '.\\bar' }
+				{
+					includePattern: '.\\bar',
+					expandPatterns: true
+				}
 			),
 			{
 				contentPattern: PATTERN_INFO,
@@ -156,7 +208,10 @@ suite('QueryBuilder', () => {
 			queryBuilder.text(
 				PATTERN_INFO,
 				[ROOT_1_URI],
-				{ includePattern: './foo' }
+				{
+					includePattern: './foo',
+					expandPatterns: true
+				}
 			),
 			{
 				contentPattern: PATTERN_INFO,
@@ -217,7 +272,10 @@ suite('QueryBuilder', () => {
 			queryBuilder.text(
 				PATTERN_INFO,
 				[ROOT_1_URI, ROOT_2_URI, ROOT_3_URI],
-				{ includePattern: './root2/src' }
+				{
+					includePattern: './root2/src',
+					expandPatterns: true
+				}
 			),
 			{
 				contentPattern: PATTERN_INFO,
@@ -243,7 +301,10 @@ suite('QueryBuilder', () => {
 			queryBuilder.text(
 				PATTERN_INFO,
 				[ROOT_1_URI],
-				{ excludePattern: 'foo' }
+				{
+					excludePattern: 'foo',
+					expandPatterns: true
+				}
 			),
 			{
 				contentPattern: PATTERN_INFO,
@@ -274,7 +335,10 @@ suite('QueryBuilder', () => {
 			queryBuilder.text(
 				PATTERN_INFO,
 				[ROOT_1_URI],
-				{ excludePattern: './bar' }
+				{
+					excludePattern: './bar',
+					expandPatterns: true
+				}
 			),
 			{
 				contentPattern: PATTERN_INFO,
@@ -289,7 +353,10 @@ suite('QueryBuilder', () => {
 			queryBuilder.text(
 				PATTERN_INFO,
 				[ROOT_1_URI],
-				{ excludePattern: './bar/**/*.ts' }
+				{
+					excludePattern: './bar/**/*.ts',
+					expandPatterns: true
+				}
 			),
 			{
 				contentPattern: PATTERN_INFO,
@@ -304,7 +371,10 @@ suite('QueryBuilder', () => {
 			queryBuilder.text(
 				PATTERN_INFO,
 				[ROOT_1_URI],
-				{ excludePattern: '.\\bar\\**\\*.ts' }
+				{
+					excludePattern: '.\\bar\\**\\*.ts',
+					expandPatterns: true
+				}
 			),
 			{
 				contentPattern: PATTERN_INFO,
@@ -338,7 +408,8 @@ suite('QueryBuilder', () => {
 				[ROOT_1_URI],
 				{
 					extraFileResources: [getUri('/foo/bar.js')],
-					excludePattern: '*.js'
+					excludePattern: '*.js',
+					expandPatterns: true
 				}
 			),
 			{
@@ -356,7 +427,8 @@ suite('QueryBuilder', () => {
 				[ROOT_1_URI],
 				{
 					extraFileResources: [getUri('/foo/bar.js')],
-					includePattern: '*.txt'
+					includePattern: '*.txt',
+					expandPatterns: true
 				}
 			),
 			{
@@ -390,19 +462,19 @@ suite('QueryBuilder', () => {
 			].forEach(([includePattern, expectedPatterns]) => testSimpleIncludes(<string>includePattern, <string[]>expectedPatterns));
 		});
 
-		function testIncludes(includePattern: string, expectedResult: ISearchPathsResult): void {
+		function testIncludes(includePattern: string, expectedResult: ISearchPathsInfo): void {
 			assertEqualSearchPathResults(
 				queryBuilder.parseSearchPaths(includePattern),
 				expectedResult,
 				includePattern);
 		}
 
-		function testIncludesDataItem([includePattern, expectedResult]: [string, ISearchPathsResult]): void {
+		function testIncludesDataItem([includePattern, expectedResult]: [string, ISearchPathsInfo]): void {
 			testIncludes(includePattern, expectedResult);
 		}
 
 		test('absolute includes', () => {
-			const cases: [string, ISearchPathsResult][] = [
+			const cases: [string, ISearchPathsInfo][] = [
 				[
 					fixPath('/foo/bar'),
 					{
@@ -472,7 +544,7 @@ suite('QueryBuilder', () => {
 
 		test('includes with tilde', () => {
 			const userHome = TestEnvironmentService.userHome;
-			const cases: [string, ISearchPathsResult][] = [
+			const cases: [string, ISearchPathsInfo][] = [
 				[
 					'~/foo/bar',
 					{
@@ -497,7 +569,7 @@ suite('QueryBuilder', () => {
 		});
 
 		test('relative includes w/single root folder', () => {
-			const cases: [string, ISearchPathsResult][] = [
+			const cases: [string, ISearchPathsInfo][] = [
 				[
 					'./a',
 					{
@@ -565,7 +637,7 @@ suite('QueryBuilder', () => {
 			mockWorkspace.folders = toWorkspaceFolders([{ path: ROOT_1_URI.fsPath }, { path: getUri(ROOT_2).fsPath }]);
 			mockWorkspace.configuration = uri.file(fixPath('config'));
 
-			const cases: [string, ISearchPathsResult][] = [
+			const cases: [string, ISearchPathsInfo][] = [
 				[
 					'./root1',
 					{
@@ -606,7 +678,7 @@ suite('QueryBuilder', () => {
 			mockWorkspace.folders = toWorkspaceFolders([{ path: ROOT_1_URI.fsPath, name: ROOT_1_FOLDERNAME }, { path: getUri(ROOT_2).fsPath }]);
 			mockWorkspace.configuration = uri.file(fixPath('config'));
 
-			const cases: [string, ISearchPathsResult][] = [
+			const cases: [string, ISearchPathsInfo][] = [
 				[
 					'./foldername',
 					{
@@ -634,7 +706,7 @@ suite('QueryBuilder', () => {
 			mockWorkspace.folders = toWorkspaceFolders([{ path: ROOT_1_URI.fsPath }, { path: getUri(ROOT_2).fsPath }, { path: getUri(ROOT_3).fsPath }]);
 			mockWorkspace.configuration = uri.file(fixPath('/config'));
 
-			const cases: [string, ISearchPathsResult][] = [
+			const cases: [string, ISearchPathsInfo][] = [
 				[
 					'',
 					{
@@ -856,7 +928,7 @@ function assertEqualQueries(actual: ITextQuery | IFileQuery, expected: ITextQuer
 	assert.deepEqual(actual, expected);
 }
 
-function assertEqualSearchPathResults(actual: ISearchPathsResult, expected: ISearchPathsResult, message?: string): void {
+function assertEqualSearchPathResults(actual: ISearchPathsInfo, expected: ISearchPathsInfo, message?: string): void {
 	cleanUndefinedQueryValues(actual);
 	assert.deepEqual(actual.pattern, expected.pattern, message);
 
@@ -908,7 +980,7 @@ function fixPath(...slashPathParts: string[]): string {
 		slashPathParts.unshift('c:');
 	}
 
-	return extpath.join(...slashPathParts);
+	return join(...slashPathParts);
 }
 
 function normalizeExpression(expression: IExpression | undefined): IExpression | undefined {

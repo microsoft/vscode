@@ -295,7 +295,9 @@ export class FileDialogService implements IFileDialogService {
 	showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
 		const schema = this.getFileSystemSchema(options);
 		if (schema !== Schemas.file) {
-			options.availableFileSystems = [schema, Schemas.file]; // always allow file as well
+			if (!options.availableFileSystems) {
+				options.availableFileSystems = [schema]; // by default only allow saving in the own file system
+			}
 			return this.saveRemoteResource(options);
 		}
 
@@ -311,6 +313,9 @@ export class FileDialogService implements IFileDialogService {
 	showOpenDialog(options: IOpenDialogOptions): Promise<URI[] | undefined> {
 		const schema = this.getFileSystemSchema(options);
 		if (schema !== Schemas.file) {
+			if (!options.availableFileSystems) {
+				options.availableFileSystems = [schema]; // by default only allow loading in the own file system
+			}
 			return this.pickRemoteResource(options).then(urisToOpen => {
 				return urisToOpen && urisToOpen.map(uto => uto.uri);
 			});

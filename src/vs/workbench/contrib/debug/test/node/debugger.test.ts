@@ -144,7 +144,7 @@ suite('Debug - Debugger', () => {
 
 		const ae = ExecutableDebugAdapter.platformAdapterExecutable([extensionDescriptor0], 'mock');
 
-		assert.equal(ae!.command, extpath.join(extensionFolderPath, debuggerContribution.program));
+		assert.equal(ae!.command, extpath.joinWithSlashes(extensionFolderPath, debuggerContribution.program));
 		assert.deepEqual(ae!.args, debuggerContribution.args);
 	});
 

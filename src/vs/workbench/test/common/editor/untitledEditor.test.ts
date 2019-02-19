@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { URI } from 'vs/base/common/uri';
 import * as assert from 'assert';
-import { join } from 'vs/base/common/extpath';
+import { join } from 'vs/base/common/path';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';

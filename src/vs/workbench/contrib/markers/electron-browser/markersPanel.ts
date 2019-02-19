@@ -29,11 +29,9 @@ import { ITreeElement, ITreeNode, ITreeContextMenuEvent } from 'vs/base/browser/
 import { Relay, Event, Emitter } from 'vs/base/common/event';
 import { WorkbenchObjectTree, TreeResourceNavigator2 } from 'vs/platform/list/browser/listService';
 import { FilterOptions } from 'vs/workbench/contrib/markers/electron-browser/markersFilterOptions';
-import { IExpression, getEmptyExpression } from 'vs/base/common/glob';
-import { mixin, deepClone } from 'vs/base/common/objects';
-import { IWorkspaceFolder, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { join } from 'vs/base/common/extpath';
-import { isAbsolute } from 'vs/base/common/path';
+import { IExpression } from 'vs/base/common/glob';
+import { deepClone } from 'vs/base/common/objects';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { FilterData, Filter, VirtualDelegate, ResourceMarkersRenderer, MarkerRenderer, RelatedInformationRenderer, TreeElement, MarkersTreeAccessibilityProvider, MarkersViewModel, ResourceDragAndDrop } from 'vs/workbench/contrib/markers/electron-browser/markersTreeViewer';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Separator, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -248,8 +246,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 
 	private updateFilter() {
 		this.cachedFilterStats = undefined;
-		const excludeExpression = this.getExcludeExpression(this.filterAction.useFilesExclude);
-		this.filter.options = new FilterOptions(this.filterAction.filterText, excludeExpression);
+		this.filter.options = new FilterOptions(this.filterAction.filterText, this.getFilesExcludeExpressions());
 		this.tree.refilter();
 		this._onDidFilter.fire();
 
@@ -258,42 +255,19 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		this.renderMessage();
 	}
 
-	private getExcludeExpression(useFilesExclude: boolean): IExpression {
-		if (!useFilesExclude) {
-			return {};
+	private getFilesExcludeExpressions(): { root: URI, expression: IExpression }[] | IExpression {
+		if (!this.filterAction.useFilesExclude) {
+			return [];
 		}
 
 		const workspaceFolders = this.workspaceContextService.getWorkspace().folders;
-		if (workspaceFolders.length) {
-			const result = getEmptyExpression();
-			for (const workspaceFolder of workspaceFolders) {
-				mixin(result, this.getExcludesForFolder(workspaceFolder));
-			}
-			return result;
-		} else {
-			return this.getFilesExclude();
-		}
-	}
-
-	private getExcludesForFolder(workspaceFolder: IWorkspaceFolder): IExpression {
-		const expression = this.getFilesExclude(workspaceFolder.uri);
-		return this.getAbsoluteExpression(expression, workspaceFolder.uri.fsPath);
+		return workspaceFolders.length
+			? workspaceFolders.map(workspaceFolder => ({ root: workspaceFolder.uri, expression: this.getFilesExclude(workspaceFolder.uri) }))
+			: this.getFilesExclude();
 	}
 
 	private getFilesExclude(resource?: URI): IExpression {
 		return deepClone(this.configurationService.getValue('files.exclude', { resource })) || {};
-	}
-
-	private getAbsoluteExpression(expr: IExpression, root: string): IExpression {
-		return Object.keys(expr)
-			.reduce((absExpr: IExpression, key: string) => {
-				if (expr[key] && !isAbsolute(key)) {
-					const absPattern = join(root, key);
-					absExpr[absPattern] = expr[key];
-				}
-
-				return absExpr;
-			}, Object.create(null));
 	}
 
 	private createMessageBox(parent: HTMLElement): void {
@@ -320,7 +294,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 			this.instantiationService.createInstance(MarkerRenderer, this.markersViewModel),
 			this.instantiationService.createInstance(RelatedInformationRenderer)
 		];
-		this.filter = new Filter();
+		this.filter = new Filter(new FilterOptions());
 		const accessibilityProvider = this.instantiationService.createInstance(MarkersTreeAccessibilityProvider);
 
 		const identityProvider = {

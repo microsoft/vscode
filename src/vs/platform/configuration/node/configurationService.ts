@@ -55,7 +55,7 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 	getValue(arg1?: any, arg2?: any): any {
 		const section = typeof arg1 === 'string' ? arg1 : undefined;
 		const overrides = isConfigurationOverrides(arg1) ? arg1 : isConfigurationOverrides(arg2) ? arg2 : {};
-		return this.configuration.getValue(section, overrides, null);
+		return this.configuration.getValue(section, overrides, undefined);
 	}
 
 	updateValue(key: string, value: any): Promise<void>;
@@ -73,7 +73,7 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 		workspaceFolder?: T
 		value: T
 	} {
-		return this.configuration.inspect<T>(key, {}, null);
+		return this.configuration.inspect<T>(key, {}, undefined);
 	}
 
 	keys(): {
@@ -82,7 +82,7 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 		workspace: string[];
 		workspaceFolder: string[];
 	} {
-		return this.configuration.keys(null);
+		return this.configuration.keys(undefined);
 	}
 
 	reloadConfiguration(folder?: IWorkspaceFolder): Promise<void> {

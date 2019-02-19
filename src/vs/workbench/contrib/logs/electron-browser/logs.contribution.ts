@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { join } from 'vs/base/common/extpath';
+import { join } from 'vs/base/common/path';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IOutputChannelRegistry, Extensions as OutputExt, } from 'vs/workbench/contrib/output/common/output';

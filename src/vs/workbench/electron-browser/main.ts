@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
+import { createHash } from 'crypto';
 import * as nls from 'vs/nls';
 import * as perf from 'vs/base/common/performance';
 import { Workbench } from 'vs/workbench/electron-browser/workbench';
@@ -32,7 +34,6 @@ import { IURLService } from 'vs/platform/url/common/url';
 import { WorkspacesChannelClient } from 'vs/platform/workspaces/node/workspacesIpc';
 import { IWorkspacesService, ISingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, IMultiFolderWorkspaceInitializationPayload, IEmptyWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload, reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
-import * as fs from 'fs';
 import { ConsoleLogService, MultiplexLogService, ILogService } from 'vs/platform/log/common/log';
 import { StorageService } from 'vs/platform/storage/node/storageService';
 import { IssueChannelClient } from 'vs/platform/issue/node/issueIpc';
@@ -44,7 +45,6 @@ import { IMenubarService } from 'vs/platform/menubar/common/menubar';
 import { Schemas } from 'vs/base/common/network';
 import { sanitizeFilePath } from 'vs/base/node/extfs';
 import { basename } from 'vs/base/common/path';
-import { createHash } from 'crypto';
 import { IdleValue } from 'vs/base/common/async';
 import { setGlobalLeakWarningThreshold } from 'vs/base/common/event';
 import { GlobalStorageDatabaseChannelClient } from 'vs/platform/storage/node/storageIpc';
@@ -53,6 +53,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { registerWindowDriver } from 'vs/platform/driver/electron-browser/driver';
 
 export class CodeWindow extends Disposable {
 
@@ -93,6 +94,15 @@ export class CodeWindow extends Disposable {
 				collatorIsNumeric: collator.resolvedOptions().numeric
 			};
 		}));
+
+		// Inform user about loading issues from the loader
+		(<any>self).require.config({
+			onError: err => {
+				if (err.errorCode === 'load') {
+					onUnexpectedError(new Error(nls.localize('loaderErrorNative', "Failed to load a required file. Please restart the application to try again. Details: {0}", JSON.stringify(err))));
+				}
+			}
+		});
 	}
 
 	private reviveUris() {
@@ -116,9 +126,9 @@ export class CodeWindow extends Disposable {
 	}
 
 	open(): Promise<void> {
-		const mainProcessClient = this._register(new ElectronIPCClient(`window:${this.configuration.windowId}`));
+		const electronMainClient = this._register(new ElectronIPCClient(`window:${this.configuration.windowId}`));
 
-		return this.initServices(mainProcessClient).then(services => {
+		return this.initServices(electronMainClient).then(services => {
 
 			return domContentLoaded().then(() => {
 				perf.mark('willStartWorkbench');
@@ -130,8 +140,7 @@ export class CodeWindow extends Disposable {
 					Workbench,
 					document.body,
 					this.configuration,
-					services,
-					mainProcessClient
+					services
 				);
 
 				// Workbench Lifecycle
@@ -144,49 +153,45 @@ export class CodeWindow extends Disposable {
 				// Window
 				this._register(instantiationService.createInstance(ElectronWindow));
 
-				// Inform user about loading issues from the loader
-				(<any>self).require.config({
-					onError: err => {
-						if (err.errorCode === 'load') {
-							onUnexpectedError(new Error(nls.localize('loaderErrorNative', "Failed to load a required file. Please restart the application to try again. Details: {0}", JSON.stringify(err))));
-						}
-					}
-				});
+				// Driver
+				if (this.configuration.driverHandle) {
+					registerWindowDriver(electronMainClient, this.configuration.windowId, instantiationService).then(disposable => this._register(disposable));
+				}
 			});
 		});
 	}
 
-	private initServices(mainProcessClient: ElectronIPCClient): Promise<ServiceCollection> {
+	private initServices(electronMainClient: ElectronIPCClient): Promise<ServiceCollection> {
 		const serviceCollection = new ServiceCollection();
 
-		// Windows Channel
-		const windowsChannel = mainProcessClient.getChannel('windows');
+		// Windows Service
+		const windowsChannel = electronMainClient.getChannel('windows');
 		serviceCollection.set(IWindowsService, new WindowsChannelClient(windowsChannel));
 
-		// Update Channel
-		const updateChannel = mainProcessClient.getChannel('update');
+		// Update Service
+		const updateChannel = electronMainClient.getChannel('update');
 		serviceCollection.set(IUpdateService, new SyncDescriptor(UpdateChannelClient, [updateChannel]));
 
-		// URL Channel
-		const urlChannel = mainProcessClient.getChannel('url');
+		// URL Service
+		const urlChannel = electronMainClient.getChannel('url');
 		const mainUrlService = new URLServiceChannelClient(urlChannel);
 		const urlService = new RelayURLService(mainUrlService);
 		serviceCollection.set(IURLService, urlService);
 
-		// URLHandler Channel
+		// URLHandler Service
 		const urlHandlerChannel = new URLHandlerChannel(urlService);
-		mainProcessClient.registerChannel('urlHandler', urlHandlerChannel);
+		electronMainClient.registerChannel('urlHandler', urlHandlerChannel);
 
-		// Issue Channel
-		const issueChannel = mainProcessClient.getChannel('issue');
+		// Issue Service
+		const issueChannel = electronMainClient.getChannel('issue');
 		serviceCollection.set(IIssueService, new SyncDescriptor(IssueChannelClient, [issueChannel]));
 
-		// Menubar Channel
-		const menubarChannel = mainProcessClient.getChannel('menubar');
+		// Menubar Service
+		const menubarChannel = electronMainClient.getChannel('menubar');
 		serviceCollection.set(IMenubarService, new SyncDescriptor(MenubarChannelClient, [menubarChannel]));
 
-		// Workspaces Channel
-		const workspacesChannel = mainProcessClient.getChannel('workspaces');
+		// Workspaces Service
+		const workspacesChannel = electronMainClient.getChannel('workspaces');
 		serviceCollection.set(IWorkspacesService, new WorkspacesChannelClient(workspacesChannel));
 
 		// Environment
@@ -194,7 +199,7 @@ export class CodeWindow extends Disposable {
 		serviceCollection.set(IEnvironmentService, environmentService);
 
 		// Log
-		const logService = this._register(this.createLogService(mainProcessClient, environmentService));
+		const logService = this._register(this.createLogService(electronMainClient, environmentService));
 		serviceCollection.set(ILogService, logService);
 
 		// Resolve a workspace payload that we can get the workspace ID from
@@ -206,7 +211,7 @@ export class CodeWindow extends Disposable {
 				this.createWorkspaceService(payload, environmentService, logService),
 
 				// Create and initialize storage service
-				this.createStorageService(payload, environmentService, logService, mainProcessClient)
+				this.createStorageService(payload, environmentService, logService, electronMainClient)
 			]).then(services => {
 				serviceCollection.set(IWorkspaceContextService, services[0]);
 				serviceCollection.set(IConfigurationService, services[0]);

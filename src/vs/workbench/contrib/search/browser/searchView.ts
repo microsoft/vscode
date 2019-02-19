@@ -32,7 +32,7 @@ import { IContextMenuService, IContextViewService } from 'vs/platform/contextvie
 import { IConfirmation, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TreeResourceNavigator2, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
+import { TreeResourceNavigator2, WorkbenchObjectTree, getSelectionKeyboardEvent } from 'vs/platform/list/browser/listService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ISearchHistoryService, ISearchHistoryValues, ITextQuery, SearchErrorCode, VIEW_ID } from 'vs/workbench/services/search/common/search';
@@ -48,7 +48,7 @@ import { IEditor } from 'vs/workbench/common/editor';
 import { IPanel } from 'vs/workbench/common/panel';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { ExcludePatternInputWidget, PatternInputWidget } from 'vs/workbench/contrib/search/browser/patternInputWidget';
-import { CancelSearchAction, ClearSearchResultsAction, CollapseDeepestExpandedLevelAction, getKeyboardEventForEditorOpen, RefreshAction } from 'vs/workbench/contrib/search/browser/searchActions';
+import { CancelSearchAction, ClearSearchResultsAction, CollapseDeepestExpandedLevelAction, RefreshAction } from 'vs/workbench/contrib/search/browser/searchActions';
 import { FileMatchRenderer, FolderMatchRenderer, MatchRenderer, SearchAccessibilityProvider, SearchDelegate, SearchDND } from 'vs/workbench/contrib/search/browser/searchResultsView';
 import { ISearchWidgetOptions, SearchWidget } from 'vs/workbench/contrib/search/browser/searchWidget';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
@@ -699,7 +699,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 	selectCurrentMatch(): void {
 		const focused = this.tree.getFocus()[0];
-		const fakeKeyboardEvent = getKeyboardEventForEditorOpen({ preserveFocus: false });
+		const fakeKeyboardEvent = getSelectionKeyboardEvent(undefined, false);
 		this.tree.setSelection([focused], fakeKeyboardEvent);
 	}
 
@@ -734,8 +734,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 		// Reveal the newly selected element
 		if (next) {
-			this.tree.setFocus([next]);
-			this.tree.setSelection([next]);
+			this.tree.setFocus([next], getSelectionKeyboardEvent(undefined, false));
 			this.tree.reveal(next);
 			this.selectCurrentMatchEmitter.fire(undefined);
 		}
@@ -775,8 +774,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 		// Reveal the newly selected element
 		if (prev) {
-			this.tree.setFocus([prev]);
-			this.tree.setSelection([prev]);
+			this.tree.setFocus([prev], getSelectionKeyboardEvent(undefined, false));
 			this.tree.reveal(prev);
 			this.selectCurrentMatchEmitter.fire(undefined);
 		}
@@ -1171,7 +1169,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 				matchLines: 1,
 				charsPerLine
 			},
-			isSmartCase: this.configurationService.getValue<ISearchConfiguration>().search.smartCase
+			isSmartCase: this.configurationService.getValue<ISearchConfiguration>().search.smartCase,
+			expandPatterns: true
 		};
 		const folderResources = this.contextService.getWorkspace().folders;
 

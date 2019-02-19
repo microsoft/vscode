@@ -9,6 +9,10 @@ import { StorageMainService, IStorageChangeEvent } from 'vs/platform/storage/nod
 import { IUpdateRequest, IStorageDatabase, IStorageItemsChangeEvent } from 'vs/base/node/storage';
 import { mapToSerializable, serializableToMap, values } from 'vs/base/common/map';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { ILogService } from 'vs/platform/log/common/log';
+import { generateUuid } from 'vs/base/common/uuid';
+import { instanceStorageKey, firstSessionDateStorageKey, lastSessionDateStorageKey, currentSessionDateStorageKey } from 'vs/platform/telemetry/node/workbenchCommonProperties';
 
 type Key = string;
 type Value = string;
@@ -30,10 +34,48 @@ export class GlobalStorageDatabaseChannel extends Disposable implements IServerC
 	private readonly _onDidChangeItems: Emitter<ISerializableItemsChangeEvent> = this._register(new Emitter<ISerializableItemsChangeEvent>());
 	get onDidChangeItems(): Event<ISerializableItemsChangeEvent> { return this._onDidChangeItems.event; }
 
-	constructor(private storageMainService: StorageMainService) {
+	private whenReady: Promise<void>;
+
+	constructor(
+		private logService: ILogService,
+		private storageMainService: StorageMainService
+	) {
 		super();
 
-		this.registerListeners();
+		this.whenReady = this.init();
+	}
+
+	private init(): Promise<void> {
+		return this.storageMainService.initialize().then(undefined, error => {
+			onUnexpectedError(error);
+			this.logService.error(error);
+		}).then(() => {
+
+			// Apply global telemetry values as part of the initialization
+			// These are global across all windows and thereby should be
+			// written from the main process once.
+			this.initTelemetry();
+
+			// Setup storage change listeners
+			this.registerListeners();
+		});
+	}
+
+	private initTelemetry(): void {
+		const instanceId = this.storageMainService.get(instanceStorageKey, undefined);
+		if (instanceId === undefined) {
+			this.storageMainService.store(instanceStorageKey, generateUuid());
+		}
+
+		const firstSessionDate = this.storageMainService.get(firstSessionDateStorageKey, undefined);
+		if (firstSessionDate === undefined) {
+			this.storageMainService.store(firstSessionDateStorageKey, new Date().toUTCString());
+		}
+
+		const lastSessionDate = this.storageMainService.get(currentSessionDateStorageKey, undefined); // previous session date was the "current" one at that time
+		const currentSessionDate = new Date().toUTCString(); // current session date is "now"
+		this.storageMainService.store(lastSessionDateStorageKey, typeof lastSessionDate === 'undefined' ? null : lastSessionDate);
+		this.storageMainService.store(currentSessionDateStorageKey, currentSessionDate);
 	}
 
 	private registerListeners(): void {
@@ -73,26 +115,26 @@ export class GlobalStorageDatabaseChannel extends Disposable implements IServerC
 	call(_, command: string, arg?: any): Promise<any> {
 		switch (command) {
 			case 'getItems': {
-				return Promise.resolve(mapToSerializable(this.storageMainService.items));
+				return this.whenReady.then(() => mapToSerializable(this.storageMainService.items));
 			}
 
 			case 'updateItems': {
-				const items = arg as ISerializableUpdateRequest;
-				if (items.insert) {
-					for (const [key, value] of items.insert) {
-						this.storageMainService.store(key, value);
+				return this.whenReady.then(() => {
+					const items = arg as ISerializableUpdateRequest;
+					if (items.insert) {
+						for (const [key, value] of items.insert) {
+							this.storageMainService.store(key, value);
+						}
 					}
-				}
 
-				if (items.delete) {
-					items.delete.forEach(key => this.storageMainService.remove(key));
-				}
-
-				return Promise.resolve(); // do not wait for modifications to complete
+					if (items.delete) {
+						items.delete.forEach(key => this.storageMainService.remove(key));
+					}
+				});
 			}
 
 			case 'checkIntegrity': {
-				return this.storageMainService.checkIntegrity(arg);
+				return this.whenReady.then(() => this.storageMainService.checkIntegrity(arg));
 			}
 		}
 

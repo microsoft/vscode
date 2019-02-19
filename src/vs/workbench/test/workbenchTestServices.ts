@@ -6,7 +6,7 @@
 import 'vs/workbench/contrib/files/electron-browser/files.contribution'; // load our contribution into the test
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import * as extpath from 'vs/base/common/extpath';
+import { join } from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -163,7 +163,7 @@ export class TestContextService implements IWorkspaceContextService {
 	}
 
 	public toResource(workspaceRelativePath: string): URI {
-		return URI.file(extpath.join('C:\\', workspaceRelativePath));
+		return URI.file(join('C:\\', workspaceRelativePath));
 	}
 
 	public isCurrentWorkspace(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): boolean {
@@ -1472,9 +1472,8 @@ export class TestViewletService implements IViewletService {
 	getViewlets(): ViewletDescriptor[] { return []; }
 
 	getProgressIndicator(_id: string): IProgressService | null { return null; }
-
 }
 
 export function getRandomTestPath(tmpdir: string, ...segments: string[]): string {
-	return extpath.join(tmpdir, ...segments, generateUuid());
+	return join(tmpdir, ...segments, generateUuid());
 }

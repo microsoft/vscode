@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as crypto from 'crypto';
-import { relative } from 'vs/base/common/path';
 import { coalesce, equals } from 'vs/base/common/arrays';
 import { illegalArgument } from 'vs/base/common/errors';
 import { IRelativePattern } from 'vs/base/common/glob';
@@ -2065,10 +2064,6 @@ export class RelativePattern implements IRelativePattern {
 		}
 
 		this.pattern = pattern;
-	}
-
-	public pathToRelative(from: string, to: string): string {
-		return relative(from, to);
 	}
 }
 

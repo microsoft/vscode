@@ -10,7 +10,7 @@
 }
 
 .tm-token {
-	font-family: monospace;
+	font-family: var(--monaco-monospace-font);
 }
 
 .tm-metadata-separator {
@@ -29,10 +29,10 @@
 }
 
 .tm-metadata-value {
-	font-family: monospace;
+	font-family: var(--monaco-monospace-font);
 	text-align: right;
 }
 
 .tm-theme-selector {
-	font-family: monospace;
+	font-family: var(--monaco-monospace-font);
 }

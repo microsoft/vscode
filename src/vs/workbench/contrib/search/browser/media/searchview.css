@@ -182,6 +182,7 @@
 .search-view .linematch > .match {
 	overflow: hidden;
 	text-overflow: ellipsis;
+	white-space: pre;
 }
 
 .search-view .linematch .matchLineNum {

@@ -8,7 +8,7 @@ import * as dom from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Color, RGBA } from 'vs/base/common/color';
 import { IMarkdownString, MarkdownString, isEmptyMarkdownString, markedStringsEquals } from 'vs/base/common/htmlContent';
-import { Disposable, IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -29,6 +29,15 @@ import { basename } from 'vs/base/common/resources';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/opener';
+import { MarkerController } from 'vs/editor/contrib/gotoError/gotoError';
+import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
+import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
+import { Action } from 'vs/base/common/actions';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { applyCodeAction } from 'vs/editor/contrib/codeAction/codeActionCommands';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
+import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 
 const $ = dom.$;
 
@@ -206,6 +215,9 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		markdownRenderer: MarkdownRenderer,
 		markerDecorationsService: IMarkerDecorationsService,
 		private readonly _themeService: IThemeService,
+		private readonly _contextMenuService: IContextMenuService,
+		private readonly _bulkEditService: IBulkEditService,
+		private readonly _commandService: ICommandService,
 		private readonly _openerService: IOpenerService | null = NullOpenerService,
 	) {
 		super(ModesContentHoverWidget.ID, editor);
@@ -468,26 +480,26 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 	}
 
 	private renderMarkerHover(markerHover: MarkerHover): HTMLElement {
-		const hoverElement = $('div');
+		const hoverElement = $('div.marker-hover');
+		const markerElement = dom.append(hoverElement, $('div.marker'));
 		const { source, message, code, relatedInformation } = markerHover.marker;
 
-		const messageElement = dom.append(hoverElement, $('span'));
+		const messageElement = dom.append(markerElement, $('span'));
 		messageElement.style.whiteSpace = 'pre-wrap';
 		messageElement.innerText = message;
-		this._editor.applyFontInfo(messageElement);
 
 		if (source || code) {
-			const detailsElement = dom.append(hoverElement, $('span'));
+			const detailsElement = dom.append(markerElement, $('span'));
 			detailsElement.style.opacity = '0.6';
 			detailsElement.style.paddingLeft = '6px';
 			detailsElement.innerText = source && code ? `${source}(${code})` : `(${code})`;
 		}
 
 		if (isNonEmptyArray(relatedInformation)) {
-			const listElement = dom.append(hoverElement, $('ul'));
 			for (const { message, resource, startLineNumber, startColumn } of relatedInformation) {
-				const item = dom.append(listElement, $('li'));
-				const a = dom.append(item, $('a'));
+				const relatedInfoContainer = dom.append(markerElement, $('div'));
+				relatedInfoContainer.style.marginTop = '8px';
+				const a = dom.append(relatedInfoContainer, $('a'));
 				a.innerText = `${basename(resource)}(${startLineNumber}, ${startColumn})`;
 				a.style.cursor = 'pointer';
 				a.onclick = e => {
@@ -497,11 +509,54 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 						this._openerService.open(resource.with({ fragment: `${startLineNumber},${startColumn}` })).catch(onUnexpectedError);
 					}
 				};
-				const messageElement = dom.append<HTMLAnchorElement>(item, $('span'));
+				const messageElement = dom.append<HTMLAnchorElement>(relatedInfoContainer, $('span'));
 				messageElement.innerText = `: ${message}`;
 			}
 		}
+
+		const actionsElement = dom.append(hoverElement, $('div.actions'));
+		const showCodeActions = dom.append(actionsElement, $('a.action.icon.light-bulb', { title: nls.localize('code actions', "Show Fixes...") }));
+		const disposables: IDisposable[] = [];
+		disposables.push(dom.addDisposableListener(showCodeActions, dom.EventType.CLICK, async e => {
+			e.stopPropagation();
+			e.preventDefault();
+			const codeActionsPromise = this.getCodeActions(markerHover.marker);
+			disposables.push(toDisposable(() => codeActionsPromise.cancel()));
+			const actions = await codeActionsPromise;
+			const elementPosition = dom.getDomNodePagePosition(showCodeActions);
+			this._contextMenuService.showContextMenu({
+				getAnchor: () => ({ x: elementPosition.left + 6, y: elementPosition.top + elementPosition.height + 6 }),
+				getActions: () => actions
+			});
+		}));
+		const peekMarkerAction = dom.append(actionsElement, $('a.action.icon.peek-marker', { title: nls.localize('go to problem', "Go to Problem") }));
+		peekMarkerAction.textContent = '↪';
+		disposables.push(dom.addDisposableListener(peekMarkerAction, dom.EventType.CLICK, e => {
+			e.stopPropagation();
+			e.preventDefault();
+			this.hide();
+			MarkerController.get(this._editor).show(markerHover.marker);
+			this._editor.focus();
+		}));
+		this.renderDisposable = combinedDisposable(disposables);
 		return hoverElement;
+	}
+
+	private getCodeActions(marker: IMarker): CancelablePromise<Action[]> {
+		return createCancelablePromise(async cancellationToken => {
+			const codeActions = await getCodeActions(this._editor.getModel()!, new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn), { type: 'manual', filter: { kind: CodeActionKind.QuickFix } }, cancellationToken);
+			if (codeActions.length) {
+				return codeActions.map(codeAction => new Action(
+					codeAction.command ? codeAction.command.id : codeAction.title,
+					codeAction.title,
+					undefined,
+					true,
+					() => applyCodeAction(codeAction, this._bulkEditService, this._commandService)));
+			}
+			return [
+				new Action('', nls.localize('editor.action.quickFix.noneMessage', "No code actions available"))
+			];
+		});
 	}
 
 	private static readonly _DECORATION_OPTIONS = ModelDecorationOptions.register({

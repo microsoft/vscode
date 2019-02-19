@@ -518,7 +518,6 @@ interface ISimpleReplElementTemplateData {
 	source: HTMLElement;
 	getReplElementSource(): IReplElementSource;
 	toDispose: IDisposable[];
-	label: HighlightedLabel;
 }
 
 interface IRawObjectReplTemplateData {
@@ -538,15 +537,14 @@ class ReplExpressionsRenderer implements ITreeRenderer<Expression, FuzzyScore, I
 	}
 
 	renderTemplate(container: HTMLElement): IExpressionTemplateData {
-		const data: IExpressionTemplateData = Object.create(null);
 		dom.addClass(container, 'input-output-pair');
-		data.input = dom.append(container, $('.input.expression'));
-		data.label = new HighlightedLabel(data.input, false);
-		data.output = dom.append(container, $('.output.expression'));
-		data.value = dom.append(data.output, $('span.value'));
-		data.annotation = dom.append(data.output, $('span'));
+		const input = dom.append(container, $('.input.expression'));
+		const label = new HighlightedLabel(input, false);
+		const output = dom.append(container, $('.output.expression'));
+		const value = dom.append(output, $('span.value'));
+		const annotation = dom.append(output, $('span'));
 
-		return data;
+		return { input, label, output, value, annotation };
 	}
 
 	renderElement(element: ITreeNode<Expression, FuzzyScore>, index: number, templateData: IExpressionTemplateData): void {
@@ -639,17 +637,15 @@ class ReplRawObjectsRenderer implements ITreeRenderer<RawObjectReplElement, Fuzz
 	}
 
 	renderTemplate(container: HTMLElement): IRawObjectReplTemplateData {
-		const data: IRawObjectReplTemplateData = Object.create(null);
 		dom.addClass(container, 'output');
 
-		data.container = container;
-		data.expression = dom.append(container, $('.output.expression'));
-		data.name = dom.append(data.expression, $('span.name'));
-		data.label = new HighlightedLabel(data.name, false);
-		data.value = dom.append(data.expression, $('span.value'));
-		data.annotation = dom.append(data.expression, $('span'));
+		const expression = dom.append(container, $('.output.expression'));
+		const name = dom.append(expression, $('span.name'));
+		const label = new HighlightedLabel(name, false);
+		const value = dom.append(expression, $('span.value'));
+		const annotation = dom.append(expression, $('span'));
 
-		return data;
+		return { container, expression, name, label, value, annotation };
 	}
 
 	renderElement(node: ITreeNode<RawObjectReplElement, FuzzyScore>, index: number, templateData: IRawObjectReplTemplateData): void {

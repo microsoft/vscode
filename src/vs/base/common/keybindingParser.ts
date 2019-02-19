@@ -107,17 +107,18 @@ export class KeybindingParser {
 		return [new SimpleKeybinding(mods.ctrl, mods.shift, mods.alt, mods.meta, keyCode), mods.remains];
 	}
 
-	static parseUserBinding(input: string): [SimpleKeybinding | ScanCodeBinding | null, SimpleKeybinding | ScanCodeBinding | null] {
-		// TODO@chords: allow users to define N chords
+	static parseUserBinding(input: string): (SimpleKeybinding | ScanCodeBinding)[] {
 		if (!input) {
-			return [null, null];
+			return [];
 		}
 
-		let [firstPart, remains] = this.parseSimpleUserBinding(input);
-		let chordPart: SimpleKeybinding | ScanCodeBinding | null = null;
-		if (remains.length > 0) {
-			[chordPart] = this.parseSimpleUserBinding(remains);
+		let parts: (SimpleKeybinding | ScanCodeBinding)[] = [];
+		let part: SimpleKeybinding | ScanCodeBinding;
+
+		while (input.length > 0) {
+			[part, input] = this.parseSimpleUserBinding(input);
+			parts.push(part);
 		}
-		return [firstPart, chordPart];
+		return parts;
 	}
 }

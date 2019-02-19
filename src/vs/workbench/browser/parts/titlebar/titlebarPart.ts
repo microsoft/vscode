@@ -65,6 +65,7 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 	private menubarPart: MenubarControl;
 	private menubar: HTMLElement;
 	private resizer: HTMLElement;
+	private lastLayoutDimensions: Dimension;
 
 	private pendingTitle: string;
 	private representedFileName: string;
@@ -206,7 +207,9 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 		}
 
 		if ((isWindows || isLinux) && this.title) {
-			this.adjustTitleMarginToCenter();
+			if (this.lastLayoutDimensions) {
+				this.updateLayout(this.lastLayoutDimensions);
+			}
 		}
 	}
 
@@ -558,6 +561,8 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 	}
 
 	updateLayout(dimension: Dimension): void {
+		this.lastLayoutDimensions = dimension;
+
 		if (getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
 			// Only prevent zooming behavior on macOS or when the menubar is not visible
 			if (isMacintosh || this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility') === 'hidden') {

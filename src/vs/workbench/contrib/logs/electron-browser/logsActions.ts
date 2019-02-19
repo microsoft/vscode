@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
-import * as extpath from 'vs/base/common/extpath';
+import { join } from 'vs/base/common/path';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { ILogService, LogLevel, DEFAULT_LOG_LEVEL } from 'vs/platform/log/common/log';
@@ -24,7 +24,7 @@ export class OpenLogsFolderAction extends Action {
 	}
 
 	run(): Promise<void> {
-		return this.windowsService.showItemInFolder(extpath.join(this.environmentService.logsPath, 'main.log'));
+		return this.windowsService.showItemInFolder(join(this.environmentService.logsPath, 'main.log'));
 	}
 }
 

@@ -659,7 +659,7 @@ export interface SelectionKeyboardEvent extends KeyboardEvent {
 	preserveFocus?: boolean;
 }
 
-export function getSelectionKeyboardEvent(typeArg: string, preserveFocus?: boolean): SelectionKeyboardEvent {
+export function getSelectionKeyboardEvent(typeArg = 'keydown', preserveFocus?: boolean): SelectionKeyboardEvent {
 	const e = new KeyboardEvent(typeArg);
 	(<SelectionKeyboardEvent>e).preserveFocus = preserveFocus;
 
@@ -1144,7 +1144,7 @@ configurationRegistry.registerConfiguration({
 			'type': 'number',
 			'default': 8,
 			minimum: 0,
-			maximum: 20,
+			maximum: 40,
 			'description': localize('tree indent setting', "Controls tree indentation in pixels.")
 		},
 		[keyboardNavigationSettingKey]: {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkspacesMainService, IWorkspaceIdentifier, hasWorkspaceFileExtension, UNTITLED_WORKSPACE_NAME, IResolvedWorkspace, IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, massageFolderPathForWorkspace, rewriteWorkspaceFileForNewLocation } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspacesMainService, IWorkspaceIdentifier, hasWorkspaceFileExtension, UNTITLED_WORKSPACE_NAME, IResolvedWorkspace, IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, rewriteWorkspaceFileForNewLocation, getStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { join, dirname } from 'vs/base/common/path';
 import { mkdirp, writeFile, readFile } from 'vs/base/node/pfs';
@@ -135,32 +135,15 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 		const untitledWorkspaceConfigFolder = joinPath(this.untitledWorkspacesHome, randomId);
 		const untitledWorkspaceConfigPath = joinPath(untitledWorkspaceConfigFolder, UNTITLED_WORKSPACE_NAME);
 
-		const storedWorkspace: IStoredWorkspace = {
-			folders: folders.map(folder => {
-				const folderResource = folder.uri;
-				let storedWorkspace: IStoredWorkspaceFolder;
+		const storedWorkspaceFolder: IStoredWorkspaceFolder[] = [];
 
-				// File URI
-				if (folderResource.scheme === Schemas.file) {
-					storedWorkspace = { path: massageFolderPathForWorkspace(originalFSPath(folderResource), untitledWorkspaceConfigFolder, []) };
-				}
-
-				// Any URI
-				else {
-					storedWorkspace = { uri: folderResource.toString(true) };
-				}
-
-				if (folder.name) {
-					storedWorkspace.name = folder.name;
-				}
-
-				return storedWorkspace;
-			})
-		};
+		for (const folder of folders) {
+			storedWorkspaceFolder.push(getStoredWorkspaceFolder(folder.uri, folder.name, untitledWorkspaceConfigFolder));
+		}
 
 		return {
 			workspace: this.getWorkspaceIdentifier(untitledWorkspaceConfigPath),
-			storedWorkspace
+			storedWorkspace: { folders: storedWorkspaceFolder }
 		};
 	}
 

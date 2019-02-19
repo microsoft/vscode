@@ -1456,14 +1456,14 @@ export class Repository {
 
 	async createStash(message?: string, includeUntracked?: boolean): Promise<void> {
 		try {
-			const args = ['stash', 'save'];
+			const args = ['stash', 'push'];
 
 			if (includeUntracked) {
 				args.push('-u');
 			}
 
 			if (message) {
-				args.push('--', message);
+				args.push('-m', message);
 			}
 
 			await this.run(args);

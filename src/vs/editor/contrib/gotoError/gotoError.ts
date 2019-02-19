@@ -120,6 +120,17 @@ class MarkerModel {
 		return this.canNavigate() ? this._markers[this._nextIdx] : undefined;
 	}
 
+	set currentMarker(marker: IMarker | undefined) {
+		const idx = this._nextIdx;
+		this._nextIdx = -1;
+		if (marker) {
+			this._nextIdx = this.indexOf(marker);
+		}
+		if (this._nextIdx !== idx) {
+			this._onCurrentMarkerChanged.fire(marker);
+		}
+	}
+
 	public move(fwd: boolean, inCircles: boolean): boolean {
 		if (!this.canNavigate()) {
 			this._onCurrentMarkerChanged.fire(undefined);
@@ -181,7 +192,7 @@ class MarkerModel {
 	}
 }
 
-class MarkerController implements editorCommon.IEditorContribution {
+export class MarkerController implements editorCommon.IEditorContribution {
 
 	private static readonly ID = 'editor.contrib.markerController';
 
@@ -278,6 +289,11 @@ class MarkerController implements editorCommon.IEditorContribution {
 		if (focusEditor) {
 			this._editor.focus();
 		}
+	}
+
+	public show(marker: IMarker): void {
+		const model = this.getOrCreateModel();
+		model.currentMarker = marker;
 	}
 
 	private _onMarkerChanged(changedResources: URI[]): void {

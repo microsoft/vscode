@@ -23,6 +23,10 @@
 .monaco-workbench.linux:lang(ja) { font-family: "Ubuntu", "Droid Sans", "Source Han Sans J", "Source Han Sans JP", "Source Han Sans", sans-serif; }
 .monaco-workbench.linux:lang(ko) { font-family: "Ubuntu", "Droid Sans", "Source Han Sans K", "Source Han Sans JR", "Source Han Sans", "UnDotum", "FBaekmuk Gulim", sans-serif; }
 
+.monaco-workbench.mac { --monaco-monospace-font: Monaco, Menlo, Inconsolata, "Courier New", monospace; }
+.monaco-workbench.windows { --monaco-monospace-font: Consolas, Inconsolata, "Courier New", monospace; }
+.monaco-workbench.linux { --monaco-monospace-font: "Droid Sans Mono", Inconsolata, "Courier New", monospace, "Droid Sans Fallback"; }
+
 /* Global Styles */
 
 body {

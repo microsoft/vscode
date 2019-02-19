@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CharCode } from 'vs/base/common/charCode';
-import { KeyCode, KeyCodeUtils, Keybinding, ResolvedKeybinding, SimpleKeybinding, BaseResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyCodeUtils, Keybinding, ResolvedKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { UILabelProvider } from 'vs/base/common/keybindingLabels';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IMMUTABLE_CODE_TO_KEY_CODE, ScanCode, ScanCodeBinding, ScanCodeUtils } from 'vs/base/common/scanCode';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
+import { BaseResolvedKeybinding } from 'vs/platform/keybinding/common/baseResolvedKeybinding';
+import { removeElementsAfterNulls } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 
 export interface IWindowsKeyMapping {
 	vkey: string;
@@ -463,16 +465,8 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 		return new SimpleKeybinding(binding.ctrlKey, binding.shiftKey, binding.altKey, binding.metaKey, keyCode);
 	}
 
-	public resolveUserBinding(firstPart: SimpleKeybinding | ScanCodeBinding | null, chordPart: SimpleKeybinding | ScanCodeBinding | null): ResolvedKeybinding[] {
-		const _firstPart = this._resolveSimpleUserBinding(firstPart);
-		const _chordPart = this._resolveSimpleUserBinding(chordPart);
-		let parts: SimpleKeybinding[] = [];
-		if (_firstPart) {
-			parts.push(_firstPart);
-		}
-		if (_chordPart) {
-			parts.push(_chordPart);
-		}
+	public resolveUserBinding(input: (SimpleKeybinding | ScanCodeBinding)[]): ResolvedKeybinding[] {
+		const parts: SimpleKeybinding[] = removeElementsAfterNulls(input.map(keybinding => this._resolveSimpleUserBinding(keybinding)));
 		if (parts.length > 0) {
 			return [new WindowsNativeResolvedKeybinding(this, parts)];
 		}

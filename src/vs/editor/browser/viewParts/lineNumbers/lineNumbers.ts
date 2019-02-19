@@ -23,6 +23,7 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 	private _lineHeight: number;
 	private _renderLineNumbers: RenderLineNumbersType;
 	private _renderCustomLineNumbers: ((lineNumber: number) => string) | null;
+	private _renderFinalNewline: boolean;
 	private _lineNumbersLeft: number;
 	private _lineNumbersWidth: number;
 	private _lastCursorModelPosition: Position;
@@ -44,6 +45,7 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 		this._lineHeight = config.lineHeight;
 		this._renderLineNumbers = config.viewInfo.renderLineNumbers;
 		this._renderCustomLineNumbers = config.viewInfo.renderCustomLineNumbers;
+		this._renderFinalNewline = config.viewInfo.renderFinalNewline;
 		this._lineNumbersLeft = config.layoutInfo.lineNumbersLeft;
 		this._lineNumbersWidth = config.layoutInfo.lineNumbersWidth;
 	}
@@ -96,6 +98,15 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 			return '';
 		}
 		let modelLineNumber = modelPosition.lineNumber;
+
+		if (!this._renderFinalNewline) {
+			const lineCount = this._context.model.getLineCount();
+			const lineContent = this._context.model.getLineContent(modelLineNumber);
+
+			if (modelLineNumber === lineCount && lineContent === '') {
+				return '';
+			}
+		}
 
 		if (this._renderCustomLineNumbers) {
 			return this._renderCustomLineNumbers(modelLineNumber);

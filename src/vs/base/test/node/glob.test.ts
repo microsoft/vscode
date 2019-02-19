@@ -954,14 +954,14 @@ suite('Glob', () => {
 
 	test('relative pattern - glob star', function () {
 		if (isWindows) {
-			let p: glob.IRelativePattern = { base: 'C:\\DNXConsoleApp\\foo', pattern: '**/*.cs', pathToRelative: (from, to) => path.relative(from, to) };
+			let p: glob.IRelativePattern = { base: 'C:\\DNXConsoleApp\\foo', pattern: '**/*.cs' };
 			assertGlobMatch(p, 'C:\\DNXConsoleApp\\foo\\Program.cs');
 			assertGlobMatch(p, 'C:\\DNXConsoleApp\\foo\\bar\\Program.cs');
 			assertNoGlobMatch(p, 'C:\\DNXConsoleApp\\foo\\Program.ts');
 			assertNoGlobMatch(p, 'C:\\DNXConsoleApp\\Program.cs');
 			assertNoGlobMatch(p, 'C:\\other\\DNXConsoleApp\\foo\\Program.ts');
 		} else {
-			let p: glob.IRelativePattern = { base: '/DNXConsoleApp/foo', pattern: '**/*.cs', pathToRelative: (from, to) => path.relative(from, to) };
+			let p: glob.IRelativePattern = { base: '/DNXConsoleApp/foo', pattern: '**/*.cs' };
 			assertGlobMatch(p, '/DNXConsoleApp/foo/Program.cs');
 			assertGlobMatch(p, '/DNXConsoleApp/foo/bar/Program.cs');
 			assertNoGlobMatch(p, '/DNXConsoleApp/foo/Program.ts');
@@ -972,14 +972,14 @@ suite('Glob', () => {
 
 	test('relative pattern - single star', function () {
 		if (isWindows) {
-			let p: glob.IRelativePattern = { base: 'C:\\DNXConsoleApp\\foo', pattern: '*.cs', pathToRelative: (from, to) => path.relative(from, to) };
+			let p: glob.IRelativePattern = { base: 'C:\\DNXConsoleApp\\foo', pattern: '*.cs' };
 			assertGlobMatch(p, 'C:\\DNXConsoleApp\\foo\\Program.cs');
 			assertNoGlobMatch(p, 'C:\\DNXConsoleApp\\foo\\bar\\Program.cs');
 			assertNoGlobMatch(p, 'C:\\DNXConsoleApp\\foo\\Program.ts');
 			assertNoGlobMatch(p, 'C:\\DNXConsoleApp\\Program.cs');
 			assertNoGlobMatch(p, 'C:\\other\\DNXConsoleApp\\foo\\Program.ts');
 		} else {
-			let p: glob.IRelativePattern = { base: '/DNXConsoleApp/foo', pattern: '*.cs', pathToRelative: (from, to) => path.relative(from, to) };
+			let p: glob.IRelativePattern = { base: '/DNXConsoleApp/foo', pattern: '*.cs' };
 			assertGlobMatch(p, '/DNXConsoleApp/foo/Program.cs');
 			assertNoGlobMatch(p, '/DNXConsoleApp/foo/bar/Program.cs');
 			assertNoGlobMatch(p, '/DNXConsoleApp/foo/Program.ts');
@@ -990,11 +990,11 @@ suite('Glob', () => {
 
 	test('relative pattern - single star with path', function () {
 		if (isWindows) {
-			let p: glob.IRelativePattern = { base: 'C:\\DNXConsoleApp\\foo', pattern: 'something/*.cs', pathToRelative: (from, to) => path.relative(from, to) };
+			let p: glob.IRelativePattern = { base: 'C:\\DNXConsoleApp\\foo', pattern: 'something/*.cs' };
 			assertGlobMatch(p, 'C:\\DNXConsoleApp\\foo\\something\\Program.cs');
 			assertNoGlobMatch(p, 'C:\\DNXConsoleApp\\foo\\Program.cs');
 		} else {
-			let p: glob.IRelativePattern = { base: '/DNXConsoleApp/foo', pattern: 'something/*.cs', pathToRelative: (from, to) => path.relative(from, to) };
+			let p: glob.IRelativePattern = { base: '/DNXConsoleApp/foo', pattern: 'something/*.cs' };
 			assertGlobMatch(p, '/DNXConsoleApp/foo/something/Program.cs');
 			assertNoGlobMatch(p, '/DNXConsoleApp/foo/Program.cs');
 		}
@@ -1006,11 +1006,11 @@ suite('Glob', () => {
 
 	test('relative pattern - #57475', function () {
 		if (isWindows) {
-			let p: glob.IRelativePattern = { base: 'C:\\DNXConsoleApp\\foo', pattern: 'styles/style.css', pathToRelative: (from, to) => path.relative(from, to) };
+			let p: glob.IRelativePattern = { base: 'C:\\DNXConsoleApp\\foo', pattern: 'styles/style.css' };
 			assertGlobMatch(p, 'C:\\DNXConsoleApp\\foo\\styles\\style.css');
 			assertNoGlobMatch(p, 'C:\\DNXConsoleApp\\foo\\Program.cs');
 		} else {
-			let p: glob.IRelativePattern = { base: '/DNXConsoleApp/foo', pattern: 'styles/style.css', pathToRelative: (from, to) => path.relative(from, to) };
+			let p: glob.IRelativePattern = { base: '/DNXConsoleApp/foo', pattern: 'styles/style.css' };
 			assertGlobMatch(p, '/DNXConsoleApp/foo/styles/style.css');
 			assertNoGlobMatch(p, '/DNXConsoleApp/foo/Program.cs');
 		}
