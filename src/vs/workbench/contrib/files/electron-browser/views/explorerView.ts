@@ -167,7 +167,7 @@ export class ExplorerView extends ViewletPanel {
 			this.refresh();
 		}));
 
-		this.disposables.push(this.explorerService.onDidChangeRoots(() => this.setTreeInput()));
+		this.disposables.push(this.explorerService.onDidChangeRoots(() => this.setTreeInput(true)));
 		this.disposables.push(this.explorerService.onDidChangeItem(e => this.refresh(e)));
 		this.disposables.push(this.explorerService.onDidChangeEditable(async e => {
 			const isEditing = !!this.explorerService.getEditableData(e);
@@ -210,7 +210,7 @@ export class ExplorerView extends ViewletPanel {
 				// If a refresh was requested and we are now visible, run it
 				if (this.shouldRefresh) {
 					this.shouldRefresh = false;
-					await this.setTreeInput();
+					await this.setTreeInput(false);
 				}
 				// Find resource to focus from active editor input if set
 				this.selectActiveFile(true);
@@ -458,7 +458,7 @@ export class ExplorerView extends ViewletPanel {
 
 	// private didLoad = false;
 
-	private setTreeInput(): Promise<void> {
+	private setTreeInput(workSpaceUpdate): Promise<void> {
 		if (!this.isBodyVisible()) {
 			this.shouldRefresh = true;
 			return Promise.resolve(undefined);
@@ -475,7 +475,7 @@ export class ExplorerView extends ViewletPanel {
 			input = roots;
 		}
 
-		const rawViewState = this.storageService.get(ExplorerView.TREE_VIEW_STATE_STORAGE_KEY, StorageScope.WORKSPACE);
+		const rawViewState = workSpaceUpdate? JSON.stringify(this.tree.getViewState()):this.storageService.get(ExplorerView.TREE_VIEW_STATE_STORAGE_KEY, StorageScope.WORKSPACE);
 		let viewState: IAsyncDataTreeViewState | undefined;
 
 		if (rawViewState) {
