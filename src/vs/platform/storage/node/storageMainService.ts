@@ -87,6 +87,8 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 
 	private storage: IStorage;
 
+	private initializePromise: Promise<void>;
+
 	constructor(
 		@ILogService private readonly logService: ILogService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService
@@ -113,6 +115,14 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 	}
 
 	initialize(): Promise<void> {
+		if (!this.initializePromise) {
+			this.initializePromise = this.doInitialize();
+		}
+
+		return this.initializePromise;
+	}
+
+	private doInitialize(): Promise<void> {
 		const useInMemoryStorage = this.storagePath === SQLiteStorageDatabase.IN_MEMORY_PATH;
 
 		let globalStorageExists: Promise<boolean>;

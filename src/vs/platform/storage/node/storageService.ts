@@ -36,6 +36,8 @@ export class StorageService extends Disposable implements IStorageService {
 	private workspaceStorage: IStorage;
 	private workspaceStorageListener: IDisposable;
 
+	private initializePromise: Promise<void>;
+
 	constructor(
 		globalStorageDatabase: IStorageDatabase,
 		@ILogService private readonly logService: ILogService,
@@ -53,6 +55,14 @@ export class StorageService extends Disposable implements IStorageService {
 	}
 
 	initialize(payload: IWorkspaceInitializationPayload): Promise<void> {
+		if (!this.initializePromise) {
+			this.initializePromise = this.doInitialize(payload);
+		}
+
+		return this.initializePromise;
+	}
+
+	private doInitialize(payload: IWorkspaceInitializationPayload): Promise<void> {
 		return Promise.all([
 			this.initializeGlobalStorage(),
 			this.initializeWorkspaceStorage(payload)
