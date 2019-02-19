@@ -164,33 +164,33 @@ export class CodeWindow extends Disposable {
 	private initServices(electronMainClient: ElectronIPCClient): Promise<ServiceCollection> {
 		const serviceCollection = new ServiceCollection();
 
-		// Windows Channel
+		// Windows Service
 		const windowsChannel = electronMainClient.getChannel('windows');
 		serviceCollection.set(IWindowsService, new WindowsChannelClient(windowsChannel));
 
-		// Update Channel
+		// Update Service
 		const updateChannel = electronMainClient.getChannel('update');
 		serviceCollection.set(IUpdateService, new SyncDescriptor(UpdateChannelClient, [updateChannel]));
 
-		// URL Channel
+		// URL Service
 		const urlChannel = electronMainClient.getChannel('url');
 		const mainUrlService = new URLServiceChannelClient(urlChannel);
 		const urlService = new RelayURLService(mainUrlService);
 		serviceCollection.set(IURLService, urlService);
 
-		// URLHandler Channel
+		// URLHandler Service
 		const urlHandlerChannel = new URLHandlerChannel(urlService);
 		electronMainClient.registerChannel('urlHandler', urlHandlerChannel);
 
-		// Issue Channel
+		// Issue Service
 		const issueChannel = electronMainClient.getChannel('issue');
 		serviceCollection.set(IIssueService, new SyncDescriptor(IssueChannelClient, [issueChannel]));
 
-		// Menubar Channel
+		// Menubar Service
 		const menubarChannel = electronMainClient.getChannel('menubar');
 		serviceCollection.set(IMenubarService, new SyncDescriptor(MenubarChannelClient, [menubarChannel]));
 
-		// Workspaces Channel
+		// Workspaces Service
 		const workspacesChannel = electronMainClient.getChannel('workspaces');
 		serviceCollection.set(IWorkspacesService, new WorkspacesChannelClient(workspacesChannel));
 

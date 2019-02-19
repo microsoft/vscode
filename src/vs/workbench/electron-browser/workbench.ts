@@ -186,11 +186,6 @@ import { TextResourcePropertiesService } from 'vs/workbench/services/textfile/el
 import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
 import { TextMateService } from 'vs/workbench/services/textMate/electron-browser/TMSyntax';
 
-interface WorkbenchParams {
-	configuration: IWindowConfiguration;
-	serviceCollection: ServiceCollection;
-}
-
 interface IZenModeSettings {
 	fullScreen: boolean;
 	centerLayout: boolean;
@@ -259,18 +254,17 @@ export class Workbench extends Disposable implements IPartService {
 	private static readonly closeWhenEmptyConfigurationKey = 'window.closeWhenEmpty';
 	private static readonly fontAliasingConfigurationKey = 'workbench.fontAliasing';
 
+	_serviceBrand: any;
+
 	private readonly _onShutdown = this._register(new Emitter<void>());
 	get onShutdown(): Event<void> { return this._onShutdown.event; }
 
 	private readonly _onWillShutdown = this._register(new Emitter<WillShutdownEvent>());
 	get onWillShutdown(): Event<WillShutdownEvent> { return this._onWillShutdown.event; }
 
-	_serviceBrand: any;
-
 	private previousErrorValue: string;
 	private previousErrorTime: number = 0;
 
-	private workbenchParams: WorkbenchParams;
 	private workbench: HTMLElement;
 	private workbenchStarted: boolean;
 	private workbenchRestored: boolean;
@@ -337,7 +331,7 @@ export class Workbench extends Disposable implements IPartService {
 	constructor(
 		private container: HTMLElement,
 		private configuration: IWindowConfiguration,
-		serviceCollection: ServiceCollection,
+		private serviceCollection: ServiceCollection,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -347,8 +341,6 @@ export class Workbench extends Disposable implements IPartService {
 		@IWindowsService private readonly windowsService: IWindowsService
 	) {
 		super();
-
-		this.workbenchParams = { configuration, serviceCollection };
 
 		this.hasInitialFilesToOpen = !!(
 			(configuration.filesToCreate && configuration.filesToCreate.length > 0) ||
@@ -430,7 +422,7 @@ export class Workbench extends Disposable implements IPartService {
 		this.createGlobalActions();
 
 		// Services
-		this.initServices();
+		this.initServices(this.serviceCollection);
 
 		// Context Keys
 		this.handleContextKeys();
@@ -493,8 +485,7 @@ export class Workbench extends Disposable implements IPartService {
 		}
 	}
 
-	private initServices(): void {
-		const { serviceCollection } = this.workbenchParams;
+	private initServices(serviceCollection: ServiceCollection): void {
 
 		// Parts
 		serviceCollection.set(IPartService, this);
@@ -724,8 +715,8 @@ export class Workbench extends Disposable implements IPartService {
 		serviceCollection.set(IFileDialogService, new SyncDescriptor(FileDialogService));
 
 		// Backup File Service
-		if (this.workbenchParams.configuration.backupPath) {
-			this.backupFileService = this.instantiationService.createInstance(BackupFileService, this.workbenchParams.configuration.backupPath);
+		if (this.configuration.backupPath) {
+			this.backupFileService = this.instantiationService.createInstance(BackupFileService, this.configuration.backupPath);
 		} else {
 			this.backupFileService = new InMemoryBackupFileService();
 		}
@@ -797,7 +788,7 @@ export class Workbench extends Disposable implements IPartService {
 		this._register(this.editorPart.onDidActivateGroup(() => { if (this.editorHidden) { this.setEditorHidden(false); } }));
 
 		// Listen to editor closing (if we run with --wait)
-		const filesToWait = this.workbenchParams.configuration.filesToWait;
+		const filesToWait = this.configuration.filesToWait;
 		if (filesToWait) {
 			const resourcesToWaitFor = filesToWait.paths.map(p => p.fileUri);
 			const waitMarkerFile = URI.file(filesToWait.waitMarkerFilePath);
@@ -1202,13 +1193,12 @@ export class Workbench extends Disposable implements IPartService {
 	}
 
 	private resolveEditorsToOpen(): Promise<IResourceEditor[]> | IResourceEditor[] {
-		const config = this.workbenchParams.configuration;
 
 		// Files to open, diff or create
 		if (this.hasInitialFilesToOpen) {
 
 			// Files to diff is exclusive
-			const filesToDiff = this.toInputs(config.filesToDiff, false);
+			const filesToDiff = this.toInputs(this.configuration.filesToDiff, false);
 			if (filesToDiff && filesToDiff.length === 2) {
 				return [<IResourceDiffInput>{
 					leftResource: filesToDiff[0].resource,
@@ -1218,8 +1208,8 @@ export class Workbench extends Disposable implements IPartService {
 				}];
 			}
 
-			const filesToCreate = this.toInputs(config.filesToCreate, true);
-			const filesToOpen = this.toInputs(config.filesToOpen, false);
+			const filesToCreate = this.toInputs(this.configuration.filesToCreate, true);
+			const filesToOpen = this.toInputs(this.configuration.filesToOpen, false);
 
 			// Otherwise: Open/Create files
 			return [...filesToOpen, ...filesToCreate];
