@@ -145,7 +145,7 @@ import { BackupFileService, InMemoryBackupFileService } from 'vs/workbench/servi
 import { WorkspaceService, DefaultConfigurationExportHelper } from 'vs/workbench/services/configuration/node/configurationService';
 import { JSONEditingService } from 'vs/workbench/services/configuration/node/jsonEditingService';
 import { WorkspaceEditingService } from 'vs/workbench/services/workspace/node/workspaceEditingService';
-import { IPCClient, getDelayedChannel } from 'vs/base/parts/ipc/node/ipc';
+import { getDelayedChannel } from 'vs/base/parts/ipc/node/ipc';
 import { LogStorageAction } from 'vs/platform/storage/node/storageService';
 import { HashService } from 'vs/workbench/services/hash/node/hashService';
 import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
@@ -173,7 +173,6 @@ import { RemoteFileService } from 'vs/workbench/services/files/electron-browser/
 import { ClipboardService } from 'vs/platform/clipboard/electron-browser/clipboardService';
 import { LifecycleService } from 'vs/platform/lifecycle/electron-browser/lifecycleService';
 import { ToggleDevToolsAction } from 'vs/workbench/electron-browser/actions/developerActions';
-import { registerWindowDriver } from 'vs/platform/driver/electron-browser/driver';
 import { IExtensionUrlHandler, ExtensionUrlHandler } from 'vs/workbench/services/extensions/electron-browser/inactiveExtensionUrlHandler';
 import { WorkbenchThemeService } from 'vs/workbench/services/themes/browser/workbenchThemeService';
 import { DialogService, FileDialogService } from 'vs/workbench/services/dialogs/electron-browser/dialogService';
@@ -339,7 +338,6 @@ export class Workbench extends Disposable implements IPartService {
 		private container: HTMLElement,
 		private configuration: IWindowConfiguration,
 		serviceCollection: ServiceCollection,
-		private mainProcessClient: IPCClient,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -399,9 +397,9 @@ export class Workbench extends Disposable implements IPartService {
 		}
 	}
 
-	startup(): Promise<void> {
+	startup(): void {
 		try {
-			return this.doStartup().then(undefined, error => this.logService.error(toErrorMessage(error, true)));
+			this.doStartup().then(undefined, error => this.logService.error(toErrorMessage(error, true)));
 		} catch (error) {
 			this.logService.error(toErrorMessage(error, true));
 
@@ -451,11 +449,6 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Layout
 		this.layout();
-
-		// Driver
-		if (this.environmentService.driverHandle) {
-			registerWindowDriver(this.mainProcessClient, this.configuration.windowId, this.instantiationService).then(disposable => this._register(disposable));
-		}
 
 		// Handle case where workbench is not starting up properly
 		const timeoutHandle = setTimeout(() => {
