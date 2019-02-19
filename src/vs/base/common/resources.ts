@@ -10,6 +10,8 @@ import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { Schemas } from 'vs/base/common/network';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { CharCode } from 'vs/base/common/charCode';
+import { ParsedExpression, IExpression, parse } from 'vs/base/common/glob';
+import { TernarySearchTree } from 'vs/base/common/map';
 
 export function getComparisonKey(resource: URI): string {
 	return hasToIgnoreCase(resource) ? resource.toString().toLowerCase() : resource.toString();
@@ -293,5 +295,32 @@ export namespace DataUri {
 		}
 
 		return metadata;
+	}
+}
+
+
+export class ResourceGlobMatcher {
+
+	private readonly globalExpression: ParsedExpression;
+	private readonly expressionsByRoot: TernarySearchTree<{ root: URI, expression: ParsedExpression }> = TernarySearchTree.forPaths<{ root: URI, expression: ParsedExpression }>();
+
+	constructor(
+		globalExpression: IExpression,
+		rootExpressions: { root: URI, expression: IExpression }[]
+	) {
+		this.globalExpression = parse(globalExpression);
+		for (const expression of rootExpressions) {
+			this.expressionsByRoot.set(expression.root.toString(), { root: expression.root, expression: parse(expression.expression) });
+		}
+	}
+
+	matches(resource: URI): boolean {
+		const rootExpression = this.expressionsByRoot.findSubstr(resource.toString());
+		if (rootExpression) {
+			if (!!rootExpression.expression(relativePath(rootExpression.root, resource))) {
+				return true;
+			}
+		}
+		return !!this.globalExpression(resource.path);
 	}
 }
