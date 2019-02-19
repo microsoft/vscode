@@ -185,7 +185,7 @@ function collectResult(results: ConnectionResult[], resolveProxy: string, connec
 	});
 }
 
-function findOrCreateResult(results: ConnectionResult[], proxy: string, connection: string, code: string): ConnectionResult | undefined {
+function findOrCreateResult(results: ConnectionResult[], proxy: string, connection: string, code: string): ConnectionResult {
 	for (const result of results) {
 		if (result.proxy === proxy && result.connection === connection && result.code === code) {
 			return result;
@@ -196,7 +196,7 @@ function findOrCreateResult(results: ConnectionResult[], proxy: string, connecti
 	return result;
 }
 
-function proxyFromConfigURL(configURL: string) {
+function proxyFromConfigURL(configURL: string | undefined) {
 	const url = (configURL || '').trim();
 	const i = url.indexOf('://');
 	if (i === -1) {
