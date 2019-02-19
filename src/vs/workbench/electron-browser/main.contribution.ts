@@ -383,7 +383,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 	group: '2_reference',
 	command: {
 		id: 'workbench.action.openTipsAndTricksUrl',
-		title: nls.localize({ key: 'miTipsAndTricks', comment: ['&& denotes a mnemonic'] }, "Tips &&& Tri&&cks")
+		title: nls.localize({ key: 'miTipsAndTricks', comment: ['&& denotes a mnemonic'] }, "Tips and Tri&&cks")
 	},
 	order: 3
 });
