@@ -56,7 +56,7 @@ interface MutableWorkspaceFolder extends vscode.WorkspaceFolder {
 
 class ExtHostWorkspaceImpl extends Workspace {
 
-	static toExtHostWorkspace(data: IWorkspaceData, previousConfirmedWorkspace?: ExtHostWorkspaceImpl, previousUnconfirmedWorkspace?: ExtHostWorkspaceImpl): { workspace: ExtHostWorkspaceImpl | null, added: vscode.WorkspaceFolder[], removed: vscode.WorkspaceFolder[] } {
+	static toExtHostWorkspace(data: IWorkspaceData | null, previousConfirmedWorkspace?: ExtHostWorkspaceImpl, previousUnconfirmedWorkspace?: ExtHostWorkspaceImpl): { workspace: ExtHostWorkspaceImpl | null, added: vscode.WorkspaceFolder[], removed: vscode.WorkspaceFolder[] } {
 		if (!data) {
 			return { workspace: null, added: [], removed: [] };
 		}
@@ -198,7 +198,7 @@ export class ExtHostWorkspaceProvider {
 
 	constructor(
 		mainContext: IMainContext,
-		data: IWorkspaceData,
+		data: IWorkspaceData | null,
 		private _logService: ILogService,
 		private _requestIdProvider: Counter
 	) {
