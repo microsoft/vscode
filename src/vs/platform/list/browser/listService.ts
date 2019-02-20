@@ -651,6 +651,7 @@ export interface IOpenEvent<T> {
 	editorOptions: IEditorOptions;
 	sideBySide: boolean;
 	element: T;
+	browserEvent?: UIEvent;
 }
 
 export interface IResourceResultsNavigationOptions {
@@ -700,7 +701,7 @@ export class TreeResourceNavigator2<T, TFilterData> extends Disposable {
 		const isMouseEvent = e.browserEvent && e.browserEvent instanceof MouseEvent;
 
 		if (!isMouseEvent) {
-			this.open(true, false, false);
+			this.open(true, false, false, e.browserEvent);
 		}
 	}
 
@@ -718,11 +719,11 @@ export class TreeResourceNavigator2<T, TFilterData> extends Disposable {
 
 		if (this.tree.openOnSingleClick || isDoubleClick || isKeyboardEvent) {
 			const sideBySide = e.browserEvent instanceof MouseEvent && (e.browserEvent.ctrlKey || e.browserEvent.metaKey || e.browserEvent.altKey);
-			this.open(preserveFocus, isDoubleClick || isMiddleClick, sideBySide);
+			this.open(preserveFocus, isDoubleClick || isMiddleClick, sideBySide, e.browserEvent);
 		}
 	}
 
-	private open(preserveFocus: boolean, pinned: boolean, sideBySide: boolean): void {
+	private open(preserveFocus: boolean, pinned: boolean, sideBySide: boolean, browserEvent?: UIEvent): void {
 		this._onDidOpenResource.fire({
 			editorOptions: {
 				preserveFocus,
@@ -730,7 +731,8 @@ export class TreeResourceNavigator2<T, TFilterData> extends Disposable {
 				revealIfVisible: true
 			},
 			sideBySide,
-			element: this.tree.getSelection()[0]
+			element: this.tree.getSelection()[0],
+			browserEvent
 		});
 	}
 }
