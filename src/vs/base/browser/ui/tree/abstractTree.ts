@@ -973,6 +973,9 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	get openOnSingleClick(): boolean { return typeof this._options.openOnSingleClick === 'undefined' ? true : this._options.openOnSingleClick; }
 	get expandOnlyOnTwistieClick(): boolean | ((e: T) => boolean) { return typeof this._options.expandOnlyOnTwistieClick === 'undefined' ? false : this._options.expandOnlyOnTwistieClick; }
 
+	private _onDidUpdateOptions = new Emitter<IAbstractTreeOptions<T, TFilterData>>();
+	readonly onDidUpdateOptions: Event<IAbstractTreeOptions<T, TFilterData>> = this._onDidUpdateOptions.event;
+
 	get onDidDispose(): Event<void> { return this.view.onDidDispose; }
 
 	constructor(
@@ -1039,6 +1042,8 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		if (this.typeFilterController) {
 			this.typeFilterController.updateOptions(this._options);
 		}
+
+		this._onDidUpdateOptions.fire(this._options);
 	}
 
 	get options(): IAbstractTreeOptions<T, TFilterData> {
