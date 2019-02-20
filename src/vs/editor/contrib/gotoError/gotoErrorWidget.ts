@@ -11,7 +11,6 @@ import { IMarker, MarkerSeverity, IRelatedInformation } from 'vs/platform/marker
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/zoneWidget';
 import { registerColor, oneOf } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
@@ -23,6 +22,10 @@ import { ScrollType } from 'vs/editor/common/editorCommon';
 import { getBaseLabel, getPathLabel } from 'vs/base/common/labels';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Event, Emitter } from 'vs/base/common/event';
+import { PeekViewWidget } from 'vs/editor/contrib/referenceSearch/peekViewWidget';
+import { basename } from 'vs/base/common/resources';
+import { IAction } from 'vs/base/common/actions';
+import { IActionBarOptions, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 
 class MessageWidget {
 
@@ -160,11 +163,10 @@ class MessageWidget {
 	}
 }
 
-export class MarkerNavigationWidget extends ZoneWidget {
+export class MarkerNavigationWidget extends PeekViewWidget {
 
 	private _parentContainer: HTMLElement;
 	private _container: HTMLElement;
-	private _title: HTMLElement;
 	private _message: MessageWidget;
 	private _callOnDispose: IDisposable[] = [];
 	private _severity: MarkerSeverity;
@@ -175,6 +177,7 @@ export class MarkerNavigationWidget extends ZoneWidget {
 
 	constructor(
 		editor: ICodeEditor,
+		private actions: IAction[],
 		private _themeService: IThemeService
 	) {
 		super(editor, { showArrow: true, showFrame: true, isAccessible: true });
@@ -218,7 +221,18 @@ export class MarkerNavigationWidget extends ZoneWidget {
 		this._parentContainer.focus();
 	}
 
-	protected _fillContainer(container: HTMLElement): void {
+	protected _fillHead(container: HTMLElement): void {
+		super._fillHead(container);
+		this._actionbarWidget.push(this.actions, { label: false, icon: true });
+	}
+
+	protected _getActionBarOptions(): IActionBarOptions {
+		return {
+			orientation: ActionsOrientation.HORIZONTAL_REVERSE
+		};
+	}
+
+	protected _fillBody(container: HTMLElement): void {
 		this._parentContainer = container;
 		dom.addClass(container, 'marker-widget');
 		this._parentContainer.tabIndex = 0;
@@ -226,10 +240,6 @@ export class MarkerNavigationWidget extends ZoneWidget {
 
 		this._container = document.createElement('div');
 		container.appendChild(this._container);
-
-		this._title = document.createElement('div');
-		this._title.className = 'block title';
-		this._container.appendChild(this._title);
 
 		this._message = new MessageWidget(this._container, this.editor, related => this._onDidSelectRelatedInformation.fire(related));
 		this._disposables.push(this._message);
@@ -244,7 +254,6 @@ export class MarkerNavigationWidget extends ZoneWidget {
 		// * title
 		// * message
 		this._container.classList.remove('stale');
-		this._title.innerHTML = nls.localize('title.wo_source', "({0}/{1})", markerIdx, markerCount);
 		this._message.update(marker);
 
 		// update frame color (only applied on 'show')
@@ -256,6 +265,11 @@ export class MarkerNavigationWidget extends ZoneWidget {
 		const editorPosition = this.editor.getPosition();
 		let position = editorPosition && range.containsPosition(editorPosition) ? editorPosition : range.getStartPosition();
 		super.show(position, this.computeRequiredHeight());
+
+		const detail = markerCount > 1
+			? nls.localize('problems', "{0} of {1} problems", markerIdx, markerCount)
+			: nls.localize('change', "{0} of {1} problem", markerIdx, markerCount);
+		this.setTitle(basename(this.editor.getModel().uri), detail);
 
 		this.editor.revealPositionInCenter(position, ScrollType.Smooth);
 
@@ -274,7 +288,8 @@ export class MarkerNavigationWidget extends ZoneWidget {
 		this._relayout();
 	}
 
-	protected _doLayout(heightInPixel: number, widthInPixel: number): void {
+	protected _doLayoutBody(heightInPixel: number, widthInPixel: number): void {
+		super._doLayoutBody(heightInPixel, widthInPixel);
 		this._message.layout(heightInPixel, widthInPixel);
 		this._container.style.height = `${heightInPixel}px`;
 	}
@@ -284,7 +299,7 @@ export class MarkerNavigationWidget extends ZoneWidget {
 	}
 
 	private computeRequiredHeight() {
-		return 1 + this._message.getHeightInLines();
+		return 3 + this._message.getHeightInLines();
 	}
 }
 

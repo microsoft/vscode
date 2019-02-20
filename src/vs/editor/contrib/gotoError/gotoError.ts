@@ -24,6 +24,7 @@ import { binarySearch } from 'vs/base/common/arrays';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { Action } from 'vs/base/common/actions';
 
 class MarkerModel {
 
@@ -242,11 +243,16 @@ export class MarkerController implements editorCommon.IEditorContribution {
 		this._model = new MarkerModel(this._editor, markers);
 		this._markerService.onMarkerChanged(this._onMarkerChanged, this, this._disposeOnClose);
 
-		this._widget = new MarkerNavigationWidget(this._editor, this._themeService);
+		const actions = [
+			new Action(PrevMarkerAction.ID, PrevMarkerAction.LABEL, 'show-previous-problem octicon octicon-chevron-up', this._model.canNavigate(), async () => this._model.move(false, true)),
+			new Action(NextMarkerAction.ID, NextMarkerAction.LABEL, 'show-next-problem octicon octicon-chevron-down', this._model.canNavigate(), async () => this._model.move(true, true))
+		];
+		this._widget = new MarkerNavigationWidget(this._editor, actions, this._themeService);
 		this._widgetVisible.set(true);
 
 		this._disposeOnClose.push(this._model);
 		this._disposeOnClose.push(this._widget);
+		this._disposeOnClose.push(...actions);
 		this._disposeOnClose.push(this._widget.onDidSelectRelatedInformation(related => {
 			this._editorService.openCodeEditor({
 				resource: related.resource,
@@ -411,10 +417,12 @@ class MarkerNavigationAction extends EditorAction {
 }
 
 class NextMarkerAction extends MarkerNavigationAction {
+	static ID: string = 'editor.action.marker.next';
+	static LABEL: string = nls.localize('markerAction.next.label', "Go to Next Problem (Error, Warning, Info)");
 	constructor() {
 		super(true, false, {
-			id: 'editor.action.marker.next',
-			label: nls.localize('markerAction.next.label', "Go to Next Problem (Error, Warning, Info)"),
+			id: NextMarkerAction.ID,
+			label: NextMarkerAction.LABEL,
 			alias: 'Go to Next Error or Warning',
 			precondition: EditorContextKeys.writable
 		});
@@ -422,10 +430,12 @@ class NextMarkerAction extends MarkerNavigationAction {
 }
 
 class PrevMarkerAction extends MarkerNavigationAction {
+	static ID: string = 'editor.action.marker.prev';
+	static LABEL: string = nls.localize('markerAction.previous.label', "Go to Previous Problem (Error, Warning, Info)");
 	constructor() {
 		super(false, false, {
-			id: 'editor.action.marker.prev',
-			label: nls.localize('markerAction.previous.label', "Go to Previous Problem (Error, Warning, Info)"),
+			id: PrevMarkerAction.ID,
+			label: PrevMarkerAction.LABEL,
 			alias: 'Go to Previous Error or Warning',
 			precondition: EditorContextKeys.writable
 		});
