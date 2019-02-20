@@ -680,7 +680,7 @@ export class Workbench extends Disposable implements IPartService {
 		serviceCollection.set(IEditorService, this.editorService);
 
 		// Accessibility
-		serviceCollection.set(IAccessibilityService, new SyncDescriptor(AccessibilityService));
+		serviceCollection.set(IAccessibilityService, new SyncDescriptor(AccessibilityService, [this.configuration.accessibilitySupport]));
 
 		// Title bar
 		this.titlebarPart = this.instantiationService.createInstance(TitlebarPart, Identifiers.TITLEBAR_PART);

@@ -13,7 +13,6 @@ import { URI as uri } from 'vs/base/common/uri';
 import { IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { Action } from 'vs/base/common/actions';
 import { language, LANGUAGE_DEFAULT, AccessibilitySupport } from 'vs/base/common/platform';
-import * as browser from 'vs/base/browser/browser';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { IFileEditorInput, EncodingMode, IEncodingSupport, toResource, SideBySideEditorInput, IEditor as IBaseEditor, IEditorInput } from 'vs/workbench/common/editor';
 import { IDisposable, combinedDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -51,6 +50,7 @@ import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { timeout } from 'vs/base/common/async';
 import { INotificationHandle, INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { Event } from 'vs/base/common/event';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private master: IEncodingSupport, private details: IEncodingSupport) { }
@@ -294,7 +294,8 @@ export class EditorStatus implements IStatusbarItem {
 		@IModeService private readonly modeService: IModeService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IWorkspaceConfigurationService private readonly configurationService: IWorkspaceConfigurationService,
-		@INotificationService private readonly notificationService: INotificationService
+		@INotificationService private readonly notificationService: INotificationService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
 		this.toDispose = [];
 		this.activeEditorListeners = [];
@@ -681,7 +682,7 @@ export class EditorStatus implements IStatusbarItem {
 
 		// We only support text based editors
 		if (editorWidget) {
-			const screenReaderDetected = (browser.getAccessibilitySupport() === AccessibilitySupport.Enabled);
+			const screenReaderDetected = (this.accessibilityService.getAccessibilitySupport() === AccessibilitySupport.Enabled);
 			if (screenReaderDetected) {
 				const screenReaderConfiguration = this.configurationService.getValue<IEditorOptions>('editor').accessibilitySupport;
 				if (screenReaderConfiguration === 'auto') {

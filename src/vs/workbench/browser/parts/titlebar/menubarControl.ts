@@ -33,7 +33,6 @@ import { SubmenuAction } from 'vs/base/browser/ui/menu/menu';
 import { attachMenuStyler } from 'vs/platform/theme/common/styler';
 import { assign } from 'vs/base/common/objects';
 import { mnemonicMenuLabel, unmnemonicLabel } from 'vs/base/common/labels';
-import { getAccessibilitySupport } from 'vs/base/browser/browser';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 export class MenubarControl extends Disposable {
@@ -250,7 +249,7 @@ export class MenubarControl extends Disposable {
 
 		const hasBeenNotified = this.storageService.getBoolean('menubar/accessibleMenubarNotified', StorageScope.GLOBAL, false);
 		const usingCustomMenubar = getTitleBarStyle(this.configurationService, this.environmentService) === 'custom';
-		const detected = getAccessibilitySupport() === AccessibilitySupport.Enabled;
+		const detected = this.accessibilityService.getAccessibilitySupport() === AccessibilitySupport.Enabled;
 		const config = this.configurationService.getValue('editor.accessibilitySupport');
 
 		if (hasBeenNotified || usingCustomMenubar || !(config === 'on' || (config === 'auto' && detected))) {

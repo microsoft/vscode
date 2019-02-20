@@ -4,12 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { isWindows } from 'vs/base/common/platform';
+import { isWindows, AccessibilitySupport } from 'vs/base/common/platform';
+import { Emitter, Event } from 'vs/base/common/event';
 
 export class AccessibilityService implements IAccessibilityService {
 	_serviceBrand: any;
 
-	constructor() { }
+	private _accessibilitySupport = AccessibilitySupport.Unknown;
+	private readonly _onDidChangeAccessibilitySupport = new Emitter<void>();
+	readonly onDidChangeAccessibilitySupport: Event<void> = this._onDidChangeAccessibilitySupport.event;
+
+	constructor(accessibilitySupport?: boolean) {
+		this._accessibilitySupport = accessibilitySupport ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled;
+	}
 
 	alwaysUnderlineAccessKeys(): Promise<boolean> {
 		if (!isWindows) {
@@ -28,5 +35,18 @@ export class AccessibilityService implements IAccessibilityService {
 
 			resolve(value === '1');
 		});
+	}
+
+	setAccessibilitySupport(accessibilitySupport: AccessibilitySupport): void {
+		if (this._accessibilitySupport === accessibilitySupport) {
+			return;
+		}
+
+		this._accessibilitySupport = accessibilitySupport;
+		this._onDidChangeAccessibilitySupport.fire();
+	}
+
+	getAccessibilitySupport(): AccessibilitySupport {
+		return this._accessibilitySupport;
 	}
 }
