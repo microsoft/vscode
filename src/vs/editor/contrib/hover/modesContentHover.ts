@@ -29,7 +29,8 @@ import { basename } from 'vs/base/common/resources';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/opener';
-import { MarkerController } from 'vs/editor/contrib/gotoError/gotoError';
+import { MarkerController, NextMarkerAction } from 'vs/editor/contrib/gotoError/gotoError';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 const $ = dom.$;
 
@@ -207,6 +208,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		markdownRenderer: MarkdownRenderer,
 		markerDecorationsService: IMarkerDecorationsService,
 		private readonly _themeService: IThemeService,
+		private readonly _keybindingService: IKeybindingService,
 		private readonly _openerService: IOpenerService | null = NullOpenerService,
 	) {
 		super(ModesContentHoverWidget.ID, editor);
@@ -510,8 +512,10 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 
 		const actionsElement = dom.append(hoverElement, $('div.actions'));
 		const disposables: IDisposable[] = [];
-		const peekMarkerAction = dom.append(actionsElement, $('a.action.peek-marker', { title: nls.localize('go to problem', "Peek Problem") }));
-		peekMarkerAction.textContent = 'Peek Problem';
+		const keybinding = this._keybindingService.lookupKeybinding(NextMarkerAction.ID);
+		const label = nls.localize('peek problem', "Peek Problem") + (keybinding ? ` (${keybinding.getLabel()})` : '');
+		const peekMarkerAction = dom.append(actionsElement, $('a.action.peek-marker', { title: label }));
+		peekMarkerAction.textContent = label;
 		disposables.push(dom.addDisposableListener(peekMarkerAction, dom.EventType.CLICK, e => {
 			e.stopPropagation();
 			e.preventDefault();
