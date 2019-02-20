@@ -697,10 +697,6 @@ class ReplDelegate implements IListVirtualDelegate<IReplElement> {
 	}
 
 	hasDynamicHeight?(element: IReplElement): boolean {
-		if (element instanceof Variable || element instanceof RawObjectReplElement) {
-			return false;
-		}
-
 		return true;
 	}
 }
