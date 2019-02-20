@@ -571,12 +571,6 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		return (node && node.element)!;
 	}
 
-	// List
-
-	get visibleNodeCount(): number {
-		return this.tree.visibleNodeCount;
-	}
-
 	// Implementation
 
 	private getDataNode(element: TInput | T): IAsyncDataTreeNode<TInput, T> {

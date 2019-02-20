@@ -140,7 +140,7 @@ export abstract class BreadcrumbsPicker {
 	protected _layout(info: ILayoutInfo = this._layoutInfo): void {
 
 		const headerHeight = 2 * info.arrowSize;
-		const treeHeight = Math.min(info.maxHeight - headerHeight, this._tree.visibleNodeCount * 22);
+		const treeHeight = Math.min(info.maxHeight - headerHeight, this._tree.contentHeight);
 		const totalHeight = treeHeight + headerHeight;
 
 		this._domNode.style.height = `${totalHeight}px`;

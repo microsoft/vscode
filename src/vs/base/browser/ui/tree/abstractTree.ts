@@ -1237,10 +1237,6 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 	// List
 
-	get visibleNodeCount(): number {
-		return this.view.length;
-	}
-
 	private onLeftArrow(e: StandardKeyboardEvent): void {
 		e.preventDefault();
 		e.stopPropagation();
