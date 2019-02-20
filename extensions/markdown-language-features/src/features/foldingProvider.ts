@@ -25,7 +25,7 @@ export default class MarkdownFoldingProvider implements vscode.FoldingRangeProvi
 			(isStartRegion(token.content) || isEndRegion(token.content));
 
 
-		const tokens = await this.engine.parse(document);
+		const tokens = await this.enginee.parse(document);
 		const regionMarkers = tokens.filter(isRegionMarker)
 			.map(token => ({ line: token.map[0], isStart: isStartRegion(token.content) }));
 
