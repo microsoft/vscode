@@ -303,8 +303,8 @@ export class CodeWindow extends Disposable {
 		});
 	}
 
-	private createStorageService(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService, logService: ILogService, mainProcessClient: ElectronIPCClient): Promise<StorageService> {
-		const globalStorageDatabase = new GlobalStorageDatabaseChannelClient(mainProcessClient.getChannel('storage'));
+	private createStorageService(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService, logService: ILogService, electronMainClient: ElectronIPCClient): Promise<StorageService> {
+		const globalStorageDatabase = new GlobalStorageDatabaseChannelClient(electronMainClient.getChannel('storage'));
 		const storageService = new StorageService(globalStorageDatabase, logService, environmentService);
 
 		return storageService.initialize(payload).then(() => storageService, error => {
@@ -315,11 +315,11 @@ export class CodeWindow extends Disposable {
 		});
 	}
 
-	private createLogService(mainProcessClient: ElectronIPCClient, environmentService: IEnvironmentService): ILogService {
+	private createLogService(electronMainClient: ElectronIPCClient, environmentService: IEnvironmentService): ILogService {
 		const spdlogService = createSpdLogService(`renderer${this.configuration.windowId}`, this.configuration.logLevel, environmentService.logsPath);
 		const consoleLogService = new ConsoleLogService(this.configuration.logLevel);
 		const logService = new MultiplexLogService([consoleLogService, spdlogService]);
-		const logLevelClient = new LogLevelSetterChannelClient(mainProcessClient.getChannel('loglevel'));
+		const logLevelClient = new LogLevelSetterChannelClient(electronMainClient.getChannel('loglevel'));
 
 		return new FollowerLogService(logLevelClient, logService);
 	}

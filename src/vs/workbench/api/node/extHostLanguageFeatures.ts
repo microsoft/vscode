@@ -19,7 +19,7 @@ import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesSh
 import { regExpLeadsToEndlessLoop, regExpFlags } from 'vs/base/common/strings';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range as EditorRange } from 'vs/editor/common/core/range';
-import { isFalsyOrEmpty, isNonEmptyArray } from 'vs/base/common/arrays';
+import { isFalsyOrEmpty, isNonEmptyArray, coalesce } from 'vs/base/common/arrays';
 import { isObject } from 'vs/base/common/types';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
@@ -155,8 +155,8 @@ class CodeInsetAdapter {
 		private readonly _provider: vscode.CodeInsetProvider
 	) { }
 
-	provideCodeInsets(resource: URI, token: CancellationToken): Promise<CodeInsetDto[]> {
-		const doc = this._documents.getDocumentData(resource).document;
+	provideCodeInsets(resource: URI, token: CancellationToken): Promise<CodeInsetDto[] | undefined> {
+		const doc = this._documents.getDocument(resource);
 		return asPromise(() => this._provider.provideCodeInsets(doc, token)).then(insets => {
 			if (Array.isArray(insets)) {
 				return insets.map(inset => {
@@ -572,10 +572,10 @@ class RenameAdapter {
 		const doc = this._documents.getDocument(resource);
 		let pos = typeConvert.Position.to(position);
 
-		return asPromise(() => this._provider.prepareRename(doc, pos, token)).then(rangeOrLocation => {
+		return asPromise(() => this._provider.prepareRename!(doc, pos, token)).then(rangeOrLocation => {
 
 			let range: vscode.Range | undefined;
-			let text: string;
+			let text: string | undefined;
 			if (Range.isRange(rangeOrLocation)) {
 				range = rangeOrLocation;
 				text = doc.getText(rangeOrLocation);
@@ -924,11 +924,11 @@ class SelectionRangeAdapter {
 	) { }
 
 	provideSelectionRanges(resource: URI, pos: IPosition[], token: CancellationToken): Promise<modes.SelectionRange[][]> {
-		const { document } = this._documents.getDocumentData(resource);
+		const document = this._documents.getDocument(resource);
 		const positions = pos.map(typeConvert.Position.to);
 
 		return asPromise(() => this._provider.provideSelectionRanges(document, positions, token)).then(allProviderRanges => {
-			if (isFalsyOrEmpty(allProviderRanges)) {
+			if (!isNonEmptyArray(allProviderRanges)) {
 				return [];
 			}
 			if (allProviderRanges.length !== positions.length) {
@@ -1006,12 +1006,12 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		this._webviewProxy = mainContext.getProxy(MainContext.MainThreadWebviews);
 	}
 
-	private _transformDocumentSelector(selector: vscode.DocumentSelector): ISerializedDocumentFilter[] {
+	private _transformDocumentSelector(selector: vscode.DocumentSelector): Array<ISerializedDocumentFilter> {
 		if (Array.isArray(selector)) {
-			return selector.map(sel => this._doTransformDocumentSelector(sel));
+			return coalesce(selector.map(sel => this._doTransformDocumentSelector(sel)));
 		}
 
-		return [this._doTransformDocumentSelector(selector)];
+		return coalesce([this._doTransformDocumentSelector(selector)]);
 	}
 
 	private _doTransformDocumentSelector(selector: string | vscode.DocumentFilter): ISerializedDocumentFilter | undefined {
@@ -1035,7 +1035,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return undefined;
 	}
 
-	private _transformScheme(scheme: string): string {
+	private _transformScheme(scheme: string | undefined): string | undefined {
 		if (this._schemeTransformer && typeof scheme === 'string') {
 			return this._schemeTransformer.transformOutgoing(scheme);
 		}
@@ -1126,7 +1126,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._withAdapter(handle, CodeLensAdapter, adapter => adapter.provideCodeLenses(URI.revive(resource), token));
 	}
 
-	$resolveCodeLens(handle: number, resource: UriComponents, symbol: modes.ICodeLensSymbol, token: CancellationToken): Promise<modes.ICodeLensSymbol> {
+	$resolveCodeLens(handle: number, resource: UriComponents, symbol: modes.ICodeLensSymbol, token: CancellationToken): Promise<modes.ICodeLensSymbol | undefined> {
 		return this._withAdapter(handle, CodeLensAdapter, adapter => adapter.resolveCodeLens(URI.revive(resource), symbol, token));
 	}
 
@@ -1382,7 +1382,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._withAdapter(handle, ColorProviderAdapter, adapter => adapter.provideColors(URI.revive(resource), token));
 	}
 
-	$provideColorPresentations(handle: number, resource: UriComponents, colorInfo: IRawColorInfo, token: CancellationToken): Promise<modes.IColorPresentation[]> {
+	$provideColorPresentations(handle: number, resource: UriComponents, colorInfo: IRawColorInfo, token: CancellationToken): Promise<modes.IColorPresentation[] | undefined> {
 		return this._withAdapter(handle, ColorProviderAdapter, adapter => adapter.provideColorPresentations(URI.revive(resource), colorInfo, token));
 	}
 
@@ -1392,7 +1392,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideFoldingRanges(handle: number, resource: UriComponents, context: vscode.FoldingContext, token: CancellationToken): Promise<modes.FoldingRange[]> {
+	$provideFoldingRanges(handle: number, resource: UriComponents, context: vscode.FoldingContext, token: CancellationToken): Promise<modes.FoldingRange[] | undefined> {
 		return this._withAdapter(handle, FoldingProviderAdapter, adapter => adapter.provideFoldingRanges(URI.revive(resource), context, token));
 	}
 

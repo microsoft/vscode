@@ -533,7 +533,9 @@ export class ExtensionEditor extends BaseEditor {
 			.then(body => {
 				const wbeviewElement = this.instantiationService.createInstance(WebviewElement,
 					this.partService.getContainer(Parts.EDITOR_PART),
-					{},
+					{
+						enableFindWidget: true,
+					},
 					{
 						svgWhiteList: this.extensionsWorkbenchService.allowedBadgeProviders
 					});

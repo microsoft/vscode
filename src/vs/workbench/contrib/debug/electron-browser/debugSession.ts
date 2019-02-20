@@ -32,6 +32,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ReplModel } from 'vs/workbench/contrib/debug/common/replModel';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export class DebugSession implements IDebugSession {
 	private id: string;
@@ -62,7 +63,8 @@ export class DebugSession implements IDebugSession {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IViewletService private readonly viewletService: IViewletService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@INotificationService private readonly notificationService: INotificationService
 	) {
 		this.id = generateUuid();
 		this.repl = new ReplModel(this);
@@ -591,7 +593,7 @@ export class DebugSession implements IDebugSession {
 							this.raw.disconnect();
 						}
 						if (e.command !== 'canceled' && e.message !== 'canceled') {
-							onUnexpectedError(e);
+							this.notificationService.error(e);
 						}
 					});
 				}

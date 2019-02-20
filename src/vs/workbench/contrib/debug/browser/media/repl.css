@@ -11,16 +11,6 @@
 	overflow: hidden;
 }
 
-.repl .surveyor {
-	font-family: var(--monaco-monospace-font);
-	position: absolute;
-	display: inline-block;
-	width : auto;
-	top: 0;
-	left: 0;
-	visibility: hidden;
-}
-
 /* Align twisite to last line - for input output pair expressions. */
 .repl .repl-tree .monaco-tl-twistie {
 	background-position-y: calc(100% - 2px);

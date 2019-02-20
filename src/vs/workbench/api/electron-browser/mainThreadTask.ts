@@ -471,6 +471,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 	}
 
 	public $unregisterTaskProvider(handle: number): Promise<void> {
+		this._providers.get(handle).disposable.dispose();
 		this._providers.delete(handle);
 		return Promise.resolve(undefined);
 	}

@@ -253,7 +253,7 @@ export class DebugHoverWidget implements IContentWidget {
 	}
 
 	private layoutTreeAndContainer(): void {
-		const treeHeight = Math.min(MAX_TREE_HEIGHT, this.tree.visibleNodeCount * 18);
+		const treeHeight = Math.min(MAX_TREE_HEIGHT, this.tree.contentHeight);
 		this.treeContainer.style.height = `${treeHeight}px`;
 		this.tree.layout(treeHeight, 324);
 	}

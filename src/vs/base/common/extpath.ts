@@ -263,6 +263,10 @@ export function isValidBasename(name: string | null | undefined): boolean {
 		return false; // Windows: file cannot end with a whitespace
 	}
 
+	if (name.length > 255) {
+		return false; // most file systems do not allow files > 255 lenth
+	}
+
 	return true;
 }
 

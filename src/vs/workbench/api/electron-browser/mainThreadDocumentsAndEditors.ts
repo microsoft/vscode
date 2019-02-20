@@ -85,8 +85,8 @@ class DocumentAndEditorStateDelta {
 		readonly addedDocuments: ITextModel[],
 		readonly removedEditors: TextEditorSnapshot[],
 		readonly addedEditors: TextEditorSnapshot[],
-		readonly oldActiveEditor: string | undefined,
-		readonly newActiveEditor: string | undefined,
+		readonly oldActiveEditor: string | null | undefined,
+		readonly newActiveEditor: string | null | undefined,
 	) {
 		this.isEmpty = this.removedDocuments.length === 0
 			&& this.addedDocuments.length === 0
@@ -131,7 +131,7 @@ class DocumentAndEditorState {
 	constructor(
 		readonly documents: Set<ITextModel>,
 		readonly textEditors: Map<string, TextEditorSnapshot>,
-		readonly activeEditor: string | undefined,
+		readonly activeEditor: string | null | undefined,
 	) {
 		//
 	}
@@ -257,7 +257,7 @@ class MainThreadDocumentAndEditorStateComputer {
 		// to match output panels or the active workbench editor with
 		// one of editor we have just computed
 		if (!activeEditor) {
-			let candidate: IEditor;
+			let candidate: IEditor | undefined;
 			if (this._activeEditorOrder === ActiveEditorOrder.Editor) {
 				candidate = this._getActiveEditorFromEditorPart() || this._getActiveEditorFromPanel();
 			} else {
@@ -291,7 +291,7 @@ class MainThreadDocumentAndEditorStateComputer {
 		}
 	}
 
-	private _getActiveEditorFromEditorPart(): IEditor {
+	private _getActiveEditorFromEditorPart(): IEditor | undefined {
 		let result = this._editorService.activeTextEditorWidget;
 		if (isDiffEditor(result)) {
 			result = result.getModifiedEditor();

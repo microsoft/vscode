@@ -23,7 +23,7 @@
 	display: none;
 }
 
-.monaco-editor-hover .hover-row {
+.monaco-editor-hover .hover-contents {
 	padding: 4px 8px;
 }
 
@@ -72,39 +72,12 @@
 	word-break: break-all;
 }
 
-.monaco-editor-hover .marker-hover {
+.monaco-editor-hover .hover-row .actions {
 	display: flex;
+	padding: 2px 0px;
 }
 
-.monaco-editor-hover .marker-hover > .marker {
-	flex: 1;
-}
-
-.monaco-editor-hover .marker-hover > .actions {
-	padding-left: 12px;
-	display: flex;
-}
-
-.monaco-editor-hover .marker-hover > .actions > .icon {
-	width: 16px;
-	height: 16px;
-}
-
-.monaco-editor-hover .marker-hover > .actions .action {
+.monaco-editor-hover .hover-row .actions .action {
 	cursor: pointer;
-	padding-left: 4px;
-}
-
-.monaco-editor-hover .marker-hover > .actions > .peek-marker {
-	font-size: large;
-	vertical-align: middle;
-}
-
-.monaco-editor-hover .marker-hover > .actions > .light-bulb {
-	background: url('../codeAction/lightbulb.svg') center center no-repeat;
-}
-
-.hc-black .monaco-editor-hover .marker-hover > .actions > .light-bulb,
-.vs-dark  .monaco-editor-hover .marker-hover > .actions > .light-bulb {
-	background: url('../codeAction/lightbulb-dark.svg') center center no-repeat;
+	padding-left: 8px;
 }

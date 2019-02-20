@@ -90,9 +90,15 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		}
 
 		if (!confirmed) {
+			let uriString = uri.toString();
+
+			if (uriString.length > 40) {
+				uriString = `${uriString.substring(0, 30)}...${uriString.substring(uriString.length - 5)}`;
+			}
+
 			const result = await this.dialogService.confirm({
 				message: localize('confirmUrl', "Allow an extension to open this URL?", extensionId),
-				detail: `${extension.displayName || extension.name} (${extensionId}) wants to open a URL:\n\n${uri.toString()}`,
+				detail: `${extension.displayName || extension.name} (${extensionId}) wants to open a URL:\n\n${uriString}`,
 				primaryButton: localize('open', "&&Open"),
 				type: 'question'
 			});

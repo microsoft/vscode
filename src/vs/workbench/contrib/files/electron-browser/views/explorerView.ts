@@ -26,7 +26,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { IDecorationsService } from 'vs/workbench/services/decorations/browser/decorations';
-import { WorkbenchAsyncDataTree, IListService } from 'vs/platform/list/browser/listService';
+import { WorkbenchAsyncDataTree, IListService, TreeResourceNavigator2 } from 'vs/platform/list/browser/listService';
 import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IViewletPanelOptions, ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
@@ -314,18 +314,13 @@ export class ExplorerView extends ViewletPanel {
 			this.rootContext.set(!stat || (stat && stat.isRoot));
 		}));
 
-		// TODO@Isidor: use TreeResourceNavigator2 just like search and listen to the `onDidOpenResource` instead
-
+		const explorerNavigator = new TreeResourceNavigator2(this.tree);
+		this.disposables.push(explorerNavigator);
 		// Open when selecting via keyboard
-		this.disposables.push(this.tree.onDidChangeSelection(e => {
-			if (!e.browserEvent) {
-				// Only react on selection change events caused by user interaction (ignore those which are caused by us doing tree.setSelection).
-				return;
-			}
-			const selection = e.elements;
+		this.disposables.push(explorerNavigator.onDidOpenResource(e => {
+			const selection = this.tree.getSelection();
 			// Do not react if the user is expanding selection via keyboard.
 			// Check if the item was previously also selected, if yes the user is simply expanding / collapsing current selection #66589.
-
 			const shiftDown = e.browserEvent instanceof KeyboardEvent && e.browserEvent.shiftKey;
 			if (selection.length === 1 && !shiftDown) {
 				// Do not react if user is clicking on explorer items which are input placeholders
@@ -339,23 +334,7 @@ export class ExplorerView extends ViewletPanel {
 					}
 					return;
 				}
-				let isDoubleClick = false;
-				let sideBySide = false;
-				let isMiddleClick = false;
 
-				if (e.browserEvent instanceof MouseEvent) {
-					isDoubleClick = e.browserEvent.detail === 2;
-					isMiddleClick = e.browserEvent.button === 1;
-					const isLeftButton = e.browserEvent.button === 0;
-
-					if (isLeftButton && !this.tree.openOnSingleClick && !isDoubleClick) {
-						return;
-					}
-
-					sideBySide = this.tree.useAltAsMultipleSelectionModifier ? (e.browserEvent.ctrlKey || e.browserEvent.metaKey) : e.browserEvent.altKey;
-				}
-
-				// Pass focus for keyboard events and for double click
 				/* __GDPR__
 				"workbenchActionExecuted" : {
 					"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -363,7 +342,7 @@ export class ExplorerView extends ViewletPanel {
 				}*/
 				this.telemetryService.publicLog('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'explorer' });
 				this.ignoreActiveEditorChange = true;
-				this.editorService.openEditor({ resource: selection[0].resource, options: { preserveFocus: (e.browserEvent instanceof MouseEvent) && !isDoubleClick, pinned: isDoubleClick || isMiddleClick } }, sideBySide ? SIDE_GROUP : ACTIVE_GROUP)
+				this.editorService.openEditor({ resource: selection[0].resource, options: { preserveFocus: e.editorOptions.preserveFocus, pinned: e.editorOptions.pinned } }, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP)
 					.then(undefined, onUnexpectedError);
 			}
 		}));

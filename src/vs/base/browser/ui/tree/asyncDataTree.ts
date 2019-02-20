@@ -9,7 +9,7 @@ import { IListVirtualDelegate, IIdentityProvider, IListDragAndDrop, IListDragOve
 import { ITreeElement, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent, ITreeSorter, ICollapseStateChangeEvent, IAsyncDataSource, ITreeDragAndDrop } from 'vs/base/browser/ui/tree/tree';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
-import { timeout, always, CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
+import { timeout, CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { Iterator } from 'vs/base/common/iterator';
 import { IDragAndDropData } from 'vs/base/browser/dnd';
@@ -571,12 +571,6 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		return (node && node.element)!;
 	}
 
-	// List
-
-	get visibleNodeCount(): number {
-		return this.tree.visibleNodeCount;
-	}
-
 	// Implementation
 
 	private getDataNode(element: TInput | T): IAsyncDataTreeNode<TInput, T> {
@@ -679,7 +673,8 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 				this._onDidChangeNodeSlowState.fire(node);
 			}, _ => null);
 
-			childrenPromise = always(this.doGetChildren(node), () => slowTimeout.cancel());
+			childrenPromise = this.doGetChildren(node)
+				.finally(() => slowTimeout.cancel());
 		}
 
 		try {
@@ -721,8 +716,10 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 			return children;
 		});
+
 		this.refreshPromises.set(node, result);
-		return always(result, () => this.refreshPromises.delete(node));
+
+		return result.finally(() => this.refreshPromises.delete(node));
 	}
 
 	private _onDidChangeCollapseState({ node, deep }: ICollapseStateChangeEvent<IAsyncDataTreeNode<TInput, T>, any>): void {

@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { MenuId, MenuRegistry, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { MenuId, MenuRegistry, SyncActionDescriptor, ILocalizedString } from 'vs/platform/actions/common/actions';
 import { KeybindingsRegistry, IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
@@ -98,7 +98,7 @@ interface IActionDescriptor {
 	handler: ICommandHandler;
 
 	// ICommandUI
-	title: string;
+	title: ILocalizedString;
 	category?: string;
 	f1?: boolean;
 
@@ -159,7 +159,7 @@ function registerAction(desc: IActionDescriptor) {
 // Define clear command, contribute to editor context menu
 registerAction({
 	id: 'editor.action.clearoutput',
-	title: nls.localize('clearOutput.label', "Clear Output"),
+	title: { value: nls.localize('clearOutput.label', "Clear Output"), original: 'Clear Output' },
 	menu: {
 		menuId: MenuId.EditorContext,
 		when: CONTEXT_IN_OUTPUT
@@ -171,7 +171,7 @@ registerAction({
 
 registerAction({
 	id: 'workbench.action.openActiveLogOutputFile',
-	title: nls.localize('openActiveLogOutputFile', "View: Open Active Log Output File"),
+	title: { value: nls.localize('openActiveLogOutputFile', "Open Active Log Output File"), original: 'Open Active Log Output File' },
 	menu: {
 		menuId: MenuId.CommandPalette,
 		when: CONTEXT_ACTIVE_LOG_OUTPUT

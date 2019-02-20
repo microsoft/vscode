@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { always } from 'vs/base/common/async';
 
 export interface CacheResult<T> {
 	promise: Promise<T>;
@@ -23,7 +22,7 @@ export class Cache<T> {
 
 		const cts = new CancellationTokenSource();
 		const promise = this.task(cts.token);
-		always(promise, () => cts.dispose());
+		promise.finally(() => cts.dispose());
 
 		this.result = {
 			promise,

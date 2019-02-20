@@ -25,6 +25,8 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IQuickInputService, IQuickPickItem, IQuickInputButton, IQuickPickSeparator, IKeyMods } from 'vs/platform/quickinput/common/quickInput';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import product from 'vs/platform/node/product';
+import { ICommandHandler } from 'vs/platform/commands/common/commands';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 export class CloseCurrentWindowAction extends Action {
 
@@ -468,110 +470,26 @@ export class ShowAboutDialogAction extends Action {
 	}
 }
 
-export class NewWindowTab extends Action {
+export const NewWindowTabHandler: ICommandHandler = function (accessor: ServicesAccessor) {
+	return accessor.get(IWindowsService).newWindowTab();
+};
 
-	static readonly ID = 'workbench.action.newWindowTab';
-	static readonly LABEL = nls.localize('newTab', "New Window Tab");
+export const ShowPreviousWindowTabHandler: ICommandHandler = function (accessor: ServicesAccessor) {
+	return accessor.get(IWindowsService).showPreviousWindowTab();
+};
 
-	constructor(
-		_id: string,
-		_label: string,
-		@IWindowsService private readonly windowsService: IWindowsService
-	) {
-		super(NewWindowTab.ID, NewWindowTab.LABEL);
-	}
+export const ShowNextWindowTabHandler: ICommandHandler = function (accessor: ServicesAccessor) {
+	return accessor.get(IWindowsService).showNextWindowTab();
+};
 
-	run(): Promise<boolean> {
-		return this.windowsService.newWindowTab().then(() => true);
-	}
-}
+export const MoveWindowTabToNewWindowHandler: ICommandHandler = function (accessor: ServicesAccessor) {
+	return accessor.get(IWindowsService).moveWindowTabToNewWindow();
+};
 
-export class ShowPreviousWindowTab extends Action {
+export const MergeWindowTabsHandlerHandler: ICommandHandler = function (accessor: ServicesAccessor) {
+	return accessor.get(IWindowsService).mergeAllWindowTabs();
+};
 
-	static readonly ID = 'workbench.action.showPreviousWindowTab';
-	static readonly LABEL = nls.localize('showPreviousTab', "Show Previous Window Tab");
-
-	constructor(
-		_id: string,
-		_label: string,
-		@IWindowsService private readonly windowsService: IWindowsService
-	) {
-		super(ShowPreviousWindowTab.ID, ShowPreviousWindowTab.LABEL);
-	}
-
-	run(): Promise<boolean> {
-		return this.windowsService.showPreviousWindowTab().then(() => true);
-	}
-}
-
-export class ShowNextWindowTab extends Action {
-
-	static readonly ID = 'workbench.action.showNextWindowTab';
-	static readonly LABEL = nls.localize('showNextWindowTab', "Show Next Window Tab");
-
-	constructor(
-		_id: string,
-		_label: string,
-		@IWindowsService private readonly windowsService: IWindowsService
-	) {
-		super(ShowNextWindowTab.ID, ShowNextWindowTab.LABEL);
-	}
-
-	run(): Promise<boolean> {
-		return this.windowsService.showNextWindowTab().then(() => true);
-	}
-}
-
-export class MoveWindowTabToNewWindow extends Action {
-
-	static readonly ID = 'workbench.action.moveWindowTabToNewWindow';
-	static readonly LABEL = nls.localize('moveWindowTabToNewWindow', "Move Window Tab to New Window");
-
-	constructor(
-		_id: string,
-		_label: string,
-		@IWindowsService private readonly windowsService: IWindowsService
-	) {
-		super(MoveWindowTabToNewWindow.ID, MoveWindowTabToNewWindow.LABEL);
-	}
-
-	run(): Promise<boolean> {
-		return this.windowsService.moveWindowTabToNewWindow().then(() => true);
-	}
-}
-
-export class MergeAllWindowTabs extends Action {
-
-	static readonly ID = 'workbench.action.mergeAllWindowTabs';
-	static readonly LABEL = nls.localize('mergeAllWindowTabs', "Merge All Windows");
-
-	constructor(
-		_id: string,
-		_label: string,
-		@IWindowsService private readonly windowsService: IWindowsService
-	) {
-		super(MergeAllWindowTabs.ID, MergeAllWindowTabs.LABEL);
-	}
-
-	run(): Promise<boolean> {
-		return this.windowsService.mergeAllWindowTabs().then(() => true);
-	}
-}
-
-export class ToggleWindowTabsBar extends Action {
-
-	static readonly ID = 'workbench.action.toggleWindowTabsBar';
-	static readonly LABEL = nls.localize('toggleWindowTabsBar', "Toggle Window Tabs Bar");
-
-	constructor(
-		_id: string,
-		_label: string,
-		@IWindowsService private readonly windowsService: IWindowsService
-	) {
-		super(ToggleWindowTabsBar.ID, ToggleWindowTabsBar.LABEL);
-	}
-
-	run(): Promise<boolean> {
-		return this.windowsService.toggleWindowTabsBar().then(() => true);
-	}
-}
+export const ToggleWindowTabsBarHandler: ICommandHandler = function (accessor: ServicesAccessor) {
+	return accessor.get(IWindowsService).toggleWindowTabsBar();
+};

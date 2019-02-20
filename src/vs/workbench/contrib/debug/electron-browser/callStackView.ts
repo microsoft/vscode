@@ -234,7 +234,7 @@ export class CallStackView extends ViewletPanel {
 	}
 
 	private updateTreeSelection(): void {
-		if (!this.tree || this.tree.visibleNodeCount === 0) {
+		if (!this.tree || !this.tree.getInput()) {
 			// Tree not initialized yet
 			return;
 		}

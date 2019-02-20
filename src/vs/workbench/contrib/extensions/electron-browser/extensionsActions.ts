@@ -1125,7 +1125,7 @@ export class ReloadAction extends ExtensionAction {
 export class SetColorThemeAction extends ExtensionAction {
 
 	static getColorThemes(colorThemes: IColorTheme[], extension: IExtension): IColorTheme[] {
-		return colorThemes.filter(c => ExtensionIdentifier.equals(c.extensionData.extensionId, extension.identifier.id));
+		return colorThemes.filter(c => c.extensionData && ExtensionIdentifier.equals(c.extensionData.extensionId, extension.identifier.id));
 	}
 
 	private static readonly EnabledClass = 'extension-action theme';
@@ -1784,6 +1784,7 @@ export class ConfigureRecommendedExtensionsCommandsContributor extends Disposabl
 			command: {
 				id: ConfigureWorkspaceRecommendedExtensionsAction.ID,
 				title: { value: `${ExtensionsLabel}: ${ConfigureWorkspaceRecommendedExtensionsAction.LABEL}`, original: 'Extensions: Configure Recommended Extensions (Workspace)' },
+				category: localize('extensions', "Extensions")
 			},
 			when: this.workspaceContextKey
 		});
@@ -1795,6 +1796,7 @@ export class ConfigureRecommendedExtensionsCommandsContributor extends Disposabl
 			command: {
 				id: ConfigureWorkspaceFolderRecommendedExtensionsAction.ID,
 				title: { value: `${ExtensionsLabel}: ${ConfigureWorkspaceFolderRecommendedExtensionsAction.LABEL}`, original: 'Extensions: Configure Recommended Extensions (Workspace Folder)' },
+				category: localize('extensions', "Extensions")
 			},
 			when: this.workspaceFolderContextKey
 		});
@@ -1807,7 +1809,8 @@ export class ConfigureRecommendedExtensionsCommandsContributor extends Disposabl
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 			command: {
 				id: AddToWorkspaceRecommendationsAction.ADD_ID,
-				title: { value: `${ExtensionsLabel}: ${AddToWorkspaceRecommendationsAction.ADD_LABEL}`, original: 'Extensions: Add to Recommended Extensions (Workspace)' }
+				title: { value: `${ExtensionsLabel}: ${AddToWorkspaceRecommendationsAction.ADD_LABEL}`, original: 'Extensions: Add to Recommended Extensions (Workspace)' },
+				category: localize('extensions', "Extensions")
 			},
 			when: this.addToWorkspaceRecommendationsContextKey
 		});
@@ -1820,7 +1823,8 @@ export class ConfigureRecommendedExtensionsCommandsContributor extends Disposabl
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 			command: {
 				id: AddToWorkspaceFolderRecommendationsAction.ADD_ID,
-				title: { value: `${ExtensionsLabel}: ${AddToWorkspaceFolderRecommendationsAction.ADD_LABEL}`, original: 'Extensions: Add to Recommended Extensions (Workspace Folder)' }
+				title: { value: `${ExtensionsLabel}: ${AddToWorkspaceFolderRecommendationsAction.ADD_LABEL}`, original: 'Extensions: Add to Recommended Extensions (Workspace Folder)' },
+				category: localize('extensions', "Extensions")
 			},
 			when: this.addToWorkspaceFolderRecommendationsContextKey
 		});
@@ -1833,7 +1837,8 @@ export class ConfigureRecommendedExtensionsCommandsContributor extends Disposabl
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 			command: {
 				id: AddToWorkspaceRecommendationsAction.IGNORE_ID,
-				title: { value: `${ExtensionsLabel}: ${AddToWorkspaceRecommendationsAction.IGNORE_LABEL}`, original: 'Extensions: Ignore Recommended Extension (Workspace)' }
+				title: { value: `${ExtensionsLabel}: ${AddToWorkspaceRecommendationsAction.IGNORE_LABEL}`, original: 'Extensions: Ignore Recommended Extension (Workspace)' },
+				category: localize('extensions', "Extensions")
 			},
 			when: this.addToWorkspaceRecommendationsContextKey
 		});
@@ -1846,7 +1851,8 @@ export class ConfigureRecommendedExtensionsCommandsContributor extends Disposabl
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 			command: {
 				id: AddToWorkspaceFolderRecommendationsAction.IGNORE_ID,
-				title: { value: `${ExtensionsLabel}: ${AddToWorkspaceFolderRecommendationsAction.IGNORE_LABEL}`, original: 'Extensions: Ignore Recommended Extension (Workspace Folder)' }
+				title: { value: `${ExtensionsLabel}: ${AddToWorkspaceFolderRecommendationsAction.IGNORE_LABEL}`, original: 'Extensions: Ignore Recommended Extension (Workspace Folder)' },
+				category: localize('extensions', "Extensions")
 			},
 			when: this.addToWorkspaceFolderRecommendationsContextKey
 		});

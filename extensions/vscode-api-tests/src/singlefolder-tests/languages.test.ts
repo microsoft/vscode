@@ -178,8 +178,8 @@ suite('languages namespace tests', () => {
 		await vscode.workspace.openTextDocument(uri);
 		const result = await vscode.commands.executeCommand<vscode.CompletionList>('vscode.executeCompletionItemProvider', uri, new vscode.Position(1, 0));
 		r1.dispose();
-		assert.ok(ran);
-		assert.equal(result!.items[0].label, 'foo');
+		assert.ok(ran, 'Provider has not been invoked');
+		assert.ok(result!.items.some(i => i.label === 'foo'), 'Results do not include "foo"');
 	});
 
 });

@@ -24,6 +24,7 @@
 
 .monaco-editor .zone-widget .zone-widget-container.exception-widget .stack-trace {
 	margin-top: 0.5em;
+	max-height: 500px;
 }
 
 .monaco-editor .zone-widget .zone-widget-container.exception-widget a {

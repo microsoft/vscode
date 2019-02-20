@@ -752,7 +752,8 @@ CommandsRegistry.registerCommand({
 
 		// List
 		if (focused instanceof List || focused instanceof PagedList) {
-			// TODO@joao
+			const list = focused;
+			list.toggleKeyboardNavigation();
 		}
 
 		// ObjectTree

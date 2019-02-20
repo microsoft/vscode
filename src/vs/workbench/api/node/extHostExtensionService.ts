@@ -18,7 +18,7 @@ import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration
 import { ActivatedExtension, EmptyExtension, ExtensionActivatedByAPI, ExtensionActivatedByEvent, ExtensionActivationReason, ExtensionActivationTimes, ExtensionActivationTimesBuilder, ExtensionsActivator, IExtensionAPI, IExtensionContext, IExtensionMemento, IExtensionModule, HostExtension } from 'vs/workbench/api/node/extHostExtensionActivator';
 import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
 import { ExtHostStorage } from 'vs/workbench/api/node/extHostStorage';
-import { ExtHostWorkspace, ExtHostWorkspaceProvider } from 'vs/workbench/api/node/extHostWorkspace';
+import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
 import { connectProxyResolver } from 'vs/workbench/services/extensions/node/proxyResolver';
@@ -166,7 +166,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	private readonly _storage: ExtHostStorage;
 	private readonly _storagePath: ExtensionStoragePath;
 	private readonly _activator: ExtensionsActivator;
-	private _extensionPathIndex: Promise<TernarySearchTree<IExtensionDescription>>;
+	private _extensionPathIndex: Promise<TernarySearchTree<IExtensionDescription>> | null;
 	private readonly _extensionApiFactory: IExtensionApiFactory;
 
 	private readonly _resolvers: { [authorityPrefix: string]: vscode.RemoteAuthorityResolver; };
@@ -222,7 +222,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 					await this._mainThreadExtensionsProxy.$activateExtension(extensionId, activationEvent);
 					return new HostExtension();
 				}
-				const extensionDescription = this._registry.getExtensionDescription(extensionId);
+				const extensionDescription = this._registry.getExtensionDescription(extensionId)!;
 				return this._activateExtension(extensionDescription, reason);
 			}
 		});
@@ -245,10 +245,10 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	private async _initialize(): Promise<void> {
 		try {
 			const configProvider = await this._extHostConfiguration.getConfigProvider();
-			const workspaceProvider = await this._extHostWorkspace.getWorkspaceProvider();
-			await initializeExtensionApi(this, this._extensionApiFactory, this._registry, workspaceProvider, configProvider);
+			await this._extHostWorkspace.waitForInitializeCall();
+			await initializeExtensionApi(this, this._extensionApiFactory, this._registry, configProvider);
 			// Do this when extension service exists, but extensions are not being activated yet.
-			await connectProxyResolver(workspaceProvider, configProvider, this, this._extHostLogService, this._mainThreadTelemetryProxy);
+			await connectProxyResolver(this._extHostWorkspace, configProvider, this, this._extHostLogService, this._mainThreadTelemetryProxy);
 			this._barrier.open();
 		} catch (err) {
 			errors.onUnexpectedError(err);
@@ -302,7 +302,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		return this._barrier.wait().then(_ => this._registry);
 	}
 
-	public getExtensionExports(extensionId: ExtensionIdentifier): IExtensionAPI {
+	public getExtensionExports(extensionId: ExtensionIdentifier): IExtensionAPI | null | undefined {
 		if (this._barrier.isOpen()) {
 			return this._activator.getActivatedExtension(extensionId).exports;
 		} else {
@@ -490,12 +490,12 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	// -- eager activation
 
 	// Handle "eager" activation extensions
-	private _handleEagerExtensions(workspaceProvider: ExtHostWorkspaceProvider): Promise<void> {
+	private _handleEagerExtensions(): Promise<void> {
 		this._activateByEvent('*', true).then(undefined, (err) => {
 			console.error(err);
 		});
 
-		return this._handleWorkspaceContainsEagerExtensions(workspaceProvider.workspace);
+		return this._handleWorkspaceContainsEagerExtensions(this._extHostWorkspace.workspace);
 	}
 
 	private _handleWorkspaceContainsEagerExtensions(workspace: IWorkspace | undefined): Promise<void> {
@@ -624,7 +624,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		// Execute the runner if it follows our spec
 		if (testRunner && typeof testRunner.run === 'function') {
 			return new Promise<void>((c, e) => {
-				testRunner!.run(this._initData.environment.extensionTestsPath, (error, failures) => {
+				testRunner!.run(this._initData.environment.extensionTestsPath!, (error, failures) => {
 					if (error) {
 						e(error.toString());
 					} else {
@@ -658,8 +658,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		this._started = true;
 
 		return this._barrier.wait()
-			.then(() => this._extHostWorkspace.getWorkspaceProvider())
-			.then(workspaceProvider => this._handleEagerExtensions(workspaceProvider))
+			.then(() => this._handleEagerExtensions())
 			.then(() => this._handleExtensionTests())
 			.then(() => {
 				this._extHostLogService.info(`eager extensions activated`);
@@ -671,7 +670,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	public registerRemoteAuthorityResolver(authorityPrefix: string, resolver: vscode.RemoteAuthorityResolver): vscode.Disposable {
 		this._resolvers[authorityPrefix] = resolver;
 		return toDisposable(() => {
-			this._resolvers[authorityPrefix] = null;
+			delete this._resolvers[authorityPrefix];
 		});
 	}
 

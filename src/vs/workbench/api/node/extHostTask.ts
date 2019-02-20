@@ -16,7 +16,7 @@ import { IExtensionDescription } from 'vs/workbench/services/extensions/common/e
 import { MainContext, MainThreadTaskShape, ExtHostTaskShape, IMainContext } from 'vs/workbench/api/node/extHost.protocol';
 
 import * as types from 'vs/workbench/api/node/extHostTypes';
-import { ExtHostWorkspace, ExtHostWorkspaceProvider } from 'vs/workbench/api/node/extHostWorkspace';
+import { ExtHostWorkspace, IExtHostWorkspaceProvider } from 'vs/workbench/api/node/extHostWorkspace';
 import * as vscode from 'vscode';
 import {
 	TaskDefinitionDTO, TaskExecutionDTO, TaskPresentationOptionsDTO,
@@ -168,7 +168,7 @@ namespace CustomExecutionDTO {
 
 namespace TaskHandleDTO {
 	export function from(value: types.Task): TaskHandleDTO {
-		let folder: UriComponents;
+		let folder: UriComponents | undefined;
 		if (value.scope !== undefined && typeof value.scope !== 'number') {
 			folder = value.scope.uri;
 		}
@@ -199,7 +199,7 @@ namespace TaskDTO {
 		if (value === undefined || value === null) {
 			return undefined;
 		}
-		let execution: ShellExecutionDTO | ProcessExecutionDTO | CustomExecutionDTO;
+		let execution: ShellExecutionDTO | ProcessExecutionDTO | CustomExecutionDTO | undefined;
 		if (value.execution instanceof types.ProcessExecution) {
 			execution = ProcessExecutionDTO.from(value.execution);
 		} else if (value.execution instanceof types.ShellExecution) {
@@ -243,24 +243,24 @@ namespace TaskDTO {
 		};
 		return result;
 	}
-	export function to(value: TaskDTO, workspace: ExtHostWorkspaceProvider): types.Task {
+	export async function to(value: TaskDTO, workspace: IExtHostWorkspaceProvider): Promise<types.Task> {
 		if (value === undefined || value === null) {
 			return undefined;
 		}
-		let execution: types.ShellExecution | types.ProcessExecution;
+		let execution: types.ShellExecution | types.ProcessExecution | undefined;
 		if (ProcessExecutionDTO.is(value.execution)) {
 			execution = ProcessExecutionDTO.to(value.execution);
 		} else if (ShellExecutionDTO.is(value.execution)) {
 			execution = ShellExecutionDTO.to(value.execution);
 		}
 		let definition: vscode.TaskDefinition = TaskDefinitionDTO.to(value.definition);
-		let scope: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder;
+		let scope: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder | undefined;
 		if (value.source) {
 			if (value.source.scope !== undefined) {
 				if (typeof value.source.scope === 'number') {
 					scope = value.source.scope;
 				} else {
-					scope = workspace.resolveWorkspaceFolder(URI.revive(value.source.scope));
+					scope = await workspace.resolveWorkspaceFolder2(URI.revive(value.source.scope));
 				}
 			} else {
 				scope = types.TaskScope.Workspace;
@@ -320,8 +320,8 @@ class TaskExecutionImpl implements vscode.TaskExecution {
 }
 
 namespace TaskExecutionDTO {
-	export function to(value: TaskExecutionDTO, tasks: ExtHostTask, workspaceProvider: ExtHostWorkspaceProvider): vscode.TaskExecution {
-		return new TaskExecutionImpl(tasks, value.id, TaskDTO.to(value.task, workspaceProvider));
+	export async function to(value: TaskExecutionDTO, tasks: ExtHostTask, workspaceProvider: IExtHostWorkspaceProvider): Promise<vscode.TaskExecution> {
+		return new TaskExecutionImpl(tasks, value.id, await TaskDTO.to(value.task, workspaceProvider));
 	}
 	export function from(value: vscode.TaskExecution): TaskExecutionDTO {
 		return {
@@ -417,7 +417,7 @@ class CustomExecutionData implements IDisposable {
 export class ExtHostTask implements ExtHostTaskShape {
 
 	private _proxy: MainThreadTaskShape;
-	private _workspaceService: ExtHostWorkspace;
+	private _workspaceProvider: IExtHostWorkspaceProvider;
 	private _editorService: ExtHostDocumentsAndEditors;
 	private _configurationService: ExtHostConfiguration;
 	private _terminalService: ExtHostTerminalService;
@@ -440,7 +440,7 @@ export class ExtHostTask implements ExtHostTaskShape {
 		configurationService: ExtHostConfiguration,
 		extHostTerminalService: ExtHostTerminalService) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadTask);
-		this._workspaceService = workspaceService;
+		this._workspaceProvider = workspaceService;
 		this._editorService = editorService;
 		this._configurationService = configurationService;
 		this._terminalService = extHostTerminalService;
@@ -471,9 +471,8 @@ export class ExtHostTask implements ExtHostTaskShape {
 	public fetchTasks(filter?: vscode.TaskFilter): Promise<vscode.Task[]> {
 		return this._proxy.$fetchTasks(TaskFilterDTO.from(filter)).then(async (values) => {
 			let result: vscode.Task[] = [];
-			const workspaceProvider = await this._workspaceService.getWorkspaceProvider();
 			for (let value of values) {
-				let task = TaskDTO.to(value, workspaceProvider);
+				let task = await TaskDTO.to(value, this._workspaceProvider);
 				if (task) {
 					result.push(task);
 				}
@@ -483,17 +482,16 @@ export class ExtHostTask implements ExtHostTaskShape {
 	}
 
 	public async executeTask(extension: IExtensionDescription, task: vscode.Task): Promise<vscode.TaskExecution> {
-		const workspaceProvider = await this._workspaceService.getWorkspaceProvider();
 		let tTask = (task as types.Task);
 		// We have a preserved ID. So the task didn't change.
 		if (tTask._id !== undefined) {
-			return this._proxy.$executeTask(TaskHandleDTO.from(tTask)).then(value => this.getTaskExecution(value, workspaceProvider, task));
+			return this._proxy.$executeTask(TaskHandleDTO.from(tTask)).then(value => this.getTaskExecution(value, task));
 		} else {
 			let dto = TaskDTO.from(task, extension);
 			if (dto === undefined) {
 				return Promise.reject(new Error('Task is not valid'));
 			}
-			return this._proxy.$executeTask(dto).then(value => this.getTaskExecution(value, workspaceProvider, task));
+			return this._proxy.$executeTask(dto).then(value => this.getTaskExecution(value, task));
 		}
 	}
 
@@ -534,9 +532,8 @@ export class ExtHostTask implements ExtHostTaskShape {
 			extensionCallback.startCallback(terminalId);
 		}
 
-		const workspaceProvider = await this._workspaceService.getWorkspaceProvider();
 		this._onDidExecuteTask.fire({
-			execution: this.getTaskExecution(execution, workspaceProvider)
+			execution: await this.getTaskExecution(execution)
 		});
 	}
 
@@ -545,8 +542,7 @@ export class ExtHostTask implements ExtHostTaskShape {
 	}
 
 	public async $OnDidEndTask(execution: TaskExecutionDTO): Promise<void> {
-		const workspaceProvider = await this._workspaceService.getWorkspaceProvider();
-		const _execution = this.getTaskExecution(execution, workspaceProvider);
+		const _execution = await this.getTaskExecution(execution);
 		this._taskExecutions.delete(execution.id);
 		this.customExecutionComplete(execution);
 		this._onDidTerminateTask.fire({
@@ -559,8 +555,7 @@ export class ExtHostTask implements ExtHostTaskShape {
 	}
 
 	public async $onDidStartTaskProcess(value: TaskProcessStartedDTO): Promise<void> {
-		const workspaceProvider = await this._workspaceService.getWorkspaceProvider();
-		const execution = this.getTaskExecution(value.id, workspaceProvider);
+		const execution = await this.getTaskExecution(value.id);
 		if (execution) {
 			this._onDidTaskProcessStarted.fire({
 				execution: execution,
@@ -574,8 +569,7 @@ export class ExtHostTask implements ExtHostTaskShape {
 	}
 
 	public async $onDidEndTaskProcess(value: TaskProcessEndedDTO): Promise<void> {
-		const workspaceProvider = await this._workspaceService.getWorkspaceProvider();
-		const execution = this.getTaskExecution(value.id, workspaceProvider);
+		const execution = await this.getTaskExecution(value.id);
 		if (execution) {
 			this._onDidTaskProcessEnded.fire({
 				execution: execution,
@@ -644,14 +638,14 @@ export class ExtHostTask implements ExtHostTaskShape {
 
 	public async $resolveVariables(uriComponents: UriComponents, toResolve: { process?: { name: string; cwd?: string; path?: string }, variables: string[] }): Promise<{ process?: string, variables: { [key: string]: string; } }> {
 		const configProvider = await this._configurationService.getConfigProvider();
-		const workspaceProvider = await this._workspaceService.getWorkspaceProvider();
 		let uri: URI = URI.revive(uriComponents);
 		let result = {
 			process: undefined as string,
 			variables: Object.create(null)
 		};
-		let workspaceFolder = workspaceProvider.resolveWorkspaceFolder(uri);
-		let resolver = new ExtHostVariableResolverService(workspaceProvider, this._editorService, configProvider);
+		let workspaceFolder = await this._workspaceProvider.resolveWorkspaceFolder2(uri);
+		const workspaceFolders = await this._workspaceProvider.getWorkspaceFolders2();
+		let resolver = new ExtHostVariableResolverService(workspaceFolders, this._editorService, configProvider);
 		let ws: IWorkspaceFolder = {
 			uri: workspaceFolder.uri,
 			name: workspaceFolder.name,
@@ -684,7 +678,7 @@ export class ExtHostTask implements ExtHostTaskShape {
 		return this._handleCounter++;
 	}
 
-	private getTaskExecution(execution: TaskExecutionDTO | string, workspaceProvider: ExtHostWorkspaceProvider, task?: vscode.Task): TaskExecutionImpl {
+	private async getTaskExecution(execution: TaskExecutionDTO | string, task?: vscode.Task): Promise<TaskExecutionImpl> {
 		if (typeof execution === 'string') {
 			return this._taskExecutions.get(execution);
 		}
@@ -693,7 +687,7 @@ export class ExtHostTask implements ExtHostTaskShape {
 		if (result) {
 			return result;
 		}
-		result = new TaskExecutionImpl(this, execution.id, task ? task : TaskDTO.to(execution.task, workspaceProvider));
+		result = new TaskExecutionImpl(this, execution.id, task ? task : await TaskDTO.to(execution.task, this._workspaceProvider));
 		this._taskExecutions.set(execution.id, result);
 		return result;
 	}
