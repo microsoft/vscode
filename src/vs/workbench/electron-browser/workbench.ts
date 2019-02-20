@@ -7,7 +7,7 @@ import 'vs/workbench/browser/style';
 
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
-import { EventType, addDisposableListener, addClasses, scheduleAtNextAnimationFrame, addClass, removeClass, trackFocus, isAncestor, getClientArea, position, size } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, addClasses, scheduleAtNextAnimationFrame, addClass, removeClass, trackFocus, isAncestor, getClientArea, position, size, removeClasses } from 'vs/base/browser/dom';
 import { RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
 import { getZoomLevel, onDidChangeFullscreen, isFullscreen, getZoomFactor } from 'vs/base/browser/browser';
 import { mark } from 'vs/base/common/performance';
@@ -452,7 +452,10 @@ export class Workbench extends Disposable implements IPartService {
 		this.workbench = document.createElement('div');
 		this.workbench.id = Identifiers.WORKBENCH_CONTAINER;
 
-		addClasses(this.workbench, 'monaco-workbench', isWindows ? 'windows' : isLinux ? 'linux' : 'mac');
+		const platformClass = isWindows ? 'windows' : isLinux ? 'linux' : 'mac';
+
+		addClasses(this.workbench, 'monaco-workbench', platformClass);
+		addClasses(document.body, platformClass); // used by our fonts
 	}
 
 	private initServices(serviceCollection: ServiceCollection): void {
@@ -1344,11 +1347,11 @@ export class Workbench extends Disposable implements IPartService {
 		this.fontAliasing = aliasing;
 
 		// Remove all
-		document.body.classList.remove(...fontAliasingValues.map(value => `monaco-font-aliasing-${value}`));
+		removeClasses(this.workbench, ...fontAliasingValues.map(value => `monaco-font-aliasing-${value}`));
 
 		// Add specific
 		if (fontAliasingValues.some(option => option === aliasing)) {
-			document.body.classList.add(`monaco-font-aliasing-${aliasing}`);
+			addClass(this.workbench, `monaco-font-aliasing-${aliasing}`);
 		}
 	}
 
