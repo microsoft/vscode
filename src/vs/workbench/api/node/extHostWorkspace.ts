@@ -22,9 +22,16 @@ import { Range, RelativePattern } from 'vs/workbench/api/node/extHostTypes';
 import { ITextQueryBuilderOptions } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import * as vscode from 'vscode';
-import { ExtHostWorkspaceShape, IWorkspaceData, MainThreadMessageServiceShape, MainThreadWorkspaceShape, IMainContext, MainContext } from './extHost.protocol';
+import { ExtHostWorkspaceShape, IWorkspaceData, MainThreadMessageServiceShape, MainThreadWorkspaceShape, IMainContext, MainContext, IStaticWorkspaceData } from './extHost.protocol';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { Barrier } from 'vs/base/common/async';
+
+export interface IExtHostWorkspaceProvider {
+	getWorkspaceFolder2(uri: vscode.Uri, resolveParent?: boolean): Promise<vscode.WorkspaceFolder | undefined>;
+	resolveWorkspaceFolder2(uri: vscode.Uri): Promise<vscode.WorkspaceFolder | undefined>;
+	getWorkspaceFolders2(): Promise<vscode.WorkspaceFolder[] | undefined>;
+	resolveProxy(url: string): Promise<string | undefined>;
+}
 
 function isFolderEqual(folderA: URI, folderB: URI): boolean {
 	return isEqual(folderA, folderB, !isLinux);
@@ -109,7 +116,7 @@ class ExtHostWorkspaceImpl extends Workspace {
 	private readonly _workspaceFolders: vscode.WorkspaceFolder[] = [];
 	private readonly _structure = TernarySearchTree.forPaths<vscode.WorkspaceFolder>();
 
-	private constructor(id: string, private _name: string, folders: vscode.WorkspaceFolder[]) {
+	constructor(id: string, private _name: string, folders: vscode.WorkspaceFolder[]) {
 		super(id, folders.map(f => new WorkspaceFolder(f)));
 
 		// setup the workspace folder data structure
@@ -140,51 +147,14 @@ class ExtHostWorkspaceImpl extends Workspace {
 	}
 }
 
-export class ExtHostWorkspace implements ExtHostWorkspaceShape {
+export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspaceProvider {
 
-	private readonly _mainContext: IMainContext;
+	private readonly _onDidChangeWorkspace = new Emitter<vscode.WorkspaceFoldersChangeEvent>();
+	readonly onDidChangeWorkspace: Event<vscode.WorkspaceFoldersChangeEvent> = this._onDidChangeWorkspace.event;
+
 	private readonly _logService: ILogService;
 	private readonly _requestIdProvider: Counter;
 	private readonly _barrier: Barrier;
-	private _actual: ExtHostWorkspaceProvider | null;
-
-	constructor(
-		mainContext: IMainContext,
-		logService: ILogService,
-		requestIdProvider: Counter
-	) {
-		this._mainContext = mainContext;
-		this._logService = logService;
-		this._requestIdProvider = requestIdProvider;
-		this._barrier = new Barrier();
-		this._actual = null;
-	}
-
-	public getWorkspaceProvider(): Promise<ExtHostWorkspaceProvider> {
-		return this._barrier.wait().then(_ => this._actual!);
-	}
-
-	$initializeWorkspace(data: IWorkspaceData): void {
-		this._actual = new ExtHostWorkspaceProvider(this._mainContext, data, this._logService, this._requestIdProvider);
-		this._barrier.open();
-	}
-
-	$acceptWorkspaceData(workspace: IWorkspaceData): void {
-		if (this._actual) {
-			this._actual.$acceptWorkspaceData(workspace);
-		}
-	}
-
-	$handleTextSearchResult(result: IRawFileMatch2, requestId: number): void {
-		if (this._actual) {
-			this._actual.$handleTextSearchResult(result, requestId);
-		}
-	}
-
-}
-export class ExtHostWorkspaceProvider {
-
-	private readonly _onDidChangeWorkspace = new Emitter<vscode.WorkspaceFoldersChangeEvent>();
 
 	private _confirmedWorkspace?: ExtHostWorkspaceImpl;
 	private _unconfirmedWorkspace?: ExtHostWorkspaceImpl;
@@ -192,19 +162,30 @@ export class ExtHostWorkspaceProvider {
 	private readonly _proxy: MainThreadWorkspaceShape;
 	private readonly _messageService: MainThreadMessageServiceShape;
 
-	readonly onDidChangeWorkspace: Event<vscode.WorkspaceFoldersChangeEvent> = this._onDidChangeWorkspace.event;
-
 	private readonly _activeSearchCallbacks: ((match: IRawFileMatch2) => any)[] = [];
 
 	constructor(
 		mainContext: IMainContext,
-		data: IWorkspaceData | null,
-		private _logService: ILogService,
-		private _requestIdProvider: Counter
+		logService: ILogService,
+		requestIdProvider: Counter,
+		data?: IStaticWorkspaceData
 	) {
+		this._logService = logService;
+		this._requestIdProvider = requestIdProvider;
+		this._barrier = new Barrier();
+
 		this._proxy = mainContext.getProxy(MainContext.MainThreadWorkspace);
 		this._messageService = mainContext.getProxy(MainContext.MainThreadMessageService);
-		this._confirmedWorkspace = ExtHostWorkspaceImpl.toExtHostWorkspace(data).workspace || undefined;
+		this._confirmedWorkspace = data ? new ExtHostWorkspaceImpl(data.id, data.name, []) : undefined;
+	}
+
+	$initializeWorkspace(data: IWorkspaceData): void {
+		this.$acceptWorkspaceData(data);
+		this._barrier.open();
+	}
+
+	waitForInitializeCall(): Promise<boolean> {
+		return this._barrier.wait();
 	}
 
 	// --- workspace ---
@@ -222,6 +203,14 @@ export class ExtHostWorkspaceProvider {
 	}
 
 	getWorkspaceFolders(): vscode.WorkspaceFolder[] | undefined {
+		if (!this._actualWorkspace) {
+			return undefined;
+		}
+		return this._actualWorkspace.workspaceFolders.slice(0);
+	}
+
+	async getWorkspaceFolders2(): Promise<vscode.WorkspaceFolder[] | undefined> {
+		await this._barrier.wait();
 		if (!this._actualWorkspace) {
 			return undefined;
 		}
@@ -299,7 +288,23 @@ export class ExtHostWorkspaceProvider {
 		return this._actualWorkspace.getWorkspaceFolder(uri, resolveParent);
 	}
 
+	async getWorkspaceFolder2(uri: vscode.Uri, resolveParent?: boolean): Promise<vscode.WorkspaceFolder | undefined> {
+		await this._barrier.wait();
+		if (!this._actualWorkspace) {
+			return undefined;
+		}
+		return this._actualWorkspace.getWorkspaceFolder(uri, resolveParent);
+	}
+
 	resolveWorkspaceFolder(uri: vscode.Uri): vscode.WorkspaceFolder | undefined {
+		if (!this._actualWorkspace) {
+			return undefined;
+		}
+		return this._actualWorkspace.resolveWorkspaceFolder(uri);
+	}
+
+	async resolveWorkspaceFolder2(uri: vscode.Uri): Promise<vscode.WorkspaceFolder | undefined> {
+		await this._barrier.wait();
 		if (!this._actualWorkspace) {
 			return undefined;
 		}
