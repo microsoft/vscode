@@ -86,6 +86,11 @@ export interface IWorkspaceFolderCreationData {
 	name?: string;
 }
 
+export interface IUntitledWorkspaceInfo {
+	workspace: IWorkspaceIdentifier;
+	remoteAuthority?: string;
+}
+
 export interface IWorkspacesMainService extends IWorkspacesService {
 	_serviceBrand: any;
 
@@ -101,7 +106,7 @@ export interface IWorkspacesMainService extends IWorkspacesService {
 
 	deleteUntitledWorkspaceSync(workspace: IWorkspaceIdentifier): void;
 
-	getUntitledWorkspacesSync(): IWorkspaceIdentifier[];
+	getUntitledWorkspacesSync(): IUntitledWorkspaceInfo[];
 
 	getWorkspaceIdentifier(workspacePath: URI): IWorkspaceIdentifier;
 }

@@ -359,7 +359,7 @@ suite('WorkspacesMainService', () => {
 			untitled = service.getUntitledWorkspacesSync();
 
 			assert.equal(1, untitled.length);
-			assert.equal(untitledOne.id, untitled[0].id);
+			assert.equal(untitledOne.id, untitled[0].workspace.id);
 
 			return createWorkspace([os.tmpdir(), process.cwd()]).then(untitledTwo => {
 				assert.ok(fs.existsSync(untitledTwo.configPath.fsPath));
