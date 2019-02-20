@@ -9,7 +9,7 @@ import * as path from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
 import { writeFileAndFlushSync } from 'vs/base/node/extfs';
 import * as arrays from 'vs/base/common/arrays';
-import { IBackupMainService, IBackupWorkspacesFormat, IEmptyWindowBackupInfo } from 'vs/platform/backup/common/backup';
+import { IBackupMainService, IBackupWorkspacesFormat, IEmptyWindowBackupInfo, IWorkspaceBackupInfo } from 'vs/platform/backup/common/backup';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFilesConfiguration, HotExitConfiguration } from 'vs/platform/files/common/files';
@@ -28,7 +28,7 @@ export class BackupMainService implements IBackupMainService {
 	protected backupHome: string;
 	protected workspacesJsonPath: string;
 
-	private rootWorkspaces: IWorkspaceIdentifier[];
+	private rootWorkspaces: IWorkspaceBackupInfo[];
 	private folderWorkspaces: URI[];
 	private emptyWorkspaces: IEmptyWindowBackupInfo[];
 
@@ -60,12 +60,12 @@ export class BackupMainService implements IBackupMainService {
 		}
 
 		// read workspace backups
-		let rootWorkspaces: IWorkspaceIdentifier[] = [];
+		let rootWorkspaces: IWorkspaceBackupInfo[] = [];
 		try {
 			if (Array.isArray(backups.rootURIWorkspaces)) {
-				rootWorkspaces = backups.rootURIWorkspaces.map(f => ({ id: f.id, configPath: URI.parse(f.configURIPath) }));
+				rootWorkspaces = backups.rootURIWorkspaces.map(f => ({ workspace: { id: f.id, configPath: URI.parse(f.configURIPath) }, remoteAuthority: f.remoteAuthority }));
 			} else if (Array.isArray(backups.rootWorkspaces)) {
-				rootWorkspaces = backups.rootWorkspaces.map(f => ({ id: f.id, configPath: URI.file(f.configPath) }));
+				rootWorkspaces = backups.rootWorkspaces.map(f => ({ workspace: { id: f.id, configPath: URI.file(f.configPath) } }));
 			}
 		} catch (e) {
 			// ignore URI parsing exceptions
@@ -100,7 +100,7 @@ export class BackupMainService implements IBackupMainService {
 		await this.save();
 	}
 
-	getWorkspaceBackups(): IWorkspaceIdentifier[] {
+	getWorkspaceBackups(): IWorkspaceBackupInfo[] {
 		if (this.isHotExitOnExitAndWindowClose()) {
 			// Only non-folder windows are restored on main process launch when
 			// hot exit is configured as onExitAndWindowClose.
@@ -138,13 +138,13 @@ export class BackupMainService implements IBackupMainService {
 		return this.emptyWorkspaces.slice(0); // return a copy
 	}
 
-	registerWorkspaceBackupSync(workspace: IWorkspaceIdentifier, migrateFrom?: string): string {
-		if (!this.rootWorkspaces.some(w => w.id === workspace.id)) {
-			this.rootWorkspaces.push(workspace);
+	registerWorkspaceBackupSync(workspaceInfo: IWorkspaceBackupInfo, migrateFrom?: string): string {
+		if (!this.rootWorkspaces.some(w => workspaceInfo.workspace.id === w.workspace.id)) {
+			this.rootWorkspaces.push(workspaceInfo);
 			this.saveSync();
 		}
 
-		const backupPath = this.getBackupPath(workspace.id);
+		const backupPath = this.getBackupPath(workspaceInfo.workspace.id);
 
 		if (migrateFrom) {
 			this.moveBackupFolderSync(backupPath, migrateFrom);
@@ -188,7 +188,8 @@ export class BackupMainService implements IBackupMainService {
 	}
 
 	unregisterWorkspaceBackupSync(workspace: IWorkspaceIdentifier): void {
-		let index = arrays.firstIndex(this.rootWorkspaces, w => w.id === workspace.id);
+		const id = workspace.id;
+		let index = arrays.firstIndex(this.rootWorkspaces, w => w.workspace.id === id);
 		if (index !== -1) {
 			this.rootWorkspaces.splice(index, 1);
 			this.saveSync();
@@ -241,16 +242,17 @@ export class BackupMainService implements IBackupMainService {
 		return path.join(this.backupHome, oldFolderHash);
 	}
 
-	private async validateWorkspaces(rootWorkspaces: IWorkspaceIdentifier[]): Promise<IWorkspaceIdentifier[]> {
+	private async validateWorkspaces(rootWorkspaces: IWorkspaceBackupInfo[]): Promise<IWorkspaceBackupInfo[]> {
 		if (!Array.isArray(rootWorkspaces)) {
 			return [];
 		}
 
 		const seenIds: { [id: string]: boolean } = Object.create(null);
-		const result: IWorkspaceIdentifier[] = [];
+		const result: IWorkspaceBackupInfo[] = [];
 
 		// Validate Workspaces
-		for (let workspace of rootWorkspaces) {
+		for (let workspaceInfo of rootWorkspaces) {
+			const workspace = workspaceInfo.workspace;
 			if (!isWorkspaceIdentifier(workspace)) {
 				return []; // wrong format, skip all entries
 			}
@@ -264,7 +266,7 @@ export class BackupMainService implements IBackupMainService {
 				// If the workspace has no backups, ignore it
 				if (hasBackups) {
 					if (workspace.configPath.scheme !== Schemas.file || await exists(workspace.configPath.fsPath)) {
-						result.push(workspace);
+						result.push(workspaceInfo);
 					} else {
 						// If the workspace has backups, but the target workspace is missing, convert backups to empty ones
 						await this.convertToEmptyWindowBackup(backupPath);
@@ -431,7 +433,7 @@ export class BackupMainService implements IBackupMainService {
 
 	private serializeBackups(): IBackupWorkspacesFormat {
 		return {
-			rootURIWorkspaces: this.rootWorkspaces.map(f => ({ id: f.id, configURIPath: f.configPath.toString() })),
+			rootURIWorkspaces: this.rootWorkspaces.map(f => ({ id: f.workspace.id, configURIPath: f.workspace.configPath.toString(), remoteAuthority: f.remoteAuthority })),
 			folderURIWorkspaces: this.folderWorkspaces.map(f => f.toString()),
 			emptyWorkspaceInfos: this.emptyWorkspaces,
 			emptyWorkspaces: this.emptyWorkspaces.map(info => info.backupFolder)

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkspacesMainService, IWorkspaceIdentifier, hasWorkspaceFileExtension, UNTITLED_WORKSPACE_NAME, IResolvedWorkspace, IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, rewriteWorkspaceFileForNewLocation, getStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspacesMainService, IWorkspaceIdentifier, hasWorkspaceFileExtension, UNTITLED_WORKSPACE_NAME, IResolvedWorkspace, IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, massageFolderPathForWorkspace, rewriteWorkspaceFileForNewLocation, IUntitledWorkspaceInfo, getStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { join, dirname } from 'vs/base/common/path';
 import { mkdirp, writeFile, readFile } from 'vs/base/node/pfs';
@@ -20,6 +20,7 @@ import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { originalFSPath, dirname as resourcesDirname, isEqualOrParent, joinPath } from 'vs/base/common/resources';
+import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 
 export interface IStoredWorkspace {
 	folders: IStoredWorkspaceFolder[];
@@ -219,16 +220,18 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 		}
 	}
 
-	getUntitledWorkspacesSync(): IWorkspaceIdentifier[] {
-		let untitledWorkspaces: IWorkspaceIdentifier[] = [];
+	getUntitledWorkspacesSync(): IUntitledWorkspaceInfo[] {
+		let untitledWorkspaces: IUntitledWorkspaceInfo[] = [];
 		try {
 			const untitledWorkspacePaths = readdirSync(this.untitledWorkspacesHome.fsPath).map(folder => joinPath(this.untitledWorkspacesHome, folder, UNTITLED_WORKSPACE_NAME));
 			for (const untitledWorkspacePath of untitledWorkspacePaths) {
 				const workspace = this.getWorkspaceIdentifier(untitledWorkspacePath);
-				if (!this.resolveLocalWorkspaceSync(untitledWorkspacePath)) {
+				const resolvedWorkspace = this.resolveLocalWorkspaceSync(untitledWorkspacePath);
+				if (!resolvedWorkspace) {
 					this.doDeleteUntitledWorkspaceSync(workspace);
 				} else {
-					untitledWorkspaces.push(workspace);
+					const remoteAuthority = resolvedWorkspace.folders.length ? getRemoteAuthority(resolvedWorkspace.folders[0].uri) : undefined;
+					untitledWorkspaces.push({workspace, remoteAuthority});
 				}
 			}
 		} catch (error) {
