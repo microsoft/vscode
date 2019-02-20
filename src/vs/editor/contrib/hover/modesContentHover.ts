@@ -479,6 +479,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		const messageElement = dom.append(markerElement, $('span'));
 		messageElement.style.whiteSpace = 'pre-wrap';
 		messageElement.innerText = message;
+		this._editor.applyFontInfo(messageElement);
 
 		if (source || code) {
 			const detailsElement = dom.append(markerElement, $('span'));
@@ -492,7 +493,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				const relatedInfoContainer = dom.append(markerElement, $('div'));
 				relatedInfoContainer.style.marginTop = '8px';
 				const a = dom.append(relatedInfoContainer, $('a'));
-				a.innerText = `${basename(resource)}(${startLineNumber}, ${startColumn})`;
+				a.innerText = `${basename(resource)}(${startLineNumber}, ${startColumn}): `;
 				a.style.cursor = 'pointer';
 				a.onclick = e => {
 					e.stopPropagation();
@@ -502,7 +503,8 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 					}
 				};
 				const messageElement = dom.append<HTMLAnchorElement>(relatedInfoContainer, $('span'));
-				messageElement.innerText = `: ${message}`;
+				messageElement.innerText = message;
+				this._editor.applyFontInfo(messageElement);
 			}
 		}
 
