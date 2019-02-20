@@ -439,6 +439,29 @@ export class OrganizeImportsAction extends EditorAction {
 	}
 }
 
+export class FixAllAction extends EditorAction {
+
+	static readonly Id = 'editor.action.fixAll';
+
+	constructor() {
+		super({
+			id: FixAllAction.Id,
+			label: nls.localize('fixAll.label', "Fix All"),
+			alias: 'Fix All',
+			precondition: ContextKeyExpr.and(
+				EditorContextKeys.writable,
+				contextKeyForSupportedActions(CodeActionKind.SourceFixAll))
+		});
+	}
+
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
+		return showCodeActionsForEditorSelection(editor,
+			nls.localize('fixAll.noneMessage', "No fix all action available"),
+			{ kind: CodeActionKind.SourceFixAll, includeSourceActions: true },
+			CodeActionAutoApply.IfSingle);
+	}
+}
+
 export class AutoFixAction extends EditorAction {
 
 	static readonly Id = 'editor.action.autoFix';
