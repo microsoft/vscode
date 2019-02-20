@@ -222,6 +222,7 @@ export class WebviewEditor extends BaseWebviewEditor {
 				{
 					allowSvgs: true,
 					extensionLocation: input.extensionLocation,
+					enableFindWidget: input.options.enableFindWidget
 				},
 				{});
 			this._webview.mountTo(this._webviewContent);

@@ -113,10 +113,11 @@ export class MainThreadWebviews implements MainThreadWebviewsShape {
 			this._partService.getContainer(Parts.EDITOR_PART),
 			{
 				useSameOriginForRoot: true,
-				extensionLocation: URI.revive(extensionLocation)
+				extensionLocation: URI.revive(extensionLocation),
+				enableFindWidget: false,
 			},
 			{
-				allowScripts: options.enableScripts
+				allowScripts: options.enableScripts,
 			}
 		);
 
