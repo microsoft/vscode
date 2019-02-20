@@ -51,6 +51,7 @@
 .search-view .search-widget .monaco-findInput {
 	display: inline-block;
 	vertical-align: middle;
+	width: 100%;
 }
 
 .search-view .search-widget .replace-container {
@@ -182,6 +183,7 @@
 .search-view .linematch > .match {
 	overflow: hidden;
 	text-overflow: ellipsis;
+	white-space: pre;
 }
 
 .search-view .linematch .matchLineNum {

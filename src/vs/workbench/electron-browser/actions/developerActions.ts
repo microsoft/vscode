@@ -15,6 +15,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Context } from 'vs/platform/contextkey/browser/contextKeyService';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { timeout } from 'vs/base/common/async';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
 
 export class ToggleDevToolsAction extends Action {
 
@@ -115,7 +116,12 @@ export class ToggleScreencastModeAction extends Action {
 
 	static disposable: IDisposable | undefined;
 
-	constructor(id: string, label: string, @IKeybindingService private readonly keybindingService: IKeybindingService) {
+	constructor(
+		id: string,
+		label: string,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IPartService private readonly partService: IPartService
+	) {
 		super(id, label);
 	}
 
@@ -126,7 +132,9 @@ export class ToggleScreencastModeAction extends Action {
 			return;
 		}
 
-		const mouseMarker = append(document.body, $('div'));
+		const container = this.partService.getWorkbenchElement();
+
+		const mouseMarker = append(container, $('div'));
 		mouseMarker.style.position = 'absolute';
 		mouseMarker.style.border = '2px solid red';
 		mouseMarker.style.borderRadius = '20px';
@@ -139,9 +147,9 @@ export class ToggleScreencastModeAction extends Action {
 		mouseMarker.style.pointerEvents = 'none';
 		mouseMarker.style.display = 'none';
 
-		const onMouseDown = domEvent(document.body, 'mousedown', true);
-		const onMouseUp = domEvent(document.body, 'mouseup', true);
-		const onMouseMove = domEvent(document.body, 'mousemove', true);
+		const onMouseDown = domEvent(container, 'mousedown', true);
+		const onMouseUp = domEvent(container, 'mouseup', true);
+		const onMouseMove = domEvent(container, 'mousemove', true);
 
 		const mouseListener = onMouseDown(e => {
 			mouseMarker.style.top = `${e.clientY - 10}px`;
@@ -159,7 +167,7 @@ export class ToggleScreencastModeAction extends Action {
 			});
 		});
 
-		const keyboardMarker = append(document.body, $('div'));
+		const keyboardMarker = append(container, $('div'));
 		keyboardMarker.style.position = 'absolute';
 		keyboardMarker.style.backgroundColor = 'rgba(0, 0, 0 ,0.5)';
 		keyboardMarker.style.width = '100%';
@@ -174,7 +182,7 @@ export class ToggleScreencastModeAction extends Action {
 		keyboardMarker.style.fontSize = '56px';
 		keyboardMarker.style.display = 'none';
 
-		const onKeyDown = domEvent(document.body, 'keydown', true);
+		const onKeyDown = domEvent(container, 'keydown', true);
 		let keyboardTimeout: IDisposable = Disposable.None;
 
 		const keyboardListener = onKeyDown(e => {
@@ -204,7 +212,8 @@ export class ToggleScreencastModeAction extends Action {
 		ToggleScreencastModeAction.disposable = toDisposable(() => {
 			mouseListener.dispose();
 			keyboardListener.dispose();
-			document.body.removeChild(mouseMarker);
+			mouseMarker.remove();
+			keyboardMarker.remove();
 		});
 	}
 }

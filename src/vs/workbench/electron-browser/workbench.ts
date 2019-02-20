@@ -145,7 +145,7 @@ import { BackupFileService, InMemoryBackupFileService } from 'vs/workbench/servi
 import { WorkspaceService, DefaultConfigurationExportHelper } from 'vs/workbench/services/configuration/node/configurationService';
 import { JSONEditingService } from 'vs/workbench/services/configuration/node/jsonEditingService';
 import { WorkspaceEditingService } from 'vs/workbench/services/workspace/node/workspaceEditingService';
-import { IPCClient, getDelayedChannel } from 'vs/base/parts/ipc/node/ipc';
+import { getDelayedChannel } from 'vs/base/parts/ipc/node/ipc';
 import { LogStorageAction } from 'vs/platform/storage/node/storageService';
 import { HashService } from 'vs/workbench/services/hash/node/hashService';
 import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
@@ -173,7 +173,6 @@ import { RemoteFileService } from 'vs/workbench/services/files/electron-browser/
 import { ClipboardService } from 'vs/platform/clipboard/electron-browser/clipboardService';
 import { LifecycleService } from 'vs/platform/lifecycle/electron-browser/lifecycleService';
 import { ToggleDevToolsAction } from 'vs/workbench/electron-browser/actions/developerActions';
-import { registerWindowDriver } from 'vs/platform/driver/electron-browser/driver';
 import { IExtensionUrlHandler, ExtensionUrlHandler } from 'vs/workbench/services/extensions/electron-browser/inactiveExtensionUrlHandler';
 import { WorkbenchThemeService } from 'vs/workbench/services/themes/browser/workbenchThemeService';
 import { DialogService, FileDialogService } from 'vs/workbench/services/dialogs/electron-browser/dialogService';
@@ -186,11 +185,6 @@ import { ExtensionService } from 'vs/workbench/services/extensions/electron-brow
 import { TextResourcePropertiesService } from 'vs/workbench/services/textfile/electron-browser/textResourcePropertiesService';
 import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
 import { TextMateService } from 'vs/workbench/services/textMate/electron-browser/TMSyntax';
-
-interface WorkbenchParams {
-	configuration: IWindowConfiguration;
-	serviceCollection: ServiceCollection;
-}
 
 interface IZenModeSettings {
 	fullScreen: boolean;
@@ -260,18 +254,17 @@ export class Workbench extends Disposable implements IPartService {
 	private static readonly closeWhenEmptyConfigurationKey = 'window.closeWhenEmpty';
 	private static readonly fontAliasingConfigurationKey = 'workbench.fontAliasing';
 
+	_serviceBrand: any;
+
 	private readonly _onShutdown = this._register(new Emitter<void>());
 	get onShutdown(): Event<void> { return this._onShutdown.event; }
 
 	private readonly _onWillShutdown = this._register(new Emitter<WillShutdownEvent>());
 	get onWillShutdown(): Event<WillShutdownEvent> { return this._onWillShutdown.event; }
 
-	_serviceBrand: any;
-
 	private previousErrorValue: string;
 	private previousErrorTime: number = 0;
 
-	private workbenchParams: WorkbenchParams;
 	private workbench: HTMLElement;
 	private workbenchStarted: boolean;
 	private workbenchRestored: boolean;
@@ -338,8 +331,7 @@ export class Workbench extends Disposable implements IPartService {
 	constructor(
 		private container: HTMLElement,
 		private configuration: IWindowConfiguration,
-		serviceCollection: ServiceCollection,
-		private mainProcessClient: IPCClient,
+		private serviceCollection: ServiceCollection,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -349,8 +341,6 @@ export class Workbench extends Disposable implements IPartService {
 		@IWindowsService private readonly windowsService: IWindowsService
 	) {
 		super();
-
-		this.workbenchParams = { configuration, serviceCollection };
 
 		this.hasInitialFilesToOpen = !!(
 			(configuration.filesToCreate && configuration.filesToCreate.length > 0) ||
@@ -399,9 +389,9 @@ export class Workbench extends Disposable implements IPartService {
 		}
 	}
 
-	startup(): Promise<void> {
+	startup(): void {
 		try {
-			return this.doStartup().then(undefined, error => this.logService.error(toErrorMessage(error, true)));
+			this.doStartup().then(undefined, error => this.logService.error(toErrorMessage(error, true)));
 		} catch (error) {
 			this.logService.error(toErrorMessage(error, true));
 
@@ -432,7 +422,7 @@ export class Workbench extends Disposable implements IPartService {
 		this.createGlobalActions();
 
 		// Services
-		this.initServices();
+		this.initServices(this.serviceCollection);
 
 		// Context Keys
 		this.handleContextKeys();
@@ -451,11 +441,6 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Layout
 		this.layout();
-
-		// Driver
-		if (this.environmentService.driverHandle) {
-			registerWindowDriver(this.mainProcessClient, this.configuration.windowId, this.instantiationService).then(disposable => this._register(disposable));
-		}
 
 		// Handle case where workbench is not starting up properly
 		const timeoutHandle = setTimeout(() => {
@@ -500,8 +485,7 @@ export class Workbench extends Disposable implements IPartService {
 		}
 	}
 
-	private initServices(): void {
-		const { serviceCollection } = this.workbenchParams;
+	private initServices(serviceCollection: ServiceCollection): void {
 
 		// Parts
 		serviceCollection.set(IPartService, this);
@@ -731,8 +715,8 @@ export class Workbench extends Disposable implements IPartService {
 		serviceCollection.set(IFileDialogService, new SyncDescriptor(FileDialogService));
 
 		// Backup File Service
-		if (this.workbenchParams.configuration.backupPath) {
-			this.backupFileService = this.instantiationService.createInstance(BackupFileService, this.workbenchParams.configuration.backupPath);
+		if (this.configuration.backupPath) {
+			this.backupFileService = this.instantiationService.createInstance(BackupFileService, this.configuration.backupPath);
 		} else {
 			this.backupFileService = new InMemoryBackupFileService();
 		}
@@ -804,7 +788,7 @@ export class Workbench extends Disposable implements IPartService {
 		this._register(this.editorPart.onDidActivateGroup(() => { if (this.editorHidden) { this.setEditorHidden(false); } }));
 
 		// Listen to editor closing (if we run with --wait)
-		const filesToWait = this.workbenchParams.configuration.filesToWait;
+		const filesToWait = this.configuration.filesToWait;
 		if (filesToWait) {
 			const resourcesToWaitFor = filesToWait.paths.map(p => p.fileUri);
 			const waitMarkerFile = URI.file(filesToWait.waitMarkerFilePath);
@@ -955,11 +939,11 @@ export class Workbench extends Disposable implements IPartService {
 		IsMacContext.bindTo(this.contextKeyService);
 		IsLinuxContext.bindTo(this.contextKeyService);
 		IsWindowsContext.bindTo(this.contextKeyService);
+		SupportsWorkspacesContext.bindTo(this.contextKeyService);
 		const supportsOpenFileFolderContextKey = SupportsOpenFileFolderContext.bindTo(this.contextKeyService);
-		const supportsWorkspacesContextKey = SupportsWorkspacesContext.bindTo(this.contextKeyService);
+		SupportsWorkspacesContext.bindTo(this.contextKeyService);
 		if (this.windowService.getConfiguration().remoteAuthority) {
 			supportsOpenFileFolderContextKey.set(true);
-			supportsWorkspacesContextKey.set(false);
 		}
 
 		const sidebarVisibleContextRaw = new RawContextKey<boolean>('sidebarVisible', false);
@@ -1209,13 +1193,12 @@ export class Workbench extends Disposable implements IPartService {
 	}
 
 	private resolveEditorsToOpen(): Promise<IResourceEditor[]> | IResourceEditor[] {
-		const config = this.workbenchParams.configuration;
 
 		// Files to open, diff or create
 		if (this.hasInitialFilesToOpen) {
 
 			// Files to diff is exclusive
-			const filesToDiff = this.toInputs(config.filesToDiff, false);
+			const filesToDiff = this.toInputs(this.configuration.filesToDiff, false);
 			if (filesToDiff && filesToDiff.length === 2) {
 				return [<IResourceDiffInput>{
 					leftResource: filesToDiff[0].resource,
@@ -1225,8 +1208,8 @@ export class Workbench extends Disposable implements IPartService {
 				}];
 			}
 
-			const filesToCreate = this.toInputs(config.filesToCreate, true);
-			const filesToOpen = this.toInputs(config.filesToOpen, false);
+			const filesToCreate = this.toInputs(this.configuration.filesToCreate, true);
+			const filesToOpen = this.toInputs(this.configuration.filesToOpen, false);
 
 			// Otherwise: Open/Create files
 			return [...filesToOpen, ...filesToCreate];
@@ -1754,29 +1737,16 @@ export class Workbench extends Disposable implements IPartService {
 		}
 	}
 
-	private gridHasView(view: View): boolean {
-		if (!(this.workbenchGrid instanceof Grid)) {
-			return false;
-		}
-
-		try {
-			this.workbenchGrid.getViewSize(view);
-			return true;
-		} catch {
-			return false;
-		}
-	}
-
 	private updateGrid(): void {
 		if (!(this.workbenchGrid instanceof Grid)) {
 			return;
 		}
 
-		let panelInGrid = this.gridHasView(this.panelPartView);
-		let sidebarInGrid = this.gridHasView(this.sidebarPartView);
-		let activityBarInGrid = this.gridHasView(this.activitybarPartView);
-		let statusBarInGrid = this.gridHasView(this.statusbarPartView);
-		let titlebarInGrid = this.gridHasView(this.titlebarPartView);
+		let panelInGrid = this.workbenchGrid.hasView(this.panelPartView);
+		let sidebarInGrid = this.workbenchGrid.hasView(this.sidebarPartView);
+		let activityBarInGrid = this.workbenchGrid.hasView(this.activitybarPartView);
+		let statusBarInGrid = this.workbenchGrid.hasView(this.statusbarPartView);
+		let titlebarInGrid = this.workbenchGrid.hasView(this.titlebarPartView);
 
 		// Add parts to grid
 		if (!statusBarInGrid) {

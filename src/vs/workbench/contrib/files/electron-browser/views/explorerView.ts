@@ -258,6 +258,7 @@ export class ExplorerView extends ViewletPanel {
 				this.explorerService.select(this.getActiveFile(), reveal);
 			} else {
 				this.tree.setSelection([]);
+				this.tree.setFocus([]);
 			}
 		}
 	}
@@ -533,6 +534,7 @@ export class ExplorerView extends ViewletPanel {
 			}
 
 			this.tree.setFocus([fileStat]);
+			this.tree.setSelection([fileStat]);
 		});
 	}
 

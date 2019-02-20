@@ -48,12 +48,11 @@
     "vscode-chokidar": "1.6.5",
     "vscode-debugprotocol": "^1.34.0-pre.0",
     "vscode-nsfw": "1.1.2",
-    "vscode-proxy-agent": "0.3.0",
+    "vscode-proxy-agent": "0.4.0",
     "vscode-ripgrep": "^1.2.5",
     "vscode-sqlite3": "4.0.7",
     "vscode-textmate": "^4.0.1",
     "vscode-xterm": "3.12.0-beta4",
-    "winreg": "^1.2.4",
     "yauzl": "^2.9.1",
     "yazl": "^2.4.3"
   },

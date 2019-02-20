@@ -555,9 +555,8 @@ class LoadedScriptsRenderer implements ITreeRenderer<BaseTreeItem, FuzzyScore, I
 	}
 
 	renderTemplate(container: HTMLElement): ILoadedScriptsItemTemplateData {
-		let data: ILoadedScriptsItemTemplateData = Object.create(null);
-		data.label = this.labels.create(container, { supportHighlights: true });
-		return data;
+		const label = this.labels.create(container, { supportHighlights: true });
+		return { label };
 	}
 
 	renderElement(node: ITreeNode<BaseTreeItem, FuzzyScore>, index: number, data: ILoadedScriptsItemTemplateData): void {

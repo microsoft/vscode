@@ -406,7 +406,7 @@ export class RelatedInformationRenderer implements ITreeRenderer<RelatedInformat
 
 export class Filter implements ITreeFilter<TreeElement, FilterData> {
 
-	options = new FilterOptions();
+	constructor(public options: FilterOptions) { }
 
 	filter(element: TreeElement, parentVisibility: TreeVisibility): TreeFilterResult<FilterData> {
 		if (element instanceof ResourceMarkers) {
@@ -423,7 +423,7 @@ export class Filter implements ITreeFilter<TreeElement, FilterData> {
 			return false;
 		}
 
-		if (this.options.excludePattern && !!this.options.excludePattern(resourceMarkers.resource.fsPath)) {
+		if (this.options.excludesMatcher.matches(resourceMarkers.resource)) {
 			return false;
 		}
 
@@ -433,7 +433,7 @@ export class Filter implements ITreeFilter<TreeElement, FilterData> {
 			return { visibility: true, data: { type: FilterDataType.ResourceMarkers, uriMatches } };
 		}
 
-		if (this.options.includePattern && this.options.includePattern(resourceMarkers.resource.fsPath)) {
+		if (this.options.includesMatcher.matches(resourceMarkers.resource)) {
 			return true;
 		}
 

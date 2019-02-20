@@ -10,7 +10,6 @@ import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IStorage, Storage, SQLiteStorageDatabase, ISQLiteStorageDatabaseLoggingOptions, InMemoryStorageDatabase } from 'vs/base/node/storage';
 import { join } from 'vs/base/common/path';
-import { mark } from 'vs/base/common/performance';
 import { exists, readdir } from 'vs/base/node/pfs';
 import { Database } from 'vscode-sqlite3';
 import { endsWith, startsWith } from 'vs/base/common/strings';
@@ -88,6 +87,8 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 
 	private storage: IStorage;
 
+	private initializePromise: Promise<void>;
+
 	constructor(
 		@ILogService private readonly logService: ILogService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService
@@ -114,6 +115,14 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 	}
 
 	initialize(): Promise<void> {
+		if (!this.initializePromise) {
+			this.initializePromise = this.doInitialize();
+		}
+
+		return this.initializePromise;
+	}
+
+	private doInitialize(): Promise<void> {
 		const useInMemoryStorage = this.storagePath === SQLiteStorageDatabase.IN_MEMORY_PATH;
 
 		let globalStorageExists: Promise<boolean>;
@@ -131,14 +140,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 
 			this._register(this.storage.onDidChangeStorage(key => this._onDidChangeStorage.fire({ key })));
 
-			mark('main:willInitGlobalStorage');
 			return this.storage.init().then(() => {
-				mark('main:didInitGlobalStorage');
-			}, error => {
-				mark('main:didInitGlobalStorage');
-
-				return Promise.reject(error);
-			}).then(() => {
 
 				// Migrate storage if this is the first start and we are not using in-memory
 				let migrationPromise: Promise<void>;

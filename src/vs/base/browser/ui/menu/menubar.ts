@@ -457,8 +457,8 @@ export class MenuBar extends Disposable {
 
 		// Update the button label to reflect mnemonics
 		titleElement.innerHTML = this.options.enableMnemonics ?
-			strings.escape(label).replace(MENU_ESCAPED_MNEMONIC_REGEX, '<mnemonic aria-hidden="true">$1</mnemonic>') :
-			cleanMenuLabel;
+			strings.escape(label).replace(MENU_ESCAPED_MNEMONIC_REGEX, '<mnemonic aria-hidden="true">$1</mnemonic>').replace(/&amp;&amp;/g, '&amp;') :
+			cleanMenuLabel.replace(/&&/g, '&');
 
 		let mnemonicMatches = MENU_MNEMONIC_REGEX.exec(label);
 

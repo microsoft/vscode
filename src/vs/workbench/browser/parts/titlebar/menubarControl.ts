@@ -13,7 +13,7 @@ import { IAction, Action } from 'vs/base/common/actions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import * as DOM from 'vs/base/browser/dom';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { isMacintosh, isLinux } from 'vs/base/common/platform';
+import { isMacintosh, isLinux, AccessibilitySupport } from 'vs/base/common/platform';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -32,6 +32,8 @@ import { MenuBar } from 'vs/base/browser/ui/menu/menubar';
 import { SubmenuAction } from 'vs/base/browser/ui/menu/menu';
 import { attachMenuStyler } from 'vs/platform/theme/common/styler';
 import { assign } from 'vs/base/common/objects';
+import { mnemonicMenuLabel, unmnemonicLabel } from 'vs/base/common/labels';
+import { getAccessibilitySupport } from 'vs/base/browser/browser';
 
 export class MenubarControl extends Disposable {
 
@@ -131,7 +133,9 @@ export class MenubarControl extends Disposable {
 			this.recentlyOpened = recentlyOpened;
 		});
 
-		this.detectAndRecommendCustomTitlebar();
+		this.notifyExistingLinuxUser();
+
+		this.notifyUserOfCustomMenubarAccessibility();
 
 		this.registerListeners();
 	}
@@ -191,8 +195,8 @@ export class MenubarControl extends Disposable {
 			this.updateMenubar();
 		}
 
-		if (event.affectsConfiguration('window.menuBarVisibility')) {
-			this.detectAndRecommendCustomTitlebar();
+		if (event.affectsConfiguration('editor.accessibilitySupport')) {
+			this.notifyUserOfCustomMenubarAccessibility();
 		}
 	}
 
@@ -203,39 +207,70 @@ export class MenubarControl extends Disposable {
 		});
 	}
 
-	private detectAndRecommendCustomTitlebar(): void {
+	// TODO@sbatten remove after feb19
+	private notifyExistingLinuxUser(): void {
 		if (!isLinux) {
 			return;
 		}
 
-		if (!this.storageService.getBoolean('menubar/electronFixRecommended', StorageScope.GLOBAL, false)) {
-			if (this.currentMenubarVisibility === 'hidden' || this.currentTitlebarStyleSetting === 'custom') {
-				// Issue will not arise for user, abort notification
-				return;
-			}
-
-			const message = nls.localize('menubar.electronFixRecommendation', "If you experience hard to read text in the menu bar, we recommend trying out the custom title bar.");
-			this.notificationService.prompt(Severity.Info, message, [
-				{
-					label: nls.localize('goToSetting', "Open Settings"),
-					run: () => {
-						return this.preferencesService.openGlobalSettings(undefined, { query: 'window.titleBarStyle' });
-					}
-				},
-				{
-					label: nls.localize('moreInfo', "More Info"),
-					run: () => {
-						window.open('https://go.microsoft.com/fwlink/?linkid=2038566');
-					}
-				},
-				{
-					label: nls.localize('neverShowAgain', "Don't Show Again"),
-					run: () => {
-						this.storageService.store('menubar/electronFixRecommended', true, StorageScope.GLOBAL);
-					}
-				}
-			]);
+		const isNewUser = !this.storageService.get('telemetry.lastSessionDate', StorageScope.GLOBAL);
+		const hasBeenNotified = this.storageService.getBoolean('menubar/linuxTitlebarRevertNotified', StorageScope.GLOBAL, false);
+		const titleBarConfiguration = this.configurationService.inspect('window.titleBarStyle');
+		const customShown = getTitleBarStyle(this.configurationService, this.environmentService) === 'custom';
+		if (isNewUser || hasBeenNotified || (titleBarConfiguration && titleBarConfiguration.user) || customShown) {
+			return;
 		}
+
+		const message = nls.localize('menubar.linuxTitlebarRevertNotification', "We have updated the default title bar on Linux to use the native setting. If you prefer, you can go back to the custom setting. More information is available in our [online documentation](https://go.microsoft.com/fwlink/?linkid=2074137).");
+		this.notificationService.prompt(Severity.Info, message, [
+			{
+				label: nls.localize('goToSetting', "Open Settings"),
+				run: () => {
+					return this.preferencesService.openGlobalSettings(undefined, { query: 'window.titleBarStyle' });
+				}
+			},
+			{
+				label: nls.localize('neverShowAgain', "Don't Show Again"),
+				run: () => {
+					this.storageService.store('menubar/linuxTitlebarRevertNotified', true, StorageScope.GLOBAL);
+				}
+			}
+		]);
+
+		this.storageService.store('menubar/linuxTitlebarRevertNotified', true, StorageScope.GLOBAL);
+	}
+
+	private notifyUserOfCustomMenubarAccessibility(): void {
+		if (isMacintosh) {
+			return;
+		}
+
+		const hasBeenNotified = this.storageService.getBoolean('menubar/accessibleMenubarNotified', StorageScope.GLOBAL, false);
+		const usingCustomMenubar = getTitleBarStyle(this.configurationService, this.environmentService) === 'custom';
+		const detected = getAccessibilitySupport() === AccessibilitySupport.Enabled;
+		const config = this.configurationService.getValue('editor.accessibilitySupport');
+
+		if (hasBeenNotified || usingCustomMenubar || !(config === 'on' || (config === 'auto' && detected))) {
+			return;
+		}
+
+		const message = nls.localize('menubar.customTitlebarAccessibilityNotification', "Accessibility support is enabled for you. For the most accessible experience, we recommend the custom title bar style.");
+		this.notificationService.prompt(Severity.Info, message, [
+			{
+				label: nls.localize('goToSetting', "Open Settings"),
+				run: () => {
+					return this.preferencesService.openGlobalSettings(undefined, { query: 'window.titleBarStyle' });
+				}
+			},
+			{
+				label: nls.localize('neverShowAgain', "Don't Show Again"),
+				run: () => {
+					this.storageService.store('menubar/accessibleMenubarNotified', true, StorageScope.GLOBAL);
+				}
+			}
+		]);
+
+		this.storageService.store('menubar/accessibleMenubarNotified', true, StorageScope.GLOBAL);
 	}
 
 	private registerListeners(): void {
@@ -340,6 +375,8 @@ export class MenubarControl extends Disposable {
 			commandId = 'openRecentFile';
 			typeHint = 'file';
 		}
+
+		label = unmnemonicLabel(label);
 
 		const ret: IAction = new Action(commandId, label, undefined, undefined, (event) => {
 			const openInNewWindow = event && ((!isMacintosh && (event.ctrlKey || event.shiftKey)) || (isMacintosh && (event.metaKey || event.altKey)));
@@ -483,10 +520,10 @@ export class MenubarControl extends Disposable {
 						const submenu = this.menuService.createMenu(action.item.submenu, this.contextKeyService);
 						const submenuActions: SubmenuAction[] = [];
 						updateActions(submenu, submenuActions);
-						target.push(new SubmenuAction(action.label, submenuActions));
+						target.push(new SubmenuAction(mnemonicMenuLabel(action.label), submenuActions));
 						submenu.dispose();
 					} else {
-						action.label = this.calculateActionLabel(action);
+						action.label = mnemonicMenuLabel(this.calculateActionLabel(action));
 						target.push(action);
 					}
 				}
@@ -503,7 +540,7 @@ export class MenubarControl extends Disposable {
 				this._register(menu.onDidChange(() => {
 					const actions = [];
 					updateActions(menu, actions);
-					this.menubar.updateMenu({ actions: actions, label: this.topLevelTitles[title] });
+					this.menubar.updateMenu({ actions: actions, label: mnemonicMenuLabel(this.topLevelTitles[title]) });
 				}));
 			}
 
@@ -511,9 +548,9 @@ export class MenubarControl extends Disposable {
 			updateActions(menu, actions);
 
 			if (!firstTime) {
-				this.menubar.updateMenu({ actions: actions, label: this.topLevelTitles[title] });
+				this.menubar.updateMenu({ actions: actions, label: mnemonicMenuLabel(this.topLevelTitles[title]) });
 			} else {
-				this.menubar.push({ actions: actions, label: this.topLevelTitles[title] });
+				this.menubar.push({ actions: actions, label: mnemonicMenuLabel(this.topLevelTitles[title]) });
 			}
 		}
 	}

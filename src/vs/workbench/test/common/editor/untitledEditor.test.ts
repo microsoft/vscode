@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { URI } from 'vs/base/common/uri';
 import * as assert from 'assert';
-import { joinWithSlashes } from 'vs/base/common/extpath';
+import { join } from 'vs/base/common/path';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -99,7 +99,7 @@ suite('Workbench untitled editors', () => {
 
 	test('Untitled with associated resource', function () {
 		const service = accessor.untitledEditorService;
-		const file = URI.file(joinWithSlashes('C:\\', '/foo/file.txt'));
+		const file = URI.file(join('C:\\', '/foo/file.txt'));
 		const untitled = service.createOrGet(file);
 
 		assert.ok(service.hasAssociatedFilePath(untitled.getResource()));
@@ -140,7 +140,7 @@ suite('Workbench untitled editors', () => {
 				return service.loadOrCreate({ resource: input.getResource() }).then(model3 => {
 					assert.equal(model3.getResource().toString(), input.getResource().toString());
 
-					const file = URI.file(joinWithSlashes('C:\\', '/foo/file44.txt'));
+					const file = URI.file(join('C:\\', '/foo/file44.txt'));
 					return service.loadOrCreate({ resource: file }).then(model4 => {
 						assert.ok(service.hasAssociatedFilePath(model4.getResource()));
 						assert.ok(model4.isDirty());
@@ -165,7 +165,7 @@ suite('Workbench untitled editors', () => {
 
 	test('Untitled with associated path remains dirty when content gets empty', function () {
 		const service = accessor.untitledEditorService;
-		const file = URI.file(joinWithSlashes('C:\\', '/foo/file.txt'));
+		const file = URI.file(join('C:\\', '/foo/file.txt'));
 		const input = service.createOrGet(file);
 
 		// dirty

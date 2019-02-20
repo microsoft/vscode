@@ -11,7 +11,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
 import * as glob from 'vs/base/common/glob';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { joinWithSlashes } from 'vs/base/common/extpath';
+import { posix } from 'vs/base/common/path';
 import { basename, dirname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/breadcrumbscontrol';
@@ -299,7 +299,7 @@ class FileFilter implements ITreeFilter<IWorkspaceFolder | IFileStat> {
 						continue;
 					}
 					let patternAbs = pattern.indexOf('**/') !== 0
-						? joinWithSlashes(folder.uri.path, pattern)
+						? posix.join(folder.uri.path, pattern)
 						: pattern;
 
 					adjustedConfig[patternAbs] = excludesConfig[pattern];
@@ -407,7 +407,7 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 
 		const tree = this._tree as WorkbenchAsyncDataTree<IWorkspace | URI, IWorkspaceFolder | IFileStat, FuzzyScore>;
 		return tree.setInput(input).then(() => {
-			let focusElement: IWorkspaceFolder | IFileStat;
+			let focusElement: IWorkspaceFolder | IFileStat | undefined;
 			for (const { element } of tree.getNode().children) {
 				if (IWorkspaceFolder.isIWorkspaceFolder(element) && isEqual(element.uri, uri)) {
 					focusElement = element;

@@ -3,9 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { dirname, basename, distinctParents, joinPath, isEqual, isEqualOrParent, hasToIgnoreCase, normalizePath, isAbsolutePath, isMalformedFileUri, relativePath, removeTrailingPathSeparator, hasTrailingPathSeparator } from 'vs/base/common/resources';
+import { dirname, basename, distinctParents, joinPath, isEqual, isEqualOrParent, hasToIgnoreCase, normalizePath, isAbsolutePath, isMalformedFileUri, relativePath, removeTrailingPathSeparator, hasTrailingPathSeparator, resolvePath } from 'vs/base/common/resources';
 import { URI, setUriThrowOnMissingScheme } from 'vs/base/common/uri';
 import { isWindows } from 'vs/base/common/platform';
+import { toSlashes } from 'vs/base/common/extpath';
+import { startsWith } from 'vs/base/common/strings';
+import { isAbsolute } from 'vs/base/common/path';
+
 
 suite('Resources', () => {
 
@@ -174,6 +178,7 @@ suite('Resources', () => {
 		assertEqualURI(removeTrailingPathSeparator(u1), expected, u1.toString());
 	}
 
+
 	test('trailingPathSeparator', () => {
 		assertTrailingSeparator(URI.parse('foo://a/foo'), false);
 		assertTrailingSeparator(URI.parse('foo://a/foo/'), true);
@@ -260,6 +265,50 @@ suite('Resources', () => {
 			assertRelativePath(URI.file('/a/foo'), URI.file('/a/foo/'), '');
 			assertRelativePath(URI.file('/a/foo'), URI.file('/b/foo/'), '../../b/foo');
 		}
+	});
+
+	function assertResolve(u1: URI, path: string, expected: URI) {
+		const actual = resolvePath(u1, path);
+		assertEqualURI(actual, expected, `from ${u1.toString()} and ${path}`);
+
+		if (!isAbsolute(path)) {
+			let expectedPath = isWindows ? toSlashes(path) : path;
+			expectedPath = startsWith(expectedPath, './') ? expectedPath.substr(2) : expectedPath;
+			assert.equal(relativePath(u1, actual), expectedPath, `relativePath (${u1.toString()}) on actual (${actual.toString()}) should be to path (${expectedPath})`);
+		}
+	}
+
+	test('resolve', () => {
+		if (isWindows) {
+			assertResolve(URI.file('c:\\foo\\bar'), 'file.js', URI.file('c:\\foo\\bar\\file.js'));
+			assertResolve(URI.file('c:\\foo\\bar'), 't\\file.js', URI.file('c:\\foo\\bar\\t\\file.js'));
+			assertResolve(URI.file('c:\\foo\\bar'), '.\\t\\file.js', URI.file('c:\\foo\\bar\\t\\file.js'));
+			assertResolve(URI.file('c:\\foo\\bar'), 'a1/file.js', URI.file('c:\\foo\\bar\\a1\\file.js'));
+			assertResolve(URI.file('c:\\foo\\bar'), './a1/file.js', URI.file('c:\\foo\\bar\\a1\\file.js'));
+			assertResolve(URI.file('c:\\foo\\bar'), '\\b1\\file.js', URI.file('c:\\b1\\file.js'));
+			assertResolve(URI.file('c:\\foo\\bar'), '/b1/file.js', URI.file('c:\\b1\\file.js'));
+			assertResolve(URI.file('c:\\foo\\bar\\'), 'file.js', URI.file('c:\\foo\\bar\\file.js'));
+
+			assertResolve(URI.file('c:\\'), 'file.js', URI.file('c:\\file.js'));
+			assertResolve(URI.file('c:\\'), '\\b1\\file.js', URI.file('c:\\b1\\file.js'));
+			assertResolve(URI.file('c:\\'), '/b1/file.js', URI.file('c:\\b1\\file.js'));
+			assertResolve(URI.file('c:\\'), 'd:\\foo\\bar.txt', URI.file('d:\\foo\\bar.txt'));
+
+			assertResolve(URI.file('\\\\server\\share\\some\\'), 'b1\\file.js', URI.file('\\\\server\\share\\some\\b1\\file.js'));
+			assertResolve(URI.file('\\\\server\\share\\some\\'), '\\file.js', URI.file('\\\\server\\share\\file.js'));
+		} else {
+			assertResolve(URI.file('/foo/bar'), 'file.js', URI.file('/foo/bar/file.js'));
+			assertResolve(URI.file('/foo/bar'), './file.js', URI.file('/foo/bar/file.js'));
+			assertResolve(URI.file('/foo/bar'), '/file.js', URI.file('/file.js'));
+			assertResolve(URI.file('/foo/bar/'), 'file.js', URI.file('/foo/bar/file.js'));
+			assertResolve(URI.file('/'), 'file.js', URI.file('/file.js'));
+			assertResolve(URI.file(''), './file.js', URI.file('/file.js'));
+			assertResolve(URI.file(''), '/file.js', URI.file('/file.js'));
+		}
+
+		assertResolve(URI.parse('foo://server/foo/bar'), 'file.js', URI.parse('foo://server/foo/bar/file.js'));
+		assertResolve(URI.parse('foo://server/foo/bar'), './file.js', URI.parse('foo://server/foo/bar/file.js'));
+		assertResolve(URI.parse('foo://server/foo/bar'), './file.js', URI.parse('foo://server/foo/bar/file.js'));
 	});
 
 	test('isEqual', () => {

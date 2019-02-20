@@ -83,16 +83,10 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 	async dispatchKeybinding(windowId: number, keybinding: string): Promise<void> {
 		await this.whenUnfrozen(windowId);
 
-		const [first, second] = KeybindingParser.parseUserBinding(keybinding);
+		const parts = KeybindingParser.parseUserBinding(keybinding);
 
-		if (!first) {
-			return;
-		}
-
-		await this._dispatchKeybinding(windowId, first);
-
-		if (second) {
-			await this._dispatchKeybinding(windowId, second);
+		for (let part of parts) {
+			await this._dispatchKeybinding(windowId, part);
 		}
 	}
 

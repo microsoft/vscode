@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { join } from 'vs/base/common/path';
 import { onDidChangeFullscreen, isFullscreen } from 'vs/base/browser/browser';
 import { getTotalHeight, getTotalWidth } from 'vs/base/browser/dom';
 import { Color } from 'vs/base/common/color';
@@ -20,7 +21,6 @@ import { IPartService, Parts, Position } from 'vs/workbench/services/part/common
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
-import { joinWithSlashes } from 'vs/base/common/extpath';
 
 class PartsSplash {
 
@@ -70,7 +70,7 @@ class PartsSplash {
 			statusBarHeight: getTotalHeight(this._partService.getContainer(Parts.STATUSBAR_PART)!),
 		};
 		this._fileService.updateContent(
-			URI.file(joinWithSlashes(this._envService.userDataPath, 'rapid_render.json')),
+			URI.file(join(this._envService.userDataPath, 'rapid_render.json')),
 			JSON.stringify({
 				id: PartsSplash._splashElementId,
 				colorInfo,
