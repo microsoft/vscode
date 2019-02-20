@@ -74,7 +74,7 @@ class DocumentSymbolAdapter {
 				containerName: info.containerName,
 				range: typeConvert.Range.from(info.location.range),
 				selectionRange: typeConvert.Range.from(info.location.range),
-				children: [] as DocumentSymbol[]
+				children: []
 			};
 
 			while (true) {
