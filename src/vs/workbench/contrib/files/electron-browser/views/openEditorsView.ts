@@ -253,7 +253,7 @@ export class OpenEditorsView extends ViewletPanel {
 		// Open when selecting via keyboard
 		this.disposables.push(this.list.onMouseMiddleClick(e => {
 			if (e && e.element instanceof OpenEditor) {
-				e.element.group.closeEditor(e.element.editor);
+				e.element.group.closeEditor(e.element.editor, { preserveFocus: true });
 			}
 		}));
 		this.disposables.push(this.list.onDidOpen(e => {
