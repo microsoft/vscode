@@ -43,8 +43,7 @@
 }
 
 .monaco-editor .marker-widget .descriptioncontainer .message .source,
-.monaco-editor .marker-widget .descriptioncontainer .message .code,
-.monaco-editor .marker-widget .descriptioncontainer .filename {
+.monaco-editor .marker-widget .descriptioncontainer .message .code {
 	opacity: 0.6;
 }
 
