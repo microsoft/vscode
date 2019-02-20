@@ -135,7 +135,7 @@ export class ExtHostApiCommands {
 			args: [
 				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
 				{ name: 'range', description: 'Range in a text document', constraint: types.Range },
-				{ name: 'kind', description: '(optional) Code action kind to return code actions for', },
+				{ name: 'kind', description: '(optional) Code action kind to return code actions for', constraint: (value: any) => !value || typeof value.value === 'string' },
 			],
 			returns: 'A promise that resolves to an array of Command-instances.'
 		});
