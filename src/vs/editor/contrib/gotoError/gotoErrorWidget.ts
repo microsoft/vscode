@@ -11,8 +11,8 @@ import { IMarker, MarkerSeverity, IRelatedInformation } from 'vs/platform/marker
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { registerColor, oneOf } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
+import { registerColor, oneOf, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IThemeService, ITheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 import { AccessibilitySupport } from 'vs/base/common/platform';
 import { editorErrorForeground, editorErrorBorder, editorWarningForeground, editorWarningBorder, editorInfoForeground, editorInfoBorder } from 'vs/editor/common/view/editorColorRegistry';
@@ -130,7 +130,7 @@ class MessageWidget {
 
 				let container = document.createElement('div');
 
-				let relatedResource = document.createElement('span');
+				let relatedResource = document.createElement('a');
 				dom.addClass(relatedResource, 'filename');
 				relatedResource.innerHTML = `${getBaseLabel(related.resource)}(${related.startLineNumber}, ${related.startColumn}): `;
 				relatedResource.title = getPathLabel(related.resource, undefined);
@@ -320,3 +320,10 @@ export const editorMarkerNavigationError = registerColor('editorMarkerNavigation
 export const editorMarkerNavigationWarning = registerColor('editorMarkerNavigationWarning.background', { dark: warningDefault, light: warningDefault, hc: warningDefault }, nls.localize('editorMarkerNavigationWarning', 'Editor marker navigation widget warning color.'));
 export const editorMarkerNavigationInfo = registerColor('editorMarkerNavigationInfo.background', { dark: infoDefault, light: infoDefault, hc: infoDefault }, nls.localize('editorMarkerNavigationInfo', 'Editor marker navigation widget info color.'));
 export const editorMarkerNavigationBackground = registerColor('editorMarkerNavigation.background', { dark: '#2D2D30', light: Color.white, hc: '#0C141F' }, nls.localize('editorMarkerNavigationBackground', 'Editor marker navigation widget background.'));
+
+registerThemingParticipant((theme, collector) => {
+	const link = theme.getColor(textLinkForeground);
+	if (link) {
+		collector.addRule(`.monaco-editor .marker-widget a { color: ${link}; }`);
+	}
+});
