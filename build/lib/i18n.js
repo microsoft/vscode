@@ -1033,7 +1033,7 @@ function prepareI18nPackFiles(externalExtensions, resultingTranslationPaths, pse
     let extensionsPacks = {};
     let errors = [];
     return event_stream_1.through(function (xlf) {
-        let project = path.dirname(xlf.relative);
+        let project = path.basename(path.dirname(xlf.relative));
         let resource = path.basename(xlf.relative, '.xlf');
         let contents = xlf.contents.toString();
         let parsePromise = pseudo ? XLF.parsePseudo(contents) : XLF.parse(contents);
