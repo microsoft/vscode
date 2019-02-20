@@ -14,7 +14,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { localize } from 'vs/nls';
 import { Marker, RelatedInformation } from 'vs/workbench/contrib/markers/electron-browser/markersModel';
 import { MarkersPanel } from 'vs/workbench/contrib/markers/electron-browser/markersPanel';
-import { MenuId, MenuRegistry, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { MenuId, MenuRegistry, SyncActionDescriptor, ILocalizedString } from 'vs/platform/actions/common/actions';
 import { PanelRegistry, Extensions as PanelExtensions, PanelDescriptor } from 'vs/workbench/browser/panel';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ToggleMarkersPanelAction, ShowProblemsPanelAction } from 'vs/workbench/contrib/markers/electron-browser/markersPanelActions';
@@ -105,7 +105,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleMarkersPanelActi
 registry.registerWorkbenchAction(new SyncActionDescriptor(ShowProblemsPanelAction, ShowProblemsPanelAction.ID, ShowProblemsPanelAction.LABEL), 'View: Focus Problems (Errors, Warnings, Infos)', Messages.MARKERS_PANEL_VIEW_CATEGORY);
 registerAction({
 	id: Constants.MARKER_COPY_ACTION_ID,
-	title: localize('copyMarker', "Copy"),
+	title: { value: localize('copyMarker', "Copy"), original: 'Copy' },
 	handler(accessor) {
 		copyMarker(accessor.get(IPanelService));
 	},
@@ -123,7 +123,7 @@ registerAction({
 });
 registerAction({
 	id: Constants.MARKER_COPY_MESSAGE_ACTION_ID,
-	title: localize('copyMessage', "Copy Message"),
+	title: { value: localize('copyMessage', "Copy Message"), original: 'Copy Message' },
 	handler(accessor) {
 		copyMessage(accessor.get(IPanelService));
 	},
@@ -135,7 +135,7 @@ registerAction({
 });
 registerAction({
 	id: Constants.RELATED_INFORMATION_COPY_MESSAGE_ACTION_ID,
-	title: localize('copyMessage', "Copy Message"),
+	title: { value: localize('copyMessage', "Copy Message"), original: 'Copy Message' },
 	handler(accessor) {
 		copyRelatedInformationMessage(accessor.get(IPanelService));
 	},
@@ -178,7 +178,7 @@ registerAction({
 			panel.markersViewModel.multiline = true;
 		}
 	},
-	title: localize('show multiline', "Show message in multiple lines"),
+	title: { value: localize('show multiline', "Show message in multiple lines"), original: 'Problems: Show message in multiple lines' },
 	category: localize('problems', "Problems"),
 	menu: {
 		menuId: MenuId.CommandPalette,
@@ -194,7 +194,7 @@ registerAction({
 			panel.markersViewModel.multiline = false;
 		}
 	},
-	title: localize('show singleline', "Show message in single line"),
+	title: { value: localize('show singleline', "Show message in single line"), original: 'Problems: Show message in single line' },
 	category: localize('problems', "Problems"),
 	menu: {
 		menuId: MenuId.CommandPalette,
@@ -251,7 +251,7 @@ interface IActionDescriptor {
 	handler: ICommandHandler;
 
 	// ICommandUI
-	title?: string;
+	title?: ILocalizedString;
 	category?: string;
 	f1?: boolean;
 
