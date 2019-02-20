@@ -70,6 +70,10 @@ export interface EditorGroupLayout {
 	groups: GroupLayoutArgument[];
 }
 
+export interface ICloseEditorOptions {
+	preserveFocus?: boolean;
+}
+
 export interface IMoveEditorOptions {
 	index?: number;
 	inactive?: boolean;
@@ -430,7 +434,7 @@ export interface IEditorGroup {
 	 *
 	 * @returns a promise when the editor is closed.
 	 */
-	closeEditor(editor?: IEditorInput): Promise<void>;
+	closeEditor(editor?: IEditorInput, options?: ICloseEditorOptions): Promise<void>;
 
 	/**
 	 * Closes specific editors in this group. This may trigger a confirmation dialog if
@@ -438,7 +442,7 @@ export interface IEditorGroup {
 	 *
 	 * @returns a promise when all editors are closed.
 	 */
-	closeEditors(editors: IEditorInput[] | ICloseEditorsFilter): Promise<void>;
+	closeEditors(editors: IEditorInput[] | ICloseEditorsFilter, options?: ICloseEditorOptions): Promise<void>;
 
 	/**
 	 * Closes all editors from the group. This may trigger a confirmation dialog if
