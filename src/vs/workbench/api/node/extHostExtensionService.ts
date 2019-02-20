@@ -166,7 +166,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	private readonly _storage: ExtHostStorage;
 	private readonly _storagePath: ExtensionStoragePath;
 	private readonly _activator: ExtensionsActivator;
-	private _extensionPathIndex: Promise<TernarySearchTree<IExtensionDescription>>;
+	private _extensionPathIndex: Promise<TernarySearchTree<IExtensionDescription>> | null;
 	private readonly _extensionApiFactory: IExtensionApiFactory;
 
 	private readonly _resolvers: { [authorityPrefix: string]: vscode.RemoteAuthorityResolver; };
@@ -222,7 +222,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 					await this._mainThreadExtensionsProxy.$activateExtension(extensionId, activationEvent);
 					return new HostExtension();
 				}
-				const extensionDescription = this._registry.getExtensionDescription(extensionId);
+				const extensionDescription = this._registry.getExtensionDescription(extensionId)!;
 				return this._activateExtension(extensionDescription, reason);
 			}
 		});
@@ -302,7 +302,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		return this._barrier.wait().then(_ => this._registry);
 	}
 
-	public getExtensionExports(extensionId: ExtensionIdentifier): IExtensionAPI {
+	public getExtensionExports(extensionId: ExtensionIdentifier): IExtensionAPI | null | undefined {
 		if (this._barrier.isOpen()) {
 			return this._activator.getActivatedExtension(extensionId).exports;
 		} else {
@@ -624,7 +624,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		// Execute the runner if it follows our spec
 		if (testRunner && typeof testRunner.run === 'function') {
 			return new Promise<void>((c, e) => {
-				testRunner!.run(this._initData.environment.extensionTestsPath, (error, failures) => {
+				testRunner!.run(this._initData.environment.extensionTestsPath!, (error, failures) => {
 					if (error) {
 						e(error.toString());
 					} else {
@@ -671,7 +671,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	public registerRemoteAuthorityResolver(authorityPrefix: string, resolver: vscode.RemoteAuthorityResolver): vscode.Disposable {
 		this._resolvers[authorityPrefix] = resolver;
 		return toDisposable(() => {
-			this._resolvers[authorityPrefix] = null;
+			delete this._resolvers[authorityPrefix];
 		});
 	}
 
