@@ -92,6 +92,6 @@ registerLanguageCommand('_executeCodeActionProvider', function (accessor, args) 
 	return getCodeActions(
 		model,
 		model.validateRange(range),
-		{ type: 'manual', filter: { includeSourceActions: true, kind: kind ? new CodeActionKind(kind) : undefined } },
+		{ type: 'manual', filter: { includeSourceActions: true, kind: kind && kind.value ? new CodeActionKind(kind.value) : undefined } },
 		CancellationToken.None);
 });
