@@ -34,7 +34,7 @@ import { attachMenuStyler } from 'vs/platform/theme/common/styler';
 import { assign } from 'vs/base/common/objects';
 import { mnemonicMenuLabel, unmnemonicLabel } from 'vs/base/common/labels';
 import { getAccessibilitySupport } from 'vs/base/browser/browser';
-import { IWindowsRegistryService, WindowsRegistryHive } from 'vs/platform/windowsRegistry/common/windowsRegistry';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 export class MenubarControl extends Disposable {
 
@@ -99,7 +99,7 @@ export class MenubarControl extends Disposable {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IWindowsRegistryService private readonly windowsRegistryService: IWindowsRegistryService
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
 
 		super();
@@ -503,21 +503,10 @@ export class MenubarControl extends Disposable {
 				}
 			));
 
-			try {
-				this.windowsRegistryService.getValue(
-					WindowsRegistryHive.HKEY_CURRENT_USER,
-					'\\Control Panel\\Accessibility\\Keyboard Preference',
-					'On').then(regItem => {
-						if (regItem) {
-							this.alwaysOnMnemonics = regItem.value === '1';
-						}
-					});
-			} catch {
-				this.alwaysOnMnemonics = false;
+			this.accessibilityService.alwaysUnderlineAccessKeys().then(val => {
+				this.alwaysOnMnemonics = val;
 				this.menubar.update({ enableMnemonics: this.currentEnableMenuBarMnemonics, visibility: this.currentMenubarVisibility, getKeybinding: (action) => this.keybindingService.lookupKeybinding(action.id), alwaysOnMnemonics: this.alwaysOnMnemonics });
-
-			}
-
+			});
 
 			this._register(this.menubar.onFocusStateChange(e => this._onFocusStateChange.fire(e)));
 			this._register(this.menubar.onVisibilityChange(e => this._onVisibilityChange.fire(e)));

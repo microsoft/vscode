@@ -181,8 +181,8 @@ import { ExtensionService } from 'vs/workbench/services/extensions/electron-brow
 import { TextResourcePropertiesService } from 'vs/workbench/services/textfile/electron-browser/textResourcePropertiesService';
 import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
 import { TextMateService } from 'vs/workbench/services/textMate/electron-browser/TMSyntax';
-import { IWindowsRegistryService } from 'vs/platform/windowsRegistry/common/windowsRegistry';
-import { WindowsRegistryService } from 'vs/platform/windowsRegistry/node/windowsRegistryService';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { AccessibilityService } from 'vs/platform/accessibility/node/accessibilityService';
 
 interface IZenModeSettings {
 	fullScreen: boolean;
@@ -679,8 +679,8 @@ export class Workbench extends Disposable implements IPartService {
 		this.editorService = this.instantiationService.createInstance(EditorService);
 		serviceCollection.set(IEditorService, this.editorService);
 
-		// Windows Registry
-		serviceCollection.set(IWindowsRegistryService, new SyncDescriptor(WindowsRegistryService));
+		// Accessibility
+		serviceCollection.set(IAccessibilityService, new SyncDescriptor(AccessibilityService));
 
 		// Title bar
 		this.titlebarPart = this.instantiationService.createInstance(TitlebarPart, Identifiers.TITLEBAR_PART);
