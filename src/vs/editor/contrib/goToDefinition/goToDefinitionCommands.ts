@@ -164,7 +164,7 @@ export class DefinitionAction extends EditorAction {
 
 	private _openInPeek(editorService: ICodeEditorService, target: ICodeEditor, model: ReferencesModel) {
 		let controller = ReferencesController.get(target);
-		if (controller) {
+		if (controller && target.hasModel()) {
 			controller.toggleWidget(target.getSelection(), createCancelablePromise(_ => Promise.resolve(model)), {
 				getMetaTitle: (model) => {
 					return this._getMetaTitle(model);

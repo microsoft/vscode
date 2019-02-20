@@ -461,14 +461,14 @@ export class ReferenceWidget extends PeekViewWidget {
 		});
 	}
 
-	public setModel(newModel: ReferencesModel | undefined): Promise<any> | undefined {
+	public setModel(newModel: ReferencesModel | undefined): Promise<any> {
 		// clean up
 		this._disposeOnNewModel = dispose(this._disposeOnNewModel);
 		this._model = newModel;
 		if (this._model) {
 			return this._onNewModel();
 		}
-		return undefined;
+		return Promise.resolve();
 	}
 
 	private _onNewModel(): Promise<any> {
