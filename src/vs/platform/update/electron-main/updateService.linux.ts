@@ -15,7 +15,7 @@ import { createUpdateURL, AbstractUpdateService } from 'vs/platform/update/elect
 import { asJson } from 'vs/base/node/request';
 import { shell } from 'electron';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import { spawn } from 'child_process';
 import { realpath } from 'fs';
 
@@ -125,9 +125,11 @@ export class LinuxUpdateService extends AbstractUpdateService {
 		}
 
 		// Allow 3 seconds for VS Code to close
-		spawn('bash', ['-c', path.join(snap, `usr/share/${product.applicationName}/snapUpdate.sh`)], {
+		spawn('sleep 3 && $SNAP_NAME', {
+			shell: true,
 			detached: true,
-			stdio: ['ignore', 'ignore', 'ignore']
+			stdio: 'ignore',
 		});
+
 	}
 }

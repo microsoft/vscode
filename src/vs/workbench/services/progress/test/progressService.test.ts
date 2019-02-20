@@ -20,14 +20,14 @@ class TestViewletService implements IViewletService {
 	public _serviceBrand: any;
 
 	onDidViewletRegisterEmitter = new Emitter<ViewletDescriptor>();
+	onDidViewletDeregisterEmitter = new Emitter<ViewletDescriptor>();
 	onDidViewletOpenEmitter = new Emitter<IViewlet>();
 	onDidViewletCloseEmitter = new Emitter<IViewlet>();
-	onDidViewletEnableEmitter = new Emitter<{ id: string, enabled: boolean }>();
 
 	onDidViewletRegister = this.onDidViewletRegisterEmitter.event;
+	onDidViewletDeregister = this.onDidViewletDeregisterEmitter.event;
 	onDidViewletOpen = this.onDidViewletOpenEmitter.event;
 	onDidViewletClose = this.onDidViewletCloseEmitter.event;
-	onDidViewletEnablementChange = this.onDidViewletEnableEmitter.event;
 
 	public openViewlet(id: string, focus?: boolean): Promise<IViewlet> {
 		return Promise.resolve(null!);
@@ -44,7 +44,6 @@ class TestViewletService implements IViewletService {
 	public getActiveViewlet(): IViewlet {
 		return activeViewlet;
 	}
-	public setViewletEnablement(id: string, enabled: boolean): void { }
 
 	public dispose() {
 	}
@@ -53,8 +52,8 @@ class TestViewletService implements IViewletService {
 		return 'workbench.view.explorer';
 	}
 
-	public getViewlet(id: string): ViewletDescriptor {
-		return null!;
+	public getViewlet(id: string): ViewletDescriptor | undefined {
+		return undefined;
 	}
 
 	public getProgressIndicator(id: string) {

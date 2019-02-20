@@ -10,9 +10,8 @@ import { dispose } from 'vs/base/common/lifecycle';
 import { joinPath } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as extfs from 'vs/base/node/extfs';
-import { IFileMatch, IFileQuery, IPatternInfo, IRawFileMatch2, ISearchCompleteStats, ISearchQuery, ITextQuery, QueryType, resultIsMatch } from 'vs/platform/search/common/search';
+import { IFileMatch, IFileQuery, IPatternInfo, IRawFileMatch2, ISearchCompleteStats, ISearchQuery, ITextQuery, QueryType, resultIsMatch } from 'vs/workbench/services/search/common/search';
 import { MainContext, MainThreadSearchShape } from 'vs/workbench/api/node/extHost.protocol';
-import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
 import { ExtHostSearch } from 'vs/workbench/api/node/extHostSearch';
 import { Range } from 'vs/workbench/api/node/extHostTypes';
 import { extensionResultIsMatch } from 'vs/workbench/services/search/node/textSearchManager';
@@ -57,12 +56,6 @@ class MockMainThreadSearch implements MainThreadSearchShape {
 	}
 
 	dispose() {
-	}
-}
-
-class MockExtHostConfiguration {
-	getConfiguration(section?: string, resource?: URI, extensionId?: string): vscode.WorkspaceConfiguration {
-		return <vscode.WorkspaceConfiguration>{};
 	}
 }
 
@@ -138,12 +131,11 @@ suite('ExtHostSearch', () => {
 
 		mockMainThreadSearch = new MockMainThreadSearch();
 		const logService = new TestLogService();
-		const ehConfiguration: ExtHostConfiguration = new MockExtHostConfiguration() as any;
 
 		rpcProtocol.set(MainContext.MainThreadSearch, mockMainThreadSearch);
 
 		mockExtfs = {};
-		extHostSearch = new ExtHostSearch(rpcProtocol, null!, logService, ehConfiguration, mockExtfs as typeof extfs);
+		extHostSearch = new ExtHostSearch(rpcProtocol, null!, logService, mockExtfs as typeof extfs);
 	});
 
 	teardown(() => {

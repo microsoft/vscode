@@ -18,8 +18,8 @@ export class DataUriEditorInput extends EditorInput {
 	static readonly ID: string = 'workbench.editors.dataUriEditorInput';
 
 	private resource: URI;
-	private name: string;
-	private description: string;
+	private readonly name: string | undefined;
+	private readonly description: string | undefined;
 
 	constructor(
 		name: string,
@@ -54,12 +54,12 @@ export class DataUriEditorInput extends EditorInput {
 		return DataUriEditorInput.ID;
 	}
 
-	getName(): string {
-		return this.name;
+	getName(): string | null {
+		return this.name || null;
 	}
 
-	getDescription(): string {
-		return this.description;
+	getDescription(): string | null {
+		return this.description || null;
 	}
 
 	resolve(): Promise<BinaryEditorModel> {

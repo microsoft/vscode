@@ -5,16 +5,16 @@
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { URI as uri } from 'vs/base/common/uri';
-import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, ITerminalSettings, IDebugAdapter, IDebugAdapterDescriptorFactory, IDebugSession, IDebugAdapterFactory, IDebugAdapterTrackerFactory } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, ITerminalSettings, IDebugAdapter, IDebugAdapterDescriptorFactory, IDebugSession, IDebugAdapterFactory, IDebugAdapterTrackerFactory } from 'vs/workbench/contrib/debug/common/debug';
 import {
 	ExtHostContext, ExtHostDebugServiceShape, MainThreadDebugServiceShape, DebugSessionUUID, MainContext,
 	IExtHostContext, IBreakpointsDeltaDto, ISourceMultiBreakpointDto, ISourceBreakpointDto, IFunctionBreakpointDto, IDebugSessionDto
 } from 'vs/workbench/api/node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import severity from 'vs/base/common/severity';
-import { AbstractDebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
+import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/node/debugAdapter';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { convertToVSCPaths, convertToDAPaths, stringToUri, uriToString } from 'vs/workbench/parts/debug/common/debugUtils';
+import { convertToVSCPaths, convertToDAPaths } from 'vs/workbench/contrib/debug/common/debugUtils';
 
 @extHostNamedCustomer(MainContext.MainThreadDebugService)
 export class MainThreadDebugService implements MainThreadDebugServiceShape, IDebugAdapterFactory {
@@ -141,13 +141,13 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 				this.debugService.addFunctionBreakpoint(dto.functionName, dto.id);
 			}
 		}
-		return undefined;
+		return Promise.resolve();
 	}
 
 	public $unregisterBreakpoints(breakpointIds: string[], functionBreakpointIds: string[]): Promise<void> {
 		breakpointIds.forEach(id => this.debugService.removeBreakpoints(id));
 		functionBreakpointIds.forEach(id => this.debugService.removeFunctionBreakpoints(id));
-		return undefined;
+		return Promise.resolve();
 	}
 
 
@@ -259,21 +259,32 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	}
 
 	public $acceptDAMessage(handle: number, message: DebugProtocol.ProtocolMessage) {
-
-		this._debugAdapters.get(handle).acceptMessage(convertToVSCPaths(message, source => uriToString(source)));
+		this.getDebugAdapter(handle).acceptMessage(convertToVSCPaths(message, false));
 	}
 
+
 	public $acceptDAError(handle: number, name: string, message: string, stack: string) {
-		this._debugAdapters.get(handle).fireError(handle, new Error(`${name}: ${message}\n${stack}`));
+		this.getDebugAdapter(handle).fireError(handle, new Error(`${name}: ${message}\n${stack}`));
 	}
 
 	public $acceptDAExit(handle: number, code: number, signal: string) {
-		this._debugAdapters.get(handle).fireExit(handle, code, signal);
+		this.getDebugAdapter(handle).fireExit(handle, code, signal);
+	}
+
+	private getDebugAdapter(handle: number): ExtensionHostDebugAdapter {
+		const adapter = this._debugAdapters.get(handle);
+		if (!adapter) {
+			throw new Error('Invalid debug adapter');
+		}
+		return adapter;
 	}
 
 	// dto helpers
 
-	getSessionDto(session: IDebugSession): IDebugSessionDto {
+	getSessionDto(session: undefined): undefined;
+	getSessionDto(session: IDebugSession): IDebugSessionDto;
+	getSessionDto(session: IDebugSession | undefined): IDebugSessionDto | undefined;
+	getSessionDto(session: IDebugSession | undefined): IDebugSessionDto | undefined {
 		if (session) {
 			const sessionID = <DebugSessionUUID>session.getId();
 			if (this._sessions.has(sessionID)) {
@@ -345,8 +356,7 @@ class ExtensionHostDebugAdapter extends AbstractDebugAdapter {
 	}
 
 	public sendMessage(message: DebugProtocol.ProtocolMessage): void {
-
-		this._proxy.$sendDAMessage(this._handle, convertToDAPaths(message, source => stringToUri(source)));
+		this._proxy.$sendDAMessage(this._handle, convertToDAPaths(message, true));
 	}
 
 	public stopSession(): Promise<void> {

@@ -9,8 +9,8 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { matchesFuzzy } from 'vs/base/common/filters';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as strings from 'vs/base/common/strings';
-import { IContext, IHighlight, QuickOpenEntryGroup, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import { IAutoFocus, Mode } from 'vs/base/parts/quickopen/common/quickOpen';
+import { IHighlight, QuickOpenEntryGroup, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import { IAutoFocus, Mode, IEntryRunContext } from 'vs/base/parts/quickopen/common/quickOpen';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -26,12 +26,12 @@ let SCOPE_PREFIX = ':';
 export class SymbolEntry extends QuickOpenEntryGroup {
 	private name: string;
 	private type: string;
-	private description: string;
+	private description: string | null;
 	private range: Range;
 	private editor: ICodeEditor;
 	private decorator: IDecorator;
 
-	constructor(name: string, type: string, description: string, range: Range, highlights: IHighlight[], editor: ICodeEditor, decorator: IDecorator) {
+	constructor(name: string, type: string, description: string | null, range: Range, highlights: IHighlight[], editor: ICodeEditor, decorator: IDecorator) {
 		super();
 
 		this.name = name;
@@ -55,7 +55,7 @@ export class SymbolEntry extends QuickOpenEntryGroup {
 		return this.type;
 	}
 
-	public getDescription(): string {
+	public getDescription(): string | null {
 		return this.description;
 	}
 
@@ -67,7 +67,7 @@ export class SymbolEntry extends QuickOpenEntryGroup {
 		return this.range;
 	}
 
-	public run(mode: Mode, context: IContext): boolean {
+	public run(mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.OPEN) {
 			return this.runOpen(context);
 		}
@@ -75,7 +75,7 @@ export class SymbolEntry extends QuickOpenEntryGroup {
 		return this.runPreview();
 	}
 
-	private runOpen(context: IContext): boolean {
+	private runOpen(_context: IEntryRunContext): boolean {
 
 		// Apply selection and focus
 		let range = this.toSelection();
@@ -128,12 +128,15 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor) {
+		if (!editor.hasModel()) {
+			return undefined;
+		}
 
-		let model = editor.getModel();
+		const model = editor.getModel();
 
 		if (!DocumentSymbolProviderRegistry.has(model)) {
-			return null;
+			return undefined;
 		}
 
 		// Resolve outline
@@ -166,7 +169,7 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 		});
 	}
 
-	private symbolEntry(name: string, type: string, description: string, range: IRange, highlights: IHighlight[], editor: ICodeEditor, decorator: IDecorator): SymbolEntry {
+	private symbolEntry(name: string, type: string, description: string | null, range: IRange, highlights: IHighlight[], editor: ICodeEditor, decorator: IDecorator): SymbolEntry {
 		return new SymbolEntry(name, type, description, Range.lift(range), highlights, editor, decorator);
 	}
 
@@ -222,7 +225,7 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 
 					// Update previous result with count
 					if (currentResult) {
-						currentResult.setGroupLabel(this.typeToLabel(currentType, typeCounter));
+						currentResult.setGroupLabel(this.typeToLabel(currentType || '', typeCounter));
 					}
 
 					currentType = result.getType();
@@ -240,7 +243,7 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 
 			// Update previous result with count
 			if (currentResult) {
-				currentResult.setGroupLabel(this.typeToLabel(currentType, typeCounter));
+				currentResult.setGroupLabel(this.typeToLabel(currentType || '', typeCounter));
 			}
 		}
 

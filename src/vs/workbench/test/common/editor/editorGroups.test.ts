@@ -29,7 +29,7 @@ function inst(): IInstantiationService {
 	inst.stub(ITelemetryService, NullTelemetryService);
 
 	const config = new TestConfigurationService();
-	config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' } });
+	config.setUserConfiguration('workbench', { editor: { openPositioning: 'right', focusRecentEditorAfterClose: true } });
 	inst.stub(IConfigurationService, config);
 
 	return inst;
@@ -640,6 +640,64 @@ suite('Workbench editor groups', () => {
 		assert.equal(group.count, 1);
 
 		group.closeEditor(input3);
+
+		assert.ok(!group.activeEditor);
+		assert.equal(group.count, 0);
+	});
+
+	test('Multiple Editors - closing picks next to the right', function () {
+		let inst = new TestInstantiationService();
+		inst.stub(IStorageService, new TestStorageService());
+		inst.stub(ILifecycleService, new TestLifecycleService());
+		inst.stub(IWorkspaceContextService, new TestContextService());
+		inst.stub(ITelemetryService, NullTelemetryService);
+
+		const config = new TestConfigurationService();
+		config.setUserConfiguration('workbench', { editor: { focusRecentEditorAfterClose: false } });
+		inst.stub(IConfigurationService, config);
+
+		const group = inst.createInstance(EditorGroup, undefined);
+		const events = groupListener(group);
+
+		const input1 = input();
+		const input2 = input();
+		const input3 = input();
+		const input4 = input();
+		const input5 = input();
+
+		group.openEditor(input1, { pinned: true, active: true });
+		group.openEditor(input2, { pinned: true, active: true });
+		group.openEditor(input3, { pinned: true, active: true });
+		group.openEditor(input4, { pinned: true, active: true });
+		group.openEditor(input5, { pinned: true, active: true });
+
+		assert.equal(group.activeEditor, input5);
+		assert.equal(group.getEditors(true)[0], input5);
+		assert.equal(group.count, 5);
+
+		group.closeEditor(input5);
+		assert.equal(group.activeEditor, input4);
+		assert.equal(events.activated[5], input4);
+		assert.equal(group.count, 4);
+
+		group.setActive(input1);
+		group.closeEditor(input1);
+
+		assert.equal(group.activeEditor, input2);
+		assert.equal(group.count, 3);
+
+		group.setActive(input3);
+		group.closeEditor(input3);
+
+		assert.equal(group.activeEditor, input4);
+		assert.equal(group.count, 2);
+
+		group.closeEditor(input4);
+
+		assert.equal(group.activeEditor, input2);
+		assert.equal(group.count, 1);
+
+		group.closeEditor(input2);
 
 		assert.ok(!group.activeEditor);
 		assert.equal(group.count, 0);

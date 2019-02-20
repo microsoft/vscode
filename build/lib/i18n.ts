@@ -13,14 +13,14 @@ import * as xml2js from 'xml2js';
 import * as glob from 'glob';
 import * as https from 'https';
 import * as gulp from 'gulp';
-
-import * as util from 'gulp-util';
+import * as fancyLog from 'fancy-log';
+import * as ansiColors from 'ansi-colors';
 import * as iconv from 'iconv-lite';
 
 const NUMBER_OF_CONCURRENT_DOWNLOADS = 4;
 
 function log(message: any, ...rest: any[]): void {
-	util.log(util.colors.green('[i18n]'), message, ...rest);
+	fancyLog(ansiColors.green('[i18n]'), message, ...rest);
 }
 
 export interface Language {
@@ -602,7 +602,7 @@ export function getResource(sourceFile: string): Resource {
 		return { name: 'vs/base', project: editorProject };
 	} else if (/^vs\/code/.test(sourceFile)) {
 		return { name: 'vs/code', project: workbenchProject };
-	} else if (/^vs\/workbench\/parts/.test(sourceFile)) {
+	} else if (/^vs\/workbench\/contrib/.test(sourceFile)) {
 		resource = sourceFile.split('/', 4).join('/');
 		return { name: resource, project: workbenchProject };
 	} else if (/^vs\/workbench\/services/.test(sourceFile)) {
@@ -684,7 +684,7 @@ export function createXlfFilesForExtensions(): ThroughStream {
 			}
 			return _xlf;
 		}
-		gulp.src([`./extensions/${extensionName}/package.nls.json`, `./extensions/${extensionName}/**/nls.metadata.json`]).pipe(through(function (file: File) {
+		gulp.src([`./extensions/${extensionName}/package.nls.json`, `./extensions/${extensionName}/**/nls.metadata.json`], { allowEmpty: true }).pipe(through(function (file: File) {
 			if (file.isBuffer()) {
 				const buffer: Buffer = file.contents as Buffer;
 				const basename = path.basename(file.path);

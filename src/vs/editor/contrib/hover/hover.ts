@@ -8,6 +8,7 @@ import * as nls from 'vs/nls';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import * as platform from 'vs/base/common/platform';
 import { IEmptyContentData } from 'vs/editor/browser/controller/mouseTarget';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
@@ -25,6 +26,9 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { editorHoverBackground, editorHoverBorder, editorHoverHighlight, textCodeBlockBackground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
+import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 
 export class ModesHoverController implements IEditorContribution {
 
@@ -61,6 +65,9 @@ export class ModesHoverController implements IEditorContribution {
 
 	constructor(private readonly _editor: ICodeEditor,
 		@IOpenerService private readonly _openerService: IOpenerService,
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
+		@ICommandService private readonly _commandService: ICommandService,
 		@IModeService private readonly _modeService: IModeService,
 		@IMarkerDecorationsService private readonly _markerDecorationsService: IMarkerDecorationsService,
 		@IThemeService private readonly _themeService: IThemeService
@@ -206,7 +213,7 @@ export class ModesHoverController implements IEditorContribution {
 
 	private _createHoverWidget() {
 		const renderer = new MarkdownRenderer(this._editor, this._modeService, this._openerService);
-		this._contentWidget = new ModesContentHoverWidget(this._editor, renderer, this._markerDecorationsService, this._themeService);
+		this._contentWidget = new ModesContentHoverWidget(this._editor, renderer, this._markerDecorationsService, this._themeService, this._contextMenuService, this._bulkEditService, this._commandService, this._openerService);
 		this._glyphWidget = new ModesGlyphHoverWidget(this._editor, renderer);
 	}
 
@@ -263,7 +270,8 @@ class ShowHoverAction extends EditorAction {
 		}
 		const position = editor.getPosition();
 		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
-		controller.showContentHover(range, HoverStartMode.Immediate, true);
+		const focus = editor.getConfiguration().accessibilitySupport === platform.AccessibilitySupport.Enabled;
+		controller.showContentHover(range, HoverStartMode.Immediate, focus);
 	}
 }
 

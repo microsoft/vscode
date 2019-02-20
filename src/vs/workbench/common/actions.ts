@@ -44,7 +44,7 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 		KeybindingsRegistry.registerKeybindingRule({
 			id: descriptor.id,
 			weight: weight,
-			when: descriptor.keybindingContext,
+			when: (descriptor.keybindingContext || when ? ContextKeyExpr.and(descriptor.keybindingContext, when) : null),
 			primary: keybindings ? keybindings.primary : 0,
 			secondary: keybindings && keybindings.secondary,
 			win: keybindings && keybindings.win,
@@ -54,7 +54,7 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 
 		// menu item
 		// TODO@Rob slightly weird if-check required because of
-		// https://github.com/Microsoft/vscode/blob/master/src/vs/workbench/parts/search/electron-browser/search.contribution.ts#L266
+		// https://github.com/Microsoft/vscode/blob/master/src/vs/workbench/contrib/search/electron-browser/search.contribution.ts#L266
 		if (descriptor.label) {
 
 			let idx = alias.indexOf(': ');

@@ -177,37 +177,43 @@ suite('git', () => {
 	suite('parseGitCommit', () => {
 		test('single parent commit', function () {
 			const GIT_OUTPUT_SINGLE_PARENT = `52c293a05038d865604c2284aa8698bd087915a1
+john.doe@mail.com
 8e5a374372b8393906c7e380dbb09349c5385554
 This is a commit message.`;
 
 			assert.deepEqual(parseGitCommit(GIT_OUTPUT_SINGLE_PARENT), {
 				hash: '52c293a05038d865604c2284aa8698bd087915a1',
 				message: 'This is a commit message.',
-				parents: ['8e5a374372b8393906c7e380dbb09349c5385554']
+				parents: ['8e5a374372b8393906c7e380dbb09349c5385554'],
+				authorEmail: 'john.doe@mail.com',
 			});
 		});
 
 		test('multiple parent commits', function () {
 			const GIT_OUTPUT_MULTIPLE_PARENTS = `52c293a05038d865604c2284aa8698bd087915a1
+john.doe@mail.com
 8e5a374372b8393906c7e380dbb09349c5385554 df27d8c75b129ab9b178b386077da2822101b217
 This is a commit message.`;
 
 			assert.deepEqual(parseGitCommit(GIT_OUTPUT_MULTIPLE_PARENTS), {
 				hash: '52c293a05038d865604c2284aa8698bd087915a1',
 				message: 'This is a commit message.',
-				parents: ['8e5a374372b8393906c7e380dbb09349c5385554', 'df27d8c75b129ab9b178b386077da2822101b217']
+				parents: ['8e5a374372b8393906c7e380dbb09349c5385554', 'df27d8c75b129ab9b178b386077da2822101b217'],
+				authorEmail: 'john.doe@mail.com',
 			});
 		});
 
 		test('no parent commits', function () {
 			const GIT_OUTPUT_NO_PARENTS = `52c293a05038d865604c2284aa8698bd087915a1
+john.doe@mail.com
 
 This is a commit message.`;
 
 			assert.deepEqual(parseGitCommit(GIT_OUTPUT_NO_PARENTS), {
 				hash: '52c293a05038d865604c2284aa8698bd087915a1',
 				message: 'This is a commit message.',
-				parents: []
+				parents: [],
+				authorEmail: 'john.doe@mail.com',
 			});
 		});
 	});

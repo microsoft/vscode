@@ -14,9 +14,13 @@ import { MainThreadConfiguration } from 'vs/workbench/api/electron-browser/mainT
 import { SingleProxyRPCProtocol } from './testRPCProtocol';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 suite('MainThreadConfiguration', function () {
 
+	let proxy = {
+		$initializeConfiguration: () => { }
+	};
 	let instantiationService: TestInstantiationService;
 	let target: sinon.SinonSpy;
 
@@ -50,11 +54,14 @@ suite('MainThreadConfiguration', function () {
 		instantiationService.stub(IConfigurationService, 'onDidUpdateConfiguration', sinon.mock());
 		instantiationService.stub(IConfigurationService, 'onDidChangeConfiguration', sinon.mock());
 		instantiationService.stub(IConfigurationService, 'updateValue', target);
+		instantiationService.stub(IEnvironmentService, {
+			isBuilt: false
+		});
 	});
 
 	test('update resource configuration without configuration target defaults to workspace in multi root workspace when no resource is provided', function () {
 		instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{ getWorkbenchState: () => WorkbenchState.WORKSPACE });
-		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(null));
+		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(proxy));
 
 		testObject.$updateConfigurationOption(null, 'extHostConfiguration.resource', 'value', null);
 
@@ -63,7 +70,7 @@ suite('MainThreadConfiguration', function () {
 
 	test('update resource configuration without configuration target defaults to workspace in folder workspace when resource is provider', function () {
 		instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{ getWorkbenchState: () => WorkbenchState.FOLDER });
-		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(null));
+		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(proxy));
 
 		testObject.$updateConfigurationOption(null, 'extHostConfiguration.resource', 'value', URI.file('abc'));
 
@@ -72,7 +79,7 @@ suite('MainThreadConfiguration', function () {
 
 	test('update resource configuration without configuration target defaults to workspace in folder workspace when no resource is provider', function () {
 		instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{ getWorkbenchState: () => WorkbenchState.FOLDER });
-		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(null));
+		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(proxy));
 
 		testObject.$updateConfigurationOption(null, 'extHostConfiguration.resource', 'value', null);
 
@@ -81,7 +88,7 @@ suite('MainThreadConfiguration', function () {
 
 	test('update window configuration without configuration target defaults to workspace in multi root workspace when no resource is provided', function () {
 		instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{ getWorkbenchState: () => WorkbenchState.WORKSPACE });
-		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(null));
+		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(proxy));
 
 		testObject.$updateConfigurationOption(null, 'extHostConfiguration.window', 'value', null);
 
@@ -90,7 +97,7 @@ suite('MainThreadConfiguration', function () {
 
 	test('update window configuration without configuration target defaults to workspace in multi root workspace when resource is provided', function () {
 		instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{ getWorkbenchState: () => WorkbenchState.WORKSPACE });
-		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(null));
+		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(proxy));
 
 		testObject.$updateConfigurationOption(null, 'extHostConfiguration.window', 'value', URI.file('abc'));
 
@@ -99,7 +106,7 @@ suite('MainThreadConfiguration', function () {
 
 	test('update window configuration without configuration target defaults to workspace in folder workspace when resource is provider', function () {
 		instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{ getWorkbenchState: () => WorkbenchState.FOLDER });
-		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(null));
+		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(proxy));
 
 		testObject.$updateConfigurationOption(null, 'extHostConfiguration.window', 'value', URI.file('abc'));
 
@@ -108,7 +115,7 @@ suite('MainThreadConfiguration', function () {
 
 	test('update window configuration without configuration target defaults to workspace in folder workspace when no resource is provider', function () {
 		instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{ getWorkbenchState: () => WorkbenchState.FOLDER });
-		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(null));
+		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(proxy));
 
 		testObject.$updateConfigurationOption(null, 'extHostConfiguration.window', 'value', null);
 
@@ -117,7 +124,7 @@ suite('MainThreadConfiguration', function () {
 
 	test('update resource configuration without configuration target defaults to folder', function () {
 		instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{ getWorkbenchState: () => WorkbenchState.WORKSPACE });
-		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(null));
+		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(proxy));
 
 		testObject.$updateConfigurationOption(null, 'extHostConfiguration.resource', 'value', URI.file('abc'));
 
@@ -126,7 +133,7 @@ suite('MainThreadConfiguration', function () {
 
 	test('update configuration with user configuration target', function () {
 		instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{ getWorkbenchState: () => WorkbenchState.FOLDER });
-		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(null));
+		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(proxy));
 
 		testObject.$updateConfigurationOption(ConfigurationTarget.USER, 'extHostConfiguration.window', 'value', URI.file('abc'));
 
@@ -135,7 +142,7 @@ suite('MainThreadConfiguration', function () {
 
 	test('update configuration with workspace configuration target', function () {
 		instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{ getWorkbenchState: () => WorkbenchState.FOLDER });
-		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(null));
+		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(proxy));
 
 		testObject.$updateConfigurationOption(ConfigurationTarget.WORKSPACE, 'extHostConfiguration.window', 'value', URI.file('abc'));
 
@@ -144,7 +151,7 @@ suite('MainThreadConfiguration', function () {
 
 	test('update configuration with folder configuration target', function () {
 		instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{ getWorkbenchState: () => WorkbenchState.FOLDER });
-		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(null));
+		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(proxy));
 
 		testObject.$updateConfigurationOption(ConfigurationTarget.WORKSPACE_FOLDER, 'extHostConfiguration.window', 'value', URI.file('abc'));
 
@@ -153,7 +160,7 @@ suite('MainThreadConfiguration', function () {
 
 	test('remove resource configuration without configuration target defaults to workspace in multi root workspace when no resource is provided', function () {
 		instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{ getWorkbenchState: () => WorkbenchState.WORKSPACE });
-		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(null));
+		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(proxy));
 
 		testObject.$removeConfigurationOption(null, 'extHostConfiguration.resource', null);
 
@@ -162,7 +169,7 @@ suite('MainThreadConfiguration', function () {
 
 	test('remove resource configuration without configuration target defaults to workspace in folder workspace when resource is provider', function () {
 		instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{ getWorkbenchState: () => WorkbenchState.FOLDER });
-		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(null));
+		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(proxy));
 
 		testObject.$removeConfigurationOption(null, 'extHostConfiguration.resource', URI.file('abc'));
 
@@ -171,7 +178,7 @@ suite('MainThreadConfiguration', function () {
 
 	test('remove resource configuration without configuration target defaults to workspace in folder workspace when no resource is provider', function () {
 		instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{ getWorkbenchState: () => WorkbenchState.FOLDER });
-		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(null));
+		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(proxy));
 
 		testObject.$removeConfigurationOption(null, 'extHostConfiguration.resource', null);
 
@@ -180,7 +187,7 @@ suite('MainThreadConfiguration', function () {
 
 	test('remove window configuration without configuration target defaults to workspace in multi root workspace when no resource is provided', function () {
 		instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{ getWorkbenchState: () => WorkbenchState.WORKSPACE });
-		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(null));
+		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(proxy));
 
 		testObject.$removeConfigurationOption(null, 'extHostConfiguration.window', null);
 
@@ -189,7 +196,7 @@ suite('MainThreadConfiguration', function () {
 
 	test('remove window configuration without configuration target defaults to workspace in multi root workspace when resource is provided', function () {
 		instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{ getWorkbenchState: () => WorkbenchState.WORKSPACE });
-		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(null));
+		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(proxy));
 
 		testObject.$removeConfigurationOption(null, 'extHostConfiguration.window', URI.file('abc'));
 
@@ -198,7 +205,7 @@ suite('MainThreadConfiguration', function () {
 
 	test('remove window configuration without configuration target defaults to workspace in folder workspace when resource is provider', function () {
 		instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{ getWorkbenchState: () => WorkbenchState.FOLDER });
-		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(null));
+		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(proxy));
 
 		testObject.$removeConfigurationOption(null, 'extHostConfiguration.window', URI.file('abc'));
 
@@ -207,7 +214,7 @@ suite('MainThreadConfiguration', function () {
 
 	test('remove window configuration without configuration target defaults to workspace in folder workspace when no resource is provider', function () {
 		instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{ getWorkbenchState: () => WorkbenchState.FOLDER });
-		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(null));
+		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(proxy));
 
 		testObject.$removeConfigurationOption(null, 'extHostConfiguration.window', null);
 
@@ -216,7 +223,7 @@ suite('MainThreadConfiguration', function () {
 
 	test('remove configuration without configuration target defaults to folder', function () {
 		instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{ getWorkbenchState: () => WorkbenchState.WORKSPACE });
-		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(null));
+		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(proxy));
 
 		testObject.$removeConfigurationOption(null, 'extHostConfiguration.resource', URI.file('abc'));
 

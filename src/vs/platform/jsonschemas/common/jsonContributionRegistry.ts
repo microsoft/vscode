@@ -26,7 +26,7 @@ export interface IJSONContributionRegistry {
 
 
 	/**
-	 * Notifies all listeneres that the content of the given schema has changed.
+	 * Notifies all listeners that the content of the given schema has changed.
 	 * @param uri The id of the schema
 	 */
 	notifySchemaChanged(uri: string): void;

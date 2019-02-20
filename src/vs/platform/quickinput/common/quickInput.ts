@@ -114,7 +114,7 @@ export interface IInputOptions {
 	/**
 	 * an optional function that is used to validate user input.
 	 */
-	validateInput?: (input: string) => Promise<string>;
+	validateInput?: (input: string) => Promise<string | null | undefined>;
 }
 
 export interface IQuickInput {
@@ -150,7 +150,7 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 
 	readonly onDidChangeValue: Event<string>;
 
-	readonly onDidAccept: Event<string>;
+	readonly onDidAccept: Event<void>;
 
 	buttons: ReadonlyArray<IQuickInputButton>;
 
@@ -183,7 +183,7 @@ export interface IInputBox extends IQuickInput {
 
 	value: string;
 
-	valueSelection: Readonly<[number, number]>;
+	valueSelection: Readonly<[number, number]> | undefined;
 
 	placeholder: string | undefined;
 
@@ -191,7 +191,7 @@ export interface IInputBox extends IQuickInput {
 
 	readonly onDidChangeValue: Event<string>;
 
-	readonly onDidAccept: Event<string>;
+	readonly onDidAccept: Event<void>;
 
 	buttons: ReadonlyArray<IQuickInputButton>;
 
@@ -203,7 +203,9 @@ export interface IInputBox extends IQuickInput {
 }
 
 export interface IQuickInputButton {
+	/** iconPath or iconClass required */
 	iconPath?: { dark: URI; light?: URI; };
+	/** iconPath or iconClass required */
 	iconClass?: string;
 	tooltip?: string;
 }

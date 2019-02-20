@@ -33,12 +33,12 @@ export class ExtensionHostProfiler {
 
 		let nodes = profile.nodes;
 		let idsToNodes = new Map<number, ProfileNode>();
-		let idsToSegmentId = new Map<number, ProfileSegmentId>();
+		let idsToSegmentId = new Map<number, ProfileSegmentId | null>();
 		for (let node of nodes) {
 			idsToNodes.set(node.id, node);
 		}
 
-		function visit(node: ProfileNode, segmentId: ProfileSegmentId) {
+		function visit(node: ProfileNode, segmentId: ProfileSegmentId | null) {
 			if (!segmentId) {
 				switch (node.callFrame.functionName) {
 					case '(root)':
@@ -62,8 +62,11 @@ export class ExtensionHostProfiler {
 			idsToSegmentId.set(node.id, segmentId);
 
 			if (node.children) {
-				for (let child of node.children) {
-					visit(idsToNodes.get(child), segmentId);
+				for (const child of node.children) {
+					const childNode = idsToNodes.get(child);
+					if (childNode) {
+						visit(childNode, segmentId);
+					}
 				}
 			}
 		}

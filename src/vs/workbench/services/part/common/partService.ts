@@ -13,8 +13,7 @@ export const enum Parts {
 	PANEL_PART,
 	EDITOR_PART,
 	STATUSBAR_PART,
-	TITLEBAR_PART,
-	MENUBAR_PART
+	TITLEBAR_PART
 }
 
 export const enum Position {
@@ -69,7 +68,7 @@ export interface IPartService {
 	/**
 	 * Returns the parts HTML element, if there is one.
 	 */
-	getContainer(part: Parts): HTMLElement;
+	getContainer(part: Parts): HTMLElement | null;
 
 	/**
 	 * Returns if the part is visible.
@@ -85,6 +84,12 @@ export interface IPartService {
 	 * Number of pixels (adjusted for zooming) that the title bar (if visible) pushes down the workbench contents.
 	 */
 	getTitleBarOffset(): number;
+
+	/**
+	 *
+	 * Set editor area hidden or not
+	 */
+	setEditorHidden(hidden: boolean): void;
 
 	/**
 	 * Set sidebar hidden or not

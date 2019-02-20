@@ -8,7 +8,7 @@ import { IResourceInput, IEditorOptions, ITextEditorOptions } from 'vs/platform/
 import { IEditorInput, IEditor, GroupIdentifier, IEditorInputWithOptions, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, ITextEditor, ITextDiffEditor, ITextSideBySideEditor } from 'vs/workbench/common/editor';
 import { Event } from 'vs/base/common/event';
 import { IEditor as ICodeEditor } from 'vs/editor/common/editorCommon';
-import { IEditorGroup, IEditorReplacement } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroup, IEditorReplacement } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
 export const IEditorService = createDecorator<IEditorService>('editorService');
@@ -27,7 +27,7 @@ export const SIDE_GROUP = -2;
 export type SIDE_GROUP_TYPE = typeof SIDE_GROUP;
 
 export interface IOpenEditorOverrideHandler {
-	(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions, group: IEditorGroup): IOpenEditorOverride;
+	(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup): IOpenEditorOverride | undefined;
 }
 
 export interface IOpenEditorOverride {
@@ -36,7 +36,12 @@ export interface IOpenEditorOverride {
 	 * If defined, will prevent the opening of an editor and replace the resulting
 	 * promise with the provided promise for the openEditor() call.
 	 */
-	override?: Promise<IEditor>;
+	override?: Promise<IEditor | undefined>;
+}
+
+export interface IActiveEditor extends IEditor {
+	input: IEditorInput;
+	group: IEditorGroup;
 }
 
 export interface IEditorService {
@@ -61,7 +66,7 @@ export interface IEditorService {
 	 * located in the currently active editor group. It will be `undefined` if the active
 	 * editor group has no editors open.
 	 */
-	readonly activeEditor: IEditorInput;
+	readonly activeEditor: IEditorInput | undefined;
 
 	/**
 	 * The currently active editor control or `undefined` if none. The editor control is
@@ -69,7 +74,7 @@ export interface IEditorService {
 	 *
 	 * @see `IEditorService.activeEditor`
 	 */
-	readonly activeControl: IEditor;
+	readonly activeControl: IActiveEditor | undefined;
 
 	/**
 	 * The currently active text editor widget or `undefined` if there is currently no active
@@ -77,7 +82,7 @@ export interface IEditorService {
 	 *
 	 * @see `IEditorService.activeEditor`
 	 */
-	readonly activeTextEditorWidget: ICodeEditor;
+	readonly activeTextEditorWidget: ICodeEditor | undefined;
 
 	/**
 	 * All editors that are currently visible. An editor is visible when it is opened in an
@@ -178,5 +183,5 @@ export interface IEditorService {
 	/**
 	 * Converts a lightweight input to a workbench editor input.
 	 */
-	createInput(input: IResourceEditor): IEditorInput;
+	createInput(input: IResourceEditor): IEditorInput | null;
 }

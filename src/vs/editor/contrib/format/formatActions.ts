@@ -3,30 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import { alert } from 'vs/base/browser/ui/aria/aria';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { registerEditorAction, ServicesAccessor, EditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { OnTypeFormattingEditProviderRegistry, DocumentRangeFormattingEditProviderRegistry, DocumentFormattingEditProviderRegistry, FormattingOptions } from 'vs/editor/common/modes';
-import { getOnTypeFormattingEdits, NoProviderError } from 'vs/editor/contrib/format/format';
-import { FormattingEdit } from 'vs/editor/contrib/format/formattingEdit';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { CodeEditorStateFlag, EditorState } from 'vs/editor/browser/core/editorState';
+import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { CharacterSet } from 'vs/editor/common/core/characterClassifier';
 import { Range } from 'vs/editor/common/core/range';
-import { alert } from 'vs/base/browser/ui/aria/aria';
-import { EditorState, CodeEditorStateFlag } from 'vs/editor/browser/core/editorState';
+import * as editorCommon from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ICodeEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ISingleEditOperation } from 'vs/editor/common/model';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { DocumentRangeFormattingEditProviderRegistry, FormattingOptions, OnTypeFormattingEditProviderRegistry } from 'vs/editor/common/modes';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { getOnTypeFormattingEdits, getDocumentFormattingEdits, getDocumentRangeFormattingEdits, FormatMode } from 'vs/editor/contrib/format/format';
+import { FormattingEdit } from 'vs/editor/contrib/format/formattingEdit';
+import * as nls from 'vs/nls';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { sequence } from 'vs/base/common/async';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 function alertFormattingEdits(edits: ISingleEditOperation[]): void {
 
@@ -55,95 +54,69 @@ function alertFormattingEdits(edits: ISingleEditOperation[]): void {
 	}
 }
 
-export const enum FormatRangeType {
+const enum FormatRangeType {
 	Full,
 	Selection,
 }
 
-export function formatDocumentRange(workerService: IEditorWorkerService, editor: IActiveCodeEditor, rangeOrRangeType: Range | FormatRangeType, options: FormattingOptions, token: CancellationToken): Promise<void> {
+function formatDocumentRange(
+	telemetryService: ITelemetryService,
+	workerService: IEditorWorkerService,
+	editor: IActiveCodeEditor,
+	rangeOrRangeType: Range | FormatRangeType,
+	options: FormattingOptions,
+	token: CancellationToken
+): Promise<void> {
 
-	const provider = DocumentRangeFormattingEditProviderRegistry.ordered(editor.getModel()).slice(0, 1);
-	if (provider.length === 0) {
-		return Promise.reject(new NoProviderError());
+
+	const state = new EditorState(editor, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position);
+	const model = editor.getModel();
+
+	let range: Range;
+	if (rangeOrRangeType === FormatRangeType.Full) {
+		// full
+		range = model.getFullModelRange();
+
+	} else if (rangeOrRangeType === FormatRangeType.Selection) {
+		// selection or line (when empty)
+		range = editor.getSelection();
+		if (range.isEmpty()) {
+			range = new Range(range.startLineNumber, 1, range.endLineNumber, model.getLineMaxColumn(range.endLineNumber));
+		}
+	} else {
+		// as is
+		range = rangeOrRangeType;
 	}
 
-	let allEdits: ISingleEditOperation[] = [];
-
-	editor.pushUndoStop();
-	return sequence(provider.map(provider => {
-		// create a formatting task per provider. they run sequentially,
-		// potentially undoing the working of a previous formatter
-		return () => {
-			const state = new EditorState(editor, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position);
-			const model = editor.getModel();
-
-			let range: Range;
-			if (rangeOrRangeType === FormatRangeType.Full) {
-				// full
-				range = model.getFullModelRange();
-
-			} else if (rangeOrRangeType === FormatRangeType.Selection) {
-				// selection or line (when empty)
-				range = editor.getSelection();
-				if (range.isEmpty()) {
-					range = new Range(range.startLineNumber, 1, range.endLineNumber, model.getLineMaxColumn(range.endLineNumber));
-				}
-			} else {
-				// as is
-				range = rangeOrRangeType;
-			}
-			return Promise.resolve(provider.provideDocumentRangeFormattingEdits(model, range, options, token)).then(edits => {
-				// break edits into smaller edits
-				return workerService.computeMoreMinimalEdits(editor.getModel().uri, edits);
-			}).then(edits => {
-				// make edit only when the editor didn't change while
-				// computing and only when there are edits
-				if (state.validate(editor) && isNonEmptyArray(edits)) {
-					FormattingEdit.execute(editor, edits);
-					allEdits = allEdits.concat(edits);
-				}
-			});
-		};
-	})).then(() => {
-		alertFormattingEdits(allEdits);
-		editor.pushUndoStop();
-		editor.focus();
-		editor.revealPositionInCenterIfOutsideViewport(editor.getPosition(), editorCommon.ScrollType.Immediate);
+	return getDocumentRangeFormattingEdits(telemetryService, workerService, model, range, options, FormatMode.Manual, token).then(edits => {
+		// make edit only when the editor didn't change while
+		// computing and only when there are edits
+		if (state.validate(editor) && isNonEmptyArray(edits)) {
+			FormattingEdit.execute(editor, edits);
+			alertFormattingEdits(edits);
+			editor.focus();
+			editor.revealPositionInCenterIfOutsideViewport(editor.getPosition(), editorCommon.ScrollType.Immediate);
+		}
 	});
+
 }
 
-export function formatDocument(workerService: IEditorWorkerService, editor: IActiveCodeEditor, options: FormattingOptions, token: CancellationToken): Promise<void> {
-	const provider = DocumentFormattingEditProviderRegistry.ordered(editor.getModel()).slice(0);
-	if (provider.length === 0) {
-		return formatDocumentRange(workerService, editor, FormatRangeType.Full, options, token);
-	}
+function formatDocument(telemetryService: ITelemetryService, workerService: IEditorWorkerService, editor: IActiveCodeEditor, options: FormattingOptions, token: CancellationToken): Promise<void> {
 
-	let allEdits: ISingleEditOperation[] = [];
+	const allEdits: ISingleEditOperation[] = [];
+	const state = new EditorState(editor, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position);
 
-	editor.pushUndoStop();
-	return sequence(provider.map(provider => {
-		// create a formatting task per provider. they run sequentially,
-		// potentially undoing the working of a previous formatter
-		return () => {
-			const state = new EditorState(editor, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position);
-			const model = editor.getModel();
-			return Promise.resolve(provider.provideDocumentFormattingEdits(model, options, token)).then(edits => {
-				// break edits into smaller edits
-				return workerService.computeMoreMinimalEdits(editor.getModel().uri, edits);
-			}).then(edits => {
-				// make edit only when the editor didn't change while
-				// computing and only when there are edits
-				if (state.validate(editor) && isNonEmptyArray(edits)) {
-					FormattingEdit.execute(editor, edits);
-					allEdits = allEdits.concat(edits);
-				}
-			});
-		};
-	})).then(() => {
-		alertFormattingEdits(allEdits);
-		editor.pushUndoStop();
-		editor.focus();
-		editor.revealPositionInCenterIfOutsideViewport(editor.getPosition(), editorCommon.ScrollType.Immediate);
+	return getDocumentFormattingEdits(telemetryService, workerService, editor.getModel(), options, FormatMode.Manual, token).then(edits => {
+		// make edit only when the editor didn't change while
+		// computing and only when there are edits
+		if (state.validate(editor) && isNonEmptyArray(edits)) {
+			FormattingEdit.execute(editor, edits);
+
+			alertFormattingEdits(allEdits);
+			editor.pushUndoStop();
+			editor.focus();
+			editor.revealPositionInCenterIfOutsideViewport(editor.getPosition(), editorCommon.ScrollType.Immediate);
+		}
 	});
 }
 
@@ -151,39 +124,38 @@ class FormatOnType implements editorCommon.IEditorContribution {
 
 	private static readonly ID = 'editor.contrib.autoFormat';
 
-	private editor: ICodeEditor;
-	private workerService: IEditorWorkerService;
-	private callOnDispose: IDisposable[];
-	private callOnModel: IDisposable[];
+	private readonly _editor: ICodeEditor;
+	private _callOnDispose: IDisposable[] = [];
+	private _callOnModel: IDisposable[] = [];
 
-	constructor(editor: ICodeEditor, @IEditorWorkerService workerService: IEditorWorkerService) {
-		this.editor = editor;
-		this.workerService = workerService;
-		this.callOnDispose = [];
-		this.callOnModel = [];
-
-		this.callOnDispose.push(editor.onDidChangeConfiguration(() => this.update()));
-		this.callOnDispose.push(editor.onDidChangeModel(() => this.update()));
-		this.callOnDispose.push(editor.onDidChangeModelLanguage(() => this.update()));
-		this.callOnDispose.push(OnTypeFormattingEditProviderRegistry.onDidChange(this.update, this));
+	constructor(
+		editor: ICodeEditor,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IEditorWorkerService private readonly _workerService: IEditorWorkerService
+	) {
+		this._editor = editor;
+		this._callOnDispose.push(editor.onDidChangeConfiguration(() => this.update()));
+		this._callOnDispose.push(editor.onDidChangeModel(() => this.update()));
+		this._callOnDispose.push(editor.onDidChangeModelLanguage(() => this.update()));
+		this._callOnDispose.push(OnTypeFormattingEditProviderRegistry.onDidChange(this.update, this));
 	}
 
 	private update(): void {
 
 		// clean up
-		this.callOnModel = dispose(this.callOnModel);
+		this._callOnModel = dispose(this._callOnModel);
 
 		// we are disabled
-		if (!this.editor.getConfiguration().contribInfo.formatOnType) {
+		if (!this._editor.getConfiguration().contribInfo.formatOnType) {
 			return;
 		}
 
 		// no model
-		if (!this.editor.hasModel()) {
+		if (!this._editor.hasModel()) {
 			return;
 		}
 
-		const model = this.editor.getModel();
+		const model = this._editor.getModel();
 
 		// no support
 		const [support] = OnTypeFormattingEditProviderRegistry.ordered(model);
@@ -196,7 +168,7 @@ class FormatOnType implements editorCommon.IEditorContribution {
 		for (let ch of support.autoFormatTriggerCharacters) {
 			triggerChars.add(ch.charCodeAt(0));
 		}
-		this.callOnModel.push(this.editor.onDidType((text: string) => {
+		this._callOnModel.push(this._editor.onDidType((text: string) => {
 			let lastCharCode = text.charCodeAt(text.length - 1);
 			if (triggerChars.has(lastCharCode)) {
 				this.trigger(String.fromCharCode(lastCharCode));
@@ -205,22 +177,22 @@ class FormatOnType implements editorCommon.IEditorContribution {
 	}
 
 	private trigger(ch: string): void {
-		if (!this.editor.hasModel()) {
+		if (!this._editor.hasModel()) {
 			return;
 		}
 
-		if (this.editor.getSelections().length > 1) {
+		if (this._editor.getSelections().length > 1) {
 			return;
 		}
 
-		const model = this.editor.getModel();
-		const position = this.editor.getPosition();
+		const model = this._editor.getModel();
+		const position = this._editor.getPosition();
 		let canceled = false;
 
 		// install a listener that checks if edits happens before the
 		// position on which we format right now. If so, we won't
 		// apply the format edits
-		const unbind = this.editor.onDidChangeModelContent((e) => {
+		const unbind = this._editor.onDidChangeModelContent((e) => {
 			if (e.isFlush) {
 				// a model.setValue() was called
 				// cancel only once
@@ -243,28 +215,32 @@ class FormatOnType implements editorCommon.IEditorContribution {
 
 		let modelOpts = model.getOptions();
 
-		getOnTypeFormattingEdits(model, position, ch, {
-			tabSize: modelOpts.tabSize,
-			insertSpaces: modelOpts.insertSpaces
-		}).then(edits => {
-			return this.workerService.computeMoreMinimalEdits(model.uri, edits);
-		}).then(edits => {
+		getOnTypeFormattingEdits(
+			this._telemetryService,
+			this._workerService,
+			model,
+			position,
+			ch,
+			{
+				tabSize: modelOpts.tabSize,
+				insertSpaces: modelOpts.insertSpaces
+			}).then(edits => {
 
-			unbind.dispose();
+				unbind.dispose();
 
-			if (canceled) {
-				return;
-			}
+				if (canceled) {
+					return;
+				}
 
-			if (isNonEmptyArray(edits)) {
-				FormattingEdit.execute(this.editor, edits);
-				alertFormattingEdits(edits);
-			}
+				if (isNonEmptyArray(edits)) {
+					FormattingEdit.execute(this._editor, edits);
+					alertFormattingEdits(edits);
+				}
 
-		}, (err) => {
-			unbind.dispose();
-			throw err;
-		});
+			}, (err) => {
+				unbind.dispose();
+				throw err;
+			});
 	}
 
 	public getId(): string {
@@ -272,8 +248,8 @@ class FormatOnType implements editorCommon.IEditorContribution {
 	}
 
 	public dispose(): void {
-		this.callOnDispose = dispose(this.callOnDispose);
-		this.callOnModel = dispose(this.callOnModel);
+		this._callOnDispose = dispose(this._callOnDispose);
+		this._callOnModel = dispose(this._callOnModel);
 	}
 }
 
@@ -281,14 +257,14 @@ class FormatOnPaste implements editorCommon.IEditorContribution {
 
 	private static readonly ID = 'editor.contrib.formatOnPaste';
 
-	private editor: ICodeEditor;
-	private workerService: IEditorWorkerService;
 	private callOnDispose: IDisposable[];
 	private callOnModel: IDisposable[];
 
-	constructor(editor: ICodeEditor, @IEditorWorkerService workerService: IEditorWorkerService) {
-		this.editor = editor;
-		this.workerService = workerService;
+	constructor(
+		private readonly editor: ICodeEditor,
+		@IEditorWorkerService private readonly workerService: IEditorWorkerService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+	) {
 		this.callOnDispose = [];
 		this.callOnModel = [];
 
@@ -336,7 +312,7 @@ class FormatOnPaste implements editorCommon.IEditorContribution {
 
 		const model = this.editor.getModel();
 		const { tabSize, insertSpaces } = model.getOptions();
-		formatDocumentRange(this.workerService, this.editor, range, { tabSize, insertSpaces }, CancellationToken.None);
+		formatDocumentRange(this.telemetryService, this.workerService, this.editor, range, { tabSize, insertSpaces }, CancellationToken.None);
 	}
 
 	public getId(): string {
@@ -376,14 +352,10 @@ export class FormatDocumentAction extends EditorAction {
 		if (!editor.hasModel()) {
 			return;
 		}
-		const notificationService = accessor.get(INotificationService);
 		const workerService = accessor.get(IEditorWorkerService);
+		const telemetryService = accessor.get(ITelemetryService);
 		const { tabSize, insertSpaces } = editor.getModel().getOptions();
-		return formatDocument(workerService, editor, { tabSize, insertSpaces }, CancellationToken.None).catch(err => {
-			if (NoProviderError.is(err)) {
-				notificationService.info(nls.localize('no.documentprovider', "There is no document formatter for '{0}'-files installed.", editor.getModel().getLanguageIdentifier().language));
-			}
-		});
+		return formatDocument(telemetryService, workerService, editor, { tabSize, insertSpaces }, CancellationToken.None);
 	}
 }
 
@@ -412,14 +384,10 @@ export class FormatSelectionAction extends EditorAction {
 		if (!editor.hasModel()) {
 			return;
 		}
-		const notificationService = accessor.get(INotificationService);
 		const workerService = accessor.get(IEditorWorkerService);
+		const telemetryService = accessor.get(ITelemetryService);
 		const { tabSize, insertSpaces } = editor.getModel().getOptions();
-		return formatDocumentRange(workerService, editor, FormatRangeType.Selection, { tabSize, insertSpaces }, CancellationToken.None).catch(err => {
-			if (NoProviderError.is(err)) {
-				notificationService.info(nls.localize('no.selectionprovider', "There is no selection formatter for '{0}'-files installed.", editor.getModel().getLanguageIdentifier().language));
-			}
-		});
+		return formatDocumentRange(telemetryService, workerService, editor, FormatRangeType.Selection, { tabSize, insertSpaces }, CancellationToken.None);
 	}
 }
 
@@ -437,10 +405,11 @@ CommandsRegistry.registerCommand('editor.action.format', accessor => {
 	}
 	const { tabSize, insertSpaces } = editor.getModel().getOptions();
 	const workerService = accessor.get(IEditorWorkerService);
+	const telemetryService = accessor.get(ITelemetryService);
 
 	if (editor.getSelection().isEmpty()) {
-		return formatDocument(workerService, editor, { tabSize, insertSpaces }, CancellationToken.None);
+		return formatDocument(telemetryService, workerService, editor, { tabSize, insertSpaces }, CancellationToken.None);
 	} else {
-		return formatDocumentRange(workerService, editor, FormatRangeType.Selection, { tabSize, insertSpaces }, CancellationToken.None);
+		return formatDocumentRange(telemetryService, workerService, editor, FormatRangeType.Selection, { tabSize, insertSpaces }, CancellationToken.None);
 	}
 });

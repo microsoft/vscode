@@ -20,8 +20,8 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { isLinux } from 'vs/base/common/platform';
 
-export const MENU_MNEMONIC_REGEX: RegExp = /\(&{1,2}(.)\)|&{1,2}(.)/;
-export const MENU_ESCAPED_MNEMONIC_REGEX: RegExp = /(?:&amp;){1,2}(.)/;
+export const MENU_MNEMONIC_REGEX: RegExp = /\(&(\w)\)|(?<!&)&(\w)/;
+export const MENU_ESCAPED_MNEMONIC_REGEX: RegExp = /(?<!&amp;)(?:&amp;)(\w)/;
 
 export interface IMenuOptions {
 	context?: any;
@@ -96,7 +96,7 @@ export class Menu extends ActionBar {
 				const key = KeyCodeUtils.fromString(e.key);
 				if (this.mnemonics.has(key)) {
 					EventHelper.stop(e, true);
-					const actions = this.mnemonics.get(key);
+					const actions = this.mnemonics.get(key)!;
 
 					if (actions.length === 1) {
 						if (actions[0] instanceof SubmenuActionItem) {
@@ -292,7 +292,7 @@ export class Menu extends ActionBar {
 				if (mnemonic && menuActionItem.isEnabled()) {
 					let actionItems: MenuActionItem[] = [];
 					if (this.mnemonics.has(mnemonic)) {
-						actionItems = this.mnemonics.get(mnemonic);
+						actionItems = this.mnemonics.get(mnemonic)!;
 					}
 
 					actionItems.push(menuActionItem);
@@ -322,7 +322,7 @@ export class Menu extends ActionBar {
 				if (mnemonic && menuActionItem.isEnabled()) {
 					let actionItems: MenuActionItem[] = [];
 					if (this.mnemonics.has(mnemonic)) {
-						actionItems = this.mnemonics.get(mnemonic);
+						actionItems = this.mnemonics.get(mnemonic)!;
 					}
 
 					actionItems.push(menuActionItem);
@@ -440,13 +440,16 @@ class MenuActionItem extends BaseActionItem {
 					label = cleanLabel;
 				}
 
-				this.label.setAttribute('aria-label', cleanLabel);
+				this.label.setAttribute('aria-label', cleanLabel.replace(/&&/g, '&'));
 
 				const matches = MENU_MNEMONIC_REGEX.exec(label);
 
 				if (matches) {
 					label = strings.escape(label).replace(MENU_ESCAPED_MNEMONIC_REGEX, '<u aria-hidden="true">$1</u>');
+					label = label.replace(/&amp;&amp;/g, '&amp;');
 					this.item.setAttribute('aria-keyshortcuts', (!!matches[1] ? matches[1] : matches[2]).toLocaleLowerCase());
+				} else {
+					label = label.replace(/&&/g, '&');
 				}
 			}
 

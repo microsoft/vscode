@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import * as minimist from 'minimist';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -18,14 +18,14 @@ import { createSyncDescriptor } from 'vs/platform/instantiation/common/descripto
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ISearchService } from 'vs/platform/search/common/search';
+import { ISearchService } from 'vs/workbench/services/search/common/search';
 import { ITelemetryInfo, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { Extensions, IQuickOpenRegistry } from 'vs/workbench/browser/quickopen';
-import 'vs/workbench/parts/search/electron-browser/search.contribution'; // load contributions
+import 'vs/workbench/contrib/search/browser/search.contribution'; // load contributions
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { SearchService } from 'vs/workbench/services/search/node/searchService';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { TestContextService, TestEditorGroupsService, TestEditorService, TestEnvironmentService, TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTestServices';

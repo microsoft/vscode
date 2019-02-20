@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as paths from 'vs/base/common/paths';
+import { sep } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import * as glob from 'vs/base/common/glob';
 import { isLinux } from 'vs/base/common/platform';
@@ -168,6 +168,10 @@ export interface FileWriteOptions {
 	create: boolean;
 }
 
+export interface FileOpenOptions {
+	create: boolean;
+}
+
 export interface FileDeleteOptions {
 	recursive: boolean;
 }
@@ -219,7 +223,7 @@ export interface IFileSystemProvider {
 	readFile?(resource: URI): Promise<Uint8Array>;
 	writeFile?(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void>;
 
-	open?(resource: URI): Promise<number>;
+	open?(resource: URI, opts: FileOpenOptions): Promise<number>;
 	close?(fd: number): Promise<void>;
 	read?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number>;
 	write?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number>;
@@ -381,8 +385,8 @@ export function isParent(path: string, candidate: string, ignoreCase?: boolean):
 		return false;
 	}
 
-	if (candidate.charAt(candidate.length - 1) !== paths.nativeSep) {
-		candidate += paths.nativeSep;
+	if (candidate.charAt(candidate.length - 1) !== sep) {
+		candidate += sep;
 	}
 
 	if (ignoreCase) {
@@ -415,7 +419,7 @@ export interface IBaseStat {
 	 * A unique identifier thet represents the
 	 * current state of the file or directory.
 	 */
-	etag: string;
+	etag?: string;
 
 	/**
 	 * The resource is readonly.

@@ -369,7 +369,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 			return null;
 		}
 
-		await this.client.interuptGetErr(() => this.fileConfigurationManager.ensureConfigurationForDocument(document, token));
+		await this.client.interruptGetErr(() => this.fileConfigurationManager.ensureConfigurationForDocument(document, token));
 
 		const args: Proto.CompletionsRequestArgs = {
 			...typeConverters.Position.toFileLocationRequestArgs(file, position),
@@ -385,7 +385,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 		let entries: ReadonlyArray<Proto.CompletionEntry>;
 		let metadata: any | undefined;
 		if (this.client.apiVersion.gte(API.v300)) {
-			const response = await this.client.interuptGetErr(() => this.client.execute('completionInfo', args, token));
+			const response = await this.client.interruptGetErr(() => this.client.execute('completionInfo', args, token));
 			if (response.type !== 'response' || !response.body) {
 				return null;
 			}
@@ -403,7 +403,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 			entries = response.body.entries;
 			metadata = response.metadata;
 		} else {
-			const response = await this.client.interuptGetErr(() => this.client.execute('completions', args, token));
+			const response = await this.client.interruptGetErr(() => this.client.execute('completions', args, token));
 			if (response.type !== 'response' || !response.body) {
 				return null;
 			}
@@ -456,8 +456,8 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 			]
 		};
 
-		const response = await this.client.interuptGetErr(() => this.client.execute('completionEntryDetails', args, token));
-		if (response.type !== 'response' || !response.body) {
+		const response = await this.client.interruptGetErr(() => this.client.execute('completionEntryDetails', args, token));
+		if (response.type !== 'response' || !response.body || !response.body.length) {
 			return item;
 		}
 
@@ -638,25 +638,23 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 		try {
 			const args: Proto.FileLocationRequestArgs = typeConverters.Position.toFileLocationRequestArgs(filepath, position);
 			const response = await this.client.execute('quickinfo', args, token);
-			if (response.type !== 'response' || !response.body) {
-				return true;
+			if (response.type === 'response' && response.body) {
+				switch (response.body.kind) {
+					case 'var':
+					case 'let':
+					case 'const':
+					case 'alias':
+						return false;
+				}
 			}
-
-			switch (response.body.kind) {
-				case 'var':
-				case 'let':
-				case 'const':
-				case 'alias':
-					return false;
-			}
-		} catch (e) {
-			return true;
+		} catch {
+			// Noop
 		}
 
-		// Don't complete function call if there is already something that looks like a funciton call
+		// Don't complete function call if there is already something that looks like a function call
 		// https://github.com/Microsoft/vscode/issues/18131
 		const after = document.lineAt(position.line).text.slice(position.character);
-		return after.match(/^\s*\(/g) === null;
+		return after.match(/^[a-z_$0-9]*\s*\(/gi) === null;
 	}
 }
 

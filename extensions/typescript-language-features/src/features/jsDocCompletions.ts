@@ -112,9 +112,10 @@ export function templateToSnippet(template: string): vscode.SnippetString {
 
 export function register(
 	selector: vscode.DocumentSelector,
+	modeId: string,
 	client: ITypeScriptServiceClient,
 ): vscode.Disposable {
-	return new ConfigurationDependentRegistration('jsDocCompletion', 'enabled', () => {
+	return new ConfigurationDependentRegistration(modeId, 'suggest.completeJSDocs', () => {
 		return vscode.languages.registerCompletionItemProvider(selector,
 			new JsDocCompletionProvider(client),
 			'*');

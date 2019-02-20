@@ -15,6 +15,7 @@
     "onCommand:_css.applyCodeAction"
   ],
   "main": "./client/out/cssMain",
+  "enableProposedApi": true,
   "scripts": {
     "compile": "gulp compile-extension:css-language-features-client compile-extension:css-language-features-server",
     "watch": "gulp watch-extension:css-language-features-client watch-extension:css-language-features-server",
@@ -32,6 +33,15 @@
         "id": "css",
         "title": "%css.title%",
         "properties": {
+          "css.experimental.customData": {
+            "type": "array",
+            "description": "A list of JSON file paths that define custom CSS data that loads custom properties, at directives, pseudo classes / elements.",
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "scope": "resource"
+          },
           "css.validate": {
             "type": "boolean",
             "scope": "resource",
@@ -720,7 +730,7 @@
     "vscode-nls": "^4.0.0"
   },
   "devDependencies": {
-    "@types/node": "^8.10.25",
+    "@types/node": "^10.12.21",
     "mocha": "^5.2.0"
   }
 }

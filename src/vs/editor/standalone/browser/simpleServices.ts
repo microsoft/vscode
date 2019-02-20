@@ -36,7 +36,7 @@ import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingReso
 import { IKeybindingItem, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
-import { ILabelService, LabelRules, RegisterFormatterEvent } from 'vs/platform/label/common/label';
+import { ILabelService, ResourceLabelFormatter } from 'vs/platform/label/common/label';
 import { INotification, INotificationHandle, INotificationService, IPromptChoice, IPromptOptions, NoOpNotification } from 'vs/platform/notification/common/notification';
 import { IProgressRunner, IProgressService } from 'vs/platform/progress/common/progress';
 import { ITelemetryInfo, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -340,8 +340,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 
 	private _toNormalizedKeybindingItems(items: IKeybindingItem[], isDefault: boolean): ResolvedKeybindingItem[] {
 		let result: ResolvedKeybindingItem[] = [], resultLen = 0;
-		for (let i = 0, len = items.length; i < len; i++) {
-			const item = items[i];
+		for (const item of items) {
 			const when = (item.when ? item.when.normalize() : null);
 			const keybinding = item.keybinding;
 
@@ -370,7 +369,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 			keyboardEvent.altKey,
 			keyboardEvent.metaKey,
 			keyboardEvent.keyCode
-		);
+		).toChord();
 		return new USLayoutResolvedKeybinding(keybinding, OS);
 	}
 
@@ -410,7 +409,7 @@ export class SimpleConfigurationService implements IConfigurationService {
 	getValue(arg1?: any, arg2?: any): any {
 		const section = typeof arg1 === 'string' ? arg1 : undefined;
 		const overrides = isConfigurationOverrides(arg1) ? arg1 : isConfigurationOverrides(arg2) ? arg2 : {};
-		return this.configuration().getValue(section, overrides, null);
+		return this.configuration().getValue(section, overrides, undefined);
 	}
 
 	public updateValue(key: string, value: any, arg3?: any, arg4?: any): Promise<void> {
@@ -425,11 +424,11 @@ export class SimpleConfigurationService implements IConfigurationService {
 		workspaceFolder?: C
 		value: C,
 	} {
-		return this.configuration().inspect<C>(key, options, null);
+		return this.configuration().inspect<C>(key, options, undefined);
 	}
 
 	public keys() {
-		return this.configuration().keys(null);
+		return this.configuration().keys(undefined);
 	}
 
 	public reloadConfiguration(): Promise<void> {
@@ -522,6 +521,10 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 		this.workspace = { id: '4064f6ec-cb38-4ad0-af64-ee6467e63c82', folders: [new WorkspaceFolder({ uri: resource, name: '', index: 0 })] };
 	}
 
+	getCompleteWorkspace(): Promise<IWorkspace> {
+		return Promise.resolve(this.getWorkspace());
+	}
+
 	public getWorkspace(): IWorkspace {
 		return this.workspace;
 	}
@@ -573,7 +576,7 @@ export class SimpleBulkEditService implements IBulkEditService {
 		//
 	}
 
-	apply(workspaceEdit: WorkspaceEdit, options: IBulkEditOptions): Promise<IBulkEditResult> {
+	apply(workspaceEdit: WorkspaceEdit, options?: IBulkEditOptions): Promise<IBulkEditResult> {
 
 		let edits = new Map<ITextModel, TextEdit[]>();
 
@@ -612,8 +615,8 @@ export class SimpleBulkEditService implements IBulkEditService {
 export class SimpleUriLabelService implements ILabelService {
 	_serviceBrand: any;
 
-	private readonly _onDidRegisterFormatter = new Emitter<RegisterFormatterEvent>();
-	public readonly onDidRegisterFormatter: Event<RegisterFormatterEvent> = this._onDidRegisterFormatter.event;
+	private readonly _onDidRegisterFormatter = new Emitter<void>();
+	public readonly onDidChangeFormatters: Event<void> = this._onDidRegisterFormatter.event;
 
 	public getUriLabel(resource: URI, options?: { relative?: boolean, forceNoTildify?: boolean }): string {
 		if (resource.scheme === 'file') {
@@ -626,7 +629,7 @@ export class SimpleUriLabelService implements ILabelService {
 		return '';
 	}
 
-	public registerFormatter(selector: string, formatter: LabelRules): IDisposable {
+	public registerFormatter(formatter: ResourceLabelFormatter): IDisposable {
 		throw new Error('Not implemented');
 	}
 

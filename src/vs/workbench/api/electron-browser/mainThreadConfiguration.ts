@@ -6,12 +6,13 @@
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, getScopes } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { MainThreadConfigurationShape, MainContext, ExtHostContext, IExtHostContext, IWorkspaceConfigurationChangeEventData } from '../node/extHost.protocol';
+import { MainThreadConfigurationShape, MainContext, ExtHostContext, IExtHostContext, IWorkspaceConfigurationChangeEventData, IConfigurationInitData } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationModel } from 'vs/platform/configuration/common/configuration';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 @extHostNamedCustomer(MainContext.MainThreadConfiguration)
 export class MainThreadConfiguration implements MainThreadConfigurationShape {
@@ -21,35 +22,46 @@ export class MainThreadConfiguration implements MainThreadConfigurationShape {
 	constructor(
 		extHostContext: IExtHostContext,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
-		@IWorkspaceConfigurationService private readonly configurationService: IWorkspaceConfigurationService
+		@IWorkspaceConfigurationService private readonly configurationService: IWorkspaceConfigurationService,
+		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 	) {
 		const proxy = extHostContext.getProxy(ExtHostContext.ExtHostConfiguration);
 
+		proxy.$initializeConfiguration(this._getConfigurationData());
 		this._configurationListener = configurationService.onDidChangeConfiguration(e => {
-			proxy.$acceptConfigurationChanged(configurationService.getConfigurationData(), this.toConfigurationChangeEventData(e));
+			proxy.$acceptConfigurationChanged(this._getConfigurationData(), this.toConfigurationChangeEventData(e));
 		});
+	}
+
+	private _getConfigurationData(): IConfigurationInitData {
+		const configurationData: IConfigurationInitData = { ...(this.configurationService.getConfigurationData()!), configurationScopes: {} };
+		// Send configurations scopes only in development mode.
+		if (!this._environmentService.isBuilt || this._environmentService.isExtensionDevelopment) {
+			configurationData.configurationScopes = getScopes();
+		}
+		return configurationData;
 	}
 
 	public dispose(): void {
 		this._configurationListener.dispose();
 	}
 
-	$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any, resourceUriComponenets: UriComponents): Promise<void> {
+	$updateConfigurationOption(target: ConfigurationTarget | null, key: string, value: any, resourceUriComponenets: UriComponents | undefined): Promise<void> {
 		const resource = resourceUriComponenets ? URI.revive(resourceUriComponenets) : null;
 		return this.writeConfiguration(target, key, value, resource);
 	}
 
-	$removeConfigurationOption(target: ConfigurationTarget, key: string, resourceUriComponenets: UriComponents): Promise<void> {
+	$removeConfigurationOption(target: ConfigurationTarget | null, key: string, resourceUriComponenets: UriComponents | undefined): Promise<void> {
 		const resource = resourceUriComponenets ? URI.revive(resourceUriComponenets) : null;
 		return this.writeConfiguration(target, key, undefined, resource);
 	}
 
-	private writeConfiguration(target: ConfigurationTarget, key: string, value: any, resource: URI): Promise<void> {
+	private writeConfiguration(target: ConfigurationTarget | null, key: string, value: any, resource: URI | null): Promise<void> {
 		target = target !== null && target !== undefined ? target : this.deriveConfigurationTarget(key, resource);
 		return this.configurationService.updateValue(key, value, { resource }, target, true);
 	}
 
-	private deriveConfigurationTarget(key: string, resource: URI): ConfigurationTarget {
+	private deriveConfigurationTarget(key: string, resource: URI | null): ConfigurationTarget {
 		if (resource && this._workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 			const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
 			if (configurationProperties[key] && configurationProperties[key].scope === ConfigurationScope.RESOURCE) {

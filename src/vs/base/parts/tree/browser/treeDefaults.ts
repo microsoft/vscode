@@ -12,7 +12,8 @@ import * as dom from 'vs/base/browser/dom';
 import * as mouse from 'vs/base/browser/mouseEvent';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import * as _ from 'vs/base/parts/tree/browser/tree';
-import { KeyCode, KeyMod, Keybinding, SimpleKeybinding, createSimpleKeybinding } from 'vs/base/common/keyCodes';
+import { IDragAndDropData } from 'vs/base/browser/dnd';
+import { KeyCode, KeyMod, Keybinding, SimpleKeybinding, createKeybinding } from 'vs/base/common/keyCodes';
 
 export interface IKeyBindingCallback {
 	(tree: _.ITree, event: IKeyboardEvent): void;
@@ -48,7 +49,7 @@ export interface IControllerOptions {
 }
 
 interface IKeybindingDispatcherItem {
-	keybinding: Keybinding;
+	keybinding: Keybinding | null;
 	callback: IKeyBindingCallback;
 }
 
@@ -61,10 +62,12 @@ export class KeybindingDispatcher {
 	}
 
 	public has(keybinding: KeyCode): boolean {
-		let target = createSimpleKeybinding(keybinding, platform.OS);
-		for (const a of this._arr) {
-			if (target.equals(a.keybinding)) {
-				return true;
+		let target = createKeybinding(keybinding, platform.OS);
+		if (target !== null) {
+			for (const a of this._arr) {
+				if (target.equals(a.keybinding)) {
+					return true;
+				}
 			}
 		}
 		return false;
@@ -72,7 +75,7 @@ export class KeybindingDispatcher {
 
 	public set(keybinding: number, callback: IKeyBindingCallback) {
 		this._arr.push({
-			keybinding: createSimpleKeybinding(keybinding, platform.OS),
+			keybinding: createKeybinding(keybinding, platform.OS),
 			callback: callback
 		});
 	}
@@ -81,7 +84,7 @@ export class KeybindingDispatcher {
 		// Loop from the last to the first to handle overwrites
 		for (let i = this._arr.length - 1; i >= 0; i--) {
 			let item = this._arr[i];
-			if (keybinding.equals(item.keybinding)) {
+			if (keybinding.toChord().equals(item.keybinding)) {
 				return item.callback;
 			}
 		}
@@ -434,15 +437,15 @@ export class DefaultDragAndDrop implements _.IDragAndDrop {
 		return null;
 	}
 
-	public onDragStart(tree: _.ITree, data: _.IDragAndDropData, originalEvent: mouse.DragMouseEvent): void {
+	public onDragStart(tree: _.ITree, data: IDragAndDropData, originalEvent: mouse.DragMouseEvent): void {
 		return;
 	}
 
-	public onDragOver(tree: _.ITree, data: _.IDragAndDropData, targetElement: any, originalEvent: mouse.DragMouseEvent): _.IDragOverReaction | null {
+	public onDragOver(tree: _.ITree, data: IDragAndDropData, targetElement: any, originalEvent: mouse.DragMouseEvent): _.IDragOverReaction | null {
 		return null;
 	}
 
-	public drop(tree: _.ITree, data: _.IDragAndDropData, targetElement: any, originalEvent: mouse.DragMouseEvent): void {
+	public drop(tree: _.ITree, data: IDragAndDropData, targetElement: any, originalEvent: mouse.DragMouseEvent): void {
 		return;
 	}
 }
@@ -552,7 +555,7 @@ export class DefaultTreestyler implements _.ITreeStyler {
 export class CollapseAllAction extends Action {
 
 	constructor(private viewer: _.ITree, enabled: boolean) {
-		super('vs.tree.collapse', nls.localize('collapse', "Collapse"), 'monaco-tree-action collapse-all', enabled);
+		super('vs.tree.collapse', nls.localize('collapse all', "Collapse All"), 'monaco-tree-action collapse-all', enabled);
 	}
 
 	public run(context?: any): Promise<any> {

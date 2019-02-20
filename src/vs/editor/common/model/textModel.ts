@@ -163,6 +163,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 	public static DEFAULT_CREATION_OPTIONS: model.ITextModelCreationOptions = {
 		isForSimpleWidget: false,
 		tabSize: EDITOR_MODEL_DEFAULTS.tabSize,
+		indentSize: EDITOR_MODEL_DEFAULTS.indentSize,
 		insertSpaces: EDITOR_MODEL_DEFAULTS.insertSpaces,
 		detectIndentation: false,
 		defaultEOL: model.DefaultEndOfLine.LF,
@@ -179,6 +180,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 			const guessedIndentation = guessIndentation(textBuffer, options.tabSize, options.insertSpaces);
 			return new model.TextModelResolvedOptions({
 				tabSize: guessedIndentation.tabSize,
+				indentSize: guessedIndentation.tabSize, // TODO@Alex: guess indentSize independent of tabSize
 				insertSpaces: guessedIndentation.insertSpaces,
 				trimAutoWhitespace: options.trimAutoWhitespace,
 				defaultEOL: options.defaultEOL
@@ -187,6 +189,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 		return new model.TextModelResolvedOptions({
 			tabSize: options.tabSize,
+			indentSize: options.indentSize,
 			insertSpaces: options.insertSpaces,
 			trimAutoWhitespace: options.trimAutoWhitespace,
 			defaultEOL: options.defaultEOL
@@ -315,6 +318,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 			this._resetTokenizationState();
 			this.emitModelTokensChangedEvent({
+				tokenizationSupportChanged: true,
 				ranges: [{
 					fromLineNumber: 1,
 					toLineNumber: this.getLineCount()
@@ -589,11 +593,13 @@ export class TextModel extends Disposable implements model.ITextModel {
 	public updateOptions(_newOpts: model.ITextModelUpdateOptions): void {
 		this._assertNotDisposed();
 		let tabSize = (typeof _newOpts.tabSize !== 'undefined') ? _newOpts.tabSize : this._options.tabSize;
+		let indentSize = (typeof _newOpts.indentSize !== 'undefined') ? _newOpts.indentSize : this._options.indentSize;
 		let insertSpaces = (typeof _newOpts.insertSpaces !== 'undefined') ? _newOpts.insertSpaces : this._options.insertSpaces;
 		let trimAutoWhitespace = (typeof _newOpts.trimAutoWhitespace !== 'undefined') ? _newOpts.trimAutoWhitespace : this._options.trimAutoWhitespace;
 
 		let newOpts = new model.TextModelResolvedOptions({
 			tabSize: tabSize,
+			indentSize: indentSize,
 			insertSpaces: insertSpaces,
 			defaultEOL: this._options.defaultEOL,
 			trimAutoWhitespace: trimAutoWhitespace
@@ -614,15 +620,16 @@ export class TextModel extends Disposable implements model.ITextModel {
 		let guessedIndentation = guessIndentation(this._buffer, defaultTabSize, defaultInsertSpaces);
 		this.updateOptions({
 			insertSpaces: guessedIndentation.insertSpaces,
-			tabSize: guessedIndentation.tabSize
+			tabSize: guessedIndentation.tabSize,
+			indentSize: guessedIndentation.tabSize, // TODO@Alex: guess indentSize independent of tabSize
 		});
 	}
 
-	private static _normalizeIndentationFromWhitespace(str: string, tabSize: number, insertSpaces: boolean): string {
+	private static _normalizeIndentationFromWhitespace(str: string, indentSize: number, insertSpaces: boolean): string {
 		let spacesCnt = 0;
 		for (let i = 0; i < str.length; i++) {
 			if (str.charAt(i) === '\t') {
-				spacesCnt += tabSize;
+				spacesCnt += indentSize;
 			} else {
 				spacesCnt++;
 			}
@@ -630,8 +637,8 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 		let result = '';
 		if (!insertSpaces) {
-			let tabsCnt = Math.floor(spacesCnt / tabSize);
-			spacesCnt = spacesCnt % tabSize;
+			let tabsCnt = Math.floor(spacesCnt / indentSize);
+			spacesCnt = spacesCnt % indentSize;
 			for (let i = 0; i < tabsCnt; i++) {
 				result += '\t';
 			}
@@ -644,33 +651,17 @@ export class TextModel extends Disposable implements model.ITextModel {
 		return result;
 	}
 
-	public static normalizeIndentation(str: string, tabSize: number, insertSpaces: boolean): string {
+	public static normalizeIndentation(str: string, indentSize: number, insertSpaces: boolean): string {
 		let firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(str);
 		if (firstNonWhitespaceIndex === -1) {
 			firstNonWhitespaceIndex = str.length;
 		}
-		return TextModel._normalizeIndentationFromWhitespace(str.substring(0, firstNonWhitespaceIndex), tabSize, insertSpaces) + str.substring(firstNonWhitespaceIndex);
+		return TextModel._normalizeIndentationFromWhitespace(str.substring(0, firstNonWhitespaceIndex), indentSize, insertSpaces) + str.substring(firstNonWhitespaceIndex);
 	}
 
 	public normalizeIndentation(str: string): string {
 		this._assertNotDisposed();
-		return TextModel.normalizeIndentation(str, this._options.tabSize, this._options.insertSpaces);
-	}
-
-	public getOneIndent(): string {
-		this._assertNotDisposed();
-		let tabSize = this._options.tabSize;
-		let insertSpaces = this._options.insertSpaces;
-
-		if (insertSpaces) {
-			let result = '';
-			for (let i = 0; i < tabSize; i++) {
-				result += ' ';
-			}
-			return result;
-		} else {
-			return '\t';
-		}
+		return TextModel.normalizeIndentation(str, this._options.indentSize, this._options.insertSpaces);
 	}
 
 	//#endregion
@@ -1760,42 +1751,41 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 	public tokenizeViewport(startLineNumber: number, endLineNumber: number): void {
 		if (!this._tokens.tokenizationSupport) {
+			// nothing to do
 			return;
 		}
 
-		// we tokenize `this._tokens.inValidLineStartIndex` lines in around 20ms so it's a good baseline.
-		const contextBefore = Math.floor(this._tokens.inValidLineStartIndex * 0.3);
-		startLineNumber = Math.max(1, startLineNumber - contextBefore);
+		startLineNumber = Math.max(1, startLineNumber);
+		endLineNumber = Math.min(this.getLineCount(), endLineNumber);
+
+		if (endLineNumber <= this._tokens.inValidLineStartIndex) {
+			// nothing to do
+			return;
+		}
 
 		if (startLineNumber <= this._tokens.inValidLineStartIndex) {
+			// tokenization has reached the viewport start...
 			this.forceTokenization(endLineNumber);
 			return;
 		}
 
-		const eventBuilder = new ModelTokensChangedEventBuilder();
 		let nonWhitespaceColumn = this.getLineFirstNonWhitespaceColumn(startLineNumber);
 		let fakeLines: string[] = [];
-		let i = startLineNumber - 1;
 		let initialState: IState | null = null;
-		if (nonWhitespaceColumn > 0) {
-			while (nonWhitespaceColumn > 0 && i >= 1) {
-				let newNonWhitespaceIndex = this.getLineFirstNonWhitespaceColumn(i);
+		for (let i = startLineNumber - 1; nonWhitespaceColumn > 0 && i >= 1; i--) {
+			let newNonWhitespaceIndex = this.getLineFirstNonWhitespaceColumn(i);
 
-				if (newNonWhitespaceIndex === 0) {
-					i--;
-					continue;
+			if (newNonWhitespaceIndex === 0) {
+				continue;
+			}
+
+			if (newNonWhitespaceIndex < nonWhitespaceColumn) {
+				initialState = this._tokens._getState(i - 1);
+				if (initialState) {
+					break;
 				}
-
-				if (newNonWhitespaceIndex < nonWhitespaceColumn) {
-					initialState = this._tokens._getState(i - 1);
-					if (initialState) {
-						break;
-					}
-					fakeLines.push(this.getLineContent(i));
-					nonWhitespaceColumn = newNonWhitespaceIndex;
-				}
-
-				i--;
+				fakeLines.push(this.getLineContent(i));
+				nonWhitespaceColumn = newNonWhitespaceIndex;
 			}
 		}
 
@@ -1813,19 +1803,16 @@ export class TextModel extends Disposable implements model.ITextModel {
 			}
 		}
 
-		const contextAfter = Math.floor(this._tokens.inValidLineStartIndex * 0.4);
-		endLineNumber = Math.min(this.getLineCount(), endLineNumber + contextAfter);
+		const eventBuilder = new ModelTokensChangedEventBuilder();
 		for (let i = startLineNumber; i <= endLineNumber; i++) {
 			let text = this.getLineContent(i);
 			let r = this._tokens._tokenizeText(this._buffer, text, state);
 			if (r) {
 				this._tokens._setTokens(this._tokens.languageIdentifier.id, i - 1, text.length, r.tokens);
-				/*
-				 * we think it's valid and give it a state but we don't update `_invalidLineStartIndex` then the top-to-bottom tokenization
-				 * goes through the viewport, it can skip them if they already have correct tokens and state, and the lines after the viewport
-				 * can still be tokenized.
-				 */
-				this._tokens._setIsInvalid(i - 1, false);
+
+				// We cannot trust these states/tokens to be valid!
+				// (see https://github.com/Microsoft/vscode/issues/67607)
+				this._tokens._setIsInvalid(i - 1, true);
 				this._tokens._setState(i - 1, state);
 				state = r.endState.clone();
 				eventBuilder.registerChangedTokens(i);
@@ -1838,6 +1825,17 @@ export class TextModel extends Disposable implements model.ITextModel {
 		if (e) {
 			this._onDidChangeTokens.fire(e);
 		}
+	}
+
+	public flushTokens(): void {
+		this._resetTokenizationState();
+		this.emitModelTokensChangedEvent({
+			tokenizationSupportChanged: false,
+			ranges: [{
+				fromLineNumber: 1,
+				toLineNumber: this.getLineCount()
+			}]
+		});
 	}
 
 	public forceTokenization(lineNumber: number): void {
@@ -1915,6 +1913,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		this._resetTokenizationState();
 
 		this.emitModelTokensChangedEvent({
+			tokenizationSupportChanged: true,
 			ranges: [{
 				fromLineNumber: 1,
 				toLineNumber: this.getLineCount()
@@ -2565,7 +2564,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 					// Use the line's indent
 					up_belowContentLineIndex = upLineNumber - 1;
 					up_belowContentLineIndent = currentIndent;
-					upLineIndentLevel = Math.ceil(currentIndent / this._options.tabSize);
+					upLineIndentLevel = Math.ceil(currentIndent / this._options.indentSize);
 				} else {
 					up_resolveIndents(upLineNumber);
 					upLineIndentLevel = this._getIndentLevelForWhitespaceLine(offSide, up_aboveContentLineIndent, up_belowContentLineIndent);
@@ -2600,7 +2599,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 					// Use the line's indent
 					down_aboveContentLineIndex = downLineNumber - 1;
 					down_aboveContentLineIndent = currentIndent;
-					downLineIndentLevel = Math.ceil(currentIndent / this._options.tabSize);
+					downLineIndentLevel = Math.ceil(currentIndent / this._options.indentSize);
 				} else {
 					down_resolveIndents(downLineNumber);
 					downLineIndentLevel = this._getIndentLevelForWhitespaceLine(offSide, down_aboveContentLineIndent, down_belowContentLineIndent);
@@ -2648,7 +2647,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 				// Use the line's indent
 				aboveContentLineIndex = lineNumber - 1;
 				aboveContentLineIndent = currentIndent;
-				result[resultIndex] = Math.ceil(currentIndent / this._options.tabSize);
+				result[resultIndex] = Math.ceil(currentIndent / this._options.indentSize);
 				continue;
 			}
 
@@ -2695,20 +2694,20 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 		} else if (aboveContentLineIndent < belowContentLineIndent) {
 			// we are inside the region above
-			return (1 + Math.floor(aboveContentLineIndent / this._options.tabSize));
+			return (1 + Math.floor(aboveContentLineIndent / this._options.indentSize));
 
 		} else if (aboveContentLineIndent === belowContentLineIndent) {
 			// we are in between two regions
-			return Math.ceil(belowContentLineIndent / this._options.tabSize);
+			return Math.ceil(belowContentLineIndent / this._options.indentSize);
 
 		} else {
 
 			if (offSide) {
 				// same level as region below
-				return Math.ceil(belowContentLineIndent / this._options.tabSize);
+				return Math.ceil(belowContentLineIndent / this._options.indentSize);
 			} else {
 				// we are inside the region that ends below
-				return (1 + Math.floor(belowContentLineIndent / this._options.tabSize));
+				return (1 + Math.floor(belowContentLineIndent / this._options.indentSize));
 			}
 
 		}

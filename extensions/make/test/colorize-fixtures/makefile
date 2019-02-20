@@ -1,5 +1,5 @@
 .PHONY: all
-all: hello
+all: echo hello
 
 .PHONY: hello
 hello: main.o factorial.o \
@@ -25,8 +25,8 @@ hello.o: hello.cpp \
 clean:
 	rm *o hello
 
-.PHONY: all
-all:
+.PHONY: var
+var:
 	# "$$" in a shell means to escape makefile's variable substitution.
 	some_shell_var=$$(sed -nre 's/some regex with (group)/\1/p')
 
@@ -34,6 +34,10 @@ all:
 echo:
 	echo "#" and '#' in quotes are not comments \
 		and '\' will be continued
+	@echo Shell is not printed out, just a message.
+	@-+-+echo Error will be ignored here; invalidcommand
+	# And we can see variables are highlited as supposed to be:
+	@echo '$(CC) $(shell echo "123") -o $@'
 
 define defined
   $(info Checking existance of $(1) $(flavor $(1)))
@@ -71,3 +75,10 @@ var:=123
 var!=echo val
 var:=val \
 notvar=butval
+
+var-$(nested-var)=val
+
+# Spaces in a nested shell will hurt a colorizing of variable,
+# but not so much.
+var-$(shell printf 2) := val2
+$(info Should be 'val2' here: $(var-2))

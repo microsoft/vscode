@@ -6,8 +6,8 @@
 import 'vs/css!./gotoLine';
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IContext, QuickOpenEntry, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import { IAutoFocus, Mode } from 'vs/base/parts/quickopen/common/quickOpen';
+import { QuickOpenEntry, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import { IAutoFocus, Mode, IEntryRunContext } from 'vs/base/parts/quickopen/common/quickOpen';
 import { ICodeEditor, IDiffEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
@@ -25,8 +25,7 @@ interface ParseResult {
 }
 
 export class GotoLineEntry extends QuickOpenEntry {
-
-	private _parseResult: ParseResult;
+	private parseResult: ParseResult;
 	private decorator: IDecorator;
 	private editor: editorCommon.IEditor;
 
@@ -35,14 +34,12 @@ export class GotoLineEntry extends QuickOpenEntry {
 
 		this.editor = editor;
 		this.decorator = decorator;
-		this._parseResult = this._parseInput(line);
+		this.parseResult = this.parseInput(line);
 	}
 
-
-	private _parseInput(line: string): ParseResult {
-
-		let numbers = line.split(',').map(part => parseInt(part, 10)).filter(part => !isNaN(part)),
-			position: Position;
+	private parseInput(line: string): ParseResult {
+		const numbers = line.split(',').map(part => parseInt(part, 10)).filter(part => !isNaN(part));
+		let position: Position;
 
 		if (numbers.length === 0) {
 			position = new Position(-1, -1);
@@ -52,15 +49,16 @@ export class GotoLineEntry extends QuickOpenEntry {
 			position = new Position(numbers[0], numbers[1]);
 		}
 
-		let model: ITextModel;
+		let model: ITextModel | null;
 		if (isCodeEditor(this.editor)) {
 			model = this.editor.getModel();
 		} else {
-			model = (<IDiffEditor>this.editor).getModel().modified;
+			const diffModel = (<IDiffEditor>this.editor).getModel();
+			model = diffModel ? diffModel.modified : null;
 		}
 
-		let isValid = model.validatePosition(position).equals(position),
-			label: string;
+		const isValid = model ? model.validatePosition(position).equals(position) : false;
+		let label: string;
 
 		if (isValid) {
 			if (position.column && position.column > 1) {
@@ -68,10 +66,10 @@ export class GotoLineEntry extends QuickOpenEntry {
 			} else {
 				label = nls.localize('gotoLineLabelValidLine', "Go to line {0}", position.lineNumber, position.column);
 			}
-		} else if (position.lineNumber < 1 || position.lineNumber > model.getLineCount()) {
-			label = nls.localize('gotoLineLabelEmptyWithLineLimit', "Type a line number between 1 and {0} to navigate to", model.getLineCount());
+		} else if (position.lineNumber < 1 || position.lineNumber > (model ? model.getLineCount() : 0)) {
+			label = nls.localize('gotoLineLabelEmptyWithLineLimit', "Type a line number between 1 and {0} to navigate to", model ? model.getLineCount() : 0);
 		} else {
-			label = nls.localize('gotoLineLabelEmptyWithLineAndColumnLimit', "Type a character between 1 and {0} to navigate to", model.getLineMaxColumn(position.lineNumber));
+			label = nls.localize('gotoLineLabelEmptyWithLineAndColumnLimit', "Type a character between 1 and {0} to navigate to", model ? model.getLineMaxColumn(position.lineNumber) : 0);
 		}
 
 		return {
@@ -81,15 +79,17 @@ export class GotoLineEntry extends QuickOpenEntry {
 		};
 	}
 
-	public getLabel(): string {
-		return this._parseResult.label;
+	getLabel(): string {
+		return this.parseResult.label;
 	}
 
-	public getAriaLabel(): string {
-		return nls.localize('gotoLineAriaLabel', "Go to line {0}", this._parseResult.label);
+	getAriaLabel(): string {
+		const position = this.editor.getPosition();
+		const currentLine = position ? position.lineNumber : 0;
+		return nls.localize('gotoLineAriaLabel', "Current Line: {0}. Go to line {0}.", currentLine, this.parseResult.label);
 	}
 
-	public run(mode: Mode, context: IContext): boolean {
+	run(mode: Mode, _context: IEntryRunContext): boolean {
 		if (mode === Mode.OPEN) {
 			return this.runOpen();
 		}
@@ -97,15 +97,15 @@ export class GotoLineEntry extends QuickOpenEntry {
 		return this.runPreview();
 	}
 
-	public runOpen(): boolean {
+	runOpen(): boolean {
 
 		// No-op if range is not valid
-		if (!this._parseResult.isValid) {
+		if (!this.parseResult.isValid) {
 			return false;
 		}
 
 		// Apply selection and focus
-		let range = this.toSelection();
+		const range = this.toSelection();
 		(<ICodeEditor>this.editor).setSelection(range);
 		(<ICodeEditor>this.editor).revealRangeInCenter(range, editorCommon.ScrollType.Smooth);
 		this.editor.focus();
@@ -113,16 +113,16 @@ export class GotoLineEntry extends QuickOpenEntry {
 		return true;
 	}
 
-	public runPreview(): boolean {
+	runPreview(): boolean {
 
 		// No-op if range is not valid
-		if (!this._parseResult.isValid) {
+		if (!this.parseResult.isValid) {
 			this.decorator.clearDecorations();
 			return false;
 		}
 
 		// Select Line Position
-		let range = this.toSelection();
+		const range = this.toSelection();
 		this.editor.revealRangeInCenter(range, editorCommon.ScrollType.Smooth);
 
 		// Decorate if possible
@@ -133,10 +133,10 @@ export class GotoLineEntry extends QuickOpenEntry {
 
 	private toSelection(): Range {
 		return new Range(
-			this._parseResult.position.lineNumber,
-			this._parseResult.position.column,
-			this._parseResult.position.lineNumber,
-			this._parseResult.position.column
+			this.parseResult.position.lineNumber,
+			this.parseResult.position.column,
+			this.parseResult.position.lineNumber,
+			this.parseResult.position.column
 		);
 	}
 }
@@ -158,7 +158,7 @@ export class GotoLineAction extends BaseEditorQuickOpenAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		this._show(this.getController(editor), {
 			getModel: (value: string): QuickOpenModel => {
 				return new QuickOpenModel([new GotoLineEntry(value, editor, this.getController(editor))]);

@@ -31,9 +31,9 @@ export class QuickOpenController implements editorCommon.IEditorContribution, ID
 	}
 
 	private editor: ICodeEditor;
-	private widget: QuickOpenEditorWidget;
-	private rangeHighlightDecorationId: string;
-	private lastKnownEditorSelection: Selection;
+	private widget: QuickOpenEditorWidget | null;
+	private rangeHighlightDecorationId: string | null;
+	private lastKnownEditorSelection: Selection | null;
 
 	constructor(editor: ICodeEditor, @IThemeService private readonly themeService: IThemeService) {
 		this.editor = editor;
@@ -83,7 +83,7 @@ export class QuickOpenController implements editorCommon.IEditorContribution, ID
 			() => onClose(false),
 			() => onClose(true),
 			(value: string) => {
-				this.widget.setInput(opts.getModel(value), opts.getAutoFocus(value));
+				this.widget!.setInput(opts.getModel(value), opts.getAutoFocus(value));
 			},
 			{
 				inputAriaLabel: opts.inputAriaLabel

@@ -6,7 +6,7 @@
 import * as sinon from 'sinon';
 import * as assert from 'assert';
 import * as os from 'os';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import * as fs from 'fs';
 import * as json from 'vs/base/common/json';
 import { Registry } from 'vs/platform/registry/common/platform';

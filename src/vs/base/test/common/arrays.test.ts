@@ -32,8 +32,16 @@ suite('Arrays', () => {
 	});
 
 	test('stableSort', () => {
+		function fill<T>(num: number, valueFn: () => T, arr: T[] = []): T[] {
+			for (let i = 0; i < num; i++) {
+				arr[i] = valueFn();
+			}
+
+			return arr;
+		}
+
 		let counter = 0;
-		let data = arrays.fill(10000, () => ({ n: 1, m: counter++ }));
+		let data = fill(10000, () => ({ n: 1, m: counter++ }));
 
 		arrays.mergeSort(data, (a, b) => a.n - b.n);
 

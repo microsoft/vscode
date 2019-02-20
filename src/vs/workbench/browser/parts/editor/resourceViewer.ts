@@ -13,12 +13,10 @@ import { LRUCache } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { clamp } from 'vs/base/common/numbers';
 import { Themable } from 'vs/workbench/common/theme';
-import { IStatusbarItem, StatusbarItemDescriptor, IStatusbarRegistry, Extensions } from 'vs/workbench/browser/parts/statusbar/statusbar';
-import { StatusbarAlignment } from 'vs/platform/statusbar/common/statusbar';
+import { IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IDisposable, Disposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { Registry } from 'vs/platform/registry/common/platform';
 import { Action } from 'vs/base/common/actions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { memoize } from 'vs/base/common/decorators';
@@ -29,7 +27,7 @@ export interface IResourceDescriptor {
 	readonly resource: URI;
 	readonly name: string;
 	readonly size: number;
-	readonly etag: string;
+	readonly etag?: string;
 	readonly mime: string;
 }
 
@@ -234,7 +232,7 @@ class FileSeemsBinaryFileView {
 
 type Scale = number | 'fit';
 
-class ZoomStatusbarItem extends Themable implements IStatusbarItem {
+export class ZoomStatusbarItem extends Themable implements IStatusbarItem {
 
 	static instance: ZoomStatusbarItem;
 
@@ -313,10 +311,6 @@ class ZoomStatusbarItem extends Themable implements IStatusbarItem {
 			: `${Math.round(scale * 100)}%`;
 	}
 }
-
-Registry.as<IStatusbarRegistry>(Extensions.Statusbar).registerStatusbarItem(
-	new StatusbarItemDescriptor(ZoomStatusbarItem, StatusbarAlignment.RIGHT, 101 /* to the left of editor status (100) */)
-);
 
 interface ImageState {
 	scale: Scale;

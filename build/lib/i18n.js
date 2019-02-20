@@ -13,11 +13,12 @@ const xml2js = require("xml2js");
 const glob = require("glob");
 const https = require("https");
 const gulp = require("gulp");
-const util = require("gulp-util");
+const fancyLog = require("fancy-log");
+const ansiColors = require("ansi-colors");
 const iconv = require("iconv-lite");
 const NUMBER_OF_CONCURRENT_DOWNLOADS = 4;
 function log(message, ...rest) {
-    util.log(util.colors.green('[i18n]'), message, ...rest);
+    fancyLog(ansiColors.green('[i18n]'), message, ...rest);
 }
 exports.defaultLanguages = [
     { id: 'zh-tw', folderName: 'cht', transifexId: 'zh-hant' },
@@ -488,7 +489,7 @@ function getResource(sourceFile) {
     else if (/^vs\/code/.test(sourceFile)) {
         return { name: 'vs/code', project: workbenchProject };
     }
-    else if (/^vs\/workbench\/parts/.test(sourceFile)) {
+    else if (/^vs\/workbench\/contrib/.test(sourceFile)) {
         resource = sourceFile.split('/', 4).join('/');
         return { name: resource, project: workbenchProject };
     }
@@ -572,7 +573,7 @@ function createXlfFilesForExtensions() {
             }
             return _xlf;
         }
-        gulp.src([`./extensions/${extensionName}/package.nls.json`, `./extensions/${extensionName}/**/nls.metadata.json`]).pipe(event_stream_1.through(function (file) {
+        gulp.src([`./extensions/${extensionName}/package.nls.json`, `./extensions/${extensionName}/**/nls.metadata.json`], { allowEmpty: true }).pipe(event_stream_1.through(function (file) {
             if (file.isBuffer()) {
                 const buffer = file.contents;
                 const basename = path.basename(file.path);

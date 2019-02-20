@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { cloneAndChange } from 'vs/base/common/objects';
-import { IExtensionManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 
 const nlsRegex = /^%([\w\d.-]+)%$/i;
 

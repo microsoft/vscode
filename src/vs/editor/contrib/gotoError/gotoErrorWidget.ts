@@ -93,6 +93,9 @@ class MessageWidget {
 			lastLineElement = document.createElement('div');
 			lastLineElement.innerText = line;
 			this._editor.applyFontInfo(lastLineElement);
+			if (line === '') {
+				lastLineElement.style.height = lastLineElement.style.lineHeight;
+			}
 			this._messageBlock.appendChild(lastLineElement);
 		}
 		if (source || code) {
@@ -115,7 +118,8 @@ class MessageWidget {
 
 		dom.clearNode(this._relatedBlock);
 		if (isNonEmptyArray(relatedInformation)) {
-			this._relatedBlock.style.paddingTop = `${Math.floor(this._editor.getConfiguration().lineHeight * 0.66)}px`;
+			const relatedInformationNode = this._relatedBlock.appendChild(document.createElement('div'));
+			relatedInformationNode.style.paddingTop = `${Math.floor(this._editor.getConfiguration().lineHeight * 0.66)}px`;
 			this._lines += 1;
 
 			for (const related of relatedInformation) {
@@ -136,7 +140,7 @@ class MessageWidget {
 				container.appendChild(relatedMessage);
 
 				this._lines += 1;
-				this._relatedBlock.appendChild(container);
+				relatedInformationNode.appendChild(container);
 			}
 		}
 
@@ -164,7 +168,7 @@ export class MarkerNavigationWidget extends ZoneWidget {
 	private _message: MessageWidget;
 	private _callOnDispose: IDisposable[] = [];
 	private _severity: MarkerSeverity;
-	private _backgroundColor: Color | null;
+	private _backgroundColor?: Color;
 	private _onDidSelectRelatedInformation = new Emitter<IRelatedInformation>();
 
 	readonly onDidSelectRelatedInformation: Event<IRelatedInformation> = this._onDidSelectRelatedInformation.event;

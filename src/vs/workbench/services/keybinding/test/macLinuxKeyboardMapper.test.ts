@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { KeyChord, KeyCode, KeyMod, SimpleKeybinding, createKeybinding } from 'vs/base/common/keyCodes';
+import { KeyChord, KeyCode, KeyMod, SimpleKeybinding, createKeybinding, createSimpleKeybinding } from 'vs/base/common/keyCodes';
 import { UserSettingsLabelProvider } from 'vs/base/common/keybindingLabels';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { ScanCode, ScanCodeBinding, ScanCodeUtils } from 'vs/base/common/scanCode';
@@ -65,7 +65,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 				userSettingsLabel: 'cmd+a',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['meta+[KeyA]', null],
+				dispatchParts: ['meta+[KeyA]'],
 			}]
 		);
 	});
@@ -80,7 +80,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 				userSettingsLabel: 'cmd+b',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['meta+[KeyB]', null],
+				dispatchParts: ['meta+[KeyB]'],
 			}]
 		);
 	});
@@ -95,7 +95,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 				userSettingsLabel: 'cmd+z',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['meta+[KeyY]', null],
+				dispatchParts: ['meta+[KeyY]'],
 			}]
 		);
 	});
@@ -118,7 +118,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 				userSettingsLabel: 'cmd+z',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['meta+[KeyY]', null],
+				dispatchParts: ['meta+[KeyY]'],
 			}
 		);
 	});
@@ -133,7 +133,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 				userSettingsLabel: 'ctrl+alt+cmd+6',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['ctrl+alt+meta+[Digit6]', null],
+				dispatchParts: ['ctrl+alt+meta+[Digit6]'],
 			}]
 		);
 	});
@@ -156,7 +156,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 				userSettingsLabel: 'cmd+[BracketRight]',
 				isWYSIWYG: false,
 				isChord: false,
-				dispatchParts: ['meta+[BracketRight]', null],
+				dispatchParts: ['meta+[BracketRight]'],
 			}
 		);
 	});
@@ -171,7 +171,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 				userSettingsLabel: 'ctrl+alt+9',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['ctrl+alt+[Digit9]', null],
+				dispatchParts: ['ctrl+alt+[Digit9]'],
 			}]
 		);
 	});
@@ -186,7 +186,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 				userSettingsLabel: 'shift+cmd+7',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['shift+meta+[Digit7]', null],
+				dispatchParts: ['shift+meta+[Digit7]'],
 			}]
 		);
 	});
@@ -201,7 +201,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 				userSettingsLabel: 'shift+cmd+[Minus]',
 				isWYSIWYG: false,
 				isChord: false,
-				dispatchParts: ['shift+meta+[Minus]', null],
+				dispatchParts: ['shift+meta+[Minus]'],
 			}]
 		);
 	});
@@ -246,7 +246,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 				userSettingsLabel: 'cmd+down',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['meta+[ArrowDown]', null],
+				dispatchParts: ['meta+[ArrowDown]'],
 			}]
 		);
 	});
@@ -261,7 +261,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 				userSettingsLabel: 'cmd+numpad0',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['meta+[Numpad0]', null],
+				dispatchParts: ['meta+[Numpad0]'],
 			}]
 		);
 	});
@@ -276,7 +276,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 				userSettingsLabel: 'cmd+home',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['meta+[Home]', null],
+				dispatchParts: ['meta+[Home]'],
 			}]
 		);
 	});
@@ -299,7 +299,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 				userSettingsLabel: 'cmd+home',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['meta+[Home]', null],
+				dispatchParts: ['meta+[Home]'],
 			}
 		);
 	});
@@ -307,8 +307,10 @@ suite('keyboardMapper - MAC de_ch', () => {
 	test('resolveUserBinding Cmd+[Comma] Cmd+/', () => {
 		assertResolveUserBinding(
 			mapper,
-			new ScanCodeBinding(false, false, false, true, ScanCode.Comma),
-			new SimpleKeybinding(false, false, false, true, KeyCode.US_SLASH),
+			[
+				new ScanCodeBinding(false, false, false, true, ScanCode.Comma),
+				new SimpleKeybinding(false, false, false, true, KeyCode.US_SLASH),
+			],
 			[{
 				label: '⌘, ⇧⌘7',
 				ariaLabel: 'Command+, Shift+Command+7',
@@ -339,7 +341,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 				userSettingsLabel: 'cmd+',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: [null, null],
+				dispatchParts: [null],
 			}
 		);
 	});
@@ -362,7 +364,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 				userSettingsLabel: 'cmd+',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: [null, null],
+				dispatchParts: [null],
 			}
 		);
 	});
@@ -384,8 +386,10 @@ suite('keyboardMapper - MAC en_us', () => {
 	test('resolveUserBinding Cmd+[Comma] Cmd+/', () => {
 		assertResolveUserBinding(
 			mapper,
-			new ScanCodeBinding(false, false, false, true, ScanCode.Comma),
-			new SimpleKeybinding(false, false, false, true, KeyCode.US_SLASH),
+			[
+				new ScanCodeBinding(false, false, false, true, ScanCode.Comma),
+				new SimpleKeybinding(false, false, false, true, KeyCode.US_SLASH),
+			],
 			[{
 				label: '⌘, ⌘/',
 				ariaLabel: 'Command+, Command+/',
@@ -416,7 +420,7 @@ suite('keyboardMapper - MAC en_us', () => {
 				userSettingsLabel: 'cmd+',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: [null, null],
+				dispatchParts: [null],
 			}
 		);
 	});
@@ -439,7 +443,7 @@ suite('keyboardMapper - MAC en_us', () => {
 				userSettingsLabel: 'cmd+',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: [null, null],
+				dispatchParts: [null],
 			}
 		);
 	});
@@ -491,7 +495,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 				userSettingsLabel: 'ctrl+a',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['ctrl+[KeyA]', null],
+				dispatchParts: ['ctrl+[KeyA]'],
 			}]
 		);
 	});
@@ -506,7 +510,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 				userSettingsLabel: 'ctrl+z',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['ctrl+[KeyY]', null],
+				dispatchParts: ['ctrl+[KeyY]'],
 			}]
 		);
 	});
@@ -529,7 +533,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 				userSettingsLabel: 'ctrl+z',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['ctrl+[KeyY]', null],
+				dispatchParts: ['ctrl+[KeyY]'],
 			}
 		);
 	});
@@ -559,7 +563,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 				userSettingsLabel: 'ctrl+[BracketRight]',
 				isWYSIWYG: false,
 				isChord: false,
-				dispatchParts: ['ctrl+[BracketRight]', null],
+				dispatchParts: ['ctrl+[BracketRight]'],
 			}
 		);
 	});
@@ -574,7 +578,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 				userSettingsLabel: 'ctrl+alt+0',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['ctrl+alt+[Digit0]', null],
+				dispatchParts: ['ctrl+alt+[Digit0]'],
 			}, {
 				label: 'Ctrl+Alt+$',
 				ariaLabel: 'Control+Alt+$',
@@ -582,7 +586,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 				userSettingsLabel: 'ctrl+alt+[Backslash]',
 				isWYSIWYG: false,
 				isChord: false,
-				dispatchParts: ['ctrl+alt+[Backslash]', null],
+				dispatchParts: ['ctrl+alt+[Backslash]'],
 			}]
 		);
 	});
@@ -597,7 +601,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 				userSettingsLabel: 'ctrl+shift+7',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['ctrl+shift+[Digit7]', null],
+				dispatchParts: ['ctrl+shift+[Digit7]'],
 			}]
 		);
 	});
@@ -612,7 +616,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 				userSettingsLabel: 'ctrl+shift+[Minus]',
 				isWYSIWYG: false,
 				isChord: false,
-				dispatchParts: ['ctrl+shift+[Minus]', null],
+				dispatchParts: ['ctrl+shift+[Minus]'],
 			}]
 		);
 	});
@@ -649,7 +653,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 				userSettingsLabel: 'ctrl+down',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['ctrl+[ArrowDown]', null],
+				dispatchParts: ['ctrl+[ArrowDown]'],
 			}]
 		);
 	});
@@ -664,7 +668,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 				userSettingsLabel: 'ctrl+numpad0',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['ctrl+[Numpad0]', null],
+				dispatchParts: ['ctrl+[Numpad0]'],
 			}]
 		);
 	});
@@ -679,7 +683,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 				userSettingsLabel: 'ctrl+home',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['ctrl+[Home]', null],
+				dispatchParts: ['ctrl+[Home]'],
 			}]
 		);
 	});
@@ -702,7 +706,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 				userSettingsLabel: 'ctrl+home',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['ctrl+[Home]', null],
+				dispatchParts: ['ctrl+[Home]'],
 			}
 		);
 	});
@@ -725,16 +729,17 @@ suite('keyboardMapper - LINUX de_ch', () => {
 				userSettingsLabel: 'ctrl+x',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['ctrl+[KeyX]', null],
+				dispatchParts: ['ctrl+[KeyX]'],
 			}
 		);
 	});
 
 	test('resolveUserBinding Ctrl+[Comma] Ctrl+/', () => {
 		assertResolveUserBinding(
-			mapper,
-			new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
-			new SimpleKeybinding(true, false, false, false, KeyCode.US_SLASH),
+			mapper, [
+				new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
+				new SimpleKeybinding(true, false, false, false, KeyCode.US_SLASH),
+			],
 			[{
 				label: 'Ctrl+, Ctrl+Shift+7',
 				ariaLabel: 'Control+, Control+Shift+7',
@@ -765,7 +770,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 				userSettingsLabel: 'ctrl+',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: [null, null],
+				dispatchParts: [null],
 			}
 		);
 	});
@@ -788,7 +793,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 				userSettingsLabel: 'ctrl+',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: [null, null],
+				dispatchParts: [null],
 			}
 		);
 	});
@@ -821,7 +826,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 				userSettingsLabel: 'ctrl+a',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['ctrl+[KeyA]', null],
+				dispatchParts: ['ctrl+[KeyA]'],
 			}]
 		);
 	});
@@ -836,7 +841,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 				userSettingsLabel: 'ctrl+z',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['ctrl+[KeyZ]', null],
+				dispatchParts: ['ctrl+[KeyZ]'],
 			}]
 		);
 	});
@@ -859,7 +864,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 				userSettingsLabel: 'ctrl+z',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['ctrl+[KeyZ]', null],
+				dispatchParts: ['ctrl+[KeyZ]'],
 			}
 		);
 	});
@@ -874,7 +879,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 				userSettingsLabel: 'ctrl+]',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['ctrl+[BracketRight]', null],
+				dispatchParts: ['ctrl+[BracketRight]'],
 			}]
 		);
 	});
@@ -897,7 +902,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 				userSettingsLabel: 'ctrl+]',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['ctrl+[BracketRight]', null],
+				dispatchParts: ['ctrl+[BracketRight]'],
 			}
 		);
 	});
@@ -912,7 +917,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 				userSettingsLabel: 'shift+]',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['shift+[BracketRight]', null],
+				dispatchParts: ['shift+[BracketRight]'],
 			}]
 		);
 	});
@@ -927,7 +932,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 				userSettingsLabel: 'ctrl+/',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['ctrl+[Slash]', null],
+				dispatchParts: ['ctrl+[Slash]'],
 			}]
 		);
 	});
@@ -942,7 +947,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 				userSettingsLabel: 'ctrl+shift+/',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['ctrl+shift+[Slash]', null],
+				dispatchParts: ['ctrl+shift+[Slash]'],
 			}]
 		);
 	});
@@ -987,7 +992,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 				userSettingsLabel: 'ctrl+down',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['ctrl+[ArrowDown]', null],
+				dispatchParts: ['ctrl+[ArrowDown]'],
 			}]
 		);
 	});
@@ -1002,7 +1007,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 				userSettingsLabel: 'ctrl+numpad0',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['ctrl+[Numpad0]', null],
+				dispatchParts: ['ctrl+[Numpad0]'],
 			}]
 		);
 	});
@@ -1017,7 +1022,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 				userSettingsLabel: 'ctrl+home',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['ctrl+[Home]', null],
+				dispatchParts: ['ctrl+[Home]'],
 			}]
 		);
 	});
@@ -1040,7 +1045,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 				userSettingsLabel: 'ctrl+home',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['ctrl+[Home]', null],
+				dispatchParts: ['ctrl+[Home]'],
 			}
 		);
 	});
@@ -1055,7 +1060,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 				userSettingsLabel: 'ctrl+shift+,',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['ctrl+shift+[Comma]', null],
+				dispatchParts: ['ctrl+shift+[Comma]'],
 			}, {
 				label: 'Ctrl+<',
 				ariaLabel: 'Control+<',
@@ -1063,7 +1068,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 				userSettingsLabel: 'ctrl+[IntlBackslash]',
 				isWYSIWYG: false,
 				isChord: false,
-				dispatchParts: ['ctrl+[IntlBackslash]', null],
+				dispatchParts: ['ctrl+[IntlBackslash]'],
 			}]
 		);
 	});
@@ -1078,7 +1083,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 				userSettingsLabel: 'ctrl+enter',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['ctrl+[Enter]', null],
+				dispatchParts: ['ctrl+[Enter]'],
 			}]
 		);
 	});
@@ -1101,16 +1106,17 @@ suite('keyboardMapper - LINUX en_us', () => {
 				userSettingsLabel: 'ctrl+enter',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['ctrl+[Enter]', null],
+				dispatchParts: ['ctrl+[Enter]'],
 			}
 		);
 	});
 
 	test('resolveUserBinding Ctrl+[Comma] Ctrl+/', () => {
 		assertResolveUserBinding(
-			mapper,
-			new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
-			new SimpleKeybinding(true, false, false, false, KeyCode.US_SLASH),
+			mapper, [
+				new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
+				new SimpleKeybinding(true, false, false, false, KeyCode.US_SLASH),
+			],
 			[{
 				label: 'Ctrl+, Ctrl+/',
 				ariaLabel: 'Control+, Control+/',
@@ -1125,9 +1131,9 @@ suite('keyboardMapper - LINUX en_us', () => {
 
 	test('resolveUserBinding Ctrl+[Comma]', () => {
 		assertResolveUserBinding(
-			mapper,
-			new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
-			null,
+			mapper, [
+				new ScanCodeBinding(true, false, false, false, ScanCode.Comma)
+			],
 			[{
 				label: 'Ctrl+,',
 				ariaLabel: 'Control+,',
@@ -1135,7 +1141,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 				userSettingsLabel: 'ctrl+,',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['ctrl+[Comma]', null],
+				dispatchParts: ['ctrl+[Comma]'],
 			}]
 		);
 	});
@@ -1158,7 +1164,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 				userSettingsLabel: 'ctrl+',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: [null, null],
+				dispatchParts: [null],
 			}
 		);
 	});
@@ -1181,7 +1187,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 				userSettingsLabel: 'ctrl+',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: [null, null],
+				dispatchParts: [null],
 			}
 		);
 	});
@@ -1216,7 +1222,7 @@ suite('keyboardMapper', () => {
 				userSettingsLabel: 'ctrl+`',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['ctrl+[Backquote]', null],
+				dispatchParts: ['ctrl+[Backquote]'],
 			}
 		);
 	});
@@ -1242,7 +1248,7 @@ suite('keyboardMapper', () => {
 					userSettingsLabel: userSettingsLabel,
 					isWYSIWYG: true,
 					isChord: false,
-					dispatchParts: [dispatch, null],
+					dispatchParts: [dispatch],
 				}
 			);
 		}
@@ -1281,7 +1287,7 @@ suite('keyboardMapper', () => {
 					userSettingsLabel: userSettingsLabel,
 					isWYSIWYG: true,
 					isChord: false,
-					dispatchParts: [dispatch, null],
+					dispatchParts: [dispatch],
 				}
 			);
 		}
@@ -1339,7 +1345,7 @@ suite('keyboardMapper - LINUX ru', () => {
 				userSettingsLabel: 'ctrl+s',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['ctrl+[KeyS]', null],
+				dispatchParts: ['ctrl+[KeyS]'],
 			}]
 		);
 	});
@@ -1376,7 +1382,7 @@ suite('keyboardMapper - LINUX en_uk', () => {
 				userSettingsLabel: 'ctrl+alt+[Minus]',
 				isWYSIWYG: false,
 				isChord: false,
-				dispatchParts: ['ctrl+alt+[Minus]', null],
+				dispatchParts: ['ctrl+alt+[Minus]'],
 			}
 		);
 	});
@@ -1409,7 +1415,7 @@ suite('keyboardMapper - MAC zh_hant', () => {
 				userSettingsLabel: 'cmd+c',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['meta+[KeyC]', null],
+				dispatchParts: ['meta+[KeyC]'],
 			}]
 		);
 	});
@@ -1425,17 +1431,17 @@ function _assertKeybindingTranslation(mapper: MacLinuxKeyboardMapper, OS: Operat
 		expected = [];
 	}
 
-	const runtimeKeybinding = createKeybinding(kb, OS);
+	const runtimeKeybinding = createSimpleKeybinding(kb, OS);
 
-	const keybindingLabel = new USLayoutResolvedKeybinding(runtimeKeybinding!, OS).getUserSettingsLabel();
+	const keybindingLabel = new USLayoutResolvedKeybinding(runtimeKeybinding.toChord(), OS).getUserSettingsLabel();
 
-	const actualHardwareKeypresses = mapper.simpleKeybindingToScanCodeBinding(<SimpleKeybinding>runtimeKeybinding);
+	const actualHardwareKeypresses = mapper.simpleKeybindingToScanCodeBinding(runtimeKeybinding);
 	if (actualHardwareKeypresses.length === 0) {
 		assert.deepEqual([], expected, `simpleKeybindingToHardwareKeypress -- "${keybindingLabel}" -- actual: "[]" -- expected: "${expected}"`);
 		return;
 	}
 
 	const actual = actualHardwareKeypresses
-		.map(k => UserSettingsLabelProvider.toLabel(k, ScanCodeUtils.toString(k.scanCode), null, null, OS));
+		.map(k => UserSettingsLabelProvider.toLabel(OS, [k], (keybinding) => ScanCodeUtils.toString(keybinding.scanCode)));
 	assert.deepEqual(actual, expected, `simpleKeybindingToHardwareKeypress -- "${keybindingLabel}" -- actual: "${actual}" -- expected: "${expected}"`);
 }

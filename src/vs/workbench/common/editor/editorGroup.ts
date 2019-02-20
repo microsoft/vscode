@@ -98,6 +98,7 @@ export class EditorGroup extends Disposable {
 	private active: EditorInput | null;  // editor in active state
 
 	private editorOpenPositioning: 'left' | 'right' | 'first' | 'last';
+	private focusRecentEditorAfterClose: boolean;
 
 	constructor(
 		labelOrSerializedGroup: ISerializedEditorGroup,
@@ -122,6 +123,7 @@ export class EditorGroup extends Disposable {
 
 	private onConfigurationUpdated(event?: IConfigurationChangeEvent): void {
 		this.editorOpenPositioning = this.configurationService.getValue('workbench.editor.openPositioning');
+		this.focusRecentEditorAfterClose = this.configurationService.getValue('workbench.editor.focusRecentEditorAfterClose');
 	}
 
 	get id(): GroupIdentifier {
@@ -332,7 +334,18 @@ export class EditorGroup extends Disposable {
 
 			// More than one editor
 			if (this.mru.length > 1) {
-				this.setActive(this.mru[1]); // active editor is always first in MRU, so pick second editor after as new active
+				let newActive: EditorInput;
+				if (this.focusRecentEditorAfterClose) {
+					newActive = this.mru[1]; // active editor is always first in MRU, so pick second editor after as new active
+				} else {
+					if (index === this.editors.length - 1) {
+						newActive = this.editors[index - 1]; // last editor is closed, pick previous as new active
+					} else {
+						newActive = this.editors[index + 1]; // pick next editor as new active
+					}
+				}
+
+				this.setActive(newActive);
 			}
 
 			// One Editor
@@ -665,7 +678,7 @@ export class EditorGroup extends Disposable {
 		this.editors = coalesce(data.editors.map(e => {
 			const factory = registry.getEditorInputFactory(e.id);
 			if (factory) {
-				const editor = factory.deserialize(this.instantiationService, e.value);
+				const editor = factory.deserialize(this.instantiationService, e.value)!;
 
 				this.registerEditorListeners(editor);
 				this.updateResourceMap(editor, false /* add */);

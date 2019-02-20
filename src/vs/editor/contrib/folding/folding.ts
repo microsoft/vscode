@@ -92,7 +92,6 @@ export class FoldingController implements IEditorContribution {
 		this.foldingDecorationProvider.autoHideFoldingControls = this._autoHideFoldingControls;
 
 		this.globalToDispose.push(this.editor.onDidChangeModel(() => this.onModelChanged()));
-		this.globalToDispose.push(FoldingRangeProviderRegistry.onDidChange(() => this.onFoldingStrategyChanged()));
 
 		this.globalToDispose.push(this.editor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => {
 			if (e.contribInfo) {
@@ -193,7 +192,8 @@ export class FoldingController implements IEditorContribution {
 
 		this.cursorChangedScheduler = new RunOnceScheduler(() => this.revealCursor(), 200);
 		this.localToDispose.push(this.cursorChangedScheduler);
-		this.localToDispose.push(this.editor.onDidChangeModelLanguageConfiguration(() => this.onModelContentChanged())); // covers model language changes as well
+		this.localToDispose.push(FoldingRangeProviderRegistry.onDidChange(() => this.onFoldingStrategyChanged()));
+		this.localToDispose.push(this.editor.onDidChangeModelLanguageConfiguration(() => this.onFoldingStrategyChanged())); // covers model language changes as well
 		this.localToDispose.push(this.editor.onDidChangeModelContent(() => this.onModelContentChanged()));
 		this.localToDispose.push(this.editor.onDidChangeCursorPosition(() => this.onCursorPositionChanged()));
 		this.localToDispose.push(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
@@ -519,7 +519,27 @@ class UnfoldAction extends FoldingAction<FoldingArguments> {
 						* 'direction': If 'up', unfold given number of levels up otherwise unfolds down.
 						* 'selectionLines': The start lines (0-based) of the editor selections to apply the unfold action to. If not set, the active selection(s) will be used.
 						`,
-						constraint: foldingArgumentsConstraint
+						constraint: foldingArgumentsConstraint,
+						schema: {
+							'type': 'object',
+							'properties': {
+								'levels': {
+									'type': 'number',
+									'default': 1
+								},
+								'direction': {
+									'type': 'string',
+									'enum': ['up', 'down'],
+									'default': 'down'
+								},
+								'selectionLines': {
+									'type': 'array',
+									'items': {
+										'type': 'number'
+									}
+								}
+							}
+						}
 					}
 				]
 			}
@@ -584,7 +604,27 @@ class FoldAction extends FoldingAction<FoldingArguments> {
 							* 'direction': If 'up', folds given number of levels up otherwise folds down.
 							* 'selectionLines': The start lines (0-based) of the editor selections to apply the fold action to. If not set, the active selection(s) will be used.
 						`,
-						constraint: foldingArgumentsConstraint
+						constraint: foldingArgumentsConstraint,
+						schema: {
+							'type': 'object',
+							'properties': {
+								'levels': {
+									'type': 'number',
+									'default': 1
+								},
+								'direction': {
+									'type': 'string',
+									'enum': ['up', 'down'],
+									'default': 'down'
+								},
+								'selectionLines': {
+									'type': 'array',
+									'items': {
+										'type': 'number'
+									}
+								}
+							}
+						}
 					}
 				]
 			}

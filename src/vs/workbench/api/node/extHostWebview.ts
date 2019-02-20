@@ -8,14 +8,14 @@ import { URI } from 'vs/base/common/uri';
 import * as typeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import { EditorViewColumn } from 'vs/workbench/api/shared/editor';
 import * as vscode from 'vscode';
-import { ExtHostWebviewsShape, IMainContext, MainContext, MainThreadWebviewsShape, WebviewPanelHandle, WebviewPanelViewState } from './extHost.protocol';
+import { ExtHostWebviewsShape, IMainContext, MainContext, MainThreadWebviewsShape, WebviewPanelHandle, WebviewPanelViewState, WebviewInsetHandle } from './extHost.protocol';
 import { Disposable } from './extHostTypes';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 
 type IconPath = URI | { light: URI, dark: URI };
 
 export class ExtHostWebview implements vscode.Webview {
-	private readonly _handle: WebviewPanelHandle;
+	private readonly _handle: WebviewPanelHandle | WebviewInsetHandle;
 	private readonly _proxy: MainThreadWebviewsShape;
 	private _html: string;
 	private _options: vscode.WebviewOptions;
@@ -25,7 +25,7 @@ export class ExtHostWebview implements vscode.Webview {
 	public readonly onDidReceiveMessage: Event<any> = this._onMessageEmitter.event;
 
 	constructor(
-		handle: WebviewPanelHandle,
+		handle: WebviewPanelHandle | WebviewInsetHandle,
 		proxy: MainThreadWebviewsShape,
 		options: vscode.WebviewOptions
 	) {
@@ -80,7 +80,7 @@ export class ExtHostWebviewPanel implements vscode.WebviewPanel {
 	private readonly _proxy: MainThreadWebviewsShape;
 	private readonly _viewType: string;
 	private _title: string;
-	private _iconPath: IconPath;
+	private _iconPath?: IconPath;
 
 	private readonly _options: vscode.WebviewPanelOptions;
 	private readonly _webview: ExtHostWebview;
@@ -171,8 +171,13 @@ export class ExtHostWebviewPanel implements vscode.WebviewPanel {
 		return this._options;
 	}
 
-	get viewColumn(): vscode.ViewColumn {
+	get viewColumn(): vscode.ViewColumn | undefined {
 		this.assertNotDisposed();
+		if (this._viewColumn < 0) {
+			// We are using a symbolic view column
+			// Return undefined instead to indicate that the real view column is currently unknown but will be resolved.
+			return undefined;
+		}
 		return this._viewColumn;
 	}
 
@@ -238,7 +243,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadWebviews);
 	}
 
-	public createWebview(
+	public createWebviewPanel(
 		extension: IExtensionDescription,
 		viewType: string,
 		title: string,
@@ -328,7 +333,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		}
 
 		const webview = new ExtHostWebview(webviewHandle, this._proxy, options);
-		const revivedPanel = new ExtHostWebviewPanel(webviewHandle, this._proxy, viewType, title, typeConverters.ViewColumn.to(position), options, webview);
+		const revivedPanel = new ExtHostWebviewPanel(webviewHandle, this._proxy, viewType, title, typeof position === 'number' && position >= 0 ? typeConverters.ViewColumn.to(position) : undefined, options, webview);
 		this._webviewPanels.set(webviewHandle, revivedPanel);
 		return Promise.resolve(serializer.deserializeWebviewPanel(revivedPanel, state));
 	}

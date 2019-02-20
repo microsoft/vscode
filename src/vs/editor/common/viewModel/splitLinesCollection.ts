@@ -788,8 +788,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 	public getAllOverviewRulerDecorations(ownerId: number, filterOutValidation: boolean, theme: ITheme): IOverviewRulerDecorations {
 		const decorations = this.model.getOverviewRulerDecorations(ownerId, filterOutValidation);
 		const result = new OverviewRulerDecorations();
-		for (let i = 0, len = decorations.length; i < len; i++) {
-			const decoration = decorations[i];
+		for (const decoration of decorations) {
 			const opts = <ModelDecorationOverviewRulerOptions>decoration.options.overviewRuler;
 			const lane = opts ? opts.position : 0;
 			if (lane === 0) {
@@ -858,8 +857,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		// Eliminate duplicate decorations that might have intersected our visible ranges multiple times
 		let finalResult: IModelDecoration[] = [], finalResultLen = 0;
 		let prevDecId: string | null = null;
-		for (let i = 0, len = result.length; i < len; i++) {
-			const dec = result[i];
+		for (const dec of result) {
 			const decId = dec.id;
 			if (prevDecId === decId) {
 				// skip
@@ -1380,8 +1378,7 @@ export class IdentityLinesCollection implements IViewModelLinesCollection {
 	public getAllOverviewRulerDecorations(ownerId: number, filterOutValidation: boolean, theme: ITheme): IOverviewRulerDecorations {
 		const decorations = this.model.getOverviewRulerDecorations(ownerId, filterOutValidation);
 		const result = new OverviewRulerDecorations();
-		for (let i = 0, len = decorations.length; i < len; i++) {
-			const decoration = decorations[i];
+		for (const decoration of decorations) {
 			const opts = <ModelDecorationOverviewRulerOptions>decoration.options.overviewRuler;
 			const lane = opts ? opts.position : 0;
 			if (lane === 0) {

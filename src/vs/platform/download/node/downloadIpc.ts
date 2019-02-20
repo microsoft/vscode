@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import * as fs from 'fs';
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -47,7 +47,7 @@ export class DownloadServiceChannelClient implements IDownloadService {
 	constructor(private channel: IChannel, private getUriTransformer: () => IURITransformer) { }
 
 	download(from: URI, to: string): Promise<void> {
-		from = this.getUriTransformer().transformOutgoing(from);
+		from = this.getUriTransformer().transformOutgoingURI(from);
 		const dirName = path.dirname(to);
 		let out: fs.WriteStream;
 		return new Promise((c, e) => {

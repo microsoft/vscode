@@ -21,7 +21,7 @@ import { IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/
 import { ModelDecorationOptions, TextModel } from 'vs/editor/common/model/textModel';
 import { Location } from 'vs/editor/common/modes';
 import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { AriaProvider, DataSource, Delegate, FileReferencesRenderer, OneReferenceRenderer, TreeElement, StringRepresentationProvider } from 'vs/editor/contrib/referenceSearch/referencesTree';
+import { AriaProvider, DataSource, Delegate, FileReferencesRenderer, OneReferenceRenderer, TreeElement, StringRepresentationProvider, IdentityProvider } from 'vs/editor/contrib/referenceSearch/referencesTree';
 import * as nls from 'vs/nls';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -34,6 +34,7 @@ import { FileReferences, OneReference, ReferencesModel } from './referencesModel
 import { ITreeRenderer, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IAsyncDataTreeOptions } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { FuzzyScore } from 'vs/base/common/filters';
 
 class DecorationsManager implements IDisposable {
 
@@ -72,6 +73,9 @@ class DecorationsManager implements IDisposable {
 	}
 
 	private _addDecorations(reference: FileReferences): void {
+		if (!this._editor.hasModel()) {
+			return;
+		}
 		this._callOnModelChange.push(this._editor.getModel().onDidChangeDecorations((event) => this._onDecorationChanged()));
 
 		const newDecorations: IModelDeltaDecoration[] = [];
@@ -98,8 +102,13 @@ class DecorationsManager implements IDisposable {
 	private _onDecorationChanged(): void {
 		const toRemove: string[] = [];
 
+		const model = this._editor.getModel();
+		if (!model) {
+			return;
+		}
+
 		this._decorations.forEach((reference, decorationId) => {
-			const newRange = this._editor.getModel().getDecorationRange(decorationId);
+			const newRange = model.getDecorationRange(decorationId);
 
 			if (!newRange) {
 				return;
@@ -220,7 +229,7 @@ export interface LayoutData {
 export interface SelectionEvent {
 	kind: 'goto' | 'show' | 'side' | 'open';
 	source: 'editor' | 'tree' | 'title';
-	element: Location;
+	element?: Location;
 }
 
 export const ctxReferenceWidgetSearchTreeFocused = new RawContextKey<boolean>('referenceSearchTreeFocused', true);
@@ -237,7 +246,7 @@ export class ReferenceWidget extends PeekViewWidget {
 	private _callOnDispose: IDisposable[] = [];
 	private _onDidSelectReference = new Emitter<SelectionEvent>();
 
-	private _tree: WorkbenchAsyncDataTree<ReferencesModel | FileReferences, TreeElement>;
+	private _tree: WorkbenchAsyncDataTree<ReferencesModel | FileReferences, TreeElement, FuzzyScore>;
 	private _treeContainer: HTMLElement;
 	private _sash: VSash;
 	private _preview: ICodeEditor;
@@ -245,6 +254,8 @@ export class ReferenceWidget extends PeekViewWidget {
 	private _previewNotAvailableMessage: TextModel;
 	private _previewContainer: HTMLElement;
 	private _messageContainer: HTMLElement;
+	private height: number | undefined;
+	private width: number | undefined;
 
 	constructor(
 		editor: ICodeEditor,
@@ -338,7 +349,7 @@ export class ReferenceWidget extends PeekViewWidget {
 			this._previewContainer.style.width = left;
 			this._treeContainer.style.width = right;
 			this._preview.layout();
-			this._tree.layout();
+			this._tree.layout(this.height, this.width && this.width * (1 - this._sash.ratio));
 			this.layoutData.ratio = this._sash.ratio;
 		});
 
@@ -350,16 +361,17 @@ export class ReferenceWidget extends PeekViewWidget {
 			this._instantiationService.createInstance(OneReferenceRenderer),
 		];
 
-		const treeOptions = {
+		const treeOptions: IAsyncDataTreeOptions<TreeElement, FuzzyScore> = {
 			ariaLabel: nls.localize('treeAriaLabel', "References"),
 			keyboardSupport: this._defaultTreeKeyboardSupport,
 			accessibilityProvider: new AriaProvider(),
-			keyboardNavigationLabelProvider: this._instantiationService.createInstance(StringRepresentationProvider)
+			keyboardNavigationLabelProvider: this._instantiationService.createInstance(StringRepresentationProvider),
+			identityProvider: new IdentityProvider()
 		};
 
 		const treeDataSource = this._instantiationService.createInstance(DataSource);
 
-		this._tree = this._instantiationService.createInstance<HTMLElement, IListVirtualDelegate<TreeElement>, ITreeRenderer<any, void, any>[], IAsyncDataSource<ReferencesModel | FileReferences, TreeElement>, IAsyncDataTreeOptions<TreeElement, void>, WorkbenchAsyncDataTree<ReferencesModel | FileReferences, TreeElement, void>>(
+		this._tree = this._instantiationService.createInstance<HTMLElement, IListVirtualDelegate<TreeElement>, ITreeRenderer<any, FuzzyScore, any>[], IAsyncDataSource<ReferencesModel | FileReferences, TreeElement>, IAsyncDataTreeOptions<TreeElement, FuzzyScore>, WorkbenchAsyncDataTree<ReferencesModel | FileReferences, TreeElement, FuzzyScore>>(
 			WorkbenchAsyncDataTree,
 			this._treeContainer,
 			new Delegate(),
@@ -390,7 +402,7 @@ export class ReferenceWidget extends PeekViewWidget {
 				goto = true;
 
 			} else if (e.browserEvent instanceof MouseEvent) {
-				aside = e.browserEvent.metaKey || e.browserEvent.metaKey || e.browserEvent.altKey;
+				aside = e.browserEvent.ctrlKey || e.browserEvent.metaKey || e.browserEvent.altKey;
 				goto = e.browserEvent.detail === 2;
 			}
 			if (aside) {
@@ -408,6 +420,9 @@ export class ReferenceWidget extends PeekViewWidget {
 	protected _doLayoutBody(heightInPixel: number, widthInPixel: number): void {
 		super._doLayoutBody(heightInPixel, widthInPixel);
 
+		this.height = heightInPixel;
+		this.width = widthInPixel;
+
 		const height = heightInPixel + 'px';
 		this._sash.height = heightInPixel;
 		this._sash.width = widthInPixel;
@@ -419,12 +434,12 @@ export class ReferenceWidget extends PeekViewWidget {
 		this._treeContainer.style.height = height;
 		this._treeContainer.style.width = right;
 		// forward
-		this._tree.layout(heightInPixel);
+		this._tree.layout(heightInPixel, widthInPixel * (1 - this._sash.ratio));
 		this._preview.layout();
 
 		// store layout data
 		this.layoutData = {
-			heightInLines: this._viewZone.heightInLines,
+			heightInLines: this._viewZone ? this._viewZone.heightInLines : 0,
 			ratio: this._sash.ratio
 		};
 	}
@@ -446,7 +461,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		});
 	}
 
-	public setModel(newModel: ReferencesModel | undefined): Promise<any> {
+	public setModel(newModel: ReferencesModel | undefined): Promise<any> | undefined {
 		// clean up
 		this._disposeOnNewModel = dispose(this._disposeOnNewModel);
 		this._model = newModel;
@@ -457,6 +472,9 @@ export class ReferenceWidget extends PeekViewWidget {
 	}
 
 	private _onNewModel(): Promise<any> {
+		if (!this._model) {
+			return Promise.resolve(undefined);
+		}
 
 		if (this._model.empty) {
 			this.setTitle('');
@@ -483,7 +501,7 @@ export class ReferenceWidget extends PeekViewWidget {
 				return;
 			}
 			this._onDidSelectReference.fire({
-				element: { uri: element.uri, range: target.range },
+				element: { uri: element.uri, range: target.range! },
 				kind: (event.ctrlKey || event.metaKey || event.altKey) ? 'side' : 'open',
 				source: 'editor'
 			});
@@ -501,7 +519,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		return this._tree.setInput(this._model.groups.length === 1 ? this._model.groups[0] : this._model);
 	}
 
-	private _getFocusedReference(): OneReference {
+	private _getFocusedReference(): OneReference | undefined {
 		const [element] = this._tree.getFocus();
 		if (element instanceof OneReference) {
 			return element;

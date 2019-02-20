@@ -75,8 +75,8 @@ export class MenuBar extends Disposable {
 	private _focusState: MenubarState;
 	private actionRunner: IActionRunner;
 
-	private _onVisibilityChange: Emitter<boolean>;
-	private _onFocusStateChange: Emitter<boolean>;
+	private readonly _onVisibilityChange: Emitter<boolean>;
+	private readonly _onFocusStateChange: Emitter<boolean>;
 
 	private numMenusShown: number;
 	private menuStyle: IMenuStyles;
@@ -118,7 +118,7 @@ export class MenuBar extends Disposable {
 			} else if (event.equals(KeyCode.Escape) && this.isFocused && !this.isOpen) {
 				this.setUnfocusedState();
 			} else if (!this.isOpen && !event.ctrlKey && this.options.enableMnemonics && this.mnemonicsInUse && this.mnemonics.has(key)) {
-				const menuIndex = this.mnemonics.get(key);
+				const menuIndex = this.mnemonics.get(key)!;
 				this.onMenuTriggered(menuIndex, false);
 			} else {
 				eventHandled = false;
@@ -150,11 +150,9 @@ export class MenuBar extends Disposable {
 		this._register(DOM.addDisposableListener(this.container, DOM.EventType.FOCUS_OUT, (e) => {
 			let event = e as FocusEvent;
 
-			if (event.relatedTarget) {
-				if (!this.container.contains(event.relatedTarget as HTMLElement)) {
-					this.focusToReturn = undefined;
-					this.setUnfocusedState();
-				}
+			if (!event.relatedTarget || !this.container.contains(event.relatedTarget as HTMLElement)) {
+				this.focusToReturn = undefined;
+				this.setUnfocusedState();
 			}
 		}));
 
@@ -171,7 +169,7 @@ export class MenuBar extends Disposable {
 			this.mnemonicsInUse = true;
 			this.updateMnemonicVisibility(true);
 
-			const menuIndex = this.mnemonics.get(key);
+			const menuIndex = this.mnemonics.get(key)!;
 			this.onMenuTriggered(menuIndex, false);
 		}));
 
@@ -459,8 +457,8 @@ export class MenuBar extends Disposable {
 
 		// Update the button label to reflect mnemonics
 		titleElement.innerHTML = this.options.enableMnemonics ?
-			strings.escape(label).replace(MENU_ESCAPED_MNEMONIC_REGEX, '<mnemonic aria-hidden="true">$1</mnemonic>') :
-			cleanMenuLabel;
+			strings.escape(label).replace(MENU_ESCAPED_MNEMONIC_REGEX, '<mnemonic aria-hidden="true">$1</mnemonic>').replace(/&amp;&amp;/g, '&amp;') :
+			cleanMenuLabel.replace(/&&/g, '&');
 
 		let mnemonicMatches = MENU_MNEMONIC_REGEX.exec(label);
 

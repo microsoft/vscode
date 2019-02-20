@@ -23,8 +23,8 @@ configurationRegistry.registerConfiguration({
 			tags: ['usesOnlineServices'],
 			enumDescriptions: [
 				localize('none', "Disable updates."),
-				localize('manual', "Disable automatic update checks."),
-				localize('default', "Enable automatic update checks.")
+				localize('manual', "Disable automatic background update checks. Updates will be available if you manually check for updates."),
+				localize('default', "Enable automatic update checks. Code will check for updates automatically and periodically.")
 			]
 		},
 		'update.enableWindowsBackgroundUpdates': {

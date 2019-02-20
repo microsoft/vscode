@@ -80,8 +80,7 @@ export class FindDecorations implements IDisposable {
 
 	public getCurrentMatchesPosition(desiredRange: Range): number {
 		let candidates = this._editor.getModel().getDecorationsInRange(desiredRange);
-		for (let i = 0, len = candidates.length; i < len; i++) {
-			const candidate = candidates[i];
+		for (const candidate of candidates) {
 			const candidateOpts = candidate.options;
 			if (candidateOpts === FindDecorations._FIND_MATCH_DECORATION || candidateOpts === FindDecorations._CURRENT_FIND_MATCH_DECORATION) {
 				return this._getDecorationIndex(candidate.id);

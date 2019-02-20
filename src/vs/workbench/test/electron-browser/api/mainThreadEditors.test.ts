@@ -25,8 +25,8 @@ import { BulkEditService } from 'vs/workbench/services/bulkEdit/electron-browser
 import { NullLogService } from 'vs/platform/log/common/log';
 import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IReference, ImmortalReference } from 'vs/base/common/lifecycle';
-import { LabelService } from 'vs/platform/label/common/label';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { LabelService } from 'vs/workbench/services/label/common/labelService';
 
 suite('MainThreadEditors', () => {
 

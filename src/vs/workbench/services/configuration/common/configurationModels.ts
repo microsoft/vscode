@@ -202,7 +202,11 @@ export class Configuration extends BaseConfiguration {
 			// Do not remove workspace configuration
 			return new ConfigurationChangeEvent();
 		}
-		const keys = this.folders.get(folder).keys;
+		const folderConfig = this.folders.get(folder);
+		if (!folderConfig) {
+			throw new Error('Unknown folder');
+		}
+		const keys = folderConfig.keys;
 		super.deleteFolderConfiguration(folder);
 		return new ConfigurationChangeEvent().change(keys, folder);
 	}
@@ -252,7 +256,7 @@ export class AllKeysConfigurationChangeEvent extends AbstractConfigurationChange
 
 export class WorkspaceConfigurationChangeEvent implements IConfigurationChangeEvent {
 
-	constructor(private configurationChangeEvent: IConfigurationChangeEvent, private workspace: Workspace) { }
+	constructor(private configurationChangeEvent: IConfigurationChangeEvent, private workspace: Workspace | undefined) { }
 
 	get changedConfiguration(): IConfigurationModel {
 		return this.configurationChangeEvent.changedConfiguration;

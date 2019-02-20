@@ -4,13 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
-import { join, normalize } from 'vs/base/common/paths';
 import * as platform from 'vs/base/common/platform';
 import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { IFolderQuery, QueryType } from 'vs/platform/search/common/search';
+import { IFolderQuery, QueryType } from 'vs/workbench/services/search/common/search';
 import { Engine as FileSearchEngine, FileWalker } from 'vs/workbench/services/search/node/fileSearch';
 import { IRawFileMatch } from 'vs/workbench/services/search/node/search';
 
@@ -81,7 +80,6 @@ suite('FileSearchEngine', () => {
 			type: QueryType.File,
 			folderQueries: ROOT_FOLDER_QUERY,
 			maxResults: 1,
-			useRipgrep: false
 		});
 
 		let count = 0;
@@ -147,7 +145,6 @@ suite('FileSearchEngine', () => {
 			folderQueries: ROOT_FOLDER_QUERY,
 			includePattern: { '**/file.txt': true },
 			exists: true,
-			useRipgrep: false
 		});
 
 		let count = 0;
@@ -170,7 +167,6 @@ suite('FileSearchEngine', () => {
 			folderQueries: ROOT_FOLDER_QUERY,
 			includePattern: { '**/nofile.txt': true },
 			exists: true,
-			useRipgrep: false
 		});
 
 		let count = 0;
@@ -191,7 +187,7 @@ suite('FileSearchEngine', () => {
 		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: ROOT_FOLDER_QUERY,
-			filePattern: normalize(join('examples', 'com*'), true)
+			filePattern: path.join('examples', 'com*')
 		});
 
 		let count = 0;
@@ -256,7 +252,6 @@ suite('FileSearchEngine', () => {
 				'*.txt': true,
 				'*.js': true
 			},
-			useRipgrep: true
 		});
 
 		let count = 0;
@@ -281,7 +276,6 @@ suite('FileSearchEngine', () => {
 				'*.txt': true,
 				'*.js': true
 			},
-			useRipgrep: true
 		});
 
 		let count = 0;
@@ -777,7 +771,7 @@ suite('FileWalker', () => {
 			excludePattern: { '**/something': true }
 		});
 		const cmd1 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
-		walker.readStdout(cmd1, 'utf8', /*isRipgrep=*/false, (err1, stdout1) => {
+		walker.readStdout(cmd1, 'utf8', (err1, stdout1) => {
 			assert.equal(err1, null);
 			assert.notStrictEqual(stdout1!.split('\n').indexOf(file0), -1, stdout1);
 			assert.notStrictEqual(stdout1!.split('\n').indexOf(file1), -1, stdout1);
@@ -788,7 +782,7 @@ suite('FileWalker', () => {
 				excludePattern: { '**/subfolder': true }
 			});
 			const cmd2 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
-			walker.readStdout(cmd2, 'utf8', /*isRipgrep=*/false, (err2, stdout2) => {
+			walker.readStdout(cmd2, 'utf8', (err2, stdout2) => {
 				assert.equal(err2, null);
 				assert.notStrictEqual(stdout1!.split('\n').indexOf(file0), -1, stdout1);
 				assert.strictEqual(stdout2!.split('\n').indexOf(file1), -1, stdout2);
@@ -816,7 +810,7 @@ suite('FileWalker', () => {
 
 		const walker = new FileWalker({ type: QueryType.File, folderQueries });
 		const cmd1 = walker.spawnFindCmd(folderQueries[0]);
-		walker.readStdout(cmd1, 'utf8', /*isRipgrep=*/false, (err1, stdout1) => {
+		walker.readStdout(cmd1, 'utf8', (err1, stdout1) => {
 			assert.equal(err1, null);
 			assert(outputContains(stdout1!, file0), stdout1);
 			assert(!outputContains(stdout1!, file1), stdout1);
@@ -837,7 +831,7 @@ suite('FileWalker', () => {
 
 		const walker = new FileWalker({ type: QueryType.File, folderQueries: ROOT_FOLDER_QUERY, excludePattern: { '**/something': true } });
 		const cmd1 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
-		walker.readStdout(cmd1, 'utf8', /*isRipgrep=*/false, (err1, stdout1) => {
+		walker.readStdout(cmd1, 'utf8', (err1, stdout1) => {
 			assert.equal(err1, null);
 			assert.notStrictEqual(stdout1!.split('\n').indexOf(file0), -1, stdout1);
 			assert.notStrictEqual(stdout1!.split('\n').indexOf(file1), -1, stdout1);
@@ -845,7 +839,7 @@ suite('FileWalker', () => {
 
 			const walker = new FileWalker({ type: QueryType.File, folderQueries: ROOT_FOLDER_QUERY, excludePattern: { '{**/examples,**/more}': true } });
 			const cmd2 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
-			walker.readStdout(cmd2, 'utf8', /*isRipgrep=*/false, (err2, stdout2) => {
+			walker.readStdout(cmd2, 'utf8', (err2, stdout2) => {
 				assert.equal(err2, null);
 				assert.notStrictEqual(stdout1!.split('\n').indexOf(file0), -1, stdout1);
 				assert.strictEqual(stdout2!.split('\n').indexOf(file1), -1, stdout2);
@@ -867,14 +861,14 @@ suite('FileWalker', () => {
 
 		const walker = new FileWalker({ type: QueryType.File, folderQueries: ROOT_FOLDER_QUERY, excludePattern: { '**/examples/something': true } });
 		const cmd1 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
-		walker.readStdout(cmd1, 'utf8', /*isRipgrep=*/false, (err1, stdout1) => {
+		walker.readStdout(cmd1, 'utf8', (err1, stdout1) => {
 			assert.equal(err1, null);
 			assert.notStrictEqual(stdout1!.split('\n').indexOf(file0), -1, stdout1);
 			assert.notStrictEqual(stdout1!.split('\n').indexOf(file1), -1, stdout1);
 
 			const walker = new FileWalker({ type: QueryType.File, folderQueries: ROOT_FOLDER_QUERY, excludePattern: { '**/examples/subfolder': true } });
 			const cmd2 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
-			walker.readStdout(cmd2, 'utf8', /*isRipgrep=*/false, (err2, stdout2) => {
+			walker.readStdout(cmd2, 'utf8', (err2, stdout2) => {
 				assert.equal(err2, null);
 				assert.notStrictEqual(stdout1!.split('\n').indexOf(file0), -1, stdout1);
 				assert.strictEqual(stdout2!.split('\n').indexOf(file1), -1, stdout2);
@@ -895,14 +889,14 @@ suite('FileWalker', () => {
 
 		const walker = new FileWalker({ type: QueryType.File, folderQueries: ROOT_FOLDER_QUERY, excludePattern: { '**/subfolder/something': true } });
 		const cmd1 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
-		walker.readStdout(cmd1, 'utf8', /*isRipgrep=*/false, (err1, stdout1) => {
+		walker.readStdout(cmd1, 'utf8', (err1, stdout1) => {
 			assert.equal(err1, null);
 			assert.notStrictEqual(stdout1!.split('\n').indexOf(file0), -1, stdout1);
 			assert.notStrictEqual(stdout1!.split('\n').indexOf(file1), -1, stdout1);
 
 			const walker = new FileWalker({ type: QueryType.File, folderQueries: ROOT_FOLDER_QUERY, excludePattern: { '**/subfolder/anotherfolder': true } });
 			const cmd2 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
-			walker.readStdout(cmd2, 'utf8', /*isRipgrep=*/false, (err2, stdout2) => {
+			walker.readStdout(cmd2, 'utf8', (err2, stdout2) => {
 				assert.equal(err2, null);
 				assert.notStrictEqual(stdout1!.split('\n').indexOf(file0), -1, stdout1);
 				assert.strictEqual(stdout2!.split('\n').indexOf(file1), -1, stdout2);
@@ -923,14 +917,14 @@ suite('FileWalker', () => {
 
 		const walker = new FileWalker({ type: QueryType.File, folderQueries: ROOT_FOLDER_QUERY, excludePattern: { 'examples/something': true } });
 		const cmd1 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
-		walker.readStdout(cmd1, 'utf8', /*isRipgrep=*/false, (err1, stdout1) => {
+		walker.readStdout(cmd1, 'utf8', (err1, stdout1) => {
 			assert.equal(err1, null);
 			assert.notStrictEqual(stdout1!.split('\n').indexOf(file0), -1, stdout1);
 			assert.notStrictEqual(stdout1!.split('\n').indexOf(file1), -1, stdout1);
 
 			const walker = new FileWalker({ type: QueryType.File, folderQueries: ROOT_FOLDER_QUERY, excludePattern: { 'examples/subfolder': true } });
 			const cmd2 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
-			walker.readStdout(cmd2, 'utf8', /*isRipgrep=*/false, (err2, stdout2) => {
+			walker.readStdout(cmd2, 'utf8', (err2, stdout2) => {
 				assert.equal(err2, null);
 				assert.notStrictEqual(stdout1!.split('\n').indexOf(file0), -1, stdout1);
 				assert.strictEqual(stdout2!.split('\n').indexOf(file1), -1, stdout2);
@@ -967,7 +961,7 @@ suite('FileWalker', () => {
 			}
 		});
 		const cmd1 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
-		walker.readStdout(cmd1, 'utf8', /*isRipgrep=*/false, (err1, stdout1) => {
+		walker.readStdout(cmd1, 'utf8', (err1, stdout1) => {
 			assert.equal(err1, null);
 			for (const fileIn of filesIn) {
 				assert.notStrictEqual(stdout1!.split('\n').indexOf(fileIn), -1, stdout1);

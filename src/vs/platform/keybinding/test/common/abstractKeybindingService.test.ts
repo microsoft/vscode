@@ -61,7 +61,7 @@ suite('AbstractKeybindingService', () => {
 				keyboardEvent.altKey,
 				keyboardEvent.metaKey,
 				keyboardEvent.keyCode
-			);
+			).toChord();
 			return this.resolveKeybinding(keybinding)[0];
 		}
 

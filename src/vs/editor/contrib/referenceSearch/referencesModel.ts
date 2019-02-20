@@ -5,13 +5,13 @@
 
 import { localize } from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
-import { basename } from 'vs/base/common/paths';
+import { basename } from 'vs/base/common/resources';
 import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { Range, IRange } from 'vs/editor/common/core/range';
-import { Location } from 'vs/editor/common/modes';
+import { Location, LocationLink } from 'vs/editor/common/modes';
 import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { Position } from 'vs/editor/common/core/position';
 
@@ -44,7 +44,7 @@ export class OneReference {
 	getAriaMessage(): string {
 		return localize(
 			'aria.oneReference', "symbol in {0} on line {1} at column {2}",
-			basename(this.uri.fsPath), this.range.startLineNumber, this.range.startColumn
+			basename(this.uri), this.range.startLineNumber, this.range.startColumn
 		);
 	}
 }
@@ -120,9 +120,9 @@ export class FileReferences implements IDisposable {
 	getAriaMessage(): string {
 		const len = this.children.length;
 		if (len === 1) {
-			return localize('aria.fileReferences.1', "1 symbol in {0}, full path {1}", basename(this.uri.fsPath), this.uri.fsPath);
+			return localize('aria.fileReferences.1', "1 symbol in {0}, full path {1}", basename(this.uri), this.uri.fsPath);
 		} else {
-			return localize('aria.fileReferences.N', "{0} symbols in {1}, full path {2}", len, basename(this.uri.fsPath), this.uri.fsPath);
+			return localize('aria.fileReferences.N', "{0} symbols in {1}, full path {2}", len, basename(this.uri), this.uri.fsPath);
 		}
 	}
 
@@ -170,7 +170,7 @@ export class ReferencesModel implements IDisposable {
 	readonly _onDidChangeReferenceRange = new Emitter<OneReference>();
 	readonly onDidChangeReferenceRange: Event<OneReference> = this._onDidChangeReferenceRange.event;
 
-	constructor(references: Location[]) {
+	constructor(references: LocationLink[]) {
 		this._disposables = [];
 		// grouping and sorting
 		references.sort(ReferencesModel._compareReferences);
@@ -187,7 +187,7 @@ export class ReferencesModel implements IDisposable {
 			if (current.children.length === 0
 				|| !Range.equalsRange(ref.range, current.children[current.children.length - 1].range)) {
 
-				let oneRef = new OneReference(current, ref.range);
+				let oneRef = new OneReference(current, ref.targetSelectionRange || ref.range);
 				this._disposables.push(oneRef.onRefChanged((e) => this._onDidChangeReferenceRange.fire(e)));
 				this.references.push(oneRef);
 				current.children.push(oneRef);

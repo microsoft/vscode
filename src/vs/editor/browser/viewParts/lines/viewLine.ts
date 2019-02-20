@@ -173,8 +173,7 @@ export class ViewLine implements IVisibleLine {
 
 		if (alwaysRenderInlineSelection || options.themeType === HIGH_CONTRAST) {
 			const selections = viewportData.selections;
-			for (let i = 0, len = selections.length; i < len; i++) {
-				const selection = selections[i];
+			for (const selection of selections) {
 
 				if (selection.endLineNumber < lineNumber || selection.startLineNumber > lineNumber) {
 					// Selection does not intersect line

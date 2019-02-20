@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { IWindowService, IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IWindowConfiguration, IDevToolsOptions } from 'vs/platform/windows/common/windows';
+import { IWindowService, IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IWindowConfiguration, IDevToolsOptions, IOpenSettings, IURIToOpen } from 'vs/platform/windows/common/windows';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
-import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { URI } from 'vs/base/common/uri';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -19,20 +18,23 @@ export class WindowService extends Disposable implements IWindowService {
 
 	_serviceBrand: any;
 
+	private windowId: number;
+
 	private _hasFocus: boolean;
 	get hasFocus(): boolean { return this._hasFocus; }
 
 	constructor(
-		private windowId: number,
 		private configuration: IWindowConfiguration,
 		@IWindowsService private readonly windowsService: IWindowsService
 	) {
 		super();
 
-		const onThisWindowFocus = Event.map(Event.filter(windowsService.onWindowFocus, id => id === windowId), _ => true);
-		const onThisWindowBlur = Event.map(Event.filter(windowsService.onWindowBlur, id => id === windowId), _ => false);
-		const onThisWindowMaximize = Event.map(Event.filter(windowsService.onWindowMaximize, id => id === windowId), _ => true);
-		const onThisWindowUnmaximize = Event.map(Event.filter(windowsService.onWindowUnmaximize, id => id === windowId), _ => false);
+		this.windowId = configuration.windowId;
+
+		const onThisWindowFocus = Event.map(Event.filter(windowsService.onWindowFocus, id => id === this.windowId), _ => true);
+		const onThisWindowBlur = Event.map(Event.filter(windowsService.onWindowBlur, id => id === this.windowId), _ => false);
+		const onThisWindowMaximize = Event.map(Event.filter(windowsService.onWindowMaximize, id => id === this.windowId), _ => true);
+		const onThisWindowUnmaximize = Event.map(Event.filter(windowsService.onWindowUnmaximize, id => id === this.windowId), _ => false);
 		this.onDidChangeFocus = Event.any(onThisWindowFocus, onThisWindowBlur);
 		this.onDidChangeMaximize = Event.any(onThisWindowMaximize, onThisWindowUnmaximize);
 
@@ -89,20 +91,12 @@ export class WindowService extends Disposable implements IWindowService {
 		return this.windowsService.closeWorkspace(this.windowId);
 	}
 
-	enterWorkspace(path: string): Promise<IEnterWorkspaceResult | undefined> {
+	enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | undefined> {
 		return this.windowsService.enterWorkspace(this.windowId, path);
 	}
 
-	createAndEnterWorkspace(folders?: IWorkspaceFolderCreationData[], path?: string): Promise<IEnterWorkspaceResult | undefined> {
-		return this.windowsService.createAndEnterWorkspace(this.windowId, folders, path);
-	}
-
-	saveAndEnterWorkspace(path: string): Promise<IEnterWorkspaceResult | undefined> {
-		return this.windowsService.saveAndEnterWorkspace(this.windowId, path);
-	}
-
-	openWindow(paths: URI[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean, args?: ParsedArgs }): Promise<void> {
-		return this.windowsService.openWindow(this.windowId, paths, options);
+	openWindow(uris: IURIToOpen[], options?: IOpenSettings): Promise<void> {
+		return this.windowsService.openWindow(this.windowId, uris, options);
 	}
 
 	closeWindow(): Promise<void> {

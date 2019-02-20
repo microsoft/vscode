@@ -11,7 +11,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { addClass, append, $, hide, removeClass, show, toggleClass, getDomNodePagePosition, hasClass } from 'vs/base/browser/dom';
-import { IListVirtualDelegate, IListEvent, IListRenderer } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate, IListEvent, IListRenderer, IListMouseEvent } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -63,8 +63,16 @@ export const editorSuggestWidgetHighlightForeground = registerColor('editorSugge
 
 
 const colorRegExp = /^(#([\da-f]{3}){1,2}|(rgb|hsl)a\(\s*(\d{1,3}%?\s*,\s*){3}(1|0?\.\d+)\)|(rgb|hsl)\(\s*\d{1,3}%?(\s*,\s*\d{1,3}%?){2}\s*\))$/i;
-function matchesColor(text: string): string | null {
-	return text && text.match(colorRegExp) ? text : null;
+function extractColor(item: CompletionItem, out: string[]): boolean {
+	if (item.completion.label.match(colorRegExp)) {
+		out[0] = item.completion.label;
+		return true;
+	}
+	if (typeof item.completion.documentation === 'string' && item.completion.documentation.match(colorRegExp)) {
+		out[0] = item.completion.documentation;
+		return true;
+	}
+	return false;
 }
 
 function canExpandCompletionItem(item: CompletionItem | null) {
@@ -156,11 +164,11 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 			matches: createMatches(element.score)
 		};
 
-		let color: string | null = null;
-		if (suggestion.kind === CompletionItemKind.Color && ((color = matchesColor(suggestion.label)) || typeof suggestion.documentation === 'string' && matchesColor(suggestion.documentation))) {
+		let color: string[] = [];
+		if (suggestion.kind === CompletionItemKind.Color && extractColor(element, color)) {
 			// special logic for 'color' completion items
 			data.icon.className = 'icon customcolor';
-			data.colorspan.style.backgroundColor = color;
+			data.colorspan.style.backgroundColor = color[0];
 
 		} else if (suggestion.kind === CompletionItemKind.File && this._themeService.getIconTheme().hasFileIcons) {
 			// special logic for 'file' completion items
@@ -470,9 +478,8 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 
 		this.list = new List(this.listElement, this, [renderer], {
 			useShadows: false,
-			selectOnMouseDown: true,
-			focusOnMouseDown: false,
-			openController: { shouldOpen: () => false }
+			openController: { shouldOpen: () => false },
+			mouseSupport: false
 		});
 
 		this.toDispose = [
@@ -482,6 +489,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 			}),
 			themeService.onThemeChange(t => this.onThemeChange(t)),
 			editor.onDidLayoutChange(() => this.onEditorLayoutChange()),
+			this.list.onMouseDown(e => this.onListMouseDown(e)),
 			this.list.onSelectionChange(e => this.onListSelection(e)),
 			this.list.onFocusChange(e => this.onListFocus(e)),
 			this.editor.onDidChangeCursorSelection(() => this.onCursorSelectionChanged())
@@ -510,18 +518,29 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		}
 	}
 
+	private onListMouseDown(e: IListMouseEvent<CompletionItem>): void {
+		if (typeof e.element === 'undefined' || typeof e.index === 'undefined') {
+			return;
+		}
+
+		this.select(e.element, e.index);
+	}
+
 	private onListSelection(e: IListEvent<CompletionItem>): void {
 		if (!e.elements.length) {
 			return;
 		}
 
+		this.select(e.elements[0], e.indexes[0]);
+	}
+
+	private select(item: CompletionItem, index: number): void {
 		const completionModel = this.completionModel;
+
 		if (!completionModel) {
 			return;
 		}
 
-		const item = e.elements[0];
-		const index = e.indexes[0];
 		item.resolve(CancellationToken.None).then(() => {
 			this.onDidSelectEmitter.fire({ item, index, model: completionModel });
 			alert(nls.localize('suggestionAriaAccepted', "{0}, accepted", item.completion.label));
