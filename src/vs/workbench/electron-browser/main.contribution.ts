@@ -599,7 +599,7 @@ configurationRegistry.registerConfiguration({
 			'enum': ['native', 'custom'],
 			'default': isLinux ? 'native' : 'custom',
 			'scope': ConfigurationScope.APPLICATION,
-			'description': nls.localize('titleBarStyle', "Adjust the appearance of the window title bar. Changes require a full restart to apply.")
+			'description': nls.localize('titleBarStyle', "Adjust the appearance of the window title bar. On Linux and Windows, this setting also affects the application and context menu appearances. Changes require a full restart to apply.")
 		},
 		'window.nativeTabs': {
 			'type': 'boolean',
