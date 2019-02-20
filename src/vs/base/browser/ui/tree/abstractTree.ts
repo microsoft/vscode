@@ -405,7 +405,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 	private clearDomNode: HTMLElement;
 	private keyboardNavigationEventFilter?: IKeyboardNavigationEventFilter;
 
-	private automaticKeyboardNavigation: boolean;
+	private automaticKeyboardNavigation: boolean = true;
 	private triggered = false;
 
 	private enabledDisposables: IDisposable[] = [];
@@ -457,7 +457,10 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 			this.filterOnTypeDomNode.checked = this._filterOnType;
 		}
 
-		this.automaticKeyboardNavigation = typeof options.automaticKeyboardNavigation === 'undefined' ? true : options.automaticKeyboardNavigation;
+		if (typeof options.automaticKeyboardNavigation !== 'undefined') {
+			this.automaticKeyboardNavigation = options.automaticKeyboardNavigation;
+		}
+
 		this.tree.refilter();
 		this.render();
 
