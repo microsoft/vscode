@@ -26,6 +26,7 @@ import { PeekViewWidget } from 'vs/editor/contrib/referenceSearch/peekViewWidget
 import { basename } from 'vs/base/common/resources';
 import { IAction } from 'vs/base/common/actions';
 import { IActionBarOptions, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
+import { peekViewTitleForeground, peekViewTitleInfoForeground } from 'vs/editor/contrib/referenceSearch/referencesWidget';
 
 class MessageWidget {
 
@@ -201,7 +202,10 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 		const frameColor = theme.getColor(colorId);
 		this.style({
 			arrowColor: frameColor,
-			frameColor: frameColor
+			frameColor: frameColor,
+			headerBackgroundColor: this._backgroundColor,
+			primaryHeadingColor: theme.getColor(peekViewTitleForeground),
+			secondaryHeadingColor: theme.getColor(peekViewTitleInfoForeground)
 		}); // style() will trigger _applyStyles
 	}
 
