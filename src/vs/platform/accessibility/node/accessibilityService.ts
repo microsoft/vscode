@@ -16,7 +16,7 @@ export class AccessibilityService implements IAccessibilityService {
 			return Promise.resolve(false);
 		}
 
-		return new Promise<boolean>(async (resolve, reject) => {
+		return new Promise<boolean>(async (resolve) => {
 			const Registry = await import('vscode-windows-registry');
 
 			let value;
