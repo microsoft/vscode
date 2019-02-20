@@ -405,7 +405,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 	private clearDomNode: HTMLElement;
 	private keyboardNavigationEventFilter?: IKeyboardNavigationEventFilter;
 
-	private automaticKeyboardNavigation: boolean = true;
+	private automaticKeyboardNavigation = true;
 	private triggered = false;
 
 	private enabledDisposables: IDisposable[] = [];
@@ -1031,7 +1031,10 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 			renderer.updateOptions(optionsUpdate);
 		}
 
-		this.view.updateOptions({ enableKeyboardNavigation: this._options.simpleKeyboardNavigation });
+		this.view.updateOptions({
+			enableKeyboardNavigation: this._options.simpleKeyboardNavigation,
+			automaticKeyboardNavigation: this._options.automaticKeyboardNavigation
+		});
 
 		if (this.typeFilterController) {
 			this.typeFilterController.updateOptions(this._options);
@@ -1143,11 +1146,11 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	}
 
 	toggleKeyboardNavigation(): void {
-		if (!this.typeFilterController) {
-			return;
-		}
+		this.view.toggleKeyboardNavigation();
 
-		this.typeFilterController.toggle();
+		if (this.typeFilterController) {
+			this.typeFilterController.toggle();
+		}
 	}
 
 	refilter(): void {
