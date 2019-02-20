@@ -17,7 +17,7 @@ import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorBackground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { Themable, EDITOR_GROUP_HEADER_TABS_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND, EDITOR_GROUP_EMPTY_BACKGROUND, EDITOR_GROUP_FOCUSED_EMPTY_BORDER } from 'vs/workbench/common/theme';
-import { IMoveEditorOptions, ICopyEditorOptions, ICloseEditorsFilter, IGroupChangeEvent, GroupChangeKind, EditorsOrder, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IMoveEditorOptions, ICopyEditorOptions, ICloseEditorsFilter, IGroupChangeEvent, GroupChangeKind, EditorsOrder, GroupsOrder, ICloseEditorOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { TabsTitleControl } from 'vs/workbench/browser/parts/editor/tabsTitleControl';
 import { EditorControl } from 'vs/workbench/browser/parts/editor/editorControl';
 import { IProgressService } from 'vs/platform/progress/common/progress';
@@ -518,7 +518,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private handleDisposedEditors(editors: EditorInput[]): void {
 
 		// Split between visible and hidden editors
-		let activeEditor: EditorInput;
+		let activeEditor: EditorInput | undefined;
 		const inactiveEditors: EditorInput[] = [];
 		editors.forEach(editor => {
 			if (this._group.isActive(editor)) {
@@ -958,7 +958,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region closeEditor()
 
-	closeEditor(editor: EditorInput = this.activeEditor): Promise<void> {
+	closeEditor(editor: EditorInput = this.activeEditor, options?: ICloseEditorOptions): Promise<void> {
 		if (!editor) {
 			return Promise.resolve();
 		}
@@ -970,11 +970,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			}
 
 			// Do close
-			this.doCloseEditor(editor);
+			this.doCloseEditor(editor, options && options.preserveFocus ? false : undefined);
 		});
 	}
 
-	private doCloseEditor(editor: EditorInput, focusNext = this.accessor.activeGroup === this, fromError?: boolean): void {
+	private doCloseEditor(editor: EditorInput, focusNext = (this.accessor.activeGroup === this), fromError?: boolean): void {
 
 		// Closing the active editor of the group is a bit more work
 		if (this._group.isActive(editor)) {
@@ -990,7 +990,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.titleAreaControl.closeEditor(editor);
 	}
 
-	private doCloseActiveEditor(focusNext = this.accessor.activeGroup === this, fromError?: boolean): void {
+	private doCloseActiveEditor(focusNext = (this.accessor.activeGroup === this), fromError?: boolean): void {
 		const editorToClose = this.activeEditor;
 		const restoreFocus = this.shouldRestoreFocus(this.element);
 
@@ -1149,7 +1149,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region closeEditors()
 
-	closeEditors(args: EditorInput[] | ICloseEditorsFilter): Promise<void> {
+	closeEditors(args: EditorInput[] | ICloseEditorsFilter, options?: ICloseEditorOptions): Promise<void> {
 		if (this.isEmpty()) {
 			return Promise.resolve();
 		}
@@ -1163,7 +1163,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			}
 
 			// Do close
-			this.doCloseEditors(editors);
+			this.doCloseEditors(editors, options);
 		});
 	}
 
@@ -1197,7 +1197,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return editorsToClose;
 	}
 
-	private doCloseEditors(editors: EditorInput[]): void {
+	private doCloseEditors(editors: EditorInput[], options?: ICloseEditorOptions): void {
 
 		// Close all inactive editors first
 		let closeActiveEditor = false;
@@ -1211,7 +1211,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Close active editor last if contained in editors list to close
 		if (closeActiveEditor) {
-			this.doCloseActiveEditor();
+			this.doCloseActiveEditor(options && options.preserveFocus ? false : undefined);
 		}
 
 		// Forward to title control
@@ -1270,7 +1270,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	replaceEditors(editors: EditorReplacement[]): Promise<void> {
 
 		// Extract active vs. inactive replacements
-		let activeReplacement: EditorReplacement;
+		let activeReplacement: EditorReplacement | undefined;
 		const inactiveReplacements: EditorReplacement[] = [];
 		editors.forEach(({ editor, replacement, options }) => {
 			if (editor.isDirty()) {

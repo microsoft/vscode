@@ -19,7 +19,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { ConsoleLogMainService } from 'vs/platform/log/common/log';
 import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { createHash } from 'crypto';
-import { getRandomTestPath } from 'vs/workbench/test/workbenchTestServices';
+import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { Schemas } from 'vs/base/common/network';
 
 suite('BackupMainService', () => {
@@ -252,7 +252,7 @@ suite('BackupMainService', () => {
 
 		const emptyBackups = service.getEmptyWindowBackupPaths();
 		assert.equal(1, emptyBackups.length);
-		assert.equal(1, fs.readdirSync(path.join(backupHome, emptyBackups[0].backupFolder)).length);
+		assert.equal(1, fs.readdirSync(path.join(backupHome, emptyBackups[0].backupFolder!)).length);
 	});
 
 	suite('migrate path to URI', () => {

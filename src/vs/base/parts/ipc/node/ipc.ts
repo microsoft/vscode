@@ -5,7 +5,7 @@
 
 import { IDisposable, toDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter, Relay } from 'vs/base/common/event';
-import { always, CancelablePromise, createCancelablePromise, timeout } from 'vs/base/common/async';
+import { CancelablePromise, createCancelablePromise, timeout } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 
@@ -448,9 +448,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 			this.activeRequests.add(disposable);
 		});
 
-		always(result, () => this.activeRequests.delete(disposable));
-
-		return result;
+		return result.finally(() => this.activeRequests.delete(disposable));
 	}
 
 	private requestEvent(channelName: string, name: string, arg?: any): Event<any> {

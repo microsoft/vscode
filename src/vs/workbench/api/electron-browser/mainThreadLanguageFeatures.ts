@@ -87,9 +87,10 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	private static _reviveWorkspaceSymbolDto(data: WorkspaceSymbolDto): search.IWorkspaceSymbol;
 	private static _reviveWorkspaceSymbolDto(data: WorkspaceSymbolDto[]): search.IWorkspaceSymbol[];
-	private static _reviveWorkspaceSymbolDto(data: WorkspaceSymbolDto | WorkspaceSymbolDto[]): search.IWorkspaceSymbol | search.IWorkspaceSymbol[] {
+	private static _reviveWorkspaceSymbolDto(data: undefined): undefined;
+	private static _reviveWorkspaceSymbolDto(data: WorkspaceSymbolDto | WorkspaceSymbolDto[] | undefined): search.IWorkspaceSymbol | search.IWorkspaceSymbol[] | undefined {
 		if (!data) {
-			return <search.IWorkspaceSymbol>data;
+			return <undefined>data;
 		} else if (Array.isArray(data)) {
 			data.forEach(MainThreadLanguageFeatures._reviveWorkspaceSymbolDto);
 			return <search.IWorkspaceSymbol[]>data;
@@ -99,7 +100,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		}
 	}
 
-	private static _reviveCodeActionDto(data: CodeActionDto[]): modes.CodeAction[] {
+	private static _reviveCodeActionDto(data: CodeActionDto[] | undefined): modes.CodeAction[] {
 		if (data) {
 			data.forEach(code => reviveWorkspaceEditDto(code.edit));
 		}

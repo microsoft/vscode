@@ -39,6 +39,7 @@ import { IMacLinuxKeyboardMapping, MacLinuxKeyboardMapper, macLinuxKeyboardMappi
 import { IWindowsKeyboardMapping, WindowsKeyboardMapper, windowsKeyboardMappingEquals } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { MenuRegistry } from 'vs/platform/actions/common/actions';
 
 export class KeyboardMapperFactory {
 	public static readonly INSTANCE = new KeyboardMapperFactory();
@@ -635,14 +636,27 @@ function updateSchema() {
 	commandsEnum.length = 0;
 	commandsEnumDescriptions.length = 0;
 
+	const knownCommands = new Set<string>();
+	const addKnownCommand = (commandId: string, description?: string | null) => {
+		if (!/^_/.test(commandId)) {
+			if (!knownCommands.has(commandId)) {
+				knownCommands.add(commandId);
+
+				commandsEnum.push(commandId);
+				commandsEnumDescriptions.push(description);
+
+				// Also add the negative form for keybinding removal
+				commandsEnum.push(`-${commandId}`);
+				commandsEnumDescriptions.push(description);
+			}
+		}
+	};
+
 	const allCommands = CommandsRegistry.getCommands();
 	for (let commandId in allCommands) {
 		const commandDescription = allCommands[commandId].description;
 
-		if (!/^_/.test(commandId)) {
-			commandsEnum.push(commandId);
-			commandsEnumDescriptions.push(commandDescription && commandDescription.description);
-		}
+		addKnownCommand(commandId, commandDescription && commandDescription.description);
 
 		if (!commandDescription || !commandDescription.args || commandDescription.args.length !== 1 || !commandDescription.args[0].schema) {
 			continue;
@@ -666,6 +680,12 @@ function updateSchema() {
 
 		commandsSchemas.push(addition);
 	}
+
+	const menuCommands = MenuRegistry.getCommands();
+	for (let commandId in menuCommands) {
+		addKnownCommand(commandId);
+	}
+
 }
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigExtensions.Configuration);

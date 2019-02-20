@@ -634,7 +634,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			{
 				identityProvider,
 				accessibilityProvider: this.instantiationService.createInstance(SearchAccessibilityProvider, this.viewModel),
-				dnd: this.instantiationService.createInstance(SearchDND)
+				dnd: this.instantiationService.createInstance(SearchDND),
+				multipleSelectionSupport: false
 			}));
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 
@@ -1099,7 +1100,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 							if (relPath === '') {
 								folderPath = `./${owningFolder.name}`;
 							} else {
-								folderPath = `./${owningFolder.name}/${relativePath}`;
+								folderPath = `./${owningFolder.name}/${relPath}`;
 							}
 						} else {
 							folderPath = resource.fsPath; // TODO rob: handle on-file URIs

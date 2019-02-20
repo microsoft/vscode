@@ -51,6 +51,7 @@
 .search-view .search-widget .monaco-findInput {
 	display: inline-block;
 	vertical-align: middle;
+	width: 100%;
 }
 
 .search-view .search-widget .replace-container {

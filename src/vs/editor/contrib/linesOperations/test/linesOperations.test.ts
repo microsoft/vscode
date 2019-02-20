@@ -899,4 +899,250 @@ suite('Editor Contrib - Line Operations', () => {
 			assert.equal(editor.getValue(), 'a\nc');
 		});
 	});
+
+	function testDeleteLinesCommand(initialText: string[], _initialSelections: Selection | Selection[], resultingText: string[], _resultingSelections: Selection | Selection[]): void {
+		const initialSelections = Array.isArray(_initialSelections) ? _initialSelections : [_initialSelections];
+		const resultingSelections = Array.isArray(_resultingSelections) ? _resultingSelections : [_resultingSelections];
+		withTestCodeEditor(initialText, {}, (editor) => {
+			editor.setSelections(initialSelections);
+			const deleteLinesAction = new DeleteLinesAction();
+			deleteLinesAction.run(null!, editor);
+
+			assert.equal(editor.getValue(), resultingText.join('\n'));
+			assert.deepEqual(editor.getSelections(), resultingSelections);
+		});
+	}
+
+	test('empty selection in middle of lines', function () {
+		testDeleteLinesCommand(
+			[
+				'first',
+				'second line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(2, 3, 2, 3),
+			[
+				'first',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(2, 3, 2, 3)
+		);
+	});
+
+	test('empty selection at top of lines', function () {
+		testDeleteLinesCommand(
+			[
+				'first',
+				'second line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(1, 5, 1, 5),
+			[
+				'second line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(1, 5, 1, 5)
+		);
+	});
+
+	test('empty selection at end of lines', function () {
+		testDeleteLinesCommand(
+			[
+				'first',
+				'second line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(5, 2, 5, 2),
+			[
+				'first',
+				'second line',
+				'third line',
+				'fourth line'
+			],
+			new Selection(4, 2, 4, 2)
+		);
+	});
+
+	test('with selection in middle of lines', function () {
+		testDeleteLinesCommand(
+			[
+				'first',
+				'second line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(3, 3, 2, 2),
+			[
+				'first',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(2, 2, 2, 2)
+		);
+	});
+
+	test('with selection at top of lines', function () {
+		testDeleteLinesCommand(
+			[
+				'first',
+				'second line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(1, 4, 1, 5),
+			[
+				'second line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(1, 5, 1, 5)
+		);
+	});
+
+	test('with selection at end of lines', function () {
+		testDeleteLinesCommand(
+			[
+				'first',
+				'second line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(5, 1, 5, 2),
+			[
+				'first',
+				'second line',
+				'third line',
+				'fourth line'
+			],
+			new Selection(4, 2, 4, 2)
+		);
+	});
+
+	test('with full line selection in middle of lines', function () {
+		testDeleteLinesCommand(
+			[
+				'first',
+				'second line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(4, 1, 2, 1),
+			[
+				'first',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(2, 1, 2, 1)
+		);
+	});
+
+	test('with full line selection at top of lines', function () {
+		testDeleteLinesCommand(
+			[
+				'first',
+				'second line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(2, 1, 1, 5),
+			[
+				'second line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(1, 5, 1, 5)
+		);
+	});
+
+	test('with full line selection at end of lines', function () {
+		testDeleteLinesCommand(
+			[
+				'first',
+				'second line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(4, 1, 5, 2),
+			[
+				'first',
+				'second line',
+				'third line'
+			],
+			new Selection(3, 2, 3, 2)
+		);
+	});
+
+	test('multicursor 1', function () {
+		testDeleteLinesCommand(
+			[
+				'class P {',
+				'',
+				'    getA() {',
+				'        if (true) {',
+				'            return "a";',
+				'        }',
+				'    }',
+				'',
+				'    getB() {',
+				'        if (true) {',
+				'            return "b";',
+				'        }',
+				'    }',
+				'',
+				'    getC() {',
+				'        if (true) {',
+				'            return "c";',
+				'        }',
+				'    }',
+				'}',
+			],
+			[
+				new Selection(4, 1, 5, 1),
+				new Selection(10, 1, 11, 1),
+				new Selection(16, 1, 17, 1),
+			],
+			[
+				'class P {',
+				'',
+				'    getA() {',
+				'            return "a";',
+				'        }',
+				'    }',
+				'',
+				'    getB() {',
+				'            return "b";',
+				'        }',
+				'    }',
+				'',
+				'    getC() {',
+				'            return "c";',
+				'        }',
+				'    }',
+				'}',
+			],
+			[
+				new Selection(4, 1, 4, 1),
+				new Selection(9, 1, 9, 1),
+				new Selection(14, 1, 14, 1),
+			]
+		);
+	});
 });

@@ -73,7 +73,7 @@ export class ExtensionHostMain {
 		this.disposables.push(this._extHostLogService);
 
 		this._searchRequestIdProvider = new Counter();
-		const extHostWorkspace = new ExtHostWorkspace(rpcProtocol, this._extHostLogService, this._searchRequestIdProvider);
+		const extHostWorkspace = new ExtHostWorkspace(rpcProtocol, this._extHostLogService, this._searchRequestIdProvider, initData.workspace);
 
 		this._extHostLogService.info('extension host started');
 		this._extHostLogService.trace('initData', initData);

@@ -317,6 +317,8 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	private _canSelectMany = false;
 	private _matchOnDescription = false;
 	private _matchOnDetail = false;
+	private _matchOnLabel = true;
+	private _autoFocusOnList = true;
 	private _activeItems: T[] = [];
 	private activeItemsUpdated = false;
 	private activeItemsToConfirm: T[] | null = [];
@@ -399,6 +401,24 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		this.update();
 	}
 
+	get matchOnLabel() {
+		return this._matchOnLabel;
+	}
+
+	set matchOnLabel(matchOnLabel: boolean) {
+		this._matchOnLabel = matchOnLabel;
+		this.update();
+	}
+
+	get autoFocusOnList() {
+		return this._autoFocusOnList;
+	}
+
+	set autoFocusOnList(autoFocusOnList: boolean) {
+		this._autoFocusOnList = autoFocusOnList;
+		this.update();
+	}
+
 	get activeItems() {
 		return this._activeItems;
 	}
@@ -429,6 +449,14 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 
 	onDidTriggerItemButton = this.onDidTriggerItemButtonEmitter.event;
 
+	private trySelectFirst() {
+		if (this.autoFocusOnList) {
+			if (!this.ui.isScreenReaderOptimized() && !this.canSelectMany) {
+				this.ui.list.focus('First');
+			}
+		}
+	}
+
 	show() {
 		if (!this.visible) {
 			this.visibleDisposables.push(
@@ -438,10 +466,13 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 					}
 					this._value = value;
 					this.ui.list.filter(this.ui.inputBox.value);
-					if (!this.ui.isScreenReaderOptimized() && !this.canSelectMany) {
-						this.ui.list.focus('First');
-					}
+					this.trySelectFirst();
 					this.onDidChangeValueEmitter.fire(value);
+				}),
+				this.ui.inputBox.onMouseDown(event => {
+					if (!this.autoFocusOnList) {
+						this.ui.list.clearFocus();
+					}
 				}),
 				this.ui.inputBox.onKeyDown(event => {
 					switch (event.keyCode) {
@@ -599,15 +630,13 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 			this.ui.checkAll.checked = this.ui.list.getAllVisibleChecked();
 			this.ui.visibleCount.setCount(this.ui.list.getVisibleCount());
 			this.ui.count.setCount(this.ui.list.getCheckedCount());
-			if (!this.ui.isScreenReaderOptimized() && !this.canSelectMany) {
-				this.ui.list.focus('First');
-			}
+			this.trySelectFirst();
 		}
 		if (this.ui.container.classList.contains('show-checkboxes') !== !!this.canSelectMany) {
 			if (this.canSelectMany) {
 				this.ui.list.clearFocus();
-			} else if (!this.ui.isScreenReaderOptimized()) {
-				this.ui.list.focus('First');
+			} else {
+				this.trySelectFirst();
 			}
 		}
 		if (this.activeItemsUpdated) {
@@ -632,6 +661,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		}
 		this.ui.list.matchOnDescription = this.matchOnDescription;
 		this.ui.list.matchOnDetail = this.matchOnDetail;
+		this.ui.list.matchOnLabel = this.matchOnLabel;
 		this.ui.setComboboxAccessibility(true);
 		this.ui.inputBox.setAttribute('aria-label', QuickPick.INPUT_BOX_ARIA_LABEL);
 		this.ui.setVisibilities(this.canSelectMany ? { title: !!this.title || !!this.step, checkAll: true, inputBox: true, visibleCount: true, count: true, ok: true, list: true } : { title: !!this.title || !!this.step, inputBox: true, visibleCount: true, list: true });
@@ -1119,6 +1149,8 @@ export class QuickInputService extends Component implements IQuickInputService {
 			input.ignoreFocusOut = !!options.ignoreFocusLost;
 			input.matchOnDescription = !!options.matchOnDescription;
 			input.matchOnDetail = !!options.matchOnDetail;
+			input.matchOnLabel = (options.matchOnLabel === undefined) || options.matchOnLabel; // default to true
+			input.autoFocusOnList = (options.autoFocusOnList === undefined) || options.autoFocusOnList; // default to true
 			input.quickNavigate = options.quickNavigate;
 			input.contextKey = options.contextKey;
 			input.busy = true;
@@ -1236,6 +1268,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.ui.list.setElements([]);
 		this.ui.list.matchOnDescription = false;
 		this.ui.list.matchOnDetail = false;
+		this.ui.list.matchOnLabel = true;
 		this.ui.ignoreFocusOut = false;
 		this.setComboboxAccessibility(false);
 		this.ui.inputBox.removeAttribute('aria-label');

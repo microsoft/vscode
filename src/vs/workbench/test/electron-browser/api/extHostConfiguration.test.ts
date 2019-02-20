@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
-import { ExtHostWorkspaceProvider } from 'vs/workbench/api/node/extHostWorkspace';
+import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { ExtHostConfigProvider } from 'vs/workbench/api/node/extHostConfiguration';
 import { MainThreadConfigurationShape, IConfigurationInitData } from 'vs/workbench/api/node/extHost.protocol';
 import { ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
@@ -31,7 +31,7 @@ suite('ExtHostConfiguration', function () {
 		if (!shape) {
 			shape = new class extends mock<MainThreadConfigurationShape>() { };
 		}
-		return new ExtHostConfigProvider(shape, new ExtHostWorkspaceProvider(new TestRPCProtocol(), null, new NullLogService(), new Counter()), createConfigurationData(contents));
+		return new ExtHostConfigProvider(shape, new ExtHostWorkspace(new TestRPCProtocol(), new NullLogService(), new Counter()), createConfigurationData(contents));
 	}
 
 	function createConfigurationData(contents: any): IConfigurationInitData {
@@ -56,7 +56,7 @@ suite('ExtHostConfiguration', function () {
 
 		assert.equal(extHostConfig.getConfiguration('search.exclude')['**/node_modules'], true);
 		assert.equal(extHostConfig.getConfiguration('search.exclude').get('**/node_modules'), true);
-		assert.equal(extHostConfig.getConfiguration('search').get('exclude')['**/node_modules'], true);
+		assert.equal(extHostConfig.getConfiguration('search').get('exclude')!['**/node_modules'], true);
 
 		assert.equal(extHostConfig.getConfiguration('search.exclude').has('**/node_modules'), true);
 		assert.equal(extHostConfig.getConfiguration('search').has('exclude.**/node_modules'), true);
@@ -167,7 +167,7 @@ suite('ExtHostConfiguration', function () {
 		});
 
 		const testObject = all.getConfiguration();
-		let actual = testObject.get('farboo');
+		let actual: any = testObject.get('farboo');
 		assert.deepEqual(JSON.stringify({
 			'config0': true,
 			'nested': {
@@ -190,7 +190,7 @@ suite('ExtHostConfiguration', function () {
 			'config4': ''
 		}), JSON.stringify(actual));
 
-		actual = testObject.get('workbench')['colorCustomizations']!;
+		actual = testObject.get('workbench')!['colorCustomizations']!;
 		actual['statusBar.background'] = 'anothervalue';
 		assert.deepEqual(JSON.stringify({
 			'statusBar.foreground': 'somevalue',
@@ -241,7 +241,7 @@ suite('ExtHostConfiguration', function () {
 			}
 		});
 
-		let testObject = all.getConfiguration();
+		let testObject: any = all.getConfiguration();
 
 		try {
 			testObject['get'] = null;
@@ -265,7 +265,7 @@ suite('ExtHostConfiguration', function () {
 	test('inspect in no workspace context', function () {
 		const testObject = new ExtHostConfigProvider(
 			new class extends mock<MainThreadConfigurationShape>() { },
-			new ExtHostWorkspaceProvider(new TestRPCProtocol(), null, new NullLogService(), new Counter()),
+			new ExtHostWorkspace(new TestRPCProtocol(), new NullLogService(), new Counter()),
 			{
 				defaults: new ConfigurationModel({
 					'editor': {
@@ -306,13 +306,15 @@ suite('ExtHostConfiguration', function () {
 			}
 		}, ['editor.wordWrap']);
 		folders[workspaceUri.toString()] = workspace;
+		const extHostWorkspace = new ExtHostWorkspace(new TestRPCProtocol(), new NullLogService(), new Counter());
+		extHostWorkspace.$initializeWorkspace({
+			'id': 'foo',
+			'folders': [aWorkspaceFolder(URI.file('foo'), 0)],
+			'name': 'foo'
+		});
 		const testObject = new ExtHostConfigProvider(
 			new class extends mock<MainThreadConfigurationShape>() { },
-			new ExtHostWorkspaceProvider(new TestRPCProtocol(), {
-				'id': 'foo',
-				'folders': [aWorkspaceFolder(URI.file('foo'), 0)],
-				'name': 'foo'
-			}, new NullLogService(), new Counter()),
+			extHostWorkspace,
 			{
 				defaults: new ConfigurationModel({
 					'editor': {
@@ -380,13 +382,15 @@ suite('ExtHostConfiguration', function () {
 		}, ['editor.wordWrap']);
 		folders[thirdRoot.toString()] = new ConfigurationModel({}, []);
 
+		const extHostWorkspace = new ExtHostWorkspace(new TestRPCProtocol(), new NullLogService(), new Counter());
+		extHostWorkspace.$initializeWorkspace({
+			'id': 'foo',
+			'folders': [aWorkspaceFolder(firstRoot, 0), aWorkspaceFolder(secondRoot, 1)],
+			'name': 'foo'
+		});
 		const testObject = new ExtHostConfigProvider(
 			new class extends mock<MainThreadConfigurationShape>() { },
-			new ExtHostWorkspaceProvider(new TestRPCProtocol(), {
-				'id': 'foo',
-				'folders': [aWorkspaceFolder(firstRoot, 0), aWorkspaceFolder(secondRoot, 1)],
-				'name': 'foo'
-			}, new NullLogService(), new Counter()),
+			extHostWorkspace,
 			{
 				defaults: new ConfigurationModel({
 					'editor': {
@@ -589,13 +593,15 @@ suite('ExtHostConfiguration', function () {
 	test('configuration change event', (done) => {
 
 		const workspaceFolder = aWorkspaceFolder(URI.file('folder1'), 0);
+		const extHostWorkspace = new ExtHostWorkspace(new TestRPCProtocol(), new NullLogService(), new Counter());
+		extHostWorkspace.$initializeWorkspace({
+			'id': 'foo',
+			'folders': [workspaceFolder],
+			'name': 'foo'
+		});
 		const testObject = new ExtHostConfigProvider(
 			new class extends mock<MainThreadConfigurationShape>() { },
-			new ExtHostWorkspaceProvider(new TestRPCProtocol(), {
-				'id': 'foo',
-				'folders': [workspaceFolder],
-				'name': 'foo'
-			}, new NullLogService(), new Counter()),
+			extHostWorkspace,
 			createConfigurationData({
 				'farboo': {
 					'config': false,

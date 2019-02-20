@@ -27,7 +27,7 @@ export interface IColorTheme extends ITheme {
 	readonly id: string;
 	readonly label: string;
 	readonly settingsId: string;
-	readonly extensionData: ExtensionData;
+	readonly extensionData?: ExtensionData;
 	readonly description?: string;
 	readonly isLoaded: boolean;
 	readonly tokenColors: ITokenColorizationRule[];

@@ -72,10 +72,10 @@ class RequestOracle {
 
 	private _disposables = new Array<IDisposable>();
 	private _sessionDisposable: IDisposable;
-	private _lastState: RequestState;
+	private _lastState?: RequestState;
 
 	constructor(
-		private readonly _callback: (editor: ICodeEditor, change: IModelContentChangedEvent) => any,
+		private readonly _callback: (editor: ICodeEditor | undefined, change: IModelContentChangedEvent | undefined) => any,
 		private readonly _featureRegistry: LanguageFeatureRegistry<any>,
 		@IEditorService private readonly _editorService: IEditorService,
 	) {
@@ -99,7 +99,7 @@ class RequestOracle {
 			codeEditor = widget.getModifiedEditor();
 		}
 
-		if (!codeEditor || !codeEditor.getModel()) {
+		if (!codeEditor || !codeEditor.hasModel()) {
 			this._lastState = undefined;
 			this._callback(undefined, undefined);
 			return;
@@ -112,7 +112,7 @@ class RequestOracle {
 			this._featureRegistry.all(codeEditor.getModel()).length
 		);
 
-		if (thisState.equals(this._lastState)) {
+		if (this._lastState && thisState.equals(this._lastState)) {
 			// prevent unneccesary changes...
 			return;
 		}
@@ -123,10 +123,10 @@ class RequestOracle {
 		let handle: any;
 		let contentListener = codeEditor.onDidChangeModelContent(event => {
 			clearTimeout(handle);
-			handle = setTimeout(() => this._callback(codeEditor, event), 350);
+			handle = setTimeout(() => this._callback(codeEditor!, event), 350);
 		});
 		let modeListener = codeEditor.onDidChangeModelLanguage(_ => {
-			this._callback(codeEditor, undefined);
+			this._callback(codeEditor!, undefined);
 		});
 		let disposeListener = codeEditor.onDidDispose(() => {
 			this._callback(undefined, undefined);
@@ -145,10 +145,10 @@ class RequestOracle {
 class SimpleToggleAction extends Action {
 
 	constructor(label: string, checked: boolean, callback: (action: SimpleToggleAction) => any, className?: string) {
-		super(`simple` + defaultGenerator.nextId(), label, className, true, _ => {
+		super(`simple` + defaultGenerator.nextId(), label, className, true, () => {
 			this.checked = !this.checked;
 			callback(this);
-			return undefined;
+			return Promise.resolve();
 		});
 		this.checked = checked;
 	}
@@ -223,7 +223,7 @@ export class OutlinePanel extends ViewletPanel {
 
 	private _editorDisposables = new Array<IDisposable>();
 	private _outlineViewState = new OutlineViewState();
-	private _requestOracle: RequestOracle;
+	private _requestOracle?: RequestOracle;
 	private _cachedHeight: number;
 	private _domNode: HTMLElement;
 	private _message: HTMLDivElement;
@@ -400,7 +400,7 @@ export class OutlinePanel extends ViewletPanel {
 		this._message.innerText = escape(message);
 	}
 
-	private static _createOutlineModel(model: ITextModel, disposables: IDisposable[]): Promise<OutlineModel> {
+	private static _createOutlineModel(model: ITextModel, disposables: IDisposable[]): Promise<OutlineModel | undefined> {
 		let promise = createCancelablePromise(token => OutlineModel.create(model, token));
 		disposables.push({ dispose() { promise.cancel(); } });
 		return promise.catch(err => {
@@ -411,7 +411,7 @@ export class OutlinePanel extends ViewletPanel {
 		});
 	}
 
-	private async _doUpdate(editor: ICodeEditor, event: IModelContentChangedEvent): Promise<void> {
+	private async _doUpdate(editor: ICodeEditor | undefined, event: IModelContentChangedEvent | undefined): Promise<void> {
 		dispose(this._editorDisposables);
 
 		this._editorDisposables = new Array();
@@ -425,7 +425,7 @@ export class OutlinePanel extends ViewletPanel {
 			this._treeStates.set(oldModel.textModel.uri.toString(), state);
 		}
 
-		if (!editor || !DocumentSymbolProviderRegistry.has(editor.getModel())) {
+		if (!editor || !editor.hasModel() || !DocumentSymbolProviderRegistry.has(editor.getModel())) {
 			return this._showMessage(localize('no-editor', "There are no editors open that can provide outline information."));
 		}
 
@@ -438,12 +438,13 @@ export class OutlinePanel extends ViewletPanel {
 			);
 		}
 
-		let newModel = await OutlinePanel._createOutlineModel(textModel, this._editorDisposables);
+		let createdModel = await OutlinePanel._createOutlineModel(textModel, this._editorDisposables);
 		dispose(loadingMessage);
-		if (!newModel) {
+		if (!createdModel) {
 			return;
 		}
 
+		let newModel = createdModel;
 		if (TreeElement.empty(newModel)) {
 			return this._showMessage(localize('no-symbols', "No symbols found in document '{0}'", basename(textModel.uri)));
 		}
@@ -462,7 +463,7 @@ export class OutlinePanel extends ViewletPanel {
 			if (newRatio <= oldRatio * 0.5 || newRatio >= oldRatio * 1.5) {
 
 				let waitPromise = new Promise<boolean>(resolve => {
-					let handle = setTimeout(() => {
+					let handle: any = setTimeout(() => {
 						handle = undefined;
 						resolve(true);
 					}, 2000);
@@ -598,7 +599,7 @@ export class OutlinePanel extends ViewletPanel {
 			return;
 		}
 		let top = this._tree.getRelativeTop(item);
-		if (top < 0 || top > 1) {
+		if (typeof top === 'number' && (top < 0 || top > 1)) {
 			// only when outside view port
 			await this._tree.reveal(item, 0.5);
 		}

@@ -5,8 +5,10 @@
 
 import Messages from 'vs/workbench/contrib/markers/electron-browser/messages';
 import { IFilter, matchesPrefix, matchesFuzzy, matchesFuzzy2 } from 'vs/base/common/filters';
-import { ParsedExpression, IExpression, splitGlobAware, getEmptyExpression, parse } from 'vs/base/common/glob';
+import { IExpression, splitGlobAware, getEmptyExpression } from 'vs/base/common/glob';
 import * as strings from 'vs/base/common/strings';
+import { URI } from 'vs/base/common/uri';
+import { ResourceGlobMatcher } from 'vs/base/common/resources';
 
 export class FilterOptions {
 
@@ -16,19 +18,17 @@ export class FilterOptions {
 	readonly filterErrors: boolean = false;
 	readonly filterWarnings: boolean = false;
 	readonly filterInfos: boolean = false;
-	readonly excludePattern: ParsedExpression | null = null;
-	readonly includePattern: ParsedExpression | null = null;
 	readonly textFilter: string = '';
+	readonly excludesMatcher: ResourceGlobMatcher;
+	readonly includesMatcher: ResourceGlobMatcher;
 
-	constructor(readonly filter: string = '', excludePatterns: IExpression = {}) {
+	constructor(readonly filter: string = '', filesExclude: { root: URI, expression: IExpression }[] | IExpression = []) {
 		filter = filter.trim();
-		for (const key of Object.keys(excludePatterns)) {
-			if (excludePatterns[key]) {
-				this.setPattern(excludePatterns, key);
-			}
-			delete excludePatterns[key];
-		}
-		const includePatterns: IExpression = getEmptyExpression();
+
+		const filesExcludeByRoot = Array.isArray(filesExclude) ? filesExclude : [];
+		const excludesExpression: IExpression = Array.isArray(filesExclude) ? getEmptyExpression() : filesExclude;
+
+		const includeExpression: IExpression = getEmptyExpression();
 		if (filter) {
 			const filters = splitGlobAware(filter, ',').map(s => s.trim()).filter(s => !!s.length);
 			for (const f of filters) {
@@ -36,19 +36,16 @@ export class FilterOptions {
 				this.filterWarnings = this.filterWarnings || this.matches(f, Messages.MARKERS_PANEL_FILTER_WARNINGS);
 				this.filterInfos = this.filterInfos || this.matches(f, Messages.MARKERS_PANEL_FILTER_INFOS);
 				if (strings.startsWith(f, '!')) {
-					this.setPattern(excludePatterns, strings.ltrim(f, '!'));
+					this.setPattern(excludesExpression, strings.ltrim(f, '!'));
 				} else {
-					this.setPattern(includePatterns, f);
+					this.setPattern(includeExpression, f);
 					this.textFilter += ` ${f}`;
 				}
 			}
 		}
-		if (Object.keys(excludePatterns).length) {
-			this.excludePattern = parse(excludePatterns);
-		}
-		if (Object.keys(includePatterns).length) {
-			this.includePattern = parse(includePatterns);
-		}
+
+		this.excludesMatcher = new ResourceGlobMatcher(excludesExpression, filesExcludeByRoot);
+		this.includesMatcher = new ResourceGlobMatcher(includeExpression, []);
 		this.textFilter = this.textFilter.trim();
 	}
 

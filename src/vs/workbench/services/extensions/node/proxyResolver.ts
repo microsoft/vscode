@@ -8,7 +8,7 @@ import * as https from 'https';
 import * as nodeurl from 'url';
 
 import { assign } from 'vs/base/common/objects';
-import { ExtHostWorkspaceProvider } from 'vs/workbench/api/node/extHostWorkspace';
+import { IExtHostWorkspaceProvider } from 'vs/workbench/api/node/extHostWorkspace';
 import { ExtHostConfigProvider } from 'vs/workbench/api/node/extHostConfiguration';
 import { ProxyAgent } from 'vscode-proxy-agent';
 import { MainThreadTelemetryShape } from 'vs/workbench/api/node/extHost.protocol';
@@ -25,7 +25,7 @@ interface ConnectionResult {
 }
 
 export function connectProxyResolver(
-	extHostWorkspace: ExtHostWorkspaceProvider,
+	extHostWorkspace: IExtHostWorkspaceProvider,
 	configProvider: ExtHostConfigProvider,
 	extensionService: ExtHostExtensionService,
 	extHostLogService: ExtHostLogService,
@@ -39,7 +39,7 @@ export function connectProxyResolver(
 const maxCacheEntries = 5000; // Cache can grow twice that much due to 'oldCache'.
 
 function setupProxyResolution(
-	extHostWorkspace: ExtHostWorkspaceProvider,
+	extHostWorkspace: IExtHostWorkspaceProvider,
 	configProvider: ExtHostConfigProvider,
 	extHostLogService: ExtHostLogService,
 	mainThreadTelemetry: MainThreadTelemetryShape
@@ -185,7 +185,7 @@ function collectResult(results: ConnectionResult[], resolveProxy: string, connec
 	});
 }
 
-function findOrCreateResult(results: ConnectionResult[], proxy: string, connection: string, code: string): ConnectionResult | undefined {
+function findOrCreateResult(results: ConnectionResult[], proxy: string, connection: string, code: string): ConnectionResult {
 	for (const result of results) {
 		if (result.proxy === proxy && result.connection === connection && result.code === code) {
 			return result;
@@ -196,7 +196,7 @@ function findOrCreateResult(results: ConnectionResult[], proxy: string, connecti
 	return result;
 }
 
-function proxyFromConfigURL(configURL: string) {
+function proxyFromConfigURL(configURL: string | undefined) {
 	const url = (configURL || '').trim();
 	const i = url.indexOf('://');
 	if (i === -1) {

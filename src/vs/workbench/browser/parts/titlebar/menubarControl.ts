@@ -32,6 +32,7 @@ import { MenuBar } from 'vs/base/browser/ui/menu/menubar';
 import { SubmenuAction } from 'vs/base/browser/ui/menu/menu';
 import { attachMenuStyler } from 'vs/platform/theme/common/styler';
 import { assign } from 'vs/base/common/objects';
+import { mnemonicMenuLabel, unmnemonicLabel } from 'vs/base/common/labels';
 import { getAccessibilitySupport } from 'vs/base/browser/browser';
 import { IWindowsRegistryService, WindowsRegistryHive } from 'vs/platform/windowsRegistry/common/windowsRegistry';
 
@@ -378,6 +379,8 @@ export class MenubarControl extends Disposable {
 			typeHint = 'file';
 		}
 
+		label = unmnemonicLabel(label);
+
 		const ret: IAction = new Action(commandId, label, undefined, undefined, (event) => {
 			const openInNewWindow = event && ((!isMacintosh && (event.ctrlKey || event.shiftKey)) || (isMacintosh && (event.metaKey || event.altKey)));
 
@@ -477,6 +480,7 @@ export class MenubarControl extends Disposable {
 				if (!isMacintosh) {
 					const updateAction = this.getUpdateAction();
 					if (updateAction) {
+						updateAction.label = mnemonicMenuLabel(updateAction.label);
 						target.push(updateAction);
 						target.push(new Separator());
 					}
@@ -536,10 +540,10 @@ export class MenubarControl extends Disposable {
 						const submenu = this.menuService.createMenu(action.item.submenu, this.contextKeyService);
 						const submenuActions: SubmenuAction[] = [];
 						updateActions(submenu, submenuActions);
-						target.push(new SubmenuAction(action.label, submenuActions));
+						target.push(new SubmenuAction(mnemonicMenuLabel(action.label), submenuActions));
 						submenu.dispose();
 					} else {
-						action.label = this.calculateActionLabel(action);
+						action.label = mnemonicMenuLabel(this.calculateActionLabel(action));
 						target.push(action);
 					}
 				}
@@ -556,7 +560,7 @@ export class MenubarControl extends Disposable {
 				this._register(menu.onDidChange(() => {
 					const actions = [];
 					updateActions(menu, actions);
-					this.menubar.updateMenu({ actions: actions, label: this.topLevelTitles[title] });
+					this.menubar.updateMenu({ actions: actions, label: mnemonicMenuLabel(this.topLevelTitles[title]) });
 				}));
 			}
 
@@ -564,9 +568,9 @@ export class MenubarControl extends Disposable {
 			updateActions(menu, actions);
 
 			if (!firstTime) {
-				this.menubar.updateMenu({ actions: actions, label: this.topLevelTitles[title] });
+				this.menubar.updateMenu({ actions: actions, label: mnemonicMenuLabel(this.topLevelTitles[title]) });
 			} else {
-				this.menubar.push({ actions: actions, label: this.topLevelTitles[title] });
+				this.menubar.push({ actions: actions, label: mnemonicMenuLabel(this.topLevelTitles[title]) });
 			}
 		}
 	}
