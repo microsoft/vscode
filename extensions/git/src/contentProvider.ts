@@ -7,7 +7,7 @@ import { workspace, Uri, Disposable, Event, EventEmitter, window } from 'vscode'
 import { debounce, throttle } from './decorators';
 import { fromGitUri, toGitUri } from './uri';
 import { Model, ModelChangeEvent, OriginalResourceChangeEvent } from './model';
-import { filterEvent, eventToPromise, isDescendant, pathEquals } from './util';
+import { filterEvent, eventToPromise, isDescendant, pathEquals, dispose } from './util';
 
 interface CacheRow {
 	uri: Uri;
@@ -145,6 +145,6 @@ export class GitContentProvider {
 	}
 
 	dispose(): void {
-		this.disposables.forEach(d => d.dispose());
+		this.disposables = dispose(this.disposables);
 	}
 }

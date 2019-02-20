@@ -34,7 +34,7 @@ class CheckoutStatusBar {
 	}
 
 	dispose(): void {
-		this.disposables.forEach(d => d.dispose());
+		this.disposables = dispose(this.disposables);
 	}
 }
 
@@ -132,7 +132,7 @@ class SyncStatusBar {
 	}
 
 	dispose(): void {
-		this.disposables.forEach(d => d.dispose());
+		this.disposables = dispose(this.disposables);
 	}
 }
 

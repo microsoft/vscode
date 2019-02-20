@@ -413,10 +413,7 @@ export class Model {
 	}
 
 	dispose(): void {
-		const openRepositories = [...this.openRepositories];
-		openRepositories.forEach(r => r.dispose());
-		this.openRepositories = [];
-
+		this.openRepositories = dispose(this.openRepositories);
 		this.possibleGitRepositoryPaths.clear();
 		this.disposables = dispose(this.disposables);
 	}

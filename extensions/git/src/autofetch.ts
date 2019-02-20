@@ -5,7 +5,7 @@
 
 import { workspace, Disposable, EventEmitter, Memento, window, MessageItem, ConfigurationTarget, Uri } from 'vscode';
 import { Repository, Operation } from './repository';
-import { eventToPromise, filterEvent, onceEvent } from './util';
+import { eventToPromise, filterEvent, onceEvent, dispose } from './util';
 import * as nls from 'vscode-nls';
 import { GitErrorCodes } from './api/git';
 
@@ -120,6 +120,6 @@ export class AutoFetcher {
 
 	dispose(): void {
 		this.disable();
-		this.disposables.forEach(d => d.dispose());
+		this.disposables = dispose(this.disposables);
 	}
 }

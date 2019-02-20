@@ -83,7 +83,7 @@ class GitIgnoreDecorationProvider implements DecorationProvider {
 	}
 
 	dispose(): void {
-		this.disposables.forEach(d => d.dispose());
+		this.disposables = dispose(this.disposables);
 		this.queue.clear();
 	}
 }
@@ -145,7 +145,7 @@ class GitDecorationProvider implements DecorationProvider {
 	}
 
 	dispose(): void {
-		this.disposables.forEach(d => d.dispose());
+		this.disposables = dispose(this.disposables);
 	}
 }
 
