@@ -268,7 +268,6 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		if (this.tree) {
 			const treeHeight = dimension.height - this.replInputHeight;
 			this.treeContainer.style.height = `${treeHeight}px`;
-			console.log(dimension.width);
 			this.tree.layout(treeHeight, dimension.width);
 		}
 		this.replInputContainer.style.height = `${this.replInputHeight}px`;
