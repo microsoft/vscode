@@ -397,8 +397,8 @@ export class RemoteFileDialog {
 
 	private getAlternateDialogIcons(): { light: URI, dark: URI } {
 		return {
-			dark: URI.parse(require.toUrl(`vs/editor/contrib/suggest/media/Folder_inverse_16x.svg`)),
-			light: URI.parse(require.toUrl(`vs/editor/contrib/suggest/media/Folder_16x.svg`))
+			dark: URI.parse(require.toUrl(`vs/workbench/services/dialogs/media/dark/Folder.svg`)),
+			light: URI.parse(require.toUrl(`vs/workbench/services/dialogs/media/light/Folder_inverse.svg`))
 		};
 	}
 }
