@@ -23,11 +23,19 @@ export class FileIconThemeData implements IFileIconTheme {
 	isLoaded: boolean;
 	location?: URI;
 	extensionData?: ExtensionData;
-	watch: boolean;
+	watch?: boolean;
 
 	styleSheetContent?: string;
 
-	private constructor() { }
+	private constructor(id: string, label: string, settingsId: string | null) {
+		this.id = id;
+		this.label = label;
+		this.settingsId = settingsId;
+		this.isLoaded = false;
+		this.hasFileIcons = false;
+		this.hasFolderIcons = false;
+		this.hidesExplorerArrows = false;
+	}
 
 	public ensureLoaded(fileService: IFileService): Promise<string | undefined> {
 		return !this.isLoaded ? this.load(fileService) : Promise.resolve(this.styleSheetContent);
@@ -53,10 +61,12 @@ export class FileIconThemeData implements IFileIconTheme {
 	}
 
 	static fromExtensionTheme(iconTheme: IThemeExtensionPoint, iconThemeLocation: URI, extensionData: ExtensionData): FileIconThemeData {
-		let themeData = new FileIconThemeData();
-		themeData.id = extensionData.extensionId + '-' + iconTheme.id;
-		themeData.label = iconTheme.label || Paths.basename(iconTheme.path);
-		themeData.settingsId = iconTheme.id;
+		const id = extensionData.extensionId + '-' + iconTheme.id;
+		const label = iconTheme.label || Paths.basename(iconTheme.path);
+		const settingsId = iconTheme.id;
+
+		const themeData = new FileIconThemeData(id, label, settingsId);
+
 		themeData.description = iconTheme.description;
 		themeData.location = iconThemeLocation;
 		themeData.extensionData = extensionData;
@@ -70,10 +80,7 @@ export class FileIconThemeData implements IFileIconTheme {
 	static noIconTheme(): FileIconThemeData {
 		let themeData = FileIconThemeData._noIconTheme;
 		if (!themeData) {
-			themeData = FileIconThemeData._noIconTheme = new FileIconThemeData();
-			themeData.id = '';
-			themeData.label = '';
-			themeData.settingsId = null;
+			themeData = FileIconThemeData._noIconTheme = new FileIconThemeData('', '', null);
 			themeData.hasFileIcons = false;
 			themeData.hasFolderIcons = false;
 			themeData.hidesExplorerArrows = false;
@@ -85,10 +92,7 @@ export class FileIconThemeData implements IFileIconTheme {
 	}
 
 	static createUnloadedTheme(id: string): FileIconThemeData {
-		let themeData = new FileIconThemeData();
-		themeData.id = id;
-		themeData.label = '';
-		themeData.settingsId = '__' + id;
+		const themeData = new FileIconThemeData(id, '', '__' + id);
 		themeData.isLoaded = false;
 		themeData.hasFileIcons = false;
 		themeData.hasFolderIcons = false;
@@ -101,7 +105,7 @@ export class FileIconThemeData implements IFileIconTheme {
 	static fromStorageData(input: string): FileIconThemeData | null {
 		try {
 			let data = JSON.parse(input);
-			let theme = new FileIconThemeData();
+			const theme = new FileIconThemeData('', '', null);
 			for (let key in data) {
 				switch (key) {
 					case 'id':

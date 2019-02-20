@@ -1125,7 +1125,7 @@ export class ReloadAction extends ExtensionAction {
 export class SetColorThemeAction extends ExtensionAction {
 
 	static getColorThemes(colorThemes: IColorTheme[], extension: IExtension): IColorTheme[] {
-		return colorThemes.filter(c => ExtensionIdentifier.equals(c.extensionData.extensionId, extension.identifier.id));
+		return colorThemes.filter(c => c.extensionData && ExtensionIdentifier.equals(c.extensionData.extensionId, extension.identifier.id));
 	}
 
 	private static readonly EnabledClass = 'extension-action theme';
