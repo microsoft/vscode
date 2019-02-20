@@ -12,8 +12,8 @@ import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/action
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
 import { KeybindingsReferenceAction, OpenDocumentationUrlAction, OpenIntroductoryVideosUrlAction, OpenTipsAndTricksUrlAction, OpenTwitterUrlAction, OpenRequestFeatureUrlAction, OpenPrivacyStatementUrlAction, OpenLicenseUrlAction } from 'vs/workbench/electron-browser/actions/helpActions';
-import { ToggleSharedProcessAction, InspectContextKeysAction, ToggleScreencastModeAction } from 'vs/workbench/electron-browser/actions/developerActions';
-import { ShowAboutDialogAction, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleFullScreenAction, CloseCurrentWindowAction, SwitchWindow, NewWindowAction, QuickSwitchWindow, QuickOpenRecentAction, inRecentFilesPickerContextKey, OpenRecentAction } from 'vs/workbench/electron-browser/actions/windowActions';
+import { ToggleSharedProcessAction, InspectContextKeysAction, ToggleScreencastModeAction, ToggleDevToolsAction } from 'vs/workbench/electron-browser/actions/developerActions';
+import { ShowAboutDialogAction, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleFullScreenAction, CloseCurrentWindowAction, SwitchWindow, NewWindowAction, QuickSwitchWindow, QuickOpenRecentAction, inRecentFilesPickerContextKey, OpenRecentAction, ReloadWindowWithExtensionsDisabledAction, NewWindowTabHandler, ReloadWindowAction, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler } from 'vs/workbench/electron-browser/actions/windowActions';
 import { AddRootFolderAction, GlobalRemoveRootFolderAction, OpenWorkspaceAction, SaveWorkspaceAsAction, OpenWorkspaceConfigFileAction, DuplicateWorkspaceInNewWindowAction, OpenFileFolderAction, OpenFileAction, OpenFolderAction, CloseWorkspaceAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { inQuickOpenContext, getQuickNavigateHandler } from 'vs/workbench/browser/parts/quickopen/quickopen';
@@ -21,9 +21,10 @@ import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/co
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ADD_ROOT_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
-import { SupportsOpenFileFolderContext, SupportsWorkspacesContext, IsMacContext } from 'vs/platform/contextkey/common/contextkeys';
+import { SupportsOpenFileFolderContext, SupportsWorkspacesContext, IsMacContext, HasMacNativeTabsContext, IsDevelopmentContext } from 'vs/platform/contextkey/common/contextkeys';
 import { NoEditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/common/editor';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
+import { LogStorageAction } from 'vs/platform/storage/node/storageService';
 
 // Contribute Commands
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -59,8 +60,8 @@ workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(NewWin
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(CloseCurrentWindowAction, CloseCurrentWindowAction.ID, CloseCurrentWindowAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_W }), 'Close Window');
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(SwitchWindow, SwitchWindow.ID, SwitchWindow.LABEL, { primary: 0, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_W } }), 'Switch Window...');
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(QuickSwitchWindow, QuickSwitchWindow.ID, QuickSwitchWindow.LABEL), 'Quick Switch Window...');
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenRecentAction, OpenRecentAction.ID, OpenRecentAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_R, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_R } }), 'File: Open Recent...', fileCategory);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenRecentAction, QuickOpenRecentAction.ID, QuickOpenRecentAction.LABEL), 'File: Quick Open Recent...', fileCategory);
-
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenFileFolderAction, OpenFileFolderAction.ID, OpenFileFolderAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_O }), 'File: Open...', fileCategory, SupportsOpenFileFolderContext);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenFileAction, OpenFileAction.ID, OpenFileAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_O }), 'File: Open File...', fileCategory, SupportsOpenFileFolderContext.toNegated());
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenFolderAction, OpenFolderAction.ID, OpenFolderAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_O) }), 'File: Open Folder...', fileCategory, SupportsOpenFileFolderContext.toNegated());
@@ -134,6 +135,44 @@ const developerCategory = nls.localize('developer', "Developer");
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleSharedProcessAction, ToggleSharedProcessAction.ID, ToggleSharedProcessAction.LABEL), 'Developer: Toggle Shared Process', developerCategory);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(InspectContextKeysAction, InspectContextKeysAction.ID, InspectContextKeysAction.LABEL), 'Developer: Inspect Context Keys', developerCategory);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleScreencastModeAction, ToggleScreencastModeAction.ID, ToggleScreencastModeAction.LABEL), 'Developer: Toggle Mouse Clicks', developerCategory);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ReloadWindowWithExtensionsDisabledAction, ReloadWindowWithExtensionsDisabledAction.ID, ReloadWindowWithExtensionsDisabledAction.LABEL), 'Developer: Reload Window Without Extensions', developerCategory);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(LogStorageAction, LogStorageAction.ID, LogStorageAction.LABEL), 'Developer: Log Storage', developerCategory);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ReloadWindowAction, ReloadWindowAction.ID, ReloadWindowAction.LABEL), 'Developer: Reload Window', developerCategory);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleDevToolsAction, ToggleDevToolsAction.ID, ToggleDevToolsAction.LABEL), 'Developer: Toggle Developer Tools', developerCategory);
+
+KeybindingsRegistry.registerKeybindingRule({
+	id: ReloadWindowAction.ID,
+	weight: KeybindingWeight.WorkbenchContrib + 50,
+	when: IsDevelopmentContext,
+	primary: KeyMod.CtrlCmd | KeyCode.KEY_R
+});
+
+KeybindingsRegistry.registerKeybindingRule({
+	id: ToggleDevToolsAction.ID,
+	weight: KeybindingWeight.WorkbenchContrib + 50,
+	when: IsDevelopmentContext,
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I,
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_I }
+});
+
+// Actions for macOS native tabs management (only when enabled)
+if (isMacintosh) {
+	[
+		{ handler: NewWindowTabHandler, id: 'workbench.action.newWindowTab', title: { value: nls.localize('newTab', "New Window Tab"), original: 'New Window Tab' } },
+		{ handler: ShowPreviousWindowTabHandler, id: 'workbench.action.showPreviousWindowTab', title: { value: nls.localize('showPreviousTab', "Show Previous Window Tab"), original: 'Show Previous Window Tab' } },
+		{ handler: ShowNextWindowTabHandler, id: 'workbench.action.showNextWindowTab', title: { value: nls.localize('showNextWindowTab', "Show Next Window Tab"), original: 'Show Next Window Tab' } },
+		{ handler: MoveWindowTabToNewWindowHandler, id: 'workbench.action.moveWindowTabToNewWindow', title: { value: nls.localize('moveWindowTabToNewWindow', "Move Window Tab to New Window"), original: 'Move Window Tab to New Window' } },
+		{ handler: MergeWindowTabsHandlerHandler, id: 'workbench.action.mergeAllWindowTabs', title: { value: nls.localize('mergeAllWindowTabs', "Merge All Windows"), original: 'Merge All Windows' } },
+		{ handler: ToggleWindowTabsBarHandler, id: 'workbench.action.toggleWindowTabsBar', title: { value: nls.localize('toggleWindowTabsBar', "Toggle Window Tabs Bar"), original: 'Toggle Window Tabs Bar' } }
+	].forEach(command => {
+		CommandsRegistry.registerCommand(command.id, command.handler);
+
+		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+			command,
+			when: HasMacNativeTabsContext
+		});
+	});
+}
 
 const recentFilesPickerContext = ContextKeyExpr.and(inQuickOpenContext, ContextKeyExpr.has(inRecentFilesPickerContextKey));
 
