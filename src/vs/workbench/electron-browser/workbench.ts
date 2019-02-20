@@ -1971,7 +1971,8 @@ export class Workbench extends Disposable implements IPartService {
 		else if (!hidden && !this.panelPart.getActivePanel()) {
 			const panelToOpen = this.panelPart.getLastActivePanelId();
 			if (panelToOpen) {
-				this.panelPart.openPanel(panelToOpen, true);
+				const focus = !skipLayout;
+				this.panelPart.openPanel(panelToOpen, focus);
 			}
 		}
 
