@@ -244,8 +244,8 @@ export class MarkerController implements editorCommon.IEditorContribution {
 		this._markerService.onMarkerChanged(this._onMarkerChanged, this, this._disposeOnClose);
 
 		const actions = [
-			new Action(PrevMarkerAction.ID, PrevMarkerAction.LABEL, 'show-previous-problem octicon octicon-chevron-up', this._model.canNavigate(), async () => this._model.move(false, true)),
-			new Action(NextMarkerAction.ID, NextMarkerAction.LABEL, 'show-next-problem octicon octicon-chevron-down', this._model.canNavigate(), async () => this._model.move(true, true))
+			new Action(PrevMarkerAction.ID, PrevMarkerAction.LABEL, 'show-previous-problem octicon octicon-chevron-up', this._model.canNavigate(), async () => { if (this._model) { this._model.move(false, true); } }),
+			new Action(NextMarkerAction.ID, NextMarkerAction.LABEL, 'show-next-problem octicon octicon-chevron-down', this._model.canNavigate(), async () => { if (this._model) { this._model.move(true, true); } })
 		];
 		this._widget = new MarkerNavigationWidget(this._editor, actions, this._themeService);
 		this._widgetVisible.set(true);
