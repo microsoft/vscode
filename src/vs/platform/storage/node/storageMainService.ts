@@ -222,6 +222,10 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 					'update/updateNotificationTime'
 				].forEach(key => supportedKeys.set(key.toLowerCase(), key));
 
+				// https://github.com/Microsoft/vscode/issues/68468
+				const wellKnownPublishers = ['Microsoft', 'GitHub'];
+				const wellKnownExtensions = ['ms-vscode.Go', 'WallabyJs.quokka-vscode', 'Telerik.nativescript', 'Shan.code-settings-sync', 'ritwickdey.LiveServer', 'PKief.material-icon-theme', 'PeterJausovec.vscode-docker', 'ms-vscode.PowerShell', 'LaurentTreguier.vscode-simple-icons', 'KnisterPeter.vscode-github', 'DotJoshJohnson.xml', 'Dart-Code.dart-code', 'alefragnani.Bookmarks'];
+
 				// Support extension storage as well (always the ID of the extension)
 				extensions.forEach(extension => {
 					let extensionId: string;
@@ -232,6 +236,22 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 					}
 
 					if (extensionId) {
+						for (let i = 0; i < wellKnownPublishers.length; i++) {
+							const publisher = wellKnownPublishers[i];
+							if (startsWith(extensionId, `${publisher.toLowerCase()}.`)) {
+								extensionId = `${publisher}${extensionId.substr(publisher.length)}`;
+								break;
+							}
+						}
+
+						for (let j = 0; j < wellKnownExtensions.length; j++) {
+							const wellKnownExtension = wellKnownExtensions[j];
+							if (extensionId === wellKnownExtension.toLowerCase()) {
+								extensionId = wellKnownExtension;
+								break;
+							}
+						}
+
 						supportedKeys.set(extensionId.toLowerCase(), extensionId);
 					}
 				});
