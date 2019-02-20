@@ -53,6 +53,16 @@ export interface IPickOptions<T extends IQuickPickItem> {
 	matchOnDetail?: boolean;
 
 	/**
+	 * an optional flag to filter the picks based on label. Defaults to true.
+	 */
+	matchOnLabel?: boolean;
+
+	/**
+	 * an option flag to control whether focus is always automatically brought to a list item. Defaults to true.
+	 */
+	autoFocusOnList?: boolean;
+
+	/**
 	 * an optional flag to not close the picker on focus lost
 	 */
 	ignoreFocusLost?: boolean;
@@ -165,6 +175,10 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 	matchOnDescription: boolean;
 
 	matchOnDetail: boolean;
+
+	matchOnLabel: boolean;
+
+	autoFocusOnList: boolean;
 
 	quickNavigate: IQuickNavigateConfiguration | undefined;
 
