@@ -269,7 +269,10 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 		const detail = markerCount > 1
 			? nls.localize('problems', "{0} of {1} problems", markerIdx, markerCount)
 			: nls.localize('change', "{0} of {1} problem", markerIdx, markerCount);
-		this.setTitle(basename(this.editor.getModel().uri), detail);
+		const model = this.editor.getModel();
+		if (model) {
+			this.setTitle(basename(model.uri), detail);
+		}
 
 		this.editor.revealPositionInCenter(position, ScrollType.Smooth);
 
