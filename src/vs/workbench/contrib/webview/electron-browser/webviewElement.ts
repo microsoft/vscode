@@ -22,13 +22,13 @@ export interface WebviewOptions {
 	readonly allowSvgs?: boolean;
 	readonly useSameOriginForRoot?: boolean;
 	readonly extensionLocation?: URI;
+	readonly enableFindWidget?: boolean;
 }
 
 export interface WebviewContentOptions {
 	readonly allowScripts?: boolean;
 	readonly svgWhiteList?: string[];
 	readonly localResourceRoots?: ReadonlyArray<URI>;
-	readonly disableFindView?: boolean;
 }
 
 interface IKeydownEvent {
@@ -335,7 +335,7 @@ export class WebviewElement extends Disposable {
 			this._send('devtools-opened');
 		}));
 
-		if (!this.options || !this.options.disableFindView) {
+		if (_options.enableFindWidget) {
 			this._webviewFindWidget = this._register(instantiationService.createInstance(WebviewFindWidget, this));
 		}
 
