@@ -334,6 +334,10 @@ class TypeLabelController<T> implements IDisposable {
 
 	private enabled = false;
 	private state: TypeLabelControllerState = TypeLabelControllerState.Idle;
+
+	private automaticKeyboardNavigation = true;
+	private triggered = false;
+
 	private enabledDisposables: IDisposable[] = [];
 	private disposables: IDisposable[] = [];
 
@@ -342,11 +346,10 @@ class TypeLabelController<T> implements IDisposable {
 		private view: ListView<T>,
 		private keyboardNavigationLabelProvider: IKeyboardNavigationLabelProvider<T>
 	) {
-		list.onDidUpdateOptions(this.onDidUpdateListOptions, this, this.disposables);
-		this.onDidUpdateListOptions(list.options);
+		this.updateOptions(list.options);
 	}
 
-	private onDidUpdateListOptions(options: IListOptions<T>): void {
+	updateOptions(options: IListOptions<T>): void {
 		const enableKeyboardNavigation = typeof options.enableKeyboardNavigation === 'undefined' ? true : !!options.enableKeyboardNavigation;
 
 		if (enableKeyboardNavigation) {
@@ -354,6 +357,14 @@ class TypeLabelController<T> implements IDisposable {
 		} else {
 			this.disable();
 		}
+
+		if (typeof options.automaticKeyboardNavigation !== 'undefined') {
+			this.automaticKeyboardNavigation = options.automaticKeyboardNavigation;
+		}
+	}
+
+	toggle(): void {
+		this.triggered = !this.triggered;
 	}
 
 	private enable(): void {
@@ -363,6 +374,7 @@ class TypeLabelController<T> implements IDisposable {
 
 		const onChar = Event.chain(domEvent(this.view.domNode, 'keydown'))
 			.filter(e => !isInputElement(e.target as HTMLElement))
+			.filter(() => this.automaticKeyboardNavigation || this.triggered)
 			.map(event => new StandardKeyboardEvent(event))
 			.filter(this.keyboardNavigationLabelProvider.mightProducePrintableCharacter ? e => this.keyboardNavigationLabelProvider.mightProducePrintableCharacter!(e) : e => mightProducePrintableCharacter(e))
 			.forEach(e => { e.stopPropagation(); e.preventDefault(); })
@@ -375,6 +387,7 @@ class TypeLabelController<T> implements IDisposable {
 		onInput(this.onInput, this, this.enabledDisposables);
 
 		this.enabled = true;
+		this.triggered = false;
 	}
 
 	private disable(): void {
@@ -384,11 +397,13 @@ class TypeLabelController<T> implements IDisposable {
 
 		this.enabledDisposables = dispose(this.enabledDisposables);
 		this.enabled = false;
+		this.triggered = false;
 	}
 
 	private onInput(word: string | null): void {
 		if (!word) {
 			this.state = TypeLabelControllerState.Idle;
+			this.triggered = false;
 			return;
 		}
 
@@ -797,6 +812,7 @@ export interface IListOptions<T> extends IListStyles {
 	readonly identityProvider?: IIdentityProvider<T>;
 	readonly dnd?: IListDragAndDrop<T>;
 	readonly enableKeyboardNavigation?: boolean;
+	readonly automaticKeyboardNavigation?: boolean;
 	readonly keyboardNavigationLabelProvider?: IKeyboardNavigationLabelProvider<T>;
 	readonly ariaRole?: ListAriaRootRole;
 	readonly ariaLabel?: string;
@@ -1061,6 +1077,7 @@ class ListViewDragAndDrop<T> implements IListViewDragAndDrop<T> {
 
 export interface IListOptionsUpdate {
 	readonly enableKeyboardNavigation?: boolean;
+	readonly automaticKeyboardNavigation?: boolean;
 }
 
 export class List<T> implements ISpliceable<T>, IDisposable {
@@ -1072,9 +1089,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	private spliceable: ISpliceable<T>;
 	private styleElement: HTMLStyleElement;
 	private styleController: IStyleController;
-
-	private _onDidUpdateOptions = new Emitter<IListOptions<T>>();
-	readonly onDidUpdateOptions = this._onDidUpdateOptions.event;
+	private typeLabelController?: TypeLabelController<T>;
 
 	protected disposables: IDisposable[];
 
@@ -1209,8 +1224,8 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		}
 
 		if (_options.keyboardNavigationLabelProvider) {
-			const controller = new TypeLabelController(this, this.view, _options.keyboardNavigationLabelProvider);
-			this.disposables.push(controller);
+			this.typeLabelController = new TypeLabelController(this, this.view, _options.keyboardNavigationLabelProvider);
+			this.disposables.push(this.typeLabelController);
 		}
 
 		this.disposables.push(this.createMouseController(_options));
@@ -1231,7 +1246,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	updateOptions(optionsUpdate: IListOptionsUpdate = {}): void {
 		this._options = { ...this._options, ...optionsUpdate };
-		this._onDidUpdateOptions.fire(this._options);
+
+		if (this.typeLabelController) {
+			this.typeLabelController.updateOptions(this._options);
+		}
 	}
 
 	get options(): IListOptions<T> {
@@ -1296,6 +1314,12 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	layout(height?: number, width?: number): void {
 		this.view.layout(height, width);
+	}
+
+	toggleKeyboardNavigation(): void {
+		if (this.typeLabelController) {
+			this.typeLabelController.toggle();
+		}
 	}
 
 	setSelection(indexes: number[], browserEvent?: UIEvent): void {
