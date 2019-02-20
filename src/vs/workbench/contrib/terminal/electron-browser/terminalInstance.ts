@@ -740,10 +740,10 @@ export class TerminalInstance implements ITerminalInstance {
 		if (this._processManager) {
 			this._processManager.dispose(immediate);
 		} else {
-			// In cases where there is no associated process (for example executing an exetnsion callback task)
-			// consumers still expect on onExit event to be fired. An example of this is terminating the extnesion callback
-			// task.
-			this._onExit.fire(this._id);
+			// In cases where there is no associated process (for example executing an extension callback task)
+			// consumers still expect on onExit event to be fired. An example of this is terminating the extension callback
+			// task. There is no exit code at this point, so firing undefined is appropriate.
+			this._onExit.fire(undefined);
 		}
 
 		if (!this._isDisposed) {
@@ -1094,8 +1094,8 @@ export class TerminalInstance implements ITerminalInstance {
 		// Set the new shell launch config
 		this._shellLaunchConfig = shell; // Must be done before calling _createProcess()
 
-		// Initialize new process if we have one.
-		if (this._shellLaunchConfig.executable) {
+		// Launch the process unless this is only a renderer.
+		if (!this._shellLaunchConfig.isRendererOnly) {
 			this._createProcess();
 		}
 

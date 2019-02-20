@@ -283,7 +283,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 				this.childProcessEnded();
 				watchingProblemMatcher.done();
 				watchingProblemMatcher.dispose();
-				if (processStartedSignaled) {
+				if (processStartedSignaled && task.command.runtime !== RuntimeType.CustomExecution) {
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessEnded, task, success.cmdCode!));
 				}
 				toDispose = dispose(toDispose!);
@@ -339,7 +339,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 				startStopProblemMatcher.done();
 				startStopProblemMatcher.dispose();
 				this.checkTerminated(task, success);
-				if (processStartedSignaled) {
+				if (processStartedSignaled && task.command.runtime !== RuntimeType.CustomExecution) {
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessEnded, task, success.cmdCode!));
 				}
 				this._onDidStateChange.fire(inactiveEvent);

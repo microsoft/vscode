@@ -299,27 +299,6 @@ export class TerminalTaskSystem implements ITaskSystem {
 		});
 	}
 
-	public extensionCallbackTaskEnded(task: Task): Promise<TaskTerminateResponse> {
-		let activeTerminal = this.activeTasks[task.getMapKey()];
-		if (!activeTerminal) {
-			return Promise.resolve<TaskTerminateResponse>({ success: false, task: undefined });
-		}
-		return new Promise<TaskTerminateResponse>((resolve, reject) => {
-			let terminal = activeTerminal.terminal;
-			const onDisposed = terminal.onDisposed(() => {
-				let task = activeTerminal.task;
-				try {
-					onDisposed.dispose();
-					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.End, task));
-				} catch (error) {
-					// Do nothing.
-				}
-				resolve({ success: true, task: task });
-			});
-			terminal.dispose();
-		});
-	}
-
 	public terminateAll(): Promise<TaskTerminateResponse[]> {
 		let promises: Promise<TaskTerminateResponse>[] = [];
 		Object.keys(this.activeTasks).forEach((key) => {
@@ -599,7 +578,11 @@ export class TerminalTaskSystem implements ITaskSystem {
 						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal!.processId!));
 						processStartedSignaled = true;
 					}
-					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessEnded, task, exitCode));
+
+					if (task.command.runtime !== RuntimeType.CustomExecution) {
+						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessEnded, task, exitCode));
+					}
+
 					for (let i = 0; i < eventCounter; i++) {
 						let event = TaskEvent.create(TaskEventKind.Inactive, task);
 						this._onDidStateChange.fire(event);
@@ -671,7 +654,9 @@ export class TerminalTaskSystem implements ITaskSystem {
 						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal.processId!));
 						processStartedSignaled = true;
 					}
-					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessEnded, task, exitCode));
+					if (task.command.runtime !== RuntimeType.CustomExecution) {
+						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessEnded, task, exitCode));
+					}
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Inactive, task));
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.End, task));
 					resolve({ exitCode });
