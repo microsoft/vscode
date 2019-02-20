@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+export const LANGUAGE_DEFAULT = 'en';
+
 let _isWindows = false;
 let _isMacintosh = false;
 let _isLinux = false;
 let _isNative = false;
 let _isWeb = false;
 let _locale: string | undefined = undefined;
-let _language: string | undefined = undefined;
+let _language: string = LANGUAGE_DEFAULT;
 let _translationsConfigFile: string | undefined = undefined;
 
 interface NLSConfig {
@@ -41,8 +43,6 @@ interface INavigator {
 }
 declare let navigator: INavigator;
 declare let self: any;
-
-export const LANGUAGE_DEFAULT = 'en';
 
 const isElectronRenderer = (typeof process !== 'undefined' && typeof process.versions !== 'undefined' && typeof process.versions.electron !== 'undefined' && process.type === 'renderer');
 
