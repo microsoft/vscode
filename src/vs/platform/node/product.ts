@@ -56,6 +56,7 @@ export interface IProductConfiguration {
 	};
 	documentationUrl: string;
 	releaseNotesUrl: string;
+	remoteBasedExtensionTips: { [id: string]: string; };
 	keyboardShortcutsUrlMac: string;
 	keyboardShortcutsUrlLinux: string;
 	keyboardShortcutsUrlWin: string;

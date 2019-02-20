@@ -121,7 +121,7 @@ function extractDomain(url: string): string | null {
 	return null;
 }
 
-export function getDomainsOfRemotes(text: string, whitelist: string[]): string[] {
+export function getDomainsOfRemotes(text: string, whitelist: string[] = SecondLevelDomainWhitelist): string[] {
 	const domains = new Set<string>();
 	let match: RegExpExecArray | null;
 	while (match = RemoteMatcher.exec(text)) {

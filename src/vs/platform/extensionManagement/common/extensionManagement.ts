@@ -287,7 +287,8 @@ export type DynamicRecommendation = 'dynamic';
 export type ExecutableRecommendation = 'executable';
 export type CachedRecommendation = 'cached';
 export type ApplicationRecommendation = 'application';
-export type ExtensionRecommendationSource = IWorkspace | IWorkspaceFolder | URI | DynamicRecommendation | ExecutableRecommendation | CachedRecommendation | ApplicationRecommendation;
+export type GitRemoteRecommendation = 'remote';
+export type ExtensionRecommendationSource = IWorkspace | IWorkspaceFolder | URI | DynamicRecommendation | ExecutableRecommendation | CachedRecommendation | ApplicationRecommendation | GitRemoteRecommendation;
 
 export interface IExtensionRecommendation {
 	extensionId: string;
@@ -313,6 +314,7 @@ export const enum ExtensionRecommendationReason {
 	File,
 	Executable,
 	DynamicWorkspace,
+	GitRemote,
 	Experimental
 }
 

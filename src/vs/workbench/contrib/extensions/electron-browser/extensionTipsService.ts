@@ -31,7 +31,7 @@ import { flatten, distinct, shuffle, coalesce } from 'vs/base/common/arrays';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { guessMimeTypes, MIME_UNKNOWN } from 'vs/base/common/mime';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { getHashedRemotesFromUri } from 'vs/workbench/contrib/stats/node/workspaceStats';
+import { getHashedRemotesFromUri, getDomainsOfRemotes } from 'vs/workbench/contrib/stats/node/workspaceStats';
 import { IRequestService } from 'vs/platform/request/node/request';
 import { asJson } from 'vs/base/node/request';
 import { isNumber } from 'vs/base/common/types';
@@ -75,6 +75,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 	private _fileBasedRecommendations: { [id: string]: { recommendedTime: number, sources: ExtensionRecommendationSource[] }; } = Object.create(null);
 	private _exeBasedRecommendations: { [id: string]: string; } = Object.create(null);
+	private _gitRemoteBasedRecommendations: string[] = [];
 	private _availableRecommendations: { [pattern: string]: string[] } = Object.create(null);
 	private _allWorkspaceRecommendedExtensions: IExtensionRecommendation[] = [];
 	private _dynamicWorkspaceRecommendations: string[] = [];
@@ -187,6 +188,11 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				reasonText: localize('dynamicWorkspaceRecommendation', "This extension may interest you because it's popular among users of the {0} repository.", currentRepo)
 			});
 		}
+
+		this._gitRemoteBasedRecommendations.forEach(id => output[id.toLowerCase()] = {
+			reasonId: ExtensionRecommendationReason.GitRemote,
+			reasonText: localize('gitRemoteBasedRecommendation', "This extension is recommended based on the git remotes you have in your workspace.")
+		});
 
 		forEach(this._exeBasedRecommendations, entry => output[entry.key.toLowerCase()] = {
 			reasonId: ExtensionRecommendationReason.Executable,
@@ -829,6 +835,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		return this.fetchProactiveRecommendations().then(() => {
 			const others = distinct([
 				...Object.keys(this._exeBasedRecommendations),
+				...this._gitRemoteBasedRecommendations,
 				...this._dynamicWorkspaceRecommendations,
 				...Object.keys(this._experimentalRecommendations),
 			]).filter(extensionId => this.isExtensionAllowedToBeRecommended(extensionId));
@@ -837,6 +844,9 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				const sources: ExtensionRecommendationSource[] = [];
 				if (this._exeBasedRecommendations[extensionId]) {
 					sources.push('executable');
+				}
+				if (this._dynamicWorkspaceRecommendations.indexOf(extensionId) !== -1) {
+					sources.push('remote');
 				}
 				if (this._dynamicWorkspaceRecommendations.indexOf(extensionId) !== -1) {
 					sources.push('dynamic');
@@ -856,12 +866,45 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 			fetchPromise = new Promise((c, e) => {
 				setTimeout(() => {
-					Promise.all([this.fetchExecutableRecommendations(), this.fetchDynamicWorkspaceRecommendations()]).then(() => c(undefined));
+					Promise.all([this.fetchExecutableRecommendations(), this.fetchGitRemoteRecommendations(), this.fetchDynamicWorkspaceRecommendations()]).then(() => c(undefined));
 				}, calledDuringStartup ? 10000 : 0);
 			});
 
 		}
 		return fetchPromise;
+	}
+
+
+	/**
+	 * If the workspace has a remote matching a pattern listed in product.remoteBasedExtensionTips, fetch corresponding recommendations
+	 */
+	private fetchGitRemoteRecommendations(): Promise<void> {
+		const workspaceUris = this.contextService.getWorkspace().folders.map(folder => folder.uri);
+		return Promise.all<string[]>(workspaceUris.map(workspaceUri => {
+			const path = workspaceUri.path;
+			const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/.git/config` });
+			return this.fileService.resolveFile(uri).then(() => {
+				return this.fileService.resolveContent(uri, { acceptTextOnly: true }).then(
+					content => getDomainsOfRemotes(content.value),
+					err => [] // ignore missing or binary file
+				);
+			}, err => []);
+		})).then(domains => {
+			const set = domains.reduce((set, list) => list.reduce((set, item) => set.add(item), set), new Set<string>());
+			const list: string[] = [];
+			set.forEach(item => list.push(item));
+
+			forEach(product.remoteBasedExtensionTips, entry => {
+				const matchesDomain = list.some(domain => {
+					const pattern = new RegExp(entry.value);
+					return pattern.test(domain);
+				});
+
+				if (matchesDomain) {
+					this._gitRemoteBasedRecommendations.push(entry.key);
+				}
+			});
+		});
 	}
 
 	/**
