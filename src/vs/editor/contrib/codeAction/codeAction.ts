@@ -28,10 +28,6 @@ export function getCodeActions(
 		trigger: trigger.type === 'manual' ? CodeActionTriggerKind.Manual : CodeActionTriggerKind.Automatic
 	};
 
-	if (filter.kind && CodeActionKind.Source.contains(filter.kind) && rangeOrSelection.isEmpty()) {
-		rangeOrSelection = model.getFullModelRange();
-	}
-
 	const promises = getCodeActionProviders(model, filter).map(provider => {
 		return Promise.resolve(provider.provideCodeActions(model, rangeOrSelection, codeActionContext, token)).then(providedCodeActions => {
 			if (!Array.isArray(providedCodeActions)) {
