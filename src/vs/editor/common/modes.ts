@@ -1317,7 +1317,7 @@ export interface DocumentCommentProvider {
 	deleteReaction?(resource: URI, comment: Comment, reaction: CommentReaction, token: CancellationToken): Promise<void>;
 	reactionGroup?: CommentReaction[];
 
-	onDidChangeCommentThreads(): Event<CommentThreadChangedEvent>;
+	onDidChangeCommentThreads?(): Event<CommentThreadChangedEvent>;
 }
 
 /**

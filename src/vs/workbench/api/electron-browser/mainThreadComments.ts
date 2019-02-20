@@ -75,7 +75,7 @@ export class MainThreadDocumentCommentProvider implements modes.DocumentCommentP
 	}
 
 
-	onDidChangeCommentThreads = null;
+	// onDidChangeCommentThreads = null;
 }
 
 @extHostNamedCustomer(MainContext.MainThreadComments)
@@ -129,8 +129,10 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 						});
 					});
 
-					this._openPanelListener.dispose();
-					this._openPanelListener = null;
+					if (this._openPanelListener) {
+						this._openPanelListener.dispose();
+						this._openPanelListener = null;
+					}
 				}
 			});
 		}
