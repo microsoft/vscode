@@ -755,7 +755,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				uri: folders[index].uri
 			};
 			if (target instanceof ExplorerItem && folders[index].uri.toString() === target.resource.toString()) {
-				targetIndex = workspaceCreationData.length;
+				targetIndex = index;
 			}
 
 			if (roots.every(r => r.resource.toString() !== folders[index].uri.toString())) {
