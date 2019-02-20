@@ -193,13 +193,13 @@ suite('Editor service', () => {
 		const fileInput1Again = service.createInput({ resource: fileResource1 });
 		assert.equal(fileInput1Again, fileInput1);
 
-		fileInput1Again.dispose();
+		fileInput1Again!.dispose();
 
-		assert.ok(fileInput1.isDisposed());
+		assert.ok(fileInput1!.isDisposed());
 
 		const fileInput1AgainAndAgain = service.createInput({ resource: fileResource1 });
 		assert.notEqual(fileInput1AgainAndAgain, fileInput1);
-		assert.ok(!fileInput1AgainAndAgain.isDisposed());
+		assert.ok(!fileInput1AgainAndAgain!.isDisposed());
 
 		// Cached Input (Resource)
 		const resource1 = URI.from({ scheme: 'custom', path: '/foo/bar/cache1.js' });
@@ -215,13 +215,13 @@ suite('Editor service', () => {
 		const input1Again = service.createInput({ resource: resource1 });
 		assert.equal(input1Again, input1);
 
-		input1Again.dispose();
+		input1Again!.dispose();
 
-		assert.ok(input1.isDisposed());
+		assert.ok(input1!.isDisposed());
 
 		const input1AgainAndAgain = service.createInput({ resource: resource1 });
 		assert.notEqual(input1AgainAndAgain, input1);
-		assert.ok(!input1AgainAndAgain.isDisposed());
+		assert.ok(!input1AgainAndAgain!.isDisposed());
 	});
 
 	test('createInput', function () {
@@ -260,7 +260,7 @@ suite('Editor service', () => {
 		class MyEditor extends BaseEditor {
 
 			constructor(id: string) {
-				super(id, undefined, new TestThemeService(), new TestStorageService());
+				super(id, undefined!, new TestThemeService(), new TestStorageService());
 			}
 
 			getId(): string {
