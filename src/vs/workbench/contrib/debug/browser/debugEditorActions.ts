@@ -299,8 +299,8 @@ registerEditorAction(GoToPreviousBreakpointAction);
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: RunToCursorAction.ID,
-		title: RunToCursorAction.LABEL,
-		category: 'Debug'
+		title: { value: RunToCursorAction.LABEL, original: 'Debug: Run to Cursor' },
+		category: nls.localize('debug', "Debug")
 	},
 	group: 'debug',
 	when: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEqualTo('stopped')),
