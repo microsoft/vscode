@@ -197,8 +197,8 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			}
 
 			const extensionDescription = await this._extensionScanner.scanSingleExtension(extension.location.fsPath, extension.type === ExtensionType.System, this.createLogger());
-			if (!extensionDescription || !this._usesOnlyDynamicExtensionPoints(extensionDescription)) {
-				// uses non-dynamic extension point
+			if (!extensionDescription) {
+				// could not scan extension...
 				continue;
 			}
 
@@ -271,22 +271,6 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		}
 	}
 
-	private _usesOnlyDynamicExtensionPoints(extension: IExtensionDescription): boolean {
-		const extensionPoints = ExtensionsRegistry.getExtensionPointsMap();
-		if (extension.contributes) {
-			for (let extPointName in extension.contributes) {
-				if (hasOwnProperty.call(extension.contributes, extPointName)) {
-					const extPoint = extensionPoints[extPointName];
-					if (extPoint && !extPoint.isDynamic) {
-						return false;
-					}
-				}
-			}
-		}
-
-		return true;
-	}
-
 	public canAddExtension(extension: IExtensionDescription): boolean {
 		if (this._windowService.getConfiguration().remoteAuthority) {
 			return false;
@@ -304,7 +288,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			}
 		}
 
-		return this._usesOnlyDynamicExtensionPoints(extension);
+		return true;
 	}
 
 	public canRemoveExtension(extension: IExtensionDescription): boolean {
@@ -331,7 +315,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			return false;
 		}
 
-		return this._usesOnlyDynamicExtensionPoints(extension);
+		return true;
 	}
 
 	private async _activateAddedExtensionIfNeeded(extensionDescription: IExtensionDescription): Promise<void> {

@@ -282,8 +282,7 @@ let _commandRegistrations: IDisposable[] = [];
 
 ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlyCommand | schema.IUserFriendlyCommand[]>({
 	extensionPoint: 'commands',
-	jsonSchema: schema.commandsContribution,
-	isDynamic: true
+	jsonSchema: schema.commandsContribution
 }).setHandler(extensions => {
 
 	function handleCommand(userFriendlyCommand: schema.IUserFriendlyCommand, extension: IExtensionPointUser<any>, disposables: IDisposable[]) {
@@ -332,8 +331,7 @@ let _menuRegistrations: IDisposable[] = [];
 
 ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyMenuItem[] }>({
 	extensionPoint: 'menus',
-	jsonSchema: schema.menusContribtion,
-	isDynamic: true
+	jsonSchema: schema.menusContribtion
 }).setHandler(extensions => {
 
 	// remove all previous menu registrations
