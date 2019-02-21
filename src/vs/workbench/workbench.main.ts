@@ -60,9 +60,9 @@ import 'vs/workbench/contrib/logs/electron-browser/logs.contribution';
 import 'vs/workbench/contrib/quickopen/browser/quickopen.contribution';
 
 // Explorer
-import 'vs/workbench/contrib/files/electron-browser/explorerViewlet';
-import 'vs/workbench/contrib/files/electron-browser/fileActions.contribution';
-import 'vs/workbench/contrib/files/electron-browser/files.contribution';
+import 'vs/workbench/contrib/files/browser/explorerViewlet';
+import 'vs/workbench/contrib/files/browser/fileActions.contribution';
+import 'vs/workbench/contrib/files/browser/files.contribution';
 
 // Backup
 import 'vs/workbench/contrib/backup/common/backup.contribution';

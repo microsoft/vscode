@@ -11,7 +11,7 @@ import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiati
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ExplorerFocusCondition, FileOnDiskContentProvider, VIEWLET_ID, IExplorerService } from 'vs/workbench/contrib/files/common/files';
-import { ExplorerViewlet } from 'vs/workbench/contrib/files/electron-browser/explorerViewlet';
+import { ExplorerViewlet } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ITextFileService, ISaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
 import { toErrorMessage } from 'vs/base/common/errorMessage';

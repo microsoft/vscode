@@ -44,7 +44,7 @@ import { URI } from 'vs/base/common/uri';
 import { ITask, sequence } from 'vs/base/common/async';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
-import { findValidPasteFileTarget } from 'vs/workbench/contrib/files/electron-browser/fileActions';
+import { findValidPasteFileTarget } from 'vs/workbench/contrib/files/browser/fileActions';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {

@@ -9,8 +9,7 @@ import { localize } from 'vs/nls';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IDecorationsProvider, IDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
 import { listInvalidItemForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IDisposable } from 'vscode-xterm';
-import { dispose } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IExplorerService } from 'vs/workbench/contrib/files/common/files';
 
 export class ExplorerDecorationsProvider implements IDecorationsProvider {

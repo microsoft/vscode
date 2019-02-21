@@ -16,7 +16,7 @@ import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as 
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { OpenRecentAction } from 'vs/workbench/electron-browser/actions/windowActions';
-import { GlobalNewUntitledFileAction } from 'vs/workbench/contrib/files/electron-browser/fileActions';
+import { GlobalNewUntitledFileAction } from 'vs/workbench/contrib/files/browser/fileActions';
 import { OpenFolderAction, OpenFileFolderAction, OpenFileAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { ShowAllCommandsAction } from 'vs/workbench/contrib/quickopen/browser/commandsHandler';
 import { Parts, IPartService, IDimension } from 'vs/workbench/services/part/common/partService';
