@@ -820,22 +820,31 @@ export class DebugModel implements IDebugModel {
 		}
 	}
 
-	fetchCallStack(thread: Thread): Promise<void> {
+	fetchCallStack(thread: Thread): { topCallStack: Promise<void>, wholeCallStack: Promise<void> } {
 		if (thread.session.capabilities.supportsDelayedStackTraceLoading) {
 			// For improved performance load the first stack frame and then load the rest async.
-			return thread.fetchCallStack(1).then(() => {
-				if (!this.schedulers.has(thread.getId())) {
-					this.schedulers.set(thread.getId(), new RunOnceScheduler(() => {
-						thread.fetchCallStack(19).then(() => this._onDidChangeCallStack.fire());
-					}, 420));
-				}
+			let topCallStack: Promise<void>;
+			const wholeCallStack = new Promise<void>((c, e) => {
+				topCallStack = thread.fetchCallStack(1).then(() => {
+					if (!this.schedulers.has(thread.getId())) {
+						this.schedulers.set(thread.getId(), new RunOnceScheduler(() => {
+							thread.fetchCallStack(19).then(() => {
+								this._onDidChangeCallStack.fire();
+								c();
+							});
+						}, 420));
+					}
 
-				this.schedulers.get(thread.getId())!.schedule();
+					this.schedulers.get(thread.getId())!.schedule();
+				});
 				this._onDidChangeCallStack.fire();
 			});
+
+			return { topCallStack, wholeCallStack };
 		}
 
-		return thread.fetchCallStack();
+		const wholeCallStack = thread.fetchCallStack();
+		return { wholeCallStack, topCallStack: wholeCallStack };
 	}
 
 	getBreakpoints(filter?: { uri?: uri, lineNumber?: number, column?: number, enabledOnly?: boolean }): IBreakpoint[] {
