@@ -219,6 +219,11 @@ export class MenubarControl extends Disposable {
 		const hasBeenNotified = this.storageService.getBoolean('menubar/linuxTitlebarRevertNotified', StorageScope.GLOBAL, false);
 		const titleBarConfiguration = this.configurationService.inspect('window.titleBarStyle');
 		const customShown = getTitleBarStyle(this.configurationService, this.environmentService) === 'custom';
+
+		if (!hasBeenNotified) {
+			this.storageService.store('menubar/linuxTitlebarRevertNotified', true, StorageScope.GLOBAL);
+		}
+
 		if (isNewUser || hasBeenNotified || (titleBarConfiguration && titleBarConfiguration.user) || customShown) {
 			return;
 		}
@@ -238,8 +243,6 @@ export class MenubarControl extends Disposable {
 				}
 			}
 		]);
-
-		this.storageService.store('menubar/linuxTitlebarRevertNotified', true, StorageScope.GLOBAL);
 	}
 
 	private notifyUserOfCustomMenubarAccessibility(): void {
