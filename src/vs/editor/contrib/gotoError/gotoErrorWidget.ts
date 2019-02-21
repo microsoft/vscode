@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./gotoErrorWidget';
+import 'vs/css!./media/gotoErrorWidget';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -270,13 +270,20 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 		let position = editorPosition && range.containsPosition(editorPosition) ? editorPosition : range.getStartPosition();
 		super.show(position, this.computeRequiredHeight());
 
-		const detail = markerCount > 1
-			? nls.localize('problems', "{0} of {1} problems", markerIdx, markerCount)
-			: nls.localize('change', "{0} of {1} problem", markerIdx, markerCount);
 		const model = this.editor.getModel();
 		if (model) {
+			const detail = markerCount > 1
+				? nls.localize('problems', "{0} of {1} problems", markerIdx, markerCount)
+				: nls.localize('change', "{0} of {1} problem", markerIdx, markerCount);
 			this.setTitle(basename(model.uri), detail);
 		}
+		let headingIconClassName = 'error';
+		if (this._severity === MarkerSeverity.Warning) {
+			headingIconClassName = 'warning';
+		} else if (this._severity === MarkerSeverity.Info) {
+			headingIconClassName = 'info';
+		}
+		this.setTitleIcon(headingIconClassName);
 
 		this.editor.revealPositionInCenter(position, ScrollType.Smooth);
 

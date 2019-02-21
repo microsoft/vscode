@@ -5,6 +5,30 @@
 
 /* marker zone */
 
+.monaco-editor .peekview-widget .head .peekview-title .icon.warning {
+	background: url('status-warning.svg') center center no-repeat;
+}
+
+.monaco-editor .peekview-widget .head .peekview-title .icon.error {
+	background: url('status-error.svg') center center no-repeat;
+}
+
+.monaco-editor .peekview-widget .head .peekview-title .icon.info {
+	background: url('status-info.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-editor .peekview-widget .head .peekview-title .icon.warning {
+	background: url('status-warning-inverse.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-editor .peekview-widget .head .peekview-title .icon.error {
+	background: url('status-error-inverse.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-editor .peekview-widget .head .peekview-title .icon.info {
+	background: url('status-info-inverse.svg') center center no-repeat;
+}
+
 .monaco-editor .marker-widget {
 	padding: 8px 12px 0px 20px;
 	text-overflow: ellipsis;
