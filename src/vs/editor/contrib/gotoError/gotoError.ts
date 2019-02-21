@@ -248,8 +248,8 @@ export class MarkerController implements editorCommon.IEditorContribution {
 		const prevMarkerKeybinding = this._keybindingService.lookupKeybinding(PrevMarkerAction.ID);
 		const nextMarkerKeybinding = this._keybindingService.lookupKeybinding(NextMarkerAction.ID);
 		const actions = [
-			new Action(PrevMarkerAction.ID, PrevMarkerAction.LABEL + (prevMarkerKeybinding ? ` (${prevMarkerKeybinding.getLabel()})` : ''), 'show-previous-problem octicon octicon-chevron-up', this._model.canNavigate(), async () => { if (this._model) { this._model.move(false, true); } }),
-			new Action(NextMarkerAction.ID, NextMarkerAction.LABEL + (nextMarkerKeybinding ? ` (${nextMarkerKeybinding.getLabel()})` : ''), 'show-next-problem octicon octicon-chevron-down', this._model.canNavigate(), async () => { if (this._model) { this._model.move(true, true); } })
+			new Action(PrevMarkerAction.ID, PrevMarkerAction.LABEL + (prevMarkerKeybinding ? ` (${prevMarkerKeybinding.getLabel()})` : ''), 'show-previous-problem chevron-up', this._model.canNavigate(), async () => { if (this._model) { this._model.move(false, true); } }),
+			new Action(NextMarkerAction.ID, NextMarkerAction.LABEL + (nextMarkerKeybinding ? ` (${nextMarkerKeybinding.getLabel()})` : ''), 'show-next-problem chevron-down', this._model.canNavigate(), async () => { if (this._model) { this._model.move(true, true); } })
 		];
 		this._widget = new MarkerNavigationWidget(this._editor, actions, this._themeService);
 		this._widgetVisible.set(true);

@@ -81,3 +81,27 @@
 	background: url('close-inverse.svg') center center no-repeat;
 }
 
+.monaco-editor .peekview-widget .peekview-actions .icon.chevron-up {
+	background: url('chevron-up-inverse.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-editor .peekview-widget .peekview-actions .icon.chevron-up {
+	background: url('chevron-up.svg') center center no-repeat;
+}
+
+.hc-black .monaco-editor .peekview-widget .peekview-actions .icon.chevron-up {
+	background: url('chevron-up-inverse-hc.svg') center center no-repeat;
+}
+
+.monaco-editor .peekview-widget .peekview-actions .icon.chevron-down {
+	background: url('chevron-down-inverse.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-editor .peekview-widget .peekview-actions .icon.chevron-down {
+	background: url('chevron-down.svg') center center no-repeat;
+}
+
+.hc-black .monaco-editor .peekview-widget .peekview-actions .icon.chevron-down {
+	background: url('chevron-down-inverse-hc.svg') center center no-repeat;
+}
+
