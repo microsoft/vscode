@@ -56,8 +56,20 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			return;
 		}
 
-		const updateChannel = this.configurationService.getValue<string>('update.channel');
-		const quality = this.getProductQuality(updateChannel);
+		const updateModeSetting = this.configurationService.inspect<string>('update.mode');
+		const updateChannelSetting = this.configurationService.inspect<string>('update.channel');
+
+		let updateMode: string;
+
+		if (typeof updateModeSetting.user !== 'undefined') {
+			updateMode = updateModeSetting.user;
+		} else if (typeof updateChannelSetting.user !== 'undefined') {
+			updateMode = updateChannelSetting.user;
+		} else {
+			updateMode = updateModeSetting.default;
+		}
+
+		const quality = this.getProductQuality(updateMode);
 
 		if (!quality) {
 			this.logService.info('update#ctor - updates are disabled by user preference');
@@ -72,7 +84,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 
 		this.setState(State.Idle(this.getUpdateType()));
 
-		if (updateChannel === 'manual') {
+		if (updateMode === 'manual') {
 			this.logService.info('update#ctor - manual checks only; automatic updates are disabled by user preference');
 			return;
 		}
@@ -81,8 +93,8 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		this.scheduleCheckForUpdates(30 * 1000).then(undefined, err => this.logService.error(err));
 	}
 
-	private getProductQuality(updateChannel: string): string | undefined {
-		return updateChannel === 'none' ? undefined : product.quality;
+	private getProductQuality(updateMode: string): string | undefined {
+		return updateMode === 'none' ? undefined : product.quality;
 	}
 
 	private scheduleCheckForUpdates(delay = 60 * 60 * 1000): Promise<void> {
