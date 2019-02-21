@@ -97,7 +97,7 @@ function getMacMachineId(): Promise<string> {
 				// TODO@sbatten: Remove this when getmac is patched
 				setTimeout(() => {
 					resolve(undefined);
-				}, 1000);
+				}, 10000);
 			} catch (err) {
 				errors.onUnexpectedError(err);
 				resolve(undefined);
