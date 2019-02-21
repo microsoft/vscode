@@ -24,7 +24,7 @@ export class FileListener extends Disposable {
 
 	private watching: boolean = false;
 	private delayer: ThrottledDelayer<void>;
-	private etag: string | null;
+	private etag: string | undefined;
 
 	constructor(
 		private readonly file: URI,
@@ -34,7 +34,7 @@ export class FileListener extends Disposable {
 		this.delayer = new ThrottledDelayer<void>(500);
 	}
 
-	watch(eTag: string | null): void {
+	watch(eTag?: string): void {
 		if (!this.watching) {
 			this.etag = eTag;
 			this.poll();

@@ -211,7 +211,7 @@ class FileServiceBasedWorkspaceConfiguration extends AbstractWorkspaceConfigurat
 
 	private workspaceConfig: URI | null = null;
 	private readonly reloadConfigurationScheduler: RunOnceScheduler;
-	private fileListener: FileListener;
+	private fileListener: FileListener | null;
 	private fileListenerDisposables: IDisposable[] = [];
 
 	constructor(private fileService: IFileService, from?: AbstractWorkspaceConfiguration) {
@@ -242,7 +242,7 @@ class FileServiceBasedWorkspaceConfiguration extends AbstractWorkspaceConfigurat
 		if (this.workspaceConfig) {
 			this.fileListener = new FileListener(this.workspaceConfig, this.fileService);
 			this.fileListenerDisposables.push(this.fileListener);
-			this.fileListener.watch(null);
+			this.fileListener.watch();
 			this.fileListener.onDidContentChange(() => this.reloadConfigurationScheduler.schedule(), this, this.fileListenerDisposables);
 		}
 	}
