@@ -53,7 +53,7 @@ export abstract class Panel implements IView {
 	private _maximumBodySize: number;
 	private ariaHeaderLabel: string;
 	private styles: IPanelStyles = {};
-	private animationTimer: number | null = null;
+	private animationTimer: number | undefined = undefined;
 
 	private _onDidChange = new Emitter<number | undefined>();
 	readonly onDidChange: Event<number | undefined> = this._onDidChange.event;
@@ -379,7 +379,7 @@ export class PanelView extends Disposable {
 	private panelItems: IPanelItem[] = [];
 	private width: number;
 	private splitview: SplitView;
-	private animationTimer: number | null = null;
+	private animationTimer: number | undefined = undefined;
 
 	private _onDidDrop = this._register(new Emitter<{ from: Panel, to: Panel }>());
 	readonly onDidDrop: Event<{ from: Panel, to: Panel }> = this._onDidDrop.event;
@@ -481,7 +481,7 @@ export class PanelView extends Disposable {
 		addClass(this.el, 'animated');
 
 		this.animationTimer = window.setTimeout(() => {
-			this.animationTimer = null;
+			this.animationTimer = undefined;
 			removeClass(this.el, 'animated');
 		}, 200);
 	}
