@@ -24,14 +24,14 @@ export interface IFocusTracker {
 
 export class MainThreadTextEditorProperties {
 
-	public static readFromEditor(previousProperties: MainThreadTextEditorProperties, model: ITextModel, codeEditor: ICodeEditor): MainThreadTextEditorProperties {
+	public static readFromEditor(previousProperties: MainThreadTextEditorProperties | null, model: ITextModel, codeEditor: ICodeEditor | null): MainThreadTextEditorProperties {
 		const selections = MainThreadTextEditorProperties._readSelectionsFromCodeEditor(previousProperties, codeEditor);
 		const options = MainThreadTextEditorProperties._readOptionsFromCodeEditor(previousProperties, model, codeEditor);
 		const visibleRanges = MainThreadTextEditorProperties._readVisibleRangesFromCodeEditor(previousProperties, codeEditor);
 		return new MainThreadTextEditorProperties(selections, options, visibleRanges);
 	}
 
-	private static _readSelectionsFromCodeEditor(previousProperties: MainThreadTextEditorProperties, codeEditor: ICodeEditor): Selection[] {
+	private static _readSelectionsFromCodeEditor(previousProperties: MainThreadTextEditorProperties | null, codeEditor: ICodeEditor | null): Selection[] {
 		let result: Selection[] | null = null;
 		if (codeEditor) {
 			result = codeEditor.getSelections();
@@ -45,10 +45,14 @@ export class MainThreadTextEditorProperties {
 		return result;
 	}
 
-	private static _readOptionsFromCodeEditor(previousProperties: MainThreadTextEditorProperties, model: ITextModel, codeEditor: ICodeEditor): IResolvedTextEditorConfiguration {
+	private static _readOptionsFromCodeEditor(previousProperties: MainThreadTextEditorProperties | null, model: ITextModel, codeEditor: ICodeEditor | null): IResolvedTextEditorConfiguration {
 		if (model.isDisposed()) {
-			// shutdown time
-			return previousProperties.options;
+			if (previousProperties) {
+				// shutdown time
+				return previousProperties.options;
+			} else {
+				throw new Error('No valid properties');
+			}
 		}
 
 		let cursorStyle: TextEditorCursorStyle;
@@ -80,12 +84,13 @@ export class MainThreadTextEditorProperties {
 		return {
 			insertSpaces: modelOptions.insertSpaces,
 			tabSize: modelOptions.tabSize,
+			indentSize: modelOptions.indentSize,
 			cursorStyle: cursorStyle,
 			lineNumbers: lineNumbers
 		};
 	}
 
-	private static _readVisibleRangesFromCodeEditor(previousProperties: MainThreadTextEditorProperties, codeEditor: ICodeEditor): Range[] {
+	private static _readVisibleRangesFromCodeEditor(previousProperties: MainThreadTextEditorProperties | null, codeEditor: ICodeEditor | null): Range[] {
 		if (codeEditor) {
 			return codeEditor.getVisibleRanges();
 		}
@@ -99,7 +104,7 @@ export class MainThreadTextEditorProperties {
 	) {
 	}
 
-	public generateDelta(oldProps: MainThreadTextEditorProperties, selectionChangeSource: string): IEditorPropertiesChangeData {
+	public generateDelta(oldProps: MainThreadTextEditorProperties | null, selectionChangeSource: string | null): IEditorPropertiesChangeData | null {
 		let delta: IEditorPropertiesChangeData = {
 			options: null,
 			selections: null,
@@ -109,7 +114,7 @@ export class MainThreadTextEditorProperties {
 		if (!oldProps || !MainThreadTextEditorProperties._selectionsEqual(oldProps.selections, this.selections)) {
 			delta.selections = {
 				selections: this.selections,
-				source: selectionChangeSource
+				source: selectionChangeSource || undefined
 			};
 		}
 
@@ -162,6 +167,7 @@ export class MainThreadTextEditorProperties {
 		}
 		return (
 			a.tabSize === b.tabSize
+			&& a.indentSize === b.indentSize
 			&& a.insertSpaces === b.insertSpaces
 			&& a.cursorStyle === b.cursorStyle
 			&& a.lineNumbers === b.lineNumbers
@@ -179,7 +185,7 @@ export class MainThreadTextEditor {
 	private _model: ITextModel;
 	private _modelService: IModelService;
 	private _modelListeners: IDisposable[];
-	private _codeEditor: ICodeEditor;
+	private _codeEditor: ICodeEditor | null;
 	private _focusTracker: IFocusTracker;
 	private _codeEditorListeners: IDisposable[];
 
@@ -200,7 +206,6 @@ export class MainThreadTextEditor {
 		this._modelService = modelService;
 		this._codeEditorListeners = [];
 
-		this._properties = null;
 		this._onPropertiesChanged = new Emitter<IEditorPropertiesChangeData>();
 
 		this._modelListeners = [];
@@ -213,20 +218,20 @@ export class MainThreadTextEditor {
 	}
 
 	public dispose(): void {
-		this._model = null;
+		this._model = null!;
 		this._modelListeners = dispose(this._modelListeners);
 		this._codeEditor = null;
 		this._codeEditorListeners = dispose(this._codeEditorListeners);
 	}
 
-	private _updatePropertiesNow(selectionChangeSource: string): void {
+	private _updatePropertiesNow(selectionChangeSource: string | null): void {
 		this._setProperties(
 			MainThreadTextEditorProperties.readFromEditor(this._properties, this._model, this._codeEditor),
 			selectionChangeSource
 		);
 	}
 
-	private _setProperties(newProperties: MainThreadTextEditorProperties, selectionChangeSource: string): void {
+	private _setProperties(newProperties: MainThreadTextEditorProperties, selectionChangeSource: string | null): void {
 		const delta = newProperties.generateDelta(this._properties, selectionChangeSource);
 		this._properties = newProperties;
 		if (delta) {
@@ -242,15 +247,15 @@ export class MainThreadTextEditor {
 		return this._model;
 	}
 
-	public getCodeEditor(): ICodeEditor {
+	public getCodeEditor(): ICodeEditor | null {
 		return this._codeEditor;
 	}
 
-	public hasCodeEditor(codeEditor: ICodeEditor): boolean {
+	public hasCodeEditor(codeEditor: ICodeEditor | null): boolean {
 		return (this._codeEditor === codeEditor);
 	}
 
-	public setCodeEditor(codeEditor: ICodeEditor): void {
+	public setCodeEditor(codeEditor: ICodeEditor | null): void {
 		if (this.hasCodeEditor(codeEditor)) {
 			// Nothing to do...
 			return;
@@ -318,10 +323,10 @@ export class MainThreadTextEditor {
 	}
 
 	private _setIndentConfiguration(newConfiguration: ITextEditorConfigurationUpdate): void {
+		let creationOpts = this._modelService.getCreationOptions(this._model.getLanguageIdentifier().language, this._model.uri, this._model.isForSimpleWidget);
+
 		if (newConfiguration.tabSize === 'auto' || newConfiguration.insertSpaces === 'auto') {
 			// one of the options was set to 'auto' => detect indentation
-
-			let creationOpts = this._modelService.getCreationOptions(this._model.getLanguageIdentifier().language, this._model.uri, this._model.isForSimpleWidget);
 			let insertSpaces = creationOpts.insertSpaces;
 			let tabSize = creationOpts.tabSize;
 
@@ -343,6 +348,13 @@ export class MainThreadTextEditor {
 		}
 		if (typeof newConfiguration.tabSize !== 'undefined') {
 			newOpts.tabSize = newConfiguration.tabSize;
+		}
+		if (typeof newConfiguration.indentSize !== 'undefined') {
+			if (newConfiguration.indentSize === 'tabSize') {
+				newOpts.indentSize = newOpts.tabSize || creationOpts.tabSize;
+			} else {
+				newOpts.indentSize = newConfiguration.indentSize;
+			}
 		}
 		this._model.updateOptions(newOpts);
 	}

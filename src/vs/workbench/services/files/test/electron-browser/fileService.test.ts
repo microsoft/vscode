@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import * as os from 'os';
 import * as assert from 'assert';
 import { FileService } from 'vs/workbench/services/files/electron-browser/fileService';
@@ -14,7 +14,8 @@ import * as uuid from 'vs/base/common/uuid';
 import * as pfs from 'vs/base/node/pfs';
 import * as encodingLib from 'vs/base/node/encoding';
 import * as utils from 'vs/workbench/services/files/test/electron-browser/utils';
-import { TestEnvironmentService, TestContextService, TestTextResourceConfigurationService, getRandomTestPath, TestLifecycleService, TestStorageService } from 'vs/workbench/test/workbenchTestServices';
+import { TestEnvironmentService, TestContextService, TestTextResourceConfigurationService, TestLifecycleService, TestStorageService } from 'vs/workbench/test/workbenchTestServices';
+import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';

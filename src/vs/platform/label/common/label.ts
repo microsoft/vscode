@@ -8,12 +8,9 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { basename as resourceBasename } from 'vs/base/common/resources';
-import { isLinux } from 'vs/base/common/platform';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 import { localize } from 'vs/nls';
-import { isParent } from 'vs/platform/files/common/files';
-import { basename } from 'vs/base/common/paths';
+import { isEqualOrParent, basename } from 'vs/base/common/resources';
 
 export interface ILabelService {
 	_serviceBrand: any;
@@ -22,9 +19,10 @@ export interface ILabelService {
 	 * If relative is passed returns a label relative to the workspace root that the uri belongs to.
 	 * If noPrefix is passed does not tildify the label and also does not prepand the root name for relative labels in a multi root scenario.
 	 */
-	getUriLabel(resource: URI, options?: { relative?: boolean, noPrefix?: boolean }): string;
+	getUriLabel(resource: URI, options?: { relative?: boolean, noPrefix?: boolean, endWithSeparator?: boolean }): string;
 	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IWorkspace), options?: { verbose: boolean }): string;
-	getHostLabel(): string;
+	getHostLabel(scheme: string, authority?: string): string;
+	getSeparator(scheme: string, authority?: string): '/' | '\\';
 	registerFormatter(formatter: ResourceLabelFormatter): IDisposable;
 	onDidChangeFormatters: Event<void>;
 }
@@ -32,6 +30,7 @@ export interface ILabelService {
 export interface ResourceLabelFormatter {
 	scheme: string;
 	authority?: string;
+	priority?: boolean;
 	formatting: ResourceLabelFormatting;
 }
 
@@ -46,12 +45,12 @@ export interface ResourceLabelFormatting {
 
 const LABEL_SERVICE_ID = 'label';
 
-export function getSimpleWorkspaceLabel(workspace: IWorkspaceIdentifier | URI, workspaceHome: string): string {
+export function getSimpleWorkspaceLabel(workspace: IWorkspaceIdentifier | URI, workspaceHome: URI): string {
 	if (isSingleFolderWorkspaceIdentifier(workspace)) {
-		return resourceBasename(workspace);
+		return basename(workspace);
 	}
 	// Workspace: Untitled
-	if (isParent(workspace.configPath, workspaceHome, !isLinux /* ignore case */)) {
+	if (isEqualOrParent(workspace.configPath, workspaceHome)) {
 		return localize('untitledWorkspace', "Untitled (Workspace)");
 	}
 

@@ -32,6 +32,12 @@ exports.load = function (modulePaths, resultCallback, options) {
 	const args = parseURLQueryArgs();
 	const configuration = JSON.parse(args['config'] || '{}') || {};
 
+	// Apply zoom level early to avoid glitches
+	const zoomLevel = configuration.zoomLevel;
+	if (typeof zoomLevel === 'number' && zoomLevel !== 0) {
+		webFrame.setZoomLevel(zoomLevel);
+	}
+
 	// Error handler
 	// @ts-ignore
 	process.on('uncaughtException', function (error) {
@@ -50,12 +56,6 @@ exports.load = function (modulePaths, resultCallback, options) {
 
 	// Enable ASAR support
 	bootstrap.enableASARSupport(path.join(configuration.appRoot, 'node_modules'));
-
-	// Apply zoom level early to avoid glitches
-	const zoomLevel = configuration.zoomLevel;
-	if (typeof zoomLevel === 'number' && zoomLevel !== 0) {
-		webFrame.setZoomLevel(zoomLevel);
-	}
 
 	if (options && typeof options.canModifyDOM === 'function') {
 		options.canModifyDOM(configuration);

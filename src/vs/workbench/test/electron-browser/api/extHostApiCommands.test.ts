@@ -27,10 +27,11 @@ import { MainContext, ExtHostContext } from 'vs/workbench/api/node/extHost.proto
 import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
 import * as vscode from 'vscode';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import 'vs/workbench/contrib/search/electron-browser/search.contribution';
+import 'vs/workbench/contrib/search/browser/search.contribution';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { ITextModel } from 'vs/editor/common/model';
 import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { dispose } from 'vs/base/common/lifecycle';
 
 const defaultSelector = { scheme: 'far' };
 const model: ITextModel = EditorModel.createFromString(
@@ -68,9 +69,8 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			rpcProtocol = new TestRPCProtocol();
 			instantiationService.stub(IHeapService, {
 				_serviceBrand: undefined,
-				trackRecursive(args: any) {
+				trackObject(_obj: any) {
 					// nothing
-					return args;
 				}
 			});
 			instantiationService.stub(ICommandService, {
@@ -138,10 +138,8 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		mainThread.dispose();
 	});
 
-	teardown(function () {
-		while (disposables.length) {
-			disposables.pop().dispose();
-		}
+	teardown(() => {
+		disposables = dispose(disposables);
 		return rpcProtocol.sync();
 	});
 
@@ -665,9 +663,9 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 				assert.equal(first.command!.title, 'Title');
 				assert.equal(first.command!.command, 'cmd');
-				assert.equal(first.command!.arguments[0], 1);
-				assert.equal(first.command!.arguments[1], true);
-				assert.equal(first.command!.arguments[2], complexArg);
+				assert.equal(first.command!.arguments![0], 1);
+				assert.equal(first.command!.arguments![1], true);
+				assert.equal(first.command!.arguments![2], complexArg);
 			});
 		});
 	});
@@ -797,20 +795,21 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 	// --- selection ranges
 
-	test('Links, back and forth', async function () {
+	test('Selection Range, back and forth', async function () {
 
 		disposables.push(extHost.registerSelectionRangeProvider(nullExtensionDescription, defaultSelector, <vscode.SelectionRangeProvider>{
 			provideSelectionRanges() {
-				return [
+				return [[
 					new types.SelectionRange(new types.Range(0, 10, 0, 18), types.SelectionRangeKind.Empty),
 					new types.SelectionRange(new types.Range(0, 2, 0, 20), types.SelectionRangeKind.Empty)
-				];
+				]];
 			}
 		}));
 
 		await rpcProtocol.sync();
-		let value = await commands.executeCommand<vscode.DocumentLink[]>('vscode.executeSelectionRangeProvider', model.uri, new types.Position(0, 10));
-		assert.ok(value.length >= 2);
+		let value = await commands.executeCommand<vscode.SelectionRange[][]>('vscode.executeSelectionRangeProvider', model.uri, [new types.Position(0, 10)]);
+		assert.equal(value.length, 1);
+		assert.ok(value[0].length >= 2);
 	});
 
 });

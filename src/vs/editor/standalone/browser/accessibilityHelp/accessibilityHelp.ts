@@ -30,6 +30,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { contrastBorder, editorWidgetBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 
 const CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE = new RawContextKey<boolean>('accessibilityHelpWidgetVisible', false);
 
@@ -263,13 +264,13 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 				: nls.localize("changeConfigToOnWinLinux", "To configure the editor to be optimized for usage with a Screen Reader press Control+E now.")
 		);
 		switch (opts.accessibilitySupport) {
-			case platform.AccessibilitySupport.Unknown:
+			case AccessibilitySupport.Unknown:
 				text += '\n\n - ' + turnOnMessage;
 				break;
-			case platform.AccessibilitySupport.Enabled:
+			case AccessibilitySupport.Enabled:
 				text += '\n\n - ' + nls.localize("auto_on", "The editor is configured to be optimized for usage with a Screen Reader.");
 				break;
-			case platform.AccessibilitySupport.Disabled:
+			case AccessibilitySupport.Disabled:
 				text += '\n\n - ' + nls.localize("auto_off", "The editor is configured to never be optimized for usage with a Screen Reader, which is not the case at this time.");
 				text += ' ' + turnOnMessage;
 				break;

@@ -41,7 +41,7 @@ export function getResourceForCommand(resource: URI | object, listService: IList
 		}
 	}
 
-	return toResource(editorService.activeEditor, { supportSideBySide: true });
+	return editorService.activeEditor ? toResource(editorService.activeEditor, { supportSideBySide: true }) : null;
 }
 
 export function getMultiSelectedResources(resource: URI | object, listService: IListService, editorService: IEditorService): Array<URI> {

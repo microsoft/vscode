@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as os from 'os';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
 import * as pty from 'node-pty';
 import { Event, Emitter } from 'vs/base/common/event';

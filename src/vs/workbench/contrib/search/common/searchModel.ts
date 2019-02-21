@@ -19,8 +19,8 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
-import { ReplacePattern } from 'vs/platform/search/common/replace';
-import { IFileMatch, IPatternInfo, ISearchComplete, ISearchProgressItem, ISearchService, ITextQuery, ITextSearchPreviewOptions, ITextSearchMatch, ITextSearchStats, resultIsMatch, ISearchRange, OneLineRange } from 'vs/platform/search/common/search';
+import { ReplacePattern } from 'vs/workbench/services/search/common/replace';
+import { IFileMatch, IPatternInfo, ISearchComplete, ISearchProgressItem, ISearchService, ITextQuery, ITextSearchPreviewOptions, ITextSearchMatch, ITextSearchStats, resultIsMatch, ISearchRange, OneLineRange } from 'vs/workbench/services/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { overviewRulerFindMatchForeground } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
@@ -79,6 +79,7 @@ export class Match {
 			after = this._oneLinePreviewText.substring(this._rangeInPreviewText.endColumn - 1);
 
 		before = lcut(before, 26);
+		before = before.trimLeft();
 
 		let charsRemaining = Match.MAX_PREVIEW_CHARS - before.length;
 		inside = inside.substr(0, charsRemaining);
@@ -598,7 +599,7 @@ export class FolderMatch extends BaseFolderMatch {
  * and their sort order is undefined.
  */
 export function searchMatchComparer(elementA: RenderableMatch, elementB: RenderableMatch): number {
-	if (elementA instanceof FolderMatch && elementB instanceof FolderMatch) {
+	if (elementA instanceof BaseFolderMatch && elementB instanceof BaseFolderMatch) {
 		return elementA.index() - elementB.index();
 	}
 

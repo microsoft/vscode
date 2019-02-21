@@ -14,7 +14,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { Event as CommonEvent, Emitter } from 'vs/base/common/event';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachInputBoxStyler, attachCheckboxStyler } from 'vs/platform/theme/common/styler';
-import { ContextScopedHistoryInputBox } from 'vs/platform/widget/browser/contextScopedHistoryWidget';
+import { ContextScopedHistoryInputBox } from 'vs/platform/browser/contextScopedHistoryWidget';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export interface IOptions {
@@ -36,7 +36,7 @@ export class PatternInputWidget extends Widget {
 	private ariaLabel: string;
 
 	private domNode: HTMLElement;
-	inputBox: HistoryInputBox;
+	protected inputBox: HistoryInputBox;
 
 	private _onSubmit = this._register(new Emitter<boolean>());
 	onSubmit: CommonEvent<boolean> = this._onSubmit.event;

@@ -293,6 +293,10 @@ export class ReviewZoneWidget extends ZoneWidget {
 		}
 	}
 
+	protected _onWidth(widthInPixel: number): void {
+		this._commentEditor.layout({ height: (this._commentEditor.hasWidgetFocus() ? 5 : 1) * 18, width: widthInPixel - 54 /* margin 20px * 10 + scrollbar 14px*/ });
+	}
+
 	protected _doLayout(heightInPixel: number, widthInPixel: number): void {
 		this._commentEditor.layout({ height: (this._commentEditor.hasWidgetFocus() ? 5 : 1) * 18, width: widthInPixel - 54 /* margin 20px * 10 + scrollbar 14px*/ });
 	}
@@ -354,6 +358,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 					}
 				} else {
 					this.dispose();
+					return;
 				}
 			}
 

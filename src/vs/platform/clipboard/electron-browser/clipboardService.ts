@@ -15,12 +15,12 @@ export class ClipboardService implements IClipboardService {
 
 	_serviceBrand: any;
 
-	public writeText(text: string): void {
-		clipboard.writeText(text);
+	public writeText(text: string, type?: string): void {
+		clipboard.writeText(text, type);
 	}
 
-	public readText(): string {
-		return clipboard.readText();
+	public readText(type?: string): string {
+		return clipboard.readText(type);
 	}
 
 	public readFindText(): string {

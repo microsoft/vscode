@@ -5,8 +5,8 @@
 
 import { localize } from 'vs/nls';
 import { memoize } from 'vs/base/common/decorators';
-import * as paths from 'vs/base/common/paths';
-import * as resources from 'vs/base/common/resources';
+import { basename } from 'vs/base/common/path';
+import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { EncodingMode, ConfirmResult, EditorInput, IFileEditorInput, ITextEditorModel, Verbosity, IRevertOptions } from 'vs/workbench/common/editor';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
@@ -122,7 +122,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 	getName(): string {
 		if (!this.name) {
-			this.name = resources.basenameOrAuthority(this.resource);
+			this.name = basenameOrAuthority(this.resource);
 		}
 
 		return this.decorateLabel(this.name);
@@ -130,17 +130,17 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 	@memoize
 	private get shortDescription(): string {
-		return paths.basename(this.labelService.getUriLabel(resources.dirname(this.resource)));
+		return basename(this.labelService.getUriLabel(dirname(this.resource)));
 	}
 
 	@memoize
 	private get mediumDescription(): string {
-		return this.labelService.getUriLabel(resources.dirname(this.resource), { relative: true });
+		return this.labelService.getUriLabel(dirname(this.resource), { relative: true });
 	}
 
 	@memoize
 	private get longDescription(): string {
-		return this.labelService.getUriLabel(resources.dirname(this.resource));
+		return this.labelService.getUriLabel(dirname(this.resource));
 	}
 
 	getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string {
@@ -182,6 +182,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 			case Verbosity.SHORT:
 				title = this.shortTitle;
 				break;
+			default:
 			case Verbosity.MEDIUM:
 				title = this.mediumTitle;
 				break;

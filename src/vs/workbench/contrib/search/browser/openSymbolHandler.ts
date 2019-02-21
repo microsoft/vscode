@@ -19,7 +19,7 @@ import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceSymbolProvider, getWorkspaceSymbols, IWorkspaceSymbol } from 'vs/workbench/contrib/search/common/search';
-import { basename } from 'vs/base/common/paths';
+import { basename } from 'vs/base/common/resources';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -52,7 +52,7 @@ class SymbolEntry extends EditorQuickOpenEntry {
 		const containerName = this.bearing.containerName;
 		if (this.bearing.location.uri) {
 			if (containerName) {
-				return `${containerName} — ${basename(this.bearing.location.uri.fsPath)}`;
+				return `${containerName} — ${basename(this.bearing.location.uri)}`;
 			}
 
 			return this.labelService.getUriLabel(this.bearing.location.uri, { relative: true });

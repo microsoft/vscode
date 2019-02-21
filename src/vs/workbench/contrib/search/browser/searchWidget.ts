@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -15,7 +14,6 @@ import { Action } from 'vs/base/common/actions';
 import { Delayer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import * as env from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { CONTEXT_FIND_WIDGET_NOT_VISIBLE } from 'vs/editor/contrib/find/findModel';
 import * as nls from 'vs/nls';
@@ -25,15 +23,16 @@ import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/con
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ISearchConfigurationProperties } from 'vs/platform/search/common/search';
+import { ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
 import { attachFindInputBoxStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ContextScopedFindInput, ContextScopedHistoryInputBox } from 'vs/platform/widget/browser/contextScopedHistoryWidget';
+import { ContextScopedFindInput, ContextScopedHistoryInputBox } from 'vs/platform/browser/contextScopedHistoryWidget';
 import { appendKeyBindingLabel, isSearchViewFocused } from 'vs/workbench/contrib/search/browser/searchActions';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 
 export interface ISearchWidgetOptions {
 	value?: string;
@@ -134,7 +133,8 @@ export class SearchWidget extends Widget {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly keyBindingService: IKeybindingService,
 		@IClipboardService private readonly clipboardServce: IClipboardService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
 		super();
 		this.replaceActive = Constants.ReplaceActiveKey.bindTo(this.contextKeyService);
@@ -148,7 +148,7 @@ export class SearchWidget extends Widget {
 				this.updateAccessibilitySupport();
 			}
 		});
-		browser.onDidChangeAccessibilitySupport(() => this.updateAccessibilitySupport());
+		this.accessibilityService.onDidChangeAccessibilitySupport(() => this.updateAccessibilitySupport());
 		this.updateAccessibilitySupport();
 	}
 
@@ -169,7 +169,6 @@ export class SearchWidget extends Widget {
 	}
 
 	setWidth(width: number) {
-		this.searchInput.setWidth(width);
 		this.replaceInput.width = width - 28;
 		this.replaceInput.layout();
 	}
@@ -185,7 +184,7 @@ export class SearchWidget extends Widget {
 	}
 
 	isReplaceActive(): boolean {
-		return this.replaceActive.get();
+		return !!this.replaceActive.get();
 	}
 
 	getReplaceValue(): string {
@@ -227,7 +226,7 @@ export class SearchWidget extends Widget {
 	}
 
 	searchInputHasFocus(): boolean {
-		return this.searchInputBoxFocused.get();
+		return !!this.searchInputBoxFocused.get();
 	}
 
 	replaceInputHasFocus(): boolean {
@@ -253,7 +252,7 @@ export class SearchWidget extends Widget {
 	}
 
 	private isScreenReaderOptimized() {
-		const detected = browser.getAccessibilitySupport() === env.AccessibilitySupport.Enabled;
+		const detected = this.accessibilityService.getAccessibilitySupport() === AccessibilitySupport.Enabled;
 		const config = this.configurationService.getValue<IEditorOptions>('editor').accessibilitySupport;
 		return config === 'on' || (config === 'auto' && detected);
 	}
@@ -264,10 +263,10 @@ export class SearchWidget extends Widget {
 
 	private renderToggleReplaceButton(parent: HTMLElement): void {
 		const opts: IButtonOptions = {
-			buttonBackground: null,
-			buttonBorder: null,
-			buttonForeground: null,
-			buttonHoverBackground: null
+			buttonBackground: undefined,
+			buttonBorder: undefined,
+			buttonForeground: undefined,
+			buttonHoverBackground: undefined
 		};
 		this.toggleReplaceButton = this._register(new Button(parent, opts));
 		this.toggleReplaceButton.element.setAttribute('aria-expanded', 'false');
@@ -390,7 +389,7 @@ export class SearchWidget extends Widget {
 		}
 	}
 
-	private validateSearchInput(value: string): IMessage {
+	private validateSearchInput(value: string): IMessage | null {
 		if (value.length === 0) {
 			return null;
 		}

@@ -358,13 +358,6 @@
           "description": "%format.placeOpenBraceOnNewLineForControlBlocks%",
           "scope": "resource"
         },
-        "jsDocCompletion.enabled": {
-          "type": "boolean",
-          "default": true,
-          "description": "%jsDocCompletion.enabled%",
-          "deprecationMessage": "%jsDocCompletion.deprecationMessage%",
-          "scope": "resource"
-        },
         "javascript.implicitProjectConfig.checkJs": {
           "type": "boolean",
           "default": false,
@@ -523,6 +516,18 @@
           ],
           "default": "auto",
           "description": "%typescript.preferences.importModuleSpecifier%",
+          "scope": "resource"
+        },
+        "javascript.preferences.renameShorthandProperties": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.preferences.renameShorthandProperties%",
+          "scope": "resource"
+        },
+        "typescript.preferences.renameShorthandProperties": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.preferences.renameShorthandProperties%",
           "scope": "resource"
         },
         "typescript.updateImportsOnFileMove.enabled": {

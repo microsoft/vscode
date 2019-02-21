@@ -474,7 +474,7 @@ export class ConfigurationEditingService {
 
 	private isWorkspaceConfigurationResource(resource: URI): boolean {
 		const workspace = this.contextService.getWorkspace();
-		return workspace.configuration && resource && workspace.configuration.fsPath === resource.fsPath;
+		return !!(workspace.configuration && resource && workspace.configuration.fsPath === resource.fsPath);
 	}
 
 	private getConfigurationFileResource(target: ConfigurationTarget, relativePath: string, resource: URI): URI {

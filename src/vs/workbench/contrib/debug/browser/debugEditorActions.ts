@@ -49,7 +49,7 @@ class ToggleBreakpointAction extends EditorAction {
 			return debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber }], 'debugEditorActions.toggleBreakpointAction');
 		}
 
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 
@@ -217,7 +217,7 @@ class ShowDebugHoverAction extends EditorAction {
 		const position = editor.getPosition();
 		const word = editor.getModel().getWordAtPosition(position);
 		if (!word) {
-			return Promise.resolve(null);
+			return Promise.resolve();
 		}
 
 		const range = new Range(position.lineNumber, position.column, position.lineNumber, word.endColumn);
@@ -299,8 +299,8 @@ registerEditorAction(GoToPreviousBreakpointAction);
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: RunToCursorAction.ID,
-		title: RunToCursorAction.LABEL,
-		category: 'Debug'
+		title: { value: RunToCursorAction.LABEL, original: 'Debug: Run to Cursor' },
+		category: nls.localize('debug', "Debug")
 	},
 	group: 'debug',
 	when: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEqualTo('stopped')),

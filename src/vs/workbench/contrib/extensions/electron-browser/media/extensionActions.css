@@ -31,6 +31,7 @@
 .monaco-action-bar .action-item.disabled .action-label.extension-action.install:not(.installing),
 .monaco-action-bar .action-item.disabled .action-label.extension-action.uninstall:not(.uninstalling),
 .monaco-action-bar .action-item.disabled .action-label.extension-action.update,
+.monaco-action-bar .action-item.disabled .action-label.extension-action.theme,
 .monaco-action-bar .action-item.disabled .action-label.extension-action.extension-editor-dropdown-action,
 .monaco-action-bar .action-item.disabled .action-label.extension-action.reload,
 .monaco-action-bar .action-item.disabled .action-label.disable-status.hide,

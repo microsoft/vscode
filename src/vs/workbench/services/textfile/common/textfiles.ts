@@ -236,7 +236,7 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	hasState(state: ModelState): boolean;
 
-	getETag(): string;
+	getETag(): string | null;
 
 	updatePreferredEncoding(encoding: string): void;
 
@@ -246,7 +246,7 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	revert(soft?: boolean): Promise<void>;
 
-	createSnapshot(): ITextSnapshot;
+	createSnapshot(): ITextSnapshot | null;
 
 	isDirty(): boolean;
 

@@ -14,12 +14,12 @@ configurationRegistry.registerConfiguration({
 	title: localize('updateConfigurationTitle', "Update"),
 	type: 'object',
 	properties: {
-		'update.channel': {
+		'update.mode': {
 			type: 'string',
 			enum: ['none', 'manual', 'default'],
 			default: 'default',
 			scope: ConfigurationScope.APPLICATION,
-			description: localize('updateChannel', "Configure whether you receive automatic updates from an update channel. Requires a restart after change. The updates are fetched from a Microsoft online service."),
+			description: localize('updateMode', "Configure whether you receive automatic updates. Requires a restart after change. The updates are fetched from a Microsoft online service."),
 			tags: ['usesOnlineServices'],
 			enumDescriptions: [
 				localize('none', "Disable updates."),

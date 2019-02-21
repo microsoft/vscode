@@ -63,8 +63,16 @@ export const editorSuggestWidgetHighlightForeground = registerColor('editorSugge
 
 
 const colorRegExp = /^(#([\da-f]{3}){1,2}|(rgb|hsl)a\(\s*(\d{1,3}%?\s*,\s*){3}(1|0?\.\d+)\)|(rgb|hsl)\(\s*\d{1,3}%?(\s*,\s*\d{1,3}%?){2}\s*\))$/i;
-function matchesColor(text: string): string | null {
-	return text && text.match(colorRegExp) ? text : null;
+function extractColor(item: CompletionItem, out: string[]): boolean {
+	if (item.completion.label.match(colorRegExp)) {
+		out[0] = item.completion.label;
+		return true;
+	}
+	if (typeof item.completion.documentation === 'string' && item.completion.documentation.match(colorRegExp)) {
+		out[0] = item.completion.documentation;
+		return true;
+	}
+	return false;
 }
 
 function canExpandCompletionItem(item: CompletionItem | null) {
@@ -156,11 +164,11 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 			matches: createMatches(element.score)
 		};
 
-		let color: string | null = null;
-		if (suggestion.kind === CompletionItemKind.Color && ((color = matchesColor(suggestion.label) || typeof suggestion.documentation === 'string' ? matchesColor(suggestion.documentation as any) : null))) {
+		let color: string[] = [];
+		if (suggestion.kind === CompletionItemKind.Color && extractColor(element, color)) {
 			// special logic for 'color' completion items
 			data.icon.className = 'icon customcolor';
-			data.colorspan.style.backgroundColor = color;
+			data.colorspan.style.backgroundColor = color[0];
 
 		} else if (suggestion.kind === CompletionItemKind.File && this._themeService.getIconTheme().hasFileIcons) {
 			// special logic for 'file' completion items

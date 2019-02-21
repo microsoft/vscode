@@ -5,39 +5,26 @@
 
 'use strict';
 
-/*global define*/
+//@ts-check
 
-// This module can be loaded in an amd and commonjs-context.
-// Because we want both instances to use the same perf-data
-// we store them globally
-// stores data as: 'name','timestamp'
+function _factory(sharedObj) {
 
-if (typeof define !== "function" && typeof module === "object" && typeof module.exports === "object") {
-	// this is commonjs, fake amd
-	global.define = function (_dep, callback) {
-		module.exports = callback();
-		global.define = undefined;
-	};
-}
-
-define([], function () {
-
-	global._performanceEntries = global._performanceEntries || [];
+	sharedObj._performanceEntries = sharedObj._performanceEntries || [];
 
 	const _dataLen = 2;
 	const _timeStamp = typeof console.timeStamp === 'function' ? console.timeStamp.bind(console) : () => { };
 
 	function importEntries(entries) {
-		global._performanceEntries.splice(0, 0, ...entries);
+		sharedObj._performanceEntries.splice(0, 0, ...entries);
 	}
 
 	function exportEntries() {
-		return global._performanceEntries.slice(0);
+		return sharedObj._performanceEntries.slice(0);
 	}
 
 	function getEntries() {
 		const result = [];
-		const entries = global._performanceEntries;
+		const entries = sharedObj._performanceEntries;
 		for (let i = 0; i < entries.length; i += _dataLen) {
 			result.push({
 				name: entries[i],
@@ -48,7 +35,7 @@ define([], function () {
 	}
 
 	function getEntry(name) {
-		const entries = global._performanceEntries;
+		const entries = sharedObj._performanceEntries;
 		for (let i = 0; i < entries.length; i += _dataLen) {
 			if (entries[i] === name) {
 				return {
@@ -60,7 +47,7 @@ define([], function () {
 	}
 
 	function getDuration(from, to) {
-		const entries = global._performanceEntries;
+		const entries = sharedObj._performanceEntries;
 		let target = to;
 		let endIndex = 0;
 		for (let i = entries.length - _dataLen; i >= 0; i -= _dataLen) {
@@ -79,11 +66,11 @@ define([], function () {
 	}
 
 	function mark(name) {
-		global._performanceEntries.push(name, Date.now());
+		sharedObj._performanceEntries.push(name, Date.now());
 		_timeStamp(name);
 	}
 
-	var exports = {
+	const exports = {
 		mark: mark,
 		getEntries: getEntries,
 		getEntry: getEntry,
@@ -93,4 +80,29 @@ define([], function () {
 	};
 
 	return exports;
-});
+}
+
+// This module can be loaded in an amd and commonjs-context.
+// Because we want both instances to use the same perf-data
+// we store them globally
+
+let sharedObj;
+if (typeof global === 'object') {
+	// nodejs
+	sharedObj = global;
+} else if (typeof self === 'object') {
+	// browser
+	sharedObj = self;
+} else {
+	sharedObj = {};
+}
+
+if (typeof define === 'function') {
+	// amd
+	define([], function () { return _factory(sharedObj); });
+} else if (typeof module === "object" && typeof module.exports === "object") {
+	// commonjs
+	module.exports = _factory(sharedObj);
+} else {
+	// invalid context...
+}

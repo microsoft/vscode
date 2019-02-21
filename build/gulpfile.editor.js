@@ -6,6 +6,7 @@
 const gulp = require('gulp');
 const path = require('path');
 const util = require('./lib/util');
+const task = require('./lib/task');
 const common = require('./lib/optimize');
 const es = require('event-stream');
 const File = require('vinyl');
@@ -60,7 +61,7 @@ var BUNDLED_FILE_HEADER = [
 
 const languages = i18n.defaultLanguages.concat([]);  // i18n.defaultLanguages.concat(process.env.VSCODE_QUALITY !== 'stable' ? i18n.extraLanguages : []);
 
-const extractEditorSrcTask = function () {
+const extractEditorSrcTask = task.define('extract-editor-src', () => {
 	console.log(`If the build fails, consider tweaking shakeLevel below to a lower value.`);
 	const apiusages = monacoapi.execute().usageContent;
 	const extrausages = fs.readFileSync(path.join(root, 'build', 'monaco', 'monaco.usage.recipe')).toString();
@@ -95,13 +96,11 @@ const extractEditorSrcTask = function () {
 		importIgnorePattern: /(^vs\/css!)|(promise-polyfill\/polyfill)/,
 		destRoot: path.join(root, 'out-editor-src')
 	});
-};
-extractEditorSrcTask.displayName = 'extract-editor-src';
+});
 
-const compileEditorAMDTask = compilation.compileTask('out-editor-src', 'out-editor-build', true);
-compileEditorAMDTask.displayName = 'compile-editor-amd';
+const compileEditorAMDTask = task.define('compile-editor-amd', compilation.compileTask('out-editor-src', 'out-editor-build', true));
 
-const optimizeEditorAMDTask = common.optimizeTask({
+const optimizeEditorAMDTask = task.define('optimize-editor-amd', common.optimizeTask({
 	src: 'out-editor-build',
 	entryPoints: editorEntryPoints,
 	resources: editorResources,
@@ -118,13 +117,11 @@ const optimizeEditorAMDTask = common.optimizeTask({
 	bundleInfo: true,
 	out: 'out-editor',
 	languages: languages
-});
-optimizeEditorAMDTask.displayName = 'optimize-editor-amd';
+}));
 
-const minifyEditorAMDTask = common.minifyTask('out-editor');
-minifyEditorAMDTask.displayName = 'minify-editor-amd';
+const minifyEditorAMDTask = task.define('minify-editor-amd', common.minifyTask('out-editor'));
 
-const createESMSourcesAndResourcesTask = function () {
+const createESMSourcesAndResourcesTask = task.define('extract-editor-esm', () => {
 	standalone.createESMSourcesAndResources2({
 		srcFolder: './out-editor-src',
 		outFolder: './out-editor-esm',
@@ -145,10 +142,9 @@ const createESMSourcesAndResourcesTask = function () {
 			'vs/nls.mock.ts': 'vs/nls.ts'
 		}
 	});
-};
-createESMSourcesAndResourcesTask.displayName = 'extract-editor-esm';
+});
 
-const compileEditorESMTask = function () {
+const compileEditorESMTask = task.define('compile-editor-esm', () => {
 	if (process.platform === 'win32') {
 		const result = cp.spawnSync(`..\\node_modules\\.bin\\tsc.cmd`, {
 			cwd: path.join(__dirname, '../out-editor-esm')
@@ -162,8 +158,7 @@ const compileEditorESMTask = function () {
 		console.log(result.stdout.toString());
 		console.log(result.stderr.toString());
 	}
-};
-compileEditorESMTask.displayName = 'compile-editor-esm';
+});
 
 function toExternalDTS(contents) {
 	let lines = contents.split('\n');
@@ -209,7 +204,7 @@ function filterStream(testFunc) {
 	});
 }
 
-const finalEditorResourcesTask = function () {
+const finalEditorResourcesTask = task.define('final-editor-resources', () => {
 	return es.merge(
 		// other assets
 		es.merge(
@@ -286,12 +281,11 @@ const finalEditorResourcesTask = function () {
 			return /\.js\.map$/.test(path);
 		})).pipe(gulp.dest('out-monaco-editor-core/min-maps'))
 	);
-};
-finalEditorResourcesTask.displayName = 'final-editor-resources';
+});
 
 gulp.task('editor-distro',
-	util.task.series(
-		util.task.parallel(
+	task.series(
+		task.parallel(
 			util.rimraf('out-editor-src'),
 			util.rimraf('out-editor-build'),
 			util.rimraf('out-editor-esm'),
@@ -300,13 +294,13 @@ gulp.task('editor-distro',
 			util.rimraf('out-editor-min')
 		),
 		extractEditorSrcTask,
-		util.task.parallel(
-			util.task.series(
+		task.parallel(
+			task.series(
 				compileEditorAMDTask,
 				optimizeEditorAMDTask,
 				minifyEditorAMDTask
 			),
-			util.task.series(
+			task.series(
 				createESMSourcesAndResourcesTask,
 				compileEditorESMTask
 			)
@@ -367,12 +361,10 @@ function createTscCompileTask(watch) {
 	};
 }
 
-const monacoTypecheckWatchTask = createTscCompileTask(true);
-monacoTypecheckWatchTask.displayName = 'monaco-typecheck-watch';
+const monacoTypecheckWatchTask = task.define('monaco-typecheck-watch', createTscCompileTask(true));
 exports.monacoTypecheckWatchTask = monacoTypecheckWatchTask;
 
-const monacoTypecheckTask = createTscCompileTask(false);
-monacoTypecheckTask.displayName = 'monaco-typecheck';
+const monacoTypecheckTask = task.define('monaco-typecheck', createTscCompileTask(false));
 exports.monacoTypecheckTask = monacoTypecheckTask;
 
 //#endregion

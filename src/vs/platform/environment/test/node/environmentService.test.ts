@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import { parseExtensionHostPort, parseUserDataDir } from 'vs/platform/environment/node/environmentService';
 

@@ -210,7 +210,12 @@ function minifyTask(src, sourceMapBaseUrl) {
     return cb => {
         const jsFilter = filter('**/*.js', { restore: true });
         const cssFilter = filter('**/*.css', { restore: true });
-        pump(gulp.src([src + '/**', '!' + src + '/**/*.map']), jsFilter, sourcemaps.init({ loadMaps: true }), uglifyWithCopyrights(), jsFilter.restore, cssFilter, minifyCSS({ reduceIdents: false }), cssFilter.restore, sourcemaps.write('./', {
+        pump(gulp.src([src + '/**', '!' + src + '/**/*.map']), jsFilter, sourcemaps.init({ loadMaps: true }), uglifyWithCopyrights(), jsFilter.restore, cssFilter, minifyCSS({ reduceIdents: false }), cssFilter.restore, sourcemaps.mapSources((sourcePath) => {
+            if (sourcePath === 'bootstrap-fork.js') {
+                return 'bootstrap-fork.orig.js';
+            }
+            return sourcePath;
+        }), sourcemaps.write('./', {
             sourceMappingURL,
             sourceRoot: undefined,
             includeContent: true,

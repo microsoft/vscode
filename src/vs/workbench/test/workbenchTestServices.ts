@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/workbench/contrib/files/electron-browser/files.contribution'; // load our contribution into the test
+import 'vs/workbench/contrib/files/browser/files.contribution'; // load our contribution into the test
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import * as paths from 'vs/base/common/paths';
+import { join } from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -37,12 +37,11 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IInstantiationService, ServicesAccessor, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IWindowsService, IWindowService, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IWindowConfiguration, MenuBarVisibility } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IWindowConfiguration, MenuBarVisibility, IURIToOpen } from 'vs/platform/windows/common/windows';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { generateUuid } from 'vs/base/common/uuid';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
@@ -61,8 +60,8 @@ import { IExtensionService, NullExtensionService } from 'vs/workbench/services/e
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IDecorationsService, IResourceDecorationChangeEvent, IDecoration, IDecorationData, IDecorationsProvider } from 'vs/workbench/services/decorations/browser/decorations';
 import { IDisposable, toDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { IEditorGroupsService, IEditorGroup, GroupsOrder, GroupsArrangement, GroupDirection, IAddGroupOptions, IMergeGroupOptions, IMoveEditorOptions, ICopyEditorOptions, IEditorReplacement, IGroupChangeEvent, EditorsOrder, IFindGroupScope, EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService, IOpenEditorOverrideHandler } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupsService, IEditorGroup, GroupsOrder, GroupsArrangement, GroupDirection, IAddGroupOptions, IMergeGroupOptions, IMoveEditorOptions, ICopyEditorOptions, IEditorReplacement, IGroupChangeEvent, EditorsOrder, IFindGroupScope, EditorGroupLayout, ICloseEditorOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorService, IOpenEditorOverrideHandler, IActiveEditor } from 'vs/workbench/services/editor/common/editorService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
@@ -163,7 +162,7 @@ export class TestContextService implements IWorkspaceContextService {
 	}
 
 	public toResource(workspaceRelativePath: string): URI {
-		return URI.file(paths.join('C:\\', workspaceRelativePath));
+		return URI.file(join('C:\\', workspaceRelativePath));
 	}
 
 	public isCurrentWorkspace(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): boolean {
@@ -179,21 +178,45 @@ export class TestTextFileService extends TextFileService {
 	private resolveTextContentError: FileOperationError | null;
 
 	constructor(
-		@ILifecycleService lifecycleService: ILifecycleService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IFileService fileService: IFileService,
+		@IFileService protected fileService: IFileService,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
+		@ILifecycleService lifecycleService: ILifecycleService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IModeService modeService: IModeService,
+		@IModelService modelService: IModelService,
+		@IWindowService windowService: IWindowService,
+		@IEnvironmentService environmentService: IEnvironmentService,
 		@INotificationService notificationService: INotificationService,
 		@IBackupFileService backupFileService: IBackupFileService,
 		@IWindowsService windowsService: IWindowsService,
-		@IWindowService windowService: IWindowService,
 		@IHistoryService historyService: IHistoryService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IModelService modelService: IModelService
+		@IDialogService dialogService: IDialogService,
+		@IFileDialogService fileDialogService: IFileDialogService,
+		@IEditorService editorService: IEditorService
 	) {
-		super(lifecycleService, contextService, configurationService, fileService, untitledEditorService, instantiationService, notificationService, TestEnvironmentService, backupFileService, windowsService, windowService, historyService, contextKeyService, modelService);
+		super(
+			contextService,
+			fileService,
+			untitledEditorService,
+			lifecycleService,
+			instantiationService,
+			configurationService,
+			modeService,
+			modelService,
+			windowService,
+			environmentService,
+			notificationService,
+			backupFileService,
+			windowsService,
+			historyService,
+			contextKeyService,
+			dialogService,
+			fileDialogService,
+			editorService
+		);
 	}
 
 	public setPromptPath(path: URI): void {
@@ -236,6 +259,10 @@ export class TestTextFileService extends TextFileService {
 		return Promise.resolve(this.confirmResult);
 	}
 
+	public confirmOverwrite(_resource: URI): Promise<boolean> {
+		return Promise.resolve(true);
+	}
+
 	public onFilesConfigurationChange(configuration: any): void {
 		super.onFilesConfigurationChange(configuration);
 	}
@@ -248,6 +275,7 @@ export class TestTextFileService extends TextFileService {
 
 export function workbenchInstantiationService(): IInstantiationService {
 	let instantiationService = new TestInstantiationService(new ServiceCollection([ILifecycleService, new TestLifecycleService()]));
+	instantiationService.stub(IEnvironmentService, TestEnvironmentService);
 	instantiationService.stub(IContextKeyService, <IContextKeyService>instantiationService.createInstance(MockContextKeyService));
 	const workspaceContextService = new TestContextService(TestWorkspace);
 	instantiationService.stub(IWorkspaceContextService, workspaceContextService);
@@ -274,7 +302,6 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(IWindowsService, new TestWindowsService());
 	instantiationService.stub(ITextFileService, <ITextFileService>instantiationService.createInstance(TestTextFileService));
 	instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
-	instantiationService.stub(IEnvironmentService, TestEnvironmentService);
 	instantiationService.stub(IThemeService, new TestThemeService());
 	instantiationService.stub(IHashService, new TestHashService());
 	instantiationService.stub(ILogService, new TestLogService());
@@ -384,13 +411,13 @@ export class TestFileDialogService implements IFileDialogService {
 
 	public _serviceBrand: any;
 
-	public defaultFilePath(_schemeFilter: string): URI | undefined {
+	public defaultFilePath(_schemeFilter?: string): URI | undefined {
 		return undefined;
 	}
-	public defaultFolderPath(_schemeFilter: string): URI | undefined {
+	public defaultFolderPath(_schemeFilter?: string): URI | undefined {
 		return undefined;
 	}
-	public defaultWorkspacePath(_schemeFilter: string): URI | undefined {
+	public defaultWorkspacePath(_schemeFilter?: string): URI | undefined {
 		return undefined;
 	}
 	public pickFileFolderAndOpen(_options: IPickAndOpenOptions): Promise<any> {
@@ -601,7 +628,7 @@ export class TestEditorGroup implements IEditorGroupView {
 	constructor(public id: number) { }
 
 	get group(): EditorGroup { throw new Error('not implemented'); }
-	activeControl: IEditor;
+	activeControl: IActiveEditor;
 	activeEditor: IEditorInput;
 	previewEditor: IEditorInput;
 	count: number;
@@ -660,11 +687,11 @@ export class TestEditorGroup implements IEditorGroupView {
 
 	copyEditor(_editor: IEditorInput, _target: IEditorGroup, _options?: ICopyEditorOptions): void { }
 
-	closeEditor(_editor?: IEditorInput): Promise<void> {
+	closeEditor(_editor?: IEditorInput, options?: ICloseEditorOptions): Promise<void> {
 		return Promise.resolve();
 	}
 
-	closeEditors(_editors: IEditorInput[] | { except?: IEditorInput; direction?: CloseDirection; savedOnly?: boolean; }): Promise<void> {
+	closeEditors(_editors: IEditorInput[] | { except?: IEditorInput; direction?: CloseDirection; savedOnly?: boolean; }, options?: ICloseEditorOptions): Promise<void> {
 		return Promise.resolve();
 	}
 
@@ -702,7 +729,7 @@ export class TestEditorService implements EditorServiceImpl {
 	onDidCloseEditor: Event<IEditorCloseEvent> = Event.None;
 	onDidOpenEditorFail: Event<IEditorIdentifier> = Event.None;
 
-	activeControl: IEditor;
+	activeControl: IActiveEditor;
 	activeTextEditorWidget: any;
 	activeEditor: IEditorInput;
 	editors: ReadonlyArray<IEditorInput> = [];
@@ -790,7 +817,7 @@ export class TestFileService implements IFileService {
 			encoding: 'utf8',
 			mtime: Date.now(),
 			isDirectory: false,
-			name: paths.basename(resource.fsPath)
+			name: resources.basename(resource)
 		});
 	}
 
@@ -799,7 +826,7 @@ export class TestFileService implements IFileService {
 	}
 
 	existsFile(_resource: URI): Promise<boolean> {
-		throw new Error('not implemented');
+		return Promise.resolve(true);
 	}
 
 	resolveContent(resource: URI, _options?: IResolveContentOptions): Promise<IContent> {
@@ -809,7 +836,7 @@ export class TestFileService implements IFileService {
 			etag: 'index.txt',
 			encoding: 'utf8',
 			mtime: Date.now(),
-			name: paths.basename(resource.fsPath)
+			name: resources.basename(resource)
 		});
 	}
 
@@ -829,7 +856,7 @@ export class TestFileService implements IFileService {
 			etag: 'index.txt',
 			encoding: 'utf8',
 			mtime: Date.now(),
-			name: paths.basename(resource.fsPath)
+			name: resources.basename(resource)
 		});
 	}
 
@@ -840,7 +867,7 @@ export class TestFileService implements IFileService {
 			encoding: 'utf8',
 			mtime: Date.now(),
 			isDirectory: false,
-			name: paths.basename(resource.fsPath)
+			name: resources.basename(resource)
 		}));
 	}
 
@@ -1074,7 +1101,7 @@ export class TestWindowService implements IWindowService {
 		return Promise.resolve();
 	}
 
-	openWindow(_paths: URI[], _options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean }): Promise<void> {
+	openWindow(_uris: IURIToOpen[], _options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean }): Promise<void> {
 		return Promise.resolve();
 	}
 
@@ -1283,7 +1310,7 @@ export class TestWindowsService implements IWindowsService {
 	}
 
 	// Global methods
-	openWindow(_windowId: number, _paths: URI[], _options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean }): Promise<void> {
+	openWindow(_windowId: number, _uris: IURIToOpen[], _options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean }): Promise<void> {
 		return Promise.resolve();
 	}
 
@@ -1444,9 +1471,4 @@ export class TestViewletService implements IViewletService {
 	getViewlets(): ViewletDescriptor[] { return []; }
 
 	getProgressIndicator(_id: string): IProgressService | null { return null; }
-
-}
-
-export function getRandomTestPath(tmpdir: string, ...segments: string[]): string {
-	return paths.join(tmpdir, ...segments, generateUuid());
 }

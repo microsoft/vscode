@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { getFirstFrame } from 'vs/base/node/console';
-import { normalize } from 'path';
+import { normalize } from 'vs/base/common/path';
 
 suite('Console', () => {
 

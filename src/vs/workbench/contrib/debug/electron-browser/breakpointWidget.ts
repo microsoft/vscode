@@ -32,8 +32,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { IDecorationOptions } from 'vs/editor/common/editorCommon';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { getSimpleCodeEditorWidgetOptions } from 'vs/workbench/contrib/codeEditor/electron-browser/simpleEditorOptions';
-import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
+import { getSimpleEditorOptions, getSimpleCodeEditorWidgetOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { IRange, Range } from 'vs/editor/common/core/range';
 
 const $ = dom.$;
@@ -53,7 +52,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 	private conditionInput = '';
 	private hitCountInput = '';
 	private logMessageInput = '';
-	private breakpoint: IBreakpoint;
+	private breakpoint?: IBreakpoint;
 
 	constructor(editor: ICodeEditor, private lineNumber: number, private context: Context,
 		@IContextViewService private readonly contextViewService: IContextViewService,
@@ -102,7 +101,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		}
 	}
 
-	private getInputValue(breakpoint: IBreakpoint): string {
+	private getInputValue(breakpoint: IBreakpoint | undefined): string {
 		switch (this.context) {
 			case Context.LOG_MESSAGE:
 				return breakpoint && breakpoint.logMessage ? breakpoint.logMessage : this.logMessageInput;

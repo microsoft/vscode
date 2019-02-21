@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { generateUuid } from 'vs/base/common/uuid';
-import { join } from 'path';
+import { join } from 'vs/base/common/path';
 import { tmpdir } from 'os';
 import { mkdirp, del } from 'vs/base/node/pfs';
 

@@ -19,11 +19,12 @@
 
 .monaco-editor .zone-widget .zone-widget-container.exception-widget .description,
 .monaco-editor .zone-widget .zone-widget-container.exception-widget .stack-trace {
-	font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback";
+	font-family: var(--monaco-monospace-font);
 }
 
 .monaco-editor .zone-widget .zone-widget-container.exception-widget .stack-trace {
 	margin-top: 0.5em;
+	max-height: 500px;
 }
 
 .monaco-editor .zone-widget .zone-widget-container.exception-widget a {
@@ -31,13 +32,11 @@
 	cursor: pointer;
 }
 
-/* High Contrast Theming */
-
-.mac > .monaco-workbench .zone-widget .zone-widget-container.exception-widget {
+.monaco-workbench.mac .zone-widget .zone-widget-container.exception-widget {
 	font-size: 11px;
 }
 
-.windows > .monaco-workbench .zone-widget .zone-widget-container.exception-widget,
-.linux > .monaco-workbench .zone-widget .zone-widget-container.exception-widget {
+.monaco-workbench.windows .zone-widget .zone-widget-container.exception-widget,
+.monaco-workbench.linux .zone-widget .zone-widget-container.exception-widget {
 	font-size: 13px;
 }

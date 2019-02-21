@@ -35,8 +35,8 @@ export interface IUnknownExtensionTemplateData {
 export interface IExtensionData {
 	extension: IExtension;
 	hasChildren: boolean;
-	getChildren: () => Promise<IExtensionData[]>;
-	parent: IExtensionData;
+	getChildren: () => Promise<IExtensionData[] | null>;
+	parent: IExtensionData | null;
 }
 
 export class DataSource implements IDataSource {

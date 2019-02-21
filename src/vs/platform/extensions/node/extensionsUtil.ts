@@ -7,7 +7,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { getGalleryExtensionId, areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
-import product from 'vs/platform/node/product';
+import product from 'vs/platform/product/node/product';
 
 export function isUIExtension(manifest: IExtensionManifest, configurationService: IConfigurationService): boolean {
 	const extensionId = getGalleryExtensionId(manifest.publisher, manifest.name);

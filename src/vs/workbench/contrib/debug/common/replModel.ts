@@ -66,7 +66,7 @@ export class ReplModel {
 
 	logToRepl(sev: severity, args: any[], frame?: { uri: URI, line: number, column: number }) {
 
-		let source: IReplElementSource;
+		let source: IReplElementSource | undefined;
 		if (frame) {
 			source = {
 				column: frame.column,

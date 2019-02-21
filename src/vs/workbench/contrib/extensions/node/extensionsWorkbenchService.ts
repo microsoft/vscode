@@ -26,7 +26,7 @@ import { IExtension, IExtensionDependencies, ExtensionState, IExtensionsWorkbenc
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
-import product from 'vs/platform/node/product';
+import product from 'vs/platform/product/node/product';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProgressService2, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { INotificationService } from 'vs/platform/notification/common/notification';

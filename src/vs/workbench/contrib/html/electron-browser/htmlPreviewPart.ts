@@ -17,7 +17,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Dimension } from 'vs/base/browser/dom';
 import { BaseWebviewEditor } from 'vs/workbench/contrib/webview/electron-browser/baseWebviewEditor';
-import { WebviewElement, WebviewOptions } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
+import { WebviewElement, WebviewContentOptions } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -88,7 +88,7 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 
 	private get webview(): WebviewElement {
 		if (!this._webview) {
-			let webviewOptions: WebviewOptions = {};
+			let webviewOptions: WebviewContentOptions = {};
 			if (this.input && this.input instanceof HtmlInput) {
 				webviewOptions = this.input.options;
 			}
@@ -96,9 +96,9 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 			this._webview = this._instantiationService.createInstance(WebviewElement,
 				this._partService.getContainer(Parts.EDITOR_PART),
 				{
-					...webviewOptions,
 					useSameOriginForRoot: true
-				});
+				},
+				webviewOptions);
 			this._webview.mountTo(this._content);
 
 			if (this.input && this.input instanceof HtmlInput) {

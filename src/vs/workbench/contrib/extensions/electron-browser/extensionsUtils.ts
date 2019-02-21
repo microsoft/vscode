@@ -15,7 +15,7 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { Severity, INotificationService } from 'vs/platform/notification/common/notification';
-import product from 'vs/platform/node/product';
+import product from 'vs/platform/product/node/product';
 
 export interface IExtensionStatus {
 	identifier: IExtensionIdentifier;

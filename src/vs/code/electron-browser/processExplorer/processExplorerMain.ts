@@ -8,7 +8,7 @@ import { listProcesses, ProcessItem } from 'vs/base/node/ps';
 import { webFrame, ipcRenderer, clipboard } from 'electron';
 import { repeat } from 'vs/base/common/strings';
 import { totalmem } from 'os';
-import product from 'vs/platform/node/product';
+import product from 'vs/platform/product/node/product';
 import { localize } from 'vs/nls';
 import { ProcessExplorerStyles, ProcessExplorerData } from 'vs/platform/issue/common/issue';
 import * as browser from 'vs/base/browser/browser';

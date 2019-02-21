@@ -298,6 +298,13 @@ export function minifyTask(src: string, sourceMapBaseUrl?: string): (cb: any) =>
 			cssFilter,
 			minifyCSS({ reduceIdents: false }),
 			cssFilter.restore,
+			(<any>sourcemaps).mapSources((sourcePath: string) => {
+				if (sourcePath === 'bootstrap-fork.js') {
+					return 'bootstrap-fork.orig.js';
+				}
+
+				return sourcePath;
+			}),
 			sourcemaps.write('./', {
 				sourceMappingURL,
 				sourceRoot: undefined,

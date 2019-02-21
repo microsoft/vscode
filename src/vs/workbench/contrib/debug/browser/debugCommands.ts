@@ -20,7 +20,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { openBreakpointSource } from 'vs/workbench/contrib/debug/browser/breakpointsView';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { InputFocusedContext } from 'vs/platform/workbench/common/contextkeys';
+import { InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { PanelFocusContext } from 'vs/workbench/browser/parts/panel/panelPart';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';

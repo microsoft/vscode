@@ -24,7 +24,7 @@ import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/th
 import { localize } from 'vs/nls';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ContextScopedHistoryInputBox } from 'vs/platform/widget/browser/contextScopedHistoryWidget';
+import { ContextScopedHistoryInputBox } from 'vs/platform/browser/contextScopedHistoryWidget';
 import { Marker } from 'vs/workbench/contrib/markers/electron-browser/markersModel';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -58,7 +58,7 @@ export class ShowProblemsPanelAction extends Action {
 
 	public run(): Promise<any> {
 		this.panelService.openPanel(Constants.MARKERS_PANEL_ID, true);
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 

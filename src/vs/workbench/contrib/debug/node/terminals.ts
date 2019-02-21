@@ -305,6 +305,8 @@ export function prepareCommand(args: DebugProtocol.RunInTerminalRequestArguments
 	} else if (env.isMacintosh) {
 		shell = shell_config.osx;
 		shellType = ShellType.bash;
+	} else {
+		throw new Error('Unknown platform');
 	}
 
 	// try to determine the shell type
@@ -391,17 +393,21 @@ export function prepareCommand(args: DebugProtocol.RunInTerminalRequestArguments
 				return (s.indexOf(' ') >= 0 || s.indexOf('\\') >= 0) ? `"${s}"` : s;
 			};
 
+			const hardQuote = (s: string) => {
+				return /[^\w@%\/+=,.:^-]/.test(s) ? `'${s.replace(/'/g, '\'\\\'\'')}'` : s;
+			};
+
 			if (args.cwd) {
-				command += `cd ${quote(args.cwd)} ; `;
+				command += `cd ${quote(args.cwd)} && `;
 			}
 			if (args.env) {
 				command += 'env';
 				for (let key in args.env) {
 					const value = args.env[key];
 					if (value === null) {
-						command += ` -u "${key}"`;
+						command += ` -u ${hardQuote(key)}`;
 					} else {
-						command += ` "${key}=${value}"`;
+						command += ` ${hardQuote(`${key}=${value}`)}`;
 					}
 				}
 				command += ' ';

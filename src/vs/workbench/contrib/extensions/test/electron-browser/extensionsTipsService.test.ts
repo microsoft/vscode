@@ -5,7 +5,7 @@
 
 import * as sinon from 'sinon';
 import * as assert from 'assert';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as uuid from 'vs/base/common/uuid';
@@ -38,7 +38,7 @@ import { ConfigurationKey } from 'vs/workbench/contrib/extensions/common/extensi
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { TestExtensionEnablementService } from 'vs/platform/extensionManagement/test/electron-browser/extensionEnablementService.test';
 import { IURLService } from 'vs/platform/url/common/url';
-import product from 'vs/platform/node/product';
+import product from 'vs/platform/product/node/product';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';

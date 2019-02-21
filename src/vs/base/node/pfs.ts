@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as extfs from 'vs/base/node/extfs';
-import { join } from 'path';
+import { join } from 'vs/base/common/path';
 import { nfcall, Queue } from 'vs/base/common/async';
 import * as fs from 'fs';
 import * as os from 'os';

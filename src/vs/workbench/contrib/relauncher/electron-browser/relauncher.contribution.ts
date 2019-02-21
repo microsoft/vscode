@@ -21,7 +21,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { equals } from 'vs/base/common/objects';
 
 interface IConfiguration extends IWindowsConfiguration {
-	update: { channel: string; };
+	update: { mode: string; };
 	telemetry: { enableCrashReporter: boolean };
 	keyboard: { touchbar: { enabled: boolean } };
 	workbench: { tree: { horizontalScrolling: boolean }, useExperimentalGridLayout: boolean };
@@ -34,7 +34,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private nativeTabs: boolean;
 	private nativeFullScreen: boolean;
 	private clickThroughInactive: boolean;
-	private updateChannel: string;
+	private updateMode: string;
 	private enableCrashReporter: boolean;
 	private touchbarEnabled: boolean;
 	private treeHorizontalScrolling: boolean;
@@ -84,8 +84,8 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		}
 
 		// Update channel
-		if (config.update && typeof config.update.channel === 'string' && config.update.channel !== this.updateChannel) {
-			this.updateChannel = config.update.channel;
+		if (config.update && typeof config.update.mode === 'string' && config.update.mode !== this.updateMode) {
+			this.updateMode = config.update.mode;
 			changed = true;
 		}
 
@@ -167,11 +167,18 @@ export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWor
 
 	constructor(
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IExtensionService extensionService: IExtensionService
+		@IExtensionService extensionService: IExtensionService,
+		@IWindowService windowSevice: IWindowService
 	) {
 		super();
 
-		this.extensionHostRestarter = this._register(new RunOnceScheduler(() => extensionService.restartExtensionHost(), 10));
+		this.extensionHostRestarter = this._register(new RunOnceScheduler(() => {
+			if (windowSevice.getConfiguration().remoteAuthority) {
+				windowSevice.reloadWindow(); // TODO aeschli, workaround
+			} else {
+				extensionService.restartExtensionHost();
+			}
+		}, 10));
 
 		this.contextService.getCompleteWorkspace()
 			.then(workspace => {

@@ -46,7 +46,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		super(id, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService, windowService);
 	}
 
-	getTitle(): string {
+	getTitle(): string | null {
 		if (this.input) {
 			return this.input.getName();
 		}
@@ -168,7 +168,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		super.saveState();
 	}
 
-	private saveTextResourceEditorViewState(input: EditorInput): void {
+	private saveTextResourceEditorViewState(input: EditorInput | null): void {
 		if (!(input instanceof UntitledEditorInput) && !(input instanceof ResourceEditorInput)) {
 			return; // only enabled for untitled and resource inputs
 		}

@@ -15,6 +15,8 @@ import { extensionButtonProminentBackground, extensionButtonProminentForeground 
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { STATUS_BAR_HOST_NAME_BACKGROUND, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_FOREGROUND } from 'vs/workbench/common/theme';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 
 export abstract class ExtensionWidget extends Disposable implements IExtensionContainer {
 	private _extension: IExtension;
@@ -136,13 +138,13 @@ export class RatingsWidget extends ExtensionWidget {
 			}
 		}
 		this.container.title = this.extension.ratingCount === 1 ? localize('ratedBySingleUser', "Rated by 1 user")
-			: this.extension.ratingCount > 1 ? localize('ratedByUsers', "Rated by {0} users", this.extension.ratingCount) : localize('noRating', "No rating");
+			: typeof this.extension.ratingCount === 'number' && this.extension.ratingCount > 1 ? localize('ratedByUsers', "Rated by {0} users", this.extension.ratingCount) : localize('noRating', "No rating");
 	}
 }
 
 export class RecommendationWidget extends ExtensionWidget {
 
-	private element: HTMLElement;
+	private element?: HTMLElement;
 	private disposables: IDisposable[] = [];
 
 	constructor(
@@ -161,7 +163,7 @@ export class RecommendationWidget extends ExtensionWidget {
 		if (this.element) {
 			this.parent.removeChild(this.element);
 		}
-		this.element = null;
+		this.element = undefined;
 		this.disposables = dispose(this.disposables);
 	}
 
@@ -207,6 +209,7 @@ export class RemoteBadgeWidget extends ExtensionWidget {
 		@IThemeService private readonly themeService: IThemeService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IWindowService private readonly windowService: IWindowService
 	) {
 		super();
 		this.render();
@@ -232,6 +235,9 @@ export class RemoteBadgeWidget extends ExtensionWidget {
 			append(this.element, $('span.octicon.octicon-file-symlink-directory'));
 
 			const applyBadgeStyle = () => {
+				if (!this.element) {
+					return;
+				}
 				const bgColor = this.themeService.getTheme().getColor(STATUS_BAR_HOST_NAME_BACKGROUND);
 				const fgColor = this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY ? this.themeService.getTheme().getColor(STATUS_BAR_NO_FOLDER_FOREGROUND) : this.themeService.getTheme().getColor(STATUS_BAR_FOREGROUND);
 				this.element.style.backgroundColor = bgColor ? bgColor.toString() : '';
@@ -241,7 +247,11 @@ export class RemoteBadgeWidget extends ExtensionWidget {
 			this.themeService.onThemeChange(applyBadgeStyle, this, this.disposables);
 			this.workspaceContextService.onDidChangeWorkbenchState(applyBadgeStyle, this, this.disposables);
 
-			const updateTitle = () => this.element.title = localize('remote extension title', "Extension in {0}", this.labelService.getHostLabel());
+			const updateTitle = () => {
+				if (this.element) {
+					this.element.title = localize('remote extension title', "Extension in {0}", this.labelService.getHostLabel(REMOTE_HOST_SCHEME, this.windowService.getConfiguration().remoteAuthority));
+				}
+			};
 			this.labelService.onDidChangeFormatters(() => updateTitle(), this, this.disposables);
 			updateTitle();
 		}

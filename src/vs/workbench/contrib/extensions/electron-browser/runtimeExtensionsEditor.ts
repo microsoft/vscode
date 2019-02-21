@@ -6,8 +6,8 @@
 import 'vs/css!./media/runtimeExtensionsEditor';
 import * as nls from 'vs/nls';
 import * as os from 'os';
-import product from 'vs/platform/node/product';
-import pkg from 'vs/platform/node/package';
+import product from 'vs/platform/product/node/product';
+import pkg from 'vs/platform/product/node/package';
 import { Action, IAction } from 'vs/base/common/actions';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -32,7 +32,7 @@ import { memoize } from 'vs/base/common/decorators';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Event } from 'vs/base/common/event';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { RuntimeExtensionsInput } from 'vs/workbench/services/extensions/electron-browser/runtimeExtensionsInput';
+import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/electron-browser/runtimeExtensionsInput';
 import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { randomPort } from 'vs/base/node/ports';
@@ -40,9 +40,10 @@ import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/cont
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
-import { join } from 'path';
+import { join } from 'vs/base/common/path';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ExtensionIdentifier, ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 
 export const IExtensionHostProfileService = createDecorator<IExtensionHostProfileService>('extensionHostProfileService');
 export const CONTEXT_PROFILE_SESSION_STATE = new RawContextKey<string>('profileSessionState', 'none');
@@ -62,12 +63,12 @@ export interface IExtensionHostProfileService {
 	readonly onDidChangeLastProfile: Event<void>;
 
 	readonly state: ProfileSessionState;
-	readonly lastProfile: IExtensionHostProfile;
+	readonly lastProfile: IExtensionHostProfile | null;
 
 	startProfiling(): void;
 	stopProfiling(): void;
 
-	getUnresponsiveProfile(extensionId: ExtensionIdentifier): IExtensionHostProfile;
+	getUnresponsiveProfile(extensionId: ExtensionIdentifier): IExtensionHostProfile | undefined;
 	setUnresponsiveProfile(extensionId: ExtensionIdentifier, profile: IExtensionHostProfile): void;
 }
 
@@ -90,7 +91,7 @@ interface IRuntimeExtension {
 	description: IExtensionDescription;
 	marketplaceInfo: IExtension;
 	status: IExtensionsStatus;
-	profileInfo: IExtensionProfileInformation;
+	profileInfo?: IExtensionProfileInformation;
 	unresponsiveProfile?: IExtensionHostProfile;
 }
 
@@ -98,10 +99,10 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 	public static readonly ID: string = 'workbench.editor.runtimeExtensions';
 
-	private _list: WorkbenchList<IRuntimeExtension>;
+	private _list: WorkbenchList<IRuntimeExtension> | null;
 	private _profileInfo: IExtensionHostProfile;
 
-	private _elements: IRuntimeExtension[];
+	private _elements: IRuntimeExtension[] | null;
 	private _extensionsDescriptions: IExtensionDescription[];
 	private _updateSoon: RunOnceScheduler;
 	private _profileSessionState: IContextKey<string>;
@@ -118,7 +119,8 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IExtensionHostProfileService private readonly _extensionHostProfileService: IExtensionHostProfileService,
 		@IStorageService storageService: IStorageService,
-		@ILabelService private readonly _labelService: ILabelService
+		@ILabelService private readonly _labelService: ILabelService,
+		@IWindowService private readonly _windowService: IWindowService
 	) {
 		super(RuntimeExtensionsEditor.ID, telemetryService, themeService, storageService);
 
@@ -214,7 +216,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				description: extensionDescription,
 				marketplaceInfo: marketplaceMap[ExtensionIdentifier.toKey(extensionDescription.identifier)],
 				status: statusMap[extensionDescription.identifier.value],
-				profileInfo: profileInfo,
+				profileInfo: profileInfo || undefined,
 				unresponsiveProfile: this._extensionHostProfileService.getUnresponsiveProfile(extensionDescription.identifier)
 			};
 		}
@@ -299,7 +301,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 				toggleClass(data.root, 'odd', index % 2 === 1);
 
-				data.name.textContent = element.marketplaceInfo ? element.marketplaceInfo.displayName : element.description.displayName;
+				data.name.textContent = element.marketplaceInfo ? element.marketplaceInfo.displayName : element.description.displayName || '';
 
 				const activationTimes = element.status.activationTimes;
 				let syncTime = activationTimes.codeLoadingTime + activationTimes.activateCallTime;
@@ -377,7 +379,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 					el.innerHTML = renderOcticons(`$(rss) ${element.description.extensionLocation.authority}`);
 					data.msgContainer.appendChild(el);
 
-					const hostLabel = this._labelService.getHostLabel();
+					const hostLabel = this._labelService.getHostLabel(REMOTE_HOST_SCHEME, this._windowService.getConfiguration().remoteAuthority);
 					if (hostLabel) {
 						el.innerHTML = renderOcticons(`$(rss) ${hostLabel}`);
 					}
@@ -402,7 +404,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 			horizontalScrolling: false
 		}) as WorkbenchList<IRuntimeExtension>;
 
-		this._list.splice(0, this._list.length, this._elements);
+		this._list.splice(0, this._list.length, this._elements || undefined);
 
 		this._list.onContextMenu((e) => {
 			if (!e.element) {
@@ -415,8 +417,8 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 			actions.push(new Separator());
 
 			if (e.element.marketplaceInfo) {
-				actions.push(new Action('runtimeExtensionsEditor.action.disableWorkspace', nls.localize('disable workspace', "Disable (Workspace)"), null, true, () => this._extensionsWorkbenchService.setEnablement(e.element.marketplaceInfo, EnablementState.WorkspaceDisabled)));
-				actions.push(new Action('runtimeExtensionsEditor.action.disable', nls.localize('disable', "Disable"), null, true, () => this._extensionsWorkbenchService.setEnablement(e.element.marketplaceInfo, EnablementState.Disabled)));
+				actions.push(new Action('runtimeExtensionsEditor.action.disableWorkspace', nls.localize('disable workspace', "Disable (Workspace)"), undefined, true, () => this._extensionsWorkbenchService.setEnablement(e.element!.marketplaceInfo, EnablementState.WorkspaceDisabled)));
+				actions.push(new Action('runtimeExtensionsEditor.action.disable', nls.localize('disable', "Disable"), undefined, true, () => this._extensionsWorkbenchService.setEnablement(e.element!.marketplaceInfo, EnablementState.Disabled)));
 				actions.push(new Separator());
 			}
 			const state = this._extensionHostProfileService.state;
@@ -440,7 +442,9 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 	}
 
 	public layout(dimension: Dimension): void {
-		this._list.layout(dimension.height);
+		if (this._list) {
+			this._list.layout(dimension.height);
+		}
 	}
 }
 
@@ -499,7 +503,7 @@ export class ReportExtensionIssueAction extends Action {
 		unresponsiveProfile?: IExtensionHostProfile
 	}): { url: string, task?: () => Promise<any> } {
 
-		let task: () => Promise<any>;
+		let task: () => Promise<any> | undefined;
 		let baseUrl = extension.marketplaceInfo && extension.marketplaceInfo.type === ExtensionType.User && extension.description.repository ? extension.description.repository.url : undefined;
 		if (!!baseUrl) {
 			baseUrl = `${baseUrl.indexOf('.git') !== -1 ? baseUrl.substr(0, baseUrl.length - 4) : baseUrl}/issues/new/`;
@@ -577,7 +581,7 @@ export class DebugExtensionHostAction extends Action {
 			}
 		}
 
-		return this._debugService.startDebugging(null, {
+		return this._debugService.startDebugging(undefined, {
 			type: 'node',
 			name: nls.localize('debugExtensionHost.launch.name', "Attach Extension Host"),
 			request: 'attach',
@@ -599,7 +603,7 @@ export class StartExtensionHostProfileAction extends Action {
 
 	run(): Promise<any> {
 		this._extensionHostProfileService.startProfiling();
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 
@@ -616,7 +620,7 @@ export class StopExtensionHostProfileAction extends Action {
 
 	run(): Promise<any> {
 		this._extensionHostProfileService.stopProfiling();
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 
