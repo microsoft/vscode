@@ -612,7 +612,8 @@ export class DebugSession implements IDebugSession {
 				if (thread) {
 					// Call fetch call stack twice, the first only return the top stack frame.
 					// Second retrieves the rest of the call stack. For performance reasons #25605
-					this.model.fetchCallStack(<Thread>thread).then(() => {
+					const promises = this.model.fetchCallStack(<Thread>thread);
+					const focus = () => {
 						if (!event.body.preserveFocusHint && thread.getCallStack().length) {
 							this.debugService.focusStackFrame(undefined, thread);
 							if (thread.stoppedDetails) {
@@ -621,6 +622,14 @@ export class DebugSession implements IDebugSession {
 								}
 								this.windowService.focusWindow();
 							}
+						}
+					};
+
+					promises.topCallStack.then(focus);
+					promises.wholeCallStack.then(() => {
+						if (!this.debugService.getViewModel().focusedStackFrame) {
+							// The top stack frame can be deemphesized so try to focus again #68616
+							focus();
 						}
 					});
 				}
