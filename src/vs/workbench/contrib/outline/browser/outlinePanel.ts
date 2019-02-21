@@ -383,8 +383,7 @@ export class OutlinePanel extends ViewletPanel {
 		}
 		if (e.sortBy) {
 			this._treeComparator.type = this._outlineViewState.sortBy;
-			// todo@joh resort
-			this._tree.updateChildren();
+			this._tree.resort();
 		}
 		if (e.filterOnType) {
 			this._tree.updateOptions({
