@@ -16,7 +16,7 @@ import { URI } from 'vs/base/common/uri';
 import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { OpenLogsFolderAction, SetLogLevelAction } from 'vs/workbench/contrib/logs/electron-browser/logsActions';
+import { OpenLogsFolderAction, SetLogLevelAction } from 'vs/workbench/contrib/logs/common/logsActions';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 
 class LogOutputChannels extends Disposable implements IWorkbenchContribution {

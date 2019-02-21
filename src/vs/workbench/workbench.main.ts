@@ -47,14 +47,14 @@ import 'vs/workbench/services/bulkEdit/electron-browser/bulkEditService';
 //#region --- workbench contributions
 
 // Localizations
-import 'vs/workbench/contrib/localizations/electron-browser/localizations.contribution';
+import 'vs/workbench/contrib/localizations/browser/localizations.contribution';
 
 // Preferences
 import 'vs/workbench/contrib/preferences/electron-browser/preferences.contribution';
 import 'vs/workbench/contrib/preferences/browser/keybindingsEditorContribution';
 
 // Logs
-import 'vs/workbench/contrib/logs/electron-browser/logs.contribution';
+import 'vs/workbench/contrib/logs/common/logs.contribution';
 
 // Quick Open Handlers
 import 'vs/workbench/contrib/quickopen/browser/quickopen.contribution';
@@ -98,7 +98,7 @@ import 'vs/workbench/contrib/comments/electron-browser/comments.contribution';
 import 'vs/workbench/contrib/html/electron-browser/html.contribution';
 
 // URL Support
-import 'vs/workbench/contrib/url/electron-browser/url.contribution';
+import 'vs/workbench/contrib/url/common/url.contribution';
 
 // Webview
 import 'vs/workbench/contrib/webview/electron-browser/webview.contribution';
@@ -157,10 +157,10 @@ import 'vs/workbench/contrib/surveys/electron-browser/languageSurveys.contributi
 import 'vs/workbench/contrib/performance/electron-browser/performance.contribution';
 
 // CLI
-import 'vs/workbench/contrib/cli/electron-browser/cli.contribution';
+import 'vs/workbench/contrib/cli/node/cli.contribution';
 
 // Themes Support
-import 'vs/workbench/contrib/themes/electron-browser/themes.contribution';
+import 'vs/workbench/contrib/themes/browser/themes.contribution';
 import 'vs/workbench/contrib/themes/test/electron-browser/themes.test.contribution';
 
 // Watermark

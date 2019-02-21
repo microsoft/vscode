@@ -10,7 +10,7 @@ import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/plat
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ConfigureLocaleAction } from 'vs/workbench/contrib/localizations/electron-browser/localizationsActions';
+import { ConfigureLocaleAction } from 'vs/workbench/contrib/localizations/browser/localizationsActions';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
@@ -26,7 +26,7 @@ import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { VIEWLET_ID as EXTENSIONS_VIEWLET_ID, IExtensionsViewlet } from 'vs/workbench/contrib/extensions/common/extensions';
-import { minimumTranslatedStrings } from 'vs/workbench/contrib/localizations/electron-browser/minimalTranslations';
+import { minimumTranslatedStrings } from 'vs/workbench/contrib/localizations/browser/minimalTranslations';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
