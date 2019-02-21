@@ -277,7 +277,6 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 			this._activeCommentThreadDisposables.push(this._activeCommentThread.onDidChangeInput(input => { // todo, dispose
 				this._input = input;
 				this._proxy.$onActiveCommentWidgetChange(control.handle, this._activeCommentThread, this._activeComment, this._input ? this._input.value : undefined);
-				console.log(this._input.value, Math.random());
 			}));
 
 			await this._proxy.$onActiveCommentWidgetChange(control.handle, this._activeCommentThread, this._activeComment, this._input ? this._input.value : undefined);
