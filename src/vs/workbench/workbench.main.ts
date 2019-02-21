@@ -128,6 +128,7 @@ import 'vs/workbench/contrib/emmet/browser/emmet.browser.contribution';
 import 'vs/workbench/contrib/emmet/electron-browser/emmet.contribution';
 
 // CodeEditor Contributions
+import 'vs/workbench/contrib/codeEditor/browser/codeEditor.contribution';
 import 'vs/workbench/contrib/codeEditor/electron-browser/codeEditor.contribution';
 
 // Execution
