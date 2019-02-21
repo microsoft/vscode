@@ -167,11 +167,18 @@ export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWor
 
 	constructor(
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IExtensionService extensionService: IExtensionService
+		@IExtensionService extensionService: IExtensionService,
+		@IWindowService windowSevice: IWindowService
 	) {
 		super();
 
-		this.extensionHostRestarter = this._register(new RunOnceScheduler(() => extensionService.restartExtensionHost(), 10));
+		this.extensionHostRestarter = this._register(new RunOnceScheduler(() => {
+			if (windowSevice.getConfiguration().remoteAuthority) {
+				windowSevice.reloadWindow(); // TODO aeschli, workaround
+			} else {
+				extensionService.restartExtensionHost();
+			}
+		}, 10));
 
 		this.contextService.getCompleteWorkspace()
 			.then(workspace => {
