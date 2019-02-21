@@ -94,21 +94,6 @@ export class MainThreadCommentThread implements modes.CommentThread2 {
 	private _onDidChangeInput = new Emitter<modes.CommentInput | undefined>();
 	get onDidChangeInput(): Event<modes.CommentInput | undefined> { return this._onDidChangeInput.event; }
 
-	private _activeComment?: modes.Comment;
-
-	get activeComment(): modes.Comment {
-		return this._activeComment;
-	}
-
-	set activeComment(comment: modes.Comment | undefined) {
-		this._activeComment = comment;
-		this._onDidChangeActiveComment.fire(comment);
-	}
-
-	private _onDidChangeActiveComment = new Emitter<modes.Comment | undefined>();
-	get onDidChangeActiveComment(): Event<modes.Comment | undefined> { return this._onDidChangeActiveComment.event; }
-
-
 	public get comments(): modes.Comment[] {
 		return this._comments;
 	}
@@ -163,6 +148,18 @@ export class MainThreadCommentThread implements modes.CommentThread2 {
 export class MainThreadCommentControl {
 	get handle(): number {
 		return this._handle;
+	}
+
+	get id(): string {
+		return this._id;
+	}
+
+	get proxy(): ExtHostCommentsShape {
+		return this._proxy;
+	}
+
+	get label(): string {
+		return this._label;
 	}
 
 	private _threads: Map<number, MainThreadCommentThread> = new Map<number, MainThreadCommentThread>();
@@ -224,7 +221,7 @@ export class MainThreadCommentControl {
 			}
 		}
 
-		return <ICommentInfo> {
+		return <ICommentInfo>{
 			owner: String(this.handle),
 			threads: ret,
 			commentingRanges: [],
@@ -283,11 +280,6 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 				console.log(this._input.value, Math.random());
 			}));
 
-			this._activeCommentThreadDisposables.push(this._activeCommentThread.onDidChangeActiveComment(comment => { // todo, dispose
-				this._activeComment = comment;
-				this._proxy.$onActiveCommentWidgetChange(control.handle, this._activeCommentThread, this._activeComment, this._input ? this._input.value : undefined);
-			}));
-
 			await this._proxy.$onActiveCommentWidgetChange(control.handle, this._activeCommentThread, this._activeComment, this._input ? this._input.value : undefined);
 		}));
 	}
@@ -302,7 +294,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		let provider = this._commentControls.get(handle);
 
 		if (!provider) {
-			return;
+			return undefined;
 		}
 
 		return provider.createCommentThread(commentThreadHandle, threadId, resource, range, comments, commands, collapseState);

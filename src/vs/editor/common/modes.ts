@@ -1248,7 +1248,7 @@ export interface CommentInput {
  * @internal
  */
 export interface CommentThread2 {
-	commentThreadHandle: number; // use optional type for now to avoid breaking existing api
+	commentThreadHandle: number;
 	extensionId: string;
 	threadId: string;
 	resource: string;
