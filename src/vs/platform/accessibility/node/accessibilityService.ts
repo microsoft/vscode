@@ -6,6 +6,7 @@
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { isWindows, AccessibilitySupport } from 'vs/base/common/platform';
 import { Emitter, Event } from 'vs/base/common/event';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 
 export class AccessibilityService implements IAccessibilityService {
 	_serviceBrand: any;
@@ -14,9 +15,9 @@ export class AccessibilityService implements IAccessibilityService {
 	private readonly _onDidChangeAccessibilitySupport = new Emitter<void>();
 	readonly onDidChangeAccessibilitySupport: Event<void> = this._onDidChangeAccessibilitySupport.event;
 
-	constructor(accessibilitySupport?: boolean) {
-		this._accessibilitySupport = accessibilitySupport ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled;
-	}
+	constructor(
+		@IWindowService private readonly windowService: IWindowService
+	) { }
 
 	alwaysUnderlineAccessKeys(): Promise<boolean> {
 		if (!isWindows) {
@@ -47,6 +48,12 @@ export class AccessibilityService implements IAccessibilityService {
 	}
 
 	getAccessibilitySupport(): AccessibilitySupport {
+		if (this._accessibilitySupport === AccessibilitySupport.Unknown) {
+			const config = this.windowService.getConfiguration();
+			this._accessibilitySupport = (config && config.accessibilitySupport) ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled;
+
+		}
+
 		return this._accessibilitySupport;
 	}
 }
