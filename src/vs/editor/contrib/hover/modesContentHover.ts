@@ -526,7 +526,6 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 
 		disposables.push(this.renderAction(actionsElement, {
 			label: nls.localize('peek problem', "Peek Problem"),
-			iconClass: 'octicon.octicon-eye',
 			commandId: NextMarkerAction.ID,
 			run: () => {
 				this.hide();
@@ -537,7 +536,6 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 
 		disposables.push(this.renderAction(actionsElement, {
 			label: nls.localize('quick fixes', "Quick Fix..."),
-			iconClass: 'octicon.octicon-light-bulb',
 			commandId: QuickFixAction.Id,
 			run: async (target) => {
 				const codeActionsPromise = this.getCodeActions(markerHover.marker);
