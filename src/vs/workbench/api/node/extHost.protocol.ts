@@ -120,7 +120,11 @@ export interface CommentProviderFeatures {
 
 export interface MainThreadCommentsShape extends IDisposable {
 	$registerCommentControl(handle: number, id: string, label: string): void;
-	$createCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, range: IRange, comments: modes.Comment[], collapseState: modes.CommentThreadCollapsibleState): modes.CommentThread | undefined;
+	$createCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, range: IRange, comments: modes.Comment[], commands: modes.Command[], collapseState: modes.CommentThreadCollapsibleState): modes.CommentThread2 | undefined;
+	$deleteCommentThread(handle: number, commentThreadHandle: number): void;
+	$updateComments(handle: number, commentThreadHandle: number, comments: modes.Comment[]): void;
+	$setInputValue(handle: number, commentThreadHandle: number, input: string): void;
+	$updateCommentThreadCommands(handle: number, commentThreadHandle: number, acceptInputCommands: modes.Command[]): void;
 	$registerDocumentCommentProvider(handle: number, features: CommentProviderFeatures): void;
 	$unregisterDocumentCommentProvider(handle: number): void;
 	$registerWorkspaceCommentProvider(handle: number, extensionId: ExtensionIdentifier): void;

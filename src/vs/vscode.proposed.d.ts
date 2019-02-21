@@ -787,6 +787,7 @@ declare module 'vscode' {
 		 * The ordered comments of the thread.
 		 */
 		comments: Comment[];
+		acceptInputCommands?: Command[];
 
 		/**
 		 * Whether the thread should be collapsed or expanded when opening the document. Defaults to Collapsed.
@@ -942,12 +943,6 @@ declare module 'vscode' {
 		commentThread: CommentThread;
 
 		/*
-		 * Focused Comment
-		 * This comment must be part of CommentWidget.commentThread
-		 */
-		comment?: Comment;
-
-		/*
 		 * Textarea content in the comment widget.
 		 * There is only one active input box in a comment widget.
 		 */
@@ -961,7 +956,7 @@ declare module 'vscode' {
 	 	 * The active (focused) comment widget.
 	 	 */
 		readonly widget?: CommentWidget;
-		createCommentThread(id: string, resource: Uri, range: Range, comments: Comment[], collapsibleState?: CommentThreadCollapsibleState): CommentThread;
+		createCommentThread(id: string, resource: Uri, range: Range, comments: Comment[], acceptInputCommands: Command[], collapsibleState?: CommentThreadCollapsibleState): CommentThread;
 		dispose(): void;
 	}
 

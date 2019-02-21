@@ -37,6 +37,7 @@ import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async
 import { overviewRulerCommentingRangeForeground } from 'vs/workbench/contrib/comments/electron-browser/commentGlyphWidget';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { STATUS_BAR_ITEM_HOVER_BACKGROUND, STATUS_BAR_ITEM_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export const ctxReviewPanelVisible = new RawContextKey<boolean>('reviewPanelVisible', false);
 
@@ -171,6 +172,7 @@ export class ReviewController implements IEditorContribution {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService private readonly themeService: IThemeService,
 		@ICommentService private readonly commentService: ICommentService,
+		@ICommandService private readonly _commandService: ICommandService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IModeService private readonly modeService: IModeService,
@@ -396,7 +398,7 @@ export class ReviewController implements IEditorContribution {
 				}
 			});
 			added.forEach(thread => {
-				let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.openerService, this.dialogService, this.notificationService, this.contextMenuService, this.editor, e.owner, thread, null, draftMode);
+				let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this._commandService, this.modelService, this.themeService, this.commentService, this.openerService, this.dialogService, this.notificationService, this.contextMenuService, this.editor, e.owner, thread, null, draftMode);
 				zoneWidget.display(thread.range.startLineNumber);
 				this._commentWidgets.push(zoneWidget);
 				this._commentInfos.filter(info => info.owner === e.owner)[0].threads.push(thread);
@@ -415,7 +417,7 @@ export class ReviewController implements IEditorContribution {
 
 		// add new comment
 		this._reviewPanelVisible.set(true);
-		this._newCommentWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.openerService, this.dialogService, this.notificationService, this.contextMenuService, this.editor, ownerId, {
+		this._newCommentWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this._commandService, this.modelService, this.themeService, this.commentService, this.openerService, this.dialogService, this.notificationService, this.contextMenuService, this.editor, ownerId, {
 			extensionId: extensionId,
 			threadId: null,
 			resource: null,
@@ -573,7 +575,7 @@ export class ReviewController implements IEditorContribution {
 					thread.collapsibleState = modes.CommentThreadCollapsibleState.Expanded;
 				}
 
-				let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.openerService, this.dialogService, this.notificationService, this.contextMenuService, this.editor, info.owner, thread, pendingComment, info.draftMode);
+				let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this._commandService, this.modelService, this.themeService, this.commentService, this.openerService, this.dialogService, this.notificationService, this.contextMenuService, this.editor, info.owner, thread, pendingComment, info.draftMode);
 				zoneWidget.display(thread.range.startLineNumber);
 				this._commentWidgets.push(zoneWidget);
 			});

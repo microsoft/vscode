@@ -1233,6 +1233,26 @@ export interface CommentWidget {
 	commentThread: CommentThread;
 	comment?: Comment;
 	input: string;
+	onDidChangeInput: Event<string>;
+}
+
+/**
+ * @internal
+ */
+
+export interface CommentThread2 {
+	commentThreadHandle: number; // use optional type for now to avoid breaking existing api
+	extensionId: string;
+	threadId: string;
+	resource: string;
+	range: IRange;
+	comments: Comment[];
+	onDidChangeComments: Event<Comment[]>;
+	collapsibleState?: CommentThreadCollapsibleState;
+	input: string;
+	onDidChangeInput: Event<string>;
+	acceptInputCommands: Command[];
+	onDidChangeAcceptInputCommands: Event<Command[]>;
 }
 
 /**

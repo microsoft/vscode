@@ -11,7 +11,7 @@ import { keys } from 'vs/base/common/map';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ExtHostCommentsShape, ExtHostContext, IExtHostContext, MainContext, MainThreadCommentsShape, CommentProviderFeatures } from '../node/extHost.protocol';
 
-import { ICommentService } from 'vs/workbench/contrib/comments/electron-browser/commentService';
+import { ICommentService, ICommentInfo } from 'vs/workbench/contrib/comments/electron-browser/commentService';
 import { COMMENTS_PANEL_ID, CommentsPanel, COMMENTS_PANEL_TITLE } from 'vs/workbench/contrib/comments/electron-browser/commentsPanel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -80,7 +80,7 @@ export class MainThreadDocumentCommentProvider implements modes.DocumentCommentP
 	onDidChangeCommentThreads = null;
 }
 
-export class MainThreadCommentThread {
+export class MainThreadCommentThread implements modes.CommentThread2 {
 	private _input: string = '';
 	get input(): string {
 		return this._input;
@@ -109,6 +109,30 @@ export class MainThreadCommentThread {
 	get onDidChangeActiveComment(): Event<modes.Comment | undefined> { return this._onDidChangeActiveComment.event; }
 
 
+	public get comments(): modes.Comment[] {
+		return this._comments;
+	}
+
+	public set comments(newComments: modes.Comment[]) {
+		this._comments = newComments;
+		this._onDidChangeComments.fire(this._comments);
+	}
+
+	private _onDidChangeComments = new Emitter<modes.Comment[]>();
+	get onDidChangeComments(): Event<modes.Comment[]> { return this._onDidChangeComments.event; }
+
+	set acceptInputCommands(newCommands: modes.Command[]) {
+		this._acceptInputCommands = newCommands;
+		this._onDidChangeAcceptInputCommands.fire(this._acceptInputCommands);
+	}
+
+	get acceptInputCommands(): modes.Command[] {
+		return this._acceptInputCommands;
+	}
+
+	private _onDidChangeAcceptInputCommands = new Emitter<modes.Command[]>();
+	get onDidChangeAcceptInputCommands(): Event<modes.Command[]> { return this._onDidChangeAcceptInputCommands.event; }
+
 	constructor(
 		public commentThreadHandle: number,
 		public control: MainThreadCommentControl,
@@ -116,13 +140,26 @@ export class MainThreadCommentThread {
 		public threadId: string,
 		public resource: string,
 		public range: IRange,
-		public comments: modes.Comment[],
+		private _comments: modes.Comment[],
+		private _acceptInputCommands: modes.Command[],
 		public collapsibleState?: modes.CommentThreadCollapsibleState,
-		public reply?: modes.Command
 	) {
 
 	}
+
+	dispose() {
+
+	}
+
+	toJSON(): any {
+		return {
+			$mid: 7,
+			commentControlHandle: this.control.handle,
+			commentThreadHandle: this.commentThreadHandle,
+		};
+	}
 }
+
 export class MainThreadCommentControl {
 	get handle(): number {
 		return this._handle;
@@ -136,22 +173,66 @@ export class MainThreadCommentControl {
 		private _label: string
 	) { }
 
-	createCommentThread(commentThreadHandle: number, threadId: string, resource: UriComponents, range: IRange, comments: modes.Comment[], collapseState: modes.CommentThreadCollapsibleState): modes.CommentThread {
+	createCommentThread(commentThreadHandle: number, threadId: string, resource: UriComponents, range: IRange, comments: modes.Comment[], commands: modes.Command[], collapseState: modes.CommentThreadCollapsibleState): modes.CommentThread2 {
 		let thread = new MainThreadCommentThread(
 			commentThreadHandle,
 			this,
 			'',
 			threadId,
-			resource.toString(),
+			URI.revive(resource).toString(),
 			range,
 			comments,
-			collapseState,
-			undefined
+			commands,
+			collapseState
 		);
 
 		this._threads.set(commentThreadHandle, thread);
 
 		return thread;
+	}
+
+	deleteCommentThread(commentThreadHandle: number) {
+		let thread = this._threads.get(commentThreadHandle);
+
+		thread.dispose();
+	}
+
+	updateComments(commentThreadHandle: number, comments: modes.Comment[]) {
+		let thread = this._threads.get(commentThreadHandle);
+		thread.comments = comments;
+	}
+
+	updateAcceptInputCommands(commentThreadHandle: number, acceptInputCommands: modes.Command[]) {
+		let thread = this._threads.get(commentThreadHandle);
+		thread.acceptInputCommands = acceptInputCommands;
+	}
+
+	updateInput(commentThreadHandle: number, input: string) {
+		let thread = this._threads.get(commentThreadHandle);
+		thread.input = input;
+	}
+
+	getDocumentComments(resource: URI) {
+		let ret = [];
+		for (let thread of keys(this._threads)) {
+			if (this._threads.get(thread).resource === resource.toString()) {
+				ret.push(this._threads.get(thread));
+			}
+}
+
+		return <ICommentInfo> {
+			owner: String(this.handle),
+			threads: ret,
+			commentingRanges: [],
+			draftMode: modes.DraftMode.NotSupported
+		};
+	}
+
+	toJSON(): any {
+		return {
+			$mid: 6,
+			handle: this.handle
+		};
 	}
 }
 
@@ -180,9 +261,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		super();
 		this._disposables = [];
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostComments);
-		this._disposables.push(this._commentService.onDidChangeActiveCommentThread(thread => {
-			console.log(thread.threadId);
-
+		this._disposables.push(this._commentService.onDidChangeActiveCommentThread(async thread => {
 			let control = (thread as MainThreadCommentThread).control;
 
 			if (!control) {
@@ -201,36 +280,65 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 				this._proxy.$onActiveCommentWidgetChange(control.handle, this._activeCommentThread, this._activeComment, this._input);
 			});
 
-			this._proxy.$onActiveCommentWidgetChange(control.handle, this._activeCommentThread, this._activeComment, this._input);
-		}));
-
-		this._disposables.push(this._commentService.onDidChangeInput(input => {
-			console.log(input);
-			let control = this._activeCommentThread ? this._activeCommentThread.control : undefined;
-
-			if (!control) {
-				return;
-			}
-
-			this._input = input;
-
-			this._proxy.$onActiveCommentWidgetChange(control.handle, this._activeCommentThread, this._activeComment, this._input);
+			await this._proxy.$onActiveCommentWidgetChange(control.handle, this._activeCommentThread, this._activeComment, this._input);
 		}));
 	}
 
 	$registerCommentControl(handle: number, id: string, label: string): void {
 		const provider = new MainThreadCommentControl(this._proxy, handle, id, label);
+		this._commentService.registerCommentControl(String(handle), provider);
 		this._commentControls.set(handle, provider);
 	}
 
-	$createCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, range: IRange, comments: modes.Comment[], collapseState: modes.CommentThreadCollapsibleState): modes.CommentThread | undefined {
+	$createCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, range: IRange, comments: modes.Comment[], commands: modes.Command[], collapseState: modes.CommentThreadCollapsibleState): modes.CommentThread2 | undefined {
 		let provider = this._commentControls.get(handle);
 
 		if (!provider) {
 			return;
 		}
 
-		return provider.createCommentThread(commentThreadHandle, threadId, resource, range, comments, collapseState);
+		return provider.createCommentThread(commentThreadHandle, threadId, resource, range, comments, commands, collapseState);
+	}
+
+	$deleteCommentThread(handle: number, commentThreadHandle: number) {
+		let provider = this._commentControls.get(handle);
+
+		if (!provider) {
+			return;
+		}
+
+		return provider.deleteCommentThread(commentThreadHandle);
+	}
+
+	$updateComments(handle: number, commentThreadHandle: number, comments: modes.Comment[]) {
+		let provider = this._commentControls.get(handle);
+
+		if (!provider) {
+				return;
+			}
+
+		provider.updateComments(commentThreadHandle, comments);
+	}
+
+	$setInputValue(handle: number, commentThreadHandle: number, input: string) {
+		let provider = this._commentControls.get(handle);
+
+		if (!provider) {
+			return;
+	}
+
+		provider.updateInput(commentThreadHandle, input);
+
+	}
+
+	$updateCommentThreadCommands(handle: number, commentThreadHandle: number, acceptInputCommands: modes.Command[]) {
+		let provider = this._commentControls.get(handle);
+
+		if (!provider) {
+			return;
+		}
+
+		provider.updateAcceptInputCommands(commentThreadHandle, acceptInputCommands);
 	}
 
 	$registerDocumentCommentProvider(handle: number, features: CommentProviderFeatures): void {

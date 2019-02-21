@@ -40,6 +40,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ITextModel } from 'vs/editor/common/model';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
 const COLLAPSE_ACTION_CLASS = 'expand-review-action octicon octicon-x';
@@ -62,7 +63,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 	private _onDidCreateThread = new Emitter<ReviewZoneWidget>();
 	private _isCollapsed;
 	private _collapseAction: Action;
-	private _commentThread: modes.CommentThread;
+	private _commentThread: modes.CommentThread | modes.CommentThread2;
 	private _commentGlyph: CommentGlyphWidget;
 	private _owner: string;
 	private _pendingComment: string;
@@ -92,6 +93,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 	constructor(
 		private instantiationService: IInstantiationService,
 		private modeService: IModeService,
+		private commandService: ICommandService,
 		private modelService: IModelService,
 		private themeService: IThemeService,
 		private commentService: ICommentService,
@@ -101,7 +103,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		private contextMenuService: IContextMenuService,
 		editor: ICodeEditor,
 		owner: string,
-		commentThread: modes.CommentThread,
+		commentThread: modes.CommentThread | modes.CommentThread2,
 		pendingComment: string,
 		draftMode: modes.DraftMode,
 		options: IOptions = { keepEditorSelection: true }
@@ -226,7 +228,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._collapseAction.run();
 	}
 
-	update(commentThread: modes.CommentThread) {
+	update(commentThread: modes.CommentThread | modes.CommentThread2) {
 		const oldCommentsLen = this._commentElements.length;
 		const newCommentsLen = commentThread.comments.length;
 
@@ -339,9 +341,35 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._commentEditor.setModel(model);
 		this._localToDispose.push(this._commentEditor);
 		this._localToDispose.push(this._commentEditor.getModel().onDidChangeContent(() => this.setCommentEditorDecorations()));
+		if ((this._commentThread as modes.CommentThread2).commentThreadHandle !== undefined) {
 		this._localToDispose.push(this._commentEditor.getModel().onDidChangeContent(() => {
-			this.commentService.setInput(this._commentEditor.getModel().getValue());
+				let modelContent = this._commentEditor.getValue();
+				if ((this._commentThread as modes.CommentThread2).input !== modelContent) {
+					(this._commentThread as modes.CommentThread2).input = modelContent;
+				}
 		}));
+
+			this._localToDispose.push((this._commentThread as modes.CommentThread2).onDidChangeInput(input => {
+				if (this._commentEditor.getValue() !== input) {
+					this._commentEditor.setValue(input);
+
+					if (input === '') {
+						this._pendingComment = '';
+						if (dom.hasClass(this._commentForm, 'expand')) {
+							dom.removeClass(this._commentForm, 'expand');
+						}
+						this._commentEditor.getDomNode().style.outline = '';
+						this._error.textContent = '';
+						dom.addClass(this._error, 'hidden');
+					}
+				}
+			}));
+
+			this._localToDispose.push((this._commentThread as modes.CommentThread2).onDidChangeComments(_ => {
+				this.update(this._commentThread);
+			}));
+		}
+
 		this.setCommentEditorDecorations();
 
 		// Only add the additional step of clicking a reply button to expand the textarea when there are existing comments
@@ -378,7 +406,16 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._error = dom.append(this._commentForm, dom.$('.validation-error.hidden'));
 
 		this._formActions = dom.append(this._commentForm, dom.$('.form-actions'));
+		if ((this._commentThread as modes.CommentThread2).commentThreadHandle !== undefined) {
+			this.createCommentWidgetActions2(this._formActions, model);
+
+			this._localToDispose.push((this._commentThread as modes.CommentThread2).onDidChangeAcceptInputCommands(_ => {
+				dom.clearNode(this._formActions);
+				this.createCommentWidgetActions2(this._formActions, model);
+			}));
+		} else {
 		this.createCommentWidgetActions(this._formActions, model);
+		}
 
 		this._resizeObserver = new MutationObserver(this._refresh.bind(this));
 
@@ -503,6 +540,28 @@ export class ReviewZoneWidget extends ZoneWidget {
 		}
 	}
 
+	/**
+	 * Command based actions.
+	 */
+	private createCommentWidgetActions2(container: HTMLElement, model: ITextModel) {
+		let commentThread = this._commentThread as modes.CommentThread2;
+
+		commentThread.acceptInputCommands.reverse().forEach(command => {
+			const button = new Button(container);
+			this._localToDispose.push(attachButtonStyler(button, this.themeService));
+
+			button.label = command.title;
+			let commandId = command.id;
+			let args = command.arguments || [];
+			this._localToDispose.push(button.onDidClick(async () => {
+				commentThread.input = this._commentEditor.getValue();
+				this.commentService.setActiveCommentThread(this._commentThread);
+
+				await this.commandService.executeCommand(commandId, ...args);
+			}));
+		});
+	}
+
 	private createNewCommentNode(comment: modes.Comment): CommentNode {
 		let newCommentNode = new CommentNode(
 			comment,
@@ -614,7 +673,11 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 	private createReplyButton() {
 		this._reviewThreadReplyButton = <HTMLButtonElement>dom.append(this._commentForm, dom.$('button.review-thread-reply-button'));
+		if ((this._commentThread as modes.CommentThread2).commentThreadHandle !== undefined) {
+			// this._reviewThreadReplyButton.title = (this._commentThread as modes.CommentThread2).acceptInputCommands.title;
+		} else {
 		this._reviewThreadReplyButton.title = nls.localize('reply', "Reply...");
+		}
 		this._reviewThreadReplyButton.textContent = nls.localize('reply', "Reply...");
 		// bind click/escape actions for reviewThreadReplyButton and textArea
 		this._localToDispose.push(dom.addDisposableListener(this._reviewThreadReplyButton, 'click', _ => this.expandReplyArea()));
