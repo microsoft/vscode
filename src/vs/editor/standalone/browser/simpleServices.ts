@@ -629,6 +629,10 @@ export class SimpleUriLabelService implements ILabelService {
 		return '';
 	}
 
+	public getSeparator(scheme: string, authority?: string): '/' | '\\' {
+		return '/';
+	}
+
 	public registerFormatter(formatter: ResourceLabelFormatter): IDisposable {
 		throw new Error('Not implemented');
 	}

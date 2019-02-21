@@ -533,7 +533,8 @@ export interface IFileChangeDto {
 export interface MainThreadFileSystemShape extends IDisposable {
 	$registerFileSystemProvider(handle: number, scheme: string, capabilities: FileSystemProviderCapabilities): void;
 	$unregisterProvider(handle: number): void;
-	$setUriFormatter(formatter: ResourceLabelFormatter): void;
+	$registerResourceLabelFormatter(handle: number, formatter: ResourceLabelFormatter): void;
+	$unregisterResourceLabelFormatter(handle: number): void;
 	$onFileSystemChange(handle: number, resource: IFileChangeDto[]): void;
 }
 
