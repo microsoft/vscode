@@ -510,21 +510,40 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			}
 		}
 
-		const actionsElement = dom.append(hoverElement, $('div.actions'));
 		const disposables: IDisposable[] = [];
+		const actionsElement = dom.append(hoverElement, $('div.actions'));
+
 		const keybinding = this._keybindingService.lookupKeybinding(NextMarkerAction.ID);
-		const label = nls.localize('peek problem', "Peek Problem") + (keybinding ? ` (${keybinding.getLabel()})` : '');
-		const peekMarkerAction = dom.append(actionsElement, $('a.action.peek-marker', { title: label }));
-		peekMarkerAction.textContent = label;
-		disposables.push(dom.addDisposableListener(peekMarkerAction, dom.EventType.CLICK, e => {
-			e.stopPropagation();
-			e.preventDefault();
-			this.hide();
-			MarkerController.get(this._editor).show(markerHover.marker);
-			this._editor.focus();
+		const label = nls.localize('peek problem', "Peek Problem");
+		disposables.push(this.renderAction(actionsElement, {
+			label, iconClass: 'octicon.octicon-eye', keybinding: keybinding ? keybinding.getLabel() : '', run: () => {
+				this.hide();
+				MarkerController.get(this._editor).show(markerHover.marker);
+				this._editor.focus();
+			}
 		}));
+
 		this.renderDisposable = combinedDisposable(disposables);
 		return hoverElement;
+	}
+
+	private renderAction(parent: HTMLElement, actionOptions: { label: string, iconClass?: string, run: () => void, keybinding?: string }): IDisposable {
+		const actionContainer = dom.append(parent, $('div.action-container'));
+		const action = dom.append(actionContainer, $('a.action'));
+		if (actionOptions.iconClass) {
+			dom.append(action, $(`span.icon.${actionOptions.iconClass}`));
+		}
+		const label = dom.append(action, $('span'));
+		label.textContent = actionOptions.label;
+		if (actionOptions.keybinding) {
+			const actionKeybindingLabel = dom.append(actionContainer, $('span.keybinding-label'));
+			actionKeybindingLabel.textContent = actionOptions.keybinding;
+		}
+		return dom.addDisposableListener(action, dom.EventType.CLICK, e => {
+			e.stopPropagation();
+			e.preventDefault();
+			actionOptions.run();
+		});
 	}
 
 	private static readonly _DECORATION_OPTIONS = ModelDecorationOptions.register({

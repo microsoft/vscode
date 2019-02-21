@@ -74,10 +74,22 @@
 
 .monaco-editor-hover .hover-row .actions {
 	display: flex;
-	padding: 2px 0px;
+	padding: 3px 0px 1px 0px;
 }
 
-.monaco-editor-hover .hover-row .actions .action {
-	cursor: pointer;
+.monaco-editor-hover .hover-row .actions .action-container {
 	padding-left: 8px;
+}
+
+.monaco-editor-hover .hover-row .actions .action-container .action {
+	cursor: pointer;
+}
+
+.monaco-editor-hover .hover-row .actions .action-container .action .icon {
+	padding-right: 4px;
+}
+
+.monaco-editor-hover .hover-row .actions .action-container .keybinding-label {
+	padding-left: 4px;
+	opacity: 0.6;
 }

@@ -310,7 +310,7 @@ export const editorFindRangeHighlightBorder = registerColor('editor.findRangeHig
 export const editorHoverHighlight = registerColor('editor.hoverHighlightBackground', { light: '#ADD6FF26', dark: '#264f7840', hc: '#ADD6FF26' }, nls.localize('hoverHighlight', 'Highlight below the word for which a hover is shown. The color must not be opaque so as not to hide underlying decorations.'), true);
 export const editorHoverBackground = registerColor('editorHoverWidget.background', { light: editorWidgetBackground, dark: editorWidgetBackground, hc: editorWidgetBackground }, nls.localize('hoverBackground', 'Background color of the editor hover.'));
 export const editorHoverBorder = registerColor('editorHoverWidget.border', { light: editorWidgetBorder, dark: editorWidgetBorder, hc: editorWidgetBorder }, nls.localize('hoverBorder', 'Border color of the editor hover.'));
-export const editorHoverFooterBackground = registerColor('editorHoverWidget.footerBackground', { dark: Color.fromHex('#808080').transparent(0.2), light: Color.fromHex('#808080').transparent(0.2), hc: null }, nls.localize('hoverFotterground', "Background color of the editor hover footer."));
+export const editorHoverStatusBarBackground = registerColor('editorHoverWidget.statusBarBackground', { dark: Color.fromHex('#808080').transparent(0.2), light: Color.fromHex('#808080').transparent(0.2), hc: null }, nls.localize('statusBarBackground', "Background color of the editor hover status bar."));
 
 /**
  * Editor link colors
