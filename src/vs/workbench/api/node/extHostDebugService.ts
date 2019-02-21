@@ -593,7 +593,11 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 	public async $acceptDebugSessionStarted(sessionDto: IDebugSessionDto): Promise<void> {
 		const session = await this.getSession(sessionDto);
-		this._onDidStartDebugSession.fire(session);
+		if (session) {
+			this._onDidStartDebugSession.fire(session);
+		} else {
+			console.error('undefined session received in acceptDebugSessionStarted');	// should not happen (but see #69128)
+		}
 	}
 
 	public async $acceptDebugSessionTerminated(sessionDto: IDebugSessionDto): Promise<void> {
