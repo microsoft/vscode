@@ -11,8 +11,6 @@ export class ProductService implements IProductService {
 
 	_serviceBrand: any;
 
-	get name(): string { return pkg.name; }
-
 	get version(): string | undefined { return pkg.version; }
 
 	get commit(): string | undefined { return product.commit; }
