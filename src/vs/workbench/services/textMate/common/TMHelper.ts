@@ -3,7 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IColorTheme, ITokenColorizationSetting } from 'vs/workbench/services/themes/common/workbenchThemeService';
+export interface IColorTheme {
+	readonly tokenColors: ITokenColorizationRule[];
+}
+
+export interface ITokenColorizationRule {
+	name?: string;
+	scope?: string | string[];
+	settings: ITokenColorizationSetting;
+}
+
+export interface ITokenColorizationSetting {
+	foreground?: string;
+	background?: string;
+	fontStyle?: string;  // italic, underline, bold
+}
 
 export function findMatchingThemeRule(theme: IColorTheme, scopes: string[], onlyColorRules: boolean = true): ThemeRule | null {
 	for (let i = scopes.length - 1; i >= 0; i--) {

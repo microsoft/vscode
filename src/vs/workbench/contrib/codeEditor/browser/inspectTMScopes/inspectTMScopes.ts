@@ -21,7 +21,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
 import { HIGH_CONTRAST, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { findMatchingThemeRule } from 'vs/workbench/services/textMate/electron-browser/TMHelper';
+import { findMatchingThemeRule } from 'vs/workbench/services/textMate/common/TMHelper';
 import { ITextMateService, IGrammar, IToken, StackElement } from 'vs/workbench/services/textMate/common/textMateService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 

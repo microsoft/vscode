@@ -15,7 +15,7 @@ import { toResource } from 'vs/workbench/common/editor';
 import { ITextMateService } from 'vs/workbench/services/textMate/common/textMateService';
 import { IGrammar, StackElement } from 'vscode-textmate';
 import { TokenizationRegistry, TokenMetadata } from 'vs/editor/common/modes';
-import { ThemeRule, findMatchingThemeRule } from 'vs/workbench/services/textMate/electron-browser/TMHelper';
+import { ThemeRule, findMatchingThemeRule } from 'vs/workbench/services/textMate/common/TMHelper';
 import { Color } from 'vs/base/common/color';
 
 interface IToken {
