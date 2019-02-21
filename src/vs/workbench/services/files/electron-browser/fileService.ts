@@ -39,7 +39,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import product from 'vs/platform/node/product';
+import product from 'vs/platform/product/node/product';
 import { IEncodingOverride, ResourceEncodings } from 'vs/workbench/services/files/electron-browser/encoding';
 import { createReadableOfSnapshot } from 'vs/workbench/services/files/electron-browser/streams';
 

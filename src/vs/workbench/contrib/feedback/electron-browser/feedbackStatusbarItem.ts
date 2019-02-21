@@ -8,7 +8,7 @@ import { IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { FeedbackDropdown, IFeedback, IFeedbackDelegate, FEEDBACK_VISIBLE_CONFIG, IFeedbackDropdownOptions } from 'vs/workbench/contrib/feedback/electron-browser/feedback';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import product from 'vs/platform/node/product';
+import product from 'vs/platform/product/node/product';
 import { Themable, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND } from 'vs/workbench/common/theme';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';

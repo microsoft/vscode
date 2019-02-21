@@ -184,7 +184,6 @@
 					"vs/nls",
 					"**/vs/base/{common,browser,node}/**",
 					"**/vs/base/parts/*/{common,browser,node}/**",
-					"**/vs/platform/node/*",
 					"**/vs/platform/*/{common,browser,node}/**",
 					"*" // node modules
 				]
@@ -196,7 +195,6 @@
 					"vs/css!./**/*",
 					"**/vs/base/{common,browser,node}/**",
 					"**/vs/base/parts/*/{common,browser,node,electron-browser}/**",
-					"**/vs/platform/node/*",
 					"**/vs/platform/*/{common,browser,node,electron-browser}/**",
 					"*" // node modules
 				]
@@ -207,7 +205,6 @@
 					"vs/nls",
 					"**/vs/base/{common,browser,node}/**",
 					"**/vs/base/parts/*/{common,browser,node,electron-browser}/**",
-					"**/vs/platform/node/*",
 					"**/vs/platform/*/{common,browser,node,electron-main}/**",
 					"*" // node modules
 				]
@@ -385,7 +382,6 @@
 					"vs/css!./**/*",
 					"**/vs/base/{common,browser,node,electron-browser}/**",
 					"**/vs/base/parts/*/{common,browser,node,electron-browser}/**",
-					"**/vs/platform/node/**",
 					"**/vs/platform/*/{common,browser,node,electron-browser}/**",
 					"**/vs/editor/{common,browser,node,electron-browser}/**",
 					"**/vs/editor/contrib/**", // editor/contrib is equivalent to /browser/ by convention
