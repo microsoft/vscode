@@ -51,7 +51,7 @@ export class ExtHostComments implements ExtHostCommentsShape {
 
 					if (!commentControl) {
 						return arg;
-	}
+					}
 
 					return commentControl;
 				} else if (arg && arg.$mid === 7) {
@@ -347,7 +347,7 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 			this._commentControlHandle,
 			this.handle
 		);
-}
+	}
 
 }
 export class ExtHostCommentWidget implements vscode.CommentWidget {
@@ -498,7 +498,7 @@ function convertFromComment(comment: modes.Comment): vscode.Comment {
 	};
 }
 
-function convertToModeComment(vscodeComment: vscode.Comment): modes.Comment {
+function convertToModeComment(vscodeComment: vscode.Comment, commandsConverter: CommandsConverter): modes.Comment {
 	const iconPath = vscodeComment.userIconPath ? vscodeComment.userIconPath.toString() : vscodeComment.gravatar;
 
 	return {
@@ -506,7 +506,9 @@ function convertToModeComment(vscodeComment: vscode.Comment): modes.Comment {
 		body: extHostTypeConverter.MarkdownString.from(vscodeComment.body),
 		userName: vscodeComment.userName,
 		userIconPath: iconPath,
-		isDraft: vscodeComment.isDraft
+		isDraft: vscodeComment.isDraft,
+		editCommand: vscodeComment.editCommand ? commandsConverter.toInternal(vscodeComment.editCommand) : undefined,
+		deleteCommand: vscodeComment.editCommand ? commandsConverter.toInternal(vscodeComment.deleteCommand) : undefined
 	};
 }
 

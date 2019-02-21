@@ -342,12 +342,12 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._localToDispose.push(this._commentEditor);
 		this._localToDispose.push(this._commentEditor.getModel().onDidChangeContent(() => this.setCommentEditorDecorations()));
 		if ((this._commentThread as modes.CommentThread2).commentThreadHandle !== undefined) {
-		this._localToDispose.push(this._commentEditor.getModel().onDidChangeContent(() => {
+			this._localToDispose.push(this._commentEditor.getModel().onDidChangeContent(() => {
 				let modelContent = this._commentEditor.getValue();
 				if ((this._commentThread as modes.CommentThread2).input !== modelContent) {
 					(this._commentThread as modes.CommentThread2).input = modelContent;
 				}
-		}));
+			}));
 
 			this._localToDispose.push((this._commentThread as modes.CommentThread2).onDidChangeInput(input => {
 				if (this._commentEditor.getValue() !== input) {
@@ -414,7 +414,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 				this.createCommentWidgetActions2(this._formActions, model);
 			}));
 		} else {
-		this.createCommentWidgetActions(this._formActions, model);
+			this.createCommentWidgetActions(this._formActions, model);
 		}
 
 		this._resizeObserver = new MutationObserver(this._refresh.bind(this));
@@ -431,7 +431,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		}
 
 		// If there are no existing comments, place focus on the text area. This must be done after show, which also moves focus.
-		if (this._commentThread.reply && !this._commentThread.comments.length) {
+		if ((this._commentThread as modes.CommentThread).reply && !this._commentThread.comments.length) {
 			this._commentEditor.focus();
 		} else if (this._commentEditor.getModel().getValueLength() > 0) {
 			if (!dom.hasClass(this._commentForm, 'expand')) {
@@ -564,6 +564,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 	private createNewCommentNode(comment: modes.Comment): CommentNode {
 		let newCommentNode = new CommentNode(
+			this._commentThread,
 			comment,
 			this.owner,
 			this.editor.getModel().uri,
@@ -571,6 +572,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 			this.themeService,
 			this.instantiationService,
 			this.commentService,
+			this.commandService,
 			this.modelService,
 			this.modeService,
 			this.dialogService,
@@ -676,7 +678,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		if ((this._commentThread as modes.CommentThread2).commentThreadHandle !== undefined) {
 			// this._reviewThreadReplyButton.title = (this._commentThread as modes.CommentThread2).acceptInputCommands.title;
 		} else {
-		this._reviewThreadReplyButton.title = nls.localize('reply', "Reply...");
+			this._reviewThreadReplyButton.title = nls.localize('reply', "Reply...");
 		}
 		this._reviewThreadReplyButton.textContent = nls.localize('reply', "Reply...");
 		// bind click/escape actions for reviewThreadReplyButton and textArea

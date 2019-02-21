@@ -846,6 +846,9 @@ declare module 'vscode' {
 		 */
 		command?: Command;
 
+		editCommand?: Command;
+		deleteCommand?: Command;
+
 		isDraft?: boolean;
 		commentReactions?: CommentReaction[];
 	}

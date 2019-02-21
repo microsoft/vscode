@@ -1259,7 +1259,6 @@ export interface CommentThread2 {
  * @internal
  */
 export interface CommentThread {
-	commentThreadHandle?: number; // use optional type for now to avoid breaking existing api
 	extensionId: string;
 	threadId: string;
 	resource: string;
@@ -1299,6 +1298,8 @@ export interface Comment {
 	readonly canEdit?: boolean;
 	readonly canDelete?: boolean;
 	readonly command?: Command;
+	readonly editCommand?: Command;
+	readonly deleteCommand?: Command;
 	readonly isDraft?: boolean;
 	readonly commentReactions?: CommentReaction[];
 }

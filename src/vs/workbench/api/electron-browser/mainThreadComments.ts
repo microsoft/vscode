@@ -218,7 +218,7 @@ export class MainThreadCommentControl {
 			if (this._threads.get(thread).resource === resource.toString()) {
 				ret.push(this._threads.get(thread));
 			}
-}
+		}
 
 		return <ICommentInfo> {
 			owner: String(this.handle),
@@ -314,8 +314,8 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		let provider = this._commentControls.get(handle);
 
 		if (!provider) {
-				return;
-			}
+			return;
+		}
 
 		provider.updateComments(commentThreadHandle, comments);
 	}
@@ -325,7 +325,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 
 		if (!provider) {
 			return;
-	}
+		}
 
 		provider.updateInput(commentThreadHandle, input);
 
