@@ -43,6 +43,7 @@ import { renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { join } from 'vs/base/common/path';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ExtensionIdentifier, ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 
 export const IExtensionHostProfileService = createDecorator<IExtensionHostProfileService>('extensionHostProfileService');
 export const CONTEXT_PROFILE_SESSION_STATE = new RawContextKey<string>('profileSessionState', 'none');
@@ -118,7 +119,8 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IExtensionHostProfileService private readonly _extensionHostProfileService: IExtensionHostProfileService,
 		@IStorageService storageService: IStorageService,
-		@ILabelService private readonly _labelService: ILabelService
+		@ILabelService private readonly _labelService: ILabelService,
+		@IWindowService private readonly _windowService: IWindowService
 	) {
 		super(RuntimeExtensionsEditor.ID, telemetryService, themeService, storageService);
 
@@ -377,7 +379,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 					el.innerHTML = renderOcticons(`$(rss) ${element.description.extensionLocation.authority}`);
 					data.msgContainer.appendChild(el);
 
-					const hostLabel = this._labelService.getHostLabel();
+					const hostLabel = this._labelService.getHostLabel(REMOTE_HOST_SCHEME, this._windowService.getConfiguration().remoteAuthority);
 					if (hostLabel) {
 						el.innerHTML = renderOcticons(`$(rss) ${hostLabel}`);
 					}
