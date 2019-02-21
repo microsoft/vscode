@@ -168,4 +168,19 @@ suite('ObjectTreeModel', function () {
 		model.setChildren(null, data);
 		assert.deepEqual(toArray(list), ['father']);
 	});
+
+	test('sorter', () => {
+		let compare: (a: string, b: string) => number = (a, b) => a < b ? -1 : 1;
+
+		const list: ITreeNode<string>[] = [];
+		const model = new ObjectTreeModel<string>(toSpliceable(list), { sorter: { compare(a, b) { return compare(a, b); } } });
+		const data = [
+			{ element: 'cars', children: [{ element: 'sedan' }, { element: 'convertible' }, { element: 'compact' }] },
+			{ element: 'airplanes', children: [{ element: 'passenger' }, { element: 'jet' }] },
+			{ element: 'bicycles', children: [{ element: 'dutch' }, { element: 'mountain' }, { element: 'electric' }] },
+		];
+
+		model.setChildren(null, data);
+		assert.deepEqual(toArray(list), ['airplanes', 'jet', 'passenger', 'bicycles', 'dutch', 'electric', 'mountain', 'cars', 'compact', 'convertible', 'sedan']);
+	});
 });
