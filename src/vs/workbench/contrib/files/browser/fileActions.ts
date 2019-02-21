@@ -827,7 +827,7 @@ export class CollapseExplorerView extends Action {
 	}
 
 	public run(): Promise<any> {
-		return this.viewletService.openViewlet(VIEWLET_ID, true).then((viewlet: ExplorerViewlet) => {
+		return this.viewletService.openViewlet(VIEWLET_ID).then((viewlet: ExplorerViewlet) => {
 			const explorerView = viewlet.getExplorerView();
 			if (explorerView) {
 				explorerView.collapseAll();
@@ -851,7 +851,7 @@ export class RefreshExplorerView extends Action {
 	}
 
 	public run(): Promise<any> {
-		return this.viewletService.openViewlet(VIEWLET_ID, true).then(() =>
+		return this.viewletService.openViewlet(VIEWLET_ID).then(() =>
 			this.explorerService.refresh()
 		);
 	}
