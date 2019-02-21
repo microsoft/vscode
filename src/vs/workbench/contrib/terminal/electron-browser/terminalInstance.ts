@@ -1104,12 +1104,7 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 
 		if (this._processManager) {
-			// TODO: Why is this a string-null check failure without the "!"?
-			// The process manager can indeed be undefined when using a custom execution
-			// as a task, and the if check is correct.
-			// The "force assume to be not-null !" operator was there before the addition
-			// of custom execution as task functionality.
-			this._processManager!.onProcessData(data => this._onProcessData(data));
+			this._processManager.onProcessData(data => this._onProcessData(data));
 		}
 	}
 
