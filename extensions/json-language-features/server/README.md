@@ -54,6 +54,9 @@ The server supports the following settings:
 	  - `fileMatch`: an array or file names or paths (separated by `/`). `*` can be used as a wildcard.
 	  - `url`: The URL of the schema, optional when also a schema is provided.
 	  - `schema`: The schema content.
+  - `schemaStore`
+    - `enable`: Enable the use of schemastore catalog for schema associations.
+    - `disabledFileMatches`: Array of disabled filematches for schema associations.
 
 ```json
 	{
@@ -76,7 +79,14 @@ The server supports the following settings:
                     	"type": "array"
                     }
                 }
-            ]
+            ], 
+            "schemaStore": {
+                "enable": true, 
+                "disabledFileMatches": [
+                    "foo.json",
+                    "*.superfoo.json"
+                ]
+            }
         }
     }
 ```

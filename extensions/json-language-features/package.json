@@ -72,6 +72,21 @@
           "default": true,
           "description": "%json.format.enable.desc%"
         },
+        "json.schemaStore.enable": {
+          "type": "boolean",
+          "scope": "window",
+          "default": true,
+          "description": "%json.schemaStore.enable.desc%"
+        },
+        "json.schemaStore.disabledFileMatches": {
+          "type": "array",
+          "scope": "resource",
+          "description": "%json.schemaStore.disabledFileMatches.desc%",
+          "items": {
+            "type": "string",
+            "description": "%json.schemaStore.disabledFileMatches.item.desc%"
+          }
+        },
         "json.trace.server": {
           "type": "string",
           "scope": "window",

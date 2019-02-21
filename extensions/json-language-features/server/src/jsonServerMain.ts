@@ -161,6 +161,10 @@ interface Settings {
 	json: {
 		schemas: JSONSchemaSettings[];
 		format: { enable: boolean; };
+		schemaStore: {
+			enable: boolean;
+			disabledFileMatches: string[];
+		}
 	};
 	http: {
 		proxy: string;
@@ -178,12 +182,24 @@ let jsonConfigurationSettings: JSONSchemaSettings[] | undefined = undefined;
 let schemaAssociations: ISchemaAssociations | undefined = undefined;
 let formatterRegistration: Thenable<Disposable> | null = null;
 
+let schemaStoreEnabled = true;
+let schemaStoreSchemas: JSONSchemaSettings[] = [];
+let disabledFileMatches: string[] = [];
+
 // The settings have changed. Is send on server activation as well.
 connection.onDidChangeConfiguration((change) => {
 	let settings = <Settings>change.settings;
 	configureHttpRequests(settings.http && settings.http.proxy, settings.http && settings.http.proxyStrictSSL);
 
 	jsonConfigurationSettings = settings.json && settings.json.schemas;
+	
+	if (settings.json && settings.json.schemaStore) {
+		schemaStoreEnabled = settings.json.schemaStore.enable;
+		disabledFileMatches = settings.json.schemaStore.disabledFileMatches;
+	}
+	
+	setSchemaStoreSettings();
+	
 	updateConfiguration();
 
 	// dynamically enable & disable the formatter
@@ -203,6 +219,7 @@ connection.onDidChangeConfiguration((change) => {
 // The jsonValidation extension configuration has changed
 connection.onNotification(SchemaAssociationNotification.type, associations => {
 	schemaAssociations = associations;
+	setSchemaStoreSettings();
 	updateConfiguration();
 });
 
@@ -253,6 +270,37 @@ function updateConfiguration() {
 			}
 		});
 	}
+
+	if (schemaStoreEnabled && schemaStoreSchemas && schemaStoreSchemas.length !== 0) {
+		schemaStoreSchemas.forEach(schema => {
+			let uri = schema.url;
+			let fileMatchAlreadyExist = true;
+			if (uri && schema.fileMatch && schema.fileMatch.length === 1) {
+				
+				let schemaFileMatch = schema.fileMatch[0];
+				
+				let isDisabledFileMatch = disabledFileMatches.some(
+					fileMatch => fileMatch === schemaFileMatch
+				);
+
+				fileMatchAlreadyExist = languageSettings.schemas.some(
+					settingSchema => {
+						if (settingSchema.fileMatch) {
+							return settingSchema.fileMatch.some(
+								fileMatch => fileMatch === schemaFileMatch
+							);
+						}
+						return false;
+					}
+				);
+
+				if (!isDisabledFileMatch && !fileMatchAlreadyExist) {
+					languageSettings.schemas.push({ uri, fileMatch: schema.fileMatch, schema: schema.schema });
+				} 
+			}	
+		});
+	}
+
 	languageService.configure(languageSettings);
 
 	// Revalidate any open text documents
@@ -315,6 +363,49 @@ function validateTextDocument(textDocument: TextDocument, callback?: (diagnostic
 	}, error => {
 		connection.console.error(formatError(`Error while validating ${textDocument.uri}`, error));
 	});
+}
+
+function setSchemaStoreSettings() {
+
+	const schemaStoreIsSet = (schemaStoreSchemas.length !== 0);
+	if (schemaStoreEnabled && !schemaStoreIsSet) {
+		getSchemaStoreMatchingSchemas().then(schemas => {
+			schemaStoreSchemas = schemas;
+			updateConfiguration();
+		});
+	} else if (!schemaStoreEnabled) {
+		updateConfiguration();
+	}
+}
+
+function getSchemaStoreMatchingSchemas(){
+	return xhr({ url: 'https://schemastore.azurewebsites.net/api/json/catalog.json' }).then(response => {
+
+		let schemas = [];
+
+		let responseSchemas = JSON.parse(response.responseText);
+		for(let schemaIndex in responseSchemas.schemas){
+
+			let schema = responseSchemas.schemas[schemaIndex];
+			if(schema && schema.url && schema.fileMatch){
+
+				for(let fileMatch in schema.fileMatch){
+					let currFileMatch = schema.fileMatch[fileMatch];
+
+					// We exclude only yaml files because we want to include others files like .stylelintrc or .bowerrc
+					if(currFileMatch.indexOf('.yaml') === -1 && currFileMatch.indexOf('.yml') === -1){
+						let url = schema.url;
+						schemas.push({ url, fileMatch: [currFileMatch]});
+					}
+				}
+			}
+		}
+
+		return schemas;
+	}, (error: XHRResponse) => {
+		throw error;
+	});
+
 }
 
 connection.onDidChangeWatchedFiles((change) => {
