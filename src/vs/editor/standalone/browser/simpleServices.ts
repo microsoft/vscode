@@ -402,6 +402,10 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 	public resolveUserBinding(userBinding: string): ResolvedKeybinding[] {
 		return [];
 	}
+
+	public _dumpDebugInfo(): string {
+		return '';
+	}
 }
 
 function isConfigurationOverrides(thing: any): thing is IConfigurationOverrides {

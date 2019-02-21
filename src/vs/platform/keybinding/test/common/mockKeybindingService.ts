@@ -132,4 +132,8 @@ export class MockKeybindingService implements IKeybindingService {
 	public mightProducePrintableCharacter(e: IKeyboardEvent): boolean {
 		return false;
 	}
+
+	public _dumpDebugInfo(): string {
+		return '';
+	}
 }

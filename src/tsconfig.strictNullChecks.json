@@ -143,7 +143,7 @@
 		"./vs/workbench/contrib/codeEditor/browser/menuPreventer.ts",
 		"./vs/workbench/contrib/codeEditor/browser/simpleEditorOptions.ts",
 		"./vs/workbench/contrib/codeEditor/browser/accessibility/accessibility.ts",
-		"./vs/workbench/contrib/codeEditor/electron-browser/inspectKeybindings.ts",
+		"./vs/workbench/contrib/codeEditor/browser/inspectKeybindings.ts",
 		"./vs/workbench/contrib/codeEditor/browser/languageConfigurationExtensionPoint.ts",
 		"./vs/workbench/contrib/codeEditor/browser/selectionClipboard.ts",
 		"./vs/workbench/contrib/codeEditor/electron-browser/sleepResumeRepaintMinimap.ts",

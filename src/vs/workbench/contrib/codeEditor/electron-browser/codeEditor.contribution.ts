@@ -5,7 +5,7 @@
 
 import '../browser/menuPreventer';
 import '../browser/accessibility/accessibility';
-import './inspectKeybindings';
+import '../browser/inspectKeybindings';
 import '../browser/largeFileOptimizations';
 import '../browser/selectionClipboard';
 import './sleepResumeRepaintMinimap';
