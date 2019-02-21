@@ -36,13 +36,14 @@ import { fillResourceDataTransfers } from 'vs/workbench/browser/dnd';
 import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/common/async';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { Range } from 'vs/editor/common/core/range';
-import { getCodeActions, applyCodeAction } from 'vs/editor/contrib/codeAction/codeAction';
+import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
 import { ITextModel } from 'vs/editor/common/model';
 import { CodeAction } from 'vs/editor/common/modes';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { applyCodeAction } from 'vs/editor/contrib/codeAction/codeActionCommands';
 
 export type TreeElement = ResourceMarkers | Marker | RelatedInformation;
 
