@@ -89,7 +89,7 @@ import 'vs/workbench/contrib/debug/electron-browser/repl';
 import 'vs/workbench/contrib/debug/browser/debugViewlet';
 
 // Markers
-import 'vs/workbench/contrib/markers/electron-browser/markers.contribution';
+import 'vs/workbench/contrib/markers/browser/markers.contribution';
 
 // Comments
 import 'vs/workbench/contrib/comments/electron-browser/comments.contribution';
