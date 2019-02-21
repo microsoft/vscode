@@ -90,7 +90,10 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 			const node = this.nodes.get(treeElement.element);
 
 			if (!node) {
-				return treeElement;
+				return {
+					...treeElement,
+					children: this.preserveCollapseState(treeElement.children)
+				};
 			}
 
 			const collapsible = typeof treeElement.collapsible === 'boolean' ? treeElement.collapsible : node.collapsible;
