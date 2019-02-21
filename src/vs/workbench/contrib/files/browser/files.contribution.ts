@@ -16,7 +16,7 @@ import { IEditorInputFactory, EditorInput, IFileEditorInput, IEditorInputFactory
 import { AutoSaveConfiguration, HotExitConfiguration, SUPPORTED_ENCODINGS } from 'vs/platform/files/common/files';
 import { VIEWLET_ID, SortOrderConfiguration, FILE_EDITOR_INPUT_ID, IExplorerService } from 'vs/workbench/contrib/files/common/files';
 import { FileEditorTracker } from 'vs/workbench/contrib/files/browser/editors/fileEditorTracker';
-import { SaveErrorHandler } from 'vs/workbench/contrib/files/electron-browser/saveErrorHandler';
+import { SaveErrorHandler } from 'vs/workbench/contrib/files/browser/saveErrorHandler';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { TextFileEditor } from 'vs/workbench/contrib/files/browser/editors/textFileEditor';
 import { BinaryFileEditor } from 'vs/workbench/contrib/files/browser/editors/binaryFileEditor';
@@ -27,7 +27,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
 import { DirtyFilesTracker } from 'vs/workbench/contrib/files/common/dirtyFilesTracker';
-import { ExplorerViewlet, ExplorerViewletViewsContribution } from 'vs/workbench/contrib/files/electron-browser/explorerViewlet';
+import { ExplorerViewlet, ExplorerViewletViewsContribution } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { IEditorRegistry, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 import { DataUriEditorInput } from 'vs/workbench/common/editor/dataUriEditorInput';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
@@ -36,7 +36,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ExplorerService } from 'vs/workbench/contrib/files/electron-browser/explorerService';
+import { ExplorerService } from 'vs/workbench/contrib/files/common/explorerService';
 
 // Viewlet Action
 export class OpenExplorerViewletAction extends ShowViewletAction {

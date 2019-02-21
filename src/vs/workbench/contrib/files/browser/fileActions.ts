@@ -18,14 +18,14 @@ import { VIEWLET_ID, IExplorerService } from 'vs/workbench/contrib/files/common/
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService, AutoSaveConfiguration } from 'vs/platform/files/common/files';
 import { toResource, IUntitledResourceInput, ITextEditor } from 'vs/workbench/common/editor';
-import { ExplorerViewlet } from 'vs/workbench/contrib/files/electron-browser/explorerViewlet';
+import { ExplorerViewlet } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IInstantiationService, ServicesAccessor, IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModel } from 'vs/editor/common/model';
 import { IWindowService } from 'vs/platform/windows/common/windows';
-import { REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_ALL_COMMAND_ID, SAVE_ALL_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID } from 'vs/workbench/contrib/files/electron-browser/fileCommands';
+import { REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_ALL_COMMAND_ID, SAVE_ALL_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileCommands';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
