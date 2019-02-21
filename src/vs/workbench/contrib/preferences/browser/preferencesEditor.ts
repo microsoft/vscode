@@ -778,7 +778,6 @@ class SideBySidePreferencesWidget extends Widget {
 	private readonly _onDidSettingsTargetChange = new Emitter<SettingsTarget>();
 	readonly onDidSettingsTargetChange: Event<SettingsTarget> = this._onDidSettingsTargetChange.event;
 
-	private lastFocusedEditor: BaseEditor;
 	private splitview: SplitView;
 
 	private isVisible: boolean;
@@ -810,7 +809,6 @@ class SideBySidePreferencesWidget extends Widget {
 
 		this.defaultPreferencesEditor = this._register(this.instantiationService.createInstance(DefaultPreferencesEditor));
 		this.defaultPreferencesEditor.create(this.defaultPreferencesEditorContainer);
-		(<CodeEditorWidget>this.defaultPreferencesEditor.getControl()).onDidFocusEditorWidget(() => this.lastFocusedEditor = this.defaultPreferencesEditor);
 
 		this.splitview.addView({
 			element: this.defaultPreferencesEditorContainer,
@@ -886,8 +884,8 @@ class SideBySidePreferencesWidget extends Widget {
 	}
 
 	focus(): void {
-		if (this.lastFocusedEditor) {
-			this.lastFocusedEditor.focus();
+		if (this.editablePreferencesEditor) {
+			this.editablePreferencesEditor.focus();
 		}
 	}
 
@@ -925,8 +923,6 @@ class SideBySidePreferencesWidget extends Widget {
 		this.editablePreferencesEditor = editor;
 		this.editablePreferencesEditor.create(this.editablePreferencesEditorContainer);
 		this.editablePreferencesEditor.setVisible(this.isVisible, this.group);
-		(<CodeEditorWidget>this.editablePreferencesEditor.getControl()).onDidFocusEditorWidget(() => this.lastFocusedEditor = this.editablePreferencesEditor);
-		this.lastFocusedEditor = this.editablePreferencesEditor;
 		this.layout();
 
 		return editor;
