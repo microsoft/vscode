@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { Event, Emitter, EventBufferer, EventMultiplexer, AsyncEmitter, IWaitUntil } from 'vs/base/common/event';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import * as Errors from 'vs/base/common/errors';
 import { timeout } from 'vs/base/common/async';
 
@@ -776,38 +776,5 @@ suite('Event utils', () => {
 		assert.deepEqual(result, [1, 2, 1, 3]);
 
 		listener.dispose();
-	});
-
-	test('snapshot', () => {
-		const disposables: IDisposable[] = [];
-
-		const emitter = new Emitter<void>();
-		let count = 0;
-		const event = Event.forEach(emitter.event, () => count++);
-
-		// one listener
-		event(() => null, null, disposables);
-		emitter.fire();
-		assert.equal(count, 1);
-		dispose(disposables);
-
-		// two listeners
-		count = 0;
-		event(() => null, null, disposables);
-		event(() => null, null, disposables);
-		emitter.fire();
-		emitter.fire();
-		assert.equal(count, 4); // forEach will run *per event* and *per listener*
-		dispose(disposables);
-
-		// two listeners, with snapshot
-		count = 0;
-		const eventSnapshot = Event.snapshot(event);
-		eventSnapshot(() => null, null, disposables);
-		eventSnapshot(() => null, null, disposables);
-		emitter.fire();
-		emitter.fire();
-		assert.equal(count, 2); // forEach will run only once *per listener*
-		dispose(disposables);
 	});
 });
