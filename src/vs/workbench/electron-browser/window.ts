@@ -34,14 +34,14 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { LifecyclePhase, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
-import { AccessibilitySupport, isRootUser, isWindows, isMacintosh, isLinux } from 'vs/base/common/platform';
+import { isRootUser, isWindows, isMacintosh, isLinux } from 'vs/base/common/platform';
 import product from 'vs/platform/product/node/product';
 import pkg from 'vs/platform/product/node/package';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 
 const TextInputActions: IAction[] = [
 	new Action('undo', nls.localize('undo', "Undo"), undefined, true, () => Promise.resolve(document.execCommand('undo'))),

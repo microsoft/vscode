@@ -12,7 +12,7 @@ import * as types from 'vs/base/common/types';
 import { URI as uri } from 'vs/base/common/uri';
 import { IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { Action } from 'vs/base/common/actions';
-import { language, LANGUAGE_DEFAULT, AccessibilitySupport } from 'vs/base/common/platform';
+import { language, LANGUAGE_DEFAULT } from 'vs/base/common/platform';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { IFileEditorInput, EncodingMode, IEncodingSupport, toResource, SideBySideEditorInput, IEditor as IBaseEditor, IEditorInput } from 'vs/workbench/common/editor';
 import { IDisposable, combinedDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -50,7 +50,7 @@ import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { timeout } from 'vs/base/common/async';
 import { INotificationHandle, INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { Event } from 'vs/base/common/event';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private master: IEncodingSupport, private details: IEncodingSupport) { }

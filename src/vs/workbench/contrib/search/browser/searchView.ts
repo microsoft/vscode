@@ -61,7 +61,7 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPreferencesService, ISettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { relativePath } from 'vs/base/common/resources';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 
 const $ = dom.$;
 
@@ -348,7 +348,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	}
 
 	private isScreenReaderOptimized() {
-		const detected = this.accessibilityService.getAccessibilitySupport() === env.AccessibilitySupport.Enabled;
+		const detected = this.accessibilityService.getAccessibilitySupport() === AccessibilitySupport.Enabled;
 		const config = this.configurationService.getValue<IEditorOptions>('editor').accessibilitySupport;
 		return config === 'on' || (config === 'auto' && detected);
 	}

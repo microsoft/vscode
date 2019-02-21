@@ -8,7 +8,6 @@ import * as nls from 'vs/nls';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
 import { IEmptyContentData } from 'vs/editor/browser/controller/mouseTarget';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
@@ -30,6 +29,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 
 export class ModesHoverController implements IEditorContribution {
 
@@ -272,7 +272,7 @@ class ShowHoverAction extends EditorAction {
 		}
 		const position = editor.getPosition();
 		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
-		const focus = editor.getConfiguration().accessibilitySupport === platform.AccessibilitySupport.Enabled;
+		const focus = editor.getConfiguration().accessibilitySupport === AccessibilitySupport.Enabled;
 		controller.showContentHover(range, HoverStartMode.Immediate, focus);
 	}
 }

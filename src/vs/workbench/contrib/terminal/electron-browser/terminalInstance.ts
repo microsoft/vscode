@@ -37,7 +37,7 @@ import { TerminalCommandTracker } from 'vs/workbench/contrib/terminal/node/termi
 import { WindowsShellHelper } from 'vs/workbench/contrib/terminal/node/windowsShellHelper';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ISearchOptions, Terminal as XTermTerminal } from 'vscode-xterm';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -460,7 +460,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	private _isScreenReaderOptimized(): boolean {
-		const detected = this._accessibilityService.getAccessibilitySupport() === platform.AccessibilitySupport.Enabled;
+		const detected = this._accessibilityService.getAccessibilitySupport() === AccessibilitySupport.Enabled;
 		const config = this._configurationService.getValue('editor.accessibilitySupport');
 		return config === 'on' || (config === 'auto' && detected);
 	}

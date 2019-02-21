@@ -9,7 +9,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Keybinding, ResolvedKeybinding, SimpleKeybinding, createKeybinding } from 'vs/base/common/keyCodes';
 import { IDisposable, IReference, ImmortalReference, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { OS, isLinux, isMacintosh, AccessibilitySupport } from 'vs/base/common/platform';
+import { OS, isLinux, isMacintosh } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor, IDiffEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -42,7 +42,7 @@ import { IProgressRunner, IProgressService } from 'vs/platform/progress/common/p
 import { ITelemetryInfo, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkbenchState, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 
 export class SimpleModel implements ITextEditorModel {
 

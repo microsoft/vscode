@@ -14,7 +14,6 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerColor, oneOf, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, ITheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
-import { AccessibilitySupport } from 'vs/base/common/platform';
 import { editorErrorForeground, editorErrorBorder, editorWarningForeground, editorWarningBorder, editorInfoForeground, editorInfoBorder } from 'vs/editor/common/view/editorColorRegistry';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
@@ -27,6 +26,7 @@ import { basename } from 'vs/base/common/resources';
 import { IAction } from 'vs/base/common/actions';
 import { IActionBarOptions, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { peekViewTitleForeground, peekViewTitleInfoForeground } from 'vs/editor/contrib/referenceSearch/referencesWidget';
+import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 
 class MessageWidget {
 

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { AccessibilitySupport } from 'vs/base/common/platform';
 import { Event } from 'vs/base/common/event';
 
 export const IAccessibilityService = createDecorator<IAccessibilityService>('accessibilityService');
@@ -17,4 +16,15 @@ export interface IAccessibilityService {
 	alwaysUnderlineAccessKeys(): Promise<boolean>;
 	getAccessibilitySupport(): AccessibilitySupport;
 	setAccessibilitySupport(accessibilitySupport: AccessibilitySupport): void;
+}
+
+export const enum AccessibilitySupport {
+	/**
+	 * This should be the browser case where it is not known if a screen reader is attached or no.
+	 */
+	Unknown = 0,
+
+	Disabled = 1,
+
+	Enabled = 2
 }
