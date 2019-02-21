@@ -181,6 +181,8 @@ import { ExtensionService } from 'vs/workbench/services/extensions/electron-brow
 import { TextResourcePropertiesService } from 'vs/workbench/services/textfile/electron-browser/textResourcePropertiesService';
 import { ITextMateService } from 'vs/workbench/services/textMate/common/textMateService';
 import { TextMateService } from 'vs/workbench/services/textMate/electron-browser/TMSyntax';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { AccessibilityService } from 'vs/platform/accessibility/node/accessibilityService';
 
 interface IZenModeSettings {
 	fullScreen: boolean;
@@ -676,6 +678,9 @@ export class Workbench extends Disposable implements IPartService {
 		serviceCollection.set(IEditorGroupsService, this.editorPart);
 		this.editorService = this.instantiationService.createInstance(EditorService);
 		serviceCollection.set(IEditorService, this.editorService);
+
+		// Accessibility
+		serviceCollection.set(IAccessibilityService, new SyncDescriptor(AccessibilityService, undefined, true));
 
 		// Title bar
 		this.titlebarPart = this.instantiationService.createInstance(TitlebarPart, Identifiers.TITLEBAR_PART);

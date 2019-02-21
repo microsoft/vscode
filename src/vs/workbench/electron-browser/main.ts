@@ -81,7 +81,6 @@ export class CodeWindow extends Disposable {
 		browser.setZoomFactor(webFrame.getZoomFactor()); // Ensure others can listen to zoom level changes
 		browser.setZoomLevel(webFrame.getZoomLevel(), true /* isTrusted */); // Can be trusted because we are not setting it ourselves (https://github.com/Microsoft/vscode/issues/26151)
 		browser.setFullscreen(!!this.configuration.fullscreen);
-		browser.setAccessibilitySupport(this.configuration.accessibilitySupport ? platform.AccessibilitySupport.Enabled : platform.AccessibilitySupport.Disabled);
 
 		// Keyboard support
 		KeyboardMapperFactory.INSTANCE._onKeyboardLayoutChanged();
