@@ -21,7 +21,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { TestFileService, TestEditorService, TestEditorGroupsService, TestEnvironmentService, TestContextService, TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTestServices';
 import { ResourceTextEdit } from 'vs/editor/common/modes';
-import { BulkEditService } from 'vs/workbench/services/bulkEdit/electron-browser/bulkEditService';
+import { BulkEditService } from 'vs/workbench/services/bulkEdit/browser/bulkEditService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IReference, ImmortalReference } from 'vs/base/common/lifecycle';

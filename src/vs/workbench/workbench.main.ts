@@ -39,7 +39,7 @@ import 'vs/workbench/api/browser/viewsExtensionPoint';
 
 //#region --- workbench services
 
-import 'vs/workbench/services/bulkEdit/electron-browser/bulkEditService';
+import 'vs/workbench/services/bulkEdit/browser/bulkEditService';
 
 //#endregion
 
