@@ -10,7 +10,7 @@ import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILifecycleService, StartupKind } from 'vs/platform/lifecycle/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
-import product from 'vs/platform/node/product';
+import product from 'vs/platform/product/node/product';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUpdateService } from 'vs/platform/update/common/update';
 import { IWindowsService } from 'vs/platform/windows/common/windows';

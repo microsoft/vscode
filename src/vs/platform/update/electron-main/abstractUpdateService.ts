@@ -7,7 +7,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { timeout } from 'vs/base/common/async';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
-import product from 'vs/platform/node/product';
+import product from 'vs/platform/product/node/product';
 import { IUpdateService, State, StateType, AvailableForDownload, UpdateType } from 'vs/platform/update/common/update';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';

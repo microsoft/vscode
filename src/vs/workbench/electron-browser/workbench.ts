@@ -135,10 +135,9 @@ import { ILocalizationsService } from 'vs/platform/localizations/common/localiza
 import { HistoryService } from 'vs/workbench/services/history/browser/history';
 import { ConfigurationResolverService } from 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
 import { WorkbenchThemeService } from 'vs/workbench/services/themes/browser/workbenchThemeService';
-
-// todo@move
-import product from 'vs/platform/node/product';
-import pkg from 'vs/platform/node/package';
+import { IProductService } from 'vs/platform/product/common/product';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { ITextMateService } from 'vs/workbench/services/textMate/common/textMateService';
 
 // import@node
 import { BackupFileService, InMemoryBackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
@@ -164,6 +163,8 @@ import { MultiExtensionManagementService } from 'vs/workbench/services/extension
 import { SearchService } from 'vs/workbench/services/search/node/searchService';
 import { IntegrityServiceImpl } from 'vs/workbench/services/integrity/node/integrityServiceImpl';
 import { LocalizationsChannelClient } from 'vs/platform/localizations/node/localizationsIpc';
+import { AccessibilityService } from 'vs/platform/accessibility/node/accessibilityService';
+import { ProductService } from 'vs/platform/product/node/productService';
 
 // import@electron-browser
 import { ContextMenuService as NativeContextMenuService } from 'vs/workbench/services/contextview/electron-browser/contextmenuService';
@@ -179,10 +180,7 @@ import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-brow
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import { ExtensionService } from 'vs/workbench/services/extensions/electron-browser/extensionService';
 import { TextResourcePropertiesService } from 'vs/workbench/services/textfile/electron-browser/textResourcePropertiesService';
-import { ITextMateService } from 'vs/workbench/services/textMate/common/textMateService';
 import { TextMateService } from 'vs/workbench/services/textMate/electron-browser/TMSyntax';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { AccessibilityService } from 'vs/platform/accessibility/node/accessibilityService';
 
 interface IZenModeSettings {
 	fullScreen: boolean;
@@ -482,6 +480,10 @@ export class Workbench extends Disposable implements IPartService {
 		this.windowService = this.instantiationService.createInstance(WindowService, this.configuration);
 		serviceCollection.set(IWindowService, this.windowService);
 
+		// Product
+		const productService = new ProductService();
+		serviceCollection.set(IProductService, productService);
+
 		// Shared Process
 		const sharedProcess = this.windowsService.whenSharedProcessReady()
 			.then(() => connectNet(this.environmentService.sharedIPCHandle, `window:${this.configuration.windowId}`))
@@ -492,11 +494,11 @@ export class Workbench extends Disposable implements IPartService {
 			});
 
 		// Telemetry
-		if (!this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
+		if (!this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!productService.enableTelemetry) {
 			const channel = getDelayedChannel(sharedProcess.then(c => c.getChannel('telemetryAppender')));
 			const config: ITelemetryServiceConfig = {
 				appender: combinedAppender(new TelemetryAppenderClient(channel), new LogAppender(this.logService)),
-				commonProperties: resolveWorkbenchCommonProperties(this.storageService, product.commit, pkg.version, this.configuration.machineId, this.environmentService.installSourcePath),
+				commonProperties: resolveWorkbenchCommonProperties(this.storageService, productService.commit, productService.version, this.configuration.machineId, this.environmentService.installSourcePath),
 				piiPaths: [this.environmentService.appRoot, this.environmentService.extensionsPath]
 			};
 

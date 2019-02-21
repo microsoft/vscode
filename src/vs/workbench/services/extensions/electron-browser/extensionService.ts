@@ -17,8 +17,8 @@ import { EnablementState, IExtensionEnablementService, IExtensionIdentifier, IEx
 import { BetterMergeId, areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import pkg from 'vs/platform/node/package';
-import product from 'vs/platform/node/product';
+import pkg from 'vs/platform/product/node/package';
+import product from 'vs/platform/product/node/product';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';

@@ -32,8 +32,8 @@ import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
 import { getDelayedChannel, StaticRouter } from 'vs/base/parts/ipc/node/ipc';
-import product from 'vs/platform/node/product';
-import pkg from 'vs/platform/node/package';
+import product from 'vs/platform/product/node/product';
+import pkg from 'vs/platform/product/node/package';
 import { ProxyAuthHandler } from 'vs/code/electron-main/auth';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';

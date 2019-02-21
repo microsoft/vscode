@@ -22,8 +22,8 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { writeTransientState } from 'vs/workbench/contrib/codeEditor/browser/toggleWordWrap';
 import { mergeSort } from 'vs/base/common/arrays';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import product from 'vs/platform/node/product';
-import pkg from 'vs/platform/node/package';
+import product from 'vs/platform/product/node/product';
+import pkg from 'vs/platform/product/node/package';
 
 export class PerfviewContrib {
 
