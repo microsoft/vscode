@@ -16,7 +16,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
+import { ITextMateService } from 'vs/workbench/services/textMate/common/textMateService';
 
 interface IRegExp {
 	pattern: string;

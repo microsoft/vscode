@@ -179,7 +179,7 @@ import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-brow
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import { ExtensionService } from 'vs/workbench/services/extensions/electron-browser/extensionService';
 import { TextResourcePropertiesService } from 'vs/workbench/services/textfile/electron-browser/textResourcePropertiesService';
-import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
+import { ITextMateService } from 'vs/workbench/services/textMate/common/textMateService';
 import { TextMateService } from 'vs/workbench/services/textMate/electron-browser/TMSyntax';
 
 interface IZenModeSettings {
