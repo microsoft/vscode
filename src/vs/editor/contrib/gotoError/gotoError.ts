@@ -24,6 +24,8 @@ import { binarySearch } from 'vs/base/common/arrays';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { Action } from 'vs/base/common/actions';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 class MarkerModel {
 
@@ -211,7 +213,8 @@ export class MarkerController implements editorCommon.IEditorContribution {
 		@IMarkerService private readonly _markerService: IMarkerService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IThemeService private readonly _themeService: IThemeService,
-		@ICodeEditorService private readonly _editorService: ICodeEditorService
+		@ICodeEditorService private readonly _editorService: ICodeEditorService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
 		this._editor = editor;
 		this._widgetVisible = CONTEXT_MARKERS_NAVIGATION_VISIBLE.bindTo(this._contextKeyService);
@@ -242,11 +245,18 @@ export class MarkerController implements editorCommon.IEditorContribution {
 		this._model = new MarkerModel(this._editor, markers);
 		this._markerService.onMarkerChanged(this._onMarkerChanged, this, this._disposeOnClose);
 
-		this._widget = new MarkerNavigationWidget(this._editor, this._themeService);
+		const prevMarkerKeybinding = this._keybindingService.lookupKeybinding(PrevMarkerAction.ID);
+		const nextMarkerKeybinding = this._keybindingService.lookupKeybinding(NextMarkerAction.ID);
+		const actions = [
+			new Action(PrevMarkerAction.ID, PrevMarkerAction.LABEL + (prevMarkerKeybinding ? ` (${prevMarkerKeybinding.getLabel()})` : ''), 'show-previous-problem octicon octicon-chevron-up', this._model.canNavigate(), async () => { if (this._model) { this._model.move(false, true); } }),
+			new Action(NextMarkerAction.ID, NextMarkerAction.LABEL + (nextMarkerKeybinding ? ` (${nextMarkerKeybinding.getLabel()})` : ''), 'show-next-problem octicon octicon-chevron-down', this._model.canNavigate(), async () => { if (this._model) { this._model.move(true, true); } })
+		];
+		this._widget = new MarkerNavigationWidget(this._editor, actions, this._themeService);
 		this._widgetVisible.set(true);
 
 		this._disposeOnClose.push(this._model);
 		this._disposeOnClose.push(this._widget);
+		this._disposeOnClose.push(...actions);
 		this._disposeOnClose.push(this._widget.onDidSelectRelatedInformation(related => {
 			this._editorService.openCodeEditor({
 				resource: related.resource,
@@ -410,24 +420,30 @@ class MarkerNavigationAction extends EditorAction {
 	}
 }
 
-class NextMarkerAction extends MarkerNavigationAction {
+export class NextMarkerAction extends MarkerNavigationAction {
+	static ID: string = 'editor.action.marker.next';
+	static LABEL: string = nls.localize('markerAction.next.label', "Go to Next Problem (Error, Warning, Info)");
 	constructor() {
 		super(true, false, {
-			id: 'editor.action.marker.next',
-			label: nls.localize('markerAction.next.label', "Go to Next Problem (Error, Warning, Info)"),
+			id: NextMarkerAction.ID,
+			label: NextMarkerAction.LABEL,
 			alias: 'Go to Next Error or Warning',
-			precondition: EditorContextKeys.writable
+			precondition: EditorContextKeys.writable,
+			kbOpts: { kbExpr: EditorContextKeys.editorTextFocus, primary: KeyMod.Alt | KeyCode.F8, weight: KeybindingWeight.EditorContrib }
 		});
 	}
 }
 
 class PrevMarkerAction extends MarkerNavigationAction {
+	static ID: string = 'editor.action.marker.prev';
+	static LABEL: string = nls.localize('markerAction.previous.label', "Go to Previous Problem (Error, Warning, Info)");
 	constructor() {
 		super(false, false, {
-			id: 'editor.action.marker.prev',
-			label: nls.localize('markerAction.previous.label', "Go to Previous Problem (Error, Warning, Info)"),
+			id: PrevMarkerAction.ID,
+			label: PrevMarkerAction.LABEL,
 			alias: 'Go to Previous Error or Warning',
-			precondition: EditorContextKeys.writable
+			precondition: EditorContextKeys.writable,
+			kbOpts: { kbExpr: EditorContextKeys.editorTextFocus, primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F8, weight: KeybindingWeight.EditorContrib }
 		});
 	}
 }

@@ -17,8 +17,6 @@ import { tildify, getPathLabel } from 'vs/base/common/labels';
 import { ltrim, endsWith } from 'vs/base/common/strings';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, WORKSPACE_EXTENSION, toWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { Schemas } from 'vs/base/common/network';
-import { IWindowService } from 'vs/platform/windows/common/windows';
-import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { ILabelService, ResourceLabelFormatter, ResourceLabelFormatting } from 'vs/platform/label/common/label';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { match } from 'vs/base/common/glob';
@@ -101,7 +99,6 @@ export class LabelService implements ILabelService {
 	constructor(
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IWindowService private readonly windowService: IWindowService
 	) { }
 
 	get onDidChangeFormatters(): Event<void> {
@@ -121,7 +118,7 @@ export class LabelService implements ILabelService {
 					return;
 				}
 
-				if (match(formatter.authority, resource.authority) && (!bestResult || !bestResult.authority || formatter.authority.length > bestResult.authority.length)) {
+				if (match(formatter.authority, resource.authority) && (!bestResult || !bestResult.authority || formatter.authority.length > bestResult.authority.length || ((formatter.authority.length === bestResult.authority.length) && formatter.priority))) {
 					bestResult = formatter;
 				}
 			}
@@ -200,17 +197,14 @@ export class LabelService implements ILabelService {
 		return localize('workspaceName', "{0} (Workspace)", workspaceName);
 	}
 
-	getHostLabel(): string {
-		if (this.windowService) {
-			const authority = this.windowService.getConfiguration().remoteAuthority;
-			if (authority) {
-				const formatter = this.findFormatting(URI.from({ scheme: REMOTE_HOST_SCHEME, authority }));
-				if (formatter && formatter.workspaceSuffix) {
-					return formatter.workspaceSuffix;
-				}
-			}
-		}
-		return '';
+	getSeparator(scheme: string, authority?: string): '/' | '\\' {
+		const formatter = this.findFormatting(URI.from({ scheme, authority }));
+		return formatter && formatter.separator || '/';
+	}
+
+	getHostLabel(scheme: string, authority?: string): string {
+		const formatter = this.findFormatting(URI.from({ scheme, authority }));
+		return formatter && formatter.workspaceSuffix || '';
 	}
 
 	registerFormatter(formatter: ResourceLabelFormatter): IDisposable {

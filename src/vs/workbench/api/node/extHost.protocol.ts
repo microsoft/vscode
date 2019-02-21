@@ -533,7 +533,8 @@ export interface IFileChangeDto {
 export interface MainThreadFileSystemShape extends IDisposable {
 	$registerFileSystemProvider(handle: number, scheme: string, capabilities: FileSystemProviderCapabilities): void;
 	$unregisterProvider(handle: number): void;
-	$setUriFormatter(formatter: ResourceLabelFormatter): void;
+	$registerResourceLabelFormatter(handle: number, formatter: ResourceLabelFormatter): void;
+	$unregisterResourceLabelFormatter(handle: number): void;
 	$onFileSystemChange(handle: number, resource: IFileChangeDto[]): void;
 }
 
@@ -558,9 +559,9 @@ export interface MainThreadTaskShape extends IDisposable {
 
 export interface MainThreadExtensionServiceShape extends IDisposable {
 	$localShowMessage(severity: Severity, msg: string): void;
-	$activateExtension(extensionId: ExtensionIdentifier, activationEvent: string): Promise<void>;
+	$activateExtension(extensionId: ExtensionIdentifier, activationEvent: string | null): Promise<void>;
 	$onWillActivateExtension(extensionId: ExtensionIdentifier): void;
-	$onDidActivateExtension(extensionId: ExtensionIdentifier, startup: boolean, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationEvent: string): void;
+	$onDidActivateExtension(extensionId: ExtensionIdentifier, startup: boolean, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationEvent: string | null): void;
 	$onExtensionActivationFailed(extensionId: ExtensionIdentifier): void;
 	$onExtensionRuntimeError(extensionId: ExtensionIdentifier, error: SerializedError): void;
 	$addMessage(extensionId: ExtensionIdentifier, severity: Severity, message: string): void;
@@ -691,7 +692,7 @@ export interface ITextEditorAddData {
 	options: IResolvedTextEditorConfiguration;
 	selections: ISelection[];
 	visibleRanges: IRange[];
-	editorPosition: EditorViewColumn;
+	editorPosition: EditorViewColumn | undefined;
 }
 export interface ITextEditorPositionData {
 	[id: string]: EditorViewColumn;
@@ -716,7 +717,7 @@ export interface IDocumentsAndEditorsDelta {
 	addedDocuments?: IModelAddedData[];
 	removedEditors?: string[];
 	addedEditors?: ITextEditorAddData[];
-	newActiveEditor?: string;
+	newActiveEditor?: string | null;
 }
 
 export interface ExtHostDocumentsAndEditorsShape {
@@ -867,7 +868,7 @@ export interface WorkspaceEditDto {
 	rejectReason?: string;
 }
 
-export function reviveWorkspaceEditDto(data: WorkspaceEditDto): modes.WorkspaceEdit {
+export function reviveWorkspaceEditDto(data: WorkspaceEditDto | undefined): modes.WorkspaceEdit {
 	if (data && data.edits) {
 		for (const edit of data.edits) {
 			if (typeof (<ResourceTextEditDto>edit).resource === 'object') {

@@ -405,7 +405,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 	private clearDomNode: HTMLElement;
 	private keyboardNavigationEventFilter?: IKeyboardNavigationEventFilter;
 
-	private automaticKeyboardNavigation: boolean;
+	private automaticKeyboardNavigation = true;
 	private triggered = false;
 
 	private enabledDisposables: IDisposable[] = [];
@@ -457,7 +457,10 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 			this.filterOnTypeDomNode.checked = this._filterOnType;
 		}
 
-		this.automaticKeyboardNavigation = typeof options.automaticKeyboardNavigation === 'undefined' ? true : options.automaticKeyboardNavigation;
+		if (typeof options.automaticKeyboardNavigation !== 'undefined') {
+			this.automaticKeyboardNavigation = options.automaticKeyboardNavigation;
+		}
+
 		this.tree.refilter();
 		this.render();
 
@@ -485,7 +488,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 			.filter(this.keyboardNavigationEventFilter || (() => true))
 			.filter(() => this.automaticKeyboardNavigation || this.triggered)
 			.map(e => new StandardKeyboardEvent(e))
-			.filter(e => isPrintableCharEvent(e) || ((this._pattern.length > 0 || this.triggered) && ((e.keyCode === KeyCode.Escape || e.keyCode === KeyCode.Backspace) && !e.altKey && !e.ctrlKey && !e.metaKey) || (e.keyCode === KeyCode.Backspace && (isMacintosh ? e.altKey : e.ctrlKey))))
+			.filter(e => isPrintableCharEvent(e) || ((this._pattern.length > 0 || this.triggered) && ((e.keyCode === KeyCode.Escape || e.keyCode === KeyCode.Backspace) && !e.altKey && !e.ctrlKey && !e.metaKey) || (e.keyCode === KeyCode.Backspace && (isMacintosh ? e.altKey : e.ctrlKey) && !e.shiftKey)))
 			.forEach(e => { e.stopPropagation(); e.preventDefault(); })
 			.event;
 
@@ -970,6 +973,9 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	get openOnSingleClick(): boolean { return typeof this._options.openOnSingleClick === 'undefined' ? true : this._options.openOnSingleClick; }
 	get expandOnlyOnTwistieClick(): boolean | ((e: T) => boolean) { return typeof this._options.expandOnlyOnTwistieClick === 'undefined' ? false : this._options.expandOnlyOnTwistieClick; }
 
+	private _onDidUpdateOptions = new Emitter<IAbstractTreeOptions<T, TFilterData>>();
+	readonly onDidUpdateOptions: Event<IAbstractTreeOptions<T, TFilterData>> = this._onDidUpdateOptions.event;
+
 	get onDidDispose(): Event<void> { return this.view.onDidDispose; }
 
 	constructor(
@@ -1028,11 +1034,16 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 			renderer.updateOptions(optionsUpdate);
 		}
 
-		this.view.updateOptions({ enableKeyboardNavigation: this._options.simpleKeyboardNavigation });
+		this.view.updateOptions({
+			enableKeyboardNavigation: this._options.simpleKeyboardNavigation,
+			automaticKeyboardNavigation: this._options.automaticKeyboardNavigation
+		});
 
 		if (this.typeFilterController) {
 			this.typeFilterController.updateOptions(this._options);
 		}
+
+		this._onDidUpdateOptions.fire(this._options);
 	}
 
 	get options(): IAbstractTreeOptions<T, TFilterData> {
@@ -1140,11 +1151,11 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	}
 
 	toggleKeyboardNavigation(): void {
-		if (!this.typeFilterController) {
-			return;
-		}
+		this.view.toggleKeyboardNavigation();
 
-		this.typeFilterController.toggle();
+		if (this.typeFilterController) {
+			this.typeFilterController.toggle();
+		}
 	}
 
 	refilter(): void {
@@ -1230,10 +1241,6 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	}
 
 	// List
-
-	get visibleNodeCount(): number {
-		return this.view.length;
-	}
 
 	private onLeftArrow(e: StandardKeyboardEvent): void {
 		e.preventDefault();

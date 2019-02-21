@@ -112,6 +112,7 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 	private readonly _watches = new Map<number, IDisposable>();
 
 	private _linkProviderRegistration: IDisposable;
+	// Used as a handle both for file system providers and resource label formatters (being lazy)
 	private _handlePool: number = 0;
 
 	constructor(mainContext: IMainContext, private _extHostLanguageFeatures: ExtHostLanguageFeatures) {
@@ -204,8 +205,13 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		});
 	}
 
-	setUriFormatter(formatter: ResourceLabelFormatter): void {
-		this._proxy.$setUriFormatter(formatter);
+	registerResourceLabelFormatter(formatter: ResourceLabelFormatter): IDisposable {
+		const handle = this._handlePool++;
+		this._proxy.$registerResourceLabelFormatter(handle, formatter);
+
+		return toDisposable(() => {
+			this._proxy.$unregisterResourceLabelFormatter(handle);
+		});
 	}
 
 	private static _asIStat(stat: vscode.FileStat): files.IStat {

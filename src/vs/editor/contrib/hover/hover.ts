@@ -23,12 +23,10 @@ import { ModesGlyphHoverWidget } from 'vs/editor/contrib/hover/modesGlyphHover';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { editorHoverBackground, editorHoverBorder, editorHoverHighlight, textCodeBlockBackground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { editorHoverBackground, editorHoverBorder, editorHoverHighlight, textCodeBlockBackground, textLinkForeground, editorHoverFooterBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
-import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 export class ModesHoverController implements IEditorContribution {
 
@@ -65,11 +63,9 @@ export class ModesHoverController implements IEditorContribution {
 
 	constructor(private readonly _editor: ICodeEditor,
 		@IOpenerService private readonly _openerService: IOpenerService,
-		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
-		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
-		@ICommandService private readonly _commandService: ICommandService,
 		@IModeService private readonly _modeService: IModeService,
 		@IMarkerDecorationsService private readonly _markerDecorationsService: IMarkerDecorationsService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IThemeService private readonly _themeService: IThemeService
 	) {
 		this._toUnhook = [];
@@ -213,7 +209,7 @@ export class ModesHoverController implements IEditorContribution {
 
 	private _createHoverWidget() {
 		const renderer = new MarkdownRenderer(this._editor, this._modeService, this._openerService);
-		this._contentWidget = new ModesContentHoverWidget(this._editor, renderer, this._markerDecorationsService, this._themeService, this._contextMenuService, this._bulkEditService, this._commandService, this._openerService);
+		this._contentWidget = new ModesContentHoverWidget(this._editor, renderer, this._markerDecorationsService, this._themeService, this._keybindingService, this._openerService);
 		this._glyphWidget = new ModesGlyphHoverWidget(this._editor, renderer);
 	}
 
@@ -294,6 +290,10 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-editor .monaco-editor-hover .hover-row:not(:first-child):not(:empty) { border-top: 1px solid ${hoverBorder.transparent(0.5)}; }`);
 		collector.addRule(`.monaco-editor .monaco-editor-hover hr { border-top: 1px solid ${hoverBorder.transparent(0.5)}; }`);
 		collector.addRule(`.monaco-editor .monaco-editor-hover hr { border-bottom: 0px solid ${hoverBorder.transparent(0.5)}; }`);
+	}
+	const actionsBackground = theme.getColor(editorHoverFooterBackground);
+	if (actionsBackground) {
+		collector.addRule(`.monaco-editor .monaco-editor-hover .hover-row .actions { background-color: ${actionsBackground}; }`);
 	}
 	const link = theme.getColor(textLinkForeground);
 	if (link) {

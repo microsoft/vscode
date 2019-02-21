@@ -103,6 +103,25 @@ export namespace Event {
 	}
 
 	/**
+	 * Given a chain of event processing functions (filter, map, etc), each
+	 * function will be invoked per event & per listener. Snapshotting an event
+	 * chain allows each function to be invoked just once per event.
+	 */
+	export function snapshot<T>(event: Event<T>): Event<T> {
+		let listener: IDisposable;
+		const emitter = new Emitter<T>({
+			onFirstListenerAdd: () => {
+				listener = event(emitter.fire, emitter);
+			},
+			onLastListenerRemove: () => {
+				listener.dispose();
+			}
+		});
+
+		return emitter.event;
+	}
+
+	/**
 	 * Debounces the provided event, given a `merge` function.
 	 *
 	 * @param event The input event.
@@ -286,7 +305,9 @@ export namespace Event {
 
 	class ChainableEvent<T> implements IChainableEvent<T> {
 
-		get event(): Event<T> { return this._event; }
+		get event(): Event<T> {
+			return snapshot(this._event);
+		}
 
 		constructor(private _event: Event<T>) { }
 

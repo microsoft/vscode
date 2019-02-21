@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { incrementFileName } from 'vs/workbench/contrib/files/electron-browser/fileActions';
+import { incrementFileName } from 'vs/workbench/contrib/files/browser/fileActions';
 
 suite('Files - Increment file name', () => {
 

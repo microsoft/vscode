@@ -7,7 +7,7 @@ import { mixin, deepClone } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as vscode from 'vscode';
-import { ExtHostWorkspace, ExtHostWorkspaceProvider } from 'vs/workbench/api/node/extHostWorkspace';
+import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { ExtHostConfigurationShape, MainThreadConfigurationShape, IWorkspaceConfigurationChangeEventData, IConfigurationInitData } from './extHost.protocol';
 import { ConfigurationTarget as ExtHostConfigurationTarget } from './extHostTypes';
 import { IConfigurationData, ConfigurationTarget, IConfigurationModel } from 'vs/platform/configuration/common/configuration';
@@ -57,10 +57,8 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 	}
 
 	$initializeConfiguration(data: IConfigurationInitData): void {
-		this._extHostWorkspace.getWorkspaceProvider().then(workspaceProvider => {
-			this._actual = new ExtHostConfigProvider(this._proxy, workspaceProvider, data);
-			this._barrier.open();
-		});
+		this._actual = new ExtHostConfigProvider(this._proxy, this._extHostWorkspace, data);
+		this._barrier.open();
 	}
 
 	$acceptConfigurationChanged(data: IConfigurationInitData, eventData: IWorkspaceConfigurationChangeEventData): void {
@@ -72,11 +70,11 @@ export class ExtHostConfigProvider {
 
 	private readonly _onDidChangeConfiguration = new Emitter<vscode.ConfigurationChangeEvent>();
 	private readonly _proxy: MainThreadConfigurationShape;
-	private readonly _extHostWorkspace: ExtHostWorkspaceProvider;
+	private readonly _extHostWorkspace: ExtHostWorkspace;
 	private _configurationScopes: { [key: string]: ConfigurationScope };
 	private _configuration: Configuration;
 
-	constructor(proxy: MainThreadConfigurationShape, extHostWorkspace: ExtHostWorkspaceProvider, data: IConfigurationInitData) {
+	constructor(proxy: MainThreadConfigurationShape, extHostWorkspace: ExtHostWorkspace, data: IConfigurationInitData) {
 		this._proxy = proxy;
 		this._extHostWorkspace = extHostWorkspace;
 		this._configuration = ExtHostConfigProvider.parse(data);

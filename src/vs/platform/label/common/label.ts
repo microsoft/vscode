@@ -21,7 +21,8 @@ export interface ILabelService {
 	 */
 	getUriLabel(resource: URI, options?: { relative?: boolean, noPrefix?: boolean, endWithSeparator?: boolean }): string;
 	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IWorkspace), options?: { verbose: boolean }): string;
-	getHostLabel(): string;
+	getHostLabel(scheme: string, authority?: string): string;
+	getSeparator(scheme: string, authority?: string): '/' | '\\';
 	registerFormatter(formatter: ResourceLabelFormatter): IDisposable;
 	onDidChangeFormatters: Event<void>;
 }
@@ -29,6 +30,7 @@ export interface ILabelService {
 export interface ResourceLabelFormatter {
 	scheme: string;
 	authority?: string;
+	priority?: boolean;
 	formatting: ResourceLabelFormatting;
 }
 

@@ -295,8 +295,6 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 		this._register(this.searchWidget.searchInput.onInput(() => this.updateActions()));
 		this._register(this.searchWidget.replaceInput.onDidChange(() => this.updateActions()));
-		this._register(this.searchIncludePattern.inputBox.onDidChange(() => this.updateActions()));
-		this._register(this.searchExcludePattern.inputBox.onDidChange(() => this.updateActions()));
 
 		this._register(this.onDidFocus(() => this.viewletFocused.set(true)));
 		this._register(this.onDidBlur(() => this.viewletFocused.set(false)));
@@ -926,9 +924,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 	allSearchFieldsClear(): boolean {
 		return this.searchWidget.getReplaceValue() === '' &&
-			this.searchWidget.searchInput.getValue() === '' &&
-			this.searchIncludePattern.getValue() === '' &&
-			this.searchExcludePattern.getValue() === '';
+			this.searchWidget.searchInput.getValue() === '';
 	}
 
 	hasSearchResults(): boolean {
@@ -942,8 +938,6 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			this.showSearchWithoutFolderMessage();
 		}
 		this.searchWidget.clear();
-		this.searchIncludePattern.setValue('');
-		this.searchExcludePattern.setValue('');
 		this.viewModel.cancelSearch();
 		this.updateActions();
 	}

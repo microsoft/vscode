@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Client, BufferedProtocol } from 'vs/base/parts/ipc/node/ipc.net';
-import { IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
 
 export interface RemoteAgentConnectionContext {
 	remoteAuthority: string;
@@ -20,10 +19,14 @@ export interface IExtensionHostConnectionResult {
 	debugPort?: number;
 }
 
-export interface IRemoteExtensionHostDebugParams extends IExtensionHostDebugParams {
+export interface IRemoteExtensionHostStartParams {
+	language: string;
+	debugId?: string;
+	break: boolean;
+	port: number | null;
 	updatePort?: boolean;
 }
 
-export function connectRemoteAgentExtensionHost(host: string, port: number, debugArguments: IRemoteExtensionHostDebugParams, isBuilt: boolean): Promise<IExtensionHostConnectionResult> {
+export function connectRemoteAgentExtensionHost(host: string, port: number, startArguments: IRemoteExtensionHostStartParams, isBuilt: boolean): Promise<IExtensionHostConnectionResult> {
 	throw new Error(`Not implemented`);
 }

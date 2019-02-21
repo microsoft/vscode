@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { strictEqual, ok, equal } from 'assert';
-import { StorageScope } from 'vs/platform/storage/common/storage';
-import { TestStorageService } from 'vs/workbench/test/workbenchTestServices';
+import { StorageScope, InMemoryStorageService } from 'vs/platform/storage/common/storage';
 import { StorageService } from 'vs/platform/storage/node/storageService';
 import { generateUuid } from 'vs/base/common/uuid';
 import { join } from 'vs/base/common/path';
@@ -27,7 +26,7 @@ suite('StorageService', () => {
 	});
 
 	function removeData(scope: StorageScope): void {
-		const storage = new TestStorageService();
+		const storage = new InMemoryStorageService();
 
 		storage.store('Monaco.IDE.Core.Storage.Test.remove', 'foobar', scope);
 		strictEqual('foobar', storage.get('Monaco.IDE.Core.Storage.Test.remove', scope, (undefined)!));
@@ -45,7 +44,7 @@ suite('StorageService', () => {
 	});
 
 	function storeData(scope: StorageScope): void {
-		const storage = new TestStorageService();
+		const storage = new InMemoryStorageService();
 
 		strictEqual(storage.get('Monaco.IDE.Core.Storage.Test.get', scope, 'foobar'), 'foobar');
 		strictEqual(storage.get('Monaco.IDE.Core.Storage.Test.get', scope, ''), '');

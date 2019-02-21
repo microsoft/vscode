@@ -5,10 +5,9 @@
 
 import 'vs/workbench/browser/style';
 
-import { localize } from 'vs/nls';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
-import { EventType, addDisposableListener, addClasses, scheduleAtNextAnimationFrame, addClass, removeClass, trackFocus, isAncestor, getClientArea, position, size } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, addClasses, scheduleAtNextAnimationFrame, addClass, removeClass, trackFocus, isAncestor, getClientArea, position, size, removeClasses } from 'vs/base/browser/dom';
 import { RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
 import { getZoomLevel, onDidChangeFullscreen, isFullscreen, getZoomFactor } from 'vs/base/browser/browser';
 import { mark } from 'vs/base/common/performance';
@@ -62,19 +61,17 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { LifecyclePhase, StartupKind, ILifecycleService, WillShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWindowService, IWindowConfiguration, IPath, MenuBarVisibility, getTitleBarStyle, IWindowsService } from 'vs/platform/windows/common/windows';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
-import { IMenuService, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { IMenuService } from 'vs/platform/actions/common/actions';
 import { MenuService } from 'vs/platform/actions/common/menuService';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { FileDecorationsService } from 'vs/workbench/services/decorations/browser/decorationsService';
 import { IDecorationsService } from 'vs/workbench/services/decorations/browser/decorations';
 import { ActivityService } from 'vs/workbench/services/activity/browser/activityService';
 import { URI } from 'vs/base/common/uri';
 import { IListService, ListService } from 'vs/platform/list/browser/listService';
-import { InputFocusedContext, IsMacContext, IsLinuxContext, IsWindowsContext, SupportsOpenFileFolderContext, SupportsWorkspacesContext } from 'vs/platform/contextkey/common/contextkeys';
+import { InputFocusedContext, IsMacContext, IsLinuxContext, IsWindowsContext, SupportsOpenFileFolderContext, SupportsWorkspacesContext, IsDevelopmentContext, HasMacNativeTabsContext } from 'vs/platform/contextkey/common/contextkeys';
 import { IViewsService } from 'vs/workbench/common/views';
 import { ViewsService } from 'vs/workbench/browser/parts/views/views';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -137,16 +134,18 @@ import { IIntegrityService } from 'vs/workbench/services/integrity/common/integr
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 import { HistoryService } from 'vs/workbench/services/history/browser/history';
 import { ConfigurationResolverService } from 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
+import { WorkbenchThemeService } from 'vs/workbench/services/themes/browser/workbenchThemeService';
 
-// import@node
+// todo@move
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
+
+// import@node
 import { BackupFileService, InMemoryBackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
 import { WorkspaceService, DefaultConfigurationExportHelper } from 'vs/workbench/services/configuration/node/configurationService';
 import { JSONEditingService } from 'vs/workbench/services/configuration/node/jsonEditingService';
 import { WorkspaceEditingService } from 'vs/workbench/services/workspace/node/workspaceEditingService';
 import { getDelayedChannel } from 'vs/base/parts/ipc/node/ipc';
-import { LogStorageAction } from 'vs/platform/storage/node/storageService';
 import { HashService } from 'vs/workbench/services/hash/node/hashService';
 import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
 import { DialogChannel } from 'vs/platform/dialogs/node/dialogIpc';
@@ -172,11 +171,8 @@ import { WorkbenchKeybindingService } from 'vs/workbench/services/keybinding/ele
 import { RemoteFileService } from 'vs/workbench/services/files/electron-browser/remoteFileService';
 import { ClipboardService } from 'vs/platform/clipboard/electron-browser/clipboardService';
 import { LifecycleService } from 'vs/platform/lifecycle/electron-browser/lifecycleService';
-import { ToggleDevToolsAction } from 'vs/workbench/electron-browser/actions/developerActions';
 import { IExtensionUrlHandler, ExtensionUrlHandler } from 'vs/workbench/services/extensions/electron-browser/inactiveExtensionUrlHandler';
-import { WorkbenchThemeService } from 'vs/workbench/services/themes/browser/workbenchThemeService';
 import { DialogService, FileDialogService } from 'vs/workbench/services/dialogs/electron-browser/dialogService';
-import { ShowPreviousWindowTab, MoveWindowTabToNewWindow, MergeAllWindowTabs, ShowNextWindowTab, ToggleWindowTabsBar, NewWindowTab, OpenRecentAction, ReloadWindowAction, ReloadWindowWithExtensionsDisabledAction } from 'vs/workbench/electron-browser/actions/windowActions';
 import { IBroadcastService, BroadcastService } from 'vs/workbench/services/broadcast/electron-browser/broadcastService';
 import { WindowService } from 'vs/platform/windows/electron-browser/windowService';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-browser/remoteAuthorityResolverService';
@@ -418,9 +414,6 @@ export class Workbench extends Disposable implements IPartService {
 		// Create Workbench Container
 		this.createWorkbench();
 
-		// Install some global actions
-		this.createGlobalActions();
-
 		// Services
 		this.initServices(this.serviceCollection);
 
@@ -459,30 +452,10 @@ export class Workbench extends Disposable implements IPartService {
 		this.workbench = document.createElement('div');
 		this.workbench.id = Identifiers.WORKBENCH_CONTAINER;
 
-		addClasses(this.workbench, 'monaco-workbench', isWindows ? 'windows' : isLinux ? 'linux' : 'mac');
-	}
+		const platformClass = isWindows ? 'windows' : isLinux ? 'linux' : 'mac';
 
-	private createGlobalActions(): void {
-		const isDeveloping = !this.environmentService.isBuilt || this.environmentService.isExtensionDevelopment;
-
-		// Actions registered here to adjust for developing vs built workbench
-		const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
-		registry.registerWorkbenchAction(new SyncActionDescriptor(ReloadWindowAction, ReloadWindowAction.ID, ReloadWindowAction.LABEL, isDeveloping ? { primary: KeyMod.CtrlCmd | KeyCode.KEY_R } : undefined), 'Reload Window');
-		registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleDevToolsAction, ToggleDevToolsAction.ID, ToggleDevToolsAction.LABEL, isDeveloping ? { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I, mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_I } } : undefined), 'Developer: Toggle Developer Tools', localize('developer', "Developer"));
-		registry.registerWorkbenchAction(new SyncActionDescriptor(OpenRecentAction, OpenRecentAction.ID, OpenRecentAction.LABEL, { primary: isDeveloping ? null : KeyMod.CtrlCmd | KeyCode.KEY_R, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_R } }), 'File: Open Recent...', localize('file', "File"));
-		registry.registerWorkbenchAction(new SyncActionDescriptor(ReloadWindowWithExtensionsDisabledAction, ReloadWindowWithExtensionsDisabledAction.ID, ReloadWindowWithExtensionsDisabledAction.LABEL), 'Reload Window Without Extensions');
-		registry.registerWorkbenchAction(new SyncActionDescriptor(LogStorageAction, LogStorageAction.ID, LogStorageAction.LABEL), 'Developer: Log Storage', localize('developer', "Developer"));
-
-		// Actions for macOS native tabs management (only when enabled)
-		const windowConfig = this.configurationService.getValue<IWindowConfiguration>();
-		if (windowConfig && windowConfig.window && windowConfig.window.nativeTabs) {
-			registry.registerWorkbenchAction(new SyncActionDescriptor(NewWindowTab, NewWindowTab.ID, NewWindowTab.LABEL), 'New Window Tab');
-			registry.registerWorkbenchAction(new SyncActionDescriptor(ShowPreviousWindowTab, ShowPreviousWindowTab.ID, ShowPreviousWindowTab.LABEL), 'Show Previous Window Tab');
-			registry.registerWorkbenchAction(new SyncActionDescriptor(ShowNextWindowTab, ShowNextWindowTab.ID, ShowNextWindowTab.LABEL), 'Show Next Window Tab');
-			registry.registerWorkbenchAction(new SyncActionDescriptor(MoveWindowTabToNewWindow, MoveWindowTabToNewWindow.ID, MoveWindowTabToNewWindow.LABEL), 'Move Window Tab to New Window');
-			registry.registerWorkbenchAction(new SyncActionDescriptor(MergeAllWindowTabs, MergeAllWindowTabs.ID, MergeAllWindowTabs.LABEL), 'Merge All Windows');
-			registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleWindowTabsBar, ToggleWindowTabsBar.ID, ToggleWindowTabsBar.LABEL), 'Toggle Window Tabs Bar');
-		}
+		addClasses(this.workbench, 'monaco-workbench', platformClass);
+		addClasses(document.body, platformClass); // used by our fonts
 	}
 
 	private initServices(serviceCollection: ServiceCollection): void {
@@ -934,17 +907,19 @@ export class Workbench extends Disposable implements IPartService {
 	//#endregion
 
 	private handleContextKeys(): void {
-		this.inZenMode = InEditorZenModeContext.bindTo(this.contextKeyService);
-
 		IsMacContext.bindTo(this.contextKeyService);
 		IsLinuxContext.bindTo(this.contextKeyService);
 		IsWindowsContext.bindTo(this.contextKeyService);
+
+		const windowConfig = this.configurationService.getValue<IWindowConfiguration>();
+		HasMacNativeTabsContext.bindTo(this.contextKeyService).set(windowConfig && windowConfig.window && windowConfig.window.nativeTabs);
+
+		IsDevelopmentContext.bindTo(this.contextKeyService).set(!this.environmentService.isBuilt || this.environmentService.isExtensionDevelopment);
+
 		SupportsWorkspacesContext.bindTo(this.contextKeyService);
-		const supportsOpenFileFolderContextKey = SupportsOpenFileFolderContext.bindTo(this.contextKeyService);
-		SupportsWorkspacesContext.bindTo(this.contextKeyService);
-		if (this.windowService.getConfiguration().remoteAuthority) {
-			supportsOpenFileFolderContextKey.set(true);
-		}
+		SupportsOpenFileFolderContext.bindTo(this.contextKeyService).set(!!this.windowService.getConfiguration().remoteAuthority);
+
+		this.inZenMode = InEditorZenModeContext.bindTo(this.contextKeyService);
 
 		const sidebarVisibleContextRaw = new RawContextKey<boolean>('sidebarVisible', false);
 		this.sideBarVisibleContext = sidebarVisibleContextRaw.bindTo(this.contextKeyService);
@@ -1372,11 +1347,11 @@ export class Workbench extends Disposable implements IPartService {
 		this.fontAliasing = aliasing;
 
 		// Remove all
-		document.body.classList.remove(...fontAliasingValues.map(value => `monaco-font-aliasing-${value}`));
+		removeClasses(this.workbench, ...fontAliasingValues.map(value => `monaco-font-aliasing-${value}`));
 
 		// Add specific
 		if (fontAliasingValues.some(option => option === aliasing)) {
-			document.body.classList.add(`monaco-font-aliasing-${aliasing}`);
+			addClass(this.workbench, `monaco-font-aliasing-${aliasing}`);
 		}
 	}
 
@@ -1996,7 +1971,8 @@ export class Workbench extends Disposable implements IPartService {
 		else if (!hidden && !this.panelPart.getActivePanel()) {
 			const panelToOpen = this.panelPart.getLastActivePanelId();
 			if (panelToOpen) {
-				this.panelPart.openPanel(panelToOpen, true);
+				const focus = !skipLayout;
+				this.panelPart.openPanel(panelToOpen, focus);
 			}
 		}
 
