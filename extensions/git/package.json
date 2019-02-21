@@ -346,6 +346,11 @@
         "category": "Git"
       },
       {
+        "command": "git.localIgnore",
+        "title": "%command.localIgnore%",
+        "category": "Git"
+      },
+      {
         "command": "git.stashIncludeUntracked",
         "title": "%command.stashIncludeUntracked%",
         "category": "Git"
@@ -588,6 +593,10 @@
         },
         {
           "command": "git.ignore",
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.localIgnore",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
@@ -924,6 +933,11 @@
         },
         {
           "command": "git.ignore",
+          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "group": "1_modification@3"
+        },
+        {
+          "command": "git.localIgnore",
           "when": "scmProvider == git && scmResourceGroup == workingTree",
           "group": "1_modification@3"
         }

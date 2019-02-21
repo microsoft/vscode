@@ -1143,6 +1143,29 @@ export class Repository implements Disposable {
 		});
 	}
 
+	async localIgnore(files: Uri[]): Promise<void> {
+		return await this.run(Operation.Ignore, async () => {
+			const excludeFile = `${this.repository.root}${path.sep}.git${path.sep}info${path.sep}exclude`;
+			const textToAppend = files
+				.map(uri => path.relative(this.repository.root, uri.fsPath).replace(/\\/g, '/'))
+				.join('\n');
+
+			const document = await new Promise(c => fs.exists(excludeFile, c))
+				? await workspace.openTextDocument(excludeFile)
+				: await workspace.openTextDocument(Uri.file(excludeFile).with({ scheme: 'untitled' }));
+
+			await window.showTextDocument(document);
+
+			const edit = new WorkspaceEdit();
+			const lastLine = document.lineAt(document.lineCount - 1);
+			const text = lastLine.isEmptyOrWhitespace ? `${textToAppend}\n` : `\n${textToAppend}\n`;
+
+			edit.insert(document.uri, lastLine.range.end, text);
+			await workspace.applyEdit(edit);
+			await document.save();
+		});
+	}
+
 	checkIgnore(filePaths: string[]): Promise<Set<string>> {
 		return this.run(Operation.CheckIgnore, () => {
 			return new Promise<Set<string>>((resolve, reject) => {

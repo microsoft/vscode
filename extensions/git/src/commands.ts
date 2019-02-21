@@ -1907,6 +1907,31 @@ export class CommandCenter {
 		await this.runByRepository(resources, async (repository, resources) => repository.ignore(resources));
 	}
 
+	@command('git.localIgnore')
+	async localIgnore(...resourceStates: SourceControlResourceState[]): Promise<void> {
+		resourceStates = resourceStates.filter(s => !!s);
+
+		if (resourceStates.length === 0 || (resourceStates[0] && !(resourceStates[0].resourceUri instanceof Uri))) {
+			const resource = this.getSCMResource();
+
+			if (!resource) {
+				return;
+			}
+
+			resourceStates = [resource];
+		}
+
+		const resources = resourceStates
+			.filter(s => s instanceof Resource)
+			.map(r => r.resourceUri);
+
+		if (!resources.length) {
+			return;
+		}
+
+		await this.runByRepository(resources, async (repository, resources) => repository.localIgnore(resources));
+	}
+
 	private async _stash(repository: Repository, includeUntracked = false): Promise<void> {
 		const noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0;
 		const noStagedChanges = repository.indexGroup.resourceStates.length === 0;
