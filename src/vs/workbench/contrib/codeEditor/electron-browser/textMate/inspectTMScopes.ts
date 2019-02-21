@@ -22,9 +22,8 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
 import { HIGH_CONTRAST, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { findMatchingThemeRule } from 'vs/workbench/services/textMate/electron-browser/TMHelper';
-import { ITextMateService } from 'vs/workbench/services/textMate/common/textMateService';
+import { ITextMateService, IGrammar, IToken, StackElement } from 'vs/workbench/services/textMate/common/textMateService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { IGrammar, IToken, StackElement } from 'vscode-textmate';
 
 class InspectTMScopesController extends Disposable implements IEditorContribution {
 
