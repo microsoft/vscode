@@ -9,7 +9,6 @@ import * as stream from 'stream';
 import * as nls from 'vs/nls';
 import * as net from 'net';
 import * as path from 'vs/base/common/path';
-import * as extpath from 'vs/base/common/extpath';
 import * as strings from 'vs/base/common/strings';
 import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
@@ -441,7 +440,7 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 		const result: IDebuggerContribution = Object.create(null);
 		if (contribution.runtime) {
 			if (contribution.runtime.indexOf('./') === 0) {	// TODO
-				result.runtime = extpath.joinWithSlashes(extensionFolderPath, contribution.runtime);
+				result.runtime = path.join(extensionFolderPath, contribution.runtime);
 			} else {
 				result.runtime = contribution.runtime;
 			}
@@ -451,7 +450,7 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 		}
 		if (contribution.program) {
 			if (!path.isAbsolute(contribution.program)) {
-				result.program = extpath.joinWithSlashes(extensionFolderPath, contribution.program);
+				result.program = path.join(extensionFolderPath, contribution.program);
 			} else {
 				result.program = contribution.program;
 			}
