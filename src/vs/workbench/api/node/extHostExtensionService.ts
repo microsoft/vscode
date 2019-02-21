@@ -245,7 +245,6 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	private async _initialize(): Promise<void> {
 		try {
 			const configProvider = await this._extHostConfiguration.getConfigProvider();
-			await this._extHostWorkspace.waitForInitializeCall();
 			await initializeExtensionApi(this, this._extensionApiFactory, this._registry, configProvider);
 			// Do this when extension service exists, but extensions are not being activated yet.
 			await connectProxyResolver(this._extHostWorkspace, configProvider, this, this._extHostLogService, this._mainThreadTelemetryProxy);
@@ -658,6 +657,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		this._started = true;
 
 		return this._barrier.wait()
+			.then(() => this._extHostWorkspace.waitForInitializeCall())
 			.then(() => this._handleEagerExtensions())
 			.then(() => this._handleExtensionTests())
 			.then(() => {
