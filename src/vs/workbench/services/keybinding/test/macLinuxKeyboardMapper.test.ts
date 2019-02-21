@@ -304,6 +304,10 @@ suite('keyboardMapper - MAC de_ch', () => {
 		);
 	});
 
+	test('resolveUserBinding empty', () => {
+		assertResolveUserBinding(mapper, [], []);
+	});
+
 	test('resolveUserBinding Cmd+[Comma] Cmd+/', () => {
 		assertResolveUserBinding(
 			mapper,

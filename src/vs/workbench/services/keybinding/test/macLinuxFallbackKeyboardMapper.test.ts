@@ -70,6 +70,10 @@ suite('keyboardMapper - MAC fallback', () => {
 		);
 	});
 
+	test('resolveUserBinding empty', () => {
+		assertResolveUserBinding(mapper, [], []);
+	});
+
 	test('resolveUserBinding Cmd+[Comma] Cmd+/', () => {
 		assertResolveUserBinding(
 			mapper, [
