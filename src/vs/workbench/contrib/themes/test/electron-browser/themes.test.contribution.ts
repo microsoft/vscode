@@ -12,7 +12,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { IWorkbenchThemeService, IColorTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { toResource } from 'vs/workbench/common/editor';
-import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
+import { ITextMateService } from 'vs/workbench/services/textMate/common/textMateService';
 import { IGrammar, StackElement } from 'vscode-textmate';
 import { TokenizationRegistry, TokenMetadata } from 'vs/editor/common/modes';
 import { ThemeRule, findMatchingThemeRule } from 'vs/workbench/services/textMate/electron-browser/TMHelper';
