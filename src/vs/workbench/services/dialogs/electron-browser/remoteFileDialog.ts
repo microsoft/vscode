@@ -40,6 +40,7 @@ export class RemoteFileDialog {
 	private remoteAuthority: string | undefined;
 	private requiresTrailing: boolean;
 	private userValue: string;
+	private scheme: string = REMOTE_HOST_SCHEME;
 
 	constructor(
 		@IFileService private readonly remoteFileService: RemoteFileService,
@@ -56,9 +57,9 @@ export class RemoteFileDialog {
 	}
 
 	public async showOpenDialog(options: IOpenDialogOptions = {}): Promise<IURIToOpen[] | undefined> {
-		const defaultUri = options.defaultUri ? options.defaultUri : URI.from({ scheme: REMOTE_HOST_SCHEME, authority: this.remoteAuthority, path: '/' });
-		if (!this.remoteFileService.canHandleResource(defaultUri)) {
-			this.notificationService.info(nls.localize('remoteFileDialog.notConnectedToRemote', 'File system provider for {0} is not available.', defaultUri.toString()));
+		this.scheme = options.defaultUri.scheme;
+		const newOptions = this.getOptions(options);
+		if (!newOptions) {
 			return Promise.resolve(undefined);
 		}
 
@@ -67,9 +68,7 @@ export class RemoteFileDialog {
 		const openFileFolderString = nls.localize('remoteFileDialog.localFileFolderFallback', 'Open Local File or Folder');
 		let tooltip = options.canSelectFiles ? (options.canSelectFolders ? openFileFolderString : openFileString) : openFolderString;
 		this.fallbackPickerButton = { iconPath: this.getDialogIcons('folder'), tooltip };
-		const remoteOptions: IOpenDialogOptions = objects.deepClone(options);
-		remoteOptions.defaultUri = defaultUri;
-		return this.pickResource(remoteOptions).then(async fileFolderUri => {
+		return this.pickResource(newOptions).then(async fileFolderUri => {
 			if (fileFolderUri) {
 				const stat = await this.remoteFileService.resolveFile(fileFolderUri);
 				return <IURIToOpen[]>[{ uri: fileFolderUri, typeHint: stat.isDirectory ? 'folder' : 'file' }];
@@ -80,26 +79,35 @@ export class RemoteFileDialog {
 	}
 
 	public showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
+		this.scheme = options.defaultUri.scheme;
 		this.requiresTrailing = true;
-		const defaultUri = options.defaultUri ? options.defaultUri : URI.from({ scheme: REMOTE_HOST_SCHEME, authority: this.remoteAuthority, path: '/' });
-		if (!this.remoteFileService.canHandleResource(defaultUri)) {
-			this.notificationService.info(nls.localize('remoteFileDialog.notConnectedToRemote', 'File system provider for {0} is not available.', defaultUri.toString()));
+		const newOptions = this.getOptions(options);
+		if (!newOptions) {
 			return Promise.resolve(undefined);
 		}
 		this.fallbackPickerButton = { iconPath: this.getDialogIcons('folder'), tooltip: nls.localize('remoteFileDialog.localSaveFallback', 'Save Local File') };
-		const remoteOptions: IOpenDialogOptions = objects.deepClone(options);
-		remoteOptions.defaultUri = resources.dirname(defaultUri);
-		remoteOptions.canSelectFolders = true;
-		remoteOptions.canSelectFiles = true;
+		newOptions.canSelectFolders = true;
+		newOptions.canSelectFiles = true;
 		return new Promise<URI | undefined>((resolve) => {
-			this.pickResource(remoteOptions, resources.basename(defaultUri)).then(folderUri => {
+			this.pickResource(newOptions, resources.basename(newOptions.defaultUri)).then(folderUri => {
 				resolve(folderUri);
 			});
 		});
 	}
 
+	private getOptions(options: ISaveDialogOptions | IOpenDialogOptions): IOpenDialogOptions | undefined {
+		const defaultUri = options.defaultUri ? options.defaultUri : URI.from({ scheme: REMOTE_HOST_SCHEME, authority: this.remoteAuthority, path: '/' });
+		if (!this.remoteFileService.canHandleResource(defaultUri)) {
+			this.notificationService.info(nls.localize('remoteFileDialog.notConnectedToRemote', 'File system provider for {0} is not available.', defaultUri.toString()));
+			return undefined;
+		}
+		const newOptions: IOpenDialogOptions = objects.deepClone(options);
+		newOptions.defaultUri = resources.dirname(defaultUri);
+		return newOptions;
+	}
+
 	private remoteUriFrom(path: string): URI {
-		return URI.from({ scheme: REMOTE_HOST_SCHEME, authority: this.remoteAuthority, path });
+		return URI.from({ scheme: this.scheme, authority: this.remoteAuthority, path });
 	}
 
 	private async pickResource(options: IOpenDialogOptions, trailing?: string): Promise<URI | undefined> {
