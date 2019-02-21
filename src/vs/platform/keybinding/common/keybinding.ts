@@ -28,6 +28,8 @@ export interface IKeybindingEvent {
 }
 
 export interface IKeyboardEvent {
+	readonly _standardKeyboardEventBrand: true;
+
 	readonly ctrlKey: boolean;
 	readonly shiftKey: boolean;
 	readonly altKey: boolean;

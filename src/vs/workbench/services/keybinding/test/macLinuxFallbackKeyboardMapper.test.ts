@@ -51,6 +51,7 @@ suite('keyboardMapper - MAC fallback', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: false,
 				shiftKey: false,
 				altKey: false,
@@ -96,6 +97,7 @@ suite('keyboardMapper - MAC fallback', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: false,
 				shiftKey: false,
 				altKey: false,
@@ -158,6 +160,7 @@ suite('keyboardMapper - LINUX fallback', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: true,
 				shiftKey: false,
 				altKey: false,
@@ -216,6 +219,7 @@ suite('keyboardMapper - LINUX fallback', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: true,
 				shiftKey: false,
 				altKey: false,

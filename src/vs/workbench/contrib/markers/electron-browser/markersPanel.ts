@@ -37,7 +37,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { Separator, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { domEvent } from 'vs/base/browser/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -357,7 +357,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 
 		// move focus to input, whenever a key is pressed in the panel container
 		this._register(domEvent(parent, 'keydown')(e => {
-			if (this.filterInputActionItem && this.keybindingService.mightProducePrintableCharacter(e)) {
+			if (this.filterInputActionItem && this.keybindingService.mightProducePrintableCharacter(new StandardKeyboardEvent(e))) {
 				this.filterInputActionItem.focus();
 			}
 		}));
