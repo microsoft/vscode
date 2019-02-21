@@ -161,6 +161,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	private readonly _mainThreadTelemetryProxy: MainThreadTelemetryShape;
 	private readonly _mainThreadExtensionsProxy: MainThreadExtensionServiceShape;
 
+	private readonly _almostReadyToRunExtensions: Barrier;
 	private readonly _barrier: Barrier;
 	private readonly _registry: ExtensionDescriptionRegistry;
 	private readonly _storage: ExtHostStorage;
@@ -192,6 +193,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		this._mainThreadTelemetryProxy = this._extHostContext.getProxy(MainContext.MainThreadTelemetry);
 		this._mainThreadExtensionsProxy = this._extHostContext.getProxy(MainContext.MainThreadExtensionService);
 
+		this._almostReadyToRunExtensions = new Barrier();
 		this._barrier = new Barrier();
 		this._registry = new ExtensionDescriptionRegistry(initData.extensions);
 		this._storage = new ExtHostStorage(this._extHostContext);
@@ -245,10 +247,12 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	private async _initialize(): Promise<void> {
 		try {
 			const configProvider = await this._extHostConfiguration.getConfigProvider();
-			await this._extHostWorkspace.waitForInitializeCall();
 			await initializeExtensionApi(this, this._extensionApiFactory, this._registry, configProvider);
 			// Do this when extension service exists, but extensions are not being activated yet.
 			await connectProxyResolver(this._extHostWorkspace, configProvider, this, this._extHostLogService, this._mainThreadTelemetryProxy);
+			this._almostReadyToRunExtensions.open();
+
+			await this._extHostWorkspace.waitForInitializeCall();
 			this._barrier.open();
 		} catch (err) {
 			errors.onUnexpectedError(err);
@@ -683,7 +687,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		}
 		const authorityPrefix = remoteAuthority.substr(0, authorityPlusIndex);
 
-		await this._barrier.wait();
+		await this._almostReadyToRunExtensions.wait();
 		await this._activateByEvent(`onResolveRemoteAuthority:${authorityPrefix}`, false);
 
 		const resolver = this._resolvers[authorityPrefix];
