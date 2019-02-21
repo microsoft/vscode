@@ -270,6 +270,10 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 		);
 	});
 
+	test('resolveUserBinding empty', () => {
+		assertResolveUserBinding(mapper, [], []);
+	});
+
 	test('resolveUserBinding Ctrl+[Comma] Ctrl+/', () => {
 		assertResolveUserBinding(
 			mapper, [
