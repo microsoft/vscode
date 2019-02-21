@@ -22,7 +22,7 @@ import { DebugModel, ExceptionBreakpoint, FunctionBreakpoint, Breakpoint, Expres
 import { ViewModel } from 'vs/workbench/contrib/debug/common/debugViewModel';
 import * as debugactions from 'vs/workbench/contrib/debug/browser/debugActions';
 import { ConfigurationManager } from 'vs/workbench/contrib/debug/electron-browser/debugConfigurationManager';
-import Constants from 'vs/workbench/contrib/markers/electron-browser/constants';
+import Constants from 'vs/workbench/contrib/markers/browser/constants';
 import { ITaskService, ITaskSummary } from 'vs/workbench/contrib/tasks/common/taskService';
 import { TaskError } from 'vs/workbench/contrib/tasks/common/taskSystem';
 import { VIEWLET_ID as EXPLORER_VIEWLET_ID } from 'vs/workbench/contrib/files/common/files';

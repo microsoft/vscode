@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { IMarker, MarkerSeverity, IRelatedInformation } from 'vs/platform/markers/common/markers';
-import { MarkersModel, Marker, ResourceMarkers, RelatedInformation } from 'vs/workbench/contrib/markers/electron-browser/markersModel';
+import { MarkersModel, Marker, ResourceMarkers, RelatedInformation } from 'vs/workbench/contrib/markers/browser/markersModel';
 import { groupBy } from 'vs/base/common/collections';
 
 class TestMarkersModel extends MarkersModel {

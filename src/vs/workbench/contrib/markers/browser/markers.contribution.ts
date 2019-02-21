@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { clipboard } from 'electron';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
@@ -12,20 +11,21 @@ import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/wor
 import { KeybindingsRegistry, KeybindingWeight, IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { localize } from 'vs/nls';
-import { Marker, RelatedInformation } from 'vs/workbench/contrib/markers/electron-browser/markersModel';
-import { MarkersPanel } from 'vs/workbench/contrib/markers/electron-browser/markersPanel';
+import { Marker, RelatedInformation } from 'vs/workbench/contrib/markers/browser/markersModel';
+import { MarkersPanel } from 'vs/workbench/contrib/markers/browser/markersPanel';
 import { MenuId, MenuRegistry, SyncActionDescriptor, ILocalizedString } from 'vs/platform/actions/common/actions';
 import { PanelRegistry, Extensions as PanelExtensions, PanelDescriptor } from 'vs/workbench/browser/panel';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ToggleMarkersPanelAction, ShowProblemsPanelAction } from 'vs/workbench/contrib/markers/electron-browser/markersPanelActions';
-import Constants from 'vs/workbench/contrib/markers/electron-browser/constants';
-import Messages from 'vs/workbench/contrib/markers/electron-browser/messages';
+import { ToggleMarkersPanelAction, ShowProblemsPanelAction } from 'vs/workbench/contrib/markers/browser/markersPanelActions';
+import Constants from 'vs/workbench/contrib/markers/browser/constants';
+import Messages from 'vs/workbench/contrib/markers/browser/messages';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { IMarkersWorkbenchService, MarkersWorkbenchService, ActivityUpdater } from 'vs/workbench/contrib/markers/electron-browser/markers';
+import { IMarkersWorkbenchService, MarkersWorkbenchService, ActivityUpdater } from 'vs/workbench/contrib/markers/browser/markers';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 import './markersFileDecorations';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 registerSingleton(IMarkersWorkbenchService, MarkersWorkbenchService, false);
 
@@ -107,7 +107,7 @@ registerAction({
 	id: Constants.MARKER_COPY_ACTION_ID,
 	title: { value: localize('copyMarker', "Copy"), original: 'Copy' },
 	handler(accessor) {
-		copyMarker(accessor.get(IPanelService));
+		copyMarker(accessor.get(IPanelService), accessor.get(IClipboardService));
 	},
 	menu: {
 		menuId: MenuId.ProblemsPanelContext,
@@ -125,7 +125,7 @@ registerAction({
 	id: Constants.MARKER_COPY_MESSAGE_ACTION_ID,
 	title: { value: localize('copyMessage', "Copy Message"), original: 'Copy Message' },
 	handler(accessor) {
-		copyMessage(accessor.get(IPanelService));
+		copyMessage(accessor.get(IPanelService), accessor.get(IClipboardService));
 	},
 	menu: {
 		menuId: MenuId.ProblemsPanelContext,
@@ -137,7 +137,7 @@ registerAction({
 	id: Constants.RELATED_INFORMATION_COPY_MESSAGE_ACTION_ID,
 	title: { value: localize('copyMessage', "Copy Message"), original: 'Copy Message' },
 	handler(accessor) {
-		copyRelatedInformationMessage(accessor.get(IPanelService));
+		copyRelatedInformationMessage(accessor.get(IPanelService), accessor.get(IClipboardService));
 	},
 	menu: {
 		menuId: MenuId.ProblemsPanelContext,
@@ -202,32 +202,32 @@ registerAction({
 	}
 });
 
-function copyMarker(panelService: IPanelService) {
+function copyMarker(panelService: IPanelService, clipboardService: IClipboardService) {
 	const activePanel = panelService.getActivePanel();
 	if (activePanel instanceof MarkersPanel) {
 		const element = (<MarkersPanel>activePanel).getFocusElement();
 		if (element instanceof Marker) {
-			clipboard.writeText(`${element}`);
+			clipboardService.writeText(`${element}`);
 		}
 	}
 }
 
-function copyMessage(panelService: IPanelService) {
+function copyMessage(panelService: IPanelService, clipboardService: IClipboardService) {
 	const activePanel = panelService.getActivePanel();
 	if (activePanel instanceof MarkersPanel) {
 		const element = (<MarkersPanel>activePanel).getFocusElement();
 		if (element instanceof Marker) {
-			clipboard.writeText(element.marker.message);
+			clipboardService.writeText(element.marker.message);
 		}
 	}
 }
 
-function copyRelatedInformationMessage(panelService: IPanelService) {
+function copyRelatedInformationMessage(panelService: IPanelService, clipboardService: IClipboardService) {
 	const activePanel = panelService.getActivePanel();
 	if (activePanel instanceof MarkersPanel) {
 		const element = (<MarkersPanel>activePanel).getFocusElement();
 		if (element instanceof RelatedInformation) {
-			clipboard.writeText(element.raw.message);
+			clipboardService.writeText(element.raw.message);
 		}
 	}
 }

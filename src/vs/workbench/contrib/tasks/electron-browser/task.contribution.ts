@@ -57,7 +57,7 @@ import { StatusbarAlignment } from 'vs/platform/statusbar/common/statusbar';
 import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import Constants from 'vs/workbench/contrib/markers/electron-browser/constants';
+import Constants from 'vs/workbench/contrib/markers/browser/constants';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
