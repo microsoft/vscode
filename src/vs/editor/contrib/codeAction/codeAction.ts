@@ -14,9 +14,6 @@ import { ITextModel } from 'vs/editor/common/model';
 import { CodeAction, CodeActionContext, CodeActionProviderRegistry, CodeActionTrigger as CodeActionTriggerKind } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { CodeActionKind, CodeActionTrigger, filtersAction, mayIncludeActionsOfKind, CodeActionFilter } from './codeActionTrigger';
-import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export function getCodeActions(
 	model: ITextModel,
@@ -80,21 +77,6 @@ function codeActionsComparator(a: CodeAction, b: CodeAction): number {
 		return 0;	// both have no diagnostics
 	}
 }
-
-export async function applyCodeAction(
-	action: CodeAction,
-	bulkEditService: IBulkEditService,
-	commandService: ICommandService,
-	editor?: ICodeEditor,
-): Promise<void> {
-	if (action.edit) {
-		await bulkEditService.apply(action.edit, { editor });
-	}
-	if (action.command) {
-		await commandService.executeCommand(action.command.id, ...(action.command.arguments || []));
-	}
-}
-
 
 registerLanguageCommand('_executeCodeActionProvider', function (accessor, args) {
 	const { resource, range, kind } = args;

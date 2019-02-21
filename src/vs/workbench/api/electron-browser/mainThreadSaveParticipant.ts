@@ -20,7 +20,8 @@ import { IIdentifiedSingleEditOperation, ISingleEditOperation, ITextModel } from
 import { CodeAction } from 'vs/editor/common/modes';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { shouldSynchronizeModel } from 'vs/editor/common/services/modelService';
-import { getCodeActions, applyCodeAction } from 'vs/editor/contrib/codeAction/codeAction';
+import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
+import { applyCodeAction } from 'vs/editor/contrib/codeAction/codeActionCommands';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
 import { getDocumentFormattingEdits, FormatMode } from 'vs/editor/contrib/format/format';
 import { FormattingEdit } from 'vs/editor/contrib/format/formattingEdit';
