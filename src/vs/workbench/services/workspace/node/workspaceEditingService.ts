@@ -239,11 +239,16 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 
 	enterWorkspace(path: URI): Promise<void> {
 
+		// Restart extension host if first root folder changed (impact on deprecated workspace.rootPath API)
 		// Stop the extension host first to give extensions most time to shutdown
 		this.extensionService.stopExtensionHost();
 		let extensionHostStarted: boolean = false;
 
 		const startExtensionHost = () => {
+			if (this.windowService.getConfiguration().remoteAuthority) {
+				this.windowService.reloadWindow(); // TODO aeschli: workaround until restarting works
+			}
+
 			this.extensionService.startExtensionHost();
 			extensionHostStarted = true;
 		};
