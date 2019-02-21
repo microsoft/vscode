@@ -13,7 +13,5 @@ export interface IProductService {
 	version?: string;
 	commit?: string;
 
-	name: string;
-
 	enableTelemetry: boolean;
 }
