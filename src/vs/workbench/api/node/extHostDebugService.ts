@@ -794,7 +794,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 	private async getFolder(_folderUri: UriComponents | undefined): Promise<vscode.WorkspaceFolder | undefined> {
 		if (_folderUri) {
 			const folderURI = URI.revive(_folderUri);
-			return await this._workspaceService.resolveWorkspaceFolder2(folderURI);
+			return await this._workspaceService.resolveWorkspaceFolder(folderURI);
 		}
 		return undefined;
 	}
