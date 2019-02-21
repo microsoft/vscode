@@ -14,7 +14,6 @@ import { Action } from 'vs/base/common/actions';
 import { Delayer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import * as env from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { CONTEXT_FIND_WIDGET_NOT_VISIBLE } from 'vs/editor/contrib/find/findModel';
 import * as nls from 'vs/nls';
@@ -33,7 +32,7 @@ import * as Constants from 'vs/workbench/contrib/search/common/constants';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 
 export interface ISearchWidgetOptions {
 	value?: string;
@@ -253,7 +252,7 @@ export class SearchWidget extends Widget {
 	}
 
 	private isScreenReaderOptimized() {
-		const detected = this.accessibilityService.getAccessibilitySupport() === env.AccessibilitySupport.Enabled;
+		const detected = this.accessibilityService.getAccessibilitySupport() === AccessibilitySupport.Enabled;
 		const config = this.configurationService.getValue<IEditorOptions>('editor').accessibilitySupport;
 		return config === 'on' || (config === 'auto' && detected);
 	}

@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { isWindows, AccessibilitySupport } from 'vs/base/common/platform';
+import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import { isWindows } from 'vs/base/common/platform';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 

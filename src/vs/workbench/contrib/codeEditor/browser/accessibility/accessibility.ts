@@ -29,6 +29,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { contrastBorder, editorWidgetBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 
 const CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE = new RawContextKey<boolean>('accessibilityHelpWidgetVisible', false);
 
@@ -201,14 +202,14 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 		switch (configuredValue) {
 			case 'auto':
 				switch (actualValue) {
-					case platform.AccessibilitySupport.Unknown:
+					case AccessibilitySupport.Unknown:
 						// Should never happen in VS Code
 						text += '\n\n - ' + nls.localize('auto_unknown', "The editor is configured to use platform APIs to detect when a Screen Reader is attached, but the current runtime does not support this.");
 						break;
-					case platform.AccessibilitySupport.Enabled:
+					case AccessibilitySupport.Enabled:
 						text += '\n\n - ' + nls.localize('auto_on', "The editor has automatically detected a Screen Reader is attached.");
 						break;
-					case platform.AccessibilitySupport.Disabled:
+					case AccessibilitySupport.Disabled:
 						text += '\n\n - ' + nls.localize('auto_off', "The editor is configured to automatically detect when a Screen Reader is attached, which is not the case at this time.");
 						text += ' ' + emergencyTurnOnMessage;
 						break;
