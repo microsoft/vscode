@@ -135,7 +135,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 							const loc = manifest && manifest.contributes && manifest.contributes.localizations && manifest.contributes.localizations.filter(x => x.languageId.toLowerCase() === locale)[0];
 							const languageName = loc ? (loc.languageName || locale) : locale;
 							const languageDisplayName = loc ? (loc.localizedLanguageName || loc.languageName || locale) : locale;
-							const translationsFromPack = translation && translation.contents ? translation.contents['vs/platform/node/minimalTranslations'] : {};
+							const translationsFromPack = translation && translation.contents ? translation.contents['vs/workbench/contrib/localizations/browser/minimalTranslations'] : {};
 							const promptMessageKey = extensionToInstall ? 'installAndRestartMessage' : 'showLanguagePackExtensions';
 							const useEnglish = !translationsFromPack[promptMessageKey];
 
