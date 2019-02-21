@@ -42,9 +42,10 @@ export abstract class Panel implements IView {
 	private static readonly HEADER_SIZE = 22;
 
 	readonly element: HTMLElement;
+	private header: HTMLElement;
+	private body: HTMLElement;
 
 	protected _expanded: boolean;
-	protected disposables: IDisposable[] = [];
 
 	private expandedSize: number | undefined = undefined;
 	private _headerVisible = true;
@@ -52,11 +53,12 @@ export abstract class Panel implements IView {
 	private _maximumBodySize: number;
 	private ariaHeaderLabel: string;
 	private styles: IPanelStyles = {};
-
-	private header: HTMLElement;
+	private animationTimer: number | null = null;
 
 	private _onDidChange = new Emitter<number | undefined>();
 	readonly onDidChange: Event<number | undefined> = this._onDidChange.event;
+
+	protected disposables: IDisposable[] = [];
 
 	get draggableElement(): HTMLElement {
 		return this.header;
@@ -133,6 +135,15 @@ export abstract class Panel implements IView {
 		this.updateHeader();
 		this._onDidChange.fire(expanded ? this.expandedSize : undefined);
 
+		if (expanded) {
+			clearTimeout(this.animationTimer);
+			append(this.element, this.body);
+		} else {
+			this.animationTimer = window.setTimeout(() => {
+				this.body.remove();
+			}, 200);
+		}
+
 		return true;
 	}
 
@@ -179,15 +190,8 @@ export abstract class Panel implements IView {
 		domEvent(this.header, 'click')
 			(() => this.setExpanded(!this.isExpanded()), null, this.disposables);
 
-		// TODO@Joao move this down to panelview
-		// onHeaderKeyDown.filter(e => e.keyCode === KeyCode.UpArrow)
-		// 	.event(focusPrevious, this, this.disposables);
-
-		// onHeaderKeyDown.filter(e => e.keyCode === KeyCode.DownArrow)
-		// 	.event(focusNext, this, this.disposables);
-
-		const body = append(this.element, $('.panel-body'));
-		this.renderBody(body);
+		this.body = append(this.element, $('.panel-body'));
+		this.renderBody(this.body);
 	}
 
 	layout(height: number): void {
