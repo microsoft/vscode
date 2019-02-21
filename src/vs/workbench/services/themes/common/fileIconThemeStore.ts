@@ -16,7 +16,6 @@ import { URI } from 'vs/base/common/uri';
 
 const iconThemeExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPoint[]>({
 	extensionPoint: 'iconThemes',
-	isDynamic: true,
 	jsonSchema: {
 		description: nls.localize('vscode.extension.contributes.iconThemes', 'Contributes file icon themes.'),
 		type: 'array',

@@ -25,7 +25,6 @@ export interface ITMSyntaxExtensionPoint {
 }
 
 export const grammarsExtPoint: IExtensionPoint<ITMSyntaxExtensionPoint[]> = ExtensionsRegistry.registerExtensionPoint<ITMSyntaxExtensionPoint[]>({
-	isDynamic: true,
 	extensionPoint: 'grammars',
 	deps: [languagesExtPoint],
 	jsonSchema: {

@@ -237,7 +237,6 @@ let keybindingType: IJSONSchema = {
 };
 
 const keybindingsExtPoint = ExtensionsRegistry.registerExtensionPoint<ContributedKeyBinding | ContributedKeyBinding[]>({
-	isDynamic: true,
 	extensionPoint: 'keybindings',
 	jsonSchema: {
 		description: nls.localize('vscode.extension.contributes.keybindings', "Contributes keybindings."),

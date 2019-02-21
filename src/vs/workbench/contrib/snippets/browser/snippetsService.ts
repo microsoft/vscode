@@ -107,7 +107,6 @@ namespace snippetExt {
 	};
 
 	export const point = ExtensionsRegistry.registerExtensionPoint<snippetExt.ISnippetsExtensionPoint[]>({
-		isDynamic: true,
 		extensionPoint: 'snippets',
 		deps: [languagesExtPoint],
 		jsonSchema: snippetExt.snippetsContribution
