@@ -347,7 +347,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		});
 	}
 
-	public dumpDebugInfo(): string {
+	public _dumpDebugInfo(): string {
 		const layoutInfo = JSON.stringify(KeyboardMapperFactory.INSTANCE.getCurrentKeyboardLayout(), null, '\t');
 		const mapperInfo = this._keyboardMapper.dumpDebugInfo();
 		const rawMapping = JSON.stringify(KeyboardMapperFactory.INSTANCE.getRawKeyboardMapping(), null, '\t');
