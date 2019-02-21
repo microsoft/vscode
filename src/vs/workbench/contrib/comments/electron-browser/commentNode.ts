@@ -305,7 +305,6 @@ export class CommentNode extends Disposable {
 		this._commentEditor.layout({ width: container.clientWidth - 14, height: 90 });
 		this._commentEditor.focus();
 
-
 		const lastLine = this._commentEditorModel.getLineCount();
 		const lastColumn = this._commentEditorModel.getLineContent(lastLine).length + 1;
 		this._commentEditor.setSelection(new Selection(lastLine, lastColumn, lastLine, lastColumn));
@@ -319,11 +318,28 @@ export class CommentNode extends Disposable {
 
 		let commentThread = this.commentThread as modes.CommentThread2;
 		if (commentThread.commentThreadHandle) {
-			commentThread.input = this.comment.body.value;
+			commentThread.input = {
+				uri: this._commentEditor.getModel().uri,
+				value: this.comment.body.value
+			};
+			this.commentService.setActiveCommentThread(commentThread);
+
+			this._commentEditorDisposables.push(this._commentEditor.onDidFocusEditorWidget(() => {
+				commentThread.input = {
+					uri: this._commentEditor.getModel().uri,
+					value: this.comment.body.value
+				};
+				this.commentService.setActiveCommentThread(commentThread);
+			}));
+
 			this._commentEditorDisposables.push(this._commentEditor.onDidChangeModelContent(e => {
-				let newVal = this._commentEditor.getValue();
-				if (newVal !== commentThread.input) {
-					commentThread.input = newVal;
+				if (commentThread.input && this._commentEditor.getModel().uri === commentThread.input.uri) {
+					let newVal = this._commentEditor.getValue();
+					if (newVal !== commentThread.input.value) {
+						let input = commentThread.input;
+						input.value = newVal;
+						commentThread.input = input;
+					}
 				}
 			}));
 		}
@@ -356,7 +372,10 @@ export class CommentNode extends Disposable {
 
 			if (useCommand) {
 				let commentThread = this.commentThread as modes.CommentThread2;
-				commentThread.input = newBody;
+				commentThread.input = {
+					uri: this._commentEditor.getModel().uri,
+					value: newBody
+				};
 				this.commentService.setActiveCommentThread(commentThread);
 				let commandId = this.comment.editCommand!.id;
 				let args = this.comment.editCommand!.arguments || [];

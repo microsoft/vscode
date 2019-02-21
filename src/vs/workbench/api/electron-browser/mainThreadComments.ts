@@ -81,18 +81,18 @@ export class MainThreadDocumentCommentProvider implements modes.DocumentCommentP
 }
 
 export class MainThreadCommentThread implements modes.CommentThread2 {
-	private _input: string = '';
-	get input(): string {
+	private _input?: modes.CommentInput;
+	get input(): modes.CommentInput | undefined {
 		return this._input;
 	}
 
-	set input(value: string) {
+	set input(value: modes.CommentInput | undefined) {
 		this._input = value;
 		this._onDidChangeInput.fire(value);
 	}
 
-	private _onDidChangeInput = new Emitter<string>();
-	get onDidChangeInput(): Event<string> { return this._onDidChangeInput.event; }
+	private _onDidChangeInput = new Emitter<modes.CommentInput | undefined>();
+	get onDidChangeInput(): Event<modes.CommentInput | undefined> { return this._onDidChangeInput.event; }
 
 	private _activeComment?: modes.Comment;
 
@@ -209,7 +209,11 @@ export class MainThreadCommentControl {
 
 	updateInput(commentThreadHandle: number, input: string) {
 		let thread = this._threads.get(commentThreadHandle);
-		thread.input = input;
+		let commentInput = thread.input;
+		if (commentInput) {
+			commentInput.value = input;
+			thread.input = commentInput;
+		}
 	}
 
 	getDocumentComments(resource: URI) {
@@ -239,6 +243,7 @@ export class MainThreadCommentControl {
 @extHostNamedCustomer(MainContext.MainThreadComments)
 export class MainThreadComments extends Disposable implements MainThreadCommentsShape {
 	private _disposables: IDisposable[];
+	private _activeCommentThreadDisposables: IDisposable[];
 	private _proxy: ExtHostCommentsShape;
 	private _documentProviders = new Map<number, IDisposable>();
 	private _workspaceProviders = new Map<number, IDisposable>();
@@ -247,7 +252,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 
 	private _activeCommentThread?: MainThreadCommentThread;
 	private _activeComment?: modes.Comment;
-	private _input?: string;
+	private _input?: modes.CommentInput;
 	private _openPanelListener: IDisposable | null;
 
 	constructor(
@@ -260,6 +265,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	) {
 		super();
 		this._disposables = [];
+		this._activeCommentThreadDisposables = [];
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostComments);
 		this._disposables.push(this._commentService.onDidChangeActiveCommentThread(async thread => {
 			let control = (thread as MainThreadCommentThread).control;
@@ -268,19 +274,21 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 				return;
 			}
 
+			this._activeCommentThreadDisposables = dispose(this._activeCommentThreadDisposables);
 			this._activeCommentThread = thread as MainThreadCommentThread;
 
-			this._activeCommentThread.onDidChangeInput(input => { // todo, dispose
+			this._activeCommentThreadDisposables.push(this._activeCommentThread.onDidChangeInput(input => { // todo, dispose
 				this._input = input;
-				this._proxy.$onActiveCommentWidgetChange(control.handle, this._activeCommentThread, this._activeComment, this._input);
-			});
+				this._proxy.$onActiveCommentWidgetChange(control.handle, this._activeCommentThread, this._activeComment, this._input ? this._input.value : undefined);
+				console.log(this._input.value, Math.random());
+			}));
 
-			this._activeCommentThread.onDidChangeActiveComment(comment => { // todo, dispose
+			this._activeCommentThreadDisposables.push(this._activeCommentThread.onDidChangeActiveComment(comment => { // todo, dispose
 				this._activeComment = comment;
-				this._proxy.$onActiveCommentWidgetChange(control.handle, this._activeCommentThread, this._activeComment, this._input);
-			});
+				this._proxy.$onActiveCommentWidgetChange(control.handle, this._activeCommentThread, this._activeComment, this._input ? this._input.value : undefined);
+			}));
 
-			await this._proxy.$onActiveCommentWidgetChange(control.handle, this._activeCommentThread, this._activeComment, this._input);
+			await this._proxy.$onActiveCommentWidgetChange(control.handle, this._activeCommentThread, this._activeComment, this._input ? this._input.value : undefined);
 		}));
 	}
 
@@ -490,6 +498,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 
 	dispose(): void {
 		this._disposables = dispose(this._disposables);
+		this._activeCommentThreadDisposables = dispose(this._activeCommentThreadDisposables);
 		this._workspaceProviders.forEach(value => dispose(value));
 		this._workspaceProviders.clear();
 		this._documentProviders.forEach(value => dispose(value));

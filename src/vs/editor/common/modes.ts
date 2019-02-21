@@ -1239,7 +1239,14 @@ export interface CommentWidget {
 /**
  * @internal
  */
+export interface CommentInput {
+	value: string;
+	uri: URI;
+}
 
+/**
+ * @internal
+ */
 export interface CommentThread2 {
 	commentThreadHandle: number; // use optional type for now to avoid breaking existing api
 	extensionId: string;
@@ -1249,8 +1256,8 @@ export interface CommentThread2 {
 	comments: Comment[];
 	onDidChangeComments: Event<Comment[]>;
 	collapsibleState?: CommentThreadCollapsibleState;
-	input: string;
-	onDidChangeInput: Event<string>;
+	input: CommentInput;
+	onDidChangeInput: Event<CommentInput>;
 	acceptInputCommands: Command[];
 	onDidChangeAcceptInputCommands: Event<Command[]>;
 }
