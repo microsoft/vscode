@@ -725,6 +725,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 				const hwAltKey = (mod & 0b100) ? true : false;
 				const scanCodeCombo = new ScanCodeCombo(hwCtrlKey, hwShiftKey, hwAltKey, scanCode);
 				const resolvedKb = this.resolveKeyboardEvent({
+					_standardKeyboardEventBrand: true,
 					ctrlKey: scanCodeCombo.ctrlKey,
 					shiftKey: scanCodeCombo.shiftKey,
 					altKey: scanCodeCombo.altKey,
