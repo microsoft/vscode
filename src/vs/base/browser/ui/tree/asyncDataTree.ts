@@ -230,7 +230,7 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 function asTreeElement<TInput, T>(node: IAsyncDataTreeNode<TInput, T>, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>): ITreeElement<IAsyncDataTreeNode<TInput, T>> {
 	let collapsed: boolean | undefined;
 
-	if (viewStateContext && node.id) {
+	if (viewStateContext && viewStateContext.viewState.expanded && node.id) {
 		collapsed = viewStateContext.viewState.expanded.indexOf(node.id) === -1;
 	}
 
@@ -251,9 +251,10 @@ export interface IAsyncDataTreeOptions<T, TFilterData = void> extends IAsyncData
 }
 
 export interface IAsyncDataTreeViewState {
-	readonly focus: string[];
-	readonly selection: string[];
-	readonly expanded: string[];
+	readonly focus?: string[];
+	readonly selection?: string[];
+	readonly expanded?: string[];
+	readonly scrollTop?: number;
 }
 
 interface IAsyncDataTreeViewStateContext<TInput, T> {
@@ -402,6 +403,10 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		if (viewStateContext) {
 			this.tree.setFocus(viewStateContext.focus);
 			this.tree.setSelection(viewStateContext.selection);
+		}
+
+		if (viewState && typeof viewState.scrollTop === 'number') {
+			this.scrollTop = viewState.scrollTop;
 		}
 	}
 
@@ -648,7 +653,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 							return true;
 						}
 
-						if (!viewStateContext || !child.id) {
+						if (!viewStateContext || !viewStateContext.viewState.expanded || !child.id) {
 							return false;
 						}
 
@@ -780,14 +785,12 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 					slow: false
 				};
 
-				if (viewStateContext) {
-					if (viewStateContext.viewState.focus.indexOf(id) > -1) {
-						viewStateContext.focus.push(childAsyncDataTreeNode);
-					}
+				if (viewStateContext && viewStateContext.viewState.focus && viewStateContext.viewState.focus.indexOf(id) > -1) {
+					viewStateContext.focus.push(childAsyncDataTreeNode);
+				}
 
-					if (viewStateContext.viewState.selection.indexOf(id) > -1) {
-						viewStateContext.selection.push(childAsyncDataTreeNode);
-					}
+				if (viewStateContext && viewStateContext.viewState.selection && viewStateContext.viewState.selection.indexOf(id) > -1) {
+					viewStateContext.selection.push(childAsyncDataTreeNode);
 				}
 
 				return childAsyncDataTreeNode;
@@ -860,7 +863,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			queue.push(...node.children);
 		}
 
-		return { focus, selection, expanded };
+		return { focus, selection, expanded, scrollTop: this.scrollTop };
 	}
 
 	dispose(): void {
