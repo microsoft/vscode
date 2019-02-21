@@ -136,7 +136,9 @@ export abstract class Panel implements IView {
 		this._onDidChange.fire(expanded ? this.expandedSize : undefined);
 
 		if (expanded) {
-			clearTimeout(this.animationTimer);
+			if (typeof this.animationTimer === 'number') {
+				clearTimeout(this.animationTimer);
+			}
 			append(this.element, this.body);
 		} else {
 			this.animationTimer = window.setTimeout(() => {
