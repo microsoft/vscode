@@ -258,6 +258,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 			let currentComment = commentThread.comments[i];
 			let oldCommentNode = this._commentElements.filter(commentNode => commentNode.comment.commentId === currentComment.commentId);
 			if (oldCommentNode.length) {
+				oldCommentNode[0].update(currentComment);
 				lastCommentElement = oldCommentNode[0].domNode;
 				newCommentNodeList.unshift(oldCommentNode[0]);
 			} else {

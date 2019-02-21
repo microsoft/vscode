@@ -499,13 +499,14 @@ export class CommentNode extends Disposable {
 	}
 
 	update(newComment: modes.Comment) {
-		this.comment = newComment;
 
 		if (newComment.body !== this.comment.body) {
 			this._body.removeChild(this._md);
 			this._md = this.markdownRenderer.render(newComment.body).element;
 			this._body.appendChild(this._md);
 		}
+
+		this.comment = newComment;
 
 		if (newComment.isDraft) {
 			this._isPendingLabel.innerText = 'Pending';
