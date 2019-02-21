@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { clipboard } from 'electron';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
@@ -14,13 +13,13 @@ import { ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursor
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EndOfLinePreference } from 'vs/editor/common/model';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 export class SelectionClipboard extends Disposable implements IEditorContribution {
 	private static SELECTION_LENGTH_LIMIT = 65536;
 	private static readonly ID = 'editor.contrib.selectionClipboard';
 
-	constructor(editor: ICodeEditor, @IContextKeyService contextKeyService: IContextKeyService) {
+	constructor(editor: ICodeEditor, @IClipboardService clipboardService: IClipboardService) {
 		super();
 
 		if (platform.isLinux) {
@@ -53,7 +52,7 @@ export class SelectionClipboard extends Disposable implements IEditorContributio
 
 					process.nextTick(() => {
 						// TODO@Alex: electron weirdness: calling clipboard.readText('selection') generates a paste event, so no need to execute paste ourselves
-						clipboard.readText('selection');
+						clipboardService.readText('selection');
 						// keybindingService.executeCommand(Handler.Paste, {
 						// 	text: clipboard.readText('selection'),
 						// 	pasteOnNewLine: false
@@ -92,7 +91,7 @@ export class SelectionClipboard extends Disposable implements IEditorContributio
 				}
 
 				let textToCopy = result.join(model.getEOL());
-				clipboard.writeText(textToCopy, 'selection');
+				clipboardService.writeText(textToCopy, 'selection');
 			}, 100));
 
 			this._register(editor.onDidChangeCursorSelection((e: ICursorSelectionChangedEvent) => {

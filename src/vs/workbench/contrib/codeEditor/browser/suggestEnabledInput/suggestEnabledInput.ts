@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/suggestEnabledInput';
+import 'vs/css!./suggestEnabledInput';
 import { $, Dimension, addClass, append, removeClass } from 'vs/base/browser/dom';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Color } from 'vs/base/common/color';
@@ -31,7 +31,7 @@ import { IStyleOverrides, IThemable, attachStyler } from 'vs/platform/theme/comm
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
-import { SelectionClipboard } from 'vs/workbench/contrib/codeEditor/electron-browser/selectionClipboard';
+import { SelectionClipboard } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 
 interface SuggestResultsProvider {
 	/**

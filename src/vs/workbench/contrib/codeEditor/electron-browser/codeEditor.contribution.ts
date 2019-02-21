@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import '../browser/menuPreventer';
-import './accessibility';
+import '../browser/accessibility/accessibility';
 import './inspectKeybindings';
 import '../browser/largeFileOptimizations';
-import './selectionClipboard';
+import '../browser/selectionClipboard';
 import './sleepResumeRepaintMinimap';
 import './textMate/inspectTMScopes';
-import './toggleMinimap';
-import './toggleMultiCursorModifier';
-import './toggleRenderControlCharacter';
-import './toggleRenderWhitespace';
-import './toggleWordWrap';
-import './workbenchReferenceSearch';
+import '../browser/toggleMinimap';
+import '../browser/toggleMultiCursorModifier';
+import '../browser/toggleRenderControlCharacter';
+import '../browser/toggleRenderWhitespace';
+import '../browser/toggleWordWrap';
+import '../browser/workbenchReferenceSearch';
