@@ -24,7 +24,7 @@ interface IConfiguration extends IWindowsConfiguration {
 	update: { mode: string; };
 	telemetry: { enableCrashReporter: boolean };
 	keyboard: { touchbar: { enabled: boolean } };
-	workbench: { tree: { horizontalScrolling: boolean }, useExperimentalGridLayout: boolean };
+	workbench: { list: { horizontalScrolling: boolean }, useExperimentalGridLayout: boolean };
 	files: { useExperimentalFileWatcher: boolean, watcherExclude: object };
 }
 
@@ -116,8 +116,8 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		}
 
 		// Tree horizontal scrolling support
-		if (config.workbench && config.workbench.tree && typeof config.workbench.tree.horizontalScrolling === 'boolean' && config.workbench.tree.horizontalScrolling !== this.treeHorizontalScrolling) {
-			this.treeHorizontalScrolling = config.workbench.tree.horizontalScrolling;
+		if (config.workbench && config.workbench.list && typeof config.workbench.list.horizontalScrolling === 'boolean' && config.workbench.list.horizontalScrolling !== this.treeHorizontalScrolling) {
+			this.treeHorizontalScrolling = config.workbench.list.horizontalScrolling;
 			changed = true;
 		}
 
