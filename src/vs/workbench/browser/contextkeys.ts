@@ -20,7 +20,7 @@ import { EditorGroupsServiceImpl } from 'vs/workbench/browser/parts/editor/edito
 
 export class WorkbenchContextKeysHandler extends Disposable {
 	private inputFocusedContext: IContextKey<boolean>;
-	private activeEditorContext: IContextKey<string>;
+	private activeEditorContext: IContextKey<string | null>;
 	private editorsVisibleContext: IContextKey<boolean>;
 	private textCompareEditorVisibleContext: IContextKey<boolean>;
 	private textCompareEditorActiveContext: IContextKey<boolean>;
