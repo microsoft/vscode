@@ -193,7 +193,7 @@ export class MainThreadCommentControl {
 
 	deleteCommentThread(commentThreadHandle: number) {
 		let thread = this._threads.get(commentThreadHandle);
-
+		this._threads.delete(commentThreadHandle);
 		thread.dispose();
 	}
 
