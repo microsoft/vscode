@@ -169,7 +169,7 @@ import { ProductService } from 'vs/platform/product/node/productService';
 // import@electron-browser
 import { ContextMenuService as NativeContextMenuService } from 'vs/workbench/services/contextmenu/electron-browser/contextmenuService';
 import { WorkbenchKeybindingService } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
-import { RemoteFileService } from 'vs/workbench/services/files/electron-browser/remoteFileService';
+import { RemoteFileService } from 'vs/workbench/services/files/node/remoteFileService';
 import { ClipboardService } from 'vs/platform/clipboard/electron-browser/clipboardService';
 import { LifecycleService } from 'vs/platform/lifecycle/electron-browser/lifecycleService';
 import { IExtensionUrlHandler, ExtensionUrlHandler } from 'vs/workbench/services/extensions/electron-browser/inactiveExtensionUrlHandler';
