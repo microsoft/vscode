@@ -32,7 +32,6 @@ import { TextModelResolverService } from 'vs/workbench/services/textmodelResolve
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { JSONEditingService } from 'vs/workbench/services/configuration/node/jsonEditingService';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { Uri } from 'vscode';
 import { createHash } from 'crypto';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
@@ -61,7 +60,7 @@ function setUpFolder(folderName: string, parentDir: string): Promise<string> {
 	return Promise.resolve(pfs.mkdirp(workspaceSettingsDir, 493).then(() => folderDir));
 }
 
-function convertToWorkspacePayload(folder: Uri): ISingleFolderWorkspaceInitializationPayload {
+function convertToWorkspacePayload(folder: URI): ISingleFolderWorkspaceInitializationPayload {
 	return {
 		id: createHash('md5').update(folder.fsPath).digest('hex'),
 		folder
