@@ -113,6 +113,8 @@ export class QueryBuilder {
 	private getContentPattern(inputPattern: IPatternInfo, options: ITextQueryBuilderOptions): IPatternInfo {
 		const searchConfig = this.configurationService.getValue<ISearchConfiguration>();
 
+		inputPattern.pattern = inputPattern.pattern.replace(/\r?\n/g, '\\n');
+
 		const newPattern = {
 			...inputPattern,
 			wordSeparators: searchConfig.editor.wordSeparators
