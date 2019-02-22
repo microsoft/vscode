@@ -138,7 +138,7 @@ class CodeRendererMain extends Disposable {
 				}
 
 				// Config Exporter
-				if (this.configuration.args['export-default-configuration']) {
+				if (this.configuration['export-default-configuration']) {
 					instantiationService.createInstance(DefaultConfigurationExportHelper);
 				}
 			});

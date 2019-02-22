@@ -130,7 +130,6 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { CodeEditorService } from 'vs/workbench/services/editor/browser/codeEditorService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
-import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 import { HistoryService } from 'vs/workbench/services/history/browser/history';
 import { ConfigurationResolverService } from 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
@@ -162,7 +161,6 @@ import { ExtensionManagementChannelClient } from 'vs/platform/extensionManagemen
 import { ExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
 import { MultiExtensionManagementService } from 'vs/workbench/services/extensionManagement/node/multiExtensionManagement';
 import { SearchService } from 'vs/workbench/services/search/node/searchService';
-import { IntegrityServiceImpl } from 'vs/workbench/services/integrity/node/integrityServiceImpl';
 import { LocalizationsChannelClient } from 'vs/platform/localizations/node/localizationsIpc';
 import { AccessibilityService } from 'vs/platform/accessibility/node/accessibilityService';
 import { ProductService } from 'vs/platform/product/node/productService';
@@ -602,7 +600,7 @@ export class Workbench extends Disposable implements IPartService {
 		// Text Mate
 		serviceCollection.set(ITextMateService, new SyncDescriptor(TextMateService));
 
-		// Search
+		// Search !!
 		serviceCollection.set(ISearchService, new SyncDescriptor(SearchService));
 		serviceCollection.set(ISearchHistoryService, new SyncDescriptor(SearchHistoryService));
 
@@ -611,9 +609,6 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Opener
 		serviceCollection.set(IOpenerService, new SyncDescriptor(OpenerService, undefined, true));
-
-		// Integrity
-		serviceCollection.set(IIntegrityService, new SyncDescriptor(IntegrityServiceImpl));
 
 		// Localization
 		const localizationsChannel = getDelayedChannel(sharedProcess.then(c => c.getChannel('localizations')));

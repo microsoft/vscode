@@ -357,7 +357,7 @@
 		"./vs/workbench/services/history/browser/history.ts",
 		"./vs/workbench/services/history/common/history.ts",
 		"./vs/workbench/services/integrity/common/integrity.ts",
-		"./vs/workbench/services/integrity/node/integrityServiceImpl.ts",
+		"./vs/workbench/services/integrity/node/integrityService.ts",
 		"./vs/workbench/services/keybinding/common/keybindingIO.ts",
 		"./vs/workbench/services/keybinding/common/keyboardMapper.ts",
 		"./vs/workbench/services/keybinding/common/macLinuxFallbackKeyboardMapper.ts",
