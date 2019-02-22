@@ -76,7 +76,8 @@ export class ExtHostComments implements ExtHostCommentsShape {
 	}
 
 	createCommentControl(extension: IExtensionDescription, id: string, label: string): vscode.CommentControl {
-		const commentControl = new ExtHostCommentControl(extension, this._commands.converter, this._proxy, id, label);
+		const handle = ExtHostComments.handlePool++;
+		const commentControl = new ExtHostCommentControl(extension, handle, this._commands.converter, this._proxy, id, label);
 		this._commentControls.set(commentControl.handle, commentControl);
 
 		const commentControls = this._commentControlsByExtension.get(ExtensionIdentifier.toKey(extension.identifier)) || [];
@@ -383,8 +384,6 @@ export class ExtHostCommentWidget implements vscode.CommentWidget {
 }
 
 class ExtHostCommentControl implements vscode.CommentControl {
-	private static _handlePool: number = 0;
-
 	get id(): string {
 		return this._id;
 	}
@@ -395,11 +394,15 @@ class ExtHostCommentControl implements vscode.CommentControl {
 
 	public widget?: ExtHostCommentWidget;
 
-	public handle: number = ExtHostCommentControl._handlePool++;
+	public get handle(): number {
+		return this._handle;
+	}
+
 	private _threads: Map<number, ExtHostCommentThread> = new Map<number, ExtHostCommentThread>();
 
 	constructor(
 		_extension: IExtensionDescription,
+		private _handle: number,
 		private readonly _commandsConverter: CommandsConverter,
 		private _proxy: MainThreadCommentsShape,
 		private _id: string,
