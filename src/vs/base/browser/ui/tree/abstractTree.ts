@@ -1090,6 +1090,18 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		return this.view.renderHeight;
 	}
 
+	get firstVisibleElement(): T {
+		const index = this.view.firstVisibleIndex;
+		const node = this.view.element(index);
+		return node.element;
+	}
+
+	get lastVisibleElement(): T {
+		const index = this.view.lastVisibleIndex;
+		const node = this.view.element(index);
+		return node.element;
+	}
+
 	domFocus(): void {
 		this.view.domFocus();
 	}

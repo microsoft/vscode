@@ -431,6 +431,16 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		return scrollDimensions.height;
 	}
 
+	get firstVisibleIndex(): number {
+		const range = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
+		return range.start;
+	}
+
+	get lastVisibleIndex(): number {
+		const range = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
+		return range.end - 1;
+	}
+
 	element(index: number): T {
 		return this.items[index].element;
 	}

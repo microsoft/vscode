@@ -1308,6 +1308,14 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		return this.view.renderHeight;
 	}
 
+	get firstVisibleIndex(): number {
+		return this.view.firstVisibleIndex;
+	}
+
+	get lastVisibleIndex(): number {
+		return this.view.lastVisibleIndex;
+	}
+
 	domFocus(): void {
 		this.view.domNode.focus();
 	}
