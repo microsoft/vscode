@@ -167,7 +167,7 @@ import { AccessibilityService } from 'vs/platform/accessibility/node/accessibili
 import { ProductService } from 'vs/platform/product/node/productService';
 
 // import@electron-browser
-import { ContextMenuService as NativeContextMenuService } from 'vs/workbench/services/contextview/electron-browser/contextmenuService';
+import { ContextMenuService as NativeContextMenuService } from 'vs/workbench/services/contextmenu/electron-browser/contextmenuService';
 import { WorkbenchKeybindingService } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import { RemoteFileService } from 'vs/workbench/services/files/electron-browser/remoteFileService';
 import { ClipboardService } from 'vs/platform/clipboard/electron-browser/clipboardService';
