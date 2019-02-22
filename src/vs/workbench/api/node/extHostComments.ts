@@ -414,9 +414,6 @@ class ExtHostCommentControl implements vscode.CommentControl {
 	createCommentThread(id: string, resource: vscode.Uri, range: vscode.Range, comments: vscode.Comment[], acceptInputCommands: vscode.Command[], collapsibleState?: vscode.CommentThreadCollapsibleState): vscode.CommentThread {
 		const commentThread = new ExtHostCommentThread(this._proxy, this._commandsConverter, this.handle, id, resource, range, comments, acceptInputCommands, collapsibleState);
 		this._threads.set(commentThread.handle, commentThread);
-
-		// onDidDispose
-
 		return commentThread;
 	}
 
@@ -439,7 +436,12 @@ class ExtHostCommentControl implements vscode.CommentControl {
 	}
 
 	dispose(): void {
-		throw new Error('Method not implemented.');
+		this._threads.forEach(value => {
+			value.dispose();
+		});
+		this._commentingRanges.forEach(value => {
+			value.dispose();
+		});
 	}
 }
 
