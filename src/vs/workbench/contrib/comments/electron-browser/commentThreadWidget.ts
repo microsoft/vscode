@@ -258,6 +258,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 			let currentComment = commentThread.comments[i];
 			let oldCommentNode = this._commentElements.filter(commentNode => commentNode.comment.commentId === currentComment.commentId);
 			if (oldCommentNode.length) {
+				oldCommentNode[0].update(currentComment);
 				lastCommentElement = oldCommentNode[0].domNode;
 				newCommentNodeList.unshift(oldCommentNode[0]);
 			} else {
@@ -342,18 +343,36 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._localToDispose.push(this._commentEditor);
 		this._localToDispose.push(this._commentEditor.getModel().onDidChangeContent(() => this.setCommentEditorDecorations()));
 		if ((this._commentThread as modes.CommentThread2).commentThreadHandle !== undefined) {
+			this._localToDispose.push(this._commentEditor.onDidFocusEditorWidget(() => {
+				let commentThread = this._commentThread as modes.CommentThread2;
+				commentThread.input = {
+					uri: this._commentEditor.getModel().uri,
+					value: this._commentEditor.getValue()
+				};
+				this.commentService.setActiveCommentThread(this._commentThread);
+			}));
+
 			this._localToDispose.push(this._commentEditor.getModel().onDidChangeContent(() => {
 				let modelContent = this._commentEditor.getValue();
-				if ((this._commentThread as modes.CommentThread2).input !== modelContent) {
-					(this._commentThread as modes.CommentThread2).input = modelContent;
+				let thread = (this._commentThread as modes.CommentThread2);
+				if (thread.input.uri === this._commentEditor.getModel().uri && thread.input.value !== modelContent) {
+					let newInput: modes.CommentInput = thread.input;
+					newInput.value = modelContent;
+					thread.input = newInput;
 				}
 			}));
 
 			this._localToDispose.push((this._commentThread as modes.CommentThread2).onDidChangeInput(input => {
-				if (this._commentEditor.getValue() !== input) {
-					this._commentEditor.setValue(input);
+				let thread = (this._commentThread as modes.CommentThread2);
 
-					if (input === '') {
+				if (thread.input.uri !== this._commentEditor.getModel().uri) {
+					return;
+				}
+
+				if (this._commentEditor.getValue() !== input.value) {
+					this._commentEditor.setValue(input.value);
+
+					if (input.value === '') {
 						this._pendingComment = '';
 						if (dom.hasClass(this._commentForm, 'expand')) {
 							dom.removeClass(this._commentForm, 'expand');
@@ -554,9 +573,11 @@ export class ReviewZoneWidget extends ZoneWidget {
 			let commandId = command.id;
 			let args = command.arguments || [];
 			this._localToDispose.push(button.onDidClick(async () => {
-				commentThread.input = this._commentEditor.getValue();
+				commentThread.input = {
+					uri: this._commentEditor.getModel().uri,
+					value: this._commentEditor.getValue()
+				};
 				this.commentService.setActiveCommentThread(this._commentThread);
-
 				await this.commandService.executeCommand(commandId, ...args);
 			}));
 		});
