@@ -42,6 +42,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { coalesce } from 'vs/base/common/arrays';
 
 const TextInputActions: IAction[] = [
 	new Action('undo', nls.localize('undo', "Undo"), undefined, true, () => Promise.resolve(document.execCommand('undo'))),
@@ -231,7 +232,7 @@ export class ElectronWindow extends Disposable {
 		// Listen to editor closing (if we run with --wait)
 		const filesToWait = this.windowService.getConfiguration().filesToWait;
 		if (filesToWait) {
-			const resourcesToWaitFor = filesToWait.paths.map(p => p.fileUri);
+			const resourcesToWaitFor = coalesce(filesToWait.paths.map(p => p.fileUri));
 			const waitMarkerFile = URI.file(filesToWait.waitMarkerFilePath);
 			const listenerDispose = this.editorService.onDidCloseEditor(() => this.onEditorClosed(listenerDispose, resourcesToWaitFor, waitMarkerFile));
 
