@@ -136,19 +136,17 @@
 
 /* Expressions */
 
-.monaco-workbench .monaco-list-row .expression {
+.monaco-workbench .debug-viewlet .monaco-list-row .expression,
+.monaco-workbench .debug-hover-widget .monaco-list-row .expression {
+	font-size: 13px;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	font-family: var(--monaco-monospace-font);
 }
 
-.monaco-workbench.mac .monaco-list-row .expression {
+.monaco-workbench.mac .debug-viewlet .monaco-list-row .expression,
+.monaco-workbench.mac .debug-hover-widget .monaco-list-row .expression {
 	font-size: 11px;
-}
-
-.monaco-workbench.windows .monaco-list-row .expression,
-.monaco-workbench.linux .monaco-list-row .expression {
-	font-size: 13px;
 }
 
 .monaco-workbench .monaco-list-row .expression .value {
