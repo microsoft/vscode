@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Barrier, runWhenIdle } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -17,8 +17,8 @@ import { EnablementState, IExtensionEnablementService, IExtensionIdentifier, IEx
 import { BetterMergeId, areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import pkg from 'vs/platform/node/package';
-import product from 'vs/platform/node/product';
+import pkg from 'vs/platform/product/node/package';
+import product from 'vs/platform/product/node/product';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
@@ -37,13 +37,13 @@ const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
 
 schema.properties.engines.properties.vscode.default = `^${pkg.version}`;
 
-let productAllowProposedApi: Set<string> = null;
+let productAllowProposedApi: Set<string> | null = null;
 function allowProposedApiFromProduct(id: ExtensionIdentifier): boolean {
 	// create set if needed
-	if (productAllowProposedApi === null) {
+	if (!productAllowProposedApi) {
 		productAllowProposedApi = new Set<string>();
 		if (isNonEmptyArray(product.extensionAllowedProposedApi)) {
-			product.extensionAllowedProposedApi.forEach((id) => productAllowProposedApi.add(ExtensionIdentifier.toKey(id)));
+			product.extensionAllowedProposedApi.forEach((id) => productAllowProposedApi!.add(ExtensionIdentifier.toKey(id)));
 		}
 	}
 	return productAllowProposedApi.has(ExtensionIdentifier.toKey(id));
@@ -101,7 +101,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService
 	) {
 		super();
-		this._extensionHostLogsLocation = URI.file(path.posix.join(this._environmentService.logsPath, `exthost${this._windowService.getCurrentWindowId()}`));
+		this._extensionHostLogsLocation = URI.file(path.join(this._environmentService.logsPath, `exthost${this._windowService.getCurrentWindowId()}`));
 		this._registry = null;
 		this._installedExtensionsReady = new Barrier();
 		this._isDev = !this._environmentService.isBuilt || this._environmentService.isExtensionDevelopment;
@@ -143,8 +143,10 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 		this._extensionManagementService.onDidInstallExtension((event) => {
 			if (event.local) {
-				// an extension has been installed
-				this._handleDeltaExtensions(new DeltaExtensionsQueueItem([event.local], []));
+				if (this._extensionEnablementService.isEnabled(event.local)) {
+					// an extension has been installed
+					this._handleDeltaExtensions(new DeltaExtensionsQueueItem([event.local], []));
+				}
 			}
 		});
 
@@ -165,7 +167,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		}
 
 		while (this._deltaExtensionsQueue.length > 0) {
-			const item = this._deltaExtensionsQueue.shift();
+			const item = this._deltaExtensionsQueue.shift()!;
 			try {
 				this._inHandleDeltaExtensions = true;
 				await this._deltaExtensions(item.toAdd, item.toRemove);
@@ -188,9 +190,15 @@ export class ExtensionService extends Disposable implements IExtensionService {
 				continue;
 			}
 
+			const existingExtensionDescription = this._registry.getExtensionDescription(extension.identifier.id);
+			if (existingExtensionDescription) {
+				// this extension is already running (most likely at a different version)
+				continue;
+			}
+
 			const extensionDescription = await this._extensionScanner.scanSingleExtension(extension.location.fsPath, extension.type === ExtensionType.System, this.createLogger());
-			if (!extensionDescription || !this._usesOnlyDynamicExtensionPoints(extensionDescription)) {
-				// uses non-dynamic extension point
+			if (!extensionDescription) {
+				// could not scan extension...
 				continue;
 			}
 
@@ -219,7 +227,11 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		}
 
 		// Update the local registry
-		this._registry.deltaExtensions(toAdd, toRemove.map(e => e.identifier));
+		const result = this._registry.deltaExtensions(toAdd, toRemove.map(e => e.identifier));
+		toRemove = toRemove.concat(result.removedDueToLooping);
+		if (result.removedDueToLooping.length > 0) {
+			this._logOrShowMessage(Severity.Error, nls.localize('looping', "The following extensions contain dependency loops and have been disabled: {0}", result.removedDueToLooping.map(e => `'${e.identifier.value}'`).join(', ')));
+		}
 
 		// Update extension points
 		this._rehandleExtensionPoints((<IExtensionDescription[]>[]).concat(toAdd).concat(toRemove));
@@ -259,22 +271,6 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		}
 	}
 
-	private _usesOnlyDynamicExtensionPoints(extension: IExtensionDescription): boolean {
-		const extensionPoints = ExtensionsRegistry.getExtensionPointsMap();
-		if (extension.contributes) {
-			for (let extPointName in extension.contributes) {
-				if (hasOwnProperty.call(extension.contributes, extPointName)) {
-					const extPoint = extensionPoints[extPointName];
-					if (extPoint && !extPoint.isDynamic) {
-						return false;
-					}
-				}
-			}
-		}
-
-		return true;
-	}
-
 	public canAddExtension(extension: IExtensionDescription): boolean {
 		if (this._windowService.getConfiguration().remoteAuthority) {
 			return false;
@@ -292,7 +288,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			}
 		}
 
-		return this._usesOnlyDynamicExtensionPoints(extension);
+		return true;
 	}
 
 	public canRemoveExtension(extension: IExtensionDescription): boolean {
@@ -319,7 +315,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			return false;
 		}
 
-		return this._usesOnlyDynamicExtensionPoints(extension);
+		return true;
 	}
 
 	private async _activateAddedExtensionIfNeeded(extensionDescription: IExtensionDescription): Promise<void> {
@@ -611,12 +607,16 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		const enabledExtensions = await this._getRuntimeExtensions(extensions);
 
 		this._handleExtensionPoints(enabledExtensions);
-		extensionHost.start(enabledExtensions.map(extension => extension.identifier));
+		extensionHost.start(enabledExtensions.map(extension => extension.identifier).filter(id => this._registry.containsExtension(id)));
 		this._releaseBarrier();
 	}
 
 	private _handleExtensionPoints(allExtensions: IExtensionDescription[]): void {
-		this._registry = new ExtensionDescriptionRegistry(allExtensions);
+		this._registry = new ExtensionDescriptionRegistry([]);
+		const result = this._registry.deltaExtensions(allExtensions, []);
+		if (result.removedDueToLooping.length > 0) {
+			this._logOrShowMessage(Severity.Error, nls.localize('looping', "The following extensions contain dependency loops and have been disabled: {0}", result.removedDueToLooping.map(e => `'${e.identifier.value}'`).join(', ')));
+		}
 
 		let availableExtensions = this._registry.getAllExtensionDescriptions();
 		let extensionPoints = ExtensionsRegistry.getExtensionPoints();
@@ -801,6 +801,16 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		}
 	}
 
+	public async _activateById(extensionId: ExtensionIdentifier, activationEvent: string): Promise<void> {
+		const results = await Promise.all(
+			this._extensionHostProcessManagers.map(manager => manager.activate(extensionId, activationEvent))
+		);
+		const activated = results.some(e => e);
+		if (!activated) {
+			throw new Error(`Unknown extension ${extensionId.value}`);
+		}
+	}
+
 	public _onWillActivateExtension(extensionId: ExtensionIdentifier): void {
 		this._extensionHostActiveExtensions.set(ExtensionIdentifier.toKey(extensionId), extensionId);
 	}
@@ -824,7 +834,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		if (!this._extensionsMessages.has(extensionKey)) {
 			this._extensionsMessages.set(extensionKey, []);
 		}
-		this._extensionsMessages.get(extensionKey).push({
+		this._extensionsMessages.get(extensionKey)!.push({
 			type: severity,
 			message: message,
 			extensionId: null,

@@ -457,7 +457,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 		};
 
 		const response = await this.client.interruptGetErr(() => this.client.execute('completionEntryDetails', args, token));
-		if (response.type !== 'response' || !response.body) {
+		if (response.type !== 'response' || !response.body || !response.body.length) {
 			return item;
 		}
 

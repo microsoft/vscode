@@ -73,6 +73,7 @@ class ModelData implements IDisposable {
 
 interface IRawEditorConfig {
 	tabSize?: any;
+	indentSize?: any;
 	insertSpaces?: any;
 	detectIndentation?: any;
 	trimAutoWhitespace?: any;
@@ -138,6 +139,17 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 			}
 		}
 
+		let indentSize = tabSize;
+		if (config.editor && typeof config.editor.indentSize !== 'undefined' && config.editor.indentSize !== 'tabSize') {
+			let parsedIndentSize = parseInt(config.editor.indentSize, 10);
+			if (!isNaN(parsedIndentSize)) {
+				indentSize = parsedIndentSize;
+			}
+			if (indentSize < 1) {
+				indentSize = 1;
+			}
+		}
+
 		let insertSpaces = EDITOR_MODEL_DEFAULTS.insertSpaces;
 		if (config.editor && typeof config.editor.insertSpaces !== 'undefined') {
 			insertSpaces = (config.editor.insertSpaces === 'false' ? false : Boolean(config.editor.insertSpaces));
@@ -169,6 +181,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		return {
 			isForSimpleWidget: isForSimpleWidget,
 			tabSize: tabSize,
+			indentSize: indentSize,
 			insertSpaces: insertSpaces,
 			detectIndentation: detectIndentation,
 			defaultEOL: newDefaultEOL,
@@ -210,6 +223,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 			&& (currentOptions.detectIndentation === newOptions.detectIndentation)
 			&& (currentOptions.insertSpaces === newOptions.insertSpaces)
 			&& (currentOptions.tabSize === newOptions.tabSize)
+			&& (currentOptions.indentSize === newOptions.indentSize)
 			&& (currentOptions.trimAutoWhitespace === newOptions.trimAutoWhitespace)
 		) {
 			// Same indent opts, no need to touch the model
@@ -225,6 +239,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 			model.updateOptions({
 				insertSpaces: newOptions.insertSpaces,
 				tabSize: newOptions.tabSize,
+				indentSize: newOptions.indentSize,
 				trimAutoWhitespace: newOptions.trimAutoWhitespace
 			});
 		}

@@ -16,6 +16,72 @@
 
 declare module 'vscode' {
 
+	//#region Alex - resolvers
+
+	export class ResolvedAuthority {
+		readonly host: string;
+		readonly port: number;
+		debugListenPort?: number;
+		debugConnectPort?: number;
+
+		constructor(host: string, port: number);
+	}
+
+	export interface RemoteAuthorityResolver {
+		resolve(authority: string): ResolvedAuthority | Thenable<ResolvedAuthority>;
+	}
+
+	export interface ResourceLabelFormatter {
+		scheme: string;
+		authority?: string;
+		formatting: ResourceLabelFormatting;
+	}
+
+	export interface ResourceLabelFormatting {
+		label: string; // myLabel:/${path}
+		separator: '/' | '\\' | '';
+		tildify?: boolean;
+		normalizeDriveLetter?: boolean;
+		workspaceSuffix?: string;
+		authorityPrefix?: string;
+	}
+
+	export namespace workspace {
+		export function registerRemoteAuthorityResolver(authorityPrefix: string, resolver: RemoteAuthorityResolver): Disposable;
+		export function registerResourceLabelFormatter(formatter: ResourceLabelFormatter): Disposable;
+	}
+
+	//#endregion
+
+
+	// #region Joh - code insets
+
+	/**
+	 */
+	export class CodeInset {
+		range: Range;
+		height?: number;
+		constructor(range: Range, height?: number);
+	}
+
+	export interface CodeInsetProvider {
+		onDidChangeCodeInsets?: Event<void>;
+		provideCodeInsets(document: TextDocument, token: CancellationToken): ProviderResult<CodeInset[]>;
+		resolveCodeInset(codeInset: CodeInset, webview: Webview, token: CancellationToken): ProviderResult<CodeInset>;
+	}
+
+	export namespace languages {
+
+		/**
+		 * Register a code inset provider.
+		 *
+		 */
+		export function registerCodeInsetProvider(selector: DocumentSelector, provider: CodeInsetProvider): Disposable;
+	}
+
+	//#endregion
+
+
 	//#region Joh - selection range provider
 
 	export class SelectionRangeKind {
@@ -52,10 +118,13 @@ declare module 'vscode' {
 
 	export interface SelectionRangeProvider {
 		/**
-		 * Provide selection ranges starting at a given position. The first range must [contain](#Range.contains)
-		 * position and subsequent ranges must contain the previous range.
+		 * Provide selection ranges for the given positions. Selection ranges should be computed individually and
+		 * independend for each postion. The editor will merge and deduplicate ranges but providers must return sequences
+		 * of ranges (per position) where a range must [contain](#Range.contains) and subsequent ranges.
+		 *
+		 * todo@joh
 		 */
-		provideSelectionRanges(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<SelectionRange[]>;
+		provideSelectionRanges(document: TextDocument, positions: Position[], token: CancellationToken): ProviderResult<SelectionRange[][]>;
 	}
 
 	export namespace languages {
@@ -67,6 +136,7 @@ declare module 'vscode' {
 	//#region Joh - read/write in chunks
 
 	export interface FileSystemProvider {
+		seperator?: '/' | '\\';
 		open?(resource: Uri, options: { create: boolean }): number | Thenable<number>;
 		close?(fd: number): void | Thenable<void>;
 		read?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): number | Thenable<number>;
@@ -820,6 +890,8 @@ declare module 'vscode' {
 
 	interface CommentReaction {
 		readonly label?: string;
+		readonly iconPath?: string | Uri;
+		count?: number;
 		readonly hasReacted?: boolean;
 	}
 
@@ -888,13 +960,41 @@ declare module 'vscode' {
 
 	//#region Terminal
 
+	/**
+	 * An [event](#Event) which fires when a [Terminal](#Terminal)'s dimensions change.
+	 */
+	export interface TerminalDimensionsChangeEvent {
+		/**
+		 * The [terminal](#Terminal) for which the dimensions have changed.
+		 */
+		readonly terminal: Terminal;
+		/**
+		 * The new value for the [terminal's dimensions](#Terminal.dimensions).
+		 */
+		readonly dimensions: TerminalDimensions;
+	}
+
+	namespace window {
+		/**
+		 * An event which fires when the [dimensions](#Terminal.dimensions) of the terminal change.
+		 */
+		export const onDidChangeTerminalDimensions: Event<TerminalDimensionsChangeEvent>;
+	}
+
 	export interface Terminal {
+		/**
+		 * The current dimensions of the terminal. This will be `undefined` immediately after the
+		 * terminal is created as the dimensions are not known until shortly after the terminal is
+		 * created.
+		 */
+		readonly dimensions: TerminalDimensions | undefined;
+
 		/**
 		 * Fires when the terminal's pty slave pseudo-device is written to. In other words, this
 		 * provides access to the raw data stream from the process running within the terminal,
 		 * including VT sequences.
 		 */
-		onDidWriteData: Event<string>;
+		readonly onDidWriteData: Event<string>;
 	}
 
 	/**
@@ -997,7 +1097,7 @@ declare module 'vscode' {
 		 * terminalRenderer.onDidAcceptInput(data => {
 		 *   console.log(data); // 'Hello world'
 		 * });
-		 * terminalRenderer.terminal.then(t => t.sendText('Hello world'));
+		 * terminalRenderer.terminal.sendText('Hello world');
 		 * ```
 		 */
 		readonly onDidAcceptInput: Event<string>;
@@ -1055,15 +1155,6 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	//#region Alex - extensions.all change event
-	export namespace extensions {
-		/**
-		 * An event which fires when `extensions.all` changes.
-		 */
-		export const onDidChange: Event<void>;
-	}
-	//#endregion
-
 	//#region Tree View
 
 	export interface TreeView<T> {
@@ -1107,48 +1198,12 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	//#region SignatureHelpContext active parameters - mjbvz
-	export interface SignatureHelpContext {
-		/**
-		 * The currently active [`SignatureHelp`](#SignatureHelp).
-		 *
-		 * The `activeSignatureHelp` has its [`SignatureHelp.activeSignature`] field updated based on
-		 * the user arrowing through available signatures.
-		 */
-		readonly activeSignatureHelp?: SignatureHelp;
-	}
-	//#endregion
-
-	//#region CodeAction.isPreferred - mjbvz
-	export interface CodeAction {
-		/**
-		 * Marks this as a preferred action. Preferred actions are used by the `auto fix` command.
-		 *
-		 * A quick fix should be marked preferred if it properly addresses the underlying error.
-		 * A refactoring should be marked preferred if it is the most reasonable choice of actions to take.
-		 */
-		isPreferred?: boolean;
-	}
-	//#endregion
-
 	//#region Tasks
 	export interface TaskPresentationOptions {
 		/**
 		 * Controls whether the task is executed in a specific terminal group using split panes.
 		 */
 		group?: string;
-	}
-	//#endregion
-
-	//#region Autofix - mjbvz
-	export namespace CodeActionKind {
-		/**
-		 * Base kind for auto-fix source actions: `source.fixAll`.
-		 *
-		 * Fix all actions automatically fix errors that have a clear fix that do not require user input.
-		 * They should not suppress errors or perform unsafe fixes such as generating new types or classes.
-		 */
-		export const SourceFixAll: CodeActionKind;
 	}
 	//#endregion
 }

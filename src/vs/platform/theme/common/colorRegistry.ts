@@ -27,7 +27,7 @@ export interface ColorContribution {
 
 
 export interface ColorFunction {
-	(theme: ITheme): Color | null;
+	(theme: ITheme): Color | undefined;
 }
 
 export interface ColorDefaults {
@@ -71,7 +71,7 @@ export interface IColorRegistry {
 	/**
 	 * Gets the default color of the given id
 	 */
-	resolveDefaultColor(id: ColorIdentifier, theme: ITheme): Color | null;
+	resolveDefaultColor(id: ColorIdentifier, theme: ITheme): Color | undefined;
 
 	/**
 	 * JSON schema for an object to assign color values to one of the color contributions.
@@ -131,13 +131,13 @@ class ColorRegistry implements IColorRegistry {
 		return Object.keys(this.colorsById).map(id => this.colorsById[id]);
 	}
 
-	public resolveDefaultColor(id: ColorIdentifier, theme: ITheme): Color | null {
-		let colorDesc = this.colorsById[id];
+	public resolveDefaultColor(id: ColorIdentifier, theme: ITheme): Color | undefined {
+		const colorDesc = this.colorsById[id];
 		if (colorDesc && colorDesc.defaults) {
-			let colorValue = colorDesc.defaults[theme.type];
+			const colorValue = colorDesc.defaults[theme.type];
 			return resolveColorValue(colorValue, theme);
 		}
-		return null;
+		return undefined;
 	}
 
 	public getColorSchema(): IJSONSchema {
@@ -235,6 +235,9 @@ export const listHighlightForeground = registerColor('list.highlightForeground',
 export const listInvalidItemForeground = registerColor('list.invalidItemForeground', { dark: '#B89500', light: '#B89500', hc: '#B89500' }, nls.localize('invalidItemForeground', 'List/Tree foreground color for invalid items, for example an unresolved root in explorer.'));
 export const listErrorForeground = registerColor('list.errorForeground', { dark: '#F88070', light: '#B01011', hc: null }, nls.localize('listErrorForeground', 'Foreground color of list items containing errors.'));
 export const listWarningForeground = registerColor('list.warningForeground', { dark: '#4d9e4d', light: '#117711', hc: null }, nls.localize('listWarningForeground', 'Foreground color of list items containing warnings.'));
+export const listFilterWidgetBackground = registerColor('listFilterWidget.background', { light: '#efc1ad', dark: '#653723', hc: Color.black }, nls.localize('listFilterWidgetBackground', 'Background color of the type filter widget in lists and trees.'));
+export const listFilterWidgetOutline = registerColor('listFilterWidget.outline', { dark: Color.transparent, light: Color.transparent, hc: '#f38518' }, nls.localize('listFilterWidgetOutline', 'Outline color of the type filter widget in lists and trees.'));
+export const listFilterWidgetNoMatchesOutline = registerColor('listFilterWidget.noMatchesOutline', { dark: '#BE1100', light: '#BE1100', hc: contrastBorder }, nls.localize('listFilterWidgetNoMatchesOutline', 'Outline color of the type filter widget in lists and trees, when there are no matches.'));
 
 export const pickerGroupForeground = registerColor('pickerGroup.foreground', { dark: '#3794FF', light: '#0066BF', hc: Color.white }, nls.localize('pickerGroupForeground', "Quick picker color for grouping labels."));
 export const pickerGroupBorder = registerColor('pickerGroup.border', { dark: '#3F3F46', light: '#CCCEDB', hc: Color.white }, nls.localize('pickerGroupBorder', "Quick picker color for grouping borders."));
@@ -254,7 +257,7 @@ export const scrollbarSliderActiveBackground = registerColor('scrollbarSlider.ac
 export const progressBarBackground = registerColor('progressBar.background', { dark: Color.fromHex('#0E70C0'), light: Color.fromHex('#0E70C0'), hc: contrastBorder }, nls.localize('progressBarBackground', "Background color of the progress bar that can show for long running operations."));
 
 export const menuBorder = registerColor('menu.border', { dark: null, light: null, hc: contrastBorder }, nls.localize('menuBorder', "Border color of menus."));
-export const menuForeground = registerColor('menu.foreground', { dark: selectForeground, light: selectForeground, hc: selectForeground }, nls.localize('menuForeground', "Foreground color of menu items."));
+export const menuForeground = registerColor('menu.foreground', { dark: selectForeground, light: foreground, hc: selectForeground }, nls.localize('menuForeground', "Foreground color of menu items."));
 export const menuBackground = registerColor('menu.background', { dark: selectBackground, light: selectBackground, hc: selectBackground }, nls.localize('menuBackground', "Background color of menu items."));
 export const menuSelectionForeground = registerColor('menu.selectionForeground', { dark: listActiveSelectionForeground, light: listActiveSelectionForeground, hc: listActiveSelectionForeground }, nls.localize('menuSelectionForeground', "Foreground color of the selected menu item in menus."));
 export const menuSelectionBackground = registerColor('menu.selectionBackground', { dark: listActiveSelectionBackground, light: listActiveSelectionBackground, hc: listActiveSelectionBackground }, nls.localize('menuSelectionBackground', "Background color of the selected menu item in menus."));
@@ -307,6 +310,7 @@ export const editorFindRangeHighlightBorder = registerColor('editor.findRangeHig
 export const editorHoverHighlight = registerColor('editor.hoverHighlightBackground', { light: '#ADD6FF26', dark: '#264f7840', hc: '#ADD6FF26' }, nls.localize('hoverHighlight', 'Highlight below the word for which a hover is shown. The color must not be opaque so as not to hide underlying decorations.'), true);
 export const editorHoverBackground = registerColor('editorHoverWidget.background', { light: editorWidgetBackground, dark: editorWidgetBackground, hc: editorWidgetBackground }, nls.localize('hoverBackground', 'Background color of the editor hover.'));
 export const editorHoverBorder = registerColor('editorHoverWidget.border', { light: editorWidgetBorder, dark: editorWidgetBorder, hc: editorWidgetBorder }, nls.localize('hoverBorder', 'Border color of the editor hover.'));
+export const editorHoverStatusBarBackground = registerColor('editorHoverWidget.statusBarBackground', { dark: lighten(editorHoverBackground, 0.4), light: darken(editorHoverBackground, 0.1), hc: editorWidgetBackground }, nls.localize('statusBarBackground', "Background color of the editor hover status bar."));
 
 /**
  * Editor link colors
@@ -382,7 +386,7 @@ export function darken(colorValue: ColorValue, factor: number): ColorFunction {
 		if (color) {
 			return color.darken(factor);
 		}
-		return null;
+		return undefined;
 	};
 }
 
@@ -392,7 +396,7 @@ export function lighten(colorValue: ColorValue, factor: number): ColorFunction {
 		if (color) {
 			return color.lighten(factor);
 		}
-		return null;
+		return undefined;
 	};
 }
 
@@ -402,7 +406,7 @@ export function transparent(colorValue: ColorValue, factor: number): ColorFuncti
 		if (color) {
 			return color.transparent(factor);
 		}
-		return null;
+		return undefined;
 	};
 }
 
@@ -414,7 +418,7 @@ export function oneOf(...colorValues: ColorValue[]): ColorFunction {
 				return color;
 			}
 		}
-		return null;
+		return undefined;
 	};
 }
 
@@ -431,22 +435,7 @@ function lessProminent(colorValue: ColorValue, backgroundColorValue: ColorValue,
 			}
 			return from.transparent(factor * transparency);
 		}
-		return null;
-	};
-}
-
-export function blend2(transparentColorValue: ColorValue, opaqueColorValue: ColorValue): ColorFunction {
-	return (theme) => {
-		let transparentColor = resolveColorValue(transparentColorValue, theme);
-		let opaqueColor = resolveColorValue(opaqueColorValue, theme);
-		if (transparentColor && opaqueColor) {
-			return opaqueColor.blend2(transparentColor);
-		} else if (transparentColor) {
-			return transparentColor;
-		} else if (opaqueColor) {
-			return opaqueColor;
-		}
-		return null;
+		return undefined;
 	};
 }
 
@@ -455,9 +444,9 @@ export function blend2(transparentColorValue: ColorValue, opaqueColorValue: Colo
 /**
  * @param colorValue Resolve a color value in the context of a theme
  */
-function resolveColorValue(colorValue: ColorValue | null, theme: ITheme): Color | null {
+function resolveColorValue(colorValue: ColorValue | null, theme: ITheme): Color | undefined {
 	if (colorValue === null) {
-		return null;
+		return undefined;
 	} else if (typeof colorValue === 'string') {
 		if (colorValue[0] === '#') {
 			return Color.fromHex(colorValue);
@@ -468,7 +457,7 @@ function resolveColorValue(colorValue: ColorValue | null, theme: ITheme): Color 
 	} else if (typeof colorValue === 'function') {
 		return colorValue(theme);
 	}
-	return null;
+	return undefined;
 }
 
 export const workbenchColorsSchemaId = 'vscode://schemas/workbench-colors';

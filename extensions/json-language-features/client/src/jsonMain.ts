@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-import { workspace, window, languages, commands, ExtensionContext, extensions, Uri, LanguageConfiguration, Diagnostic, StatusBarAlignment, TextEditor, TextDocument, Position, SelectionRange, Range, SelectionRangeKind } from 'vscode';
+import { workspace, window, languages, commands, ExtensionContext, extensions, Uri, LanguageConfiguration, Diagnostic, StatusBarAlignment, TextEditor, TextDocument, Position, SelectionRange } from 'vscode';
 import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification, HandleDiagnosticsSignature } from 'vscode-languageclient';
 import TelemetryReporter from 'vscode-extension-telemetry';
 
@@ -200,15 +200,17 @@ export function activate(context: ExtensionContext) {
 
 		documentSelector.forEach(selector => {
 			toDispose.push(languages.registerSelectionRangeProvider(selector, {
-				async provideSelectionRanges(document: TextDocument, position: Position): Promise<SelectionRange[]> {
+				async provideSelectionRanges(document: TextDocument, positions: Position[]): Promise<SelectionRange[][]> {
 					const textDocument = client.code2ProtocolConverter.asTextDocumentIdentifier(document);
-					const rawRanges = await client.sendRequest<Range[]>('$/textDocument/selectionRange', { textDocument, position });
-					if (Array.isArray(rawRanges)) {
-						return rawRanges.map(r => {
-							return {
-								range: client.protocol2CodeConverter.asRange(r),
-								kind: SelectionRangeKind.Declaration
-							};
+					const rawResult = await client.sendRequest<SelectionRange[][]>('$/textDocument/selectionRanges', { textDocument, positions: positions.map(client.code2ProtocolConverter.asPosition) });
+					if (Array.isArray(rawResult)) {
+						return rawResult.map(rawSelectionRanges => {
+							return rawSelectionRanges.map(selectionRange => {
+								return {
+									range: client.protocol2CodeConverter.asRange(selectionRange.range),
+									kind: selectionRange.kind
+								};
+							});
 						});
 					}
 					return [];

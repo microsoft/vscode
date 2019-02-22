@@ -233,7 +233,7 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 			}
 		});
 
-		this.pendingWillShutdownPromise = Promise.all(joiners).then(undefined, err => this.logService.error(err));
+		this.pendingWillShutdownPromise = Promise.all(joiners).then(() => undefined, err => this.logService.error(err));
 
 		return this.pendingWillShutdownPromise;
 	}

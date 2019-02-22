@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { WORKSPACE_EXTENSION, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { extname, basename, normalize } from 'vs/base/common/paths';
+import { hasWorkspaceFileExtension, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { normalize } from 'vs/base/common/path';
+import { basename, basenameOrAuthority } from 'vs/base/common/resources';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService, IURIToOpen } from 'vs/platform/windows/common/windows';
 import { URI } from 'vs/base/common/uri';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -26,11 +27,10 @@ import { coalesce } from 'vs/base/common/arrays';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorIdentifier, GroupIdentifier } from 'vs/workbench/common/editor';
-import { basenameOrAuthority } from 'vs/base/common/resources';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { addDisposableListener, EventType } from 'vs/base/browser/dom';
-import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export interface IDraggedResource {
 	resource: URI;
@@ -60,8 +60,8 @@ export interface IDraggedEditor extends IDraggedResource {
 
 export interface ISerializedDraggedEditor {
 	resource: string;
-	backupResource: string;
-	viewState: IEditorViewState;
+	backupResource?: string;
+	viewState: IEditorViewState | null;
 }
 
 export const CodeDataTransfers = {
@@ -71,7 +71,7 @@ export const CodeDataTransfers = {
 
 export function extractResources(e: DragEvent, externalOnly?: boolean): Array<IDraggedResource | IDraggedEditor> {
 	const resources: Array<IDraggedResource | IDraggedEditor> = [];
-	if (e.dataTransfer.types.length > 0) {
+	if (e.dataTransfer && e.dataTransfer.types.length > 0) {
 
 		// Check for window-to-window DND
 		if (!externalOnly) {
@@ -255,7 +255,7 @@ export class ResourcesDropHandler {
 	}
 
 	private handleWorkspaceFileDrop(fileOnDiskResources: URI[]): Promise<boolean> {
-		const workspaceResources: { workspaces: URI[], folders: URI[] } = {
+		const workspaceResources: { workspaces: IURIToOpen[], folders: IURIToOpen[] } = {
 			workspaces: [],
 			folders: []
 		};
@@ -263,8 +263,8 @@ export class ResourcesDropHandler {
 		return Promise.all(fileOnDiskResources.map(fileOnDiskResource => {
 
 			// Check for Workspace
-			if (extname(fileOnDiskResource.fsPath) === `.${WORKSPACE_EXTENSION}`) {
-				workspaceResources.workspaces.push(fileOnDiskResource);
+			if (hasWorkspaceFileExtension(fileOnDiskResource.fsPath)) {
+				workspaceResources.workspaces.push({ uri: fileOnDiskResource, typeHint: 'file' });
 
 				return undefined;
 			}
@@ -272,7 +272,7 @@ export class ResourcesDropHandler {
 			// Check for Folder
 			return this.fileService.resolveFile(fileOnDiskResource).then(stat => {
 				if (stat.isDirectory) {
-					workspaceResources.folders.push(stat.resource);
+					workspaceResources.folders.push({ uri: stat.resource, typeHint: 'folder' });
 				}
 			}, error => undefined);
 		})).then(_ => {
@@ -286,22 +286,24 @@ export class ResourcesDropHandler {
 			// Pass focus to window
 			this.windowService.focusWindow();
 
-			let workspacesToOpen: Promise<URI[]>;
+			let workspacesToOpen: Promise<IURIToOpen[]> | undefined;
 
 			// Open in separate windows if we drop workspaces or just one folder
 			if (workspaces.length > 0 || folders.length === 1) {
-				workspacesToOpen = Promise.resolve([...workspaces, ...folders].map(resources => resources));
+				workspacesToOpen = Promise.resolve([...workspaces, ...folders]);
 			}
 
 			// Multiple folders: Create new workspace with folders and open
 			else if (folders.length > 1) {
-				workspacesToOpen = this.workspacesService.createUntitledWorkspace(folders.map(folder => ({ uri: folder }))).then(workspace => [URI.file(workspace.configPath)]);
+				workspacesToOpen = this.workspacesService.createUntitledWorkspace(folders).then(workspace => [<IURIToOpen>{ uri: workspace.configPath, typeHint: 'file' }]);
 			}
 
 			// Open
-			workspacesToOpen.then(workspaces => {
-				this.windowService.openWindow(workspaces, { forceReuseWindow: true });
-			});
+			if (workspacesToOpen) {
+				workspacesToOpen.then(workspaces => {
+					this.windowService.openWindow(workspaces, { forceReuseWindow: true });
+				});
+			}
 
 			return true;
 		});
@@ -317,16 +319,16 @@ export class SimpleFileResourceDragAndDrop extends DefaultDragAndDrop {
 		super();
 	}
 
-	getDragURI(tree: ITree, obj: any): string {
+	getDragURI(tree: ITree, obj: any): string | null {
 		const resource = this.toResource(obj);
 		if (resource) {
 			return resource.toString();
 		}
 
-		return undefined;
+		return null;
 	}
 
-	getDragLabel(tree: ITree, elements: any[]): string {
+	getDragLabel(tree: ITree, elements: any[]): string | null {
 		if (elements.length > 1) {
 			return String(elements.length);
 		}
@@ -336,7 +338,7 @@ export class SimpleFileResourceDragAndDrop extends DefaultDragAndDrop {
 			return basenameOrAuthority(resource);
 		}
 
-		return undefined;
+		return null;
 	}
 
 	onDragStart(tree: ITree, data: IDragAndDropData, originalEvent: DragMouseEvent): void {
@@ -350,7 +352,7 @@ export class SimpleFileResourceDragAndDrop extends DefaultDragAndDrop {
 }
 
 export function fillResourceDataTransfers(accessor: ServicesAccessor, resources: (URI | { resource: URI, isDirectory: boolean })[], event: DragMouseEvent | DragEvent): void {
-	if (resources.length === 0) {
+	if (resources.length === 0 || !event.dataTransfer) {
 		return;
 	}
 
@@ -366,11 +368,11 @@ export function fillResourceDataTransfers(accessor: ServicesAccessor, resources:
 
 	// Text: allows to paste into text-capable areas
 	const lineDelimiter = isWindows ? '\r\n' : '\n';
-	event.dataTransfer.setData(DataTransfers.TEXT, sources.map(source => source.resource.scheme === Schemas.file ? normalize(normalizeDriveLetter(source.resource.fsPath), true) : source.resource.toString()).join(lineDelimiter));
+	event.dataTransfer.setData(DataTransfers.TEXT, sources.map(source => source.resource.scheme === Schemas.file ? normalize(normalizeDriveLetter(source.resource.fsPath)) : source.resource.toString()).join(lineDelimiter));
 
 	// Download URL: enables support to drag a tab as file to desktop (only single file supported)
 	if (firstSource.resource.scheme === Schemas.file) {
-		event.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [MIME_BINARY, basename(firstSource.resource.fsPath), firstSource.resource.toString()].join(':'));
+		event.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [MIME_BINARY, basename(firstSource.resource), firstSource.resource.toString()].join(':'));
 	}
 
 	// Resource URLs: allows to drop multiple resources to a target in VS Code (not directories)
@@ -388,7 +390,7 @@ export function fillResourceDataTransfers(accessor: ServicesAccessor, resources:
 	files.forEach(file => {
 
 		// Try to find editor view state from the visible editors that match given resource
-		let viewState: IEditorViewState;
+		let viewState: IEditorViewState | null = null;
 		const textEditorWidgets = editorService.visibleTextEditorWidgets;
 		for (const textEditorWidget of textEditorWidgets) {
 			if (isCodeEditor(textEditorWidget)) {
@@ -420,8 +422,8 @@ export class LocalSelectionTransfer<T> {
 
 	private static readonly INSTANCE = new LocalSelectionTransfer();
 
-	private data: T[];
-	private proto: T;
+	private data?: T[];
+	private proto?: T;
 
 	private constructor() {
 		// protect against external instantiation
@@ -442,7 +444,7 @@ export class LocalSelectionTransfer<T> {
 		}
 	}
 
-	getData(proto: T): T[] {
+	getData(proto: T): T[] | undefined {
 		if (this.hasData(proto)) {
 			return this.data;
 		}

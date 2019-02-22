@@ -641,12 +641,21 @@ declare module 'vscode' {
 		/**
 		 * The size in spaces a tab takes. This is used for two purposes:
 		 *  - the rendering width of a tab character;
-		 *  - the number of spaces to insert when [insertSpaces](#TextEditorOptions.insertSpaces) is true.
+		 *  - the number of spaces to insert when [insertSpaces](#TextEditorOptions.insertSpaces) is true
+		 *    and `indentSize` is set to `"tab"`.
 		 *
 		 * When getting a text editor's options, this property will always be a number (resolved).
 		 * When setting a text editor's options, this property is optional and it can be a number or `"auto"`.
 		 */
 		tabSize?: number | string;
+
+		/**
+		 * The number of spaces to insert when [insertSpaces](#TextEditorOptions.insertSpaces) is true.
+		 *
+		 * When getting a text editor's options, this property will always be a number (resolved).
+		 * When setting a text editor's options, this property is optional and it can be a number or `"tabSize"`.
+		 */
+		indentSize?: number | string;
 
 		/**
 		 * When pressing Tab insert [n](#TextEditorOptions.tabSize) spaces.
@@ -2014,12 +2023,20 @@ declare module 'vscode' {
 		 */
 		static readonly SourceOrganizeImports: CodeActionKind;
 
+		/**
+		 * Base kind for auto-fix source actions: `source.fixAll`.
+		 *
+		 * Fix all actions automatically fix errors that have a clear fix that do not require user input.
+		 * They should not suppress errors or perform unsafe fixes such as generating new types or classes.
+		 */
+		static readonly SourceFixAll: CodeActionKind;
+
 		private constructor(value: string);
 
 		/**
 		 * String value of the kind, e.g. `"refactor.extract.function"`.
 		 */
-		readonly value?: string;
+		readonly value: string;
 
 		/**
 		 * Create a new kind by appending a more specific selector to the current kind.
@@ -2101,6 +2118,15 @@ declare module 'vscode' {
 		 * Used to filter code actions.
 		 */
 		kind?: CodeActionKind;
+
+		/**
+		 * Marks this as a preferred action. Preferred actions are used by the `auto fix` command and can be targeted
+		 * by keybindings.
+		 *
+		 * A quick fix should be marked preferred if it properly addresses the underlying error.
+		 * A refactoring should be marked preferred if it is the most reasonable choice of actions to take.
+		 */
+		isPreferred?: boolean;
 
 		/**
 		 * Creates a new code action.
@@ -3184,6 +3210,14 @@ declare module 'vscode' {
 		 * typing a trigger character, a cursor move, or document content changes.
 		 */
 		readonly isRetrigger: boolean;
+
+		/**
+		 * The currently active [`SignatureHelp`](#SignatureHelp).
+		 *
+		 * The `activeSignatureHelp` has its [`SignatureHelp.activeSignature`] field updated based on
+		 * the user arrowing through available signatures.
+		 */
+		readonly activeSignatureHelp?: SignatureHelp;
 	}
 
 	/**
@@ -5932,7 +5966,7 @@ declare module 'vscode' {
 		 * @param target The uri that should be opened.
 		 * @returns A promise indicating if open was successful.
 		 */
-		export function open(target: Uri): Thenable<boolean>;
+		export function openExternal(target: Uri): Thenable<boolean>;
 	}
 
 	/**
@@ -8813,6 +8847,12 @@ declare module 'vscode' {
 		 * All extensions currently known to the system.
 		 */
 		export let all: Extension<any>[];
+
+		/**
+		 * An event which fires when `extensions.all` changes. This can happen when extensions are
+		 * installed, uninstalled, enabled or disabled.
+		 */
+		export const onDidChange: Event<void>;
 	}
 }
 

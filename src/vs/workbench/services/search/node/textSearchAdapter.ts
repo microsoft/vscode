@@ -5,7 +5,7 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import * as extfs from 'vs/base/node/extfs';
-import { IFileMatch, IProgress, ITextQuery, ITextSearchStats, ITextSearchMatch } from 'vs/platform/search/common/search';
+import { IFileMatch, IProgress, ITextQuery, ITextSearchStats, ITextSearchMatch } from 'vs/workbench/services/search/common/search';
 import { RipgrepTextSearchEngine } from 'vs/workbench/services/search/node/ripgrepTextSearchEngine';
 import { TextSearchManager } from 'vs/workbench/services/search/node/textSearchManager';
 import { ISerializedFileMatch, ISerializedSearchSuccess } from './search';

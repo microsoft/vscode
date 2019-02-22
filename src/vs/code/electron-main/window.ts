@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import * as objects from 'vs/base/common/objects';
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
@@ -13,7 +13,7 @@ import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/
 import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { parseArgs } from 'vs/platform/environment/node/argv';
-import product from 'vs/platform/node/product';
+import product from 'vs/platform/product/node/product';
 import { IWindowSettings, MenuBarVisibility, IWindowConfiguration, ReadyState, IRunActionInWindowRequest, getTitleBarStyle } from 'vs/platform/windows/common/windows';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
@@ -24,7 +24,6 @@ import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import * as perf from 'vs/base/common/performance';
 import { resolveMarketplaceHeaders } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 import { getBackgroundColor } from 'vs/code/electron-main/theme';
-import { IStorageMainService } from 'vs/platform/storage/node/storageMainService';
 import { RunOnceScheduler } from 'vs/base/common/async';
 
 export interface IWindowCreationOptions {
@@ -73,7 +72,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private whenReadyCallbacks: { (window: ICodeWindow): void }[];
 
 	private currentConfig: IWindowConfiguration;
-	private pendingLoadConfig: IWindowConfiguration;
+	private pendingLoadConfig?: IWindowConfiguration;
 
 	private marketplaceHeadersPromise: Promise<object>;
 
@@ -87,7 +86,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		@IStateService private readonly stateService: IStateService,
 		@IWorkspacesMainService private readonly workspacesMainService: IWorkspacesMainService,
 		@IBackupMainService private readonly backupMainService: IBackupMainService,
-		@IStorageMainService private readonly storageMainService: IStorageMainService
 	) {
 		super();
 
@@ -205,7 +203,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		return !!this.config.extensionTestsPath;
 	}
 
-	get extensionDevelopmentPath(): string {
+	get extensionDevelopmentPath(): string | undefined {
 		return this.config.extensionDevelopmentPath;
 	}
 
@@ -253,19 +251,19 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		return this._lastFocusTime;
 	}
 
-	get backupPath(): string {
+	get backupPath(): string | undefined {
 		return this.currentConfig ? this.currentConfig.backupPath : undefined;
 	}
 
-	get openedWorkspace(): IWorkspaceIdentifier {
+	get openedWorkspace(): IWorkspaceIdentifier | undefined {
 		return this.currentConfig ? this.currentConfig.workspace : undefined;
 	}
 
-	get openedFolderUri(): URI {
+	get openedFolderUri(): URI | undefined {
 		return this.currentConfig ? this.currentConfig.folderUri : undefined;
 	}
 
-	get remoteAuthority(): string {
+	get remoteAuthority(): string | undefined {
 		return this.currentConfig ? this.currentConfig.remoteAuthority : undefined;
 	}
 
@@ -310,7 +308,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private registerListeners(): void {
 
 		// Prevent loading of svgs
-		this._win.webContents.session.webRequest.onBeforeRequest(null, (details, callback) => {
+		this._win.webContents.session.webRequest.onBeforeRequest(null!, (details, callback) => {
 			if (details.url.indexOf('.svg') > 0) {
 				const uri = URI.parse(details.url);
 				if (uri && !uri.scheme.match(/file/i) && (uri.path as any).endsWith('.svg')) {
@@ -321,7 +319,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			return callback({});
 		});
 
-		this._win.webContents.session.webRequest.onHeadersReceived(null, (details: any, callback: any) => {
+		this._win.webContents.session.webRequest.onHeadersReceived(null!, (details: any, callback: any) => {
 			const contentType: string[] = (details.responseHeaders['content-type'] || details.responseHeaders['Content-Type']) as any;
 			if (contentType && Array.isArray(contentType) && contentType.some(x => x.toLowerCase().indexOf('image/svg') >= 0)) {
 				return callback({ cancel: true });
@@ -338,7 +336,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			if (this.pendingLoadConfig) {
 				this.currentConfig = this.pendingLoadConfig;
 
-				this.pendingLoadConfig = null;
+				this.pendingLoadConfig = undefined;
 			}
 
 			// To prevent flashing, we set the window visible after the page has finished to load but before Code is loaded
@@ -545,8 +543,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// in extension development mode. These options are all development related.
 		if (this.isExtensionDevelopmentHost && cli) {
 			configuration.verbose = cli.verbose;
-			configuration.debugPluginHost = cli.debugPluginHost;
-			configuration.debugBrkPluginHost = cli.debugBrkPluginHost;
+			configuration['inspect-extensions'] = cli['inspect-extensions'];
+			configuration['inspect-brk-extensions'] = cli['inspect-brk-extensions'];
 			configuration.debugId = cli.debugId;
 			configuration['extensions-dir'] = cli['extensions-dir'];
 		}
@@ -590,7 +588,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		windowConfiguration.perfEntries = perf.exportEntries();
 
 		// Parts splash
-		windowConfiguration.partsSplashData = this.storageMainService.get('parts-splash-data', undefined);
+		windowConfiguration.partsSplashPath = path.join(this.environmentService.userDataPath, 'rapid_render.json');
 
 		// Config (combination of process.argv and window configuration)
 		const environment = parseArgs(process.argv);
@@ -685,7 +683,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private restoreWindowState(state?: IWindowState): IWindowState {
 		if (state) {
 			try {
-				state = this.validateWindowState(state);
+				state = this.validateWindowState(state) || undefined;
 			} catch (err) {
 				this.logService.warn(`Unexpected error validating window state: ${err}\n${err.stack}`); // somehow display API can be picky about the state to validate
 			}
@@ -703,7 +701,11 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			return null;
 		}
 
-		if ([state.x, state.y, state.width, state.height].some(n => typeof n !== 'number')) {
+		if (typeof state.x !== 'number'
+			|| typeof state.y !== 'number'
+			|| typeof state.width !== 'number'
+			|| typeof state.height !== 'number'
+		) {
 			return null;
 		}
 
@@ -1042,6 +1044,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			clearTimeout(this.showTimeoutHandle);
 		}
 
-		this._win = null; // Important to dereference the window object to allow for GC
+		this._win = null!; // Important to dereference the window object to allow for GC
 	}
 }

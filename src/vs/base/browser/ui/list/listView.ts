@@ -41,6 +41,11 @@ export interface IListViewDragAndDrop<T> extends IListDragAndDrop<T> {
 	getDragElements(element: T): T[];
 }
 
+export interface IAriaSetProvider<T> {
+	getSetSize(element: T, index: number, listLength: number): number;
+	getPosInSet(element: T, index: number): number;
+}
+
 export interface IListViewOptions<T> {
 	readonly dnd?: IListViewDragAndDrop<T>;
 	readonly useShadows?: boolean;
@@ -49,6 +54,7 @@ export interface IListViewOptions<T> {
 	readonly supportDynamicHeights?: boolean;
 	readonly mouseSupport?: boolean;
 	readonly horizontalScrolling?: boolean;
+	readonly ariaSetProvider?: IAriaSetProvider<T>;
 }
 
 const DefaultOptions = {
@@ -142,6 +148,9 @@ function equalsDragFeedback(f1: number[] | undefined, f2: number[] | undefined):
 
 export class ListView<T> implements ISpliceable<T>, IDisposable {
 
+	private static InstanceCount = 0;
+	readonly domId = `list_id_${++ListView.InstanceCount}`;
+
 	readonly domNode: HTMLElement;
 
 	private items: IItem<T>[];
@@ -165,6 +174,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	private setRowLineHeight: boolean;
 	private supportDynamicHeights: boolean;
 	private horizontalScrolling: boolean;
+	private ariaSetProvider: IAriaSetProvider<T>;
 	private scrollWidth: number | undefined;
 	private canUseTranslate3d: boolean | undefined = undefined;
 
@@ -195,7 +205,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		container: HTMLElement,
 		private virtualDelegate: IListVirtualDelegate<T>,
 		renderers: IListRenderer<any /* TODO@joao */, any>[],
-		options: IListViewOptions<T> = DefaultOptions
+		options: IListViewOptions<T> = DefaultOptions as IListViewOptions<T>
 	) {
 		if (options.horizontalScrolling && options.supportDynamicHeights) {
 			throw new Error('Horizontal scrolling and dynamic heights not supported simultaneously');
@@ -216,10 +226,16 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		this.domNode = document.createElement('div');
 		this.domNode.className = 'monaco-list';
+
+		DOM.addClass(this.domNode, this.domId);
+		this.domNode.tabIndex = 0;
+
 		DOM.toggleClass(this.domNode, 'mouse-support', typeof options.mouseSupport === 'boolean' ? options.mouseSupport : true);
 
 		this.horizontalScrolling = getOrDefault(options, o => o.horizontalScrolling, DefaultOptions.horizontalScrolling);
 		DOM.toggleClass(this.domNode, 'horizontal-scrolling', this.horizontalScrolling);
+
+		this.ariaSetProvider = options.ariaSetProvider || { getSetSize: (e, i, length) => length, getPosInSet: (_, index) => index + 1 };
 
 		this.rowsContainer = document.createElement('div');
 		this.rowsContainer.className = 'monaco-list-rows';
@@ -528,6 +544,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		if (!item.row) {
 			item.row = this.cache.alloc(item.templateId);
+			item.row!.domNode!.setAttribute('role', 'treeitem');
 		}
 
 		if (!item.row.domNode!.parentElement) {
@@ -552,9 +569,9 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		const uri = this.dnd.getDragURI(item.element);
 		item.dragStartDisposable.dispose();
+		item.row.domNode!.draggable = !!uri;
 
 		if (uri) {
-			item.row.domNode!.draggable = true;
 			const onDragStart = domEvent(item.row.domNode!, 'dragstart');
 			item.dragStartDisposable = onDragStart(event => this.onDragStart(item.element, uri, event));
 		}
@@ -595,8 +612,10 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		item.row!.domNode!.setAttribute('data-index', `${index}`);
 		item.row!.domNode!.setAttribute('data-last-element', index === this.length - 1 ? 'true' : 'false');
-		item.row!.domNode!.setAttribute('aria-setsize', `${this.length}`);
-		item.row!.domNode!.setAttribute('aria-posinset', `${index + 1}`);
+		item.row!.domNode!.setAttribute('aria-setsize', String(this.ariaSetProvider.getSetSize(item.element, index, this.length)));
+		item.row!.domNode!.setAttribute('aria-posinset', String(this.ariaSetProvider.getPosInSet(item.element, index)));
+		item.row!.domNode!.setAttribute('id', this.getElementDomId(index));
+
 		DOM.toggleClass(item.row!.domNode!, 'drop-target', item.dropTarget);
 	}
 
@@ -729,7 +748,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 				label = String(elements.length);
 			}
 
-			const dragImage = DOM.$('.monaco-list-drag-image');
+			const dragImage = DOM.$('.monaco-drag-image');
 			dragImage.textContent = label;
 			document.body.appendChild(dragImage);
 			event.dataTransfer.setDragImage(dragImage, -10, -10);
@@ -959,12 +978,15 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		// Let's remember the second element's position, this helps in scrolling up
 		// and preserving a linear upwards scroll movement
-		let secondElementIndex: number | undefined;
-		let secondElementTopDelta: number | undefined;
+		let anchorElementIndex: number | undefined;
+		let anchorElementTopDelta: number | undefined;
 
-		if (previousRenderRange.end - previousRenderRange.start > 1) {
-			secondElementIndex = previousRenderRange.start + 1;
-			secondElementTopDelta = this.elementTop(secondElementIndex) - renderTop;
+		if (renderTop === this.elementTop(previousRenderRange.start)) {
+			anchorElementIndex = previousRenderRange.start;
+			anchorElementTopDelta = 0;
+		} else if (previousRenderRange.end - previousRenderRange.start > 1) {
+			anchorElementIndex = previousRenderRange.start + 1;
+			anchorElementTopDelta = this.elementTop(anchorElementIndex) - renderTop;
 		}
 
 		let heightDiff = 0;
@@ -1017,8 +1039,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 					}
 				}
 
-				if (typeof secondElementIndex === 'number') {
-					this.scrollTop = this.elementTop(secondElementIndex) - secondElementTopDelta!;
+				if (typeof anchorElementIndex === 'number') {
+					this.scrollTop = this.elementTop(anchorElementIndex) - anchorElementTopDelta!;
 				}
 
 				this._onDidChangeContentHeight.fire(this.contentHeight);
@@ -1069,6 +1091,10 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		}
 
 		return nextToLastItem.row.domNode;
+	}
+
+	getElementDomId(index: number): string {
+		return `${this.domId}_${index}`;
 	}
 
 	// Dispose

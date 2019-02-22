@@ -256,7 +256,7 @@ export class AllKeysConfigurationChangeEvent extends AbstractConfigurationChange
 
 export class WorkspaceConfigurationChangeEvent implements IConfigurationChangeEvent {
 
-	constructor(private configurationChangeEvent: IConfigurationChangeEvent, private workspace: Workspace) { }
+	constructor(private configurationChangeEvent: IConfigurationChangeEvent, private workspace: Workspace | undefined) { }
 
 	get changedConfiguration(): IConfigurationModel {
 		return this.configurationChangeEvent.changedConfiguration;

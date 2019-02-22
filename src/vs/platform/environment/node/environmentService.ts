@@ -7,10 +7,10 @@ import { IEnvironmentService, ParsedArgs, IDebugParams, IExtensionHostDebugParam
 import * as crypto from 'crypto';
 import * as paths from 'vs/base/node/paths';
 import * as os from 'os';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import { memoize } from 'vs/base/common/decorators';
-import pkg from 'vs/platform/node/package';
-import product from 'vs/platform/node/product';
+import pkg from 'vs/platform/product/node/package';
+import product from 'vs/platform/product/node/product';
 import { toLocalISOString } from 'vs/base/common/date';
 import { isWindows, isLinux } from 'vs/base/common/platform';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
@@ -135,7 +135,7 @@ export class EnvironmentService implements IEnvironmentService {
 	get backupWorkspacesPath(): string { return path.join(this.backupHome, 'workspaces.json'); }
 
 	@memoize
-	get workspacesHome(): string { return path.join(this.userDataPath, 'Workspaces'); }
+	get untitledWorkspacesHome(): URI { return URI.file(path.join(this.userDataPath, 'Workspaces')); }
 
 	@memoize
 	get installSourcePath(): string { return path.join(this.userDataPath, 'installSource'); }
@@ -250,11 +250,11 @@ export class EnvironmentService implements IEnvironmentService {
 }
 
 export function parseExtensionHostPort(args: ParsedArgs, isBuild: boolean): IExtensionHostDebugParams {
-	return parseDebugPort(args.debugPluginHost, args.debugBrkPluginHost, 5870, isBuild, args.debugId);
+	return parseDebugPort(args['inspect-extensions'], args['inspect-brk-extensions'], 5870, isBuild, args.debugId);
 }
 
 export function parseSearchPort(args: ParsedArgs, isBuild: boolean): IDebugParams {
-	return parseDebugPort(args.debugSearch, args.debugBrkSearch, 5876, isBuild);
+	return parseDebugPort(args['inspect-search'], args['inspect-brk-search'], 5876, isBuild);
 }
 
 export function parseDebugPort(debugArg: string | undefined, debugBrkArg: string | undefined, defaultBuildPort: number, isBuild: boolean, debugId?: string): IExtensionHostDebugParams {

@@ -49,7 +49,7 @@ export function isStringArray(value: any): value is string[] {
  * @returns whether the provided parameter is of type `object` but **not**
  *	`null`, an `array`, a `regexp`, nor a `date`.
  */
-export function isObject(obj: any): boolean {
+export function isObject(obj: any): obj is Object {
 	// The method can't do a type cast since there are type (like strings) which
 	// are subclasses of any put not positvely matched by the function. Hence type
 	// narrowing results in wrong results.
@@ -143,8 +143,12 @@ export function validateConstraint(arg: any, constraint: TypeConstraint | undefi
 			throw new Error(`argument does not match constraint: typeof ${constraint}`);
 		}
 	} else if (isFunction(constraint)) {
-		if (arg instanceof constraint) {
-			return;
+		try {
+			if (arg instanceof constraint) {
+				return;
+			}
+		} catch{
+			// ignore
 		}
 		if (!isUndefinedOrNull(arg) && arg.constructor === constraint) {
 			return;
@@ -161,8 +165,32 @@ export function validateConstraint(arg: any, constraint: TypeConstraint | undefi
  * any additional argument supplied.
  */
 export function create(ctor: Function, ...args: any[]): any {
-	let obj = Object.create(ctor.prototype);
-	ctor.apply(obj, args);
+	if (isNativeClass(ctor)) {
+		return new (ctor as any)(...args);
+	} else {
+		let obj = Object.create(ctor.prototype);
+		ctor.apply(obj, args);
+		return obj;
+	}
+}
 
-	return obj;
+// https://stackoverflow.com/a/32235645/1499159
+function isNativeClass(thing): boolean {
+	return typeof thing === 'function'
+		&& thing.hasOwnProperty('prototype')
+		&& !thing.hasOwnProperty('arguments');
+}
+
+/**
+ *
+ *
+ */
+export function getAllPropertyNames(obj: object): string[] {
+	let res: string[] = [];
+	let proto = Object.getPrototypeOf(obj);
+	while (Object.prototype !== proto) {
+		res = res.concat(Object.getOwnPropertyNames(proto));
+		proto = Object.getPrototypeOf(proto);
+	}
+	return res;
 }

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalProcessExtHostProxy, ITerminalProcessExtHostRequest, ITerminalDimensions, EXT_HOST_CREATION_DELAY } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalProcessExtHostProxy, ITerminalProcessExtHostRequest, ITerminalDimensions, EXT_HOST_CREATION_DELAY } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape, MainContext, IExtHostContext, ShellLaunchConfigDto } from 'vs/workbench/api/node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 
@@ -28,13 +28,16 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			// Delay this message so the TerminalInstance constructor has a chance to finish and
 			// return the ID normally to the extension host. The ID that is passed here will be used
 			// to register non-extension API terminals in the extension host.
-			setTimeout(() => this._onTerminalOpened(instance), EXT_HOST_CREATION_DELAY);
+			setTimeout(() => {
+				this._onTerminalOpened(instance);
+				this._onInstanceDimensionsChanged(instance);
+			}, EXT_HOST_CREATION_DELAY);
 		}));
 		this._toDispose.push(terminalService.onInstanceDisposed(instance => this._onTerminalDisposed(instance)));
 		this._toDispose.push(terminalService.onInstanceProcessIdReady(instance => this._onTerminalProcessIdReady(instance)));
 		this._toDispose.push(terminalService.onInstanceDimensionsChanged(instance => this._onInstanceDimensionsChanged(instance)));
 		this._toDispose.push(terminalService.onInstanceRequestExtHostProcess(request => this._onTerminalRequestExtHostProcess(request)));
-		this._toDispose.push(terminalService.onActiveInstanceChanged(instance => this._onActiveTerminalChanged(instance ? instance.id : undefined)));
+		this._toDispose.push(terminalService.onActiveInstanceChanged(instance => this._onActiveTerminalChanged(instance ? instance.id : null)));
 		this._toDispose.push(terminalService.onInstanceTitleChanged(instance => this._onTitleChanged(instance.id, instance.title)));
 
 		// Set initial ext host state
@@ -87,7 +90,8 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	}
 
 	public $hide(terminalId: number): void {
-		if (this.terminalService.getActiveInstance().id === terminalId) {
+		const instance = this.terminalService.getActiveInstance();
+		if (instance && instance.id === terminalId) {
 			this.terminalService.hidePanel();
 		}
 	}
@@ -161,7 +165,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		terminalInstance.addDisposable(this._terminalOnDidWriteDataListeners[terminalId]);
 	}
 
-	private _onActiveTerminalChanged(terminalId: number | undefined): void {
+	private _onActiveTerminalChanged(terminalId: number | null): void {
 		this._proxy.$acceptActiveTerminalChanged(terminalId);
 	}
 
@@ -192,15 +196,14 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	}
 
 	private _onTerminalProcessIdReady(terminalInstance: ITerminalInstance): void {
+		if (terminalInstance.processId === undefined) {
+			return;
+		}
 		this._proxy.$acceptTerminalProcessId(terminalInstance.id, terminalInstance.processId);
 	}
 
 	private _onInstanceDimensionsChanged(instance: ITerminalInstance): void {
-		// Only send the dimensions if the terminal is a renderer only as there is no API to access
-		// dimensions on a plain Terminal.
-		if (instance.shellLaunchConfig.isRendererOnly) {
-			this._proxy.$acceptTerminalRendererDimensions(instance.id, instance.cols, instance.rows);
-		}
+		this._proxy.$acceptTerminalDimensions(instance.id, instance.cols, instance.rows);
 	}
 
 	private _onTerminalRequestExtHostProcess(request: ITerminalProcessExtHostRequest): void {

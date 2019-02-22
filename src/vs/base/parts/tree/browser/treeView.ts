@@ -1286,8 +1286,8 @@ export class TreeView extends HeightMap {
 				element = this.model!.getInput();
 				position = DOM.getDomNodePagePosition(this.inputItem.element);
 			} else {
-				let id = this.context.dataSource.getId(this.context.tree, element);
-				let viewItem = this.items[id];
+				const id = this.context.dataSource.getId(this.context.tree, element);
+				const viewItem = this.items[id!];
 				position = DOM.getDomNodePagePosition(viewItem.element);
 			}
 

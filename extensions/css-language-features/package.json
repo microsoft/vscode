@@ -37,6 +37,9 @@
             "type": "array",
             "description": "A list of JSON file paths that define custom CSS data that loads custom properties, at directives, pseudo classes / elements.",
             "default": [],
+            "items": {
+              "type": "string"
+            },
             "scope": "resource"
           },
           "css.validate": {
@@ -727,7 +730,7 @@
     "vscode-nls": "^4.0.0"
   },
   "devDependencies": {
-    "@types/node": "^8.10.25",
+    "@types/node": "^10.12.21",
     "mocha": "^5.2.0"
   }
 }

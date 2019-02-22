@@ -16,6 +16,7 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 
 	private readonly _proxy: ExtHostFileSystemShape;
 	private readonly _fileProvider = new Map<number, RemoteFileSystemProvider>();
+	private readonly _resourceLabelFormatters = new Map<number, IDisposable>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -39,12 +40,24 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 		this._fileProvider.delete(handle);
 	}
 
-	$setUriFormatter(formatter: ResourceLabelFormatter): void {
-		this._labelService.registerFormatter(formatter);
+	$registerResourceLabelFormatter(handle: number, formatter: ResourceLabelFormatter): void {
+		// Dynamicily registered formatters should have priority over those contributed via package.json
+		formatter.priority = true;
+		const disposable = this._labelService.registerFormatter(formatter);
+		this._resourceLabelFormatters.set(handle, disposable);
+	}
+
+	$unregisterResourceLabelFormatter(handle: number): void {
+		dispose(this._resourceLabelFormatters.get(handle));
+		this._resourceLabelFormatters.delete(handle);
 	}
 
 	$onFileSystemChange(handle: number, changes: IFileChangeDto[]): void {
-		this._fileProvider.get(handle).$onFileSystemChange(changes);
+		const fileProvider = this._fileProvider.get(handle);
+		if (!fileProvider) {
+			throw new Error('Unknown file provider');
+		}
+		fileProvider.$onFileSystemChange(changes);
 	}
 }
 

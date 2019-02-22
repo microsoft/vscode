@@ -233,8 +233,8 @@ export function rimraf(dir: string): (cb: any) => void {
 			return cb(err);
 		});
 	};
-
-	return cb => retry(cb);
+	retry.taskName = `clean-${path.basename(dir)}`;
+	return retry;
 }
 
 export function getVersion(root: string): string | undefined {

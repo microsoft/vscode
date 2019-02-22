@@ -27,7 +27,7 @@ export interface IViewletService {
 	/**
 	 * Returns the current active viewlet or null if none.
 	 */
-	getActiveViewlet(): IViewlet;
+	getActiveViewlet(): IViewlet | null;
 
 	/**
 	 * Returns the id of the default viewlet.
@@ -37,7 +37,7 @@ export interface IViewletService {
 	/**
 	 * Returns the viewlet by id.
 	 */
-	getViewlet(id: string): ViewletDescriptor;
+	getViewlet(id: string): ViewletDescriptor | undefined;
 
 	/**
 	 * Returns all enabled viewlets

@@ -7,7 +7,7 @@ import { ISpliceable } from 'vs/base/common/sequence';
 import { Iterator, ISequence, getSequenceIterator } from 'vs/base/common/iterator';
 import { IndexTreeModel, IIndexTreeModelOptions } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { Event } from 'vs/base/common/event';
-import { ITreeModel, ITreeNode, ITreeElement, ITreeSorter, ICollapseStateChangeEvent } from 'vs/base/browser/ui/tree/tree';
+import { ITreeModel, ITreeNode, ITreeElement, ITreeSorter, ICollapseStateChangeEvent, ITreeModelSpliceEvent } from 'vs/base/browser/ui/tree/tree';
 
 export interface IObjectTreeModelOptions<T, TFilterData> extends IIndexTreeModelOptions<T, TFilterData> {
 	readonly sorter?: ITreeSorter<T>;
@@ -19,9 +19,9 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 
 	private model: IndexTreeModel<T | null, TFilterData>;
 	private nodes = new Map<T | null, ITreeNode<T, TFilterData>>();
-	private sorter?: ITreeSorter<ITreeElement<T>>;
+	private sorter?: ITreeSorter<{ element: T; }>;
 
-	readonly onDidSplice: Event<void>;
+	readonly onDidSplice: Event<ITreeModelSpliceEvent<T | null, TFilterData>>;
 	readonly onDidChangeCollapseState: Event<ICollapseStateChangeEvent<T, TFilterData>>;
 	readonly onDidChangeRenderNodeCount: Event<ITreeNode<T, TFilterData>>;
 
@@ -49,6 +49,15 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 		onDidDeleteNode?: (node: ITreeNode<T, TFilterData>) => void
 	): Iterator<ITreeElement<T | null>> {
 		const location = this.getElementLocation(element);
+		return this._setChildren(location, this.preserveCollapseState(children), onDidCreateNode, onDidDeleteNode);
+	}
+
+	private _setChildren(
+		location: number[],
+		children: ISequence<ITreeElement<T>> | undefined,
+		onDidCreateNode?: (node: ITreeNode<T, TFilterData>) => void,
+		onDidDeleteNode?: (node: ITreeNode<T, TFilterData>) => void
+	): Iterator<ITreeElement<T | null>> {
 		const insertedElements = new Set<T | null>();
 
 		const _onDidCreateNode = (node: ITreeNode<T, TFilterData>) => {
@@ -73,13 +82,13 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 		return this.model.splice(
 			[...location, 0],
 			Number.MAX_VALUE,
-			this.preserveCollapseState(children),
+			children,
 			_onDidCreateNode,
 			_onDidDeleteNode
 		);
 	}
 
-	private preserveCollapseState(elements: ISequence<ITreeElement<T | null>> | undefined): ISequence<ITreeElement<T | null>> {
+	private preserveCollapseState(elements: ISequence<ITreeElement<T>> | undefined): ISequence<ITreeElement<T>> {
 		let iterator = elements ? getSequenceIterator(elements) : Iterator.empty<ITreeElement<T>>();
 
 		if (this.sorter) {
@@ -90,7 +99,10 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 			const node = this.nodes.get(treeElement.element);
 
 			if (!node) {
-				return treeElement;
+				return {
+					...treeElement,
+					children: this.preserveCollapseState(treeElement.children)
+				};
 			}
 
 			const collapsible = typeof treeElement.collapsible === 'boolean' ? treeElement.collapsible : node.collapsible;
@@ -108,6 +120,32 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 	refresh(element: T): void {
 		const location = this.getElementLocation(element);
 		this.model.refresh(location);
+	}
+
+	resort(element: T | null = null, recursive = true): void {
+		if (!this.sorter) {
+			return;
+		}
+
+		const location = this.getElementLocation(element);
+		const node = this.model.getNode(location);
+
+		this._setChildren(location, this.resortChildren(node, recursive));
+	}
+
+	private resortChildren(node: ITreeNode<T | null, TFilterData>, recursive: boolean, first = true): ISequence<ITreeElement<T>> {
+		let childrenNodes = Iterator.fromArray(node.children as ITreeNode<T, TFilterData>[]);
+
+		if (recursive || first) {
+			childrenNodes = Iterator.fromArray(Iterator.collect(childrenNodes).sort(this.sorter!.compare.bind(this.sorter)));
+		}
+
+		return Iterator.map<ITreeNode<T | null, TFilterData>, ITreeElement<T>>(childrenNodes, node => ({
+			element: node.element as T,
+			collapsible: node.collapsible,
+			collapsed: node.collapsed,
+			children: this.resortChildren(node, recursive, false)
+		}));
 	}
 
 	getParentElement(ref: T | null = null): T | null {

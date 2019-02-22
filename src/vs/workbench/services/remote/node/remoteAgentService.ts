@@ -24,6 +24,7 @@ export interface IRemoteAgentEnvironment {
 	globalStorageHome: URI;
 	extensions: IExtensionDescription[];
 	os: OperatingSystem;
+	syncExtensions: boolean;
 }
 
 export interface IRemoteAgentService {

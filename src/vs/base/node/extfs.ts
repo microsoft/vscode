@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import * as paths from 'path';
+import * as paths from 'vs/base/common/path';
 import { nfcall } from 'vs/base/common/async';
 import { normalizeNFC } from 'vs/base/common/normalization';
 import * as platform from 'vs/base/common/platform';

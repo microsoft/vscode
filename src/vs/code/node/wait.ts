@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { join } from 'path';
+import { join } from 'vs/base/common/path';
 import { tmpdir } from 'os';
 import { writeFile } from 'vs/base/node/pfs';
 
@@ -21,6 +21,6 @@ export function createWaitMarkerFile(verbose?: boolean): Promise<string> {
 			console.error(`Failed to create marker file for --wait: ${error}`);
 		}
 
-		return Promise.resolve();
+		return Promise.resolve(undefined);
 	});
 }

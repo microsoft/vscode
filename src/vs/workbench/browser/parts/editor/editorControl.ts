@@ -14,6 +14,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IProgressService, LongRunningOperation } from 'vs/platform/progress/common/progress';
 import { IEditorGroupView, DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
 import { Event, Emitter } from 'vs/base/common/event';
+import { IActiveEditor } from 'vs/workbench/services/editor/common/editorService';
 
 export interface IOpenEditorResult {
 	readonly control: BaseEditor;
@@ -27,7 +28,7 @@ export class EditorControl extends Disposable {
 	get maximumWidth() { return this._activeControl ? this._activeControl.maximumWidth : DEFAULT_EDITOR_MAX_DIMENSIONS.width; }
 	get maximumHeight() { return this._activeControl ? this._activeControl.maximumHeight : DEFAULT_EDITOR_MAX_DIMENSIONS.height; }
 
-	private _onDidFocus: Emitter<void> = this._register(new Emitter<void>());
+	private readonly _onDidFocus: Emitter<void> = this._register(new Emitter<void>());
 	get onDidFocus(): Event<void> { return this._onDidFocus.event; }
 
 	private _onDidSizeConstraintsChange = this._register(new Emitter<{ width: number; height: number; } | undefined>());
@@ -52,8 +53,8 @@ export class EditorControl extends Disposable {
 		this.editorOperation = this._register(new LongRunningOperation(progressService));
 	}
 
-	get activeControl() {
-		return this._activeControl;
+	get activeControl(): IActiveEditor | null {
+		return this._activeControl as IActiveEditor | null;
 	}
 
 	openEditor(editor: EditorInput, options?: EditorOptions): Promise<IOpenEditorResult> {

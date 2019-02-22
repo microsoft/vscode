@@ -5,7 +5,7 @@
 
 import { IDisposable, toDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter, Relay } from 'vs/base/common/event';
-import { always, CancelablePromise, createCancelablePromise, timeout } from 'vs/base/common/async';
+import { CancelablePromise, createCancelablePromise, timeout } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 
@@ -448,9 +448,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 			this.activeRequests.add(disposable);
 		});
 
-		always(result, () => this.activeRequests.delete(disposable));
-
-		return result;
+		return result.finally(() => this.activeRequests.delete(disposable));
 	}
 
 	private requestEvent(channelName: string, name: string, arg?: any): Event<any> {
@@ -690,7 +688,7 @@ export class IPCClient<TContext = string> implements IChannelClient, IChannelSer
 export function getDelayedChannel<T extends IChannel>(promise: Promise<T>): T {
 	return {
 		call(command: string, arg?: any, cancellationToken?: CancellationToken): Promise<T> {
-			return promise.then(c => c.call(command, arg, cancellationToken));
+			return promise.then(c => c.call<T>(command, arg, cancellationToken));
 		},
 
 		listen<T>(event: string, arg?: any): Event<T> {

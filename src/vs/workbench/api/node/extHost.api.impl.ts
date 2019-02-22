@@ -8,7 +8,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { TernarySearchTree } from 'vs/base/common/map';
-import * as paths from 'vs/base/common/paths';
+import * as path from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
@@ -17,8 +17,8 @@ import { OverviewRulerLane } from 'vs/editor/common/model';
 import * as languageConfiguration from 'vs/editor/common/modes/languageConfiguration';
 import { score } from 'vs/editor/common/modes/languageSelector';
 import * as files from 'vs/platform/files/common/files';
-import pkg from 'vs/platform/node/package';
-import product from 'vs/platform/node/product';
+import pkg from 'vs/platform/product/node/package';
+import product from 'vs/platform/product/node/product';
 import { ExtHostContext, IInitData, IMainContext, MainContext } from 'vs/workbench/api/node/extHost.protocol';
 import { ExtHostApiCommands } from 'vs/workbench/api/node/extHostApiCommands';
 import { ExtHostClipboard } from 'vs/workbench/api/node/extHostClipboard';
@@ -64,6 +64,7 @@ import { ProxyIdentifier } from 'vs/workbench/services/extensions/node/proxyIden
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
 import * as vscode from 'vscode';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { originalFSPath } from 'vs/base/common/resources';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription, registry: ExtensionDescriptionRegistry, configProvider: ExtHostConfigProvider): typeof vscode;
@@ -177,11 +178,11 @@ export function createApiFactory(
 		// Warn when trying to use the vscode.previewHtml command as it does not work properly in all scenarios and
 		// has security concerns.
 		const checkCommand = (() => {
-			let done = !extension.isUnderDevelopment;
+			let done = false;
 			const informOnce = () => {
 				if (!done) {
 					done = true;
-					console.warn(`Extension '${extension.identifier.value}' uses the 'vscode.previewHtml' command which is deprecated and will be removed. Please update your extension to use the Webview API: https://go.microsoft.com/fwlink/?linkid=2039309`);
+					window.showWarningMessage(localize('previewHtml.deprecated', "Extension '{0}' uses the 'vscode.previewHtml' command which is deprecated and will be removed soon. Please file an issue against this extension to update to use VS Code's webview API.", extension.identifier.value));
 				}
 			};
 			return (commandId: string) => {
@@ -219,7 +220,7 @@ export function createApiFactory(
 				});
 			},
 			registerDiffInformationCommand: proposedApiFunction(extension, (id: string, callback: (diff: vscode.LineChange[], ...args: any[]) => any, thisArg?: any): vscode.Disposable => {
-				return extHostCommands.registerCommand(true, id, async (...args: any[]) => {
+				return extHostCommands.registerCommand(true, id, async (...args: any[]): Promise<any> => {
 					let activeTextEditor = extHostEditors.getActiveTextEditor();
 					if (!activeTextEditor) {
 						console.warn('Cannot execute ' + id + ' because there is no active text editor.');
@@ -242,9 +243,9 @@ export function createApiFactory(
 		const env: typeof vscode.env = Object.freeze({
 			get machineId() { return initData.telemetryInfo.machineId; },
 			get sessionId() { return initData.telemetryInfo.sessionId; },
-			get language() { return platform.language; },
+			get language() { return platform.language!; },
 			get appName() { return product.nameLong; },
-			get appRoot() { return initData.environment.appRoot.fsPath; },
+			get appRoot() { return initData.environment.appRoot!.fsPath; },
 			get logLevel() {
 				checkProposedApiEnabled(extension);
 				return typeConverters.LogLevel.to(extHostLogService.getLevel());
@@ -256,15 +257,15 @@ export function createApiFactory(
 			get clipboard(): vscode.Clipboard {
 				return extHostClipboard;
 			},
-			open(uri: URI) {
+			openExternal(uri: URI) {
 				return extHostWindow.openUri(uri);
 			}
 		});
 
 		// namespace: extensions
 		const extensions: typeof vscode.extensions = {
-			getExtension(extensionId: string): Extension<any> {
-				let desc = extensionRegistry.getExtensionDescription(extensionId);
+			getExtension(extensionId: string): Extension<any> | undefined {
+				const desc = extensionRegistry.getExtensionDescription(extensionId);
 				if (desc) {
 					return new Extension(extensionService, desc);
 				}
@@ -303,6 +304,10 @@ export function createApiFactory(
 			},
 			registerCodeLensProvider(selector: vscode.DocumentSelector, provider: vscode.CodeLensProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerCodeLensProvider(extension, checkSelector(selector), provider);
+			},
+			registerCodeInsetProvider(selector: vscode.DocumentSelector, provider: vscode.CodeInsetProvider): vscode.Disposable {
+				checkProposedApiEnabled(extension);
+				return extHostLanguageFeatures.registerCodeInsetProvider(extension, checkSelector(selector), provider);
 			},
 			registerDefinitionProvider(selector: vscode.DocumentSelector, provider: vscode.DefinitionProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerDefinitionProvider(extension, checkSelector(selector), provider);
@@ -424,6 +429,9 @@ export function createApiFactory(
 			onDidChangeActiveTerminal(listener, thisArg?, disposables?) {
 				return extHostTerminalService.onDidChangeActiveTerminal(listener, thisArg, disposables);
 			},
+			onDidChangeTerminalDimensions(listener, thisArg?, disposables?) {
+				return extHostTerminalService.onDidChangeTerminalDimensions(listener, thisArg, disposables);
+			},
 			get state() {
 				return extHostWindow.state;
 			},
@@ -440,7 +448,7 @@ export function createApiFactory(
 				return extHostMessageService.showMessage(extension, Severity.Error, message, first, rest);
 			},
 			showQuickPick(items: any, options: vscode.QuickPickOptions, token?: vscode.CancellationToken): any {
-				return extHostQuickOpen.showQuickPick(items, extension.enableProposedApi, options, token);
+				return extHostQuickOpen.showQuickPick(items, !!extension.enableProposedApi, options, token);
 			},
 			showWorkspaceFolderPick(options: vscode.WorkspaceFolderPickOptions) {
 				return extHostQuickOpen.showWorkspaceFolderPick(options);
@@ -471,17 +479,17 @@ export function createApiFactory(
 				return extHostOutputService.createOutputChannel(name);
 			},
 			createWebviewPanel(viewType: string, title: string, showOptions: vscode.ViewColumn | { viewColumn: vscode.ViewColumn, preserveFocus?: boolean }, options: vscode.WebviewPanelOptions & vscode.WebviewOptions): vscode.WebviewPanel {
-				return extHostWebviews.createWebview(extension, viewType, title, showOptions, options);
+				return extHostWebviews.createWebviewPanel(extension, viewType, title, showOptions, options);
 			},
-			createTerminal(nameOrOptions: vscode.TerminalOptions | string, shellPath?: string, shellArgs?: string[]): vscode.Terminal {
+			createTerminal(nameOrOptions?: vscode.TerminalOptions | string, shellPath?: string, shellArgs?: string[]): vscode.Terminal {
 				if (typeof nameOrOptions === 'object') {
 					return extHostTerminalService.createTerminalFromOptions(<vscode.TerminalOptions>nameOrOptions);
 				}
 				return extHostTerminalService.createTerminal(<string>nameOrOptions, shellPath, shellArgs);
 			},
-			createTerminalRenderer: proposedApiFunction(extension, (name: string) => {
+			createTerminalRenderer(name: string): vscode.TerminalRenderer {
 				return extHostTerminalService.createTerminalRenderer(name);
-			}),
+			},
 			registerTreeDataProvider(viewId: string, treeDataProvider: vscode.TreeDataProvider<any>): vscode.Disposable {
 				return extHostTreeViews.registerTreeDataProvider(viewId, treeDataProvider, extension);
 			},
@@ -498,7 +506,7 @@ export function createApiFactory(
 				return extHostUrls.registerUriHandler(extension.identifier, handler);
 			},
 			createQuickPick<T extends vscode.QuickPickItem>(): vscode.QuickPick<T> {
-				return extHostQuickOpen.createQuickPick(extension.identifier, extension.enableProposedApi);
+				return extHostQuickOpen.createQuickPick(extension.identifier, !!extension.enableProposedApi);
 			},
 			createInputBox(): vscode.InputBox {
 				return extHostQuickOpen.createInputBox(extension.identifier);
@@ -583,8 +591,7 @@ export function createApiFactory(
 
 				return uriPromise.then(uri => {
 					return extHostDocuments.ensureDocumentData(uri).then(() => {
-						const data = extHostDocuments.getDocumentData(uri);
-						return data && data.document;
+						return extHostDocuments.getDocument(uri);
 					});
 				});
 			},
@@ -637,6 +644,12 @@ export function createApiFactory(
 			}),
 			registerWorkspaceCommentProvider: proposedApiFunction(extension, (provider: vscode.WorkspaceCommentProvider) => {
 				return exthostCommentProviders.registerWorkspaceCommentProvider(extension.identifier, provider);
+			}),
+			registerRemoteAuthorityResolver: proposedApiFunction(extension, (authorityPrefix: string, resolver: vscode.RemoteAuthorityResolver) => {
+				return extensionService.registerRemoteAuthorityResolver(authorityPrefix, resolver);
+			}),
+			registerResourceLabelFormatter: proposedApiFunction(extension, (formatter: vscode.ResourceLabelFormatter) => {
+				return extHostFileSystem.registerResourceLabelFormatter(formatter);
 			}),
 			onDidRenameFile: proposedApiFunction(extension, (listener, thisArg?, disposables?) => {
 				return extHostFileSystemEvent.onDidRenameFile(listener, thisArg, disposables);
@@ -748,6 +761,7 @@ export function createApiFactory(
 			CodeActionKind: extHostTypes.CodeActionKind,
 			CodeActionTrigger: extHostTypes.CodeActionTrigger,
 			CodeLens: extHostTypes.CodeLens,
+			CodeInset: extHostTypes.CodeInset,
 			Color: extHostTypes.Color,
 			ColorInformation: extHostTypes.ColorInformation,
 			ColorPresentation: extHostTypes.ColorPresentation,
@@ -790,6 +804,7 @@ export function createApiFactory(
 			QuickInputButtons: extHostTypes.QuickInputButtons,
 			Range: extHostTypes.Range,
 			RelativePattern: extHostTypes.RelativePattern,
+			ResolvedAuthority: extHostTypes.ResolvedAuthority,
 			Selection: extHostTypes.Selection,
 			SelectionRange: extHostTypes.SelectionRange,
 			SelectionRangeKind: extHostTypes.SelectionRangeKind,
@@ -829,18 +844,6 @@ export function createApiFactory(
 	};
 }
 
-/**
- * Returns the original fs path (using the original casing for the drive letter)
- */
-export function originalFSPath(uri: URI): string {
-	const result = uri.fsPath;
-	if (/^[a-zA-Z]:/.test(result) && uri.path.charAt(1).toLowerCase() === result.charAt(0)) {
-		// Restore original drive letter casing
-		return uri.path.charAt(1) + result.substr(1);
-	}
-	return result;
-}
-
 class Extension<T> implements vscode.Extension<T> {
 
 	private _extensionService: ExtHostExtensionService;
@@ -848,13 +851,13 @@ class Extension<T> implements vscode.Extension<T> {
 
 	public id: string;
 	public extensionPath: string;
-	public packageJSON: any;
+	public packageJSON: IExtensionDescription;
 
 	constructor(extensionService: ExtHostExtensionService, description: IExtensionDescription) {
 		this._extensionService = extensionService;
 		this._identifier = description.identifier;
 		this.id = description.identifier.value;
-		this.extensionPath = paths.normalize(originalFSPath(description.extensionLocation), true);
+		this.extensionPath = path.normalize(originalFSPath(description.extensionLocation));
 		this.packageJSON = description;
 	}
 
@@ -863,6 +866,9 @@ class Extension<T> implements vscode.Extension<T> {
 	}
 
 	get exports(): T {
+		if (this.packageJSON.api === 'none') {
+			return undefined;
+		}
 		return <T>this._extensionService.getExtensionExports(this._identifier);
 	}
 

@@ -89,7 +89,7 @@ export interface IExtensionHostProfile {
 /**
  * Extension id or one of the four known program states.
  */
-export type ProfileSegmentId = string | 'idle' | 'program' | 'gc' | 'self' | null;
+export type ProfileSegmentId = string | 'idle' | 'program' | 'gc' | 'self';
 
 export class ActivationTimes {
 	constructor(
@@ -258,4 +258,28 @@ export function toExtension(extensionDescription: IExtensionDescription): IExten
 		manifest: extensionDescription,
 		location: extensionDescription.extensionLocation,
 	};
+}
+
+
+export class NullExtensionService implements IExtensionService {
+	_serviceBrand: any;
+	onDidRegisterExtensions: Event<void> = Event.None;
+	onDidChangeExtensionsStatus: Event<ExtensionIdentifier[]> = Event.None;
+	onDidChangeExtensions: Event<void> = Event.None;
+	onWillActivateByEvent: Event<IWillActivateEvent> = Event.None;
+	onDidChangeResponsiveChange: Event<IResponsiveStateChangeEvent> = Event.None;
+	activateByEvent(_activationEvent: string): Promise<void> { return Promise.resolve(undefined); }
+	whenInstalledExtensionsRegistered(): Promise<boolean> { return Promise.resolve(true); }
+	getExtensions(): Promise<IExtensionDescription[]> { return Promise.resolve([]); }
+	getExtension() { return Promise.resolve(undefined); }
+	readExtensionPointContributions<T>(_extPoint: IExtensionPoint<T>): Promise<ExtensionPointContribution<T>[]> { return Promise.resolve(Object.create(null)); }
+	getExtensionsStatus(): { [id: string]: IExtensionsStatus; } { return Object.create(null); }
+	canProfileExtensionHost(): boolean { return false; }
+	getInspectPort(): number { return 0; }
+	startExtensionHostProfile(): Promise<ProfileSession> { return Promise.resolve(Object.create(null)); }
+	restartExtensionHost(): void { }
+	startExtensionHost(): void { }
+	stopExtensionHost(): void { }
+	canAddExtension(): boolean { return false; }
+	canRemoveExtension(): boolean { return false; }
 }

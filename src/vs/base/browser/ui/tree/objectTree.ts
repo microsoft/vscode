@@ -40,6 +40,10 @@ export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends 
 		this.model.refresh(element);
 	}
 
+	resort(element: T, recursive = true): void {
+		this.model.resort(element, recursive);
+	}
+
 	protected createModel(view: ISpliceable<ITreeNode<T, TFilterData>>, options: IObjectTreeOptions<T, TFilterData>): ITreeModel<T | null, TFilterData, T | null> {
 		return new ObjectTreeModel(view, options);
 	}

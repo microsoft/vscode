@@ -17,7 +17,8 @@ const remote = require("gulp-remote-src");
 const vzip = require('gulp-vinyl-zip');
 const filter = require("gulp-filter");
 const rename = require("gulp-rename");
-const util = require('gulp-util');
+const fancyLog = require("fancy-log");
+const ansiColors = require("ansi-colors");
 const buffer = require('gulp-buffer');
 const json = require("gulp-json-editor");
 const webpack = require('webpack');
@@ -79,7 +80,7 @@ function fromLocalWebpack(extensionPath, sourceMappingURLBase) {
             .pipe(packageJsonFilter.restore);
         const webpackStreams = webpackConfigLocations.map(webpackConfigPath => () => {
             const webpackDone = (err, stats) => {
-                util.log(`Bundled extension: ${util.colors.yellow(path.join(path.basename(extensionPath), path.relative(extensionPath, webpackConfigPath)))}...`);
+                fancyLog(`Bundled extension: ${ansiColors.yellow(path.join(path.basename(extensionPath), path.relative(extensionPath, webpackConfigPath)))}...`);
                 if (err) {
                     result.emit('error', err);
                 }
@@ -157,7 +158,7 @@ const baseHeaders = {
 function fromMarketplace(extensionName, version, metadata) {
     const [publisher, name] = extensionName.split('.');
     const url = `https://marketplace.visualstudio.com/_apis/public/gallery/publishers/${publisher}/vsextensions/${name}/${version}/vspackage`;
-    util.log('Downloading extension:', util.colors.yellow(`${extensionName}@${version}`), '...');
+    fancyLog('Downloading extension:', ansiColors.yellow(`${extensionName}@${version}`), '...');
     const options = {
         base: url,
         requestOptions: {

@@ -99,7 +99,7 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 		this._commands = Object.create(null);
 		const symbols = coalesce(inSymbols);
 		if (isFalsyOrEmpty(symbols)) {
-			this._domNode.innerHTML = 'no commands';
+			this._domNode.innerHTML = '<span>no commands</span>';
 			return;
 		}
 
@@ -290,6 +290,13 @@ export class CodeLens {
 
 	updateCommands(symbols: Array<ICodeLensSymbol | undefined | null>): void {
 		this._contentWidget.withCommands(symbols);
+		for (let i = 0; i < this._data.length; i++) {
+			const resolved = symbols[i];
+			if (resolved) {
+				const { symbol } = this._data[i];
+				symbol.command = resolved.command || symbol.command;
+			}
+		}
 	}
 
 	updateHeight(): void {

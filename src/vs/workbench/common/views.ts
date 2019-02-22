@@ -296,11 +296,11 @@ export interface IViewsService {
 
 export interface ITreeView extends IDisposable {
 
-	dataProvider: ITreeViewDataProvider;
+	dataProvider: ITreeViewDataProvider | null;
 
 	showCollapseAllAction: boolean;
 
-	message: string | IMarkdownString;
+	message?: string | IMarkdownString;
 
 	readonly visible: boolean;
 

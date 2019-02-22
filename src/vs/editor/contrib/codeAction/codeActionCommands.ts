@@ -97,13 +97,6 @@ export class QuickFixController implements IEditorContribution {
 							this._onApplyCodeAction(fixes[0]);
 							return;
 						}
-
-						// Or if we have a single preferred action
-						const preferred = fixes.filter(fix => fix.isPreferred);
-						if (preferred.length === 1) {
-							this._onApplyCodeAction(preferred[0]);
-							return;
-						}
 					}
 					this._codeActionContextMenu.show(newState.actions, newState.position);
 
@@ -217,11 +210,12 @@ export class QuickFixAction extends EditorAction {
 class CodeActionCommandArgs {
 	public static fromUser(arg: any, defaults: { kind: CodeActionKind, apply: CodeActionAutoApply }): CodeActionCommandArgs {
 		if (!arg || typeof arg !== 'object') {
-			return new CodeActionCommandArgs(defaults.kind, defaults.apply);
+			return new CodeActionCommandArgs(defaults.kind, defaults.apply, false);
 		}
 		return new CodeActionCommandArgs(
 			CodeActionCommandArgs.getKindFromUser(arg, defaults.kind),
-			CodeActionCommandArgs.getApplyFromUser(arg, defaults.apply));
+			CodeActionCommandArgs.getApplyFromUser(arg, defaults.apply),
+			CodeActionCommandArgs.getPreferredUser(arg));
 	}
 
 	private static getApplyFromUser(arg: any, defaultAutoApply: CodeActionAutoApply) {
@@ -229,7 +223,6 @@ class CodeActionCommandArgs {
 			case 'first': return CodeActionAutoApply.First;
 			case 'never': return CodeActionAutoApply.Never;
 			case 'ifsingle': return CodeActionAutoApply.IfSingle;
-			case 'preferred': return CodeActionAutoApply.Preferred;
 			default: return defaultAutoApply;
 		}
 	}
@@ -240,9 +233,16 @@ class CodeActionCommandArgs {
 			: defaultKind;
 	}
 
+	private static getPreferredUser(arg: any): boolean {
+		return typeof arg.preferred === 'boolean'
+			? arg.preferred
+			: false;
+	}
+
 	private constructor(
 		public readonly kind: CodeActionKind,
-		public readonly apply: CodeActionAutoApply
+		public readonly apply: CodeActionAutoApply,
+		public readonly preferred: boolean,
 	) { }
 }
 
@@ -253,7 +253,27 @@ export class CodeActionCommand extends EditorCommand {
 	constructor() {
 		super({
 			id: CodeActionCommand.Id,
-			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider)
+			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
+			description: {
+				description: `Trigger a code action`,
+				args: [{
+					name: 'args',
+					schema: {
+						'type': 'object',
+						'required': ['kind'],
+						'properties': {
+							'kind': {
+								'type': 'string'
+							},
+							'apply': {
+								'type': 'string',
+								'default': 'ifSingle',
+								'enum': ['first', 'ifSingle', 'never']
+							}
+						}
+					}
+				}]
+			}
 		});
 	}
 
@@ -262,7 +282,13 @@ export class CodeActionCommand extends EditorCommand {
 			kind: CodeActionKind.Empty,
 			apply: CodeActionAutoApply.IfSingle,
 		});
-		return showCodeActionsForEditorSelection(editor, nls.localize('editor.action.quickFix.noneMessage', "No code actions available"), { kind: args.kind, includeSourceActions: true }, args.apply);
+		return showCodeActionsForEditorSelection(editor, nls.localize('editor.action.quickFix.noneMessage', "No code actions available"),
+			{
+				kind: args.kind,
+				includeSourceActions: true,
+				onlyIncludePreferredActions: args.preferred,
+			},
+			args.apply);
 	}
 }
 
@@ -291,6 +317,25 @@ export class RefactorAction extends EditorAction {
 				when: ContextKeyExpr.and(
 					EditorContextKeys.writable,
 					contextKeyForSupportedActions(CodeActionKind.Refactor)),
+			},
+			description: {
+				description: 'Refactor...',
+				args: [{
+					name: 'args',
+					schema: {
+						'type': 'object',
+						'properties': {
+							'kind': {
+								'type': 'string'
+							},
+							'apply': {
+								'type': 'string',
+								'default': 'never',
+								'enum': ['first', 'ifSingle', 'never']
+							}
+						}
+					}
+				}]
 			}
 		});
 	}
@@ -302,7 +347,10 @@ export class RefactorAction extends EditorAction {
 		});
 		return showCodeActionsForEditorSelection(editor,
 			nls.localize('editor.action.refactor.noneMessage', "No refactorings available"),
-			{ kind: CodeActionKind.Refactor.contains(args.kind) ? args.kind : CodeActionKind.Empty },
+			{
+				kind: CodeActionKind.Refactor.contains(args.kind) ? args.kind : CodeActionKind.Empty,
+				onlyIncludePreferredActions: args.preferred,
+			},
 			args.apply);
 	}
 }
@@ -324,6 +372,25 @@ export class SourceAction extends EditorAction {
 				when: ContextKeyExpr.and(
 					EditorContextKeys.writable,
 					contextKeyForSupportedActions(CodeActionKind.Source)),
+			},
+			description: {
+				description: 'Source Action...',
+				args: [{
+					name: 'args',
+					schema: {
+						'type': 'object',
+						'properties': {
+							'kind': {
+								'type': 'string'
+							},
+							'apply': {
+								'type': 'string',
+								'default': 'never',
+								'enum': ['first', 'ifSingle', 'never']
+							}
+						}
+					}
+				}]
 			}
 		});
 	}
@@ -335,7 +402,11 @@ export class SourceAction extends EditorAction {
 		});
 		return showCodeActionsForEditorSelection(editor,
 			nls.localize('editor.action.source.noneMessage', "No source actions available"),
-			{ kind: CodeActionKind.Source.contains(args.kind) ? args.kind : CodeActionKind.Empty, includeSourceActions: true },
+			{
+				kind: CodeActionKind.Source.contains(args.kind) ? args.kind : CodeActionKind.Empty,
+				includeSourceActions: true,
+				onlyIncludePreferredActions: args.preferred,
+			},
 			args.apply);
 	}
 }
@@ -368,6 +439,29 @@ export class OrganizeImportsAction extends EditorAction {
 	}
 }
 
+export class FixAllAction extends EditorAction {
+
+	static readonly Id = 'editor.action.fixAll';
+
+	constructor() {
+		super({
+			id: FixAllAction.Id,
+			label: nls.localize('fixAll.label', "Fix All"),
+			alias: 'Fix All',
+			precondition: ContextKeyExpr.and(
+				EditorContextKeys.writable,
+				contextKeyForSupportedActions(CodeActionKind.SourceFixAll))
+		});
+	}
+
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
+		return showCodeActionsForEditorSelection(editor,
+			nls.localize('fixAll.noneMessage', "No fix all action available"),
+			{ kind: CodeActionKind.SourceFixAll, includeSourceActions: true },
+			CodeActionAutoApply.IfSingle);
+	}
+}
+
 export class AutoFixAction extends EditorAction {
 
 	static readonly Id = 'editor.action.autoFix';
@@ -375,14 +469,17 @@ export class AutoFixAction extends EditorAction {
 	constructor() {
 		super({
 			id: AutoFixAction.Id,
-			label: nls.localize('autoFix.label', "Auto Fix"),
+			label: nls.localize('autoFix.label', "Auto Fix..."),
 			alias: 'Auto Fix',
 			precondition: ContextKeyExpr.and(
 				EditorContextKeys.writable,
 				contextKeyForSupportedActions(CodeActionKind.QuickFix)),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.US_DOT,
+				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.US_DOT,
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.US_DOT
+				},
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
@@ -391,7 +488,10 @@ export class AutoFixAction extends EditorAction {
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 		return showCodeActionsForEditorSelection(editor,
 			nls.localize('editor.action.autoFix.noneMessage', "No auto fixes available"),
-			{ kind: CodeActionKind.QuickFix, onlyIncludePreferredActions: true },
+			{
+				kind: CodeActionKind.QuickFix,
+				onlyIncludePreferredActions: true
+			},
 			CodeActionAutoApply.IfSingle);
 	}
 }
