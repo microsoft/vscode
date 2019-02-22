@@ -165,11 +165,12 @@ import { IntegrityServiceImpl } from 'vs/workbench/services/integrity/node/integ
 import { LocalizationsChannelClient } from 'vs/platform/localizations/node/localizationsIpc';
 import { AccessibilityService } from 'vs/platform/accessibility/node/accessibilityService';
 import { ProductService } from 'vs/platform/product/node/productService';
+import { TextResourcePropertiesService } from 'vs/workbench/services/textfile/node/textResourcePropertiesService';
 
 // import@electron-browser
-import { ContextMenuService as NativeContextMenuService } from 'vs/workbench/services/contextview/electron-browser/contextmenuService';
+import { ContextMenuService as NativeContextMenuService } from 'vs/workbench/services/contextmenu/electron-browser/contextmenuService';
 import { WorkbenchKeybindingService } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
-import { RemoteFileService } from 'vs/workbench/services/files/electron-browser/remoteFileService';
+import { RemoteFileService } from 'vs/workbench/services/files/node/remoteFileService';
 import { ClipboardService } from 'vs/platform/clipboard/electron-browser/clipboardService';
 import { LifecycleService } from 'vs/platform/lifecycle/electron-browser/lifecycleService';
 import { IExtensionUrlHandler, ExtensionUrlHandler } from 'vs/workbench/services/extensions/electron-browser/inactiveExtensionUrlHandler';
@@ -179,7 +180,6 @@ import { WindowService } from 'vs/platform/windows/electron-browser/windowServic
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-browser/remoteAuthorityResolverService';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import { ExtensionService } from 'vs/workbench/services/extensions/electron-browser/extensionService';
-import { TextResourcePropertiesService } from 'vs/workbench/services/textfile/electron-browser/textResourcePropertiesService';
 import { TextMateService } from 'vs/workbench/services/textMate/electron-browser/TMSyntax';
 
 interface IZenModeSettings {
