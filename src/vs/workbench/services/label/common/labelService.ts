@@ -24,7 +24,6 @@ import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 const resourceLabelFormattersExtPoint = ExtensionsRegistry.registerExtensionPoint<ResourceLabelFormatter[]>({
 	extensionPoint: 'resourceLabelFormatters',
-	isDynamic: true,
 	jsonSchema: {
 		description: localize('vscode.extension.contributes.resourceLabelFormatters', 'Contributes resource label formatting rules.'),
 		type: 'array',

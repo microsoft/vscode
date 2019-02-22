@@ -280,7 +280,6 @@ export class OpenEditorsView extends ViewletPanel {
 		this.listRefreshScheduler.schedule(0);
 
 		this.disposables.push(this.onDidChangeBodyVisibility(visible => {
-			this.updateListVisibility(visible);
 			if (visible && this.needsRefresh) {
 				this.listRefreshScheduler.schedule(0);
 			}
@@ -307,16 +306,6 @@ export class OpenEditorsView extends ViewletPanel {
 	protected layoutBody(height: number, width: number): void {
 		if (this.list) {
 			this.list.layout(height, width);
-		}
-	}
-
-	private updateListVisibility(isVisible: boolean): void {
-		if (this.list) {
-			if (isVisible) {
-				dom.show(this.list.getHTMLElement());
-			} else {
-				dom.hide(this.list.getHTMLElement()); // make sure the list goes out of the tabindex world by hiding it
-			}
 		}
 	}
 

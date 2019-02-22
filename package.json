@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.32.0",
-  "distro": "6f5d9db8821add003be71e726b4ef49df83a51b4",
+  "distro": "ac78b34bbe59db1b43a4a0894fd68c9c93022f52",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -145,6 +145,7 @@
     "url": "https://github.com/Microsoft/vscode/issues"
   },
   "optionalDependencies": {
+    "vscode-windows-registry": "1.0.1",
     "windows-foreground-love": "0.1.0",
     "windows-mutex": "0.2.1",
     "windows-process-tree": "0.2.3"

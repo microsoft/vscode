@@ -1,0 +1,74 @@
+{
+	"name": "debug-server-ready",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"version": "1.0.0",
+	"publisher": "vscode",
+	"engines": {
+		"vscode": "^1.32.0"
+	},
+	"activationEvents": [
+		"onDebugResolve"
+	],
+	"main": "./out/extension",
+	"scripts": {
+		"compile": "gulp compile-extension:debug-server-ready",
+		"watch": "gulp watch-extension:debug-server-ready"
+	},
+	"contributes": {
+		"debuggers": [
+			{
+				"type": "node",
+				"configurationAttributes": {
+					"launch": {
+						"properties": {
+							"serverReadyAction": {
+								"type": "object",
+								"markdownDescription": "Server Ready options.",
+								"default": {
+									"action": "openExternally"
+								},
+								"properties": {
+									"pattern": {
+										"type": "string",
+										"markdownDescription": "Server is ready if this pattern appears on the debug console. The first group must include the port number.",
+										"default": "listening on port ([0-9]+)"
+									},
+									"uriFormat": {
+										"type": "string",
+										"markdownDescription": "A format string used when constructing the URI. The first '%s' is substituted with the port number.",
+										"default": "http://localhost:%s"
+									},
+									"action": {
+										"type": "string",
+										"enum": [
+											"openExternally",
+											"debugWithChrome"
+										],
+										"enumDescriptions": [
+											"Open URI externally.",
+											"Start debugging with the Debugger for Chrome."
+										],
+										"markdownDescription": "Determines what to do with when the server is ready.",
+										"default": "openExternally"
+									},
+									"webRoot": {
+										"type": "string",
+										"markdownDescription": "Literally passed to chrome debug configuration.",
+										"default": "${workspaceFolder}"
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		]
+	},
+	"dependencies": {
+		"vscode-nls": "^4.0.0"
+	},
+	"devDependencies": {
+		"@types/node": "8.0.33"
+	}
+}

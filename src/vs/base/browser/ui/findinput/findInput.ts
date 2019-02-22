@@ -337,7 +337,11 @@ export class FindInput extends Widget {
 		}));
 
 		if (this._showOptionButtons) {
-			this.inputBox.inputElement.style.paddingRight = (this.caseSensitive.width() + this.wholeWords.width() + this.regex.width()) + 'px';
+			const paddingRight = (this.caseSensitive.width() + this.wholeWords.width() + this.regex.width()) + 'px';
+			this.inputBox.inputElement.style.paddingRight = paddingRight;
+			if (this.inputBox.mirrorElement) {
+				this.inputBox.mirrorElement.style.paddingRight = paddingRight;
+			}
 		}
 
 		// Arrow-Key support to navigate between options

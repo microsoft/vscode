@@ -28,7 +28,7 @@ import { Barrier } from 'vs/base/common/async';
 
 export interface IExtHostWorkspaceProvider {
 	getWorkspaceFolder2(uri: vscode.Uri, resolveParent?: boolean): Promise<vscode.WorkspaceFolder | undefined>;
-	resolveWorkspaceFolder2(uri: vscode.Uri): Promise<vscode.WorkspaceFolder | undefined>;
+	resolveWorkspaceFolder(uri: vscode.Uri): Promise<vscode.WorkspaceFolder | undefined>;
 	getWorkspaceFolders2(): Promise<vscode.WorkspaceFolder[] | undefined>;
 	resolveProxy(url: string): Promise<string | undefined>;
 }
@@ -296,14 +296,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		return this._actualWorkspace.getWorkspaceFolder(uri, resolveParent);
 	}
 
-	resolveWorkspaceFolder(uri: vscode.Uri): vscode.WorkspaceFolder | undefined {
-		if (!this._actualWorkspace) {
-			return undefined;
-		}
-		return this._actualWorkspace.resolveWorkspaceFolder(uri);
-	}
-
-	async resolveWorkspaceFolder2(uri: vscode.Uri): Promise<vscode.WorkspaceFolder | undefined> {
+	async resolveWorkspaceFolder(uri: vscode.Uri): Promise<vscode.WorkspaceFolder | undefined> {
 		await this._barrier.wait();
 		if (!this._actualWorkspace) {
 			return undefined;

@@ -6,7 +6,6 @@
 import { execFile } from 'child_process';
 import * as os from 'os';
 import * as path from 'vs/base/common/path';
-import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { debounce } from 'vs/base/common/decorators';
@@ -38,6 +37,7 @@ import { TerminalCommandTracker } from 'vs/workbench/contrib/terminal/node/termi
 import { WindowsShellHelper } from 'vs/workbench/contrib/terminal/node/windowsShellHelper';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ISearchOptions, Terminal as XTermTerminal } from 'vscode-xterm';
+import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -249,7 +249,8 @@ export class TerminalInstance implements ITerminalInstance {
 		@IThemeService private readonly _themeService: IThemeService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService private readonly _logService: ILogService,
-		@IStorageService private readonly _storageService: IStorageService
+		@IStorageService private readonly _storageService: IStorageService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
 		this._disposables = [];
 		this._skipTerminalCommands = [];
@@ -459,7 +460,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	private _isScreenReaderOptimized(): boolean {
-		const detected = browser.getAccessibilitySupport() === platform.AccessibilitySupport.Enabled;
+		const detected = this._accessibilityService.getAccessibilitySupport() === AccessibilitySupport.Enabled;
 		const config = this._configurationService.getValue('editor.accessibilitySupport');
 		return config === 'on' || (config === 'auto' && detected);
 	}

@@ -39,7 +39,7 @@ import 'vs/workbench/api/browser/viewsExtensionPoint';
 
 //#region --- workbench services
 
-import 'vs/workbench/services/bulkEdit/electron-browser/bulkEditService';
+import 'vs/workbench/services/bulkEdit/browser/bulkEditService';
 
 //#endregion
 
@@ -89,7 +89,7 @@ import 'vs/workbench/contrib/debug/electron-browser/repl';
 import 'vs/workbench/contrib/debug/browser/debugViewlet';
 
 // Markers
-import 'vs/workbench/contrib/markers/electron-browser/markers.contribution';
+import 'vs/workbench/contrib/markers/browser/markers.contribution';
 
 // Comments
 import 'vs/workbench/contrib/comments/electron-browser/comments.contribution';
@@ -128,6 +128,7 @@ import 'vs/workbench/contrib/emmet/browser/emmet.browser.contribution';
 import 'vs/workbench/contrib/emmet/electron-browser/emmet.contribution';
 
 // CodeEditor Contributions
+import 'vs/workbench/contrib/codeEditor/browser/codeEditor.contribution';
 import 'vs/workbench/contrib/codeEditor/electron-browser/codeEditor.contribution';
 
 // Execution

@@ -69,6 +69,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: true,
 				shiftKey: false,
 				altKey: false,
@@ -108,6 +109,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: true,
 				shiftKey: false,
 				altKey: false,
@@ -251,6 +253,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: true,
 				shiftKey: false,
 				altKey: false,
@@ -268,6 +271,10 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				dispatchParts: ['ctrl+Home'],
 			}
 		);
+	});
+
+	test('resolveUserBinding empty', () => {
+		assertResolveUserBinding(mapper, [], []);
 	});
 
 	test('resolveUserBinding Ctrl+[Comma] Ctrl+/', () => {
@@ -292,6 +299,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: true,
 				shiftKey: false,
 				altKey: false,
@@ -379,6 +387,7 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: true,
 				shiftKey: false,
 				altKey: false,
@@ -415,6 +424,7 @@ suite('keyboardMapper - WINDOWS por_ptb', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: true,
 				shiftKey: false,
 				altKey: false,
@@ -438,6 +448,7 @@ suite('keyboardMapper - WINDOWS por_ptb', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: true,
 				shiftKey: false,
 				altKey: false,

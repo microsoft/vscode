@@ -15,53 +15,6 @@ suite('Paths', () => {
 		assert.equal(extpath.toSlashes('/user/far'), '/user/far');
 	});
 
-
-	test('normalize', () => {
-		assert.equal(extpath.normalizeWithSlashes(''), '.');
-		assert.equal(extpath.normalizeWithSlashes('.'), '.');
-		assert.equal(extpath.normalizeWithSlashes('.'), '.');
-		assert.equal(extpath.normalizeWithSlashes('../../far'), '../../far');
-		assert.equal(extpath.normalizeWithSlashes('../bar'), '../bar');
-		assert.equal(extpath.normalizeWithSlashes('../far'), '../far');
-		assert.equal(extpath.normalizeWithSlashes('./'), './');
-		assert.equal(extpath.normalizeWithSlashes('./././'), './');
-		assert.equal(extpath.normalizeWithSlashes('./ff/./'), 'ff/');
-		assert.equal(extpath.normalizeWithSlashes('./foo'), 'foo');
-		assert.equal(extpath.normalizeWithSlashes('/'), '/');
-		assert.equal(extpath.normalizeWithSlashes('/..'), '/');
-		assert.equal(extpath.normalizeWithSlashes('///'), '/');
-		assert.equal(extpath.normalizeWithSlashes('//foo'), '/foo');
-		assert.equal(extpath.normalizeWithSlashes('//foo//'), '/foo/');
-		assert.equal(extpath.normalizeWithSlashes('/foo'), '/foo');
-		assert.equal(extpath.normalizeWithSlashes('/foo/bar.test'), '/foo/bar.test');
-		assert.equal(extpath.normalizeWithSlashes('\\\\\\'), '/');
-		assert.equal(extpath.normalizeWithSlashes('c:/../ff'), 'c:/ff');
-		assert.equal(extpath.normalizeWithSlashes('c:\\./'), 'c:/');
-		assert.equal(extpath.normalizeWithSlashes('foo/'), 'foo/');
-		assert.equal(extpath.normalizeWithSlashes('foo/../../bar'), '../bar');
-		assert.equal(extpath.normalizeWithSlashes('foo/./'), 'foo/');
-		assert.equal(extpath.normalizeWithSlashes('foo/./bar'), 'foo/bar');
-		assert.equal(extpath.normalizeWithSlashes('foo//'), 'foo/');
-		assert.equal(extpath.normalizeWithSlashes('foo//'), 'foo/');
-		assert.equal(extpath.normalizeWithSlashes('foo//bar'), 'foo/bar');
-		assert.equal(extpath.normalizeWithSlashes('foo//bar/far'), 'foo/bar/far');
-		assert.equal(extpath.normalizeWithSlashes('foo/bar/../../far'), 'far');
-		assert.equal(extpath.normalizeWithSlashes('foo/bar/../far'), 'foo/far');
-		assert.equal(extpath.normalizeWithSlashes('foo/far/../../bar'), 'bar');
-		assert.equal(extpath.normalizeWithSlashes('foo/far/../../bar'), 'bar');
-		assert.equal(extpath.normalizeWithSlashes('foo/xxx/..'), 'foo');
-		assert.equal(extpath.normalizeWithSlashes('foo/xxx/../bar'), 'foo/bar');
-		assert.equal(extpath.normalizeWithSlashes('foo/xxx/./..'), 'foo');
-		assert.equal(extpath.normalizeWithSlashes('foo/xxx/./../bar'), 'foo/bar');
-		assert.equal(extpath.normalizeWithSlashes('foo/xxx/./bar'), 'foo/xxx/bar');
-		assert.equal(extpath.normalizeWithSlashes('foo\\bar'), 'foo/bar');
-		assert.equal(extpath.normalizeWithSlashes(null), null);
-		assert.equal(extpath.normalizeWithSlashes(undefined), undefined);
-
-		// https://github.com/Microsoft/vscode/issues/7234
-		assert.equal(extpath.joinWithSlashes('/home/aeschli/workspaces/vscode/extensions/css', './syntaxes/css.plist'), '/home/aeschli/workspaces/vscode/extensions/css/syntaxes/css.plist');
-	});
-
 	test('getRoot', () => {
 
 		assert.equal(extpath.getRoot('/user/far'), '/');
@@ -77,33 +30,6 @@ suite('Paths', () => {
 		assert.equal(extpath.getRoot('file:///foo'), 'file:///');
 		assert.equal(extpath.getRoot('file://foo'), '');
 
-	});
-
-	test('join', () => {
-		assert.equal(extpath.joinWithSlashes('.', 'bar'), 'bar');
-		assert.equal(extpath.joinWithSlashes('../../foo/bar', '../../foo'), '../../foo');
-		assert.equal(extpath.joinWithSlashes('../../foo/bar', '../bar/foo'), '../../foo/bar/foo');
-		assert.equal(extpath.joinWithSlashes('../foo/bar', '../bar/foo'), '../foo/bar/foo');
-		assert.equal(extpath.joinWithSlashes('/', 'bar'), '/bar');
-		assert.equal(extpath.joinWithSlashes('//server/far/boo', '../file.txt'), '//server/far/file.txt');
-		assert.equal(extpath.joinWithSlashes('/foo/', '/bar'), '/foo/bar');
-		assert.equal(extpath.joinWithSlashes('\\\\server\\far\\boo', '../file.txt'), '//server/far/file.txt');
-		assert.equal(extpath.joinWithSlashes('\\\\server\\far\\boo', './file.txt'), '//server/far/boo/file.txt');
-		assert.equal(extpath.joinWithSlashes('\\\\server\\far\\boo', '.\\file.txt'), '//server/far/boo/file.txt');
-		assert.equal(extpath.joinWithSlashes('\\\\server\\far\\boo', 'file.txt'), '//server/far/boo/file.txt');
-		assert.equal(extpath.joinWithSlashes('file:///c/users/test', 'test'), 'file:///c/users/test/test');
-		assert.equal(extpath.joinWithSlashes('file://localhost/c$/GitDevelopment/express', './settings'), 'file://localhost/c$/GitDevelopment/express/settings'); // unc
-		assert.equal(extpath.joinWithSlashes('file://localhost/c$/GitDevelopment/express', '.settings'), 'file://localhost/c$/GitDevelopment/express/.settings'); // unc
-		assert.equal(extpath.joinWithSlashes('foo', '/bar'), 'foo/bar');
-		assert.equal(extpath.joinWithSlashes('foo', 'bar'), 'foo/bar');
-		assert.equal(extpath.joinWithSlashes('foo', 'bar/'), 'foo/bar/');
-		assert.equal(extpath.joinWithSlashes('foo/', '/bar'), 'foo/bar');
-		assert.equal(extpath.joinWithSlashes('foo/', '/bar/'), 'foo/bar/');
-		assert.equal(extpath.joinWithSlashes('foo/', 'bar'), 'foo/bar');
-		assert.equal(extpath.joinWithSlashes('foo/bar', '../bar/foo'), 'foo/bar/foo');
-		assert.equal(extpath.joinWithSlashes('foo/bar', './bar/foo'), 'foo/bar/bar/foo');
-		assert.equal(extpath.joinWithSlashes('http://localhost/test', '../next'), 'http://localhost/next');
-		assert.equal(extpath.joinWithSlashes('http://localhost/test', 'test'), 'http://localhost/test/test');
 	});
 
 	test('isUNC', () => {

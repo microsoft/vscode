@@ -17,7 +17,7 @@ import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { mixin } from 'vs/base/common/objects';
 import { Thread, ExpressionContainer, DebugModel } from 'vs/workbench/contrib/debug/common/debugModel';
 import { RawDebugSession } from 'vs/workbench/contrib/debug/electron-browser/rawDebugSession';
-import product from 'vs/platform/node/product';
+import product from 'vs/platform/product/node/product';
 import { IWorkspaceFolder, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -612,7 +612,8 @@ export class DebugSession implements IDebugSession {
 				if (thread) {
 					// Call fetch call stack twice, the first only return the top stack frame.
 					// Second retrieves the rest of the call stack. For performance reasons #25605
-					this.model.fetchCallStack(<Thread>thread).then(() => {
+					const promises = this.model.fetchCallStack(<Thread>thread);
+					const focus = () => {
 						if (!event.body.preserveFocusHint && thread.getCallStack().length) {
 							this.debugService.focusStackFrame(undefined, thread);
 							if (thread.stoppedDetails) {
@@ -621,6 +622,14 @@ export class DebugSession implements IDebugSession {
 								}
 								this.windowService.focusWindow();
 							}
+						}
+					};
+
+					promises.topCallStack.then(focus);
+					promises.wholeCallStack.then(() => {
+						if (!this.debugService.getViewModel().focusedStackFrame) {
+							// The top stack frame can be deemphesized so try to focus again #68616
+							focus();
 						}
 					});
 				}

@@ -16,7 +16,6 @@ import { URI } from 'vs/base/common/uri';
 
 const themesExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPoint[]>({
 	extensionPoint: 'themes',
-	isDynamic: true,
 	jsonSchema: {
 		description: nls.localize('vscode.extension.contributes.themes', 'Contributes textmate color themes.'),
 		type: 'array',

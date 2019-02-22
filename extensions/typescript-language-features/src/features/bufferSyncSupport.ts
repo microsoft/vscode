@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
 import * as vscode from 'vscode';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
@@ -266,10 +265,8 @@ export default class BufferSyncSupport extends Disposable {
 		this.pendingDiagnostics.delete(resource);
 		this.syncedBuffers.delete(resource);
 		syncedBuffer.close();
-		if (!fs.existsSync(resource.fsPath)) {
-			this._onDelete.fire(resource);
-			this.requestAllDiagnostics();
-		}
+		this._onDelete.fire(resource);
+		this.requestAllDiagnostics();
 	}
 
 	public interuptGetErr<R>(f: () => R): R {

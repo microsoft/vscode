@@ -8,7 +8,7 @@ import * as dom from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Color, RGBA } from 'vs/base/common/color';
 import { IMarkdownString, MarkdownString, isEmptyMarkdownString, markedStringsEquals } from 'vs/base/common/htmlContent';
-import { Disposable, IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -31,6 +31,14 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/opener';
 import { MarkerController, NextMarkerAction } from 'vs/editor/contrib/gotoError/gotoError';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
+import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
+import { applyCodeAction, QuickFixAction } from 'vs/editor/contrib/codeAction/codeActionCommands';
+import { Action } from 'vs/base/common/actions';
+import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
 
 const $ = dom.$;
 
@@ -209,6 +217,9 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		markerDecorationsService: IMarkerDecorationsService,
 		private readonly _themeService: IThemeService,
 		private readonly _keybindingService: IKeybindingService,
+		private readonly _contextMenuService: IContextMenuService,
+		private readonly _bulkEditService: IBulkEditService,
+		private readonly _commandService: ICommandService,
 		private readonly _openerService: IOpenerService | null = NullOpenerService,
 	) {
 		super(ModesContentHoverWidget.ID, editor);
@@ -510,21 +521,73 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			}
 		}
 
-		const actionsElement = dom.append(hoverElement, $('div.actions'));
 		const disposables: IDisposable[] = [];
-		const keybinding = this._keybindingService.lookupKeybinding(NextMarkerAction.ID);
-		const label = nls.localize('peek problem', "Peek Problem") + (keybinding ? ` (${keybinding.getLabel()})` : '');
-		const peekMarkerAction = dom.append(actionsElement, $('a.action.peek-marker', { title: label }));
-		peekMarkerAction.textContent = label;
-		disposables.push(dom.addDisposableListener(peekMarkerAction, dom.EventType.CLICK, e => {
-			e.stopPropagation();
-			e.preventDefault();
-			this.hide();
-			MarkerController.get(this._editor).show(markerHover.marker);
-			this._editor.focus();
+		const actionsElement = dom.append(hoverElement, $('div.actions'));
+
+		disposables.push(this.renderAction(actionsElement, {
+			label: nls.localize('peek problem', "Peek Problem"),
+			commandId: NextMarkerAction.ID,
+			run: () => {
+				this.hide();
+				MarkerController.get(this._editor).show(markerHover.marker);
+				this._editor.focus();
+			}
 		}));
+
+		disposables.push(this.renderAction(actionsElement, {
+			label: nls.localize('quick fixes', "Quick Fix..."),
+			commandId: QuickFixAction.Id,
+			run: async (target) => {
+				const codeActionsPromise = this.getCodeActions(markerHover.marker);
+				disposables.push(toDisposable(() => codeActionsPromise.cancel()));
+				const actions = await codeActionsPromise;
+				const elementPosition = dom.getDomNodePagePosition(target);
+				this._contextMenuService.showContextMenu({
+					getAnchor: () => ({ x: elementPosition.left + 6, y: elementPosition.top + elementPosition.height + 6 }),
+					getActions: () => actions
+				});
+			}
+		}));
+
 		this.renderDisposable = combinedDisposable(disposables);
 		return hoverElement;
+	}
+
+	private getCodeActions(marker: IMarker): CancelablePromise<Action[]> {
+		return createCancelablePromise(async cancellationToken => {
+			const codeActions = await getCodeActions(this._editor.getModel()!, new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn), { type: 'manual', filter: { kind: CodeActionKind.QuickFix } }, cancellationToken);
+			if (codeActions.length) {
+				return codeActions.map(codeAction => new Action(
+					codeAction.command ? codeAction.command.id : codeAction.title,
+					codeAction.title,
+					undefined,
+					true,
+					() => applyCodeAction(codeAction, this._bulkEditService, this._commandService)));
+			}
+			return [
+				new Action('', nls.localize('editor.action.quickFix.noneMessage', "No code actions available"))
+			];
+		});
+	}
+
+	private renderAction(parent: HTMLElement, actionOptions: { label: string, iconClass?: string, run: (target: HTMLElement) => void, commandId: string }): IDisposable {
+		const actionContainer = dom.append(parent, $('div.action-container'));
+		const action = dom.append(actionContainer, $('a.action'));
+		if (actionOptions.iconClass) {
+			dom.append(action, $(`span.icon.${actionOptions.iconClass}`));
+		}
+		const label = dom.append(action, $('span'));
+		label.textContent = actionOptions.label;
+		const keybinding = this._keybindingService.lookupKeybinding(actionOptions.commandId);
+		if (keybinding) {
+			const actionKeybindingLabel = dom.append(actionContainer, $('span.keybinding-label'));
+			actionKeybindingLabel.textContent = keybinding.getLabel();
+		}
+		return dom.addDisposableListener(action, dom.EventType.CLICK, e => {
+			e.stopPropagation();
+			e.preventDefault();
+			actionOptions.run(action);
+		});
 	}
 
 	private static readonly _DECORATION_OPTIONS = ModelDecorationOptions.register({

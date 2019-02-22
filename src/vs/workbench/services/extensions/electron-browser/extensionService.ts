@@ -17,8 +17,8 @@ import { EnablementState, IExtensionEnablementService, IExtensionIdentifier, IEx
 import { BetterMergeId, areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import pkg from 'vs/platform/node/package';
-import product from 'vs/platform/node/product';
+import pkg from 'vs/platform/product/node/package';
+import product from 'vs/platform/product/node/product';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
@@ -197,8 +197,8 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			}
 
 			const extensionDescription = await this._extensionScanner.scanSingleExtension(extension.location.fsPath, extension.type === ExtensionType.System, this.createLogger());
-			if (!extensionDescription || !this._usesOnlyDynamicExtensionPoints(extensionDescription)) {
-				// uses non-dynamic extension point
+			if (!extensionDescription) {
+				// could not scan extension...
 				continue;
 			}
 
@@ -271,28 +271,6 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		}
 	}
 
-	private _usesOnlyDynamicExtensionPoints(extension: IExtensionDescription): boolean {
-		const extensionPoints = ExtensionsRegistry.getExtensionPointsMap();
-		if (extension.contributes) {
-			for (let extPointName in extension.contributes) {
-				if (hasOwnProperty.call(extension.contributes, extPointName)) {
-					const extPoint = extensionPoints[extPointName];
-					if (extPoint) {
-						if (!extPoint.isDynamic) {
-							return false;
-						}
-					} else {
-						// This extension has a 3rd party (unknown) extension point
-						// ===> require a reload for now...
-						return false;
-					}
-				}
-			}
-		}
-
-		return true;
-	}
-
 	public canAddExtension(extension: IExtensionDescription): boolean {
 		if (this._windowService.getConfiguration().remoteAuthority) {
 			return false;
@@ -310,7 +288,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			}
 		}
 
-		return this._usesOnlyDynamicExtensionPoints(extension);
+		return true;
 	}
 
 	public canRemoveExtension(extension: IExtensionDescription): boolean {
@@ -337,7 +315,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			return false;
 		}
 
-		return this._usesOnlyDynamicExtensionPoints(extension);
+		return true;
 	}
 
 	private async _activateAddedExtensionIfNeeded(extensionDescription: IExtensionDescription): Promise<void> {

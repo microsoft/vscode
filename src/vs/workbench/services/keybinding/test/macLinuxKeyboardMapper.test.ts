@@ -104,6 +104,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: false,
 				shiftKey: false,
 				altKey: false,
@@ -142,6 +143,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: false,
 				shiftKey: false,
 				altKey: false,
@@ -285,6 +287,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: false,
 				shiftKey: false,
 				altKey: false,
@@ -302,6 +305,10 @@ suite('keyboardMapper - MAC de_ch', () => {
 				dispatchParts: ['meta+[Home]'],
 			}
 		);
+	});
+
+	test('resolveUserBinding empty', () => {
+		assertResolveUserBinding(mapper, [], []);
 	});
 
 	test('resolveUserBinding Cmd+[Comma] Cmd+/', () => {
@@ -327,6 +334,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: false,
 				shiftKey: false,
 				altKey: false,
@@ -350,6 +358,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: false,
 				shiftKey: false,
 				altKey: false,
@@ -406,6 +415,7 @@ suite('keyboardMapper - MAC en_us', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: false,
 				shiftKey: false,
 				altKey: false,
@@ -429,6 +439,7 @@ suite('keyboardMapper - MAC en_us', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: false,
 				shiftKey: false,
 				altKey: false,
@@ -519,6 +530,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: true,
 				shiftKey: false,
 				altKey: false,
@@ -549,6 +561,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: true,
 				shiftKey: false,
 				altKey: false,
@@ -692,6 +705,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: true,
 				shiftKey: false,
 				altKey: false,
@@ -715,6 +729,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: true,
 				shiftKey: false,
 				altKey: false,
@@ -756,6 +771,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: true,
 				shiftKey: false,
 				altKey: false,
@@ -779,6 +795,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: true,
 				shiftKey: false,
 				altKey: false,
@@ -850,6 +867,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: true,
 				shiftKey: false,
 				altKey: false,
@@ -888,6 +906,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: true,
 				shiftKey: false,
 				altKey: false,
@@ -1031,6 +1050,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: true,
 				shiftKey: false,
 				altKey: false,
@@ -1092,6 +1112,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: true,
 				shiftKey: false,
 				altKey: false,
@@ -1150,6 +1171,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: true,
 				shiftKey: false,
 				altKey: false,
@@ -1173,6 +1195,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: true,
 				shiftKey: false,
 				altKey: false,
@@ -1208,6 +1231,7 @@ suite('keyboardMapper', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: true,
 				shiftKey: false,
 				altKey: false,
@@ -1234,6 +1258,7 @@ suite('keyboardMapper', () => {
 			assertResolveKeyboardEvent(
 				mapper,
 				{
+					_standardKeyboardEventBrand: true,
 					ctrlKey: false,
 					shiftKey: false,
 					altKey: false,
@@ -1273,6 +1298,7 @@ suite('keyboardMapper', () => {
 			assertResolveKeyboardEvent(
 				mapper,
 				{
+					_standardKeyboardEventBrand: true,
 					ctrlKey: false,
 					shiftKey: false,
 					altKey: false,
@@ -1368,6 +1394,7 @@ suite('keyboardMapper - LINUX en_uk', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: true,
 				shiftKey: false,
 				altKey: true,

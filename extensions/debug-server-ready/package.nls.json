@@ -1,0 +1,4 @@
+{
+	"displayName": "Server Ready Action",
+	"description": "Open URI in browser if server under debugging is ready."
+}

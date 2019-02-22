@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./gotoErrorWidget';
+import 'vs/css!./media/gotoErrorWidget';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -14,7 +14,6 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerColor, oneOf, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, ITheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
-import { AccessibilitySupport } from 'vs/base/common/platform';
 import { editorErrorForeground, editorErrorBorder, editorWarningForeground, editorWarningBorder, editorInfoForeground, editorInfoBorder } from 'vs/editor/common/view/editorColorRegistry';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
@@ -27,6 +26,7 @@ import { basename } from 'vs/base/common/resources';
 import { IAction } from 'vs/base/common/actions';
 import { IActionBarOptions, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { peekViewTitleForeground, peekViewTitleInfoForeground } from 'vs/editor/contrib/referenceSearch/referencesWidget';
+import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 
 class MessageWidget {
 
@@ -270,13 +270,20 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 		let position = editorPosition && range.containsPosition(editorPosition) ? editorPosition : range.getStartPosition();
 		super.show(position, this.computeRequiredHeight());
 
-		const detail = markerCount > 1
-			? nls.localize('problems', "{0} of {1} problems", markerIdx, markerCount)
-			: nls.localize('change', "{0} of {1} problem", markerIdx, markerCount);
 		const model = this.editor.getModel();
 		if (model) {
+			const detail = markerCount > 1
+				? nls.localize('problems', "{0} of {1} problems", markerIdx, markerCount)
+				: nls.localize('change', "{0} of {1} problem", markerIdx, markerCount);
 			this.setTitle(basename(model.uri), detail);
 		}
+		let headingIconClassName = 'error';
+		if (this._severity === MarkerSeverity.Warning) {
+			headingIconClassName = 'warning';
+		} else if (this._severity === MarkerSeverity.Info) {
+			headingIconClassName = 'info';
+		}
+		this.setTitleIcon(headingIconClassName);
 
 		this.editor.revealPositionInCenter(position, ScrollType.Smooth);
 

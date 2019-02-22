@@ -1093,8 +1093,7 @@ const problemPatternExtPoint = ExtensionsRegistry.registerExtensionPoint<Config.
 				Schemas.NamedMultiLineProblemPattern
 			]
 		}
-	},
-	isDynamic: true
+	}
 });
 
 export interface IProblemPatternRegistry {
@@ -1674,8 +1673,7 @@ const problemMatchersExtPoint = ExtensionsRegistry.registerExtensionPoint<Config
 		description: localize('ProblemMatcherExtPoint', 'Contributes problem matchers'),
 		type: 'array',
 		items: Schemas.NamedProblemMatcher
-	},
-	isDynamic: true
+	}
 });
 
 export interface IProblemMatcherRegistry {
