@@ -39,7 +39,7 @@ import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { CollapseAction2 } from 'vs/workbench/browser/viewlet';
+import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { OutlineConfigKeys, OutlineViewFocused, OutlineViewFiltered } from 'vs/editor/contrib/documentSymbols/outline';
 import { FuzzyScore } from 'vs/base/common/filters';
@@ -353,7 +353,7 @@ export class OutlinePanel extends ViewletPanel {
 	getActions(): IAction[] {
 		return [
 			new Action('collapse', localize('collapse', "Collapse All"), 'explorer-action collapse-explorer', true, () => {
-				return new CollapseAction2(this._tree, true, undefined).run();
+				return new CollapseAction(this._tree, true, undefined).run();
 			})
 		];
 	}

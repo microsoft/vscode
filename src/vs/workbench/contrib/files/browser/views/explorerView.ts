@@ -14,7 +14,7 @@ import { NewFolderAction, NewFileAction, FileCopiedContext, RefreshExplorerView 
 import { toResource } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import * as DOM from 'vs/base/browser/dom';
-import { CollapseAction2 } from 'vs/workbench/browser/viewlet';
+import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { ExplorerDecorationsProvider } from 'vs/workbench/contrib/files/browser/views/explorerDecorationsProvider';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -228,7 +228,7 @@ export class ExplorerView extends ViewletPanel {
 		actions.push(this.instantiationService.createInstance(NewFileAction, getFocus));
 		actions.push(this.instantiationService.createInstance(NewFolderAction, getFocus));
 		actions.push(this.instantiationService.createInstance(RefreshExplorerView, RefreshExplorerView.ID, RefreshExplorerView.LABEL));
-		actions.push(this.instantiationService.createInstance(CollapseAction2, this.tree, true, 'explorer-action collapse-explorer'));
+		actions.push(this.instantiationService.createInstance(CollapseAction, this.tree, true, 'explorer-action collapse-explorer'));
 
 		return actions;
 	}

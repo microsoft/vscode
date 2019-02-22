@@ -5,7 +5,7 @@
 
 import { hasWorkspaceFileExtension, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { normalize } from 'vs/base/common/path';
-import { basename, basenameOrAuthority } from 'vs/base/common/resources';
+import { basename } from 'vs/base/common/resources';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWindowsService, IWindowService, IURIToOpen } from 'vs/platform/windows/common/windows';
 import { URI } from 'vs/base/common/uri';
@@ -16,15 +16,12 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { DefaultEndOfLine } from 'vs/editor/common/model';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
-import { DataTransfers, IDragAndDropData } from 'vs/base/browser/dnd';
-import { DefaultDragAndDrop } from 'vs/base/parts/tree/browser/treeDefaults';
+import { DataTransfers } from 'vs/base/browser/dnd';
 import { DragMouseEvent } from 'vs/base/browser/mouseEvent';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { MIME_BINARY } from 'vs/base/common/mime';
-import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { isWindows } from 'vs/base/common/platform';
-import { coalesce } from 'vs/base/common/arrays';
-import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorIdentifier, GroupIdentifier } from 'vs/workbench/common/editor';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
@@ -307,47 +304,6 @@ export class ResourcesDropHandler {
 
 			return true;
 		});
-	}
-}
-
-export class SimpleFileResourceDragAndDrop extends DefaultDragAndDrop {
-
-	constructor(
-		private toResource: (obj: any) => URI,
-		@IInstantiationService protected instantiationService: IInstantiationService
-	) {
-		super();
-	}
-
-	getDragURI(tree: ITree, obj: any): string | null {
-		const resource = this.toResource(obj);
-		if (resource) {
-			return resource.toString();
-		}
-
-		return null;
-	}
-
-	getDragLabel(tree: ITree, elements: any[]): string | null {
-		if (elements.length > 1) {
-			return String(elements.length);
-		}
-
-		const resource = this.toResource(elements[0]);
-		if (resource) {
-			return basenameOrAuthority(resource);
-		}
-
-		return null;
-	}
-
-	onDragStart(tree: ITree, data: IDragAndDropData, originalEvent: DragMouseEvent): void {
-
-		// Apply some datatransfer types to allow for dragging the element outside of the application
-		const resources: URI[] = data.getData().map(source => this.toResource(source));
-		if (resources) {
-			this.instantiationService.invokeFunction(fillResourceDataTransfers, coalesce(resources), originalEvent);
-		}
 	}
 }
 
