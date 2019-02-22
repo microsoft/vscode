@@ -1318,22 +1318,22 @@ export interface CommentThreadChangedEvent {
 	/**
 	 * Added comment threads.
 	 */
-	readonly added: CommentThread[];
+	readonly added: (CommentThread | CommentThread2)[];
 
 	/**
 	 * Removed comment threads.
 	 */
-	readonly removed: CommentThread[];
+	readonly removed: (CommentThread | CommentThread2)[];
 
 	/**
 	 * Changed comment threads.
 	 */
-	readonly changed: CommentThread[];
+	readonly changed: (CommentThread | CommentThread2)[];
 
 	/**
 	 * changed draft mode.
 	 */
-	readonly draftMode: DraftMode;
+	readonly draftMode?: DraftMode;
 }
 
 /**

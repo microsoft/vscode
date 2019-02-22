@@ -793,6 +793,7 @@ declare module 'vscode' {
 		 * Whether the thread should be collapsed or expanded when opening the document. Defaults to Collapsed.
 		 */
 		collapsibleState?: CommentThreadCollapsibleState;
+		dispose?(): void;
 	}
 
 	/**
@@ -956,8 +957,8 @@ declare module 'vscode' {
 		readonly id: string;
 		readonly label: string;
 		/**
-	 	 * The active (focused) comment widget.
-	 	 */
+		 * The active (focused) comment widget.
+		 */
 		readonly widget?: CommentWidget;
 		createCommentThread(id: string, resource: Uri, range: Range, comments: Comment[], acceptInputCommands: Command[], collapsibleState?: CommentThreadCollapsibleState): CommentThread;
 		dispose(): void;

@@ -165,6 +165,7 @@ export class MainThreadCommentControl {
 	private _threads: Map<number, MainThreadCommentThread> = new Map<number, MainThreadCommentThread>();
 	constructor(
 		private _proxy: ExtHostCommentsShape,
+		private _commentService: ICommentService,
 		private _handle: number,
 		private _id: string,
 		private _label: string
@@ -184,12 +185,26 @@ export class MainThreadCommentControl {
 		);
 
 		this._threads.set(commentThreadHandle, thread);
+		this._commentService.updateComments(`${this.handle}`, {
+			added: [thread],
+			removed: [],
+			changed: [],
+			draftMode: modes.DraftMode.NotSupported
+		});
 
 		return thread;
 	}
 
 	deleteCommentThread(commentThreadHandle: number) {
 		let thread = this._threads.get(commentThreadHandle);
+		this._threads.delete(commentThreadHandle);
+
+		this._commentService.updateComments(`${this.handle}`, {
+			added: [],
+			removed: [thread],
+			changed: [],
+			draftMode: modes.DraftMode.NotSupported
+		});
 
 		thread.dispose();
 	}
@@ -284,9 +299,15 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	}
 
 	$registerCommentControl(handle: number, id: string, label: string): void {
-		const provider = new MainThreadCommentControl(this._proxy, handle, id, label);
+		const provider = new MainThreadCommentControl(this._proxy, this._commentService, handle, id, label);
 		this._commentService.registerCommentControl(String(handle), provider);
 		this._commentControls.set(handle, provider);
+
+		const commentsPanelAlreadyConstructed = this._panelService.getPanels().some(panel => panel.id === COMMENTS_PANEL_ID);
+		if (!commentsPanelAlreadyConstructed) {
+			this.registerPanel(commentsPanelAlreadyConstructed);
+		}
+		this._commentService.setWorkspaceComments(String(handle), []);
 	}
 
 	$createCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, range: IRange, comments: modes.Comment[], commands: modes.Command[], collapseState: modes.CommentThreadCollapsibleState): modes.CommentThread2 | undefined {
@@ -350,6 +371,18 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		this._commentService.registerDataProvider(providerId, handler);
 	}
 
+	private registerPanel(commentsPanelAlreadyConstructed: boolean) {
+		if (!commentsPanelAlreadyConstructed) {
+			Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(new PanelDescriptor(
+				CommentsPanel,
+				COMMENTS_PANEL_ID,
+				COMMENTS_PANEL_TITLE,
+				'commentsPanel',
+				10
+			));
+		}
+	}
+
 	/**
 	 * If the comments panel has never been opened, the constructor for it has not yet run so it has
 	 * no listeners for comment threads being set or updated. Listen for the panel opening for the
@@ -383,13 +416,9 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		this._handlers.set(handle, providerId);
 
 		const commentsPanelAlreadyConstructed = this._panelService.getPanels().some(panel => panel.id === COMMENTS_PANEL_ID);
-		Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(new PanelDescriptor(
-			CommentsPanel,
-			COMMENTS_PANEL_ID,
-			COMMENTS_PANEL_TITLE,
-			'commentsPanel',
-			10
-		));
+		if (!commentsPanelAlreadyConstructed) {
+			this.registerPanel(commentsPanelAlreadyConstructed);
+		}
 
 		const openPanel = this._configurationService.getValue<ICommentsConfiguration>('comments').openPanel;
 
