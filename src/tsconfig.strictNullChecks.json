@@ -311,7 +311,7 @@
 		"./vs/workbench/contrib/themes/test/electron-browser/themes.test.contribution.ts",
 		"./vs/workbench/contrib/url/common/url.contribution.ts",
 		"./vs/workbench/contrib/webview/electron-browser/webviewProtocols.ts",
-		"./vs/workbench/electron-browser/window.ts",
+		// "./vs/workbench/electron-browser/window.ts", TODO@matt https://github.com/Microsoft/vscode/issues/69198
 		"./vs/workbench/services/activity/common/activity.ts",
 		"./vs/workbench/services/backup/common/backup.ts",
 		"./vs/workbench/services/backup/node/backupFileService.ts",

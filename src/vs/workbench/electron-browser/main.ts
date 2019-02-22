@@ -4,21 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
+import * as gracefulFs from 'graceful-fs';
 import { createHash } from 'crypto';
-import * as perf from 'vs/base/common/performance';
+import { importEntries, mark } from 'vs/base/common/performance';
 import { Workbench } from 'vs/workbench/electron-browser/workbench';
 import { ElectronWindow } from 'vs/workbench/electron-browser/window';
-import * as browser from 'vs/base/browser/browser';
+import { setZoomLevel, setZoomFactor, setFullscreen } from 'vs/base/browser/browser';
 import { domContentLoaded, addDisposableListener, EventType, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import * as platform from 'vs/base/common/platform';
+import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { URI as uri } from 'vs/base/common/uri';
 import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { stat } from 'vs/base/node/pfs';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import * as gracefulFs from 'graceful-fs';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import { IWindowConfiguration, IWindowsService } from 'vs/platform/windows/common/windows';
 import { WindowsChannelClient } from 'vs/platform/windows/node/windowsIpc';
@@ -51,7 +51,7 @@ import { InstantiationService } from 'vs/platform/instantiation/common/instantia
 import { Disposable } from 'vs/base/common/lifecycle';
 import { registerWindowDriver } from 'vs/platform/driver/electron-browser/driver';
 
-export class CodeWindow extends Disposable {
+class CodeRendererMain extends Disposable {
 
 	private workbench: Workbench;
 
@@ -70,12 +70,12 @@ export class CodeWindow extends Disposable {
 		this.reviveUris();
 
 		// Setup perf
-		perf.importEntries(this.configuration.perfEntries);
+		importEntries(this.configuration.perfEntries);
 
 		// Browser config
-		browser.setZoomFactor(webFrame.getZoomFactor()); // Ensure others can listen to zoom level changes
-		browser.setZoomLevel(webFrame.getZoomLevel(), true /* isTrusted */); // Can be trusted because we are not setting it ourselves (https://github.com/Microsoft/vscode/issues/26151)
-		browser.setFullscreen(!!this.configuration.fullscreen);
+		setZoomFactor(webFrame.getZoomFactor()); // Ensure others can listen to zoom level changes
+		setZoomLevel(webFrame.getZoomLevel(), true /* isTrusted */); // Can be trusted because we are not setting it ourselves (https://github.com/Microsoft/vscode/issues/26151)
+		setFullscreen(!!this.configuration.fullscreen);
 
 		// Keyboard support
 		KeyboardMapperFactory.INSTANCE._onKeyboardLayoutChanged();
@@ -107,7 +107,7 @@ export class CodeWindow extends Disposable {
 		return this.initServices(electronMainClient).then(services => {
 
 			return domContentLoaded().then(() => {
-				perf.mark('willStartWorkbench');
+				mark('willStartWorkbench');
 
 				const instantiationService = new InstantiationService(services, true);
 
@@ -261,11 +261,11 @@ export class CodeWindow extends Disposable {
 
 		function computeLocalDiskFolderId(folder: uri, stat: fs.Stats): string {
 			let ctime: number | undefined;
-			if (platform.isLinux) {
+			if (isLinux) {
 				ctime = stat.ino; // Linux: birthtime is ctime, so we cannot use it! We use the ino instead!
-			} else if (platform.isMacintosh) {
+			} else if (isMacintosh) {
 				ctime = stat.birthtime.getTime(); // macOS: birthtime is fine to use as is
-			} else if (platform.isWindows) {
+			} else if (isWindows) {
 				if (typeof stat.birthtimeMs === 'number') {
 					ctime = Math.floor(stat.birthtimeMs); // Windows: fix precision issue in node.js 8.x to get 7.x results (see https://github.com/nodejs/node/issues/19897)
 				} else {
@@ -323,7 +323,7 @@ export class CodeWindow extends Disposable {
 }
 
 export function main(configuration: IWindowConfiguration): Promise<void> {
-	const window = new CodeWindow(configuration);
+	const renderer = new CodeRendererMain(configuration);
 
-	return window.open();
+	return renderer.open();
 }

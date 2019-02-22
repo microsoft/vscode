@@ -10,7 +10,7 @@ import { setFileNameComparer } from 'vs/base/common/comparers';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter, setGlobalLeakWarningThreshold } from 'vs/base/common/event';
 import { EventType, addDisposableListener, addClasses, addClass, removeClass, isAncestor, getClientArea, position, size, removeClasses } from 'vs/base/browser/dom';
-import { RunOnceScheduler, runWhenIdle, IdleValue } from 'vs/base/common/async';
+import { runWhenIdle, IdleValue } from 'vs/base/common/async';
 import { getZoomLevel, onDidChangeFullscreen, isFullscreen, getZoomFactor } from 'vs/base/browser/browser';
 import { mark } from 'vs/base/common/performance';
 import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
@@ -71,7 +71,6 @@ import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common
 import { FileDecorationsService } from 'vs/workbench/services/decorations/browser/decorationsService';
 import { IDecorationsService } from 'vs/workbench/services/decorations/browser/decorations';
 import { ActivityService } from 'vs/workbench/services/activity/browser/activityService';
-import { URI } from 'vs/base/common/uri';
 import { IListService, ListService } from 'vs/platform/list/browser/listService';
 import { IViewsService } from 'vs/workbench/common/views';
 import { ViewsService } from 'vs/workbench/browser/parts/views/views';
@@ -241,7 +240,6 @@ export class Workbench extends Disposable implements IPartService {
 	private static readonly sidebarPositionConfigurationKey = 'workbench.sideBar.location';
 	private static readonly statusbarVisibleConfigurationKey = 'workbench.statusBar.visible';
 	private static readonly activityBarVisibleConfigurationKey = 'workbench.activityBar.visible';
-	private static readonly closeWhenEmptyConfigurationKey = 'window.closeWhenEmpty';
 	private static readonly fontAliasingConfigurationKey = 'workbench.fontAliasing';
 
 	_serviceBrand: any;
@@ -315,8 +313,6 @@ export class Workbench extends Disposable implements IPartService {
 
 	private inZenModeContext: IContextKey<boolean>;
 	private sideBarVisibleContext: IContextKey<boolean>;
-
-	private closeEmptyWindowScheduler: RunOnceScheduler = this._register(new RunOnceScheduler(() => this.onAllEditorsClosed(), 50));
 
 	constructor(
 		private container: HTMLElement,
@@ -453,10 +449,7 @@ export class Workbench extends Disposable implements IPartService {
 		this.layout();
 
 		// Handle case where workbench is not starting up properly
-		const timeoutHandle = setTimeout(() => {
-			this.logService.warn('Workbench did not finish loading in 10 seconds, that might be a problem that should be reported.');
-		}, 10000);
-
+		const timeoutHandle = setTimeout(() => this.logService.warn('Workbench did not finish loading in 10 seconds, that might be a problem that should be reported.'), 10000);
 		this.lifecycleService.when(LifecyclePhase.Restored).then(() => clearTimeout(timeoutHandle));
 
 		// Restore Parts
@@ -776,21 +769,9 @@ export class Workbench extends Disposable implements IPartService {
 		// Storage
 		this._register(this.storageService.onWillSaveState(e => this.saveState(e)));
 
-		// Listen to visible editor changes
-		this._register(this.editorService.onDidVisibleEditorsChange(() => this.onDidVisibleEditorsChange()));
-
-		// Listen to editor group activations when editor is hidden
-		this._register(this.editorPart.onDidActivateGroup(() => { if (this.editorHidden) { this.setEditorHidden(false); } }));
-
-		// Listen to editor closing (if we run with --wait)
-		const filesToWait = this.configuration.filesToWait;
-		if (filesToWait) {
-			const resourcesToWaitFor = filesToWait.paths.map(p => p.fileUri);
-			const waitMarkerFile = URI.file(filesToWait.waitMarkerFilePath);
-			const listenerDispose = this.editorService.onDidCloseEditor(() => this.onEditorClosed(listenerDispose, resourcesToWaitFor, waitMarkerFile));
-
-			this._register(listenerDispose);
-		}
+		// Restore editor if hidden and it changes
+		this._register(this.editorService.onDidVisibleEditorsChange(() => this.restoreHiddenEditor()));
+		this._register(this.editorPart.onDidActivateGroup(() => this.restoreHiddenEditor()));
 
 		// Configuration changes
 		this._register(this.configurationService.onDidChangeConfiguration(() => this.onDidUpdateConfiguration()));
@@ -837,39 +818,9 @@ export class Workbench extends Disposable implements IPartService {
 		}
 	}
 
-	private onEditorClosed(listenerDispose: IDisposable, resourcesToWaitFor: URI[], waitMarkerFile: URI): void {
-
-		// In wait mode, listen to changes to the editors and wait until the files
-		// are closed that the user wants to wait for. When this happens we delete
-		// the wait marker file to signal to the outside that editing is done.
-		if (resourcesToWaitFor.every(resource => !this.editorService.isOpen({ resource }))) {
-			listenerDispose.dispose();
-			this.fileService.del(waitMarkerFile);
-		}
-	}
-
-	private onDidVisibleEditorsChange(): void {
-		const visibleEditors = this.editorService.visibleControls;
-
-		// Close when empty: check if we should close the window based on the setting
-		// Overruled by: window has a workspace opened or this window is for extension development
-		// or setting is disabled. Also enabled when running with --wait from the command line.
-		if (visibleEditors.length === 0 && this.contextService.getWorkbenchState() === WorkbenchState.EMPTY && !this.environmentService.isExtensionDevelopment) {
-			const closeWhenEmpty = this.configurationService.getValue<boolean>(Workbench.closeWhenEmptyConfigurationKey);
-			if (closeWhenEmpty || this.environmentService.args.wait) {
-				this.closeEmptyWindowScheduler.schedule();
-			}
-		}
-
+	private restoreHiddenEditor(): void {
 		if (this.editorHidden) {
 			this.setEditorHidden(false);
-		}
-	}
-
-	private onAllEditorsClosed(): void {
-		const visibleEditors = this.editorService.visibleControls.length;
-		if (visibleEditors === 0) {
-			this.windowService.closeWindow();
 		}
 	}
 
