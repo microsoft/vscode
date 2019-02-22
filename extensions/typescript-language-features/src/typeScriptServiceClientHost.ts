@@ -55,7 +55,6 @@ export default class TypeScriptServiceClientHost extends Disposable {
 	) {
 		super();
 		const handleProjectCreateOrDelete = () => {
-			this.client.executeWithoutWaitingForResponse('reloadProjects', null);
 			this.triggerAllDiagnostics();
 		};
 		const handleProjectChange = () => {

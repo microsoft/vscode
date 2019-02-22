@@ -108,7 +108,7 @@ export interface IWorkspaceStorageChangeEvent {
 export class InMemoryStorageService extends Disposable implements IStorageService {
 	_serviceBrand = undefined;
 
-	private _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
+	private readonly _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
 	get onDidChangeStorage(): Event<IWorkspaceStorageChangeEvent> { return this._onDidChangeStorage.event; }
 
 	readonly onWillSaveState = Event.None;

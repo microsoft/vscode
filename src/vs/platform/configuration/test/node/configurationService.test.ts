@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import * as os from 'os';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import * as fs from 'fs';
 
 import { Registry } from 'vs/platform/registry/common/platform';

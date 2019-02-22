@@ -9,7 +9,7 @@ import 'vs/editor/editor.all';
 
 import 'vs/workbench/api/electron-browser/extensionHost.contribution';
 
-import 'vs/workbench/electron-browser/shell.contribution';
+import 'vs/workbench/electron-browser/main.contribution';
 import 'vs/workbench/browser/workbench.contribution';
 
 import 'vs/workbench/electron-browser/main';
@@ -39,140 +39,150 @@ import 'vs/workbench/api/browser/viewsExtensionPoint';
 
 //#region --- workbench services
 
-import 'vs/workbench/services/bulkEdit/electron-browser/bulkEditService';
+import 'vs/workbench/services/bulkEdit/browser/bulkEditService';
 
 //#endregion
 
 
-//#region --- workbench parts
+//#region --- workbench contributions
 
 // Localizations
-import 'vs/workbench/parts/localizations/electron-browser/localizations.contribution';
+import 'vs/workbench/contrib/localizations/browser/localizations.contribution';
 
 // Preferences
-import 'vs/workbench/parts/preferences/electron-browser/preferences.contribution';
-import 'vs/workbench/parts/preferences/browser/keybindingsEditorContribution';
+import 'vs/workbench/contrib/preferences/electron-browser/preferences.contribution';
+import 'vs/workbench/contrib/preferences/browser/keybindingsEditorContribution';
 
 // Logs
-import 'vs/workbench/parts/logs/electron-browser/logs.contribution';
+import 'vs/workbench/contrib/logs/common/logs.contribution';
 
 // Quick Open Handlers
-import 'vs/workbench/parts/quickopen/browser/quickopen.contribution';
+import 'vs/workbench/contrib/quickopen/browser/quickopen.contribution';
 
 // Explorer
-import 'vs/workbench/parts/files/electron-browser/explorerViewlet';
-import 'vs/workbench/parts/files/electron-browser/fileActions.contribution';
-import 'vs/workbench/parts/files/electron-browser/files.contribution';
+import 'vs/workbench/contrib/files/browser/explorerViewlet';
+import 'vs/workbench/contrib/files/browser/fileActions.contribution';
+import 'vs/workbench/contrib/files/browser/files.contribution';
 
 // Backup
-import 'vs/workbench/parts/backup/common/backup.contribution';
+import 'vs/workbench/contrib/backup/common/backup.contribution';
 
 // Stats
-import 'vs/workbench/parts/stats/node/stats.contribution';
+import 'vs/workbench/contrib/stats/node/stats.contribution';
 
 // Rapid Render Splash
-import 'vs/workbench/parts/splash/electron-browser/partsSplash.contribution';
+import 'vs/workbench/contrib/splash/electron-browser/partsSplash.contribution';
 
 // Search
-import 'vs/workbench/parts/search/electron-browser/search.contribution';
-import 'vs/workbench/parts/search/browser/searchView';
-import 'vs/workbench/parts/search/browser/openAnythingHandler';
+import 'vs/workbench/contrib/search/browser/search.contribution';
+import 'vs/workbench/contrib/search/browser/searchView';
+import 'vs/workbench/contrib/search/browser/openAnythingHandler';
 
 // SCM
-import 'vs/workbench/parts/scm/electron-browser/scm.contribution';
-import 'vs/workbench/parts/scm/electron-browser/scmViewlet';
+import 'vs/workbench/contrib/scm/electron-browser/scm.contribution';
+import 'vs/workbench/contrib/scm/electron-browser/scmViewlet';
 
 // Debug
-import 'vs/workbench/parts/debug/electron-browser/debug.contribution';
-import 'vs/workbench/parts/debug/browser/debugQuickOpen';
-import 'vs/workbench/parts/debug/electron-browser/repl';
-import 'vs/workbench/parts/debug/browser/debugViewlet';
+import 'vs/workbench/contrib/debug/electron-browser/debug.contribution';
+import 'vs/workbench/contrib/debug/browser/debugQuickOpen';
+import 'vs/workbench/contrib/debug/electron-browser/repl';
+import 'vs/workbench/contrib/debug/browser/debugViewlet';
 
 // Markers
-import 'vs/workbench/parts/markers/electron-browser/markers.contribution';
+import 'vs/workbench/contrib/markers/browser/markers.contribution';
 
 // Comments
-import 'vs/workbench/parts/comments/electron-browser/comments.contribution';
+import 'vs/workbench/contrib/comments/electron-browser/comments.contribution';
 
 // HTML Preview
-import 'vs/workbench/parts/html/electron-browser/html.contribution';
+import 'vs/workbench/contrib/html/electron-browser/html.contribution';
 
 // URL Support
-import 'vs/workbench/parts/url/electron-browser/url.contribution';
+import 'vs/workbench/contrib/url/common/url.contribution';
 
 // Webview
-import 'vs/workbench/parts/webview/electron-browser/webview.contribution';
+import 'vs/workbench/contrib/webview/electron-browser/webview.contribution';
 
 // Extensions Management
-import 'vs/workbench/parts/extensions/electron-browser/extensions.contribution';
-import 'vs/workbench/parts/extensions/browser/extensionsQuickOpen';
-import 'vs/workbench/parts/extensions/electron-browser/extensionsViewlet';
+import 'vs/workbench/contrib/extensions/electron-browser/extensions.contribution';
+import 'vs/workbench/contrib/extensions/browser/extensionsQuickOpen';
+import 'vs/workbench/contrib/extensions/electron-browser/extensionsViewlet';
 
 // Output Panel
-import 'vs/workbench/parts/output/electron-browser/output.contribution';
-import 'vs/workbench/parts/output/browser/outputPanel';
+import 'vs/workbench/contrib/output/electron-browser/output.contribution';
+import 'vs/workbench/contrib/output/browser/outputPanel';
 
 // Terminal
-import 'vs/workbench/parts/terminal/electron-browser/terminal.contribution';
-import 'vs/workbench/parts/terminal/browser/terminalQuickOpen';
-import 'vs/workbench/parts/terminal/electron-browser/terminalPanel';
+import 'vs/workbench/contrib/terminal/electron-browser/terminal.contribution';
+import 'vs/workbench/contrib/terminal/browser/terminalQuickOpen';
+import 'vs/workbench/contrib/terminal/electron-browser/terminalPanel';
 
 // Relauncher
-import 'vs/workbench/parts/relauncher/electron-browser/relauncher.contribution';
+import 'vs/workbench/contrib/relauncher/electron-browser/relauncher.contribution';
 
 // Tasks
-import 'vs/workbench/parts/tasks/electron-browser/task.contribution';
+import 'vs/workbench/contrib/tasks/electron-browser/task.contribution';
 
 // Emmet
-import 'vs/workbench/parts/emmet/browser/emmet.browser.contribution';
-import 'vs/workbench/parts/emmet/electron-browser/emmet.contribution';
+import 'vs/workbench/contrib/emmet/browser/emmet.browser.contribution';
+import 'vs/workbench/contrib/emmet/electron-browser/emmet.contribution';
 
 // CodeEditor Contributions
-import 'vs/workbench/parts/codeEditor/electron-browser/codeEditor.contribution';
+import 'vs/workbench/contrib/codeEditor/browser/codeEditor.contribution';
+import 'vs/workbench/contrib/codeEditor/electron-browser/codeEditor.contribution';
 
 // Execution
-import 'vs/workbench/parts/execution/electron-browser/execution.contribution';
+import 'vs/workbench/contrib/execution/electron-browser/execution.contribution';
 
 // Snippets
-import 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
-import 'vs/workbench/parts/snippets/electron-browser/snippetsService';
-import 'vs/workbench/parts/snippets/electron-browser/insertSnippet';
-import 'vs/workbench/parts/snippets/electron-browser/configureSnippets';
-import 'vs/workbench/parts/snippets/electron-browser/tabCompletion';
+import 'vs/workbench/contrib/snippets/browser/snippets.contribution';
+import 'vs/workbench/contrib/snippets/browser/snippetsService';
+import 'vs/workbench/contrib/snippets/browser/insertSnippet';
+import 'vs/workbench/contrib/snippets/browser/configureSnippets';
+import 'vs/workbench/contrib/snippets/browser/tabCompletion';
+
+// Formatter Help
+import 'vs/workbench/contrib/format/browser/format.contribution';
 
 // Send a Smile
-import 'vs/workbench/parts/feedback/electron-browser/feedback.contribution';
+import 'vs/workbench/contrib/feedback/electron-browser/feedback.contribution';
 
 // Update
-import 'vs/workbench/parts/update/electron-browser/update.contribution';
+import 'vs/workbench/contrib/update/electron-browser/update.contribution';
 
 // Surveys
-import 'vs/workbench/parts/surveys/electron-browser/nps.contribution';
-import 'vs/workbench/parts/surveys/electron-browser/languageSurveys.contribution';
+import 'vs/workbench/contrib/surveys/electron-browser/nps.contribution';
+import 'vs/workbench/contrib/surveys/electron-browser/languageSurveys.contribution';
 
 // Performance
-import 'vs/workbench/parts/performance/electron-browser/performance.contribution';
+import 'vs/workbench/contrib/performance/electron-browser/performance.contribution';
 
 // CLI
-import 'vs/workbench/parts/cli/electron-browser/cli.contribution';
+import 'vs/workbench/contrib/cli/node/cli.contribution';
 
 // Themes Support
-import 'vs/workbench/parts/themes/electron-browser/themes.contribution';
-import 'vs/workbench/parts/themes/test/electron-browser/themes.test.contribution';
+import 'vs/workbench/contrib/themes/browser/themes.contribution';
+import 'vs/workbench/contrib/themes/test/electron-browser/themes.test.contribution';
 
 // Watermark
-import 'vs/workbench/parts/watermark/electron-browser/watermark';
+import 'vs/workbench/contrib/watermark/electron-browser/watermark';
 
 // Welcome
-import 'vs/workbench/parts/welcome/walkThrough/electron-browser/walkThrough.contribution';
-import 'vs/workbench/parts/welcome/gettingStarted/electron-browser/gettingStarted.contribution';
-import 'vs/workbench/parts/welcome/overlay/browser/welcomeOverlay';
-import 'vs/workbench/parts/welcome/page/electron-browser/welcomePage.contribution';
+import 'vs/workbench/contrib/welcome/walkThrough/electron-browser/walkThrough.contribution';
+import 'vs/workbench/contrib/welcome/gettingStarted/electron-browser/gettingStarted.contribution';
+import 'vs/workbench/contrib/welcome/overlay/browser/welcomeOverlay';
+import 'vs/workbench/contrib/welcome/page/electron-browser/welcomePage.contribution';
 
 // Outline
-import 'vs/workbench/parts/outline/electron-browser/outline.contribution';
+import 'vs/workbench/contrib/outline/browser/outline.contribution';
 
 // Experiments
-import 'vs/workbench/parts/experiments/electron-browser/experiments.contribution';
+import 'vs/workbench/contrib/experiments/electron-browser/experiments.contribution';
+
+// Code Insets
+import 'vs/workbench/contrib/codeinset/electron-browser/codeInset.contribution';
+
+// Issues
+import 'vs/workbench/contrib/issue/electron-browser/issue.contribution';
 
 //#endregion

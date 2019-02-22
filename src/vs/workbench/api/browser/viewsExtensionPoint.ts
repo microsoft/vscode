@@ -16,9 +16,9 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWo
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { VIEWLET_ID as EXPLORER } from 'vs/workbench/parts/files/common/files';
-import { VIEWLET_ID as SCM } from 'vs/workbench/parts/scm/common/scm';
-import { VIEWLET_ID as DEBUG } from 'vs/workbench/parts/debug/common/debug';
+import { VIEWLET_ID as EXPLORER } from 'vs/workbench/contrib/files/common/files';
+import { VIEWLET_ID as SCM } from 'vs/workbench/contrib/scm/common/scm';
+import { VIEWLET_ID as DEBUG } from 'vs/workbench/contrib/debug/common/debug';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ShowViewletAction } from 'vs/workbench/browser/viewlet';
@@ -33,7 +33,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { createCSSRule } from 'vs/base/browser/dom';
@@ -144,16 +144,14 @@ export interface ICustomViewDescriptor extends ITreeViewDescriptor {
 type ViewContainerExtensionPointType = { [loc: string]: IUserFriendlyViewsContainerDescriptor[] };
 const viewsContainersExtensionPoint: IExtensionPoint<ViewContainerExtensionPointType> = ExtensionsRegistry.registerExtensionPoint<ViewContainerExtensionPointType>({
 	extensionPoint: 'viewsContainers',
-	jsonSchema: viewsContainersContribution,
-	isDynamic: true
+	jsonSchema: viewsContainersContribution
 });
 
 type ViewExtensionPointType = { [loc: string]: IUserFriendlyViewDescriptor[] };
 const viewsExtensionPoint: IExtensionPoint<ViewExtensionPointType> = ExtensionsRegistry.registerExtensionPoint<ViewExtensionPointType>({
 	extensionPoint: 'views',
 	deps: [viewsContainersExtensionPoint],
-	jsonSchema: viewsContribution,
-	isDynamic: true
+	jsonSchema: viewsContribution
 });
 
 const TEST_VIEW_CONTAINER_ORDER = 6;

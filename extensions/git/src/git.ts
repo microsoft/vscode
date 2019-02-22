@@ -1201,7 +1201,7 @@ export class Repository {
 	}
 
 	async branch(name: string, checkout: boolean, ref?: string): Promise<void> {
-		const args = checkout ? ['checkout', '-q', '-b', name] : ['branch', '-q', name];
+		const args = checkout ? ['checkout', '-q', '-b', name, '--no-track'] : ['branch', '-q', name];
 
 		if (ref) {
 			args.push(ref);
@@ -1456,14 +1456,14 @@ export class Repository {
 
 	async createStash(message?: string, includeUntracked?: boolean): Promise<void> {
 		try {
-			const args = ['stash', 'save'];
+			const args = ['stash', 'push'];
 
 			if (includeUntracked) {
 				args.push('-u');
 			}
 
 			if (message) {
-				args.push('--', message);
+				args.push('-m', message);
 			}
 
 			await this.run(args);

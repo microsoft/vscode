@@ -89,7 +89,7 @@ export interface IExtensionHostProfile {
 /**
  * Extension id or one of the four known program states.
  */
-export type ProfileSegmentId = string | 'idle' | 'program' | 'gc' | 'self' | null;
+export type ProfileSegmentId = string | 'idle' | 'program' | 'gc' | 'self';
 
 export class ActivationTimes {
 	constructor(

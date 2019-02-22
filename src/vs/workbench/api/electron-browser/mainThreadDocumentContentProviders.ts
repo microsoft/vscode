@@ -41,7 +41,7 @@ export class MainThreadDocumentContentProviders implements MainThreadDocumentCon
 
 	$registerTextContentProvider(handle: number, scheme: string): void {
 		const registration = this._textModelResolverService.registerTextModelContentProvider(scheme, {
-			provideTextContent: (uri: URI): Promise<ITextModel> => {
+			provideTextContent: (uri: URI): Promise<ITextModel | undefined> => {
 				return this._proxy.$provideTextDocumentContent(handle, uri).then(value => {
 					if (typeof value === 'string') {
 						const firstLineText = value.substr(0, 1 + value.search(/\r?\n/));
@@ -70,8 +70,9 @@ export class MainThreadDocumentContentProviders implements MainThreadDocumentCon
 		}
 
 		// cancel and dispose an existing update
-		if (this._pendingUpdate.has(model.id)) {
-			this._pendingUpdate.get(model.id).cancel();
+		const pending = this._pendingUpdate.get(model.id);
+		if (pending) {
+			pending.cancel();
 		}
 
 		// create and keep update token
@@ -86,7 +87,7 @@ export class MainThreadDocumentContentProviders implements MainThreadDocumentCon
 				// ignore this
 				return;
 			}
-			if (edits.length > 0) {
+			if (edits && edits.length > 0) {
 				// use the evil-edit as these models show in readonly-editor only
 				model.applyEdits(edits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
 			}

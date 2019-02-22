@@ -678,7 +678,7 @@ export class EditorGroup extends Disposable {
 		this.editors = coalesce(data.editors.map(e => {
 			const factory = registry.getEditorInputFactory(e.id);
 			if (factory) {
-				const editor = factory.deserialize(this.instantiationService, e.value);
+				const editor = factory.deserialize(this.instantiationService, e.value)!;
 
 				this.registerEditorListeners(editor);
 				this.updateResourceMap(editor, false /* add */);

@@ -5,8 +5,8 @@
 
 import { Event } from 'vs/base/common/event';
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
-import { IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, CrashReporterStartOptions, IMessageBoxResult, MessageBoxOptions, SaveDialogOptions, OpenDialogOptions, IDevToolsOptions, INewWindowOptions } from 'vs/platform/windows/common/windows';
-import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, CrashReporterStartOptions, IMessageBoxResult, MessageBoxOptions, SaveDialogOptions, OpenDialogOptions, IDevToolsOptions, INewWindowOptions, IURIToOpen } from 'vs/platform/windows/common/windows';
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { URI } from 'vs/base/common/uri';
@@ -63,7 +63,7 @@ export class WindowsChannel implements IServerChannel {
 			case 'removeFromRecentlyOpened': {
 				let paths: Array<IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | string> = arg;
 				if (Array.isArray(paths)) {
-					paths = paths.map(path => isWorkspaceIdentifier(path) || typeof path === 'string' ? path : URI.revive(path));
+					paths = paths.map(path => isChanneledWorkspaceIdentifier(path) ? reviveWorkspaceIdentifier(path) : typeof path === 'string' ? path : URI.revive(path));
 				}
 				return this.service.removeFromRecentlyOpened(paths);
 			}
@@ -85,7 +85,7 @@ export class WindowsChannel implements IServerChannel {
 			case 'minimizeWindow': return this.service.minimizeWindow(arg);
 			case 'onWindowTitleDoubleClick': return this.service.onWindowTitleDoubleClick(arg);
 			case 'setDocumentEdited': return this.service.setDocumentEdited(arg[0], arg[1]);
-			case 'openWindow': return this.service.openWindow(arg[0], arg[1] ? (<URI[]>arg[1]).map(r => URI.revive(r)) : arg[1], arg[2]);
+			case 'openWindow': return this.service.openWindow(arg[0], arg[1] ? (<IURIToOpen[]>arg[1]).map(r => ({ uri: URI.revive(r.uri), typeHint: r.typeHint })) : arg[1], arg[2]);
 			case 'openNewWindow': return this.service.openNewWindow(arg);
 			case 'showWindow': return this.service.showWindow(arg);
 			case 'getWindows': return this.service.getWindows();
@@ -165,7 +165,9 @@ export class WindowsChannelClient implements IWindowsService {
 	}
 
 	enterWorkspace(windowId: number, path: URI): Promise<IEnterWorkspaceResult> {
-		return this.channel.call('enterWorkspace', [windowId, path]);
+		return this.channel.call('enterWorkspace', [windowId, path]).then((result: IEnterWorkspaceResult) => {
+			return { backupPath: result.backupPath, workspace: reviveWorkspaceIdentifier(result.workspace) };
+		});
 	}
 
 	toggleFullScreen(windowId: number): Promise<void> {
@@ -191,7 +193,7 @@ export class WindowsChannelClient implements IWindowsService {
 	getRecentlyOpened(windowId: number): Promise<IRecentlyOpened> {
 		return this.channel.call('getRecentlyOpened', windowId)
 			.then((recentlyOpened: IRecentlyOpened) => {
-				recentlyOpened.workspaces = recentlyOpened.workspaces.map(workspace => isWorkspaceIdentifier(workspace) ? workspace : URI.revive(workspace));
+				recentlyOpened.workspaces = recentlyOpened.workspaces.map(workspace => isChanneledWorkspaceIdentifier(workspace) ? reviveWorkspaceIdentifier(workspace) : URI.revive(workspace));
 				recentlyOpened.files = recentlyOpened.files.map(URI.revive);
 				return recentlyOpened;
 			});
@@ -273,8 +275,8 @@ export class WindowsChannelClient implements IWindowsService {
 		return this.channel.call('toggleSharedProcess');
 	}
 
-	openWindow(windowId: number, paths: URI[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean, args?: ParsedArgs }): Promise<void> {
-		return this.channel.call('openWindow', [windowId, paths, options]);
+	openWindow(windowId: number, uris: IURIToOpen[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean, args?: ParsedArgs }): Promise<void> {
+		return this.channel.call('openWindow', [windowId, uris, options]);
 	}
 
 	openNewWindow(options?: INewWindowOptions): Promise<void> {
@@ -286,7 +288,17 @@ export class WindowsChannelClient implements IWindowsService {
 	}
 
 	getWindows(): Promise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]> {
-		return this.channel.call<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]>('getWindows').then(result => { result.forEach(win => win.folderUri = win.folderUri ? URI.revive(win.folderUri) : win.folderUri); return result; });
+		return this.channel.call<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]>('getWindows').then(result => {
+			for (const win of result) {
+				if (win.folderUri) {
+					win.folderUri = URI.revive(win.folderUri);
+				}
+				if (win.workspace) {
+					win.workspace = reviveWorkspaceIdentifier(win.workspace);
+				}
+			}
+			return result;
+		});
 	}
 
 	getWindowCount(): Promise<number> {
@@ -324,4 +336,8 @@ export class WindowsChannelClient implements IWindowsService {
 	resolveProxy(windowId: number, url: string): Promise<string | undefined> {
 		return Promise.resolve(this.channel.call('resolveProxy', [windowId, url]));
 	}
+}
+
+function isChanneledWorkspaceIdentifier(obj: any): obj is IWorkspaceIdentifier {
+	return obj && obj['configPath'];
 }

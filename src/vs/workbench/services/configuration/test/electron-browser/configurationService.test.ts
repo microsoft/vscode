@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import * as fs from 'fs';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import * as os from 'os';
 import { URI } from 'vs/base/common/uri';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -35,6 +35,10 @@ import { IWorkspaceConfigurationService } from 'vs/workbench/services/configurat
 import { Uri } from 'vscode';
 import { createHash } from 'crypto';
 import { Emitter, Event } from 'vs/base/common/event';
+import { Schemas } from 'vs/base/common/network';
+import { originalFSPath } from 'vs/base/common/resources';
+import { isLinux } from 'vs/base/common/platform';
+import { IWorkspaceIdentifier } from 'vs/workbench/services/configuration/node/configuration';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 
@@ -64,7 +68,7 @@ function convertToWorkspacePayload(folder: Uri): ISingleFolderWorkspaceInitializ
 	} as ISingleFolderWorkspaceInitializationPayload;
 }
 
-function setUpWorkspace(folders: string[]): Promise<{ parentDir: string, configPath: string }> {
+function setUpWorkspace(folders: string[]): Promise<{ parentDir: string, configPath: URI }> {
 
 	const id = uuid.generateUuid();
 	const parentDir = path.join(os.tmpdir(), 'vsctests', id);
@@ -76,7 +80,7 @@ function setUpWorkspace(folders: string[]): Promise<{ parentDir: string, configP
 			fs.writeFileSync(configPath, JSON.stringify(workspace, null, '\t'));
 
 			return Promise.all(folders.map(folder => setUpFolder(folder, parentDir)))
-				.then(() => ({ parentDir, configPath }));
+				.then(() => ({ parentDir, configPath: URI.file(configPath) }));
 		}));
 
 }
@@ -157,7 +161,7 @@ suite('WorkspaceContextService - Workspace', () => {
 				instantiationService.stub(IConfigurationService, workspaceService);
 				instantiationService.stub(IEnvironmentService, environmentService);
 
-				return workspaceService.initialize({ id: configPath, configPath }).then(() => {
+				return workspaceService.initialize(getWorkspaceIdentifier(configPath)).then(() => {
 
 					const fileService = new (class TestFileService extends FileService {
 						get onFileChanges(): Event<FileChangesEvent> { return fileChangeEvent.event; }
@@ -391,7 +395,7 @@ suite('WorkspaceContextService - Workspace', () => {
 
 suite('WorkspaceService - Initialization', () => {
 
-	let parentResource: string, workspaceConfigPath: string, testObject: WorkspaceService, globalSettingsFile: string;
+	let parentResource: string, workspaceConfigPath: URI, testObject: WorkspaceService, globalSettingsFile: string;
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
 	suiteSetup(() => {
@@ -519,7 +523,7 @@ suite('WorkspaceService - Initialization', () => {
 				testObject.onDidChangeWorkspaceFolders(target);
 				testObject.onDidChangeConfiguration(target);
 
-				return testObject.initialize({ id: workspaceConfigPath, configPath: workspaceConfigPath })
+				return testObject.initialize(getWorkspaceIdentifier(workspaceConfigPath))
 					.then(() => {
 						assert.equal(target.callCount, 3);
 						assert.deepEqual(target.args[0], [WorkbenchState.WORKSPACE]);
@@ -548,7 +552,7 @@ suite('WorkspaceService - Initialization', () => {
 				fs.writeFileSync(path.join(parentResource, '1', '.vscode', 'settings.json'), '{ "initialization.testSetting1": "workspaceValue1" }');
 				fs.writeFileSync(path.join(parentResource, '2', '.vscode', 'settings.json'), '{ "initialization.testSetting2": "workspaceValue2" }');
 
-				return testObject.initialize({ id: workspaceConfigPath, configPath: workspaceConfigPath })
+				return testObject.initialize(getWorkspaceIdentifier(workspaceConfigPath))
 					.then(() => {
 						assert.equal(target.callCount, 4);
 						assert.deepEqual((<IConfigurationChangeEvent>target.args[0][0]).affectedKeys, ['initialization.testSetting1', 'initialization.testSetting2']);
@@ -629,7 +633,7 @@ suite('WorkspaceService - Initialization', () => {
 				testObject.onDidChangeConfiguration(target);
 
 				fs.writeFileSync(path.join(parentResource, '1', '.vscode', 'settings.json'), '{ "initialization.testSetting1": "workspaceValue2" }');
-				return testObject.initialize({ id: workspaceConfigPath, configPath: workspaceConfigPath })
+				return testObject.initialize(getWorkspaceIdentifier(workspaceConfigPath))
 					.then(() => {
 						assert.equal(target.callCount, 4);
 						assert.deepEqual((<IConfigurationChangeEvent>target.args[0][0]).affectedKeys, ['initialization.testSetting1']);
@@ -960,7 +964,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 				instantiationService.stub(IConfigurationService, workspaceService);
 				instantiationService.stub(IEnvironmentService, environmentService);
 
-				return workspaceService.initialize({ id: configPath, configPath }).then(() => {
+				return workspaceService.initialize(getWorkspaceIdentifier(configPath)).then(() => {
 
 					const fileService = new FileService(<IWorkspaceContextService>workspaceService, TestEnvironmentService, new TestTextResourceConfigurationService(), workspaceService, new TestLifecycleService(), new TestStorageService(), new TestNotificationService(), { disableWatcher: true });
 					instantiationService.stub(IFileService, fileService);
@@ -1240,3 +1244,19 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 			});
 	});
 });
+
+function getWorkspaceId(configPath: URI): string {
+	let workspaceConfigPath = configPath.scheme === Schemas.file ? originalFSPath(configPath) : configPath.toString();
+	if (!isLinux) {
+		workspaceConfigPath = workspaceConfigPath.toLowerCase(); // sanitize for platform file system
+	}
+
+	return createHash('md5').update(workspaceConfigPath).digest('hex');
+}
+
+export function getWorkspaceIdentifier(configPath: URI): IWorkspaceIdentifier {
+	return {
+		configPath,
+		id: getWorkspaceId(configPath)
+	};
+}

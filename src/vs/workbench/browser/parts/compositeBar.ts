@@ -112,7 +112,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 			if (this.compositeTransfer.hasData(DraggedCompositeIdentifier.prototype)) {
 				EventHelper.stop(e, true);
 
-				const draggedCompositeId = this.compositeTransfer.getData(DraggedCompositeIdentifier.prototype)[0].id;
+				const draggedCompositeId = this.compositeTransfer.getData(DraggedCompositeIdentifier.prototype)![0].id;
 				this.compositeTransfer.clearData(DraggedCompositeIdentifier.prototype);
 
 				const targetItem = this.model.visibleItems[this.model.visibleItems.length - 1];
@@ -507,7 +507,7 @@ class CompositeBarModel {
 		return this.items.filter(item => item.visible && item.pinned);
 	}
 
-	private createCompositeBarItem(id: string, name: string, order: number, pinned: boolean, visible: boolean): ICompositeBarModelItem {
+	private createCompositeBarItem(id: string, name: string, order: number | undefined, pinned: boolean, visible: boolean): ICompositeBarModelItem {
 		const options = this.options;
 		return {
 			id, name, pinned, order, visible,
@@ -521,7 +521,7 @@ class CompositeBarModel {
 		};
 	}
 
-	add(id: string, name: string, order: number): boolean {
+	add(id: string, name: string, order: number | undefined): boolean {
 		const item = this.findItem(id);
 		if (item) {
 			let changed = false;

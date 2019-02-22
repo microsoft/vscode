@@ -194,6 +194,10 @@ export class PagedList<T> implements IDisposable {
 		this.list.layout(height, width);
 	}
 
+	toggleKeyboardNavigation(): void {
+		this.list.toggleKeyboardNavigation();
+	}
+
 	reveal(index: number, relativeTop?: number): void {
 		this.list.reveal(index, relativeTop);
 	}

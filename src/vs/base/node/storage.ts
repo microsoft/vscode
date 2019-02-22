@@ -9,7 +9,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { ThrottledDelayer, timeout } from 'vs/base/common/async';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { mapToString, setToString } from 'vs/base/common/map';
-import { basename } from 'path';
+import { basename } from 'vs/base/common/path';
 import { copy, renameIgnoreError, unlink } from 'vs/base/node/pfs';
 import { fill } from 'vs/base/common/arrays';
 
@@ -83,7 +83,7 @@ export class Storage extends Disposable implements IStorage {
 
 	private static readonly DEFAULT_FLUSH_DELAY = 100;
 
-	private _onDidChangeStorage: Emitter<string> = this._register(new Emitter<string>());
+	private readonly _onDidChangeStorage: Emitter<string> = this._register(new Emitter<string>());
 	get onDidChangeStorage(): Event<string> { return this._onDidChangeStorage.event; }
 
 	private state = StorageState.None;

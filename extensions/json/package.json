@@ -24,6 +24,7 @@
           ".jshintrc",
           ".jscsrc",
           ".eslintrc",
+          ".swcrc",
           ".webmanifest",
           ".js.map",
           ".css.map"

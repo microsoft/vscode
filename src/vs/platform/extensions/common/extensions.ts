@@ -158,6 +158,7 @@ export interface IExtensionManifest {
 	readonly repository?: { url: string; };
 	readonly bugs?: { url: string; };
 	readonly enableProposedApi?: boolean;
+	readonly api?: string;
 }
 
 export const enum ExtensionType {
@@ -225,4 +226,8 @@ export class ExtensionIdentifier {
 		}
 		return id._lower;
 	}
+}
+
+export function isLanguagePackExtension(manifest: IExtensionManifest): boolean {
+	return manifest.contributes && manifest.contributes.localizations ? manifest.contributes.localizations.length > 0 : false;
 }

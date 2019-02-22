@@ -5,7 +5,7 @@
 
 import { ChildProcess, fork, ForkOptions } from 'child_process';
 import { IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
-import { Delayer, always, createCancelablePromise } from 'vs/base/common/async';
+import { Delayer, createCancelablePromise } from 'vs/base/common/async';
 import { deepClone, assign } from 'vs/base/common/objects';
 import { Emitter, Event } from 'vs/base/common/event';
 import { createQueuedSender } from 'vs/base/node/processes';
@@ -132,7 +132,7 @@ export class Client implements IChannelClient, IDisposable {
 		const disposable = toDisposable(() => result.cancel());
 		this.activeRequests.add(disposable);
 
-		always(result, () => {
+		result.finally(() => {
 			cancellationTokenListener.dispose();
 			this.activeRequests.delete(disposable);
 

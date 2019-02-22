@@ -20,6 +20,7 @@ const filter = require('gulp-filter');
 const json = require('gulp-json-editor');
 const _ = require('underscore');
 const util = require('./lib/util');
+const task = require('./lib/task');
 const ext = require('./lib/extensions');
 const buildfile = require('../src/buildfile');
 const common = require('./lib/optimize');
@@ -63,15 +64,16 @@ const vscodeResources = [
 	'out-build/paths.js',
 	'out-build/vs/**/*.{svg,png,cur,html}',
 	'out-build/vs/base/common/performance.js',
+	'out-build/vs/base/node/languagePacks.js',
 	'out-build/vs/base/node/{stdForkStart.js,terminateProcess.sh,cpuUsage.sh}',
 	'out-build/vs/base/browser/ui/octiconLabel/octicons/**',
 	'out-build/vs/workbench/browser/media/*-theme.css',
-	'out-build/vs/workbench/parts/debug/**/*.json',
-	'out-build/vs/workbench/parts/execution/**/*.scpt',
-	'out-build/vs/workbench/parts/webview/electron-browser/webview-pre.js',
+	'out-build/vs/workbench/contrib/debug/**/*.json',
+	'out-build/vs/workbench/contrib/execution/**/*.scpt',
+	'out-build/vs/workbench/contrib/webview/electron-browser/webview-pre.js',
 	'out-build/vs/**/markdown.css',
-	'out-build/vs/workbench/parts/tasks/**/*.json',
-	'out-build/vs/workbench/parts/welcome/walkThrough/**/*.md',
+	'out-build/vs/workbench/contrib/tasks/**/*.json',
+	'out-build/vs/workbench/contrib/welcome/walkThrough/**/*.md',
 	'out-build/vs/workbench/services/files/**/*.exe',
 	'out-build/vs/workbench/services/files/**/*.md',
 	'out-build/vs/code/electron-browser/workbench/**',
@@ -87,26 +89,24 @@ const BUNDLED_FILE_HEADER = [
 	' *--------------------------------------------------------*/'
 ].join('\n');
 
-const optimizeVSCodeTask = util.task.series(
-	util.task.parallel(
+const optimizeVSCodeTask = task.define('optimize-vscode', task.series(
+	task.parallel(
 		util.rimraf('out-vscode'),
 		compileBuildTask
 	),
 	common.optimizeTask({
 		src: 'out-build',
 		entryPoints: vscodeEntryPoints,
-		otherSources: [],
 		resources: vscodeResources,
 		loaderConfig: common.loaderConfig(nodeModules),
 		header: BUNDLED_FILE_HEADER,
 		out: 'out-vscode',
 		bundleInfo: undefined
 	})
-);
-optimizeVSCodeTask.displayName = 'optimize-vscode';
+));
 
 
-const optimizeIndexJSTask = util.task.series(
+const optimizeIndexJSTask = task.define('optimize-index-js', task.series(
 	optimizeVSCodeTask,
 	() => {
 		const fullpath = path.join(process.cwd(), 'out-vscode/bootstrap-window.js');
@@ -114,18 +114,16 @@ const optimizeIndexJSTask = util.task.series(
 		const newContents = contents.replace('[/*BUILD->INSERT_NODE_MODULES*/]', JSON.stringify(nodeModules));
 		fs.writeFileSync(fullpath, newContents);
 	}
-);
-optimizeIndexJSTask.displayName = 'optimize-index-js';
+));
 
 const sourceMappingURLBase = `https://ticino.blob.core.windows.net/sourcemaps/${commit}`;
-const minifyVSCodeTask = util.task.series(
-	util.task.parallel(
+const minifyVSCodeTask = task.define('minify-vscode', task.series(
+	task.parallel(
 		util.rimraf('out-vscode-min'),
 		optimizeIndexJSTask
 	),
 	common.minifyTask('out-vscode', `${sourceMappingURLBase}/core`)
-);
-minifyVSCodeTask.displayName = 'minify-vscode';
+));
 
 // Package
 
@@ -214,12 +212,11 @@ function getElectron(arch) {
 	};
 }
 
-gulp.task('electron', util.task.series(util.rimraf('.build/electron'), getElectron(process.arch)));
-gulp.task('electron-ia32', util.task.series(util.rimraf('.build/electron'), getElectron('ia32')));
-gulp.task('electron-x64', util.task.series(util.rimraf('.build/electron'), getElectron('x64')));
-gulp.task('electron-arm', util.task.series(util.rimraf('.build/electron'), getElectron('arm')));
-gulp.task('electron-arm64', util.task.series(util.rimraf('.build/electron'), getElectron('arm64')));
-
+gulp.task(task.define('electron', task.series(util.rimraf('.build/electron'), getElectron(process.arch))));
+gulp.task(task.define('electron-ia32', task.series(util.rimraf('.build/electron'), getElectron('ia32'))));
+gulp.task(task.define('electron-x64', task.series(util.rimraf('.build/electron'), getElectron('x64'))));
+gulp.task(task.define('electron-arm', task.series(util.rimraf('.build/electron'), getElectron('armv7l'))));
+gulp.task(task.define('electron-arm64', task.series(util.rimraf('.build/electron'), getElectron('arm64'))));
 
 /**
  * Compute checksums for some files.
@@ -311,7 +308,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
 			.pipe(json(productJsonUpdate));
 
-		const license = gulp.src(['LICENSES.chromium.html', 'LICENSE.txt', 'ThirdPartyNotices.txt', 'licenses/**'], { base: '.' });
+		const license = gulp.src(['LICENSES.chromium.html', 'LICENSE.txt', 'ThirdPartyNotices.txt', 'licenses/**'], { base: '.', allowEmpty: true });
 
 		const watermark = gulp.src(['resources/letterpress.svg', 'resources/letterpress-dark.svg', 'resources/letterpress-hc.svg'], { base: '.' });
 
@@ -404,7 +401,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		// result = es.merge(result, gulp.src('resources/completions/**', { base: '.' }));
 
 		if (platform === 'win32') {
-			result = es.merge(result, gulp.src('resources/win32/bin/code.js', { base: 'resources/win32' }));
+			result = es.merge(result, gulp.src('resources/win32/bin/code.js', { base: 'resources/win32', allowEmpty: true }));
 
 			result = es.merge(result, gulp.src('resources/win32/bin/code.cmd', { base: 'resources/win32' })
 				.pipe(replace('@@NAME@@', product.nameShort))
@@ -458,15 +455,14 @@ BUILD_TARGETS.forEach(buildTarget => {
 		const sourceFolderName = `out-vscode${dashed(minified)}`;
 		const destinationFolderName = `VSCode${dashed(platform)}${dashed(arch)}`;
 
-		const vscodeTask = util.task.series(
-			util.task.parallel(
+		const vscodeTask = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
+			task.parallel(
 				minified ? minifyVSCodeTask : optimizeVSCodeTask,
 				util.rimraf(path.join(buildRoot, destinationFolderName))
 			),
 			packageTask(platform, arch, sourceFolderName, destinationFolderName, opts)
-		);
-		vscodeTask.displayName = `vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}`;
-		gulp.task(vscodeTask.displayName, vscodeTask);
+		));
+		gulp.task(vscodeTask);
 	});
 });
 
@@ -491,8 +487,9 @@ const apiHostname = process.env.TRANSIFEX_API_URL;
 const apiName = process.env.TRANSIFEX_API_NAME;
 const apiToken = process.env.TRANSIFEX_API_TOKEN;
 
-gulp.task('vscode-translations-push',
-	util.task.series(
+gulp.task(task.define(
+	'vscode-translations-push',
+	task.series(
 		optimizeVSCodeTask,
 		function () {
 			const pathToMetadata = './out-vscode/nls.metadata.json';
@@ -507,10 +504,11 @@ gulp.task('vscode-translations-push',
 			).pipe(i18n.pushXlfFiles(apiHostname, apiName, apiToken));
 		}
 	)
-);
+));
 
-gulp.task('vscode-translations-export',
-	util.task.series(
+gulp.task(task.define(
+	'vscode-translations-export',
+	task.series(
 		optimizeVSCodeTask,
 		function () {
 			const pathToMetadata = './out-vscode/nls.metadata.json';
@@ -524,7 +522,7 @@ gulp.task('vscode-translations-export',
 			).pipe(vfs.dest('../vscode-translations-export'));
 		}
 	)
-);
+));
 
 gulp.task('vscode-translations-pull', function () {
 	return es.merge([...i18n.defaultLanguages, ...i18n.extraLanguages].map(language => {
@@ -575,7 +573,7 @@ gulp.task('upload-vscode-sourcemaps', () => {
 });
 
 // This task is only run for the MacOS build
-const generateVSCodeConfigurationTask = () => {
+const generateVSCodeConfigurationTask = task.define('generate-vscode-configuration', () => {
 	return new Promise((resolve, reject) => {
 		const buildDir = process.env['AGENT_BUILDDIRECTORY'];
 		if (!buildDir) {
@@ -610,12 +608,12 @@ const generateVSCodeConfigurationTask = () => {
 			reject(err);
 		});
 	});
-};
-generateVSCodeConfigurationTask.displayName = 'generate-vscode-configuration';
+});
 
 const allConfigDetailsPath = path.join(os.tmpdir(), 'configuration.json');
-gulp.task('upload-vscode-configuration',
-	util.task.series(
+gulp.task(task.define(
+	'upload-vscode-configuration',
+	task.series(
 		generateVSCodeConfigurationTask,
 		() => {
 			if (!shouldSetupSettingsSearch()) {
@@ -642,7 +640,7 @@ gulp.task('upload-vscode-configuration',
 				}));
 		}
 	)
-);
+));
 
 function shouldSetupSettingsSearch() {
 	const branch = process.env.BUILD_SOURCEBRANCH;

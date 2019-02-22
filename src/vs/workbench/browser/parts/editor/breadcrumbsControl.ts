@@ -41,7 +41,7 @@ import { BreadcrumbElement, EditorBreadcrumbsModel, FileElement } from 'vs/workb
 import { BreadcrumbsPicker, createBreadcrumbsPicker } from 'vs/workbench/browser/parts/editor/breadcrumbsPicker';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor';
 import { ACTIVE_GROUP, ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
@@ -196,7 +196,7 @@ export class BreadcrumbsControl {
 		this.domNode.remove();
 	}
 
-	layout(dim: dom.Dimension): void {
+	layout(dim: dom.Dimension | undefined): void {
 		this._widget.layout(dim);
 	}
 
@@ -260,9 +260,12 @@ export class BreadcrumbsControl {
 		return true;
 	}
 
-	private _getActiveCodeEditor(): ICodeEditor {
+	private _getActiveCodeEditor(): ICodeEditor | undefined {
+		if (!this._editorGroup.activeControl) {
+			return undefined;
+		}
 		let control = this._editorGroup.activeControl.getControl();
-		let editor: ICodeEditor;
+		let editor: ICodeEditor | undefined;
 		if (isCodeEditor(control)) {
 			editor = control as ICodeEditor;
 		} else if (isDiffEditor(control)) {
@@ -313,7 +316,7 @@ export class BreadcrumbsControl {
 		let picker: BreadcrumbsPicker;
 		let editor = this._getActiveCodeEditor();
 		let editorDecorations: string[] = [];
-		let editorViewState: ICodeEditorViewState;
+		let editorViewState: ICodeEditorViewState | undefined;
 
 		this._contextViewService.showContextView({
 			render: (parent: HTMLElement) => {
@@ -336,7 +339,7 @@ export class BreadcrumbsControl {
 						return;
 					}
 					if (!editorViewState) {
-						editorViewState = editor.saveViewState();
+						editorViewState = editor.saveViewState() || undefined;
 					}
 					const { symbol } = data.target;
 					editor.revealRangeInCenter(symbol.range, ScrollType.Smooth);
@@ -381,7 +384,7 @@ export class BreadcrumbsControl {
 				} else {
 					pickerArrowOffset = (data.left + (data.width * 0.3)) - x;
 				}
-				picker.setInput(element, maxHeight, pickerWidth, pickerArrowSize, Math.max(0, pickerArrowOffset));
+				picker.show(element, maxHeight, pickerWidth, pickerArrowSize, Math.max(0, pickerArrowOffset));
 				return { x, y };
 			},
 			onHide: (data) => {
@@ -449,7 +452,7 @@ export class BreadcrumbsControl {
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: 'breadcrumbs.toggle',
-		title: { value: localize('cmd.toggle', "Toggle Breadcrumbs"), original: 'Toggle Breadcrumbs' },
+		title: { value: localize('cmd.toggle', "Toggle Breadcrumbs"), original: 'View: Toggle Breadcrumbs' },
 		category: localize('cmd.category', "View")
 	}
 });
@@ -538,7 +541,11 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler(accessor) {
 		const groups = accessor.get(IEditorGroupsService);
 		const breadcrumbs = accessor.get(IBreadcrumbsService);
-		breadcrumbs.getWidget(groups.activeGroup.id).focusNext();
+		const widget = breadcrumbs.getWidget(groups.activeGroup.id);
+		if (!widget) {
+			return;
+		}
+		widget.focusNext();
 	}
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -554,7 +561,11 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler(accessor) {
 		const groups = accessor.get(IEditorGroupsService);
 		const breadcrumbs = accessor.get(IBreadcrumbsService);
-		breadcrumbs.getWidget(groups.activeGroup.id).focusPrev();
+		const widget = breadcrumbs.getWidget(groups.activeGroup.id);
+		if (!widget) {
+			return;
+		}
+		widget.focusPrev();
 	}
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -567,6 +578,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const groups = accessor.get(IEditorGroupsService);
 		const breadcrumbs = accessor.get(IBreadcrumbsService);
 		const widget = breadcrumbs.getWidget(groups.activeGroup.id);
+		if (!widget) {
+			return;
+		}
 		widget.setSelection(widget.getFocused(), BreadcrumbsControl.Payload_Pick);
 	}
 });
@@ -580,6 +594,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const groups = accessor.get(IEditorGroupsService);
 		const breadcrumbs = accessor.get(IBreadcrumbsService);
 		const widget = breadcrumbs.getWidget(groups.activeGroup.id);
+		if (!widget) {
+			return;
+		}
 		widget.setSelection(widget.getFocused(), BreadcrumbsControl.Payload_Reveal);
 	}
 });
@@ -591,8 +608,12 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler(accessor) {
 		const groups = accessor.get(IEditorGroupsService);
 		const breadcrumbs = accessor.get(IBreadcrumbsService);
-		breadcrumbs.getWidget(groups.activeGroup.id).setFocused(undefined);
-		breadcrumbs.getWidget(groups.activeGroup.id).setSelection(undefined);
+		const widget = breadcrumbs.getWidget(groups.activeGroup.id);
+		if (!widget) {
+			return;
+		}
+		widget.setFocused(undefined);
+		widget.setSelection(undefined);
 		groups.activeGroup.activeControl.focus();
 	}
 });

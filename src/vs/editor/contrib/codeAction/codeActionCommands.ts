@@ -253,7 +253,27 @@ export class CodeActionCommand extends EditorCommand {
 	constructor() {
 		super({
 			id: CodeActionCommand.Id,
-			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider)
+			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
+			description: {
+				description: `Trigger a code action`,
+				args: [{
+					name: 'args',
+					schema: {
+						'type': 'object',
+						'required': ['kind'],
+						'properties': {
+							'kind': {
+								'type': 'string'
+							},
+							'apply': {
+								'type': 'string',
+								'default': 'ifSingle',
+								'enum': ['first', 'ifSingle', 'never']
+							}
+						}
+					}
+				}]
+			}
 		});
 	}
 
@@ -297,6 +317,25 @@ export class RefactorAction extends EditorAction {
 				when: ContextKeyExpr.and(
 					EditorContextKeys.writable,
 					contextKeyForSupportedActions(CodeActionKind.Refactor)),
+			},
+			description: {
+				description: 'Refactor...',
+				args: [{
+					name: 'args',
+					schema: {
+						'type': 'object',
+						'properties': {
+							'kind': {
+								'type': 'string'
+							},
+							'apply': {
+								'type': 'string',
+								'default': 'never',
+								'enum': ['first', 'ifSingle', 'never']
+							}
+						}
+					}
+				}]
 			}
 		});
 	}
@@ -333,6 +372,25 @@ export class SourceAction extends EditorAction {
 				when: ContextKeyExpr.and(
 					EditorContextKeys.writable,
 					contextKeyForSupportedActions(CodeActionKind.Source)),
+			},
+			description: {
+				description: 'Source Action...',
+				args: [{
+					name: 'args',
+					schema: {
+						'type': 'object',
+						'properties': {
+							'kind': {
+								'type': 'string'
+							},
+							'apply': {
+								'type': 'string',
+								'default': 'never',
+								'enum': ['first', 'ifSingle', 'never']
+							}
+						}
+					}
+				}]
 			}
 		});
 	}
@@ -377,6 +435,29 @@ export class OrganizeImportsAction extends EditorAction {
 		return showCodeActionsForEditorSelection(editor,
 			nls.localize('editor.action.organize.noneMessage', "No organize imports action available"),
 			{ kind: CodeActionKind.SourceOrganizeImports, includeSourceActions: true },
+			CodeActionAutoApply.IfSingle);
+	}
+}
+
+export class FixAllAction extends EditorAction {
+
+	static readonly Id = 'editor.action.fixAll';
+
+	constructor() {
+		super({
+			id: FixAllAction.Id,
+			label: nls.localize('fixAll.label', "Fix All"),
+			alias: 'Fix All',
+			precondition: ContextKeyExpr.and(
+				EditorContextKeys.writable,
+				contextKeyForSupportedActions(CodeActionKind.SourceFixAll))
+		});
+	}
+
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
+		return showCodeActionsForEditorSelection(editor,
+			nls.localize('fixAll.noneMessage', "No fix all action available"),
+			{ kind: CodeActionKind.SourceFixAll, includeSourceActions: true },
 			CodeActionAutoApply.IfSingle);
 	}
 }

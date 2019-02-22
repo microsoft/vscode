@@ -11,6 +11,7 @@ import { ITheme } from 'vs/platform/theme/common/themeService';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import Severity from 'vs/base/common/severity';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 
 const $ = dom.$;
 
@@ -31,6 +32,12 @@ export class QuickInputBox {
 	onKeyDown = (handler: (event: StandardKeyboardEvent) => void): IDisposable => {
 		return dom.addDisposableListener(this.inputBox.inputElement, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			handler(new StandardKeyboardEvent(e));
+		});
+	}
+
+	onMouseDown = (handler: (event: StandardMouseEvent) => void): IDisposable => {
+		return dom.addDisposableListener(this.inputBox.inputElement, dom.EventType.MOUSE_DOWN, (e: MouseEvent) => {
+			handler(new StandardMouseEvent(e));
 		});
 	}
 

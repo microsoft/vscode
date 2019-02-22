@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
-import { normalize } from 'vs/base/common/paths';
 import { isWindows } from 'vs/base/common/platform';
 
 
@@ -141,7 +140,6 @@ suite('URI', () => {
 		assert.equal(value.scheme, 'http');
 		assert.equal(value.authority, 'api');
 		assert.equal(value.path, '/files/test.me');
-		assert.equal(value.fsPath, normalize('/files/test.me', true));
 		assert.equal(value.query, 't=1234');
 		assert.equal(value.fragment, '');
 
@@ -151,7 +149,7 @@ suite('URI', () => {
 		assert.equal(value.path, '/c:/test/me');
 		assert.equal(value.fragment, '');
 		assert.equal(value.query, '');
-		assert.equal(value.fsPath, normalize('c:/test/me', true));
+		assert.equal(value.fsPath, isWindows ? 'c:\\test\\me' : 'c:/test/me');
 
 		value = URI.parse('file://shares/files/c%23/p.cs');
 		assert.equal(value.scheme, 'file');
@@ -159,7 +157,7 @@ suite('URI', () => {
 		assert.equal(value.path, '/files/c#/p.cs');
 		assert.equal(value.fragment, '');
 		assert.equal(value.query, '');
-		assert.equal(value.fsPath, normalize('//shares/files/c#/p.cs', true));
+		assert.equal(value.fsPath, isWindows ? '\\\\shares\\files\\c#\\p.cs' : '//shares/files/c#/p.cs');
 
 		value = URI.parse('file:///c:/Source/Z%C3%BCrich%20or%20Zurich%20(%CB%88zj%CA%8A%C9%99r%C9%AAk,/Code/resources/app/plugins/c%23/plugin.json');
 		assert.equal(value.scheme, 'file');
@@ -360,7 +358,6 @@ suite('URI', () => {
 	test('correctFileUriToFilePath2', () => {
 
 		const test = (input: string, expected: string) => {
-			expected = normalize(expected, true);
 			const value = URI.parse(input);
 			assert.equal(value.fsPath, expected, 'Result for ' + input);
 			const value2 = URI.file(value.fsPath);
@@ -368,10 +365,10 @@ suite('URI', () => {
 			assert.equal(value.toString(), value2.toString());
 		};
 
-		test('file:///c:/alex.txt', 'c:\\alex.txt');
-		test('file:///c:/Source/Z%C3%BCrich%20or%20Zurich%20(%CB%88zj%CA%8A%C9%99r%C9%AAk,/Code/resources/app/plugins', 'c:\\Source\\Zürich or Zurich (ˈzjʊərɪk,\\Code\\resources\\app\\plugins');
-		test('file://monacotools/folder/isi.txt', '\\\\monacotools\\folder\\isi.txt');
-		test('file://monacotools1/certificates/SSL/', '\\\\monacotools1\\certificates\\SSL\\');
+		test('file:///c:/alex.txt', isWindows ? 'c:\\alex.txt' : 'c:/alex.txt');
+		test('file:///c:/Source/Z%C3%BCrich%20or%20Zurich%20(%CB%88zj%CA%8A%C9%99r%C9%AAk,/Code/resources/app/plugins', isWindows ? 'c:\\Source\\Zürich or Zurich (ˈzjʊərɪk,\\Code\\resources\\app\\plugins' : 'c:/Source/Zürich or Zurich (ˈzjʊərɪk,/Code/resources/app/plugins');
+		test('file://monacotools/folder/isi.txt', isWindows ? '\\\\monacotools\\folder\\isi.txt' : '//monacotools/folder/isi.txt');
+		test('file://monacotools1/certificates/SSL/', isWindows ? '\\\\monacotools1\\certificates\\SSL\\' : '//monacotools1/certificates/SSL/');
 	});
 
 	test('URI - http, query & toString', function () {

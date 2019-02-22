@@ -154,10 +154,10 @@ suite('Workbench base editor', () => {
 
 		let inst = new TestInstantiationService();
 
-		const editor = EditorRegistry.getEditor(inst.createInstance(MyResourceInput, 'fake', '', URI.file('/fake'))).instantiate(inst);
+		const editor = EditorRegistry.getEditor(inst.createInstance(MyResourceInput, 'fake', '', URI.file('/fake')))!.instantiate(inst);
 		assert.strictEqual(editor.getId(), 'myEditor');
 
-		const otherEditor = EditorRegistry.getEditor(inst.createInstance(ResourceEditorInput, 'fake', '', URI.file('/fake'))).instantiate(inst);
+		const otherEditor = EditorRegistry.getEditor(inst.createInstance(ResourceEditorInput, 'fake', '', URI.file('/fake')))!.instantiate(inst);
 		assert.strictEqual(otherEditor.getId(), 'myOtherEditor');
 
 		(<any>EditorRegistry).setEditors(oldEditors);
@@ -173,7 +173,7 @@ suite('Workbench base editor', () => {
 
 		let inst = new TestInstantiationService();
 
-		const editor = EditorRegistry.getEditor(inst.createInstance(MyResourceInput, 'fake', '', URI.file('/fake'))).instantiate(inst);
+		const editor = EditorRegistry.getEditor(inst.createInstance(MyResourceInput, 'fake', '', URI.file('/fake')))!.instantiate(inst);
 		assert.strictEqual('myOtherEditor', editor.getId());
 
 		(<any>EditorRegistry).setEditors(oldEditors);
@@ -211,12 +211,12 @@ suite('Workbench base editor', () => {
 		memento.saveEditorState(testGroup0, URI.file('/A'), { line: 3 });
 		res = memento.loadEditorState(testGroup0, URI.file('/A'));
 		assert.ok(res);
-		assert.equal(res.line, 3);
+		assert.equal(res!.line, 3);
 
 		memento.saveEditorState(testGroup1, URI.file('/A'), { line: 5 });
 		res = memento.loadEditorState(testGroup1, URI.file('/A'));
 		assert.ok(res);
-		assert.equal(res.line, 5);
+		assert.equal(res!.line, 5);
 
 		// Ensure capped at 3 elements
 		memento.saveEditorState(testGroup0, URI.file('/B'), { line: 1 });
@@ -289,7 +289,7 @@ suite('Workbench base editor', () => {
 		memento.saveEditorState(testGroup0, testInputA, { line: 3 });
 		res = memento.loadEditorState(testGroup0, testInputA);
 		assert.ok(res);
-		assert.equal(res.line, 3);
+		assert.equal(res!.line, 3);
 
 		// State removed when input gets disposed
 		testInputA.dispose();

@@ -150,7 +150,15 @@ function asListOptions<T, TFilterData, TRef>(modelProvider: () => ITreeModel<T, 
 				return options.keyboardNavigationLabelProvider!.getKeyboardNavigationLabel(node.element);
 			}
 		},
-		enableKeyboardNavigation: options.simpleKeyboardNavigation
+		enableKeyboardNavigation: options.simpleKeyboardNavigation,
+		ariaSetProvider: {
+			getSetSize(node) {
+				return node.parent!.visibleChildrenCount;
+			},
+			getPosInSet(node) {
+				return node.visibleChildIndex + 1;
+			}
+		}
 	};
 }
 
@@ -188,7 +196,7 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 	readonly templateId: string;
 	private renderedElements = new Map<T, ITreeNode<T, TFilterData>>();
 	private renderedNodes = new Map<ITreeNode<T, TFilterData>, ITreeListTemplateData<TTemplateData>>();
-	private indent: number;
+	private indent: number = TreeRenderer.DefaultIndent;
 	private disposables: IDisposable[] = [];
 
 	constructor(
@@ -207,7 +215,9 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 	}
 
 	updateOptions(options: ITreeRendererOptions = {}): void {
-		this.indent = typeof options.indent === 'number' ? clamp(options.indent, 0, 20) : TreeRenderer.DefaultIndent;
+		if (typeof options.indent !== 'undefined') {
+			this.indent = clamp(options.indent, 0, 40);
+		}
 
 		this.renderedNodes.forEach((templateData, node) => {
 			templateData.twistie.style.marginLeft = `${node.depth * this.indent}px`;
@@ -229,8 +239,6 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 
 		const indent = TreeRenderer.DefaultIndent + (node.depth - 1) * this.indent;
 		templateData.twistie.style.marginLeft = `${indent}px`;
-		templateData.container.setAttribute('aria-posinset', String(node.visibleChildIndex + 1));
-		templateData.container.setAttribute('aria-setsize', String(node.parent!.visibleChildrenCount));
 		this.update(node, templateData);
 
 		this.renderer.renderElement(node, index, templateData.templateData);
@@ -397,7 +405,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 	private clearDomNode: HTMLElement;
 	private keyboardNavigationEventFilter?: IKeyboardNavigationEventFilter;
 
-	private automaticKeyboardNavigation: boolean;
+	private automaticKeyboardNavigation = true;
 	private triggered = false;
 
 	private enabledDisposables: IDisposable[] = [];
@@ -449,7 +457,10 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 			this.filterOnTypeDomNode.checked = this._filterOnType;
 		}
 
-		this.automaticKeyboardNavigation = typeof options.automaticKeyboardNavigation === 'undefined' ? true : options.automaticKeyboardNavigation;
+		if (typeof options.automaticKeyboardNavigation !== 'undefined') {
+			this.automaticKeyboardNavigation = options.automaticKeyboardNavigation;
+		}
+
 		this.tree.refilter();
 		this.render();
 
@@ -474,10 +485,10 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		const isPrintableCharEvent = this.keyboardNavigationLabelProvider.mightProducePrintableCharacter ? (e: IKeyboardEvent) => this.keyboardNavigationLabelProvider.mightProducePrintableCharacter!(e) : (e: IKeyboardEvent) => mightProducePrintableCharacter(e);
 		const onKeyDown = Event.chain(domEvent(this.view.getHTMLElement(), 'keydown'))
 			.filter(e => !isInputElement(e.target as HTMLElement) || e.target === this.filterOnTypeDomNode)
+			.map(e => new StandardKeyboardEvent(e))
 			.filter(this.keyboardNavigationEventFilter || (() => true))
 			.filter(() => this.automaticKeyboardNavigation || this.triggered)
-			.map(e => new StandardKeyboardEvent(e))
-			.filter(e => isPrintableCharEvent(e) || ((this._pattern.length > 0 || this.triggered) && ((e.keyCode === KeyCode.Escape || e.keyCode === KeyCode.Backspace) && !e.altKey && !e.ctrlKey && !e.metaKey) || (e.keyCode === KeyCode.Backspace && (isMacintosh ? e.altKey : e.ctrlKey))))
+			.filter(e => isPrintableCharEvent(e) || ((this._pattern.length > 0 || this.triggered) && ((e.keyCode === KeyCode.Escape || e.keyCode === KeyCode.Backspace) && !e.altKey && !e.ctrlKey && !e.metaKey) || (e.keyCode === KeyCode.Backspace && (isMacintosh ? e.altKey : e.ctrlKey) && !e.shiftKey)))
 			.forEach(e => { e.stopPropagation(); e.preventDefault(); })
 			.event;
 
@@ -696,7 +707,7 @@ function asTreeContextMenuEvent<T>(event: IListContextMenuEvent<ITreeNode<T, any
 }
 
 export interface IKeyboardNavigationEventFilter {
-	(e: KeyboardEvent): boolean;
+	(e: StandardKeyboardEvent): boolean;
 }
 
 export interface IAbstractTreeOptionsUpdate extends ITreeRendererOptions {
@@ -712,7 +723,7 @@ export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTr
 	readonly dnd?: ITreeDragAndDrop<T>;
 	readonly autoExpandSingleChildren?: boolean;
 	readonly keyboardNavigationEventFilter?: IKeyboardNavigationEventFilter;
-	readonly expandOnlyOnTwistieClick?: boolean;
+	readonly expandOnlyOnTwistieClick?: boolean | ((e: T) => boolean);
 }
 
 function dfs<T, TFilterData>(node: ITreeNode<T, TFilterData>, fn: (node: ITreeNode<T, TFilterData>) => void): void {
@@ -805,6 +816,10 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 	}
 
 	protected onPointer(e: IListMouseEvent<ITreeNode<T, TFilterData>>): void {
+		if (isInputElement(e.browserEvent.target as HTMLElement)) {
+			return;
+		}
+
 		const node = e.element;
 
 		if (!node) {
@@ -815,13 +830,21 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 			return super.onPointer(e);
 		}
 
-		if (!this.tree.openOnSingleClick && e.browserEvent.detail !== 2) {
+		const onTwistie = hasClass(e.browserEvent.target as HTMLElement, 'monaco-tl-twistie');
+
+		if (!this.tree.openOnSingleClick && e.browserEvent.detail !== 2 && !onTwistie) {
 			return super.onPointer(e);
 		}
 
-		const onTwistie = hasClass(e.browserEvent.target as HTMLElement, 'monaco-tl-twistie');
+		let expandOnlyOnTwistieClick = false;
 
-		if (this.tree.expandOnlyOnTwistieClick && !onTwistie) {
+		if (typeof this.tree.expandOnlyOnTwistieClick === 'function') {
+			expandOnlyOnTwistieClick = this.tree.expandOnlyOnTwistieClick(node.element);
+		} else {
+			expandOnlyOnTwistieClick = !!this.tree.expandOnlyOnTwistieClick;
+		}
+
+		if (expandOnlyOnTwistieClick && !onTwistie) {
 			return super.onPointer(e);
 		}
 
@@ -830,7 +853,7 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 		const recursive = e.browserEvent.altKey;
 		model.setCollapsed(location, undefined, recursive);
 
-		if (this.tree.expandOnlyOnTwistieClick && onTwistie) {
+		if (expandOnlyOnTwistieClick && onTwistie) {
 			return;
 		}
 
@@ -948,7 +971,10 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 	// Options TODO@joao expose options only, not Optional<>
 	get openOnSingleClick(): boolean { return typeof this._options.openOnSingleClick === 'undefined' ? true : this._options.openOnSingleClick; }
-	get expandOnlyOnTwistieClick(): boolean { return typeof this._options.expandOnlyOnTwistieClick === 'undefined' ? false : this._options.expandOnlyOnTwistieClick; }
+	get expandOnlyOnTwistieClick(): boolean | ((e: T) => boolean) { return typeof this._options.expandOnlyOnTwistieClick === 'undefined' ? false : this._options.expandOnlyOnTwistieClick; }
+
+	private _onDidUpdateOptions = new Emitter<IAbstractTreeOptions<T, TFilterData>>();
+	readonly onDidUpdateOptions: Event<IAbstractTreeOptions<T, TFilterData>> = this._onDidUpdateOptions.event;
 
 	get onDidDispose(): Event<void> { return this.view.onDidDispose; }
 
@@ -1008,11 +1034,16 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 			renderer.updateOptions(optionsUpdate);
 		}
 
-		this.view.updateOptions({ enableKeyboardNavigation: this._options.simpleKeyboardNavigation });
+		this.view.updateOptions({
+			enableKeyboardNavigation: this._options.simpleKeyboardNavigation,
+			automaticKeyboardNavigation: this._options.automaticKeyboardNavigation
+		});
 
 		if (this.typeFilterController) {
 			this.typeFilterController.updateOptions(this._options);
 		}
+
+		this._onDidUpdateOptions.fire(this._options);
 	}
 
 	get options(): IAbstractTreeOptions<T, TFilterData> {
@@ -1120,11 +1151,11 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	}
 
 	toggleKeyboardNavigation(): void {
-		if (!this.typeFilterController) {
-			return;
-		}
+		this.view.toggleKeyboardNavigation();
 
-		this.typeFilterController.toggle();
+		if (this.typeFilterController) {
+			this.typeFilterController.toggle();
+		}
 	}
 
 	refilter(): void {
@@ -1210,10 +1241,6 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	}
 
 	// List
-
-	get visibleNodeCount(): number {
-		return this.view.length;
-	}
 
 	private onLeftArrow(e: StandardKeyboardEvent): void {
 		e.preventDefault();

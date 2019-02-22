@@ -33,7 +33,7 @@ export class DataSource implements IDataSource {
 
 	hasChildren(tree: ITree, element: any): boolean {
 		const model = this.modelProvider.getModel();
-		return model && model === element && model.entries.length > 0;
+		return !!(model && model === element && model.entries.length > 0);
 	}
 
 	getChildren(tree: ITree, element: any): Promise<any[]> {

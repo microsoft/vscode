@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import * as arrays from 'vs/base/common/arrays';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -14,7 +14,7 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { compareItemsByScore, IItemAccessor, prepareQuery, ScorerCache } from 'vs/base/parts/quickopen/common/quickOpenScorer';
-import { ICachedSearchStats, IFileIndexProviderStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, ISearchCompleteStats } from 'vs/platform/search/common/search';
+import { ICachedSearchStats, IFileIndexProviderStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, ISearchCompleteStats } from 'vs/workbench/services/search/common/search';
 import { IDirectoryEntry, IDirectoryTree, IInternalFileMatch } from 'vs/workbench/services/search/node/fileSearchManager';
 import { QueryGlobTester, resolvePatternsForProvider } from 'vs/workbench/services/search/node/search';
 import * as vscode from 'vscode';

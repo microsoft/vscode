@@ -39,7 +39,7 @@ export class MainThreadStorage implements MainThreadStorageShape {
 		this._storageListener.dispose();
 	}
 
-	$getValue<T>(shared: boolean, key: string): Promise<T> {
+	$getValue<T>(shared: boolean, key: string): Promise<T | undefined> {
 		if (shared) {
 			this._sharedStorageKeysToWatch.set(key, true);
 		}
@@ -50,7 +50,7 @@ export class MainThreadStorage implements MainThreadStorageShape {
 		}
 	}
 
-	private _getValue<T>(shared: boolean, key: string): T {
+	private _getValue<T>(shared: boolean, key: string): T | undefined {
 		let jsonValue = this._storageService.get(key, shared ? StorageScope.GLOBAL : StorageScope.WORKSPACE);
 		if (!jsonValue) {
 			return undefined;
@@ -66,6 +66,6 @@ export class MainThreadStorage implements MainThreadStorageShape {
 		} catch (err) {
 			return Promise.reject(err);
 		}
-		return undefined;
+		return Promise.resolve(undefined);
 	}
 }

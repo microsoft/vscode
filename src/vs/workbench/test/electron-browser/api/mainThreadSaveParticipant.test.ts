@@ -43,31 +43,31 @@ suite('MainThreadSaveParticipant', function () {
 		await model.load();
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration('files', { 'insertFinalNewline': true });
-		const participant = new FinalNewLineParticipant(configService, undefined);
+		const participant = new FinalNewLineParticipant(configService, undefined!);
 
 		// No new line for empty lines
 		let lineContent = '';
 		model.textEditorModel.setValue(lineContent);
 		await participant.participate(model, { reason: SaveReason.EXPLICIT });
-		assert.equal(snapshotToString(model.createSnapshot()), lineContent);
+		assert.equal(snapshotToString(model.createSnapshot()!), lineContent);
 
 		// No new line if last line already empty
 		lineContent = `Hello New Line${model.textEditorModel.getEOL()}`;
 		model.textEditorModel.setValue(lineContent);
 		await participant.participate(model, { reason: SaveReason.EXPLICIT });
-		assert.equal(snapshotToString(model.createSnapshot()), lineContent);
+		assert.equal(snapshotToString(model.createSnapshot()!), lineContent);
 
 		// New empty line added (single line)
 		lineContent = 'Hello New Line';
 		model.textEditorModel.setValue(lineContent);
 		await participant.participate(model, { reason: SaveReason.EXPLICIT });
-		assert.equal(snapshotToString(model.createSnapshot()), `${lineContent}${model.textEditorModel.getEOL()}`);
+		assert.equal(snapshotToString(model.createSnapshot()!), `${lineContent}${model.textEditorModel.getEOL()}`);
 
 		// New empty line added (multi line)
 		lineContent = `Hello New Line${model.textEditorModel.getEOL()}Hello New Line${model.textEditorModel.getEOL()}Hello New Line`;
 		model.textEditorModel.setValue(lineContent);
 		await participant.participate(model, { reason: SaveReason.EXPLICIT });
-		assert.equal(snapshotToString(model.createSnapshot()), `${lineContent}${model.textEditorModel.getEOL()}`);
+		assert.equal(snapshotToString(model.createSnapshot()!), `${lineContent}${model.textEditorModel.getEOL()}`);
 	});
 
 	test('trim final new lines', async function () {
@@ -76,7 +76,7 @@ suite('MainThreadSaveParticipant', function () {
 		await model.load();
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration('files', { 'trimFinalNewlines': true });
-		const participant = new TrimFinalNewLinesParticipant(configService, undefined);
+		const participant = new TrimFinalNewLinesParticipant(configService, undefined!);
 		const textContent = 'Trim New Line';
 		const eol = `${model.textEditorModel.getEOL()}`;
 
@@ -84,25 +84,25 @@ suite('MainThreadSaveParticipant', function () {
 		let lineContent = `${textContent}`;
 		model.textEditorModel.setValue(lineContent);
 		await participant.participate(model, { reason: SaveReason.EXPLICIT });
-		assert.equal(snapshotToString(model.createSnapshot()), lineContent);
+		assert.equal(snapshotToString(model.createSnapshot()!), lineContent);
 
 		// No new line removal if last line is single new line
 		lineContent = `${textContent}${eol}`;
 		model.textEditorModel.setValue(lineContent);
 		await participant.participate(model, { reason: SaveReason.EXPLICIT });
-		assert.equal(snapshotToString(model.createSnapshot()), lineContent);
+		assert.equal(snapshotToString(model.createSnapshot()!), lineContent);
 
 		// Remove new line (single line with two new lines)
 		lineContent = `${textContent}${eol}${eol}`;
 		model.textEditorModel.setValue(lineContent);
 		await participant.participate(model, { reason: SaveReason.EXPLICIT });
-		assert.equal(snapshotToString(model.createSnapshot()), `${textContent}${eol}`);
+		assert.equal(snapshotToString(model.createSnapshot()!), `${textContent}${eol}`);
 
 		// Remove new lines (multiple lines with multiple new lines)
 		lineContent = `${textContent}${eol}${textContent}${eol}${eol}${eol}`;
 		model.textEditorModel.setValue(lineContent);
 		await participant.participate(model, { reason: SaveReason.EXPLICIT });
-		assert.equal(snapshotToString(model.createSnapshot()), `${textContent}${eol}${textContent}${eol}`);
+		assert.equal(snapshotToString(model.createSnapshot()!), `${textContent}${eol}${textContent}${eol}`);
 	});
 
 	test('trim final new lines bug#39750', async function () {
@@ -111,7 +111,7 @@ suite('MainThreadSaveParticipant', function () {
 		await model.load();
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration('files', { 'trimFinalNewlines': true });
-		const participant = new TrimFinalNewLinesParticipant(configService, undefined);
+		const participant = new TrimFinalNewLinesParticipant(configService, undefined!);
 		const textContent = 'Trim New Line';
 
 		// single line
@@ -124,12 +124,12 @@ suite('MainThreadSaveParticipant', function () {
 
 		// undo
 		model.textEditorModel.undo();
-		assert.equal(snapshotToString(model.createSnapshot()), `${textContent}`);
+		assert.equal(snapshotToString(model.createSnapshot()!), `${textContent}`);
 
 		// trim final new lines should not mess the undo stack
 		await participant.participate(model, { reason: SaveReason.EXPLICIT });
 		model.textEditorModel.redo();
-		assert.equal(snapshotToString(model.createSnapshot()), `${textContent}.`);
+		assert.equal(snapshotToString(model.createSnapshot()!), `${textContent}.`);
 	});
 
 	test('trim final new lines bug#46075', async function () {
@@ -138,7 +138,7 @@ suite('MainThreadSaveParticipant', function () {
 		await model.load();
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration('files', { 'trimFinalNewlines': true });
-		const participant = new TrimFinalNewLinesParticipant(configService, undefined);
+		const participant = new TrimFinalNewLinesParticipant(configService, undefined!);
 		const textContent = 'Test';
 		const eol = `${model.textEditorModel.getEOL()}`;
 		let content = `${textContent}${eol}${eol}`;
@@ -150,12 +150,12 @@ suite('MainThreadSaveParticipant', function () {
 		}
 
 		// confirm trimming
-		assert.equal(snapshotToString(model.createSnapshot()), `${textContent}${eol}`);
+		assert.equal(snapshotToString(model.createSnapshot()!), `${textContent}${eol}`);
 
 		// undo should go back to previous content immediately
 		model.textEditorModel.undo();
-		assert.equal(snapshotToString(model.createSnapshot()), `${textContent}${eol}${eol}`);
+		assert.equal(snapshotToString(model.createSnapshot()!), `${textContent}${eol}${eol}`);
 		model.textEditorModel.redo();
-		assert.equal(snapshotToString(model.createSnapshot()), `${textContent}${eol}`);
+		assert.equal(snapshotToString(model.createSnapshot()!), `${textContent}${eol}`);
 	});
 });

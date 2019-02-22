@@ -10,8 +10,7 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { Emitter } from 'vs/base/common/event';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { TestStorageService } from 'vs/workbench/test/workbenchTestServices';
+import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
 import { IExtensionContributions, ExtensionType, IExtension } from 'vs/platform/extensions/common/extensions';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 
@@ -24,7 +23,7 @@ function storageService(instantiationService: TestInstantiationService): IStorag
 				getWorkbenchState: () => WorkbenchState.FOLDER,
 			});
 		}
-		service = instantiationService.stub(IStorageService, new TestStorageService());
+		service = instantiationService.stub(IStorageService, new InMemoryStorageService());
 	}
 	return service;
 }
