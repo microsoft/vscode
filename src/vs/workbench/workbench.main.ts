@@ -43,6 +43,7 @@ import 'vs/workbench/services/bulkEdit/browser/bulkEditService';
 import 'vs/workbench/services/integrity/node/integrityService';
 import 'vs/workbench/services/keybinding/common/keybindingEditing';
 import 'vs/workbench/services/hash/node/hashService';
+import 'vs/workbench/services/textMate/electron-browser/textMateService';
 
 //#endregion
 

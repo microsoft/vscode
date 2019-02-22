@@ -407,7 +407,7 @@
 		"./vs/workbench/services/search/test/node/textSearchManager.test.ts",
 		"./vs/workbench/services/textMate/electron-browser/TMGrammars.ts",
 		"./vs/workbench/services/textMate/common/TMHelper.ts",
-		"./vs/workbench/services/textMate/electron-browser/TMSyntax.ts",
+		"./vs/workbench/services/textMate/electron-browser/textMateService.ts",
 		"./vs/workbench/services/textMate/common/textMateService.ts",
 		"./vs/workbench/services/textfile/common/textfiles.ts",
 		"./vs/workbench/services/textfile/node/textResourcePropertiesService.ts",

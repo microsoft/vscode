@@ -133,7 +133,6 @@ import { ConfigurationResolverService } from 'vs/workbench/services/configuratio
 import { WorkbenchThemeService } from 'vs/workbench/services/themes/browser/workbenchThemeService';
 import { IProductService } from 'vs/platform/product/common/product';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { ITextMateService } from 'vs/workbench/services/textMate/common/textMateService';
 import { WorkbenchContextKeysHandler } from 'vs/workbench/browser/contextkeys';
 
 // import@node
@@ -161,11 +160,11 @@ import { LocalizationsChannelClient } from 'vs/platform/localizations/node/local
 import { AccessibilityService } from 'vs/platform/accessibility/node/accessibilityService';
 import { ProductService } from 'vs/platform/product/node/productService';
 import { TextResourcePropertiesService } from 'vs/workbench/services/textfile/node/textResourcePropertiesService';
+import { RemoteFileService } from 'vs/workbench/services/files/node/remoteFileService';
 
 // import@electron-browser
 import { ContextMenuService as NativeContextMenuService } from 'vs/workbench/services/contextmenu/electron-browser/contextmenuService';
 import { WorkbenchKeybindingService } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
-import { RemoteFileService } from 'vs/workbench/services/files/node/remoteFileService';
 import { ClipboardService } from 'vs/platform/clipboard/electron-browser/clipboardService';
 import { LifecycleService } from 'vs/platform/lifecycle/electron-browser/lifecycleService';
 import { IExtensionUrlHandler, ExtensionUrlHandler } from 'vs/workbench/services/extensions/electron-browser/inactiveExtensionUrlHandler';
@@ -175,7 +174,6 @@ import { WindowService } from 'vs/platform/windows/electron-browser/windowServic
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-browser/remoteAuthorityResolverService';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import { ExtensionService } from 'vs/workbench/services/extensions/electron-browser/extensionService';
-import { TextMateService } from 'vs/workbench/services/textMate/electron-browser/TMSyntax';
 
 interface IZenModeSettings {
 	fullScreen: boolean;
@@ -592,9 +590,6 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Untitled Editors
 		serviceCollection.set(IUntitledEditorService, new SyncDescriptor(UntitledEditorService, undefined, true));
-
-		// Text Mate
-		serviceCollection.set(ITextMateService, new SyncDescriptor(TextMateService));
 
 		// Search
 		serviceCollection.set(ISearchService, new SyncDescriptor(SearchService));

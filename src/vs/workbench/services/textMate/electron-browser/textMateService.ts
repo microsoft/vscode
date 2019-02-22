@@ -27,6 +27,7 @@ import { IEmbeddedLanguagesMap as IEmbeddedLanguagesMap2, IGrammar, ITokenTypeMa
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class TMScopeRegistry {
 
@@ -511,3 +512,5 @@ class TMTokenization implements ITokenizationSupport {
 		return new TokenizationResult2(textMateResult.tokens, endState);
 	}
 }
+
+registerSingleton(ITextMateService, TextMateService);
