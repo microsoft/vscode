@@ -14,7 +14,7 @@ import { domContentLoaded, addDisposableListener, EventType, scheduleAtNextAnima
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { URI as uri } from 'vs/base/common/uri';
-import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
+import { WorkspaceService, DefaultConfigurationExportHelper } from 'vs/workbench/services/configuration/node/configurationService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { stat } from 'vs/base/node/pfs';
@@ -135,6 +135,11 @@ class CodeRendererMain extends Disposable {
 				// Driver
 				if (this.configuration.driverHandle) {
 					registerWindowDriver(electronMainClient, this.configuration.windowId, instantiationService).then(disposable => this._register(disposable));
+				}
+
+				// Config Exporter
+				if (this.configuration.args['export-default-configuration']) {
+					instantiationService.createInstance(DefaultConfigurationExportHelper);
 				}
 			});
 		});

@@ -52,6 +52,8 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 		this._startupKind = this.resolveStartupKind();
 
 		this.registerListeners();
+
+		this._phase = LifecyclePhase.Ready;
 	}
 
 	private resolveStartupKind(): StartupKind {

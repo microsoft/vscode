@@ -142,7 +142,7 @@ import { WorkbenchContextKeysHandler } from 'vs/workbench/browser/contextkeys';
 
 // import@node
 import { BackupFileService, InMemoryBackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
-import { WorkspaceService, DefaultConfigurationExportHelper } from 'vs/workbench/services/configuration/node/configurationService';
+import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
 import { JSONEditingService } from 'vs/workbench/services/configuration/node/jsonEditingService';
 import { WorkspaceEditingService } from 'vs/workbench/services/workspace/node/workspaceEditingService';
 import { getDelayedChannel } from 'vs/base/parts/ipc/node/ipc';
@@ -524,8 +524,6 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Lifecycle
 		this.lifecycleService = this.instantiationService.createInstance(LifecycleService);
-		this.lifecycleService.phase = LifecyclePhase.Ready; // Set lifecycle phase to `Ready`
-
 		serviceCollection.set(ILifecycleService, this.lifecycleService);
 
 		this._register(this.lifecycleService.onWillShutdown(event => this._onWillShutdown.fire(event)));
@@ -752,8 +750,6 @@ export class Workbench extends Disposable implements IPartService {
 		Registry.as<IActionBarRegistry>(ActionBarExtensions.Actionbar).setInstantiationService(this.instantiationService);
 		Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).start(this.instantiationService, this.lifecycleService);
 		Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).setInstantiationService(this.instantiationService);
-
-		this.instantiationService.createInstance(DefaultConfigurationExportHelper);
 
 		this.configurationService.acquireInstantiationService(this.instantiationService);
 	}
