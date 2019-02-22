@@ -327,6 +327,8 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	private selectedItemsToConfirm: T[] | null = [];
 	private onDidChangeSelectionEmitter = new Emitter<T[]>();
 	private onDidTriggerItemButtonEmitter = new Emitter<IQuickPickItemButtonEvent<T>>();
+	private _valueSelection: Readonly<[number, number]>;
+	private valueSelectionUpdated = true;
 
 	quickNavigate: IQuickNavigateConfiguration;
 
@@ -444,6 +446,12 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		return this.ui.keyMods;
 	}
 
+	set valueSelection(valueSelection: Readonly<[number, number]>) {
+		this._valueSelection = valueSelection;
+		this.valueSelectionUpdated = true;
+		this.update();
+	}
+
 	onDidChangeSelection = this.onDidChangeSelectionEmitter.event;
 
 	onDidTriggerItemButton = this.onDidTriggerItemButtonEmitter.event;
@@ -559,6 +567,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 				this.ui.list.onButtonTriggered(event => this.onDidTriggerItemButtonEmitter.fire(event as IQuickPickItemButtonEvent<T>)),
 				this.registerQuickNavigation()
 			);
+			this.valueSelectionUpdated = true;
 		}
 		super.show(); // TODO: Why have show() bubble up while update() trickles down? (Could move setComboboxAccessibility() here.)
 	}
@@ -618,6 +627,10 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		}
 		if (this.ui.inputBox.value !== this.value) {
 			this.ui.inputBox.value = this.value;
+		}
+		if (this.valueSelectionUpdated) {
+			this.valueSelectionUpdated = false;
+			this.ui.inputBox.select(this._valueSelection && { start: this._valueSelection[0], end: this._valueSelection[1] });
 		}
 		if (this.ui.inputBox.placeholder !== (this.placeholder || '')) {
 			this.ui.inputBox.placeholder = (this.placeholder || '');

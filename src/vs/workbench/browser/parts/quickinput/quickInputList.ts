@@ -472,6 +472,9 @@ export class QuickInputList {
 	}
 
 	filter(query: string) {
+		if (!(this.matchOnLabel || this.matchOnDescription || this.matchOnDetail)) {
+			return;
+		}
 		query = query.trim();
 
 		// Reset filtering
@@ -487,7 +490,7 @@ export class QuickInputList {
 		}
 
 		// Filter by value (since we support octicons, use octicon aware fuzzy matching)
-		else if (this.matchOnLabel || this.matchOnDescription || this.matchOnDetail) {
+		else {
 			this.elements.forEach(element => {
 				const labelHighlights = this.matchOnLabel ? matchesFuzzyOcticonAware(query, parseOcticons(element.saneLabel)) || undefined : undefined;
 				const descriptionHighlights = this.matchOnDescription ? matchesFuzzyOcticonAware(query, parseOcticons(element.saneDescription || '')) || undefined : undefined;
