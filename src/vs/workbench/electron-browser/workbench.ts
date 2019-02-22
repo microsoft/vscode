@@ -40,7 +40,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IKeybindingEditingService, KeybindingsEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IActivityService } from 'vs/workbench/services/activity/common/activity';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -718,9 +717,6 @@ export class Workbench extends Disposable implements IPartService {
 		// Workspace Editing
 		serviceCollection.set(IWorkspaceEditingService, new SyncDescriptor(WorkspaceEditingService, undefined, true));
 
-		// Keybinding Editing
-		serviceCollection.set(IKeybindingEditingService, new SyncDescriptor(KeybindingsEditingService, undefined, true));
-
 		// Configuration Resolver
 		serviceCollection.set(IConfigurationResolverService, new SyncDescriptor(ConfigurationResolverService, [process.env], true));
 
@@ -746,6 +742,7 @@ export class Workbench extends Disposable implements IPartService {
 		Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).start(this.instantiationService, this.lifecycleService);
 		Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).setInstantiationService(this.instantiationService);
 
+		// TODO@Sandeep debt around cyclic dependencies
 		this.configurationService.acquireInstantiationService(this.instantiationService);
 	}
 

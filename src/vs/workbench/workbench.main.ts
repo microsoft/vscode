@@ -41,6 +41,7 @@ import 'vs/workbench/api/browser/viewsExtensionPoint';
 
 import 'vs/workbench/services/bulkEdit/browser/bulkEditService';
 import 'vs/workbench/services/integrity/node/integrityService';
+import 'vs/workbench/services/keybinding/common/keybindingEditing';
 
 //#endregion
 
