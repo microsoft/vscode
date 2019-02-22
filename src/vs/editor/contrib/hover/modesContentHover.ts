@@ -498,7 +498,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			const detailsElement = dom.append(markerElement, $('span'));
 			detailsElement.style.opacity = '0.6';
 			detailsElement.style.paddingLeft = '6px';
-			detailsElement.innerText = source && code ? `${source}(${code})` : `(${code})`;
+			detailsElement.innerText = source && code ? `${source}(${code})` : source ? source : `(${code})`;
 		}
 
 		if (isNonEmptyArray(relatedInformation)) {
