@@ -123,8 +123,7 @@ import { MarkerDecorationsService } from 'vs/editor/common/services/markerDecora
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { EditorWorkerServiceImpl } from 'vs/editor/common/services/editorWorkerServiceImpl';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { ISearchService, ISearchHistoryService } from 'vs/workbench/services/search/common/search';
-import { SearchHistoryService } from 'vs/workbench/services/search/common/searchHistoryService';
+import { ISearchService } from 'vs/workbench/services/search/common/search';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeEditorService } from 'vs/workbench/services/editor/browser/codeEditorService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -599,9 +598,8 @@ export class Workbench extends Disposable implements IPartService {
 		// Text Mate
 		serviceCollection.set(ITextMateService, new SyncDescriptor(TextMateService));
 
-		// Search !!
+		// Search
 		serviceCollection.set(ISearchService, new SyncDescriptor(SearchService));
-		serviceCollection.set(ISearchHistoryService, new SyncDescriptor(SearchHistoryService));
 
 		// Code Editor
 		serviceCollection.set(ICodeEditorService, new SyncDescriptor(CodeEditorService, undefined, true));
