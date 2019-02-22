@@ -110,7 +110,7 @@ export class WatchExpressionsView extends ViewletPanel {
 		}));
 		this.disposables.push(this.debugService.getViewModel().onDidSelectExpression(e => {
 			if (e instanceof Expression && e.name) {
-				this.tree.refresh(e);
+				this.tree.rerender(e);
 			}
 		}));
 	}

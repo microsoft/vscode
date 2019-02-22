@@ -114,7 +114,7 @@ export class VariablesView extends ViewletPanel {
 		}));
 		this.disposables.push(this.debugService.getViewModel().onDidSelectExpression(e => {
 			if (e instanceof Variable) {
-				this.tree.refresh(e);
+				this.tree.rerender(e);
 			}
 		}));
 	}

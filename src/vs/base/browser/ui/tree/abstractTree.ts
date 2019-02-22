@@ -938,7 +938,7 @@ class TreeNodeList<T, TFilterData, TRef> extends List<ITreeNode<T, TFilterData>>
 
 export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable {
 
-	private view: TreeNodeList<T, TFilterData, TRef>;
+	protected view: TreeNodeList<T, TFilterData, TRef>;
 	private renderers: TreeRenderer<T, TFilterData, any>[];
 	protected model: ITreeModel<T, TFilterData, TRef>;
 	private focus: Trait<T>;

@@ -175,7 +175,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		return result;
 	}
 
-	refresh(location: number[]): void {
+	rerender(location: number[]): void {
 		if (location.length === 0) {
 			throw new Error('Invalid tree location');
 		}

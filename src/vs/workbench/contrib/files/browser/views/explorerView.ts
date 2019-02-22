@@ -521,10 +521,10 @@ export class ExplorerView extends ViewletPanel {
 		this.fileCopiedContextKey.set(stats.length > 0);
 		this.resourceCutContextKey.set(cut && stats.length > 0);
 		if (previousCut) {
-			previousCut.forEach(item => this.tree.refresh(item));
+			previousCut.forEach(item => this.tree.rerender(item));
 		}
 		if (cut) {
-			stats.forEach(s => this.tree.refresh(s));
+			stats.forEach(s => this.tree.rerender(s));
 		}
 	}
 

@@ -360,7 +360,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		this.eventuallyUpdateScrollDimensions();
 
 		if (this.supportDynamicHeights) {
-			this.rerender(this.scrollTop, this.renderHeight);
+			this._rerender(this.scrollTop, this.renderHeight);
 		}
 
 		return deleted.map(i => i.element);
@@ -420,6 +420,18 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			this.scrollWidth = item.width;
 			this.scrollableElement.setScrollDimensions({ scrollWidth: this.scrollWidth + 10 });
 		}
+	}
+
+	rerender(): void {
+		if (!this.supportDynamicHeights) {
+			return;
+		}
+
+		for (const item of this.items) {
+			item.lastDynamicHeightWidth = undefined;
+		}
+
+		this._rerender(this.lastRenderTop, this.lastRenderHeight);
 	}
 
 	get length(): number {
@@ -483,7 +495,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			this.renderWidth = width;
 
 			if (this.supportDynamicHeights) {
-				this.rerender(this.scrollTop, this.renderHeight);
+				this._rerender(this.scrollTop, this.renderHeight);
 			}
 
 			if (this.horizontalScrolling) {
@@ -720,7 +732,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			this.render(e.scrollTop, e.height, e.scrollLeft, e.scrollWidth);
 
 			if (this.supportDynamicHeights) {
-				this.rerender(e.scrollTop, e.height);
+				this._rerender(e.scrollTop, e.height);
 			}
 		} catch (err) {
 			console.error('Got bad scroll event:', e);
@@ -983,7 +995,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	 * Given a stable rendered state, checks every rendered element whether it needs
 	 * to be probed for dynamic height. Adjusts scroll height and top if necessary.
 	 */
-	private rerender(renderTop: number, renderHeight: number): void {
+	private _rerender(renderTop: number, renderHeight: number): void {
 		const previousRenderRange = this.getRenderRange(renderTop, renderHeight);
 
 		// Let's remember the second element's position, this helps in scrolling up
