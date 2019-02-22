@@ -1207,8 +1207,7 @@ export class WindowsManager implements IWindowsMainService {
 
 		const match = extensionDevelopmentPath.match(/^vscode-remote:\/\/([^\/]+)/);
 		if (match) {
-			openConfig.cli['remote'] = match[1];
-			console.log(match[1]);
+			openConfig.cli['remote'] = URI.parse(extensionDevelopmentPath).authority;
 		}
 
 		// Open it

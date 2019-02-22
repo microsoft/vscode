@@ -37,8 +37,8 @@ export interface ParsedArgs {
 	logExtensionHostCommunication?: boolean;
 	'extensions-dir'?: string;
 	'builtin-extensions-dir'?: string;
-	extensionDevelopmentPath?: string;
-	extensionTestsPath?: string;
+	extensionDevelopmentPath?: string; // either a local path or a URI
+	extensionTestsPath?: string; // either a local path or a URI
 	'inspect-extensions'?: string;
 	'inspect-brk-extensions'?: string;
 	debugId?: string;
@@ -116,7 +116,7 @@ export interface IEnvironmentService {
 	builtinExtensionsPath: string;
 	extensionsPath: string;
 	extensionDevelopmentLocationURI?: URI;
-	extensionTestsPath?: string;
+	extensionTestsLocationURI?: URI;
 
 	debugExtensionHost: IExtensionHostDebugParams;
 	debugSearch: IDebugParams;

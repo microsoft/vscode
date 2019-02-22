@@ -56,7 +56,7 @@ export function parseExtensionDevOptions(environmentService: IEnvironmentService
 	const debugOk = !extDevLoc || extDevLoc.scheme === Schemas.file;
 	let isExtensionDevDebug = debugOk && typeof environmentService.debugExtensionHost.port === 'number';
 	let isExtensionDevDebugBrk = debugOk && !!environmentService.debugExtensionHost.break;
-	let isExtensionDevTestFromCli = isExtensionDevHost && !!environmentService.extensionTestsPath && !environmentService.debugExtensionHost.break;
+	let isExtensionDevTestFromCli = isExtensionDevHost && !!environmentService.extensionTestsLocationURI && !environmentService.debugExtensionHost.break;
 	return {
 		isExtensionDevHost,
 		isExtensionDevDebug,
@@ -430,7 +430,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 						appRoot: this._environmentService.appRoot ? URI.file(this._environmentService.appRoot) : undefined,
 						appSettingsHome: this._environmentService.appSettingsHome ? URI.file(this._environmentService.appSettingsHome) : undefined,
 						extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
-						extensionTestsPath: this._environmentService.extensionTestsPath,
+						extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
 						globalStorageHome: URI.file(this._environmentService.globalStorageHome)
 					},
 					workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? undefined : {

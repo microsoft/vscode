@@ -52,7 +52,7 @@ export interface IEnvironment {
 	appRoot?: URI;
 	appSettingsHome?: URI;
 	extensionDevelopmentLocationURI?: URI;
-	extensionTestsPath?: string;
+	extensionTestsLocationURI?: URI;
 	globalStorageHome: URI;
 }
 
