@@ -71,8 +71,6 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		this.filter = options.filter;
 		this.autoExpandSingleChildren = typeof options.autoExpandSingleChildren === 'undefined' ? false : options.autoExpandSingleChildren;
 
-		// this.onDidChangeCollapseState(node => console.log(node.collapsed, node));
-
 		this.root = {
 			parent: undefined,
 			element: rootElement,
