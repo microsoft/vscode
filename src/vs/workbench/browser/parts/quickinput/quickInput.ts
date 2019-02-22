@@ -32,7 +32,7 @@ import Severity from 'vs/base/common/severity';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandAndKeybindingRule, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { inQuickOpenContext } from 'vs/workbench/browser/parts/quickopen/quickopen';
+import { inQuickOpenContext, InQuickOpenContextKey } from 'vs/workbench/browser/parts/quickopen/quickopen';
 import { ActionBar, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
 import { URI } from 'vs/base/common/uri';
@@ -836,7 +836,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
 		super(QuickInputService.ID, themeService, storageService);
-		this.inQuickOpenContext = new RawContextKey<boolean>('inQuickOpen', false).bindTo(contextKeyService);
+		this.inQuickOpenContext = InQuickOpenContextKey.bindTo(contextKeyService);
 		this._register(this.quickOpenService.onShow(() => this.inQuickOpen('quickOpen', true)));
 		this._register(this.quickOpenService.onHide(() => this.inQuickOpen('quickOpen', false)));
 		this.registerKeyModsListeners();

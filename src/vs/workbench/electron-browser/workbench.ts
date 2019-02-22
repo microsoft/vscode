@@ -5,10 +5,12 @@
 
 import 'vs/workbench/browser/style';
 
+import { localize } from 'vs/nls';
+import { setFileNameComparer } from 'vs/base/common/comparers';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
-import { EventType, addDisposableListener, addClasses, scheduleAtNextAnimationFrame, addClass, removeClass, trackFocus, isAncestor, getClientArea, position, size, removeClasses } from 'vs/base/browser/dom';
-import { RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
+import { Event, Emitter, setGlobalLeakWarningThreshold } from 'vs/base/common/event';
+import { EventType, addDisposableListener, addClasses, addClass, removeClass, isAncestor, getClientArea, position, size, removeClasses } from 'vs/base/browser/dom';
+import { RunOnceScheduler, runWhenIdle, IdleValue } from 'vs/base/common/async';
 import { getZoomLevel, onDidChangeFullscreen, isFullscreen, getZoomFactor } from 'vs/base/browser/browser';
 import { mark } from 'vs/base/common/performance';
 import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
@@ -17,9 +19,9 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { isWindows, isLinux, isMacintosh, language } from 'vs/base/common/platform';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { IEditorInputFactoryRegistry, Extensions as EditorExtensions, TextCompareEditorVisibleContext, TEXT_DIFF_EDITOR_ID, EditorsVisibleContext, InEditorZenModeContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, IUntitledResourceInput, IResourceDiffInput, SplitEditorsVertically, TextCompareEditorActiveContext, ActiveEditorContext } from 'vs/workbench/common/editor';
+import { IEditorInputFactoryRegistry, Extensions as EditorExtensions, IUntitledResourceInput, IResourceDiffInput, InEditorZenModeContext } from 'vs/workbench/common/editor';
 import { ActivitybarPart } from 'vs/workbench/browser/parts/activitybar/activitybarPart';
-import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
+import { SidebarPart, SidebarVisibleContext } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
 import { StatusbarPart } from 'vs/workbench/browser/parts/statusbar/statusbarPart';
 import { TitlebarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
@@ -39,7 +41,7 @@ import { IJSONEditingService } from 'vs/workbench/services/configuration/common/
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IKeybindingEditingService, KeybindingsEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
-import { RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IActivityService } from 'vs/workbench/services/activity/common/activity';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -71,7 +73,6 @@ import { IDecorationsService } from 'vs/workbench/services/decorations/browser/d
 import { ActivityService } from 'vs/workbench/services/activity/browser/activityService';
 import { URI } from 'vs/base/common/uri';
 import { IListService, ListService } from 'vs/platform/list/browser/listService';
-import { InputFocusedContext, IsMacContext, IsLinuxContext, IsWindowsContext, SupportsOpenFileFolderContext, SupportsWorkspacesContext, IsDevelopmentContext, HasMacNativeTabsContext } from 'vs/platform/contextkey/common/contextkeys';
 import { IViewsService } from 'vs/workbench/common/views';
 import { ViewsService } from 'vs/workbench/browser/parts/views/views';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -84,7 +85,7 @@ import { NotificationsToasts } from 'vs/workbench/browser/parts/notifications/no
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { PreferencesService } from 'vs/workbench/services/preferences/browser/preferencesService';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService, GroupDirection, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
@@ -138,6 +139,7 @@ import { WorkbenchThemeService } from 'vs/workbench/services/themes/browser/work
 import { IProductService } from 'vs/platform/product/common/product';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { ITextMateService } from 'vs/workbench/services/textMate/common/textMateService';
+import { WorkbenchContextKeysHandler } from 'vs/workbench/browser/contextkeys';
 
 // import@node
 import { BackupFileService, InMemoryBackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
@@ -211,14 +213,6 @@ const Identifiers = {
 	EDITOR_PART: 'workbench.parts.editor',
 	STATUSBAR_PART: 'workbench.parts.statusbar'
 };
-
-function getWorkbenchStateString(state: WorkbenchState): string {
-	switch (state) {
-		case WorkbenchState.EMPTY: return 'empty';
-		case WorkbenchState.FOLDER: return 'folder';
-		case WorkbenchState.WORKSPACE: return 'workspace';
-	}
-}
 
 interface IZenMode {
 	active: boolean;
@@ -319,7 +313,7 @@ export class Workbench extends Disposable implements IPartService {
 		lastSidebarDimension: 300,
 	};
 
-	private inZenMode: IContextKey<boolean>;
+	private inZenModeContext: IContextKey<boolean>;
 	private sideBarVisibleContext: IContextKey<boolean>;
 
 	private closeEmptyWindowScheduler: RunOnceScheduler = this._register(new RunOnceScheduler(() => this.onAllEditorsClosed(), 50));
@@ -360,6 +354,15 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Install handler for unexpected errors
 		setUnexpectedErrorHandler(error => this.handleUnexpectedError(error));
+
+		// Inform user about loading issues from the loader
+		(<any>self).require.config({
+			onError: err => {
+				if (err.errorCode === 'load') {
+					onUnexpectedError(new Error(localize('loaderErrorNative', "Failed to load a required file. Please restart the application to try again. Details: {0}", JSON.stringify(err))));
+				}
+			}
+		});
 	}
 
 	private handleUnexpectedError(error: any): void {
@@ -401,6 +404,18 @@ export class Workbench extends Disposable implements IPartService {
 		// Logging
 		this.logService.trace('workbench configuration', JSON.stringify(this.configuration));
 
+		// Configure emitter leak warning threshold
+		setGlobalLeakWarningThreshold(175);
+
+		// Setup Intl for comparers
+		setFileNameComparer(new IdleValue(() => {
+			const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+			return {
+				collator: collator,
+				collatorIsNumeric: collator.resolvedOptions().numeric
+			};
+		}));
+
 		// ARIA
 		setARIAContainer(document.body);
 
@@ -418,7 +433,9 @@ export class Workbench extends Disposable implements IPartService {
 		this.initServices(this.serviceCollection);
 
 		// Context Keys
-		this.handleContextKeys();
+		this._register(this.instantiationService.createInstance(WorkbenchContextKeysHandler));
+		this.inZenModeContext = InEditorZenModeContext.bindTo(this.contextKeyService);
+		this.sideBarVisibleContext = SidebarVisibleContext.bindTo(this.contextKeyService);
 
 		// Register Listeners
 		this.registerListeners();
@@ -440,9 +457,7 @@ export class Workbench extends Disposable implements IPartService {
 			this.logService.warn('Workbench did not finish loading in 10 seconds, that might be a problem that should be reported.');
 		}, 10000);
 
-		this.lifecycleService.when(LifecyclePhase.Restored).then(() => {
-			clearTimeout(timeoutHandle);
-		});
+		this.lifecycleService.when(LifecyclePhase.Restored).then(() => clearTimeout(timeoutHandle));
 
 		// Restore Parts
 		return this.restoreParts();
@@ -787,31 +802,8 @@ export class Workbench extends Disposable implements IPartService {
 		this._register(this.editorGroupService.onDidAddGroup(() => this.centerEditorLayout(this.shouldCenterLayout)));
 		this._register(this.editorGroupService.onDidRemoveGroup(() => this.centerEditorLayout(this.shouldCenterLayout)));
 
-		// Layout
-		this._register(addDisposableListener(window, EventType.RESIZE, e => this.onWindowResize(e, true)));
-
 		// Prevent workbench from scrolling #55456
-		this._register(addDisposableListener(this.workbench, EventType.SCROLL, () => {
-			this.workbench.scrollTop = 0;
-		}));
-	}
-
-	private onWindowResize(e: any, retry: boolean): void {
-		if (e.target === window) {
-			if (window.document && window.document.body && window.document.body.clientWidth === 0) {
-				// TODO@Ben this is an electron issue on macOS when simple fullscreen is enabled
-				// where for some reason the window clientWidth is reported as 0 when switching
-				// between simple fullscreen and normal screen. In that case we schedule the layout
-				// call at the next animation frame once, in the hope that the dimensions are
-				// proper then.
-				if (retry) {
-					scheduleAtNextAnimationFrame(() => this.onWindowResize(e, false));
-				}
-				return;
-			}
-
-			this.layout();
-		}
+		this._register(addDisposableListener(this.workbench, EventType.SCROLL, () => this.workbench.scrollTop = 0));
 	}
 
 	private onFullscreenChanged(): void {
@@ -912,119 +904,6 @@ export class Workbench extends Disposable implements IPartService {
 	}
 
 	//#endregion
-
-	private handleContextKeys(): void {
-		IsMacContext.bindTo(this.contextKeyService);
-		IsLinuxContext.bindTo(this.contextKeyService);
-		IsWindowsContext.bindTo(this.contextKeyService);
-
-		const windowConfig = this.configurationService.getValue<IWindowConfiguration>();
-		HasMacNativeTabsContext.bindTo(this.contextKeyService).set(windowConfig && windowConfig.window && windowConfig.window.nativeTabs);
-
-		IsDevelopmentContext.bindTo(this.contextKeyService).set(!this.environmentService.isBuilt || this.environmentService.isExtensionDevelopment);
-
-		SupportsWorkspacesContext.bindTo(this.contextKeyService);
-		SupportsOpenFileFolderContext.bindTo(this.contextKeyService).set(!!this.windowService.getConfiguration().remoteAuthority);
-
-		this.inZenMode = InEditorZenModeContext.bindTo(this.contextKeyService);
-
-		const sidebarVisibleContextRaw = new RawContextKey<boolean>('sidebarVisible', false);
-		this.sideBarVisibleContext = sidebarVisibleContextRaw.bindTo(this.contextKeyService);
-
-		const activeEditorContext = ActiveEditorContext.bindTo(this.contextKeyService);
-		const editorsVisibleContext = EditorsVisibleContext.bindTo(this.contextKeyService);
-		const textCompareEditorVisible = TextCompareEditorVisibleContext.bindTo(this.contextKeyService);
-		const textCompareEditorActive = TextCompareEditorActiveContext.bindTo(this.contextKeyService);
-		const activeEditorGroupEmpty = ActiveEditorGroupEmptyContext.bindTo(this.contextKeyService);
-		const multipleEditorGroups = MultipleEditorGroupsContext.bindTo(this.contextKeyService);
-
-		const updateEditorContextKeys = () => {
-			const activeControl = this.editorService.activeControl;
-			const visibleEditors = this.editorService.visibleControls;
-
-			textCompareEditorActive.set(!!activeControl && activeControl.getId() === TEXT_DIFF_EDITOR_ID);
-			textCompareEditorVisible.set(visibleEditors.some(control => control.getId() === TEXT_DIFF_EDITOR_ID));
-
-			if (visibleEditors.length > 0) {
-				editorsVisibleContext.set(true);
-			} else {
-				editorsVisibleContext.reset();
-			}
-
-			if (!this.editorService.activeEditor) {
-				activeEditorGroupEmpty.set(true);
-			} else {
-				activeEditorGroupEmpty.reset();
-			}
-
-			if (this.editorGroupService.count > 1) {
-				multipleEditorGroups.set(true);
-			} else {
-				multipleEditorGroups.reset();
-			}
-
-			if (activeControl) {
-				activeEditorContext.set(activeControl.getId());
-			} else {
-				activeEditorContext.reset();
-			}
-		};
-
-		this.editorPart.whenRestored.then(() => updateEditorContextKeys());
-		this._register(this.editorService.onDidActiveEditorChange(() => updateEditorContextKeys()));
-		this._register(this.editorService.onDidVisibleEditorsChange(() => updateEditorContextKeys()));
-		this._register(this.editorGroupService.onDidAddGroup(() => updateEditorContextKeys()));
-		this._register(this.editorGroupService.onDidRemoveGroup(() => updateEditorContextKeys()));
-
-		const inputFocused = InputFocusedContext.bindTo(this.contextKeyService);
-
-		function activeElementIsInput(): boolean {
-			return !!document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA');
-		}
-
-		function trackInputFocus(): void {
-			const isInputFocused = activeElementIsInput();
-			inputFocused.set(isInputFocused);
-
-			if (isInputFocused) {
-				const tracker = trackFocus(document.activeElement as HTMLElement);
-				Event.once(tracker.onDidBlur)(() => {
-					inputFocused.set(activeElementIsInput());
-
-					tracker.dispose();
-				});
-			}
-		}
-
-		this._register(addDisposableListener(window, 'focusin', () => trackInputFocus(), true));
-
-		const workbenchStateRawContext = new RawContextKey<string>('workbenchState', getWorkbenchStateString(this.configurationService.getWorkbenchState()));
-		const workbenchStateContext = workbenchStateRawContext.bindTo(this.contextKeyService);
-		this._register(this.configurationService.onDidChangeWorkbenchState(() => {
-			workbenchStateContext.set(getWorkbenchStateString(this.configurationService.getWorkbenchState()));
-		}));
-
-		const workspaceFolderCountRawContext = new RawContextKey<number>('workspaceFolderCount', this.configurationService.getWorkspace().folders.length);
-		const workspaceFolderCountContext = workspaceFolderCountRawContext.bindTo(this.contextKeyService);
-		this._register(this.configurationService.onDidChangeWorkspaceFolders(() => {
-			workspaceFolderCountContext.set(this.configurationService.getWorkspace().folders.length);
-		}));
-
-		const splitEditorsVerticallyContext = SplitEditorsVertically.bindTo(this.contextKeyService);
-
-		const updateSplitEditorsVerticallyContext = () => {
-			const direction = preferredSideBySideGroupDirection(this.configurationService);
-			splitEditorsVerticallyContext.set(direction === GroupDirection.DOWN);
-		};
-
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('workbench.editor.openSideBySideDirection')) {
-				updateSplitEditorsVerticallyContext();
-			}
-		}));
-
-		updateSplitEditorsVerticallyContext();
-	}
 
 	private restoreParts(): Promise<void> {
 		const restorePromises: Promise<any>[] = [];
@@ -1708,7 +1587,7 @@ export class Workbench extends Disposable implements IPartService {
 			toggleFullScreen = this.zenMode.transitionedToFullScreen && isFullscreen();
 		}
 
-		this.inZenMode.set(this.zenMode.active);
+		this.inZenModeContext.set(this.zenMode.active);
 
 		if (!skipLayout) {
 			this.layout();
@@ -1807,7 +1686,7 @@ export class Workbench extends Disposable implements IPartService {
 		}
 	}
 
-	private layout(options?: ILayoutOptions): void {
+	layout(options?: ILayoutOptions): void {
 		this.contextViewService.layout();
 
 		if (this.workbenchStarted && !this.workbenchShutdown) {
