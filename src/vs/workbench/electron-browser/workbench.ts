@@ -99,7 +99,6 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
-import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { combinedAppender, LogAppender, NullTelemetryService, configurationTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
@@ -143,7 +142,6 @@ import { WorkspaceService } from 'vs/workbench/services/configuration/node/confi
 import { JSONEditingService } from 'vs/workbench/services/configuration/node/jsonEditingService';
 import { WorkspaceEditingService } from 'vs/workbench/services/workspace/node/workspaceEditingService';
 import { getDelayedChannel } from 'vs/base/parts/ipc/node/ipc';
-import { HashService } from 'vs/workbench/services/hash/node/hashService';
 import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
 import { DialogChannel } from 'vs/platform/dialogs/node/dialogIpc';
 import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
@@ -612,7 +610,7 @@ export class Workbench extends Disposable implements IPartService {
 		serviceCollection.set(ILocalizationsService, new SyncDescriptor(LocalizationsChannelClient, [localizationsChannel]));
 
 		// Hash
-		serviceCollection.set(IHashService, new SyncDescriptor(HashService, undefined, true));
+		// serviceCollection.set(IHashService, new SyncDescriptor(HashService, undefined, true));
 
 		// Status bar
 		this.statusbarPart = this.instantiationService.createInstance(StatusbarPart, Identifiers.STATUSBAR_PART);
