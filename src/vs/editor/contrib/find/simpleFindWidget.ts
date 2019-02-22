@@ -206,9 +206,7 @@ export abstract class SimpleFindWidget extends Widget {
 			dom.addClass(this._innerDomNode, 'visible');
 			dom.addClass(this._innerDomNode, 'visible-transition');
 			this._innerDomNode.setAttribute('aria-hidden', 'false');
-			setTimeout(() => {
-				this._findInput.select();
-			}, 200);
+			this._findInput.select();
 		}, 0);
 	}
 
