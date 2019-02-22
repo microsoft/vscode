@@ -475,10 +475,10 @@ export class Workbench extends Disposable implements IPartService {
 		serviceCollection.set(ILabelService, new SyncDescriptor(LabelService, undefined, true));
 
 		// Clipboard
-		serviceCollection.set(IClipboardService, new SyncDescriptor(ClipboardService));
+		serviceCollection.set(IClipboardService, new SyncDescriptor(ClipboardService, undefined, true));
 
 		// Broadcast
-		serviceCollection.set(IBroadcastService, new SyncDescriptor(BroadcastService, [this.configuration.windowId]));
+		serviceCollection.set(IBroadcastService, new SyncDescriptor(BroadcastService, [this.configuration.windowId], true));
 
 		// Notifications
 		this.notificationService = new NotificationService();
@@ -520,7 +520,7 @@ export class Workbench extends Disposable implements IPartService {
 		this._register(configurationTelemetry(this.telemetryService, this.configurationService));
 
 		// Dialogs
-		serviceCollection.set(IDialogService, this.instantiationService.createInstance(DialogService));
+		serviceCollection.set(IDialogService, new SyncDescriptor(DialogService, undefined, true));
 
 		// Lifecycle
 		this.lifecycleService = this.instantiationService.createInstance(LifecycleService);
@@ -565,8 +565,7 @@ export class Workbench extends Disposable implements IPartService {
 		serviceCollection.set(IExtensionManagementService, new SyncDescriptor(MultiExtensionManagementService));
 
 		// Extension Enablement
-		const extensionEnablementService = this._register(this.instantiationService.createInstance(ExtensionEnablementService));
-		serviceCollection.set(IExtensionEnablementService, extensionEnablementService);
+		serviceCollection.set(IExtensionEnablementService, new SyncDescriptor(ExtensionEnablementService, undefined, true));
 
 		// Extensions
 		serviceCollection.set(IExtensionService, this.instantiationService.createInstance(ExtensionService));
@@ -610,7 +609,7 @@ export class Workbench extends Disposable implements IPartService {
 		serviceCollection.set(ISearchHistoryService, new SyncDescriptor(SearchHistoryService));
 
 		// Code Editor
-		serviceCollection.set(ICodeEditorService, new SyncDescriptor(CodeEditorService));
+		serviceCollection.set(ICodeEditorService, new SyncDescriptor(CodeEditorService, undefined, true));
 
 		// Opener
 		serviceCollection.set(IOpenerService, new SyncDescriptor(OpenerService, undefined, true));
@@ -632,10 +631,11 @@ export class Workbench extends Disposable implements IPartService {
 		// Progress 2
 		serviceCollection.set(IProgressService2, new SyncDescriptor(ProgressService2));
 
-		// Keybindings
+		// Context Keys
 		this.contextKeyService = this.instantiationService.createInstance(ContextKeyService);
 		serviceCollection.set(IContextKeyService, this.contextKeyService);
 
+		// Keybindings
 		this.keybindingService = this.instantiationService.createInstance(WorkbenchKeybindingService, window);
 		serviceCollection.set(IKeybindingService, this.keybindingService);
 
@@ -654,7 +654,7 @@ export class Workbench extends Disposable implements IPartService {
 		}
 
 		// Menus/Actions
-		serviceCollection.set(IMenuService, new SyncDescriptor(MenuService));
+		serviceCollection.set(IMenuService, new SyncDescriptor(MenuService, undefined, true));
 
 		// Sidebar part
 		this.sidebarPart = this.instantiationService.createInstance(SidebarPart, Identifiers.SIDEBAR_PART);
@@ -666,14 +666,12 @@ export class Workbench extends Disposable implements IPartService {
 		this.panelPart = this.instantiationService.createInstance(PanelPart, Identifiers.PANEL_PART);
 		serviceCollection.set(IPanelService, this.panelPart);
 
-		// views service
-		const viewsService = this.instantiationService.createInstance(ViewsService);
-		serviceCollection.set(IViewsService, viewsService);
+		// Views service
+		serviceCollection.set(IViewsService, new SyncDescriptor(ViewsService));
 
 		// Activity service (activitybar part)
 		this.activitybarPart = this.instantiationService.createInstance(ActivitybarPart, Identifiers.ACTIVITYBAR_PART);
-		const activityService = this.instantiationService.createInstance(ActivityService, this.activitybarPart, this.panelPart);
-		serviceCollection.set(IActivityService, activityService);
+		serviceCollection.set(IActivityService, new SyncDescriptor(ActivityService, [this.activitybarPart, this.panelPart], true));
 
 		// File Service
 		this.fileService = this.instantiationService.createInstance(RemoteFileService);
@@ -682,8 +680,7 @@ export class Workbench extends Disposable implements IPartService {
 		this.themeService.acquireFileService(this.fileService);
 
 		// Editor and Group services
-		const restorePreviousEditorState = !this.hasInitialFilesToOpen;
-		this.editorPart = this.instantiationService.createInstance(EditorPart, Identifiers.EDITOR_PART, restorePreviousEditorState);
+		this.editorPart = this.instantiationService.createInstance(EditorPart, Identifiers.EDITOR_PART, !this.hasInitialFilesToOpen);
 		this.editorGroupService = this.editorPart;
 		serviceCollection.set(IEditorGroupsService, this.editorPart);
 		this.editorService = this.instantiationService.createInstance(EditorService);
@@ -700,7 +697,7 @@ export class Workbench extends Disposable implements IPartService {
 		serviceCollection.set(IHistoryService, new SyncDescriptor(HistoryService));
 
 		// File Dialogs
-		serviceCollection.set(IFileDialogService, new SyncDescriptor(FileDialogService));
+		serviceCollection.set(IFileDialogService, new SyncDescriptor(FileDialogService, undefined, true));
 
 		// Backup File Service
 		if (this.configuration.backupPath) {
@@ -720,20 +717,19 @@ export class Workbench extends Disposable implements IPartService {
 		serviceCollection.set(IExtensionUrlHandler, new SyncDescriptor(ExtensionUrlHandler));
 
 		// Text Model Resolver Service
-		serviceCollection.set(ITextModelService, new SyncDescriptor(TextModelResolverService));
+		serviceCollection.set(ITextModelService, new SyncDescriptor(TextModelResolverService, undefined, true));
 
 		// JSON Editing
-		const jsonEditingService = this.instantiationService.createInstance(JSONEditingService);
-		serviceCollection.set(IJSONEditingService, jsonEditingService);
+		serviceCollection.set(IJSONEditingService, new SyncDescriptor(JSONEditingService, undefined, true));
 
 		// Workspace Editing
-		serviceCollection.set(IWorkspaceEditingService, new SyncDescriptor(WorkspaceEditingService));
+		serviceCollection.set(IWorkspaceEditingService, new SyncDescriptor(WorkspaceEditingService, undefined, true));
 
 		// Keybinding Editing
-		serviceCollection.set(IKeybindingEditingService, this.instantiationService.createInstance(KeybindingsEditingService));
+		serviceCollection.set(IKeybindingEditingService, new SyncDescriptor(KeybindingsEditingService, undefined, true));
 
 		// Configuration Resolver
-		serviceCollection.set(IConfigurationResolverService, new SyncDescriptor(ConfigurationResolverService, [process.env]));
+		serviceCollection.set(IConfigurationResolverService, new SyncDescriptor(ConfigurationResolverService, [process.env], true));
 
 		// Quick open service (quick open controller)
 		this.quickOpen = this.instantiationService.createInstance(QuickOpenController);
