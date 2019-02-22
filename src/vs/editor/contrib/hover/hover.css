@@ -78,10 +78,7 @@
 }
 
 .monaco-editor-hover .hover-row .actions .action-container {
-	padding: 0px 8px;
-}
-
-.monaco-editor-hover .hover-row .actions .action-container .action {
+	margin: 0px 8px;
 	cursor: pointer;
 }
 

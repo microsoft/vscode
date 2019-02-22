@@ -583,10 +583,10 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			const actionKeybindingLabel = dom.append(actionContainer, $('span.keybinding-label'));
 			actionKeybindingLabel.textContent = keybinding.getLabel();
 		}
-		return dom.addDisposableListener(action, dom.EventType.CLICK, e => {
+		return dom.addDisposableListener(actionContainer, dom.EventType.CLICK, e => {
 			e.stopPropagation();
 			e.preventDefault();
-			actionOptions.run(action);
+			actionOptions.run(actionContainer);
 		});
 	}
 
