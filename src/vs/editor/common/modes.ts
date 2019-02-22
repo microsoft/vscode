@@ -1258,6 +1258,16 @@ export interface CommentThread2 {
 /**
  * @internal
  */
+
+export interface CommentingRanges {
+	readonly resource: URI;
+	ranges: IRange[];
+	acceptInputCommands: Command[];
+}
+
+/**
+ * @internal
+ */
 export interface CommentThread {
 	extensionId: string;
 	threadId: string;

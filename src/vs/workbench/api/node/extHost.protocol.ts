@@ -123,6 +123,10 @@ export interface MainThreadCommentsShape extends IDisposable {
 	$createCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, range: IRange, comments: modes.Comment[], commands: modes.Command[], collapseState: modes.CommentThreadCollapsibleState): modes.CommentThread2 | undefined;
 	$deleteCommentThread(handle: number, commentThreadHandle: number): void;
 	$updateComments(handle: number, commentThreadHandle: number, comments: modes.Comment[]): void;
+	$createCommentingRanges(handle: number, commentingRangesHandle: number, resource: UriComponents, ranges: IRange[], commands: modes.Command[]): void;
+	$deleteCommentingRanges(handle: number, commentingRangesHandle: number): void;
+	$updateCommentingRanges(handle: number, commentingRangesHandle: number, newRanges: IRange[]): void;
+	$updateCommentingRangesCommands(handle: number, commentingRangesHandle: number, acceptInputCommands: modes.Command[]): void;
 	$setInputValue(handle: number, commentThreadHandle: number, input: string): void;
 	$updateCommentThreadCommands(handle: number, commentThreadHandle: number, acceptInputCommands: modes.Command[]): void;
 	$registerDocumentCommentProvider(handle: number, features: CommentProviderFeatures): void;

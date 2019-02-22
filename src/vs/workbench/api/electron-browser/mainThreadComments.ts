@@ -160,12 +160,48 @@ export class MainThreadCommentThread implements modes.CommentThread2 {
 	}
 }
 
+export class MainThreadCommentingRanges implements modes.CommentingRanges {
+	get ranges(): IRange[] {
+		return this._ranges;
+	}
+
+	set ranges(newRanges: IRange[]) {
+		this._ranges = newRanges;
+	}
+
+	set acceptInputCommands(newCommands: modes.Command[]) {
+		this._acceptInputCommands = newCommands;
+		this._onDidChangeAcceptInputCommands.fire(this._acceptInputCommands);
+	}
+
+	get acceptInputCommands(): modes.Command[] {
+		return this._acceptInputCommands;
+	}
+
+	private _onDidChangeAcceptInputCommands = new Emitter<modes.Command[]>();
+	get onDidChangeAcceptInputCommands(): Event<modes.Command[]> { return this._onDidChangeAcceptInputCommands.event; }
+
+	constructor(
+		public commentingRangesHandle: number,
+		public control: MainThreadCommentControl,
+		public resource: URI,
+		private _ranges: IRange[],
+		private _acceptInputCommands: modes.Command[],
+	) {
+	}
+
+	dispose() {
+
+	}
+}
+
 export class MainThreadCommentControl {
 	get handle(): number {
 		return this._handle;
 	}
 
 	private _threads: Map<number, MainThreadCommentThread> = new Map<number, MainThreadCommentThread>();
+	private _commentingRanges: Map<number, MainThreadCommentingRanges> = new Map<number, MainThreadCommentingRanges>();
 	constructor(
 		private _proxy: ExtHostCommentsShape,
 		private _handle: number,
@@ -200,6 +236,38 @@ export class MainThreadCommentControl {
 	updateComments(commentThreadHandle: number, comments: modes.Comment[]) {
 		let thread = this._threads.get(commentThreadHandle);
 		thread.comments = comments;
+	}
+
+	createCommentingRanges(commentingRangesHandle: number, resource: UriComponents, ranges: IRange[], commands: modes.Command[]) {
+		let commentingRange = new MainThreadCommentingRanges(
+			commentingRangesHandle,
+			this,
+			URI.revive(resource),
+			ranges,
+			commands
+		);
+
+		this._commentingRanges.set(commentingRangesHandle, commentingRange);
+		return commentingRange;
+	}
+
+	deleteCommentingRanges(commentingRangesHandle: number) {
+		let commentingRanges = this._commentingRanges.get(commentingRangesHandle);
+
+		this._commentingRanges.delete(commentingRangesHandle);
+		commentingRanges.dispose();
+	}
+
+	updateCommentingRanges(commentingRangesHandle: number, newRanges: IRange[]) {
+		let commentingRanges = this._commentingRanges.get(commentingRangesHandle);
+
+		commentingRanges.ranges = newRanges;
+	}
+
+	updateCommentingRangesCommands(commentingRangesHandle: number, acceptInputCommands: modes.Command[]) {
+		let commentingRanges = this._commentingRanges.get(commentingRangesHandle);
+
+		commentingRanges.acceptInputCommands = acceptInputCommands;
 	}
 
 	updateAcceptInputCommands(commentThreadHandle: number, acceptInputCommands: modes.Command[]) {
@@ -294,7 +362,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		let provider = this._commentControls.get(handle);
 
 		if (!provider) {
-			return;
+			return undefined;
 		}
 
 		return provider.createCommentThread(commentThreadHandle, threadId, resource, range, comments, commands, collapseState);
@@ -308,6 +376,46 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		}
 
 		return provider.deleteCommentThread(commentThreadHandle);
+	}
+
+	$createCommentingRanges(handle: number, commentingRangesHandle: number, resource: UriComponents, ranges: IRange[], commands: modes.Command[]) {
+		let provider = this._commentControls.get(handle);
+
+		if (!provider) {
+			return undefined;
+		}
+
+		return provider.createCommentingRanges(commentingRangesHandle, resource, ranges, commands);
+	}
+
+	$deleteCommentingRanges(handle: number, commentingRangesHandle: number) {
+		let provider = this._commentControls.get(handle);
+
+		if (!provider) {
+			return undefined;
+		}
+
+		return provider.deleteCommentingRanges(commentingRangesHandle);
+
+	}
+
+	$updateCommentingRanges(handle: number, commentingRangesHandle: number, newRanges: IRange[]): void {
+		let provider = this._commentControls.get(handle);
+
+		if (!provider) {
+			return;
+		}
+
+		provider.updateCommentingRanges(commentingRangesHandle, newRanges);
+	}
+	$updateCommentingRangesCommands(handle: number, commentingRangesHandle: number, acceptInputCommands: modes.Command[]): void {
+		let provider = this._commentControls.get(handle);
+
+		if (!provider) {
+			return;
+		}
+
+		provider.updateCommentingRangesCommands(commentingRangesHandle, acceptInputCommands);
 	}
 
 	$updateComments(handle: number, commentThreadHandle: number, comments: modes.Comment[]) {

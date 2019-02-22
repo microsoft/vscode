@@ -763,6 +763,12 @@ declare module 'vscode' {
 		Expanded = 1
 	}
 
+	interface CommentingRanges {
+		readonly resource: Uri;
+		ranges: Range[];
+		acceptInputCommands: Command[];
+	}
+
 	/**
 	 * A collection of comments representing a conversation at a particular range in a document.
 	 */
@@ -830,6 +836,8 @@ declare module 'vscode' {
 		 *
 		 * This will be treated as false if the comment is provided by a `WorkspaceCommentProvider`, or
 		 * if it is provided by a `DocumentCommentProvider` and  no `editComment` method is given.
+		 *
+		 * DEPRECATED, use editCommand
 		 */
 		canEdit?: boolean;
 
@@ -838,6 +846,8 @@ declare module 'vscode' {
 		 *
 		 * This will be treated as false if the comment is provided by a `WorkspaceCommentProvider`, or
 		 * if it is provided by a `DocumentCommentProvider` and  no `deleteComment` method is given.
+		 *
+		 * DEPRECATED, use deleteCommand
 		 */
 		canDelete?: boolean;
 
@@ -960,6 +970,7 @@ declare module 'vscode' {
 	 	 */
 		readonly widget?: CommentWidget;
 		createCommentThread(id: string, resource: Uri, range: Range, comments: Comment[], acceptInputCommands: Command[], collapsibleState?: CommentThreadCollapsibleState): CommentThread;
+		createCommentingRanges(resource: Uri, ranges: Range[], acceptInputCommands: Command[]): CommentingRanges;
 		dispose(): void;
 	}
 
