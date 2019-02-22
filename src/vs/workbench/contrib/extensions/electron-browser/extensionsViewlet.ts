@@ -345,6 +345,10 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 			provideResults: (query) => Query.suggestions(query)
 		}, placeholder, 'extensions:searchinput', { placeholderText: placeholder, value: searchValue });
 
+		if (this.searchBox.getValue()) {
+			this.triggerSearch();
+		}
+
 		this.disposables.push(attachSuggestEnabledInputBoxStyler(this.searchBox, this.themeService));
 
 		this.disposables.push(this.searchBox);
