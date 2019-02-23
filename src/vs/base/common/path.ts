@@ -29,7 +29,7 @@
  * USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-import { isWindows } from 'vs/base/common/platform';
+import * as process from 'vs/base/common/process';
 
 const CHAR_UPPERCASE_A = 65;/* A */
 const CHAR_LOWERCASE_A = 97; /* a */
@@ -40,19 +40,6 @@ const CHAR_FORWARD_SLASH = 47; /* / */
 const CHAR_BACKWARD_SLASH = 92; /* \ */
 const CHAR_COLON = 58; /* : */
 const CHAR_QUESTION_MARK = 63; /* ? */
-
-interface IProcess {
-	cwd(): string;
-	platform: string;
-	env: object;
-}
-
-declare let process: IProcess;
-const safeProcess: IProcess = (typeof process === 'undefined') ? {
-	cwd() { return '/'; },
-	env: {},
-	get platform() { return isWindows ? 'win32' : 'posix'; }
-} : process;
 
 class ErrorInvalidArgType extends Error {
 	code: 'ERR_INVALID_ARG_TYPE';
@@ -219,14 +206,14 @@ export const win32: IPath = {
 			if (i >= 0) {
 				path = pathSegments[i];
 			} else if (!resolvedDevice) {
-				path = safeProcess.cwd();
+				path = process.cwd();
 			} else {
 				// Windows has the concept of drive-specific current working
 				// directories. If we've resolved a drive letter but not yet an
 				// absolute path, get cwd for that drive, or the process cwd if
 				// the drive cwd is not available. We're sure the device is not
 				// a UNC path at this points, because UNC paths are always absolute.
-				path = safeProcess.env['=' + resolvedDevice] || safeProcess.cwd();
+				path = process.env['=' + resolvedDevice] || process.cwd();
 
 				// Verify that a cwd was found and that it actually points
 				// to our drive. If not, default to the drive's root.
@@ -1208,7 +1195,7 @@ export const posix: IPath = {
 				path = pathSegments[i];
 			}
 			else {
-				path = safeProcess.cwd();
+				path = process.cwd();
 			}
 
 			validateString(path, 'path');
@@ -1682,16 +1669,16 @@ export const posix: IPath = {
 posix.win32 = win32.win32 = win32;
 posix.posix = win32.posix = posix;
 
-export const normalize = (safeProcess.platform === 'win32' ? win32.normalize : posix.normalize);
-export const isAbsolute = (safeProcess.platform === 'win32' ? win32.isAbsolute : posix.isAbsolute);
-export const join = (safeProcess.platform === 'win32' ? win32.join : posix.join);
-export const resolve = (safeProcess.platform === 'win32' ? win32.resolve : posix.resolve);
-export const relative = (safeProcess.platform === 'win32' ? win32.relative : posix.relative);
-export const dirname = (safeProcess.platform === 'win32' ? win32.dirname : posix.dirname);
-export const basename = (safeProcess.platform === 'win32' ? win32.basename : posix.basename);
-export const extname = (safeProcess.platform === 'win32' ? win32.extname : posix.extname);
-export const format = (safeProcess.platform === 'win32' ? win32.format : posix.format);
-export const parse = (safeProcess.platform === 'win32' ? win32.parse : posix.parse);
-export const toNamespacedPath = (safeProcess.platform === 'win32' ? win32.toNamespacedPath : posix.toNamespacedPath);
-export const sep = (safeProcess.platform === 'win32' ? win32.sep : posix.sep);
-export const delimiter = (safeProcess.platform === 'win32' ? win32.delimiter : posix.delimiter);
+export const normalize = (process.platform === 'win32' ? win32.normalize : posix.normalize);
+export const isAbsolute = (process.platform === 'win32' ? win32.isAbsolute : posix.isAbsolute);
+export const join = (process.platform === 'win32' ? win32.join : posix.join);
+export const resolve = (process.platform === 'win32' ? win32.resolve : posix.resolve);
+export const relative = (process.platform === 'win32' ? win32.relative : posix.relative);
+export const dirname = (process.platform === 'win32' ? win32.dirname : posix.dirname);
+export const basename = (process.platform === 'win32' ? win32.basename : posix.basename);
+export const extname = (process.platform === 'win32' ? win32.extname : posix.extname);
+export const format = (process.platform === 'win32' ? win32.format : posix.format);
+export const parse = (process.platform === 'win32' ? win32.parse : posix.parse);
+export const toNamespacedPath = (process.platform === 'win32' ? win32.toNamespacedPath : posix.toNamespacedPath);
+export const sep = (process.platform === 'win32' ? win32.sep : posix.sep);
+export const delimiter = (process.platform === 'win32' ? win32.delimiter : posix.delimiter);

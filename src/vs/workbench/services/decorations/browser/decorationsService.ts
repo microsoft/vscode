@@ -18,6 +18,7 @@ import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { localize } from 'vs/nls';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 class DecorationRule {
 
@@ -353,8 +354,7 @@ export class FileDecorationsService implements IDecorationsService {
 	);
 
 	constructor(
-		@IThemeService themeService: IThemeService,
-		cleanUpCount: number = 17
+		@IThemeService themeService: IThemeService
 	) {
 		this._decorationStyles = new DecorationStyles(themeService);
 
@@ -362,7 +362,7 @@ export class FileDecorationsService implements IDecorationsService {
 		// css styles that we don't need anymore
 		let count = 0;
 		let reg = this.onDidChangeDecorations(() => {
-			if (++count % cleanUpCount === 0) {
+			if (++count % 17 === 0) {
 				this._decorationStyles.cleanUp(this._data.iterator());
 			}
 		});
@@ -442,3 +442,4 @@ function getColor(theme: ITheme, color: string | undefined) {
 	return 'inherit';
 }
 
+registerSingleton(IDecorationsService, FileDecorationsService);
