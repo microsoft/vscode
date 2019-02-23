@@ -160,11 +160,11 @@
 		"./vs/workbench/contrib/codeEditor/electron-browser/codeEditor.contribution.ts",
 		"./vs/workbench/contrib/codeEditor/electron-browser/sleepResumeRepaintMinimap.ts",
 		"./vs/workbench/contrib/codeinset/common/codeInset.ts",
-		"./vs/workbench/contrib/comments/common/commentModel.ts",
-		"./vs/workbench/contrib/comments/electron-browser/commentGlyphWidget.ts",
-		"./vs/workbench/contrib/comments/electron-browser/commentService.ts",
-		"./vs/workbench/contrib/comments/electron-browser/reactionsAction.ts",
-		"./vs/workbench/contrib/comments/electron-browser/simpleCommentEditor.ts",
+		// "./vs/workbench/contrib/comments/common/commentModel.ts",
+		// "./vs/workbench/contrib/comments/electron-browser/commentGlyphWidget.ts",
+		// "./vs/workbench/contrib/comments/electron-browser/commentService.ts",
+		// "./vs/workbench/contrib/comments/electron-browser/reactionsAction.ts",
+		// "./vs/workbench/contrib/comments/electron-browser/simpleCommentEditor.ts",
 		"./vs/workbench/contrib/debug/browser/debugANSIHandling.ts",
 		"./vs/workbench/contrib/debug/browser/debugActionItems.ts",
 		"./vs/workbench/contrib/debug/browser/debugContentProvider.ts",
@@ -437,6 +437,7 @@
 		"./vs/workbench/test/electron-browser/api/testRPCProtocol.ts"
 	],
 	"exclude": [
-		"./typings/require-monaco.d.ts"
+		"./typings/require-monaco.d.ts",
+		"./vs/workbench/contrib/comments/electron-browser/commentThreadWidget.ts"
 	]
 }
