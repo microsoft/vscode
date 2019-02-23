@@ -673,7 +673,7 @@ export function createApiFactory(
 			createCommentControl(id: string, label: string) {
 				return extHostComment.createCommentControl(extension, id, label);
 			}
-		}
+		};
 
 		// namespace: debug
 		const debug: typeof vscode.debug = {
