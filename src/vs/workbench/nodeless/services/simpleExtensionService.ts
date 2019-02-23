@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// tslint:disable-next-line: no-standalone-editor
-import { SimpleConfigurationService as StandaloneEditorConfigurationService } from 'vs/editor/standalone/browser/simpleServices';
+import { NullExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
-export class SimpleConfigurationService extends StandaloneEditorConfigurationService { }
+export class SimpleExtensionService extends NullExtensionService { }

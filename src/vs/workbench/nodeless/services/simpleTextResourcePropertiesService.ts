@@ -4,6 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 // tslint:disable-next-line: no-standalone-editor
-import { SimpleConfigurationService as StandaloneEditorConfigurationService } from 'vs/editor/standalone/browser/simpleServices';
+import { SimpleResourcePropertiesService } from 'vs/editor/standalone/browser/simpleServices';
 
-export class SimpleConfigurationService extends StandaloneEditorConfigurationService { }
+export class SimpleTextResourcePropertiesService extends SimpleResourcePropertiesService { }
