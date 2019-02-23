@@ -17,6 +17,7 @@ import { IURLHandler, IURLService } from 'vs/platform/url/common/url';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 const FIVE_MINUTES = 5 * 60 * 1000;
 const THIRTY_SECONDS = 30 * 1000;
@@ -271,3 +272,5 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		this.uriBuffer.clear();
 	}
 }
+
+registerSingleton(IExtensionUrlHandler, ExtensionUrlHandler);

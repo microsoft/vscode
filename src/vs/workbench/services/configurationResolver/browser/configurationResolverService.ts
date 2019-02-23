@@ -6,7 +6,6 @@
 import { URI as uri } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import * as path from 'vs/base/common/path';
-import * as platform from 'vs/base/common/platform';
 import * as Types from 'vs/base/common/types';
 import { Schemas } from 'vs/base/common/network';
 import { toResource } from 'vs/workbench/common/editor';
@@ -20,14 +19,16 @@ import { AbstractVariableResolverService } from 'vs/workbench/services/configura
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IQuickInputService, IInputOptions, IQuickPickItem, IPickOptions } from 'vs/platform/quickinput/common/quickInput';
-import { ConfiguredInput } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
+import { ConfiguredInput, IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
+import { IWindowService } from 'vs/platform/windows/common/windows';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class ConfigurationResolverService extends AbstractVariableResolverService {
 
 	static INPUT_OR_COMMAND_VARIABLES_PATTERN = /\${((input|command):(.*?))}/g;
 
 	constructor(
-		envVariables: platform.IProcessEnvironment,
+		@IWindowService windowService: IWindowService,
 		@IEditorService editorService: IEditorService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -79,7 +80,7 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 				}
 				return undefined;
 			}
-		}, envVariables);
+		}, windowService.getConfiguration().userEnv);
 	}
 
 	public resolveWithInteractionReplace(folder: IWorkspaceFolder, config: any, section?: string, variables?: IStringDictionary<string>): Promise<any> {
@@ -288,3 +289,5 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 		return Promise.reject(new Error(nls.localize('inputVariable.undefinedVariable', "Undefined input variable '{0}' encountered. Remove or define '{0}' to continue.", variable)));
 	}
 }
+
+registerSingleton(IConfigurationResolverService, ConfigurationResolverService, true);

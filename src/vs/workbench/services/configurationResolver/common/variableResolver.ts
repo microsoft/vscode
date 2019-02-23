@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as paths from 'vs/base/common/path';
+import * as process from 'vs/base/common/process';
 import * as types from 'vs/base/common/types';
 import * as objects from 'vs/base/common/objects';
 import { IStringDictionary } from 'vs/base/common/collections';
@@ -32,7 +33,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 
 	constructor(
 		private _context: IVariableResolveContext,
-		private _envVariables: IProcessEnvironment = process.env
+		private _envVariables: IProcessEnvironment
 	) {
 		if (isWindows) {
 			this._envVariables = Object.create(null);

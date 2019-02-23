@@ -29,6 +29,7 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { IRawSearchService, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, isSerializedSearchComplete, isSerializedSearchSuccess } from './search';
 import { SearchChannelClient } from './searchIpc';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class SearchService extends Disposable implements ISearchService {
 	_serviceBrand: any;
@@ -586,3 +587,5 @@ export class DiskSearch implements ISearchResultProvider {
 		return this.raw.clearCache(cacheKey);
 	}
 }
+
+registerSingleton(ISearchService, SearchService, true);

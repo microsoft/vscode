@@ -15,6 +15,7 @@ import { ProgressBadge, IActivityService } from 'vs/workbench/services/activity/
 import { INotificationService, Severity, INotificationHandle, INotificationActions } from 'vs/platform/notification/common/notification';
 import { Action } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class ProgressService2 implements IProgressService2 {
 
@@ -267,3 +268,5 @@ export class ProgressService2 implements IProgressService2 {
 		return promise;
 	}
 }
+
+registerSingleton(IProgressService2, ProgressService2, true);

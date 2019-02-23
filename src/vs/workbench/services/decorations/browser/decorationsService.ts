@@ -18,6 +18,7 @@ import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { localize } from 'vs/nls';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 class DecorationRule {
 
@@ -442,3 +443,4 @@ function getColor(theme: ITheme, color: string | undefined) {
 	return 'inherit';
 }
 
+registerSingleton(IDecorationsService, FileDecorationsService as any); //TODO@Joh
