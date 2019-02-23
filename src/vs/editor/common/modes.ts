@@ -1196,7 +1196,7 @@ export interface Command {
 export interface CommentInfo {
 	extensionId: string;
 	threads: CommentThread[];
-	commentingRanges?: IRange[];
+	commentingRanges?: (IRange[] | CommentingRanges);
 	reply?: Command;
 	draftMode: DraftMode;
 }
@@ -1269,7 +1269,7 @@ export interface CommentThread2 {
 export interface CommentingRanges {
 	readonly resource: URI;
 	ranges: IRange[];
-	acceptInputCommands: Command[];
+	newCommentThreadCommand: Command;
 }
 
 /**

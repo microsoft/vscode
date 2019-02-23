@@ -154,24 +154,24 @@ export class MainThreadCommentingRanges implements modes.CommentingRanges {
 		this._ranges = newRanges;
 	}
 
-	set acceptInputCommands(newCommands: modes.Command[]) {
-		this._acceptInputCommands = newCommands;
-		this._onDidChangeAcceptInputCommands.fire(this._acceptInputCommands);
+	set newCommentThreadCommand(newCommand: modes.Command) {
+		this._newCommentThreadCommand = newCommand;
+		this._onDidChangeNewCommentThreadCommand.fire(this._newCommentThreadCommand);
 	}
 
-	get acceptInputCommands(): modes.Command[] {
-		return this._acceptInputCommands;
+	get newCommentThreadCommand(): modes.Command {
+		return this._newCommentThreadCommand;
 	}
 
-	private _onDidChangeAcceptInputCommands = new Emitter<modes.Command[]>();
-	get onDidChangeAcceptInputCommands(): Event<modes.Command[]> { return this._onDidChangeAcceptInputCommands.event; }
+	private _onDidChangeNewCommentThreadCommand = new Emitter<modes.Command>();
+	get onDidChangeNewCommentThreadCommand(): Event<modes.Command> { return this._onDidChangeNewCommentThreadCommand.event; }
 
 	constructor(
 		public commentingRangesHandle: number,
 		public control: MainThreadCommentControl,
 		public resource: URI,
 		private _ranges: IRange[],
-		private _acceptInputCommands: modes.Command[],
+		private _newCommentThreadCommand: modes.Command,
 	) {
 	}
 
@@ -250,13 +250,13 @@ export class MainThreadCommentControl {
 		thread.comments = comments;
 	}
 
-	createCommentingRanges(commentingRangesHandle: number, resource: UriComponents, ranges: IRange[], commands: modes.Command[]) {
+	createCommentingRanges(commentingRangesHandle: number, resource: UriComponents, ranges: IRange[], command: modes.Command) {
 		let commentingRange = new MainThreadCommentingRanges(
 			commentingRangesHandle,
 			this,
 			URI.revive(resource),
 			ranges,
-			commands
+			command
 		);
 
 		this._commentingRanges.set(commentingRangesHandle, commentingRange);
@@ -276,10 +276,10 @@ export class MainThreadCommentControl {
 		commentingRanges.ranges = newRanges;
 	}
 
-	updateCommentingRangesCommands(commentingRangesHandle: number, acceptInputCommands: modes.Command[]) {
+	updateCommentingRangesCommands(commentingRangesHandle: number, command: modes.Command) {
 		let commentingRanges = this._commentingRanges.get(commentingRangesHandle);
 
-		commentingRanges.acceptInputCommands = acceptInputCommands;
+		commentingRanges.newCommentThreadCommand = command;
 	}
 
 	updateAcceptInputCommands(commentThreadHandle: number, acceptInputCommands: modes.Command[]) {
@@ -304,10 +304,17 @@ export class MainThreadCommentControl {
 			}
 		}
 
+		let commentingRanges: modes.CommentingRanges;
+		for (let key of keys(this._commentingRanges)) {
+			if (this._commentingRanges.get(key).resource.toString() === resource.toString()) {
+				commentingRanges = this._commentingRanges.get(key);
+			}
+		}
+
 		return <ICommentInfo>{
 			owner: String(this.handle),
 			threads: ret,
-			commentingRanges: [],
+			commentingRanges: commentingRanges || [],
 			draftMode: modes.DraftMode.NotSupported
 		};
 	}
@@ -364,6 +371,15 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 
 			await this._proxy.$onActiveCommentWidgetChange(control.handle, this._activeCommentThread, this._activeComment, this._input ? this._input.value : undefined);
 		}));
+
+		this._disposables.push(this._commentService.onDidChangeActiveCommentingRange(value => {
+			let control = (value.commentingRangesInfo as MainThreadCommentingRanges).control;
+
+			if (!control) {
+				return;
+			}
+			this._proxy.$onActiveCommentingRangeChange(control.handle, value.range);
+		}));
 	}
 
 	$registerCommentControl(handle: number, id: string, label: string): void {
@@ -398,14 +414,14 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		return provider.deleteCommentThread(commentThreadHandle);
 	}
 
-	$createCommentingRanges(handle: number, commentingRangesHandle: number, resource: UriComponents, ranges: IRange[], commands: modes.Command[]) {
+	$createCommentingRanges(handle: number, commentingRangesHandle: number, resource: UriComponents, ranges: IRange[], command: modes.Command) {
 		let provider = this._commentControls.get(handle);
 
 		if (!provider) {
 			return undefined;
 		}
 
-		return provider.createCommentingRanges(commentingRangesHandle, resource, ranges, commands);
+		return provider.createCommentingRanges(commentingRangesHandle, resource, ranges, command);
 	}
 
 	$deleteCommentingRanges(handle: number, commentingRangesHandle: number) {
@@ -428,14 +444,14 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 
 		provider.updateCommentingRanges(commentingRangesHandle, newRanges);
 	}
-	$updateCommentingRangesCommands(handle: number, commentingRangesHandle: number, acceptInputCommands: modes.Command[]): void {
+	$updateCommentingRangesCommands(handle: number, commentingRangesHandle: number, command: modes.Command): void {
 		let provider = this._commentControls.get(handle);
 
 		if (!provider) {
 			return;
 		}
 
-		provider.updateCommentingRangesCommands(commentingRangesHandle, acceptInputCommands);
+		provider.updateCommentingRangesCommands(commentingRangesHandle, command);
 	}
 
 	$updateComments(handle: number, commentThreadHandle: number, comments: modes.Comment[]) {

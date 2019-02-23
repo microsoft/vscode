@@ -211,7 +211,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._disposables.push(this._actionbarWidget);
 
 		this._collapseAction = new Action('review.expand', nls.localize('label.collapse', "Collapse"), COLLAPSE_ACTION_CLASS, true, () => {
-			if (this._commentThread.comments.length === 0) {
+			if (this._commentThread.comments.length === 0 && (this._commentThread as modes.CommentThread2).commentThreadHandle === undefined) {
 				this.dispose();
 				return null;
 			}
@@ -283,6 +283,10 @@ export class ReviewZoneWidget extends ZoneWidget {
 		const lineNumber = this._commentThread.range.startLineNumber;
 		if (this._commentGlyph.getPosition().position.lineNumber !== lineNumber) {
 			this._commentGlyph.setLineNumber(lineNumber);
+		}
+
+		if (!this._reviewThreadReplyButton) {
+			this.createReplyButton();
 		}
 
 		if (!this._isCollapsed) {
@@ -401,12 +405,11 @@ export class ReviewZoneWidget extends ZoneWidget {
 			}
 		}
 
-
 		this._localToDispose.push(this._commentEditor.onKeyDown((ev: IKeyboardEvent) => {
 			const hasExistingComments = this._commentThread.comments.length > 0;
 
 			if (this._commentEditor.getModel().getValueLength() === 0 && ev.keyCode === KeyCode.Escape) {
-				if (hasExistingComments) {
+				if (hasExistingComments || (this._commentThread as modes.CommentThread2).commentThreadHandle !== undefined) {
 					if (dom.hasClass(this._commentForm, 'expand')) {
 						dom.removeClass(this._commentForm, 'expand');
 					}

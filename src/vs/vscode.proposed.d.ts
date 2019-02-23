@@ -766,7 +766,7 @@ declare module 'vscode' {
 	interface CommentingRanges {
 		readonly resource: Uri;
 		ranges: Range[];
-		acceptInputCommands: Command[];
+		newCommentThreadCommand: Command;
 	}
 
 	/**
@@ -970,8 +970,12 @@ declare module 'vscode' {
 		 * The active (focused) comment widget.
 		 */
 		readonly widget?: CommentWidget;
+		/**
+		 * The active range users attempt to create comments against.
+		 */
+		readonly activeCommentingRange?: Range;
 		createCommentThread(id: string, resource: Uri, range: Range, comments: Comment[], acceptInputCommands: Command[], collapsibleState?: CommentThreadCollapsibleState): CommentThread;
-		createCommentingRanges(resource: Uri, ranges: Range[], acceptInputCommands: Command[]): CommentingRanges;
+		createCommentingRanges(resource: Uri, ranges: Range[], newCommentThreadCommand: Command): CommentingRanges;
 		dispose(): void;
 	}
 

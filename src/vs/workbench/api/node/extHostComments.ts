@@ -109,6 +109,16 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		return Promise.resolve(undefined);
 	}
 
+	$onActiveCommentingRangeChange(commentControlhandle: number, range: IRange) {
+		const commentControl = this._commentControls.get(commentControlhandle);
+
+		if (!commentControl) {
+			return;
+		}
+
+		commentControl.setActiveCommentingRange(extHostTypeConverter.Range.to(range));
+	}
+
 	registerWorkspaceCommentProvider(
 		extensionId: ExtensionIdentifier,
 		provider: vscode.WorkspaceCommentProvider
@@ -400,15 +410,15 @@ export class ExtHostCommentingRanges implements vscode.CommentingRanges {
 		this._proxy.$updateCommentingRanges(this._commentControlHandle, this.handle, this._ranges.map(extHostTypeConverter.Range.from));
 	}
 
-	get acceptInputCommands(): vscode.Command[] {
-		return this._acceptInputCommands;
+	get newCommentThreadCommand(): vscode.Command {
+		return this._command;
 	}
 
-	set acceptInputCommands(replyCommands: vscode.Command[]) {
-		this._acceptInputCommands = replyCommands;
+	set newCommentThreadCommand(command: vscode.Command) {
+		this._command = command;
 
-		const internals = replyCommands.map(this._commandsConverter.toInternal.bind(this._commandsConverter));
-		this._proxy.$updateCommentingRangesCommands(this._commentControlHandle, this.handle, internals);
+		const internal = this._commandsConverter.toInternal(command);
+		this._proxy.$updateCommentingRangesCommands(this._commentControlHandle, this.handle, internal);
 	}
 
 	constructor(
@@ -417,14 +427,14 @@ export class ExtHostCommentingRanges implements vscode.CommentingRanges {
 		private _commentControlHandle: number,
 		private _resource: vscode.Uri,
 		private _ranges: vscode.Range[],
-		private _acceptInputCommands: vscode.Command[],
+		private _command: vscode.Command,
 	) {
 		this._proxy.$createCommentingRanges(
 			this._commentControlHandle,
 			this.handle,
 			this._resource,
 			this._ranges.map(extHostTypeConverter.Range.from),
-			this._acceptInputCommands.map(this._commandsConverter.toInternal.bind(this._commandsConverter))
+			this._commandsConverter.toInternal(this._command)
 		);
 	}
 
@@ -443,6 +453,7 @@ class ExtHostCommentControl implements vscode.CommentControl {
 	}
 
 	public widget?: ExtHostCommentWidget;
+	public activeCommentingRange?: vscode.Range;
 
 	public get handle(): number {
 		return this._handle;
@@ -482,10 +493,14 @@ class ExtHostCommentControl implements vscode.CommentControl {
 		this.widget = extHostCommentWidget;
 	}
 
-	createCommentingRanges(resource: vscode.Uri, ranges: vscode.Range[], acceptInputCommands: vscode.Command[]): vscode.CommentingRanges {
-		const commentingRange = new ExtHostCommentingRanges(this._proxy, this._commandsConverter, this.handle, resource, ranges, acceptInputCommands);
+	createCommentingRanges(resource: vscode.Uri, ranges: vscode.Range[], newCommentThreadCommand: vscode.Command): vscode.CommentingRanges {
+		const commentingRange = new ExtHostCommentingRanges(this._proxy, this._commandsConverter, this.handle, resource, ranges, newCommentThreadCommand);
 		this._commentingRanges.set(commentingRange.handle, commentingRange);
 		return commentingRange;
+	}
+
+	setActiveCommentingRange(range: vscode.Range) {
+		this.activeCommentingRange = range;
 	}
 
 	getCommentThread(handle: number) {
