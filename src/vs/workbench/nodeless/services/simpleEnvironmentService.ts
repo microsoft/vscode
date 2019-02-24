@@ -13,7 +13,7 @@ export class SimpleEnvironmentService implements IEnvironmentService {
 	args = { _: [] };
 	execPath: string;
 	cliPath: string;
-	appRoot: string;
+	appRoot: string = '/nodeless/';
 	userHome: string;
 	userDataPath: string;
 	appNameLong: string;

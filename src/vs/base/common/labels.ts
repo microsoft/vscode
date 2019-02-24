@@ -284,6 +284,10 @@ interface ISegment {
  * @param values the values of the templates to use
  */
 export function template(template: string, values: { [key: string]: string | ISeparator } = Object.create(null)): string {
+	if (!template) {
+		return template;
+	}
+
 	const segments: ISegment[] = [];
 
 	let inVariable = false;

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'vs/base/common/path';
 import { URI as Uri } from 'vs/base/common/uri';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { ITextSnapshot } from 'vs/platform/files/common/files';
@@ -63,7 +62,6 @@ export class SimpleBackupFileService implements IBackupFileService {
 	}
 
 	toBackupResource(resource: Uri): Uri {
-		return Uri.file(path.join(resource.scheme, hashPath(resource)));
+		return resource;
 	}
-
 }
