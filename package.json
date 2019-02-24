@@ -156,6 +156,7 @@
     "vscode-windows-registry": "1.0.1",
     "windows-foreground-love": "0.1.0",
     "windows-mutex": "0.2.1",
-    "windows-process-tree": "0.2.3"
+    "windows-process-tree": "0.2.3",
+    "windows-register-restart": "^0.1.0"
   }
 }

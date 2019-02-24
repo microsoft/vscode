@@ -9791,6 +9791,11 @@ windows-process-tree@0.2.3:
   dependencies:
     nan "^2.10.0"
 
+windows-register-restart@0.1.0:
+  version "0.1.0"
+  resolved "https://registry.yarnpkg.com/windows-register-restart/-/windows-register-restart-0.1.0.tgz#9436a7be83c1c288e45a3d4272c0ee4f2084ac27"
+  integrity sha512-FVR8Wt0UVytmMkJ/oUePCrOKQh/w/WpSbp2dsWhV52R5cuzba0X+idue4A6VFxh4U0LqPUySInsfEe+lCC4U0A==
+
 wordwrap@0.0.2:
   version "0.0.2"
   resolved "https://registry.yarnpkg.com/wordwrap/-/wordwrap-0.0.2.tgz#b79669bb42ecb409f83d583cad52ca17eaa1643f"
