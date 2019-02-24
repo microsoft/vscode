@@ -69,6 +69,21 @@ suite('QueryBuilder', () => {
 			});
 	});
 
+	test('splits glob pattern even with expandPatterns disabled', () => {
+		assertEqualQueries(
+			queryBuilder.file([ROOT_1_URI], { includePattern: '**/foo, **/bar' }),
+			{
+				folderQueries: [{
+					folder: ROOT_1_URI
+				}],
+				type: QueryType.File,
+				includePattern: {
+					'**/foo': true,
+					'**/bar': true
+				}
+			});
+	});
+
 	test('folderResources', () => {
 		assertEqualTextQueries(
 			queryBuilder.text(
