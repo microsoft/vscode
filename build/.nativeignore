@@ -67,6 +67,11 @@ windows-process-tree/build/**
 windows-process-tree/src/**
 !windows-process-tree/**/*.node
 
+windows-register-restart/binding.gyp
+windows-register-restart/build/**
+windows-register-restart/src/**
+!windows-register-restart/**/*.node
+
 gc-signals/binding.gyp
 gc-signals/build/**
 gc-signals/src/**
