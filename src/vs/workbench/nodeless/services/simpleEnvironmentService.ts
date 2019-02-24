@@ -18,9 +18,9 @@ export class SimpleEnvironmentService implements IEnvironmentService {
 	userDataPath: string;
 	appNameLong: string;
 	appQuality?: string;
-	appSettingsHome: string;
-	appSettingsPath: string;
-	appKeybindingsPath: string;
+	appSettingsHome: string = '/nodeless/settings';
+	appSettingsPath: string = '/nodeless/settings/settings.json';
+	appKeybindingsPath: string = '/nodeless/settings/keybindings.json';
 	settingsSearchBuildId?: number;
 	settingsSearchUrl?: string;
 	globalStorageHome: string;

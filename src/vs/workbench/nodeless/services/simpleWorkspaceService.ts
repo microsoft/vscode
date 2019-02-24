@@ -4,26 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { IWorkspaceContextService, Workspace, WorkbenchState, IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, Workspace, WorkbenchState, IWorkspaceFolder, IWorkspace, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import { Event } from 'vs/base/common/event';
-import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { isEqualOrParent, isEqual } from 'vs/base/common/resources';
 import { join } from 'vs/base/common/path';
+import { isWindows } from 'vs/base/common/platform';
+
+export const workspaceResource = URI.file(isWindows ? 'C:\\simpleWorkspace' : '/simpleWorkspace');
 
 export class SimpleWorkspaceService implements IWorkspaceContextService {
 	_serviceBrand: any;
 
 	private workspace: Workspace;
-	private options: any;
 
 	readonly onDidChangeWorkspaceName = Event.None;
 	readonly onDidChangeWorkspaceFolders = Event.None;
 	readonly onDidChangeWorkbenchState = Event.None;
 
-	constructor(workspace = TestWorkspace, options: any = null) {
-		this.workspace = workspace;
-		this.options = options || Object.create(null);
+	constructor() {
+		this.workspace = new Workspace(
+			workspaceResource.toString(),
+			toWorkspaceFolders([{ path: workspaceResource.fsPath }])
+		);
 	}
 
 	getFolders(): IWorkspaceFolder[] {
@@ -58,12 +61,6 @@ export class SimpleWorkspaceService implements IWorkspaceContextService {
 		this.workspace = workspace;
 	}
 
-	getOptions() {
-		return this.options;
-	}
-
-	updateOptions() { }
-
 	isInsideWorkspace(resource: URI): boolean {
 		if (resource && this.workspace) {
 			return isEqualOrParent(resource, this.workspace.folders[0].uri);
@@ -73,7 +70,7 @@ export class SimpleWorkspaceService implements IWorkspaceContextService {
 	}
 
 	toResource(workspaceRelativePath: string): URI {
-		return URI.file(join('C:\\', workspaceRelativePath));
+		return URI.file(join(workspaceResource.fsPath, workspaceRelativePath));
 	}
 
 	isCurrentWorkspace(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): boolean {
