@@ -692,4 +692,18 @@ import { LogStorageAction } from 'vs/platform/storage/node/storageService';
 			}
 		}
 	});
+
+	// Screencast
+	registry.registerConfiguration({
+		'id': 'screencastMode',
+		'title': nls.localize('screencastModeConfigurationTitle', "Screencast Mode"),
+		'type': 'object',
+		'properties': {
+			'screencastMode.onlyControlKeys': {
+				'type': 'boolean',
+				'description': nls.localize('screencastMode.onlyControlKeys', "Only show control keys in Screencast Mode."),
+				'default': false
+			}
+		}
+	});
 })();

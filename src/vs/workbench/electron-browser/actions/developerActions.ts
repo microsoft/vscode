@@ -16,6 +16,8 @@ import { Context } from 'vs/platform/contextkey/browser/contextKeyService';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { timeout } from 'vs/base/common/async';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 
 export class ToggleDevToolsAction extends Action {
 
@@ -120,7 +122,8 @@ export class ToggleScreencastModeAction extends Action {
 		id: string,
 		label: string,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IPartService private readonly partService: IPartService
+		@IPartService private readonly partService: IPartService,
+		@IConfigurationService private readonly configurationService: ConfigurationService,
 	) {
 		super(id, label);
 	}
@@ -193,12 +196,14 @@ export class ToggleScreencastModeAction extends Action {
 			const label = keybinding.getLabel();
 
 			if (!event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey && this.keybindingService.mightProducePrintableCharacter(event) && label) {
-				keyboardMarker.textContent += ' ' + label;
+				if (!this.configurationService.getValue<boolean>('screencastMode.onlyControlKeys')) {
+					keyboardMarker.textContent += ' ' + label;
+					keyboardMarker.style.display = 'block';
+				}
 			} else {
 				keyboardMarker.textContent = label;
+				keyboardMarker.style.display = 'block';
 			}
-
-			keyboardMarker.style.display = 'block';
 
 			const promise = timeout(800);
 			keyboardTimeout = toDisposable(() => promise.cancel());
