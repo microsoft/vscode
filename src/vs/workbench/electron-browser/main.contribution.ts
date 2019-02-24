@@ -677,6 +677,36 @@ import { LogStorageAction } from 'vs/platform/storage/node/storageService';
 		}
 	});
 
+	// Screencast Mode
+	registry.registerConfiguration({
+		'id': 'screencastMode',
+		'order': 9,
+		'title': nls.localize('screencastModeConfigurationTitle', "Screencast Mode"),
+		'type': 'object',
+		'properties': {
+			'screencastMode.location.verticalPosition': {
+				'type': 'number',
+				'default': 20,
+				'description': nls.localize('screencastMode.location.verticalPosition', "Controls the vertical position of the screencast mode overlay from the bottom as a percentage of the editor height.")
+			},
+			'screencastMode.location.horizontalPosition': {
+				'type': 'number',
+				'default': 0,
+				'description': nls.localize('screencastMode.location.horizontalPosition', "Controls the horizontal position of the screencast mode overlay from the left as a percentage of the editor width.")
+			},
+			'screencastMode.overlay.height': {
+				'type': 'number',
+				'default': 12,
+				'description': nls.localize('screencastMode.overlay.height', "Controls the height of the screencast overlay as a percentage of the editor height..")
+			},
+			'screencastMode.overlay.width': {
+				'type': 'number',
+				'default': 100,
+				'description': nls.localize('screencastMode.overlay.width', "Controls the width of the screencast overlay as a percentage of the editor width.")
+			}
+		}
+	});
+
 	// Telemetry
 	registry.registerConfiguration({
 		'id': 'telemetry',
