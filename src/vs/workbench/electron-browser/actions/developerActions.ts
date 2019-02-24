@@ -162,7 +162,7 @@ export class ToggleScreencastModeAction extends Action {
 		const keyboardMarker = append(document.body, $('div'));
 		keyboardMarker.style.position = 'absolute';
 		keyboardMarker.style.backgroundColor = 'rgba(0, 0, 0 ,0.5)';
-		keyboardMarker.style.width = '100%';
+		keyboardMarker.style.width = '80%';
 		keyboardMarker.style.height = '100px';
 		keyboardMarker.style.bottom = '20%';
 		keyboardMarker.style.left = '0';
@@ -173,7 +173,8 @@ export class ToggleScreencastModeAction extends Action {
 		keyboardMarker.style.textAlign = 'center';
 		keyboardMarker.style.fontSize = '56px';
 		keyboardMarker.style.display = 'none';
-
+		keyboardMarker.style.paddingLeft = '10%';
+		keyboardMarker.style.paddingRight = '10%';
 		const onKeyDown = domEvent(document.body, 'keydown', true);
 		let keyboardTimeout: IDisposable = Disposable.None;
 
@@ -183,11 +184,20 @@ export class ToggleScreencastModeAction extends Action {
 			const event = new StandardKeyboardEvent(e);
 			const keybinding = this.keybindingService.resolveKeyboardEvent(event);
 			const label = keybinding.getLabel();
+			const oldtext = keyboardMarker.textContent;
+			const specialkeys = new Array(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80);
 
-			keyboardMarker.textContent += ' ' + label;
+			if ((event.ctrlKey || event.shiftKey || event.altKey || event.metaKey || specialkeys.indexOf(event.keyCode) !== -1)) {
+				const lastToken = oldtext.substr(oldtext.lastIndexOf(' ') + 1);
+				keyboardMarker.textContent = (label.substring(0, lastToken.length) === lastToken) ? oldtext.substring(0, oldtext.lastIndexOf(' ')) + ' ' + label : keyboardMarker.textContent += ' ' + label;
+			}
+			else {
+				keyboardMarker.textContent += ' ' + label;
+			}
 
-			if (keyboardMarker.scrollHeight > keyboardMarker.clientHeight || event.ctrlKey || event.altKey || event.metaKey || event.shiftKey || !this.keybindingService.mightProducePrintableCharacter(event) || !label) {
-				keyboardMarker.textContent = label;
+
+			if (keyboardMarker.scrollHeight > keyboardMarker.clientHeight) {
+				keyboardMarker.textContent = keyboardMarker.textContent.substring(label.length + 4);
 			}
 
 			keyboardMarker.style.display = 'block';
