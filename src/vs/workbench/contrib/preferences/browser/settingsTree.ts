@@ -1216,7 +1216,9 @@ class SettingsTreeDelegate implements IListVirtualDelegate<SettingsTreeGroupChil
 			return 40 + (7 * element.level);
 		}
 
-		return 78;
+		return element instanceof SettingsTreeSettingElement && element.valueType === SettingValueType.Boolean ?
+			78 :
+			104;
 	}
 
 	getTemplateId(element: SettingsTreeGroupElement | SettingsTreeSettingElement | SettingsTreeNewExtensionsElement): string {
