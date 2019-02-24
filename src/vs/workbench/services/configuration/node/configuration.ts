@@ -10,9 +10,9 @@ import { Event, Emitter } from 'vs/base/common/event';
 import * as pfs from 'vs/base/node/pfs';
 import * as errors from 'vs/base/common/errors';
 import * as collections from 'vs/base/common/collections';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler, Delayer } from 'vs/base/common/async';
-import { FileChangeType, FileChangesEvent, IContent, IFileService } from 'vs/platform/files/common/files';
+import { FileChangeType, FileChangesEvent, IContent, IFileService, FileListener } from 'vs/platform/files/common/files';
 import { ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { WorkspaceConfigurationModelParser, FolderSettingsModelParser, StandaloneConfigurationModelParser } from 'vs/workbench/services/configuration/common/configurationModels';
 import { FOLDER_SETTINGS_PATH, TASKS_CONFIGURATION_KEY, FOLDER_SETTINGS_NAME, LAUNCH_CONFIGURATION_KEY } from 'vs/workbench/services/configuration/common/configuration';
@@ -211,16 +211,22 @@ class FileServiceBasedWorkspaceConfiguration extends AbstractWorkspaceConfigurat
 
 	private workspaceConfig: URI | null = null;
 	private readonly reloadConfigurationScheduler: RunOnceScheduler;
+	private fileListener: FileListener | null;
+	private fileListenerDisposables: IDisposable[] = [];
 
 	constructor(private fileService: IFileService, from?: AbstractWorkspaceConfiguration) {
 		super(from);
 		this.workspaceConfig = from && from.workspaceIdentifier ? from.workspaceIdentifier.configPath : null;
-		this._register(fileService.onFileChanges(e => this.handleWorkspaceFileEvents(e)));
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this._onDidChange.fire(), 50));
+		this.listenToWorkspaceConfigurationFile();
+		this._register(toDisposable(() => dispose(this.fileListenerDisposables)));
 	}
 
 	protected loadWorkspaceConfigurationContents(workspaceIdentifier: IWorkspaceIdentifier): Promise<string> {
-		this.workspaceConfig = workspaceIdentifier.configPath;
+		if (!(this.workspaceConfig && resources.isEqual(this.workspaceConfig, workspaceIdentifier.configPath))) {
+			this.workspaceConfig = workspaceIdentifier.configPath;
+			this.listenToWorkspaceConfigurationFile();
+		}
 		return this.fileService.resolveContent(this.workspaceConfig)
 			.then(content => content.value, e => {
 				errors.onUnexpectedError(e);
@@ -228,19 +234,16 @@ class FileServiceBasedWorkspaceConfiguration extends AbstractWorkspaceConfigurat
 			});
 	}
 
-	private handleWorkspaceFileEvents(event: FileChangesEvent): void {
+	private listenToWorkspaceConfigurationFile(): void {
+		if (this.fileListener) {
+			this.fileListenerDisposables = dispose(this.fileListenerDisposables);
+			this.fileListener = null;
+		}
 		if (this.workspaceConfig) {
-			const events = event.changes;
-
-			let affectedByChanges = false;
-			// Find changes that affect workspace file
-			for (let i = 0, len = events.length; i < len && !affectedByChanges; i++) {
-				affectedByChanges = resources.isEqual(this.workspaceConfig, events[i].resource);
-			}
-
-			if (affectedByChanges) {
-				this.reloadConfigurationScheduler.schedule();
-			}
+			this.fileListener = new FileListener(this.workspaceConfig, this.fileService);
+			this.fileListenerDisposables.push(this.fileListener);
+			this.fileListener.watch();
+			this.fileListener.onDidContentChange(() => this.reloadConfigurationScheduler.schedule(), this, this.fileListenerDisposables);
 		}
 	}
 }

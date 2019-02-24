@@ -117,9 +117,9 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 		});
 	}
 
-	refresh(element: T): void {
+	rerender(element: T): void {
 		const location = this.getElementLocation(element);
-		this.model.refresh(location);
+		this.model.rerender(location);
 	}
 
 	resort(element: T | null = null, recursive = true): void {

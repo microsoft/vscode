@@ -372,6 +372,14 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		return this.tree.renderHeight;
 	}
 
+	get firstVisibleElement(): T {
+		return this.tree.firstVisibleElement!.element as T;
+	}
+
+	get lastVisibleElement(): T {
+		return this.tree.lastVisibleElement!.element as T;
+	}
+
 	domFocus(): void {
 		this.tree.domFocus();
 	}
@@ -433,9 +441,14 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 	// View
 
-	refresh(element: T): void {
+	rerender(element?: T): void {
+		if (element === undefined) {
+			this.tree.rerender();
+			return;
+		}
+
 		const node = this.getDataNode(element);
-		this.tree.refresh(node);
+		this.tree.rerender(node);
 	}
 
 	updateWidth(element: T): void {

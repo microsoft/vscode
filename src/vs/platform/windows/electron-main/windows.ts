@@ -97,7 +97,7 @@ export interface IWindowsMainService {
 	enterWorkspace(win: ICodeWindow, path: URI): Promise<IEnterWorkspaceResult | undefined>;
 	closeWorkspace(win: ICodeWindow): void;
 	open(openConfig: IOpenConfiguration): ICodeWindow[];
-	openExtensionDevelopmentHostWindow(openConfig: IOpenConfiguration): void;
+	openExtensionDevelopmentHostWindow(extensionDevelopmentPath: string, openConfig: IOpenConfiguration): void;
 	pickFileFolderAndOpen(options: INativeOpenDialogOptions): void;
 	pickFolderAndOpen(options: INativeOpenDialogOptions): void;
 	pickFileAndOpen(options: INativeOpenDialogOptions): void;

@@ -71,8 +71,6 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		this.filter = options.filter;
 		this.autoExpandSingleChildren = typeof options.autoExpandSingleChildren === 'undefined' ? false : options.autoExpandSingleChildren;
 
-		// this.onDidChangeCollapseState(node => console.log(node.collapsed, node));
-
 		this.root = {
 			parent: undefined,
 			element: rootElement,
@@ -177,7 +175,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		return result;
 	}
 
-	refresh(location: number[]): void {
+	rerender(location: number[]): void {
 		if (location.length === 0) {
 			throw new Error('Invalid tree location');
 		}

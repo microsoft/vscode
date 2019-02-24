@@ -19,7 +19,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { CollapseAction2 } from 'vs/workbench/browser/viewlet';
+import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { first } from 'vs/base/common/arrays';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { memoize } from 'vs/base/common/decorators';
@@ -802,7 +802,7 @@ export class ReverseContinueAction extends AbstractDebugAction {
 	}
 }
 
-export class ReplCollapseAllAction extends CollapseAction2 {
+export class ReplCollapseAllAction extends CollapseAction {
 	constructor(tree: AsyncDataTree<any, any, any>, private toFocus: { focus(): void; }) {
 		super(tree, true, undefined);
 	}

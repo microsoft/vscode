@@ -14,7 +14,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { ITreeModel, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent, ITreeFilter, ITreeNavigator, ICollapseStateChangeEvent, ITreeDragAndDrop, TreeDragOverBubble, TreeVisibility, TreeFilterResult, ITreeModelSpliceEvent } from 'vs/base/browser/ui/tree/tree';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { IDragAndDropData, StaticDND, DragAndDropData } from 'vs/base/browser/dnd';
-import { range } from 'vs/base/common/arrays';
+import { range, equals } from 'vs/base/common/arrays';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { domEvent } from 'vs/base/browser/event';
 import { fuzzyScore, FuzzyScore } from 'vs/base/common/filters';
@@ -755,6 +755,10 @@ class Trait<T> {
 	constructor(private identityProvider?: IIdentityProvider<T>) { }
 
 	set(nodes: ITreeNode<T, any>[], browserEvent?: UIEvent): void {
+		if (equals(this.nodes, nodes)) {
+			return;
+		}
+
 		this.nodes = [...nodes];
 		this.elements = undefined;
 		this._nodeSet = undefined;
@@ -934,7 +938,7 @@ class TreeNodeList<T, TFilterData, TRef> extends List<ITreeNode<T, TFilterData>>
 
 export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable {
 
-	private view: TreeNodeList<T, TFilterData, TRef>;
+	protected view: TreeNodeList<T, TFilterData, TRef>;
 	private renderers: TreeRenderer<T, TFilterData, any>[];
 	protected model: ITreeModel<T, TFilterData, TRef>;
 	private focus: Trait<T>;
@@ -1088,6 +1092,18 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 	get renderHeight(): number {
 		return this.view.renderHeight;
+	}
+
+	get firstVisibleElement(): T {
+		const index = this.view.firstVisibleIndex;
+		const node = this.view.element(index);
+		return node.element;
+	}
+
+	get lastVisibleElement(): T {
+		const index = this.view.lastVisibleIndex;
+		const node = this.view.element(index);
+		return node.element;
 	}
 
 	domFocus(): void {

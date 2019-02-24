@@ -1196,7 +1196,7 @@ export interface Command {
 export interface CommentInfo {
 	extensionId: string;
 	threads: CommentThread[];
-	commentingRanges?: IRange[];
+	commentingRanges?: (IRange[] | CommentingRanges);
 	reply?: Command;
 	draftMode: DraftMode;
 }
@@ -1222,6 +1222,54 @@ export enum CommentThreadCollapsibleState {
 	 * Determines an item is expanded
 	 */
 	Expanded = 1
+}
+
+
+
+/**
+ * @internal
+ */
+export interface CommentWidget {
+	commentThread: CommentThread;
+	comment?: Comment;
+	input: string;
+	onDidChangeInput: Event<string>;
+}
+
+/**
+ * @internal
+ */
+export interface CommentInput {
+	value: string;
+	uri: URI;
+}
+
+/**
+ * @internal
+ */
+export interface CommentThread2 {
+	commentThreadHandle: number;
+	extensionId: string;
+	threadId: string;
+	resource: string;
+	range: IRange;
+	comments: Comment[];
+	onDidChangeComments: Event<Comment[]>;
+	collapsibleState?: CommentThreadCollapsibleState;
+	input: CommentInput;
+	onDidChangeInput: Event<CommentInput>;
+	acceptInputCommands: Command[];
+	onDidChangeAcceptInputCommands: Event<Command[]>;
+}
+
+/**
+ * @internal
+ */
+
+export interface CommentingRanges {
+	readonly resource: URI;
+	ranges: IRange[];
+	newCommentThreadCommand: Command;
 }
 
 /**
@@ -1267,6 +1315,8 @@ export interface Comment {
 	readonly canEdit?: boolean;
 	readonly canDelete?: boolean;
 	readonly command?: Command;
+	readonly editCommand?: Command;
+	readonly deleteCommand?: Command;
 	readonly isDraft?: boolean;
 	readonly commentReactions?: CommentReaction[];
 }
@@ -1278,22 +1328,22 @@ export interface CommentThreadChangedEvent {
 	/**
 	 * Added comment threads.
 	 */
-	readonly added: CommentThread[];
+	readonly added: (CommentThread | CommentThread2)[];
 
 	/**
 	 * Removed comment threads.
 	 */
-	readonly removed: CommentThread[];
+	readonly removed: (CommentThread | CommentThread2)[];
 
 	/**
 	 * Changed comment threads.
 	 */
-	readonly changed: CommentThread[];
+	readonly changed: (CommentThread | CommentThread2)[];
 
 	/**
 	 * changed draft mode.
 	 */
-	readonly draftMode: DraftMode;
+	readonly draftMode?: DraftMode;
 }
 
 /**

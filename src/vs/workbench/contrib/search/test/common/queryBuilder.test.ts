@@ -59,6 +59,16 @@ suite('QueryBuilder', () => {
 			});
 	});
 
+	test('normalize literal newlines', () => {
+		assertEqualTextQueries(
+			queryBuilder.text({ pattern: 'foo\nbar' }),
+			{
+				folderQueries: [],
+				contentPattern: { pattern: 'foo\\nbar' },
+				type: QueryType.Text
+			});
+	});
+
 	test('folderResources', () => {
 		assertEqualTextQueries(
 			queryBuilder.text(

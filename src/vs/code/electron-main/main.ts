@@ -114,7 +114,7 @@ function setupIPC(accessor: ServicesAccessor): Promise<Server> {
 				client => {
 
 					// Tests from CLI require to be the only instance currently
-					if (environmentService.extensionTestsPath && !environmentService.debugExtensionHost.break) {
+					if (environmentService.extensionTestsLocationURI && !environmentService.debugExtensionHost.break) {
 						const msg = 'Running extension tests from the command line is currently only supported if no other instance of Code is running.';
 						logService.error(msg);
 						client.dispose();

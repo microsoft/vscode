@@ -488,7 +488,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		this._disposeOnNewModel.push(this._decorationsManager);
 
 		// listen on model changes
-		this._disposeOnNewModel.push(this._model.onDidChangeReferenceRange(reference => this._tree.refresh(reference)));
+		this._disposeOnNewModel.push(this._model.onDidChangeReferenceRange(reference => this._tree.rerender(reference)));
 
 		// listen on editor
 		this._disposeOnNewModel.push(this._preview.onMouseDown(e => {

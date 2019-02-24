@@ -28,6 +28,7 @@ import { ResolvedAuthority } from 'vs/platform/remote/common/remoteAuthorityReso
 import * as vscode from 'vscode';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { Schemas } from 'vs/base/common/network';
 
 class ExtensionMemento implements IExtensionMemento {
 
@@ -608,19 +609,18 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	}
 
 	private _doHandleExtensionTests(): Promise<void> {
-		if (!this._initData.environment.extensionTestsPath || !this._initData.environment.extensionDevelopmentLocationURI) {
+		const { extensionDevelopmentLocationURI, extensionTestsLocationURI } = this._initData.environment;
+		if (!(extensionDevelopmentLocationURI && extensionTestsLocationURI && extensionTestsLocationURI.scheme === Schemas.file)) {
 			return Promise.resolve(undefined);
 		}
 
-		if (this._initData.autoStart) {
-			return Promise.resolve(undefined); // https://github.com/Microsoft/vscode/issues/66936
-		}
+		const extensionTestsPath = extensionTestsLocationURI.fsPath;
 
 		// Require the test runner via node require from the provided path
 		let testRunner: ITestRunner | undefined;
 		let requireError: Error | undefined;
 		try {
-			testRunner = <any>require.__$__nodeRequire(this._initData.environment.extensionTestsPath);
+			testRunner = <any>require.__$__nodeRequire(extensionTestsPath);
 		} catch (error) {
 			requireError = error;
 		}
@@ -628,7 +628,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		// Execute the runner if it follows our spec
 		if (testRunner && typeof testRunner.run === 'function') {
 			return new Promise<void>((c, e) => {
-				testRunner!.run(this._initData.environment.extensionTestsPath!, (error, failures) => {
+				testRunner!.run(extensionTestsPath, (error, failures) => {
 					if (error) {
 						e(error.toString());
 					} else {
@@ -646,7 +646,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 			this._gracefulExit(1 /* ERROR */);
 		}
 
-		return Promise.reject(new Error(requireError ? requireError.toString() : nls.localize('extensionTestError', "Path {0} does not point to a valid extension test runner.", this._initData.environment.extensionTestsPath)));
+		return Promise.reject(new Error(requireError ? requireError.toString() : nls.localize('extensionTestError', "Path {0} does not point to a valid extension test runner.", extensionTestsPath)));
 	}
 
 	private _gracefulExit(code: number): void {

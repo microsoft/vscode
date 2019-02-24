@@ -8,11 +8,13 @@ import { Action } from 'vs/base/common/actions';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
-export const inQuickOpenContext = ContextKeyExpr.has('inQuickOpen');
+const inQuickOpenKey = 'inQuickOpen';
+export const InQuickOpenContextKey = new RawContextKey<boolean>(inQuickOpenKey, false);
+export const inQuickOpenContext = ContextKeyExpr.has(inQuickOpenKey);
 export const defaultQuickOpenContextKey = 'inFilesPicker';
 export const defaultQuickOpenContext = ContextKeyExpr.and(inQuickOpenContext, ContextKeyExpr.has(defaultQuickOpenContextKey));
 

@@ -498,7 +498,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			const detailsElement = dom.append(markerElement, $('span'));
 			detailsElement.style.opacity = '0.6';
 			detailsElement.style.paddingLeft = '6px';
-			detailsElement.innerText = source && code ? `${source}(${code})` : `(${code})`;
+			detailsElement.innerText = source && code ? `${source}(${code})` : source ? source : `(${code})`;
 		}
 
 		if (isNonEmptyArray(relatedInformation)) {
@@ -583,10 +583,10 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			const actionKeybindingLabel = dom.append(actionContainer, $('span.keybinding-label'));
 			actionKeybindingLabel.textContent = keybinding.getLabel();
 		}
-		return dom.addDisposableListener(action, dom.EventType.CLICK, e => {
+		return dom.addDisposableListener(actionContainer, dom.EventType.CLICK, e => {
 			e.stopPropagation();
 			e.preventDefault();
-			actionOptions.run(action);
+			actionOptions.run(actionContainer);
 		});
 	}
 
