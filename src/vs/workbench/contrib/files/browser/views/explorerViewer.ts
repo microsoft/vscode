@@ -325,6 +325,11 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 	}
 }
 
+interface ISortPosition {
+	position: number;
+	group?: string;
+}
+
 // // Explorer Sorter
 export class FileSorter implements ITreeSorter<ExplorerItem> {
 
@@ -332,6 +337,37 @@ export class FileSorter implements ITreeSorter<ExplorerItem> {
 		@IExplorerService private readonly explorerService: IExplorerService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
 	) { }
+
+	private resolvePosition(name: string): ISortPosition {
+		let sortRules = this.explorerService.sortRules;
+
+		let specificity = Number.NEGATIVE_INFINITY;
+		let group = undefined;
+		let position = Number.POSITIVE_INFINITY;
+		for (let rule of sortRules) {
+			let match = name.match(rule.regexp);
+			if (match === null ) {
+				// This rule doesn't apply to this entry:
+				continue;
+			}
+
+			if (rule.specificity > specificity) {
+				// This rule is more adequate:
+				specificity = rule.specificity;
+				position = rule.position;
+			}
+
+			if (rule.groupId !== undefined) {
+				if (rule.groupName !== undefined ) {
+					group = rule.groupName;
+				} else {
+					group = (match.length > 1) ? match[1] : '';
+				}
+			}
+		}
+
+		return {position: position, group: group} as ISortPosition;
+	}
 
 	public compare(statA: ExplorerItem, statB: ExplorerItem): number {
 		// Do not sort roots
@@ -348,6 +384,28 @@ export class FileSorter implements ITreeSorter<ExplorerItem> {
 		}
 
 		const sortOrder = this.explorerService.sortOrder;
+
+		if (sortOrder === 'custom'){
+			let positionRuleForA = this.resolvePosition(statA.name);
+			let positionRuleForB = this.resolvePosition(statB.name);
+
+			// Group the entries if we were asked for it:
+			if (positionRuleForA.group !== undefined && positionRuleForB.group !== undefined) {
+				if (positionRuleForA.group !== positionRuleForB.group) {
+					// They don't belong to the same group, hence position from now position it by group,
+					// in other words find the proper group, not particular position.
+					positionRuleForA = this.resolvePosition(positionRuleForA.group);
+					positionRuleForB = this.resolvePosition(positionRuleForB.group);
+				}
+			}
+
+			// Position entries by rule:
+			if (positionRuleForA.position !== positionRuleForB.position) {
+				return positionRuleForA.position > positionRuleForB.position ? 1 : -1;
+			}
+
+			// Defined rules aren't enough to differ this two entries, continue allowing default sorting to be applied.
+		}
 
 		// Sort Directories
 		switch (sortOrder) {

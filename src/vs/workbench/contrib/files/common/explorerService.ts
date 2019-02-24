@@ -6,12 +6,13 @@
 import { Event, Emitter } from 'vs/base/common/event';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IExplorerService, IEditableData, IFilesConfiguration, SortOrder, SortOrderConfiguration } from 'vs/workbench/contrib/files/common/files';
+import { IExplorerService, IEditableData, IFilesConfiguration, ISortRule, SortOrder, SortOrderConfiguration } from 'vs/workbench/contrib/files/common/files';
 import { ExplorerItem, ExplorerModel } from 'vs/workbench/contrib/files/common/explorerModel';
 import { URI } from 'vs/base/common/uri';
 import { FileOperationEvent, FileOperation, IFileStat, IFileService, FileChangesEvent, FILES_EXCLUDE_CONFIG, FileChangeType, IResolveFileOptions } from 'vs/platform/files/common/files';
 import { dirname } from 'vs/base/common/resources';
 import { memoize } from 'vs/base/common/decorators';
+import { equals } from 'vs/base/common/objects';
 import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
@@ -39,6 +40,7 @@ export class ExplorerService implements IExplorerService {
 	private disposables: IDisposable[] = [];
 	private editableStats = new Map<ExplorerItem, IEditableData>();
 	private _sortOrder: SortOrder;
+	private _sortRules: ISortRule[];
 	private cutItems: ExplorerItem[] | undefined;
 
 	constructor(
@@ -50,6 +52,10 @@ export class ExplorerService implements IExplorerService {
 		@IEditorService private editorService: IEditorService
 	) {
 		this._sortOrder = this.configurationService.getValue('explorer.sortOrder');
+
+		let sortRules = this.configurationService.getValue<ISortRule[]>('explorer.sortRules') ;
+			sortRules = this.fillSortRulesWithComputedValues(sortRules);
+		this._sortRules = sortRules;
 	}
 
 	get roots(): ExplorerItem[] {
@@ -78,6 +84,10 @@ export class ExplorerService implements IExplorerService {
 
 	get sortOrder(): SortOrder {
 		return this._sortOrder;
+	}
+
+	get sortRules(): ISortRule[] {
+		return this._sortRules;
 	}
 
 	// Memoized locals
@@ -352,14 +362,39 @@ export class ExplorerService implements IExplorerService {
 		}));
 	}
 
+	/**
+	 * We can force user to provide all necessary configuration within settings file but we don't want do it.
+	 */
+	private fillSortRulesWithComputedValues(sortRules: ISortRule[]): ISortRule[] {
+		let position = 1;
+		for (let rule of sortRules) {
+			if (rule.position === undefined) {
+				rule.position = position++;
+			}
+			if (rule.specificity === undefined) {
+				rule.specificity = 0;
+			}
+		}
+		return sortRules;
+	}
+
 	private onConfigurationUpdated(configuration: IFilesConfiguration, event?: IConfigurationChangeEvent): void {
+		let shouldFire = false;
 		const configSortOrder = configuration && configuration.explorer && configuration.explorer.sortOrder || 'default';
 		if (this._sortOrder !== configSortOrder) {
-			const shouldFire = this._sortOrder !== undefined;
+			shouldFire = this._sortOrder !== undefined;
 			this._sortOrder = configSortOrder;
-			if (shouldFire) {
-				this._onDidChangeRoots.fire();
-			}
+		}
+
+		let configSortRules = configuration && configuration.explorer && configuration.explorer.sortRules || [];
+			configSortRules = this.fillSortRulesWithComputedValues(configSortRules);
+		if (!equals(this._sortRules, configSortRules)) {
+			shouldFire = shouldFire || this._sortRules !== undefined;
+			this._sortRules = configSortRules;
+		}
+
+		if (shouldFire) {
+			this._onDidChangeRoots.fire();
 		}
 	}
 

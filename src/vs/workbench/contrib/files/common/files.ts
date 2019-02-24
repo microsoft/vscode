@@ -41,6 +41,7 @@ export interface IExplorerService {
 	_serviceBrand: any;
 	readonly roots: ExplorerItem[];
 	readonly sortOrder: SortOrder;
+	readonly sortRules: ISortRule[];
 	readonly onDidChangeRoots: Event<void>;
 	readonly onDidChangeItem: Event<ExplorerItem | undefined>;
 	readonly onDidChangeEditable: Event<ExplorerItem>;
@@ -116,6 +117,7 @@ export interface IFilesConfiguration extends IFilesConfiguration, IWorkbenchEdit
 		enableDragAndDrop: boolean;
 		confirmDelete: boolean;
 		sortOrder: SortOrder;
+		sortRules: ISortRule[];
 		decorations: {
 			colors: boolean;
 			badges: boolean;
@@ -129,15 +131,24 @@ export interface IFileResource {
 	isDirectory?: boolean;
 }
 
+export interface ISortRule {
+	regexp: string;
+	groupId: string;
+	groupName: string;
+	position: number;
+	specificity: number;
+}
+
 export const SortOrderConfiguration = {
 	DEFAULT: 'default',
 	MIXED: 'mixed',
 	FILES_FIRST: 'filesFirst',
 	TYPE: 'type',
-	MODIFIED: 'modified'
+	MODIFIED: 'modified',
+	CUSTOM: 'custom'
 };
 
-export type SortOrder = 'default' | 'mixed' | 'filesFirst' | 'type' | 'modified';
+export type SortOrder = 'default' | 'mixed' | 'filesFirst' | 'type' | 'modified' | 'custom';
 
 export class FileOnDiskContentProvider implements ITextModelContentProvider {
 	private fileWatcher: IDisposable;

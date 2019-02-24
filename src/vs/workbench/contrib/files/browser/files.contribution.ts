@@ -386,16 +386,96 @@ configurationRegistry.registerConfiguration({
 		},
 		'explorer.sortOrder': {
 			'type': 'string',
-			'enum': [SortOrderConfiguration.DEFAULT, SortOrderConfiguration.MIXED, SortOrderConfiguration.FILES_FIRST, SortOrderConfiguration.TYPE, SortOrderConfiguration.MODIFIED],
+			'enum': [SortOrderConfiguration.DEFAULT, SortOrderConfiguration.MIXED, SortOrderConfiguration.FILES_FIRST, SortOrderConfiguration.TYPE, SortOrderConfiguration.MODIFIED, SortOrderConfiguration.CUSTOM],
 			'default': SortOrderConfiguration.DEFAULT,
 			'enumDescriptions': [
 				nls.localize('sortOrder.default', 'Files and folders are sorted by their names, in alphabetical order. Folders are displayed before files.'),
 				nls.localize('sortOrder.mixed', 'Files and folders are sorted by their names, in alphabetical order. Files are interwoven with folders.'),
 				nls.localize('sortOrder.filesFirst', 'Files and folders are sorted by their names, in alphabetical order. Files are displayed before folders.'),
 				nls.localize('sortOrder.type', 'Files and folders are sorted by their extensions, in alphabetical order. Folders are displayed before files.'),
-				nls.localize('sortOrder.modified', 'Files and folders are sorted by last modified date, in descending order. Folders are displayed before files.')
+				nls.localize('sortOrder.modified', 'Files and folders are sorted by last modified date, in descending order. Folders are displayed before files.'),
+				nls.localize('sortOrder.custom', 'Files and folders are sorted by custom sort rules.')
 			],
 			'description': nls.localize('sortOrder', "Controls sorting order of files and folders in the explorer.")
+		},
+		'explorer.sortRules':
+		{
+			'type': 'array',
+			'default': [],
+			'description': nls.localize('order', "Rules by which files and folders will be sorted. Applies only if 'custom' sorting was chosen."),
+			'items': {
+				'allOf': [
+					{
+						'type': 'object',
+						'required': ['regexp'],
+						'additionalProperties': false,
+						'properties': {
+							'regexp': {
+								'type': 'string',
+								'default': '^.*$',
+								'description': nls.localize('explorer.sortRules.regexp', "Regexp determine if rules should apply. RegExp is tested against name only, not entire path. Focus on nongreedy RegExp, be precise as possible to avoid conflicts with multiple matches.")
+							},
+							'groupId': {
+								'type': 'string',
+								'default': '',
+								'description': nls.localize('explorer.sortRules.groupId', "Allows similar files keep together. Grouping is based on first capturing group from pattern or you can freeze it by 'static' property. Hence to make it work RegExp capturing group must occur in regexp.")
+							},
+							'groupName': {
+								'type': 'string',
+								'default': '',
+								'description': nls.localize('explorer.sortRules.groupName', "Static name, used to match group.")
+							},
+							'position': {
+								'type': 'integer',
+								'minimum': 1,
+								'default': 1,
+								'description': nls.localize('explorer.sortRules.position', "Position in hierarchy. If omitted position will be resolved based on declaration order in settings file.")
+							},
+							'specificity': {
+								'type': 'integer',
+								'minimum': 1,
+								'default': 1,
+								'description': nls.localize('explorer.sortRules.specificity', "Determines override precedence when multiple rules applies.")
+							}
+						},
+						'dependencies':{
+							'groupId': {
+								'oneOf': [
+									{
+										'properties': {
+											'regexp': {
+												// Purpose of this regex is to ensure that #/explorer.sortRules/items/properties/regexp contain at least one capturing group.
+												// Regexp is not perfect and will fail with escaped brackets, without negative lookbehind it's impossbile to write proper one.
+												'pattern': '\\(.+\\)',
+												'patternErrorMessage': nls.localize('explorer.sortRules.dependencies.group.errorMessage', "To make grouping working regex must contain RegExp capturing group or use 'groupName' property.")
+											}
+										}
+									},
+									{
+										'required': ['groupName'],
+										'errorMessage': nls.localize('explorer.sortRules.dependencies.group.errorMessage', "To make grouping working regex must contain RegExp capturing group or use 'groupName' property.")
+									}
+								]
+							}
+						}
+					}
+				]
+			},
+			'if': {
+				'contains': {
+					'required': ['position'],
+				}
+			},
+			'then': {
+				'items': {
+					'allOf': [
+						{
+							'required': ['position'],
+							'description': nls.localize('explorer.sortRules.missingPositions', "If you set position once, you're forced to do it for every rule.")
+						}
+					]
+				}
+			}
 		},
 		'explorer.decorations.colors': {
 			type: 'boolean',
