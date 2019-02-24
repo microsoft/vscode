@@ -26,7 +26,7 @@ export class SimpleBroadcastService implements IBroadcastService {
 
 	_serviceBrand: any;
 
-	onBroadcast: Event<IBroadcast> = Event.None;
+	readonly onBroadcast: Event<IBroadcast> = Event.None;
 
 	broadcast(b: IBroadcast): void { }
 }

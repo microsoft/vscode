@@ -12,7 +12,7 @@ export class SimpleTextMateService implements ITextMateService {
 
 	_serviceBrand: any;
 
-	onDidEncounterLanguage: Event<LanguageId> = Event.None;
+	readonly onDidEncounterLanguage: Event<LanguageId> = Event.None;
 
 	createGrammar(modeId: string): Promise<IGrammar> {
 		return Promise.resolve(undefined);

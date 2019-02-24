@@ -15,12 +15,12 @@ export class SimpleWindowsService implements IWindowsService {
 
 	windowCount = 1;
 
-	onWindowOpen: Event<number> = Event.None;
-	onWindowFocus: Event<number> = Event.None;
-	onWindowBlur: Event<number> = Event.None;
-	onWindowMaximize: Event<number> = Event.None;
-	onWindowUnmaximize: Event<number> = Event.None;
-	onRecentlyOpenedChange: Event<void> = Event.None;
+	readonly onWindowOpen: Event<number> = Event.None;
+	readonly onWindowFocus: Event<number> = Event.None;
+	readonly onWindowBlur: Event<number> = Event.None;
+	readonly onWindowMaximize: Event<number> = Event.None;
+	readonly onWindowUnmaximize: Event<number> = Event.None;
+	readonly onRecentlyOpenedChange: Event<void> = Event.None;
 
 	isFocused(_windowId: number): Promise<boolean> {
 		return Promise.resolve(false);

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { IWindowService, IWindowConfiguration, INativeOpenDialogOptions, IEnterWorkspaceResult, IURIToOpen, IMessageBoxResult } from 'vs/platform/windows/common/windows';
 import { URI } from 'vs/base/common/uri';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
@@ -13,8 +13,8 @@ export class SimpleWindowService implements IWindowService {
 
 	_serviceBrand: any;
 
-	onDidChangeFocus: Event<boolean> = new Emitter<boolean>().event;
-	onDidChangeMaximize: Event<boolean>;
+	readonly onDidChangeFocus: Event<boolean> = Event.None;
+	readonly onDidChangeMaximize: Event<boolean> = Event.None;
 
 	hasFocus = true;
 
@@ -140,6 +140,4 @@ export class SimpleWindowService implements IWindowService {
 	resolveProxy(url: string): Promise<string | undefined> {
 		return Promise.resolve(undefined);
 	}
-
-
 }
