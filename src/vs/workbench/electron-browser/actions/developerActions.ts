@@ -16,6 +16,7 @@ import { Context } from 'vs/platform/contextkey/browser/contextKeyService';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { timeout } from 'vs/base/common/async';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class ToggleDevToolsAction extends Action {
 
@@ -120,7 +121,8 @@ export class ToggleScreencastModeAction extends Action {
 		id: string,
 		label: string,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IPartService private readonly partService: IPartService
+		@IPartService private readonly partService: IPartService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(id, label);
 	}
@@ -170,10 +172,10 @@ export class ToggleScreencastModeAction extends Action {
 		const keyboardMarker = append(container, $('div'));
 		keyboardMarker.style.position = 'absolute';
 		keyboardMarker.style.backgroundColor = 'rgba(0, 0, 0 ,0.5)';
-		keyboardMarker.style.width = '100%';
-		keyboardMarker.style.height = '100px';
-		keyboardMarker.style.bottom = '20%';
-		keyboardMarker.style.left = '0';
+		keyboardMarker.style.width = `${this.configurationService.getValue<Number>('screencastMode.overlay.width')}%`;
+		keyboardMarker.style.height = `${this.configurationService.getValue<Number>('screencastMode.overlay.height')}%`;
+		keyboardMarker.style.bottom = `${this.configurationService.getValue<Number>('screencastMode.location.verticalPosition')}%`;
+		keyboardMarker.style.left = `${this.configurationService.getValue<Number>('screencastMode.location.horizontalPosition')}%`;
 		keyboardMarker.style.zIndex = '100000';
 		keyboardMarker.style.pointerEvents = 'none';
 		keyboardMarker.style.color = 'white';
