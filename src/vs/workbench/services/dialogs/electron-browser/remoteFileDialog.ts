@@ -20,6 +20,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
+import { Schemas } from 'vs/base/common/network';
 
 interface FileQuickPickItem extends IQuickPickItem {
 	uri: URI;
@@ -57,7 +58,7 @@ export class RemoteFileDialog {
 	}
 
 	public async showOpenDialog(options: IOpenDialogOptions = {}): Promise<IURIToOpen[] | undefined> {
-		this.scheme = options.defaultUri.scheme;
+		this.setScheme(options.defaultUri, options.availableFileSystems);
 		const newOptions = this.getOptions(options);
 		if (!newOptions) {
 			return Promise.resolve(undefined);
@@ -79,7 +80,7 @@ export class RemoteFileDialog {
 	}
 
 	public showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
-		this.scheme = options.defaultUri.scheme;
+		this.setScheme(options.defaultUri, options.availableFileSystems);
 		this.requiresTrailing = true;
 		const newOptions = this.getOptions(options);
 		if (!newOptions) {
@@ -111,6 +112,10 @@ export class RemoteFileDialog {
 	private remoteUriFrom(path: string): URI {
 		path = path.replace(/\\/g, '/');
 		return URI.from({ scheme: this.scheme, authority: this.remoteAuthority, path });
+	}
+
+	private setScheme(defaultUri: URI | undefined, available: string[] | undefined) {
+		this.scheme = defaultUri ? defaultUri.scheme : (available ? available[0] : Schemas.file);
 	}
 
 	private async pickResource(options: IOpenDialogOptions, trailing?: string): Promise<URI | undefined> {
@@ -351,7 +356,7 @@ export class RemoteFileDialog {
 
 	private pathFromUri(uri: URI, endWithSeparator: boolean = false): string {
 		const sep = this.labelService.getSeparator(uri.scheme, uri.authority);
-		let result = uri.fsPath.replace(/\//g, sep);
+		let result = uri.path.replace(/\//g, sep);
 		if (endWithSeparator && !this.endsWithSlash(result)) {
 			result = result + sep;
 		}
