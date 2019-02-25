@@ -930,10 +930,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 
 		if (this.expandDocsSettingFromStorage()) {
 			this.updateExpandDocsSetting(false);
-			hide(this.details.element);
-			removeClass(this.element, 'docs-side');
-			removeClass(this.element, 'docs-below');
-			this.editor.layoutContentWidget(this);
+			this.hideDetails();
 			/* __GDPR__
 				"suggestWidget:collapseDetails" : {
 					"${include}": [
@@ -961,12 +958,55 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		}
 	}
 
+	hideDetails(): void {
+		hide(this.details.element);
+		removeClass(this.element, 'docs-side');
+		removeClass(this.element, 'docs-below');
+		this.editor.layoutContentWidget(this);
+		this.element.style.width = null;
+		this.listElement.style.width = null;
+		this.details.element.style.width = null;
+		this.details.element.style.maxHeight = null;
+	}
+
+	private getLeftDetailWidth(): number {
+		const editorCoords = getDomNodePagePosition(this.editor.getDomNode());
+		return Math.min(this.getCursorX() - editorCoords.left, this.editor.getLayoutInfo().width - this.listWidth - editorCoords.left) * 0.9;
+	}
+
+	private getRightDetailWidth(): number {
+		return this.editor.getLayoutInfo().width - this.listWidth - this.getCursorX();
+	}
+
+	private getDetailWidth(): number {
+		const leftDetailWidth = this.getLeftDetailWidth();
+		const rightDetailWidth = this.getRightDetailWidth();
+		let tmp = Math.max(leftDetailWidth, rightDetailWidth, this.listWidth);
+		tmp = Math.min(tmp, this.editor.getLayoutInfo().width*0.66);
+		return Math.max(tmp, this.listWidth);
+	}
+
+	private getCursorX(): number {
+		const cursorCoords = this.editor.getScrolledVisiblePosition(this.editor.getPosition());
+		const editorCoords = getDomNodePagePosition(this.editor.getDomNode());
+		return editorCoords.left + cursorCoords.left;
+	}
+
 	showDetails(): void {
 		this.expandSideOrBelow();
 
 		show(this.details.element);
 		this.details.render(this.list.getFocusedElements()[0]);
 		this.details.element.style.maxHeight = this.maxWidgetHeight + 'px';
+		const widgetY = getDomNodePagePosition(this.element).top;
+
+		if (hasClass(this.element, 'docs-side')) {
+			const detailWidth = this.getDetailWidth();
+			this.element.style.width = `${detailWidth + this.listWidth}px`;
+			this.listElement.style.width = `${this.listWidth}px`;
+			this.details.element.style.width = `${detailWidth}px`;
+			this.details.element.style.maxHeight = `${Math.max(this.editor.getLayoutInfo().height - widgetY, this.maxWidgetHeight)}px`;
+		}
 
 		// Reset margin-top that was set as Fix for #26416
 		this.listElement.style.marginTop = '0px';
@@ -1058,10 +1098,8 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		const lineHeight = this.editor.getConfiguration().fontInfo.lineHeight;
 		const cursorCoords = this.editor.getScrolledVisiblePosition(this.editor.getPosition());
 		const editorCoords = getDomNodePagePosition(this.editor.getDomNode());
-		const cursorX = editorCoords.left + cursorCoords.left;
 		const cursorY = editorCoords.top + cursorCoords.top + cursorCoords.height;
 		const widgetCoords = getDomNodePagePosition(this.element);
-		const widgetX = widgetCoords.left;
 		const widgetY = widgetCoords.top;
 
 		// Fixes #27649
@@ -1075,9 +1113,10 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		}
 		this.docsPositionPreviousWidgetY = widgetY;
 
-		if (widgetX < cursorX - this.listWidth) {
-			// Widget is too far to the left of cursor, swap list and docs
+		if (hasClass(this.element, 'docs-side') && this.getRightDetailWidth() < this.getLeftDetailWidth()) {
 			addClass(this.element, 'list-right');
+			const left = Math.min(this.getCursorX() - this.getDetailWidth(), this.editor.getLayoutInfo().width - this.getDetailWidth() - this.listWidth);
+			this.element.style.left = `${left}px`;
 		} else {
 			removeClass(this.element, 'list-right');
 		}
