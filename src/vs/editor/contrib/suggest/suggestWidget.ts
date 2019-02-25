@@ -969,9 +969,13 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		this.details.element.style.maxHeight = null;
 	}
 
+	private getEditorWidth(): number {
+		return this.editor.getLayoutInfo().width;
+	}
+
 	private getLeftDetailWidth(): number {
 		const editorCoords = getDomNodePagePosition(this.editor.getDomNode());
-		return Math.min(this.getCursorX() - editorCoords.left, this.editor.getLayoutInfo().width - this.listWidth - editorCoords.left) * 0.9;
+		return Math.min(this.getCursorX() - editorCoords.left, this.getEditorWidth() - this.listWidth - editorCoords.left) * 0.9;
 	}
 
 	private getRightDetailWidth(): number {
@@ -979,11 +983,11 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	}
 
 	private getDetailWidth(): number {
+		const editorWidth = this.getEditorWidth();
 		const leftDetailWidth = this.getLeftDetailWidth();
 		const rightDetailWidth = this.getRightDetailWidth();
 		let tmp = Math.max(leftDetailWidth, rightDetailWidth, this.listWidth);
-		tmp = Math.min(tmp, this.editor.getLayoutInfo().width*0.66);
-		return Math.max(tmp, this.listWidth);
+		return Math.min(tmp, editorWidth * 0.66);
 	}
 
 	private getCursorX(): number {
@@ -1115,8 +1119,8 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 
 		if (hasClass(this.element, 'docs-side') && this.getRightDetailWidth() < this.getLeftDetailWidth()) {
 			addClass(this.element, 'list-right');
-			const left = Math.min(this.getCursorX() - this.getDetailWidth(), this.editor.getLayoutInfo().width - this.getDetailWidth() - this.listWidth);
-			this.element.style.left = `${left}px`;
+			const left = Math.min(this.getCursorX() - this.getDetailWidth(), this.getEditorWidth() - this.getDetailWidth() - this.listWidth);
+			this.element.style.left = `${Math.max(left, 0)}px`;
 		} else {
 			removeClass(this.element, 'list-right');
 		}
@@ -1144,8 +1148,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 			return;
 		}
 
-		let matches = this.element.style.maxWidth!.match(/(\d+)px/);
-		if (!matches || Number(matches[1]) < this.maxWidgetWidth) {
+		if (this.getEditorWidth() < this.getDetailWidth() + this.listWidth) {
 			addClass(this.element, 'docs-below');
 			removeClass(this.element, 'docs-side');
 		} else if (canExpandCompletionItem(this.focusedItem)) {
