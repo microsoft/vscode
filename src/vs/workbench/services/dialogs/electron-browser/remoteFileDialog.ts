@@ -154,10 +154,12 @@ export class RemoteFileDialog {
 					isResolved = true;
 					if (this.requiresTrailing) {
 						this.fileDialogService.showSaveDialog(options).then(result => {
+							this.filePickBox.hide();
 							resolve(result);
 						});
 					} else {
 						this.fileDialogService.showOpenDialog(options).then(result => {
+							this.filePickBox.hide();
 							resolve(result ? result[0] : undefined);
 						});
 					}
@@ -167,8 +169,8 @@ export class RemoteFileDialog {
 					this.validate(resolveValue).then(validated => {
 						if (validated) {
 							isResolved = true;
-							resolve(resolveValue);
 							this.filePickBox.hide();
+							resolve(resolveValue);
 						}
 					});
 				}
@@ -186,8 +188,8 @@ export class RemoteFileDialog {
 				this.onDidAccept().then(resolveValue => {
 					if (resolveValue) {
 						isResolved = true;
-						resolve(resolveValue);
 						this.filePickBox.hide();
+						resolve(resolveValue);
 					}
 				});
 			});
