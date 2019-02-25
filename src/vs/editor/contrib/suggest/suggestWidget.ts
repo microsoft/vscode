@@ -434,7 +434,6 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	readonly onDidHide: Event<this> = this.onDidHideEmitter.event;
 	readonly onDidShow: Event<this> = this.onDidShowEmitter.event;
 
-	private readonly maxWidgetWidth = 660;
 	private readonly listWidth = 330;
 	private readonly storageService: IStorageService;
 	private detailsFocusBorderColor: string;
