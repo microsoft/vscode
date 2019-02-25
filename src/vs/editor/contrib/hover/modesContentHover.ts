@@ -467,7 +467,10 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			}
 		});
 
-		markerMessages.forEach(msg => fragment.appendChild(this.renderMarkerHover(msg)));
+		if (markerMessages.length) {
+			markerMessages.forEach(msg => fragment.appendChild(this.renderMarkerHover(msg)));
+			fragment.appendChild(this.renderMarkerStatusbar(markerMessages[0]));
+		}
 
 		// show
 
@@ -521,9 +524,13 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			}
 		}
 
+		return hoverElement;
+	}
+
+	private renderMarkerStatusbar(markerHover: MarkerHover): HTMLElement {
+		const hoverElement = $('div.hover-row.status-bar');
 		const disposables: IDisposable[] = [];
 		const actionsElement = dom.append(hoverElement, $('div.actions'));
-
 		disposables.push(this.renderAction(actionsElement, {
 			label: nls.localize('peek problem', "Peek Problem"),
 			commandId: NextMarkerAction.ID,
@@ -533,7 +540,6 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				this._editor.focus();
 			}
 		}));
-
 		disposables.push(this.renderAction(actionsElement, {
 			label: nls.localize('quick fixes', "Quick Fix..."),
 			commandId: QuickFixAction.Id,
@@ -548,7 +554,6 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				});
 			}
 		}));
-
 		this.renderDisposable = combinedDisposable(disposables);
 		return hoverElement;
 	}
