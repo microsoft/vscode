@@ -532,15 +532,6 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		const disposables: IDisposable[] = [];
 		const actionsElement = dom.append(hoverElement, $('div.actions'));
 		disposables.push(this.renderAction(actionsElement, {
-			label: nls.localize('peek problem', "Peek Problem"),
-			commandId: NextMarkerAction.ID,
-			run: () => {
-				this.hide();
-				MarkerController.get(this._editor).show(markerHover.marker);
-				this._editor.focus();
-			}
-		}));
-		disposables.push(this.renderAction(actionsElement, {
 			label: nls.localize('quick fixes', "Quick Fix..."),
 			commandId: QuickFixAction.Id,
 			run: async (target) => {
@@ -552,6 +543,15 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 					getAnchor: () => ({ x: elementPosition.left + 6, y: elementPosition.top + elementPosition.height + 6 }),
 					getActions: () => actions
 				});
+			}
+		}));
+		disposables.push(this.renderAction(actionsElement, {
+			label: nls.localize('peek problem', "Peek Problem"),
+			commandId: NextMarkerAction.ID,
+			run: () => {
+				this.hide();
+				MarkerController.get(this._editor).show(markerHover.marker);
+				this._editor.focus();
 			}
 		}));
 		this.renderDisposable = combinedDisposable(disposables);
