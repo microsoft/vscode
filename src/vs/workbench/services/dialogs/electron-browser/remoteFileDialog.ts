@@ -89,10 +89,8 @@ export class RemoteFileDialog {
 		this.fallbackPickerButton = { iconPath: this.getDialogIcons('folder'), tooltip: nls.localize('remoteFileDialog.localSaveFallback', 'Save Local File') };
 		newOptions.canSelectFolders = true;
 		newOptions.canSelectFiles = true;
-		const filename = resources.basename(newOptions.defaultUri);
-		newOptions.defaultUri = resources.dirname(newOptions.defaultUri);
 		return new Promise<URI | undefined>((resolve) => {
-			this.pickResource(newOptions, filename).then(folderUri => {
+			this.pickResource(newOptions).then(folderUri => {
 				resolve(folderUri);
 			});
 		});
@@ -118,11 +116,23 @@ export class RemoteFileDialog {
 		this.scheme = defaultUri ? defaultUri.scheme : (available ? available[0] : Schemas.file);
 	}
 
-	private async pickResource(options: IOpenDialogOptions, trailing?: string): Promise<URI | undefined> {
+	private async pickResource(options: IOpenDialogOptions): Promise<URI | undefined> {
 		this.allowFolderSelection = !!options.canSelectFolders;
 		this.allowFileSelection = !!options.canSelectFiles;
-		const defaultUri = options.defaultUri;
-		let homedir = defaultUri && defaultUri.scheme === REMOTE_HOST_SCHEME ? defaultUri : this.workspaceContextService.getWorkspace().folders[0].uri;
+		let homedir: URI = options.defaultUri && options.defaultUri.scheme === REMOTE_HOST_SCHEME ? options.defaultUri : this.workspaceContextService.getWorkspace().folders[0].uri;
+		let trailing: string | undefined;
+		let stat: IFileStat | undefined;
+		if (options.defaultUri) {
+			try {
+				stat = await this.remoteFileService.resolveFile(options.defaultUri);
+			} catch (e) {
+				// The file or folder doesn't exist
+			}
+			if (!stat || !stat.isDirectory) {
+				homedir = resources.dirname(options.defaultUri);
+				trailing = resources.basename(options.defaultUri);
+			}
+		}
 
 		return new Promise<URI | undefined>((resolve) => {
 			this.filePickBox = this.quickInputService.createQuickPick<FileQuickPickItem>();
