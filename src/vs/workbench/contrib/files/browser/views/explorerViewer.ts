@@ -346,7 +346,7 @@ export class FileSorter implements ITreeSorter<ExplorerItem> {
 		let position = Number.POSITIVE_INFINITY;
 		for (let rule of sortRules) {
 			let match = name.match(rule.regexp);
-			if (match === null ) {
+			if (match === null) {
 				// This rule doesn't apply to this entry:
 				continue;
 			}
@@ -358,7 +358,7 @@ export class FileSorter implements ITreeSorter<ExplorerItem> {
 			}
 
 			if (rule.groupId !== undefined) {
-				if (rule.groupName !== undefined ) {
+				if (rule.groupName !== undefined) {
 					group = rule.groupName;
 				} else {
 					group = (match.length > 1) ? match[1] : '';
@@ -366,7 +366,7 @@ export class FileSorter implements ITreeSorter<ExplorerItem> {
 			}
 		}
 
-		return {position: position, group: group} as ISortPosition;
+		return { position: position, group: group } as ISortPosition;
 	}
 
 	public compare(statA: ExplorerItem, statB: ExplorerItem): number {
@@ -385,7 +385,7 @@ export class FileSorter implements ITreeSorter<ExplorerItem> {
 
 		const sortOrder = this.explorerService.sortOrder;
 
-		if (sortOrder === 'custom'){
+		if (sortOrder === 'custom') {
 			let positionRuleForA = this.resolvePosition(statA.name);
 			let positionRuleForB = this.resolvePosition(statB.name);
 
@@ -401,7 +401,7 @@ export class FileSorter implements ITreeSorter<ExplorerItem> {
 
 			// Position entries by rule:
 			if (positionRuleForA.position !== positionRuleForB.position) {
-				return positionRuleForA.position > positionRuleForB.position ? 1 : -1;
+				return (positionRuleForA.position > positionRuleForB.position) ? 1 : -1;
 			}
 
 			// Defined rules aren't enough to differ this two entries, continue allowing default sorting to be applied.

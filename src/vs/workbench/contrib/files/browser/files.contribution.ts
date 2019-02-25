@@ -418,7 +418,7 @@ configurationRegistry.registerConfiguration({
 							'groupId': {
 								'type': 'string',
 								'default': '',
-								'description': nls.localize('explorer.sortRules.groupId', "Allows similar files keep together. Grouping is based on first capturing group from pattern or you can freeze it by 'static' property. Hence to make it work RegExp capturing group must occur in regexp.")
+								'description': nls.localize('explorer.sortRules.groupId', "Allows similar files keep together. Grouping is based on first capturing group from pattern or you can freeze it by 'groupName' property. Hence to make it work RegExp capturing group must occur in regexp.")
 							},
 							'groupName': {
 								'type': 'string',
@@ -438,14 +438,16 @@ configurationRegistry.registerConfiguration({
 								'description': nls.localize('explorer.sortRules.specificity', "Determines override precedence when multiple rules applies.")
 							}
 						},
-						'dependencies':{
+						'dependencies': {
 							'groupId': {
 								'oneOf': [
 									{
 										'properties': {
 											'regexp': {
-												// Purpose of this regex is to ensure that #/explorer.sortRules/items/properties/regexp contain at least one capturing group.
-												// Regexp is not perfect and will fail with escaped brackets, without negative lookbehind it's impossbile to write proper one.
+												/*
+												 * Purpose of this regex is to ensure that #/explorer.sortRules/items/properties/regexp contain at least one capturing group.
+												 * Regexp is not perfect and will fail with escaped brackets, without negative lookbehind it's impossbile to write proper one.
+												 */
 												'pattern': '\\(.+\\)',
 												'patternErrorMessage': nls.localize('explorer.sortRules.dependencies.group.errorMessage', "To make grouping working regex must contain RegExp capturing group or use 'groupName' property.")
 											}

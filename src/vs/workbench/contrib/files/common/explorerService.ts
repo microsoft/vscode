@@ -52,9 +52,8 @@ export class ExplorerService implements IExplorerService {
 		@IEditorService private editorService: IEditorService
 	) {
 		this._sortOrder = this.configurationService.getValue('explorer.sortOrder');
-
-		let sortRules = this.configurationService.getValue<ISortRule[]>('explorer.sortRules') ;
-			sortRules = this.fillSortRulesWithComputedValues(sortRules);
+		let sortRules = this.configurationService.getValue<ISortRule[]>('explorer.sortRules');
+		sortRules = this.fillSortRulesWithComputedValues(sortRules);
 		this._sortRules = sortRules;
 	}
 
@@ -387,7 +386,7 @@ export class ExplorerService implements IExplorerService {
 		}
 
 		let configSortRules = configuration && configuration.explorer && configuration.explorer.sortRules || [];
-			configSortRules = this.fillSortRulesWithComputedValues(configSortRules);
+		configSortRules = this.fillSortRulesWithComputedValues(configSortRules);
 		if (!equals(this._sortRules, configSortRules)) {
 			shouldFire = shouldFire || this._sortRules !== undefined;
 			this._sortRules = configSortRules;
