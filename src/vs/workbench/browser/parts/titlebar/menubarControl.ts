@@ -235,12 +235,6 @@ export class MenubarControl extends Disposable {
 				run: () => {
 					return this.preferencesService.openGlobalSettings(undefined, { query: 'window.titleBarStyle' });
 				}
-			},
-			{
-				label: nls.localize('neverShowAgain', "Don't Show Again"),
-				run: () => {
-					this.storageService.store('menubar/linuxTitlebarRevertNotified', true, StorageScope.GLOBAL);
-				}
 			}
 		]);
 	}
@@ -265,12 +259,6 @@ export class MenubarControl extends Disposable {
 				label: nls.localize('goToSetting', "Open Settings"),
 				run: () => {
 					return this.preferencesService.openGlobalSettings(undefined, { query: 'window.titleBarStyle' });
-				}
-			},
-			{
-				label: nls.localize('neverShowAgain', "Don't Show Again"),
-				run: () => {
-					this.storageService.store('menubar/accessibleMenubarNotified', true, StorageScope.GLOBAL);
 				}
 			}
 		]);
