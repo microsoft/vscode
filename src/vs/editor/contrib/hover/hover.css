@@ -89,8 +89,3 @@
 .monaco-editor-hover .hover-row.status-bar .actions .action-container .action .icon {
 	padding-right: 4px;
 }
-
-.monaco-editor-hover .hover-row.status-bar .actions .action-container .keybinding-label {
-	padding-left: 4px;
-	opacity: 0.6;
-}

@@ -585,8 +585,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		label.textContent = actionOptions.label;
 		const keybinding = this._keybindingService.lookupKeybinding(actionOptions.commandId);
 		if (keybinding) {
-			const actionKeybindingLabel = dom.append(actionContainer, $('span.keybinding-label'));
-			actionKeybindingLabel.textContent = keybinding.getLabel();
+			label.title = `${actionOptions.label} (${keybinding.getLabel()})`;
 		}
 		return dom.addDisposableListener(actionContainer, dom.EventType.CLICK, e => {
 			e.stopPropagation();
