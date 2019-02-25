@@ -789,7 +789,7 @@ export class TextFileService extends Disposable implements ITextFileService {
 			return joinPath(lastActiveFolder, untitledFileName);
 		}
 
-		return schemeFilter === Schemas.file ? URI.file(untitledFileName) : URI.from({ scheme: schemeFilter, authority: remoteAuthority, path: untitledFileName });
+		return schemeFilter === Schemas.file ? URI.file(untitledFileName) : URI.from({ scheme: schemeFilter, authority: remoteAuthority, path: '/' + untitledFileName });
 	}
 
 	revert(resource: URI, options?: IRevertOptions): Promise<boolean> {
