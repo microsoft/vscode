@@ -37,6 +37,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 export class DebugSession implements IDebugSession {
 	private id: string;
 	private raw: RawDebugSession;
+	private initialized = false;
 
 	private sources = new Map<string, Source>();
 	private threads = new Map<number, Thread>();
@@ -92,6 +93,9 @@ export class DebugSession implements IDebugSession {
 	}
 
 	get state(): State {
+		if (!this.initialized) {
+			return State.Initializing;
+		}
 		if (!this.raw) {
 			return State.Inactive;
 		}
@@ -168,6 +172,7 @@ export class DebugSession implements IDebugSession {
 						supportsRunInTerminalRequest: true, // #10574
 						locale: platform.locale
 					}).then(() => {
+						this.initialized = true;
 						this._onDidChangeState.fire();
 						this.model.setExceptionBreakpoints(this.raw.capabilities.exceptionBreakpointFilters);
 					});
