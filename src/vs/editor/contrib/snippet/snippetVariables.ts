@@ -34,6 +34,7 @@ export const KnownSnippetVariableNames = Object.freeze({
 	'TM_FILENAME': true,
 	'TM_FILENAME_BASE': true,
 	'TM_DIRECTORY': true,
+	'TM_DIRECTORY_BASE': true,
 	'TM_FILEPATH': true,
 	'BLOCK_COMMENT_START': true,
 	'BLOCK_COMMENT_END': true,
@@ -148,6 +149,9 @@ export class ModelBasedVariableResolver implements VariableResolver {
 			const dir = dirname(this._model.uri.fsPath);
 			return dir !== '.' ? dir : '';
 
+		} else if (name === 'TM_DIRECTORY_BASE') {
+			const parentDirname = basename(dirname(this._model.uri.fsPath));
+			return parentDirname;
 		} else if (name === 'TM_FILEPATH') {
 			return this._model.uri.fsPath;
 		}
