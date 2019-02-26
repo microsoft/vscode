@@ -30,7 +30,6 @@
 }
 
 .monaco-editor .marker-widget {
-	padding: 8px 12px 0px 20px;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
@@ -55,6 +54,7 @@
 	white-space: pre;
 	-webkit-user-select: text;
 	user-select: text;
+	padding: 8px 12px 0px 20px;
 }
 
 .monaco-editor .marker-widget .descriptioncontainer .message {

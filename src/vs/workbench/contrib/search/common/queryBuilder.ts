@@ -113,7 +113,9 @@ export class QueryBuilder {
 	private getContentPattern(inputPattern: IPatternInfo, options: ITextQueryBuilderOptions): IPatternInfo {
 		const searchConfig = this.configurationService.getValue<ISearchConfiguration>();
 
-		inputPattern.pattern = inputPattern.pattern.replace(/\r?\n/g, '\\n');
+		if (inputPattern.isRegExp) {
+			inputPattern.pattern = inputPattern.pattern.replace(/\r?\n/g, '\\n');
+		}
 
 		const newPattern = {
 			...inputPattern,
@@ -150,14 +152,14 @@ export class QueryBuilder {
 		if (options.includePattern) {
 			includeSearchPathsInfo = options.expandPatterns ?
 				this.parseSearchPaths(options.includePattern) :
-				{ pattern: patternListToIExpression(options.includePattern) };
+				{ pattern: patternListToIExpression(...splitGlobPattern(options.includePattern)) };
 		}
 
 		let excludeSearchPathsInfo: ISearchPathsInfo = {};
 		if (options.excludePattern) {
 			excludeSearchPathsInfo = options.expandPatterns ?
 				this.parseSearchPaths(options.excludePattern) :
-				{ pattern: patternListToIExpression(options.excludePattern) };
+				{ pattern: patternListToIExpression(...splitGlobPattern(options.excludePattern)) };
 		}
 
 		// Build folderQueries from searchPaths, if given, otherwise folderResources

@@ -397,6 +397,12 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 	private _filterOnType: boolean;
 	get filterOnType(): boolean { return this._filterOnType; }
 
+	private _empty: boolean;
+	get empty(): boolean { return this._empty; }
+
+	private _onDidChangeEmptyState = new Emitter<boolean>();
+	readonly onDidChangeEmptyState: Event<boolean> = Event.latch(this._onDidChangeEmptyState.event);
+
 	private positionClassName = 'ne';
 	private domNode: HTMLElement;
 	private messageDomNode: HTMLElement;
@@ -653,13 +659,17 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 
 		if (this.pattern && this.tree.options.filterOnType && noMatches) {
 			this.messageDomNode.textContent = localize('empty', "No elements found");
+			this._empty = true;
 		} else {
 			this.messageDomNode.innerHTML = '';
+			this._empty = false;
 		}
 
 		toggleClass(this.domNode, 'no-matches', noMatches);
 		this.domNode.title = localize('found', "Matched {0} out of {1} elements", this.filter.matchCount, this.filter.totalCount);
 		this.labelDomNode.textContent = this.pattern.length > 16 ? '…' + this.pattern.substr(this.pattern.length - 16) : this.pattern;
+
+		this._onDidChangeEmptyState.fire(this._empty);
 	}
 
 	shouldAllowFocus(node: ITreeNode<T, TFilterData>): boolean {
@@ -1071,11 +1081,21 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	}
 
 	get contentHeight(): number {
+		if (this.typeFilterController && this.typeFilterController.filterOnType && this.typeFilterController.empty) {
+			return 100;
+		}
+
 		return this.view.contentHeight;
 	}
 
 	get onDidChangeContentHeight(): Event<number> {
-		return this.view.onDidChangeContentHeight;
+		let result = this.view.onDidChangeContentHeight;
+
+		if (this.typeFilterController) {
+			result = Event.any(result, Event.map(this.typeFilterController.onDidChangeEmptyState, () => this.contentHeight));
+		}
+
+		return result;
 	}
 
 	get scrollTop(): number {

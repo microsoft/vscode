@@ -197,7 +197,6 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 					viewletState: this.viewletState
 				});
 			panel.render();
-			panel.setVisible(true);
 			const contextMenuDisposable = DOM.addDisposableListener(panel.draggableElement, 'contextmenu', e => {
 				e.stopPropagation();
 				e.preventDefault();
