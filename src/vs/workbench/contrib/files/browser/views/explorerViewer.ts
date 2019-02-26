@@ -206,7 +206,7 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, FuzzyScore, IF
 		inputBox.focus();
 		inputBox.select({ start: 0, end: lastDot > 0 && !stat.isDirectory ? lastDot : value.length });
 
-		const done = once(async (success: boolean, blur: boolean) => {
+		const done = once(async (success: boolean) => {
 			label.element.style.display = 'none';
 			const value = inputBox.value;
 			dispose(toDispose);
@@ -214,35 +214,30 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, FuzzyScore, IF
 			editableData.onFinish(value, success);
 		});
 
-		// It can happen that the tree re-renders this node. When that happens,
-		// we're gonna get a blur event first and only after an element disposable.
-		// Because of that, we should setTimeout the blur handler to differentiate
-		// between the blur happening because of a unrender or because of a user action.
-		let ignoreBlur = false;
+		const blurDisposable = DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, () => {
+			done(inputBox.isInputValid());
+		});
 
 		const toDispose = [
 			inputBox,
 			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
 				if (e.equals(KeyCode.Enter)) {
 					if (inputBox.validate()) {
-						done(true, false);
+						done(true);
 					}
 				} else if (e.equals(KeyCode.Escape)) {
-					done(false, false);
+					done(false);
 				}
 			}),
-			DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, () => {
-				setTimeout(() => {
-					if (!ignoreBlur) {
-						done(inputBox.isInputValid(), true);
-					}
-				}, 0);
-			}),
+			blurDisposable,
 			label,
 			styler
 		];
 
-		return toDisposable(() => ignoreBlur = true);
+		return toDisposable(() => {
+			blurDisposable.dispose();
+			done(inputBox.isInputValid());
+		});
 	}
 
 	disposeElement?(element: ITreeNode<ExplorerItem, FuzzyScore>, index: number, templateData: IFileTemplateData): void {
