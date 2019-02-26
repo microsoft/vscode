@@ -65,7 +65,6 @@ export class ExplorerView extends ViewletPanel {
 	private dragHandler: DelayedDragHandler;
 	private decorationProvider: ExplorerDecorationsProvider;
 	private autoReveal = false;
-	private ignoreActiveEditorChange = false;
 
 	constructor(
 		options: IViewletPanelOptions,
@@ -196,10 +195,7 @@ export class ExplorerView extends ViewletPanel {
 
 		// When the explorer viewer is loaded, listen to changes to the editor input
 		this.disposables.push(this.editorService.onDidActiveEditorChange(() => {
-			if (!this.ignoreActiveEditorChange) {
-				this.selectActiveFile(true);
-			}
-			this.ignoreActiveEditorChange = false;
+			this.selectActiveFile(true);
 		}));
 
 		// Also handle configuration updates
@@ -257,6 +253,11 @@ export class ExplorerView extends ViewletPanel {
 		if (this.autoReveal) {
 			const activeFile = this.getActiveFile();
 			if (activeFile) {
+				const focus = this.tree.getFocus();
+				if (focus.length === 1 && focus[0].resource.toString() === activeFile.toString()) {
+					// No action needed, active file is already focused
+					return;
+				}
 				this.explorerService.select(this.getActiveFile(), reveal);
 			} else if (deselect) {
 				this.tree.setSelection([]);
@@ -343,7 +344,6 @@ export class ExplorerView extends ViewletPanel {
 					"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				}*/
 				this.telemetryService.publicLog('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'explorer' });
-				this.ignoreActiveEditorChange = true;
 				this.editorService.openEditor({ resource: selection[0].resource, options: { preserveFocus: e.editorOptions.preserveFocus, pinned: e.editorOptions.pinned } }, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP)
 					.then(undefined, onUnexpectedError);
 			}
