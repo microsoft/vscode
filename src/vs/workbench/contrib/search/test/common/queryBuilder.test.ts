@@ -61,10 +61,26 @@ suite('QueryBuilder', () => {
 
 	test('normalize literal newlines', () => {
 		assertEqualTextQueries(
-			queryBuilder.text({ pattern: 'foo\nbar' }),
+			queryBuilder.text({ pattern: 'foo\nbar', isRegExp: true }),
 			{
 				folderQueries: [],
-				contentPattern: { pattern: 'foo\\nbar' },
+				contentPattern: {
+					pattern: 'foo\\nbar',
+					isRegExp: true,
+					isMultiline: true
+				},
+				type: QueryType.Text
+			});
+
+		assertEqualTextQueries(
+			queryBuilder.text({ pattern: 'foo\nbar', isRegExp: false }),
+			{
+				folderQueries: [],
+				contentPattern: {
+					pattern: 'foo\nbar',
+					isRegExp: false,
+					isMultiline: true
+				},
 				type: QueryType.Text
 			});
 	});
