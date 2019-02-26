@@ -5,14 +5,15 @@
 
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { computeSHA1Hash } from 'vs/base/common/hash';
 
-export class SimpleHashService implements IHashService {
+export class BrowserHashService implements IHashService {
 
 	_serviceBrand: any;
 
 	createSHA1(content: string): string {
-		return btoa(content);
+		return computeSHA1Hash(content);
 	}
 }
 
-registerSingleton(IHashService, SimpleHashService, true);
+registerSingleton(IHashService, BrowserHashService, true);

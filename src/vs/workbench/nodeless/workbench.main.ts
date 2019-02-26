@@ -58,7 +58,7 @@ import { SimpleClipboardService } from 'vs/workbench/nodeless/services/simpleCli
 import 'vs/workbench/services/bulkEdit/browser/bulkEditService';
 // import 'vs/workbench/services/integrity/node/integrityService';
 import 'vs/workbench/services/keybinding/common/keybindingEditing';
-import 'vs/workbench/nodeless/services/simpleHashService';
+import 'vs/workbench/services/hash/browser/hashService';
 import 'vs/workbench/nodeless/services/simpleTextMateService';
 import 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
 import 'vs/workbench/nodeless/services/simpleWorkspaceEditingService';
