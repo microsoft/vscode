@@ -92,6 +92,11 @@ suite('Debug - ANSI Handling', () => {
 			assert(dom.hasClass(child, 'code-bold'));
 		});
 
+		// Italic code
+		assertSingleSequenceElement('\x1b[3m', (child) => {
+			assert(dom.hasClass(child, 'code-italic'));
+		});
+
 		// Underline code
 		assertSingleSequenceElement('\x1b[4m', (child) => {
 			assert(dom.hasClass(child, 'code-underline'));
@@ -126,10 +131,11 @@ suite('Debug - ANSI Handling', () => {
 		}
 
 		// Codes do not interfere
-		assertSingleSequenceElement('\x1b[1;4;30;31;32;33;34;35;36;37m', (child) => {
+		assertSingleSequenceElement('\x1b[1;3;4;30;31;32;33;34;35;36;37m', (child) => {
 			assert.equal(10, child.classList.length);
 
 			assert(dom.hasClass(child, 'code-bold'));
+			assert(dom.hasClass(child, 'code-italic'));
 			assert(dom.hasClass(child, 'code-underline'));
 			for (let i = 30; i <= 37; i++) {
 				assert(dom.hasClass(child, 'code-foreground-' + i));
@@ -178,14 +184,15 @@ suite('Debug - ANSI Handling', () => {
 	test('Expected multiple sequence operation', () => {
 
 		// Multiple codes affect the same text
-		assertSingleSequenceElement('\x1b[1m\x1b[4m\x1b[32m', (child) => {
+		assertSingleSequenceElement('\x1b[1m\x1b[3m\x1b[4m\x1b[32m', (child) => {
 			assert(dom.hasClass(child, 'code-bold'));
+			assert(dom.hasClass(child, 'code-italic'));
 			assert(dom.hasClass(child, 'code-underline'));
 			assert(dom.hasClass(child, 'code-foreground-32'));
 		});
 
 		// Consecutive codes do not affect previous ones
-		assertMultipleSequenceElements('\x1b[1mbold\x1b[32mgreen\x1b[4munderline\x1b[0mnothing', [
+		assertMultipleSequenceElements('\x1b[1mbold\x1b[32mgreen\x1b[4munderline\x1b[3mitalic\x1b[0mnothing', [
 			(bold) => {
 				assert.equal(1, bold.classList.length);
 				assert(dom.hasClass(bold, 'code-bold'));
@@ -200,6 +207,13 @@ suite('Debug - ANSI Handling', () => {
 				assert(dom.hasClass(underline, 'code-bold'));
 				assert(dom.hasClass(underline, 'code-foreground-32'));
 				assert(dom.hasClass(underline, 'code-underline'));
+			},
+			(italic) => {
+				assert.equal(4, italic.classList.length);
+				assert(dom.hasClass(italic, 'code-bold'));
+				assert(dom.hasClass(italic, 'code-foreground-32'));
+				assert(dom.hasClass(italic, 'code-underline'));
+				assert(dom.hasClass(italic, 'code-italic'));
 			},
 			(nothing) => {
 				assert.equal(0, nothing.classList.length);
