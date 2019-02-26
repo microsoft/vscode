@@ -132,7 +132,7 @@ suite('Debug - ANSI Handling', () => {
 
 		// Codes do not interfere
 		assertSingleSequenceElement('\x1b[1;3;4;30;31;32;33;34;35;36;37m', (child) => {
-			assert.equal(10, child.classList.length);
+			assert.equal(11, child.classList.length);
 
 			assert(dom.hasClass(child, 'code-bold'));
 			assert(dom.hasClass(child, 'code-italic'));
