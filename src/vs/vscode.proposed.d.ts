@@ -780,6 +780,12 @@ declare module 'vscode' {
 		Expanded = 1
 	}
 
+	interface CommentingRanges {
+		readonly resource: Uri;
+		ranges: Range[];
+		newCommentThreadCommand: Command;
+	}
+
 	/**
 	 * A collection of comments representing a conversation at a particular range in a document.
 	 */
@@ -804,11 +810,13 @@ declare module 'vscode' {
 		 * The ordered comments of the thread.
 		 */
 		comments: Comment[];
+		acceptInputCommands?: Command[];
 
 		/**
 		 * Whether the thread should be collapsed or expanded when opening the document. Defaults to Collapsed.
 		 */
 		collapsibleState?: CommentThreadCollapsibleState;
+		dispose?(): void;
 	}
 
 	/**
@@ -846,6 +854,8 @@ declare module 'vscode' {
 		 *
 		 * This will be treated as false if the comment is provided by a `WorkspaceCommentProvider`, or
 		 * if it is provided by a `DocumentCommentProvider` and  no `editComment` method is given.
+		 *
+		 * DEPRECATED, use editCommand
 		 */
 		canEdit?: boolean;
 
@@ -854,6 +864,8 @@ declare module 'vscode' {
 		 *
 		 * This will be treated as false if the comment is provided by a `WorkspaceCommentProvider`, or
 		 * if it is provided by a `DocumentCommentProvider` and  no `deleteComment` method is given.
+		 *
+		 * DEPRECATED, use deleteCommand
 		 */
 		canDelete?: boolean;
 
@@ -861,6 +873,9 @@ declare module 'vscode' {
 		 * The command to be executed if the comment is selected in the Comments Panel
 		 */
 		command?: Command;
+
+		editCommand?: Command;
+		deleteCommand?: Command;
 
 		isDraft?: boolean;
 		commentReactions?: CommentReaction[];
@@ -952,10 +967,44 @@ declare module 'vscode' {
 		onDidChangeCommentThreads: Event<CommentThreadChangedEvent>;
 	}
 
+	export interface CommentWidget {
+		/*
+		 * Comment thread in this Comment Widget
+		 */
+		commentThread: CommentThread;
+
+		/*
+		 * Textarea content in the comment widget.
+		 * There is only one active input box in a comment widget.
+		 */
+		input: string;
+	}
+
+	export interface CommentControl {
+		readonly id: string;
+		readonly label: string;
+		/**
+		 * The active (focused) comment widget.
+		 */
+		readonly widget?: CommentWidget;
+		/**
+		 * The active range users attempt to create comments against.
+		 */
+		readonly activeCommentingRange?: Range;
+		createCommentThread(id: string, resource: Uri, range: Range, comments: Comment[], acceptInputCommands: Command[], collapsibleState?: CommentThreadCollapsibleState): CommentThread;
+		createCommentingRanges(resource: Uri, ranges: Range[], newCommentThreadCommand: Command): CommentingRanges;
+		dispose(): void;
+	}
+
+	namespace comment {
+		export function createCommentControl(id: string, label: string): CommentControl;
+	}
+
 	namespace workspace {
 		export function registerDocumentCommentProvider(provider: DocumentCommentProvider): Disposable;
 		export function registerWorkspaceCommentProvider(provider: WorkspaceCommentProvider): Disposable;
 	}
+
 	//#endregion
 
 	//#region Terminal

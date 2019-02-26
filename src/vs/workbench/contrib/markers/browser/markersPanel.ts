@@ -228,7 +228,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 			this.cachedFilterStats = undefined;
 
 			if (marker) {
-				this.tree.refresh(marker);
+				this.tree.rerender(marker);
 			} else {
 				this.tree.setChildren(null, createModelIterator(this.markersWorkbenchService.markersModel));
 			}

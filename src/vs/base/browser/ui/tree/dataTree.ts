@@ -95,8 +95,13 @@ export class DataTree<TInput, T, TFilterData = void> extends AbstractTree<T | nu
 
 	// View
 
-	refresh(element: T): void {
-		this.model.refresh(element);
+	refresh(element?: T): void {
+		if (element === undefined) {
+			this.view.rerender();
+			return;
+		}
+
+		this.model.rerender(element);
 	}
 
 	// Implementation

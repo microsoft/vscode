@@ -39,7 +39,7 @@ import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { CollapseAction2 } from 'vs/workbench/browser/viewlet';
+import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { OutlineConfigKeys, OutlineViewFocused, OutlineViewFiltered } from 'vs/editor/contrib/documentSymbols/outline';
 import { FuzzyScore } from 'vs/base/common/filters';
@@ -144,13 +144,21 @@ class RequestOracle {
 
 class SimpleToggleAction extends Action {
 
-	constructor(label: string, checked: boolean, callback: (action: SimpleToggleAction) => any, className?: string) {
+	private readonly _listener: IDisposable;
+
+	constructor(state: OutlineViewState, label: string, isChecked: () => boolean, callback: (action: SimpleToggleAction) => any, className?: string) {
 		super(`simple` + defaultGenerator.nextId(), label, className, true, () => {
 			this.checked = !this.checked;
 			callback(this);
 			return Promise.resolve();
 		});
-		this.checked = checked;
+		this.checked = isChecked();
+		this._listener = state.onDidChange(() => this.checked = isChecked());
+	}
+
+	dispose(): void {
+		this._listener.dispose();
+		super.dispose();
 	}
 }
 
@@ -198,7 +206,11 @@ class OutlineViewState {
 	}
 
 	persist(storageService: IStorageService): void {
-		storageService.store('outline/state', JSON.stringify({ followCursor: this.followCursor, sortBy: this.sortBy }), StorageScope.WORKSPACE);
+		storageService.store('outline/state', JSON.stringify({
+			followCursor: this.followCursor,
+			sortBy: this.sortBy,
+			filterOnType: this.filterOnType,
+		}), StorageScope.WORKSPACE);
 	}
 
 	restore(storageService: IStorageService): void {
@@ -214,6 +226,9 @@ class OutlineViewState {
 		}
 		this.followCursor = data.followCursor;
 		this.sortBy = data.sortBy;
+		if (typeof data.filterOnType === 'boolean') {
+			this.filterOnType = data.filterOnType;
+		}
 	}
 }
 
@@ -326,6 +341,11 @@ export class OutlinePanel extends ViewletPanel {
 			filterOnType: this._outlineViewState.filterOnType
 		});
 
+		//feature: filter on type - keep tree and menu in sync
+		this._tree.onDidUpdateOptions(e => {
+			this._outlineViewState.filterOnType = e.filterOnType;
+		});
+
 		// feature: toggle icons
 		this.disposables.push(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(OutlineConfigKeys.icons)) {
@@ -353,20 +373,20 @@ export class OutlinePanel extends ViewletPanel {
 	getActions(): IAction[] {
 		return [
 			new Action('collapse', localize('collapse', "Collapse All"), 'explorer-action collapse-explorer', true, () => {
-				return new CollapseAction2(this._tree, true, undefined).run();
+				return new CollapseAction(this._tree, true, undefined).run();
 			})
 		];
 	}
 
 	getSecondaryActions(): IAction[] {
 		let group = new RadioGroup([
-			new SimpleToggleAction(localize('sortByPosition', "Sort By: Position"), this._outlineViewState.sortBy === OutlineSortOrder.ByPosition, _ => this._outlineViewState.sortBy = OutlineSortOrder.ByPosition),
-			new SimpleToggleAction(localize('sortByName', "Sort By: Name"), this._outlineViewState.sortBy === OutlineSortOrder.ByName, _ => this._outlineViewState.sortBy = OutlineSortOrder.ByName),
-			new SimpleToggleAction(localize('sortByKind', "Sort By: Type"), this._outlineViewState.sortBy === OutlineSortOrder.ByKind, _ => this._outlineViewState.sortBy = OutlineSortOrder.ByKind),
+			new SimpleToggleAction(this._outlineViewState, localize('sortByPosition', "Sort By: Position"), () => this._outlineViewState.sortBy === OutlineSortOrder.ByPosition, _ => this._outlineViewState.sortBy = OutlineSortOrder.ByPosition),
+			new SimpleToggleAction(this._outlineViewState, localize('sortByName', "Sort By: Name"), () => this._outlineViewState.sortBy === OutlineSortOrder.ByName, _ => this._outlineViewState.sortBy = OutlineSortOrder.ByName),
+			new SimpleToggleAction(this._outlineViewState, localize('sortByKind', "Sort By: Type"), () => this._outlineViewState.sortBy === OutlineSortOrder.ByKind, _ => this._outlineViewState.sortBy = OutlineSortOrder.ByKind),
 		]);
 		let result = [
-			new SimpleToggleAction(localize('followCur', "Follow Cursor"), this._outlineViewState.followCursor, action => this._outlineViewState.followCursor = action.checked),
-			new SimpleToggleAction(localize('filterOnType', "Filter on Type"), this._outlineViewState.filterOnType, action => this._outlineViewState.filterOnType = action.checked),
+			new SimpleToggleAction(this._outlineViewState, localize('followCur', "Follow Cursor"), () => this._outlineViewState.followCursor, action => this._outlineViewState.followCursor = action.checked),
+			new SimpleToggleAction(this._outlineViewState, localize('filterOnType', "Filter on Type"), () => this._outlineViewState.filterOnType, action => this._outlineViewState.filterOnType = action.checked),
 			new Separator(),
 			...group.actions,
 		];

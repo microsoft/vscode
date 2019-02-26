@@ -10,7 +10,7 @@ import * as dom from 'vs/base/browser/dom';
 import * as arrays from 'vs/base/common/arrays';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IAction, IRunEvent } from 'vs/base/common/actions';
-import { ActionBar, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar, ActionsOrientation, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IDebugConfiguration, IDebugService, State } from 'vs/workbench/contrib/debug/common/debug';
@@ -306,14 +306,12 @@ export class DebugToolbar extends Themable implements IWorkbenchContribution {
 			return true;
 		}).sort((first, second) => first.weight - second.weight);
 
-		const primary: IAction[] = [];
-		fillInActionBarActions(menu, undefined, { primary, secondary: [] });
-		actions.push(...primary);
+		fillInActionBarActions(menu, undefined, actions);
 		if (debugService.getViewModel().isMultiSessionView()) {
 			actions.push(instantiationService.createInstance(FocusSessionAction, FocusSessionAction.ID, FocusSessionAction.LABEL));
 		}
 
-		return actions;
+		return actions.filter(a => !(a instanceof Separator)); // do not render separators for now
 	}
 
 	public dispose(): void {

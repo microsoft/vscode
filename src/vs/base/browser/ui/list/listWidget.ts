@@ -1276,6 +1276,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		this.view.updateWidth(index);
 	}
 
+	rerender(): void {
+		this.view.rerender();
+	}
+
 	element(index: number): T {
 		return this.view.element(index);
 	}
@@ -1306,6 +1310,14 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	get renderHeight(): number {
 		return this.view.renderHeight;
+	}
+
+	get firstVisibleIndex(): number {
+		return this.view.firstVisibleIndex;
+	}
+
+	get lastVisibleIndex(): number {
+		return this.view.lastVisibleIndex;
 	}
 
 	domFocus(): void {

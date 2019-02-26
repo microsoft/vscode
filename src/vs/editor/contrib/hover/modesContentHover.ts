@@ -467,7 +467,10 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			}
 		});
 
-		markerMessages.forEach(msg => fragment.appendChild(this.renderMarkerHover(msg)));
+		if (markerMessages.length) {
+			markerMessages.forEach(msg => fragment.appendChild(this.renderMarkerHover(msg)));
+			fragment.appendChild(this.renderMarkerStatusbar(markerMessages[0]));
+		}
 
 		// show
 
@@ -489,16 +492,16 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		const markerElement = dom.append(hoverElement, $('div.marker.hover-contents'));
 		const { source, message, code, relatedInformation } = markerHover.marker;
 
+		this._editor.applyFontInfo(markerElement);
 		const messageElement = dom.append(markerElement, $('span'));
 		messageElement.style.whiteSpace = 'pre-wrap';
 		messageElement.innerText = message;
-		this._editor.applyFontInfo(messageElement);
 
 		if (source || code) {
 			const detailsElement = dom.append(markerElement, $('span'));
 			detailsElement.style.opacity = '0.6';
 			detailsElement.style.paddingLeft = '6px';
-			detailsElement.innerText = source && code ? `${source}(${code})` : `(${code})`;
+			detailsElement.innerText = source && code ? `${source}(${code})` : source ? source : `(${code})`;
 		}
 
 		if (isNonEmptyArray(relatedInformation)) {
@@ -521,19 +524,13 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			}
 		}
 
+		return hoverElement;
+	}
+
+	private renderMarkerStatusbar(markerHover: MarkerHover): HTMLElement {
+		const hoverElement = $('div.hover-row.status-bar');
 		const disposables: IDisposable[] = [];
 		const actionsElement = dom.append(hoverElement, $('div.actions'));
-
-		disposables.push(this.renderAction(actionsElement, {
-			label: nls.localize('peek problem', "Peek Problem"),
-			commandId: NextMarkerAction.ID,
-			run: () => {
-				this.hide();
-				MarkerController.get(this._editor).show(markerHover.marker);
-				this._editor.focus();
-			}
-		}));
-
 		disposables.push(this.renderAction(actionsElement, {
 			label: nls.localize('quick fixes', "Quick Fix..."),
 			commandId: QuickFixAction.Id,
@@ -548,7 +545,15 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				});
 			}
 		}));
-
+		disposables.push(this.renderAction(actionsElement, {
+			label: nls.localize('peek problem', "Peek Problem"),
+			commandId: NextMarkerAction.ID,
+			run: () => {
+				this.hide();
+				MarkerController.get(this._editor).show(markerHover.marker);
+				this._editor.focus();
+			}
+		}));
 		this.renderDisposable = combinedDisposable(disposables);
 		return hoverElement;
 	}
@@ -580,13 +585,12 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		label.textContent = actionOptions.label;
 		const keybinding = this._keybindingService.lookupKeybinding(actionOptions.commandId);
 		if (keybinding) {
-			const actionKeybindingLabel = dom.append(actionContainer, $('span.keybinding-label'));
-			actionKeybindingLabel.textContent = keybinding.getLabel();
+			label.title = `${actionOptions.label} (${keybinding.getLabel()})`;
 		}
-		return dom.addDisposableListener(action, dom.EventType.CLICK, e => {
+		return dom.addDisposableListener(actionContainer, dom.EventType.CLICK, e => {
 			e.stopPropagation();
 			e.preventDefault();
-			actionOptions.run(action);
+			actionOptions.run(actionContainer);
 		});
 	}
 

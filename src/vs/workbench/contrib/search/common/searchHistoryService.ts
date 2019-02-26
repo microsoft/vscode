@@ -4,9 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { ISearchHistoryValues, ISearchHistoryService } from 'vs/workbench/services/search/common/search';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { isEmptyObject } from 'vs/base/common/types';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+
+export interface ISearchHistoryService {
+	_serviceBrand: any;
+	onDidClearHistory: Event<void>;
+	clearHistory(): void;
+	load(): ISearchHistoryValues;
+	save(history: ISearchHistoryValues): void;
+}
+
+export const ISearchHistoryService = createDecorator<ISearchHistoryService>('searchHistoryService');
+
+export interface ISearchHistoryValues {
+	search?: string[];
+	replace?: string[];
+	include?: string[];
+	exclude?: string[];
+}
 
 export class SearchHistoryService implements ISearchHistoryService {
 	_serviceBrand: any;

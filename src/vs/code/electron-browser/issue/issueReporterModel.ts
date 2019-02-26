@@ -121,7 +121,7 @@ ${this.getInfos()}
 		}
 
 		if (this._data.issueType === IssueType.Bug || this._data.issueType === IssueType.PerformanceIssue) {
-			if (this._data.includeExtensions) {
+			if (!this._data.fileOnExtension && this._data.includeExtensions) {
 				info += this.generateExtensionsMd();
 			}
 		}

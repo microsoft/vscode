@@ -20,8 +20,8 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { FileService } from 'vs/workbench/services/files/electron-browser/fileService';
-import { createReadableOfProvider, createReadableOfSnapshot, createWritableOfProvider } from 'vs/workbench/services/files/electron-browser/streams';
+import { FileService } from 'vs/workbench/services/files/node/fileService';
+import { createReadableOfProvider, createReadableOfSnapshot, createWritableOfProvider } from 'vs/workbench/services/files/node/streams';
 
 class TypeOnlyStat implements IStat {
 

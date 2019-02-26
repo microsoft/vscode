@@ -136,6 +136,11 @@ namespace schema {
 				type: 'array',
 				items: menuItem
 			},
+			'debug/toolbar': {
+				description: localize('menus.debugToolbar', "The debug toolbar menu"),
+				type: 'array',
+				items: menuItem
+			},
 			'scm/title': {
 				description: localize('menus.scmTitle', "The Source Control title menu"),
 				type: 'array',

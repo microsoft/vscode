@@ -7,7 +7,6 @@ import * as nls from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Action, IAction } from 'vs/base/common/actions';
-import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { Composite, CompositeDescriptor, CompositeRegistry } from 'vs/workbench/browser/composite';
@@ -174,31 +173,11 @@ export class ShowViewletAction extends Action {
 	}
 }
 
-// Collapse All action
 export class CollapseAction extends Action {
-
-	constructor(viewer: ITree, enabled: boolean, clazz: string) {
-		super('workbench.action.collapse', nls.localize('collapse', "Collapse All"), clazz, enabled, (context: any) => {
-			if (viewer.getHighlight()) {
-				return Promise.resolve(null); // Global action disabled if user is in edit mode from another action
-			}
-
-			viewer.collapseAll();
-			viewer.clearSelection();
-			viewer.clearFocus();
-			viewer.domFocus();
-			viewer.focusFirst();
-
-			return Promise.resolve(null);
-		});
-	}
-}
-
-// Collapse All action for the new tree
-export class CollapseAction2 extends Action {
 	constructor(tree: AsyncDataTree<any, any, any> | AbstractTree<any, any, any>, enabled: boolean, clazz?: string) {
 		super('workbench.action.collapse', nls.localize('collapse', "Collapse All"), clazz, enabled, () => {
 			tree.collapseAll();
+
 			return Promise.resolve(undefined);
 		});
 	}

@@ -210,6 +210,21 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize({ comment: ['This is the description for a setting'], key: 'enableAllHovers' }, "Controls whether the non-debug hovers should be enabled while debugging. When enabled the hover providers will be called to provide a hover. Regular hovers will not be shown even if this setting is enabled."),
 			default: false
 		},
+		'debug.console.fontSize': {
+			type: 'number',
+			description: nls.localize('debug.console.fontSize', "Controls the font size in pixels in the debug console."),
+			default: isMacintosh ? 12 : 14,
+		},
+		'debug.console.fontFamily': {
+			type: 'string',
+			description: nls.localize('debug.console.fontFamily', "Controls the font family in the debug console."),
+			default: 'default'
+		},
+		'debug.console.lineHeight': {
+			type: 'number',
+			description: nls.localize('debug.console.lineHeight', "Controls the line height in pixels in the debug console. Use 0 to compute the line height from the font size."),
+			default: 0
+		},
 		'launch': {
 			type: 'object',
 			description: nls.localize({ comment: ['This is the description for a setting'], key: 'launch' }, "Global debug launch configuration. Should be used as an alternative to 'launch.json' that is shared across workspaces."),
