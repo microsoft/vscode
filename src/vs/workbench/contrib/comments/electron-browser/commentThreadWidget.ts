@@ -41,6 +41,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { ITextModel } from 'vs/editor/common/model';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { generateUuid } from 'vs/base/common/uuid';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
 const COLLAPSE_ACTION_CLASS = 'expand-review-action octicon octicon-x';
@@ -335,7 +336,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		const hasExistingComments = this._commentThread.comments.length > 0;
 		this._commentForm = dom.append(this._bodyElement, dom.$('.comment-form'));
 		this._commentEditor = this.instantiationService.createInstance(SimpleCommentEditor, this._commentForm, SimpleCommentEditor.getEditorOptions());
-		const modeId = hasExistingComments ? this._commentThread.threadId : ++INMEM_MODEL_ID;
+		const modeId = generateUuid() + '-' + (hasExistingComments ? this._commentThread.threadId : ++INMEM_MODEL_ID);
 		const params = JSON.stringify({
 			extensionId: this.extensionId,
 			commentThreadId: this.commentThread.threadId
