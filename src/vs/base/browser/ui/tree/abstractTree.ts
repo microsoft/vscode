@@ -414,6 +414,9 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 	private automaticKeyboardNavigation = true;
 	private triggered = false;
 
+	private _onDidChangePattern = new Emitter<string>();
+	readonly onDidChangePattern = this._onDidChangePattern.event;
+
 	private enabledDisposables: IDisposable[] = [];
 	private disposables: IDisposable[] = [];
 
@@ -494,7 +497,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 			.map(e => new StandardKeyboardEvent(e))
 			.filter(this.keyboardNavigationEventFilter || (() => true))
 			.filter(() => this.automaticKeyboardNavigation || this.triggered)
-			.filter(e => isPrintableCharEvent(e) || ((this._pattern.length > 0 || this.triggered) && ((e.keyCode === KeyCode.Escape || e.keyCode === KeyCode.Backspace) && !e.altKey && !e.ctrlKey && !e.metaKey) || (e.keyCode === KeyCode.Backspace && (isMacintosh ? e.altKey : e.ctrlKey) && !e.shiftKey)))
+			.filter(e => isPrintableCharEvent(e) || ((this.pattern.length > 0 || this.triggered) && ((e.keyCode === KeyCode.Escape || e.keyCode === KeyCode.Backspace) && !e.altKey && !e.ctrlKey && !e.metaKey) || (e.keyCode === KeyCode.Backspace && (isMacintosh ? e.altKey : e.ctrlKey) && !e.shiftKey)))
 			.forEach(e => { e.stopPropagation(); e.preventDefault(); })
 			.event;
 
@@ -546,6 +549,8 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		}
 
 		this._pattern = pattern;
+		this._onDidChangePattern.fire(pattern);
+
 		this.filter.pattern = pattern;
 		this.tree.refilter();
 
@@ -686,6 +691,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 
 	dispose() {
 		this.disable();
+		this._onDidChangePattern.dispose();
 		this.disposables = dispose(this.disposables);
 	}
 }
@@ -982,6 +988,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	readonly onWillRefilter: Event<void> = this._onWillRefilter.event;
 
 	get filterOnType(): boolean { return !!this._options.filterOnType; }
+	get onDidChangeTypeFilterPattern(): Event<string> { return this.typeFilterController ? this.typeFilterController.onDidChangePattern : Event.None; }
 
 	// Options TODO@joao expose options only, not Optional<>
 	get openOnSingleClick(): boolean { return typeof this._options.openOnSingleClick === 'undefined' ? true : this._options.openOnSingleClick; }
