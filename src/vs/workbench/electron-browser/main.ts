@@ -133,7 +133,7 @@ class CodeRendererMain extends Disposable {
 				this._register(instantiationService.createInstance(ElectronWindow));
 
 				// Driver
-				if (this.configuration.driverHandle) {
+				if (this.configuration.driver) {
 					registerWindowDriver(electronMainClient, this.configuration.windowId, instantiationService).then(disposable => this._register(disposable));
 				}
 
