@@ -549,6 +549,8 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 					this._onChange.fire(extension);
 					this.eventuallyAutoUpdateExtensions();
 				});
+		} else {
+			this._onChange.fire(extension);
 		}
 	}
 
@@ -885,6 +887,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		}
 
 		let extension: Extension | undefined = installingExtension ? installingExtension : zipPath ? new Extension(this.galleryService, this.stateProvider, local, undefined, this.telemetryService, this.logService, this.fileService) : undefined;
+		extension.gallery = gallery;
 		if (extension) {
 			if (local) {
 				const installed = this.installed.filter(e => areSameExtensions(e.identifier, extension!.identifier))[0];
