@@ -64,6 +64,7 @@ export class ExplorerView extends ViewletPanel {
 	private dragHandler: DelayedDragHandler;
 	private decorationProvider: ExplorerDecorationsProvider;
 	private autoReveal = false;
+	private ignoreActiveEditorChange = false;
 
 	constructor(
 		options: IViewletPanelOptions,
@@ -194,7 +195,10 @@ export class ExplorerView extends ViewletPanel {
 
 		// When the explorer viewer is loaded, listen to changes to the editor input
 		this.disposables.push(this.editorService.onDidActiveEditorChange(() => {
-			this.selectActiveFile();
+			if (!this.ignoreActiveEditorChange) {
+				this.selectActiveFile();
+			}
+			this.ignoreActiveEditorChange = false;
 		}));
 
 		// Also handle configuration updates
@@ -336,6 +340,7 @@ export class ExplorerView extends ViewletPanel {
 					"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				}*/
 				this.telemetryService.publicLog('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'explorer' });
+				this.ignoreActiveEditorChange = true;
 				this.editorService.openEditor({ resource: selection[0].resource, options: { preserveFocus: e.editorOptions.preserveFocus, pinned: e.editorOptions.pinned } }, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP)
 					.then(undefined, onUnexpectedError);
 			}
