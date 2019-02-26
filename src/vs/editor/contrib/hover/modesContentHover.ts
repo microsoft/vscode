@@ -458,7 +458,10 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 							const markdownHoverElement = $('div.hover-row.markdown-hover');
 							const hoverContentsElement = dom.append(markdownHoverElement, $('div.hover-contents'));
 							const renderer = new MarkdownRenderer(this._editor, this._modeService, this._openerService);
-							markdownDisposeables.push(renderer.onDidRenderCodeBlock(() => this.onContentsChange()));
+							markdownDisposeables.push(renderer.onDidRenderCodeBlock(() => {
+								hoverContentsElement.className = 'hover-contents code-hover-contents';
+								this.onContentsChange();
+							}));
 							const renderedContents = renderer.render(contents);
 							hoverContentsElement.appendChild(renderedContents.element);
 							fragment.appendChild(markdownHoverElement);
