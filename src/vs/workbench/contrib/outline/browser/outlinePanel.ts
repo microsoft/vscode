@@ -604,7 +604,7 @@ export class OutlinePanel extends ViewletPanel {
 		} as IResourceInput, aside ? SIDE_GROUP : ACTIVE_GROUP);
 	}
 
-	private async _revealEditorSelection(model: OutlineModel, selection: Selection): Promise<void> {
+	private _revealEditorSelection(model: OutlineModel, selection: Selection): void {
 		if (!this._outlineViewState.followCursor || !this._tree.getInput() || !selection) {
 			return;
 		}
@@ -618,9 +618,8 @@ export class OutlinePanel extends ViewletPanel {
 			return;
 		}
 		let top = this._tree.getRelativeTop(item);
-		if (typeof top === 'number' && (top < 0 || top > 1)) {
-			// only when outside view port
-			await this._tree.reveal(item, 0.5);
+		if (top === null) {
+			this._tree.reveal(item, 0.5);
 		}
 		this._tree.setFocus([item], this._treeFakeUIEvent);
 		this._tree.setSelection([item], this._treeFakeUIEvent);

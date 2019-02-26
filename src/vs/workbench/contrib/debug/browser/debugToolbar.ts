@@ -306,7 +306,7 @@ export class DebugToolbar extends Themable implements IWorkbenchContribution {
 			return true;
 		}).sort((first, second) => first.weight - second.weight);
 
-		fillInActionBarActions(menu, undefined, actions);
+		fillInActionBarActions(menu, undefined, actions, () => false);
 		if (debugService.getViewModel().isMultiSessionView()) {
 			actions.push(instantiationService.createInstance(FocusSessionAction, FocusSessionAction.ID, FocusSessionAction.LABEL));
 		}
