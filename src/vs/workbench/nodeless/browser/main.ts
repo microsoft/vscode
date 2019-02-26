@@ -17,7 +17,6 @@ import { IMenubarService } from 'vs/platform/menubar/common/menubar';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { SimpleWindowsService } from 'vs/workbench/nodeless/services/simpleWindowsService';
 import { SimpleUpdateService } from 'vs/workbench/nodeless/services/simpleUpdateService';
@@ -31,6 +30,8 @@ import { SimpleWindowConfiguration } from 'vs/workbench/nodeless/services/simple
 
 // tslint:disable-next-line: layering
 import { Workbench } from 'vs/workbench/electron-browser/workbench';
+// tslint:disable-next-line: layering
+import { InstantiationService } from 'vs/platform/instantiation/node/instantiationService';
 
 class CodeRendererMain extends Disposable {
 
