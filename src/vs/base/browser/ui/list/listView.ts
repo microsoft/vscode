@@ -786,6 +786,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	private onDragOver(event: IListDragEvent<T>): boolean {
+		event.browserEvent.preventDefault(); // needed so that the drop event fires (https://stackoverflow.com/questions/21339924/drop-event-not-firing-in-chrome)
+
 		this.onDragLeaveTimeout.dispose();
 
 		if (StaticDND.CurrentDragAndDropData && StaticDND.CurrentDragAndDropData.getData() === 'vscode-ui') {
