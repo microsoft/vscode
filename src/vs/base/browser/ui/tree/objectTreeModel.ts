@@ -188,6 +188,11 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 		return this.model.setCollapsed(location, collapsed, recursive);
 	}
 
+	expandTo(element: T): void {
+		const location = this.getElementLocation(element);
+		this.model.expandTo(location);
+	}
+
 	refilter(): void {
 		this.model.refilter();
 	}

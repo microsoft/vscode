@@ -1260,6 +1260,8 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	}
 
 	reveal(location: TRef, relativeTop?: number): void {
+		this.model.expandTo(location);
+
 		const index = this.model.getListIndex(location);
 
 		if (index === -1) {
