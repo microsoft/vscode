@@ -6,7 +6,7 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { IProcessEnvironment, isMacintosh, isLinux } from 'vs/base/common/platform';
+import { IProcessEnvironment } from 'vs/base/common/platform';
 import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
@@ -258,31 +258,32 @@ export interface IWindowSettings {
 }
 
 export function getTitleBarStyle(configurationService: IConfigurationService, environment: IEnvironmentService, isExtensionDevelopment = environment.isExtensionDevelopment): 'native' | 'custom' {
-	const configuration = configurationService.getValue<IWindowSettings>('window');
+	return 'custom';
+	// const configuration = configurationService.getValue<IWindowSettings>('window');
 
-	const isDev = !environment.isBuilt || isExtensionDevelopment;
-	if (isMacintosh && isDev) {
-		return 'native'; // not enabled when developing due to https://github.com/electron/electron/issues/3647
-	}
+	// const isDev = !environment.isBuilt || isExtensionDevelopment;
+	// if (isMacintosh && isDev) {
+	// 	return 'native'; // not enabled when developing due to https://github.com/electron/electron/issues/3647
+	// }
 
-	if (configuration) {
-		const useNativeTabs = isMacintosh && configuration.nativeTabs === true;
-		if (useNativeTabs) {
-			return 'native'; // native tabs on sierra do not work with custom title style
-		}
+	// if (configuration) {
+	// 	const useNativeTabs = isMacintosh && configuration.nativeTabs === true;
+	// 	if (useNativeTabs) {
+	// 		return 'native'; // native tabs on sierra do not work with custom title style
+	// 	}
 
-		const useSimpleFullScreen = isMacintosh && configuration.nativeFullScreen === false;
-		if (useSimpleFullScreen) {
-			return 'native'; // simple fullscreen does not work well with custom title style (https://github.com/Microsoft/vscode/issues/63291)
-		}
+	// 	const useSimpleFullScreen = isMacintosh && configuration.nativeFullScreen === false;
+	// 	if (useSimpleFullScreen) {
+	// 		return 'native'; // simple fullscreen does not work well with custom title style (https://github.com/Microsoft/vscode/issues/63291)
+	// 	}
 
-		const style = configuration.titleBarStyle;
-		if (style === 'native' || style === 'custom') {
-			return style;
-		}
-	}
+	// 	const style = configuration.titleBarStyle;
+	// 	if (style === 'native' || style === 'custom') {
+	// 		return style;
+	// 	}
+	// }
 
-	return isLinux ? 'native' : 'custom'; // default to custom on all macOS and Windows
+	// return isLinux ? 'native' : 'custom'; // default to custom on all macOS and Windows
 }
 
 export const enum OpenContext {
