@@ -912,6 +912,18 @@ suite('WorkspaceConfigurationService - Folder', () => {
 			.then(() => assert.ok(target.called));
 	});
 
+	test('update memory configuration', () => {
+		return testObject.updateValue('configurationService.folder.testSetting', 'memoryValue', ConfigurationTarget.MEMORY)
+			.then(() => assert.equal(testObject.getValue('configurationService.folder.testSetting'), 'memoryValue'));
+	});
+
+	test('update memory configuration should trigger change event before promise is resolve', () => {
+		const target = sinon.spy();
+		testObject.onDidChangeConfiguration(target);
+		return testObject.updateValue('configurationService.folder.testSetting', 'memoryValue', ConfigurationTarget.MEMORY)
+			.then(() => assert.ok(target.called));
+	});
+
 	test('update task configuration should trigger change event before promise is resolve', () => {
 		const target = sinon.spy();
 		testObject.onDidChangeConfiguration(target);
@@ -1214,6 +1226,18 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 				return testObject.updateValue('configurationService.workspace.testResourceSetting', 'workspaceFolderValue2', { resource: workspace.folders[0].uri }, ConfigurationTarget.WORKSPACE_FOLDER)
 					.then(() => assert.ok(target.called));
 			});
+	});
+
+	test('update memory configuration', () => {
+		return testObject.updateValue('configurationService.workspace.testSetting', 'memoryValue', ConfigurationTarget.MEMORY)
+			.then(() => assert.equal(testObject.getValue('configurationService.workspace.testSetting'), 'memoryValue'));
+	});
+
+	test('update memory configuration should trigger change event before promise is resolve', () => {
+		const target = sinon.spy();
+		testObject.onDidChangeConfiguration(target);
+		return testObject.updateValue('configurationService.workspace.testSetting', 'memoryValue', ConfigurationTarget.MEMORY)
+			.then(() => assert.ok(target.called));
 	});
 
 	test('update tasks configuration in a folder', () => {
