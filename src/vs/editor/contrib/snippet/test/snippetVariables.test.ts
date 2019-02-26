@@ -54,7 +54,6 @@ suite('Snippet Variables Resolver', function () {
 		assertVariableResolve(resolver, 'TM_FILENAME', 'text.txt');
 		if (!isWindows) {
 			assertVariableResolve(resolver, 'TM_DIRECTORY', '/foo/files');
-			assertVariableResolve(resolver, 'TM_DIRECTORY_BASE', 'files');
 			assertVariableResolve(resolver, 'TM_FILEPATH', '/foo/files/text.txt');
 		}
 
