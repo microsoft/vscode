@@ -888,7 +888,6 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 
 		let extension: Extension | undefined = installingExtension ? installingExtension : zipPath ? new Extension(this.galleryService, this.stateProvider, local, undefined, this.telemetryService, this.logService, this.fileService) : undefined;
 		if (extension) {
-			extension.gallery = gallery;
 			if (local) {
 				const installed = this.installed.filter(e => areSameExtensions(e.identifier, extension!.identifier))[0];
 				if (installed) {
@@ -897,6 +896,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 					this.installed.push(extension);
 				}
 				extension.local = local;
+				extension.gallery = gallery;
 			}
 		}
 		this._onChange.fire(error ? undefined : extension);
