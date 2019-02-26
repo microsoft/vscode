@@ -16,7 +16,7 @@ import { basename, dirname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/breadcrumbscontrol';
 import { OutlineElement, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { FileKind, IFileService, IFileStat } from 'vs/platform/files/common/files';
 import { IConstructorSignature1, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { WorkbenchDataTree, WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
@@ -107,6 +107,7 @@ export abstract class BreadcrumbsPicker {
 		const filterConfig = BreadcrumbsConfig.FilterOnType.bindTo(this._configurationService);
 		this._disposables.push(filterConfig);
 
+		this._layoutInfo = { maxHeight, width, arrowSize, arrowOffset, inputHeight: 0 };
 		this._tree = this._createTree(this._treeContainer);
 
 		this._disposables.push(this._tree.onDidChangeSelection(e => {
@@ -129,29 +130,34 @@ export abstract class BreadcrumbsPicker {
 			this._layout();
 		}));
 
+		// filter on type: state
+		const cfgFilterOnType = BreadcrumbsConfig.FilterOnType.bindTo(this._configurationService);
+		this._tree.updateOptions({ filterOnType: cfgFilterOnType.getValue() });
+		this._disposables.push(this._tree.onDidUpdateOptions(e => {
+			this._configurationService.updateValue(cfgFilterOnType.name, e.filterOnType, ConfigurationTarget.MEMORY);
+		}));
+
 		this._domNode.focus();
-		this._layoutInfo = { maxHeight, width, arrowSize, arrowOffset, inputHeight: 0 };
 
 		this._setInput(input).then(() => {
 			this._layout();
 		}).catch(onUnexpectedError);
 	}
 
-	protected _layout(info: ILayoutInfo = this._layoutInfo): void {
+	protected _layout(): void {
 
-		const headerHeight = 2 * info.arrowSize;
-		const treeHeight = Math.min(info.maxHeight - headerHeight, this._tree.contentHeight);
+		const headerHeight = 2 * this._layoutInfo.arrowSize;
+		const treeHeight = Math.min(this._layoutInfo.maxHeight - headerHeight, this._tree.contentHeight);
 		const totalHeight = treeHeight + headerHeight;
 
 		this._domNode.style.height = `${totalHeight}px`;
-		this._domNode.style.width = `${info.width}px`;
-		this._arrow.style.top = `-${2 * info.arrowSize}px`;
-		this._arrow.style.borderWidth = `${info.arrowSize}px`;
-		this._arrow.style.marginLeft = `${info.arrowOffset}px`;
+		this._domNode.style.width = `${this._layoutInfo.width}px`;
+		this._arrow.style.top = `-${2 * this._layoutInfo.arrowSize}px`;
+		this._arrow.style.borderWidth = `${this._layoutInfo.arrowSize}px`;
+		this._arrow.style.marginLeft = `${this._layoutInfo.arrowOffset}px`;
 		this._treeContainer.style.height = `${treeHeight}px`;
-		this._treeContainer.style.width = `${info.width}px`;
+		this._treeContainer.style.width = `${this._layoutInfo.width}px`;
 		this._tree.layout();
-		this._layoutInfo = info;
 
 	}
 
