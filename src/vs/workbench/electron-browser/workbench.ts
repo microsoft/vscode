@@ -111,6 +111,7 @@ import { WorkbenchThemeService } from 'vs/workbench/services/themes/browser/work
 import { IProductService } from 'vs/platform/product/common/product';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { WorkbenchContextKeysHandler } from 'vs/workbench/browser/contextkeys';
+import { BrowserAccessibilityService } from 'vs/platform/accessibility/browser/accessibilityService';
 
 // import@node
 // import { BackupFileService, InMemoryBackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
@@ -176,8 +177,6 @@ import { SimpleTextResourcePropertiesService } from 'vs/workbench/nodeless/servi
 import { SimpleKeybindingService } from 'vs/workbench/nodeless/services/simpleKeybindingService';
 // tslint:disable-next-line: import-patterns
 import { SimpleRemoteFileService } from 'vs/workbench/nodeless/services/simpleRemoteFileService';
-// tslint:disable-next-line: import-patterns
-import { SimpleAccessibilityService } from 'vs/workbench/nodeless/services/simpleAccessibilityService';
 // tslint:disable-next-line: import-patterns
 import { SimpleFileDialogService } from 'vs/workbench/nodeless/services/simpleFileDialogService';
 // tslint:disable-next-line: import-patterns
@@ -641,7 +640,7 @@ export class Workbench extends Disposable implements IPartService {
 		serviceCollection.set(IEditorService, this.editorService);
 
 		// Accessibility
-		serviceCollection.set(IAccessibilityService, new SyncDescriptor(SimpleAccessibilityService, undefined, true));
+		serviceCollection.set(IAccessibilityService, new SyncDescriptor(BrowserAccessibilityService, undefined, true));
 
 		// Title bar
 		this.titlebarPart = this.instantiationService.createInstance(TitlebarPart, Identifiers.TITLEBAR_PART);
