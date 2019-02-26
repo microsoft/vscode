@@ -4,10 +4,56 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { IWindowService, IWindowConfiguration, INativeOpenDialogOptions, IEnterWorkspaceResult, IURIToOpen, IMessageBoxResult } from 'vs/platform/windows/common/windows';
+import { IWindowService, IWindowConfiguration, INativeOpenDialogOptions, IEnterWorkspaceResult, IURIToOpen, IMessageBoxResult, IPath, IPathsToWaitFor } from 'vs/platform/windows/common/windows';
 import { URI } from 'vs/base/common/uri';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
+import { IProcessEnvironment } from 'vs/base/common/platform';
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { ExportData } from 'vs/base/common/performance';
+import { LogLevel } from 'vs/platform/log/common/log';
+
+export class SimpleWindowConfiguration implements IWindowConfiguration {
+	_: any[];
+	machineId: string;
+	windowId: number;
+	logLevel: LogLevel;
+
+	mainPid: number;
+
+	appRoot: string;
+	execPath: string;
+	isInitialStartup?: boolean;
+
+	userEnv: IProcessEnvironment;
+	nodeCachedDataDir?: string;
+
+	backupPath?: string;
+
+	workspace?: IWorkspaceIdentifier;
+	folderUri?: ISingleFolderWorkspaceIdentifier;
+
+	remoteAuthority?: string;
+
+	zoomLevel?: number;
+	fullscreen?: boolean;
+	maximized?: boolean;
+	highContrast?: boolean;
+	frameless?: boolean;
+	accessibilitySupport?: boolean;
+	partsSplashPath?: string;
+
+	perfStartTime?: number;
+	perfAppReady?: number;
+	perfWindowLoadTime?: number;
+	perfEntries: ExportData;
+
+	filesToOpen?: IPath[];
+	filesToCreate?: IPath[];
+	filesToDiff?: IPath[];
+	filesToWait?: IPathsToWaitFor;
+	termProgram?: string;
+}
 
 export class SimpleWindowService implements IWindowService {
 
@@ -18,6 +64,8 @@ export class SimpleWindowService implements IWindowService {
 
 	hasFocus = true;
 
+	private configuration: IWindowConfiguration = new SimpleWindowConfiguration();
+
 	isFocused(): Promise<boolean> {
 		return Promise.resolve(false);
 	}
@@ -27,7 +75,7 @@ export class SimpleWindowService implements IWindowService {
 	}
 
 	getConfiguration(): IWindowConfiguration {
-		return Object.create(null);
+		return this.configuration;
 	}
 
 	getCurrentWindowId(): number {

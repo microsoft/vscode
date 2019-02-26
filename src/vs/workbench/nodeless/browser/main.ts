@@ -26,7 +26,7 @@ import { SimpleWorkspacesService } from 'vs/workbench/nodeless/services/simpleWo
 import { SimpleEnvironmentService } from 'vs/workbench/nodeless/services/simpleEnvironmentService';
 import { SimpleWorkspaceService } from 'vs/workbench/nodeless/services/simpleWorkspaceService';
 import { SimpleConfigurationService } from 'vs/workbench/nodeless/services/simpleConfigurationService';
-import { SimpleWindowConfiguration } from 'vs/workbench/nodeless/services/simpleWindowConfiguration';
+import { SimpleWindowConfiguration } from 'vs/workbench/nodeless/services/simpleWindowService';
 import { SimpleLogService } from 'vs/workbench/nodeless/services/simpleLogService';
 import { SimpleStorageService } from 'vs/workbench/nodeless/services/simpleStorageService';
 
