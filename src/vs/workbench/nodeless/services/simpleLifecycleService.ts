@@ -17,7 +17,7 @@ export class SimpleLifecycleService implements ILifecycleService {
 	phase: LifecyclePhase;
 	startupKind: StartupKind;
 
-	when(): Promise<void> {
+	when(phase: LifecyclePhase): Promise<void> {
 		return Promise.resolve();
 	}
 }

@@ -451,8 +451,8 @@ export class Workbench extends Disposable implements IPartService {
 		this.layout();
 
 		// Handle case where workbench is not starting up properly
-		// const timeoutHandle = setTimeout(() => this.logService.warn('Workbench did not finish loading in 10 seconds, that might be a problem that should be reported.'), 10000);
-		// this.lifecycleService.when(LifecyclePhase.Restored).then(() => clearTimeout(timeoutHandle));
+		const timeoutHandle = setTimeout(() => this.logService.warn('Workbench did not finish loading in 10 seconds, that might be a problem that should be reported.'), 10000);
+		this.lifecycleService.when(LifecyclePhase.Restored).then(() => clearTimeout(timeoutHandle));
 
 		// Restore Parts
 		return this.restoreParts();

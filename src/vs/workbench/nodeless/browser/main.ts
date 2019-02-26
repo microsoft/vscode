@@ -12,11 +12,11 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IUpdateService } from 'vs/platform/update/common/update';
 import { IURLService } from 'vs/platform/url/common/url';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IMenubarService } from 'vs/platform/menubar/common/menubar';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { SimpleWindowsService } from 'vs/workbench/nodeless/services/simpleWindowsService';
 import { SimpleUpdateService } from 'vs/workbench/nodeless/services/simpleUpdateService';
@@ -27,6 +27,8 @@ import { SimpleEnvironmentService } from 'vs/workbench/nodeless/services/simpleE
 import { SimpleWorkspaceService } from 'vs/workbench/nodeless/services/simpleWorkspaceService';
 import { SimpleConfigurationService } from 'vs/workbench/nodeless/services/simpleConfigurationService';
 import { SimpleWindowConfiguration } from 'vs/workbench/nodeless/services/simpleWindowConfiguration';
+import { SimpleLogService } from 'vs/workbench/nodeless/services/simpleLogService';
+import { SimpleStorageService } from 'vs/workbench/nodeless/services/simpleStorageService';
 
 // tslint:disable-next-line: layering
 import { Workbench } from 'vs/workbench/electron-browser/workbench';
@@ -73,9 +75,9 @@ class CodeRendererMain extends Disposable {
 		serviceCollection.set(IMenubarService, new SyncDescriptor(SimpleMenubarService));
 		serviceCollection.set(IWorkspacesService, new SyncDescriptor(SimpleWorkspacesService));
 		serviceCollection.set(IEnvironmentService, new SyncDescriptor(SimpleEnvironmentService));
-		serviceCollection.set(ILogService, new SyncDescriptor(NullLogService));
+		serviceCollection.set(ILogService, new SyncDescriptor(SimpleLogService));
 		serviceCollection.set(IWorkspaceContextService, new SyncDescriptor(SimpleWorkspaceService));
-		serviceCollection.set(IStorageService, new SyncDescriptor(InMemoryStorageService));
+		serviceCollection.set(IStorageService, new SyncDescriptor(SimpleStorageService));
 		serviceCollection.set(IConfigurationService, new SyncDescriptor(SimpleConfigurationService));
 
 		return serviceCollection;
