@@ -197,7 +197,7 @@ export class ExplorerView extends ViewletPanel {
 		// When the explorer viewer is loaded, listen to changes to the editor input
 		this.disposables.push(this.editorService.onDidActiveEditorChange(() => {
 			if (!this.ignoreActiveEditorChange) {
-				this.selectActiveFile(false, true);
+				this.selectActiveFile(true);
 			}
 			this.ignoreActiveEditorChange = false;
 		}));
@@ -214,7 +214,7 @@ export class ExplorerView extends ViewletPanel {
 					await this.setTreeInputPromise;
 				}
 				// Find resource to focus from active editor input if set
-				this.selectActiveFile(true, false);
+				this.selectActiveFile(false, true);
 			}
 		}));
 	}
@@ -253,7 +253,7 @@ export class ExplorerView extends ViewletPanel {
 		});
 	}
 
-	private selectActiveFile(reveal?: boolean, deselect?: boolean): void {
+	private selectActiveFile(deselect?: boolean, reveal = this.autoReveal): void {
 		if (this.autoReveal) {
 			const activeFile = this.getActiveFile();
 			if (activeFile) {
