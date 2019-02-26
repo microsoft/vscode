@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { onDidChangeZoomLevel } from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { compareFileNames } from 'vs/base/common/comparers';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -56,7 +55,6 @@ export abstract class BreadcrumbsPicker {
 	protected _treeContainer: HTMLDivElement;
 	protected _tree: Tree<any, any>;
 	protected _fakeEvent = new UIEvent('fakeEvent');
-	protected _focus: dom.IFocusTracker;
 	protected _layoutInfo: ILayoutInfo;
 
 	private readonly _onDidPickElement = new Emitter<{ target: any, payload: any }>();
@@ -74,17 +72,12 @@ export abstract class BreadcrumbsPicker {
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'monaco-breadcrumbs-picker show-file-icons';
 		parent.appendChild(this._domNode);
-
-		this._focus = dom.trackFocus(this._domNode);
-		this._focus.onDidBlur(_ => this._onDidPickElement.fire({ target: undefined, payload: undefined }), undefined, this._disposables);
-		this._disposables.push(onDidChangeZoomLevel(_ => this._onDidPickElement.fire({ target: undefined, payload: undefined })));
 	}
 
 	dispose(): void {
 		dispose(this._disposables);
 		this._onDidPickElement.dispose();
 		this._tree.dispose();
-		this._focus.dispose();
 	}
 
 	show(input: any, maxHeight: number, width: number, arrowSize: number, arrowOffset: number): void {

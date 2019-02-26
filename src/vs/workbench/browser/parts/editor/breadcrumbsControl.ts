@@ -45,6 +45,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
+import { onDidChangeZoomLevel } from 'vs/base/browser/browser';
 
 class Item extends BreadcrumbsItem {
 
@@ -148,6 +149,7 @@ export class BreadcrumbsControl {
 	private _disposables = new Array<IDisposable>();
 	private _breadcrumbsDisposables = new Array<IDisposable>();
 	private _breadcrumbsPickerShowing = false;
+	private _breadcrumbsPickerIgnoreOnceItem: BreadcrumbsItem | undefined;
 
 	constructor(
 		container: HTMLElement,
@@ -285,6 +287,13 @@ export class BreadcrumbsControl {
 			return;
 		}
 
+		if (event.item === this._breadcrumbsPickerIgnoreOnceItem) {
+			this._breadcrumbsPickerIgnoreOnceItem = undefined;
+			this._widget.setFocused(undefined);
+			this._widget.setSelection(undefined);
+			return;
+		}
+
 		const { element } = event.item as Item;
 		this._editorGroup.focus();
 
@@ -350,12 +359,29 @@ export class BreadcrumbsControl {
 							isWholeLine: true
 						}
 					}]);
-
 				});
+
+				let zoomListener = onDidChangeZoomLevel(() => {
+					this._contextViewService.hideContextView(this);
+				});
+
+				let focusTracker = dom.trackFocus(parent);
+				let blurListener = focusTracker.onDidBlur(() => {
+					this._breadcrumbsPickerIgnoreOnceItem = this._widget.isDOMFocused() ? event.item : undefined;
+					this._contextViewService.hideContextView(this);
+				});
+
 				this._breadcrumbsPickerShowing = true;
 				this._updateCkBreadcrumbsActive();
 
-				return combinedDisposable([selectListener, focusListener, picker]);
+				return combinedDisposable([
+					picker,
+					selectListener,
+					focusListener,
+					zoomListener,
+					focusTracker,
+					blurListener
+				]);
 			},
 			getAnchor: () => {
 				let maxInnerWidth = window.innerWidth - 8 /*a little less the full widget*/;
