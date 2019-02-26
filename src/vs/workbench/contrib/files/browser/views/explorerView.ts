@@ -453,11 +453,14 @@ export class ExplorerView extends ViewletPanel {
 			input = roots;
 		}
 
-		const rawViewState = this.storageService.get(ExplorerView.TREE_VIEW_STATE_STORAGE_KEY, StorageScope.WORKSPACE);
 		let viewState: IAsyncDataTreeViewState | undefined;
-
-		if (rawViewState) {
-			viewState = JSON.parse(rawViewState) as IAsyncDataTreeViewState;
+		if (this.tree && this.tree.getInput()) {
+			viewState = this.tree.getViewState();
+		} else {
+			const rawViewState = this.storageService.get(ExplorerView.TREE_VIEW_STATE_STORAGE_KEY, StorageScope.WORKSPACE);
+			if (rawViewState) {
+				viewState = JSON.parse(rawViewState) as IAsyncDataTreeViewState;
+			}
 		}
 
 		const previousInput = this.tree.getInput();
