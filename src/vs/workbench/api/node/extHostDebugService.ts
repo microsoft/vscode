@@ -121,27 +121,35 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		this._breakpointEventsActive = false;
 
 		this._extensionService.getExtensionRegistry().then((extensionRegistry: ExtensionDescriptionRegistry) => {
-			// register all debug extensions
-			const debugTypes: string[] = [];
-			for (const ed of extensionRegistry.getAllExtensionDescriptions()) {
-				if (ed.contributes) {
-					const debuggers = <IDebuggerContribution[]>ed.contributes['debuggers'];
-					if (debuggers && debuggers.length > 0) {
-						for (const dbg of debuggers) {
-							if (isDebuggerMainContribution(dbg)) {
-								debugTypes.push(dbg.type);
-								if (dbg.adapterExecutableCommand) {
-									this._aexCommands.set(dbg.type, dbg.adapterExecutableCommand);
-								}
+			extensionRegistry.onDidChange(_ => {
+				this.registerAllDebugTypes(extensionRegistry);
+			});
+			this.registerAllDebugTypes(extensionRegistry);
+		});
+	}
+
+	private registerAllDebugTypes(extensionRegistry: ExtensionDescriptionRegistry) {
+
+		const debugTypes: string[] = [];
+		this._aexCommands.clear();
+
+		for (const ed of extensionRegistry.getAllExtensionDescriptions()) {
+			if (ed.contributes) {
+				const debuggers = <IDebuggerContribution[]>ed.contributes['debuggers'];
+				if (debuggers && debuggers.length > 0) {
+					for (const dbg of debuggers) {
+						if (isDebuggerMainContribution(dbg)) {
+							debugTypes.push(dbg.type);
+							if (dbg.adapterExecutableCommand) {
+								this._aexCommands.set(dbg.type, dbg.adapterExecutableCommand);
 							}
 						}
 					}
 				}
 			}
-			if (debugTypes.length > 0) {
-				this._debugServiceProxy.$registerDebugTypes(debugTypes);
-			}
-		});
+		}
+
+		this._debugServiceProxy.$registerDebugTypes(debugTypes);
 	}
 
 	// extension debug API

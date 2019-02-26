@@ -36,8 +36,13 @@ export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends 
 		return this.model.setChildren(element, children, onDidCreateNode, onDidDeleteNode);
 	}
 
-	refresh(element: T): void {
-		this.model.refresh(element);
+	rerender(element?: T): void {
+		if (element === undefined) {
+			this.view.rerender();
+			return;
+		}
+
+		this.model.rerender(element);
 	}
 
 	resort(element: T, recursive = true): void {

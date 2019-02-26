@@ -14,7 +14,7 @@ import { NewFolderAction, NewFileAction, FileCopiedContext, RefreshExplorerView 
 import { toResource } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import * as DOM from 'vs/base/browser/dom';
-import { CollapseAction2 } from 'vs/workbench/browser/viewlet';
+import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { ExplorerDecorationsProvider } from 'vs/workbench/contrib/files/browser/views/explorerDecorationsProvider';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -64,8 +64,6 @@ export class ExplorerView extends ViewletPanel {
 	private dragHandler: DelayedDragHandler;
 	private decorationProvider: ExplorerDecorationsProvider;
 	private autoReveal = false;
-	// Ignore first active editor change, since on startup we already reveal the active editor
-	private ignoreActiveEditorChange = true;
 
 	constructor(
 		options: IViewletPanelOptions,
@@ -196,10 +194,7 @@ export class ExplorerView extends ViewletPanel {
 
 		// When the explorer viewer is loaded, listen to changes to the editor input
 		this.disposables.push(this.editorService.onDidActiveEditorChange(() => {
-			if (!this.ignoreActiveEditorChange) {
-				this.selectActiveFile();
-			}
-			this.ignoreActiveEditorChange = false;
+			this.selectActiveFile();
 		}));
 
 		// Also handle configuration updates
@@ -228,7 +223,7 @@ export class ExplorerView extends ViewletPanel {
 		actions.push(this.instantiationService.createInstance(NewFileAction, getFocus));
 		actions.push(this.instantiationService.createInstance(NewFolderAction, getFocus));
 		actions.push(this.instantiationService.createInstance(RefreshExplorerView, RefreshExplorerView.ID, RefreshExplorerView.LABEL));
-		actions.push(this.instantiationService.createInstance(CollapseAction2, this.tree, true, 'explorer-action collapse-explorer'));
+		actions.push(this.instantiationService.createInstance(CollapseAction, this.tree, true, 'explorer-action collapse-explorer'));
 
 		return actions;
 	}
@@ -341,7 +336,6 @@ export class ExplorerView extends ViewletPanel {
 					"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				}*/
 				this.telemetryService.publicLog('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'explorer' });
-				this.ignoreActiveEditorChange = true;
 				this.editorService.openEditor({ resource: selection[0].resource, options: { preserveFocus: e.editorOptions.preserveFocus, pinned: e.editorOptions.pinned } }, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP)
 					.then(undefined, onUnexpectedError);
 			}
@@ -521,10 +515,10 @@ export class ExplorerView extends ViewletPanel {
 		this.fileCopiedContextKey.set(stats.length > 0);
 		this.resourceCutContextKey.set(cut && stats.length > 0);
 		if (previousCut) {
-			previousCut.forEach(item => this.tree.refresh(item));
+			previousCut.forEach(item => this.tree.rerender(item));
 		}
 		if (cut) {
-			stats.forEach(s => this.tree.refresh(s));
+			stats.forEach(s => this.tree.rerender(s));
 		}
 	}
 

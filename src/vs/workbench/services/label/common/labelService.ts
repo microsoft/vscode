@@ -12,7 +12,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { isEqual, basenameOrAuthority, isEqualOrParent, basename, joinPath, dirname } from 'vs/base/common/resources';
-import { isLinux, isWindows } from 'vs/base/common/platform';
+import { isWindows } from 'vs/base/common/platform';
 import { tildify, getPathLabel } from 'vs/base/common/labels';
 import { ltrim, endsWith } from 'vs/base/common/strings';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, WORKSPACE_EXTENSION, toWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
@@ -137,7 +137,7 @@ export class LabelService implements ILabelService {
 
 		if (options.relative && baseResource) {
 			let relativeLabel: string;
-			if (isEqual(baseResource.uri, resource, !isLinux)) {
+			if (isEqual(baseResource.uri, resource)) {
 				relativeLabel = ''; // no label if resources are identical
 			} else {
 				const baseResourceLabel = this.formatUri(baseResource.uri, formatting, options.noPrefix);
@@ -172,13 +172,7 @@ export class LabelService implements ILabelService {
 		if (isSingleFolderWorkspaceIdentifier(workspace)) {
 			// Folder on disk
 			const label = options && options.verbose ? this.getUriLabel(workspace) : basename(workspace) || '/';
-			if (workspace.scheme === Schemas.file) {
-				return label;
-			}
-
-			const formatting = this.findFormatting(workspace);
-			const suffix = formatting && (typeof formatting.workspaceSuffix === 'string') ? formatting.workspaceSuffix : workspace.scheme;
-			return suffix ? `${label} (${suffix})` : label;
+			return this.appendWorkspaceSuffix(label, workspace);
 		}
 
 		// Workspace: Untitled
@@ -189,11 +183,13 @@ export class LabelService implements ILabelService {
 		// Workspace: Saved
 		const filename = basename(workspace.configPath);
 		const workspaceName = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
+		let label;
 		if (options && options.verbose) {
-			return localize('workspaceNameVerbose', "{0} (Workspace)", this.getUriLabel(joinPath(dirname(workspace.configPath), workspaceName)));
+			label = localize('workspaceNameVerbose', "{0} (Workspace)", this.getUriLabel(joinPath(dirname(workspace.configPath), workspaceName)));
+		} else {
+			label = localize('workspaceName', "{0} (Workspace)", workspaceName);
 		}
-
-		return localize('workspaceName', "{0} (Workspace)", workspaceName);
+		return this.appendWorkspaceSuffix(label, workspace.configPath);
 	}
 
 	getSeparator(scheme: string, authority?: string): '/' | '\\' {
@@ -249,5 +245,15 @@ export class LabelService implements ILabelService {
 			appendedLabel += formatting.separator;
 		}
 		return appendedLabel;
+	}
+
+	private appendWorkspaceSuffix(label: string, uri: URI): string {
+		if (uri.scheme === Schemas.file) {
+			return label;
+		}
+
+		const formatting = this.findFormatting(uri);
+		const suffix = formatting && (typeof formatting.workspaceSuffix === 'string') ? formatting.workspaceSuffix : uri.scheme;
+		return suffix ? `${label} (${suffix})` : label;
 	}
 }

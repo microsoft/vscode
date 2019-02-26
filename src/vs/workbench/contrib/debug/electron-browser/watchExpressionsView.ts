@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import * as dom from 'vs/base/browser/dom';
-import { CollapseAction2 } from 'vs/workbench/browser/viewlet';
+import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDebugService, IExpression, CONTEXT_WATCH_EXPRESSIONS_FOCUSED } from 'vs/workbench/contrib/debug/common/debug';
 import { Expression, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
@@ -78,7 +78,7 @@ export class WatchExpressionsView extends ViewletPanel {
 		this.tree.setInput(this.debugService).then(undefined, onUnexpectedError);
 
 		const addWatchExpressionAction = new AddWatchExpressionAction(AddWatchExpressionAction.ID, AddWatchExpressionAction.LABEL, this.debugService, this.keybindingService);
-		const collapseAction = new CollapseAction2(this.tree, true, 'explorer-action collapse-explorer');
+		const collapseAction = new CollapseAction(this.tree, true, 'explorer-action collapse-explorer');
 		const removeAllWatchExpressionsAction = new RemoveAllWatchExpressionsAction(RemoveAllWatchExpressionsAction.ID, RemoveAllWatchExpressionsAction.LABEL, this.debugService, this.keybindingService);
 		this.toolbar.setActions([addWatchExpressionAction, collapseAction, removeAllWatchExpressionsAction])();
 
@@ -110,7 +110,7 @@ export class WatchExpressionsView extends ViewletPanel {
 		}));
 		this.disposables.push(this.debugService.getViewModel().onDidSelectExpression(e => {
 			if (e instanceof Expression && e.name) {
-				this.tree.refresh(e);
+				this.tree.rerender(e);
 			}
 		}));
 	}

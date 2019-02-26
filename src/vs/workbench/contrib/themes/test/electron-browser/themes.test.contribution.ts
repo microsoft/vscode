@@ -3,10 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { basename } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import * as pfs from 'vs/base/node/pfs';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchThemeService, IColorTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
@@ -17,6 +15,8 @@ import { IGrammar, StackElement } from 'vscode-textmate';
 import { TokenizationRegistry, TokenMetadata } from 'vs/editor/common/modes';
 import { ThemeRule, findMatchingThemeRule } from 'vs/workbench/services/textMate/common/TMHelper';
 import { Color } from 'vs/base/common/color';
+import { IFileService } from 'vs/platform/files/common/files';
+import { basename } from 'vs/base/common/resources';
 
 interface IToken {
 	c: string;
@@ -230,12 +230,12 @@ class Snapper {
 CommandsRegistry.registerCommand('_workbench.captureSyntaxTokens', function (accessor: ServicesAccessor, resource: URI) {
 
 	let process = (resource: URI) => {
-		let filePath = resource.fsPath;
-		let fileName = basename(filePath);
+		let fileService = accessor.get(IFileService);
+		let fileName = basename(resource);
 		let snapper = accessor.get(IInstantiationService).createInstance(Snapper);
 
-		return pfs.readFile(filePath).then(content => {
-			return snapper.captureSyntaxTokens(fileName, content.toString());
+		return fileService.resolveContent(resource).then(content => {
+			return snapper.captureSyntaxTokens(fileName, content.value);
 		});
 	};
 

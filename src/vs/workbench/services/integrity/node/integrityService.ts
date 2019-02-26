@@ -13,6 +13,7 @@ import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/
 import product from 'vs/platform/product/node/product';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 interface IStorageData {
 	dontShowPrompt: boolean;
@@ -161,3 +162,5 @@ export class IntegrityServiceImpl implements IIntegrityService {
 		};
 	}
 }
+
+registerSingleton(IIntegrityService, IntegrityServiceImpl, true);

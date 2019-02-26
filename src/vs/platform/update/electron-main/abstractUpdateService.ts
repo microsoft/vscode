@@ -5,7 +5,7 @@
 
 import { Event, Emitter } from 'vs/base/common/event';
 import { timeout } from 'vs/base/common/async';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, getMigratedSettingValue } from 'vs/platform/configuration/common/configuration';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import product from 'vs/platform/product/node/product';
 import { IUpdateService, State, StateType, AvailableForDownload, UpdateType } from 'vs/platform/update/common/update';
@@ -56,19 +56,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			return;
 		}
 
-		const updateModeSetting = this.configurationService.inspect<string>('update.mode');
-		const updateChannelSetting = this.configurationService.inspect<string>('update.channel');
-
-		let updateMode: string;
-
-		if (typeof updateModeSetting.user !== 'undefined') {
-			updateMode = updateModeSetting.user;
-		} else if (typeof updateChannelSetting.user !== 'undefined') {
-			updateMode = updateChannelSetting.user;
-		} else {
-			updateMode = updateModeSetting.default;
-		}
-
+		const updateMode = getMigratedSettingValue<string>(this.configurationService, 'update.mode', 'update.channel');
 		const quality = this.getProductQuality(updateMode);
 
 		if (!quality) {

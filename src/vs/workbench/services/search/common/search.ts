@@ -5,7 +5,6 @@
 
 import { mapArrayOrNot } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
 import * as glob from 'vs/base/common/glob';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
@@ -17,7 +16,6 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 
 export const VIEW_ID = 'workbench.view.search';
 
-export const ISearchHistoryService = createDecorator<ISearchHistoryService>('searchHistoryService');
 export const ISearchService = createDecorator<ISearchService>('searchService');
 
 /**
@@ -29,21 +27,6 @@ export interface ISearchService {
 	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete>;
 	clearCache(cacheKey: string): Promise<void>;
 	registerSearchResultProvider(scheme: string, type: SearchProviderType, provider: ISearchResultProvider): IDisposable;
-}
-
-export interface ISearchHistoryValues {
-	search?: string[];
-	replace?: string[];
-	include?: string[];
-	exclude?: string[];
-}
-
-export interface ISearchHistoryService {
-	_serviceBrand: any;
-	onDidClearHistory: Event<void>;
-	clearHistory(): void;
-	load(): ISearchHistoryValues;
-	save(history: ISearchHistoryValues): void;
 }
 
 /**

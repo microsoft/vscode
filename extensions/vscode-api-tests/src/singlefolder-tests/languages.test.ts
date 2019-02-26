@@ -10,6 +10,8 @@ import { createRandomFile } from '../utils';
 
 suite('languages namespace tests', () => {
 
+	const isWindows = process.platform === 'win32';
+
 	function positionToString(p: vscode.Position) {
 		return `[${p.character}/${p.line}]`;
 	}
@@ -93,7 +95,7 @@ suite('languages namespace tests', () => {
 		const uri = await createRandomFile('class A { // http://a.com }', undefined, '.java');
 		const doc = await vscode.workspace.openTextDocument(uri);
 
-		const target = vscode.Uri.parse('file://foo/bar');
+		const target = vscode.Uri.file(isWindows ? 'c:\\foo\\bar' : '/foo/bar');
 		const range = new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 5));
 
 		const linkProvider: vscode.DocumentLinkProvider = {

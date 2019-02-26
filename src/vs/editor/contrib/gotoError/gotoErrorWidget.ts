@@ -92,13 +92,13 @@ class MessageWidget {
 		}
 
 		dom.clearNode(this._messageBlock);
+		this._editor.applyFontInfo(this._messageBlock);
 		let lastLineElement = this._messageBlock;
 		for (const line of lines) {
 			lastLineElement = document.createElement('div');
 			lastLineElement.innerText = line;
-			this._editor.applyFontInfo(lastLineElement);
 			if (line === '') {
-				lastLineElement.style.height = lastLineElement.style.lineHeight;
+				lastLineElement.style.height = this._messageBlock.style.lineHeight;
 			}
 			this._messageBlock.appendChild(lastLineElement);
 		}
@@ -121,6 +121,7 @@ class MessageWidget {
 		}
 
 		dom.clearNode(this._relatedBlock);
+		this._editor.applyFontInfo(this._relatedBlock);
 		if (isNonEmptyArray(relatedInformation)) {
 			const relatedInformationNode = this._relatedBlock.appendChild(document.createElement('div'));
 			relatedInformationNode.style.paddingTop = `${Math.floor(this._editor.getConfiguration().lineHeight * 0.66)}px`;
@@ -138,7 +139,6 @@ class MessageWidget {
 
 				let relatedMessage = document.createElement('span');
 				relatedMessage.innerText = related.message;
-				this._editor.applyFontInfo(relatedMessage);
 
 				container.appendChild(relatedResource);
 				container.appendChild(relatedMessage);

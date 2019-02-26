@@ -11,13 +11,7 @@
 	overflow: hidden;
 }
 
-/* Align twisite to last line - for input output pair expressions. */
-.repl .repl-tree .monaco-tl-twistie {
-	background-position-y: calc(100% - 2px);
-}
-
 .repl .repl-tree .monaco-tl-contents {
-	line-height: 18px;
 	user-select: text;
 	/* Wrap words but also do not trim whitespace #6275 */
 	word-wrap: break-word;
@@ -31,10 +25,6 @@
 	cursor: pointer;
 }
 
-.monaco-workbench.mac .repl .repl-tree .input.expression,
-.monaco-workbench.mac .repl .repl-tree .output.expression {
-	font-size: 12px;
-}
 
 .repl .repl-tree .output.expression.value-and-source {
 	display: flex;
@@ -53,13 +43,6 @@
 
 .repl .repl-tree .monaco-list-row {
 	cursor: text;
-}
-
-.monaco-workbench.windows .repl .repl-tree .monaco-list-row .input.expression,
-.monaco-workbench.windows .repl .repl-tree .monaco-list-row .output.expression,
-.monaco-workbench.linux .repl .repl-tree .monaco-list-row .input.expression,
-.monaco-workbench.linux .repl .repl-tree .monaco-list-row .output.expression {
-	font-size: 14px;
 }
 
 .repl .repl-tree .output.expression > .value {
