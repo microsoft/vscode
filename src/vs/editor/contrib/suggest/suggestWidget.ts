@@ -1144,8 +1144,8 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		const detailWidth = this.getDetailWidth();
 		const cursorX = this.getCursorX();
 		if (hasClass(this.element, 'docs-side') &&
-		    rightDetailWidth !== null && leftDetailWidth !== null && detailWidth !== null && cursorX !== null &&
-		    rightDetailWidth < leftDetailWidth) {
+			rightDetailWidth !== null && leftDetailWidth !== null && detailWidth !== null && cursorX !== null &&
+			rightDetailWidth < leftDetailWidth) {
 			addClass(this.element, 'list-right');
 			const left = Math.min(cursorX - detailWidth, this.getEditorWidth() - detailWidth - this.listWidth);
 			this.element.style.left = `${Math.max(left, 0)}px`;
@@ -1177,7 +1177,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		}
 
 		const detailWidth = this.getDetailWidth();
-		if (detailWidth && this.getEditorWidth() < detailWidth + this.listWidth) {
+		if (detailWidth !== null && this.getEditorWidth() < detailWidth + this.listWidth) {
 			addClass(this.element, 'docs-below');
 			removeClass(this.element, 'docs-side');
 		} else if (canExpandCompletionItem(this.focusedItem)) {
