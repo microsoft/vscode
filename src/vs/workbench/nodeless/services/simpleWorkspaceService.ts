@@ -8,7 +8,6 @@ import { IWorkspaceContextService, Workspace, WorkbenchState, IWorkspaceFolder, 
 import { Event } from 'vs/base/common/event';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { isEqualOrParent, isEqual } from 'vs/base/common/resources';
-import { join } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
 
 export const workspaceResource = URI.file(isWindows ? 'C:\\simpleWorkspace' : '/simpleWorkspace');
@@ -57,20 +56,12 @@ export class SimpleWorkspaceService implements IWorkspaceContextService {
 		return this.workspace.getFolder(resource);
 	}
 
-	setWorkspace(workspace: any): void {
-		this.workspace = workspace;
-	}
-
 	isInsideWorkspace(resource: URI): boolean {
 		if (resource && this.workspace) {
 			return isEqualOrParent(resource, this.workspace.folders[0].uri);
 		}
 
 		return false;
-	}
-
-	toResource(workspaceRelativePath: string): URI {
-		return URI.file(join(workspaceResource.fsPath, workspaceRelativePath));
 	}
 
 	isCurrentWorkspace(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): boolean {

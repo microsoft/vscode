@@ -3,18 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDialogService, IConfirmation, IConfirmationResult, IDialogOptions } from 'vs/platform/dialogs/common/dialogs';
-import Severity from 'vs/base/common/severity';
+// tslint:disable-next-line: no-standalone-editor
+import { SimpleDialogService as StandaloneEditorDialogService } from 'vs/editor/standalone/browser/simpleServices';
 
-export class SimpleDialogService implements IDialogService {
-
-	_serviceBrand: any;
-
-	confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
-		return Promise.resolve({ confirmed: true });
-	}
-
-	show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Promise<number> {
-		return Promise.resolve(0);
-	}
-}
+export class SimpleDialogService extends StandaloneEditorDialogService { }
