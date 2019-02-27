@@ -172,31 +172,62 @@ abstract class AbstractMoveLinesAction extends EditorAction {
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const languageConfigurationService = accessor.get(ILanguageConfigurationService);
-
-		const selections = editor.getSelections() || [];
-		let newSelections: Selection[] = [];
+		const commands: ICommand[] = [];
 		const autoIndent = editor.getOption(EditorOption.autoIndent);
 
-		editor.pushUndoStop();
+		let selections = editor.getSelections() || [];
+		let movingMultipleLines = false;
+		let selectionDirectionDown = true;
+		let newSelections: Selection[] = [];
 
-		for (const selection of this.down ? selections.reverse() : selections) {
-			editor.executeCommand(this.id, new MoveLinesCommand(selection, this.down, autoIndent, languageConfigurationService));
+		if (selections.length > 1) {
+			movingMultipleLines = selections[0].endLineNumber !== selections[selections.length - 1].endLineNumber;
 
-			const editorSelection = editor.getSelection();
-			if (editorSelection !== null) {
-				newSelections.push(editorSelection);
+			if (movingMultipleLines) {
+				// Work only with one selection per line
+				selections = selections.filter((s, idx, arr) => {
+					return arr.map(sel => sel['endLineNumber']).indexOf(s['endLineNumber']) === idx;
+				});
+
+				selectionDirectionDown = selections[0].endLineNumber < selections[selections.length - 1].endLineNumber;
 			}
 		}
 
-		if (newSelections.length > 1) {
-			if (this.down) {
-				newSelections.reverse();
-			}
+		if (movingMultipleLines) {
+			editor.pushUndoStop();
 
-			editor.setSelections(newSelections);
+			if (selectionDirectionDown === this.down) {
+				selections.reverse();
+			}
 		}
 
-		editor.pushUndoStop();
+		for (const selection of selections) {
+			if (movingMultipleLines) {
+				editor.executeCommand(this.id, new MoveLinesCommand(selection, this.down, autoIndent, languageConfigurationService));
+
+				let editorSelection = editor.getSelection();
+				if (editorSelection !== null) {
+					newSelections.push(editorSelection);
+				}
+			} else {
+				commands.push(new MoveLinesCommand(selection, this.down, autoIndent, languageConfigurationService));
+			}
+		}
+
+		if (movingMultipleLines) {
+			if (newSelections.length > 1) {
+				if (selectionDirectionDown === this.down) {
+					newSelections.reverse();
+				}
+				editor.setSelections(newSelections);
+			}
+
+			editor.pushUndoStop();
+		} else {
+			editor.pushUndoStop();
+			editor.executeCommands(this.id, commands);
+			editor.pushUndoStop();
+		}
 	}
 }
 
