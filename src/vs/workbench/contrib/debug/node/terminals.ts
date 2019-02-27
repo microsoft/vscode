@@ -398,7 +398,7 @@ export function prepareCommand(args: DebugProtocol.RunInTerminalRequestArguments
 			};
 
 			if (args.cwd) {
-				command += `cd ${quote(args.cwd)} && `;
+				command += `cd ${quote(args.cwd)} ; `;
 			}
 			if (args.env) {
 				command += 'env';

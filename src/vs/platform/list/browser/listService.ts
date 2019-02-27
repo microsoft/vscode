@@ -693,6 +693,7 @@ export class TreeResourceNavigator2<T, TFilterData> extends Disposable {
 
 		this._register(this.tree.onDidChangeSelection(e => this.onSelection(e)));
 		this._register(this.tree.onMouseDblClick(e => this.onSelection(e)));
+		this._register(this.tree.onDidOpen(e => this.onSelection(e)));
 	}
 
 	private onFocus(e: ITreeEvent<T | null>): void {

@@ -1256,12 +1256,14 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		return this.focus.get();
 	}
 
-	open(elements: TRef[]): void {
+	open(elements: TRef[], browserEvent?: UIEvent): void {
 		const indexes = elements.map(e => this.model.getListIndex(e));
-		this.view.open(indexes);
+		this.view.open(indexes, browserEvent);
 	}
 
 	reveal(location: TRef, relativeTop?: number): void {
+		this.model.expandTo(location);
+
 		const index = this.model.getListIndex(location);
 
 		if (index === -1) {

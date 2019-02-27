@@ -10,6 +10,8 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/hoverOperation';
 import { GlyphHoverWidget } from 'vs/editor/contrib/hover/hoverWidgets';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/opener';
 
 export interface IHoverMessage {
 	value: IMarkdownString;
@@ -94,12 +96,16 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 	private _hoverOperation: HoverOperation<IHoverMessage[]>;
 	private _renderDisposeables: IDisposable[];
 
-	constructor(editor: ICodeEditor, markdownRenderer: MarkdownRenderer) {
+	constructor(
+		editor: ICodeEditor,
+		modeService: IModeService,
+		openerService: IOpenerService | null = NullOpenerService,
+	) {
 		super(ModesGlyphHoverWidget.ID, editor);
 
 		this._lastLineNumber = -1;
 
-		this._markdownRenderer = markdownRenderer;
+		this._markdownRenderer = new MarkdownRenderer(this._editor, modeService, openerService);
 		this._computer = new MarginComputer(this._editor);
 
 		this._hoverOperation = new HoverOperation(

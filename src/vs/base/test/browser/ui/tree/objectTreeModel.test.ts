@@ -220,4 +220,25 @@ suite('ObjectTreeModel', function () {
 		model.resort();
 		assert.deepEqual(toArray(list), ['cars', 'sedan', 'convertible', 'compact', 'bicycles', 'mountain', 'electric', 'dutch', 'airplanes', 'passenger', 'jet']);
 	});
+
+	test('expandTo', () => {
+		const list: ITreeNode<number>[] = [];
+		const model = new ObjectTreeModel<number>(toSpliceable(list), { collapseByDefault: true });
+
+		model.setChildren(null, [
+			{
+				element: 0, children: [
+					{ element: 10, children: [{ element: 100, children: [{ element: 1000 }] }] },
+					{ element: 11 },
+					{ element: 12 },
+				]
+			},
+			{ element: 1 },
+			{ element: 2 }
+		]);
+
+		assert.deepEqual(toArray(list), [0, 1, 2]);
+		model.expandTo(1000);
+		assert.deepEqual(toArray(list), [0, 10, 100, 1000, 11, 12, 1, 2]);
+	});
 });

@@ -17,7 +17,6 @@ function validate(args: ParsedArgs): ParsedArgs {
 	}
 
 	if (args['max-memory']) {
-		console.log(parseInt(args['max-memory']));
 		assert(parseInt(args['max-memory']) >= MIN_MAX_MEMORY_SIZE_MB, `The max-memory argument cannot be specified lower than ${MIN_MAX_MEMORY_SIZE_MB} MB.`);
 	}
 
