@@ -36,19 +36,6 @@ function adjustHandler(handler: (executor: ICommandsExecutor, ...args: any[]) =>
 	};
 }
 
-export class PreviewHTMLAPICommand {
-	public static ID = 'vscode.previewHtml';
-	public static execute(executor: ICommandsExecutor, uri: URI, position?: vscode.ViewColumn, label?: string, options?: any): Promise<any> {
-		return executor.executeCommand('_workbench.previewHtml',
-			uri,
-			typeof position === 'number' && typeConverters.ViewColumn.from(position),
-			label,
-			options
-		);
-	}
-}
-CommandsRegistry.registerCommand(PreviewHTMLAPICommand.ID, adjustHandler(PreviewHTMLAPICommand.execute));
-
 export class OpenFolderAPICommand {
 	public static ID = 'vscode.openFolder';
 	public static execute(executor: ICommandsExecutor, uri?: URI, forceNewWindow?: boolean): Promise<any> {
