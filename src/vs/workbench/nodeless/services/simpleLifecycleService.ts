@@ -3,21 +3,48 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { ILifecycleService, LifecyclePhase, StartupKind } from 'vs/platform/lifecycle/common/lifecycle';
+import { AbstractLifecycleService } from 'vs/platform/lifecycle/common/lifecycleService';
+import { ILogService } from 'vs/platform/log/common/log';
+import { ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 
-export class SimpleLifecycleService implements ILifecycleService {
+export class SimpleLifecycleService extends AbstractLifecycleService {
 
 	_serviceBrand: any;
 
-	readonly onBeforeShutdown = Event.None;
-	readonly onWillShutdown = Event.None;
-	readonly onShutdown = Event.None;
+	constructor(
+		@ILogService readonly logService: ILogService
+	) {
+		super(logService);
 
-	phase: LifecyclePhase;
-	startupKind: StartupKind;
+		this.registerListeners();
+	}
 
-	when(phase: LifecyclePhase): Promise<void> {
-		return Promise.resolve();
+	private registerListeners(): void {
+		window.onbeforeunload = () => this.beforeUnload();
+	}
+
+	private beforeUnload(): string {
+
+		// Before Shutdown
+		this._onBeforeShutdown.fire({
+			veto(value) {
+				if (value === true) {
+					console.warn(new Error('Preventing onBeforeUnload currently not supported'));
+				} else if (value instanceof Promise) {
+					console.warn(new Error('Long running onBeforeShutdown currently not supported'));
+				}
+			},
+			reason: ShutdownReason.QUIT
+		});
+
+		// Will Shutdown
+		this._onWillShutdown.fire({
+			join() {
+				console.warn(new Error('Long running onWillShutdown currently not supported'));
+			},
+			reason: ShutdownReason.QUIT
+		});
+
+		return null;
 	}
 }
