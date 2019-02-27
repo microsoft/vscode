@@ -972,26 +972,47 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		return this.editor.getLayoutInfo().width;
 	}
 
-	private getLeftDetailWidth(): number {
-		const editorCoords = getDomNodePagePosition(this.editor.getDomNode());
-		return Math.min(this.getCursorX() - editorCoords.left, this.getEditorWidth() - this.listWidth - editorCoords.left) * 0.9;
+	private getLeftDetailWidth(): number | null {
+		const domNode = this.editor.getDomNode();
+		const cursorX = this.getCursorX();
+		if (domNode === null || cursorX === null) {
+			return null;
+		}
+		const editorCoords = getDomNodePagePosition(domNode);
+		return Math.min(cursorX - editorCoords.left, this.getEditorWidth() - this.listWidth - editorCoords.left) * 0.9;
 	}
 
-	private getRightDetailWidth(): number {
-		return this.editor.getLayoutInfo().width - this.listWidth - this.getCursorX();
+	private getRightDetailWidth(): number | null {
+		const cursorX = this.getCursorX();
+		if (cursorX === null) {
+			return null;
+		}
+		return this.editor.getLayoutInfo().width - this.listWidth - cursorX;
 	}
 
-	private getDetailWidth(): number {
+	private getDetailWidth(): number | null {
 		const editorWidth = this.getEditorWidth();
 		const leftDetailWidth = this.getLeftDetailWidth();
 		const rightDetailWidth = this.getRightDetailWidth();
-		let tmp = Math.max(leftDetailWidth, rightDetailWidth, this.listWidth);
-		return Math.min(tmp, editorWidth * 0.66);
+		if (leftDetailWidth && rightDetailWidth) {
+			let tmp = Math.max(leftDetailWidth, rightDetailWidth, this.listWidth);
+			return Math.min(tmp, editorWidth * 0.66);
+		} else {
+			return null;
+		}
 	}
 
-	private getCursorX(): number {
-		const cursorCoords = this.editor.getScrolledVisiblePosition(this.editor.getPosition());
-		const editorCoords = getDomNodePagePosition(this.editor.getDomNode());
+	private getCursorX(): number | null {
+		const pos = this.editor.getPosition();
+		const domNode = this.editor.getDomNode();
+		if (pos === null || domNode === null) {
+			return null;
+		}
+		const cursorCoords = this.editor.getScrolledVisiblePosition(pos);
+		const editorCoords = getDomNodePagePosition(domNode);
+		if (cursorCoords === null) {
+			return null;
+		}
 		return editorCoords.left + cursorCoords.left;
 	}
 
@@ -1005,10 +1026,12 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 
 		if (hasClass(this.element, 'docs-side')) {
 			const detailWidth = this.getDetailWidth();
-			this.element.style.width = `${detailWidth + this.listWidth}px`;
-			this.listElement.style.width = `${this.listWidth}px`;
-			this.details.element.style.width = `${detailWidth}px`;
-			this.details.element.style.maxHeight = `${Math.max(this.editor.getLayoutInfo().height - widgetY, this.maxWidgetHeight)}px`;
+			if (detailWidth !== null) {
+				this.element.style.width = `${detailWidth + this.listWidth}px`;
+				this.listElement.style.width = `${this.listWidth}px`;
+				this.details.element.style.width = `${detailWidth}px`;
+				this.details.element.style.maxHeight = `${Math.max(this.editor.getLayoutInfo().height - widgetY, this.maxWidgetHeight)}px`;
+			}
 		}
 
 		// Reset margin-top that was set as Fix for #26416
@@ -1116,9 +1139,15 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		}
 		this.docsPositionPreviousWidgetY = widgetY;
 
-		if (hasClass(this.element, 'docs-side') && this.getRightDetailWidth() < this.getLeftDetailWidth()) {
+		const rightDetailWidth = this.getRightDetailWidth();
+		const leftDetailWidth = this.getLeftDetailWidth();
+		const detailWidth = this.getDetailWidth();
+		const cursorX = this.getCursorX();
+		if (hasClass(this.element, 'docs-side') &&
+		    rightDetailWidth !== null && leftDetailWidth !== null && detailWidth !== null && cursorX !== null &&
+		    rightDetailWidth < leftDetailWidth) {
 			addClass(this.element, 'list-right');
-			const left = Math.min(this.getCursorX() - this.getDetailWidth(), this.getEditorWidth() - this.getDetailWidth() - this.listWidth);
+			const left = Math.min(cursorX - detailWidth, this.getEditorWidth() - detailWidth - this.listWidth);
 			this.element.style.left = `${Math.max(left, 0)}px`;
 		} else {
 			removeClass(this.element, 'list-right');
@@ -1147,7 +1176,8 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 			return;
 		}
 
-		if (this.getEditorWidth() < this.getDetailWidth() + this.listWidth) {
+		const detailWidth = this.getDetailWidth();
+		if (detailWidth && this.getEditorWidth() < detailWidth + this.listWidth) {
 			addClass(this.element, 'docs-below');
 			removeClass(this.element, 'docs-side');
 		} else if (canExpandCompletionItem(this.focusedItem)) {
