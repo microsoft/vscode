@@ -331,6 +331,7 @@ export class ExplorerService implements IExplorerService {
 			};
 
 			if (shouldRefresh()) {
+				this.roots.forEach(r => r.forgetChildren());
 				this._onDidChangeItem.fire(undefined);
 			}
 		}, ExplorerService.EXPLORER_FILE_CHANGES_REACT_DELAY);
