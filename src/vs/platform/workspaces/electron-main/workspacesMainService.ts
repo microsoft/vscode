@@ -3,16 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkspacesMainService, IWorkspaceIdentifier, hasWorkspaceFileExtension, UNTITLED_WORKSPACE_NAME, IResolvedWorkspace, IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, rewriteWorkspaceFileForNewLocation, IUntitledWorkspaceInfo, getStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspacesMainService, IWorkspaceIdentifier, hasWorkspaceFileExtension, UNTITLED_WORKSPACE_NAME, IResolvedWorkspace, IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, IUntitledWorkspaceInfo, getStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { join, dirname } from 'vs/base/common/path';
-import { mkdirp, writeFile, readFile } from 'vs/base/node/pfs';
+import { mkdirp, writeFile } from 'vs/base/node/pfs';
 import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'fs';
 import { isLinux } from 'vs/base/common/platform';
 import { delSync, readdirSync, writeFileAndFlushSync } from 'vs/base/node/extfs';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
-import { isEqual } from 'vs/base/common/extpath';
 import { createHash } from 'crypto';
 import * as json from 'vs/base/common/json';
 import { toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
@@ -168,30 +167,6 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 		return this.isInsideWorkspacesHome(workspace.configPath);
 	}
 
-	saveWorkspaceAs(workspace: IWorkspaceIdentifier, targetConfigPath: string): Promise<IWorkspaceIdentifier> {
-
-		if (workspace.configPath.scheme !== Schemas.file) {
-			throw new Error('Only local workspaces can be saved with this API. Use WorkspaceEditingService.saveWorkspaceAs on the renderer instead.');
-		}
-
-		const configPath = originalFSPath(workspace.configPath);
-
-		// Return early if target is same as source
-		if (isEqual(configPath, targetConfigPath, !isLinux)) {
-			return Promise.resolve(workspace);
-		}
-
-		// Read the contents of the workspace file and resolve it
-		return readFile(configPath).then(raw => {
-			const targetConfigPathURI = URI.file(targetConfigPath);
-			const newRawWorkspaceContents = rewriteWorkspaceFileForNewLocation(raw.toString(), workspace.configPath, targetConfigPathURI);
-
-			return writeFile(targetConfigPath, newRawWorkspaceContents).then(() => {
-				return this.getWorkspaceIdentifier(targetConfigPathURI);
-			});
-		});
-	}
-
 	deleteUntitledWorkspaceSync(workspace: IWorkspaceIdentifier): void {
 		if (!this.isUntitledWorkspace(workspace)) {
 			return; // only supported for untitled workspaces
@@ -202,6 +177,11 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 
 		// Event
 		this._onUntitledWorkspaceDeleted.fire(workspace);
+	}
+
+	deleteUntitledWorkspace(workspace: IWorkspaceIdentifier): Promise<void> {
+		this.deleteUntitledWorkspaceSync(workspace);
+		return Promise.resolve();
 	}
 
 	private doDeleteUntitledWorkspaceSync(workspace: IWorkspaceIdentifier): void {
