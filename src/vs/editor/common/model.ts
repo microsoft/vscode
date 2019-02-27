@@ -12,7 +12,7 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, ModelRawContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { SearchData } from 'vs/editor/common/model/textModelSearch';
-import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
+import { LanguageId, LanguageIdentifier, FormattingOptions } from 'vs/editor/common/modes';
 import { ITextSnapshot } from 'vs/platform/files/common/files';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 
@@ -499,6 +499,12 @@ export interface ITextModel {
 	 * Get the resolved options for this model.
 	 */
 	getOptions(): TextModelResolvedOptions;
+
+	/**
+	 * Get the formatting options for this model.
+	 * @internal
+	 */
+	getFormattingOptions(): FormattingOptions;
 
 	/**
 	 * Get the current version id of the model.

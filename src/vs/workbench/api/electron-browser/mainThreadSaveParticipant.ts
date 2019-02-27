@@ -231,13 +231,12 @@ class FormatOnSaveParticipant implements ISaveParticipantParticipant {
 		}
 
 		const versionNow = model.getVersionId();
-		const { tabSize, insertSpaces } = model.getOptions();
 
 		const timeout = this._configurationService.getValue<number>('editor.formatOnSaveTimeout', { overrideIdentifier: model.getLanguageIdentifier().language, resource: editorModel.getResource() });
 
 		return new Promise<ISingleEditOperation[] | null | undefined>((resolve, reject) => {
 			let source = new CancellationTokenSource();
-			let request = getDocumentFormattingEdits(this._telemetryService, this._editorWorkerService, model, { tabSize, insertSpaces }, FormatMode.Auto, source.token);
+			let request = getDocumentFormattingEdits(this._telemetryService, this._editorWorkerService, model, model.getFormattingOptions(), FormatMode.Auto, source.token);
 
 			setTimeout(() => {
 				reject(localize('timeout.formatOnSave', "Aborted format on save after {0}ms", timeout));
