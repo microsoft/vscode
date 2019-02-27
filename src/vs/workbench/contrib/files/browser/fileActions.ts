@@ -107,6 +107,8 @@ export class NewFileAction extends BaseErrorReportingAction {
 	static readonly ID = 'workbench.files.action.createFileFromExplorer';
 	static readonly LABEL = nls.localize('createNewFile', "New File");
 
+	private toDispose: IDisposable[] = [];
+
 	constructor(
 		private getElement: () => ExplorerItem,
 		@INotificationService notificationService: INotificationService,
@@ -116,6 +118,10 @@ export class NewFileAction extends BaseErrorReportingAction {
 	) {
 		super('explorer.newFile', NEW_FILE_LABEL, notificationService);
 		this.class = 'explorer-action new-file';
+		this.toDispose.push(this.explorerService.onDidChangeEditable(e => {
+			const elementIsBeingEdited = this.explorerService.isEditable(e);
+			this.enabled = !elementIsBeingEdited;
+		}));
 	}
 
 	run(): Promise<any> {
@@ -158,12 +164,19 @@ export class NewFileAction extends BaseErrorReportingAction {
 			});
 		});
 	}
+
+	dispose(): void {
+		super.dispose();
+		dispose(this.toDispose);
+	}
 }
 
 /* New Folder */
 export class NewFolderAction extends BaseErrorReportingAction {
 	static readonly ID = 'workbench.files.action.createFolderFromExplorer';
 	static readonly LABEL = nls.localize('createNewFolder', "New Folder");
+
+	private toDispose: IDisposable[] = [];
 
 	constructor(
 		private getElement: () => ExplorerItem,
@@ -173,6 +186,10 @@ export class NewFolderAction extends BaseErrorReportingAction {
 	) {
 		super('explorer.newFolder', NEW_FOLDER_LABEL, notificationService);
 		this.class = 'explorer-action new-folder';
+		this.toDispose.push(this.explorerService.onDidChangeEditable(e => {
+			const elementIsBeingEdited = this.explorerService.isEditable(e);
+			this.enabled = !elementIsBeingEdited;
+		}));
 	}
 
 	run(): Promise<any> {
@@ -214,6 +231,11 @@ export class NewFolderAction extends BaseErrorReportingAction {
 				}
 			});
 		});
+	}
+
+	dispose(): void {
+		super.dispose();
+		dispose(this.toDispose);
 	}
 }
 
