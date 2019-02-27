@@ -813,10 +813,13 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 			asyncDataTreeNode.element = element;
 
-			if (asyncDataTreeNode.state === AsyncDataTreeNodeState.Loaded || asyncDataTreeNode.hasChildren !== !!this.dataSource.hasChildren(asyncDataTreeNode.element)) {
+			const hasChildren = this.dataSource.hasChildren(asyncDataTreeNode.element);
+
+			if (asyncDataTreeNode.state === AsyncDataTreeNodeState.Loaded || (asyncDataTreeNode.state !== AsyncDataTreeNodeState.Uninitialized && asyncDataTreeNode.hasChildren !== !!hasChildren)) {
 				asyncDataTreeNode.needsRefresh = true;
 			}
 
+			asyncDataTreeNode.hasChildren = hasChildren;
 			return asyncDataTreeNode;
 		});
 
