@@ -146,7 +146,6 @@ import { DialogChannel } from 'vs/platform/dialogs/node/dialogIpc';
 import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
 import { resolveWorkbenchCommonProperties } from 'vs/platform/telemetry/node/workbenchCommonProperties';
 import { IRequestService } from 'vs/platform/request/node/request';
-import { RequestService } from 'vs/platform/request/node/requestService';
 import { DownloadService } from 'vs/platform/download/node/downloadService';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/node/remoteAgentService';
@@ -174,6 +173,7 @@ import { WindowService } from 'vs/platform/windows/electron-browser/windowServic
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-browser/remoteAuthorityResolverService';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import { ExtensionService } from 'vs/workbench/services/extensions/electron-browser/extensionService';
+import { RequestService } from 'vs/platform/request/electron-browser/requestService';
 
 interface IZenModeSettings {
 	fullScreen: boolean;
