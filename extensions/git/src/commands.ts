@@ -1213,6 +1213,7 @@ export class CommandCenter {
 
 				if (pick === saveAndCommit) {
 					await Promise.all(unsavedTextDocuments.map(d => d.save()));
+					await Promise.all(unsavedTextDocuments.map(d => repository.stage(d.uri, d.getText())));
 					await repository.status();
 				} else if (pick !== commit) {
 					return false; // do not commit on cancel
