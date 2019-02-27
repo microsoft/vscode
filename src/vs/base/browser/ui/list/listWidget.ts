@@ -569,6 +569,20 @@ export class MouseController<T> implements IDisposable {
 		if (document.activeElement !== e.browserEvent.target) {
 			this.list.domFocus();
 		}
+
+		if (this.multipleSelectionSupport && (this.isSelectionRangeChangeEvent(e) || this.isSelectionChangeEvent(e))) {
+			return;
+		}
+
+		const focus = e.index;
+
+		if (typeof focus === 'undefined') {
+			this.list.setFocus([], e.browserEvent);
+			this.list.setSelection([], e.browserEvent);
+			return;
+		}
+
+		this.list.setFocus([focus], e.browserEvent);
 	}
 
 	private onContextMenu(e: IListContextMenuEvent<T>): void {
@@ -592,7 +606,6 @@ export class MouseController<T> implements IDisposable {
 		const focus = e.index;
 
 		if (typeof focus === 'undefined') {
-			this.list.setFocus([], e.browserEvent);
 			this.list.setSelection([], e.browserEvent);
 			return;
 		}
@@ -604,8 +617,6 @@ export class MouseController<T> implements IDisposable {
 		if (this.multipleSelectionSupport && this.isSelectionChangeEvent(e)) {
 			return this.changeSelection(e, reference);
 		}
-
-		this.list.setFocus([focus], e.browserEvent);
 
 		if (!isMouseRightClick(e.browserEvent)) {
 			this.list.setSelection([focus], e.browserEvent);
