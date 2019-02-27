@@ -95,6 +95,12 @@ export class BaseErrorReportingAction extends Action {
 }
 
 const PLACEHOLDER_URI = URI.file('');
+function refreshIfSeparator(value: string, explorerService: IExplorerService): void {
+	if (value && ((value.indexOf('/') >= 0) || (value.indexOf('\\') >= 0))) {
+		// New input contains separator, multiple resources will get created workaround for #68204
+		explorerService.refresh();
+	}
+}
 
 /* New File */
 export class NewFileAction extends BaseErrorReportingAction {
@@ -129,8 +135,9 @@ export class NewFileAction extends BaseErrorReportingAction {
 		return folder.fetchChildren(this.fileService).then(() => {
 			folder.addChild(stat);
 
-			const onSuccess = value => {
+			const onSuccess = (value: string) => {
 				return this.fileService.createFile(resources.joinPath(folder.resource, value)).then(stat => {
+					refreshIfSeparator(value, this.explorerService);
 					return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
 				}, (error) => {
 					this.onErrorWithRetry(error, () => onSuccess(value));
@@ -185,8 +192,9 @@ export class NewFolderAction extends BaseErrorReportingAction {
 		return folder.fetchChildren(this.fileService).then(() => {
 			folder.addChild(stat);
 
-			const onSuccess = value => {
+			const onSuccess = (value: string) => {
 				return this.fileService.createFolder(resources.joinPath(folder.resource, value)).then(stat => {
+					refreshIfSeparator(value, this.explorerService);
 					return this.explorerService.select(stat.resource, true);
 				}, (error) => {
 					this.onErrorWithRetry(error, () => onSuccess(value));
@@ -1084,7 +1092,7 @@ export const renameHandler = (accessor: ServicesAccessor) => {
 			if (success) {
 				const parentResource = stat.parent.resource;
 				const targetResource = resources.joinPath(parentResource, value);
-				textFileService.move(stat.resource, targetResource).then(undefined, onUnexpectedError);
+				textFileService.move(stat.resource, targetResource).then(() => refreshIfSeparator(value, explorerService), onUnexpectedError);
 			}
 			explorerService.setEditable(stat, null);
 		}
