@@ -362,7 +362,7 @@ export class TextModelResolvedOptions {
 		trimAutoWhitespace: boolean;
 	}) {
 		this.tabSize = src.tabSize | 0;
-		this.indentSize = src.indentSize | 0;
+		this.indentSize = src.tabSize | 0;
 		this.insertSpaces = Boolean(src.insertSpaces);
 		this.defaultEOL = src.defaultEOL | 0;
 		this.trimAutoWhitespace = Boolean(src.trimAutoWhitespace);
