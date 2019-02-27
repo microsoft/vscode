@@ -1075,7 +1075,7 @@ export class WindowsManager implements IWindowsMainService {
 					if (!options.forceOpenWorkspaceAsFile) {
 						const workspace = this.workspacesMainService.resolveLocalWorkspaceSync(URI.file(candidate));
 						if (workspace) {
-							return { workspace: { id: workspace.id, configPath: workspace.configPath }, remoteAuthority };
+							return { workspace: { id: workspace.id, configPath: workspace.configPath }, remoteAuthority: workspace.remoteAuthority };
 						}
 					}
 
