@@ -1,4 +1,4 @@
-// Type definitions for Electron 4.0.5
+// Type definitions for Electron 4.0.6
 // Project: http://electronjs.org/
 // Definitions by: The Electron Team <https://github.com/electron/electron>
 // Definitions: https://github.com/electron/electron-typescript-definitions
@@ -2807,7 +2807,7 @@ declare namespace Electron {
 		 * file selector and a directory selector, so if you set properties to ['openFile',
 		 * 'openDirectory'] on these platforms, a directory selector will be shown.
 		 */
-		showOpenDialog(browserWindow: BrowserWindow, options: OpenDialogOptions, callback?: (filePaths: string[], bookmarks: string[]) => void): string[];
+		showOpenDialog(browserWindow: BrowserWindow, options: OpenDialogOptions, callback?: (filePaths: string[], bookmarks: string[]) => void): (string[]) | (undefined);
 		/**
 		 * The browserWindow argument allows the dialog to attach itself to a parent
 		 * window, making it modal. The filters specifies an array of file types that can
@@ -2820,7 +2820,7 @@ declare namespace Electron {
 		 * file selector and a directory selector, so if you set properties to ['openFile',
 		 * 'openDirectory'] on these platforms, a directory selector will be shown.
 		 */
-		showOpenDialog(options: OpenDialogOptions, callback?: (filePaths: string[], bookmarks: string[]) => void): string[];
+		showOpenDialog(options: OpenDialogOptions, callback?: (filePaths: string[], bookmarks: string[]) => void): (string[]) | (undefined);
 		/**
 		 * The browserWindow argument allows the dialog to attach itself to a parent
 		 * window, making it modal. The filters specifies an array of file types that can
@@ -2828,7 +2828,7 @@ declare namespace Electron {
 		 * the API call will be asynchronous and the result will be passed via
 		 * callback(filename).
 		 */
-		showSaveDialog(browserWindow: BrowserWindow, options: SaveDialogOptions, callback?: (filename: string, bookmark: string) => void): string;
+		showSaveDialog(browserWindow: BrowserWindow, options: SaveDialogOptions, callback?: (filename: string, bookmark: string) => void): (string) | (undefined);
 		/**
 		 * The browserWindow argument allows the dialog to attach itself to a parent
 		 * window, making it modal. The filters specifies an array of file types that can
@@ -2836,7 +2836,7 @@ declare namespace Electron {
 		 * the API call will be asynchronous and the result will be passed via
 		 * callback(filename).
 		 */
-		showSaveDialog(options: SaveDialogOptions, callback?: (filename: string, bookmark: string) => void): string;
+		showSaveDialog(options: SaveDialogOptions, callback?: (filename: string, bookmark: string) => void): (string) | (undefined);
 	}
 
 	interface Display {
