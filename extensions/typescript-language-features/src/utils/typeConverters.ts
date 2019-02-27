@@ -63,8 +63,8 @@ export namespace WorkspaceEdit {
 		edits: Iterable<Proto.FileCodeEdits>
 	): vscode.WorkspaceEdit {
 		return withFileCodeEdits(new vscode.WorkspaceEdit(), client, edits);
-
 	}
+
 	export function withFileCodeEdits(
 		workspaceEdit: vscode.WorkspaceEdit,
 		client: ITypeScriptServiceClient,
