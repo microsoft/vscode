@@ -16,7 +16,7 @@ const WEB_ROOT = '${workspaceFolder}';
 interface ServerReadyAction {
 	pattern: string;
 	action?: 'openExternally' | 'debugWithChrome';
-	urlFormat?: string;
+	uriFormat?: string;
 	webRoot?: string;
 }
 
@@ -68,7 +68,7 @@ function openExternalWithString(session: vscode.DebugSession, portOrUriString: s
 	if (portOrUriString) {
 		if (/^[0-9]+$/.test(portOrUriString)) {
 			const args: ServerReadyAction = session.configuration.serverReadyAction;
-			portOrUriString = util.format(args.urlFormat || URI_FORMAT, portOrUriString);
+			portOrUriString = util.format(args.uriFormat || URI_FORMAT, portOrUriString);
 		}
 		openExternalWithUri(session, portOrUriString);
 	}

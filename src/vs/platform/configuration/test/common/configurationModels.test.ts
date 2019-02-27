@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { ConfigurationModel, DefaultConfigurationModel, ConfigurationChangeEvent, ConfigurationModelParser } from 'vs/platform/configuration/common/configurationModels';
+import { ConfigurationModel, DefaultConfigurationModel, ConfigurationChangeEvent, ConfigurationModelParser, Configuration } from 'vs/platform/configuration/common/configurationModels';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { URI } from 'vs/base/common/uri';
@@ -465,5 +465,31 @@ suite('ConfigurationChangeEvent', () => {
 		assert.ok(actual.affectsConfiguration('[markdown]', URI.file('file1')));
 		assert.ok(actual.affectsConfiguration('[markdown]', URI.file('file2')));
 	});
+
+});
+
+suite('Configuration', () => {
+
+	test('Test update value', () => {
+		const parser = new ConfigurationModelParser('test');
+		parser.parse(JSON.stringify({ 'a': 1 }));
+		const testObject: Configuration = new Configuration(parser.configurationModel, new ConfigurationModel());
+
+		testObject.updateValue('a', 2);
+
+		assert.equal(testObject.getValue('a', {}, undefined), 2);
+	});
+
+	test('Test update value after inspect', () => {
+		const parser = new ConfigurationModelParser('test');
+		parser.parse(JSON.stringify({ 'a': 1 }));
+		const testObject: Configuration = new Configuration(parser.configurationModel, new ConfigurationModel());
+
+		testObject.inspect('a', {}, undefined);
+		testObject.updateValue('a', 2);
+
+		assert.equal(testObject.getValue('a', {}, undefined), 2);
+	});
+
 
 });

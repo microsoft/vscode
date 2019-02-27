@@ -47,6 +47,10 @@
 	margin-left: auto;
 }
 
+.monaco-editor .review-widget .body .review-comment .comment-actions .monaco-toolbar {
+	height: 21px;
+}
+
 .monaco-editor .review-widget .body .review-comment .comment-actions .action-item {
 	width: 22px;
 }
@@ -179,6 +183,7 @@
 	background-repeat: no-repeat;
 	background-position: center;
 	margin-top: 3px;
+	border: none;
 }
 
 .monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions:hover .action-item a.action-label.toolbar-toggle-pickReactions {
@@ -208,6 +213,10 @@
 
 .monaco-editor.hc-black .review-widget .body .review-comment .comment-title .action-label.toolbar-toggle-pickReactions {
 	background-image: url(./reaction-hc.svg);
+}
+
+.monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label{
+	border: 1px solid transparent;
 }
 
 .monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label.active {

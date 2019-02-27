@@ -400,7 +400,6 @@ export class ReferenceWidget extends PeekViewWidget {
 			if (e.browserEvent instanceof KeyboardEvent) {
 				// todo@joh make this a command
 				goto = true;
-
 			} else if (e.browserEvent instanceof MouseEvent) {
 				aside = e.browserEvent.ctrlKey || e.browserEvent.metaKey || e.browserEvent.altKey;
 				goto = e.browserEvent.detail === 2;
@@ -411,6 +410,18 @@ export class ReferenceWidget extends PeekViewWidget {
 				onEvent(e.elements[0], 'goto');
 			} else {
 				onEvent(e.elements[0], 'show');
+			}
+		});
+		this._tree.onMouseDblClick(e => {
+			const aside = e.browserEvent.ctrlKey || e.browserEvent.metaKey || e.browserEvent.altKey;
+			const goto = e.browserEvent.detail === 2;
+
+			if (aside) {
+				onEvent(e.element, 'side');
+			} else if (goto) {
+				onEvent(e.element, 'goto');
+			} else {
+				onEvent(e.element, 'show');
 			}
 		});
 
