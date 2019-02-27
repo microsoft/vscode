@@ -63,15 +63,12 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	}
 
 	private saveUntitedBeforeShutdown(reason: ShutdownReason): Promise<boolean> | undefined {
-		if (reason === ShutdownReason.RELOAD || reason === ShutdownReason.QUIT) {
-			return undefined;
+		if (reason !== ShutdownReason.LOAD && reason !== ShutdownReason.CLOSE) {
+			return undefined; // only interested when window is closing or loading
 		}
 		const workspaceIdentifier = this.getCurrentWorkspaceIdentifier();
-		if (!workspaceIdentifier) {
-			return undefined; // not a workspace
-		}
-		if (!isEqualOrParent(workspaceIdentifier.configPath, this.environmentService.untitledWorkspacesHome)) {
-			return undefined; // not an untitled workspace
+		if (!workspaceIdentifier || !isEqualOrParent(workspaceIdentifier.configPath, this.environmentService.untitledWorkspacesHome)) {
+			return undefined; // only care about untitled workspaces to ask for saving
 		}
 
 		return this.windowsService.getWindowCount().then(windowCount => {

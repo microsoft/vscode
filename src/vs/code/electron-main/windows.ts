@@ -15,7 +15,7 @@ import { CodeWindow, defaultWindowState } from 'vs/code/electron-main/window';
 import { hasArgs, asArray } from 'vs/platform/environment/node/argv';
 import { ipcMain as ipc, screen, BrowserWindow, dialog, systemPreferences } from 'electron';
 import { parseLineAndColumnAware } from 'vs/code/node/paths';
-import { ILifecycleService, UnloadReason, IWindowUnloadEvent, LifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
+import { ILifecycleService, UnloadReason, LifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWindowSettings, OpenContext, IPath, IWindowConfiguration, INativeOpenDialogOptions, IPathsToWaitFor, IEnterWorkspaceResult, IMessageBoxResult, INewWindowOptions, IURIToOpen, URIType, OpenDialogOptions } from 'vs/platform/windows/common/windows';
@@ -233,7 +233,6 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		// Handle various lifecycle events around windows
-		this.lifecycleService.onBeforeWindowUnload(e => this.onBeforeWindowUnload(e));
 		this.lifecycleService.onBeforeWindowClose(window => this.onBeforeWindowClose(window));
 		this.lifecycleService.onBeforeShutdown(() => this.onBeforeShutdown());
 		this.onWindowsCountChanged(e => {
@@ -1524,26 +1523,6 @@ export class WindowsManager implements IWindowsMainService {
 
 	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): void {
 		this.workspacesManager.pickWorkspaceAndOpen(options);
-	}
-
-	private onBeforeWindowUnload(e: IWindowUnloadEvent): void {
-		const windowClosing = (e.reason === UnloadReason.CLOSE);
-		const windowLoading = (e.reason === UnloadReason.LOAD);
-		if (!windowClosing && !windowLoading) {
-			return; // only interested when window is closing or loading
-		}
-
-		const workspace = e.window.openedWorkspace;
-		if (!workspace || !this.workspacesMainService.isUntitledWorkspace(workspace)) {
-			return; // only care about untitled workspaces to ask for saving
-		}
-
-		if (e.window.config && !!e.window.config.extensionDevelopmentPath) {
-			// do not ask to save workspace when doing extension development
-			// but still delete it.
-			this.workspacesMainService.deleteUntitledWorkspaceSync(workspace);
-			return;
-		}
 	}
 
 	focusLastActive(cli: ParsedArgs, context: OpenContext): ICodeWindow {
