@@ -47,7 +47,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
-import product from 'vs/platform/node/product';
+import product from 'vs/platform/product/node/product';
 import { IQuickPickItem, IQuickInputService, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { clipboard } from 'electron';
@@ -2264,18 +2264,18 @@ export class StatusLabelAction extends Action implements IExtensionContainer {
 	private static readonly ENABLED_CLASS = 'extension-status-label';
 	private static readonly DISABLED_CLASS = `${StatusLabelAction.ENABLED_CLASS} hide`;
 
+	private initialStatus: ExtensionState | null = null;
 	private status: ExtensionState | null = null;
 	private enablementState: EnablementState | null = null;
-	private version: string | null = null;
 
 	private _extension: IExtension;
 	get extension(): IExtension { return this._extension; }
 	set extension(extension: IExtension) {
 		if (!(this._extension && extension && areSameExtensions(this._extension.identifier, extension.identifier))) {
 			// Different extension. Reset
+			this.initialStatus = null;
 			this.status = null;
 			this.enablementState = null;
-			this.version = null;
 		}
 		this._extension = extension;
 		this.update();
@@ -2302,10 +2302,11 @@ export class StatusLabelAction extends Action implements IExtensionContainer {
 
 		const currentStatus = this.status;
 		const currentEnablementState = this.enablementState;
-		const currentVersion = this.version;
 		this.status = this.extension.state;
+		if (this.initialStatus === null) {
+			this.initialStatus = this.status;
+		}
 		this.enablementState = this.extension.enablementState;
-		this.version = this.extension.version;
 
 		const runningExtensions = await this.extensionService.getExtensions();
 		const canAddExtension = () => {
@@ -2330,7 +2331,7 @@ export class StatusLabelAction extends Action implements IExtensionContainer {
 
 		if (currentStatus !== null) {
 			if (currentStatus === ExtensionState.Installing && this.status === ExtensionState.Installed) {
-				return canAddExtension() ? currentVersion !== this.version ? localize('updated', "Updated") : localize('installed', "Installed") : null;
+				return canAddExtension() ? this.initialStatus === ExtensionState.Installed ? localize('updated', "Updated") : localize('installed', "Installed") : null;
 			}
 			if (currentStatus === ExtensionState.Uninstalling && this.status === ExtensionState.Uninstalled) {
 				return canRemoveExtension() ? localize('uninstalled', "Uninstalled") : null;

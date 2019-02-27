@@ -28,7 +28,7 @@ import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IEditor, IEditorMemento } from 'vs/workbench/common/editor';
-import { attachSuggestEnabledInputBoxStyler, SuggestEnabledInput } from 'vs/workbench/contrib/codeEditor/electron-browser/suggestEnabledInput';
+import { attachSuggestEnabledInputBoxStyler, SuggestEnabledInput } from 'vs/workbench/contrib/codeEditor/browser/suggestEnabledInput/suggestEnabledInput';
 import { SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { commonlyUsedData, tocData } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
 import { AbstractSettingRenderer, ISettingLinkClickEvent, ISettingOverrideClickEvent, resolveExtensionsSettings, resolveSettingsTree, SettingsTree, SettingTreeRenderers } from 'vs/workbench/contrib/preferences/browser/settingsTree';

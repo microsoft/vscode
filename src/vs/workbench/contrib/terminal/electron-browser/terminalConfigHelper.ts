@@ -239,7 +239,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		// Change Sysnative to System32 if the OS is Windows but NOT WoW64. It's
 		// safe to assume that this was used by accident as Sysnative does not
 		// exist and will break the terminal in non-WoW64 environments.
-		if (platform.isWindows && !process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432') && process.env.windir) {
+		if ((platformOverride === platform.Platform.Windows) && !process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432') && process.env.windir) {
 			const sysnativePath = path.join(process.env.windir, 'Sysnative').toLowerCase();
 			if (shell.executable.toLowerCase().indexOf(sysnativePath) === 0) {
 				shell.executable = path.join(process.env.windir, 'System32', shell.executable.substr(sysnativePath.length));
@@ -247,7 +247,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		}
 
 		// Convert / to \ on Windows for convenience
-		if (platform.isWindows) {
+		if (platformOverride === platform.Platform.Windows) {
 			shell.executable = shell.executable.replace(/\//g, '\\');
 		}
 	}

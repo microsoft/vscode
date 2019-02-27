@@ -77,7 +77,7 @@ export class StorageService extends Disposable implements IStorageService {
 
 		// Prepare workspace storage folder for DB
 		return this.prepareWorkspaceStorageFolder(payload).then(result => {
-			const useInMemoryStorage = !!this.environmentService.extensionTestsPath; // no storage during extension tests!
+			const useInMemoryStorage = !!this.environmentService.extensionTestsLocationURI; // no storage during extension tests!
 
 			// Create workspace storage and initalize
 			mark('willInitWorkspaceStorage');

@@ -7,8 +7,6 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { virtualMachineHint } from 'vs/base/node/id';
 import * as perf from 'vs/base/common/performance';
 import * as os from 'os';
-import { getAccessibilitySupport } from 'vs/base/browser/browser';
-import { AccessibilitySupport } from 'vs/base/common/platform';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -19,6 +17,7 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 
 
 /* __GDPR__FRAGMENT__
@@ -321,6 +320,7 @@ class TimerService implements ITimerService {
 		@IViewletService private readonly _viewletService: IViewletService,
 		@IPanelService private readonly _panelService: IPanelService,
 		@IEditorService private readonly _editorService: IEditorService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) { }
 
 	get startupMetrics(): Promise<IStartupMetrics> {
@@ -411,7 +411,7 @@ class TimerService implements ITimerService {
 			loadavg,
 			initialStartup,
 			isVMLikelyhood,
-			hasAccessibilitySupport: getAccessibilitySupport() === AccessibilitySupport.Enabled,
+			hasAccessibilitySupport: this._accessibilityService.getAccessibilitySupport() === AccessibilitySupport.Enabled,
 			emptyWorkbench: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY
 		};
 	}

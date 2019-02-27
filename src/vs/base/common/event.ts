@@ -53,7 +53,7 @@ export namespace Event {
 	 * throught the mapping function.
 	 */
 	export function map<I, O>(event: Event<I>, map: (i: I) => O): Event<O> {
-		return (listener, thisArgs = null, disposables?) => event(i => listener.call(thisArgs, map(i)), null, disposables);
+		return snapshot((listener, thisArgs = null, disposables?) => event(i => listener.call(thisArgs, map(i)), null, disposables));
 	}
 
 	/**
@@ -61,7 +61,7 @@ export namespace Event {
 	 * the `each` function per each element.
 	 */
 	export function forEach<I>(event: Event<I>, each: (i: I) => void): Event<I> {
-		return (listener, thisArgs = null, disposables?) => event(i => { each(i); listener.call(thisArgs, i); }, null, disposables);
+		return snapshot((listener, thisArgs = null, disposables?) => event(i => { each(i); listener.call(thisArgs, i); }, null, disposables));
 	}
 
 	/**
@@ -71,7 +71,7 @@ export namespace Event {
 	export function filter<T>(event: Event<T>, filter: (e: T) => boolean): Event<T>;
 	export function filter<T, R>(event: Event<T | R>, filter: (e: T | R) => e is R): Event<R>;
 	export function filter<T>(event: Event<T>, filter: (e: T) => boolean): Event<T> {
-		return (listener, thisArgs = null, disposables?) => event(e => filter(e) && listener.call(thisArgs, e), null, disposables);
+		return snapshot((listener, thisArgs = null, disposables?) => event(e => filter(e) && listener.call(thisArgs, e), null, disposables));
 	}
 
 	/**
@@ -110,10 +110,10 @@ export namespace Event {
 	export function snapshot<T>(event: Event<T>): Event<T> {
 		let listener: IDisposable;
 		const emitter = new Emitter<T>({
-			onFirstListenerAdd: () => {
+			onFirstListenerAdd() {
 				listener = event(emitter.fire, emitter);
 			},
-			onLastListenerRemove: () => {
+			onLastListenerRemove() {
 				listener.dispose();
 			}
 		});
@@ -305,38 +305,34 @@ export namespace Event {
 
 	class ChainableEvent<T> implements IChainableEvent<T> {
 
-		get event(): Event<T> {
-			return snapshot(this._event);
-		}
-
-		constructor(private _event: Event<T>) { }
+		constructor(readonly event: Event<T>) { }
 
 		map<O>(fn: (i: T) => O): IChainableEvent<O> {
-			return new ChainableEvent(map(this._event, fn));
+			return new ChainableEvent(map(this.event, fn));
 		}
 
 		forEach(fn: (i: T) => void): IChainableEvent<T> {
-			return new ChainableEvent(forEach(this._event, fn));
+			return new ChainableEvent(forEach(this.event, fn));
 		}
 
 		filter(fn: (e: T) => boolean): IChainableEvent<T> {
-			return new ChainableEvent(filter(this._event, fn));
+			return new ChainableEvent(filter(this.event, fn));
 		}
 
 		reduce<R>(merge: (last: R | undefined, event: T) => R, initial?: R): IChainableEvent<R> {
-			return new ChainableEvent(reduce(this._event, merge, initial));
+			return new ChainableEvent(reduce(this.event, merge, initial));
 		}
 
 		latch(): IChainableEvent<T> {
-			return new ChainableEvent(latch(this._event));
+			return new ChainableEvent(latch(this.event));
 		}
 
 		on(listener: (e: T) => any, thisArgs: any, disposables: IDisposable[]) {
-			return this._event(listener, thisArgs, disposables);
+			return this.event(listener, thisArgs, disposables);
 		}
 
 		once(listener: (e: T) => any, thisArgs: any, disposables: IDisposable[]) {
-			return once(this._event)(listener, thisArgs, disposables);
+			return once(this.event)(listener, thisArgs, disposables);
 		}
 	}
 

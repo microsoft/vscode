@@ -9,7 +9,7 @@ import * as fs from 'fs';
 
 import * as path from 'vs/base/common/path';
 import { localize } from 'vs/nls';
-import product from 'vs/platform/node/product';
+import product from 'vs/platform/product/node/product';
 import { IRequestService } from 'vs/platform/request/node/request';
 import { IRequestContext } from 'vs/base/node/request';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';

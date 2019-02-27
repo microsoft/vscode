@@ -25,7 +25,7 @@ import { EditorViewColumn, editorGroupToViewColumn, viewColumnToEditorGroup } fr
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IURLService } from 'vs/platform/url/common/url';
-import product from 'vs/platform/node/product';
+import product from 'vs/platform/product/node/product';
 
 export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 

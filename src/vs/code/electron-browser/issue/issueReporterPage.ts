@@ -19,8 +19,8 @@ export default (): string => `
 		</div>
 
 		<div class="input-group" id="problem-source">
-			<label class="inline-label" for="issue-source">${escape(localize('issueSourceLabel', "File on"))}</label>
-			<select id="issue-source" class="inline-form-control">
+			<label class="inline-label" for="issue-source">${escape(localize('issueSourceLabel', "File on"))}<span class="required-input">*</span></label>
+			<select id="issue-source" class="inline-form-control" required>
 				<!-- To be dynamically filled -->
 			</select>
 			<div id="problem-source-help-text" class="instructions hidden">${escape(localize('disableExtensionsLabelText', "Try to reproduce the problem after {0}. If the problem only reproduces when extensions are active, it is likely an issue with an extension."))

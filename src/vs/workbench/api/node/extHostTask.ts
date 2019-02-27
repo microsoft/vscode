@@ -260,7 +260,7 @@ namespace TaskDTO {
 				if (typeof value.source.scope === 'number') {
 					scope = value.source.scope;
 				} else {
-					scope = await workspace.resolveWorkspaceFolder2(URI.revive(value.source.scope));
+					scope = await workspace.resolveWorkspaceFolder(URI.revive(value.source.scope));
 				}
 			} else {
 				scope = types.TaskScope.Workspace;
@@ -643,7 +643,7 @@ export class ExtHostTask implements ExtHostTaskShape {
 			process: undefined as string,
 			variables: Object.create(null)
 		};
-		let workspaceFolder = await this._workspaceProvider.resolveWorkspaceFolder2(uri);
+		let workspaceFolder = await this._workspaceProvider.resolveWorkspaceFolder(uri);
 		const workspaceFolders = await this._workspaceProvider.getWorkspaceFolders2();
 		let resolver = new ExtHostVariableResolverService(workspaceFolders, this._editorService, configProvider);
 		let ws: IWorkspaceFolder = {

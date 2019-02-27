@@ -33,6 +33,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { ISerializableView } from 'vs/base/browser/ui/grid/grid';
 import { LayoutPriority } from 'vs/base/browser/ui/grid/gridview';
 
+export const SidebarVisibleContext = new RawContextKey<boolean>('sidebarVisible', false);
 export const SidebarFocusContext = new RawContextKey<boolean>('sideBarFocus', false);
 export const ActiveViewletContext = new RawContextKey<string>('activeViewlet', '');
 

@@ -17,7 +17,7 @@ import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { mixin } from 'vs/base/common/objects';
 import { Thread, ExpressionContainer, DebugModel } from 'vs/workbench/contrib/debug/common/debugModel';
 import { RawDebugSession } from 'vs/workbench/contrib/debug/electron-browser/rawDebugSession';
-import product from 'vs/platform/node/product';
+import product from 'vs/platform/product/node/product';
 import { IWorkspaceFolder, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -37,6 +37,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 export class DebugSession implements IDebugSession {
 	private id: string;
 	private raw: RawDebugSession;
+	private initialized = false;
 
 	private sources = new Map<string, Source>();
 	private threads = new Map<number, Thread>();
@@ -92,6 +93,9 @@ export class DebugSession implements IDebugSession {
 	}
 
 	get state(): State {
+		if (!this.initialized) {
+			return State.Initializing;
+		}
 		if (!this.raw) {
 			return State.Inactive;
 		}
@@ -168,6 +172,7 @@ export class DebugSession implements IDebugSession {
 						supportsRunInTerminalRequest: true, // #10574
 						locale: platform.locale
 					}).then(() => {
+						this.initialized = true;
 						this._onDidChangeState.fire();
 						this.model.setExceptionBreakpoints(this.raw.capabilities.exceptionBreakpointFilters);
 					});
@@ -612,7 +617,8 @@ export class DebugSession implements IDebugSession {
 				if (thread) {
 					// Call fetch call stack twice, the first only return the top stack frame.
 					// Second retrieves the rest of the call stack. For performance reasons #25605
-					this.model.fetchCallStack(<Thread>thread).then(() => {
+					const promises = this.model.fetchCallStack(<Thread>thread);
+					const focus = () => {
 						if (!event.body.preserveFocusHint && thread.getCallStack().length) {
 							this.debugService.focusStackFrame(undefined, thread);
 							if (thread.stoppedDetails) {
@@ -621,6 +627,14 @@ export class DebugSession implements IDebugSession {
 								}
 								this.windowService.focusWindow();
 							}
+						}
+					};
+
+					promises.topCallStack.then(focus);
+					promises.wholeCallStack.then(() => {
+						if (!this.debugService.getViewModel().focusedStackFrame) {
+							// The top stack frame can be deemphesized so try to focus again #68616
+							focus();
 						}
 					});
 				}

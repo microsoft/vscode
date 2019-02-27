@@ -17,7 +17,7 @@ import { IExtensionHostProfileService, ReportExtensionIssueAction } from 'vs/wor
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { localize } from 'vs/nls';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { RuntimeExtensionsInput } from 'vs/workbench/services/extensions/electron-browser/runtimeExtensionsInput';
+import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/electron-browser/runtimeExtensionsInput';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';

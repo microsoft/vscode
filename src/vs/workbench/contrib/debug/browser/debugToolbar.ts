@@ -10,7 +10,7 @@ import * as dom from 'vs/base/browser/dom';
 import * as arrays from 'vs/base/common/arrays';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IAction, IRunEvent } from 'vs/base/common/actions';
-import { ActionBar, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar, ActionsOrientation, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IDebugConfiguration, IDebugService, State } from 'vs/workbench/contrib/debug/common/debug';
@@ -24,12 +24,15 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { registerColor, contrastBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { isExtensionHostDebugging } from 'vs/workbench/contrib/debug/common/debugUtils';
+import { fillInActionBarActions, MenuItemActionItem } from 'vs/platform/actions/browser/menuItemActionItem';
+import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 const DEBUG_TOOLBAR_POSITION_KEY = 'debug.actionswidgetposition';
 const DEBUG_TOOLBAR_Y_KEY = 'debug.actionswidgety';
@@ -51,8 +54,9 @@ export class DebugToolbar extends Themable implements IWorkbenchContribution {
 	private dragArea: HTMLElement;
 	private actionBar: ActionBar;
 	private allActions: AbstractDebugAction[] = [];
-	private activeActions: AbstractDebugAction[];
+	private activeActions: IAction[];
 	private updateScheduler: RunOnceScheduler;
+	private debugToolbarMenu: IMenu;
 
 	private isVisible: boolean;
 	private isBuilt: boolean;
@@ -67,7 +71,10 @@ export class DebugToolbar extends Themable implements IWorkbenchContribution {
 		@IThemeService themeService: IThemeService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IContextViewService contextViewService: IContextViewService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IMenuService menuService: IMenuService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super(themeService);
 
@@ -77,6 +84,8 @@ export class DebugToolbar extends Themable implements IWorkbenchContribution {
 		this.dragArea = dom.append(this.$el, dom.$('div.drag-area'));
 
 		const actionBarContainer = dom.append(this.$el, dom.$('div.action-bar-container'));
+		this.debugToolbarMenu = menuService.createMenu(MenuId.DebugToolbar, contextKeyService);
+		this.toDispose.push(this.debugToolbarMenu);
 
 		this.activeActions = [];
 		this.actionBar = this._register(new ActionBar(actionBarContainer, {
@@ -84,6 +93,9 @@ export class DebugToolbar extends Themable implements IWorkbenchContribution {
 			actionItemProvider: (action: IAction) => {
 				if (action.id === FocusSessionAction.ID) {
 					return new FocusSessionActionItem(action, this.debugService, this.themeService, contextViewService);
+				}
+				if (action instanceof MenuItemAction) {
+					return new MenuItemActionItem(action, this.keybindingService, this.notificationService, contextMenuService);
 				}
 
 				return null;
@@ -97,7 +109,7 @@ export class DebugToolbar extends Themable implements IWorkbenchContribution {
 				return this.hide();
 			}
 
-			const actions = DebugToolbar.getActions(this.allActions, this.toDispose, this.debugService, this.keybindingService, this.instantiationService);
+			const actions = DebugToolbar.getActions(this.debugToolbarMenu, this.allActions, this.toDispose, this.debugService, this.keybindingService, this.instantiationService);
 			if (!arrays.equals(actions, this.activeActions, (first, second) => first.id === second.id)) {
 				this.actionBar.clear();
 				this.actionBar.push(actions, { icon: true, label: false });
@@ -252,7 +264,7 @@ export class DebugToolbar extends Themable implements IWorkbenchContribution {
 		dom.hide(this.$el);
 	}
 
-	public static getActions(allActions: AbstractDebugAction[], toDispose: IDisposable[], debugService: IDebugService, keybindingService: IKeybindingService, instantiationService: IInstantiationService): AbstractDebugAction[] {
+	public static getActions(menu: IMenu, allActions: AbstractDebugAction[], toDispose: IDisposable[], debugService: IDebugService, keybindingService: IKeybindingService, instantiationService: IInstantiationService): IAction[] {
 		if (allActions.length === 0) {
 			allActions.push(new ContinueAction(ContinueAction.ID, ContinueAction.LABEL, debugService, keybindingService));
 			allActions.push(new PauseAction(PauseAction.ID, PauseAction.LABEL, debugService, keybindingService));
@@ -264,7 +276,6 @@ export class DebugToolbar extends Themable implements IWorkbenchContribution {
 			allActions.push(instantiationService.createInstance(RestartAction, RestartAction.ID, RestartAction.LABEL));
 			allActions.push(new StepBackAction(StepBackAction.ID, StepBackAction.LABEL, debugService, keybindingService));
 			allActions.push(new ReverseContinueAction(ReverseContinueAction.ID, ReverseContinueAction.LABEL, debugService, keybindingService));
-			allActions.push(instantiationService.createInstance(FocusSessionAction, FocusSessionAction.ID, FocusSessionAction.LABEL));
 			allActions.forEach(a => toDispose.push(a));
 		}
 
@@ -272,7 +283,7 @@ export class DebugToolbar extends Themable implements IWorkbenchContribution {
 		const session = debugService.getViewModel().focusedSession;
 		const attached = session && session.configuration.request === 'attach' && !isExtensionHostDebugging(session.configuration);
 
-		return allActions.filter(a => {
+		const actions: IAction[] = allActions.filter(a => {
 			if (a.id === ContinueAction.ID) {
 				return state !== State.Running;
 			}
@@ -291,12 +302,16 @@ export class DebugToolbar extends Themable implements IWorkbenchContribution {
 			if (a.id === StopAction.ID) {
 				return !attached;
 			}
-			if (a.id === FocusSessionAction.ID) {
-				return debugService.getViewModel().isMultiSessionView();
-			}
 
 			return true;
 		}).sort((first, second) => first.weight - second.weight);
+
+		fillInActionBarActions(menu, undefined, actions, () => false);
+		if (debugService.getViewModel().isMultiSessionView()) {
+			actions.push(instantiationService.createInstance(FocusSessionAction, FocusSessionAction.ID, FocusSessionAction.LABEL));
+		}
+
+		return actions.filter(a => !(a instanceof Separator)); // do not render separators for now
 	}
 
 	public dispose(): void {

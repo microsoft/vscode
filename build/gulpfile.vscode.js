@@ -64,6 +64,7 @@ const vscodeResources = [
 	'out-build/paths.js',
 	'out-build/vs/**/*.{svg,png,cur,html}',
 	'out-build/vs/base/common/performance.js',
+	'out-build/vs/base/node/languagePacks.js',
 	'out-build/vs/base/node/{stdForkStart.js,terminateProcess.sh,cpuUsage.sh}',
 	'out-build/vs/base/browser/ui/octiconLabel/octicons/**',
 	'out-build/vs/workbench/browser/media/*-theme.css',

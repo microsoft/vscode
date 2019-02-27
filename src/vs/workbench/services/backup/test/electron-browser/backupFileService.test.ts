@@ -11,7 +11,7 @@ import * as path from 'vs/base/common/path';
 import * as pfs from 'vs/base/node/pfs';
 import { URI as Uri } from 'vs/base/common/uri';
 import { BackupFileService, BackupFilesModel, hashPath } from 'vs/workbench/services/backup/node/backupFileService';
-import { FileService } from 'vs/workbench/services/files/electron-browser/fileService';
+import { FileService } from 'vs/workbench/services/files/node/fileService';
 import { TextModel, createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { TestContextService, TestTextResourceConfigurationService, TestLifecycleService, TestEnvironmentService, TestStorageService } from 'vs/workbench/test/workbenchTestServices';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';

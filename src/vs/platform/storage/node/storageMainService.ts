@@ -100,7 +100,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 	}
 
 	private get storagePath(): string {
-		if (!!this.environmentService.extensionTestsPath) {
+		if (!!this.environmentService.extensionTestsLocationURI) {
 			return SQLiteStorageDatabase.IN_MEMORY_PATH; // no storage during extension tests!
 		}
 

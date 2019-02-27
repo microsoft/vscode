@@ -79,7 +79,8 @@ export function sanitizeProcessEnvironment(env: Platform.IProcessEnvironment): v
 	const keysToRemove = [
 		/^ELECTRON_.+$/,
 		/^GOOGLE_API_KEY$/,
-		/^VSCODE_.+$/
+		/^VSCODE_.+$/,
+		/^SNAP(|_.*)$/
 	];
 	const envKeys = Object.keys(env);
 	envKeys.forEach(envKey => {

@@ -380,6 +380,7 @@ declare namespace monaco {
 	}
 
 	export interface IKeyboardEvent {
+		readonly _standardKeyboardEventBrand: true;
 		readonly browserEvent: KeyboardEvent;
 		readonly target: HTMLElement;
 		readonly ctrlKey: boolean;

@@ -11,6 +11,7 @@ import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { Constants } from 'vs/editor/common/core/uint';
 import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/model/wordHelper';
+import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 
 /**
  * Configuration options for editor scrollbars
@@ -1070,7 +1071,7 @@ export class InternalEditorOptions {
 	/**
 	 * @internal
 	 */
-	readonly accessibilitySupport: platform.AccessibilitySupport;
+	readonly accessibilitySupport: AccessibilitySupport;
 	readonly multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
 	readonly multiCursorMergeOverlapping: boolean;
 	readonly showUnused: boolean;
@@ -1103,7 +1104,7 @@ export class InternalEditorOptions {
 		editorClassName: string;
 		lineHeight: number;
 		readOnly: boolean;
-		accessibilitySupport: platform.AccessibilitySupport;
+		accessibilitySupport: AccessibilitySupport;
 		multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
 		multiCursorMergeOverlapping: boolean;
 		wordSeparators: string;
@@ -1615,7 +1616,7 @@ export interface IEnvironmentalOptions {
 	readonly emptySelectionClipboard: boolean;
 	readonly pixelRatio: number;
 	readonly tabFocusMode: boolean;
-	readonly accessibilitySupport: platform.AccessibilitySupport;
+	readonly accessibilitySupport: AccessibilitySupport;
 }
 
 function _boolean<T>(value: any, defaultValue: T): boolean | T {
@@ -2084,9 +2085,9 @@ export class EditorOptionsValidator {
  */
 export class InternalEditorOptionsFactory {
 
-	private static _tweakValidatedOptions(opts: IValidatedEditorOptions, accessibilitySupport: platform.AccessibilitySupport): IValidatedEditorOptions {
-		const accessibilityIsOn = (accessibilitySupport === platform.AccessibilitySupport.Enabled);
-		const accessibilityIsOff = (accessibilitySupport === platform.AccessibilitySupport.Disabled);
+	private static _tweakValidatedOptions(opts: IValidatedEditorOptions, accessibilitySupport: AccessibilitySupport): IValidatedEditorOptions {
+		const accessibilityIsOn = (accessibilitySupport === AccessibilitySupport.Enabled);
+		const accessibilityIsOff = (accessibilitySupport === AccessibilitySupport.Disabled);
 		return {
 			inDiffEditor: opts.inDiffEditor,
 			wordSeparators: opts.wordSeparators,
@@ -2195,14 +2196,14 @@ export class InternalEditorOptionsFactory {
 
 	public static createInternalEditorOptions(env: IEnvironmentalOptions, _opts: IValidatedEditorOptions) {
 
-		let accessibilitySupport: platform.AccessibilitySupport;
+		let accessibilitySupport: AccessibilitySupport;
 		if (_opts.accessibilitySupport === 'auto') {
 			// The editor reads the `accessibilitySupport` from the environment
 			accessibilitySupport = env.accessibilitySupport;
 		} else if (_opts.accessibilitySupport === 'on') {
-			accessibilitySupport = platform.AccessibilitySupport.Enabled;
+			accessibilitySupport = AccessibilitySupport.Enabled;
 		} else {
-			accessibilitySupport = platform.AccessibilitySupport.Disabled;
+			accessibilitySupport = AccessibilitySupport.Disabled;
 		}
 
 		// Disable some non critical features to get as best performance as possible
@@ -2248,7 +2249,7 @@ export class InternalEditorOptionsFactory {
 			const wordWrapColumn = opts.wordWrapColumn;
 			const wordWrapMinified = opts.wordWrapMinified;
 
-			if (accessibilitySupport === platform.AccessibilitySupport.Enabled) {
+			if (accessibilitySupport === AccessibilitySupport.Enabled) {
 				// See https://github.com/Microsoft/vscode/issues/27766
 				// Never enable wrapping when a screen reader is attached
 				// because arrow down etc. will not move the cursor in the way

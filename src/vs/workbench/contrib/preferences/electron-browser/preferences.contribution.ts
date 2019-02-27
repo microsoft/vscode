@@ -12,7 +12,8 @@ import { Context as SuggestContext } from 'vs/editor/contrib/suggest/suggest';
 import * as nls from 'vs/nls';
 import { MenuId, MenuRegistry, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { WorkbenchStateContext } from 'vs/workbench/common/contextkeys';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -423,7 +424,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 						dark: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/electron-browser/media/preferences-editor-inverse.svg`))
 					}
 				},
-				when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.workspaceSettingsResource.toString()), new RawContextKey<string>('workbenchState', '').isEqualTo('workspace')),
+				when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.workspaceSettingsResource.toString()), WorkbenchStateContext.isEqualTo('workspace')),
 				group: 'navigation',
 				order: 1
 			});
@@ -478,7 +479,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		title: { value: `${category}: ${OpenFolderSettingsAction.LABEL}`, original: 'Preferences: Open Folder Settings' },
 		category: nls.localize('preferencesCategory', "Prefernces")
 	},
-	when: new RawContextKey<string>('workbenchState', '').isEqualTo('workspace')
+	when: WorkbenchStateContext.isEqualTo('workspace')
 });
 
 CommandsRegistry.registerCommand(OpenWorkspaceSettingsAction.ID, serviceAccessor => {
@@ -490,7 +491,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		title: { value: `${category}: ${OpenWorkspaceSettingsAction.LABEL}`, original: 'Preferences: Open Workspace Settings' },
 		category: nls.localize('preferencesCategory', "Prefernces")
 	},
-	when: new RawContextKey<string>('workbenchState', '').notEqualsTo('empty')
+	when: WorkbenchStateContext.notEqualsTo('empty')
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({

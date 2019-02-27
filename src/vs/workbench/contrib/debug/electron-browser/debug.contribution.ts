@@ -24,7 +24,7 @@ import { CallStackView } from 'vs/workbench/contrib/debug/electron-browser/callS
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import {
 	IDebugService, VIEWLET_ID, REPL_ID, CONTEXT_IN_DEBUG_MODE, INTERNAL_CONSOLE_OPTIONS_SCHEMA,
-	CONTEXT_DEBUG_STATE, VARIABLES_VIEW_ID, CALLSTACK_VIEW_ID, WATCH_VIEW_ID, BREAKPOINTS_VIEW_ID, VIEW_CONTAINER, LOADED_SCRIPTS_VIEW_ID, CONTEXT_LOADED_SCRIPTS_SUPPORTED, CONTEXT_IN_DEBUG_REPL
+	CONTEXT_DEBUG_STATE, VARIABLES_VIEW_ID, CALLSTACK_VIEW_ID, WATCH_VIEW_ID, BREAKPOINTS_VIEW_ID, VIEW_CONTAINER, LOADED_SCRIPTS_VIEW_ID, CONTEXT_LOADED_SCRIPTS_SUPPORTED
 } from 'vs/workbench/contrib/debug/common/debug';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -149,7 +149,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(EnableAllBreakpointsAc
 registry.registerWorkbenchAction(new SyncActionDescriptor(DisableAllBreakpointsAction, DisableAllBreakpointsAction.ID, DisableAllBreakpointsAction.LABEL), 'Debug: Disable All Breakpoints', debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(FocusReplAction, FocusReplAction.ID, FocusReplAction.LABEL), 'Debug: Focus on Debug Console View', debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(SelectAndStartAction, SelectAndStartAction.ID, SelectAndStartAction.LABEL), 'Debug: Select and Start Debugging', debugCategory);
-registry.registerWorkbenchAction(new SyncActionDescriptor(ClearReplAction, ClearReplAction.ID, ClearReplAction.LABEL, { primary: KeyMod.WinCtrl | KeyCode.KEY_L }, CONTEXT_IN_DEBUG_REPL), 'Debug: Clear Console', debugCategory);
+registry.registerWorkbenchAction(new SyncActionDescriptor(ClearReplAction, ClearReplAction.ID, ClearReplAction.LABEL), 'Debug: Clear Console', debugCategory);
 
 // Register Quick Open
 (Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen)).registerQuickOpenHandler(
@@ -209,6 +209,21 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize({ comment: ['This is the description for a setting'], key: 'enableAllHovers' }, "Controls whether the non-debug hovers should be enabled while debugging. When enabled the hover providers will be called to provide a hover. Regular hovers will not be shown even if this setting is enabled."),
 			default: false
+		},
+		'debug.console.fontSize': {
+			type: 'number',
+			description: nls.localize('debug.console.fontSize', "Controls the font size in pixels in the debug console."),
+			default: isMacintosh ? 12 : 14,
+		},
+		'debug.console.fontFamily': {
+			type: 'string',
+			description: nls.localize('debug.console.fontFamily', "Controls the font family in the debug console."),
+			default: 'default'
+		},
+		'debug.console.lineHeight': {
+			type: 'number',
+			description: nls.localize('debug.console.lineHeight', "Controls the line height in pixels in the debug console. Use 0 to compute the line height from the font size."),
+			default: 0
 		},
 		'launch': {
 			type: 'object',

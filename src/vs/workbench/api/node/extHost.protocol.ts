@@ -52,7 +52,7 @@ export interface IEnvironment {
 	appRoot?: URI;
 	appSettingsHome?: URI;
 	extensionDevelopmentLocationURI?: URI;
-	extensionTestsPath?: string;
+	extensionTestsLocationURI?: URI;
 	globalStorageHome: URI;
 }
 
@@ -119,6 +119,16 @@ export interface CommentProviderFeatures {
 }
 
 export interface MainThreadCommentsShape extends IDisposable {
+	$registerCommentControl(handle: number, id: string, label: string): void;
+	$createCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, range: IRange, comments: modes.Comment[], commands: modes.Command[], collapseState: modes.CommentThreadCollapsibleState): modes.CommentThread2 | undefined;
+	$deleteCommentThread(handle: number, commentThreadHandle: number): void;
+	$updateComments(handle: number, commentThreadHandle: number, comments: modes.Comment[]): void;
+	$createCommentingRanges(handle: number, commentingRangesHandle: number, resource: UriComponents, ranges: IRange[], commands: modes.Command): void;
+	$deleteCommentingRanges(handle: number, commentingRangesHandle: number): void;
+	$updateCommentingRanges(handle: number, commentingRangesHandle: number, newRanges: IRange[]): void;
+	$updateCommentingRangesCommands(handle: number, commentingRangesHandle: number, command: modes.Command): void;
+	$setInputValue(handle: number, commentThreadHandle: number, input: string): void;
+	$updateCommentThreadCommands(handle: number, commentThreadHandle: number, acceptInputCommands: modes.Command[]): void;
 	$registerDocumentCommentProvider(handle: number, features: CommentProviderFeatures): void;
 	$unregisterDocumentCommentProvider(handle: number): void;
 	$registerWorkspaceCommentProvider(handle: number, extensionId: ExtensionIdentifier): void;
@@ -534,7 +544,8 @@ export interface IFileChangeDto {
 export interface MainThreadFileSystemShape extends IDisposable {
 	$registerFileSystemProvider(handle: number, scheme: string, capabilities: FileSystemProviderCapabilities): void;
 	$unregisterProvider(handle: number): void;
-	$setUriFormatter(formatter: ResourceLabelFormatter): void;
+	$registerResourceLabelFormatter(handle: number, formatter: ResourceLabelFormatter): void;
+	$unregisterResourceLabelFormatter(handle: number): void;
 	$onFileSystemChange(handle: number, resource: IFileChangeDto[]): void;
 }
 
@@ -1096,6 +1107,8 @@ export interface ExtHostProgressShape {
 export interface ExtHostCommentsShape {
 	$provideDocumentComments(handle: number, document: UriComponents): Promise<modes.CommentInfo>;
 	$createNewCommentThread(handle: number, document: UriComponents, range: IRange, text: string): Promise<modes.CommentThread>;
+	$onActiveCommentWidgetChange(commentControlhandle: number, commentThread: modes.CommentThread2, comment: modes.Comment | undefined, input: string): Promise<number | undefined>;
+	$onActiveCommentingRangeChange(commentControlhandle: number, range: IRange): void;
 	$replyToCommentThread(handle: number, document: UriComponents, range: IRange, commentThread: modes.CommentThread, text: string): Promise<modes.CommentThread>;
 	$editComment(handle: number, document: UriComponents, comment: modes.Comment, text: string): Promise<void>;
 	$deleteComment(handle: number, document: UriComponents, comment: modes.Comment): Promise<void>;

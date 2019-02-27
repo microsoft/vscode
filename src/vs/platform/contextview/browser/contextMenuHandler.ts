@@ -16,7 +16,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
-import { addDisposableListener, EventType } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType, $ } from 'vs/base/browser/dom';
 import { attachMenuStyler } from 'vs/platform/theme/common/styler';
 import { domEvent } from 'vs/base/browser/event';
 
@@ -25,6 +25,7 @@ export class ContextMenuHandler {
 	private elementDisposable: IDisposable;
 	private menuContainerElement: HTMLElement | null;
 	private focusToReturn: HTMLElement;
+	private block: HTMLElement | null;
 
 	constructor(
 		element: HTMLElement,
@@ -73,12 +74,14 @@ export class ContextMenuHandler {
 					container.className += ' ' + className;
 				}
 
+				// Render invisible div to block mouse interaction in the rest of the UI
+				this.block = container.appendChild($('.context-view-block'));
+
 				const menuDisposables: IDisposable[] = [];
 
 				const actionRunner = delegate.actionRunner || new ActionRunner();
 				actionRunner.onDidBeforeRun(this.onActionRun, this, menuDisposables);
 				actionRunner.onDidRun(this.onDidActionRun, this, menuDisposables);
-
 				menu = new Menu(container, actions, {
 					actionItemProvider: delegate.getActionItem,
 					context: delegate.getActionsContext ? delegate.getActionsContext() : null,
@@ -104,6 +107,11 @@ export class ContextMenuHandler {
 			onHide: (didCancel?: boolean) => {
 				if (delegate.onHide) {
 					delegate.onHide(!!didCancel);
+				}
+
+				if (this.block) {
+					this.block.remove();
+					this.block = null;
 				}
 
 				if (this.focusToReturn) {

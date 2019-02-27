@@ -41,7 +41,7 @@ import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { RuntimeExtensionsEditor, ShowRuntimeExtensionsAction, IExtensionHostProfileService, DebugExtensionHostAction, StartExtensionHostProfileAction, StopExtensionHostProfileAction, CONTEXT_PROFILE_SESSION_STATE, SaveExtensionHostProfileAction, CONTEXT_EXTENSION_HOST_PROFILE_RECORDED } from 'vs/workbench/contrib/extensions/electron-browser/runtimeExtensionsEditor';
 import { EditorInput, IEditorInputFactory, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, ActiveEditorContext } from 'vs/workbench/common/editor';
 import { ExtensionHostProfileService } from 'vs/workbench/contrib/extensions/electron-browser/extensionProfileService';
-import { RuntimeExtensionsInput } from 'vs/workbench/services/extensions/electron-browser/runtimeExtensionsInput';
+import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/electron-browser/runtimeExtensionsInput';
 import { URI } from 'vs/base/common/uri';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionActivationProgress } from 'vs/workbench/contrib/extensions/electron-browser/extensionsActivationProgress';

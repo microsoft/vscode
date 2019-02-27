@@ -31,13 +31,12 @@ import { memoize } from 'vs/base/common/decorators';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { IDebugService, REPL_ID, DEBUG_SCHEME, CONTEXT_IN_DEBUG_REPL, IDebugSession, State, IReplElement, IExpressionContainer, IExpression, IReplElementSource } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, REPL_ID, DEBUG_SCHEME, CONTEXT_IN_DEBUG_REPL, IDebugSession, State, IReplElement, IExpressionContainer, IExpression, IReplElementSource, IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
 import { HistoryNavigator } from 'vs/base/common/history';
 import { IHistoryNavigationWidget } from 'vs/base/browser/history';
 import { createAndBindHistoryNavigationWidgetScopedContextKeyService } from 'vs/platform/browser/contextScopedHistoryWidget';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { getSimpleCodeEditorWidgetOptions } from 'vs/workbench/contrib/codeEditor/electron-browser/simpleEditorOptions';
-import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
+import { getSimpleEditorOptions, getSimpleCodeEditorWidgetOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { IDecorationOptions } from 'vs/editor/common/editorCommon';
 import { transparent, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -98,7 +97,6 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	private tree: WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>;
 	private replDelegate: ReplDelegate;
 	private container: HTMLElement;
-	private treeContainer: HTMLElement;
 	private replInput: CodeEditorWidget;
 	private replInputContainer: HTMLElement;
 	private dimension: dom.Dimension;
@@ -107,6 +105,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	private historyNavigationEnablement: IContextKey<boolean>;
 	private scopedInstantiationService: IInstantiationService;
 	private replElementsChangeListener: IDisposable;
+	private styleElement: HTMLStyleElement;
 
 	constructor(
 		@IDebugService private readonly debugService: IDebugService,
@@ -159,6 +158,11 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 				this.refreshReplElements(true);
 			}
 		}));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('debug.console.lineHeight') || e.affectsConfiguration('debug.console.fontSize') || e.affectsConfiguration('debug.console.fontFamily')) {
+				this.onDidFontChange();
+			}
+		}));
 	}
 
 	get isReadonly(): boolean {
@@ -177,6 +181,33 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 	showNextValue(): void {
 		this.navigateHistory(false);
+	}
+
+	private onDidFontChange(): void {
+		if (this.styleElement) {
+			const debugConsole = this.configurationService.getValue<IDebugConfiguration>('debug').console;
+			const fontSize = debugConsole.fontSize;
+			const fontFamily = debugConsole.fontFamily === 'default' ? 'var(--monaco-monospace-font)' : debugConsole.fontFamily;
+			const lineHeight = debugConsole.lineHeight ? `${debugConsole.lineHeight}px` : '1.4em';
+
+			// Set the font size, font family, line height and align the twistie to be centered
+			this.styleElement.innerHTML = `
+				.repl .repl-tree .expression {
+					font-size: ${fontSize}px;
+					font-family: ${fontFamily};
+				}
+
+				.repl .repl-tree .expression {
+					line-height: ${lineHeight};
+				}
+
+				.repl .repl-tree .monaco-tl-twistie {
+					background-position-y: calc(100% - ${fontSize * 1.4 / 2 - 8}px);
+				}
+			`;
+
+			this.tree.rerender();
+		}
 	}
 
 	private navigateHistory(previous: boolean): void {
@@ -267,7 +298,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		this.dimension = dimension;
 		if (this.tree) {
 			const treeHeight = dimension.height - this.replInputHeight;
-			this.treeContainer.style.height = `${treeHeight}px`;
+			this.tree.getHTMLElement().style.height = `${treeHeight}px`;
 			this.tree.layout(treeHeight, dimension.width);
 		}
 		this.replInputContainer.style.height = `${this.replInputHeight}px`;
@@ -331,11 +362,11 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	create(parent: HTMLElement): void {
 		super.create(parent);
 		this.container = dom.append(parent, $('.repl'));
-		this.treeContainer = dom.append(this.container, $('.repl-tree'));
+		const treeContainer = dom.append(this.container, $('.repl-tree'));
 		this.createReplInput(this.container);
 
-		this.replDelegate = new ReplDelegate();
-		this.tree = new WorkbenchAsyncDataTree(this.treeContainer, this.replDelegate, [
+		this.replDelegate = new ReplDelegate(this.configurationService);
+		this.tree = new WorkbenchAsyncDataTree(treeContainer, this.replDelegate, [
 			this.instantiationService.createInstance(VariablesRenderer),
 			this.instantiationService.createInstance(ReplSimpleElementsRenderer),
 			new ReplExpressionsRenderer(),
@@ -347,12 +378,15 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 				mouseSupport: false,
 				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: e => e },
 				horizontalScrolling: false,
+				setRowLineHeight: false,
 				supportDynamicHeights: true
 			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
 
 		this.toDispose.push(this.tree.onContextMenu(e => this.onContextMenu(e)));
 		// Make sure to select the session if debugging is already active
 		this.selectSession();
+		this.styleElement = dom.createStyleSheet(this.container);
+		this.onDidFontChange();
 	}
 
 	private createReplInput(container: HTMLElement): void {
@@ -667,14 +701,16 @@ class ReplRawObjectsRenderer implements ITreeRenderer<RawObjectReplElement, Fuzz
 
 class ReplDelegate implements IListVirtualDelegate<IReplElement> {
 
-	private static readonly LINE_HEIGHT_PX = 18;
+	constructor(private configurationService: IConfigurationService) { }
 
 	getHeight(element: IReplElement): number {
+		// Give approximate heights. Repl has dynamic height so the tree will measure the actual height on its own.
+		const fontSize = this.configurationService.getValue<IDebugConfiguration>('debug').console.fontSize;
 		if (element instanceof Expression && element.hasChildren) {
-			return 2 * ReplDelegate.LINE_HEIGHT_PX;
+			return Math.ceil(2 * 1.4 * fontSize);
 		}
 
-		return ReplDelegate.LINE_HEIGHT_PX;
+		return Math.ceil(1.4 * fontSize);
 	}
 
 	getTemplateId(element: IReplElement): string {

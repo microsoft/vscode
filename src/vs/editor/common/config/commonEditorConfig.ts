@@ -17,6 +17,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import EDITOR_DEFAULTS = editorOptions.EDITOR_DEFAULTS;
 import EDITOR_FONT_DEFAULTS = editorOptions.EDITOR_FONT_DEFAULTS;
 import EDITOR_MODEL_DEFAULTS = editorOptions.EDITOR_MODEL_DEFAULTS;
+import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 
 /**
  * Control what pressing Tab does.
@@ -57,7 +58,7 @@ export interface IEnvConfiguration {
 	emptySelectionClipboard: boolean;
 	pixelRatio: number;
 	zoomLevel: number;
-	accessibilitySupport: platform.AccessibilitySupport;
+	accessibilitySupport: AccessibilitySupport;
 }
 
 const hasOwnProperty = Object.hasOwnProperty;
@@ -288,20 +289,20 @@ const editorConfiguration: IConfigurationNode = {
 			'minimum': 1,
 			'markdownDescription': nls.localize('tabSize', "The number of spaces a tab is equal to. This setting is overridden based on the file contents when `#editor.detectIndentation#` is on.")
 		},
-		'editor.indentSize': {
-			'anyOf': [
-				{
-					'type': 'string',
-					'enum': ['tabSize']
-				},
-				{
-					'type': 'number',
-					'minimum': 1
-				}
-			],
-			'default': 'tabSize',
-			'markdownDescription': nls.localize('indentSize', "The number of spaces used for indentation or 'tabSize' to use the value from `#editor.tabSize#`. This setting is overridden based on the file contents when `#editor.detectIndentation#` is on.")
-		},
+		// 'editor.indentSize': {
+		// 	'anyOf': [
+		// 		{
+		// 			'type': 'string',
+		// 			'enum': ['tabSize']
+		// 		},
+		// 		{
+		// 			'type': 'number',
+		// 			'minimum': 1
+		// 		}
+		// 	],
+		// 	'default': 'tabSize',
+		// 	'markdownDescription': nls.localize('indentSize', "The number of spaces used for indentation or 'tabSize' to use the value from `#editor.tabSize#`. This setting is overridden based on the file contents when `#editor.detectIndentation#` is on.")
+		// },
 		'editor.insertSpaces': {
 			'type': 'boolean',
 			'default': EDITOR_MODEL_DEFAULTS.insertSpaces,

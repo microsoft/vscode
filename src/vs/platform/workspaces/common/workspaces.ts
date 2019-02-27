@@ -70,6 +70,7 @@ export type IStoredWorkspaceFolder = IRawFileWorkspaceFolder | IRawUriWorkspaceF
 
 export interface IResolvedWorkspace extends IWorkspaceIdentifier {
 	folders: IWorkspaceFolder[];
+	remoteAuthority?: string;
 }
 
 export interface IStoredWorkspace {
@@ -84,6 +85,11 @@ export interface IWorkspaceSavedEvent {
 export interface IWorkspaceFolderCreationData {
 	uri: URI;
 	name?: string;
+}
+
+export interface IUntitledWorkspaceInfo {
+	workspace: IWorkspaceIdentifier;
+	remoteAuthority?: string;
 }
 
 export interface IWorkspacesMainService extends IWorkspacesService {
@@ -101,7 +107,7 @@ export interface IWorkspacesMainService extends IWorkspacesService {
 
 	deleteUntitledWorkspaceSync(workspace: IWorkspaceIdentifier): void;
 
-	getUntitledWorkspacesSync(): IWorkspaceIdentifier[];
+	getUntitledWorkspacesSync(): IUntitledWorkspaceInfo[];
 
 	getWorkspaceIdentifier(workspacePath: URI): IWorkspaceIdentifier;
 }
@@ -109,7 +115,7 @@ export interface IWorkspacesMainService extends IWorkspacesService {
 export interface IWorkspacesService {
 	_serviceBrand: any;
 
-	createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[]): Promise<IWorkspaceIdentifier>;
+	createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[], remoteAuthority?: string): Promise<IWorkspaceIdentifier>;
 }
 
 export function isSingleFolderWorkspaceIdentifier(obj: any): obj is ISingleFolderWorkspaceIdentifier {

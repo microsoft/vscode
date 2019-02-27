@@ -17,8 +17,8 @@ import { OverviewRulerLane } from 'vs/editor/common/model';
 import * as languageConfiguration from 'vs/editor/common/modes/languageConfiguration';
 import { score } from 'vs/editor/common/modes/languageSelector';
 import * as files from 'vs/platform/files/common/files';
-import pkg from 'vs/platform/node/package';
-import product from 'vs/platform/node/product';
+import pkg from 'vs/platform/product/node/package';
+import product from 'vs/platform/product/node/product';
 import { ExtHostContext, IInitData, IMainContext, MainContext } from 'vs/workbench/api/node/extHost.protocol';
 import { ExtHostApiCommands } from 'vs/workbench/api/node/extHostApiCommands';
 import { ExtHostClipboard } from 'vs/workbench/api/node/extHostClipboard';
@@ -116,12 +116,12 @@ export function createApiFactory(
 	const extHostTerminalService = rpcProtocol.set(ExtHostContext.ExtHostTerminalService, new ExtHostTerminalService(rpcProtocol, extHostConfiguration, extHostLogService, extHostCommands));
 	const extHostDebugService = rpcProtocol.set(ExtHostContext.ExtHostDebugService, new ExtHostDebugService(rpcProtocol, extHostWorkspace, extensionService, extHostDocumentsAndEditors, extHostConfiguration, extHostTerminalService, extHostCommands));
 	const extHostSCM = rpcProtocol.set(ExtHostContext.ExtHostSCM, new ExtHostSCM(rpcProtocol, extHostCommands, extHostLogService));
+	const extHostComment = rpcProtocol.set(ExtHostContext.ExtHostComments, new ExtHostComments(rpcProtocol, extHostCommands, extHostDocuments));
 	const extHostSearch = rpcProtocol.set(ExtHostContext.ExtHostSearch, new ExtHostSearch(rpcProtocol, schemeTransformer, extHostLogService));
 	const extHostTask = rpcProtocol.set(ExtHostContext.ExtHostTask, new ExtHostTask(rpcProtocol, extHostWorkspace, extHostDocumentsAndEditors, extHostConfiguration, extHostTerminalService));
 	const extHostWindow = rpcProtocol.set(ExtHostContext.ExtHostWindow, new ExtHostWindow(rpcProtocol));
 	rpcProtocol.set(ExtHostContext.ExtHostExtensionService, extensionService);
 	const extHostProgress = rpcProtocol.set(ExtHostContext.ExtHostProgress, new ExtHostProgress(rpcProtocol.getProxy(MainContext.MainThreadProgress)));
-	const exthostCommentProviders = rpcProtocol.set(ExtHostContext.ExtHostComments, new ExtHostComments(rpcProtocol, extHostCommands.converter, extHostDocuments));
 	const extHostOutputService = rpcProtocol.set(ExtHostContext.ExtHostOutputService, new ExtHostOutputService(initData.logsLocation, rpcProtocol));
 	rpcProtocol.set(ExtHostContext.ExtHostStorage, extHostStorage);
 
@@ -640,13 +640,16 @@ export function createApiFactory(
 				return extHostSearch.registerFileIndexProvider(scheme, provider);
 			}),
 			registerDocumentCommentProvider: proposedApiFunction(extension, (provider: vscode.DocumentCommentProvider) => {
-				return exthostCommentProviders.registerDocumentCommentProvider(extension.identifier, provider);
+				return extHostComment.registerDocumentCommentProvider(extension.identifier, provider);
 			}),
 			registerWorkspaceCommentProvider: proposedApiFunction(extension, (provider: vscode.WorkspaceCommentProvider) => {
-				return exthostCommentProviders.registerWorkspaceCommentProvider(extension.identifier, provider);
+				return extHostComment.registerWorkspaceCommentProvider(extension.identifier, provider);
 			}),
 			registerRemoteAuthorityResolver: proposedApiFunction(extension, (authorityPrefix: string, resolver: vscode.RemoteAuthorityResolver) => {
 				return extensionService.registerRemoteAuthorityResolver(authorityPrefix, resolver);
+			}),
+			registerResourceLabelFormatter: proposedApiFunction(extension, (formatter: vscode.ResourceLabelFormatter) => {
+				return extHostFileSystem.registerResourceLabelFormatter(formatter);
 			}),
 			onDidRenameFile: proposedApiFunction(extension, (listener, thisArg?, disposables?) => {
 				return extHostFileSystemEvent.onDidRenameFile(listener, thisArg, disposables);
@@ -663,6 +666,12 @@ export function createApiFactory(
 			},
 			createSourceControl(id: string, label: string, rootUri?: vscode.Uri) {
 				return extHostSCM.createSourceControl(extension, id, label, rootUri);
+			}
+		};
+
+		const comment: typeof vscode.comment = {
+			createCommentControl(id: string, label: string) {
+				return extHostComment.createCommentControl(extension, id, label);
 			}
 		};
 
@@ -748,6 +757,7 @@ export function createApiFactory(
 			extensions,
 			languages,
 			scm,
+			comment,
 			tasks,
 			window,
 			workspace,

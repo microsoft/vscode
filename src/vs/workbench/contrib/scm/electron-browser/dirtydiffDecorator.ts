@@ -265,8 +265,8 @@ class DirtyDiffWidget extends PeekViewWidget {
 	protected _fillHead(container: HTMLElement): void {
 		super._fillHead(container);
 
-		const previous = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowPreviousChangeAction(), 'show-previous-change octicon octicon-chevron-up');
-		const next = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowNextChangeAction(), 'show-next-change octicon octicon-chevron-down');
+		const previous = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowPreviousChangeAction(), 'show-previous-change chevron-up');
+		const next = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowNextChangeAction(), 'show-next-change chevron-down');
 
 		this._disposables.push(previous);
 		this._disposables.push(next);

@@ -264,7 +264,11 @@ export class OutlineModel extends TreeElement {
 		});
 	}
 
-	static _create(textModel: ITextModel, token: CancellationToken): Promise<OutlineModel> {
+	private static _create(textModel: ITextModel, token: CancellationToken): Promise<OutlineModel> {
+
+		let chainedToken = new CancellationTokenSource();
+		let listener = DocumentSymbolProviderRegistry.onDidChange(() => chainedToken.cancel());
+		token.onCancellationRequested(() => chainedToken.cancel());
 
 		let result = new OutlineModel(textModel);
 		let promises = DocumentSymbolProviderRegistry.ordered(textModel).map((provider, index) => {
@@ -272,7 +276,7 @@ export class OutlineModel extends TreeElement {
 			let id = TreeElement.findId(`provider_${index}`, result);
 			let group = new OutlineGroup(id, result, provider, index);
 
-			return Promise.resolve(provider.provideDocumentSymbols(result.textModel, token)).then(result => {
+			return Promise.resolve(provider.provideDocumentSymbols(result.textModel, chainedToken.token)).then(result => {
 				for (const info of result || []) {
 					OutlineModel._makeOutlineElement(info, group);
 				}
@@ -289,7 +293,9 @@ export class OutlineModel extends TreeElement {
 			});
 		});
 
-		return Promise.all(promises).then(() => result._compact());
+		return Promise.all(promises)
+			.then(() => result._compact())
+			.finally(() => listener.dispose());
 	}
 
 	private static _makeOutlineElement(info: DocumentSymbol, container: OutlineGroup | OutlineElement): void {

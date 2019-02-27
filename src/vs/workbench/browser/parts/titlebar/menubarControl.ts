@@ -13,7 +13,7 @@ import { IAction, Action } from 'vs/base/common/actions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import * as DOM from 'vs/base/browser/dom';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { isMacintosh, isLinux, AccessibilitySupport } from 'vs/base/common/platform';
+import { isMacintosh, isLinux } from 'vs/base/common/platform';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -33,7 +33,7 @@ import { SubmenuAction } from 'vs/base/browser/ui/menu/menu';
 import { attachMenuStyler } from 'vs/platform/theme/common/styler';
 import { assign } from 'vs/base/common/objects';
 import { mnemonicMenuLabel, unmnemonicLabel } from 'vs/base/common/labels';
-import { getAccessibilitySupport } from 'vs/base/browser/browser';
+import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 
 export class MenubarControl extends Disposable {
 
@@ -76,6 +76,7 @@ export class MenubarControl extends Disposable {
 	private menuUpdater: RunOnceScheduler;
 	private container: HTMLElement;
 	private recentlyOpened: IRecentlyOpened;
+	private alwaysOnMnemonics: boolean;
 
 	private readonly _onVisibilityChange: Emitter<boolean>;
 	private readonly _onFocusStateChange: Emitter<boolean>;
@@ -96,7 +97,8 @@ export class MenubarControl extends Disposable {
 		@IStorageService private readonly storageService: IStorageService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
 
 		super();
@@ -217,6 +219,11 @@ export class MenubarControl extends Disposable {
 		const hasBeenNotified = this.storageService.getBoolean('menubar/linuxTitlebarRevertNotified', StorageScope.GLOBAL, false);
 		const titleBarConfiguration = this.configurationService.inspect('window.titleBarStyle');
 		const customShown = getTitleBarStyle(this.configurationService, this.environmentService) === 'custom';
+
+		if (!hasBeenNotified) {
+			this.storageService.store('menubar/linuxTitlebarRevertNotified', true, StorageScope.GLOBAL);
+		}
+
 		if (isNewUser || hasBeenNotified || (titleBarConfiguration && titleBarConfiguration.user) || customShown) {
 			return;
 		}
@@ -228,16 +235,8 @@ export class MenubarControl extends Disposable {
 				run: () => {
 					return this.preferencesService.openGlobalSettings(undefined, { query: 'window.titleBarStyle' });
 				}
-			},
-			{
-				label: nls.localize('neverShowAgain', "Don't Show Again"),
-				run: () => {
-					this.storageService.store('menubar/linuxTitlebarRevertNotified', true, StorageScope.GLOBAL);
-				}
 			}
 		]);
-
-		this.storageService.store('menubar/linuxTitlebarRevertNotified', true, StorageScope.GLOBAL);
 	}
 
 	private notifyUserOfCustomMenubarAccessibility(): void {
@@ -247,7 +246,7 @@ export class MenubarControl extends Disposable {
 
 		const hasBeenNotified = this.storageService.getBoolean('menubar/accessibleMenubarNotified', StorageScope.GLOBAL, false);
 		const usingCustomMenubar = getTitleBarStyle(this.configurationService, this.environmentService) === 'custom';
-		const detected = getAccessibilitySupport() === AccessibilitySupport.Enabled;
+		const detected = this.accessibilityService.getAccessibilitySupport() === AccessibilitySupport.Enabled;
 		const config = this.configurationService.getValue('editor.accessibilitySupport');
 
 		if (hasBeenNotified || usingCustomMenubar || !(config === 'on' || (config === 'auto' && detected))) {
@@ -260,12 +259,6 @@ export class MenubarControl extends Disposable {
 				label: nls.localize('goToSetting', "Open Settings"),
 				run: () => {
 					return this.preferencesService.openGlobalSettings(undefined, { query: 'window.titleBarStyle' });
-				}
-			},
-			{
-				label: nls.localize('neverShowAgain', "Don't Show Again"),
-				run: () => {
-					this.storageService.store('menubar/accessibleMenubarNotified', true, StorageScope.GLOBAL);
 				}
 			}
 		]);
@@ -500,12 +493,17 @@ export class MenubarControl extends Disposable {
 				}
 			));
 
+			this.accessibilityService.alwaysUnderlineAccessKeys().then(val => {
+				this.alwaysOnMnemonics = val;
+				this.menubar.update({ enableMnemonics: this.currentEnableMenuBarMnemonics, visibility: this.currentMenubarVisibility, getKeybinding: (action) => this.keybindingService.lookupKeybinding(action.id), alwaysOnMnemonics: this.alwaysOnMnemonics });
+			});
+
 			this._register(this.menubar.onFocusStateChange(e => this._onFocusStateChange.fire(e)));
 			this._register(this.menubar.onVisibilityChange(e => this._onVisibilityChange.fire(e)));
 
 			this._register(attachMenuStyler(this.menubar, this.themeService));
 		} else {
-			this.menubar.update({ enableMnemonics: this.currentEnableMenuBarMnemonics, visibility: this.currentMenubarVisibility, getKeybinding: (action) => this.keybindingService.lookupKeybinding(action.id) });
+			this.menubar.update({ enableMnemonics: this.currentEnableMenuBarMnemonics, visibility: this.currentMenubarVisibility, getKeybinding: (action) => this.keybindingService.lookupKeybinding(action.id), alwaysOnMnemonics: this.alwaysOnMnemonics });
 		}
 
 		// Update the menu actions
@@ -673,7 +671,7 @@ export class MenubarControl extends Disposable {
 		}
 
 		if (this.menubar) {
-			this.menubar.update({ enableMnemonics: this.currentEnableMenuBarMnemonics, visibility: this.currentMenubarVisibility, getKeybinding: (action) => this.keybindingService.lookupKeybinding(action.id) });
+			this.menubar.update({ enableMnemonics: this.currentEnableMenuBarMnemonics, visibility: this.currentMenubarVisibility, getKeybinding: (action) => this.keybindingService.lookupKeybinding(action.id), alwaysOnMnemonics: this.alwaysOnMnemonics });
 		}
 	}
 

@@ -54,8 +54,11 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { PanelRegistry, Extensions as PanelExtensions, PanelDescriptor } from 'vs/workbench/browser/panel';
 import { ViewletDescriptor, ViewletRegistry, Extensions as ViewletExtensions } from 'vs/workbench/browser/viewlet';
 import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
+import { ISearchHistoryService, SearchHistoryService } from 'vs/workbench/contrib/search/common/searchHistoryService';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService, true);
+registerSingleton(ISearchHistoryService, SearchHistoryService, true);
+
 replaceContributions();
 searchWidgetContributions();
 

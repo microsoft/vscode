@@ -36,6 +36,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMarker, IMarkerData } from 'vs/platform/markers/common/markers';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 type Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
 
@@ -81,6 +82,7 @@ export function create(domElement: HTMLElement, options?: IEditorConstructionOpt
 			services.get(IStandaloneThemeService),
 			services.get(INotificationService),
 			services.get(IConfigurationService),
+			services.get(IAccessibilityService)
 		);
 	});
 }

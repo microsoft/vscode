@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import product from 'vs/platform/node/product';
-import pkg from 'vs/platform/node/package';
+import product from 'vs/platform/product/node/product';
+import pkg from 'vs/platform/product/node/package';
 import * as path from 'vs/base/common/path';
 import * as semver from 'semver';
 

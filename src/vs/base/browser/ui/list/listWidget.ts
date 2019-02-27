@@ -976,20 +976,20 @@ class PipelineRenderer<T> implements IListRenderer<T, any> {
 		return this.renderers.map(r => r.renderTemplate(container));
 	}
 
-	renderElement(element: T, index: number, templateData: any[]): void {
+	renderElement(element: T, index: number, templateData: any[], dynamicHeightProbing?: boolean): void {
 		let i = 0;
 
 		for (const renderer of this.renderers) {
-			renderer.renderElement(element, index, templateData[i++]);
+			renderer.renderElement(element, index, templateData[i++], dynamicHeightProbing);
 		}
 	}
 
-	disposeElement(element: T, index: number, templateData: any[]): void {
+	disposeElement(element: T, index: number, templateData: any[], dynamicHeightProbing?: boolean): void {
 		let i = 0;
 
 		for (const renderer of this.renderers) {
 			if (renderer.disposeElement) {
-				renderer.disposeElement(element, index, templateData[i]);
+				renderer.disposeElement(element, index, templateData[i], dynamicHeightProbing);
 			}
 
 			i += 1;
@@ -1276,6 +1276,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		this.view.updateWidth(index);
 	}
 
+	rerender(): void {
+		this.view.rerender();
+	}
+
 	element(index: number): T {
 		return this.view.element(index);
 	}
@@ -1306,6 +1310,14 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	get renderHeight(): number {
 		return this.view.renderHeight;
+	}
+
+	get firstVisibleIndex(): number {
+		return this.view.firstVisibleIndex;
+	}
+
+	get lastVisibleIndex(): number {
+		return this.view.lastVisibleIndex;
 	}
 
 	domFocus(): void {

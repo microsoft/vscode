@@ -8,7 +8,6 @@ import * as nls from 'vs/nls';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
 import { IEmptyContentData } from 'vs/editor/browser/controller/mouseTarget';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
@@ -20,13 +19,16 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { HoverStartMode } from 'vs/editor/contrib/hover/hoverOperation';
 import { ModesContentHoverWidget } from 'vs/editor/contrib/hover/modesContentHover';
 import { ModesGlyphHoverWidget } from 'vs/editor/contrib/hover/modesGlyphHover';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { editorHoverBackground, editorHoverBorder, editorHoverHighlight, textCodeBlockBackground, textLinkForeground, editorHoverFooterBackground } from 'vs/platform/theme/common/colorRegistry';
+import { editorHoverBackground, editorHoverBorder, editorHoverHighlight, textCodeBlockBackground, textLinkForeground, editorHoverStatusBarBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 
 export class ModesHoverController implements IEditorContribution {
 
@@ -66,6 +68,9 @@ export class ModesHoverController implements IEditorContribution {
 		@IModeService private readonly _modeService: IModeService,
 		@IMarkerDecorationsService private readonly _markerDecorationsService: IMarkerDecorationsService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
+		@ICommandService private readonly _commandService: ICommandService,
 		@IThemeService private readonly _themeService: IThemeService
 	) {
 		this._toUnhook = [];
@@ -208,9 +213,8 @@ export class ModesHoverController implements IEditorContribution {
 	}
 
 	private _createHoverWidget() {
-		const renderer = new MarkdownRenderer(this._editor, this._modeService, this._openerService);
-		this._contentWidget = new ModesContentHoverWidget(this._editor, renderer, this._markerDecorationsService, this._themeService, this._keybindingService, this._openerService);
-		this._glyphWidget = new ModesGlyphHoverWidget(this._editor, renderer);
+		this._contentWidget = new ModesContentHoverWidget(this._editor, this._markerDecorationsService, this._themeService, this._keybindingService, this._contextMenuService, this._bulkEditService, this._commandService, this._modeService, this._openerService);
+		this._glyphWidget = new ModesGlyphHoverWidget(this._editor, this._modeService, this._openerService);
 	}
 
 	public showContentHover(range: Range, mode: HoverStartMode, focus: boolean): void {
@@ -266,7 +270,7 @@ class ShowHoverAction extends EditorAction {
 		}
 		const position = editor.getPosition();
 		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
-		const focus = editor.getConfiguration().accessibilitySupport === platform.AccessibilitySupport.Enabled;
+		const focus = editor.getConfiguration().accessibilitySupport === AccessibilitySupport.Enabled;
 		controller.showContentHover(range, HoverStartMode.Immediate, focus);
 	}
 }
@@ -291,13 +295,13 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-editor .monaco-editor-hover hr { border-top: 1px solid ${hoverBorder.transparent(0.5)}; }`);
 		collector.addRule(`.monaco-editor .monaco-editor-hover hr { border-bottom: 0px solid ${hoverBorder.transparent(0.5)}; }`);
 	}
-	const actionsBackground = theme.getColor(editorHoverFooterBackground);
-	if (actionsBackground) {
-		collector.addRule(`.monaco-editor .monaco-editor-hover .hover-row .actions { background-color: ${actionsBackground}; }`);
-	}
 	const link = theme.getColor(textLinkForeground);
 	if (link) {
 		collector.addRule(`.monaco-editor .monaco-editor-hover a { color: ${link}; }`);
+	}
+	const actionsBackground = theme.getColor(editorHoverStatusBarBackground);
+	if (actionsBackground) {
+		collector.addRule(`.monaco-editor .monaco-editor-hover .hover-row .actions { background-color: ${actionsBackground}; }`);
 	}
 	const codeBackground = theme.getColor(textCodeBlockBackground);
 	if (codeBackground) {

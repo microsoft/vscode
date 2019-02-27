@@ -30,6 +30,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { contrastBorder, editorFindMatch, editorFindMatchBorder, editorFindMatchHighlight, editorFindMatchHighlightBorder, editorFindRangeHighlight, editorFindRangeHighlightBorder, editorWidgetBackground, editorWidgetBorder, editorWidgetResizeBorder, errorForeground, inputActiveOptionBorder, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ContextScopedFindInput, ContextScopedHistoryInputBox } from 'vs/platform/browser/contextScopedHistoryWidget';
+import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 
 export interface IFindController {
 	replace(): void;
@@ -1003,7 +1004,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 	private updateAccessibilitySupport(): void {
 		const value = this._codeEditor.getConfiguration().accessibilitySupport;
-		this._findInput.setFocusInputOnOptionClick(value !== platform.AccessibilitySupport.Enabled);
+		this._findInput.setFocusInputOnOptionClick(value !== AccessibilitySupport.Enabled);
 	}
 }
 

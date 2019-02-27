@@ -42,6 +42,7 @@ import { IProgressRunner, IProgressService } from 'vs/platform/progress/common/p
 import { ITelemetryInfo, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkbenchState, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 
 export class SimpleModel implements ITextEditorModel {
 
@@ -216,6 +217,31 @@ export class SimpleNotificationService implements INotificationService {
 	}
 }
 
+export class BrowserAccessibilityService implements IAccessibilityService {
+	_serviceBrand: any;
+
+	private _accessibilitySupport = AccessibilitySupport.Unknown;
+	private readonly _onDidChangeAccessibilitySupport = new Emitter<void>();
+	readonly onDidChangeAccessibilitySupport: Event<void> = this._onDidChangeAccessibilitySupport.event;
+
+	alwaysUnderlineAccessKeys(): Promise<boolean> {
+		return Promise.resolve(false);
+	}
+
+	setAccessibilitySupport(accessibilitySupport: AccessibilitySupport): void {
+		if (this._accessibilitySupport === accessibilitySupport) {
+			return;
+		}
+
+		this._accessibilitySupport = accessibilitySupport;
+		this._onDidChangeAccessibilitySupport.fire();
+	}
+
+	getAccessibilitySupport(): AccessibilitySupport {
+		return this._accessibilitySupport;
+	}
+}
+
 export class StandaloneCommandService implements ICommandService {
 	_serviceBrand: any;
 
@@ -375,6 +401,10 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 
 	public resolveUserBinding(userBinding: string): ResolvedKeybinding[] {
 		return [];
+	}
+
+	public _dumpDebugInfo(): string {
+		return '';
 	}
 }
 
@@ -627,6 +657,10 @@ export class SimpleUriLabelService implements ILabelService {
 
 	public getWorkspaceLabel(workspace: IWorkspaceIdentifier | URI | IWorkspace, options?: { verbose: boolean; }): string {
 		return '';
+	}
+
+	public getSeparator(scheme: string, authority?: string): '/' | '\\' {
+		return '/';
 	}
 
 	public registerFormatter(formatter: ResourceLabelFormatter): IDisposable {

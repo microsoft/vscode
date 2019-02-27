@@ -121,27 +121,35 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		this._breakpointEventsActive = false;
 
 		this._extensionService.getExtensionRegistry().then((extensionRegistry: ExtensionDescriptionRegistry) => {
-			// register all debug extensions
-			const debugTypes: string[] = [];
-			for (const ed of extensionRegistry.getAllExtensionDescriptions()) {
-				if (ed.contributes) {
-					const debuggers = <IDebuggerContribution[]>ed.contributes['debuggers'];
-					if (debuggers && debuggers.length > 0) {
-						for (const dbg of debuggers) {
-							if (isDebuggerMainContribution(dbg)) {
-								debugTypes.push(dbg.type);
-								if (dbg.adapterExecutableCommand) {
-									this._aexCommands.set(dbg.type, dbg.adapterExecutableCommand);
-								}
+			extensionRegistry.onDidChange(_ => {
+				this.registerAllDebugTypes(extensionRegistry);
+			});
+			this.registerAllDebugTypes(extensionRegistry);
+		});
+	}
+
+	private registerAllDebugTypes(extensionRegistry: ExtensionDescriptionRegistry) {
+
+		const debugTypes: string[] = [];
+		this._aexCommands.clear();
+
+		for (const ed of extensionRegistry.getAllExtensionDescriptions()) {
+			if (ed.contributes) {
+				const debuggers = <IDebuggerContribution[]>ed.contributes['debuggers'];
+				if (debuggers && debuggers.length > 0) {
+					for (const dbg of debuggers) {
+						if (isDebuggerMainContribution(dbg)) {
+							debugTypes.push(dbg.type);
+							if (dbg.adapterExecutableCommand) {
+								this._aexCommands.set(dbg.type, dbg.adapterExecutableCommand);
 							}
 						}
 					}
 				}
 			}
-			if (debugTypes.length > 0) {
-				this._debugServiceProxy.$registerDebugTypes(debugTypes);
-			}
-		});
+		}
+
+		this._debugServiceProxy.$registerDebugTypes(debugTypes);
 	}
 
 	// extension debug API
@@ -593,7 +601,11 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 	public async $acceptDebugSessionStarted(sessionDto: IDebugSessionDto): Promise<void> {
 		const session = await this.getSession(sessionDto);
-		this._onDidStartDebugSession.fire(session);
+		if (session) {
+			this._onDidStartDebugSession.fire(session);
+		} else {
+			console.error('undefined session received in acceptDebugSessionStarted');	// should not happen (but see #69128)
+		}
 	}
 
 	public async $acceptDebugSessionTerminated(sessionDto: IDebugSessionDto): Promise<void> {
@@ -794,7 +806,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 	private async getFolder(_folderUri: UriComponents | undefined): Promise<vscode.WorkspaceFolder | undefined> {
 		if (_folderUri) {
 			const folderURI = URI.revive(_folderUri);
-			return await this._workspaceService.resolveWorkspaceFolder2(folderURI);
+			return await this._workspaceService.resolveWorkspaceFolder(folderURI);
 		}
 		return undefined;
 	}

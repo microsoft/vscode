@@ -4,23 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
+import * as gracefulFs from 'graceful-fs';
 import { createHash } from 'crypto';
-import * as nls from 'vs/nls';
-import * as perf from 'vs/base/common/performance';
+import { importEntries, mark } from 'vs/base/common/performance';
 import { Workbench } from 'vs/workbench/electron-browser/workbench';
 import { ElectronWindow } from 'vs/workbench/electron-browser/window';
-import * as browser from 'vs/base/browser/browser';
-import { domContentLoaded } from 'vs/base/browser/dom';
+import { setZoomLevel, setZoomFactor, setFullscreen } from 'vs/base/browser/browser';
+import { domContentLoaded, addDisposableListener, EventType, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import * as comparer from 'vs/base/common/comparers';
-import * as platform from 'vs/base/common/platform';
+import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { URI as uri } from 'vs/base/common/uri';
-import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
+import { WorkspaceService, DefaultConfigurationExportHelper } from 'vs/workbench/services/configuration/node/configurationService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { stat } from 'vs/base/node/pfs';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import * as gracefulFs from 'graceful-fs';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import { IWindowConfiguration, IWindowsService } from 'vs/platform/windows/common/windows';
 import { WindowsChannelClient } from 'vs/platform/windows/node/windowsIpc';
@@ -45,17 +43,17 @@ import { IMenubarService } from 'vs/platform/menubar/common/menubar';
 import { Schemas } from 'vs/base/common/network';
 import { sanitizeFilePath } from 'vs/base/node/extfs';
 import { basename } from 'vs/base/common/path';
-import { IdleValue } from 'vs/base/common/async';
-import { setGlobalLeakWarningThreshold } from 'vs/base/common/event';
 import { GlobalStorageDatabaseChannelClient } from 'vs/platform/storage/node/storageIpc';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
+import { InstantiationService } from 'vs/platform/instantiation/node/instantiationService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { registerWindowDriver } from 'vs/platform/driver/electron-browser/driver';
 
-export class CodeWindow extends Disposable {
+class CodeRendererMain extends Disposable {
+
+	private workbench: Workbench;
 
 	constructor(private readonly configuration: IWindowConfiguration) {
 		super();
@@ -72,37 +70,15 @@ export class CodeWindow extends Disposable {
 		this.reviveUris();
 
 		// Setup perf
-		perf.importEntries(this.configuration.perfEntries);
-
-		// Configure emitter leak warning threshold
-		setGlobalLeakWarningThreshold(175);
+		importEntries(this.configuration.perfEntries);
 
 		// Browser config
-		browser.setZoomFactor(webFrame.getZoomFactor()); // Ensure others can listen to zoom level changes
-		browser.setZoomLevel(webFrame.getZoomLevel(), true /* isTrusted */); // Can be trusted because we are not setting it ourselves (https://github.com/Microsoft/vscode/issues/26151)
-		browser.setFullscreen(!!this.configuration.fullscreen);
-		browser.setAccessibilitySupport(this.configuration.accessibilitySupport ? platform.AccessibilitySupport.Enabled : platform.AccessibilitySupport.Disabled);
+		setZoomFactor(webFrame.getZoomFactor()); // Ensure others can listen to zoom level changes
+		setZoomLevel(webFrame.getZoomLevel(), true /* isTrusted */); // Can be trusted because we are not setting it ourselves (https://github.com/Microsoft/vscode/issues/26151)
+		setFullscreen(!!this.configuration.fullscreen);
 
 		// Keyboard support
 		KeyboardMapperFactory.INSTANCE._onKeyboardLayoutChanged();
-
-		// Setup Intl for comparers
-		comparer.setFileNameComparer(new IdleValue(() => {
-			const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
-			return {
-				collator: collator,
-				collatorIsNumeric: collator.resolvedOptions().numeric
-			};
-		}));
-
-		// Inform user about loading issues from the loader
-		(<any>self).require.config({
-			onError: err => {
-				if (err.errorCode === 'load') {
-					onUnexpectedError(new Error(nls.localize('loaderErrorNative', "Failed to load a required file. Please restart the application to try again. Details: {0}", JSON.stringify(err))));
-				}
-			}
-		});
 	}
 
 	private reviveUris() {
@@ -131,34 +107,60 @@ export class CodeWindow extends Disposable {
 		return this.initServices(electronMainClient).then(services => {
 
 			return domContentLoaded().then(() => {
-				perf.mark('willStartWorkbench');
+				mark('willStartWorkbench');
 
 				const instantiationService = new InstantiationService(services, true);
 
 				// Create Workbench
-				const workbench: Workbench = instantiationService.createInstance(
+				this.workbench = instantiationService.createInstance(
 					Workbench,
 					document.body,
 					this.configuration,
 					services
 				);
 
+				// Layout
+				this._register(addDisposableListener(window, EventType.RESIZE, e => this.onWindowResize(e, true)));
+
 				// Workbench Lifecycle
-				this._register(workbench.onShutdown(() => this.dispose()));
-				this._register(workbench.onWillShutdown(event => event.join((services.get(IStorageService) as StorageService).close())));
+				this._register(this.workbench.onShutdown(() => this.dispose()));
+				this._register(this.workbench.onWillShutdown(event => event.join((services.get(IStorageService) as StorageService).close())));
 
 				// Startup
-				workbench.startup();
+				this.workbench.startup();
 
 				// Window
 				this._register(instantiationService.createInstance(ElectronWindow));
 
 				// Driver
-				if (this.configuration.driverHandle) {
+				if (this.configuration.driver) {
 					registerWindowDriver(electronMainClient, this.configuration.windowId, instantiationService).then(disposable => this._register(disposable));
+				}
+
+				// Config Exporter
+				if (this.configuration['export-default-configuration']) {
+					instantiationService.createInstance(DefaultConfigurationExportHelper);
 				}
 			});
 		});
+	}
+
+	private onWindowResize(e: any, retry: boolean): void {
+		if (e.target === window) {
+			if (window.document && window.document.body && window.document.body.clientWidth === 0) {
+				// TODO@Ben this is an electron issue on macOS when simple fullscreen is enabled
+				// where for some reason the window clientWidth is reported as 0 when switching
+				// between simple fullscreen and normal screen. In that case we schedule the layout
+				// call at the next animation frame once, in the hope that the dimensions are
+				// proper then.
+				if (retry) {
+					scheduleAtNextAnimationFrame(() => this.onWindowResize(e, false));
+				}
+				return;
+			}
+
+			this.workbench.layout();
+		}
 	}
 
 	private initServices(electronMainClient: ElectronIPCClient): Promise<ServiceCollection> {
@@ -264,11 +266,11 @@ export class CodeWindow extends Disposable {
 
 		function computeLocalDiskFolderId(folder: uri, stat: fs.Stats): string {
 			let ctime: number | undefined;
-			if (platform.isLinux) {
+			if (isLinux) {
 				ctime = stat.ino; // Linux: birthtime is ctime, so we cannot use it! We use the ino instead!
-			} else if (platform.isMacintosh) {
+			} else if (isMacintosh) {
 				ctime = stat.birthtime.getTime(); // macOS: birthtime is fine to use as is
-			} else if (platform.isWindows) {
+			} else if (isWindows) {
 				if (typeof stat.birthtimeMs === 'number') {
 					ctime = Math.floor(stat.birthtimeMs); // Windows: fix precision issue in node.js 8.x to get 7.x results (see https://github.com/nodejs/node/issues/19897)
 				} else {
@@ -326,7 +328,7 @@ export class CodeWindow extends Disposable {
 }
 
 export function main(configuration: IWindowConfiguration): Promise<void> {
-	const window = new CodeWindow(configuration);
+	const renderer = new CodeRendererMain(configuration);
 
-	return window.open();
+	return renderer.open();
 }

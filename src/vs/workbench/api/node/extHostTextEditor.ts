@@ -316,18 +316,18 @@ export class ExtHostTextEditorOptions implements vscode.TextEditorOptions {
 			}
 		}
 
-		if (typeof newOptions.indentSize !== 'undefined') {
-			let indentSize = this._validateIndentSize(newOptions.indentSize);
-			if (indentSize === 'tabSize') {
-				hasUpdate = true;
-				bulkConfigurationUpdate.indentSize = indentSize;
-			} else if (typeof indentSize === 'number' && this._indentSize !== indentSize) {
-				// reflect the new indentSize value immediately
-				this._indentSize = indentSize;
-				hasUpdate = true;
-				bulkConfigurationUpdate.indentSize = indentSize;
-			}
-		}
+		// if (typeof newOptions.indentSize !== 'undefined') {
+		// 	let indentSize = this._validateIndentSize(newOptions.indentSize);
+		// 	if (indentSize === 'tabSize') {
+		// 		hasUpdate = true;
+		// 		bulkConfigurationUpdate.indentSize = indentSize;
+		// 	} else if (typeof indentSize === 'number' && this._indentSize !== indentSize) {
+		// 		// reflect the new indentSize value immediately
+		// 		this._indentSize = indentSize;
+		// 		hasUpdate = true;
+		// 		bulkConfigurationUpdate.indentSize = indentSize;
+		// 	}
+		// }
 
 		if (typeof newOptions.insertSpaces !== 'undefined') {
 			let insertSpaces = this._validateInsertSpaces(newOptions.insertSpaces);

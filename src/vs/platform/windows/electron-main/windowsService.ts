@@ -8,7 +8,7 @@ import * as os from 'os';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
-import product from 'vs/platform/node/product';
+import product from 'vs/platform/product/node/product';
 import { IWindowsService, OpenContext, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IDevToolsOptions, INewWindowOptions, IOpenSettings, IURIToOpen } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { shell, crashReporter, app, Menu, clipboard } from 'electron';

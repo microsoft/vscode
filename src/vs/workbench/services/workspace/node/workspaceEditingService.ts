@@ -25,6 +25,7 @@ import { isLinux } from 'vs/base/common/platform';
 import { isEqual, basename } from 'vs/base/common/resources';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export class WorkspaceEditingService implements IWorkspaceEditingService {
 
@@ -42,7 +43,8 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		@ICommandService private readonly commandService: ICommandService,
 		@IFileService private readonly fileSystemService: IFileService,
 		@IWindowsService private readonly windowsService: IWindowsService,
-		@IWorkspacesService private readonly workspaceService: IWorkspacesService
+		@IWorkspacesService private readonly workspaceService: IWorkspacesService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
 	}
 
@@ -238,12 +240,20 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	}
 
 	enterWorkspace(path: URI): Promise<void> {
+		if (!!this.environmentService.extensionTestsLocationURI) {
+			return Promise.reject(new Error('Entering a new workspace is not possible in tests.'));
+		}
 
+		// Restart extension host if first root folder changed (impact on deprecated workspace.rootPath API)
 		// Stop the extension host first to give extensions most time to shutdown
 		this.extensionService.stopExtensionHost();
 		let extensionHostStarted: boolean = false;
 
 		const startExtensionHost = () => {
+			if (this.windowService.getConfiguration().remoteAuthority) {
+				this.windowService.reloadWindow(); // TODO aeschli: workaround until restarting works
+			}
+
 			this.extensionService.startExtensionHost();
 			extensionHostStarted = true;
 		};

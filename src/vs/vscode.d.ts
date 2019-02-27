@@ -641,21 +641,12 @@ declare module 'vscode' {
 		/**
 		 * The size in spaces a tab takes. This is used for two purposes:
 		 *  - the rendering width of a tab character;
-		 *  - the number of spaces to insert when [insertSpaces](#TextEditorOptions.insertSpaces) is true
-		 *    and `indentSize` is set to `"tab"`.
+		 *  - the number of spaces to insert when [insertSpaces](#TextEditorOptions.insertSpaces) is true.
 		 *
 		 * When getting a text editor's options, this property will always be a number (resolved).
 		 * When setting a text editor's options, this property is optional and it can be a number or `"auto"`.
 		 */
 		tabSize?: number | string;
-
-		/**
-		 * The number of spaces to insert when [insertSpaces](#TextEditorOptions.insertSpaces) is true.
-		 *
-		 * When getting a text editor's options, this property will always be a number (resolved).
-		 * When setting a text editor's options, this property is optional and it can be a number or `"tabSize"`.
-		 */
-		indentSize?: number | string;
 
 		/**
 		 * When pressing Tab insert [n](#TextEditorOptions.tabSize) spaces.
@@ -2681,7 +2672,7 @@ declare module 'vscode' {
 		 * [location](#SymbolInformation.location)-objects, without a `range` defined. The editor will then call
 		 * `resolveWorkspaceSymbol` for selected symbols only, e.g. when opening a workspace symbol.
 		 *
-		 * @param query A non-empty query string.
+		 * @param query A query string, can be the empty string in which case all symbols should be returned.
 		 * @param token A cancellation token.
 		 * @return An array of document highlights or a thenable that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined`, `null`, or an empty array.

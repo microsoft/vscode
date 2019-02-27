@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as extpath from 'vs/base/common/extpath';
+import { join, normalize } from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
 import { IDebugAdapterExecutable, IConfigurationManager, IConfig, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
 import { Debugger } from 'vs/workbench/contrib/debug/node/debugger';
@@ -144,7 +144,7 @@ suite('Debug - Debugger', () => {
 
 		const ae = ExecutableDebugAdapter.platformAdapterExecutable([extensionDescriptor0], 'mock');
 
-		assert.equal(ae!.command, extpath.joinWithSlashes(extensionFolderPath, debuggerContribution.program));
+		assert.equal(ae!.command, join(extensionFolderPath, debuggerContribution.program));
 		assert.deepEqual(ae!.args, debuggerContribution.args);
 	});
 
@@ -166,7 +166,7 @@ suite('Debug - Debugger', () => {
 		const ae = ExecutableDebugAdapter.platformAdapterExecutable([extensionDescriptor1, extensionDescriptor2], 'mock')!;
 		assert.equal(ae.command, platform.isLinux ? 'linuxRuntime' : (platform.isMacintosh ? 'osxRuntime' : 'winRuntime'));
 		const xprogram = platform.isLinux ? 'linuxProgram' : (platform.isMacintosh ? 'osxProgram' : 'winProgram');
-		assert.deepEqual(ae.args, ['rarg', '/e2/b/c/' + xprogram, 'parg']);
+		assert.deepEqual(ae.args, ['rarg', normalize('/e2/b/c/') + xprogram, 'parg']);
 	});
 
 	test('initial config file content', () => {

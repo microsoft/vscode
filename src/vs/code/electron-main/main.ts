@@ -7,7 +7,7 @@ import 'vs/code/code.main';
 import { app, dialog } from 'electron';
 import { assign } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
-import product from 'vs/platform/node/product';
+import product from 'vs/platform/product/node/product';
 import { parseMainProcessArgv } from 'vs/platform/environment/node/argvHelper';
 import { mkdirp } from 'vs/base/node/pfs';
 import { validatePaths } from 'vs/code/node/paths';
@@ -114,7 +114,7 @@ function setupIPC(accessor: ServicesAccessor): Promise<Server> {
 				client => {
 
 					// Tests from CLI require to be the only instance currently
-					if (environmentService.extensionTestsPath && !environmentService.debugExtensionHost.break) {
+					if (environmentService.extensionTestsLocationURI && !environmentService.debugExtensionHost.break) {
 						const msg = 'Running extension tests from the command line is currently only supported if no other instance of Code is running.';
 						logService.error(msg);
 						client.dispose();

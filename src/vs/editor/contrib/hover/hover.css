@@ -27,6 +27,10 @@
 	padding: 4px 8px;
 }
 
+.monaco-editor-hover .markdown-hover > .hover-contents:not(.code-hover-contents) {
+	max-width: 500px;
+}
+
 .monaco-editor-hover p,
 .monaco-editor-hover ul {
 	margin: 8px 0;
@@ -72,12 +76,20 @@
 	word-break: break-all;
 }
 
-.monaco-editor-hover .hover-row .actions {
-	display: flex;
-	padding: 2px 0px;
+.monaco-editor-hover .hover-row.status-bar {
+	font-size: 12px;
+	line-height: 22px;
 }
 
-.monaco-editor-hover .hover-row .actions .action {
+.monaco-editor-hover .hover-row.status-bar .actions {
+	display: flex;
+}
+
+.monaco-editor-hover .hover-row.status-bar .actions .action-container {
+	margin: 0px 8px;
 	cursor: pointer;
-	padding-left: 8px;
+}
+
+.monaco-editor-hover .hover-row.status-bar .actions .action-container .action .icon {
+	padding-right: 4px;
 }
