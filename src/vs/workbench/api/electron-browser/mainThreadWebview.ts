@@ -62,7 +62,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		_editorService.onDidActiveEditorChange(this.onActiveEditorChanged, this, this._toDispose);
 		_editorService.onDidVisibleEditorsChange(this.onVisibleEditorsChanged, this, this._toDispose);
 
-		this._toDispose.push(_webviewService.registerReviver(MainThreadWebviews.viewType, this));
+		this._toDispose.push(_webviewService.registerReviver(this));
 
 		lifecycleService.onBeforeShutdown(e => {
 			e.veto(this._onBeforeShutdown());
@@ -242,7 +242,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 	}
 
 	public canRevive(webview: WebviewEditorInput): boolean {
-		if (webview.isDisposed() || !webview.state) {
+		if (webview.isDisposed() || !webview.state || webview.viewType !== MainThreadWebviews.viewType) {
 			return false;
 		}
 

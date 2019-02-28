@@ -49,7 +49,6 @@ export interface IWebviewEditorService {
 	): void;
 
 	registerReviver(
-		viewType: string,
 		reviver: WebviewReviver
 	): IDisposable;
 
@@ -90,7 +89,7 @@ export function areWebviewInputOptionsEqual(a: WebviewInputOptions, b: WebviewIn
 export class WebviewEditorService implements IWebviewEditorService {
 	_serviceBrand: any;
 
-	private readonly _revivers = new Map<string, WebviewReviver[]>();
+	private readonly _revivers = new Set<WebviewReviver>();
 	private _awaitingRevival: { input: WebviewEditorInput, resolve: (x: any) => void }[] = [];
 
 	constructor(
@@ -135,7 +134,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 	): WebviewEditorInput {
 		const webviewInput = this._instantiationService.createInstance(WebviewEditorInput, viewType, id, title, options, state, {}, extensionLocation, {
 			canRevive: (_webview) => {
-				return true;
+				return _webview === webviewInput;
 			},
 			reviveWebview: (webview: WebviewEditorInput): Promise<void> => {
 				return this.tryRevive(webview).then(didRevive => {
@@ -156,47 +155,38 @@ export class WebviewEditorService implements IWebviewEditorService {
 	}
 
 	registerReviver(
-		viewType: string,
 		reviver: WebviewReviver
 	): IDisposable {
-		const currentRevivers = this._revivers.get(viewType);
-		if (currentRevivers) {
-			currentRevivers.push(reviver);
-		} else {
-			this._revivers.set(viewType, [reviver]);
-		}
-
+		this._revivers.add(reviver);
 
 		// Resolve any pending views
-		const toRevive = this._awaitingRevival.filter(x => x.input.viewType === viewType);
-		this._awaitingRevival = this._awaitingRevival.filter(x => x.input.viewType !== viewType);
+		const toRevive = this._awaitingRevival.filter(x => reviver.canRevive(x.input));
+		this._awaitingRevival = this._awaitingRevival.filter(x => !reviver.canRevive(x.input));
 
 		for (const input of toRevive) {
 			reviver.reviveWebview(input.input).then(() => input.resolve(undefined));
 		}
 
 		return toDisposable(() => {
-			this._revivers.delete(viewType);
+			this._revivers.delete(reviver);
 		});
 	}
 
 	canRevive(
 		webview: WebviewEditorInput
 	): boolean {
-		const viewType = webview.viewType;
-		const revivers = this._revivers.get(viewType);
-		return !!revivers && revivers.some(reviver => reviver.canRevive(webview));
+		for (const reviver of this._revivers) {
+			if (reviver.canRevive(webview)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private async tryRevive(
 		webview: WebviewEditorInput
 	): Promise<boolean> {
-		const revivers = this._revivers.get(webview.viewType);
-		if (!revivers) {
-			return false;
-		}
-
-		for (const reviver of revivers) {
+		for (const reviver of this._revivers) {
 			if (reviver.canRevive(webview)) {
 				await reviver.reviveWebview(webview);
 				return true;
