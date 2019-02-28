@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ILogService } from 'vs/platform/log/common/log';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { registerApplicationRestart, NoRestart } from 'windows-register-restart';
 import { isWindows } from 'vs/base/common/platform';
 
 const WM_ENDSESSION = 0x0016;
@@ -25,6 +25,7 @@ export class OsRestartService extends Disposable implements IOsRestartService {
 	private _isRegistered = false;
 
 	constructor(
+		@ILogService private readonly _logService: ILogService,
 		@IWindowsMainService private readonly _windowsMainService: IWindowsMainService,
 		@ILifecycleService private readonly _lifecycleMainService: ILifecycleService
 	) {
@@ -40,7 +41,18 @@ export class OsRestartService extends Disposable implements IOsRestartService {
 			return;
 		}
 
-		registerApplicationRestart('', NoRestart.OnCrash | NoRestart.OnHang | NoRestart.OnPatch);
+		try {
+			const registerApplicationRestart = (require.__$__nodeRequire('windows-register-restart') as any).registerApplicationRestart;
+			const NoRestart = (require.__$__nodeRequire('windows-register-restart') as any).NoRestart;
+
+			registerApplicationRestart('', NoRestart.OnCrash | NoRestart.OnHang | NoRestart.OnPatch);
+		} catch (e) {
+			this._logService.error(`Unable to register for application restart, ${e.message}`);
+
+			// don't attempt any window hooks.
+			return;
+		}
+
 		this._isRegistered = true;
 
 		if (this._windowsMainService.getWindowCount() > 0) {
@@ -76,7 +88,12 @@ export class OsRestartService extends Disposable implements IOsRestartService {
 
 	private removeWindowHook(): void {
 		if (this.hookedWindow) {
-			this.hookedWindow.win.unhookWindowMessage(WM_ENDSESSION);
+
+			// on application quit, win can already be destroyed.
+			if (this.hookedWindow.win) {
+				this.hookedWindow.win.unhookWindowMessage(WM_ENDSESSION);
+			}
+
 			this.hookedWindow = undefined;
 		}
 	}
