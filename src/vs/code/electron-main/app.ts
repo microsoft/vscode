@@ -76,6 +76,7 @@ import { IBackupMainService } from 'vs/platform/backup/common/backup';
 import { HistoryMainService } from 'vs/platform/history/electron-main/historyMainService';
 import { URLService } from 'vs/platform/url/common/urlService';
 import { WorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
+import { OsRestartService, IOsRestartService } from 'vs/platform/osRestart/electron-main/osRestartService';
 import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { nodeWebSocketFactory } from 'vs/platform/remote/node/nodeWebSocketFactory';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -363,6 +364,13 @@ export class CodeApplication extends Disposable {
 		// Open Windows
 		const windows = appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, electronIpcServer, sharedProcessClient));
 
+		appInstantiationService.invokeFunction(accessor => {
+			let osRestartService = accessor.get(IOsRestartService);
+			if (osRestartService) {
+				osRestartService.ready();
+			}
+		});
+
 		// Post Open Windows Tasks
 		this.afterWindowOpen();
 
@@ -423,6 +431,7 @@ export class CodeApplication extends Disposable {
 		services.set(IHistoryMainService, new SyncDescriptor(HistoryMainService));
 		services.set(IURLService, new SyncDescriptor(URLService));
 		services.set(IWorkspacesMainService, new SyncDescriptor(WorkspacesMainService));
+		services.set(IOsRestartService, new SyncDescriptor(OsRestartService));
 
 		// Telemetry
 		if (!this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
