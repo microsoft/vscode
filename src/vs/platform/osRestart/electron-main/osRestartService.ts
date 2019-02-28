@@ -54,7 +54,7 @@ export class OsRestartService extends Disposable implements IOsRestartService {
 		};
 
 		const windowClosed = (id: number) => {
-			if (this.hookedWindow.id === id) {
+			if (this.hookedWindow && this.hookedWindow.id === id) {
 				this.removeWindowHook();
 			}
 
