@@ -6,7 +6,7 @@
 import { globals } from 'vs/base/common/platform';
 import { IWorker, IWorkerCallback, IWorkerFactory, logOnceWebWorkerWarning } from 'vs/base/common/worker/simpleWorker';
 
-function getWorker(workerId: string, label: string): Worker {
+function getWorker(workerId: string, label: string): Worker | Promise<Worker> {
 	// Option for hosts to overwrite the worker script (used in the standalone editor)
 	if (globals.MonacoEnvironment) {
 		if (typeof globals.MonacoEnvironment.getWorker === 'function') {
@@ -24,6 +24,13 @@ function getWorker(workerId: string, label: string): Worker {
 	throw new Error(`You must define a function MonacoEnvironment.getWorkerUrl or MonacoEnvironment.getWorker`);
 }
 
+function isPromiseLike<T>(obj: any): obj is PromiseLike<T> {
+	if (typeof obj.then === 'function') {
+		return true;
+	}
+	return false;
+}
+
 /**
  * A worker that uses HTML5 web workers so that is has
  * its own global scope and its own thread.
@@ -31,18 +38,26 @@ function getWorker(workerId: string, label: string): Worker {
 class WebWorker implements IWorker {
 
 	private id: number;
-	private worker: Worker | null;
+	private worker: Promise<Worker> | null;
 
 	constructor(moduleId: string, id: number, label: string, onMessageCallback: IWorkerCallback, onErrorCallback: (err: any) => void) {
 		this.id = id;
-		this.worker = getWorker('workerMain.js', label);
-		this.postMessage(moduleId);
-		this.worker.onmessage = function (ev: any) {
-			onMessageCallback(ev.data);
-		};
-		if (typeof this.worker.addEventListener === 'function') {
-			this.worker.addEventListener('error', onErrorCallback);
+		const workerOrPromise = getWorker('workerMain.js', label);
+		if (isPromiseLike(workerOrPromise)) {
+			this.worker = workerOrPromise;
+		} else {
+			this.worker = Promise.resolve(workerOrPromise);
 		}
+		this.postMessage(moduleId);
+		this.worker.then((w) => {
+			w.onmessage = function (ev: any) {
+				onMessageCallback(ev.data);
+			};
+			(<any>w).onmessageerror = onErrorCallback;
+			if (typeof w.addEventListener === 'function') {
+				w.addEventListener('error', onErrorCallback);
+			}
+		});
 	}
 
 	public getId(): number {
@@ -51,13 +66,13 @@ class WebWorker implements IWorker {
 
 	public postMessage(msg: string): void {
 		if (this.worker) {
-			this.worker.postMessage(msg);
+			this.worker.then(w => w.postMessage(msg));
 		}
 	}
 
 	public dispose(): void {
 		if (this.worker) {
-			this.worker.terminate();
+			this.worker.then(w => w.terminate());
 		}
 		this.worker = null;
 	}
