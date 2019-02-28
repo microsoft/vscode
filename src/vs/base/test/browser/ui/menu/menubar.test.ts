@@ -52,10 +52,10 @@ function validateMenuBarItem(menubar: MenuBar, menubarContainer: HTMLElement, la
 	const buttonElement = getButtonElementByAriaLabel(menubarContainer, readableLabel);
 	assert(buttonElement !== null, `Button element not found for ${readableLabel} button.`);
 
-	const titleDiv = getTitleDivFromButtonDiv(buttonElement);
+	const titleDiv = getTitleDivFromButtonDiv(buttonElement!);
 	assert(titleDiv !== null, `Title div not found for ${readableLabel} button.`);
 
-	const mnem = getMnemonicFromTitleDiv(titleDiv);
+	const mnem = getMnemonicFromTitleDiv(titleDiv!);
 	assert.equal(mnem, mnemonic, 'Mnemonic not correct');
 }
 
