@@ -19,7 +19,8 @@ export class WorkspacesChannel implements IServerChannel {
 	call(_, command: string, arg?: any): Promise<any> {
 		switch (command) {
 			case 'createUntitledWorkspace': {
-				const rawFolders: IWorkspaceFolderCreationData[] = arg;
+				const rawFolders: IWorkspaceFolderCreationData[] = arg[0];
+				const remoteAuthority: string = arg[1];
 				let folders: IWorkspaceFolderCreationData[] | undefined = undefined;
 				if (Array.isArray(rawFolders)) {
 					folders = rawFolders.map(rawFolder => {
@@ -30,7 +31,7 @@ export class WorkspacesChannel implements IServerChannel {
 					});
 				}
 
-				return this.service.createUntitledWorkspace(folders);
+				return this.service.createUntitledWorkspace(folders, remoteAuthority);
 			}
 		}
 
@@ -44,7 +45,7 @@ export class WorkspacesChannelClient implements IWorkspacesService {
 
 	constructor(private channel: IChannel) { }
 
-	createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[]): Promise<IWorkspaceIdentifier> {
-		return this.channel.call('createUntitledWorkspace', folders).then(reviveWorkspaceIdentifier);
+	createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[], remoteAuthority?: string): Promise<IWorkspaceIdentifier> {
+		return this.channel.call('createUntitledWorkspace', [folders, remoteAuthority]).then(reviveWorkspaceIdentifier);
 	}
 }

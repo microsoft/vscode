@@ -5,12 +5,15 @@
 
 import { createHash } from 'crypto';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class HashService implements IHashService {
 
 	_serviceBrand: any;
 
-	public createSHA1(content: string): string {
+	createSHA1(content: string): string {
 		return createHash('sha1').update(content).digest('hex');
 	}
 }
+
+registerSingleton(IHashService, HashService, true);

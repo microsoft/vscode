@@ -165,7 +165,7 @@ export class LaunchService implements ILaunchService {
 
 		// Special case extension development
 		if (!!args.extensionDevelopmentPath) {
-			this.windowsMainService.openExtensionDevelopmentHostWindow({ context, cli: args, userEnv });
+			this.windowsMainService.openExtensionDevelopmentHostWindow(args.extensionDevelopmentPath, { context, cli: args, userEnv });
 		}
 
 		// Start without file/folder arguments

@@ -45,13 +45,14 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { ResolvedAuthority } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IRemoteConsoleLog } from 'vs/base/node/console';
+import * as codeInset from 'vs/workbench/contrib/codeinset/common/codeInset';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
 	appRoot?: URI;
 	appSettingsHome?: URI;
 	extensionDevelopmentLocationURI?: URI;
-	extensionTestsPath?: string;
+	extensionTestsLocationURI?: URI;
 	globalStorageHome: URI;
 }
 
@@ -114,10 +115,20 @@ export interface CommentProviderFeatures {
 	startDraftLabel?: string;
 	deleteDraftLabel?: string;
 	finishDraftLabel?: string;
-	reactionGroup?: vscode.CommentReaction[];
+	reactionGroup?: modes.CommentReaction[];
 }
 
 export interface MainThreadCommentsShape extends IDisposable {
+	$registerCommentControl(handle: number, id: string, label: string): void;
+	$createCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, range: IRange, comments: modes.Comment[], commands: modes.Command[], collapseState: modes.CommentThreadCollapsibleState): modes.CommentThread2 | undefined;
+	$deleteCommentThread(handle: number, commentThreadHandle: number): void;
+	$updateComments(handle: number, commentThreadHandle: number, comments: modes.Comment[]): void;
+	$createCommentingRanges(handle: number, commentingRangesHandle: number, resource: UriComponents, ranges: IRange[], commands: modes.Command): void;
+	$deleteCommentingRanges(handle: number, commentingRangesHandle: number): void;
+	$updateCommentingRanges(handle: number, commentingRangesHandle: number, newRanges: IRange[]): void;
+	$updateCommentingRangesCommands(handle: number, commentingRangesHandle: number, command: modes.Command): void;
+	$setInputValue(handle: number, commentThreadHandle: number, input: string): void;
+	$updateCommentThreadCommands(handle: number, commentThreadHandle: number, acceptInputCommands: modes.Command[]): void;
 	$registerDocumentCommentProvider(handle: number, features: CommentProviderFeatures): void;
 	$unregisterDocumentCommentProvider(handle: number): void;
 	$registerWorkspaceCommentProvider(handle: number, extensionId: ExtensionIdentifier): void;
@@ -126,8 +137,8 @@ export interface MainThreadCommentsShape extends IDisposable {
 }
 
 export interface MainThreadConfigurationShape extends IDisposable {
-	$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any, resource: UriComponents): Promise<void>;
-	$removeConfigurationOption(target: ConfigurationTarget, key: string, resource: UriComponents): Promise<void>;
+	$updateConfigurationOption(target: ConfigurationTarget | null, key: string, value: any, resource: UriComponents | undefined): Promise<void>;
+	$removeConfigurationOption(target: ConfigurationTarget | null, key: string, resource: UriComponents | undefined): Promise<void>;
 }
 
 export interface MainThreadDiagnosticsShape extends IDisposable {
@@ -175,6 +186,7 @@ export interface MainThreadDocumentsShape extends IDisposable {
 
 export interface ITextEditorConfigurationUpdate {
 	tabSize?: number | 'auto';
+	indentSize?: number | 'tabSize';
 	insertSpaces?: boolean | 'auto';
 	cursorStyle?: TextEditorCursorStyle;
 	lineNumbers?: TextEditorLineNumbersStyle;
@@ -182,6 +194,7 @@ export interface ITextEditorConfigurationUpdate {
 
 export interface IResolvedTextEditorConfiguration {
 	tabSize: number;
+	indentSize: number;
 	insertSpaces: boolean;
 	cursorStyle: TextEditorCursorStyle;
 	lineNumbers: TextEditorLineNumbersStyle;
@@ -299,6 +312,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$unregister(handle: number): void;
 	$registerDocumentSymbolProvider(handle: number, selector: ISerializedDocumentFilter[], label: string): void;
 	$registerCodeLensSupport(handle: number, selector: ISerializedDocumentFilter[], eventHandle: number | undefined): void;
+	$registerCodeInsetSupport(handle: number, selector: ISerializedDocumentFilter[], eventHandle: number): void;
 	$emitCodeLensEvent(eventHandle: number, event?: any): void;
 	$registerDefinitionSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$registerDeclarationSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
@@ -308,9 +322,9 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerDocumentHighlightProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$registerReferenceSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$registerQuickFixSupport(handle: number, selector: ISerializedDocumentFilter[], supportedKinds?: string[]): void;
-	$registerDocumentFormattingSupport(handle: number, selector: ISerializedDocumentFilter[], label: string): void;
-	$registerRangeFormattingSupport(handle: number, selector: ISerializedDocumentFilter[], label: string): void;
-	$registerOnTypeFormattingSupport(handle: number, selector: ISerializedDocumentFilter[], autoFormatTriggerCharacters: string[]): void;
+	$registerDocumentFormattingSupport(handle: number, selector: ISerializedDocumentFilter[], extensionId: ExtensionIdentifier): void;
+	$registerRangeFormattingSupport(handle: number, selector: ISerializedDocumentFilter[], extensionId: ExtensionIdentifier): void;
+	$registerOnTypeFormattingSupport(handle: number, selector: ISerializedDocumentFilter[], autoFormatTriggerCharacters: string[], extensionId: ExtensionIdentifier): void;
 	$registerNavigateTypeSupport(handle: number): void;
 	$registerRenameSupport(handle: number, selector: ISerializedDocumentFilter[], supportsResolveInitialValues: boolean): void;
 	$registerSuggestSupport(handle: number, selector: ISerializedDocumentFilter[], triggerCharacters: string[], supportsResolveDetails: boolean): void;
@@ -467,6 +481,8 @@ export interface MainThreadTelemetryShape extends IDisposable {
 
 export type WebviewPanelHandle = string;
 
+export type WebviewInsetHandle = number;
+
 export interface WebviewPanelShowOptions {
 	readonly viewColumn?: EditorViewColumn;
 	readonly preserveFocus?: boolean;
@@ -474,13 +490,15 @@ export interface WebviewPanelShowOptions {
 
 export interface MainThreadWebviewsShape extends IDisposable {
 	$createWebviewPanel(handle: WebviewPanelHandle, viewType: string, title: string, showOptions: WebviewPanelShowOptions, options: vscode.WebviewPanelOptions & vscode.WebviewOptions, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): void;
+	$createWebviewCodeInset(handle: WebviewInsetHandle, symbolId: string, options: vscode.WebviewOptions, extensionLocation: UriComponents): void;
 	$disposeWebview(handle: WebviewPanelHandle): void;
 	$reveal(handle: WebviewPanelHandle, showOptions: WebviewPanelShowOptions): void;
 	$setTitle(handle: WebviewPanelHandle, value: string): void;
 	$setIconPath(handle: WebviewPanelHandle, value: { light: UriComponents, dark: UriComponents } | undefined): void;
-	$setHtml(handle: WebviewPanelHandle, value: string): void;
-	$setOptions(handle: WebviewPanelHandle, options: vscode.WebviewOptions): void;
-	$postMessage(handle: WebviewPanelHandle, value: any): Promise<boolean>;
+
+	$setHtml(handle: WebviewPanelHandle | WebviewInsetHandle, value: string): void;
+	$setOptions(handle: WebviewPanelHandle | WebviewInsetHandle, options: vscode.WebviewOptions): void;
+	$postMessage(handle: WebviewPanelHandle | WebviewInsetHandle, value: any): Promise<boolean>;
 
 	$registerSerializer(viewType: string): void;
 	$unregisterSerializer(viewType: string): void;
@@ -525,7 +543,8 @@ export interface IFileChangeDto {
 export interface MainThreadFileSystemShape extends IDisposable {
 	$registerFileSystemProvider(handle: number, scheme: string, capabilities: FileSystemProviderCapabilities): void;
 	$unregisterProvider(handle: number): void;
-	$setUriFormatter(formatter: ResourceLabelFormatter): void;
+	$registerResourceLabelFormatter(handle: number, formatter: ResourceLabelFormatter): void;
+	$unregisterResourceLabelFormatter(handle: number): void;
 	$onFileSystemChange(handle: number, resource: IFileChangeDto[]): void;
 }
 
@@ -550,9 +569,9 @@ export interface MainThreadTaskShape extends IDisposable {
 
 export interface MainThreadExtensionServiceShape extends IDisposable {
 	$localShowMessage(severity: Severity, msg: string): void;
-	$activateExtension(extensionId: ExtensionIdentifier, activationEvent: string): Promise<void>;
+	$activateExtension(extensionId: ExtensionIdentifier, activationEvent: string | null): Promise<void>;
 	$onWillActivateExtension(extensionId: ExtensionIdentifier): void;
-	$onDidActivateExtension(extensionId: ExtensionIdentifier, startup: boolean, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationEvent: string): void;
+	$onDidActivateExtension(extensionId: ExtensionIdentifier, startup: boolean, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationEvent: string | null): void;
 	$onExtensionActivationFailed(extensionId: ExtensionIdentifier): void;
 	$onExtensionRuntimeError(extensionId: ExtensionIdentifier, error: SerializedError): void;
 	$addMessage(extensionId: ExtensionIdentifier, severity: Severity, message: string): void;
@@ -683,7 +702,7 @@ export interface ITextEditorAddData {
 	options: IResolvedTextEditorConfiguration;
 	selections: ISelection[];
 	visibleRanges: IRange[];
-	editorPosition: EditorViewColumn;
+	editorPosition: EditorViewColumn | undefined;
 }
 export interface ITextEditorPositionData {
 	[id: string]: EditorViewColumn;
@@ -708,7 +727,7 @@ export interface IDocumentsAndEditorsDelta {
 	addedDocuments?: IModelAddedData[];
 	removedEditors?: string[];
 	addedEditors?: ITextEditorAddData[];
-	newActiveEditor?: string;
+	newActiveEditor?: string | null;
 }
 
 export interface ExtHostDocumentsAndEditorsShape {
@@ -859,7 +878,7 @@ export interface WorkspaceEditDto {
 	rejectReason?: string;
 }
 
-export function reviveWorkspaceEditDto(data: WorkspaceEditDto): modes.WorkspaceEdit {
+export function reviveWorkspaceEditDto(data: WorkspaceEditDto | undefined): modes.WorkspaceEdit {
 	if (data && data.edits) {
 		for (const edit of data.edits) {
 			if (typeof (<ResourceTextEditDto>edit).resource === 'object') {
@@ -884,7 +903,10 @@ export interface CodeActionDto {
 	isPreferred?: boolean;
 }
 
-export type LinkDto = ObjectIdentifier & modes.ILink;
+export interface LinkDto extends ObjectIdentifier {
+	range: IRange;
+	url?: string | UriComponents;
+}
 
 export interface CodeLensDto extends ObjectIdentifier {
 	range: IRange;
@@ -892,10 +914,14 @@ export interface CodeLensDto extends ObjectIdentifier {
 	command?: CommandDto;
 }
 
+export type CodeInsetDto = ObjectIdentifier & codeInset.ICodeInsetSymbol;
+
 export interface ExtHostLanguageFeaturesShape {
 	$provideDocumentSymbols(handle: number, resource: UriComponents, token: CancellationToken): Promise<modes.DocumentSymbol[] | undefined>;
 	$provideCodeLenses(handle: number, resource: UriComponents, token: CancellationToken): Promise<CodeLensDto[]>;
-	$resolveCodeLens(handle: number, resource: UriComponents, symbol: CodeLensDto, token: CancellationToken): Promise<CodeLensDto>;
+	$resolveCodeLens(handle: number, resource: UriComponents, symbol: CodeLensDto, token: CancellationToken): Promise<CodeLensDto | undefined>;
+	$provideCodeInsets(handle: number, resource: UriComponents, token: CancellationToken): Promise<CodeInsetDto[]>;
+	$resolveCodeInset(handle: number, resource: UriComponents, symbol: CodeInsetDto, token: CancellationToken): Promise<CodeInsetDto>;
 	$provideDefinition(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<DefinitionLinkDto[]>;
 	$provideDeclaration(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<DefinitionLinkDto[]>;
 	$provideImplementation(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<DefinitionLinkDto[]>;
@@ -919,14 +945,14 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideDocumentLinks(handle: number, resource: UriComponents, token: CancellationToken): Promise<LinkDto[] | undefined>;
 	$resolveDocumentLink(handle: number, link: LinkDto, token: CancellationToken): Promise<LinkDto | undefined>;
 	$provideDocumentColors(handle: number, resource: UriComponents, token: CancellationToken): Promise<IRawColorInfo[]>;
-	$provideColorPresentations(handle: number, resource: UriComponents, colorInfo: IRawColorInfo, token: CancellationToken): Promise<modes.IColorPresentation[]>;
-	$provideFoldingRanges(handle: number, resource: UriComponents, context: modes.FoldingContext, token: CancellationToken): Promise<modes.FoldingRange[]>;
+	$provideColorPresentations(handle: number, resource: UriComponents, colorInfo: IRawColorInfo, token: CancellationToken): Promise<modes.IColorPresentation[] | undefined>;
+	$provideFoldingRanges(handle: number, resource: UriComponents, context: modes.FoldingContext, token: CancellationToken): Promise<modes.FoldingRange[] | undefined>;
 	$provideSelectionRanges(handle: number, resource: UriComponents, positions: IPosition[], token: CancellationToken): Promise<modes.SelectionRange[][]>;
 }
 
 export interface ExtHostQuickOpenShape {
 	$onItemSelected(handle: number): void;
-	$validateInput(input: string): Promise<string>;
+	$validateInput(input: string): Promise<string | null | undefined>;
 	$onDidChangeActive(sessionId: number, handles: number[]): void;
 	$onDidChangeSelection(sessionId: number, handles: number[]): void;
 	$onDidAccept(sessionId: number): void;
@@ -1078,6 +1104,8 @@ export interface ExtHostProgressShape {
 export interface ExtHostCommentsShape {
 	$provideDocumentComments(handle: number, document: UriComponents): Promise<modes.CommentInfo>;
 	$createNewCommentThread(handle: number, document: UriComponents, range: IRange, text: string): Promise<modes.CommentThread>;
+	$onActiveCommentWidgetChange(commentControlhandle: number, commentThread: modes.CommentThread2, comment: modes.Comment | undefined, input: string): Promise<number | undefined>;
+	$onActiveCommentingRangeChange(commentControlhandle: number, range: IRange): void;
 	$replyToCommentThread(handle: number, document: UriComponents, range: IRange, commentThread: modes.CommentThread, text: string): Promise<modes.CommentThread>;
 	$editComment(handle: number, document: UriComponents, comment: modes.Comment, text: string): Promise<void>;
 	$deleteComment(handle: number, document: UriComponents, comment: modes.Comment): Promise<void>;

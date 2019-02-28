@@ -14,9 +14,9 @@ import { Event as CommonEvent, Emitter } from 'vs/base/common/event';
 import { isWindows, isMacintosh, isLinux } from 'vs/base/common/platform';
 import { IWorkspaceIdentifier, IWorkspacesMainService, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IHistoryMainService, IRecentlyOpened } from 'vs/platform/history/common/history';
-import { isEqual } from 'vs/base/common/paths';
+import { isEqual } from 'vs/base/common/extpath';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { getComparisonKey, isEqual as areResourcesEqual, dirname, fsPath } from 'vs/base/common/resources';
+import { getComparisonKey, isEqual as areResourcesEqual, dirname, originalFSPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -169,12 +169,12 @@ export class HistoryMainService implements IHistoryMainService {
 			const workspace = mru.workspaces[i];
 			if (isSingleFolderWorkspaceIdentifier(workspace)) {
 				if (workspace.scheme === Schemas.file) {
-					app.addRecentDocument(fsPath(workspace));
+					app.addRecentDocument(originalFSPath(workspace));
 					entries++;
 				}
 			} else {
 				if (workspace.configPath.scheme === Schemas.file) {
-					app.addRecentDocument(fsPath(workspace.configPath));
+					app.addRecentDocument(originalFSPath(workspace.configPath));
 					entries++;
 				}
 			}
@@ -185,7 +185,7 @@ export class HistoryMainService implements IHistoryMainService {
 		for (let i = 0; i < mru.files.length && entries < HistoryMainService.MAX_MACOS_DOCK_RECENT_FILES; i++) {
 			const file = mru.files[i];
 			if (file.scheme === Schemas.file) {
-				app.addRecentDocument(fsPath(file));
+				app.addRecentDocument(originalFSPath(file));
 				entries++;
 			}
 		}
@@ -294,7 +294,7 @@ export class HistoryMainService implements IHistoryMainService {
 					let args;
 					if (isSingleFolderWorkspaceIdentifier(workspace)) {
 						const parentFolder = dirname(workspace);
-						description = parentFolder ? nls.localize('folderDesc', "{0} {1}", getBaseLabel(workspace), getPathLabel(parentFolder, this.environmentService)) : getBaseLabel(workspace);
+						description = nls.localize('folderDesc', "{0} {1}", getBaseLabel(workspace), getPathLabel(parentFolder, this.environmentService));
 						args = `--folder-uri "${workspace.toString()}"`;
 					} else {
 						description = nls.localize('codeWorkspace', "Code Workspace");

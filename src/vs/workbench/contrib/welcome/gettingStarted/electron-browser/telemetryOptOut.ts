@@ -6,7 +6,7 @@
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import product from 'vs/platform/node/product';
+import product from 'vs/platform/product/node/product';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { URI } from 'vs/base/common/uri';

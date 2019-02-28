@@ -120,7 +120,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 		// compute change and send to main side
 		const entries: [URI, IMarkerData[]][] = [];
 		for (let uri of toSync) {
-			let marker: IMarkerData[];
+			let marker: IMarkerData[] | undefined;
 			let diagnostics = this._data.get(uri.toString());
 			if (diagnostics) {
 

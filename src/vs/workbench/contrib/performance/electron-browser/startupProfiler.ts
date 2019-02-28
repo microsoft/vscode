@@ -3,15 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { dirname, join } from 'path';
-import { basename } from 'vs/base/common/paths';
+import { dirname, join, basename } from 'vs/base/common/path';
 import { del, exists, readdir, readFile } from 'vs/base/node/pfs';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { localize } from 'vs/nls';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import product from 'vs/platform/node/product';
+import product from 'vs/platform/product/node/product';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { PerfviewInput } from 'vs/workbench/contrib/performance/electron-browser/perfviewEditor';

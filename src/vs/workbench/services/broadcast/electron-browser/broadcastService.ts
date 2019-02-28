@@ -5,9 +5,9 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
-
 import { ipcRenderer as ipc } from 'electron';
 import { ILogService } from 'vs/platform/log/common/log';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 export const IBroadcastService = createDecorator<IBroadcastService>('broadcastService');
 
@@ -19,21 +19,22 @@ export interface IBroadcast {
 export interface IBroadcastService {
 	_serviceBrand: any;
 
-	broadcast(b: IBroadcast): void;
-
 	onBroadcast: Event<IBroadcast>;
+
+	broadcast(b: IBroadcast): void;
 }
 
-export class BroadcastService implements IBroadcastService {
-	public _serviceBrand: any;
+export class BroadcastService extends Disposable implements IBroadcastService {
+	_serviceBrand: any;
 
-	private readonly _onBroadcast: Emitter<IBroadcast>;
+	private readonly _onBroadcast: Emitter<IBroadcast> = this._register(new Emitter<IBroadcast>());
+	get onBroadcast(): Event<IBroadcast> { return this._onBroadcast.event; }
 
 	constructor(
 		private windowId: number,
 		@ILogService private readonly logService: ILogService
 	) {
-		this._onBroadcast = new Emitter<IBroadcast>();
+		super();
 
 		this.registerListeners();
 	}
@@ -46,11 +47,7 @@ export class BroadcastService implements IBroadcastService {
 		});
 	}
 
-	public get onBroadcast(): Event<IBroadcast> {
-		return this._onBroadcast.event;
-	}
-
-	public broadcast(b: IBroadcast): void {
+	broadcast(b: IBroadcast): void {
 		this.logService.trace(`Sending broadcast to main from window ${this.windowId}: `, b);
 
 		ipc.send('vscode:broadcast', this.windowId, {

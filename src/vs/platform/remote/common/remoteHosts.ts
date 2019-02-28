@@ -7,6 +7,6 @@ import { URI } from 'vs/base/common/uri';
 
 export const REMOTE_HOST_SCHEME = 'vscode-remote';
 
-export function getRemoteAuthority(uri: URI) {
+export function getRemoteAuthority(uri: URI): string | undefined {
 	return uri.scheme === REMOTE_HOST_SCHEME ? uri.authority : undefined;
 }

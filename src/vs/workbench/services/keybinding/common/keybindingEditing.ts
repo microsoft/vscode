@@ -24,7 +24,7 @@ import { ServiceIdentifier, createDecorator } from 'vs/platform/instantiation/co
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export const IKeybindingEditingService = createDecorator<IKeybindingEditingService>('keybindingEditingService');
 
@@ -252,3 +252,5 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 		return '// ' + localize('emptyKeybindingsHeader', "Place your key bindings in this file to override the defaults") + EOL + '[]';
 	}
 }
+
+registerSingleton(IKeybindingEditingService, KeybindingsEditingService, true);

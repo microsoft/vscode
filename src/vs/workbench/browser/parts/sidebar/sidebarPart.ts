@@ -33,6 +33,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { ISerializableView } from 'vs/base/browser/ui/grid/grid';
 import { LayoutPriority } from 'vs/base/browser/ui/grid/gridview';
 
+export const SidebarVisibleContext = new RawContextKey<boolean>('sidebarVisible', false);
 export const SidebarFocusContext = new RawContextKey<boolean>('sideBarFocus', false);
 export const ActiveViewletContext = new RawContextKey<string>('activeViewlet', '');
 
@@ -41,22 +42,23 @@ export class SidebarPart extends CompositePart<Viewlet> implements ISerializable
 
 	static readonly activeViewletSettingsKey = 'workbench.sidebar.activeviewletid';
 
+	element: HTMLElement;
+
+	readonly minimumWidth: number = 170;
+	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
+	readonly minimumHeight: number = 0;
+	readonly maximumHeight: number = Number.POSITIVE_INFINITY;
+	readonly snapSize: number = 50;
+	readonly priority: LayoutPriority = LayoutPriority.Low;
+
+	private _onDidChange = this._register(new Emitter<{ width: number; height: number; }>());
+	get onDidChange(): Event<{ width: number, height: number }> { return this._onDidChange.event; }
+
 	private viewletRegistry: ViewletRegistry;
 	private sideBarFocusContextKey: IContextKey<boolean>;
 	private activeViewletContextKey: IContextKey<string>;
 	private blockOpeningViewlet: boolean;
 	private _onDidViewletDeregister = this._register(new Emitter<ViewletDescriptor>());
-
-	element: HTMLElement;
-	minimumWidth: number = 170;
-	maximumWidth: number = Number.POSITIVE_INFINITY;
-	minimumHeight: number = 0;
-	maximumHeight: number = Number.POSITIVE_INFINITY;
-	snapSize: number = 50;
-	priority: LayoutPriority = LayoutPriority.Low;
-
-	private _onDidChange = new Emitter<{ width: number; height: number; }>();
-	readonly onDidChange = this._onDidChange.event;
 
 	constructor(
 		id: string,
@@ -116,11 +118,11 @@ export class SidebarPart extends CompositePart<Viewlet> implements ISerializable
 	get onDidViewletDeregister(): Event<ViewletDescriptor> { return this._onDidViewletDeregister.event; }
 
 	get onDidViewletOpen(): Event<IViewlet> {
-		return Event.map(this._onDidCompositeOpen.event, compositeEvent => <IViewlet>compositeEvent.composite);
+		return Event.map(this.onDidCompositeOpen.event, compositeEvent => <IViewlet>compositeEvent.composite);
 	}
 
 	get onDidViewletClose(): Event<IViewlet> {
-		return this._onDidCompositeClose.event as Event<IViewlet>;
+		return this.onDidCompositeClose.event as Event<IViewlet>;
 	}
 
 	create(parent: HTMLElement): void {

@@ -678,7 +678,7 @@ export class EditorOptions implements IEditorOptions {
 	/**
 	 * Helper to create EditorOptions inline.
 	 */
-	static create(settings: IEditorOptions): EditorOptions {
+	static create(settings: IEditorOptions): EditorOptions | null {
 		const options = new EditorOptions();
 
 		options.preserveFocus = settings.preserveFocus;

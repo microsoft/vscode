@@ -27,6 +27,7 @@ import { EndOfLinePreference } from 'vs/editor/common/model';
 import { HorizontalRange, RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 
 export interface ITextAreaHandlerHelper {
 	visibleRangeForPositionRelativeToEditor(lineNumber: number, column: number): HorizontalRange | null;
@@ -90,7 +91,7 @@ export class TextAreaHandler extends ViewPart {
 
 	private readonly _viewController: ViewController;
 	private readonly _viewHelper: ITextAreaHandlerHelper;
-	private _accessibilitySupport: platform.AccessibilitySupport;
+	private _accessibilitySupport: AccessibilitySupport;
 	private _contentLeft: number;
 	private _contentWidth: number;
 	private _contentHeight: number;
@@ -206,7 +207,7 @@ export class TextAreaHandler extends ViewPart {
 					return TextAreaState.EMPTY;
 				}
 
-				if (this._accessibilitySupport === platform.AccessibilitySupport.Disabled) {
+				if (this._accessibilitySupport === AccessibilitySupport.Disabled) {
 					// We know for a fact that a screen reader is not attached
 					// On OSX, we write the character before the cursor to allow for "long-press" composition
 					// Also on OSX, we write the word before the cursor to allow for the Accessibility Keyboard to give good hints
@@ -228,7 +229,7 @@ export class TextAreaHandler extends ViewPart {
 					return TextAreaState.EMPTY;
 				}
 
-				return PagedScreenReaderStrategy.fromEditorSelection(currentState, simpleModel, this._selections[0], this._accessibilitySupport === platform.AccessibilitySupport.Unknown);
+				return PagedScreenReaderStrategy.fromEditorSelection(currentState, simpleModel, this._selections[0], this._accessibilitySupport === AccessibilitySupport.Unknown);
 			},
 
 			deduceModelPosition: (viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position => {
@@ -445,7 +446,7 @@ export class TextAreaHandler extends ViewPart {
 	private _primaryCursorVisibleRange: HorizontalRange | null = null;
 
 	public prepareRender(ctx: RenderingContext): void {
-		if (this._accessibilitySupport === platform.AccessibilitySupport.Enabled) {
+		if (this._accessibilitySupport === AccessibilitySupport.Enabled) {
 			// Do not move the textarea with the cursor, as this generates accessibility events that might confuse screen readers
 			// See https://github.com/Microsoft/vscode/issues/26730
 			this._primaryCursorVisibleRange = null;

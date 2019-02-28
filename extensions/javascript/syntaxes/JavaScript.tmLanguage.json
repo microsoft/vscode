@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/a42e5cbe14945ccc0493f62b1e2d63eddcdaa6f6",
+	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/06d49b5ea993412a21aad630a17c6e7e7081c30f",
 	"name": "JavaScript (with React support)",
 	"scopeName": "source.js",
 	"patterns": [
@@ -4396,7 +4396,7 @@
 			"patterns": [
 				{
 					"name": "string.regexp.js",
-					"begin": "(?<!\\+\\+|--|})(?<=[=(:,\\[?+!]|^return|[^\\._$[:alnum:]]return|^case|[^\\._$[:alnum:]]case|=>|&&|\\|\\||\\*\\/)\\s*(\\/)(?![\\/*])(?=(?:[^\\/\\\\\\[]|\\\\.|\\[([^\\]\\\\]|\\\\.)+\\])+\\/[gimsuy]*(?!\\s*[a-zA-Z0-9_$]))",
+					"begin": "(?<!\\+\\+|--|})(?<=[=(:,\\[?+!]|^return|[^\\._$[:alnum:]]return|^case|[^\\._$[:alnum:]]case|=>|&&|\\|\\||\\*\\/)\\s*(\\/)(?![\\/*])(?=(?:[^\\/\\\\\\[\\()]|\\\\.|\\[([^\\]\\\\]|\\\\.)+\\]|\\(([^\\)\\\\]|\\\\.)+\\))+\\/[gimsuy]*(?!\\s*[a-zA-Z0-9_$]))",
 					"beginCaptures": {
 						"1": {
 							"name": "punctuation.definition.string.begin.js"
@@ -4419,7 +4419,7 @@
 				},
 				{
 					"name": "string.regexp.js",
-					"begin": "(?<![_$[:alnum:])\\]]|\\+\\+|--|})\\/(?![\\/*])(?=(?:[^\\/\\\\\\[]|\\\\.|\\[([^\\]\\\\]|\\\\.)+\\])+\\/[gimsuy]*(?!\\s*[a-zA-Z0-9_$]))",
+					"begin": "(?<![_$[:alnum:])\\]]|\\+\\+|--|}|\\*\\/)\\/(?![\\/*])(?=(?:[^\\/\\\\\\[]|\\\\.|\\[([^\\]\\\\]|\\\\.)+\\])+\\/[gimsuy]*(?!\\s*[a-zA-Z0-9_$]))",
 					"beginCaptures": {
 						"0": {
 							"name": "punctuation.definition.string.begin.js"

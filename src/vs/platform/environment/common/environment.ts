@@ -37,8 +37,8 @@ export interface ParsedArgs {
 	logExtensionHostCommunication?: boolean;
 	'extensions-dir'?: string;
 	'builtin-extensions-dir'?: string;
-	extensionDevelopmentPath?: string;
-	extensionTestsPath?: string;
+	extensionDevelopmentPath?: string; // either a local path or a URI
+	extensionTestsPath?: string; // either a local path or a URI
 	'inspect-extensions'?: string;
 	'inspect-brk-extensions'?: string;
 	debugId?: string;
@@ -62,7 +62,7 @@ export interface ParsedArgs {
 	'disable-updates'?: string;
 	'disable-crash-reporter'?: string;
 	'skip-add-to-recently-opened'?: boolean;
-	'max-memory'?: number;
+	'max-memory'?: string;
 	'file-write'?: boolean;
 	'file-chmod'?: boolean;
 	'upload-logs'?: string;
@@ -116,7 +116,7 @@ export interface IEnvironmentService {
 	builtinExtensionsPath: string;
 	extensionsPath: string;
 	extensionDevelopmentLocationURI?: URI;
-	extensionTestsPath?: string;
+	extensionTestsLocationURI?: URI;
 
 	debugExtensionHost: IExtensionHostDebugParams;
 	debugSearch: IDebugParams;

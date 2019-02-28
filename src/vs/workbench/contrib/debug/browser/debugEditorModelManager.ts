@@ -127,27 +127,20 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 				range
 			});
 
-			if (stackFrame.thread.stoppedDetails && stackFrame.thread.stoppedDetails.reason === 'exception') {
-				result.push({
-					options: DebugEditorModelManager.TOP_STACK_FRAME_EXCEPTION_DECORATION,
-					range: columnUntilEOLRange
-				});
-			} else {
-				result.push({
-					options: DebugEditorModelManager.TOP_STACK_FRAME_DECORATION,
-					range: columnUntilEOLRange
-				});
+			result.push({
+				options: DebugEditorModelManager.TOP_STACK_FRAME_DECORATION,
+				range: columnUntilEOLRange
+			});
 
-				if (this.modelDataMap.has(modelUriStr)) {
-					const modelData = this.modelDataMap.get(modelUriStr);
-					if (modelData.topStackFrameRange && modelData.topStackFrameRange.startLineNumber === stackFrame.range.startLineNumber && modelData.topStackFrameRange.startColumn !== stackFrame.range.startColumn) {
-						result.push({
-							options: DebugEditorModelManager.TOP_STACK_FRAME_INLINE_DECORATION,
-							range: columnUntilEOLRange
-						});
-					}
-					modelData.topStackFrameRange = columnUntilEOLRange;
+			if (this.modelDataMap.has(modelUriStr)) {
+				const modelData = this.modelDataMap.get(modelUriStr);
+				if (modelData.topStackFrameRange && modelData.topStackFrameRange.startLineNumber === stackFrame.range.startLineNumber && modelData.topStackFrameRange.startColumn !== stackFrame.range.startColumn) {
+					result.push({
+						options: DebugEditorModelManager.TOP_STACK_FRAME_INLINE_DECORATION,
+						range: columnUntilEOLRange
+					});
 				}
+				modelData.topStackFrameRange = columnUntilEOLRange;
 			}
 		} else {
 			result.push({
@@ -233,7 +226,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 
 	private updateBreakpoints(modelData: IDebugEditorModelData, newBreakpoints: IBreakpoint[]): void {
 		const desiredDecorations = this.createBreakpointDecorations(modelData.model, newBreakpoints);
-		let breakpointDecorationIds: string[];
+		let breakpointDecorationIds: string[] | undefined;
 		try {
 			this.ignoreDecorationsChangedEvent = true;
 			breakpointDecorationIds = modelData.model.deltaDecorations(modelData.breakpointDecorations.map(bpd => bpd.decorationId), desiredDecorations);
@@ -267,7 +260,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 
 	private getBreakpointDecorationOptions(breakpoint: IBreakpoint): IModelDecorationOptions {
 		const { className, message } = getBreakpointMessageAndClassName(this.debugService, breakpoint);
-		let glyphMarginHoverMessage: MarkdownString;
+		let glyphMarginHoverMessage: MarkdownString | undefined;
 
 		if (message) {
 			if (breakpoint.condition || breakpoint.hitCondition) {
@@ -304,13 +297,6 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 		isWholeLine: true,
 		inlineClassName: 'debug-remove-token-colors',
 		className: 'debug-top-stack-frame-line',
-		stickiness: DebugEditorModelManager.STICKINESS
-	};
-
-	private static TOP_STACK_FRAME_EXCEPTION_DECORATION: IModelDecorationOptions = {
-		isWholeLine: true,
-		inlineClassName: 'debug-remove-token-colors',
-		className: 'debug-top-stack-frame-exception-line',
 		stickiness: DebugEditorModelManager.STICKINESS
 	};
 

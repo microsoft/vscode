@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Barrier, runWhenIdle } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -17,8 +17,8 @@ import { EnablementState, IExtensionEnablementService, IExtensionIdentifier, IEx
 import { BetterMergeId, areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import pkg from 'vs/platform/node/package';
-import product from 'vs/platform/node/product';
+import pkg from 'vs/platform/product/node/package';
+import product from 'vs/platform/product/node/product';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
@@ -101,7 +101,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService
 	) {
 		super();
-		this._extensionHostLogsLocation = URI.file(path.posix.join(this._environmentService.logsPath, `exthost${this._windowService.getCurrentWindowId()}`));
+		this._extensionHostLogsLocation = URI.file(path.join(this._environmentService.logsPath, `exthost${this._windowService.getCurrentWindowId()}`));
 		this._registry = null;
 		this._installedExtensionsReady = new Barrier();
 		this._isDev = !this._environmentService.isBuilt || this._environmentService.isExtensionDevelopment;
@@ -197,8 +197,8 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			}
 
 			const extensionDescription = await this._extensionScanner.scanSingleExtension(extension.location.fsPath, extension.type === ExtensionType.System, this.createLogger());
-			if (!extensionDescription || !this._usesOnlyDynamicExtensionPoints(extensionDescription)) {
-				// uses non-dynamic extension point
+			if (!extensionDescription) {
+				// could not scan extension...
 				continue;
 			}
 
@@ -271,28 +271,6 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		}
 	}
 
-	private _usesOnlyDynamicExtensionPoints(extension: IExtensionDescription): boolean {
-		const extensionPoints = ExtensionsRegistry.getExtensionPointsMap();
-		if (extension.contributes) {
-			for (let extPointName in extension.contributes) {
-				if (hasOwnProperty.call(extension.contributes, extPointName)) {
-					const extPoint = extensionPoints[extPointName];
-					if (extPoint) {
-						if (!extPoint.isDynamic) {
-							return false;
-						}
-					} else {
-						// This extension has a 3rd party (unknown) extension point
-						// ===> require a reload for now...
-						return false;
-					}
-				}
-			}
-		}
-
-		return true;
-	}
-
 	public canAddExtension(extension: IExtensionDescription): boolean {
 		if (this._windowService.getConfiguration().remoteAuthority) {
 			return false;
@@ -310,7 +288,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			}
 		}
 
-		return this._usesOnlyDynamicExtensionPoints(extension);
+		return true;
 	}
 
 	public canRemoveExtension(extension: IExtensionDescription): boolean {
@@ -337,7 +315,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			return false;
 		}
 
-		return this._usesOnlyDynamicExtensionPoints(extension);
+		return true;
 	}
 
 	private async _activateAddedExtensionIfNeeded(extensionDescription: IExtensionDescription): Promise<void> {

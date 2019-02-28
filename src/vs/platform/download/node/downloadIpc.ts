@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import * as fs from 'fs';
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
 import { Event, Emitter } from 'vs/base/common/event';

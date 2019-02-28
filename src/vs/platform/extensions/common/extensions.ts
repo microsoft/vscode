@@ -227,3 +227,7 @@ export class ExtensionIdentifier {
 		return id._lower;
 	}
 }
+
+export function isLanguagePackExtension(manifest: IExtensionManifest): boolean {
+	return manifest.contributes && manifest.contributes.localizations ? manifest.contributes.localizations.length > 0 : false;
+}

@@ -37,7 +37,7 @@ import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Action, IAction, ActionRunner } from 'vs/base/common/actions';
 import { IActionBarOptions, ActionsOrientation, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { basename } from 'vs/base/common/paths';
+import { basename } from 'vs/base/common/resources';
 import { MenuId, IMenuService, IMenu, MenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { MenuItemActionItem, fillInActionBarActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IChange, IEditorModel, ScrollType, IEditorContribution, IDiffEditorModel } from 'vs/editor/common/editorCommon';
@@ -208,7 +208,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 
 		this.create();
 		if (editor.hasModel()) {
-			this.title = basename(editor.getModel().uri.fsPath);
+			this.title = basename(editor.getModel().uri);
 		} else {
 			this.title = '';
 		}
@@ -265,8 +265,8 @@ class DirtyDiffWidget extends PeekViewWidget {
 	protected _fillHead(container: HTMLElement): void {
 		super._fillHead(container);
 
-		const previous = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowPreviousChangeAction(), 'show-previous-change octicon octicon-chevron-up');
-		const next = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowNextChangeAction(), 'show-next-change octicon octicon-chevron-down');
+		const previous = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowPreviousChangeAction(), 'show-previous-change chevron-up');
+		const next = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowNextChangeAction(), 'show-next-change chevron-down');
 
 		this._disposables.push(previous);
 		this._disposables.push(next);

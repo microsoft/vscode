@@ -10,7 +10,7 @@ import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOption
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { EndOfLinePreference, IActiveIndentGuideInfo, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { EndOfLinePreference, IActiveIndentGuideInfo, ITextModel, TrackedRangeStickiness, TextModelResolvedOptions } from 'vs/editor/common/model';
 import { ModelDecorationOverviewRulerOptions } from 'vs/editor/common/model/textModel';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
 import { ColorId, LanguageId, TokenizationRegistry } from 'vs/editor/common/modes';
@@ -448,8 +448,12 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		};
 	}
 
-	public getTabSize(): number {
+	private getTabSize(): number {
 		return this.model.getOptions().tabSize;
+	}
+
+	public getOptions(): TextModelResolvedOptions {
+		return this.model.getOptions();
 	}
 
 	public getLineCount(): number {

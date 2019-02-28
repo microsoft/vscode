@@ -6,7 +6,7 @@
 import { MainContext, MainThreadOutputServiceShape, IMainContext, ExtHostOutputServiceShape } from './extHost.protocol';
 import * as vscode from 'vscode';
 import { URI } from 'vs/base/common/uri';
-import { posix } from 'path';
+import { join } from 'vs/base/common/path';
 import { OutputAppender } from 'vs/workbench/contrib/output/node/outputAppender';
 import { toLocalISOString } from 'vs/base/common/date';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -103,7 +103,7 @@ export class ExtHostOutputChannelBackedByFile extends AbstractExtHostOutputChann
 
 	constructor(name: string, outputDir: string, proxy: MainThreadOutputServiceShape) {
 		const fileName = `${ExtHostOutputChannelBackedByFile._namePool++}-${name}`;
-		const file = URI.file(posix.join(outputDir, `${fileName}.log`));
+		const file = URI.file(join(outputDir, `${fileName}.log`));
 
 		super(name, false, file, proxy);
 		this._appender = new OutputAppender(fileName, file.fsPath);
@@ -150,7 +150,7 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 	private _visibleChannelDisposable: IDisposable;
 
 	constructor(logsLocation: URI, mainContext: IMainContext) {
-		this._outputDir = posix.join(logsLocation.fsPath, `output_logging_${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}`);
+		this._outputDir = join(logsLocation.fsPath, `output_logging_${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}`);
 		this._proxy = mainContext.getProxy(MainContext.MainThreadOutputService);
 	}
 

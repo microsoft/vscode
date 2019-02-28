@@ -223,7 +223,7 @@ export interface PresentationOptions {
 
 export namespace PresentationOptions {
 	export const defaults: PresentationOptions = {
-		echo: false, reveal: RevealKind.Always, focus: false, panel: PanelKind.Shared, showReuseMessage: true, clear: false
+		echo: true, reveal: RevealKind.Always, focus: false, panel: PanelKind.Shared, showReuseMessage: true, clear: false
 	};
 }
 

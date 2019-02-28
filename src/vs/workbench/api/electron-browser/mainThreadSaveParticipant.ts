@@ -23,7 +23,7 @@ import { shouldSynchronizeModel } from 'vs/editor/common/services/modelService';
 import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
 import { applyCodeAction } from 'vs/editor/contrib/codeAction/codeActionCommands';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
-import { getDocumentFormattingEdits, NoProviderError } from 'vs/editor/contrib/format/format';
+import { getDocumentFormattingEdits, FormatMode } from 'vs/editor/contrib/format/format';
 import { FormattingEdit } from 'vs/editor/contrib/format/formattingEdit';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { localize } from 'vs/nls';
@@ -36,6 +36,7 @@ import { extHostCustomer } from 'vs/workbench/api/electron-browser/extHostCustom
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { ISaveParticipant, ITextFileEditorModel, SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { ExtHostContext, ExtHostDocumentSaveParticipantShape, IExtHostContext } from '../node/extHost.protocol';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export interface ISaveParticipantParticipant extends ISaveParticipant {
 	// progressMessage: string;
@@ -215,7 +216,8 @@ class FormatOnSaveParticipant implements ISaveParticipantParticipant {
 	constructor(
 		@ICodeEditorService private readonly _editorService: ICodeEditorService,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		// Nothing
 	}
@@ -229,26 +231,19 @@ class FormatOnSaveParticipant implements ISaveParticipantParticipant {
 		}
 
 		const versionNow = model.getVersionId();
-		const { tabSize, insertSpaces } = model.getOptions();
 
 		const timeout = this._configurationService.getValue<number>('editor.formatOnSaveTimeout', { overrideIdentifier: model.getLanguageIdentifier().language, resource: editorModel.getResource() });
 
 		return new Promise<ISingleEditOperation[] | null | undefined>((resolve, reject) => {
 			let source = new CancellationTokenSource();
-			let request = getDocumentFormattingEdits(model, { tabSize, insertSpaces }, source.token);
+			let request = getDocumentFormattingEdits(this._telemetryService, this._editorWorkerService, model, model.getFormattingOptions(), FormatMode.Auto, source.token);
 
 			setTimeout(() => {
 				reject(localize('timeout.formatOnSave', "Aborted format on save after {0}ms", timeout));
 				source.cancel();
 			}, timeout);
 
-			request.then(edits => this._editorWorkerService.computeMoreMinimalEdits(model.uri, edits)).then(resolve, err => {
-				if (!NoProviderError.is(err)) {
-					reject(err);
-				} else {
-					resolve();
-				}
-			});
+			request.then(resolve, reject);
 
 		}).then(edits => {
 			if (isNonEmptyArray(edits) && versionNow === model.getVersionId()) {

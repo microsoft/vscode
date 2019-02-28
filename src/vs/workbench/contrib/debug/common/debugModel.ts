@@ -20,7 +20,7 @@ import {
 } from 'vs/workbench/contrib/debug/common/debug';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { commonSuffixLength } from 'vs/base/common/strings';
-import { sep } from 'vs/base/common/paths';
+import { posix } from 'vs/base/common/path';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
@@ -354,7 +354,7 @@ export class StackFrame implements IStackFrame {
 			return this.source.name;
 		}
 
-		const from = Math.max(0, this.source.uri.path.lastIndexOf(sep, this.source.uri.path.length - suffixLength - 1));
+		const from = Math.max(0, this.source.uri.path.lastIndexOf(posix.sep, this.source.uri.path.length - suffixLength - 1));
 		return (from > 0 ? '...' : '') + this.source.uri.path.substr(from);
 	}
 
@@ -820,22 +820,31 @@ export class DebugModel implements IDebugModel {
 		}
 	}
 
-	fetchCallStack(thread: Thread): Promise<void> {
+	fetchCallStack(thread: Thread): { topCallStack: Promise<void>, wholeCallStack: Promise<void> } {
 		if (thread.session.capabilities.supportsDelayedStackTraceLoading) {
 			// For improved performance load the first stack frame and then load the rest async.
-			return thread.fetchCallStack(1).then(() => {
-				if (!this.schedulers.has(thread.getId())) {
-					this.schedulers.set(thread.getId(), new RunOnceScheduler(() => {
-						thread.fetchCallStack(19).then(() => this._onDidChangeCallStack.fire());
-					}, 420));
-				}
+			let topCallStack: Promise<void>;
+			const wholeCallStack = new Promise<void>((c, e) => {
+				topCallStack = thread.fetchCallStack(1).then(() => {
+					if (!this.schedulers.has(thread.getId())) {
+						this.schedulers.set(thread.getId(), new RunOnceScheduler(() => {
+							thread.fetchCallStack(19).then(() => {
+								this._onDidChangeCallStack.fire();
+								c();
+							});
+						}, 420));
+					}
 
-				this.schedulers.get(thread.getId())!.schedule();
+					this.schedulers.get(thread.getId())!.schedule();
+				});
 				this._onDidChangeCallStack.fire();
 			});
+
+			return { topCallStack, wholeCallStack };
 		}
 
-		return thread.fetchCallStack();
+		const wholeCallStack = thread.fetchCallStack();
+		return { wholeCallStack, topCallStack: wholeCallStack };
 	}
 
 	getBreakpoints(filter?: { uri?: uri, lineNumber?: number, column?: number, enabledOnly?: boolean }): IBreakpoint[] {
@@ -879,7 +888,7 @@ export class DebugModel implements IDebugModel {
 
 			this.exceptionBreakpoints = data.map(d => {
 				const ebp = this.exceptionBreakpoints.filter(ebp => ebp.filter === d.filter).pop();
-				return new ExceptionBreakpoint(d.filter, d.label, ebp ? ebp.enabled : d.default);
+				return new ExceptionBreakpoint(d.filter, d.label, ebp ? ebp.enabled : !!d.default);
 			});
 			this._onDidChangeBreakpoints.fire(undefined);
 		}

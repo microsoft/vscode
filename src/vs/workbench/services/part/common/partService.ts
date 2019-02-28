@@ -13,8 +13,7 @@ export const enum Parts {
 	PANEL_PART,
 	EDITOR_PART,
 	STATUSBAR_PART,
-	TITLEBAR_PART,
-	MENUBAR_PART
+	TITLEBAR_PART
 }
 
 export const enum Position {

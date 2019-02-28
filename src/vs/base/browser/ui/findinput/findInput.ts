@@ -42,7 +42,6 @@ export class FindInput extends Widget {
 	static readonly OPTION_CHANGE: string = 'optionChange';
 
 	private contextViewProvider: IContextViewProvider;
-	private width: number;
 	private placeholder: string;
 	private validation?: IInputValidator;
 	private label: string;
@@ -93,7 +92,6 @@ export class FindInput extends Widget {
 	constructor(parent: HTMLElement | null, contextViewProvider: IContextViewProvider, private readonly _showOptionButtons: boolean, options: IFindInputOptions) {
 		super();
 		this.contextViewProvider = contextViewProvider;
-		this.width = options.width || 100;
 		this.placeholder = options.placeholder || '';
 		this.validation = options.validation;
 		this.label = options.label || NLS_DEFAULT_LABEL;
@@ -157,13 +155,6 @@ export class FindInput extends Widget {
 		this.clearValidation();
 		this.setValue('');
 		this.focus();
-	}
-
-	public setWidth(newWidth: number): void {
-		this.width = newWidth;
-		this.domNode.style.width = this.width + 'px';
-		this.contextViewProvider.layout();
-		this.setInputWidth();
 	}
 
 	public getValue(): string {
@@ -240,7 +231,6 @@ export class FindInput extends Widget {
 
 	public setCaseSensitive(value: boolean): void {
 		this.caseSensitive.checked = value;
-		this.setInputWidth();
 	}
 
 	public getWholeWords(): boolean {
@@ -249,7 +239,6 @@ export class FindInput extends Widget {
 
 	public setWholeWords(value: boolean): void {
 		this.wholeWords.checked = value;
-		this.setInputWidth();
 	}
 
 	public getRegex(): boolean {
@@ -258,7 +247,6 @@ export class FindInput extends Widget {
 
 	public setRegex(value: boolean): void {
 		this.regex.checked = value;
-		this.setInputWidth();
 		this.validate();
 	}
 
@@ -277,15 +265,8 @@ export class FindInput extends Widget {
 		dom.addClass(this.domNode, 'highlight-' + (this._lastHighlightFindOptions));
 	}
 
-	private setInputWidth(): void {
-		let w = this.width - this.caseSensitive.width() - this.wholeWords.width() - this.regex.width();
-		this.inputBox.width = w;
-		this.inputBox.layout();
-	}
-
 	private buildDomNode(appendCaseSensitiveLabel: string, appendWholeWordsLabel: string, appendRegexLabel: string, history: string[], flexibleHeight: boolean): void {
 		this.domNode = document.createElement('div');
-		this.domNode.style.width = this.width + 'px';
 		dom.addClass(this.domNode, 'monaco-findInput');
 
 		this.inputBox = this._register(new HistoryInputBox(this.domNode, this.contextViewProvider, {
@@ -320,7 +301,6 @@ export class FindInput extends Widget {
 			if (!viaKeyboard && this.fixFocusOnOptionClickEnabled) {
 				this.inputBox.focus();
 			}
-			this.setInputWidth();
 			this.validate();
 		}));
 		this._register(this.regex.onKeyDown(e => {
@@ -337,7 +317,6 @@ export class FindInput extends Widget {
 			if (!viaKeyboard && this.fixFocusOnOptionClickEnabled) {
 				this.inputBox.focus();
 			}
-			this.setInputWidth();
 			this.validate();
 		}));
 
@@ -351,12 +330,19 @@ export class FindInput extends Widget {
 			if (!viaKeyboard && this.fixFocusOnOptionClickEnabled) {
 				this.inputBox.focus();
 			}
-			this.setInputWidth();
 			this.validate();
 		}));
 		this._register(this.caseSensitive.onKeyDown(e => {
 			this._onCaseSensitiveKeyDown.fire(e);
 		}));
+
+		if (this._showOptionButtons) {
+			const paddingRight = (this.caseSensitive.width() + this.wholeWords.width() + this.regex.width()) + 'px';
+			this.inputBox.inputElement.style.paddingRight = paddingRight;
+			if (this.inputBox.mirrorElement) {
+				this.inputBox.mirrorElement.style.paddingRight = paddingRight;
+			}
+		}
 
 		// Arrow-Key support to navigate between options
 		let indexes = [this.caseSensitive.domNode, this.wholeWords.domNode, this.regex.domNode];
@@ -386,7 +372,6 @@ export class FindInput extends Widget {
 			}
 		});
 
-		this.setInputWidth();
 
 		let controls = document.createElement('div');
 		controls.className = 'controls';

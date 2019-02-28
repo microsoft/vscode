@@ -3,18 +3,72 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as paths from 'vs/base/common/paths';
+import { sep } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import * as glob from 'vs/base/common/glob';
 import { isLinux } from 'vs/base/common/platform';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Event } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { startsWithIgnoreCase } from 'vs/base/common/strings';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { isEqualOrParent, isEqual } from 'vs/base/common/resources';
 import { isUndefinedOrNull } from 'vs/base/common/types';
+import { ThrottledDelayer } from 'vs/base/common/async';
 
 export const IFileService = createDecorator<IFileService>('fileService');
+
+export class FileListener extends Disposable {
+
+	private readonly _onDidContentChange = new Emitter<IFileStat>();
+	readonly onDidContentChange: Event<IFileStat> = this._onDidContentChange.event;
+
+	private watching: boolean = false;
+	private delayer: ThrottledDelayer<void>;
+	private etag: string | undefined;
+
+	constructor(
+		private readonly file: URI,
+		private readonly fileService: IFileService
+	) {
+		super();
+		this.delayer = new ThrottledDelayer<void>(500);
+	}
+
+	watch(eTag?: string): void {
+		if (!this.watching) {
+			this.etag = eTag;
+			this.poll();
+			this.watching = true;
+		}
+	}
+
+	private poll(): void {
+		const loop = () => this.doWatch().then(() => this.poll());
+		this.delayer.trigger(loop);
+	}
+
+	private doWatch(): Promise<void> {
+		return this.fileService.resolveFile(this.file)
+			.then(stat => {
+				if (stat.etag !== this.etag) {
+					this.etag = stat.etag;
+					this._onDidContentChange.fire(stat);
+				}
+			});
+	}
+
+	unwatch(): void {
+		if (this.watching) {
+			this.delayer.cancel();
+			this.watching = false;
+		}
+	}
+
+	dispose(): void {
+		this.unwatch();
+		super.dispose();
+	}
+}
 
 export interface IResourceEncodings {
 	getWriteEncoding(resource: URI, preferredEncoding?: string): string;
@@ -385,8 +439,8 @@ export function isParent(path: string, candidate: string, ignoreCase?: boolean):
 		return false;
 	}
 
-	if (candidate.charAt(candidate.length - 1) !== paths.nativeSep) {
-		candidate += paths.nativeSep;
+	if (candidate.charAt(candidate.length - 1) !== sep) {
+		candidate += sep;
 	}
 
 	if (ignoreCase) {

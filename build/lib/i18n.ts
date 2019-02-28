@@ -684,7 +684,7 @@ export function createXlfFilesForExtensions(): ThroughStream {
 			}
 			return _xlf;
 		}
-		gulp.src([`./extensions/${extensionName}/package.nls.json`, `./extensions/${extensionName}/**/nls.metadata.json`]).pipe(through(function (file: File) {
+		gulp.src([`./extensions/${extensionName}/package.nls.json`, `./extensions/${extensionName}/**/nls.metadata.json`], { allowEmpty: true }).pipe(through(function (file: File) {
 			if (file.isBuffer()) {
 				const buffer: Buffer = file.contents as Buffer;
 				const basename = path.basename(file.path);
@@ -1186,7 +1186,7 @@ export function prepareI18nPackFiles(externalExtensions: Map<string>, resultingT
 	let extensionsPacks: Map<I18nPack> = {};
 	let errors: any[] = [];
 	return through(function (this: ThroughStream, xlf: File) {
-		let project = path.dirname(xlf.relative);
+		let project = path.basename(path.dirname(xlf.relative));
 		let resource = path.basename(xlf.relative, '.xlf');
 		let contents = xlf.contents.toString();
 		let parsePromise = pseudo ? XLF.parsePseudo(contents) : XLF.parse(contents);

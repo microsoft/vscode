@@ -29,7 +29,6 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { escapeRegExpCharacters, startsWith } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
-import { IAccessibilityProvider, ITree } from 'vs/base/parts/tree/browser/tree';
 import { localize } from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -100,14 +99,14 @@ export function resolveExtensionsSettings(groups: ISettingsGroup[]): ITOCEntry {
 }
 
 function _resolveSettingsTree(tocData: ITOCEntry, allSettings: Set<ISetting>): ITOCEntry {
-	let children: ITOCEntry[];
+	let children: ITOCEntry[] | undefined;
 	if (tocData.children) {
 		children = tocData.children
 			.map(child => _resolveSettingsTree(child, allSettings))
 			.filter(child => (child.children && child.children.length) || (child.settings && child.settings.length));
 	}
 
-	let settings: ISetting[];
+	let settings: ISetting[] | undefined;
 	if (tocData.settings) {
 		settings = arrays.flatten(tocData.settings.map(pattern => getMatchingSettings(allSettings, <string>pattern)));
 	}
@@ -460,7 +459,7 @@ export abstract class AbstractSettingRenderer implements ITreeRenderer<SettingsT
 						};
 						this._onDidClickSettingLink.fire(e);
 					} else {
-						let uri: URI;
+						let uri: URI | undefined;
 						try {
 							uri = URI.parse(content);
 						} catch (err) {
@@ -1207,27 +1206,6 @@ export class SettingsTreeFilter implements ITreeFilter<SettingsTreeElement> {
 	}
 }
 
-export class SettingsAccessibilityProvider implements IAccessibilityProvider {
-	getAriaLabel(tree: ITree, element: SettingsTreeElement): string {
-		if (!element) {
-			return '';
-		}
-
-		if (element instanceof SettingsTreeSettingElement) {
-			if (element.valueType === 'boolean') {
-				return '';
-			}
-			return localize('settingRowAriaLabel', "{0} {1}, Setting", element.displayCategory, element.displayLabel);
-		}
-
-		if (element instanceof SettingsTreeGroupElement) {
-			return localize('groupRowAriaLabel', "{0}, group", element.label);
-		}
-
-		return '';
-	}
-}
-
 class SettingsTreeDelegate implements IListVirtualDelegate<SettingsTreeGroupChild> {
 	getHeight(element: SettingsTreeElement): number {
 		if (element instanceof SettingsTreeGroupElement) {
@@ -1238,7 +1216,9 @@ class SettingsTreeDelegate implements IListVirtualDelegate<SettingsTreeGroupChil
 			return 40 + (7 * element.level);
 		}
 
-		return 78;
+		return element instanceof SettingsTreeSettingElement && element.valueType === SettingValueType.Boolean ?
+			78 :
+			104;
 	}
 
 	getTemplateId(element: SettingsTreeGroupElement | SettingsTreeSettingElement | SettingsTreeNewExtensionsElement): string {

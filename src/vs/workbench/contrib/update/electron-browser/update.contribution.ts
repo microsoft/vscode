@@ -11,7 +11,7 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } fr
 import { IGlobalActivityRegistry, GlobalActivityExtensions } from 'vs/workbench/common/activity';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { ShowCurrentReleaseNotesAction, ProductContribution, UpdateContribution, Win3264BitContribution } from './update';
+import { ShowCurrentReleaseNotesAction, ProductContribution, UpdateContribution, Win3264BitContribution, Linux32BitContribution } from './update';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 const workbench = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
@@ -21,6 +21,13 @@ workbench.registerWorkbenchContribution(ProductContribution, LifecyclePhase.Rest
 if (platform.isWindows) {
 	if (process.arch === 'ia32') {
 		workbench.registerWorkbenchContribution(Win3264BitContribution, LifecyclePhase.Restored);
+	}
+}
+
+// TODO@ben remove me after a while
+if (platform.isLinux) {
+	if (process.arch === 'ia32') {
+		workbench.registerWorkbenchContribution(Linux32BitContribution, LifecyclePhase.Restored);
 	}
 }
 

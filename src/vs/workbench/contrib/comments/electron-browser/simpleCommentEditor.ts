@@ -19,6 +19,7 @@ import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2
 import { TabCompletionController } from 'vs/workbench/contrib/snippets/browser/tabCompletion';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 export class SimpleCommentEditor extends CodeEditorWidget {
 	constructor(
@@ -30,6 +31,7 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
 		@INotificationService notificationService: INotificationService,
+		@IAccessibilityService accessibilityService: IAccessibilityService
 	) {
 		const codeEditorWidgetOptions = {
 			contributions: [
@@ -41,7 +43,7 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 			]
 		};
 
-		super(domElement, options, codeEditorWidgetOptions, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService);
+		super(domElement, options, codeEditorWidgetOptions, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService, accessibilityService);
 	}
 
 	protected _getActions(): EditorAction[] {

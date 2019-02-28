@@ -193,7 +193,11 @@ export class ViewController {
 				}
 			} else {
 				if (data.inSelectionMode) {
-					this._moveToSelect(data.position);
+					if (data.altKey) {
+						this._columnSelect(data.position, data.mouseColumn);
+					} else {
+						this._moveToSelect(data.position);
+					}
 				} else {
 					this.moveTo(data.position);
 				}

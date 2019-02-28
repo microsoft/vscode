@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as os from 'os';
-import * as paths from 'vs/base/common/paths';
+import * as path from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
-import pkg from 'vs/platform/node/package';
+import pkg from 'vs/platform/product/node/package';
 import { URI as Uri } from 'vs/base/common/uri';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IShellLaunchConfig, ITerminalEnvironment } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -104,17 +104,17 @@ function _getLangEnvVariable(locale?: string) {
 
 export function getCwd(shell: IShellLaunchConfig, root?: Uri, customCwd?: string): string {
 	if (shell.cwd) {
-		return (typeof shell.cwd === 'object') ? shell.cwd.path : shell.cwd;
+		return (typeof shell.cwd === 'object') ? shell.cwd.fsPath : shell.cwd;
 	}
 
 	let cwd: string | undefined;
 
 	// TODO: Handle non-existent customCwd
 	if (!shell.ignoreConfigurationCwd && customCwd) {
-		if (paths.isAbsolute(customCwd)) {
+		if (path.isAbsolute(customCwd)) {
 			cwd = customCwd;
 		} else if (root) {
-			cwd = paths.normalize(paths.join(root.fsPath, customCwd));
+			cwd = path.join(root.fsPath, customCwd);
 		}
 	}
 

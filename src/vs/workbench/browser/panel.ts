@@ -89,7 +89,7 @@ export abstract class TogglePanelAction extends Action {
 			this.panelService.openPanel(this.panelId, true);
 		}
 
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 
 	private isPanelActive(): boolean {

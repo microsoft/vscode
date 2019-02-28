@@ -9,7 +9,7 @@ import 'vs/editor/editor.all';
 
 import 'vs/workbench/api/electron-browser/extensionHost.contribution';
 
-import 'vs/workbench/electron-browser/shell.contribution';
+import 'vs/workbench/electron-browser/main.contribution';
 import 'vs/workbench/browser/workbench.contribution';
 
 import 'vs/workbench/electron-browser/main';
@@ -39,7 +39,11 @@ import 'vs/workbench/api/browser/viewsExtensionPoint';
 
 //#region --- workbench services
 
-import 'vs/workbench/services/bulkEdit/electron-browser/bulkEditService';
+import 'vs/workbench/services/bulkEdit/browser/bulkEditService';
+import 'vs/workbench/services/integrity/node/integrityService';
+import 'vs/workbench/services/keybinding/common/keybindingEditing';
+import 'vs/workbench/services/hash/node/hashService';
+import 'vs/workbench/services/textMate/electron-browser/textMateService';
 
 //#endregion
 
@@ -47,22 +51,22 @@ import 'vs/workbench/services/bulkEdit/electron-browser/bulkEditService';
 //#region --- workbench contributions
 
 // Localizations
-import 'vs/workbench/contrib/localizations/electron-browser/localizations.contribution';
+import 'vs/workbench/contrib/localizations/browser/localizations.contribution';
 
 // Preferences
 import 'vs/workbench/contrib/preferences/electron-browser/preferences.contribution';
 import 'vs/workbench/contrib/preferences/browser/keybindingsEditorContribution';
 
 // Logs
-import 'vs/workbench/contrib/logs/electron-browser/logs.contribution';
+import 'vs/workbench/contrib/logs/common/logs.contribution';
 
 // Quick Open Handlers
 import 'vs/workbench/contrib/quickopen/browser/quickopen.contribution';
 
 // Explorer
-import 'vs/workbench/contrib/files/electron-browser/explorerViewlet';
-import 'vs/workbench/contrib/files/electron-browser/fileActions.contribution';
-import 'vs/workbench/contrib/files/electron-browser/files.contribution';
+import 'vs/workbench/contrib/files/browser/explorerViewlet';
+import 'vs/workbench/contrib/files/browser/fileActions.contribution';
+import 'vs/workbench/contrib/files/browser/files.contribution';
 
 // Backup
 import 'vs/workbench/contrib/backup/common/backup.contribution';
@@ -74,7 +78,7 @@ import 'vs/workbench/contrib/stats/node/stats.contribution';
 import 'vs/workbench/contrib/splash/electron-browser/partsSplash.contribution';
 
 // Search
-import 'vs/workbench/contrib/search/electron-browser/search.contribution';
+import 'vs/workbench/contrib/search/browser/search.contribution';
 import 'vs/workbench/contrib/search/browser/searchView';
 import 'vs/workbench/contrib/search/browser/openAnythingHandler';
 
@@ -89,7 +93,7 @@ import 'vs/workbench/contrib/debug/electron-browser/repl';
 import 'vs/workbench/contrib/debug/browser/debugViewlet';
 
 // Markers
-import 'vs/workbench/contrib/markers/electron-browser/markers.contribution';
+import 'vs/workbench/contrib/markers/browser/markers.contribution';
 
 // Comments
 import 'vs/workbench/contrib/comments/electron-browser/comments.contribution';
@@ -98,7 +102,7 @@ import 'vs/workbench/contrib/comments/electron-browser/comments.contribution';
 import 'vs/workbench/contrib/html/electron-browser/html.contribution';
 
 // URL Support
-import 'vs/workbench/contrib/url/electron-browser/url.contribution';
+import 'vs/workbench/contrib/url/common/url.contribution';
 
 // Webview
 import 'vs/workbench/contrib/webview/electron-browser/webview.contribution';
@@ -128,6 +132,7 @@ import 'vs/workbench/contrib/emmet/browser/emmet.browser.contribution';
 import 'vs/workbench/contrib/emmet/electron-browser/emmet.contribution';
 
 // CodeEditor Contributions
+import 'vs/workbench/contrib/codeEditor/browser/codeEditor.contribution';
 import 'vs/workbench/contrib/codeEditor/electron-browser/codeEditor.contribution';
 
 // Execution
@@ -139,6 +144,9 @@ import 'vs/workbench/contrib/snippets/browser/snippetsService';
 import 'vs/workbench/contrib/snippets/browser/insertSnippet';
 import 'vs/workbench/contrib/snippets/browser/configureSnippets';
 import 'vs/workbench/contrib/snippets/browser/tabCompletion';
+
+// Formatter Help
+import 'vs/workbench/contrib/format/browser/format.contribution';
 
 // Send a Smile
 import 'vs/workbench/contrib/feedback/electron-browser/feedback.contribution';
@@ -154,10 +162,10 @@ import 'vs/workbench/contrib/surveys/electron-browser/languageSurveys.contributi
 import 'vs/workbench/contrib/performance/electron-browser/performance.contribution';
 
 // CLI
-import 'vs/workbench/contrib/cli/electron-browser/cli.contribution';
+import 'vs/workbench/contrib/cli/node/cli.contribution';
 
 // Themes Support
-import 'vs/workbench/contrib/themes/electron-browser/themes.contribution';
+import 'vs/workbench/contrib/themes/browser/themes.contribution';
 import 'vs/workbench/contrib/themes/test/electron-browser/themes.test.contribution';
 
 // Watermark
@@ -174,6 +182,9 @@ import 'vs/workbench/contrib/outline/browser/outline.contribution';
 
 // Experiments
 import 'vs/workbench/contrib/experiments/electron-browser/experiments.contribution';
+
+// Code Insets
+import 'vs/workbench/contrib/codeinset/electron-browser/codeInset.contribution';
 
 // Issues
 import 'vs/workbench/contrib/issue/electron-browser/issue.contribution';

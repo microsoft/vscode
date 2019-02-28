@@ -177,7 +177,7 @@ const group: IJSONSchema = {
 
 const taskType: IJSONSchema = {
 	type: 'string',
-	enum: ['shell', 'process'],
+	enum: ['shell'],
 	default: 'shell',
 	description: nls.localize('JsonSchema.tasks.type', 'Defines whether the task is run as a process or as a command inside a shell.')
 };
@@ -431,6 +431,17 @@ taskDescriptionProperties.isTestCommand.deprecationMessage = nls.localize(
 	'The property isTestCommand is deprecated. Use the group property instead. See also the 1.14 release notes.'
 );
 
+// Process tasks are almost identical schema-wise to shell tasks, but they are required to have a command
+const processTask = Objects.deepClone(taskDescription);
+processTask.properties!.type = {
+	type: 'string',
+	enum: ['process'],
+	default: 'shell',
+	description: nls.localize('JsonSchema.tasks.type', 'Defines whether the task is run as a process or as a command inside a shell.')
+};
+processTask.required!.push('command');
+
+taskDefinitions.push(processTask);
 
 taskDefinitions.push({
 	$ref: '#/definitions/taskDescription'
@@ -441,7 +452,6 @@ let tasks = definitionsTaskRunnerConfigurationProperties.tasks;
 tasks.items = {
 	oneOf: taskDefinitions
 };
-
 
 definitionsTaskRunnerConfigurationProperties.inputs = inputsSchema.definitions!.inputs;
 

@@ -97,7 +97,6 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 
 		if (shellLaunchConfig.cwd && typeof shellLaunchConfig.cwd === 'object') {
 			launchRemotely = !!getRemoteAuthority(shellLaunchConfig.cwd);
-			shellLaunchConfig.cwd = shellLaunchConfig.cwd.fsPath;
 		} else {
 			launchRemotely = !!this._windowService.getConfiguration().remoteAuthority;
 		}

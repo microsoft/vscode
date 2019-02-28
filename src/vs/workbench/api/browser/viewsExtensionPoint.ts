@@ -144,16 +144,14 @@ export interface ICustomViewDescriptor extends ITreeViewDescriptor {
 type ViewContainerExtensionPointType = { [loc: string]: IUserFriendlyViewsContainerDescriptor[] };
 const viewsContainersExtensionPoint: IExtensionPoint<ViewContainerExtensionPointType> = ExtensionsRegistry.registerExtensionPoint<ViewContainerExtensionPointType>({
 	extensionPoint: 'viewsContainers',
-	jsonSchema: viewsContainersContribution,
-	isDynamic: true
+	jsonSchema: viewsContainersContribution
 });
 
 type ViewExtensionPointType = { [loc: string]: IUserFriendlyViewDescriptor[] };
 const viewsExtensionPoint: IExtensionPoint<ViewExtensionPointType> = ExtensionsRegistry.registerExtensionPoint<ViewExtensionPointType>({
 	extensionPoint: 'views',
 	deps: [viewsContainersExtensionPoint],
-	jsonSchema: viewsContribution,
-	isDynamic: true
+	jsonSchema: viewsContribution
 });
 
 const TEST_VIEW_CONTAINER_ORDER = 6;

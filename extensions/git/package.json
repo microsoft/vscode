@@ -1182,7 +1182,7 @@
             "number",
             "null"
           ],
-          "default": null,
+          "default": 50,
           "description": "%config.inputValidationSubjectLength%"
         },
         "git.detectSubmodules": {

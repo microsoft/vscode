@@ -27,7 +27,7 @@ bootstrapWindow.load([
 			perf.mark('main/startup');
 
 			// @ts-ignore
-			return require('vs/workbench/electron-browser/main').startup(configuration);
+			return require('vs/workbench/electron-browser/main').main(configuration);
 		});
 	}, {
 		removeDeveloperKeybindingsAfterLoad: true,

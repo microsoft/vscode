@@ -11,7 +11,7 @@ import { OpenContext, IRunActionInWindowRequest, getTitleBarStyle, IRunKeybindin
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUpdateService, StateType } from 'vs/platform/update/common/update';
-import product from 'vs/platform/node/product';
+import product from 'vs/platform/product/node/product';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { mnemonicMenuLabel as baseMnemonicLabel } from 'vs/base/common/labels';

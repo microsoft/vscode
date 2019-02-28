@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as paths from 'vs/base/common/paths';
+import { join, dirname } from 'vs/base/common/path';
 import * as strings from 'vs/base/common/strings';
 import * as extfs from 'vs/base/node/extfs';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -26,7 +26,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { RunOnceScheduler, ThrottledDelayer } from 'vs/base/common/async';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
-import { IFileService } from 'vs/platform/files/common/files';
+import { IFileService, FileListener } from 'vs/platform/files/common/files';
 import { IPanel } from 'vs/workbench/common/panel';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -184,12 +184,12 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 		@IModeService modeService: IModeService,
 		@ILogService logService: ILogService
 	) {
-		super({ ...outputChannelDescriptor, file: URI.file(paths.join(outputDir, `${outputChannelDescriptor.id}.log`)) }, modelUri, fileService, modelService, modeService);
+		super({ ...outputChannelDescriptor, file: URI.file(join(outputDir, `${outputChannelDescriptor.id}.log`)) }, modelUri, fileService, modelService, modeService);
 
 		// Use one rotating file to check for main file reset
 		this.appender = new OutputAppender(this.id, this.file.fsPath);
 		this.rotatingFilePath = `${outputChannelDescriptor.id}.1.log`;
-		this._register(watchOutputDirectory(paths.dirname(this.file.fsPath), logService, (eventType, file) => this.onFileChangedInOutputDirector(eventType, file)));
+		this._register(watchOutputDirectory(dirname(this.file.fsPath), logService, (eventType, file) => this.onFileChangedInOutputDirector(eventType, file)));
 
 		this.resettingDelayer = new ThrottledDelayer<void>(50);
 	}
@@ -278,65 +278,12 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 	}
 }
 
-class OutputFileListener extends Disposable {
-
-	private readonly _onDidContentChange = new Emitter<number>();
-	readonly onDidContentChange: Event<number> = this._onDidContentChange.event;
-
-	private watching: boolean = false;
-	private syncDelayer: ThrottledDelayer<void>;
-	private etag: string;
-
-	constructor(
-		private readonly file: URI,
-		private readonly fileService: IFileService
-	) {
-		super();
-		this.syncDelayer = new ThrottledDelayer<void>(500);
-	}
-
-	watch(eTag: string): void {
-		if (!this.watching) {
-			this.etag = eTag;
-			this.poll();
-			this.watching = true;
-		}
-	}
-
-	private poll(): void {
-		const loop = () => this.doWatch().then(() => this.poll());
-		this.syncDelayer.trigger(loop);
-	}
-
-	private doWatch(): Promise<void> {
-		return this.fileService.resolveFile(this.file)
-			.then(stat => {
-				if (stat.etag !== this.etag) {
-					this.etag = stat.etag;
-					this._onDidContentChange.fire(stat.size);
-				}
-			});
-	}
-
-	unwatch(): void {
-		if (this.watching) {
-			this.syncDelayer.cancel();
-			this.watching = false;
-		}
-	}
-
-	dispose(): void {
-		this.unwatch();
-		super.dispose();
-	}
-}
-
 /**
  * An output channel driven by a file and does not support appending messages.
  */
 class FileOutputChannel extends AbstractFileOutputChannel implements OutputChannel {
 
-	private readonly fileHandler: OutputFileListener;
+	private readonly fileHandler: FileListener;
 
 	private updateInProgress: boolean = false;
 	private etag: string = '';
@@ -351,8 +298,8 @@ class FileOutputChannel extends AbstractFileOutputChannel implements OutputChann
 	) {
 		super(outputChannelDescriptor, modelUri, fileService, modelService, modeService);
 
-		this.fileHandler = this._register(new OutputFileListener(this.file, this.fileService));
-		this._register(this.fileHandler.onDidContentChange(size => this.update(size)));
+		this.fileHandler = this._register(new FileListener(this.file, this.fileService));
+		this._register(this.fileHandler.onDidContentChange(({ size }) => this.update(size)));
 		this._register(toDisposable(() => this.fileHandler.unwatch()));
 	}
 
@@ -446,7 +393,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 	) {
 		super();
 		this.activeChannelIdInStorage = this.storageService.get(OUTPUT_ACTIVE_CHANNEL_KEY, StorageScope.WORKSPACE, null);
-		this.outputDir = paths.join(environmentService.logsPath, `output_${windowService.getCurrentWindowId()}_${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}`);
+		this.outputDir = join(environmentService.logsPath, `output_${windowService.getCurrentWindowId()}_${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}`);
 
 		// Register as text model content provider for output
 		textModelResolverService.registerTextModelContentProvider(OUTPUT_SCHEME, this);
@@ -492,10 +439,10 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		this.activeChannel = channel;
 		let promise: Promise<void>;
 		if (this.isPanelShown()) {
-			promise = this.doShowChannel(channel, preserveFocus);
+			promise = this.doShowChannel(channel, !!preserveFocus);
 		} else {
 			this.panelService.openPanel(OUTPUT_PANEL_ID);
-			promise = this.doShowChannel(this.activeChannel, preserveFocus);
+			promise = this.doShowChannel(this.activeChannel, !!preserveFocus);
 		}
 		return promise.then(() => this._onActiveOutputChannel.fire(id));
 	}
@@ -612,7 +559,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 
 	private isPanelShown(): boolean {
 		const panel = this.panelService.getActivePanel();
-		return panel && panel.getId() === OUTPUT_PANEL_ID;
+		return !!panel && panel.getId() === OUTPUT_PANEL_ID;
 	}
 
 	private createInput(channel: IOutputChannel): ResourceEditorInput {

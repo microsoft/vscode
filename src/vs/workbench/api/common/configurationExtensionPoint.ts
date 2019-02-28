@@ -91,8 +91,7 @@ const defaultConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<I
 				$ref: editorConfigurationSchemaId,
 			}
 		}
-	},
-	isDynamic: true
+	}
 });
 defaultConfigurationExtPoint.setHandler((extensions, { added, removed }) => {
 	if (removed.length) {
@@ -134,8 +133,7 @@ const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigu
 				items: configurationEntrySchema
 			}
 		]
-	},
-	isDynamic: true
+	}
 });
 
 const extensionConfigurations: Map<string, IConfigurationNode[]> = new Map<string, IConfigurationNode[]>();

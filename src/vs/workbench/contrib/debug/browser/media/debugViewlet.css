@@ -296,7 +296,7 @@
 }
 
 .debug-viewlet .debug-watch .monaco-inputbox {
-	font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback";
+	font-family: var(--monaco-monospace-font);
 }
 
 .debug-viewlet .monaco-inputbox > .wrapper {

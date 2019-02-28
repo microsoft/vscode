@@ -44,7 +44,7 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 		KeybindingsRegistry.registerKeybindingRule({
 			id: descriptor.id,
 			weight: weight,
-			when: descriptor.keybindingContext,
+			when: (descriptor.keybindingContext || when ? ContextKeyExpr.and(descriptor.keybindingContext, when) : null),
 			primary: keybindings ? keybindings.primary : 0,
 			secondary: keybindings && keybindings.secondary,
 			win: keybindings && keybindings.win,

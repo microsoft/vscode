@@ -7,7 +7,7 @@ import { mixin, deepClone } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as vscode from 'vscode';
-import { ExtHostWorkspace, ExtHostWorkspaceProvider } from 'vs/workbench/api/node/extHostWorkspace';
+import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { ExtHostConfigurationShape, MainThreadConfigurationShape, IWorkspaceConfigurationChangeEventData, IConfigurationInitData } from './extHost.protocol';
 import { ConfigurationTarget as ExtHostConfigurationTarget } from './extHostTypes';
 import { IConfigurationData, ConfigurationTarget, IConfigurationModel } from 'vs/platform/configuration/common/configuration';
@@ -57,14 +57,12 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 	}
 
 	$initializeConfiguration(data: IConfigurationInitData): void {
-		this._extHostWorkspace.getWorkspaceProvider().then(workspaceProvider => {
-			this._actual = new ExtHostConfigProvider(this._proxy, workspaceProvider, data);
-			this._barrier.open();
-		});
+		this._actual = new ExtHostConfigProvider(this._proxy, this._extHostWorkspace, data);
+		this._barrier.open();
 	}
 
 	$acceptConfigurationChanged(data: IConfigurationInitData, eventData: IWorkspaceConfigurationChangeEventData): void {
-		this._actual.$acceptConfigurationChanged(data, eventData);
+		this.getConfigProvider().then(provider => provider.$acceptConfigurationChanged(data, eventData));
 	}
 }
 
@@ -72,11 +70,11 @@ export class ExtHostConfigProvider {
 
 	private readonly _onDidChangeConfiguration = new Emitter<vscode.ConfigurationChangeEvent>();
 	private readonly _proxy: MainThreadConfigurationShape;
-	private readonly _extHostWorkspace: ExtHostWorkspaceProvider;
+	private readonly _extHostWorkspace: ExtHostWorkspace;
 	private _configurationScopes: { [key: string]: ConfigurationScope };
 	private _configuration: Configuration;
 
-	constructor(proxy: MainThreadConfigurationShape, extHostWorkspace: ExtHostWorkspaceProvider, data: IConfigurationInitData) {
+	constructor(proxy: MainThreadConfigurationShape, extHostWorkspace: ExtHostWorkspace, data: IConfigurationInitData) {
 		this._proxy = proxy;
 		this._extHostWorkspace = extHostWorkspace;
 		this._configuration = ExtHostConfigProvider.parse(data);
@@ -129,7 +127,7 @@ export class ExtHostConfigProvider {
 				} else {
 					let clonedConfig = undefined;
 					const cloneOnWriteProxy = (target: any, accessor: string): any => {
-						let clonedTarget = undefined;
+						let clonedTarget: any | undefined = undefined;
 						const cloneTarget = () => {
 							clonedConfig = clonedConfig ? clonedConfig : deepClone(config);
 							clonedTarget = clonedTarget ? clonedTarget : lookUp(clonedConfig, accessor);
@@ -153,17 +151,23 @@ export class ExtHostConfigProvider {
 								},
 								set: (_target: any, property: string, value: any) => {
 									cloneTarget();
-									clonedTarget[property] = value;
+									if (clonedTarget) {
+										clonedTarget[property] = value;
+									}
 									return true;
 								},
 								deleteProperty: (_target: any, property: string) => {
 									cloneTarget();
-									delete clonedTarget[property];
+									if (clonedTarget) {
+										delete clonedTarget[property];
+									}
 									return true;
 								},
 								defineProperty: (_target: any, property: string, descriptor: any) => {
 									cloneTarget();
-									Object.defineProperty(clonedTarget, property, descriptor);
+									if (clonedTarget) {
+										Object.defineProperty(clonedTarget, property, descriptor);
+									}
 									return true;
 								}
 							}) : target;
@@ -181,7 +185,7 @@ export class ExtHostConfigProvider {
 					return this._proxy.$removeConfigurationOption(target, key, resource);
 				}
 			},
-			inspect: <T>(key: string): ConfigurationInspect<T> => {
+			inspect: <T>(key: string): ConfigurationInspect<T> | undefined => {
 				key = section ? `${section}.${key}` : key;
 				const config = deepClone(this._configuration.inspect<T>(key, { resource }, this._extHostWorkspace.workspace));
 				if (config) {
@@ -220,7 +224,7 @@ export class ExtHostConfigProvider {
 		return readonlyProxy(result);
 	}
 
-	private _validateConfigurationAccess(key: string, resource: URI | undefined, extensionId: ExtensionIdentifier): void {
+	private _validateConfigurationAccess(key: string, resource: URI | undefined, extensionId?: ExtensionIdentifier): void {
 		const scope = OVERRIDE_PROPERTY_PATTERN.test(key) ? ConfigurationScope.RESOURCE : this._configurationScopes[key];
 		const extensionIdText = extensionId ? `[${extensionId.value}] ` : '';
 		if (ConfigurationScope.RESOURCE === scope) {

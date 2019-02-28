@@ -63,7 +63,7 @@ export class ExtensionHostMain {
 		initData = this.transform(initData, rpcProtocol);
 		this._environment = initData.environment;
 
-		const allowExit = !!this._environment.extensionTestsPath; // to support other test frameworks like Jasmin that use process.exit (https://github.com/Microsoft/vscode/issues/37708)
+		const allowExit = !!this._environment.extensionTestsLocationURI; // to support other test frameworks like Jasmin that use process.exit (https://github.com/Microsoft/vscode/issues/37708)
 		patchProcess(allowExit);
 
 		this._patchPatchedConsole(rpcProtocol.getProxy(MainContext.MainThreadConsole));
@@ -73,7 +73,7 @@ export class ExtensionHostMain {
 		this.disposables.push(this._extHostLogService);
 
 		this._searchRequestIdProvider = new Counter();
-		const extHostWorkspace = new ExtHostWorkspace(rpcProtocol, this._extHostLogService, this._searchRequestIdProvider);
+		const extHostWorkspace = new ExtHostWorkspace(rpcProtocol, this._extHostLogService, this._searchRequestIdProvider, initData.workspace);
 
 		this._extHostLogService.info('extension host started');
 		this._extHostLogService.trace('initData', initData);
@@ -87,7 +87,7 @@ export class ExtensionHostMain {
 		this._extensionService.getExtensionPathIndex().then(map => {
 			(<any>Error).prepareStackTrace = (error: Error, stackTrace: errors.V8CallSite[]) => {
 				let stackTraceMessage = '';
-				let extension: IExtensionDescription;
+				let extension: IExtensionDescription | undefined;
 				let fileName: string;
 				for (const call of stackTrace) {
 					stackTraceMessage += `\n\tat ${call.toString()}`;
@@ -153,6 +153,7 @@ export class ExtensionHostMain {
 		initData.environment.appRoot = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.appRoot));
 		initData.environment.appSettingsHome = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.appSettingsHome));
 		initData.environment.extensionDevelopmentLocationURI = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.extensionDevelopmentLocationURI));
+		initData.environment.extensionTestsLocationURI = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.extensionTestsLocationURI));
 		initData.environment.globalStorageHome = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.globalStorageHome));
 		initData.logsLocation = URI.revive(rpcProtocol.transformIncomingURIs(initData.logsLocation));
 		initData.workspace = rpcProtocol.transformIncomingURIs(initData.workspace);

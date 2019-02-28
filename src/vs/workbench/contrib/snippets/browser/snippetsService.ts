@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { basename, extname, join } from 'vs/base/common/paths';
+import { join } from 'vs/base/common/path';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { combinedDisposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { values } from 'vs/base/common/map';
@@ -107,7 +107,6 @@ namespace snippetExt {
 	};
 
 	export const point = ExtensionsRegistry.registerExtensionPoint<snippetExt.ISnippetsExtensionPoint[]>({
-		isDynamic: true,
 		extensionPoint: 'snippets',
 		deps: [languagesExtPoint],
 		jsonSchema: snippetExt.snippetsContribution
@@ -321,10 +320,10 @@ class SnippetsService implements ISnippetsService {
 	}
 
 	private _addSnippetFile(uri: URI, source: SnippetSource): IDisposable {
-		const ext = extname(uri.path);
+		const ext = resources.extname(uri);
 		const key = uri.toString();
 		if (source === SnippetSource.User && ext === '.json') {
-			const langName = basename(uri.path).replace(/\.json/, '');
+			const langName = resources.basename(uri).replace(/\.json/, '');
 			this._files.set(key, new SnippetFile(source, uri, [langName], undefined, this._fileService));
 		} else if (ext === '.code-snippets') {
 			this._files.set(key, new SnippetFile(source, uri, undefined, undefined, this._fileService));

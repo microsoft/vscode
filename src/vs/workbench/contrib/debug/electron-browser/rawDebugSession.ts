@@ -581,8 +581,8 @@ export class RawDebugSession {
 			// guess the VS Code workspace path from the executable
 			const vscodeWorkspacePath = runtimeExecutable.substr(0, electronIdx);
 
-			// only add path if user hasn't already added that path
-			const x = spawnArgs.filter(a => a.indexOf(vscodeWorkspacePath) >= 0);
+			// only add VS Code workspace path if user hasn't already added that path as a (folder) argument
+			const x = spawnArgs.filter(a => a.indexOf(vscodeWorkspacePath) === 0);
 			if (x.length === 0) {
 				spawnArgs.unshift(vscodeWorkspacePath);
 			}

@@ -13,7 +13,6 @@ import { xhr, XHRResponse, configure as configureHttpRequests, getErrorStatusDes
 import * as fs from 'fs';
 import URI from 'vscode-uri';
 import * as URL from 'url';
-import { startsWith } from './utils/strings';
 import { formatError, runSafe, runSafeAsync } from './utils/runner';
 import { JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings, SchemaConfiguration } from 'vscode-json-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
@@ -57,46 +56,51 @@ const workspaceContext = {
 		return URL.resolve(resource, relativePath);
 	}
 };
+function getSchemaRequestService(handledSchemas: { [schema: string]: boolean }) {
 
-const schemaRequestService = (uri: string): Thenable<string> => {
-	if (startsWith(uri, 'file://')) {
-		const fsPath = URI.parse(uri).fsPath;
-		return new Promise<string>((c, e) => {
-			fs.readFile(fsPath, 'UTF-8', (err, result) => {
-				err ? e(err.message || err.toString()) : c(result.toString());
-			});
-		});
-	} else if (startsWith(uri, 'vscode://')) {
+	return (uri: string): Thenable<string> => {
+		const protocol = uri.substr(0, uri.indexOf(':'));
+
+		if (!handledSchemas || handledSchemas[protocol]) {
+			if (protocol === 'file') {
+				const fsPath = URI.parse(uri).fsPath;
+				return new Promise<string>((c, e) => {
+					fs.readFile(fsPath, 'UTF-8', (err, result) => {
+						err ? e(err.message || err.toString()) : c(result.toString());
+					});
+				});
+			} else if (protocol === 'http' || protocol === 'https') {
+				if (uri.indexOf('//schema.management.azure.com/') !== -1) {
+					/* __GDPR__
+						"json.schema" : {
+							"schemaURL" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						}
+					 */
+					connection.telemetry.logEvent({
+						key: 'json.schema',
+						value: {
+							schemaURL: uri
+						}
+					});
+				}
+				const headers = { 'Accept-Encoding': 'gzip, deflate' };
+				return xhr({ url: uri, followRedirects: 5, headers }).then(response => {
+					return response.responseText;
+				}, (error: XHRResponse) => {
+					return Promise.reject(error.responseText || getErrorStatusDescription(error.status) || error.toString());
+				});
+			}
+		}
 		return connection.sendRequest(VSCodeContentRequest.type, uri).then(responseText => {
 			return responseText;
 		}, error => {
 			return Promise.reject(error.message);
 		});
-	}
-	if (uri.indexOf('//schema.management.azure.com/') !== -1) {
-		/* __GDPR__
-			"json.schema" : {
-				"schemaURL" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		 */
-		connection.telemetry.logEvent({
-			key: 'json.schema',
-			value: {
-				schemaURL: uri
-			}
-		});
-	}
-	const headers = { 'Accept-Encoding': 'gzip, deflate' };
-	return xhr({ url: uri, followRedirects: 5, headers }).then(response => {
-		return response.responseText;
-	}, (error: XHRResponse) => {
-		return Promise.reject(error.responseText || getErrorStatusDescription(error.status) || error.toString());
-	});
-};
+	};
+}
 
 // create the JSON language service
 let languageService = getLanguageService({
-	schemaRequestService,
 	workspaceContext,
 	contributions: [],
 });
@@ -117,8 +121,10 @@ let hierarchicalDocumentSymbolSupport = false;
 // in the passed params the rootPath of the workspace plus the client capabilities.
 connection.onInitialize((params: InitializeParams): InitializeResult => {
 
+	const handledProtocols = params.initializationOptions && params.initializationOptions['handledSchemaProtocols'];
+
 	languageService = getLanguageService({
-		schemaRequestService,
+		schemaRequestService: getSchemaRequestService(handledProtocols),
 		workspaceContext,
 		contributions: [],
 		clientCapabilities: params.capabilities
@@ -427,12 +433,12 @@ connection.onFoldingRanges((params, token) => {
 	}, null, `Error while computing folding ranges for ${params.textDocument.uri}`, token);
 });
 
-connection.onRequest('$/textDocument/selectionRange', async (params, token) => {
+connection.onRequest('$/textDocument/selectionRanges', async (params, token) => {
 	return runSafe(() => {
 		const document = documents.get(params.textDocument.uri);
 		if (document) {
 			const jsonDocument = getJSONDocument(document);
-			return languageService.getSelectionRanges(document, params.position, jsonDocument);
+			return languageService.getSelectionRanges(document, params.positions, jsonDocument);
 		}
 		return [];
 	}, [], `Error while computing selection ranges for ${params.textDocument.uri}`, token);

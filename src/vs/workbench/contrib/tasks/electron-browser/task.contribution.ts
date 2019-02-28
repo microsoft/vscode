@@ -57,7 +57,7 @@ import { StatusbarAlignment } from 'vs/platform/statusbar/common/statusbar';
 import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import Constants from 'vs/workbench/contrib/markers/electron-browser/constants';
+import Constants from 'vs/workbench/contrib/markers/browser/constants';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
@@ -549,8 +549,20 @@ class TaskService extends Disposable implements ITaskService {
 	}
 
 	private registerCommands(): void {
-		CommandsRegistry.registerCommand('workbench.action.tasks.runTask', (accessor, arg) => {
-			this.runTaskCommand(arg);
+		CommandsRegistry.registerCommand({
+			id: 'workbench.action.tasks.runTask',
+			handler: (accessor, arg) => {
+				this.runTaskCommand(arg);
+			},
+			description: {
+				description: 'Run Task',
+				args: [{
+					name: 'args',
+					schema: {
+						'type': 'string',
+					}
+				}]
+			}
 		});
 
 		CommandsRegistry.registerCommand('workbench.action.tasks.reRunTask', (accessor, arg) => {
@@ -1001,8 +1013,8 @@ class TaskService extends Disposable implements ITaskService {
 		}
 
 		let fileConfig = configuration.config;
-		let index: number;
-		let toCustomize: TaskConfig.CustomTask | TaskConfig.ConfiguringTask;
+		let index: number | undefined;
+		let toCustomize: TaskConfig.CustomTask | TaskConfig.ConfiguringTask | undefined;
 		let taskConfig = CustomTask.is(task) ? task._source.config : undefined;
 		if (taskConfig && taskConfig.element) {
 			index = taskConfig.index;
@@ -1033,7 +1045,7 @@ class TaskService extends Disposable implements ITaskService {
 			}
 		}
 
-		let promise: Promise<void>;
+		let promise: Promise<void> | undefined;
 		if (!fileConfig) {
 			let value = {
 				version: '2.0.0',
@@ -1320,7 +1332,8 @@ class TaskService extends Disposable implements ITaskService {
 			this._taskSystem = new TerminalTaskSystem(
 				this.terminalService, this.outputService, this.markerService,
 				this.modelService, this.configurationResolverService, this.telemetryService,
-				this.contextService, TaskService.OutputChannelId,
+				this.contextService, this._windowService,
+				TaskService.OutputChannelId,
 				(workspaceFolder: IWorkspaceFolder) => {
 					if (!workspaceFolder) {
 						return undefined;
@@ -1487,7 +1500,7 @@ class TaskService extends Disposable implements ITaskService {
 	}
 
 	private getLegacyTaskConfigurations(workspaceTasks: TaskSet): IStringDictionary<CustomTask> {
-		let result: IStringDictionary<CustomTask>;
+		let result: IStringDictionary<CustomTask> | undefined;
 		function getResult() {
 			if (result) {
 				return result;
@@ -1579,7 +1592,7 @@ class TaskService extends Disposable implements ITaskService {
 						problemReporter.fatal(nls.localize('TaskSystem.configurationErrors', 'Error: the provided task configuration has validation errors and can\'t not be used. Please correct the errors first.'));
 						return { workspaceFolder, set: undefined, configurations: undefined, hasErrors };
 					}
-					let customizedTasks: { byIdentifier: IStringDictionary<ConfiguringTask>; };
+					let customizedTasks: { byIdentifier: IStringDictionary<ConfiguringTask>; } | undefined;
 					if (parseResult.configured && parseResult.configured.length > 0) {
 						customizedTasks = {
 							byIdentifier: Object.create(null)
@@ -1846,7 +1859,7 @@ class TaskService extends Disposable implements ITaskService {
 			return [];
 		}
 		const TaskQuickPickEntry = (task: Task): TaskQuickPickEntry => {
-			let description: string;
+			let description: string | undefined;
 			if (this.needsFolderQualification()) {
 				let workspaceFolder = task.getWorkspaceFolder();
 				if (workspaceFolder) {
@@ -2412,7 +2425,7 @@ class TaskService extends Disposable implements ITaskService {
 					this.runConfigureTasks();
 					return;
 				}
-				let selectedTask: Task;
+				let selectedTask: Task | undefined;
 				let selectedEntry: TaskQuickPickEntry;
 				for (let task of tasks) {
 					if (task.configurationProperties.group === TaskGroup.Build && task.configurationProperties.groupType === GroupType.default) {
@@ -2640,17 +2653,18 @@ let schema: IJSONSchema = {
 	description: 'Task definition file',
 	type: 'object',
 	default: {
-		version: '0.1.0',
-		command: 'myCommand',
-		isShellCommand: false,
-		args: [],
-		showOutput: 'always',
+		version: '2.0.0',
 		tasks: [
 			{
-				taskName: 'build',
-				showOutput: 'silent',
-				isBuildCommand: true,
-				problemMatcher: ['$tsc', '$lessCompile']
+				label: 'My Task',
+				command: 'echo hello',
+				type: 'shell',
+				args: [],
+				problemMatcher: ['$tsc'],
+				presentation: {
+					reveal: 'always'
+				},
+				group: 'build'
 			}
 		]
 	}

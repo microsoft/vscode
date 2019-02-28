@@ -22,9 +22,6 @@ const fadedDecoration = vscode.window.createTextEditorDecorationType({
 let pendingLaunchJsonDecoration: NodeJS.Timer;
 
 export function activate(context: vscode.ExtensionContext): void {
-	//keybindings.json command-suggestions
-	context.subscriptions.push(registerKeybindingsCompletions());
-
 	//settings.json suggestions
 	context.subscriptions.push(registerSettingsCompletions());
 
@@ -92,23 +89,6 @@ function autoFixSettingsJSON(willSaveEvent: vscode.TextDocumentWillSaveEvent): v
 
 	willSaveEvent.waitUntil(
 		vscode.workspace.applyEdit(edit));
-}
-
-function registerKeybindingsCompletions(): vscode.Disposable {
-	const commands = vscode.commands.getCommands(true);
-
-	return vscode.languages.registerCompletionItemProvider({ pattern: '**/keybindings.json' }, {
-
-		provideCompletionItems(document, position, _token) {
-			const location = getLocation(document.getText(), document.offsetAt(position));
-			if (location.path[1] === 'command') {
-
-				const range = document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
-				return commands.then(ids => ids.map(id => newSimpleCompletionItem(JSON.stringify(id), range)));
-			}
-			return undefined;
-		}
-	});
 }
 
 function registerSettingsCompletions(): vscode.Disposable {
@@ -205,16 +185,6 @@ function provideInstalledExtensionProposals(extensionsContent: IExtensionsConten
 		}
 	}
 	return undefined;
-}
-
-function newSimpleCompletionItem(label: string, range: vscode.Range, description?: string, insertText?: string): vscode.CompletionItem {
-	const item = new vscode.CompletionItem(label);
-	item.kind = vscode.CompletionItemKind.Value;
-	item.detail = description;
-	item.insertText = insertText || label;
-	item.range = range;
-
-	return item;
 }
 
 function updateLaunchJsonDecorations(editor: vscode.TextEditor | undefined): void {

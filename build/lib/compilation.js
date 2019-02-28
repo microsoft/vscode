@@ -78,7 +78,7 @@ const typesDts = [
     '!node_modules/@types/uglify-js/**/*',
 ];
 function compileTask(src, out, build) {
-    const result = function () {
+    return function () {
         const compile = createCompile(src, build, true);
         const srcPipe = es.merge(gulp.src(`${src}/**`, { base: `${src}` }), gulp.src(typesDts));
         let generator = new MonacoGenerator(false);
@@ -90,12 +90,10 @@ function compileTask(src, out, build) {
             .pipe(compile())
             .pipe(gulp.dest(out));
     };
-    result.displayName = `compile-task-${out}${build ? '-build' : ''}`;
-    return result;
 }
 exports.compileTask = compileTask;
 function watchTask(out, build) {
-    const result = function () {
+    return function () {
         const compile = createCompile('src', build);
         const src = es.merge(gulp.src('src/**', { base: 'src' }), gulp.src(typesDts));
         const watchSrc = watch('src/**', { base: 'src' });
@@ -106,8 +104,6 @@ function watchTask(out, build) {
             .pipe(util.incremental(compile, src, true))
             .pipe(gulp.dest(out));
     };
-    result.displayName = `watch-task-${out}${build ? '-build' : ''}`;
-    return result;
 }
 exports.watchTask = watchTask;
 const REPO_SRC_FOLDER = path.join(__dirname, '../../src');

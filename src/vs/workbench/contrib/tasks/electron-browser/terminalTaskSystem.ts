@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
-
+import * as path from 'vs/base/common/path';
 import * as nls from 'vs/nls';
 import * as Objects from 'vs/base/common/objects';
 import * as Types from 'vs/base/common/types';
 import * as Platform from 'vs/base/common/platform';
 import * as Async from 'vs/base/common/async';
+import * as os from 'os';
 import { IStringDictionary, values } from 'vs/base/common/collections';
 import { LinkedMap, Touch } from 'vs/base/common/map';
 import Severity from 'vs/base/common/severity';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import * as TPath from 'vs/base/common/paths';
+import { isUNC } from 'vs/base/common/extpath';
 
 import { win32 } from 'vs/base/node/processes';
 
@@ -38,6 +38,10 @@ import {
 	ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, ITaskResolver,
 	TelemetryEvent, Triggers, TaskTerminateResponse, TaskSystemInfoResovler, TaskSystemInfo, ResolveSet, ResolvedVariables
 } from 'vs/workbench/contrib/tasks/common/taskSystem';
+import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
+import { URI } from 'vs/base/common/uri';
+import { IWindowService } from 'vs/platform/windows/common/windows';
+import { Schemas } from 'vs/base/common/network';
 
 interface TerminalData {
 	terminal: ITerminalInstance;
@@ -161,6 +165,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		private configurationResolverService: IConfigurationResolverService,
 		private telemetryService: ITelemetryService,
 		private contextService: IWorkspaceContextService,
+		private windowService: IWindowService,
 		outputChannelId: string,
 		taskSystemInfoResolver: TaskSystemInfoResovler) {
 
@@ -735,14 +740,14 @@ export class TerminalTaskSystem implements ITaskSystem {
 				}
 				windowsShellArgs = true;
 				let basename = path.basename(shellLaunchConfig.executable!).toLowerCase();
-				if (basename === 'cmd.exe' && ((options.cwd && TPath.isUNC(options.cwd)) || (!options.cwd && TPath.isUNC(process.cwd())))) {
+				if (basename === 'cmd.exe' && ((options.cwd && isUNC(options.cwd)) || (!options.cwd && isUNC(process.cwd())))) {
 					return undefined;
 				}
 				if ((basename === 'powershell.exe') || (basename === 'pwsh.exe')) {
 					if (!shellSpecified) {
 						toAdd.push('-Command');
 					}
-				} else if ((basename === 'bash.exe') || (basename === 'zsh.exe')) {
+				} else if ((basename === 'bash.exe') || (basename === 'zsh.exe') || ((basename === 'wsl.exe') && (this.getWindowsBuildNumber() < 17763))) { // See https://github.com/Microsoft/vscode/issues/67855
 					windowsShellArgs = false;
 					if (!shellSpecified) {
 						toAdd.push('-c');
@@ -815,23 +820,15 @@ export class TerminalTaskSystem implements ITaskSystem {
 
 		if (options.cwd) {
 			let cwd = options.cwd;
-			let p: typeof path;
-			// This must be normalized to the OS
-			if (platform === Platform.Platform.Windows) {
-				p = path.win32 as any;
-			} else if (platform === Platform.Platform.Linux || platform === Platform.Platform.Mac) {
-				p = path.posix as any;
-			} else {
-				p = path;
-			}
-			if (!p.isAbsolute(cwd)) {
+			if (!path.isAbsolute(cwd)) {
 				let workspaceFolder = task.getWorkspaceFolder();
 				if (workspaceFolder && (workspaceFolder.uri.scheme === 'file')) {
-					cwd = p.join(workspaceFolder.uri.fsPath, cwd);
+					cwd = path.join(workspaceFolder.uri.fsPath, cwd);
 				}
 			}
 			// This must be normalized to the OS
-			shellLaunchConfig.cwd = p.normalize(cwd);
+			const authority = this.windowService.getConfiguration().remoteAuthority;
+			shellLaunchConfig.cwd = URI.from({ scheme: authority ? REMOTE_HOST_SCHEME : Schemas.file, authority: authority, path: cwd });
 		}
 		if (options.env) {
 			shellLaunchConfig.env = options.env;
@@ -1216,6 +1213,15 @@ export class TerminalTaskSystem implements ITaskSystem {
 			});
 		}
 		return result;
+	}
+
+	private getWindowsBuildNumber(): number {
+		const osVersion = (/(\d+)\.(\d+)\.(\d+)/g).exec(os.release());
+		let buildNumber: number = 0;
+		if (osVersion && osVersion.length === 4) {
+			buildNumber = parseInt(osVersion[3]);
+		}
+		return buildNumber;
 	}
 
 	private registerLinkMatchers(terminal: ITerminalInstance, problemMatchers: ProblemMatcher[]): number[] {

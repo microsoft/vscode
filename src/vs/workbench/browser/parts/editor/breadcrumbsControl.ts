@@ -45,6 +45,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
+import { onDidChangeZoomLevel } from 'vs/base/browser/browser';
 
 class Item extends BreadcrumbsItem {
 
@@ -148,6 +149,7 @@ export class BreadcrumbsControl {
 	private _disposables = new Array<IDisposable>();
 	private _breadcrumbsDisposables = new Array<IDisposable>();
 	private _breadcrumbsPickerShowing = false;
+	private _breadcrumbsPickerIgnoreOnceItem: BreadcrumbsItem | undefined;
 
 	constructor(
 		container: HTMLElement,
@@ -196,7 +198,7 @@ export class BreadcrumbsControl {
 		this.domNode.remove();
 	}
 
-	layout(dim: dom.Dimension): void {
+	layout(dim: dom.Dimension | undefined): void {
 		this._widget.layout(dim);
 	}
 
@@ -260,9 +262,12 @@ export class BreadcrumbsControl {
 		return true;
 	}
 
-	private _getActiveCodeEditor(): ICodeEditor {
+	private _getActiveCodeEditor(): ICodeEditor | undefined {
+		if (!this._editorGroup.activeControl) {
+			return undefined;
+		}
 		let control = this._editorGroup.activeControl.getControl();
-		let editor: ICodeEditor;
+		let editor: ICodeEditor | undefined;
 		if (isCodeEditor(control)) {
 			editor = control as ICodeEditor;
 		} else if (isDiffEditor(control)) {
@@ -279,6 +284,13 @@ export class BreadcrumbsControl {
 
 	private _onSelectEvent(event: IBreadcrumbsItemEvent): void {
 		if (!event.item) {
+			return;
+		}
+
+		if (event.item === this._breadcrumbsPickerIgnoreOnceItem) {
+			this._breadcrumbsPickerIgnoreOnceItem = undefined;
+			this._widget.setFocused(undefined);
+			this._widget.setSelection(undefined);
 			return;
 		}
 
@@ -313,7 +325,7 @@ export class BreadcrumbsControl {
 		let picker: BreadcrumbsPicker;
 		let editor = this._getActiveCodeEditor();
 		let editorDecorations: string[] = [];
-		let editorViewState: ICodeEditorViewState;
+		let editorViewState: ICodeEditorViewState | undefined;
 
 		this._contextViewService.showContextView({
 			render: (parent: HTMLElement) => {
@@ -336,7 +348,7 @@ export class BreadcrumbsControl {
 						return;
 					}
 					if (!editorViewState) {
-						editorViewState = editor.saveViewState();
+						editorViewState = editor.saveViewState() || undefined;
 					}
 					const { symbol } = data.target;
 					editor.revealRangeInCenter(symbol.range, ScrollType.Smooth);
@@ -347,12 +359,29 @@ export class BreadcrumbsControl {
 							isWholeLine: true
 						}
 					}]);
-
 				});
+
+				let zoomListener = onDidChangeZoomLevel(() => {
+					this._contextViewService.hideContextView(this);
+				});
+
+				let focusTracker = dom.trackFocus(parent);
+				let blurListener = focusTracker.onDidBlur(() => {
+					this._breadcrumbsPickerIgnoreOnceItem = this._widget.isDOMFocused() ? event.item : undefined;
+					this._contextViewService.hideContextView(this);
+				});
+
 				this._breadcrumbsPickerShowing = true;
 				this._updateCkBreadcrumbsActive();
 
-				return combinedDisposable([selectListener, focusListener, picker]);
+				return combinedDisposable([
+					picker,
+					selectListener,
+					focusListener,
+					zoomListener,
+					focusTracker,
+					blurListener
+				]);
 			},
 			getAnchor: () => {
 				let maxInnerWidth = window.innerWidth - 8 /*a little less the full widget*/;
@@ -449,7 +478,7 @@ export class BreadcrumbsControl {
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: 'breadcrumbs.toggle',
-		title: { value: localize('cmd.toggle', "Toggle Breadcrumbs"), original: 'Toggle Breadcrumbs' },
+		title: { value: localize('cmd.toggle', "Toggle Breadcrumbs"), original: 'View: Toggle Breadcrumbs' },
 		category: localize('cmd.category', "View")
 	}
 });
@@ -538,7 +567,11 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler(accessor) {
 		const groups = accessor.get(IEditorGroupsService);
 		const breadcrumbs = accessor.get(IBreadcrumbsService);
-		breadcrumbs.getWidget(groups.activeGroup.id).focusNext();
+		const widget = breadcrumbs.getWidget(groups.activeGroup.id);
+		if (!widget) {
+			return;
+		}
+		widget.focusNext();
 	}
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -554,7 +587,11 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler(accessor) {
 		const groups = accessor.get(IEditorGroupsService);
 		const breadcrumbs = accessor.get(IBreadcrumbsService);
-		breadcrumbs.getWidget(groups.activeGroup.id).focusPrev();
+		const widget = breadcrumbs.getWidget(groups.activeGroup.id);
+		if (!widget) {
+			return;
+		}
+		widget.focusPrev();
 	}
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -567,6 +604,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const groups = accessor.get(IEditorGroupsService);
 		const breadcrumbs = accessor.get(IBreadcrumbsService);
 		const widget = breadcrumbs.getWidget(groups.activeGroup.id);
+		if (!widget) {
+			return;
+		}
 		widget.setSelection(widget.getFocused(), BreadcrumbsControl.Payload_Pick);
 	}
 });
@@ -580,6 +620,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const groups = accessor.get(IEditorGroupsService);
 		const breadcrumbs = accessor.get(IBreadcrumbsService);
 		const widget = breadcrumbs.getWidget(groups.activeGroup.id);
+		if (!widget) {
+			return;
+		}
 		widget.setSelection(widget.getFocused(), BreadcrumbsControl.Payload_Reveal);
 	}
 });
@@ -591,8 +634,12 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler(accessor) {
 		const groups = accessor.get(IEditorGroupsService);
 		const breadcrumbs = accessor.get(IBreadcrumbsService);
-		breadcrumbs.getWidget(groups.activeGroup.id).setFocused(undefined);
-		breadcrumbs.getWidget(groups.activeGroup.id).setSelection(undefined);
+		const widget = breadcrumbs.getWidget(groups.activeGroup.id);
+		if (!widget) {
+			return;
+		}
+		widget.setFocused(undefined);
+		widget.setSelection(undefined);
 		groups.activeGroup.activeControl.focus();
 	}
 });
