@@ -5,50 +5,61 @@
 
 import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
-import { IFileService } from 'vs/platform/files/common/files';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IEditor } from 'vs/workbench/common/editor';
 import { join } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
+import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
+import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 import { language } from 'vs/base/common/platform';
-import { ILabelService } from 'vs/platform/label/common/label';
+import { firstIndex } from 'vs/base/common/arrays';
 
 export class ConfigureLocaleAction extends Action {
 	public static readonly ID = 'workbench.action.configureLocale';
 	public static readonly LABEL = localize('configureLocale', "Configure Display Language");
 
-	private static DEFAULT_CONTENT: string = [
-		'{',
-		`\t// ${localize('displayLanguage', 'Defines VS Code\'s display language.')}`,
-		`\t// ${localize('doc', 'See {0} for a list of supported languages.', 'https://go.microsoft.com/fwlink/?LinkId=761051')}`,
-		`\t`,
-		`\t"locale":"${language}" // ${localize('restart', 'Changes will not take effect until VS Code has been restarted.')}`,
-		'}'
-	].join('\n');
-
 	constructor(id: string, label: string,
-		@IFileService private readonly fileService: IFileService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IEditorService private readonly editorService: IEditorService,
-		@ILabelService private readonly labelService: ILabelService
+		@ILocalizationsService private readonly localizationService: ILocalizationsService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IJSONEditingService private readonly jsonEditingService: IJSONEditingService,
+		@IWindowsService private readonly windowsService: IWindowsService,
+		@INotificationService private readonly notificationService: INotificationService
 	) {
 		super(id, label);
 	}
 
-	public run(event?: any): Promise<IEditor | undefined> {
-		const file = URI.file(join(this.environmentService.appSettingsHome, 'locale.json'));
-		return this.fileService.resolveFile(file).then(undefined, (error) => {
-			return this.fileService.createFile(file, ConfigureLocaleAction.DEFAULT_CONTENT);
-		}).then((stat): Promise<IEditor | undefined> | undefined => {
-			if (!stat) {
-				return undefined;
-			}
-			return this.editorService.openEditor({
-				resource: stat.resource
+	private async getLanguageOptions(): Promise<IQuickPickItem[]> {
+		return this.localizationService.getLanguageIds().then(languages => {
+			return languages.map(language => {
+				return {
+					label: language.toLowerCase()
+				};
 			});
-		}, (error) => {
-			throw new Error(localize('fail.createSettings', "Unable to create '{0}' ({1}).", this.labelService.getUriLabel(file, { relative: true }), error));
 		});
+	}
+
+	public async run(event?: any): Promise<void> {
+		const languageOptions = await this.getLanguageOptions();
+		const currentLanguageIndex = firstIndex(languageOptions, l => l.label === language);
+
+		try {
+			const selectedLanguage = await this.quickInputService.pick(languageOptions,
+				{
+					canPickMany: false,
+					placeHolder: localize('chooseDisplayLanguage', "Select display language. VS Code will restart to apply the change"),
+					activeItem: languageOptions[currentLanguageIndex]
+				});
+
+			if (selectedLanguage) {
+				const file = URI.file(join(this.environmentService.appSettingsHome, 'locale.json'));
+				await this.jsonEditingService.write(file, { key: 'locale', value: selectedLanguage.label }, true);
+				this.windowsService.relaunch({});
+			}
+		} catch (e) {
+			this.notificationService.error(e);
+		}
 	}
 }
