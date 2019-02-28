@@ -14,7 +14,7 @@ import { isMacintosh } from 'vs/base/common/platform';
 
 export function WORKBENCH_BACKGROUND(theme: ITheme): Color {
 	if (isMacintosh) {
-		return Color.fromHex('#00000000'); // enableVibrancy requires transparent bg
+		return Color.fromHex('#00000000'); // vibrancy requires transparent bg
 	} else {
 		switch (theme.type) {
 			case 'dark':

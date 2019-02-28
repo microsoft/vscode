@@ -32,7 +32,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 
 	private titleBarStyle: 'native' | 'custom';
 	private nativeTabs: boolean;
-	private enableVibrancy: 'none' | 'light' | 'medium-light' | 'dark' | 'ultra-dark';
+	private vibrancy: 'none' | 'light' | 'medium-light' | 'dark' | 'ultra-dark';
 	private nativeFullScreen: boolean;
 	private clickThroughInactive: boolean;
 	private updateMode: string;
@@ -73,8 +73,8 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		}
 
 		// macOS: Vibrancy
-		if (isMacintosh && config.window && typeof config.window.enableVibrancy === 'string' && config.window.enableVibrancy !== this.enableVibrancy) {
-			this.enableVibrancy = config.window.enableVibrancy;
+		if (isMacintosh && config.window && typeof config.window.vibrancy === 'string' && config.window.vibrancy !== this.vibrancy) {
+			this.vibrancy = config.window.vibrancy;
 			changed = true;
 		}
 
