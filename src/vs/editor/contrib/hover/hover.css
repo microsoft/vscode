@@ -27,6 +27,10 @@
 	padding: 4px 8px;
 }
 
+.monaco-editor-hover .markdown-hover > .hover-contents:not(.code-hover-contents) {
+	max-width: 500px;
+}
+
 .monaco-editor-hover p,
 .monaco-editor-hover ul {
 	margin: 8px 0;
@@ -88,9 +92,4 @@
 
 .monaco-editor-hover .hover-row.status-bar .actions .action-container .action .icon {
 	padding-right: 4px;
-}
-
-.monaco-editor-hover .hover-row.status-bar .actions .action-container .keybinding-label {
-	padding-left: 4px;
-	opacity: 0.6;
 }

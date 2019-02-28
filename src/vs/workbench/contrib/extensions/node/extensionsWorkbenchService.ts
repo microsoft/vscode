@@ -549,6 +549,8 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 					this._onChange.fire(extension);
 					this.eventuallyAutoUpdateExtensions();
 				});
+		} else {
+			this._onChange.fire(extension);
 		}
 	}
 
@@ -894,6 +896,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 					this.installed.push(extension);
 				}
 				extension.local = local;
+				extension.gallery = gallery;
 			}
 		}
 		this._onChange.fire(error ? undefined : extension);

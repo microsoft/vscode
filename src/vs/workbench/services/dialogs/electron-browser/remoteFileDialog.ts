@@ -284,7 +284,12 @@ export class RemoteFileDialog {
 			} else {
 				const inputUriDirname = resources.dirname(valueUri);
 				if (!resources.isEqual(this.currentFolder, inputUriDirname)) {
-					const statWithoutTrailing = await this.remoteFileService.resolveFile(inputUriDirname);
+					let statWithoutTrailing: IFileStat | undefined;
+					try {
+						statWithoutTrailing = await this.remoteFileService.resolveFile(inputUriDirname);
+					} catch (e) {
+						// do nothing
+					}
 					if (statWithoutTrailing && statWithoutTrailing.isDirectory && (resources.basename(valueUri) !== '.')) {
 						this.updateItems(inputUriDirname, resources.basename(valueUri));
 					}

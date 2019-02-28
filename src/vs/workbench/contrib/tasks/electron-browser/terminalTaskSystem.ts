@@ -9,6 +9,7 @@ import * as Objects from 'vs/base/common/objects';
 import * as Types from 'vs/base/common/types';
 import * as Platform from 'vs/base/common/platform';
 import * as Async from 'vs/base/common/async';
+import * as os from 'os';
 import { IStringDictionary, values } from 'vs/base/common/collections';
 import { LinkedMap, Touch } from 'vs/base/common/map';
 import Severity from 'vs/base/common/severity';
@@ -746,7 +747,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 					if (!shellSpecified) {
 						toAdd.push('-Command');
 					}
-				} else if ((basename === 'bash.exe') || (basename === 'zsh.exe')) {
+				} else if ((basename === 'bash.exe') || (basename === 'zsh.exe') || ((basename === 'wsl.exe') && (this.getWindowsBuildNumber() < 17763))) { // See https://github.com/Microsoft/vscode/issues/67855
 					windowsShellArgs = false;
 					if (!shellSpecified) {
 						toAdd.push('-c');
@@ -1212,6 +1213,15 @@ export class TerminalTaskSystem implements ITaskSystem {
 			});
 		}
 		return result;
+	}
+
+	private getWindowsBuildNumber(): number {
+		const osVersion = (/(\d+)\.(\d+)\.(\d+)/g).exec(os.release());
+		let buildNumber: number = 0;
+		if (osVersion && osVersion.length === 4) {
+			buildNumber = parseInt(osVersion[3]);
+		}
+		return buildNumber;
 	}
 
 	private registerLinkMatchers(terminal: ITerminalInstance, problemMatchers: ProblemMatcher[]): number[] {

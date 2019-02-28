@@ -213,34 +213,30 @@ class FormatOnType implements editorCommon.IEditorContribution {
 
 		});
 
-		let modelOpts = model.getOptions();
-
 		getOnTypeFormattingEdits(
 			this._telemetryService,
 			this._workerService,
 			model,
 			position,
 			ch,
-			{
-				tabSize: modelOpts.tabSize,
-				insertSpaces: modelOpts.insertSpaces
-			}).then(edits => {
+			model.getFormattingOptions()
+		).then(edits => {
 
-				unbind.dispose();
+			unbind.dispose();
 
-				if (canceled) {
-					return;
-				}
+			if (canceled) {
+				return;
+			}
 
-				if (isNonEmptyArray(edits)) {
-					FormattingEdit.execute(this._editor, edits);
-					alertFormattingEdits(edits);
-				}
+			if (isNonEmptyArray(edits)) {
+				FormattingEdit.execute(this._editor, edits);
+				alertFormattingEdits(edits);
+			}
 
-			}, (err) => {
-				unbind.dispose();
-				throw err;
-			});
+		}, (err) => {
+			unbind.dispose();
+			throw err;
+		});
 	}
 
 	public getId(): string {
@@ -311,8 +307,7 @@ class FormatOnPaste implements editorCommon.IEditorContribution {
 		}
 
 		const model = this.editor.getModel();
-		const { tabSize, insertSpaces } = model.getOptions();
-		formatDocumentRange(this.telemetryService, this.workerService, this.editor, range, { tabSize, insertSpaces }, CancellationToken.None);
+		formatDocumentRange(this.telemetryService, this.workerService, this.editor, range, model.getFormattingOptions(), CancellationToken.None);
 	}
 
 	public getId(): string {
@@ -354,8 +349,7 @@ export class FormatDocumentAction extends EditorAction {
 		}
 		const workerService = accessor.get(IEditorWorkerService);
 		const telemetryService = accessor.get(ITelemetryService);
-		const { tabSize, insertSpaces } = editor.getModel().getOptions();
-		return formatDocument(telemetryService, workerService, editor, { tabSize, insertSpaces }, CancellationToken.None);
+		return formatDocument(telemetryService, workerService, editor, editor.getModel().getFormattingOptions(), CancellationToken.None);
 	}
 }
 
@@ -386,8 +380,7 @@ export class FormatSelectionAction extends EditorAction {
 		}
 		const workerService = accessor.get(IEditorWorkerService);
 		const telemetryService = accessor.get(ITelemetryService);
-		const { tabSize, insertSpaces } = editor.getModel().getOptions();
-		return formatDocumentRange(telemetryService, workerService, editor, FormatRangeType.Selection, { tabSize, insertSpaces }, CancellationToken.None);
+		return formatDocumentRange(telemetryService, workerService, editor, FormatRangeType.Selection, editor.getModel().getFormattingOptions(), CancellationToken.None);
 	}
 }
 
@@ -403,13 +396,12 @@ CommandsRegistry.registerCommand('editor.action.format', accessor => {
 	if (!editor || !editor.hasModel()) {
 		return undefined;
 	}
-	const { tabSize, insertSpaces } = editor.getModel().getOptions();
 	const workerService = accessor.get(IEditorWorkerService);
 	const telemetryService = accessor.get(ITelemetryService);
 
 	if (editor.getSelection().isEmpty()) {
-		return formatDocument(telemetryService, workerService, editor, { tabSize, insertSpaces }, CancellationToken.None);
+		return formatDocument(telemetryService, workerService, editor, editor.getModel().getFormattingOptions(), CancellationToken.None);
 	} else {
-		return formatDocumentRange(telemetryService, workerService, editor, FormatRangeType.Selection, { tabSize, insertSpaces }, CancellationToken.None);
+		return formatDocumentRange(telemetryService, workerService, editor, FormatRangeType.Selection, editor.getModel().getFormattingOptions(), CancellationToken.None);
 	}
 });

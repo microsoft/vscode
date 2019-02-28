@@ -39,6 +39,7 @@ import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
 import { applyCodeAction, QuickFixAction } from 'vs/editor/contrib/codeAction/codeActionCommands';
 import { Action } from 'vs/base/common/actions';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
+import { IModeService } from 'vs/editor/common/services/modeService';
 
 const $ = dom.$;
 
@@ -205,7 +206,6 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 	private _hoverOperation: HoverOperation<HoverPart[]>;
 	private _highlightDecorations: string[];
 	private _isChangingDecorations: boolean;
-	private _markdownRenderer: MarkdownRenderer;
 	private _shouldFocus: boolean;
 	private _colorPicker: ColorPickerWidget | null;
 
@@ -213,13 +213,13 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 
 	constructor(
 		editor: ICodeEditor,
-		markdownRenderer: MarkdownRenderer,
 		markerDecorationsService: IMarkerDecorationsService,
 		private readonly _themeService: IThemeService,
 		private readonly _keybindingService: IKeybindingService,
 		private readonly _contextMenuService: IContextMenuService,
 		private readonly _bulkEditService: IBulkEditService,
 		private readonly _commandService: ICommandService,
+		private readonly _modeService: IModeService,
 		private readonly _openerService: IOpenerService | null = NullOpenerService,
 	) {
 		super(ModesContentHoverWidget.ID, editor);
@@ -229,9 +229,6 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		this._computer = new ModesContentComputer(this._editor, markerDecorationsService);
 		this._highlightDecorations = [];
 		this._isChangingDecorations = false;
-
-		this._markdownRenderer = markdownRenderer;
-		this._register(markdownRenderer.onDidRenderCodeBlock(this.onContentsChange, this));
 
 		this._hoverOperation = new HoverOperation(
 			this._computer,
@@ -357,7 +354,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		let isEmptyHoverContent = true;
 
 		let containColorPicker = false;
-		let markdownDisposeable: IDisposable;
+		let markdownDisposeables: IDisposable[] = [];
 		const markerMessages: MarkerHover[] = [];
 		messages.forEach((msg) => {
 			if (!msg.range) {
@@ -448,7 +445,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 					this.updateContents(fragment);
 					this._colorPicker.layout();
 
-					this.renderDisposable = combinedDisposable([colorListener, colorChangeListener, widget, markdownDisposeable]);
+					this.renderDisposable = combinedDisposable([colorListener, colorChangeListener, widget, ...markdownDisposeables]);
 				});
 			} else {
 				if (msg instanceof MarkerHover) {
@@ -458,9 +455,17 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 					msg.contents
 						.filter(contents => !isEmptyMarkdownString(contents))
 						.forEach(contents => {
-							const renderedContents = this._markdownRenderer.render(contents);
-							markdownDisposeable = renderedContents;
-							fragment.appendChild($('div.hover-row.hover-contents', undefined, renderedContents.element));
+							const markdownHoverElement = $('div.hover-row.markdown-hover');
+							const hoverContentsElement = dom.append(markdownHoverElement, $('div.hover-contents'));
+							const renderer = new MarkdownRenderer(this._editor, this._modeService, this._openerService);
+							markdownDisposeables.push(renderer.onDidRenderCodeBlock(() => {
+								hoverContentsElement.className = 'hover-contents code-hover-contents';
+								this.onContentsChange();
+							}));
+							const renderedContents = renderer.render(contents);
+							hoverContentsElement.appendChild(renderedContents.element);
+							fragment.appendChild(markdownHoverElement);
+							markdownDisposeables.push(renderedContents);
 							isEmptyHoverContent = false;
 						});
 				}
@@ -492,10 +497,10 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		const markerElement = dom.append(hoverElement, $('div.marker.hover-contents'));
 		const { source, message, code, relatedInformation } = markerHover.marker;
 
+		this._editor.applyFontInfo(markerElement);
 		const messageElement = dom.append(markerElement, $('span'));
 		messageElement.style.whiteSpace = 'pre-wrap';
 		messageElement.innerText = message;
-		this._editor.applyFontInfo(messageElement);
 
 		if (source || code) {
 			const detailsElement = dom.append(markerElement, $('span'));
@@ -532,15 +537,6 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		const disposables: IDisposable[] = [];
 		const actionsElement = dom.append(hoverElement, $('div.actions'));
 		disposables.push(this.renderAction(actionsElement, {
-			label: nls.localize('peek problem', "Peek Problem"),
-			commandId: NextMarkerAction.ID,
-			run: () => {
-				this.hide();
-				MarkerController.get(this._editor).show(markerHover.marker);
-				this._editor.focus();
-			}
-		}));
-		disposables.push(this.renderAction(actionsElement, {
 			label: nls.localize('quick fixes', "Quick Fix..."),
 			commandId: QuickFixAction.Id,
 			run: async (target) => {
@@ -552,6 +548,15 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 					getAnchor: () => ({ x: elementPosition.left + 6, y: elementPosition.top + elementPosition.height + 6 }),
 					getActions: () => actions
 				});
+			}
+		}));
+		disposables.push(this.renderAction(actionsElement, {
+			label: nls.localize('peek problem', "Peek Problem"),
+			commandId: NextMarkerAction.ID,
+			run: () => {
+				this.hide();
+				MarkerController.get(this._editor).show(markerHover.marker);
+				this._editor.focus();
 			}
 		}));
 		this.renderDisposable = combinedDisposable(disposables);
@@ -585,8 +590,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		label.textContent = actionOptions.label;
 		const keybinding = this._keybindingService.lookupKeybinding(actionOptions.commandId);
 		if (keybinding) {
-			const actionKeybindingLabel = dom.append(actionContainer, $('span.keybinding-label'));
-			actionKeybindingLabel.textContent = keybinding.getLabel();
+			label.title = `${actionOptions.label} (${keybinding.getLabel()})`;
 		}
 		return dom.addDisposableListener(actionContainer, dom.EventType.CLICK, e => {
 			e.stopPropagation();

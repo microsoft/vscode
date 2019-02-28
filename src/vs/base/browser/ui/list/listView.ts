@@ -1079,14 +1079,20 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		}
 
 		const size = item.size;
-		const renderer = this.renderers.get(item.templateId);
 		const row = this.cache.alloc(item.templateId);
 
 		row.domNode!.style.height = '';
 		this.rowsContainer.appendChild(row.domNode!);
+
+		const renderer = this.renderers.get(item.templateId);
 		if (renderer) {
-			renderer.renderElement(item.element, index, row.templateData);
+			renderer.renderElement(item.element, index, row.templateData, true);
+
+			if (renderer.disposeElement) {
+				renderer.disposeElement(item.element, index, row.templateData, true);
+			}
 		}
+
 		item.size = row.domNode!.offsetHeight;
 		item.lastDynamicHeightWidth = this.renderWidth;
 		this.rowsContainer.removeChild(row.domNode!);

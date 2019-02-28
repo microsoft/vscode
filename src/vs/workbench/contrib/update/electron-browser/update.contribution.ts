@@ -24,6 +24,7 @@ if (platform.isWindows) {
 	}
 }
 
+// TODO@ben remove me after a while
 if (platform.isLinux) {
 	if (process.arch === 'ia32') {
 		workbench.registerWorkbenchContribution(Linux32BitContribution, LifecyclePhase.Restored);

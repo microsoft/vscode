@@ -589,14 +589,14 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		})]);
 	}
 
-	private writeConfigurationValue(key: string, value: any, target: ConfigurationTarget, overrides: IConfigurationOverrides, donotNotifyError: boolean): Promise<void> {
+	private writeConfigurationValue(key: string, value: any, target: ConfigurationTarget, overrides: IConfigurationOverrides | undefined, donotNotifyError: boolean): Promise<void> {
 		if (target === ConfigurationTarget.DEFAULT) {
 			return Promise.reject(new Error('Invalid configuration target'));
 		}
 
 		if (target === ConfigurationTarget.MEMORY) {
 			this._configuration.updateValue(key, value, overrides);
-			this.triggerConfigurationChange(new ConfigurationChangeEvent().change(overrides.overrideIdentifier ? [keyFromOverrideIdentifier(overrides.overrideIdentifier)] : [key], overrides.resource), target);
+			this.triggerConfigurationChange(new ConfigurationChangeEvent().change(overrides && overrides.overrideIdentifier ? [keyFromOverrideIdentifier(overrides.overrideIdentifier)] : [key], overrides && overrides.resource), target);
 			return Promise.resolve(undefined);
 		}
 
