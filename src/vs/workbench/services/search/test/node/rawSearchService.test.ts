@@ -9,9 +9,8 @@ import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { IFileQuery, IFileSearchStats, IFolderQuery, IProgress, ISearchEngineStats, QueryType } from 'vs/workbench/services/search/common/search';
+import { IFileQuery, IFileSearchStats, IFolderQuery, IProgress, ISearchEngineStats, QueryType, IRawFileMatch, ISearchEngine, ISearchEngineSuccess, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess } from 'vs/workbench/services/search/common/search';
 import { SearchService as RawSearchService } from 'vs/workbench/services/search/node/rawSearchService';
-import { IRawFileMatch, ISearchEngine, ISearchEngineSuccess, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess } from 'vs/workbench/services/search/node/search';
 import { DiskSearch } from 'vs/workbench/services/search/node/searchService';
 
 const TEST_FOLDER_QUERIES = [

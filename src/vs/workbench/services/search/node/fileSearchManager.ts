@@ -10,8 +10,7 @@ import * as glob from 'vs/base/common/glob';
 import * as resources from 'vs/base/common/resources';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI } from 'vs/base/common/uri';
-import { IFileMatch, IFileSearchProviderStats, IFolderQuery, ISearchCompleteStats, IFileQuery } from 'vs/workbench/services/search/common/search';
-import { QueryGlobTester, resolvePatternsForProvider } from 'vs/workbench/services/search/node/search';
+import { IFileMatch, IFileSearchProviderStats, IFolderQuery, ISearchCompleteStats, IFileQuery, QueryGlobTester, resolvePatternsForProvider } from 'vs/workbench/services/search/common/search';
 import * as vscode from 'vscode';
 
 export interface IInternalFileMatch {
