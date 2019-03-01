@@ -16,7 +16,7 @@ import { SymbolKind, symbolKindToCssClass } from 'vs/editor/common/modes';
 import { OutlineElement, OutlineGroup, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { localize } from 'vs/nls';
 import { IKeybindingService, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
-import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
+import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { OutlineConfigKeys } from 'vs/editor/contrib/documentSymbols/outline';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
@@ -120,8 +120,9 @@ export class OutlineElementRenderer implements ITreeRenderer<OutlineElement, Fuz
 
 	renderElement(node: ITreeNode<OutlineElement, FuzzyScore>, index: number, template: OutlineElementTemplate): void {
 		const { element } = node;
-		const options = {
+		const options: IIconLabelValueOptions = {
 			matches: createMatches(node.filterData),
+			labelEscapeNewLines: true,
 			extraClasses: <string[]>[],
 			title: localize('title.template', "{0} ({1})", element.symbol.name, OutlineElementRenderer._symbolKindNames[element.symbol.kind])
 		};
