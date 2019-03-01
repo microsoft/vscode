@@ -150,7 +150,7 @@ export abstract class BreadcrumbsPicker {
 		this._arrow.style.marginLeft = `${this._layoutInfo.arrowOffset}px`;
 		this._treeContainer.style.height = `${treeHeight}px`;
 		this._treeContainer.style.width = `${this._layoutInfo.width}px`;
-		this._tree.layout();
+		this._tree.layout(treeHeight, this._layoutInfo.width);
 
 	}
 
