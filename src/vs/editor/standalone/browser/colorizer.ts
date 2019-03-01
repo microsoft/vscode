@@ -65,7 +65,17 @@ export class Colorizer {
 
 		let tokenizationSupport = TokenizationRegistry.get(language);
 		if (tokenizationSupport) {
-			return Promise.resolve(_colorize(lines, tabSize, tokenizationSupport));
+			return _colorize(lines, tabSize, tokenizationSupport);
+		}
+
+		let tokenizationSupportPromise = TokenizationRegistry.getPromise(language);
+		if (tokenizationSupportPromise) {
+			// A tokenizer will be registered soon
+			return new Promise<string>((resolve, reject) => {
+				tokenizationSupportPromise.then(tokenizationSupport => {
+					_colorize(lines, tabSize, tokenizationSupport).then(resolve, reject);
+				}, reject);
+			});
 		}
 
 		return new Promise<string>((resolve, reject) => {
