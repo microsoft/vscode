@@ -923,6 +923,11 @@ declare namespace monaco.editor {
 	 */
 	export function setTheme(themeName: string): void;
 
+	/**
+	 * Clears all cached font measurements and triggers re-measurement.
+	 */
+	export function remeasureFonts(): void;
+
 	export type BuiltinTheme = 'vs' | 'vs-dark' | 'hc-black';
 
 	export interface IStandaloneThemeData {
