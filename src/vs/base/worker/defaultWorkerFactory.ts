@@ -18,7 +18,22 @@ function getWorker(workerId: string, label: string): Worker | Promise<Worker> {
 	}
 	// ESM-comment-begin
 	if (typeof require === 'function') {
-		return new Worker(require.toUrl('./' + workerId) + '#' + label);
+		// check if the JS lives on a different origin
+
+		const workerMain = require.toUrl('./' + workerId);
+		if (/^(http:)|(https:)|(file:)/.test(workerMain)) {
+			const currentUrl = String(window.location);
+			const currentOrigin = currentUrl.substr(0, currentUrl.length - window.location.hash.length - window.location.search.length - window.location.pathname.length);
+			if (workerMain.substring(0, currentOrigin.length) !== currentOrigin) {
+				// this is the cross-origin case
+				// i.e. the webpage is running at a different origin than where the scripts are loaded from
+				const workerBaseUrl = workerMain.substr(0, workerMain.length - 'vs/base/worker/workerMain.js'.length);
+				const js = `/*${label}*/self.MonacoEnvironment={baseUrl: '${workerBaseUrl}'};importScripts('${workerMain}');/*${label}*/`;
+				const url = `data:text/javascript;charset=utf-8,${encodeURIComponent(js)}`;
+				return new Worker(url);
+			}
+		}
+		return new Worker(workerMain + '#' + label);
 	}
 	// ESM-comment-end
 	throw new Error(`You must define a function MonacoEnvironment.getWorkerUrl or MonacoEnvironment.getWorker`);
