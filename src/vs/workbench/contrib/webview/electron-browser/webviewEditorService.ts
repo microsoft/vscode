@@ -132,23 +132,18 @@ export class WebviewEditorService implements IWebviewEditorService {
 		options: WebviewInputOptions,
 		extensionLocation: URI
 	): WebviewEditorInput {
-		const webviewInput = this._instantiationService.createInstance(WebviewEditorInput, viewType, id, title, options, state, {}, extensionLocation, {
-			canRevive: (_webview) => {
-				return _webview === webviewInput;
-			},
-			reviveWebview: (webview: WebviewEditorInput): Promise<void> => {
-				return this.tryRevive(webview).then(didRevive => {
-					if (didRevive) {
-						return Promise.resolve(undefined);
-					}
+		const webviewInput = this._instantiationService.createInstance(WebviewEditorInput, viewType, id, title, options, state, {}, extensionLocation, (webview: WebviewEditorInput): Promise<void> => {
+			return this.tryRevive(webview).then(didRevive => {
+				if (didRevive) {
+					return Promise.resolve(undefined);
+				}
 
-					// A reviver may not be registered yet. Put into queue and resolve promise when we can revive
-					let resolve: (value: void) => void;
-					const promise = new Promise<void>(r => { resolve = r; });
-					this._awaitingRevival.push({ input: webview, resolve: resolve! });
-					return promise;
-				});
-			}
+				// A reviver may not be registered yet. Put into queue and resolve promise when we can revive
+				let resolve: (value: void) => void;
+				const promise = new Promise<void>(r => { resolve = r; });
+				this._awaitingRevival.push({ input: webview, resolve: resolve! });
+				return promise;
+			});
 		});
 		webviewInput.iconPath = iconPath;
 		return webviewInput;
