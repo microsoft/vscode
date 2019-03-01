@@ -184,31 +184,43 @@ abstract class AbstractMoveLinesAction extends EditorAction {
 			movingMultipleLines = selections[0].endLineNumber !== selections[selections.length - 1].endLineNumber;
 
 			if (movingMultipleLines) {
+				// Stash selections while processing, set new selections +/- line-change only
+				for (const selection of selections) {
+					let startCol = selection.getStartPosition().column;
+					let startLine = selection.getStartPosition().lineNumber;
+					let newStartLine = this.down ? startLine + 1 : startLine - 1;
+
+					let endCol = selection.getEndPosition().column;
+					let endLine = selection.getEndPosition().lineNumber;
+					let newEndLine = this.down ? endLine + 1 : endLine - 1;
+
+					newSelections.push(new Selection(newStartLine, startCol, newEndLine, endCol));
+				}
+
 				// Work only with one selection per line
 				selections = selections.filter((s, idx, arr) => {
 					return arr.map(sel => sel['endLineNumber']).indexOf(s['endLineNumber']) === idx;
 				});
 
 				selectionDirectionDown = selections[0].endLineNumber < selections[selections.length - 1].endLineNumber;
-			}
-		}
 
-		if (movingMultipleLines) {
-			editor.pushUndoStop();
+				editor.pushUndoStop();
 
-			if (selectionDirectionDown === this.down) {
-				selections.reverse();
+				if (selectionDirectionDown === this.down) {
+					selections.reverse();
+				}
 			}
 		}
 
 		for (const selection of selections) {
 			if (movingMultipleLines) {
-				editor.executeCommand(this.id, new MoveLinesCommand(selection, this.down, autoIndent, languageConfigurationService));
-
-				let editorSelection = editor.getSelection();
-				if (editorSelection !== null) {
-					newSelections.push(editorSelection);
+				// If we are at the beginning/end of document and multiple lines are moved, abort.
+				if ((selection.startLineNumber === 1 && !this.down) || (selection.endLineNumber === editor.getModel()?.getLineCount() && this.down)) {
+					editor.pushUndoStop();
+					return;
 				}
+
+				editor.executeCommand(this.id, new MoveLinesCommand(selection, this.down, autoIndent, languageConfigurationService));
 			} else {
 				commands.push(new MoveLinesCommand(selection, this.down, autoIndent, languageConfigurationService));
 			}
@@ -216,9 +228,6 @@ abstract class AbstractMoveLinesAction extends EditorAction {
 
 		if (movingMultipleLines) {
 			if (newSelections.length > 1) {
-				if (selectionDirectionDown === this.down) {
-					newSelections.reverse();
-				}
 				editor.setSelections(newSelections);
 			}
 
