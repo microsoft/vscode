@@ -9,7 +9,7 @@ import { IInstantiationService, createDecorator } from 'vs/platform/instantiatio
 import { IEditorService, ACTIVE_GROUP_TYPE, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import * as vscode from 'vscode';
-import { WebviewEditorInput } from './webviewEditorInput';
+import { WebviewEditorInput, RevivedWebviewEditorInput } from './webviewEditorInput';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
 import { equals } from 'vs/base/common/arrays';
 
@@ -132,18 +132,17 @@ export class WebviewEditorService implements IWebviewEditorService {
 		options: WebviewInputOptions,
 		extensionLocation: URI
 	): WebviewEditorInput {
-		const webviewInput = this._instantiationService.createInstance(WebviewEditorInput, viewType, id, title, options, state, {}, extensionLocation, (webview: WebviewEditorInput): Promise<void> => {
-			return this.tryRevive(webview).then(didRevive => {
-				if (didRevive) {
-					return Promise.resolve(undefined);
-				}
+		const webviewInput = this._instantiationService.createInstance(RevivedWebviewEditorInput, viewType, id, title, options, state, {}, extensionLocation, async (webview: WebviewEditorInput): Promise<void> => {
+			const didRevive = await this.tryRevive(webview);
+			if (didRevive) {
+				return Promise.resolve(undefined);
+			}
 
-				// A reviver may not be registered yet. Put into queue and resolve promise when we can revive
-				let resolve: (value: void) => void;
-				const promise = new Promise<void>(r => { resolve = r; });
-				this._awaitingRevival.push({ input: webview, resolve: resolve! });
-				return promise;
-			});
+			// A reviver may not be registered yet. Put into queue and resolve promise when we can revive
+			let resolve: () => void;
+			const promise = new Promise<void>(r => { resolve = r; });
+			this._awaitingRevival.push({ input: webview, resolve: resolve! });
+			return promise;
 		});
 		webviewInput.iconPath = iconPath;
 		return webviewInput;

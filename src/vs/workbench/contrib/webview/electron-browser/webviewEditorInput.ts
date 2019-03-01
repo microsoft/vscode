@@ -64,8 +64,6 @@ export class WebviewEditorInput extends EditorInput {
 	private _scrollYPercentage: number = 0;
 	private _state: any;
 
-	private _revived: boolean = false;
-
 	public readonly extensionLocation: URI | undefined;
 	private readonly _id: number;
 
@@ -77,7 +75,6 @@ export class WebviewEditorInput extends EditorInput {
 		state: any,
 		events: WebviewEvents,
 		extensionLocation: URI | undefined,
-		public readonly reviver: (input: WebviewEditorInput) => Promise<void> | undefined,
 		@IPartService private readonly _partService: IPartService,
 	) {
 		super();
@@ -213,10 +210,6 @@ export class WebviewEditorInput extends EditorInput {
 	}
 
 	public resolve(): Promise<IEditorModel> {
-		if (this.reviver && !this._revived) {
-			this._revived = true;
-			return this.reviver(this).then(() => new EditorModel());
-		}
 		return Promise.resolve(new EditorModel());
 	}
 
@@ -308,5 +301,32 @@ export class WebviewEditorInput extends EditorInput {
 
 	public updateGroup(group: GroupIdentifier): void {
 		this._group = group;
+	}
+}
+
+
+export class RevivedWebviewEditorInput extends WebviewEditorInput {
+	private _revived: boolean = false;
+
+	constructor(
+		viewType: string,
+		id: number | undefined,
+		name: string,
+		options: WebviewInputOptions,
+		state: any,
+		events: WebviewEvents,
+		extensionLocation: URI | undefined,
+		public readonly reviver: (input: WebviewEditorInput) => Promise<void>,
+		@IPartService partService: IPartService,
+	) {
+		super(viewType, id, name, options, state, events, extensionLocation, partService);
+	}
+
+	public async resolve(): Promise<IEditorModel> {
+		if (!this._revived) {
+			this._revived = true;
+			await this.reviver(this);
+		}
+		return super.resolve();
 	}
 }
