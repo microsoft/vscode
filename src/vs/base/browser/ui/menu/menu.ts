@@ -20,8 +20,22 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { isLinux } from 'vs/base/common/platform';
 
-export const MENU_MNEMONIC_REGEX: RegExp = /\(&([^\s&])\)|(?<!&)&([^\s&])/;
-export const MENU_ESCAPED_MNEMONIC_REGEX: RegExp = /(?<!&amp;)(?:&amp;)([^\s&])/;
+function createMenuMnemonicRegExp() {
+	try {
+		return new RegExp('\\(&([^\\s&])\\)|(?<!&)&([^\\s&])');
+	} catch (err) {
+		return new RegExp('\uFFFF'); // never match please
+	}
+}
+export const MENU_MNEMONIC_REGEX = createMenuMnemonicRegExp();
+function createMenuEscapedMnemonicRegExp() {
+	try {
+		return new RegExp('(?<!&amp;)(?:&amp;)([^\\s&])');
+	} catch (err) {
+		return new RegExp('\uFFFF'); // never match please
+	}
+}
+export const MENU_ESCAPED_MNEMONIC_REGEX: RegExp = createMenuEscapedMnemonicRegExp();
 
 export interface IMenuOptions {
 	context?: any;
