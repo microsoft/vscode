@@ -439,7 +439,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 				this.createCommentWidgetActions2(this._formActions, model);
 			}));
 
-			this._localToDispose.push((this._commentThread as modes.CommentThread2).onDidChangeRange(range => {
+			this._disposables.push((this._commentThread as modes.CommentThread2).onDidChangeRange(range => {
 				// Move comment glyph widget and show position if the line has changed.
 				const lineNumber = this._commentThread.range.startLineNumber;
 				if (this._commentGlyph.getPosition().position.lineNumber !== lineNumber) {
