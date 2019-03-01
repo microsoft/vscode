@@ -438,6 +438,18 @@ export class ReviewZoneWidget extends ZoneWidget {
 				dom.clearNode(this._formActions);
 				this.createCommentWidgetActions2(this._formActions, model);
 			}));
+
+			this._localToDispose.push((this._commentThread as modes.CommentThread2).onDidChangeRange(range => {
+				// Move comment glyph widget and show position if the line has changed.
+				const lineNumber = this._commentThread.range.startLineNumber;
+				if (this._commentGlyph.getPosition().position.lineNumber !== lineNumber) {
+					this._commentGlyph.setLineNumber(lineNumber);
+				}
+
+				if (!this._isCollapsed) {
+					this.show({ lineNumber, column: 1 }, 2);
+				}
+			}));
 		} else {
 			this.createCommentWidgetActions(this._formActions, model);
 		}

@@ -129,6 +129,7 @@ export interface MainThreadCommentsShape extends IDisposable {
 	$updateCommentingRangesCommands(handle: number, commentingRangesHandle: number, command: modes.Command): void;
 	$setInputValue(handle: number, commentThreadHandle: number, input: string): void;
 	$updateCommentThreadCommands(handle: number, commentThreadHandle: number, acceptInputCommands: modes.Command[]): void;
+	$updateCommentThreadRange(handle: number, commentThreadHandle: number, range: IRange): void;
 	$registerDocumentCommentProvider(handle: number, features: CommentProviderFeatures): void;
 	$unregisterDocumentCommentProvider(handle: number): void;
 	$registerWorkspaceCommentProvider(handle: number, extensionId: ExtensionIdentifier): void;

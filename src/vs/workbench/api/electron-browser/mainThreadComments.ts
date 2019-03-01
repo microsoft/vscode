@@ -118,13 +118,25 @@ export class MainThreadCommentThread implements modes.CommentThread2 {
 	private _onDidChangeAcceptInputCommands = new Emitter<modes.Command[]>();
 	get onDidChangeAcceptInputCommands(): Event<modes.Command[]> { return this._onDidChangeAcceptInputCommands.event; }
 
+	set range(range: IRange) {
+		this._range = range;
+		this._onDidChangeRange.fire(this._range);
+	}
+
+	get range(): IRange {
+		return this._range;
+	}
+
+	private _onDidChangeRange = new Emitter<IRange>();
+	public onDidChangeRange = this._onDidChangeRange.event;
+
 	constructor(
 		public commentThreadHandle: number,
 		public control: MainThreadCommentControl,
 		public extensionId: string,
 		public threadId: string,
 		public resource: string,
-		public range: IRange,
+		private _range: IRange,
 		private _comments: modes.Comment[],
 		private _acceptInputCommands: modes.Command[],
 		public collapsibleState?: modes.CommentThreadCollapsibleState,
@@ -285,6 +297,11 @@ export class MainThreadCommentControl {
 	updateAcceptInputCommands(commentThreadHandle: number, acceptInputCommands: modes.Command[]) {
 		let thread = this._threads.get(commentThreadHandle);
 		thread.acceptInputCommands = acceptInputCommands;
+	}
+
+	updateCommentThreadRange(commentThreadHandle: number, range: IRange) {
+		let thread = this._threads.get(commentThreadHandle);
+		thread.range = range;
 	}
 
 	updateInput(commentThreadHandle: number, input: string) {
@@ -483,6 +500,16 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		}
 
 		provider.updateAcceptInputCommands(commentThreadHandle, acceptInputCommands);
+	}
+
+	$updateCommentThreadRange(handle: number, commentThreadHandle: number, range: any): void {
+		let provider = this._commentControls.get(handle);
+
+		if (!provider) {
+			return;
+		}
+
+		provider.updateCommentThreadRange(commentThreadHandle, range);
 	}
 
 	$registerDocumentCommentProvider(handle: number, features: CommentProviderFeatures): void {
