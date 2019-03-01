@@ -215,7 +215,10 @@ abstract class AbstractMoveLinesAction extends EditorAction {
 		for (const selection of selections) {
 			if (movingMultipleLines) {
 				// If we are at the beginning/end of document and multiple lines are moved, abort.
-				if ((selection.startLineNumber === 1 && !this.down) || (selection.endLineNumber === editor.getModel()?.getLineCount() && this.down)) {
+				let model = editor.getModel();
+				let lineCount = model !== null ? model.getLineCount() : 0;
+
+				if ((selection.startLineNumber === 1 && !this.down) || (selection.endLineNumber === lineCount && this.down)) {
 					editor.pushUndoStop();
 					return;
 				}
