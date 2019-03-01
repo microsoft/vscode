@@ -374,13 +374,16 @@ class MonarchModernTokensCollector implements IMonarchTokensCollector {
 	}
 }
 
-class MonarchTokenizer implements modes.ITokenizationSupport {
+export type ILoadStatus = { loaded: true; } | { loaded: false; promise: Promise<void>; };
+
+export class MonarchTokenizer implements modes.ITokenizationSupport {
 
 	private readonly _modeService: IModeService;
 	private readonly _standaloneThemeService: IStandaloneThemeService;
 	private readonly _modeId: string;
 	private readonly _lexer: monarchCommon.ILexer;
 	private _embeddedModes: { [modeId: string]: boolean; };
+	public embeddedLoaded: Promise<void>;
 	private _tokenizationRegistryListener: IDisposable;
 
 	constructor(modeService: IModeService, standaloneThemeService: IStandaloneThemeService, modeId: string, lexer: monarchCommon.ILexer) {
@@ -389,6 +392,7 @@ class MonarchTokenizer implements modes.ITokenizationSupport {
 		this._modeId = modeId;
 		this._lexer = lexer;
 		this._embeddedModes = Object.create(null);
+		this.embeddedLoaded = Promise.resolve(undefined);
 
 		// Set up listening for embedded modes
 		let emitting = false;
@@ -414,6 +418,39 @@ class MonarchTokenizer implements modes.ITokenizationSupport {
 
 	public dispose(): void {
 		this._tokenizationRegistryListener.dispose();
+	}
+
+	public getLoadStatus(): ILoadStatus {
+		let promises: Thenable<any>[] = [];
+		for (let nestedModeId in this._embeddedModes) {
+			const tokenizationSupport = modes.TokenizationRegistry.get(nestedModeId);
+			if (tokenizationSupport) {
+				// The nested mode is already loaded
+				if (tokenizationSupport instanceof MonarchTokenizer) {
+					const nestedModeStatus = tokenizationSupport.getLoadStatus();
+					if (nestedModeStatus.loaded === false) {
+						promises.push(nestedModeStatus.promise);
+					}
+				}
+				continue;
+			}
+
+			const tokenizationSupportPromise = modes.TokenizationRegistry.getPromise(nestedModeId);
+			if (tokenizationSupportPromise) {
+				// The nested mode is in the process of being loaded
+				promises.push(tokenizationSupportPromise);
+			}
+		}
+
+		if (promises.length === 0) {
+			return {
+				loaded: true
+			};
+		}
+		return {
+			loaded: false,
+			promise: Promise.all(promises).then(_ => undefined)
+		};
 	}
 
 	public getInitialState(): modes.IState {

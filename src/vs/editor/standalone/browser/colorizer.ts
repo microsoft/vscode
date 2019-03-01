@@ -13,6 +13,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { RenderLineInput, renderViewLine2 as renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { ViewLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
+import { MonarchTokenizer } from 'vs/editor/standalone/common/monarch/monarchLexer';
 
 export interface IColorizerOptions {
 	tabSize?: number;
@@ -82,9 +83,10 @@ export class Colorizer {
 				}
 				const tokenizationSupport = TokenizationRegistry.get(language!);
 				if (tokenizationSupport) {
-					return resolve(_colorize(lines, tabSize, tokenizationSupport));
+					_colorize(lines, tabSize, tokenizationSupport).then(resolve, reject);
+					return;
 				}
-				return resolve(_fakeColorize(lines, tabSize));
+				resolve(_fakeColorize(lines, tabSize));
 			};
 
 			// wait 500ms for mode to load, then give up
@@ -130,8 +132,21 @@ export class Colorizer {
 	}
 }
 
-function _colorize(lines: string[], tabSize: number, tokenizationSupport: ITokenizationSupport): string {
-	return _actualColorize(lines, tabSize, tokenizationSupport);
+function _colorize(lines: string[], tabSize: number, tokenizationSupport: ITokenizationSupport): Promise<string> {
+	return new Promise<string>((c, e) => {
+		const execute = () => {
+			const result = _actualColorize(lines, tabSize, tokenizationSupport);
+			if (tokenizationSupport instanceof MonarchTokenizer) {
+				const status = tokenizationSupport.getLoadStatus();
+				if (status.loaded === false) {
+					status.promise.then(execute, e);
+					return;
+				}
+			}
+			c(result);
+		};
+		execute();
+	});
 }
 
 function _fakeColorize(lines: string[], tabSize: number): string {
