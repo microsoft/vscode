@@ -117,7 +117,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		return 250;
 	}
 
-	get(resource: URI): ITextFileEditorModel {
+	get(resource: URI): ITextFileEditorModel | undefined {
 		return this.mapResourceToModel.get(resource);
 	}
 
@@ -158,7 +158,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 
 			// Install state change listener
 			this.mapResourceToStateChangeListener.set(resource, model.onDidStateChange(state => {
-				const event = new TextFileModelChangeEvent(model, state);
+				const event = new TextFileModelChangeEvent(model!, state);
 				switch (state) {
 					case StateChange.DIRTY:
 						this._onModelDirty.fire(event);
@@ -183,7 +183,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 
 			// Install model content change listener
 			this.mapResourceToModelContentChangeListener.set(resource, model.onDidContentChange(e => {
-				this._onModelContentChanged.fire(new TextFileModelChangeEvent(model, e));
+				this._onModelContentChanged.fire(new TextFileModelChangeEvent(model!, e));
 			}));
 		}
 
@@ -207,7 +207,9 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		}, error => {
 
 			// Free resources of this invalid model
-			model.dispose();
+			if (model) {
+				model.dispose();
+			}
 
 			// Remove from pending loads
 			this.mapResourceToPendingModelLoaders.delete(resource);
