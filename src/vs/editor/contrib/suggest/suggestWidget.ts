@@ -969,7 +969,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		const cursorX = this.getCursorX();
 		const editorLeft = this.getEditorLeft();
 		if (cursorX !== null && editorLeft !== null) {
-			const left = Math.min(cursorX, this.getEditorWidth() +  editorLeft - this.listWidth - 100);
+			const left = Math.min(cursorX, this.getEditorWidth() + editorLeft - this.listWidth - 100);
 			this.element.style.left = `${left}px`;
 		}
 	}
