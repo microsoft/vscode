@@ -21,4 +21,7 @@ const safeProcess: IProcess = (typeof process === 'undefined') ? {
 	nextTick(callback: (...args: any[]) => void): number { return setImmediate(callback); }
 } : process;
 
-export = safeProcess;
+export const cwd = safeProcess.cwd;
+export const env = safeProcess.env;
+export const platform = safeProcess.platform;
+export const nextTick = safeProcess.nextTick;
