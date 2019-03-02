@@ -966,28 +966,43 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		this.listElement.style.width = null;
 		this.details.element.style.width = null;
 		this.details.element.style.maxHeight = null;
+		const cursorX = this.getCursorX();
+		const editorLeft = this.getEditorLeft();
+		if (cursorX !== null && editorLeft !== null) {
+			const left = Math.min(cursorX, this.getEditorWidth() +  editorLeft - this.listWidth - 100);
+			this.element.style.left = `${left}px`;
+		}
 	}
 
 	private getEditorWidth(): number {
 		return this.editor.getLayoutInfo().width;
 	}
 
-	private getLeftDetailWidth(): number | null {
+	private getEditorLeft(): number | null {
 		const domNode = this.editor.getDomNode();
-		const cursorX = this.getCursorX();
-		if (domNode === null || cursorX === null) {
+		if (domNode === null) {
 			return null;
 		}
 		const editorCoords = getDomNodePagePosition(domNode);
-		return Math.min(cursorX - editorCoords.left, this.getEditorWidth() - this.listWidth - editorCoords.left) * 0.9;
+		return editorCoords.left;
+	}
+
+	private getLeftDetailWidth(): number | null {
+		const cursorX = this.getCursorX();
+		const editorLeft = this.getEditorLeft();
+		if (cursorX === null || editorLeft === null) {
+			return null;
+		}
+		return Math.min(cursorX - editorLeft, this.getEditorWidth() - this.listWidth) * 0.9;
 	}
 
 	private getRightDetailWidth(): number | null {
 		const cursorX = this.getCursorX();
-		if (cursorX === null) {
+		const editorLeft = this.getEditorLeft();
+		if (cursorX === null || editorLeft === null) {
 			return null;
 		}
-		return this.editor.getLayoutInfo().width - this.listWidth - cursorX;
+		return (this.getEditorWidth() + editorLeft - this.listWidth - cursorX) * 0.9;
 	}
 
 	private getDetailWidth(): number | null {
@@ -1004,16 +1019,15 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 
 	private getCursorX(): number | null {
 		const pos = this.editor.getPosition();
-		const domNode = this.editor.getDomNode();
-		if (pos === null || domNode === null) {
+		const editorLeft = this.getEditorLeft();
+		if (pos === null || editorLeft === null) {
 			return null;
 		}
 		const cursorCoords = this.editor.getScrolledVisiblePosition(pos);
-		const editorCoords = getDomNodePagePosition(domNode);
 		if (cursorCoords === null) {
 			return null;
 		}
-		return editorCoords.left + cursorCoords.left;
+		return editorLeft + cursorCoords.left;
 	}
 
 	showDetails(): void {
@@ -1143,11 +1157,12 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		const leftDetailWidth = this.getLeftDetailWidth();
 		const detailWidth = this.getDetailWidth();
 		const cursorX = this.getCursorX();
-		if (hasClass(this.element, 'docs-side') &&
+		const editorLeft = this.getEditorLeft();
+		if (hasClass(this.element, 'docs-side') && editorLeft !== null &&
 			rightDetailWidth !== null && leftDetailWidth !== null && detailWidth !== null && cursorX !== null &&
 			rightDetailWidth < leftDetailWidth) {
 			addClass(this.element, 'list-right');
-			const left = Math.min(cursorX - detailWidth, this.getEditorWidth() - detailWidth - this.listWidth);
+			const left = Math.min(cursorX - detailWidth, this.getEditorWidth() + editorLeft - detailWidth - this.listWidth);
 			this.element.style.left = `${Math.max(left, 0)}px`;
 		} else {
 			removeClass(this.element, 'list-right');
