@@ -72,7 +72,7 @@ export class Colorizer {
 		if (tokenizationSupportPromise) {
 			// A tokenizer will be registered soon
 			return new Promise<string>((resolve, reject) => {
-				tokenizationSupportPromise.then(tokenizationSupport => {
+				tokenizationSupportPromise!.then(tokenizationSupport => {
 					_colorize(lines, tabSize, tokenizationSupport).then(resolve, reject);
 				}, reject);
 			});
