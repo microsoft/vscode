@@ -28,7 +28,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 	private preferredEncoding: string;
 	private forceOpenAsBinary: boolean;
 	private forceOpenAsText: boolean;
-	private textModelReference: Promise<IReference<ITextEditorModel>>;
+	private textModelReference: Promise<IReference<ITextEditorModel>> | null;
 	private name: string;
 
 	/**

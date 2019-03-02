@@ -314,6 +314,9 @@ export const acceptLocalChangesCommand = (accessor: ServicesAccessor, resource: 
 	const modelService = accessor.get(IModelService);
 
 	const control = editorService.activeControl;
+	if (!control) {
+		return;
+	}
 	const editor = control.input;
 	const group = control.group;
 
@@ -350,6 +353,9 @@ export const revertLocalChangesCommand = (accessor: ServicesAccessor, resource: 
 	const resolverService = accessor.get(ITextModelService);
 
 	const control = editorService.activeControl;
+	if (!control) {
+		return;
+	}
 	const editor = control.input;
 	const group = control.group;
 

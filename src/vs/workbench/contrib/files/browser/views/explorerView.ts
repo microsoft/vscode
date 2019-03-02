@@ -61,7 +61,7 @@ export class ExplorerView extends ViewletPanel {
 
 	// Refresh is needed on the initial explorer open
 	private shouldRefresh = true;
-	private setTreeInputPromise = Promise.resolve(undefined);
+	private setTreeInputPromise = Promise.resolve();
 	private dragHandler: DelayedDragHandler;
 	private decorationProvider: ExplorerDecorationsProvider;
 	private autoReveal = false;
@@ -487,7 +487,7 @@ export class ExplorerView extends ViewletPanel {
 		return promise;
 	}
 
-	private getActiveFile(): URI {
+	private getActiveFile(): URI | undefined {
 		const input = this.editorService.activeEditor;
 
 		// ignore diff editor inputs (helps to get out of diffing when returning to explorer)

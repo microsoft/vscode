@@ -185,7 +185,7 @@ export class TextFileEditor extends BaseTextEditor {
 				if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND && isValidBasename(basename(input.getResource()))) {
 					return Promise.reject(createErrorWithActions(toErrorMessage(error), {
 						actions: [
-							new Action('workbench.files.action.createMissingFile', nls.localize('createFile', "Create File"), null, true, () => {
+							new Action('workbench.files.action.createMissingFile', nls.localize('createFile', "Create File"), undefined, true, () => {
 								return this.fileService.updateContent(input.getResource(), '').then(() => this.editorService.openEditor({
 									resource: input.getResource(),
 									options: {
@@ -202,14 +202,14 @@ export class TextFileEditor extends BaseTextEditor {
 
 					return Promise.reject(createErrorWithActions(toErrorMessage(error), {
 						actions: [
-							new Action('workbench.window.action.relaunchWithIncreasedMemoryLimit', nls.localize('relaunchWithIncreasedMemoryLimit', "Restart with {0} MB", memoryLimit), null, true, () => {
+							new Action('workbench.window.action.relaunchWithIncreasedMemoryLimit', nls.localize('relaunchWithIncreasedMemoryLimit', "Restart with {0} MB", memoryLimit), undefined, true, () => {
 								return this.windowsService.relaunch({
 									addArgs: [
 										`--max-memory=${memoryLimit}`
 									]
 								});
 							}),
-							new Action('workbench.window.action.configureMemoryLimit', nls.localize('configureMemoryLimit', 'Configure Memory Limit'), null, true, () => {
+							new Action('workbench.window.action.configureMemoryLimit', nls.localize('configureMemoryLimit', 'Configure Memory Limit'), undefined, true, () => {
 								return this.preferencesService.openGlobalSettings(undefined, { query: 'files.maxMemoryForLargeFilesMB' });
 							})
 						]

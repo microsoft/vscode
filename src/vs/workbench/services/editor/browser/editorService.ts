@@ -54,7 +54,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	private fileInputFactory: IFileInputFactory;
 	private openEditorHandlers: IOpenEditorOverrideHandler[] = [];
 
-	private lastActiveEditor: IEditorInput;
+	private lastActiveEditor: IEditorInput | null;
 	private lastActiveGroupId: GroupIdentifier;
 
 	constructor(
