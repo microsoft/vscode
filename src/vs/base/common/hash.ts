@@ -93,8 +93,8 @@ class SHA1 {
 	private static BLOCK_SIZE = 64; // 512 / 8
 
 	private length: number;
-	private buffer: Uint8Array;
-	private bufferDV: DataView;
+	private buffer: Uint8Array | null;
+	private bufferDV: DataView | null;
 	private bufferLength: number;
 
 	private bigBlock32: DataView;
@@ -130,7 +130,7 @@ class SHA1 {
 	update(data: ArrayBuffer): void;
 	update(data: DataView): void;
 	update(arg: any): void {
-		if (!this.buffer) {
+		if (!this.buffer || !this.bufferDV) {
 			throw new Error('Digest already computed.');
 		}
 
@@ -172,6 +172,10 @@ class SHA1 {
 	}
 
 	private wrapUp(): void {
+		if (!this.buffer || !this.bufferDV) {
+			return; // already wrapped up
+		}
+
 		this.buffer[this.bufferLength++] = 0x80;
 		fill(this.buffer, this.bufferLength);
 
