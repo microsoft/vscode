@@ -52,6 +52,8 @@ import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadService } from 'vs/platform/download/node/downloadService';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { ClipboardService } from 'vs/platform/clipboard/electron-browser/clipboardService';
 
 import 'vs/workbench/services/bulkEdit/browser/bulkEditService';
 import 'vs/workbench/services/integrity/node/integrityService';
@@ -66,8 +68,6 @@ import 'vs/workbench/services/search/node/searchService';
 import 'vs/workbench/services/progress/browser/progressService2';
 import 'vs/workbench/services/editor/browser/codeEditorService';
 import 'vs/workbench/services/broadcast/electron-browser/broadcastService';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { ClipboardService } from 'vs/platform/clipboard/electron-browser/clipboardService';
 
 registerSingleton(IMenuService, MenuService, true);
 registerSingleton(IListService, ListService, true);
