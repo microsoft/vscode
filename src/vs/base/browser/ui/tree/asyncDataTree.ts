@@ -87,8 +87,8 @@ class DataTreeRenderer<TInput, T, TFilterData, TTemplateData> implements ITreeRe
 		return { templateData };
 	}
 
-	renderElement(node: ITreeNode<IAsyncDataTreeNode<TInput, T>, TFilterData>, index: number, templateData: IDataTreeListTemplateData<TTemplateData>): void {
-		this.renderer.renderElement(new AsyncDataTreeNodeWrapper(node), index, templateData.templateData);
+	renderElement(node: ITreeNode<IAsyncDataTreeNode<TInput, T>, TFilterData>, index: number, templateData: IDataTreeListTemplateData<TTemplateData>, dynamicHeightProbing?: boolean): void {
+		this.renderer.renderElement(new AsyncDataTreeNodeWrapper(node), index, templateData.templateData, dynamicHeightProbing);
 	}
 
 	renderTwistie(element: IAsyncDataTreeNode<TInput, T>, twistieElement: HTMLElement): boolean {
@@ -96,9 +96,9 @@ class DataTreeRenderer<TInput, T, TFilterData, TTemplateData> implements ITreeRe
 		return false;
 	}
 
-	disposeElement(node: ITreeNode<IAsyncDataTreeNode<TInput, T>, TFilterData>, index: number, templateData: IDataTreeListTemplateData<TTemplateData>): void {
+	disposeElement(node: ITreeNode<IAsyncDataTreeNode<TInput, T>, TFilterData>, index: number, templateData: IDataTreeListTemplateData<TTemplateData>, dynamicHeightProbing?: boolean): void {
 		if (this.renderer.disposeElement) {
-			this.renderer.disposeElement(new AsyncDataTreeNodeWrapper(node), index, templateData.templateData);
+			this.renderer.disposeElement(new AsyncDataTreeNodeWrapper(node), index, templateData.templateData, dynamicHeightProbing);
 		}
 	}
 
@@ -813,10 +813,13 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 			asyncDataTreeNode.element = element;
 
-			if (asyncDataTreeNode.state === AsyncDataTreeNodeState.Loaded || asyncDataTreeNode.hasChildren !== !!this.dataSource.hasChildren(asyncDataTreeNode.element)) {
+			const hasChildren = this.dataSource.hasChildren(asyncDataTreeNode.element);
+
+			if (asyncDataTreeNode.state === AsyncDataTreeNodeState.Loaded || (asyncDataTreeNode.state !== AsyncDataTreeNodeState.Uninitialized && asyncDataTreeNode.hasChildren !== !!hasChildren)) {
 				asyncDataTreeNode.needsRefresh = true;
 			}
 
+			asyncDataTreeNode.hasChildren = hasChildren;
 			return asyncDataTreeNode;
 		});
 

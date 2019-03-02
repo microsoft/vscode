@@ -150,7 +150,9 @@ export class RemoteFileDialog {
 			}
 			this.filePickBox.onDidTriggerButton(button => {
 				if (button === this.fallbackPickerButton) {
-					options.availableFileSystems.shift();
+					if (options.availableFileSystems) {
+						options.availableFileSystems.shift();
+					}
 					isResolved = true;
 					if (this.requiresTrailing) {
 						this.fileDialogService.showSaveDialog(options).then(result => {

@@ -95,11 +95,19 @@ export class BaseErrorReportingAction extends Action {
 }
 
 const PLACEHOLDER_URI = URI.file('');
+function refreshIfSeparator(value: string, explorerService: IExplorerService): void {
+	if (value && ((value.indexOf('/') >= 0) || (value.indexOf('\\') >= 0))) {
+		// New input contains separator, multiple resources will get created workaround for #68204
+		explorerService.refresh();
+	}
+}
 
 /* New File */
 export class NewFileAction extends BaseErrorReportingAction {
 	static readonly ID = 'workbench.files.action.createFileFromExplorer';
 	static readonly LABEL = nls.localize('createNewFile', "New File");
+
+	private toDispose: IDisposable[] = [];
 
 	constructor(
 		private getElement: () => ExplorerItem,
@@ -110,6 +118,10 @@ export class NewFileAction extends BaseErrorReportingAction {
 	) {
 		super('explorer.newFile', NEW_FILE_LABEL, notificationService);
 		this.class = 'explorer-action new-file';
+		this.toDispose.push(this.explorerService.onDidChangeEditable(e => {
+			const elementIsBeingEdited = this.explorerService.isEditable(e);
+			this.enabled = !elementIsBeingEdited;
+		}));
 	}
 
 	run(): Promise<any> {
@@ -129,8 +141,9 @@ export class NewFileAction extends BaseErrorReportingAction {
 		return folder.fetchChildren(this.fileService).then(() => {
 			folder.addChild(stat);
 
-			const onSuccess = value => {
+			const onSuccess = (value: string) => {
 				return this.fileService.createFile(resources.joinPath(folder.resource, value)).then(stat => {
+					refreshIfSeparator(value, this.explorerService);
 					return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
 				}, (error) => {
 					this.onErrorWithRetry(error, () => onSuccess(value));
@@ -151,12 +164,19 @@ export class NewFileAction extends BaseErrorReportingAction {
 			});
 		});
 	}
+
+	dispose(): void {
+		super.dispose();
+		dispose(this.toDispose);
+	}
 }
 
 /* New Folder */
 export class NewFolderAction extends BaseErrorReportingAction {
 	static readonly ID = 'workbench.files.action.createFolderFromExplorer';
 	static readonly LABEL = nls.localize('createNewFolder', "New Folder");
+
+	private toDispose: IDisposable[] = [];
 
 	constructor(
 		private getElement: () => ExplorerItem,
@@ -166,6 +186,10 @@ export class NewFolderAction extends BaseErrorReportingAction {
 	) {
 		super('explorer.newFolder', NEW_FOLDER_LABEL, notificationService);
 		this.class = 'explorer-action new-folder';
+		this.toDispose.push(this.explorerService.onDidChangeEditable(e => {
+			const elementIsBeingEdited = this.explorerService.isEditable(e);
+			this.enabled = !elementIsBeingEdited;
+		}));
 	}
 
 	run(): Promise<any> {
@@ -185,8 +209,9 @@ export class NewFolderAction extends BaseErrorReportingAction {
 		return folder.fetchChildren(this.fileService).then(() => {
 			folder.addChild(stat);
 
-			const onSuccess = value => {
+			const onSuccess = (value: string) => {
 				return this.fileService.createFolder(resources.joinPath(folder.resource, value)).then(stat => {
+					refreshIfSeparator(value, this.explorerService);
 					return this.explorerService.select(stat.resource, true);
 				}, (error) => {
 					this.onErrorWithRetry(error, () => onSuccess(value));
@@ -206,6 +231,11 @@ export class NewFolderAction extends BaseErrorReportingAction {
 				}
 			});
 		});
+	}
+
+	dispose(): void {
+		super.dispose();
+		dispose(this.toDispose);
 	}
 }
 
@@ -1084,7 +1114,7 @@ export const renameHandler = (accessor: ServicesAccessor) => {
 			if (success) {
 				const parentResource = stat.parent.resource;
 				const targetResource = resources.joinPath(parentResource, value);
-				textFileService.move(stat.resource, targetResource).then(undefined, onUnexpectedError);
+				textFileService.move(stat.resource, targetResource).then(() => refreshIfSeparator(value, explorerService), onUnexpectedError);
 			}
 			explorerService.setEditable(stat, null);
 		}

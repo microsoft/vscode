@@ -37,6 +37,7 @@ import { IMarker, IMarkerData } from 'vs/platform/markers/common/markers';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { clearAllFontInfos } from 'vs/editor/browser/config/configuration';
 
 type Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
 
@@ -312,6 +313,13 @@ export function setTheme(themeName: string): void {
 }
 
 /**
+ * Clears all cached font measurements and triggers re-measurement.
+ */
+export function remeasureFonts(): void {
+	clearAllFontInfos();
+}
+
+/**
  * @internal
  */
 export function createMonacoEditorAPI(): typeof monaco.editor {
@@ -340,6 +348,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		tokenize: <any>tokenize,
 		defineTheme: <any>defineTheme,
 		setTheme: <any>setTheme,
+		remeasureFonts: remeasureFonts,
 
 		// enums
 		ScrollbarVisibility: standaloneEnums.ScrollbarVisibility,

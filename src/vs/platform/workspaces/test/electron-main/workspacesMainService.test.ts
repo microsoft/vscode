@@ -114,7 +114,7 @@ suite('WorkspacesMainService', () => {
 		const folder1URI = URI.parse('myscheme://server/work/p/f1');
 		const folder2URI = URI.parse('myscheme://server/work/o/f3');
 
-		return service.createUntitledWorkspace([{ uri: folder1URI }, { uri: folder2URI }]).then(workspace => {
+		return service.createUntitledWorkspace([{ uri: folder1URI }, { uri: folder2URI }], 'server').then(workspace => {
 			assert.ok(workspace);
 			assert.ok(fs.existsSync(workspace.configPath.fsPath));
 			assert.ok(service.isUntitledWorkspace(workspace));
@@ -126,6 +126,8 @@ suite('WorkspacesMainService', () => {
 
 			assert.ok(!(<IRawFileWorkspaceFolder>ws.folders[0]).name);
 			assert.ok(!(<IRawFileWorkspaceFolder>ws.folders[1]).name);
+
+			assert.equal(ws.remoteAuthority, 'server');
 		});
 	});
 

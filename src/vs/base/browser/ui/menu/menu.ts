@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import * as strings from 'vs/base/common/strings';
 import { IActionRunner, IAction, Action } from 'vs/base/common/actions';
 import { ActionBar, IActionItemProvider, ActionsOrientation, Separator, ActionItem, IActionItemOptions, BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ResolvedKeybinding, KeyCode, KeyCodeUtils } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding, KeyCode } from 'vs/base/common/keyCodes';
 import { addClass, EventType, EventHelper, EventLike, removeTabIndexAndUpdateFocus, isAncestor, hasClass, addDisposableListener, removeClass, append, $, addClasses, removeClasses } from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -20,8 +20,22 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { isLinux } from 'vs/base/common/platform';
 
-export const MENU_MNEMONIC_REGEX: RegExp = /\(&(\w)\)|(?<!&)&(\w)/;
-export const MENU_ESCAPED_MNEMONIC_REGEX: RegExp = /(?<!&amp;)(?:&amp;)(\w)/;
+function createMenuMnemonicRegExp() {
+	try {
+		return new RegExp('\\(&([^\\s&])\\)|(?<!&)&([^\\s&])');
+	} catch (err) {
+		return new RegExp('\uFFFF'); // never match please
+	}
+}
+export const MENU_MNEMONIC_REGEX = createMenuMnemonicRegExp();
+function createMenuEscapedMnemonicRegExp() {
+	try {
+		return new RegExp('(?<!&amp;)(?:&amp;)([^\\s&])');
+	} catch (err) {
+		return new RegExp('\uFFFF'); // never match please
+	}
+}
+export const MENU_ESCAPED_MNEMONIC_REGEX: RegExp = createMenuEscapedMnemonicRegExp();
 
 export interface IMenuOptions {
 	context?: any;
@@ -56,7 +70,7 @@ interface ISubMenuData {
 }
 
 export class Menu extends ActionBar {
-	private mnemonics: Map<KeyCode, Array<MenuActionItem>>;
+	private mnemonics: Map<string, Array<MenuActionItem>>;
 	private menuDisposables: IDisposable[];
 	private scrollableElement: DomScrollableElement;
 	private menuElement: HTMLElement;
@@ -93,7 +107,7 @@ export class Menu extends ActionBar {
 
 		if (options.enableMnemonics) {
 			this.menuDisposables.push(addDisposableListener(menuElement, EventType.KEY_DOWN, (e) => {
-				const key = KeyCodeUtils.fromString(e.key);
+				const key = e.key.toLocaleLowerCase();
 				if (this.mnemonics.has(key)) {
 					EventHelper.stop(e, true);
 					const actions = this.mnemonics.get(key)!;
@@ -175,7 +189,7 @@ export class Menu extends ActionBar {
 			parent: this
 		};
 
-		this.mnemonics = new Map<KeyCode, Array<MenuActionItem>>();
+		this.mnemonics = new Map<string, Array<MenuActionItem>>();
 
 		this.push(actions, { icon: true, label: true, isMenu: true });
 
@@ -349,7 +363,7 @@ class MenuActionItem extends BaseActionItem {
 
 	private label: HTMLElement;
 	private check: HTMLElement;
-	private mnemonic: KeyCode;
+	private mnemonic: string;
 	private cssClass: string;
 	protected menuStyle: IMenuStyles;
 
@@ -368,7 +382,7 @@ class MenuActionItem extends BaseActionItem {
 			if (label) {
 				let matches = MENU_MNEMONIC_REGEX.exec(label);
 				if (matches) {
-					this.mnemonic = KeyCodeUtils.fromString((!!matches[1] ? matches[1] : matches[2]).toLocaleLowerCase());
+					this.mnemonic = (!!matches[1] ? matches[1] : matches[2]).toLocaleLowerCase();
 				}
 			}
 		}
@@ -522,7 +536,7 @@ class MenuActionItem extends BaseActionItem {
 		}
 	}
 
-	getMnemonic(): KeyCode {
+	getMnemonic(): string {
 		return this.mnemonic;
 	}
 

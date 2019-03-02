@@ -625,7 +625,7 @@ suite('ExtHostTreeView', function () {
 			getTreeItem: (element: { key: string }): TreeItem => {
 				return getTreeItem(element.key);
 			},
-			getParent: ({ key }: { key: string }): { key: string } => {
+			getParent: ({ key }: { key: string }): { key: string } | undefined => {
 				const parentKey = key.substring(0, key.length - 1);
 				return parentKey ? new Key(parentKey) : undefined;
 			},
@@ -672,7 +672,7 @@ suite('ExtHostTreeView', function () {
 		return parent;
 	}
 
-	function getChildren(key: string): string[] {
+	function getChildren(key: string | undefined): string[] {
 		if (!key) {
 			return Object.keys(tree);
 		}

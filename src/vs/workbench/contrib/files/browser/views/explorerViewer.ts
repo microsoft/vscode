@@ -214,8 +214,12 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, FuzzyScore, IF
 			editableData.onFinish(value, success);
 		});
 
+		let ignoreDisposeAndBlur = true;
+		setTimeout(() => ignoreDisposeAndBlur = false, 0);
 		const blurDisposable = DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, () => {
-			done(inputBox.isInputValid());
+			if (!ignoreDisposeAndBlur) {
+				done(inputBox.isInputValid());
+			}
 		});
 
 		const toDispose = [
@@ -235,8 +239,10 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, FuzzyScore, IF
 		];
 
 		return toDisposable(() => {
-			blurDisposable.dispose();
-			done(inputBox.isInputValid());
+			if (!ignoreDisposeAndBlur) {
+				blurDisposable.dispose();
+				done(inputBox.isInputValid());
+			}
 		});
 	}
 

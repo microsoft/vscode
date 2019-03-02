@@ -292,7 +292,7 @@ suite('ExtHostTextEditorOptions', () => {
 	});
 
 	test('ignores invalid indentSize 1', () => {
-		opts.indentSize = null;
+		opts.indentSize = null!;
 		assertState(opts, {
 			tabSize: 4,
 			indentSize: 4,

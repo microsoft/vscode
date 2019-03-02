@@ -131,9 +131,6 @@ import 'vs/workbench/contrib/markers/browser/markers.contribution';
 // Comments
 import 'vs/workbench/contrib/comments/electron-browser/comments.contribution';
 
-// HTML Preview
-import 'vs/workbench/contrib/html/electron-browser/html.contribution';
-
 // URL Support
 import 'vs/workbench/contrib/url/common/url.contribution';
 

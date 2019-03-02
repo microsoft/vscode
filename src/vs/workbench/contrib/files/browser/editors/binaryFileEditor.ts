@@ -64,7 +64,7 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 		});
 	}
 
-	getTitle(): string {
+	getTitle(): string | null {
 		return this.input ? this.input.getName() : nls.localize('binaryFileEditor', "Binary File Viewer");
 	}
 }

@@ -352,7 +352,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 				rows.forEach(row => items.set(row.key, row.value));
 
 				if (this.logger.isTracing) {
-					this.logger.trace(`[storage ${this.name}] getItems(): ${mapToString(items)}`);
+					this.logger.trace(`[storage ${this.name}] getItems(): ${items.size} rows`);
 				}
 
 				return items;
