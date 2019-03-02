@@ -205,12 +205,7 @@ interface IPath {
 	posix: IPath | null;
 }
 
-interface IExportedPath extends IPath {
-	win32: IPath;
-	posix: IPath;
-}
-
-const win32: IPath = {
+export const win32: IPath = {
 	// path.resolve([from ...], to)
 	resolve(...pathSegments: string[]): string {
 		let resolvedDevice = '';
@@ -1199,7 +1194,7 @@ const win32: IPath = {
 	posix: null
 };
 
-const posix: IPath = {
+export const posix: IPath = {
 	// path.resolve([from ...], to)
 	resolve(...pathSegments: string[]): string {
 		let resolvedPath = '';
@@ -1685,5 +1680,16 @@ const posix: IPath = {
 posix.win32 = win32.win32 = win32;
 posix.posix = win32.posix = posix;
 
-const impl = (safeProcess.platform === 'win32' ? win32 : posix) as IExportedPath;
-export = impl;
+export const normalize = (safeProcess.platform === 'win32' ? win32.normalize : posix.normalize);
+export const isAbsolute = (safeProcess.platform === 'win32' ? win32.isAbsolute : posix.isAbsolute);
+export const join = (safeProcess.platform === 'win32' ? win32.join : posix.join);
+export const resolve = (safeProcess.platform === 'win32' ? win32.resolve : posix.resolve);
+export const relative = (safeProcess.platform === 'win32' ? win32.relative : posix.relative);
+export const dirname = (safeProcess.platform === 'win32' ? win32.dirname : posix.dirname);
+export const basename = (safeProcess.platform === 'win32' ? win32.basename : posix.basename);
+export const extname = (safeProcess.platform === 'win32' ? win32.extname : posix.extname);
+export const format = (safeProcess.platform === 'win32' ? win32.format : posix.format);
+export const parse = (safeProcess.platform === 'win32' ? win32.parse : posix.parse);
+export const toNamespacedPath = (safeProcess.platform === 'win32' ? win32.toNamespacedPath : posix.toNamespacedPath);
+export const sep = (safeProcess.platform === 'win32' ? win32.sep : posix.sep);
+export const delimiter = (safeProcess.platform === 'win32' ? win32.delimiter : posix.delimiter);
