@@ -7,7 +7,6 @@ import 'vs/css!./media/activityaction';
 import * as nls from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import { Action } from 'vs/base/common/actions';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -62,7 +61,7 @@ export class ViewletActivityAction extends ActivityAction {
 		if (sideBarVisible && activeViewlet && activeViewlet.getId() === this.activity.id) {
 			this.logAction('hide');
 			this.partService.setSideBarHidden(true);
-			return Promise.resolve(null);
+			return Promise.resolve();
 		}
 
 		this.logAction('show');
@@ -97,7 +96,7 @@ export class ToggleViewletAction extends Action {
 		// Hide sidebar if selected viewlet already visible
 		if (sideBarVisible && activeViewlet && activeViewlet.getId() === this._viewlet.id) {
 			this.partService.setSideBarHidden(true);
-			return Promise.resolve(null);
+			return Promise.resolve();
 		}
 
 		return this.viewletService.openViewlet(this._viewlet.id, true);
@@ -130,32 +129,29 @@ export class GlobalActivityActionItem extends ActivityActionItem {
 
 		this._register(DOM.addDisposableListener(this.container, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
 			DOM.EventHelper.stop(e, true);
-
-			const event = new StandardMouseEvent(e);
-			this.showContextMenu({ x: event.posx, y: event.posy });
+			this.showContextMenu();
 		}));
 
 		this._register(DOM.addDisposableListener(this.container, DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
 			let event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 				DOM.EventHelper.stop(e, true);
-
-				this.showContextMenu(this.container);
+				this.showContextMenu();
 			}
 		}));
 
 		this._register(DOM.addDisposableListener(this.container, TouchEventType.Tap, (e: GestureEvent) => {
 			DOM.EventHelper.stop(e, true);
-
-			const event = new StandardMouseEvent(e);
-			this.showContextMenu({ x: event.posx, y: event.posy });
+			this.showContextMenu();
 		}));
 	}
 
-	private showContextMenu(location: HTMLElement | { x: number, y: number }): void {
+	private showContextMenu(): void {
 		const globalAction = this._action as GlobalActivityAction;
 		const activity = globalAction.activity as IGlobalActivity;
 		const actions = activity.getActions();
+		const containerPosition = DOM.getDomNodePagePosition(this.container);
+		const location = { x: containerPosition.left + containerPosition.width / 2, y: containerPosition.top };
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => location,
@@ -175,7 +171,7 @@ export class PlaceHolderViewletActivityAction extends ViewletActivityAction {
 	) {
 		super({ id, name: id, cssClass: `extensionViewlet-placeholder-${id.replace(/\./g, '-')}` }, viewletService, partService, telemetryService);
 
-		const iconClass = `.monaco-workbench > .activitybar .monaco-action-bar .action-label.${this.class}`; // Generate Placeholder CSS to show the icon in the activity bar
+		const iconClass = `.monaco-workbench .activitybar .monaco-action-bar .action-label.${this.class}`; // Generate Placeholder CSS to show the icon in the activity bar
 		DOM.createCSSRule(iconClass, `-webkit-mask: url('${iconUrl || ''}') no-repeat 50% 50%`);
 	}
 
@@ -211,9 +207,9 @@ class SwitchSideBarViewAction extends Action {
 
 		const activeViewlet = this.viewletService.getActiveViewlet();
 		if (!activeViewlet) {
-			return Promise.resolve(null);
+			return Promise.resolve();
 		}
-		let targetViewletId: string;
+		let targetViewletId: string | undefined;
 		for (let i = 0; i < pinnedViewletIds.length; i++) {
 			if (pinnedViewletIds[i] === activeViewlet.getId()) {
 				targetViewletId = pinnedViewletIds[(i + pinnedViewletIds.length + offset) % pinnedViewletIds.length];
@@ -271,9 +267,9 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const activeForegroundColor = theme.getColor(ACTIVITY_BAR_FOREGROUND);
 	if (activeForegroundColor) {
 		collector.addRule(`
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.active .action-label,
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:focus .action-label,
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:hover .action-label {
+			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item.active .action-label,
+			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item:focus .action-label,
+			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item:hover .action-label {
 				background-color: ${activeForegroundColor} !important;
 			}
 		`);
@@ -283,7 +279,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const outline = theme.getColor(activeContrastBorder);
 	if (outline) {
 		collector.addRule(`
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:before {
+			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item:before {
 				content: "";
 				position: absolute;
 				top: 9px;
@@ -292,26 +288,26 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 				width: 32px;
 			}
 
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.active:before,
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.active:hover:before,
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.checked:before,
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.checked:hover:before {
+			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item.active:before,
+			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item.active:hover:before,
+			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item.checked:before,
+			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item.checked:hover:before {
 				outline: 1px solid;
 			}
 
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:hover:before {
+			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item:hover:before {
 				outline: 1px dashed;
 			}
 
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:focus:before {
+			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item:focus:before {
 				border-left-color: ${outline};
 			}
 
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.active:before,
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.active:hover:before,
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.checked:before,
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.checked:hover:before,
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:hover:before {
+			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item.active:before,
+			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item.active:hover:before,
+			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item.checked:before,
+			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item.checked:hover:before,
+			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item:hover:before {
 				outline-color: ${outline};
 			}
 		`);
@@ -322,7 +318,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		const focusBorderColor = theme.getColor(focusBorder);
 		if (focusBorderColor) {
 			collector.addRule(`
-					.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:focus:before {
+					.monaco-workbench .activitybar > .content .monaco-action-bar .action-item:focus:before {
 						border-left-color: ${focusBorderColor};
 					}
 				`);

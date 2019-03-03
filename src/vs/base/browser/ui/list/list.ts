@@ -16,8 +16,8 @@ export interface IListVirtualDelegate<T> {
 export interface IListRenderer<T, TTemplateData> {
 	templateId: string;
 	renderTemplate(container: HTMLElement): TTemplateData;
-	renderElement(element: T, index: number, templateData: TTemplateData): void;
-	disposeElement?(element: T, index: number, templateData: TTemplateData): void;
+	renderElement(element: T, index: number, templateData: TTemplateData, dynamicHeightProbing?: boolean): void;
+	disposeElement?(element: T, index: number, templateData: TTemplateData, dynamicHeightProbing?: boolean): void;
 	disposeTemplate(templateData: TTemplateData): void;
 }
 
@@ -62,8 +62,22 @@ export interface IIdentityProvider<T> {
 	getId(element: T): { toString(): string; };
 }
 
+export enum ListAriaRootRole {
+	/** default tree structure role */
+	TREE = 'tree',
+
+	/** role='tree' can interfere with screenreaders reading nested elements inside the tree row. Use FORM in that case. */
+	FORM = 'form'
+}
+
 export interface IKeyboardNavigationLabelProvider<T> {
-	getKeyboardNavigationLabel(element: T): { toString(): string; };
+
+	/**
+	 * Return a keyboard navigation label which will be used by the
+	 * list for filtering/navigating. Return `undefined` to make an
+	 * element always match.
+	 */
+	getKeyboardNavigationLabel(element: T): { toString(): string | undefined; } | undefined;
 	mightProducePrintableCharacter?(event: IKeyboardEvent): boolean;
 }
 

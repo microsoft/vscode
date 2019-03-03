@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as path from 'path';
-import { workspace, WorkspaceFolder } from 'vscode';
+import { workspace, WorkspaceFolder, extensions } from 'vscode';
 
 interface ExperimentalConfig {
 	experimental?: {
@@ -12,14 +12,11 @@ interface ExperimentalConfig {
 	};
 }
 
-export function getCustomDataPathsInAllWorkspaces(workspaceFolders: WorkspaceFolder[] | undefined) {
+export function getCustomDataPathsInAllWorkspaces(workspaceFolders: WorkspaceFolder[] | undefined): string[] {
 	const dataPaths: string[] = [];
 
-
 	if (!workspaceFolders) {
-		return {
-			dataPaths
-		};
+		return dataPaths;
 	}
 
 	workspaceFolders.forEach(wf => {
@@ -29,17 +26,41 @@ export function getCustomDataPathsInAllWorkspaces(workspaceFolders: WorkspaceFol
 		if (
 			wfHtmlConfig &&
 			wfHtmlConfig.workspaceFolderValue &&
-			wfHtmlConfig.workspaceFolderValue.experimental
+			wfHtmlConfig.workspaceFolderValue.experimental &&
+			wfHtmlConfig.workspaceFolderValue.experimental.customData
 		) {
-			if (wfHtmlConfig.workspaceFolderValue.experimental.customData) {
-				wfHtmlConfig.workspaceFolderValue.experimental.customData.forEach(t => {
-					dataPaths.push(path.resolve(wf.uri.fsPath, t));
+			const customData = wfHtmlConfig.workspaceFolderValue.experimental.customData;
+			if (Array.isArray(customData)) {
+				customData.forEach(t => {
+					if (typeof t === 'string') {
+						dataPaths.push(path.resolve(wf.uri.fsPath, t));
+					}
 				});
 			}
 		}
 	});
 
-	return {
-		dataPaths
-	};
+	return dataPaths;
+}
+
+export function getCustomDataPathsFromAllExtensions(): string[] {
+	const dataPaths: string[] = [];
+
+	for (const extension of extensions.all) {
+		const contributes = extension.packageJSON && extension.packageJSON.contributes;
+
+		if (
+			contributes &&
+			contributes.html &&
+			contributes.html.experimental.customData &&
+			Array.isArray(contributes.html.experimental.customData)
+		) {
+			const relativePaths: string[] = contributes.html.experimental.customData;
+			relativePaths.forEach(rp => {
+				dataPaths.push(path.resolve(extension.extensionPath, rp));
+			});
+		}
+	}
+
+	return dataPaths;
 }

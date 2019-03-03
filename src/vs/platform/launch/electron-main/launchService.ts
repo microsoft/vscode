@@ -165,7 +165,7 @@ export class LaunchService implements ILaunchService {
 
 		// Special case extension development
 		if (!!args.extensionDevelopmentPath) {
-			this.windowsMainService.openExtensionDevelopmentHostWindow({ context, cli: args, userEnv });
+			this.windowsMainService.openExtensionDevelopmentHostWindow(args.extensionDevelopmentPath, { context, cli: args, userEnv });
 		}
 
 		// Start without file/folder arguments
@@ -270,12 +270,16 @@ export class LaunchService implements ILaunchService {
 		if (window.openedFolderUri) {
 			folderURIs.push(window.openedFolderUri);
 		} else if (window.openedWorkspace) {
-			const resolvedWorkspace = this.workspacesMainService.resolveWorkspaceSync(window.openedWorkspace.configPath);
+			// workspace folders can only be shown for local workspaces
+			const workspaceConfigPath = window.openedWorkspace.configPath;
+			const resolvedWorkspace = this.workspacesMainService.resolveLocalWorkspaceSync(workspaceConfigPath);
 			if (resolvedWorkspace) {
 				const rootFolders = resolvedWorkspace.folders;
 				rootFolders.forEach(root => {
 					folderURIs.push(root.uri);
 				});
+			} else {
+				//TODO: can we add the workspace file here?
 			}
 		}
 

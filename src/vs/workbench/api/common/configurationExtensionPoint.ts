@@ -84,7 +84,6 @@ const defaultConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<I
 	jsonSchema: {
 		description: nls.localize('vscode.extension.contributes.defaultConfiguration', 'Contributes default editor configuration settings by language.'),
 		type: 'object',
-		defaultSnippets: [{ body: {} }],
 		patternProperties: {
 			'\\[.*\\]$': {
 				type: 'object',
@@ -92,8 +91,7 @@ const defaultConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<I
 				$ref: editorConfigurationSchemaId,
 			}
 		}
-	},
-	isDynamic: true
+	}
 });
 defaultConfigurationExtPoint.setHandler((extensions, { added, removed }) => {
 	if (removed.length) {
@@ -135,8 +133,7 @@ const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigu
 				items: configurationEntrySchema
 			}
 		]
-	},
-	isDynamic: true
+	}
 });
 
 const extensionConfigurations: Map<string, IConfigurationNode[]> = new Map<string, IConfigurationNode[]>();

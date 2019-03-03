@@ -53,6 +53,16 @@ export interface IPickOptions<T extends IQuickPickItem> {
 	matchOnDetail?: boolean;
 
 	/**
+	 * an optional flag to filter the picks based on label. Defaults to true.
+	 */
+	matchOnLabel?: boolean;
+
+	/**
+	 * an option flag to control whether focus is always automatically brought to a list item. Defaults to true.
+	 */
+	autoFocusOnList?: boolean;
+
+	/**
 	 * an optional flag to not close the picker on focus lost
 	 */
 	ignoreFocusLost?: boolean;
@@ -114,7 +124,7 @@ export interface IInputOptions {
 	/**
 	 * an optional function that is used to validate user input.
 	 */
-	validateInput?: (input: string) => Promise<string>;
+	validateInput?: (input: string) => Promise<string | null | undefined>;
 }
 
 export interface IQuickInput {
@@ -150,7 +160,7 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 
 	readonly onDidChangeValue: Event<string>;
 
-	readonly onDidAccept: Event<string>;
+	readonly onDidAccept: Event<void>;
 
 	buttons: ReadonlyArray<IQuickInputButton>;
 
@@ -166,6 +176,10 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 
 	matchOnDetail: boolean;
 
+	matchOnLabel: boolean;
+
+	autoFocusOnList: boolean;
+
 	quickNavigate: IQuickNavigateConfiguration | undefined;
 
 	activeItems: ReadonlyArray<T>;
@@ -177,13 +191,15 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 	readonly onDidChangeSelection: Event<T[]>;
 
 	readonly keyMods: IKeyMods;
+
+	valueSelection: Readonly<[number, number]> | undefined;
 }
 
 export interface IInputBox extends IQuickInput {
 
 	value: string;
 
-	valueSelection: Readonly<[number, number]>;
+	valueSelection: Readonly<[number, number]> | undefined;
 
 	placeholder: string | undefined;
 
@@ -191,7 +207,7 @@ export interface IInputBox extends IQuickInput {
 
 	readonly onDidChangeValue: Event<string>;
 
-	readonly onDidAccept: Event<string>;
+	readonly onDidAccept: Event<void>;
 
 	buttons: ReadonlyArray<IQuickInputButton>;
 
@@ -203,7 +219,9 @@ export interface IInputBox extends IQuickInput {
 }
 
 export interface IQuickInputButton {
+	/** iconPath or iconClass required */
 	iconPath?: { dark: URI; light?: URI; };
+	/** iconPath or iconClass required */
 	iconClass?: string;
 	tooltip?: string;
 }

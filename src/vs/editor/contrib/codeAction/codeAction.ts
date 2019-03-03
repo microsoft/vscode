@@ -13,7 +13,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel } from 'vs/editor/common/model';
 import { CodeAction, CodeActionContext, CodeActionProviderRegistry, CodeActionTrigger as CodeActionTriggerKind } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { CodeActionKind, CodeActionTrigger, filtersAction, mayIncludeActionsOfKind } from './codeActionTrigger';
+import { CodeActionKind, CodeActionTrigger, filtersAction, mayIncludeActionsOfKind, CodeActionFilter } from './codeActionTrigger';
 
 export function getCodeActions(
 	model: ITextModel,
@@ -28,39 +28,40 @@ export function getCodeActions(
 		trigger: trigger.type === 'manual' ? CodeActionTriggerKind.Manual : CodeActionTriggerKind.Automatic
 	};
 
-	if (filter.kind && CodeActionKind.Source.contains(filter.kind) && rangeOrSelection.isEmpty()) {
-		rangeOrSelection = model.getFullModelRange();
-	}
+	const promises = getCodeActionProviders(model, filter).map(provider => {
+		return Promise.resolve(provider.provideCodeActions(model, rangeOrSelection, codeActionContext, token)).then(providedCodeActions => {
+			if (!Array.isArray(providedCodeActions)) {
+				return [];
+			}
+			return providedCodeActions.filter(action => action && filtersAction(filter, action));
+		}, (err): CodeAction[] => {
+			if (isPromiseCanceledError(err)) {
+				throw err;
+			}
 
-	const promises = CodeActionProviderRegistry.all(model)
-		// Avoid calling providers that we know will not return code actions of interest
+			onUnexpectedExternalError(err);
+			return [];
+		});
+	});
+
+	return Promise.all(promises)
+		.then(flatten)
+		.then(allCodeActions => mergeSort(allCodeActions, codeActionsComparator));
+}
+
+function getCodeActionProviders(
+	model: ITextModel,
+	filter: CodeActionFilter
+) {
+	return CodeActionProviderRegistry.all(model)
+		// Don't include providers that we know will not return code actions of interest
 		.filter(provider => {
 			if (!provider.providedCodeActionKinds) {
 				// We don't know what type of actions this provider will return.
 				return true;
 			}
-
 			return provider.providedCodeActionKinds.some(kind => mayIncludeActionsOfKind(filter, new CodeActionKind(kind)));
-		})
-		.map(support => {
-			return Promise.resolve(support.provideCodeActions(model, rangeOrSelection, codeActionContext, token)).then(providedCodeActions => {
-				if (!Array.isArray(providedCodeActions)) {
-					return [];
-				}
-				return providedCodeActions.filter(action => action && filtersAction(filter, action));
-			}, (err): CodeAction[] => {
-				if (isPromiseCanceledError(err)) {
-					throw err;
-				}
-
-				onUnexpectedExternalError(err);
-				return [];
-			});
 		});
-
-	return Promise.all(promises)
-		.then(flatten)
-		.then(allCodeActions => mergeSort(allCodeActions, codeActionsComparator));
 }
 
 function codeActionsComparator(a: CodeAction, b: CodeAction): number {
@@ -78,7 +79,7 @@ function codeActionsComparator(a: CodeAction, b: CodeAction): number {
 }
 
 registerLanguageCommand('_executeCodeActionProvider', function (accessor, args) {
-	const { resource, range } = args;
+	const { resource, range, kind } = args;
 	if (!(resource instanceof URI) || !Range.isIRange(range)) {
 		throw illegalArgument();
 	}
@@ -91,6 +92,6 @@ registerLanguageCommand('_executeCodeActionProvider', function (accessor, args) 
 	return getCodeActions(
 		model,
 		model.validateRange(range),
-		{ type: 'manual', filter: { includeSourceActions: true } },
+		{ type: 'manual', filter: { includeSourceActions: true, kind: kind && kind.value ? new CodeActionKind(kind.value) : undefined } },
 		CancellationToken.None);
 });

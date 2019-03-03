@@ -7,8 +7,6 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { virtualMachineHint } from 'vs/base/node/id';
 import * as perf from 'vs/base/common/performance';
 import * as os from 'os';
-import { getAccessibilitySupport } from 'vs/base/browser/browser';
-import { AccessibilitySupport } from 'vs/base/common/platform';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -19,6 +17,7 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 
 
 /* __GDPR__FRAGMENT__
@@ -53,9 +52,6 @@ export interface IMemoryInfo {
 		"timers.ellapsedExtensions" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedExtensionsReady" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedRequire" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"timers.ellapsedGlobalStorageInitMain" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"timers.ellapsedGlobalStorageInitRenderer" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"timers.ellapsedWorkspaceStorageRequire" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedWorkspaceStorageInit" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedWorkspaceServiceInit" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedViewletRestore" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
@@ -198,31 +194,6 @@ export interface IStartupMetrics {
 		readonly ellapsedWindowLoadToRequire: number;
 
 		/**
-		 * The time it took to require the global storage DB, connect to it
-		 * and load the initial set of values.
-		 *
-		 * * Happens in the main-process
-		 * * Measured with the `main:willInitGlobalStorage` and `main:didInitGlobalStorage` performance marks.
-		 */
-		readonly ellapsedGlobalStorageInitMain: number;
-
-		/**
-		 * The time it took to load the initial set of values from the global storage.
-		 *
-		 * * Happens in the renderer-process
-		 * * Measured with the `willInitGlobalStorage` and `didInitGlobalStorage` performance marks.
-		 */
-		readonly ellapsedGlobalStorageInitRenderer: number;
-
-		/**
-		 * The time it took to require the workspace storage DB.
-		 *
-		 * * Happens in the renderer-process
-		 * * Measured with the `willRequireSQLite` and `didRequireSQLite` performance marks.
-		 */
-		readonly ellapsedWorkspaceStorageRequire: number;
-
-		/**
 		 * The time it took to require the workspace storage DB, connect to it
 		 * and load the initial set of values.
 		 *
@@ -349,6 +320,7 @@ class TimerService implements ITimerService {
 		@IViewletService private readonly _viewletService: IViewletService,
 		@IPanelService private readonly _panelService: IPanelService,
 		@IEditorService private readonly _editorService: IEditorService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) { }
 
 	get startupMetrics(): Promise<IStartupMetrics> {
@@ -395,6 +367,8 @@ class TimerService implements ITimerService {
 			// ignore, be on the safe side with these hardware method calls
 		}
 
+		const activeViewlet = this._viewletService.getActiveViewlet();
+		const activePanel = this._panelService.getActivePanel();
 		return {
 			version: 2,
 			ellapsed: perf.getDuration(startMark, 'didStartWorkbench'),
@@ -404,9 +378,9 @@ class TimerService implements ITimerService {
 			didUseCachedData: didUseCachedData(),
 			windowKind: this._lifecycleService.startupKind,
 			windowCount: await this._windowsService.getWindowCount(),
-			viewletId: this._viewletService.getActiveViewlet() ? this._viewletService.getActiveViewlet().getId() : undefined,
+			viewletId: activeViewlet ? activeViewlet.getId() : undefined,
 			editorIds: this._editorService.visibleEditors.map(input => input.getTypeId()),
-			panelId: this._panelService.getActivePanel() ? this._panelService.getActivePanel().getId() : undefined,
+			panelId: activePanel ? activePanel.getId() : undefined,
 
 			// timers
 			timers: {
@@ -415,9 +389,6 @@ class TimerService implements ITimerService {
 				ellapsedWindowLoad: initialStartup ? perf.getDuration('main:appReady', 'main:loadWindow') : undefined,
 				ellapsedWindowLoadToRequire: perf.getDuration('main:loadWindow', 'willLoadWorkbenchMain'),
 				ellapsedRequire: perf.getDuration('willLoadWorkbenchMain', 'didLoadWorkbenchMain'),
-				ellapsedGlobalStorageInitMain: perf.getDuration('main:willInitGlobalStorage', 'main:didInitGlobalStorage'),
-				ellapsedGlobalStorageInitRenderer: perf.getDuration('willInitGlobalStorage', 'didInitGlobalStorage'),
-				ellapsedWorkspaceStorageRequire: perf.getDuration('willRequireSQLite', 'didRequireSQLite'),
 				ellapsedWorkspaceStorageInit: perf.getDuration('willInitWorkspaceStorage', 'didInitWorkspaceStorage'),
 				ellapsedWorkspaceServiceInit: perf.getDuration('willInitWorkspaceService', 'didInitWorkspaceService'),
 				ellapsedExtensions: perf.getDuration('willLoadExtensions', 'didLoadExtensions'),
@@ -440,7 +411,7 @@ class TimerService implements ITimerService {
 			loadavg,
 			initialStartup,
 			isVMLikelyhood,
-			hasAccessibilitySupport: getAccessibilitySupport() === AccessibilitySupport.Enabled,
+			hasAccessibilitySupport: this._accessibilityService.getAccessibilitySupport() === AccessibilitySupport.Enabled,
 			emptyWorkbench: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY
 		};
 	}

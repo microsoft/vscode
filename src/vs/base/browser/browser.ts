@@ -5,7 +5,6 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
 
 class WindowManager {
 
@@ -35,7 +34,7 @@ class WindowManager {
 	}
 
 	// --- Zoom Factor
-	private _zoomFactor: number = 0;
+	private _zoomFactor: number = 1;
 
 	public getZoomFactor(): number {
 		return this._zoomFactor;
@@ -71,23 +70,6 @@ class WindowManager {
 	}
 	public isFullscreen(): boolean {
 		return this._fullscreen;
-	}
-
-	// --- Accessibility
-	private _accessibilitySupport = platform.AccessibilitySupport.Unknown;
-	private readonly _onDidChangeAccessibilitySupport = new Emitter<void>();
-
-	public readonly onDidChangeAccessibilitySupport: Event<void> = this._onDidChangeAccessibilitySupport.event;
-	public setAccessibilitySupport(accessibilitySupport: platform.AccessibilitySupport): void {
-		if (this._accessibilitySupport === accessibilitySupport) {
-			return;
-		}
-
-		this._accessibilitySupport = accessibilitySupport;
-		this._onDidChangeAccessibilitySupport.fire();
-	}
-	public getAccessibilitySupport(): platform.AccessibilitySupport {
-		return this._accessibilitySupport;
 	}
 }
 
@@ -125,16 +107,6 @@ export function isFullscreen(): boolean {
 	return WindowManager.INSTANCE.isFullscreen();
 }
 export const onDidChangeFullscreen = WindowManager.INSTANCE.onDidChangeFullscreen;
-
-export function setAccessibilitySupport(accessibilitySupport: platform.AccessibilitySupport): void {
-	WindowManager.INSTANCE.setAccessibilitySupport(accessibilitySupport);
-}
-export function getAccessibilitySupport(): platform.AccessibilitySupport {
-	return WindowManager.INSTANCE.getAccessibilitySupport();
-}
-export function onDidChangeAccessibilitySupport(callback: () => void): IDisposable {
-	return WindowManager.INSTANCE.onDidChangeAccessibilitySupport(callback);
-}
 
 const userAgent = navigator.userAgent;
 

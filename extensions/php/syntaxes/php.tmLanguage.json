@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-php/commit/13842b6dfb4568f76e8fa0c08dbff74347ee13c6",
+	"version": "https://github.com/atom/language-php/commit/b896ebfb6f669b8714f419527f047466420efe5c",
 	"scopeName": "source.php",
 	"patterns": [
 		{
@@ -2696,7 +2696,7 @@
 					"name": "support.function.com.php"
 				},
 				{
-					"begin": "(?i)\\b(isset|unset|eval|empty|list)\\b",
+					"match": "(?i)\\b(isset|unset|eval|empty|list)\\b",
 					"name": "support.function.construct.php"
 				},
 				{

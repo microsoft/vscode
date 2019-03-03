@@ -6,7 +6,7 @@
 				"git": {
 					"name": "atom/language-sass",
 					"repositoryUrl": "https://github.com/atom/language-sass",
-					"commitHash": "804a935ea1d50504e14a7f602e2bb133fee8450c"
+					"commitHash": "303bbf0c250fe380b9e57375598cfd916110758b"
 				}
 			},
 			"license": "MIT",

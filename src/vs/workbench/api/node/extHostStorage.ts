@@ -23,7 +23,7 @@ export class ExtHostStorage implements ExtHostStorageShape {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadStorage);
 	}
 
-	getValue<T>(shared: boolean, key: string, defaultValue?: T): Promise<T> {
+	getValue<T>(shared: boolean, key: string, defaultValue?: T): Promise<T | undefined> {
 		return this._proxy.$getValue<T>(shared, key).then(value => value || defaultValue);
 	}
 

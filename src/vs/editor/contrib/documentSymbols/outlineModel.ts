@@ -7,7 +7,6 @@ import { binarySearch, coalesceInPlace } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { first, forEach, size } from 'vs/base/common/collections';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { fuzzyScore, FuzzyScore } from 'vs/base/common/filters';
 import { LRUCache } from 'vs/base/common/map';
 import { commonPrefixLength } from 'vs/base/common/strings';
 import { IPosition } from 'vs/editor/common/core/position';
@@ -90,7 +89,6 @@ export abstract class TreeElement {
 export class OutlineElement extends TreeElement {
 
 	children: { [id: string]: OutlineElement; } = Object.create(null);
-	score: FuzzyScore | undefined = FuzzyScore.Default;
 	marker: { count: number, topSev: MarkerSeverity } | undefined;
 
 	constructor(
@@ -125,33 +123,6 @@ export class OutlineGroup extends TreeElement {
 		let res = new OutlineGroup(this.id, parent, this.provider, this.providerIndex);
 		forEach(this.children, entry => res.children[entry.key] = entry.value.adopt(res));
 		return res;
-	}
-
-	updateMatches(pattern: string, topMatch: OutlineElement | undefined): OutlineElement | undefined {
-		for (const key in this.children) {
-			topMatch = this._updateMatches(pattern, this.children[key], topMatch);
-		}
-		return topMatch;
-	}
-
-	private _updateMatches(pattern: string, item: OutlineElement, topMatch: OutlineElement | undefined): OutlineElement | undefined {
-
-		item.score = pattern
-			? fuzzyScore(pattern, pattern.toLowerCase(), 0, item.symbol.name, item.symbol.name.toLowerCase(), 0, true)
-			: FuzzyScore.Default;
-
-		if (item.score && (!topMatch || !topMatch.score || item.score[0] > topMatch.score[0])) {
-			topMatch = item;
-		}
-		for (const key in item.children) {
-			let child = item.children[key];
-			topMatch = this._updateMatches(pattern, child, topMatch);
-			if (!item.score && child.score) {
-				// don't filter parents with unfiltered children
-				item.score = FuzzyScore.Default;
-			}
-		}
-		return topMatch;
 	}
 
 	getItemEnclosingPosition(position: IPosition): OutlineElement | undefined {
@@ -268,7 +239,7 @@ export class OutlineModel extends TreeElement {
 
 		if (data!.model) {
 			// resolved -> return data
-			return Promise.resolve(data.model);
+			return Promise.resolve(data.model!);
 		}
 
 		// increase usage counter
@@ -393,20 +364,6 @@ export class OutlineModel extends TreeElement {
 		this._groups = other._groups;
 		this.children = other.children;
 		return true;
-	}
-
-	private _matches: [string, OutlineElement | undefined];
-
-	updateMatches(pattern: string): OutlineElement | undefined {
-		if (this._matches && this._matches[0] === pattern) {
-			return this._matches[1];
-		}
-		let topMatch: OutlineElement | undefined;
-		for (const key in this._groups) {
-			topMatch = this._groups[key].updateMatches(pattern, topMatch);
-		}
-		this._matches = [pattern, topMatch];
-		return topMatch;
 	}
 
 	getItemEnclosingPosition(position: IPosition, context?: OutlineElement): OutlineElement | undefined {

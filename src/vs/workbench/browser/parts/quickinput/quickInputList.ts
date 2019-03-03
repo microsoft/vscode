@@ -220,6 +220,7 @@ export class QuickInputList {
 	private elementsToIndexes = new Map<IQuickPickItem, number>();
 	matchOnDescription = false;
 	matchOnDetail = false;
+	matchOnLabel = true;
 	private _onChangedAllVisibleChecked = new Emitter<boolean>();
 	onChangedAllVisibleChecked: Event<boolean> = this._onChangedAllVisibleChecked.event;
 	private _onChangedCheckedCount = new Emitter<number>();
@@ -397,6 +398,9 @@ export class QuickInputList {
 		this.list.setFocus(items
 			.filter(item => this.elementsToIndexes.has(item))
 			.map(item => this.elementsToIndexes.get(item)!));
+		if (items.length > 0) {
+			this.list.reveal(this.list.getFocus()[0]);
+		}
 	}
 
 	getActiveDescendant() {
@@ -468,6 +472,9 @@ export class QuickInputList {
 	}
 
 	filter(query: string) {
+		if (!(this.matchOnLabel || this.matchOnDescription || this.matchOnDetail)) {
+			return;
+		}
 		query = query.trim();
 
 		// Reset filtering
@@ -485,7 +492,7 @@ export class QuickInputList {
 		// Filter by value (since we support octicons, use octicon aware fuzzy matching)
 		else {
 			this.elements.forEach(element => {
-				const labelHighlights = matchesFuzzyOcticonAware(query, parseOcticons(element.saneLabel)) || undefined;
+				const labelHighlights = this.matchOnLabel ? matchesFuzzyOcticonAware(query, parseOcticons(element.saneLabel)) || undefined : undefined;
 				const descriptionHighlights = this.matchOnDescription ? matchesFuzzyOcticonAware(query, parseOcticons(element.saneDescription || '')) || undefined : undefined;
 				const detailHighlights = this.matchOnDetail ? matchesFuzzyOcticonAware(query, parseOcticons(element.saneDetail || '')) || undefined : undefined;
 

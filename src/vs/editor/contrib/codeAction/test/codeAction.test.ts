@@ -12,7 +12,6 @@ import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
 import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { ITextModel } from 'vs/editor/common/model';
 
 suite('CodeAction', () => {
 
@@ -217,49 +216,5 @@ suite('CodeAction', () => {
 		assert.strictEqual(actions.length, 0);
 		assert.strictEqual(wasInvoked, false);
 	});
-
-	test('getCodeActions requests for source actions should expand source actions range to entire document #53525', async function () {
-		const provider = new class implements CodeActionProvider {
-			provideCodeActions(model: ITextModel, range: Range): CodeAction[] {
-				return [{
-					title: rangeToString(range),
-					kind: CodeActionKind.Source.value,
-				}];
-			}
-		};
-
-		disposables.push(CodeActionProviderRegistry.register('fooLang', provider));
-
-		{
-			const actions = await getCodeActions(model, new Range(1, 1, 1, 1), {
-				type: 'manual',
-				filter: {
-					kind: CodeActionKind.Source,
-					includeSourceActions: true,
-				}
-			}, CancellationToken.None);
-			assert.strictEqual(actions.length, 1);
-			assert.strictEqual(actions[0].title, rangeToString(model.getFullModelRange()));
-		}
-
-		{
-			const range = new Range(1, 1, 1, 2);
-
-			// But we should not expand for non-empty selections
-			const actions = await getCodeActions(model, range, {
-				type: 'manual',
-				filter: {
-					kind: CodeActionKind.Source,
-					includeSourceActions: true,
-				}
-			}, CancellationToken.None);
-			assert.strictEqual(actions.length, 1);
-			assert.strictEqual(actions[0].title, rangeToString(range));
-		}
-	});
 });
-
-function rangeToString(range: Range): string {
-	return `${range.startLineNumber},${range.startColumn} ${range.endLineNumber},${range.endColumn} `;
-}
 

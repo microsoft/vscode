@@ -9,7 +9,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { isWindows } from 'vs/base/common/platform';
 
 function getUnixShellEnvironment(): Promise<typeof process.env> {
-	const promise = new Promise((resolve, reject) => {
+	const promise = new Promise<typeof process.env>((resolve, reject) => {
 		const runAsNode = process.env['ELECTRON_RUN_AS_NODE'];
 		const noAttach = process.env['ELECTRON_NO_ATTACH_CONSOLE'];
 		const mark = generateUuid().replace(/-/g, '').substr(0, 12);
@@ -66,7 +66,7 @@ function getUnixShellEnvironment(): Promise<typeof process.env> {
 	});
 
 	// swallow errors
-	return promise.then(undefined, () => ({}));
+	return promise.catch(() => ({}));
 }
 
 

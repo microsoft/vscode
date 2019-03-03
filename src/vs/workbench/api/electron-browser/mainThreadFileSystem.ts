@@ -6,7 +6,7 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { FileWriteOptions, FileSystemProviderCapabilities, IFileChange, IFileService, IFileSystemProvider, IStat, IWatchOptions, FileType, FileOverwriteOptions, FileDeleteOptions } from 'vs/platform/files/common/files';
+import { FileWriteOptions, FileSystemProviderCapabilities, IFileChange, IFileService, IFileSystemProvider, IStat, IWatchOptions, FileType, FileOverwriteOptions, FileDeleteOptions, FileOpenOptions } from 'vs/platform/files/common/files';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { ExtHostContext, ExtHostFileSystemShape, IExtHostContext, IFileChangeDto, MainContext, MainThreadFileSystemShape } from '../node/extHost.protocol';
 import { ResourceLabelFormatter, ILabelService } from 'vs/platform/label/common/label';
@@ -16,6 +16,7 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 
 	private readonly _proxy: ExtHostFileSystemShape;
 	private readonly _fileProvider = new Map<number, RemoteFileSystemProvider>();
+	private readonly _resourceLabelFormatters = new Map<number, IDisposable>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -39,12 +40,24 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 		this._fileProvider.delete(handle);
 	}
 
-	$setUriFormatter(formatter: ResourceLabelFormatter): void {
-		this._labelService.registerFormatter(formatter);
+	$registerResourceLabelFormatter(handle: number, formatter: ResourceLabelFormatter): void {
+		// Dynamicily registered formatters should have priority over those contributed via package.json
+		formatter.priority = true;
+		const disposable = this._labelService.registerFormatter(formatter);
+		this._resourceLabelFormatters.set(handle, disposable);
+	}
+
+	$unregisterResourceLabelFormatter(handle: number): void {
+		dispose(this._resourceLabelFormatters.get(handle));
+		this._resourceLabelFormatters.delete(handle);
 	}
 
 	$onFileSystemChange(handle: number, changes: IFileChangeDto[]): void {
-		this._fileProvider.get(handle).$onFileSystemChange(changes);
+		const fileProvider = this._fileProvider.get(handle);
+		if (!fileProvider) {
+			throw new Error('Unknown file provider');
+		}
+		fileProvider.$onFileSystemChange(changes);
 	}
 }
 
@@ -130,8 +143,8 @@ class RemoteFileSystemProvider implements IFileSystemProvider {
 		return this._proxy.$copy(this._handle, resource, target, opts);
 	}
 
-	open(resource: URI): Promise<number> {
-		return this._proxy.$open(this._handle, resource);
+	open(resource: URI, opts: FileOpenOptions): Promise<number> {
+		return this._proxy.$open(this._handle, resource, opts);
 	}
 
 	close(fd: number): Promise<void> {

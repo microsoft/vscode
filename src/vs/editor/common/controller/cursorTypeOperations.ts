@@ -31,7 +31,8 @@ export class TypeOperations {
 			commands[i] = new ShiftCommand(selections[i], {
 				isUnshift: false,
 				tabSize: config.tabSize,
-				oneIndent: config.oneIndent,
+				indentSize: config.indentSize,
+				insertSpaces: config.insertSpaces,
 				useTabStops: config.useTabStops
 			});
 		}
@@ -44,7 +45,8 @@ export class TypeOperations {
 			commands[i] = new ShiftCommand(selections[i], {
 				isUnshift: true,
 				tabSize: config.tabSize,
-				oneIndent: config.oneIndent,
+				indentSize: config.indentSize,
+				insertSpaces: config.insertSpaces,
 				useTabStops: config.useTabStops
 			});
 		}
@@ -53,24 +55,12 @@ export class TypeOperations {
 
 	public static shiftIndent(config: CursorConfiguration, indentation: string, count?: number): string {
 		count = count || 1;
-		let desiredIndentCount = ShiftCommand.shiftIndentCount(indentation, indentation.length + count, config.tabSize);
-		let newIndentation = '';
-		for (let i = 0; i < desiredIndentCount; i++) {
-			newIndentation += '\t';
-		}
-
-		return newIndentation;
+		return ShiftCommand.shiftIndent(indentation, indentation.length + count, config.tabSize, config.indentSize, config.insertSpaces);
 	}
 
 	public static unshiftIndent(config: CursorConfiguration, indentation: string, count?: number): string {
 		count = count || 1;
-		let desiredIndentCount = ShiftCommand.unshiftIndentCount(indentation, indentation.length + count, config.tabSize);
-		let newIndentation = '';
-		for (let i = 0; i < desiredIndentCount; i++) {
-			newIndentation += '\t';
-		}
-
-		return newIndentation;
+		return ShiftCommand.unshiftIndent(indentation, indentation.length + count, config.tabSize, config.indentSize, config.insertSpaces);
 	}
 
 	private static _distributedPaste(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[], text: string[]): EditOperationResult {
@@ -209,8 +199,8 @@ export class TypeOperations {
 		let position = selection.getStartPosition();
 		if (config.insertSpaces) {
 			let visibleColumnFromColumn = CursorColumns.visibleColumnFromColumn2(config, model, position);
-			let tabSize = config.tabSize;
-			let spacesCnt = tabSize - (visibleColumnFromColumn % tabSize);
+			let indentSize = config.indentSize;
+			let spacesCnt = indentSize - (visibleColumnFromColumn % indentSize);
 			for (let i = 0; i < spacesCnt; i++) {
 				typeText += ' ';
 			}
@@ -254,7 +244,8 @@ export class TypeOperations {
 				commands[i] = new ShiftCommand(selection, {
 					isUnshift: false,
 					tabSize: config.tabSize,
-					oneIndent: config.oneIndent,
+					indentSize: config.indentSize,
+					insertSpaces: config.insertSpaces,
 					useTabStops: config.useTabStops
 				});
 			}
@@ -377,7 +368,7 @@ export class TypeOperations {
 				let offset = 0;
 				if (oldEndColumn <= firstNonWhitespace + 1) {
 					if (!config.insertSpaces) {
-						oldEndViewColumn = Math.ceil(oldEndViewColumn / config.tabSize);
+						oldEndViewColumn = Math.ceil(oldEndViewColumn / config.indentSize);
 					}
 					offset = Math.min(oldEndViewColumn + 1 - config.normalizeIndentation(ir.afterEnter).length - 1, 0);
 				}

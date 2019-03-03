@@ -7,6 +7,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
+import * as jsonc from 'jsonc-parser';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import { Lazy } from '../utils/lazy';
 import { isImplicitProjectConfigFile } from '../utils/tsconfig';
@@ -198,7 +199,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 				project.workspaceFolder || vscode.TaskScope.Workspace,
 				localize('buildAndWatchTscLabel', 'watch - {0}', label),
 				'tsc',
-				new vscode.ShellExecution(command, ['--watch', ...args]),
+				new vscode.ShellExecution(command, [...args, '--watch']),
 				'$tsc-watch');
 			watchTask.group = vscode.TaskGroup.Build;
 			watchTask.isBackground = true;
@@ -217,7 +218,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 				}
 
 				try {
-					const tsconfig = JSON.parse(result.toString());
+					const tsconfig = jsonc.parse(result.toString());
 					if (tsconfig.references) {
 						return resolve(['-b', project.path]);
 					}

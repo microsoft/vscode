@@ -33,6 +33,7 @@ import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/cont
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { ISerializableView } from 'vs/base/browser/ui/grid/grid';
+import { LayoutPriority } from 'vs/base/browser/ui/grid/gridview';
 
 export const ActivePanelContext = new RawContextKey<string>('activePanel', '');
 export const PanelFocusContext = new RawContextKey<boolean>('panelFocus', false);
@@ -40,7 +41,7 @@ export const PanelFocusContext = new RawContextKey<boolean>('panelFocus', false)
 interface ICachedPanel {
 	id: string;
 	pinned: boolean;
-	order: number;
+	order?: number;
 	visible: boolean;
 }
 
@@ -53,22 +54,24 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService, IS
 
 	_serviceBrand: any;
 
+	element: HTMLElement;
+
+	readonly minimumWidth: number = 300;
+	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
+	readonly minimumHeight: number = 77;
+	readonly maximumHeight: number = Number.POSITIVE_INFINITY;
+	readonly snapSize: number = 50;
+	readonly priority: LayoutPriority = LayoutPriority.Low;
+
+	private _onDidChange = this._register(new Emitter<{ width: number; height: number; }>());
+	get onDidChange(): Event<{ width: number, height: number }> { return this._onDidChange.event; }
+
 	private activePanelContextKey: IContextKey<string>;
 	private panelFocusContextKey: IContextKey<boolean>;
 	private blockOpeningPanel: boolean;
 	private compositeBar: CompositeBar;
 	private compositeActions: { [compositeId: string]: { activityAction: PanelActivityAction, pinnedAction: ToggleCompositePinnedAction } } = Object.create(null);
 	private dimension: Dimension;
-
-	element: HTMLElement;
-	minimumWidth: number = 300;
-	maximumWidth: number = Number.POSITIVE_INFINITY;
-	minimumHeight: number = 77;
-	maximumHeight: number = Number.POSITIVE_INFINITY;
-	snapSize: number = 50;
-
-	private _onDidChange = new Emitter<{ width: number; height: number; }>();
-	readonly onDidChange = this._onDidChange.event;
 
 	constructor(
 		id: string,
@@ -97,7 +100,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService, IS
 			Registry.as<PanelRegistry>(PanelExtensions.Panels).getDefaultPanelId(),
 			'panel',
 			'panel',
-			null,
+			undefined,
 			id,
 			{ hasTitle: true }
 		);
@@ -192,11 +195,11 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService, IS
 	}
 
 	get onDidPanelOpen(): Event<{ panel: IPanel, focus: boolean }> {
-		return Event.map(this._onDidCompositeOpen.event, compositeOpen => ({ panel: compositeOpen.composite, focus: compositeOpen.focus }));
+		return Event.map(this.onDidCompositeOpen.event, compositeOpen => ({ panel: compositeOpen.composite, focus: compositeOpen.focus }));
 	}
 
 	get onDidPanelClose(): Event<IPanel> {
-		return this._onDidCompositeClose.event;
+		return this.onDidCompositeClose.event;
 	}
 
 	updateStyles(): void {
@@ -207,10 +210,12 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService, IS
 		container.style.borderLeftColor = this.getColor(PANEL_BORDER) || this.getColor(contrastBorder);
 
 		const title = this.getTitleArea();
-		title.style.borderTopColor = this.getColor(PANEL_BORDER) || this.getColor(contrastBorder);
+		if (title) {
+			title.style.borderTopColor = this.getColor(PANEL_BORDER) || this.getColor(contrastBorder);
+		}
 	}
 
-	openPanel(id: string, focus?: boolean): Panel {
+	openPanel(id: string, focus?: boolean): Panel | null {
 		if (this.blockOpeningPanel) {
 			return null; // Workaround against a potential race condition
 		}
@@ -225,20 +230,20 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService, IS
 			}
 		}
 
-		return this.openComposite(id, focus);
+		return this.openComposite(id, focus) || null;
 	}
 
 	showActivity(panelId: string, badge: IBadge, clazz?: string): IDisposable {
 		return this.compositeBar.showActivity(panelId, badge, clazz);
 	}
 
-	private getPanel(panelId: string): IPanelIdentifier {
+	private getPanel(panelId: string): IPanelIdentifier | undefined {
 		return this.getPanels().filter(p => p.id === panelId).pop();
 	}
 
 	getPanels(): PanelDescriptor[] {
 		return Registry.as<PanelRegistry>(PanelExtensions.Panels).getPanels()
-			.sort((v1, v2) => v1.order - v2.order);
+			.sort((v1, v2) => typeof v1.order === 'number' && typeof v2.order === 'number' ? v1.order - v2.order : NaN);
 	}
 
 	getPinnedPanels(): PanelDescriptor[] {
@@ -255,7 +260,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService, IS
 		];
 	}
 
-	getActivePanel(): IPanel {
+	getActivePanel(): IPanel | null {
 		return this.getActiveComposite();
 	}
 
@@ -299,9 +304,9 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService, IS
 
 		if (this.partService.getPanelPosition() === Position.RIGHT) {
 			// Take into account the 1px border when layouting
-			this.dimension = new Dimension(width - 1, height);
+			this.dimension = new Dimension(width - 1, height!);
 		} else {
-			this.dimension = new Dimension(width, height);
+			this.dimension = new Dimension(width, height!);
 		}
 
 		const sizes = super.layout(this.dimension.width, this.dimension.height);
@@ -410,7 +415,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService, IS
 		return cachedPanels;
 	}
 
-	private _cachedPanelsValue: string;
+	private _cachedPanelsValue: string | null;
 	private get cachedPanelsValue(): string {
 		if (!this._cachedPanelsValue) {
 			this._cachedPanelsValue = this.getStoredCachedPanelsValue();

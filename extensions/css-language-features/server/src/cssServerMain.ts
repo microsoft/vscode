@@ -7,15 +7,14 @@ import {
 	createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, ServerCapabilities, ConfigurationRequest, WorkspaceFolder
 } from 'vscode-languageserver';
 import URI from 'vscode-uri';
-import * as fs from 'fs';
 import { TextDocument, CompletionList, Position } from 'vscode-languageserver-types';
 
-import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet, CSSData } from 'vscode-css-languageservice';
+import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet } from 'vscode-css-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
 import { getPathCompletionParticipant } from './pathCompletion';
 import { formatError, runSafe } from './utils/runner';
 import { getDocumentContext } from './utils/documentContext';
-import { parseCSSData } from './utils/languageFacts';
+import { getDataProviders } from './customData';
 
 export interface Settings {
 	css: LanguageSettings;
@@ -66,17 +65,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	}
 
 	const dataPaths: string[] = params.initializationOptions.dataPaths;
-
-	const customDataCollections: CSSData[] = [];
-
-	dataPaths.forEach(p => {
-		if (fs.existsSync(p)) {
-			const data = parseCSSData(fs.readFileSync(p, 'utf-8'));
-			customDataCollections.push(data);
-		} else {
-			return;
-		}
-	});
+	const customDataProviders = getDataProviders(dataPaths);
 
 	function getClientCapability<T>(name: string, def: T) {
 		const keys = name.split('.');
@@ -93,9 +82,9 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	scopedSettingsSupport = !!getClientCapability('workspace.configuration', false);
 	foldingRangeLimit = getClientCapability('textDocument.foldingRange.rangeLimit', Number.MAX_VALUE);
 
-	languageServices.css = getCSSLanguageService({ customDataCollections });
-	languageServices.scss = getSCSSLanguageService({ customDataCollections });
-	languageServices.less = getLESSLanguageService({ customDataCollections });
+	languageServices.css = getCSSLanguageService({ customDataProviders });
+	languageServices.scss = getSCSSLanguageService({ customDataProviders });
+	languageServices.less = getLESSLanguageService({ customDataProviders });
 
 	const capabilities: ServerCapabilities = {
 		// Tell the client that the server works in FULL text document sync mode

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import * as paths from 'vs/base/common/paths';
+import { isAbsolute } from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { TernarySearchTree } from 'vs/base/common/map';
@@ -46,7 +46,13 @@ export interface IWorkspaceContextService {
 	onDidChangeWorkspaceFolders: Event<IWorkspaceFoldersChangeEvent>;
 
 	/**
-	 * Provides access to the workspace object the platform is running with.
+	 * Provides access to the complete workspace object.
+	 */
+	getCompleteWorkspace(): Promise<IWorkspace>;
+
+	/**
+	 * Provides access to the workspace object the window is running with.
+	 * Use `getCompleteWorkspace` to get complete workspace object.
 	 */
 	getWorkspace(): IWorkspace;
 
@@ -177,12 +183,12 @@ export class Workspace implements IWorkspace {
 		this._configuration = configuration;
 	}
 
-	getFolder(resource: URI): IWorkspaceFolder | null | undefined {
+	getFolder(resource: URI): IWorkspaceFolder | null {
 		if (!resource) {
 			return null;
 		}
 
-		return this._foldersMap.findSubstr(resource.toString());
+		return this._foldersMap.findSubstr(resource.toString()) || null;
 	}
 
 	private updateFoldersMap(): void {
@@ -251,7 +257,7 @@ function parseWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], rela
 
 function toUri(path: string, relativeTo: URI | undefined): URI | null {
 	if (path) {
-		if (paths.isAbsolute(path)) {
+		if (isAbsolute(path)) {
 			return URI.file(path);
 		}
 		if (relativeTo) {

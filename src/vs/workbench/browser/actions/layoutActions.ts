@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/actions';
+
 import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Action } from 'vs/base/common/actions';
@@ -11,15 +13,16 @@ import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/action
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IPartService, Parts, Position } from 'vs/workbench/services/part/common/partService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IEditorGroupsService, GroupOrientation } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService, GroupOrientation } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { MenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { isWindows, isLinux } from 'vs/base/common/platform';
-import { IsMacContext } from 'vs/platform/workbench/common/contextkeys';
+import { IsMacContext } from 'vs/workbench/common/contextkeys';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { InEditorZenModeContext } from 'vs/workbench/common/editor';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 const viewCategory = nls.localize('view', "View");
@@ -82,7 +85,7 @@ class ToggleCenteredLayout extends Action {
 	run(): Promise<any> {
 		this.partService.centerEditorLayout(!this.partService.isEditorLayoutCentered());
 
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 
@@ -134,7 +137,7 @@ export class ToggleEditorLayoutAction extends Action {
 		const newOrientation = (this.editorGroupService.orientation === GroupOrientation.VERTICAL) ? GroupOrientation.HORIZONTAL : GroupOrientation.VERTICAL;
 		this.editorGroupService.setGroupOrientation(newOrientation);
 
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 
 	dispose(): void {
@@ -150,7 +153,7 @@ CommandsRegistry.registerCommand('_workbench.editor.setGroupOrientation', functi
 
 	editorGroupService.setGroupOrientation(orientation);
 
-	return Promise.resolve(null);
+	return Promise.resolve();
 });
 
 const group = viewCategory;
@@ -210,6 +213,32 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 
 // --- Toggle Sidebar Visibility
 
+export class ToggleEditorVisibilityAction extends Action {
+	static readonly ID = 'workbench.action.toggleEditorVisibility';
+	static readonly LABEL = nls.localize('toggleEditor', "Toggle Editor Area");
+
+	constructor(
+		id: string,
+		label: string,
+		@IPartService private readonly partService: IPartService
+	) {
+		super(id, label);
+
+		this.enabled = !!this.partService;
+	}
+
+	run(): Promise<any> {
+		const hideEditor = this.partService.isVisible(Parts.EDITOR_PART);
+		this.partService.setEditorHidden(hideEditor);
+
+		return Promise.resolve();
+	}
+
+}
+
+registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleEditorVisibilityAction, ToggleEditorVisibilityAction.ID, ToggleEditorVisibilityAction.LABEL), 'View: Toggle Editor Area Visibility', viewCategory, ContextKeyExpr.equals('config.workbench.useExperimentalGridLayout', true));
+
+
 export class ToggleSidebarVisibilityAction extends Action {
 
 	static readonly ID = 'workbench.action.toggleSidebarVisibility';
@@ -229,7 +258,7 @@ export class ToggleSidebarVisibilityAction extends Action {
 		const hideSidebar = this.partService.isVisible(Parts.SIDEBAR_PART);
 		this.partService.setSideBarHidden(hideSidebar);
 
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 
@@ -308,7 +337,11 @@ class ToggleTabsVisibilityAction extends Action {
 	}
 }
 
-registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleTabsVisibilityAction, ToggleTabsVisibilityAction.ID, ToggleTabsVisibilityAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_W }), 'View: Toggle Tab Visibility', viewCategory);
+registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleTabsVisibilityAction, ToggleTabsVisibilityAction.ID, ToggleTabsVisibilityAction.LABEL, {
+	primary: undefined!,
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_W, },
+	linux: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_W, }
+}), 'View: Toggle Tab Visibility', viewCategory);
 
 // --- Toggle Zen Mode
 
@@ -329,7 +362,7 @@ class ToggleZenMode extends Action {
 	run(): Promise<any> {
 		this.partService.toggleZenMode();
 
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 

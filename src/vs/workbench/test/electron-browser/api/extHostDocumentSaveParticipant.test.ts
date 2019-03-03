@@ -341,7 +341,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 								rangeLength: undefined!,
 							}],
 							eol: undefined!,
-							versionId: documents.getDocumentData(uri).version + 1
+							versionId: documents.getDocumentData(uri)!.version + 1
 						}, true);
 					}
 				}
@@ -350,7 +350,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 			}
 		});
 
-		const document = documents.getDocumentData(resource).document;
+		const document = documents.getDocument(resource);
 
 		let sub1 = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (e) {
 			// the document state we started with

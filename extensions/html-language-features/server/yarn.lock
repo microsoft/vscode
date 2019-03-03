@@ -7,10 +7,10 @@
   resolved "https://registry.yarnpkg.com/@types/mocha/-/mocha-2.2.33.tgz#d79a0061ec270379f4d9e225f4096fb436669def"
   integrity sha1-15oAYewnA3n02eIl9AlvtDZmne8=
 
-"@types/node@^8.10.25":
-  version "8.10.25"
-  resolved "https://registry.yarnpkg.com/@types/node/-/node-8.10.25.tgz#801fe4e39372cef18f268db880a5fbfcf71adc7e"
-  integrity sha512-WXvAXaknB0c2cJ7N44e1kUrVu5K90mSfPPaT5XxfuSMxEWva86EYIwxUZM3jNZ2P1CIC9e2z4WJqpAF69PQxeA==
+"@types/node@^10.12.21":
+  version "10.12.21"
+  resolved "https://registry.yarnpkg.com/@types/node/-/node-10.12.21.tgz#7e8a0c34cf29f4e17a36e9bd0ea72d45ba03908e"
+  integrity sha512-CBgLNk4o3XMnqMc0rhb6lc77IwShMEglz05deDcn2lQxyXEZivfwgYJu7SMha9V5XcrP6qZuevTHV/QrN2vjKQ==
 
 ansi-regex@^3.0.0:
   version "3.0.0"
@@ -229,18 +229,18 @@ supports-color@5.4.0:
   dependencies:
     has-flag "^3.0.0"
 
-vscode-css-languageservice@^3.0.13-next.6:
-  version "3.0.13-next.6"
-  resolved "https://registry.yarnpkg.com/vscode-css-languageservice/-/vscode-css-languageservice-3.0.13-next.6.tgz#0329ea1da29ca84d1821cd32ee10bca0ee4c50cd"
-  integrity sha512-wC8zaFWHNnqIaOT4LXByy3NyTl916uHxGy3U3cpV7Gw7F8ENylSGM2RAO+l7NohIbP0WZlet441HEwSbb+bZbQ==
+vscode-css-languageservice@^3.0.13-next.10:
+  version "3.0.13-next.10"
+  resolved "https://registry.yarnpkg.com/vscode-css-languageservice/-/vscode-css-languageservice-3.0.13-next.10.tgz#f5822e832b06e1e91ec96c528bab83bb07251c35"
+  integrity sha512-zKwzo3GVhrAllYDM4afL8q1XCHixsI8tP3SyLrWGzp0Nc9P+bbjKQeC26VcaOb0dtkgfpB/vfBPf+4yOs4s/pw==
   dependencies:
     vscode-languageserver-types "^3.13.0"
     vscode-nls "^4.0.0"
 
-vscode-html-languageservice@^2.1.11-next.4:
-  version "2.1.11-next.4"
-  resolved "https://registry.yarnpkg.com/vscode-html-languageservice/-/vscode-html-languageservice-2.1.11-next.4.tgz#bcfe68ca17300d7f845889be3cb947af95dab409"
-  integrity sha512-dQOcdqLhMZuAWhSoe/AqqvVo2klkWpCHwp14dWvgrAfUyKM7l0e0kk9lbf8kt1Kn2J9ukDTySIcOkbHaVSwcHA==
+vscode-html-languageservice@^2.1.11:
+  version "2.1.11"
+  resolved "https://registry.yarnpkg.com/vscode-html-languageservice/-/vscode-html-languageservice-2.1.11.tgz#56fc25cf64793a9eaef2f571a0ecd591eaed26c1"
+  integrity sha512-wfENgWb7JjEhwsRHXhairumuxAGnFcMUwIut5P7SxGwNrJMDXkgfs6OUBZycQpbaXTkMEvwsKNKFqUQppW7P4g==
   dependencies:
     vscode-languageserver-types "^3.13.0"
     vscode-nls "^4.0.0"

@@ -8,23 +8,37 @@ import { Action } from 'vs/base/common/actions';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
-export const inQuickOpenContext = ContextKeyExpr.has('inQuickOpen');
+const inQuickOpenKey = 'inQuickOpen';
+export const InQuickOpenContextKey = new RawContextKey<boolean>(inQuickOpenKey, false);
+export const inQuickOpenContext = ContextKeyExpr.has(inQuickOpenKey);
 export const defaultQuickOpenContextKey = 'inFilesPicker';
 export const defaultQuickOpenContext = ContextKeyExpr.and(inQuickOpenContext, ContextKeyExpr.has(defaultQuickOpenContextKey));
 
 export const QUICKOPEN_ACTION_ID = 'workbench.action.quickOpen';
 export const QUICKOPEN_ACION_LABEL = nls.localize('quickOpen', "Go to File...");
 
-CommandsRegistry.registerCommand(QUICKOPEN_ACTION_ID, function (accessor: ServicesAccessor, prefix: string | null = null) {
-	const quickOpenService = accessor.get(IQuickOpenService);
+CommandsRegistry.registerCommand({
+	id: QUICKOPEN_ACTION_ID,
+	handler: function (accessor: ServicesAccessor, prefix: string | null = null) {
+		const quickOpenService = accessor.get(IQuickOpenService);
 
-	return quickOpenService.show(typeof prefix === 'string' ? prefix : undefined).then(() => {
-		return undefined;
-	});
+		return quickOpenService.show(typeof prefix === 'string' ? prefix : undefined).then(() => {
+			return undefined;
+		});
+	},
+	description: {
+		description: `Quick open`,
+		args: [{
+			name: 'prefix',
+			schema: {
+				'type': 'string'
+			}
+		}]
+	}
 });
 
 export const QUICKOPEN_FOCUS_SECONDARY_ACTION_ID = 'workbench.action.quickOpenPreviousEditor';

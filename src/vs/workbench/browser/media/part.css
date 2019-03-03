@@ -3,6 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.monaco-workbench > .part {
+	position: absolute; /* only position absolute when grid is not used (TODO@sbatten TODO@ben remove eventually) */
+}
+
+.monaco-workbench .part {
+	box-sizing:	border-box;
+}
+
 .monaco-workbench .part > .title {
 	display: none; /* Parts have to opt in to show title area */
 }

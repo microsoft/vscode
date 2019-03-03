@@ -24,11 +24,13 @@
           ".jshintrc",
           ".jscsrc",
           ".eslintrc",
+          ".swcrc",
           ".webmanifest",
           ".js.map",
           ".css.map"
         ],
         "filenames": [
+          "composer.lock",
           ".watchmanconfig",
           ".ember-cli"
         ],
