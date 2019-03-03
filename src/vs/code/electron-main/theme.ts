@@ -14,7 +14,7 @@ const DEFAULT_BG_HC_BLACK = '#000000';
 const THEME_STORAGE_KEY = 'theme';
 const THEME_BG_STORAGE_KEY = 'themeBackground';
 
-export function storeBackgroundColor(stateService: IStateService, data: { baseTheme: string, background: string }): void {
+export function storeColors(stateService: IStateService, data: { baseTheme: string, background: string }): void {
 	stateService.setItem(THEME_STORAGE_KEY, data.baseTheme);
 	stateService.setItem(THEME_BG_STORAGE_KEY, data.background);
 }
@@ -41,4 +41,8 @@ export function getBackgroundColor(stateService: IStateService): string {
 	}
 
 	return background;
+}
+
+export function setBackgroundColor(stateService: IStateService, background: string): void {
+	stateService.setItem(THEME_BG_STORAGE_KEY, background);
 }

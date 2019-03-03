@@ -24,7 +24,7 @@ import { IBackupMainService } from 'vs/platform/backup/common/backup';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import * as perf from 'vs/base/common/performance';
 import { resolveMarketplaceHeaders } from 'vs/platform/extensionManagement/node/extensionGalleryService';
-import { getBackgroundColor, THEME_BG_STORAGE_KEY } from 'vs/code/electron-main/theme';
+import { getBackgroundColor, setBackgroundColor } from 'vs/code/electron-main/theme';
 import { IStorageMainService } from 'vs/platform/storage/node/storageMainService';
 import { RunOnceScheduler } from 'vs/base/common/async';
 
@@ -115,7 +115,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private setTransparentInfo(options: Electron.BrowserWindowConstructorOptions): void {
 		options.backgroundColor = '#00000000';
-		this.stateService.setItem(THEME_BG_STORAGE_KEY, 'transparent');
+		setBackgroundColor(this.stateService, 'transparent');
 	}
 
 	private createBrowserWindow(config: IWindowCreationOptions): void {
@@ -187,10 +187,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			options.vibrancy = windowConfig.vibrancy;
 		}
 
-		const isWin10 = isWindows && parseFloat(os.release()) >= 10;
 		const needsWinTransparency =
-			isWindows && windowConfig && windowConfig.compositionAttribute && windowConfig.compositionAttribute !== 'none' &&
-			((isWin10 && useCustomTitleStyle) || (!isWin10 && windowConfig.compositionAttribute === 'blur'));
+			isWindows && windowConfig && windowConfig.compositionAttribute &&
+			windowConfig.compositionAttribute !== 'none' && parseFloat(os.release()) >= 10 &&
+			useCustomTitleStyle;
 		if (needsWinTransparency) {
 			this.setTransparentInfo(options);
 		}
@@ -203,34 +203,27 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			this._win.setSheetOffset(22); // offset dialogs by the height of the custom title bar if we have any
 		}
 
-		if (needsWinTransparency && isWin10) {
-			const { SetWindowCompositionAttribute, AccentState } = require.__$__nodeRequire('windows-swca') as any;
-
-			let attribValue = AccentState.ACCENT_DISABLED;
-			let color = 0x00000000;
+		if (needsWinTransparency) {
+			const { ACCENT_STATE, SetWindowCompositionAttribute } = require.__$__nodeRequire('windows-swca');
+			let attribValue = ACCENT_STATE.ACCENT_DISABLED;
 			switch (windowConfig.compositionAttribute) {
 				case 'acrylic':
 					// Fluent/acrylic flag was introduced in Windows 10 build 17063 (between FCU and April 2018 update)
 					if (parseInt(os.release().split('.')[2]) >= 17063) {
-						attribValue = AccentState.ACCENT_ENABLE_FLUENT;
-						color = 0x01000000; // using a small alpha because acrylic bugs out at full transparency.
+						attribValue = ACCENT_STATE.ACCENT_ENABLE_ACRYLICBLURBEHIND;
 					}
 					break;
 
 				case 'blur':
-					attribValue = AccentState.ACCENT_ENABLE_BLURBEHIND;
+					attribValue = ACCENT_STATE.ACCENT_ENABLE_BLURBEHIND;
 					break;
 
 				case 'transparent':
-					attribValue = AccentState.ACCENT_ENABLE_TRANSPARENTGRADIENT;
+					attribValue = ACCENT_STATE.ACCENT_ENABLE_TRANSPARENTGRADIENT;
 					break;
 			}
 
-			SetWindowCompositionAttribute(this._win, attribValue, color);
-		} else if (needsWinTransparency) {
-			const { DwmEnableBlurBehindWindow } = require.__$__nodeRequire('windows-blurbehind') as any;
-
-			DwmEnableBlurBehindWindow(this._win, true);
+			SetWindowCompositionAttribute(this._win.getNativeWindowHandle(), attribValue, 0x00000001);
 		}
 
 		if (isFullscreenOrMaximized) {

@@ -39,6 +39,11 @@
   resolved "https://registry.yarnpkg.com/@types/node/-/node-10.12.12.tgz#e15a9d034d9210f00320ef718a50c4a799417c47"
   integrity sha512-Pr+6JRiKkfsFvmU/LK68oBRCQeEg36TyAbPhc2xpez24OOZZCuoIhWGTd39VZy6nGafSbxzGouFPTFD/rR1A0A==
 
+"@types/node@^10.12.18":
+  version "10.12.18"
+  resolved "https://registry.yarnpkg.com/@types/node/-/node-10.12.18.tgz#1d3ca764718915584fcd9f6344621b7672665c67"
+  integrity sha512-fh+pAqt4xRzPfqA6eh3Z2y6fyZavRIumvjhaCL753+TVkGKGhpPeyrJG2JftD0T9q4GF00KjefsQ+PQNDdWQaQ==
+
 "@types/semver@^5.4.0", "@types/semver@^5.5.0":
   version "5.5.0"
   resolved "https://registry.yarnpkg.com/@types/semver/-/semver-5.5.0.tgz#146c2a29ee7d3bae4bf2fcb274636e264c813c45"
@@ -9562,10 +9567,6 @@ window-size@0.1.0:
   resolved "https://registry.yarnpkg.com/window-size/-/window-size-0.1.0.tgz#5438cd2ea93b202efa3a19fe8887aee7c94f9c9d"
   integrity sha1-VDjNLqk7IC76Ohn+iIeu58lPnJ0=
 
-windows-blurbehind@1.0.0:
-  version "1.0.0"
-  resolved "https://registry.yarnpkg.com/windows-blurbehind/-/windows-blurbehind-1.0.0.tgz#050efb988704c44335bdc3efefd757f6e463b8ac"
-
 windows-foreground-love@0.1.0:
   version "0.1.0"
   resolved "https://registry.yarnpkg.com/windows-foreground-love/-/windows-foreground-love-0.1.0.tgz#948e4beac0733cd58624710cc09432b7e8bf3521"
@@ -9586,9 +9587,12 @@ windows-process-tree@0.2.3:
   dependencies:
     nan "^2.10.0"
 
-windows-swca@1.1.1:
-  version "1.1.1"
-  resolved "https://registry.yarnpkg.com/windows-swca/-/windows-swca-1.1.1.tgz#0b3530278c67d408baac71c3a6aeb16d55318bf8"
+windows-swca@2.0.1:
+  version "2.0.1"
+  resolved "https://registry.yarnpkg.com/windows-swca/-/windows-swca-2.0.1.tgz#25d78ce25251292061494a0ad07c02282b28b4e3"
+  integrity sha512-flj+HD6RUemZUvKKguLLnMUOYkQSgDu9qrhUIO4cydvtb/x+sxU8XmpZUtugYuydcdikB9zsCOMgKnAqIQ+7nw==
+  dependencies:
+    "@types/node" "^10.12.18"
 
 winreg@^1.2.4:
   version "1.2.4"

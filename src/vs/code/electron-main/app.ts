@@ -63,7 +63,7 @@ import { MenubarChannel } from 'vs/platform/menubar/node/menubarIpc';
 import { hasArgs } from 'vs/platform/environment/node/argv';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { registerContextMenuListener } from 'vs/base/parts/contextmenu/electron-main/contextmenu';
-import { storeBackgroundColor } from 'vs/code/electron-main/theme';
+import { storeColors } from 'vs/code/electron-main/theme';
 import { nativeSep, join } from 'vs/base/common/paths';
 import { homedir } from 'os';
 import { localize } from 'vs/nls';
@@ -293,7 +293,7 @@ export class CodeApplication extends Disposable {
 
 		// Theme changes
 		if (event === 'vscode:changeColorTheme' && typeof payload === 'string') {
-			storeBackgroundColor(this.stateService, JSON.parse(payload));
+			storeColors(this.stateService, JSON.parse(payload));
 		}
 	}
 
