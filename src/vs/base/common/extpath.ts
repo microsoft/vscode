@@ -6,7 +6,7 @@
 import { isWindows } from 'vs/base/common/platform';
 import { startsWithIgnoreCase, equalsIgnoreCase } from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
-import { sep } from 'vs/base/common/path';
+import { sep, posix } from 'vs/base/common/path';
 
 function isPathSeparator(code: number) {
 	return code === CharCode.Slash || code === CharCode.Backslash;
@@ -18,7 +18,7 @@ function isPathSeparator(code: number) {
  * Using it on a Linux or MaxOS path might change it.
  */
 export function toSlashes(osPath: string) {
-	return osPath.replace(/[\\/]/g, '/');
+	return osPath.replace(/[\\/]/g, posix.sep);
 }
 
 /**
@@ -26,7 +26,7 @@ export function toSlashes(osPath: string) {
  * `getRoot('files:///files/path') === files:///`,
  * or `getRoot('\\server\shares\path') === \\server\shares\`
  */
-export function getRoot(path: string, sep: string = '/'): string {
+export function getRoot(path: string, sep: string = posix.sep): string {
 
 	if (!path) {
 		return '';

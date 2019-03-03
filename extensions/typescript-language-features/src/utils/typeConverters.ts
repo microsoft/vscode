@@ -63,16 +63,17 @@ export namespace WorkspaceEdit {
 		edits: Iterable<Proto.FileCodeEdits>
 	): vscode.WorkspaceEdit {
 		return withFileCodeEdits(new vscode.WorkspaceEdit(), client, edits);
-
 	}
+
 	export function withFileCodeEdits(
 		workspaceEdit: vscode.WorkspaceEdit,
 		client: ITypeScriptServiceClient,
 		edits: Iterable<Proto.FileCodeEdits>
 	): vscode.WorkspaceEdit {
 		for (const edit of edits) {
+			const resource = client.toResource(edit.fileName);
 			for (const textChange of edit.textChanges) {
-				workspaceEdit.replace(client.toResource(edit.fileName),
+				workspaceEdit.replace(resource,
 					Range.fromTextSpan(textChange),
 					textChange.newText);
 			}

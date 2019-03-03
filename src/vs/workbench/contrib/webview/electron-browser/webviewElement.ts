@@ -235,7 +235,7 @@ export class WebviewElement extends Disposable {
 		private readonly _options: WebviewOptions,
 		private _contentOptions: WebviewContentOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IThemeService private readonly _themeService: IThemeService,
+		@IThemeService themeService: IThemeService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IFileService fileService: IFileService
 	) {
@@ -347,8 +347,8 @@ export class WebviewElement extends Disposable {
 			this._webviewFindWidget = this._register(instantiationService.createInstance(WebviewFindWidget, this));
 		}
 
-		this.style(this._themeService.getTheme());
-		this._register(this._themeService.onThemeChange(this.style, this));
+		this.style(themeService.getTheme());
+		themeService.onThemeChange(this.style, this, this._toDispose);
 	}
 
 	public mountTo(parent: HTMLElement) {

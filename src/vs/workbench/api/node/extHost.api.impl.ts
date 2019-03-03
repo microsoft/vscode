@@ -175,23 +175,6 @@ export function createApiFactory(
 			};
 		})();
 
-		// Warn when trying to use the vscode.previewHtml command as it does not work properly in all scenarios and
-		// has security concerns.
-		const checkCommand = (() => {
-			let done = false;
-			const informOnce = () => {
-				if (!done) {
-					done = true;
-					window.showWarningMessage(localize('previewHtml.deprecated', "Extension '{0}' uses the 'vscode.previewHtml' command which is deprecated and will be removed soon. Please file an issue against this extension to update to use VS Code's webview API.", extension.identifier.value));
-				}
-			};
-			return (commandId: string) => {
-				if (commandId === 'vscode.previewHtml') {
-					informOnce();
-				}
-				return commandId;
-			};
-		})();
 
 		// namespace: commands
 		const commands: typeof vscode.commands = {
@@ -232,7 +215,7 @@ export function createApiFactory(
 				});
 			}),
 			executeCommand<T>(id: string, ...args: any[]): Thenable<T> {
-				return extHostCommands.executeCommand<T>(checkCommand(id), ...args);
+				return extHostCommands.executeCommand<T>(id, ...args);
 			},
 			getCommands(filterInternal: boolean = false): Thenable<string[]> {
 				return extHostCommands.getCommands(filterInternal);

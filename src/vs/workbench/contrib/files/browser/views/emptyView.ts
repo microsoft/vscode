@@ -70,6 +70,9 @@ export class EmptyView extends ViewletPanel {
 		attachButtonStyler(this.button, this.themeService);
 
 		this.disposables.push(this.button.onDidClick(() => {
+			if (!this.actionRunner) {
+				return;
+			}
 			const actionClass = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? AddRootFolderAction : env.isMacintosh ? OpenFileFolderAction : OpenFolderAction;
 			const action = this.instantiationService.createInstance<string, string, IAction>(actionClass, actionClass.ID, actionClass.LABEL);
 			this.actionRunner.run(action).then(() => {
@@ -82,21 +85,25 @@ export class EmptyView extends ViewletPanel {
 
 		this.disposables.push(new DragAndDropObserver(container, {
 			onDrop: e => {
-				container.style.backgroundColor = this.themeService.getTheme().getColor(SIDE_BAR_BACKGROUND).toString();
+				const color = this.themeService.getTheme().getColor(SIDE_BAR_BACKGROUND);
+				container.style.backgroundColor = color ? color.toString() : '';
 				const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: true });
 				dropHandler.handleDrop(e, () => undefined, targetGroup => undefined);
 			},
 			onDragEnter: (e) => {
-				container.style.backgroundColor = this.themeService.getTheme().getColor(listDropBackground).toString();
+				const color = this.themeService.getTheme().getColor(listDropBackground);
+				container.style.backgroundColor = color ? color.toString() : '';
 			},
 			onDragEnd: () => {
-				container.style.backgroundColor = this.themeService.getTheme().getColor(SIDE_BAR_BACKGROUND).toString();
+				const color = this.themeService.getTheme().getColor(SIDE_BAR_BACKGROUND);
+				container.style.backgroundColor = color ? color.toString() : '';
 			},
 			onDragLeave: () => {
-				container.style.backgroundColor = this.themeService.getTheme().getColor(SIDE_BAR_BACKGROUND).toString();
+				const color = this.themeService.getTheme().getColor(SIDE_BAR_BACKGROUND);
+				container.style.backgroundColor = color ? color.toString() : '';
 			},
 			onDragOver: e => {
-				e.dataTransfer.dropEffect = 'copy';
+				e.dataTransfer!.dropEffect = 'copy';
 			}
 		}));
 

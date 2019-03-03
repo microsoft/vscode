@@ -8,6 +8,8 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { ipcRenderer as ipc } from 'electron';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 
 export const IBroadcastService = createDecorator<IBroadcastService>('broadcastService');
 
@@ -30,11 +32,15 @@ export class BroadcastService extends Disposable implements IBroadcastService {
 	private readonly _onBroadcast: Emitter<IBroadcast> = this._register(new Emitter<IBroadcast>());
 	get onBroadcast(): Event<IBroadcast> { return this._onBroadcast.event; }
 
+	private windowId: number;
+
 	constructor(
-		private windowId: number,
+		@IWindowService readonly windowService: IWindowService,
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
+
+		this.windowId = windowService.getCurrentWindowId();
 
 		this.registerListeners();
 	}
@@ -56,3 +62,5 @@ export class BroadcastService extends Disposable implements IBroadcastService {
 		});
 	}
 }
+
+registerSingleton(IBroadcastService, BroadcastService, true);

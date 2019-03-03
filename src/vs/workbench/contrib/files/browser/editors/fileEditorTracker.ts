@@ -13,7 +13,7 @@ import { FileOperationEvent, FileOperation, IFileService, FileChangeType, FileCh
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { distinct } from 'vs/base/common/arrays';
+import { distinct, coalesce } from 'vs/base/common/arrays';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { isLinux } from 'vs/base/common/platform';
@@ -92,12 +92,12 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 			// are visible in any editor. since this is a fast operation in the case nothing has changed,
 			// we tolerate the additional work.
 			distinct(
-				this.editorService.visibleEditors
+				coalesce(this.editorService.visibleEditors
 					.map(editorInput => {
 						const resource = toResource(editorInput, { supportSideBySide: true });
 						return resource ? this.textFileService.models.get(resource) : undefined;
-					})
-					.filter(model => model && !model.isDirty()),
+					}))
+					.filter(model => !model.isDirty()),
 				m => m.getResource().toString()
 			).forEach(model => this.queueModelLoad(model));
 		}
@@ -276,7 +276,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 				if (editorResource && resource.toString() === editorResource.toString()) {
 					const control = editor.getControl();
 					if (isCodeEditor(control)) {
-						return control.saveViewState();
+						return control.saveViewState() || undefined;
 					}
 				}
 			}
@@ -320,18 +320,19 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 	private handleUpdatesToVisibleBinaryEditors(e: FileChangesEvent): void {
 		const editors = this.editorService.visibleControls;
 		editors.forEach(editor => {
-			const resource = toResource(editor.input, { supportSideBySide: true });
+			const resource = editor.input ? toResource(editor.input, { supportSideBySide: true }) : undefined;
 
 			// Support side-by-side binary editors too
 			let isBinaryEditor = false;
 			if (editor instanceof SideBySideEditor) {
-				isBinaryEditor = editor.getMasterEditor().getId() === BINARY_FILE_EDITOR_ID;
+				const masterEditor = editor.getMasterEditor();
+				isBinaryEditor = !!masterEditor && masterEditor.getId() === BINARY_FILE_EDITOR_ID;
 			} else {
 				isBinaryEditor = editor.getId() === BINARY_FILE_EDITOR_ID;
 			}
 
 			// Binary editor that should reload from event
-			if (resource && isBinaryEditor && (e.contains(resource, FileChangeType.UPDATED) || e.contains(resource, FileChangeType.ADDED))) {
+			if (resource && editor.input && isBinaryEditor && (e.contains(resource, FileChangeType.UPDATED) || e.contains(resource, FileChangeType.ADDED))) {
 				this.editorService.openEditor(editor.input, { forceReload: true, preserveFocus: true }, editor.group);
 			}
 		});
@@ -339,10 +340,10 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 
 	private handleOutOfWorkspaceWatchers(): void {
 		const visibleOutOfWorkspacePaths = new ResourceMap<URI>();
-		this.editorService.visibleEditors.map(editorInput => {
+		coalesce(this.editorService.visibleEditors.map(editorInput => {
 			return toResource(editorInput, { supportSideBySide: true });
-		}).filter(resource => {
-			return !!resource && this.fileService.canHandleResource(resource) && !this.contextService.isInsideWorkspace(resource);
+		})).filter(resource => {
+			return this.fileService.canHandleResource(resource) && !this.contextService.isInsideWorkspace(resource);
 		}).forEach(resource => {
 			visibleOutOfWorkspacePaths.set(resource, resource);
 		});

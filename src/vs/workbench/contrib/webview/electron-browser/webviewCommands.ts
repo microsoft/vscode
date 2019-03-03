@@ -8,7 +8,7 @@ import { Command } from 'vs/editor/browser/editorExtensions';
 import * as nls from 'vs/nls';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { BaseWebviewEditor } from './baseWebviewEditor';
+import { WebviewEditor } from 'vs/workbench/contrib/webview/electron-browser/webviewEditor';
 
 export class ShowWebViewEditorFindWidgetCommand extends Command {
 	public static readonly ID = 'editor.action.webvieweditor.showFind';
@@ -143,13 +143,13 @@ export class ReloadWebviewAction extends Action {
 
 	private getVisibleWebviews() {
 		return this.editorService.visibleControls
-			.filter(control => control && (control as BaseWebviewEditor).isWebviewEditor)
-			.map(control => control as BaseWebviewEditor);
+			.filter(control => control && (control as WebviewEditor).isWebviewEditor)
+			.map(control => control as WebviewEditor);
 	}
 }
 
-function getActiveWebviewEditor(accessor: ServicesAccessor): BaseWebviewEditor | null {
+function getActiveWebviewEditor(accessor: ServicesAccessor): WebviewEditor | null {
 	const editorService = accessor.get(IEditorService);
-	const activeControl = editorService.activeControl as BaseWebviewEditor;
+	const activeControl = editorService.activeControl as WebviewEditor;
 	return activeControl.isWebviewEditor ? activeControl : null;
 }

@@ -26,6 +26,7 @@ import { isEqual, basename } from 'vs/base/common/resources';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class WorkspaceEditingService implements IWorkspaceEditingService {
 
@@ -329,3 +330,5 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		return this.jsonEditingService.write(toWorkspace.configPath, { key: 'settings', value: targetWorkspaceConfiguration }, true);
 	}
 }
+
+registerSingleton(IWorkspaceEditingService, WorkspaceEditingService, true);

@@ -1219,7 +1219,7 @@ configurationRegistry.registerConfiguration({
 		[automaticKeyboardNavigationSettingKey]: {
 			'type': 'boolean',
 			'default': true,
-			'description': localize('automatic keyboard navigation setting', "Controls whether keyboard navigation in lists and trees is automatically triggered simply by typing. If set to `false`, keyboard navigation is only triggered when executing the `list.toggleKeyboardNavigation` command, for which you can assign a keyboard shortcut.")
+			markdownDescription: localize('automatic keyboard navigation setting', "Controls whether keyboard navigation in lists and trees is automatically triggered simply by typing. If set to `false`, keyboard navigation is only triggered when executing the `list.toggleKeyboardNavigation` command, for which you can assign a keyboard shortcut.")
 		}
 	}
 });

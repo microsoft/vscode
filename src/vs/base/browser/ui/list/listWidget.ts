@@ -976,20 +976,20 @@ class PipelineRenderer<T> implements IListRenderer<T, any> {
 		return this.renderers.map(r => r.renderTemplate(container));
 	}
 
-	renderElement(element: T, index: number, templateData: any[]): void {
+	renderElement(element: T, index: number, templateData: any[], dynamicHeightProbing?: boolean): void {
 		let i = 0;
 
 		for (const renderer of this.renderers) {
-			renderer.renderElement(element, index, templateData[i++]);
+			renderer.renderElement(element, index, templateData[i++], dynamicHeightProbing);
 		}
 	}
 
-	disposeElement(element: T, index: number, templateData: any[]): void {
+	disposeElement(element: T, index: number, templateData: any[], dynamicHeightProbing?: boolean): void {
 		let i = 0;
 
 		for (const renderer of this.renderers) {
 			if (renderer.disposeElement) {
-				renderer.disposeElement(element, index, templateData[i]);
+				renderer.disposeElement(element, index, templateData[i], dynamicHeightProbing);
 			}
 
 			i += 1;

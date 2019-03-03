@@ -219,7 +219,7 @@ export function del(path: string, tmpFolder: string, callback: (error: Error | n
 }
 
 function rmRecursive(path: string, callback: (error: Error | null) => void): void {
-	if (path === '\\' || path === '/') {
+	if (path === paths.win32.sep || path === paths.posix.sep) {
 		return callback(new Error('Will not delete root!'));
 	}
 
@@ -277,6 +277,10 @@ function rmRecursive(path: string, callback: (error: Error | null) => void): voi
 }
 
 export function delSync(path: string): void {
+	if (path === paths.win32.sep || path === paths.posix.sep) {
+		throw new Error('Will not delete root!');
+	}
+
 	try {
 		const stat = fs.lstatSync(path);
 		if (stat.isDirectory() && !stat.isSymbolicLink()) {

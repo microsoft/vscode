@@ -131,8 +131,8 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 		}
 	}
 
-	getDocument(strUrl: string): ExtHostDocumentData {
-		return this._documents.get(strUrl);
+	getDocument(uri: URI): ExtHostDocumentData {
+		return this._documents.get(uri.toString());
 	}
 
 	allDocuments(): ExtHostDocumentData[] {

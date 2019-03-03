@@ -239,7 +239,6 @@ export class OutlinePanel extends ViewletPanel {
 	private _editorDisposables = new Array<IDisposable>();
 	private _outlineViewState = new OutlineViewState();
 	private _requestOracle?: RequestOracle;
-	private _cachedHeight: number;
 	private _domNode: HTMLElement;
 	private _message: HTMLDivElement;
 	private _inputContainer: HTMLDivElement;
@@ -341,10 +340,25 @@ export class OutlinePanel extends ViewletPanel {
 			filterOnType: this._outlineViewState.filterOnType
 		});
 
-		//feature: filter on type - keep tree and menu in sync
-		this._tree.onDidUpdateOptions(e => {
+		// feature: filter on type - keep tree and menu in sync
+		this.disposables.push(this._tree.onDidUpdateOptions(e => {
 			this._outlineViewState.filterOnType = e.filterOnType;
-		});
+		}));
+
+		// feature: expand all nodes when filtering (not when finding)
+		let viewState: IDataTreeViewState | undefined;
+		this.disposables.push(this._tree.onDidChangeTypeFilterPattern(pattern => {
+			if (!this._tree.options.filterOnType) {
+				return;
+			}
+			if (!viewState && pattern) {
+				viewState = this._tree.getViewState();
+				this._tree.expandAll();
+			} else if (!pattern && viewState) {
+				this._tree.setInput(this._tree.getInput(), viewState);
+				viewState = undefined;
+			}
+		}));
 
 		// feature: toggle icons
 		this.disposables.push(this._configurationService.onDidChangeConfiguration(e => {
@@ -364,10 +378,8 @@ export class OutlinePanel extends ViewletPanel {
 		}));
 	}
 
-	protected layoutBody(height: number): void {
-		if (height !== this._cachedHeight) {
-			this._tree.layout(height);
-		}
+	protected layoutBody(height: number, width: number): void {
+		this._tree.layout(height, width);
 	}
 
 	getActions(): IAction[] {
@@ -510,7 +522,7 @@ export class OutlinePanel extends ViewletPanel {
 			await this._tree.setInput(newModel, state);
 		}
 
-		this.layoutBody(this._cachedHeight);
+		this._tree.layout();
 
 		// transfer focus from domNode to the tree
 		if (this._domNode === document.activeElement) {

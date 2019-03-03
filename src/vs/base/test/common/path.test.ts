@@ -753,11 +753,11 @@ suite('Paths (Node Implementation)', () => {
 		// posix
 		assert.strictEqual(path.posix.delimiter, ':');
 
-		if (isWindows) {
-			assert.strictEqual(path, path.win32);
-		} else {
-			assert.strictEqual(path, path.posix);
-		}
+		// if (isWindows) {
+		// 	assert.strictEqual(path, path.win32);
+		// } else {
+		// 	assert.strictEqual(path, path.posix);
+		// }
 	});
 
 	// test('perf', () => {

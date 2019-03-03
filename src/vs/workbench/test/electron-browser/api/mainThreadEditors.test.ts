@@ -100,10 +100,10 @@ suite('MainThreadEditors', () => {
 			textFileService,
 			workbenchEditorService,
 			codeEditorService,
-			null,
+			null!,
 			fileService,
-			null,
-			null,
+			null!,
+			null!,
 			editorGroupService,
 			bulkEditService,
 			new class extends mock<IPanelService>() implements IPanelService {

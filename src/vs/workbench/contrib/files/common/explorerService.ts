@@ -266,72 +266,74 @@ export class ExplorerService implements IExplorerService {
 		// be fired first over the other or not at all.
 		setTimeout(() => {
 			// Filter to the ones we care
-			e = this.filterToViewRelevantEvents(e);
-			const changedItems: ExplorerItem[] = [];
+			const shouldRefresh = () => {
+				e = this.filterToViewRelevantEvents(e);
+				// Handle added files/folders
+				const added = e.getAdded();
+				if (added.length) {
 
-			// Handle added files/folders
-			const added = e.getAdded();
-			if (added.length) {
+					// Check added: Refresh if added file/folder is not part of resolved root and parent is part of it
+					const ignoredPaths: { [resource: string]: boolean } = <{ [resource: string]: boolean }>{};
+					for (let i = 0; i < added.length; i++) {
+						const change = added[i];
 
-				// Check added: Refresh if added file/folder is not part of resolved root and parent is part of it
-				const ignoredPaths: { [resource: string]: boolean } = <{ [resource: string]: boolean }>{};
-				for (let i = 0; i < added.length; i++) {
-					const change = added[i];
+						// Find parent
+						const parent = dirname(change.resource);
 
-					// Find parent
-					const parent = dirname(change.resource);
+						// Continue if parent was already determined as to be ignored
+						if (ignoredPaths[parent.toString()]) {
+							continue;
+						}
 
-					// Continue if parent was already determined as to be ignored
-					if (ignoredPaths[parent.toString()]) {
-						continue;
-					}
+						// Compute if parent is visible and added file not yet part of it
+						const parentStat = this.model.findClosest(parent);
+						if (parentStat && parentStat.isDirectoryResolved && !this.model.findClosest(change.resource)) {
+							return true;
+						}
 
-					// Compute if parent is visible and added file not yet part of it
-					const parentStat = this.model.findClosest(parent);
-					if (parentStat && parentStat.isDirectoryResolved && !this.model.findClosest(change.resource)) {
-						changedItems.push(parentStat);
-					}
-
-					// Keep track of path that can be ignored for faster lookup
-					if (!parentStat || !parentStat.isDirectoryResolved) {
-						ignoredPaths[parent.toString()] = true;
-					}
-				}
-			}
-
-			// Handle deleted files/folders
-			const deleted = e.getDeleted();
-			if (deleted.length) {
-
-				// Check deleted: Refresh if deleted file/folder part of resolved root
-				for (let j = 0; j < deleted.length; j++) {
-					const del = deleted[j];
-					const item = this.model.findClosest(del.resource);
-					if (item && item.parent) {
-						changedItems.push(item.parent);
+						// Keep track of path that can be ignored for faster lookup
+						if (!parentStat || !parentStat.isDirectoryResolved) {
+							ignoredPaths[parent.toString()] = true;
+						}
 					}
 				}
-			}
 
-			// Handle updated files/folders if we sort by modified
-			if (this._sortOrder === SortOrderConfiguration.MODIFIED) {
-				const updated = e.getUpdated();
+				// Handle deleted files/folders
+				const deleted = e.getDeleted();
+				if (deleted.length) {
 
-				// Check updated: Refresh if updated file/folder part of resolved root
-				for (let j = 0; j < updated.length; j++) {
-					const upd = updated[j];
-					const item = this.model.findClosest(upd.resource);
-
-					if (item && item.parent) {
-						changedItems.push(item.parent);
+					// Check deleted: Refresh if deleted file/folder part of resolved root
+					for (let j = 0; j < deleted.length; j++) {
+						const del = deleted[j];
+						const item = this.model.findClosest(del.resource);
+						if (item && item.parent) {
+							return true;
+						}
 					}
 				}
-			}
 
-			changedItems.forEach(item => {
-				item.forgetChildren();
-				this._onDidChangeItem.fire(item);
-			});
+				// Handle updated files/folders if we sort by modified
+				if (this._sortOrder === SortOrderConfiguration.MODIFIED) {
+					const updated = e.getUpdated();
+
+					// Check updated: Refresh if updated file/folder part of resolved root
+					for (let j = 0; j < updated.length; j++) {
+						const upd = updated[j];
+						const item = this.model.findClosest(upd.resource);
+
+						if (item && item.parent) {
+							return true;
+						}
+					}
+				}
+
+				return false;
+			};
+
+			if (shouldRefresh()) {
+				this.roots.forEach(r => r.forgetChildren());
+				this._onDidChangeItem.fire(undefined);
+			}
 		}, ExplorerService.EXPLORER_FILE_CHANGES_REACT_DELAY);
 	}
 

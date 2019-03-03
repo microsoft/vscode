@@ -13,9 +13,15 @@ import * as languageModeIds from '../utils/languageModeIds';
 import { ResourceMap } from '../utils/resourceMap';
 import * as typeConverters from '../utils/typeConverters';
 
-enum BufferKind {
+const enum BufferKind {
 	TypeScript = 1,
 	JavaScript = 2,
+}
+
+const enum BufferState {
+	Initial = 1,
+	Open = 2,
+	Closed = 2,
 }
 
 function mode2ScriptKind(mode: string): 'TS' | 'TSX' | 'JS' | 'JSX' | undefined {
@@ -29,6 +35,8 @@ function mode2ScriptKind(mode: string): 'TS' | 'TSX' | 'JS' | 'JSX' | undefined 
 }
 
 class SyncedBuffer {
+
+	private state = BufferState.Initial;
 
 	constructor(
 		private readonly document: vscode.TextDocument,
@@ -63,6 +71,7 @@ class SyncedBuffer {
 		}
 
 		this.client.executeWithoutWaitingForResponse('open', args);
+		this.state = BufferState.Open;
 	}
 
 	public get resource(): vscode.Uri {
@@ -91,9 +100,14 @@ class SyncedBuffer {
 			file: this.filepath
 		};
 		this.client.executeWithoutWaitingForResponse('close', args);
+		this.state = BufferState.Closed;
 	}
 
 	public onContentChanged(events: vscode.TextDocumentContentChangeEvent[]): void {
+		if (this.state !== BufferState.Open) {
+			console.error(`Unexpected buffer state: ${this.state}`);
+		}
+
 		for (const { range, text } of events) {
 			const args: Proto.ChangeRequestArgs = {
 				insertString: text,
