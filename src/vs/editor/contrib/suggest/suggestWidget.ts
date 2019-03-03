@@ -436,6 +436,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 
 	private readonly listWidth = 330;
 	private readonly storageService: IStorageService;
+	private readonly listAndTypeWidth = 430;
 	private detailsFocusBorderColor: string;
 	private detailsBorderColor: string;
 
@@ -969,7 +970,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		const cursorX = this.getCursorX();
 		const editorLeft = this.getEditorLeft();
 		if (cursorX !== null && editorLeft !== null) {
-			const left = Math.min(cursorX, this.getEditorWidth() + editorLeft - this.listWidth - 100);
+			const left = Math.min(cursorX, this.getEditorWidth() + editorLeft - this.listAndTypeWidth - 20);
 			this.element.style.left = `${left}px`;
 		}
 	}
@@ -1162,7 +1163,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 			rightDetailWidth !== null && leftDetailWidth !== null && detailWidth !== null && cursorX !== null &&
 			rightDetailWidth < leftDetailWidth) {
 			addClass(this.element, 'list-right');
-			const left = Math.min(cursorX - detailWidth, this.getEditorWidth() + editorLeft - detailWidth - this.listWidth);
+			const left = Math.min(cursorX - detailWidth, this.getEditorWidth() + editorLeft - detailWidth - this.listWidth - 20);
 			this.element.style.left = `${Math.max(left, 0)}px`;
 		} else {
 			removeClass(this.element, 'list-right');
