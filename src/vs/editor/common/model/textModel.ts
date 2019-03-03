@@ -25,7 +25,7 @@ import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguag
 import { SearchData, SearchParams, TextModelSearch } from 'vs/editor/common/model/textModelSearch';
 import { ModelLinesTokens, ModelTokensChangedEventBuilder } from 'vs/editor/common/model/textModelTokens';
 import { getWordAtText } from 'vs/editor/common/model/wordHelper';
-import { IState, LanguageId, LanguageIdentifier, TokenizationRegistry } from 'vs/editor/common/modes';
+import { IState, LanguageId, LanguageIdentifier, TokenizationRegistry, FormattingOptions } from 'vs/editor/common/modes';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { NULL_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/nullMode';
 import { ignoreBracketsInToken } from 'vs/editor/common/modes/supports';
@@ -588,6 +588,13 @@ export class TextModel extends Disposable implements model.ITextModel {
 	public getOptions(): model.TextModelResolvedOptions {
 		this._assertNotDisposed();
 		return this._options;
+	}
+
+	public getFormattingOptions(): FormattingOptions {
+		return {
+			tabSize: this._options.indentSize,
+			insertSpaces: this._options.insertSpaces
+		};
 	}
 
 	public updateOptions(_newOpts: model.ITextModelUpdateOptions): void {

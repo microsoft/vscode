@@ -150,7 +150,9 @@ export class RemoteFileDialog {
 			}
 			this.filePickBox.onDidTriggerButton(button => {
 				if (button === this.fallbackPickerButton) {
-					options.availableFileSystems.shift();
+					if (options.availableFileSystems) {
+						options.availableFileSystems.shift();
+					}
 					isResolved = true;
 					if (this.requiresTrailing) {
 						this.fileDialogService.showSaveDialog(options).then(result => {
@@ -284,7 +286,12 @@ export class RemoteFileDialog {
 			} else {
 				const inputUriDirname = resources.dirname(valueUri);
 				if (!resources.isEqual(this.currentFolder, inputUriDirname)) {
-					const statWithoutTrailing = await this.remoteFileService.resolveFile(inputUriDirname);
+					let statWithoutTrailing: IFileStat | undefined;
+					try {
+						statWithoutTrailing = await this.remoteFileService.resolveFile(inputUriDirname);
+					} catch (e) {
+						// do nothing
+					}
 					if (statWithoutTrailing && statWithoutTrailing.isDirectory && (resources.basename(valueUri) !== '.')) {
 						this.updateItems(inputUriDirname, resources.basename(valueUri));
 					}

@@ -260,20 +260,25 @@ class RemoteSearchProvider implements ISearchProvider {
 		}
 
 		const requestType = details.body ? 'post' : 'get';
+		const headers = {
+			'User-Agent': 'request',
+			'Content-Type': 'application/json; charset=utf-8',
+		};
+
+		if (this.options.endpoint.key) {
+			headers['api-key'] = this.options.endpoint.key;
+		}
+
 		const start = Date.now();
 		return this.requestService.request({
 			type: requestType,
 			url: details.url,
 			data: details.body,
-			headers: {
-				'User-Agent': 'request',
-				'Content-Type': 'application/json; charset=utf-8',
-				'api-key': this.options.endpoint.key
-			},
+			headers,
 			timeout: 5000
 		}, CancellationToken.None).then(context => {
 			if (context.res.statusCode >= 300) {
-				throw new Error(`${details} returned status code: ${context.res.statusCode}`);
+				throw new Error(`${JSON.stringify(details)} returned status code: ${context.res.statusCode}`);
 			}
 
 			return asJson(context);
@@ -319,8 +324,7 @@ class RemoteSearchProvider implements ISearchProvider {
 				duration,
 				timestamp,
 				scoredResults,
-				context: result['@odata.context'],
-				extensions: details.extensions
+				context: result['@odata.context']
 			};
 		});
 	}
@@ -374,8 +378,7 @@ class RemoteSearchProvider implements ISearchProvider {
 		return {
 			url,
 			body,
-			hasMoreFilters,
-			extensions
+			hasMoreFilters
 		};
 	}
 

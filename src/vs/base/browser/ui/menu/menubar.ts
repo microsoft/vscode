@@ -14,7 +14,7 @@ import { cleanMnemonic, IMenuOptions, Menu, MENU_ESCAPED_MNEMONIC_REGEX, MENU_MN
 import { ActionRunner, IAction, IActionRunner } from 'vs/base/common/actions';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
-import { KeyCode, KeyCodeUtils, ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { KeyCode, ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 
 const $ = DOM.$;
@@ -70,7 +70,7 @@ export class MenuBar extends Disposable {
 	private openedViaKeyboard: boolean;
 	private awaitingAltRelease: boolean;
 	private ignoreNextMouseUp: boolean;
-	private mnemonics: Map<KeyCode, number>;
+	private mnemonics: Map<string, number>;
 
 	private updatePending: boolean;
 	private _focusState: MenubarState;
@@ -89,7 +89,7 @@ export class MenuBar extends Disposable {
 		this.container.attributes['role'] = 'menubar';
 
 		this.menuCache = [];
-		this.mnemonics = new Map<KeyCode, number>();
+		this.mnemonics = new Map<string, number>();
 
 		this._focusState = MenubarState.VISIBLE;
 
@@ -110,7 +110,7 @@ export class MenuBar extends Disposable {
 		this._register(DOM.addDisposableListener(this.container, DOM.EventType.KEY_DOWN, (e) => {
 			let event = new StandardKeyboardEvent(e as KeyboardEvent);
 			let eventHandled = true;
-			const key = !!e.key ? KeyCodeUtils.fromString(e.key) : KeyCode.Unknown;
+			const key = !!e.key ? e.key.toLocaleLowerCase() : '';
 
 			if (event.equals(KeyCode.LeftArrow)) {
 				this.focusPrevious();
@@ -162,7 +162,7 @@ export class MenuBar extends Disposable {
 				return;
 			}
 
-			const key = KeyCodeUtils.fromString(e.key);
+			const key = e.key.toLocaleLowerCase();
 			if (!this.mnemonics.has(key)) {
 				return;
 			}
@@ -505,7 +505,7 @@ export class MenuBar extends Disposable {
 	}
 
 	private registerMnemonic(menuIndex: number, mnemonic: string): void {
-		this.mnemonics.set(KeyCodeUtils.fromString(mnemonic), menuIndex);
+		this.mnemonics.set(mnemonic.toLocaleLowerCase(), menuIndex);
 	}
 
 	private hideMenubar(): void {

@@ -106,7 +106,7 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 			}
 
 			const collapsible = typeof treeElement.collapsible === 'boolean' ? treeElement.collapsible : node.collapsible;
-			const collapsed = typeof treeElement.collapsed !== 'undefined' ? treeElement.collapsed : (collapsible && node.collapsed);
+			const collapsed = typeof treeElement.collapsed !== 'undefined' ? treeElement.collapsed : node.collapsed;
 
 			return {
 				...treeElement,
@@ -186,6 +186,11 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 	setCollapsed(element: T, collapsed?: boolean, recursive?: boolean): boolean {
 		const location = this.getElementLocation(element);
 		return this.model.setCollapsed(location, collapsed, recursive);
+	}
+
+	expandTo(element: T): void {
+		const location = this.getElementLocation(element);
+		this.model.expandTo(location);
 	}
 
 	refilter(): void {

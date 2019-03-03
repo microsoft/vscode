@@ -6,24 +6,31 @@
 import * as DOM from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { WebviewEditorInput } from 'vs/workbench/contrib/webview/electron-browser/webviewEditorInput';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
-import { BaseWebviewEditor, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE } from './baseWebviewEditor';
 import { WebviewElement } from './webviewElement';
-import { IWindowService } from 'vs/platform/windows/common/windows';
-import { IStorageService } from 'vs/platform/storage/common/storage';
 
-export class WebviewEditor extends BaseWebviewEditor {
+/**  A context key that is set when the find widget in a webview is visible. */
+export const KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE = new RawContextKey<boolean>('webviewFindWidgetVisible', false);
+
+
+export class WebviewEditor extends BaseEditor {
+
+	protected _webview: WebviewElement | undefined;
+	protected findWidgetVisible: IContextKey<boolean>;
 
 	public static readonly ID = 'WebviewEditor';
 
@@ -50,7 +57,10 @@ export class WebviewEditor extends BaseWebviewEditor {
 		@IWindowService private readonly _windowService: IWindowService,
 		@IStorageService storageService: IStorageService
 	) {
-		super(WebviewEditor.ID, telemetryService, themeService, _contextKeyService, storageService);
+		super(WebviewEditor.ID, telemetryService, themeService, storageService);
+		if (_contextKeyService) {
+			this.findWidgetVisible = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE.bindTo(_contextKeyService);
+		}
 	}
 
 	protected createEditor(parent: HTMLElement): void {
@@ -71,27 +81,6 @@ export class WebviewEditor extends BaseWebviewEditor {
 			webviewContainer.style.width = `${frameRect.width}px`;
 			webviewContainer.style.height = `${frameRect.height}px`;
 		}
-	}
-
-	public layout(dimension: DOM.Dimension): void {
-		if (this._webview) {
-			this.doUpdateContainer();
-		}
-		super.layout(dimension);
-	}
-
-	public focus() {
-		super.focus();
-		if (this._onFocusWindowHandler) {
-			return;
-		}
-
-		// Make sure we restore focus when switching back to a VS Code window
-		this._onFocusWindowHandler = this._windowService.onDidChangeFocus(focused => {
-			if (focused && this._editorService.activeControl === this) {
-				this.focus();
-			}
-		});
 	}
 
 	public dispose(): void {
@@ -120,6 +109,78 @@ export class WebviewEditor extends BaseWebviewEditor {
 			this._webview.sendMessage(data);
 		} else {
 			this.pendingMessages.push(data);
+		}
+	}
+	public showFind() {
+		if (this._webview) {
+			this._webview.showFind();
+			this.findWidgetVisible.set(true);
+		}
+	}
+
+	public hideFind() {
+		this.findWidgetVisible.reset();
+		if (this._webview) {
+			this._webview.hideFind();
+		}
+	}
+
+	public get isWebviewEditor() {
+		return true;
+	}
+
+	public reload() {
+		this.withWebviewElement(webview => webview.reload());
+	}
+
+	public layout(_dimension: DOM.Dimension): void {
+		this.withWebviewElement(webview => {
+			this.doUpdateContainer();
+			webview.layout();
+		});
+	}
+
+	public focus(): void {
+		super.focus();
+		if (!this._onFocusWindowHandler) {
+
+			// Make sure we restore focus when switching back to a VS Code window
+			this._onFocusWindowHandler = this._windowService.onDidChangeFocus(focused => {
+				if (focused && this._editorService.activeControl === this) {
+					this.focus();
+				}
+			});
+		}
+		this.withWebviewElement(webview => webview.focus());
+	}
+
+	public selectAll(): void {
+		this.withWebviewElement(webview => webview.selectAll());
+	}
+
+	public copy(): void {
+		this.withWebviewElement(webview => webview.copy());
+	}
+
+	public paste(): void {
+		this.withWebviewElement(webview => webview.paste());
+	}
+
+	public cut(): void {
+		this.withWebviewElement(webview => webview.cut());
+	}
+
+	public undo(): void {
+		this.withWebviewElement(webview => webview.undo());
+	}
+
+	public redo(): void {
+		this.withWebviewElement(webview => webview.redo());
+	}
+
+	private withWebviewElement(f: (element: WebviewElement) => void): void {
+		if (this._webview) {
+			f(this._webview);
 		}
 	}
 

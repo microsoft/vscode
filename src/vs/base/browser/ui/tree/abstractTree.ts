@@ -233,23 +233,28 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 		return { container, twistie, templateData };
 	}
 
-	renderElement(node: ITreeNode<T, TFilterData>, index: number, templateData: ITreeListTemplateData<TTemplateData>): void {
-		this.renderedNodes.set(node, templateData);
-		this.renderedElements.set(node.element, node);
+	renderElement(node: ITreeNode<T, TFilterData>, index: number, templateData: ITreeListTemplateData<TTemplateData>, dynamicHeightProbing?: boolean): void {
+		if (!dynamicHeightProbing) {
+			this.renderedNodes.set(node, templateData);
+			this.renderedElements.set(node.element, node);
+		}
 
 		const indent = TreeRenderer.DefaultIndent + (node.depth - 1) * this.indent;
 		templateData.twistie.style.marginLeft = `${indent}px`;
 		this.update(node, templateData);
 
-		this.renderer.renderElement(node, index, templateData.templateData);
+		this.renderer.renderElement(node, index, templateData.templateData, dynamicHeightProbing);
 	}
 
-	disposeElement(node: ITreeNode<T, TFilterData>, index: number, templateData: ITreeListTemplateData<TTemplateData>): void {
+	disposeElement(node: ITreeNode<T, TFilterData>, index: number, templateData: ITreeListTemplateData<TTemplateData>, dynamicHeightProbing?: boolean): void {
 		if (this.renderer.disposeElement) {
-			this.renderer.disposeElement(node, index, templateData.templateData);
+			this.renderer.disposeElement(node, index, templateData.templateData, dynamicHeightProbing);
 		}
-		this.renderedNodes.delete(node);
-		this.renderedElements.delete(node.element);
+
+		if (!dynamicHeightProbing) {
+			this.renderedNodes.delete(node);
+			this.renderedElements.delete(node.element);
+		}
 	}
 
 	disposeTemplate(templateData: ITreeListTemplateData<TTemplateData>): void {
@@ -414,6 +419,9 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 	private automaticKeyboardNavigation = true;
 	private triggered = false;
 
+	private _onDidChangePattern = new Emitter<string>();
+	readonly onDidChangePattern = this._onDidChangePattern.event;
+
 	private enabledDisposables: IDisposable[] = [];
 	private disposables: IDisposable[] = [];
 
@@ -494,7 +502,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 			.map(e => new StandardKeyboardEvent(e))
 			.filter(this.keyboardNavigationEventFilter || (() => true))
 			.filter(() => this.automaticKeyboardNavigation || this.triggered)
-			.filter(e => isPrintableCharEvent(e) || ((this._pattern.length > 0 || this.triggered) && ((e.keyCode === KeyCode.Escape || e.keyCode === KeyCode.Backspace) && !e.altKey && !e.ctrlKey && !e.metaKey) || (e.keyCode === KeyCode.Backspace && (isMacintosh ? e.altKey : e.ctrlKey) && !e.shiftKey)))
+			.filter(e => isPrintableCharEvent(e) || ((this.pattern.length > 0 || this.triggered) && ((e.keyCode === KeyCode.Escape || e.keyCode === KeyCode.Backspace) && !e.altKey && !e.ctrlKey && !e.metaKey) || (e.keyCode === KeyCode.Backspace && (isMacintosh ? e.altKey : e.ctrlKey) && !e.shiftKey)))
 			.forEach(e => { e.stopPropagation(); e.preventDefault(); })
 			.event;
 
@@ -546,6 +554,8 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		}
 
 		this._pattern = pattern;
+		this._onDidChangePattern.fire(pattern);
+
 		this.filter.pattern = pattern;
 		this.tree.refilter();
 
@@ -593,6 +603,8 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		};
 
 		const onDragOver = (event: DragEvent) => {
+			event.preventDefault(); // needed so that the drop event fires (https://stackoverflow.com/questions/21339924/drop-event-not-firing-in-chrome)
+
 			const x = event.screenX - left;
 			if (event.dataTransfer) {
 				event.dataTransfer.dropEffect = 'none';
@@ -686,6 +698,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 
 	dispose() {
 		this.disable();
+		this._onDidChangePattern.dispose();
 		this.disposables = dispose(this.disposables);
 	}
 }
@@ -982,6 +995,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	readonly onWillRefilter: Event<void> = this._onWillRefilter.event;
 
 	get filterOnType(): boolean { return !!this._options.filterOnType; }
+	get onDidChangeTypeFilterPattern(): Event<string> { return this.typeFilterController ? this.typeFilterController.onDidChangePattern : Event.None; }
 
 	// Options TODO@joao expose options only, not Optional<>
 	get openOnSingleClick(): boolean { return typeof this._options.openOnSingleClick === 'undefined' ? true : this._options.openOnSingleClick; }
@@ -1247,12 +1261,14 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		return this.focus.get();
 	}
 
-	open(elements: TRef[]): void {
+	open(elements: TRef[], browserEvent?: UIEvent): void {
 		const indexes = elements.map(e => this.model.getListIndex(e));
-		this.view.open(indexes);
+		this.view.open(indexes, browserEvent);
 	}
 
 	reveal(location: TRef, relativeTop?: number): void {
+		this.model.expandTo(location);
+
 		const index = this.model.getListIndex(location);
 
 		if (index === -1) {

@@ -362,7 +362,7 @@ export class FileDialogService implements IFileDialogService {
 			if (urisToOpen) {
 				return this.windowService.openWindow(urisToOpen, { forceNewWindow, forceOpenWorkspaceAsFile });
 			}
-			return void 0;
+			return undefined;
 		});
 	}
 
