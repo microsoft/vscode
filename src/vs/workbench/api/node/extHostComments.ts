@@ -30,9 +30,9 @@ export class ExtHostComments implements ExtHostCommentsShape {
 
 	private _proxy: MainThreadCommentsShape;
 
-	private _commentControls: Map<ProviderHandle, ExtHostCommentControl> = new Map<ProviderHandle, ExtHostCommentControl>();
+	private _commentControllers: Map<ProviderHandle, ExtHostCommentController> = new Map<ProviderHandle, ExtHostCommentController>();
 
-	private _commentControlsByExtension: Map<string, ExtHostCommentControl[]> = new Map<string, ExtHostCommentControl[]>();
+	private _commentControllersByExtension: Map<string, ExtHostCommentController[]> = new Map<string, ExtHostCommentController[]>();
 
 	private _documentProviders = new Map<number, HandlerData<vscode.DocumentCommentProvider>>();
 	private _workspaceProviders = new Map<number, HandlerData<vscode.WorkspaceCommentProvider>>();
@@ -47,21 +47,21 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		_commands.registerArgumentProcessor({
 			processArgument: arg => {
 				if (arg && arg.$mid === 6) {
-					const commentControl = this._commentControls.get(arg.handle);
+					const commentController = this._commentControllers.get(arg.handle);
 
-					if (!commentControl) {
+					if (!commentController) {
 						return arg;
 					}
 
-					return commentControl;
+					return commentController;
 				} else if (arg && arg.$mid === 7) {
-					const commentControl = this._commentControls.get(arg.commentControlHandle);
+					const commentController = this._commentControllers.get(arg.commentControlHandle);
 
-					if (!commentControl) {
+					if (!commentController) {
 						return arg;
 					}
 
-					const commentThread = commentControl.getCommentThread(arg.commentThreadHandle);
+					const commentThread = commentController.getCommentThread(arg.commentThreadHandle);
 
 					if (!commentThread) {
 						return arg;
@@ -75,48 +75,48 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		});
 	}
 
-	createCommentControl(extension: IExtensionDescription, id: string, label: string): vscode.CommentControl {
+	createCommentController(extension: IExtensionDescription, id: string, label: string): vscode.CommentController {
 		const handle = ExtHostComments.handlePool++;
-		const commentControl = new ExtHostCommentControl(extension, handle, this._commands.converter, this._proxy, id, label);
-		this._commentControls.set(commentControl.handle, commentControl);
+		const commentController = new ExtHostCommentController(extension, handle, this._commands.converter, this._proxy, id, label);
+		this._commentControllers.set(commentController.handle, commentController);
 
-		const commentControls = this._commentControlsByExtension.get(ExtensionIdentifier.toKey(extension.identifier)) || [];
-		commentControls.push(commentControl);
-		this._commentControlsByExtension.set(ExtensionIdentifier.toKey(extension.identifier), commentControls);
+		const commentControllers = this._commentControllersByExtension.get(ExtensionIdentifier.toKey(extension.identifier)) || [];
+		commentControllers.push(commentController);
+		this._commentControllersByExtension.set(ExtensionIdentifier.toKey(extension.identifier), commentControllers);
 
-		return commentControl;
+		return commentController;
 	}
 
-	$onActiveCommentWidgetChange(commentControlhandle: number, commentThread: modes.CommentThread2, comment: modes.Comment | undefined, input: string): Promise<number | undefined> {
-		const commentControl = this._commentControls.get(commentControlhandle);
+	$onActiveCommentWidgetChange(commentControllerHandle: number, commentThread: modes.CommentThread2, comment: modes.Comment | undefined, input: string): Promise<number | undefined> {
+		const commentController = this._commentControllers.get(commentControllerHandle);
 
-		if (!commentControl) {
+		if (!commentController) {
 			return Promise.resolve(undefined);
 		}
 
-		commentControl.$onActiveCommentWidgetChange(commentThread, comment, input);
-		return Promise.resolve(commentControlhandle);
+		commentController.$onActiveCommentWidgetChange(commentThread, comment, input);
+		return Promise.resolve(commentControllerHandle);
 	}
 
-	$onCommentWidgetInputChange(commentControlhandle: number, value: string): Promise<void> {
-		const commentControl = this._commentControls.get(commentControlhandle);
+	$onCommentWidgetInputChange(commentControllerHandle: number, value: string): Promise<void> {
+		const commentController = this._commentControllers.get(commentControllerHandle);
 
-		if (!commentControl || !commentControl.widget) {
+		if (!commentController || !commentController.widget) {
 			return Promise.resolve(undefined);
 		}
 
-		commentControl.widget.input = value;
+		commentController.widget.input = value;
 		return Promise.resolve(undefined);
 	}
 
-	$onActiveCommentingRangeChange(commentControlhandle: number, range: IRange) {
-		const commentControl = this._commentControls.get(commentControlhandle);
+	$onActiveCommentingRangeChange(commentControllerHandle: number, range: IRange) {
+		const commentController = this._commentControllers.get(commentControllerHandle);
 
-		if (!commentControl) {
+		if (!commentController) {
 			return;
 		}
 
-		commentControl.setActiveCommentingRange(extHostTypeConverter.Range.to(range));
+		commentController.setActiveCommentingRange(extHostTypeConverter.Range.to(range));
 	}
 
 	registerWorkspaceCommentProvider(
@@ -412,7 +412,7 @@ export class ExtHostCommentingRanges implements vscode.CommentingRanges {
 
 	set ranges(newRanges: vscode.Range[]) {
 		this._ranges = newRanges;
-		this._proxy.$updateCommentingRanges(this._commentControlHandle, this.handle, this._ranges.map(extHostTypeConverter.Range.from));
+		this._proxy.$updateCommentingRanges(this._commentControllerHandle, this.handle, this._ranges.map(extHostTypeConverter.Range.from));
 	}
 
 	get newCommentThreadCommand(): vscode.Command {
@@ -423,19 +423,19 @@ export class ExtHostCommentingRanges implements vscode.CommentingRanges {
 		this._command = command;
 
 		const internal = this._commandsConverter.toInternal(command);
-		this._proxy.$updateCommentingRangesCommands(this._commentControlHandle, this.handle, internal);
+		this._proxy.$updateCommentingRangesCommands(this._commentControllerHandle, this.handle, internal);
 	}
 
 	constructor(
 		private _proxy: MainThreadCommentsShape,
 		private readonly _commandsConverter: CommandsConverter,
-		private _commentControlHandle: number,
+		private _commentControllerHandle: number,
 		private _resource: vscode.Uri,
 		private _ranges: vscode.Range[],
 		private _command: vscode.Command,
 	) {
 		this._proxy.$createCommentingRanges(
-			this._commentControlHandle,
+			this._commentControllerHandle,
 			this.handle,
 			this._resource,
 			this._ranges.map(extHostTypeConverter.Range.from),
@@ -444,11 +444,11 @@ export class ExtHostCommentingRanges implements vscode.CommentingRanges {
 	}
 
 	dispose() {
-		this._proxy.$deleteCommentingRanges(this._commentControlHandle, this.handle);
+		this._proxy.$deleteCommentingRanges(this._commentControllerHandle, this.handle);
 	}
 }
 
-class ExtHostCommentControl implements vscode.CommentControl {
+class ExtHostCommentController implements vscode.CommentController {
 	get id(): string {
 		return this._id;
 	}
@@ -475,7 +475,7 @@ class ExtHostCommentControl implements vscode.CommentControl {
 		private _id: string,
 		private _label: string
 	) {
-		this._proxy.$registerCommentControl(this.handle, _id, _label);
+		this._proxy.$registerCommentController(this.handle, _id, _label);
 	}
 
 	createCommentThread(id: string, resource: vscode.Uri, range: vscode.Range, comments: vscode.Comment[], acceptInputCommands: vscode.Command[], collapsibleState?: vscode.CommentThreadCollapsibleState): vscode.CommentThread {

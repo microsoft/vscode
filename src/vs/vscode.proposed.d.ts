@@ -980,7 +980,7 @@ declare module 'vscode' {
 		input: string;
 	}
 
-	export interface CommentControl {
+	export interface CommentController {
 		readonly id: string;
 		readonly label: string;
 		/**
@@ -997,11 +997,19 @@ declare module 'vscode' {
 	}
 
 	namespace comment {
-		export function createCommentControl(id: string, label: string): CommentControl;
+		export function createCommentController(id: string, label: string): CommentController;
 	}
 
 	namespace workspace {
+		/**
+		 * DEPRECATED
+		 * Use vscode.comment.createCommentController instead.
+		 */
 		export function registerDocumentCommentProvider(provider: DocumentCommentProvider): Disposable;
+		/**
+		 * DEPRECATED
+		 * Use vscode.comment.createCommentController instead and we don't differentiate document comments and workspace comments anymore.
+		 */
 		export function registerWorkspaceCommentProvider(provider: WorkspaceCommentProvider): Disposable;
 	}
 

@@ -132,7 +132,7 @@ export class MainThreadCommentThread implements modes.CommentThread2 {
 
 	constructor(
 		public commentThreadHandle: number,
-		public control: MainThreadCommentControl,
+		public controller: MainThreadCommentController,
 		public extensionId: string,
 		public threadId: string,
 		public resource: string,
@@ -151,7 +151,7 @@ export class MainThreadCommentThread implements modes.CommentThread2 {
 	toJSON(): any {
 		return {
 			$mid: 7,
-			commentControlHandle: this.control.handle,
+			commentControlHandle: this.controller.handle,
 			commentThreadHandle: this.commentThreadHandle,
 		};
 	}
@@ -180,7 +180,7 @@ export class MainThreadCommentingRanges implements modes.CommentingRanges {
 
 	constructor(
 		public commentingRangesHandle: number,
-		public control: MainThreadCommentControl,
+		public controller: MainThreadCommentController,
 		public resource: URI,
 		private _ranges: IRange[],
 		private _newCommentThreadCommand: modes.Command,
@@ -192,7 +192,7 @@ export class MainThreadCommentingRanges implements modes.CommentingRanges {
 	}
 }
 
-export class MainThreadCommentControl {
+export class MainThreadCommentController {
 	get handle(): number {
 		return this._handle;
 	}
@@ -352,7 +352,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	private _documentProviders = new Map<number, IDisposable>();
 	private _workspaceProviders = new Map<number, IDisposable>();
 	private _handlers = new Map<number, string>();
-	private _commentControls = new Map<number, MainThreadCommentControl>();
+	private _commentControllers = new Map<number, MainThreadCommentController>();
 
 	private _activeCommentThread?: MainThreadCommentThread;
 	private _activeComment?: modes.Comment;
@@ -372,9 +372,9 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		this._activeCommentThreadDisposables = [];
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostComments);
 		this._disposables.push(this._commentService.onDidChangeActiveCommentThread(async thread => {
-			let control = (thread as MainThreadCommentThread).control;
+			let controller = (thread as MainThreadCommentThread).controller;
 
-			if (!control) {
+			if (!controller) {
 				return;
 			}
 
@@ -383,26 +383,26 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 
 			this._activeCommentThreadDisposables.push(this._activeCommentThread.onDidChangeInput(input => { // todo, dispose
 				this._input = input;
-				this._proxy.$onActiveCommentWidgetChange(control.handle, this._activeCommentThread, this._activeComment, this._input ? this._input.value : undefined);
+				this._proxy.$onActiveCommentWidgetChange(controller.handle, this._activeCommentThread, this._activeComment, this._input ? this._input.value : undefined);
 			}));
 
-			await this._proxy.$onActiveCommentWidgetChange(control.handle, this._activeCommentThread, this._activeComment, this._input ? this._input.value : undefined);
+			await this._proxy.$onActiveCommentWidgetChange(controller.handle, this._activeCommentThread, this._activeComment, this._input ? this._input.value : undefined);
 		}));
 
 		this._disposables.push(this._commentService.onDidChangeActiveCommentingRange(value => {
-			let control = (value.commentingRangesInfo as MainThreadCommentingRanges).control;
+			let controller = (value.commentingRangesInfo as MainThreadCommentingRanges).controller;
 
-			if (!control) {
+			if (!controller) {
 				return;
 			}
-			this._proxy.$onActiveCommentingRangeChange(control.handle, value.range);
+			this._proxy.$onActiveCommentingRangeChange(controller.handle, value.range);
 		}));
 	}
 
-	$registerCommentControl(handle: number, id: string, label: string): void {
-		const provider = new MainThreadCommentControl(this._proxy, this._commentService, handle, id, label);
-		this._commentService.registerCommentControl(String(handle), provider);
-		this._commentControls.set(handle, provider);
+	$registerCommentController(handle: number, id: string, label: string): void {
+		const provider = new MainThreadCommentController(this._proxy, this._commentService, handle, id, label);
+		this._commentService.registerCommentController(String(handle), provider);
+		this._commentControllers.set(handle, provider);
 
 		const commentsPanelAlreadyConstructed = this._panelService.getPanels().some(panel => panel.id === COMMENTS_PANEL_ID);
 		if (!commentsPanelAlreadyConstructed) {
@@ -412,7 +412,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	}
 
 	$createCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, range: IRange, comments: modes.Comment[], commands: modes.Command[], collapseState: modes.CommentThreadCollapsibleState): modes.CommentThread2 | undefined {
-		let provider = this._commentControls.get(handle);
+		let provider = this._commentControllers.get(handle);
 
 		if (!provider) {
 			return undefined;
@@ -422,7 +422,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	}
 
 	$deleteCommentThread(handle: number, commentThreadHandle: number) {
-		let provider = this._commentControls.get(handle);
+		let provider = this._commentControllers.get(handle);
 
 		if (!provider) {
 			return;
@@ -432,7 +432,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	}
 
 	$createCommentingRanges(handle: number, commentingRangesHandle: number, resource: UriComponents, ranges: IRange[], command: modes.Command) {
-		let provider = this._commentControls.get(handle);
+		let provider = this._commentControllers.get(handle);
 
 		if (!provider) {
 			return undefined;
@@ -442,7 +442,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	}
 
 	$deleteCommentingRanges(handle: number, commentingRangesHandle: number) {
-		let provider = this._commentControls.get(handle);
+		let provider = this._commentControllers.get(handle);
 
 		if (!provider) {
 			return undefined;
@@ -453,7 +453,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	}
 
 	$updateCommentingRanges(handle: number, commentingRangesHandle: number, newRanges: IRange[]): void {
-		let provider = this._commentControls.get(handle);
+		let provider = this._commentControllers.get(handle);
 
 		if (!provider) {
 			return;
@@ -462,7 +462,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		provider.updateCommentingRanges(commentingRangesHandle, newRanges);
 	}
 	$updateCommentingRangesCommands(handle: number, commentingRangesHandle: number, command: modes.Command): void {
-		let provider = this._commentControls.get(handle);
+		let provider = this._commentControllers.get(handle);
 
 		if (!provider) {
 			return;
@@ -472,7 +472,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	}
 
 	$updateComments(handle: number, commentThreadHandle: number, comments: modes.Comment[]) {
-		let provider = this._commentControls.get(handle);
+		let provider = this._commentControllers.get(handle);
 
 		if (!provider) {
 			return;
@@ -482,7 +482,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	}
 
 	$setInputValue(handle: number, commentThreadHandle: number, input: string) {
-		let provider = this._commentControls.get(handle);
+		let provider = this._commentControllers.get(handle);
 
 		if (!provider) {
 			return;
@@ -493,7 +493,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	}
 
 	$updateCommentThreadCommands(handle: number, commentThreadHandle: number, acceptInputCommands: modes.Command[]) {
-		let provider = this._commentControls.get(handle);
+		let provider = this._commentControllers.get(handle);
 
 		if (!provider) {
 			return;
@@ -503,7 +503,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	}
 
 	$updateCommentThreadRange(handle: number, commentThreadHandle: number, range: any): void {
-		let provider = this._commentControls.get(handle);
+		let provider = this._commentControllers.get(handle);
 
 		if (!provider) {
 			return;
