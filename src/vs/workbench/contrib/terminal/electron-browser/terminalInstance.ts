@@ -175,7 +175,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private _cols: number;
 	private _rows: number;
 	private _dimensionsOverride: ITerminalDimensions;
-	private _windowsShellHelper: WindowsShellHelper;
+	private _windowsShellHelper: WindowsShellHelper | undefined;
 	private _xtermReadyPromise: Promise<void>;
 	private _titleReadyPromise: Promise<string>;
 	private _titleReadyComplete: (title: string) => any;
