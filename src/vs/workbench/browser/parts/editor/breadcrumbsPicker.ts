@@ -87,11 +87,11 @@ export abstract class BreadcrumbsPicker {
 
 		this._arrow = document.createElement('div');
 		this._arrow.className = 'arrow';
-		this._arrow.style.borderColor = `transparent transparent ${color.toString()}`;
+		this._arrow.style.borderColor = `transparent transparent ${color ? color.toString() : ''}`;
 		this._domNode.appendChild(this._arrow);
 
 		this._treeContainer = document.createElement('div');
-		this._treeContainer.style.background = color.toString();
+		this._treeContainer.style.background = color ? color.toString() : '';
 		this._treeContainer.style.paddingTop = '2px';
 		this._treeContainer.style.boxShadow = `0px 5px 8px ${this._themeService.getTheme().getColor(widgetShadow)}`;
 		this._domNode.appendChild(this._treeContainer);
@@ -150,7 +150,7 @@ export abstract class BreadcrumbsPicker {
 		this._arrow.style.marginLeft = `${this._layoutInfo.arrowOffset}px`;
 		this._treeContainer.style.height = `${treeHeight}px`;
 		this._treeContainer.style.width = `${this._layoutInfo.width}px`;
-		this._tree.layout();
+		this._tree.layout(treeHeight, this._layoutInfo.width);
 
 	}
 
@@ -219,10 +219,10 @@ class FileDataSource implements IAsyncDataSource<IWorkspace | URI, IWorkspaceFol
 			uri = element.resource;
 		}
 		return this._fileService.resolveFile(uri).then(stat => {
-			for (let child of stat.children) {
+			for (const child of stat.children || []) {
 				this._parents.set(stat, child);
 			}
-			return stat.children;
+			return stat.children || [];
 		});
 	}
 }

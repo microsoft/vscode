@@ -98,6 +98,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	}
 
 	protected openComposite(id: string, focus?: boolean): Composite | undefined {
+
 		// Check if composite already visible and just focus in that case
 		if (this.activeComposite && this.activeComposite.getId() === id) {
 			if (focus) {
@@ -449,6 +450,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 	getProgressIndicator(id: string): IProgressService | null {
 		const compositeItem = this.instantiatedCompositeItems.get(id);
+
 		return compositeItem ? compositeItem.progressService : null;
 	}
 
@@ -467,6 +469,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	layout(dimension: Dimension): Dimension[];
 	layout(width: number, height: number): void;
 	layout(dim1: Dimension | number, dim2?: number): Dimension[] | void {
+
 		// Pass to super
 		const sizes = super.layout(dim1 instanceof Dimension ? dim1 : new Dimension(dim1, dim2!));
 
@@ -483,8 +486,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 	protected removeComposite(compositeId: string): boolean {
 		if (this.activeComposite && this.activeComposite.getId() === compositeId) {
-			// do not remove active compoiste
-			return false;
+			return false; // do not remove active composite
 		}
 
 		delete this.mapCompositeToCompositeContainer[compositeId];
@@ -495,6 +497,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			dispose(compositeItem.disposable);
 			this.instantiatedCompositeItems.delete(compositeId);
 		}
+
 		return true;
 	}
 

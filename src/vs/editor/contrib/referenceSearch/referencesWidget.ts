@@ -412,16 +412,16 @@ export class ReferenceWidget extends PeekViewWidget {
 				onEvent(e.elements[0], 'show');
 			}
 		});
-		this._tree.onMouseDblClick(e => {
-			const aside = e.browserEvent.ctrlKey || e.browserEvent.metaKey || e.browserEvent.altKey;
-			const goto = e.browserEvent.detail === 2;
+		this._tree.onDidOpen(e => {
+			const aside = (e.browserEvent instanceof MouseEvent) && (e.browserEvent.ctrlKey || e.browserEvent.metaKey || e.browserEvent.altKey);
+			const goto = !e.browserEvent || ((e.browserEvent instanceof MouseEvent) && e.browserEvent.detail === 2);
 
 			if (aside) {
-				onEvent(e.element, 'side');
+				onEvent(e.elements[0], 'side');
 			} else if (goto) {
-				onEvent(e.element, 'goto');
+				onEvent(e.elements[0], 'goto');
 			} else {
-				onEvent(e.element, 'show');
+				onEvent(e.elements[0], 'show');
 			}
 		});
 

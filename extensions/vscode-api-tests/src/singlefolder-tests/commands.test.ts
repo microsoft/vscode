@@ -74,23 +74,6 @@ suite('commands namespace tests', () => {
 
 	});
 
-	test('api-command: vscode.previewHtml', async function () {
-
-		let registration = workspace.registerTextDocumentContentProvider('speciale', {
-			provideTextDocumentContent(uri) {
-				return `content of URI <b>${uri.toString()}</b>`;
-			}
-		});
-
-		let virtualDocumentUri = Uri.parse('speciale://authority/path');
-		let title = 'A title';
-
-		const success = await commands.executeCommand('vscode.previewHtml', virtualDocumentUri, ViewColumn.Three, title);
-		assert.ok(success);
-		registration.dispose();
-
-	});
-
 	test('api-command: vscode.diff', function () {
 
 		let registration = workspace.registerTextDocumentContentProvider('sc', {

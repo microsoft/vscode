@@ -37,6 +37,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { coalesce } from 'vs/base/common/arrays';
 import { trim } from 'vs/base/common/strings';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export interface IBackupResult {
 	didBackup: boolean;
@@ -978,3 +979,5 @@ export class TextFileService extends Disposable implements ITextFileService {
 		super.dispose();
 	}
 }
+
+registerSingleton(ITextFileService, TextFileService);

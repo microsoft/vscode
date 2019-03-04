@@ -54,6 +54,10 @@ class CSSBasedConfigurationCache {
 	}
 }
 
+export function clearAllFontInfos(): void {
+	CSSBasedConfiguration.INSTANCE.clearCache();
+}
+
 export function readFontInfo(bareFontInfo: BareFontInfo): FontInfo {
 	return CSSBasedConfiguration.INSTANCE.readConfiguration(bareFontInfo);
 }
@@ -120,6 +124,11 @@ class CSSBasedConfiguration extends Disposable {
 			this._evictUntrustedReadingsTimeout = -1;
 		}
 		super.dispose();
+	}
+
+	public clearCache(): void {
+		this._cache = new CSSBasedConfigurationCache();
+		this._onDidChange.fire();
 	}
 
 	private _writeToCache(item: BareFontInfo, value: FontInfo): void {

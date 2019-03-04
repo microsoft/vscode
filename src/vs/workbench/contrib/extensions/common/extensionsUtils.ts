@@ -15,7 +15,6 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { Severity, INotificationService } from 'vs/platform/notification/common/notification';
-import product from 'vs/platform/product/node/product';
 
 export interface IExtensionStatus {
 	identifier: IExtensionIdentifier;
@@ -136,9 +135,4 @@ export function getInstalledExtensions(accessor: ServicesAccessor): Promise<IExt
 export function isKeymapExtension(tipsService: IExtensionTipsService, extension: IExtensionStatus): boolean {
 	const cats = extension.local.manifest.categories;
 	return cats && cats.indexOf('Keymaps') !== -1 || tipsService.getKeymapRecommendations().some(({ extensionId }) => areSameExtensions({ id: extensionId }, extension.local.identifier));
-}
-
-export function getKeywordsForExtension(extension: string): string[] {
-	const keywords = product.extensionKeywords || {};
-	return keywords[extension] || [];
 }

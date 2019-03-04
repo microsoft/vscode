@@ -61,7 +61,6 @@ export class ExplorerView extends ViewletPanel {
 
 	// Refresh is needed on the initial explorer open
 	private shouldRefresh = true;
-	private setTreeInputPromise = Promise.resolve(undefined);
 	private dragHandler: DelayedDragHandler;
 	private decorationProvider: ExplorerDecorationsProvider;
 	private autoReveal = false;
@@ -166,7 +165,7 @@ export class ExplorerView extends ViewletPanel {
 			this.refresh();
 		}));
 
-		this.disposables.push(this.explorerService.onDidChangeRoots(() => this.setTreeInputPromise = this.setTreeInput()));
+		this.disposables.push(this.explorerService.onDidChangeRoots(() => this.setTreeInput()));
 		this.disposables.push(this.explorerService.onDidChangeItem(e => this.refresh(e)));
 		this.disposables.push(this.explorerService.onDidChangeEditable(async e => {
 			const isEditing = !!this.explorerService.getEditableData(e);
@@ -206,8 +205,7 @@ export class ExplorerView extends ViewletPanel {
 				// If a refresh was requested and we are now visible, run it
 				if (this.shouldRefresh) {
 					this.shouldRefresh = false;
-					this.setTreeInputPromise = this.setTreeInput();
-					await this.setTreeInputPromise;
+					await this.setTreeInput();
 				}
 				// Find resource to focus from active editor input if set
 				this.selectActiveFile(false, true);
@@ -231,22 +229,21 @@ export class ExplorerView extends ViewletPanel {
 	}
 
 	focus(): void {
-		this.setTreeInputPromise.then(() => {
-			this.tree.domFocus();
-			const focused = this.tree.getFocus();
-			if (focused.length === 1) {
-				if (this.autoReveal) {
-					this.tree.reveal(focused[0], 0.5);
-				}
+		this.tree.domFocus();
 
-				const activeFile = this.getActiveFile();
-				if (!activeFile && !focused[0].isDirectory) {
-					// Open the focused element in the editor if there is currently no file opened #67708
-					this.editorService.openEditor({ resource: focused[0].resource, options: { preserveFocus: true, revealIfVisible: true } })
-						.then(undefined, onUnexpectedError);
-				}
+		const focused = this.tree.getFocus();
+		if (focused.length === 1) {
+			if (this.autoReveal) {
+				this.tree.reveal(focused[0], 0.5);
 			}
-		});
+
+			const activeFile = this.getActiveFile();
+			if (!activeFile && !focused[0].isDirectory) {
+				// Open the focused element in the editor if there is currently no file opened #67708
+				this.editorService.openEditor({ resource: focused[0].resource, options: { preserveFocus: true, revealIfVisible: true } })
+					.then(undefined, onUnexpectedError);
+			}
+		}
 	}
 
 	private selectActiveFile(deselect?: boolean, reveal = this.autoReveal): void {
@@ -487,7 +484,7 @@ export class ExplorerView extends ViewletPanel {
 		return promise;
 	}
 
-	private getActiveFile(): URI {
+	private getActiveFile(): URI | undefined {
 		const input = this.editorService.activeEditor;
 
 		// ignore diff editor inputs (helps to get out of diffing when returning to explorer)

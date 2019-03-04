@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { tmpdir } from 'os';
-import { join } from 'vs/base/common/path';
 import * as vscode from 'vscode';
 import { URI } from 'vs/base/common/uri';
 import { isMalformedFileUri } from 'vs/base/common/resources';
@@ -17,7 +15,6 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IDownloadService } from 'vs/platform/download/common/download';
-import { generateUuid } from 'vs/base/common/uuid';
 
 // -----------------------------------------------------------------
 // The following commands are registered on both sides separately.
@@ -35,19 +32,6 @@ function adjustHandler(handler: (executor: ICommandsExecutor, ...args: any[]) =>
 		return handler(accessor.get(ICommandService), ...args);
 	};
 }
-
-export class PreviewHTMLAPICommand {
-	public static ID = 'vscode.previewHtml';
-	public static execute(executor: ICommandsExecutor, uri: URI, position?: vscode.ViewColumn, label?: string, options?: any): Promise<any> {
-		return executor.executeCommand('_workbench.previewHtml',
-			uri,
-			typeof position === 'number' && typeConverters.ViewColumn.from(position),
-			label,
-			options
-		);
-	}
-}
-CommandsRegistry.registerCommand(PreviewHTMLAPICommand.ID, adjustHandler(PreviewHTMLAPICommand.execute));
 
 export class OpenFolderAPICommand {
 	public static ID = 'vscode.openFolder';
@@ -171,7 +155,5 @@ CommandsRegistry.registerCommand({
 
 CommandsRegistry.registerCommand('_workbench.downloadResource', function (accessor: ServicesAccessor, resource: URI) {
 	const downloadService = accessor.get(IDownloadService);
-	const location = join(tmpdir(), generateUuid());
-
-	return downloadService.download(resource, location).then(() => URI.file(location));
+	return downloadService.download(resource).then(location => URI.file(location));
 });

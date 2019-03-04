@@ -239,7 +239,6 @@ export class OutlinePanel extends ViewletPanel {
 	private _editorDisposables = new Array<IDisposable>();
 	private _outlineViewState = new OutlineViewState();
 	private _requestOracle?: RequestOracle;
-	private _cachedHeight: number;
 	private _domNode: HTMLElement;
 	private _message: HTMLDivElement;
 	private _inputContainer: HTMLDivElement;
@@ -379,10 +378,8 @@ export class OutlinePanel extends ViewletPanel {
 		}));
 	}
 
-	protected layoutBody(height: number): void {
-		if (height !== this._cachedHeight) {
-			this._tree.layout(height);
-		}
+	protected layoutBody(height: number, width: number): void {
+		this._tree.layout(height, width);
 	}
 
 	getActions(): IAction[] {
@@ -524,8 +521,6 @@ export class OutlinePanel extends ViewletPanel {
 			let state = this._treeStates.get(newModel.textModel.uri.toString());
 			await this._tree.setInput(newModel, state);
 		}
-
-		this.layoutBody(this._cachedHeight);
 
 		// transfer focus from domNode to the tree
 		if (this._domNode === document.activeElement) {

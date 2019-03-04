@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { WalkThroughPart, WALK_THROUGH_FOCUS } from 'vs/workbench/contrib/welcome/walkThrough/electron-browser/walkThroughPart';
+import { WalkThroughPart, WALK_THROUGH_FOCUS } from 'vs/workbench/contrib/welcome/walkThrough/browser/walkThroughPart';
 import { ICommandAndKeybindingRule, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';

@@ -13,7 +13,7 @@ import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/wor
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPartService, Parts, Position as SideBarPosition } from 'vs/workbench/services/part/common/partService';
-import { IViewlet } from 'vs/workbench/common/viewlet';
+import { IViewlet, SidebarFocusContext, ActiveViewletContext } from 'vs/workbench/common/viewlet';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -27,15 +27,11 @@ import { SIDE_BAR_TITLE_FOREGROUND, SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND, SI
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { EventType, addDisposableListener, trackFocus, Dimension } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ISerializableView } from 'vs/base/browser/ui/grid/grid';
 import { LayoutPriority } from 'vs/base/browser/ui/grid/gridview';
-
-export const SidebarVisibleContext = new RawContextKey<boolean>('sidebarVisible', false);
-export const SidebarFocusContext = new RawContextKey<boolean>('sideBarFocus', false);
-export const ActiveViewletContext = new RawContextKey<string>('activeViewlet', '');
 
 export class SidebarPart extends CompositePart<Viewlet> implements ISerializableView, IViewletService {
 	_serviceBrand: any;
@@ -54,11 +50,18 @@ export class SidebarPart extends CompositePart<Viewlet> implements ISerializable
 	private _onDidChange = this._register(new Emitter<{ width: number; height: number; }>());
 	get onDidChange(): Event<{ width: number, height: number }> { return this._onDidChange.event; }
 
+	get onDidViewletRegister(): Event<ViewletDescriptor> { return <Event<ViewletDescriptor>>this.viewletRegistry.onDidRegister; }
+
+	private _onDidViewletDeregister = this._register(new Emitter<ViewletDescriptor>());
+	get onDidViewletDeregister(): Event<ViewletDescriptor> { return this._onDidViewletDeregister.event; }
+
+	get onDidViewletOpen(): Event<IViewlet> { return Event.map(this.onDidCompositeOpen.event, compositeEvent => <IViewlet>compositeEvent.composite); }
+	get onDidViewletClose(): Event<IViewlet> { return this.onDidCompositeClose.event as Event<IViewlet>; }
+
 	private viewletRegistry: ViewletRegistry;
 	private sideBarFocusContextKey: IContextKey<boolean>;
 	private activeViewletContextKey: IContextKey<string>;
 	private blockOpeningViewlet: boolean;
-	private _onDidViewletDeregister = this._register(new Emitter<ViewletDescriptor>());
 
 	constructor(
 		id: string,
@@ -92,37 +95,37 @@ export class SidebarPart extends CompositePart<Viewlet> implements ISerializable
 			{ hasTitle: true, borderWidth: () => (this.getColor(SIDE_BAR_BORDER) || this.getColor(contrastBorder)) ? 1 : 0 }
 		);
 
-		this.sideBarFocusContextKey = SidebarFocusContext.bindTo(contextKeyService);
 		this.viewletRegistry = Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets);
 
+		this.sideBarFocusContextKey = SidebarFocusContext.bindTo(contextKeyService);
 		this.activeViewletContextKey = ActiveViewletContext.bindTo(contextKeyService);
 
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+
+		// Viewlet open
 		this._register(this.onDidViewletOpen(viewlet => {
 			this.activeViewletContextKey.set(viewlet.getId());
 		}));
+
+		// Viewlet close
 		this._register(this.onDidViewletClose(viewlet => {
 			if (this.activeViewletContextKey.get() === viewlet.getId()) {
 				this.activeViewletContextKey.reset();
 			}
 		}));
+
+		// Viewlet deregister
 		this._register(this.registry.onDidDeregister(async (viewletDescriptor: ViewletDescriptor) => {
 			if (this.getActiveViewlet().getId() === viewletDescriptor.id) {
 				await this.openViewlet(this.getDefaultViewletId());
 			}
+
 			this.removeComposite(viewletDescriptor.id);
 			this._onDidViewletDeregister.fire(viewletDescriptor);
 		}));
-	}
-
-	get onDidViewletRegister(): Event<ViewletDescriptor> { return <Event<ViewletDescriptor>>this.viewletRegistry.onDidRegister; }
-	get onDidViewletDeregister(): Event<ViewletDescriptor> { return this._onDidViewletDeregister.event; }
-
-	get onDidViewletOpen(): Event<IViewlet> {
-		return Event.map(this.onDidCompositeOpen.event, compositeEvent => <IViewlet>compositeEvent.composite);
-	}
-
-	get onDidViewletClose(): Event<IViewlet> {
-		return this.onDidCompositeClose.event as Event<IViewlet>;
 	}
 
 	create(parent: HTMLElement): void {
@@ -130,14 +133,9 @@ export class SidebarPart extends CompositePart<Viewlet> implements ISerializable
 
 		super.create(parent);
 
-		const focusTracker = trackFocus(parent);
-
-		focusTracker.onDidFocus(() => {
-			this.sideBarFocusContextKey.set(true);
-		});
-		focusTracker.onDidBlur(() => {
-			this.sideBarFocusContextKey.set(false);
-		});
+		const focusTracker = this._register(trackFocus(parent));
+		this._register(focusTracker.onDidFocus(() => this.sideBarFocusContextKey.set(true)));
+		this._register(focusTracker.onDidBlur(() => this.sideBarFocusContextKey.set(false)));
 	}
 
 	createTitleArea(parent: HTMLElement): HTMLElement {
@@ -205,11 +203,13 @@ export class SidebarPart extends CompositePart<Viewlet> implements ISerializable
 		if (this.getViewlet(id)) {
 			return Promise.resolve(this.doOpenViewlet(id, focus));
 		}
+
 		return this.extensionService.whenInstalledExtensionsRegistered()
 			.then(() => {
 				if (this.getViewlet(id)) {
 					return this.doOpenViewlet(id, focus);
 				}
+
 				return null;
 			});
 	}

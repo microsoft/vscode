@@ -57,7 +57,7 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 	}
 
 	private resolveStartupKind(): StartupKind {
-		const lastShutdownReason = this.storageService.getInteger(LifecycleService.LAST_SHUTDOWN_REASON_KEY, StorageScope.WORKSPACE);
+		const lastShutdownReason = this.storageService.getNumber(LifecycleService.LAST_SHUTDOWN_REASON_KEY, StorageScope.WORKSPACE);
 		this.storageService.remove(LifecycleService.LAST_SHUTDOWN_REASON_KEY, StorageScope.WORKSPACE);
 
 		let startupKind: StartupKind;

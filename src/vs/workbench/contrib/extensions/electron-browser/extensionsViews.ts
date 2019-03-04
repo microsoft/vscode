@@ -40,10 +40,10 @@ import { alert } from 'vs/base/browser/ui/aria/aria';
 import { IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
 import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { getKeywordsForExtension } from 'vs/workbench/contrib/extensions/electron-browser/extensionsUtils';
 import { IAction } from 'vs/base/common/actions';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import product from 'vs/platform/product/node/product';
 
 class ExtensionsViewState extends Disposable implements IExtensionsViewState {
 
@@ -366,7 +366,8 @@ export class ExtensionsListView extends ViewletPanel {
 			text = query.value.replace(extensionRegex, (m, ext) => {
 
 				// Get curated keywords
-				const keywords = getKeywordsForExtension(ext);
+				const lookup = product.extensionKeywords || {};
+				const keywords = lookup[ext] || [];
 
 				// Get mode name
 				const modeId = this.modeService.getModeIdByFilepathOrFirstLine(`.${ext}`);

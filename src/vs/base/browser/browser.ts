@@ -34,7 +34,7 @@ class WindowManager {
 	}
 
 	// --- Zoom Factor
-	private _zoomFactor: number = 0;
+	private _zoomFactor: number = 1;
 
 	public getZoomFactor(): number {
 		return this._zoomFactor;

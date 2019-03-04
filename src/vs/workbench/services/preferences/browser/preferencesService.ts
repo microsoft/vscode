@@ -36,6 +36,7 @@ import { GroupDirection, IEditorGroup, IEditorGroupsService } from 'vs/workbench
 import { DEFAULT_SETTINGS_EDITOR_SETTING, FOLDER_SETTINGS_PATH, getSettingsTargetName, IPreferencesEditorModel, IPreferencesService, ISetting, ISettingsEditorOptions, SettingsEditorOptions, USE_SPLIT_JSON_SETTING } from 'vs/workbench/services/preferences/common/preferences';
 import { DefaultPreferencesEditorInput, KeybindingsEditorInput, PreferencesEditorInput, SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { defaultKeybindingsContents, DefaultKeybindingsEditorModel, DefaultSettings, DefaultSettingsEditorModel, Settings2EditorModel, SettingsEditorModel, WorkspaceConfigurationEditorModel, DefaultRawSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 const emptyEditableSettingsContent = '{\n}';
 
@@ -45,7 +46,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	private lastOpenedSettingsInput: PreferencesEditorInput | null = null;
 
-	private readonly _onDispose = new Emitter<void>();
+	private readonly _onDispose = this._register(new Emitter<void>());
 
 	private _defaultUserSettingsUriCounter = 0;
 	private _defaultUserSettingsContentModel: DefaultSettings;
@@ -74,14 +75,14 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		super();
 		// The default keybindings.json updates based on keyboard layouts, so here we make sure
 		// if a model has been given out we update it accordingly.
-		keybindingService.onDidUpdateKeybindings(() => {
+		this._register(keybindingService.onDidUpdateKeybindings(() => {
 			const model = modelService.getModel(this.defaultKeybindingsResource);
 			if (!model) {
 				// model has not been given out => nothing to do
 				return;
 			}
 			modelService.updateModel(model, defaultKeybindingsContents(keybindingService));
-		});
+		}));
 	}
 
 	readonly defaultKeybindingsResource = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/keybindings.json' });
@@ -590,3 +591,5 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		super.dispose();
 	}
 }
+
+registerSingleton(IPreferencesService, PreferencesService);

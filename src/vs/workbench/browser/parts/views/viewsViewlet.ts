@@ -67,7 +67,7 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 		this.viewletState = this.getMemento(StorageScope.WORKSPACE);
 
 		this.visibleViewsStorageId = `${id}.numberOfVisibleViews`;
-		this.visibleViewsCountFromCache = this.storageService.getInteger(this.visibleViewsStorageId, StorageScope.WORKSPACE, 1);
+		this.visibleViewsCountFromCache = this.storageService.getNumber(this.visibleViewsStorageId, StorageScope.WORKSPACE, 1);
 		this._register(toDisposable(() => this.viewDisposables = dispose(this.viewDisposables)));
 	}
 
