@@ -15,7 +15,6 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { OpenRecentAction } from 'vs/workbench/electron-browser/actions/windowActions';
 import { GlobalNewUntitledFileAction } from 'vs/workbench/contrib/files/browser/fileActions';
 import { OpenFolderAction, OpenFileFolderAction, OpenFileAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { ShowAllCommandsAction } from 'vs/workbench/contrib/quickopen/browser/commandsHandler';
@@ -27,6 +26,7 @@ import { TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/termin
 import * as dom from 'vs/base/browser/dom';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 const $ = dom.$;
 
@@ -61,7 +61,7 @@ const openFileOrFolderMacOnly: WatermarkEntry = {
 };
 const openRecent: WatermarkEntry = {
 	text: nls.localize('watermark.openRecent', "Open Recent"),
-	id: OpenRecentAction.ID
+	id: 'workbench.action.openRecent'
 };
 const newUntitledFile: WatermarkEntry = {
 	text: nls.localize('watermark.newUntitledFile', "New Untitled File"),
@@ -157,7 +157,8 @@ export class WatermarkContribution implements IWorkbenchContribution {
 		const box = dom.append(this.watermark, $('.watermark-box'));
 		const folder = this.workbenchState !== WorkbenchState.EMPTY;
 		const selected = folder ? folderEntries : noFolderEntries
-			.filter(entry => !('mac' in entry) || entry.mac === isMacintosh);
+			.filter(entry => !('mac' in entry) || entry.mac === isMacintosh)
+			.filter(entry => !!CommandsRegistry.getCommand(entry.id));
 		const update = () => {
 			dom.clearNode(box);
 			selected.map(entry => {
