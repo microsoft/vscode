@@ -5,7 +5,6 @@
 
 import * as vscode from 'vscode';
 import { URI } from 'vs/base/common/uri';
-import { isMalformedFileUri } from 'vs/base/common/resources';
 import * as typeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import { CommandsRegistry, ICommandService, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
@@ -39,13 +38,6 @@ export class OpenFolderAPICommand {
 		if (!uri) {
 			return executor.executeCommand('_files.pickFolderAndOpen', forceNewWindow);
 		}
-		let correctedUri = isMalformedFileUri(uri);
-		if (correctedUri) {
-			// workaround for #55916 and #55891, will be removed in 1.28
-			console.warn(`'vscode.openFolder' command invoked with an invalid URI (file:// scheme missing): '${uri}'. Converted to a 'file://' URI: ${correctedUri}`);
-			uri = correctedUri;
-		}
-
 		return executor.executeCommand('_files.windowOpen', { urisToOpen: [{ uri }], forceNewWindow });
 	}
 }
