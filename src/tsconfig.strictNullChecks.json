@@ -283,6 +283,7 @@
 		"./vs/workbench/contrib/terminal/electron-browser/terminalConfigHelper.ts",
 		"./vs/workbench/contrib/terminal/electron-browser/terminalInstance.ts",
 		"./vs/workbench/contrib/terminal/electron-browser/terminalLinkHandler.ts",
+		"./vs/workbench/contrib/terminal/electron-browser/terminalPanel.ts",
 		"./vs/workbench/contrib/terminal/electron-browser/terminalProcessManager.ts",
 		"./vs/workbench/contrib/terminal/node/terminal.ts",
 		"./vs/workbench/contrib/terminal/node/terminalCommandTracker.ts",
