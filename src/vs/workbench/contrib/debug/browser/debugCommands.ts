@@ -22,7 +22,7 @@ import { openBreakpointSource } from 'vs/workbench/contrib/debug/browser/breakpo
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { PanelFocusContext } from 'vs/workbench/browser/parts/panel/panelPart';
+import { PanelFocusContext } from 'vs/workbench/common/panel';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { onUnexpectedError } from 'vs/base/common/errors';
 

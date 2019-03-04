@@ -52,8 +52,11 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 	get minimumHeight(): number { return isMacintosh ? 22 / getZoomFactor() : (30 / (this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility') === 'hidden' ? getZoomFactor() : 1)); }
 	get maximumHeight(): number { return isMacintosh ? 22 / getZoomFactor() : (30 / (this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility') === 'hidden' ? getZoomFactor() : 1)); }
 
-	private _onDidChange = this._register(new Emitter<{ width: number; height: number; }>());
+	private _onDidChange = this._register(new Emitter<{ width: number, height: number }>());
 	get onDidChange(): Event<{ width: number, height: number }> { return this._onDidChange.event; }
+
+	private _onMenubarVisibilityChange = this._register(new Emitter<boolean>());
+	get onMenubarVisibilityChange(): Event<boolean> { return this._onMenubarVisibilityChange.event; }
 
 	_serviceBrand: any;
 
@@ -141,6 +144,8 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 			}
 
 			this.adjustTitleMarginToCenter();
+
+			this._onMenubarVisibilityChange.fire(visible);
 		}
 	}
 
@@ -152,10 +157,6 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 				show(this.dragRegion);
 			}
 		}
-	}
-
-	onMenubarVisibilityChange(): Event<boolean> {
-		return this.menubarPart.onVisibilityChange;
 	}
 
 	private onActiveEditorChange(): void {
@@ -494,8 +495,7 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 		const setting = this.configurationService.getValue('window.doubleClickIconToClose');
 		if (setting) {
 			this.appIcon.style['-webkit-app-region'] = 'no-drag';
-		}
-		else {
+		} else {
 			this.appIcon.style['-webkit-app-region'] = 'drag';
 		}
 	}
