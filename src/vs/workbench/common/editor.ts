@@ -974,7 +974,7 @@ export interface IResourceOptions {
 	filter?: string | string[];
 }
 
-export function toResource(editor: IEditorInput, options?: IResourceOptions): URI | null {
+export function toResource(editor: IEditorInput | null, options?: IResourceOptions): URI | null {
 	if (!editor) {
 		return null;
 	}
