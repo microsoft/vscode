@@ -129,6 +129,7 @@
 		"./vs/workbench/browser/parts/editor/textDiffEditor.ts",
 		"./vs/workbench/browser/parts/editor/textEditor.ts",
 		"./vs/workbench/browser/parts/editor/textResourceEditor.ts",
+		"./vs/workbench/browser/parts/editor/titleControl.ts",
 		"./vs/workbench/browser/parts/panel/panelActions.ts",
 		"./vs/workbench/browser/parts/panel/panelPart.ts",
 		"./vs/workbench/browser/parts/quickinput/quickInputBox.ts",
