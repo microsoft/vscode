@@ -68,6 +68,11 @@ import 'vs/workbench/services/search/node/searchService';
 import 'vs/workbench/services/progress/browser/progressService2';
 import 'vs/workbench/services/editor/browser/codeEditorService';
 import 'vs/workbench/services/broadcast/electron-browser/broadcastService';
+import 'vs/workbench/services/preferences/browser/preferencesService';
+import 'vs/workbench/services/configuration/node/jsonEditingService';
+import 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
+import 'vs/workbench/services/textfile/common/textFileService';
+import 'vs/workbench/services/dialogs/electron-browser/dialogService';
 
 registerSingleton(IMenuService, MenuService, true);
 registerSingleton(IListService, ListService, true);

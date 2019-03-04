@@ -38,7 +38,6 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { IStorageService, StorageScope, IWillSaveStateEvent, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { ContextMenuService as HTMLContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -51,10 +50,6 @@ import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { TextFileService } from 'vs/workbench/services/textfile/common/textFileService';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { LifecyclePhase, StartupKind, ILifecycleService, WillShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWindowService, IWindowConfiguration, IPath, MenuBarVisibility, getTitleBarStyle, IWindowsService } from 'vs/platform/windows/common/windows';
@@ -71,14 +66,11 @@ import { NotificationsAlerts } from 'vs/workbench/browser/parts/notifications/no
 import { NotificationsStatus } from 'vs/workbench/browser/parts/notifications/notificationsStatus';
 import { registerNotificationCommands } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { NotificationsToasts } from 'vs/workbench/browser/parts/notifications/notificationsToasts';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { PreferencesService } from 'vs/workbench/services/preferences/browser/preferencesService';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { IFileDialogService, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { Sizing, Direction, Grid, View } from 'vs/base/browser/ui/grid/grid';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { WorkbenchLayout } from 'vs/workbench/browser/layout';
@@ -116,7 +108,6 @@ import { WorkbenchContextKeysHandler } from 'vs/workbench/browser/contextkeys';
 // import@node
 import { BackupFileService, InMemoryBackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
 import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
-import { JSONEditingService } from 'vs/workbench/services/configuration/node/jsonEditingService';
 import { getDelayedChannel } from 'vs/base/parts/ipc/node/ipc';
 import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
 import { DialogChannel } from 'vs/platform/dialogs/node/dialogIpc';
@@ -140,7 +131,6 @@ import { RemoteFileService } from 'vs/workbench/services/files/node/remoteFileSe
 import { ContextMenuService as NativeContextMenuService } from 'vs/workbench/services/contextmenu/electron-browser/contextmenuService';
 import { WorkbenchKeybindingService } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import { LifecycleService } from 'vs/platform/lifecycle/electron-browser/lifecycleService';
-import { DialogService, FileDialogService } from 'vs/workbench/services/dialogs/electron-browser/dialogService';
 import { WindowService } from 'vs/platform/windows/electron-browser/windowService';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-browser/remoteAuthorityResolverService';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
@@ -412,13 +402,9 @@ export class Workbench extends Disposable implements IPartService {
 		serviceCollection.set(ITelemetryService, this.telemetryService);
 		this._register(configurationTelemetry(this.telemetryService, this.configurationService));
 
-		// Dialogs
-		serviceCollection.set(IDialogService, new SyncDescriptor(DialogService, undefined, true));
-
 		// Lifecycle
 		this.lifecycleService = this.instantiationService.createInstance(LifecycleService);
 		serviceCollection.set(ILifecycleService, this.lifecycleService);
-
 		this._register(this.lifecycleService.onWillShutdown(event => this._onWillShutdown.fire(event)));
 		this._register(this.lifecycleService.onShutdown(() => {
 			this._onShutdown.fire();
@@ -456,7 +442,7 @@ export class Workbench extends Disposable implements IPartService {
 		serviceCollection.set(IExtensionEnablementService, new SyncDescriptor(ExtensionEnablementService, undefined, true));
 
 		// Extensions
-		serviceCollection.set(IExtensionService, this.instantiationService.createInstance(ExtensionService));
+		serviceCollection.set(IExtensionService, new SyncDescriptor(ExtensionService));
 
 		// Theming
 		this.themeService = this.instantiationService.createInstance(WorkbenchThemeService, document.body);
@@ -546,9 +532,6 @@ export class Workbench extends Disposable implements IPartService {
 		// History
 		serviceCollection.set(IHistoryService, new SyncDescriptor(HistoryService));
 
-		// File Dialogs
-		serviceCollection.set(IFileDialogService, new SyncDescriptor(FileDialogService, undefined, true));
-
 		// Backup File Service
 		if (this.configuration.backupPath) {
 			this.backupFileService = this.instantiationService.createInstance(BackupFileService, this.configuration.backupPath);
@@ -557,15 +540,6 @@ export class Workbench extends Disposable implements IPartService {
 		}
 		serviceCollection.set(IBackupFileService, this.backupFileService);
 
-		// Text File Service
-		serviceCollection.set(ITextFileService, new SyncDescriptor(TextFileService));
-
-		// Text Model Resolver Service
-		serviceCollection.set(ITextModelService, new SyncDescriptor(TextModelResolverService, undefined, true));
-
-		// JSON Editing
-		serviceCollection.set(IJSONEditingService, new SyncDescriptor(JSONEditingService, undefined, true));
-
 		// Quick open service (quick open controller)
 		this.quickOpen = this.instantiationService.createInstance(QuickOpenController);
 		serviceCollection.set(IQuickOpenService, this.quickOpen);
@@ -573,9 +547,6 @@ export class Workbench extends Disposable implements IPartService {
 		// Quick input service
 		this.quickInput = this.instantiationService.createInstance(QuickInputService);
 		serviceCollection.set(IQuickInputService, this.quickInput);
-
-		// PreferencesService
-		serviceCollection.set(IPreferencesService, new SyncDescriptor(PreferencesService));
 
 		// Contributed services
 		const contributedServices = getServices();
