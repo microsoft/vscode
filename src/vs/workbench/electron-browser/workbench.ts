@@ -353,7 +353,7 @@ export class Workbench extends Disposable implements IPartService {
 		this.lifecycleService.when(LifecyclePhase.Restored).then(() => clearTimeout(timeoutHandle));
 
 		// Restore Parts
-		return this.restoreParts();
+		return this.restoreParts().then(() => this.whenStarted(), error => this.whenStarted(error));
 	}
 
 	private createWorkbench(): void {
@@ -663,121 +663,6 @@ export class Workbench extends Disposable implements IPartService {
 
 	//#endregion
 
-	private restoreParts(): Promise<void> {
-		const restorePromises: Promise<any>[] = [];
-
-		// Restore Editorpart
-		mark('willRestoreEditors');
-		restorePromises.push(this.editorPart.whenRestored.then(() => {
-
-			function openEditors(editors: IResourceEditor[], editorService: IEditorService) {
-				if (editors.length) {
-					return editorService.openEditors(editors);
-				}
-
-				return Promise.resolve(undefined);
-			}
-
-			if (Array.isArray(this.state.editor.editorsToOpen)) {
-				return openEditors(this.state.editor.editorsToOpen, this.editorService);
-			}
-
-			return this.state.editor.editorsToOpen.then(editors => openEditors(editors, this.editorService));
-		}).then(() => mark('didRestoreEditors')));
-
-		// Restore Sidebar
-		if (this.state.sideBar.viewletToRestore) {
-			mark('willRestoreViewlet');
-			restorePromises.push(this.sidebarPart.openViewlet(this.state.sideBar.viewletToRestore)
-				.then(viewlet => viewlet || this.sidebarPart.openViewlet(this.sidebarPart.getDefaultViewletId()))
-				.then(() => mark('didRestoreViewlet')));
-		}
-
-		// Restore Panel
-		if (this.state.panel.panelToRestore) {
-			mark('willRestorePanel');
-			this.panelPart.openPanel(this.state.panel.panelToRestore, false);
-			mark('didRestorePanel');
-		}
-
-		// Restore Zen Mode
-		if (this.state.zenMode.restore) {
-			this.toggleZenMode(true, true);
-		}
-
-		// Restore Editor Center Mode
-		if (this.state.editor.restoreCentered) {
-			this.centerEditorLayout(true);
-		}
-
-		return Promise.all(restorePromises).then(() => this.whenRestored(), error => this.whenRestored(error));
-	}
-
-	private whenRestored(error?: Error): void {
-		this.restored = true;
-
-		// Set lifecycle phase to `Restored`
-		this.lifecycleService.phase = LifecyclePhase.Restored;
-
-		// Set lifecycle phase to `Eventually` after a short delay and when
-		// idle (min 2.5sec, max 5sec)
-		setTimeout(() => {
-			this._register(runWhenIdle(() => {
-				this.lifecycleService.phase = LifecyclePhase.Eventually;
-			}, 2500));
-		}, 2500);
-
-		if (error) {
-			onUnexpectedError(error);
-		}
-
-		this.logStartupTelemetry();
-	}
-
-	private logStartupTelemetry(): void {
-		const { filesToOpen, filesToCreate, filesToDiff } = this.configuration;
-
-		/* __GDPR__
-			"workspaceLoad" : {
-				"userAgent" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"windowSize.innerHeight": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"windowSize.innerWidth": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"windowSize.outerHeight": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"windowSize.outerWidth": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"emptyWorkbench": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"workbench.filesToOpen": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"workbench.filesToCreate": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"workbench.filesToDiff": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"customKeybindingsCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"theme": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"language": { "classification": "SystemMetaData", "purpose": "BusinessInsight" },
-				"pinnedViewlets": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"restoredViewlet": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"restoredEditors": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"pinnedViewlets": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"startupKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-			}
-		*/
-		this.telemetryService.publicLog('workspaceLoad', {
-			userAgent: navigator.userAgent,
-			windowSize: { innerHeight: window.innerHeight, innerWidth: window.innerWidth, outerHeight: window.outerHeight, outerWidth: window.outerWidth },
-			emptyWorkbench: this.contextService.getWorkbenchState() === WorkbenchState.EMPTY,
-			'workbench.filesToOpen': filesToOpen && filesToOpen.length || 0,
-			'workbench.filesToCreate': filesToCreate && filesToCreate.length || 0,
-			'workbench.filesToDiff': filesToDiff && filesToDiff.length || 0,
-			customKeybindingsCount: this.keybindingService.customKeybindingsCount(),
-			theme: this.themeService.getColorTheme().id,
-			language,
-			pinnedViewlets: this.activitybarPart.getPinnedViewletIds(),
-			restoredViewlet: this.state.sideBar.viewletToRestore,
-			restoredEditors: this.editorService.visibleEditors.length,
-			startupKind: this.lifecycleService.startupKind
-		});
-
-		// Telemetry: startup metrics
-		mark('didStartWorkbench');
-	}
-
 	private renderWorkbench(): void {
 
 		// Apply sidebar state as CSS class
@@ -910,6 +795,117 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Register Commands
 		registerNotificationCommands(this.notificationsCenter, this.notificationsToasts);
+	}
+
+	private restoreParts(): Promise<any[]> {
+		const restorePromises: Promise<any>[] = [];
+
+		// Restore editors
+		mark('willRestoreEditors');
+		restorePromises.push(this.editorPart.whenRestored.then(() => {
+
+			function openEditors(editors: IResourceEditor[], editorService: IEditorService) {
+				if (editors.length) {
+					return editorService.openEditors(editors);
+				}
+
+				return Promise.resolve(undefined);
+			}
+
+			if (Array.isArray(this.state.editor.editorsToOpen)) {
+				return openEditors(this.state.editor.editorsToOpen, this.editorService);
+			}
+
+			return this.state.editor.editorsToOpen.then(editors => openEditors(editors, this.editorService));
+		}).then(() => mark('didRestoreEditors')));
+
+		// Restore Sidebar
+		if (this.state.sideBar.viewletToRestore) {
+			mark('willRestoreViewlet');
+			restorePromises.push(this.sidebarPart.openViewlet(this.state.sideBar.viewletToRestore)
+				.then(viewlet => viewlet || this.sidebarPart.openViewlet(this.sidebarPart.getDefaultViewletId()))
+				.then(() => mark('didRestoreViewlet')));
+		}
+
+		// Restore Panel
+		if (this.state.panel.panelToRestore) {
+			mark('willRestorePanel');
+			this.panelPart.openPanel(this.state.panel.panelToRestore, false);
+			mark('didRestorePanel');
+		}
+
+		// Restore Zen Mode
+		if (this.state.zenMode.restore) {
+			this.toggleZenMode(true, true);
+		}
+
+		// Restore Editor Center Mode
+		if (this.state.editor.restoreCentered) {
+			this.centerEditorLayout(true);
+		}
+
+		return Promise.all(restorePromises);
+	}
+
+	private whenStarted(error?: Error): void {
+		this.restored = true;
+
+		// Set lifecycle phase to `Restored`
+		this.lifecycleService.phase = LifecyclePhase.Restored;
+
+		// Set lifecycle phase to `Eventually` after a short delay and when
+		// idle (min 2.5sec, max 5sec)
+		setTimeout(() => {
+			this._register(runWhenIdle(() => {
+				this.lifecycleService.phase = LifecyclePhase.Eventually;
+			}, 2500));
+		}, 2500);
+
+		if (error) {
+			onUnexpectedError(error);
+		}
+
+		const { filesToOpen, filesToCreate, filesToDiff } = this.configuration;
+
+		/* __GDPR__
+			"workspaceLoad" : {
+				"userAgent" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"windowSize.innerHeight": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"windowSize.innerWidth": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"windowSize.outerHeight": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"windowSize.outerWidth": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"emptyWorkbench": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"workbench.filesToOpen": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"workbench.filesToCreate": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"workbench.filesToDiff": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"customKeybindingsCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"theme": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"language": { "classification": "SystemMetaData", "purpose": "BusinessInsight" },
+				"pinnedViewlets": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"restoredViewlet": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"restoredEditors": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"pinnedViewlets": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"startupKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+			}
+		*/
+		this.telemetryService.publicLog('workspaceLoad', {
+			userAgent: navigator.userAgent,
+			windowSize: { innerHeight: window.innerHeight, innerWidth: window.innerWidth, outerHeight: window.outerHeight, outerWidth: window.outerWidth },
+			emptyWorkbench: this.contextService.getWorkbenchState() === WorkbenchState.EMPTY,
+			'workbench.filesToOpen': filesToOpen && filesToOpen.length || 0,
+			'workbench.filesToCreate': filesToCreate && filesToCreate.length || 0,
+			'workbench.filesToDiff': filesToDiff && filesToDiff.length || 0,
+			customKeybindingsCount: this.keybindingService.customKeybindingsCount(),
+			theme: this.themeService.getColorTheme().id,
+			language,
+			pinnedViewlets: this.activitybarPart.getPinnedViewletIds(),
+			restoredViewlet: this.state.sideBar.viewletToRestore,
+			restoredEditors: this.editorService.visibleEditors.length,
+			startupKind: this.lifecycleService.startupKind
+		});
+
+		// Telemetry: startup metrics
+		mark('didStartWorkbench');
 	}
 
 	private saveState(e: IWillSaveStateEvent): void {
