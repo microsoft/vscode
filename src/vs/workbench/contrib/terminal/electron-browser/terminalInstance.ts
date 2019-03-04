@@ -1254,8 +1254,8 @@ export class TerminalInstance implements ITerminalInstance {
 			// If the title has not been set by the API or the rename command, unregister the handler that
 			// automatically updates the terminal name
 			if (this._messageTitleDisposable) {
-				lifecycle.dispose(this._messageTitleDisposable);
-				this._messageTitleDisposable = undefined;
+				this._messageTitleDisposable = lifecycle.dispose(this._messageTitleDisposable);
+				this._windowsShellHelper = lifecycle.dispose(this._windowsShellHelper);
 			}
 		}
 		const didTitleChange = title !== this._title;
