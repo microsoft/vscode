@@ -36,7 +36,7 @@ import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/electron-b
 import { TerminalCommandTracker } from 'vs/workbench/contrib/terminal/node/terminalCommandTracker';
 import { WindowsShellHelper } from 'vs/workbench/contrib/terminal/node/windowsShellHelper';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { ISearchOptions, Terminal as XTermTerminal } from 'vscode-xterm';
+import { ISearchOptions, Terminal as XTermTerminal, IDisposable } from 'vscode-xterm';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
@@ -160,6 +160,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private static _idCounter = 1;
 
 	private _processManager: ITerminalProcessManager | undefined;
+	private _keyPressListener: IDisposable | undefined;
 
 	private _id: number;
 	private _isExiting: boolean;
@@ -1063,14 +1064,25 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	private _attachPressAnyKeyToCloseListener() {
-		const keyPressListener = dom.addDisposableListener(this._xterm.textarea, 'keypress', (event: KeyboardEvent) => {
-			keyPressListener.dispose();
-			this.dispose();
-			event.preventDefault();
-		});
+		if (!this._keyPressListener) {
+			this._keyPressListener = dom.addDisposableListener(this._xterm.textarea, 'keypress', (event: KeyboardEvent) => {
+				if (this._keyPressListener) {
+					this._keyPressListener.dispose();
+					this._keyPressListener = undefined;
+					this.dispose();
+					event.preventDefault();
+				}
+			});
+		}
 	}
 
 	public reuseTerminal(shell: IShellLaunchConfig): void {
+		// Unsubscribe any key listener we may have.
+		if (!this._keyPressListener) {
+			this._keyPressListener.dispose();
+			this._keyPressListener = undefined;
+		}
+
 		// Kill and clear up the process, making the process manager ready for a new process
 		if (this._processManager) {
 			this._processManager.dispose();
