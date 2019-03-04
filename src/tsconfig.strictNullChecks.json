@@ -104,6 +104,7 @@
 		"./vs/workbench/browser/panel.ts",
 		"./vs/workbench/browser/part.ts",
 		"./vs/workbench/browser/parts/activitybar/activitybarActions.ts",
+		"./vs/workbench/browser/parts/compositeBar.ts",
 		"./vs/workbench/browser/parts/compositeBarActions.ts",
 		"./vs/workbench/browser/parts/compositePart.ts",
 		"./vs/workbench/browser/parts/editor/baseEditor.ts",
