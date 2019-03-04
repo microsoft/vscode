@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/workbench/contrib/markers/browser/markersFileDecorations';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
@@ -23,9 +24,8 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } fr
 import { IMarkersWorkbenchService, MarkersWorkbenchService, ActivityUpdater } from 'vs/workbench/contrib/markers/browser/markers';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-
-import './markersFileDecorations';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { ActivePanelContext } from 'vs/workbench/common/panel';
 
 registerSingleton(IMarkersWorkbenchService, MarkersWorkbenchService, false);
 
@@ -182,7 +182,7 @@ registerAction({
 	category: localize('problems', "Problems"),
 	menu: {
 		menuId: MenuId.CommandPalette,
-		when: new RawContextKey<string>('activePanel', Constants.MARKERS_PANEL_ID)
+		when: ActivePanelContext.isEqualTo(Constants.MARKERS_PANEL_ID)
 	}
 });
 registerAction({
@@ -198,7 +198,7 @@ registerAction({
 	category: localize('problems', "Problems"),
 	menu: {
 		menuId: MenuId.CommandPalette,
-		when: new RawContextKey<string>('activePanel', Constants.MARKERS_PANEL_ID)
+		when: ActivePanelContext.isEqualTo(Constants.MARKERS_PANEL_ID)
 	}
 });
 

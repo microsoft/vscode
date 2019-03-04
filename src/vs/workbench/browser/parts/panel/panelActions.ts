@@ -249,7 +249,7 @@ export class NextPanelViewAction extends SwitchPanelViewAction {
 		super(id, name, panelService);
 	}
 
-	public run(): Promise<any> {
+	run(): Promise<any> {
 		return super.run(1);
 	}
 }

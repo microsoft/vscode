@@ -172,8 +172,9 @@ export abstract class Panel implements IView {
 		this.renderHeader(this.header);
 
 		const focusTracker = trackFocus(this.header);
-		focusTracker.onDidFocus(() => addClass(this.header, 'focused'));
-		focusTracker.onDidBlur(() => removeClass(this.header, 'focused'));
+		this.disposables.push(focusTracker);
+		focusTracker.onDidFocus(() => addClass(this.header, 'focused'), null, this.disposables);
+		focusTracker.onDidBlur(() => removeClass(this.header, 'focused'), null, this.disposables);
 
 		this.updateHeader();
 
