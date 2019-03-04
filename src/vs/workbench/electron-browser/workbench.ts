@@ -425,13 +425,6 @@ export class Workbench extends Disposable implements IPartService {
 		const remoteAgentService = new RemoteAgentService(this.configuration, this.notificationService, this.environmentService, remoteAuthorityResolverService);
 		serviceCollection.set(IRemoteAgentService, remoteAgentService);
 
-		const remoteAgentConnection = remoteAgentService.getConnection();
-		if (remoteAgentConnection) {
-			remoteAgentConnection.registerChannel('dialog', this.instantiationService.createInstance(DialogChannel));
-			remoteAgentConnection.registerChannel('download', new DownloadServiceChannel());
-			remoteAgentConnection.registerChannel('loglevel', new LogLevelSetterChannel(this.logService));
-		}
-
 		// Extensions Management
 		const extensionManagementChannel = getDelayedChannel(sharedProcess.then(c => c.getChannel('extensions')));
 		const extensionManagementChannelClient = new ExtensionManagementChannelClient(extensionManagementChannel);
@@ -552,6 +545,14 @@ export class Workbench extends Disposable implements IPartService {
 		const contributedServices = getServices();
 		for (let contributedService of contributedServices) {
 			serviceCollection.set(contributedService.id, contributedService.descriptor);
+		}
+
+		// TODO this should move somewhere else
+		const remoteAgentConnection = remoteAgentService.getConnection();
+		if (remoteAgentConnection) {
+			remoteAgentConnection.registerChannel('dialog', this.instantiationService.createInstance(DialogChannel));
+			remoteAgentConnection.registerChannel('download', new DownloadServiceChannel());
+			remoteAgentConnection.registerChannel('loglevel', new LogLevelSetterChannel(this.logService));
 		}
 
 		// Set the some services to registries that have been created eagerly
