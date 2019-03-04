@@ -762,7 +762,7 @@ export class TerminalInstance implements ITerminalInstance {
 		// can simply output  the text to the renderer themselves.
 		// All this code does is handle the "wait on exit" condition.
 		if (!this.shellLaunchConfig.isRendererOnly) {
-			return;
+			throw new Error('renderExit is only expected to be called on a renderer only terminal');
 		}
 
 		return this._onProcessOrExtensionCallbackExit(result);
