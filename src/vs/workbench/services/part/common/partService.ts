@@ -55,11 +55,6 @@ export interface IPartService {
 	onZenModeChange: Event<boolean>;
 
 	/**
-	 * Emits when the editor part's layout changes.
-	 */
-	onEditorLayout: Event<IDimension>;
-
-	/**
 	 * Asks the part service if all parts have been fully restored. For editor part
 	 * this means that the contents of editors have loaded.
 	 */

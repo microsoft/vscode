@@ -448,7 +448,6 @@ export class TestPartService implements IPartService {
 
 	private _onTitleBarVisibilityChange = new Emitter<void>();
 	private _onMenubarVisibilityChange = new Emitter<Dimension>();
-	private _onEditorLayout = new Emitter<IDimension>();
 
 	public get onTitleBarVisibilityChange(): Event<void> {
 		return this._onTitleBarVisibilityChange.event;
@@ -456,10 +455,6 @@ export class TestPartService implements IPartService {
 
 	public get onMenubarVisibilityChange(): Event<Dimension> {
 		return this._onMenubarVisibilityChange.event;
-	}
-
-	public get onEditorLayout(): Event<IDimension> {
-		return this._onEditorLayout.event;
 	}
 
 	public isRestored(): boolean {
@@ -556,6 +551,7 @@ export class TestEditorGroupsService implements EditorGroupsServiceImpl {
 	onDidAddGroup: Event<IEditorGroup> = Event.None;
 	onDidRemoveGroup: Event<IEditorGroup> = Event.None;
 	onDidMoveGroup: Event<IEditorGroup> = Event.None;
+	onDidLayout: Event<IDimension> = Event.None;
 
 	orientation: any;
 	whenRestored: Promise<void> = Promise.resolve(undefined);

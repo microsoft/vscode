@@ -33,7 +33,7 @@ import { QuickOpenController } from 'vs/workbench/browser/parts/quickopen/quickO
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { QuickInputService } from 'vs/workbench/browser/parts/quickinput/quickInput';
 import { getServices } from 'vs/platform/instantiation/common/extensions';
-import { Position, Parts, IPartService, IDimension, PositionToString, ILayoutOptions } from 'vs/workbench/services/part/common/partService';
+import { Position, Parts, IPartService, PositionToString, ILayoutOptions } from 'vs/workbench/services/part/common/partService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IStorageService, StorageScope, IWillSaveStateEvent, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { ContextMenuService as HTMLContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
@@ -940,8 +940,6 @@ export class Workbench extends Disposable implements IPartService {
 
 	private readonly _onZenMode: Emitter<boolean> = this._register(new Emitter<boolean>());
 	get onZenModeChange(): Event<boolean> { return this._onZenMode.event; }
-
-	get onEditorLayout(): Event<IDimension> { return this.editorPart.onDidLayout; }
 
 	private workbenchGrid: Grid<View> | WorkbenchLayout;
 

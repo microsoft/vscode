@@ -26,6 +26,7 @@ import { QUICKOPEN_ACTION_ID } from 'vs/workbench/browser/parts/quickopen/quicko
 import { TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminalCommands';
 import * as dom from 'vs/base/browser/dom';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 const $ = dom.$;
 
@@ -112,7 +113,8 @@ export class WatermarkContribution implements IWorkbenchContribution {
 		@IPartService private readonly partService: IPartService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService
 	) {
 		this.workbenchState = contextService.getWorkbenchState();
 
@@ -171,7 +173,7 @@ export class WatermarkContribution implements IWorkbenchContribution {
 		update();
 		dom.prepend(container.firstElementChild as HTMLElement, this.watermark);
 		this.toDispose.push(this.keybindingService.onDidUpdateKeybindings(update));
-		this.toDispose.push(this.partService.onEditorLayout(({ height }: IDimension) => {
+		this.toDispose.push(this.editorGroupsService.onDidLayout(({ height }: IDimension) => {
 			container.classList[height <= 478 ? 'add' : 'remove']('max-height-478px');
 		}));
 	}
