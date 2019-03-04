@@ -197,7 +197,7 @@
 		"./vs/workbench/contrib/extensions/electron-browser/extensionsActions.ts",
 		"./vs/workbench/contrib/extensions/electron-browser/extensionsActivationProgress.ts",
 		"./vs/workbench/contrib/extensions/electron-browser/extensionsList.ts",
-		"./vs/workbench/contrib/extensions/electron-browser/extensionsUtils.ts",
+		"./vs/workbench/contrib/extensions/common/extensionsUtils.ts",
 		"./vs/workbench/contrib/extensions/electron-browser/extensionsWidgets.ts",
 		"./vs/workbench/contrib/extensions/electron-browser/runtimeExtensionsInput.ts",
 		"./vs/workbench/contrib/extensions/node/extensionsWorkbenchService.ts",
