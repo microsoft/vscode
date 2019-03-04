@@ -58,8 +58,8 @@ export class ConfigureLocaleAction extends Action {
 
 			if (selectedLanguage === languageOptions[languageOptions.length - 1]) {
 				return this.viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true)
-					.then(viewlet => {
-						(viewlet as IExtensionsViewlet).search('@category:"language packs"');
+					.then((viewlet: IExtensionsViewlet) => {
+						viewlet.search('@category:"language packs"');
 						viewlet.focus();
 					});
 			}
