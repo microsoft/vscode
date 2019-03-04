@@ -3,12 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { done } from './util';
 
 function decorate(decorator: (fn: Function, key: string) => Function): Function {
-	return (target: any, key: string, descriptor: any) => {
+	return (_target: any, key: string, descriptor: any) => {
 		let fnKey: string | null = null;
 		let fn: Function | null = null;
 
@@ -78,7 +76,7 @@ function _throttle<T>(fn: Function, key: string): Function {
 
 export const throttle = decorate(_throttle);
 
-function _sequentialize<T>(fn: Function, key: string): Function {
+function _sequentialize(fn: Function, key: string): Function {
 	const currentKey = `__$sequence$${key}`;
 
 	return function (this: any, ...args: any[]) {

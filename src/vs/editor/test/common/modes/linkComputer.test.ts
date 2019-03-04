@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import { ILink } from 'vs/editor/common/modes';
 import { ILinkComputerTarget, computeLinks } from 'vs/editor/common/modes/linkComputer';
@@ -24,12 +22,12 @@ class SimpleLinkComputerTarget implements ILinkComputerTarget {
 }
 
 function myComputeLinks(lines: string[]): ILink[] {
-	var target = new SimpleLinkComputerTarget(lines);
+	let target = new SimpleLinkComputerTarget(lines);
 	return computeLinks(target);
 }
 
 function assertLink(text: string, extractedLink: string): void {
-	var startColumn = 0,
+	let startColumn = 0,
 		endColumn = 0,
 		chr: string,
 		i = 0;
@@ -50,7 +48,7 @@ function assertLink(text: string, extractedLink: string): void {
 		}
 	}
 
-	var r = myComputeLinks([text]);
+	let r = myComputeLinks([text]);
 	assert.deepEqual(r, [{
 		range: {
 			startLineNumber: 1,
@@ -65,7 +63,7 @@ function assertLink(text: string, extractedLink: string): void {
 suite('Editor Modes - Link Computer', () => {
 
 	test('Null model', () => {
-		var r = computeLinks(null);
+		let r = computeLinks(null);
 		assert.deepEqual(r, []);
 	});
 
@@ -195,6 +193,13 @@ suite('Editor Modes - Link Computer', () => {
 		assertLink(
 			'7. At this point, ServiceMain has been called.  There is no functionality presently in ServiceMain, but you can consult the [MSDN documentation](https://msdn.microsoft.com/en-us/library/windows/desktop/ms687414(v=vs.85).aspx) to add functionality as desired!',
 			'                                                                                                                                                 https://msdn.microsoft.com/en-us/library/windows/desktop/ms687414(v=vs.85).aspx                                  '
+		);
+	});
+
+	test('issue #62278: "Ctrl + click to follow link" for IPv6 URLs', () => {
+		assertLink(
+			'let x = "http://[::1]:5000/connect/token"',
+			'         http://[::1]:5000/connect/token  '
 		);
 	});
 });

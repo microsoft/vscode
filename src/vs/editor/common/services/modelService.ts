@@ -2,39 +2,41 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import Event from 'vs/base/common/event';
-import URI from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { Event } from 'vs/base/common/event';
+import { URI } from 'vs/base/common/uri';
+import { ITextBufferFactory, ITextModel, ITextModelCreationOptions } from 'vs/editor/common/model';
+import { ILanguageSelection } from 'vs/editor/common/services/modeService';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IModel, ITextModelCreationOptions } from 'vs/editor/common/editorCommon';
-import { IMode } from 'vs/editor/common/modes';
-import { IRawTextSource } from 'vs/editor/common/model/textSource';
 
-export var IModelService = createDecorator<IModelService>('modelService');
+export const IModelService = createDecorator<IModelService>('modelService');
 
 export interface IModelService {
 	_serviceBrand: any;
 
-	createModel(value: string | IRawTextSource, modeOrPromise: TPromise<IMode> | IMode, resource: URI): IModel;
+	createModel(value: string | ITextBufferFactory, languageSelection: ILanguageSelection | null, resource: URI | undefined, isForSimpleWidget?: boolean): ITextModel;
 
-	updateModel(model: IModel, value: string | IRawTextSource): void;
+	updateModel(model: ITextModel, value: string | ITextBufferFactory): void;
 
-	setMode(model: IModel, modeOrPromise: TPromise<IMode> | IMode): void;
+	setMode(model: ITextModel, languageSelection: ILanguageSelection): void;
 
 	destroyModel(resource: URI): void;
 
-	getModels(): IModel[];
+	getModels(): ITextModel[];
 
-	getCreationOptions(language: string, resource: URI): ITextModelCreationOptions;
+	getCreationOptions(language: string, resource: URI, isForSimpleWidget: boolean): ITextModelCreationOptions;
 
-	getModel(resource: URI): IModel;
+	getModel(resource: URI): ITextModel | null;
 
-	onModelAdded: Event<IModel>;
+	onModelAdded: Event<ITextModel>;
 
-	onModelRemoved: Event<IModel>;
+	onModelRemoved: Event<ITextModel>;
 
-	onModelModeChanged: Event<{ model: IModel; oldModeId: string; }>;
+	onModelModeChanged: Event<{ model: ITextModel; oldModeId: string; }>;
 }
 
+export function shouldSynchronizeModel(model: ITextModel): boolean {
+	return (
+		!model.isTooLargeForSyncing() && !model.isForSimpleWidget
+	);
+}

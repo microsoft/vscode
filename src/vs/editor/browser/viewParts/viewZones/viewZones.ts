@@ -2,29 +2,29 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { IViewZone } from 'vs/editor/browser/editorBrowser';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { Position } from 'vs/editor/common/core/position';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
-import { IViewWhitespaceViewportData } from 'vs/editor/common/viewModel/viewModel';
+import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { IViewWhitespaceViewportData } from 'vs/editor/common/viewModel/viewModel';
 
 export interface IMyViewZone {
 	whitespaceId: number;
 	delegate: IViewZone;
 	isVisible: boolean;
 	domNode: FastDomNode<HTMLElement>;
-	marginDomNode: FastDomNode<HTMLElement>;
+	marginDomNode: FastDomNode<HTMLElement> | null;
 }
 
 interface IComputedViewZoneProps {
 	afterViewLineNumber: number;
 	heightInPx: number;
+	minWidthInPx: number;
 }
 
 export class ViewZones extends ViewPart {
@@ -99,7 +99,11 @@ export class ViewZones extends ViewPart {
 	}
 
 	public onLineMappingChanged(e: viewEvents.ViewLineMappingChangedEvent): boolean {
-		return this._recomputeWhitespacesProps();
+		const hadAChange = this._recomputeWhitespacesProps();
+		if (hadAChange) {
+			this._context.viewLayout.onHeightMaybeChanged();
+		}
+		return hadAChange;
 	}
 
 	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
@@ -134,7 +138,8 @@ export class ViewZones extends ViewPart {
 		if (zone.afterLineNumber === 0) {
 			return {
 				afterViewLineNumber: 0,
-				heightInPx: this._heightInPixels(zone)
+				heightInPx: this._heightInPixels(zone),
+				minWidthInPx: this._minWidthInPixels(zone)
 			};
 		}
 
@@ -173,13 +178,14 @@ export class ViewZones extends ViewPart {
 		let isVisible = this._context.model.coordinatesConverter.modelPositionIsVisible(zoneBeforeModelPosition);
 		return {
 			afterViewLineNumber: viewPosition.lineNumber,
-			heightInPx: (isVisible ? this._heightInPixels(zone) : 0)
+			heightInPx: (isVisible ? this._heightInPixels(zone) : 0),
+			minWidthInPx: this._minWidthInPixels(zone)
 		};
 	}
 
 	public addZone(zone: IViewZone): number {
 		let props = this._computeWhitespaceProps(zone);
-		let whitespaceId = this._context.viewLayout.addWhitespace(props.afterViewLineNumber, this._getZoneOrdinal(zone), props.heightInPx);
+		let whitespaceId = this._context.viewLayout.addWhitespace(props.afterViewLineNumber, this._getZoneOrdinal(zone), props.heightInPx, props.minWidthInPx);
 
 		let myZone: IMyViewZone = {
 			whitespaceId: whitespaceId,
@@ -221,12 +227,12 @@ export class ViewZones extends ViewPart {
 
 			zone.domNode.removeAttribute('monaco-visible-view-zone');
 			zone.domNode.removeAttribute('monaco-view-zone');
-			zone.domNode.domNode.parentNode.removeChild(zone.domNode.domNode);
+			zone.domNode.domNode.parentNode!.removeChild(zone.domNode.domNode);
 
 			if (zone.marginDomNode) {
 				zone.marginDomNode.removeAttribute('monaco-visible-view-zone');
 				zone.marginDomNode.removeAttribute('monaco-view-zone');
-				zone.marginDomNode.domNode.parentNode.removeChild(zone.marginDomNode.domNode);
+				zone.marginDomNode.domNode.parentNode!.removeChild(zone.marginDomNode.domNode);
 			}
 
 			this.setShouldRender();
@@ -256,7 +262,7 @@ export class ViewZones extends ViewPart {
 	public shouldSuppressMouseDownOnViewZone(id: number): boolean {
 		if (this._zones.hasOwnProperty(id.toString())) {
 			let zone = this._zones[id.toString()];
-			return zone.delegate.suppressMouseDown;
+			return Boolean(zone.delegate.suppressMouseDown);
 		}
 		return false;
 	}
@@ -269,6 +275,13 @@ export class ViewZones extends ViewPart {
 			return this._lineHeight * zone.heightInLines;
 		}
 		return this._lineHeight;
+	}
+
+	private _minWidthInPixels(zone: IViewZone): number {
+		if (typeof zone.minWidthInPx === 'number') {
+			return zone.minWidthInPx;
+		}
+		return 0;
 	}
 
 	private _safeCallOnComputedHeight(zone: IViewZone, height: number): void {

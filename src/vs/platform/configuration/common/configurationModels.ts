@@ -2,14 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as json from 'vs/base/common/json';
-import { StrictResourceMap } from 'vs/base/common/map';
+import { ResourceMap } from 'vs/base/common/map';
 import * as arrays from 'vs/base/common/arrays';
 import * as types from 'vs/base/common/types';
 import * as objects from 'vs/base/common/objects';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
 import { IOverrides, overrideIdentifierFromKey, addToValueTree, toValuesTree, IConfigurationModel, getConfigurationValue, IConfigurationOverrides, IConfigurationData, getDefaultValues, getConfigurationKeys, IConfigurationChangeEvent, ConfigurationTarget, removeFromValueTree, toOverrides } from 'vs/platform/configuration/common/configuration';
 import { Workspace } from 'vs/platform/workspace/common/workspace';
@@ -37,7 +36,7 @@ export class ConfigurationModel implements IConfigurationModel {
 		return this.checkAndFreeze(this._keys);
 	}
 
-	getValue<V>(section: string): V {
+	getValue<V>(section: string | undefined): V {
 		return section ? getConfigurationValue<any>(this.contents, section) : this.contents;
 	}
 
@@ -85,7 +84,7 @@ export class ConfigurationModel implements IConfigurationModel {
 				if (override) {
 					this.mergeContents(override.contents, otherOverride.contents);
 				} else {
-					overrides.push(otherOverride);
+					overrides.push(objects.deepClone(otherOverride));
 				}
 			}
 			for (const key of other.keys) {
@@ -151,15 +150,6 @@ export class ConfigurationModel implements IConfigurationModel {
 		}
 	}
 
-	public setValueInOverrides(overrideIdentifier: string, key: string, value: any): void {
-		let override = this.overrides.filter(override => override.identifiers.indexOf(overrideIdentifier) !== -1)[0];
-		if (!override) {
-			override = { identifiers: [overrideIdentifier], contents: {} };
-			this.overrides.push(override);
-		}
-		addToValueTree(override.contents, key, value, e => { throw new Error(e); });
-	}
-
 	private addKey(key: string): void {
 		let index = this.keys.length;
 		for (let i = 0; i < index; i++) {
@@ -200,7 +190,7 @@ export class DefaultConfigurationModel extends ConfigurationModel {
 
 export class ConfigurationModelParser {
 
-	private _configurationModel: ConfigurationModel = null;
+	private _configurationModel: ConfigurationModel | null = null;
 	private _parseErrors: any[] = [];
 
 	constructor(protected readonly _name: string) { }
@@ -213,15 +203,17 @@ export class ConfigurationModelParser {
 		return this._parseErrors;
 	}
 
-	public parse(content: string): void {
-		const raw = this.parseContent(content);
-		const configurationModel = this.parseRaw(raw);
-		this._configurationModel = new ConfigurationModel(configurationModel.contents, configurationModel.keys, configurationModel.overrides);
+	public parse(content: string | null | undefined): void {
+		if (content) {
+			const raw = this.parseContent(content);
+			const configurationModel = this.parseRaw(raw);
+			this._configurationModel = new ConfigurationModel(configurationModel.contents, configurationModel.keys, configurationModel.overrides);
+		}
 	}
 
 	protected parseContent(content: string): any {
 		let raw: any = {};
-		let currentProperty: string = null;
+		let currentProperty: string | null = null;
 		let currentParent: any = [];
 		let previousParents: any[] = [];
 		let parseErrors: json.ParseError[] = [];
@@ -259,8 +251,8 @@ export class ConfigurationModelParser {
 				currentParent = previousParents.pop();
 			},
 			onLiteralValue: onValue,
-			onError: (error: json.ParseErrorCode) => {
-				parseErrors.push({ error: error });
+			onError: (error: json.ParseErrorCode, offset: number, length: number) => {
+				parseErrors.push({ error, offset, length });
 			}
 		};
 		if (content) {
@@ -286,25 +278,26 @@ export class ConfigurationModelParser {
 
 export class Configuration {
 
-	private _workspaceConsolidatedConfiguration: ConfigurationModel = null;
-	private _foldersConsolidatedConfigurations: StrictResourceMap<ConfigurationModel> = new StrictResourceMap<ConfigurationModel>();
+	private _workspaceConsolidatedConfiguration: ConfigurationModel | null = null;
+	private _foldersConsolidatedConfigurations: ResourceMap<ConfigurationModel> = new ResourceMap<ConfigurationModel>();
 
 	constructor(
 		private _defaultConfiguration: ConfigurationModel,
 		private _userConfiguration: ConfigurationModel,
 		private _workspaceConfiguration: ConfigurationModel = new ConfigurationModel(),
-		private _folderConfigurations: StrictResourceMap<ConfigurationModel> = new StrictResourceMap<ConfigurationModel>(),
+		private _folderConfigurations: ResourceMap<ConfigurationModel> = new ResourceMap<ConfigurationModel>(),
 		private _memoryConfiguration: ConfigurationModel = new ConfigurationModel(),
-		private _memoryConfigurationByResource: StrictResourceMap<ConfigurationModel> = new StrictResourceMap<ConfigurationModel>()) {
+		private _memoryConfigurationByResource: ResourceMap<ConfigurationModel> = new ResourceMap<ConfigurationModel>(),
+		private _freeze: boolean = true) {
 	}
 
-	getValue(section: string, overrides: IConfigurationOverrides, workspace: Workspace): any {
+	getValue(section: string | undefined, overrides: IConfigurationOverrides, workspace: Workspace | undefined): any {
 		const consolidateConfigurationModel = this.getConsolidateConfigurationModel(overrides, workspace);
 		return consolidateConfigurationModel.getValue(section);
 	}
 
 	updateValue(key: string, value: any, overrides: IConfigurationOverrides = {}): void {
-		let memoryConfiguration: ConfigurationModel;
+		let memoryConfiguration: ConfigurationModel | undefined;
 		if (overrides.resource) {
 			memoryConfiguration = this._memoryConfigurationByResource.get(overrides.resource);
 			if (!memoryConfiguration) {
@@ -315,7 +308,7 @@ export class Configuration {
 			memoryConfiguration = this._memoryConfiguration;
 		}
 
-		if (value === void 0) {
+		if (value === undefined) {
 			memoryConfiguration.removeValue(key);
 		} else {
 			memoryConfiguration.setValue(key, value);
@@ -326,11 +319,11 @@ export class Configuration {
 		}
 	}
 
-	inspect<C>(key: string, overrides: IConfigurationOverrides, workspace: Workspace): {
+	inspect<C>(key: string, overrides: IConfigurationOverrides, workspace: Workspace | undefined): {
 		default: C,
 		user: C,
-		workspace: C,
-		workspaceFolder: C
+		workspace?: C,
+		workspaceFolder?: C
 		memory?: C
 		value: C,
 	} {
@@ -340,20 +333,20 @@ export class Configuration {
 		return {
 			default: overrides.overrideIdentifier ? this._defaultConfiguration.freeze().override(overrides.overrideIdentifier).getValue(key) : this._defaultConfiguration.freeze().getValue(key),
 			user: overrides.overrideIdentifier ? this._userConfiguration.freeze().override(overrides.overrideIdentifier).getValue(key) : this._userConfiguration.freeze().getValue(key),
-			workspace: workspace ? overrides.overrideIdentifier ? this._workspaceConfiguration.freeze().override(overrides.overrideIdentifier).getValue(key) : this._workspaceConfiguration.freeze().getValue(key) : void 0, //Check on workspace exists or not because _workspaceConfiguration is never null
-			workspaceFolder: folderConfigurationModel ? overrides.overrideIdentifier ? folderConfigurationModel.freeze().override(overrides.overrideIdentifier).getValue(key) : folderConfigurationModel.freeze().getValue(key) : void 0,
-			memory: overrides.overrideIdentifier ? memoryConfigurationModel.freeze().override(overrides.overrideIdentifier).getValue(key) : memoryConfigurationModel.freeze().getValue(key),
+			workspace: workspace ? overrides.overrideIdentifier ? this._workspaceConfiguration.freeze().override(overrides.overrideIdentifier).getValue(key) : this._workspaceConfiguration.freeze().getValue(key) : undefined, //Check on workspace exists or not because _workspaceConfiguration is never null
+			workspaceFolder: folderConfigurationModel ? overrides.overrideIdentifier ? folderConfigurationModel.freeze().override(overrides.overrideIdentifier).getValue(key) : folderConfigurationModel.freeze().getValue(key) : undefined,
+			memory: overrides.overrideIdentifier ? memoryConfigurationModel.override(overrides.overrideIdentifier).getValue(key) : memoryConfigurationModel.getValue(key),
 			value: consolidateConfigurationModel.getValue(key)
 		};
 	}
 
-	keys(workspace: Workspace): {
+	keys(workspace: Workspace | undefined): {
 		default: string[];
 		user: string[];
 		workspace: string[];
 		workspaceFolder: string[];
 	} {
-		const folderConfigurationModel = this.getFolderConfigurationModelForResource(null, workspace);
+		const folderConfigurationModel = this.getFolderConfigurationModelForResource(undefined, workspace);
 		return {
 			default: this._defaultConfiguration.freeze().keys,
 			user: this._userConfiguration.freeze().keys,
@@ -402,24 +395,16 @@ export class Configuration {
 		return this._workspaceConfiguration;
 	}
 
-	protected get folders(): StrictResourceMap<ConfigurationModel> {
+	protected get folders(): ResourceMap<ConfigurationModel> {
 		return this._folderConfigurations;
 	}
 
-	private get memory(): ConfigurationModel {
-		return this._memoryConfiguration;
-	}
-
-	private get memoryByResource(): StrictResourceMap<ConfigurationModel> {
-		return this._memoryConfigurationByResource;
-	}
-
-	private getConsolidateConfigurationModel(overrides: IConfigurationOverrides, workspace: Workspace): ConfigurationModel {
+	private getConsolidateConfigurationModel(overrides: IConfigurationOverrides, workspace: Workspace | undefined): ConfigurationModel {
 		let configurationModel = this.getConsolidatedConfigurationModelForResource(overrides, workspace);
 		return overrides.overrideIdentifier ? configurationModel.override(overrides.overrideIdentifier) : configurationModel;
 	}
 
-	private getConsolidatedConfigurationModelForResource({ resource }: IConfigurationOverrides, workspace: Workspace): ConfigurationModel {
+	private getConsolidatedConfigurationModelForResource({ resource }: IConfigurationOverrides, workspace: Workspace | undefined): ConfigurationModel {
 		let consolidateConfiguration = this.getWorkspaceConsolidatedConfiguration();
 
 		if (workspace && resource) {
@@ -438,7 +423,10 @@ export class Configuration {
 
 	private getWorkspaceConsolidatedConfiguration(): ConfigurationModel {
 		if (!this._workspaceConsolidatedConfiguration) {
-			this._workspaceConsolidatedConfiguration = this._defaultConfiguration.merge(this._userConfiguration).merge(this._workspaceConfiguration).merge(this._memoryConfiguration).freeze();
+			this._workspaceConsolidatedConfiguration = this._defaultConfiguration.merge(this._userConfiguration, this._workspaceConfiguration, this._memoryConfiguration);
+			if (this._freeze) {
+				this._workspaceConfiguration = this._workspaceConfiguration.freeze();
+			}
 		}
 		return this._workspaceConsolidatedConfiguration;
 	}
@@ -449,7 +437,10 @@ export class Configuration {
 			const workspaceConsolidateConfiguration = this.getWorkspaceConsolidatedConfiguration();
 			const folderConfiguration = this._folderConfigurations.get(folder);
 			if (folderConfiguration) {
-				folderConsolidatedConfiguration = workspaceConsolidateConfiguration.merge(folderConfiguration).freeze();
+				folderConsolidatedConfiguration = workspaceConsolidateConfiguration.merge(folderConfiguration);
+				if (this._freeze) {
+					folderConsolidatedConfiguration = folderConsolidatedConfiguration.freeze();
+				}
 				this._foldersConsolidatedConfigurations.set(folder, folderConsolidatedConfiguration);
 			} else {
 				folderConsolidatedConfiguration = workspaceConsolidateConfiguration;
@@ -458,11 +449,11 @@ export class Configuration {
 		return folderConsolidatedConfiguration;
 	}
 
-	private getFolderConfigurationModelForResource(resource: URI, workspace: Workspace): ConfigurationModel {
+	private getFolderConfigurationModelForResource(resource: URI | null | undefined, workspace: Workspace | undefined): ConfigurationModel | null {
 		if (workspace && resource) {
 			const root = workspace.getFolder(resource);
 			if (root) {
-				return this._folderConfigurations.get(root.uri);
+				return this._folderConfigurations.get(root.uri) || null;
 			}
 		}
 		return null;
@@ -486,10 +477,11 @@ export class Configuration {
 				keys: this._workspaceConfiguration.keys
 			},
 			folders: this._folderConfigurations.keys().reduce((result, folder) => {
-				const { contents, overrides, keys } = this._folderConfigurations.get(folder);
+				const { contents, overrides, keys } = this._folderConfigurations.get(folder)!;
 				result[folder.toString()] = { contents, overrides, keys };
 				return result;
-			}, Object.create({}))
+			}, Object.create({})),
+			isComplete: true
 		};
 	}
 
@@ -506,24 +498,9 @@ export class Configuration {
 		addKeys(keys.user);
 		addKeys(keys.workspace);
 		for (const resource of this.folders.keys()) {
-			addKeys(this.folders.get(resource).keys);
+			addKeys(this.folders.get(resource)!.keys);
 		}
 		return all;
-	}
-
-	public static parse(data: IConfigurationData): Configuration {
-		const defaultConfiguration = Configuration.parseConfigurationModel(data.defaults);
-		const userConfiguration = Configuration.parseConfigurationModel(data.user);
-		const workspaceConfiguration = Configuration.parseConfigurationModel(data.workspace);
-		const folders: StrictResourceMap<ConfigurationModel> = Object.keys(data.folders).reduce((result, key) => {
-			result.set(URI.parse(key), Configuration.parseConfigurationModel(data.folders[key]));
-			return result;
-		}, new StrictResourceMap<ConfigurationModel>());
-		return new Configuration(defaultConfiguration, userConfiguration, workspaceConfiguration, folders);
-	}
-
-	private static parseConfigurationModel(model: IConfigurationModel): ConfigurationModel {
-		return new ConfigurationModel(model.contents, model.keys, model.overrides).freeze();
 	}
 }
 
@@ -558,7 +535,7 @@ export class ConfigurationChangeEvent extends AbstractConfigurationChangeEvent i
 
 	constructor(
 		private _changedConfiguration: ConfigurationModel = new ConfigurationModel(),
-		private _changedConfigurationByResource: StrictResourceMap<ConfigurationModel> = new StrictResourceMap<ConfigurationModel>()) {
+		private _changedConfigurationByResource: ResourceMap<ConfigurationModel> = new ResourceMap<ConfigurationModel>()) {
 		super();
 	}
 
@@ -566,7 +543,7 @@ export class ConfigurationChangeEvent extends AbstractConfigurationChangeEvent i
 		return this._changedConfiguration;
 	}
 
-	get changedConfigurationByResource(): StrictResourceMap<IConfigurationModel> {
+	get changedConfigurationByResource(): ResourceMap<IConfigurationModel> {
 		return this._changedConfigurationByResource;
 	}
 
@@ -577,7 +554,7 @@ export class ConfigurationChangeEvent extends AbstractConfigurationChangeEvent i
 			this._changedConfiguration = this._changedConfiguration.merge(arg1._changedConfiguration);
 			for (const resource of arg1._changedConfigurationByResource.keys()) {
 				let changedConfigurationByResource = this.getOrSetChangedConfigurationForResource(resource);
-				changedConfigurationByResource = changedConfigurationByResource.merge(arg1._changedConfigurationByResource.get(resource));
+				changedConfigurationByResource = changedConfigurationByResource.merge(arg1._changedConfigurationByResource.get(resource)!);
 				this._changedConfigurationByResource.set(resource, changedConfigurationByResource);
 			}
 		} else {

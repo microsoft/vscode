@@ -3,85 +3,167 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { illegalArgument, onUnexpectedExternalError } from 'vs/base/common/errors';
-import URI from 'vs/base/common/uri';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { URI } from 'vs/base/common/uri';
+import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Range } from 'vs/editor/common/core/range';
-import { IReadOnlyModel } from 'vs/editor/common/editorCommon';
-import { registerDefaultLanguageCommand, registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
+import { ITextModel } from 'vs/editor/common/model';
+import { registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { DocumentFormattingEditProviderRegistry, DocumentRangeFormattingEditProviderRegistry, OnTypeFormattingEditProviderRegistry, FormattingOptions, TextEdit } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { asWinJsPromise, sequence } from 'vs/base/common/async';
+import { first } from 'vs/base/common/async';
 import { Position } from 'vs/editor/common/core/position';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
-export class NoProviderError extends Error {
+export const enum FormatMode {
+	Auto = 1,
+	Manual = 2,
+}
 
-	static readonly Name = 'NOPRO';
+export const enum FormatKind {
+	Document = 8,
+	Range = 16,
+	OnType = 32,
+}
 
-	constructor(message?: string) {
-		super();
-		this.name = NoProviderError.Name;
-		this.message = message;
+export interface IFormatterConflictCallback {
+	(extensionIds: (ExtensionIdentifier | undefined)[], model: ITextModel, mode: number): void;
+}
+
+let _conflictResolver: IFormatterConflictCallback | undefined;
+
+export function setFormatterConflictCallback(callback: IFormatterConflictCallback): IDisposable {
+	let oldCallback = _conflictResolver;
+	_conflictResolver = callback;
+	return {
+		dispose() {
+			if (oldCallback) {
+				_conflictResolver = oldCallback;
+				oldCallback = undefined;
+			}
+		}
+	};
+}
+
+function invokeFormatterCallback<T extends { extensionId?: ExtensionIdentifier }>(formatter: T[], model: ITextModel, mode: number): void {
+	if (_conflictResolver) {
+		const ids = formatter.map(formatter => formatter.extensionId);
+		_conflictResolver(ids, model, mode);
 	}
 }
 
-export function getDocumentRangeFormattingEdits(model: IReadOnlyModel, range: Range, options: FormattingOptions): TPromise<TextEdit[], NoProviderError> {
+export async function getDocumentRangeFormattingEdits(
+	telemetryService: ITelemetryService,
+	workerService: IEditorWorkerService,
+	model: ITextModel,
+	range: Range,
+	options: FormattingOptions,
+	mode: FormatMode,
+	token: CancellationToken
+): Promise<TextEdit[] | undefined | null> {
 
 	const providers = DocumentRangeFormattingEditProviderRegistry.ordered(model);
 
-	if (providers.length === 0) {
-		return TPromise.wrapError(new NoProviderError());
-	}
-
-	let result: TextEdit[];
-	return sequence(providers.map(provider => {
-		if (isFalsyOrEmpty(result)) {
-			return () => {
-				return asWinJsPromise(token => provider.provideDocumentRangeFormattingEdits(model, range, options, token)).then(value => {
-					result = value;
-				}, onUnexpectedExternalError);
-			};
+	/* __GDPR__
+		"formatterInfo" : {
+			"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"language" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 		}
-		return undefined;
-	})).then(() => result);
+	 */
+	telemetryService.publicLog('formatterInfo', {
+		type: 'range',
+		language: model.getLanguageIdentifier().language,
+		count: providers.length,
+	});
+
+	invokeFormatterCallback(providers, model, mode | FormatKind.Range);
+
+	return first(providers.map(provider => () => {
+		return Promise.resolve(provider.provideDocumentRangeFormattingEdits(model, range, options, token)).catch(onUnexpectedExternalError);
+	}), isNonEmptyArray).then(edits => {
+		// break edits into smaller edits
+		return workerService.computeMoreMinimalEdits(model.uri, edits);
+	});
 }
 
-export function getDocumentFormattingEdits(model: IReadOnlyModel, options: FormattingOptions): TPromise<TextEdit[]> {
-	const providers = DocumentFormattingEditProviderRegistry.ordered(model);
+export function getDocumentFormattingEdits(
+	telemetryService: ITelemetryService,
+	workerService: IEditorWorkerService,
+	model: ITextModel,
+	options: FormattingOptions,
+	mode: FormatMode,
+	token: CancellationToken
+): Promise<TextEdit[] | null | undefined> {
 
-	// try range formatters when no document formatter is registered
-	if (providers.length === 0) {
-		return getDocumentRangeFormattingEdits(model, model.getFullModelRange(), options);
-	}
+	const docFormattingProviders = DocumentFormattingEditProviderRegistry.ordered(model);
 
-	let result: TextEdit[];
-	return sequence(providers.map(provider => {
-		if (isFalsyOrEmpty(result)) {
-			return () => {
-				return asWinJsPromise(token => provider.provideDocumentFormattingEdits(model, options, token)).then(value => {
-					result = value;
-				}, onUnexpectedExternalError);
-			};
+	/* __GDPR__
+		"formatterInfo" : {
+			"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"language" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 		}
-		return undefined;
-	})).then(() => result);
+	 */
+	telemetryService.publicLog('formatterInfo', {
+		type: 'document',
+		language: model.getLanguageIdentifier().language,
+		count: docFormattingProviders.length,
+	});
+
+	if (docFormattingProviders.length > 0) {
+		return first(docFormattingProviders.map(provider => () => {
+			// first with result wins...
+			return Promise.resolve(provider.provideDocumentFormattingEdits(model, options, token)).catch(onUnexpectedExternalError);
+		}), isNonEmptyArray).then(edits => {
+			// break edits into smaller edits
+			return workerService.computeMoreMinimalEdits(model.uri, edits);
+		});
+	} else {
+		// try range formatters when no document formatter is registered
+		return getDocumentRangeFormattingEdits(telemetryService, workerService, model, model.getFullModelRange(), options, mode | FormatKind.Document, token);
+	}
 }
 
-export function getOnTypeFormattingEdits(model: IReadOnlyModel, position: Position, ch: string, options: FormattingOptions): TPromise<TextEdit[]> {
-	const [support] = OnTypeFormattingEditProviderRegistry.ordered(model);
-	if (!support) {
-		return TPromise.as(undefined);
-	}
-	if (support.autoFormatTriggerCharacters.indexOf(ch) < 0) {
-		return TPromise.as(undefined);
+export function getOnTypeFormattingEdits(
+	telemetryService: ITelemetryService,
+	workerService: IEditorWorkerService,
+	model: ITextModel,
+	position: Position,
+	ch: string,
+	options: FormattingOptions
+): Promise<TextEdit[] | null | undefined> {
+
+	const providers = OnTypeFormattingEditProviderRegistry.ordered(model);
+
+	/* __GDPR__
+		"formatterInfo" : {
+			"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"language" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+		}
+	 */
+	telemetryService.publicLog('formatterInfo', {
+		type: 'ontype',
+		language: model.getLanguageIdentifier().language,
+		count: providers.length,
+	});
+
+	if (providers.length === 0) {
+		return Promise.resolve(undefined);
 	}
 
-	return asWinJsPromise((token) => {
-		return support.provideOnTypeFormattingEdits(model, position, ch, options, token);
-	}).then(r => r, onUnexpectedExternalError);
+	if (providers[0].autoFormatTriggerCharacters.indexOf(ch) < 0) {
+		return Promise.resolve(undefined);
+	}
+
+	return Promise.resolve(providers[0].provideOnTypeFormattingEdits(model, position, ch, options, CancellationToken.None)).catch(onUnexpectedExternalError).then(edits => {
+		return workerService.computeMoreMinimalEdits(model.uri, edits);
+	});
 }
 
 registerLanguageCommand('_executeFormatRangeProvider', function (accessor, args) {
@@ -93,7 +175,7 @@ registerLanguageCommand('_executeFormatRangeProvider', function (accessor, args)
 	if (!model) {
 		throw illegalArgument('resource');
 	}
-	return getDocumentRangeFormattingEdits(model, Range.lift(range), options);
+	return getDocumentRangeFormattingEdits(accessor.get(ITelemetryService), accessor.get(IEditorWorkerService), model, Range.lift(range), options, FormatMode.Auto, CancellationToken.None);
 });
 
 registerLanguageCommand('_executeFormatDocumentProvider', function (accessor, args) {
@@ -106,13 +188,18 @@ registerLanguageCommand('_executeFormatDocumentProvider', function (accessor, ar
 		throw illegalArgument('resource');
 	}
 
-	return getDocumentFormattingEdits(model, options);
+	return getDocumentFormattingEdits(accessor.get(ITelemetryService), accessor.get(IEditorWorkerService), model, options, FormatMode.Auto, CancellationToken.None);
 });
 
-registerDefaultLanguageCommand('_executeFormatOnTypeProvider', function (model, position, args) {
-	const { ch, options } = args;
-	if (typeof ch !== 'string') {
-		throw illegalArgument('ch');
+registerLanguageCommand('_executeFormatOnTypeProvider', function (accessor, args) {
+	const { resource, position, ch, options } = args;
+	if (!(resource instanceof URI) || !Position.isIPosition(position) || typeof ch !== 'string') {
+		throw illegalArgument();
 	}
-	return getOnTypeFormattingEdits(model, position, ch, options);
+	const model = accessor.get(IModelService).getModel(resource);
+	if (!model) {
+		throw illegalArgument('resource');
+	}
+
+	return getOnTypeFormattingEdits(accessor.get(ITelemetryService), accessor.get(IEditorWorkerService), model, Position.lift(position), ch, options);
 });

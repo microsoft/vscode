@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 /*
  * Interface types for Monarch language definitions
@@ -37,7 +36,7 @@ export interface IMonarchLanguage {
 	/**
 	 * attach this to every token class (by default '.' + name)
 	 */
-	tokenPostfix: string;
+	tokenPostfix?: string;
 }
 
 /**
@@ -45,7 +44,11 @@ export interface IMonarchLanguage {
  * 		shorthands: [reg,act] == { regex: reg, action: act}
  *		and       : [reg,act,nxt] == { regex: reg, action: act{ next: nxt }}
  */
-export interface IMonarchLanguageRule {
+export type IShortMonarchLanguageRule1 = [RegExp, IMonarchLanguageAction];
+
+export type IShortMonarchLanguageRule2 = [RegExp, IMonarchLanguageAction, string];
+
+export interface IExpandedMonarchLanguageRule {
 	/**
 	 * match tokens
 	 */
@@ -61,22 +64,26 @@ export interface IMonarchLanguageRule {
 	include?: string;
 }
 
+export type IMonarchLanguageRule = IShortMonarchLanguageRule1
+	| IShortMonarchLanguageRule2
+	| IExpandedMonarchLanguageRule;
+
 /**
  * An action is either an array of actions...
  * ... or a case statement with guards...
  * ... or a basic action with a token value.
  */
-export interface IMonarchLanguageAction {
+export type IShortMonarchLanguageAction = string;
+
+export interface IExpandedMonarchLanguageAction {
 	/**
 	 * array of actions for each parenthesized match group
 	 */
 	group?: IMonarchLanguageAction[];
-
 	/**
 	 * map from string to ILanguageAction
 	 */
 	cases?: Object;
-
 	/**
 	 * token class (ie. css class) (or "@brackets" or "@rematch")
 	 */
@@ -98,7 +105,7 @@ export interface IMonarchLanguageAction {
 	 */
 	bracket?: string;
 	/**
-	 * switch to embedded language (useing the mimetype) or get out using "@pop"
+	 * switch to embedded language (using the mimetype) or get out using "@pop"
 	 */
 	nextEmbedded?: string;
 	/**
@@ -106,6 +113,11 @@ export interface IMonarchLanguageAction {
 	 */
 	log?: string;
 }
+
+export type IMonarchLanguageAction = IShortMonarchLanguageAction
+	| IExpandedMonarchLanguageAction
+	| IShortMonarchLanguageAction[]
+	| IExpandedMonarchLanguageAction[];
 
 /**
  * This interface can be shortened as an array, ie. ['{','}','delimiter.curly']
@@ -116,7 +128,7 @@ export interface IMonarchLanguageBracket {
 	 */
 	open: string;
 	/**
-	 * closeing bracket
+	 * closing bracket
 	 */
 	close: string;
 	/**

@@ -2,13 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
-import { IWindowService } from 'vs/platform/windows/common/windows';
-import { MainThreadWindowShape, ExtHostWindowShape, ExtHostContext, MainContext, IExtHostContext } from '../node/extHost.protocol';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Event } from 'vs/base/common/event';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { URI, UriComponents } from 'vs/base/common/uri';
+import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
+import { ExtHostContext, ExtHostWindowShape, IExtHostContext, MainContext, MainThreadWindowShape } from '../node/extHost.protocol';
 
 @extHostNamedCustomer(MainContext.MainThreadWindow)
 export class MainThreadWindow implements MainThreadWindowShape {
@@ -18,18 +18,24 @@ export class MainThreadWindow implements MainThreadWindowShape {
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IWindowService private windowService: IWindowService
+		@IWindowService private readonly windowService: IWindowService,
+		@IWindowsService private readonly windowsService: IWindowsService
 	) {
-		this.proxy = extHostContext.get(ExtHostContext.ExtHostWindow);
+		this.proxy = extHostContext.getProxy(ExtHostContext.ExtHostWindow);
 
-		windowService.onDidChangeFocus(this.proxy.$onDidChangeWindowFocus, this.proxy, this.disposables);
-	}
-
-	$getWindowVisibility(): TPromise<boolean> {
-		return this.windowService.isFocused();
+		Event.latch(windowService.onDidChangeFocus)
+			(this.proxy.$onDidChangeWindowFocus, this.proxy, this.disposables);
 	}
 
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
+	}
+
+	$getWindowVisibility(): Promise<boolean> {
+		return this.windowService.isFocused();
+	}
+
+	$openUri(uri: UriComponents): Promise<boolean> {
+		return this.windowsService.openExternal(URI.revive(uri).toString(true));
 	}
 }

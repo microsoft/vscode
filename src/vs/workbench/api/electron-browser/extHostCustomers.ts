@@ -3,12 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { ProxyIdentifier } from 'vs/workbench/services/thread/common/threadService';
 import { IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
 import { IExtHostContext } from 'vs/workbench/api/node/extHost.protocol';
+import { ProxyIdentifier } from 'vs/workbench/services/extensions/node/proxyIdentifier';
 
 export type IExtHostNamedCustomer<T extends IDisposable> = [ProxyIdentifier<T>, IExtHostCustomerCtor<T>];
 
@@ -37,7 +35,7 @@ export namespace ExtHostCustomersRegistry {
 
 class ExtHostCustomersRegistryImpl {
 
-	public static INSTANCE = new ExtHostCustomersRegistryImpl();
+	public static readonly INSTANCE = new ExtHostCustomersRegistryImpl();
 
 	private _namedCustomers: IExtHostNamedCustomer<any>[];
 	private _customers: IExtHostCustomerCtor<any>[];

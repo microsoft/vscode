@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import { merge, removeFromValueTree } from 'vs/platform/configuration/common/configuration';
 
@@ -43,7 +41,7 @@ suite('Configuration', () => {
 	});
 
 	test('removeFromValueTree: remove a single segemented key when its value is undefined', () => {
-		let target = { 'a': void 0 };
+		let target = { 'a': undefined };
 
 		removeFromValueTree(target, 'a');
 

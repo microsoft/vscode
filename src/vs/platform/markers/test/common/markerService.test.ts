@@ -2,17 +2,15 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
+import * as assert from 'assert';
+import { URI } from 'vs/base/common/uri';
+import * as markerService from 'vs/platform/markers/common/markerService';
+import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
 
-import assert = require('assert');
-import URI from 'vs/base/common/uri';
-import markerService = require('vs/platform/markers/common/markerService');
-import { IMarkerData } from 'vs/platform/markers/common/markers';
-
-function randomMarkerData(): IMarkerData {
+function randomMarkerData(severity = MarkerSeverity.Error): IMarkerData {
 	return {
-		severity: 1,
+		severity,
 		message: Math.random().toString(16),
 		startLineNumber: 1,
 		startColumn: 1,
@@ -29,7 +27,7 @@ suite('Marker Service', () => {
 
 		service.changeAll('far', [{
 			resource: URI.parse('file:///c/test/file.cs'),
-			marker: randomMarkerData()
+			marker: randomMarkerData(MarkerSeverity.Error)
 		}]);
 
 		assert.equal(service.read().length, 1);
@@ -40,28 +38,34 @@ suite('Marker Service', () => {
 
 		service.changeAll('boo', [{
 			resource: URI.parse('file:///c/test/file.cs'),
-			marker: randomMarkerData()
+			marker: randomMarkerData(MarkerSeverity.Warning)
 		}]);
 
 		assert.equal(service.read().length, 2);
 		assert.equal(service.read({ owner: 'far' }).length, 1);
 		assert.equal(service.read({ owner: 'boo' }).length, 1);
+
+		assert.equal(service.read({ severities: MarkerSeverity.Error }).length, 1);
+		assert.equal(service.read({ severities: MarkerSeverity.Warning }).length, 1);
+		assert.equal(service.read({ severities: MarkerSeverity.Hint }).length, 0);
+		assert.equal(service.read({ severities: MarkerSeverity.Error | MarkerSeverity.Warning }).length, 2);
+
 	});
 
 
 	test('changeOne override', () => {
 
 		let service = new markerService.MarkerService();
-		service.changeOne('far', URI.parse('/path/only.cs'), [randomMarkerData()]);
+		service.changeOne('far', URI.parse('file:///path/only.cs'), [randomMarkerData()]);
 		assert.equal(service.read().length, 1);
 		assert.equal(service.read({ owner: 'far' }).length, 1);
 
-		service.changeOne('boo', URI.parse('/path/only.cs'), [randomMarkerData()]);
+		service.changeOne('boo', URI.parse('file:///path/only.cs'), [randomMarkerData()]);
 		assert.equal(service.read().length, 2);
 		assert.equal(service.read({ owner: 'far' }).length, 1);
 		assert.equal(service.read({ owner: 'boo' }).length, 1);
 
-		service.changeOne('far', URI.parse('/path/only.cs'), [randomMarkerData(), randomMarkerData()]);
+		service.changeOne('far', URI.parse('file:///path/only.cs'), [randomMarkerData(), randomMarkerData()]);
 		assert.equal(service.read({ owner: 'far' }).length, 2);
 		assert.equal(service.read({ owner: 'boo' }).length, 1);
 
@@ -70,13 +74,13 @@ suite('Marker Service', () => {
 	test('changeOne/All clears', () => {
 
 		let service = new markerService.MarkerService();
-		service.changeOne('far', URI.parse('/path/only.cs'), [randomMarkerData()]);
-		service.changeOne('boo', URI.parse('/path/only.cs'), [randomMarkerData()]);
+		service.changeOne('far', URI.parse('file:///path/only.cs'), [randomMarkerData()]);
+		service.changeOne('boo', URI.parse('file:///path/only.cs'), [randomMarkerData()]);
 		assert.equal(service.read({ owner: 'far' }).length, 1);
 		assert.equal(service.read({ owner: 'boo' }).length, 1);
 		assert.equal(service.read().length, 2);
 
-		service.changeOne('far', URI.parse('/path/only.cs'), []);
+		service.changeOne('far', URI.parse('file:///path/only.cs'), []);
 		assert.equal(service.read({ owner: 'far' }).length, 0);
 		assert.equal(service.read({ owner: 'boo' }).length, 1);
 		assert.equal(service.read().length, 1);
@@ -156,11 +160,11 @@ suite('Marker Service', () => {
 		let data = randomMarkerData();
 		let service = new markerService.MarkerService();
 
-		data.message = undefined;
+		data.message = undefined!;
 		service.changeOne('far', URI.parse('some:uri/path'), [data]);
 		assert.equal(service.read({ owner: 'far' }).length, 0);
 
-		data.message = null;
+		data.message = null!;
 		service.changeOne('far', URI.parse('some:uri/path'), [data]);
 		assert.equal(service.read({ owner: 'far' }).length, 0);
 

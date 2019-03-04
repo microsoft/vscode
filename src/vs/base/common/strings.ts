@@ -2,9 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { BoundedMap } from 'vs/base/common/map';
 import { CharCode } from 'vs/base/common/charCode';
 
 /**
@@ -12,7 +10,7 @@ import { CharCode } from 'vs/base/common/charCode';
  */
 export const empty = '';
 
-export function isFalsyOrWhitespace(str: string): boolean {
+export function isFalsyOrWhitespace(str: string | undefined): boolean {
 	if (!str || typeof str !== 'string') {
 		return true;
 	}
@@ -58,7 +56,7 @@ export function format(value: string, ...args: any[]): string {
  * being used e.g. in HTMLElement.innerHTML.
  */
 export function escape(html: string): string {
-	return html.replace(/[<|>|&]/g, function (match) {
+	return html.replace(/[<>&]/g, function (match) {
 		switch (match) {
 			case '<': return '&lt;';
 			case '>': return '&gt;';
@@ -90,7 +88,7 @@ export function trim(haystack: string, needle: string = ' '): string {
  * @param haystack string to trim
  * @param needle the thing to trim
  */
-export function ltrim(haystack?: string, needle?: string): string {
+export function ltrim(haystack: string, needle: string): string {
 	if (!haystack || !needle) {
 		return haystack;
 	}
@@ -100,10 +98,9 @@ export function ltrim(haystack?: string, needle?: string): string {
 		return haystack;
 	}
 
-	let offset = 0,
-		idx = -1;
+	let offset = 0;
 
-	while ((idx = haystack.indexOf(needle, offset)) === offset) {
+	while (haystack.indexOf(needle, offset) === offset) {
 		offset = offset + needleLen;
 	}
 	return haystack.substring(offset);
@@ -114,7 +111,7 @@ export function ltrim(haystack?: string, needle?: string): string {
  * @param haystack string to trim
  * @param needle the thing to trim
  */
-export function rtrim(haystack?: string, needle?: string): string {
+export function rtrim(haystack: string, needle: string): string {
 	if (!haystack || !needle) {
 		return haystack;
 	}
@@ -159,6 +156,10 @@ export function startsWith(haystack: string, needle: string): boolean {
 		return false;
 	}
 
+	if (haystack === needle) {
+		return true;
+	}
+
 	for (let i = 0; i < needle.length; i++) {
 		if (haystack[i] !== needle[i]) {
 			return false;
@@ -187,6 +188,7 @@ export interface RegExpOptions {
 	wholeWord?: boolean;
 	multiline?: boolean;
 	global?: boolean;
+	unicode?: boolean;
 }
 
 export function createRegExp(searchString: string, isRegex: boolean, options: RegExpOptions = {}): RegExp {
@@ -214,6 +216,9 @@ export function createRegExp(searchString: string, isRegex: boolean, options: Re
 	if (options.multiline) {
 		modifiers += 'm';
 	}
+	if (options.unicode) {
+		modifiers += 'u';
+	}
 
 	return new RegExp(searchString, modifiers);
 }
@@ -228,53 +233,18 @@ export function regExpLeadsToEndlessLoop(regexp: RegExp): boolean {
 	// We check against an empty string. If the regular expression doesn't advance
 	// (e.g. ends in an endless loop) it will match an empty string.
 	let match = regexp.exec('');
-	return (match && <any>regexp.lastIndex === 0);
+	return !!(match && <any>regexp.lastIndex === 0);
 }
 
 export function regExpContainsBackreference(regexpValue: string): boolean {
 	return !!regexpValue.match(/([^\\]|^)(\\\\)*\\\d+/);
 }
 
-/**
- * The normalize() method returns the Unicode Normalization Form of a given string. The form will be
- * the Normalization Form Canonical Composition.
- *
- * @see {@link https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/normalize}
- */
-export const canNormalize = typeof ((<any>'').normalize) === 'function';
-
-const nfcCache = new BoundedMap<string>(10000); // bounded to 10000 elements
-export function normalizeNFC(str: string): string {
-	return normalize(str, 'NFC', nfcCache);
-}
-
-const nfdCache = new BoundedMap<string>(10000); // bounded to 10000 elements
-export function normalizeNFD(str: string): string {
-	return normalize(str, 'NFD', nfdCache);
-}
-
-const nonAsciiCharactersPattern = /[^\u0000-\u0080]/;
-function normalize(str: string, form: string, normalizedCache: BoundedMap<string>): string {
-	if (!canNormalize || !str) {
-		return str;
-	}
-
-	const cached = normalizedCache.get(str);
-	if (cached) {
-		return cached;
-	}
-
-	let res: string;
-	if (nonAsciiCharactersPattern.test(str)) {
-		res = (<any>str).normalize(form);
-	} else {
-		res = str;
-	}
-
-	// Use the cache for fast lookup
-	normalizedCache.set(str, res);
-
-	return res;
+export function regExpFlags(regexp: RegExp): string {
+	return (regexp.global ? 'g' : '')
+		+ (regexp.ignoreCase ? 'i' : '')
+		+ (regexp.multiline ? 'm' : '')
+		+ ((regexp as any).unicode ? 'u' : '');
 }
 
 /**
@@ -372,11 +342,11 @@ export function compareIgnoreCase(a: string, b: string): number {
 	}
 }
 
-function isLowerAsciiLetter(code: number): boolean {
+export function isLowerAsciiLetter(code: number): boolean {
 	return code >= CharCode.a && code <= CharCode.z;
 }
 
-function isUpperAsciiLetter(code: number): boolean {
+export function isUpperAsciiLetter(code: number): boolean {
 	return code >= CharCode.A && code <= CharCode.Z;
 }
 
@@ -427,7 +397,7 @@ function doEqualsIgnoreCase(a: string, b: string, stopAt = a.length): boolean {
 	return true;
 }
 
-export function beginsWithIgnoreCase(str: string, candidate: string): boolean {
+export function startsWithIgnoreCase(str: string, candidate: string): boolean {
 	const candidateLength = candidate.length;
 	if (candidate.length > str.length) {
 		return false;
@@ -657,12 +627,27 @@ export function removeAnsiEscapeCodes(str: string): string {
 	return str;
 }
 
+export const removeAccents: (str: string) => string = (function () {
+	if (typeof (String.prototype as any).normalize !== 'function') {
+		// ☹️ no ES6 features...
+		return function (str: string) { return str; };
+	} else {
+		// transform into NFD form and remove accents
+		// see: https://stackoverflow.com/questions/990904/remove-accents-diacritics-in-a-string-in-javascript/37511463#37511463
+		const regex = /[\u0300-\u036f]/g;
+		return function (str: string) {
+			return (str as any).normalize('NFD').replace(regex, empty);
+		};
+	}
+})();
+
+
 // -- UTF-8 BOM
 
 export const UTF8_BOM_CHARACTER = String.fromCharCode(CharCode.UTF8_BOM);
 
 export function startsWithUTF8BOM(str: string): boolean {
-	return (str && str.length > 0 && str.charCodeAt(0) === CharCode.UTF8_BOM);
+	return !!(str && str.length > 0 && str.charCodeAt(0) === CharCode.UTF8_BOM);
 }
 
 export function stripUTF8BOM(str: string): string {
@@ -711,4 +696,36 @@ export function fuzzyContains(target: string, query: string): boolean {
 	}
 
 	return true;
+}
+
+export function containsUppercaseCharacter(target: string, ignoreEscapedChars = false): boolean {
+	if (!target) {
+		return false;
+	}
+
+	if (ignoreEscapedChars) {
+		target = target.replace(/\\./g, '');
+	}
+
+	return target.toLowerCase() !== target;
+}
+
+export function uppercaseFirstLetter(str: string): string {
+	return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+export function getNLines(str: string, n = 1): string {
+	if (n === 0) {
+		return '';
+	}
+
+	let idx = -1;
+	do {
+		idx = str.indexOf('\n', idx + 1);
+		n--;
+	} while (n > 0 && idx >= 0);
+
+	return idx >= 0 ?
+		str.substr(0, idx) :
+		str;
 }

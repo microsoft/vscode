@@ -2,13 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
+import { CharCode } from 'vs/base/common/charCode';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
+import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { testApplyEditsWithSyncedModels } from 'vs/editor/test/common/model/editableTextModelTestUtils';
-import { CharCode } from 'vs/base/common/charCode';
 
 const GENERATE_TESTS = false;
 
@@ -225,14 +224,12 @@ class TestModel {
 
 		let offsetToPosition = TestModel._generateOffsetToPosition(this.initialContent);
 		this.edits = [];
-		for (let i = 0; i < edits.length; i++) {
-			let startPosition = offsetToPosition[edits[i].offset];
-			let endPosition = offsetToPosition[edits[i].offset + edits[i].length];
+		for (const edit of edits) {
+			let startPosition = offsetToPosition[edit.offset];
+			let endPosition = offsetToPosition[edit.offset + edit.length];
 			this.edits.push({
-				identifier: null,
 				range: new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column),
-				text: edits[i].text,
-				forceMoveMarkers: false
+				text: edit.text
 			});
 		}
 
@@ -255,7 +252,7 @@ class TestModel {
 		r.push('\t],');
 		r.push('\t[');
 		r = r.concat(this.edits.map((i) => {
-			let text = `['` + i.text.split('\n').join(`', '`) + `']`;
+			let text = `['` + i.text!.split('\n').join(`', '`) + `']`;
 			return `\t\teditOp(${i.range.startLineNumber}, ${i.range.startColumn}, ${i.range.endLineNumber}, ${i.range.endColumn}, ${text}),`;
 		}));
 		r.push('\t],');

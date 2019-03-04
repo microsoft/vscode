@@ -1,5 +1,4 @@
 {
-	"$schema": "http://json.schemastore.org/tsconfig",
 	"compilerOptions": {
 		"noEmit": true,
 		"module": "amd",
@@ -17,8 +16,10 @@
 	},
 	"include": [
 		"typings/require.d.ts",
+		"./typings/require-monaco.d.ts",
 		"typings/thenable.d.ts",
 		"typings/es6-promise.d.ts",
+		"typings/lib.es2018.promise.d.ts",
 		"typings/lib.array-ext.d.ts",
 		"typings/lib.ie11_safe_es6.d.ts",
 		"vs/css.d.ts",

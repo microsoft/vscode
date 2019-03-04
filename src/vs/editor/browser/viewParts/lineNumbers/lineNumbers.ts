@@ -3,32 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./lineNumbers';
-import { editorLineNumbers } from 'vs/editor/common/view/editorColorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import * as platform from 'vs/base/common/platform';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { RenderingContext } from 'vs/editor/common/view/renderingContext';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { Position } from 'vs/editor/common/core/position';
 import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
+import { Position } from 'vs/editor/common/core/position';
+import { editorActiveLineNumber, editorLineNumbers } from 'vs/editor/common/view/editorColorRegistry';
+import { RenderingContext } from 'vs/editor/common/view/renderingContext';
+import { ViewContext } from 'vs/editor/common/view/viewContext';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
 export class LineNumbersOverlay extends DynamicViewOverlay {
 
-	public static CLASS_NAME = 'line-numbers';
+	public static readonly CLASS_NAME = 'line-numbers';
 
 	private _context: ViewContext;
 
 	private _lineHeight: number;
 	private _renderLineNumbers: RenderLineNumbersType;
-	private _renderCustomLineNumbers: (lineNumber: number) => string;
+	private _renderCustomLineNumbers: ((lineNumber: number) => string) | null;
+	private _renderFinalNewline: boolean;
 	private _lineNumbersLeft: number;
 	private _lineNumbersWidth: number;
 	private _lastCursorModelPosition: Position;
-	private _renderResult: string[];
+	private _renderResult: string[] | null;
 
 	constructor(context: ViewContext) {
 		super();
@@ -46,13 +45,13 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 		this._lineHeight = config.lineHeight;
 		this._renderLineNumbers = config.viewInfo.renderLineNumbers;
 		this._renderCustomLineNumbers = config.viewInfo.renderCustomLineNumbers;
+		this._renderFinalNewline = config.viewInfo.renderFinalNewline;
 		this._lineNumbersLeft = config.layoutInfo.lineNumbersLeft;
 		this._lineNumbersWidth = config.layoutInfo.lineNumbersWidth;
 	}
 
 	public dispose(): void {
 		this._context.removeEventHandler(this);
-		this._context = null;
 		this._renderResult = null;
 		super.dispose();
 	}
@@ -99,6 +98,15 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 			return '';
 		}
 		let modelLineNumber = modelPosition.lineNumber;
+
+		if (!this._renderFinalNewline) {
+			const lineCount = this._context.model.getLineCount();
+			const lineContent = this._context.model.getLineContent(modelLineNumber);
+
+			if (modelLineNumber === lineCount && lineContent === '') {
+				return '';
+			}
+		}
 
 		if (this._renderCustomLineNumbers) {
 			return this._renderCustomLineNumbers(modelLineNumber);
@@ -162,7 +170,7 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 		}
 		let lineIndex = lineNumber - startLineNumber;
 		if (lineIndex < 0 || lineIndex >= this._renderResult.length) {
-			throw new Error('Unexpected render request');
+			return '';
 		}
 		return this._renderResult[lineIndex];
 	}
@@ -171,8 +179,12 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 // theming
 
 registerThemingParticipant((theme, collector) => {
-	let lineNumbers = theme.getColor(editorLineNumbers);
+	const lineNumbers = theme.getColor(editorLineNumbers);
 	if (lineNumbers) {
 		collector.addRule(`.monaco-editor .line-numbers { color: ${lineNumbers}; }`);
+	}
+	const activeLineNumber = theme.getColor(editorActiveLineNumber);
+	if (activeLineNumber) {
+		collector.addRule(`.monaco-editor .current-line ~ .line-numbers { color: ${activeLineNumber}; }`);
 	}
 });

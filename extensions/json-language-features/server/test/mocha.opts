@@ -1,0 +1,3 @@
+--ui tdd
+--useColors true
+./out/test/**/*.test.js

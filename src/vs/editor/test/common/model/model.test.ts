@@ -2,38 +2,40 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as assert from 'assert';
+import { Disposable, dispose } from 'vs/base/common/lifecycle';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import {
-	ModelRawContentChangedEvent, ModelRawFlush, ModelRawLineChanged,
-	ModelRawLinesDeleted, ModelRawLinesInserted
-} from 'vs/editor/common/model/textModelEvents';
-import { Model } from 'vs/editor/common/model/model';
+import { TokenizationResult2 } from 'vs/editor/common/core/token';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { ModelRawContentChangedEvent, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/model/textModelEvents';
+import { IState, LanguageIdentifier, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/modes';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
+import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 
 // --------- utils
 
-var LINE1 = 'My First Line';
-var LINE2 = '\t\tMy Second Line';
-var LINE3 = '    Third Line';
-var LINE4 = '';
-var LINE5 = '1';
+const LINE1 = 'My First Line';
+const LINE2 = '\t\tMy Second Line';
+const LINE3 = '    Third Line';
+const LINE4 = '';
+const LINE5 = '1';
 
 suite('Editor Model - Model', () => {
 
-	var thisModel: Model;
+	let thisModel: TextModel;
 
 	setup(() => {
-		var text =
+		const text =
 			LINE1 + '\r\n' +
 			LINE2 + '\n' +
 			LINE3 + '\n' +
 			LINE4 + '\r\n' +
 			LINE5;
-		thisModel = Model.createFromString(text);
+		thisModel = TextModel.createFromString(text);
 	});
 
 	teardown(() => {
@@ -100,10 +102,10 @@ suite('Editor Model - Model', () => {
 	});
 
 	test('model insert text without newline eventing', () => {
-		let e: ModelRawContentChangedEvent = null;
+		let e: ModelRawContentChangedEvent | null = null;
 		thisModel.onDidChangeRawContent((_e) => {
 			if (e !== null) {
-				assert.fail();
+				assert.fail('Unexpected assertion error');
 			}
 			e = _e;
 		});
@@ -119,19 +121,18 @@ suite('Editor Model - Model', () => {
 	});
 
 	test('model insert text with one newline eventing', () => {
-		let e: ModelRawContentChangedEvent = null;
+		let e: ModelRawContentChangedEvent | null = null;
 		thisModel.onDidChangeRawContent((_e) => {
 			if (e !== null) {
-				assert.fail();
+				assert.fail('Unexpected assertion error');
 			}
 			e = _e;
 		});
 		thisModel.applyEdits([EditOperation.insert(new Position(1, 3), ' new line\nNo longer')]);
 		assert.deepEqual(e, new ModelRawContentChangedEvent(
 			[
-				new ModelRawLineChanged(1, 'My new line First Line'),
 				new ModelRawLineChanged(1, 'My new line'),
-				new ModelRawLinesInserted(2, 2, 'No longer First Line'),
+				new ModelRawLinesInserted(2, 2, ['No longer First Line']),
 			],
 			2,
 			false,
@@ -197,10 +198,10 @@ suite('Editor Model - Model', () => {
 	});
 
 	test('model delete text from one line eventing', () => {
-		let e: ModelRawContentChangedEvent = null;
+		let e: ModelRawContentChangedEvent | null = null;
 		thisModel.onDidChangeRawContent((_e) => {
 			if (e !== null) {
-				assert.fail();
+				assert.fail('Unexpected assertion error');
 			}
 			e = _e;
 		});
@@ -216,10 +217,10 @@ suite('Editor Model - Model', () => {
 	});
 
 	test('model delete all text from a line eventing', () => {
-		let e: ModelRawContentChangedEvent = null;
+		let e: ModelRawContentChangedEvent | null = null;
 		thisModel.onDidChangeRawContent((_e) => {
 			if (e !== null) {
-				assert.fail();
+				assert.fail('Unexpected assertion error');
 			}
 			e = _e;
 		});
@@ -235,17 +236,16 @@ suite('Editor Model - Model', () => {
 	});
 
 	test('model delete text from two lines eventing', () => {
-		let e: ModelRawContentChangedEvent = null;
+		let e: ModelRawContentChangedEvent | null = null;
 		thisModel.onDidChangeRawContent((_e) => {
 			if (e !== null) {
-				assert.fail();
+				assert.fail('Unexpected assertion error');
 			}
 			e = _e;
 		});
 		thisModel.applyEdits([EditOperation.delete(new Range(1, 4, 2, 6))]);
 		assert.deepEqual(e, new ModelRawContentChangedEvent(
 			[
-				new ModelRawLineChanged(1, 'My '),
 				new ModelRawLineChanged(1, 'My Second Line'),
 				new ModelRawLinesDeleted(2, 2),
 			],
@@ -256,17 +256,16 @@ suite('Editor Model - Model', () => {
 	});
 
 	test('model delete text from many lines eventing', () => {
-		let e: ModelRawContentChangedEvent = null;
+		let e: ModelRawContentChangedEvent | null = null;
 		thisModel.onDidChangeRawContent((_e) => {
 			if (e !== null) {
-				assert.fail();
+				assert.fail('Unexpected assertion error');
 			}
 			e = _e;
 		});
 		thisModel.applyEdits([EditOperation.delete(new Range(1, 4, 3, 5))]);
 		assert.deepEqual(e, new ModelRawContentChangedEvent(
 			[
-				new ModelRawLineChanged(1, 'My '),
 				new ModelRawLineChanged(1, 'My Third Line'),
 				new ModelRawLinesDeleted(2, 3),
 			],
@@ -308,10 +307,10 @@ suite('Editor Model - Model', () => {
 
 	// --------- setValue
 	test('setValue eventing', () => {
-		let e: ModelRawContentChangedEvent = null;
+		let e: ModelRawContentChangedEvent | null = null;
 		thisModel.onDidChangeRawContent((_e) => {
 			if (e !== null) {
-				assert.fail();
+				assert.fail('Unexpected assertion error');
 			}
 			e = _e;
 		});
@@ -325,22 +324,32 @@ suite('Editor Model - Model', () => {
 			false
 		));
 	});
+
+	test('issue #46342: Maintain edit operation order in applyEdits', () => {
+		let res = thisModel.applyEdits([
+			{ range: new Range(2, 1, 2, 1), text: 'a' },
+			{ range: new Range(1, 1, 1, 1), text: 'b' },
+		]);
+
+		assert.deepEqual(res[0].range, new Range(2, 1, 2, 2));
+		assert.deepEqual(res[1].range, new Range(1, 1, 1, 2));
+	});
 });
 
 
 // --------- Special Unicode LINE SEPARATOR character
 suite('Editor Model - Model Line Separators', () => {
 
-	var thisModel: Model;
+	let thisModel: TextModel;
 
 	setup(() => {
-		var text =
+		const text =
 			LINE1 + '\u2028' +
 			LINE2 + '\n' +
 			LINE3 + '\u2028' +
 			LINE4 + '\r\n' +
 			LINE5;
-		thisModel = Model.createFromString(text);
+		thisModel = TextModel.createFromString(text);
 	});
 
 	teardown(() => {
@@ -356,7 +365,7 @@ suite('Editor Model - Model Line Separators', () => {
 	});
 
 	test('Bug 13333:Model should line break on lonely CR too', () => {
-		var model = Model.createFromString('Hello\rWorld!\r\nAnother line');
+		let model = TextModel.createFromString('Hello\rWorld!\r\nAnother line');
 		assert.equal(model.getLineCount(), 3);
 		assert.equal(model.getValue(), 'Hello\r\nWorld!\r\nAnother line');
 		model.dispose();
@@ -368,18 +377,62 @@ suite('Editor Model - Model Line Separators', () => {
 
 suite('Editor Model - Words', () => {
 
-	var thisModel: Model;
+	const OUTER_LANGUAGE_ID = new LanguageIdentifier('outerMode', 3);
+	const INNER_LANGUAGE_ID = new LanguageIdentifier('innerMode', 4);
+
+	class OuterMode extends MockMode {
+		constructor() {
+			super(OUTER_LANGUAGE_ID);
+			this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {}));
+
+			this._register(TokenizationRegistry.register(this.getLanguageIdentifier().language, {
+				getInitialState: (): IState => NULL_STATE,
+				tokenize: undefined!,
+				tokenize2: (line: string, state: IState): TokenizationResult2 => {
+					const tokensArr: number[] = [];
+					let prevLanguageId: LanguageIdentifier | undefined = undefined;
+					for (let i = 0; i < line.length; i++) {
+						const languageId = (line.charAt(i) === 'x' ? INNER_LANGUAGE_ID : OUTER_LANGUAGE_ID);
+						if (prevLanguageId !== languageId) {
+							tokensArr.push(i);
+							tokensArr.push((languageId.id << MetadataConsts.LANGUAGEID_OFFSET));
+						}
+						prevLanguageId = languageId;
+					}
+
+					const tokens = new Uint32Array(tokensArr.length);
+					for (let i = 0; i < tokens.length; i++) {
+						tokens[i] = tokensArr[i];
+					}
+					return new TokenizationResult2(tokens, state);
+				}
+			}));
+		}
+	}
+
+	class InnerMode extends MockMode {
+		constructor() {
+			super(INNER_LANGUAGE_ID);
+			this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {}));
+		}
+	}
+
+	let disposables: Disposable[] = [];
 
 	setup(() => {
-		var text = ['This text has some  words. '];
-		thisModel = Model.createFromString(text.join('\n'));
+		disposables = [];
 	});
 
 	teardown(() => {
-		thisModel.dispose();
+		dispose(disposables);
+		disposables = [];
 	});
 
 	test('Get word at position', () => {
+		const text = ['This text has some  words. '];
+		const thisModel = TextModel.createFromString(text.join('\n'));
+		disposables.push(thisModel);
+
 		assert.deepEqual(thisModel.getWordAtPosition(new Position(1, 1)), { word: 'This', startColumn: 1, endColumn: 5 });
 		assert.deepEqual(thisModel.getWordAtPosition(new Position(1, 2)), { word: 'This', startColumn: 1, endColumn: 5 });
 		assert.deepEqual(thisModel.getWordAtPosition(new Position(1, 4)), { word: 'This', startColumn: 1, endColumn: 5 });
@@ -391,5 +444,48 @@ suite('Editor Model - Words', () => {
 		assert.deepEqual(thisModel.getWordAtPosition(new Position(1, 26)), { word: 'words', startColumn: 21, endColumn: 26 });
 		assert.deepEqual(thisModel.getWordAtPosition(new Position(1, 27)), null);
 		assert.deepEqual(thisModel.getWordAtPosition(new Position(1, 28)), null);
+	});
+
+	test('getWordAtPosition at embedded language boundaries', () => {
+		const outerMode = new OuterMode();
+		const innerMode = new InnerMode();
+		disposables.push(outerMode, innerMode);
+
+		const model = TextModel.createFromString('ab<xx>ab<x>', undefined, outerMode.getLanguageIdentifier());
+		disposables.push(model);
+
+		assert.deepEqual(model.getWordAtPosition(new Position(1, 1)), { word: 'ab', startColumn: 1, endColumn: 3 });
+		assert.deepEqual(model.getWordAtPosition(new Position(1, 2)), { word: 'ab', startColumn: 1, endColumn: 3 });
+		assert.deepEqual(model.getWordAtPosition(new Position(1, 3)), { word: 'ab', startColumn: 1, endColumn: 3 });
+		assert.deepEqual(model.getWordAtPosition(new Position(1, 4)), { word: 'xx', startColumn: 4, endColumn: 6 });
+		assert.deepEqual(model.getWordAtPosition(new Position(1, 5)), { word: 'xx', startColumn: 4, endColumn: 6 });
+		assert.deepEqual(model.getWordAtPosition(new Position(1, 6)), { word: 'xx', startColumn: 4, endColumn: 6 });
+		assert.deepEqual(model.getWordAtPosition(new Position(1, 7)), { word: 'ab', startColumn: 7, endColumn: 9 });
+	});
+
+	test('issue #61296: VS code freezes when editing CSS file with emoji', () => {
+		const MODE_ID = new LanguageIdentifier('testMode', 4);
+
+		const mode = new class extends MockMode {
+			constructor() {
+				super(MODE_ID);
+				this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+					wordPattern: /(#?-?\d*\.\d\w*%?)|(::?[\w-]*(?=[^,{;]*[,{]))|(([@#.!])?[\w-?]+%?|[@#!.])/g
+				}));
+			}
+		};
+		disposables.push(mode);
+
+		const thisModel = TextModel.createFromString('.🐷-a-b', undefined, MODE_ID);
+		disposables.push(thisModel);
+
+		assert.deepEqual(thisModel.getWordAtPosition(new Position(1, 1)), { word: '.', startColumn: 1, endColumn: 2 });
+		assert.deepEqual(thisModel.getWordAtPosition(new Position(1, 2)), { word: '.', startColumn: 1, endColumn: 2 });
+		assert.deepEqual(thisModel.getWordAtPosition(new Position(1, 3)), null);
+		assert.deepEqual(thisModel.getWordAtPosition(new Position(1, 4)), { word: '-a-b', startColumn: 4, endColumn: 8 });
+		assert.deepEqual(thisModel.getWordAtPosition(new Position(1, 5)), { word: '-a-b', startColumn: 4, endColumn: 8 });
+		assert.deepEqual(thisModel.getWordAtPosition(new Position(1, 6)), { word: '-a-b', startColumn: 4, endColumn: 8 });
+		assert.deepEqual(thisModel.getWordAtPosition(new Position(1, 7)), { word: '-a-b', startColumn: 4, endColumn: 8 });
+		assert.deepEqual(thisModel.getWordAtPosition(new Position(1, 8)), { word: '-a-b', startColumn: 4, endColumn: 8 });
 	});
 });

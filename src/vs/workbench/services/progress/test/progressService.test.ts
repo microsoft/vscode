@@ -3,15 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { IAction, IActionItem } from 'vs/base/common/actions';
-import { Promise, TPromise } from 'vs/base/common/winjs.base';
-import { IEditorControl } from 'vs/platform/editor/common/editor';
+import { IEditorControl } from 'vs/workbench/common/editor';
 import { Viewlet, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { IPanel } from 'vs/workbench/common/panel';
-import { WorkbenchProgressService, ScopedService } from 'vs/workbench/services/progress/browser/progressService';
+import { ScopedProgressService, ScopedService } from 'vs/workbench/services/progress/browser/progressService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewlet } from 'vs/workbench/common/viewlet';
@@ -22,17 +19,25 @@ let activeViewlet: Viewlet = {} as any;
 class TestViewletService implements IViewletService {
 	public _serviceBrand: any;
 
+	onDidViewletRegisterEmitter = new Emitter<ViewletDescriptor>();
+	onDidViewletDeregisterEmitter = new Emitter<ViewletDescriptor>();
 	onDidViewletOpenEmitter = new Emitter<IViewlet>();
 	onDidViewletCloseEmitter = new Emitter<IViewlet>();
 
+	onDidViewletRegister = this.onDidViewletRegisterEmitter.event;
+	onDidViewletDeregister = this.onDidViewletDeregisterEmitter.event;
 	onDidViewletOpen = this.onDidViewletOpenEmitter.event;
 	onDidViewletClose = this.onDidViewletCloseEmitter.event;
 
-	public openViewlet(id: string, focus?: boolean): TPromise<IViewlet> {
-		return TPromise.as(null);
+	public openViewlet(id: string, focus?: boolean): Promise<IViewlet> {
+		return Promise.resolve(null!);
 	}
 
 	public getViewlets(): ViewletDescriptor[] {
+		return [];
+	}
+
+	public getAllViewlets(): ViewletDescriptor[] {
 		return [];
 	}
 
@@ -47,32 +52,38 @@ class TestViewletService implements IViewletService {
 		return 'workbench.view.explorer';
 	}
 
-	public getViewlet(id: string): ViewletDescriptor {
-		return null;
+	public getViewlet(id: string): ViewletDescriptor | undefined {
+		return undefined;
 	}
 
 	public getProgressIndicator(id: string) {
-		return null;
+		return null!;
 	}
 }
 
 class TestPanelService implements IPanelService {
 	public _serviceBrand: any;
 
-	onDidPanelOpen = new Emitter<IPanel>().event;
+	onDidPanelOpen = new Emitter<{ panel: IPanel, focus: boolean }>().event;
 	onDidPanelClose = new Emitter<IPanel>().event;
 
-	public openPanel(id: string, focus?: boolean): Promise {
-		return TPromise.as(null);
+	public openPanel(id: string, focus?: boolean): IPanel {
+		return null!;
 	}
 
 	public getPanels(): any[] {
 		return [];
 	}
 
+	public getPinnedPanels(): any[] {
+		return [];
+	}
+
 	public getActivePanel(): IViewlet {
 		return activeViewlet;
 	}
+
+	public setPanelEnablement(id: string, enabled: boolean): void { }
 
 	public dispose() {
 	}
@@ -118,14 +129,14 @@ class TestViewlet implements IViewlet {
 	 * Returns the action item for a specific action.
 	 */
 	getActionItem(action: IAction): IActionItem {
-		return null;
+		return null!;
 	}
 
 	/**
 	 * Returns the underlying control of this composite.
 	 */
 	getControl(): IEditorControl {
-		return null;
+		return null!;
 	}
 
 	/**
@@ -164,14 +175,14 @@ class TestProgressBar {
 	}
 
 	public infinite() {
-		this.fDone = null;
+		this.fDone = null!;
 		this.fInfinite = true;
 
 		return this;
 	}
 
 	public total(total: number) {
-		this.fDone = null;
+		this.fDone = null!;
 		this.fTotal = total;
 
 		return this;
@@ -182,7 +193,7 @@ class TestProgressBar {
 	}
 
 	public worked(worked: number) {
-		this.fDone = null;
+		this.fDone = null!;
 
 		if (this.fWorked) {
 			this.fWorked += worked;
@@ -196,9 +207,9 @@ class TestProgressBar {
 	public done() {
 		this.fDone = true;
 
-		this.fInfinite = null;
-		this.fWorked = null;
-		this.fTotal = null;
+		this.fInfinite = null!;
+		this.fWorked = null!;
+		this.fTotal = null!;
 
 		return this;
 	}
@@ -207,11 +218,12 @@ class TestProgressBar {
 		return this.done();
 	}
 
-	public getContainer() {
-		return {
-			show: function () { },
-			hide: function () { }
-		};
+	public show(): void {
+
+	}
+
+	public hide(): void {
+
 	}
 }
 
@@ -232,11 +244,11 @@ suite('Progress Service', () => {
 
 	});
 
-	test('WorkbenchProgressService', function () {
+	test('WorkbenchProgressService', async () => {
 		let testProgressBar = new TestProgressBar();
 		let viewletService = new TestViewletService();
 		let panelService = new TestPanelService();
-		let service = new WorkbenchProgressService((<any>testProgressBar), 'test.scopeId', true, viewletService, panelService);
+		let service = new ScopedProgressService((<any>testProgressBar), 'test.scopeId', true, viewletService, panelService);
 
 		// Active: Show (Infinite)
 		let fn = service.show(true);
@@ -274,18 +286,14 @@ suite('Progress Service', () => {
 		assert.strictEqual(80, testProgressBar.fTotal);
 
 		// Acive: Show While
-		let p = TPromise.as(null);
-		service.showWhile(p).then(() => {
-			assert.strictEqual(true, testProgressBar.fDone);
-
-			viewletService.onDidViewletCloseEmitter.fire(testViewlet);
-			p = TPromise.as(null);
-			service.showWhile(p).then(() => {
-				assert.strictEqual(true, testProgressBar.fDone);
-
-				viewletService.onDidViewletOpenEmitter.fire(testViewlet);
-				assert.strictEqual(true, testProgressBar.fDone);
-			});
-		});
+		let p = Promise.resolve(null);
+		await service.showWhile(p);
+		assert.strictEqual(true, testProgressBar.fDone);
+		viewletService.onDidViewletCloseEmitter.fire(testViewlet);
+		p = Promise.resolve(null);
+		await service.showWhile(p);
+		assert.strictEqual(true, testProgressBar.fDone);
+		viewletService.onDidViewletOpenEmitter.fire(testViewlet);
+		assert.strictEqual(true, testProgressBar.fDone);
 	});
 });

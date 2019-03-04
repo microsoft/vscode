@@ -1,0 +1,18 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "atom/language-clojure",
+					"repositoryUrl": "https://github.com/atom/language-clojure",
+					"commitHash": "ecc790326bc8e14220e4d2d72a392a30876c3219"
+				}
+			},
+			"license": "MIT",
+			"version": "0.22.6",
+			"description": "The file syntaxes/clojure.tmLanguage.json was derived from the Atom package https://github.com/atom/language-clojure which was originally converted from the TextMate bundle https://github.com/mmcgrana/textmate-clojure."
+		}
+	],
+	"version": 1
+}

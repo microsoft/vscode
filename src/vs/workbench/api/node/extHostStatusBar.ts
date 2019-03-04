@@ -2,12 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/platform/statusbar/common/statusbar';
 import { StatusBarAlignment as ExtHostStatusBarAlignment, Disposable, ThemeColor } from './extHostTypes';
 import { StatusBarItem, StatusBarAlignment } from 'vscode';
 import { MainContext, MainThreadStatusBarShape, IMainContext } from './extHost.protocol';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export class ExtHostStatusBarEntry implements StatusBarItem {
 	private static ID_GEN = 0;
@@ -23,12 +23,12 @@ export class ExtHostStatusBarEntry implements StatusBarItem {
 	private _color: string | ThemeColor;
 	private _command: string;
 
-	private _timeoutHandle: number;
+	private _timeoutHandle: any;
 	private _proxy: MainThreadStatusBarShape;
 
-	private _extensionId: string;
+	private _extensionId: ExtensionIdentifier;
 
-	constructor(proxy: MainThreadStatusBarShape, extensionId: string, alignment: ExtHostStatusBarAlignment = ExtHostStatusBarAlignment.Left, priority?: number) {
+	constructor(proxy: MainThreadStatusBarShape, extensionId: ExtensionIdentifier, alignment: ExtHostStatusBarAlignment = ExtHostStatusBarAlignment.Left, priority?: number) {
 		this._id = ExtHostStatusBarEntry.ID_GEN++;
 		this._proxy = proxy;
 		this._alignment = alignment;
@@ -125,7 +125,7 @@ class StatusBarMessage {
 	private _messages: { message: string }[] = [];
 
 	constructor(statusBar: ExtHostStatusBar) {
-		this._item = statusBar.createStatusBarEntry(void 0, ExtHostStatusBarAlignment.Left, Number.MIN_VALUE);
+		this._item = statusBar.createStatusBarEntry(undefined, ExtHostStatusBarAlignment.Left, Number.MIN_VALUE);
 	}
 
 	dispose() {
@@ -163,18 +163,18 @@ export class ExtHostStatusBar {
 	private _statusMessage: StatusBarMessage;
 
 	constructor(mainContext: IMainContext) {
-		this._proxy = mainContext.get(MainContext.MainThreadStatusBar);
+		this._proxy = mainContext.getProxy(MainContext.MainThreadStatusBar);
 		this._statusMessage = new StatusBarMessage(this);
 	}
 
-	createStatusBarEntry(extensionId: string, alignment?: ExtHostStatusBarAlignment, priority?: number): StatusBarItem {
+	createStatusBarEntry(extensionId: ExtensionIdentifier, alignment?: ExtHostStatusBarAlignment, priority?: number): StatusBarItem {
 		return new ExtHostStatusBarEntry(this._proxy, extensionId, alignment, priority);
 	}
 
 	setStatusBarMessage(text: string, timeoutOrThenable?: number | Thenable<any>): Disposable {
 
 		let d = this._statusMessage.setMessage(text);
-		let handle: number;
+		let handle: any;
 
 		if (typeof timeoutOrThenable === 'number') {
 			handle = setTimeout(() => d.dispose(), timeoutOrThenable);

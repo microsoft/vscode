@@ -9,11 +9,6 @@
 	border-bottom-width: 1px;
 }
 
-.monaco-editor .zone-widget .zone-widget-container.reference-zone-widget.results-loaded {
-	-webkit-transition: height 100ms ease-in;
-	transition: height 100ms ease-in;
-}
-
 .monaco-editor .reference-zone-widget .inline {
 	display: inline-block;
 	vertical-align: top;
@@ -27,8 +22,7 @@
 }
 
 .monaco-editor .reference-zone-widget .ref-tree {
-	line-height: 22px;
-	font-size: 13px;
+	line-height: 23px;
 }
 
 .monaco-editor .reference-zone-widget .ref-tree .reference {
@@ -40,6 +34,10 @@
 	display: inline-flex;
 	width: 100%;
 	height: 100%;
+}
+
+.monaco-editor .reference-zone-widget .ref-tree .monaco-list:focus .selected .reference-file {
+	color: inherit !important;
 }
 
 .monaco-editor .reference-zone-widget .ref-tree .reference-file .count {

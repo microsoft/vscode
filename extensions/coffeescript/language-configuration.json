@@ -20,9 +20,14 @@
 		["[", "]"],
 		["(", ")"],
 		["\"", "\""],
-		["'", "'"]
+		["'", "'"],
+		[" ", " "]
 	],
 	"folding": {
-		"offSide": true
+		"offSide": true,
+		"markers": {
+			"start": "^\\s*#region\\b",
+			"end": "^\\s*#endregion\\b"
+		}
 	}
 }

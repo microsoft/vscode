@@ -5,6 +5,7 @@
 .monaco-editor .detected-link,
 .monaco-editor .detected-link-active {
 	text-decoration: underline;
+	text-underline-position: under;
 }
 
 .monaco-editor .detected-link-active {

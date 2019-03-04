@@ -2,15 +2,14 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { Constants, MinimapCharRenderer } from 'vs/editor/common/view/minimapCharRenderer';
-import { MinimapCharRendererFactory } from 'vs/editor/test/common/view/minimapCharRendererFactory';
-import { getOrCreateMinimapCharRenderer } from 'vs/editor/common/view/runtimeMinimapCharRenderer';
 import { RGBA8 } from 'vs/editor/common/core/rgba';
+import { Constants, MinimapCharRenderer } from 'vs/editor/common/view/minimapCharRenderer';
+import { getOrCreateMinimapCharRenderer } from 'vs/editor/common/view/runtimeMinimapCharRenderer';
+import { MinimapCharRendererFactory } from 'vs/editor/test/common/view/minimapCharRendererFactory';
 
 let canvas = <HTMLCanvasElement>document.getElementById('my-canvas');
-let ctx = canvas.getContext('2d');
+let ctx = canvas.getContext('2d')!;
 
 canvas.style.height = 100 + 'px';
 canvas.height = 100;
@@ -118,21 +117,21 @@ function renderMinimapCharRenderer(minimapCharRenderer: MinimapCharRenderer, y: 
 
 function renderImageData(imageData: ImageData, left: number, top: number): void {
 	let output = '';
-	var offset = 0;
-	var PX_SIZE = 15;
-	for (var i = 0; i < imageData.height; i++) {
-		for (var j = 0; j < imageData.width; j++) {
-			var R = imageData.data[offset];
-			var G = imageData.data[offset + 1];
-			var B = imageData.data[offset + 2];
-			var A = imageData.data[offset + 3];
+	let offset = 0;
+	let PX_SIZE = 15;
+	for (let i = 0; i < imageData.height; i++) {
+		for (let j = 0; j < imageData.width; j++) {
+			let R = imageData.data[offset];
+			let G = imageData.data[offset + 1];
+			let B = imageData.data[offset + 2];
+			let A = imageData.data[offset + 3];
 			offset += 4;
 
 			output += `<div style="position:absolute;top:${PX_SIZE * i}px;left:${PX_SIZE * j}px;width:${PX_SIZE}px;height:${PX_SIZE}px;background:rgba(${R},${G},${B},${A / 256})"></div>`;
 		}
 	}
 
-	var domNode = document.createElement('div');
+	let domNode = document.createElement('div');
 	domNode.style.position = 'absolute';
 	domNode.style.top = top + 'px';
 	domNode.style.left = left + 'px';

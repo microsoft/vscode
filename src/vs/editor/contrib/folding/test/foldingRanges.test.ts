@@ -3,10 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
-import { Model } from 'vs/editor/common/model/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { computeRanges } from 'vs/editor/contrib/folding/indentRangeProvider';
 import { FoldingMarkers } from 'vs/editor/common/modes/languageConfiguration';
 import { MAX_FOLDING_REGIONS } from 'vs/editor/contrib/folding/foldingRanges';
@@ -20,7 +18,7 @@ let markers: FoldingMarkers = {
 suite('FoldingRanges', () => {
 
 	test('test max folding regions', () => {
-		let lines = [];
+		let lines: string[] = [];
 		let nRegions = MAX_FOLDING_REGIONS;
 		for (let i = 0; i < nRegions; i++) {
 			lines.push('#region');
@@ -28,7 +26,7 @@ suite('FoldingRanges', () => {
 		for (let i = 0; i < nRegions; i++) {
 			lines.push('#endregion');
 		}
-		let model = Model.createFromString(lines.join('\n'));
+		let model = TextModel.createFromString(lines.join('\n'));
 		let actual = computeRanges(model, false, markers, MAX_FOLDING_REGIONS);
 		assert.equal(actual.length, nRegions, 'len');
 		for (let i = 0; i < nRegions; i++) {
@@ -55,7 +53,7 @@ suite('FoldingRanges', () => {
 		/* 12*/	'  }',
 		/* 13*/	'}'];
 
-		let textModel = Model.createFromString(lines.join('\n'));
+		let textModel = TextModel.createFromString(lines.join('\n'));
 		try {
 			let actual = computeRanges(textModel, false, markers);
 			// let r0 = r(1, 2);
@@ -85,7 +83,7 @@ suite('FoldingRanges', () => {
 	});
 
 	test('setCollapsed', () => {
-		let lines = [];
+		let lines: string[] = [];
 		let nRegions = 500;
 		for (let i = 0; i < nRegions; i++) {
 			lines.push('#region');
@@ -93,7 +91,7 @@ suite('FoldingRanges', () => {
 		for (let i = 0; i < nRegions; i++) {
 			lines.push('#endregion');
 		}
-		let model = Model.createFromString(lines.join('\n'));
+		let model = TextModel.createFromString(lines.join('\n'));
 		let actual = computeRanges(model, false, markers, MAX_FOLDING_REGIONS);
 		assert.equal(actual.length, nRegions, 'len');
 		for (let i = 0; i < nRegions; i++) {

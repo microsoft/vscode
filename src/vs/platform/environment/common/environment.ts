@@ -4,12 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { URI } from 'vs/base/common/uri';
 
 export interface ParsedArgs {
 	[arg: string]: any;
 	_: string[];
+	'folder-uri'?: string | string[];
+	'file-uri'?: string | string[];
+	_urls?: string[];
 	help?: boolean;
 	version?: boolean;
+	status?: boolean;
 	wait?: boolean;
 	waitMarkerFilePath?: string;
 	diff?: boolean;
@@ -20,43 +25,61 @@ export interface ParsedArgs {
 	'reuse-window'?: boolean;
 	locale?: string;
 	'user-data-dir'?: string;
-	performance?: boolean;
 	'prof-startup'?: string;
+	'prof-startup-prefix'?: string;
+	'prof-append-timers'?: string;
+	'prof-modules'?: string;
 	verbose?: boolean;
+	trace?: boolean;
+	'trace-category-filter'?: string;
+	'trace-options'?: string;
+	log?: string;
 	logExtensionHostCommunication?: boolean;
-	'disable-extensions'?: boolean;
 	'extensions-dir'?: string;
-	extensionDevelopmentPath?: string;
-	extensionTestsPath?: string;
-	debugPluginHost?: string;
-	debugBrkPluginHost?: string;
+	'builtin-extensions-dir'?: string;
+	extensionDevelopmentPath?: string; // either a local path or a URI
+	extensionTestsPath?: string; // either a local path or a URI
+	'inspect-extensions'?: string;
+	'inspect-brk-extensions'?: string;
 	debugId?: string;
-	debugSearch?: string;
-	debugBrkSearch?: string;
+	'inspect-search'?: string;
+	'inspect-brk-search'?: string;
+	'disable-extensions'?: boolean;
+	'disable-extension'?: string | string[];
 	'list-extensions'?: boolean;
 	'show-versions'?: boolean;
 	'install-extension'?: string | string[];
 	'uninstall-extension'?: string | string[];
 	'enable-proposed-api'?: string | string[];
-	'open-url'?: string | string[];
+	'open-url'?: boolean;
 	'skip-getting-started'?: boolean;
+	'skip-release-notes'?: boolean;
 	'sticky-quickopen'?: boolean;
+	'disable-restore-windows'?: boolean;
 	'disable-telemetry'?: boolean;
 	'export-default-configuration'?: string;
 	'install-source'?: string;
 	'disable-updates'?: string;
 	'disable-crash-reporter'?: string;
+	'skip-add-to-recently-opened'?: boolean;
+	'max-memory'?: string;
+	'file-write'?: boolean;
+	'file-chmod'?: boolean;
+	'upload-logs'?: string;
+	'driver'?: string;
+	'driver-verbose'?: boolean;
+	remote?: string;
 }
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
 
 export interface IDebugParams {
-	port: number;
+	port: number | null;
 	break: boolean;
 }
 
 export interface IExtensionHostDebugParams extends IDebugParams {
-	debugId: string;
+	debugId?: string;
 }
 
 export interface IEnvironmentService {
@@ -65,51 +88,64 @@ export interface IEnvironmentService {
 	args: ParsedArgs;
 
 	execPath: string;
+	cliPath: string;
 	appRoot: string;
 
 	userHome: string;
 	userDataPath: string;
 
 	appNameLong: string;
-	appQuality: string;
+	appQuality?: string;
 	appSettingsHome: string;
 	appSettingsPath: string;
 	appKeybindingsPath: string;
-	machineUUID: string;
-	settingsSearchBuildId: number;
-	settingsSearchUrl: string;
+
+	settingsSearchBuildId?: number;
+	settingsSearchUrl?: string;
+
+	globalStorageHome: string;
+	workspaceStorageHome: string;
 
 	backupHome: string;
 	backupWorkspacesPath: string;
 
-	workspacesHome: string;
+	untitledWorkspacesHome: URI;
 
 	isExtensionDevelopment: boolean;
-	disableExtensions: boolean;
+	disableExtensions: boolean | string[];
+	builtinExtensionsPath: string;
 	extensionsPath: string;
-	extensionDevelopmentPath: string;
-	extensionTestsPath: string;
+	extensionDevelopmentLocationURI?: URI;
+	extensionTestsLocationURI?: URI;
 
 	debugExtensionHost: IExtensionHostDebugParams;
 	debugSearch: IDebugParams;
 
-
 	logExtensionHostCommunication: boolean;
 
 	isBuilt: boolean;
-	verbose: boolean;
 	wait: boolean;
-	performance: boolean;
-	profileStartup: { prefix: string, dir: string } | undefined;
+	status: boolean;
+
+	// logging
+	log?: string;
+	logsPath: string;
+	verbose: boolean;
 
 	skipGettingStarted: boolean | undefined;
+	skipReleaseNotes: boolean | undefined;
+
+	skipAddToRecentlyOpened: boolean;
 
 	mainIPCHandle: string;
 	sharedIPCHandle: string;
 
-	nodeCachedDataDir: string;
+	nodeCachedDataDir?: string;
 
-	installSource: string;
+	installSourcePath: string;
 	disableUpdates: boolean;
 	disableCrashReporter: boolean;
+
+	driverHandle?: string;
+	driverVerbose: boolean;
 }

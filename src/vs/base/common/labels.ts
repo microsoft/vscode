@@ -2,17 +2,18 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import URI from 'vs/base/common/uri';
-import platform = require('vs/base/common/platform');
-import { nativeSep, normalize, isEqualOrParent, isEqual, basename, join } from 'vs/base/common/paths';
-import { endsWith, ltrim } from 'vs/base/common/strings';
+import { URI } from 'vs/base/common/uri';
+import { sep, posix, normalize } from 'vs/base/common/path';
+import { endsWith, ltrim, startsWithIgnoreCase, rtrim, startsWith } from 'vs/base/common/strings';
+import { Schemas } from 'vs/base/common/network';
+import { isLinux, isWindows, isMacintosh } from 'vs/base/common/platform';
+import { isEqual, basename } from 'vs/base/common/resources';
 
 export interface IWorkspaceFolderProvider {
-	getWorkspaceFolder(resource: URI): { uri: URI };
+	getWorkspaceFolder(resource: URI): { uri: URI, name?: string } | null;
 	getWorkspace(): {
-		folders: { uri: URI }[];
+		folders: { uri: URI, name?: string }[];
 	};
 }
 
@@ -20,55 +21,79 @@ export interface IUserHomeProvider {
 	userHome: string;
 }
 
-export function getPathLabel(resource: URI | string, rootProvider?: IWorkspaceFolderProvider, userHomeProvider?: IUserHomeProvider): string {
-	if (!resource) {
-		return null;
-	}
-
+/**
+ * @deprecated use LabelService instead
+ */
+export function getPathLabel(resource: URI | string, userHomeProvider?: IUserHomeProvider, rootProvider?: IWorkspaceFolderProvider): string {
 	if (typeof resource === 'string') {
 		resource = URI.file(resource);
 	}
 
-	if (resource.scheme !== 'file' && resource.scheme !== 'untitled') {
-		return resource.authority + resource.path;
+	// return early if we can resolve a relative path label from the root
+	if (rootProvider) {
+		const baseResource = rootProvider.getWorkspaceFolder(resource);
+		if (baseResource) {
+			const hasMultipleRoots = rootProvider.getWorkspace().folders.length > 1;
+
+			let pathLabel: string;
+			if (isEqual(baseResource.uri, resource)) {
+				pathLabel = ''; // no label if paths are identical
+			} else {
+				// TODO: isidor use resources.relative
+				pathLabel = normalize(ltrim(resource.path.substr(baseResource.uri.path.length), posix.sep)!);
+			}
+
+			if (hasMultipleRoots) {
+				const rootName = (baseResource && baseResource.name) ? baseResource.name : basename(baseResource.uri);
+				pathLabel = pathLabel ? (rootName + ' • ' + pathLabel) : rootName; // always show root basename if there are multiple
+			}
+
+			return pathLabel;
+		}
 	}
 
-	// return early if we can resolve a relative path label from the root
-	const baseResource = rootProvider ? rootProvider.getWorkspaceFolder(resource) : null;
-	if (baseResource) {
-		const hasMultipleRoots = rootProvider.getWorkspace().folders.length > 1;
-
-		let pathLabel: string;
-		if (isEqual(baseResource.uri.fsPath, resource.fsPath, !platform.isLinux /* ignorecase */)) {
-			pathLabel = ''; // no label if pathes are identical
-		} else {
-			pathLabel = normalize(ltrim(resource.fsPath.substr(baseResource.uri.fsPath.length), nativeSep), true);
-		}
-
-		if (hasMultipleRoots) {
-			const rootName = basename(baseResource.uri.fsPath);
-			pathLabel = pathLabel ? join(rootName, pathLabel) : rootName; // always show root basename if there are multiple
-		}
-
-		return pathLabel;
+	// return if the resource is neither file:// nor untitled:// and no baseResource was provided
+	if (resource.scheme !== Schemas.file && resource.scheme !== Schemas.untitled) {
+		return resource.with({ query: null, fragment: null }).toString(true);
 	}
 
 	// convert c:\something => C:\something
 	if (hasDriveLetter(resource.fsPath)) {
-		return normalize(normalizeDriveLetter(resource.fsPath), true);
+		return normalize(normalizeDriveLetter(resource.fsPath));
 	}
 
 	// normalize and tildify (macOS, Linux only)
-	let res = normalize(resource.fsPath, true);
-	if (!platform.isWindows && userHomeProvider) {
+	let res = normalize(resource.fsPath);
+	if (!isWindows && userHomeProvider) {
 		res = tildify(res, userHomeProvider.userHome);
 	}
 
 	return res;
 }
 
+export function getBaseLabel(resource: URI | string): string;
+export function getBaseLabel(resource: URI | string | undefined): string | undefined;
+export function getBaseLabel(resource: URI | string | undefined): string | undefined {
+	if (!resource) {
+		return undefined;
+	}
+
+	if (typeof resource === 'string') {
+		resource = URI.file(resource);
+	}
+
+	const base = basename(resource) || (resource.scheme === Schemas.file ? resource.fsPath : resource.path) /* can be empty string if '/' is passed in */;
+
+	// convert c: => C:
+	if (hasDriveLetter(base)) {
+		return normalizeDriveLetter(base);
+	}
+
+	return base;
+}
+
 function hasDriveLetter(path: string): boolean {
-	return platform.isWindows && path && path[1] === ':';
+	return !!(isWindows && path && path[1] === ':');
 }
 
 export function normalizeDriveLetter(path: string): string {
@@ -79,12 +104,29 @@ export function normalizeDriveLetter(path: string): string {
 	return path;
 }
 
+let normalizedUserHomeCached: { original: string; normalized: string } = Object.create(null);
 export function tildify(path: string, userHome: string): string {
-	if (path && (platform.isMacintosh || platform.isLinux) && isEqualOrParent(path, userHome, !platform.isLinux /* ignorecase */)) {
-		path = `~${path.substr(userHome.length)}`;
+	if (isWindows || !path || !userHome) {
+		return path; // unsupported
+	}
+
+	// Keep a normalized user home path as cache to prevent accumulated string creation
+	let normalizedUserHome = normalizedUserHomeCached.original === userHome ? normalizedUserHomeCached.normalized : undefined;
+	if (!normalizedUserHome) {
+		normalizedUserHome = `${rtrim(userHome, posix.sep)}${posix.sep}`;
+		normalizedUserHomeCached = { original: userHome, normalized: normalizedUserHome };
+	}
+
+	// Linux: case sensitive, macOS: case insensitive
+	if (isLinux ? startsWith(path, normalizedUserHome) : startsWithIgnoreCase(path, normalizedUserHome)) {
+		path = `~/${path.substr(normalizedUserHome.length)}`;
 	}
 
 	return path;
+}
+
+export function untildify(path: string, userHome: string): string {
+	return path.replace(/^~($|\/|\\)/, `${userHome}$1`);
 }
 
 /**
@@ -128,7 +170,7 @@ export function shorten(paths: string[]): string[] {
 		let path = paths[pathIndex];
 
 		if (path === '') {
-			shortenedPaths[pathIndex] = `.${nativeSep}`;
+			shortenedPaths[pathIndex] = `.${sep}`;
 			continue;
 		}
 
@@ -144,20 +186,20 @@ export function shorten(paths: string[]): string[] {
 		if (path.indexOf(unc) === 0) {
 			prefix = path.substr(0, path.indexOf(unc) + unc.length);
 			path = path.substr(path.indexOf(unc) + unc.length);
-		} else if (path.indexOf(nativeSep) === 0) {
-			prefix = path.substr(0, path.indexOf(nativeSep) + nativeSep.length);
-			path = path.substr(path.indexOf(nativeSep) + nativeSep.length);
+		} else if (path.indexOf(sep) === 0) {
+			prefix = path.substr(0, path.indexOf(sep) + sep.length);
+			path = path.substr(path.indexOf(sep) + sep.length);
 		} else if (path.indexOf(home) === 0) {
 			prefix = path.substr(0, path.indexOf(home) + home.length);
 			path = path.substr(path.indexOf(home) + home.length);
 		}
 
 		// pick the first shortest subpath found
-		const segments: string[] = path.split(nativeSep);
+		const segments: string[] = path.split(sep);
 		for (let subpathLength = 1; match && subpathLength <= segments.length; subpathLength++) {
 			for (let start = segments.length - subpathLength; match && start >= 0; start--) {
 				match = false;
-				let subpath = segments.slice(start, start + subpathLength).join(nativeSep);
+				let subpath = segments.slice(start, start + subpathLength).join(sep);
 
 				// that is unique to any other path
 				for (let otherPathIndex = 0; !match && otherPathIndex < paths.length; otherPathIndex++) {
@@ -168,7 +210,7 @@ export function shorten(paths: string[]): string[] {
 
 						// Adding separator as prefix for subpath, such that 'endsWith(src, trgt)' considers subpath as directory name instead of plain string.
 						// prefix is not added when either subpath is root directory or path[otherPathIndex] does not have multiple directories.
-						const subpathWithSep: string = (start > 0 && paths[otherPathIndex].indexOf(nativeSep) > -1) ? nativeSep + subpath : subpath;
+						const subpathWithSep: string = (start > 0 && paths[otherPathIndex].indexOf(sep) > -1) ? sep + subpath : subpath;
 						const isOtherPathEnding: boolean = endsWith(paths[otherPathIndex], subpathWithSep);
 
 						match = !isSubpathEnding || isOtherPathEnding;
@@ -185,11 +227,11 @@ export function shorten(paths: string[]): string[] {
 							// extend subpath to include disk drive prefix
 							start = 0;
 							subpathLength++;
-							subpath = segments[0] + nativeSep + subpath;
+							subpath = segments[0] + sep + subpath;
 						}
 
 						if (start > 0) {
-							result = segments[0] + nativeSep;
+							result = segments[0] + sep;
 						}
 
 						result = prefix + result;
@@ -197,14 +239,14 @@ export function shorten(paths: string[]): string[] {
 
 					// add ellipsis at the beginning if neeeded
 					if (start > 0) {
-						result = result + ellipsis + nativeSep;
+						result = result + ellipsis + sep;
 					}
 
 					result = result + subpath;
 
 					// add ellipsis at the end if needed
 					if (start + subpathLength < segments.length) {
-						result = result + nativeSep + ellipsis;
+						result = result + sep + ellipsis;
 					}
 
 					shortenedPaths[pathIndex] = result;
@@ -245,11 +287,8 @@ export function template(template: string, values: { [key: string]: string | ISe
 	const segments: ISegment[] = [];
 
 	let inVariable = false;
-	let char: string;
 	let curVal = '';
-	for (let i = 0; i < template.length; i++) {
-		char = template[i];
-
+	for (const char of template) {
 		// Beginning of variable
 		if (char === '$' || (inVariable && char === '{')) {
 			if (curVal) {
@@ -301,7 +340,7 @@ export function template(template: string, values: { [key: string]: string | ISe
 			const left = segments[index - 1];
 			const right = segments[index + 1];
 
-			return [left, right].every(segment => segment && segment.type === Type.VARIABLE && segment.value.length > 0);
+			return [left, right].every(segment => segment && (segment.type === Type.VARIABLE || segment.type === Type.TEXT) && segment.value.length > 0);
 		}
 
 		// accept any TEXT and VARIABLE
@@ -316,25 +355,29 @@ export function template(template: string, values: { [key: string]: string | ISe
  * -   macOS: Unsupported (replace && with empty string)
  */
 export function mnemonicMenuLabel(label: string, forceDisableMnemonics?: boolean): string {
-	if (platform.isMacintosh || forceDisableMnemonics) {
-		return label.replace(/\(&&\w\)|&&/g, '');
+	if (isMacintosh || forceDisableMnemonics) {
+		return label.replace(/\(&&\w\)|&&/g, '').replace(/&/g, isMacintosh ? '&' : '&&');
 	}
 
-	return label.replace(/&&/g, '&');
+	return label.replace(/&&|&/g, m => m === '&' ? '&&' : '&');
 }
 
 /**
  * Handles mnemonics for buttons. Depending on OS:
- * - Windows: Supported via & character (replace && with &)
+ * - Windows: Supported via & character (replace && with & and & with && for escaping)
  * -   Linux: Supported via _ character (replace && with _)
  * -   macOS: Unsupported (replace && with empty string)
  */
 export function mnemonicButtonLabel(label: string): string {
-	if (platform.isMacintosh) {
+	if (isMacintosh) {
 		return label.replace(/\(&&\w\)|&&/g, '');
 	}
 
-	return label.replace(/&&/g, platform.isWindows ? '&' : '_');
+	if (isWindows) {
+		return label.replace(/&&|&/g, m => m === '&' ? '&&' : '&');
+	}
+
+	return label.replace(/&&/g, '_');
 }
 
 export function unmnemonicLabel(label: string): string {

@@ -3,230 +3,359 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+//@ts-check
 'use strict';
 
-if (process.argv.indexOf('--prof-startup') >= 0) {
-	var profiler = require('v8-profiler');
-	var prefix = require('crypto').randomBytes(2).toString('hex');
-	process.env.VSCODE_PROFILES_PREFIX = prefix;
-	profiler.startProfiling('main', true);
-}
+const perf = require('./vs/base/common/performance');
+const lp = require('./vs/base/node/languagePacks');
 
-var perf = require('./vs/base/common/performance');
 perf.mark('main:started');
 
-// Perf measurements
-global.perfStartTime = Date.now();
+const fs = require('fs');
+const path = require('path');
+const bootstrap = require('./bootstrap');
+const paths = require('./paths');
+// @ts-ignore
+const product = require('../product.json');
+// @ts-ignore
+const app = require('electron').app;
 
-var app = require('electron').app;
-var fs = require('fs');
-var path = require('path');
-var minimist = require('minimist');
-var paths = require('./paths');
+// Enable portable support
+const portable = bootstrap.configurePortable();
 
-var args = minimist(process.argv, {
-	string: ['user-data-dir', 'locale']
+// Enable ASAR support
+bootstrap.enableASARSupport();
+
+// Set userData path before app 'ready' event and call to process.chdir
+const args = parseCLIArgs();
+const userDataPath = getUserDataPath(args);
+
+// global storage migration needs to happen very early before app.on("ready")
+// TODO@Ben remove after a while
+try {
+	const globalStorageHome = path.join(userDataPath, 'User', 'globalStorage', 'state.vscdb');
+	const localStorageHome = path.join(userDataPath, 'Local Storage');
+	const localStorageDB = path.join(localStorageHome, 'file__0.localstorage');
+	const localStorageDBBackup = path.join(localStorageHome, 'file__0.vscmig');
+	if (!fs.existsSync(globalStorageHome) && fs.existsSync(localStorageDB)) {
+		fs.renameSync(localStorageDB, localStorageDBBackup);
+	}
+} catch (error) {
+	console.error(error);
+}
+
+app.setPath('userData', userDataPath);
+
+// Update cwd based on environment and platform
+setCurrentWorkingDirectory();
+
+// Global app listeners
+registerListeners();
+
+/**
+ * Support user defined locale
+ *
+ * @type {Promise}
+ */
+let nlsConfiguration = undefined;
+const userDefinedLocale = getUserDefinedLocale();
+const metaDataFile = path.join(__dirname, 'nls.metadata.json');
+
+userDefinedLocale.then(locale => {
+	if (locale && !nlsConfiguration) {
+		nlsConfiguration = lp.getNLSConfiguration(product.commit, userDataPath, metaDataFile, locale);
+	}
 });
 
+// Configure command line switches
+const nodeCachedDataDir = getNodeCachedDir();
+configureCommandlineSwitches(args, nodeCachedDataDir);
+
+// Load our code once ready
+app.once('ready', function () {
+	if (args['trace']) {
+		// @ts-ignore
+		const contentTracing = require('electron').contentTracing;
+
+		const traceOptions = {
+			categoryFilter: args['trace-category-filter'] || '*',
+			traceOptions: args['trace-options'] || 'record-until-full,enable-sampling'
+		};
+
+		contentTracing.startRecording(traceOptions, () => onReady());
+	} else {
+		onReady();
+	}
+});
+
+function onReady() {
+	perf.mark('main:appReady');
+
+	Promise.all([nodeCachedDataDir.ensureExists(), userDefinedLocale]).then(([cachedDataDir, locale]) => {
+		if (locale && !nlsConfiguration) {
+			nlsConfiguration = lp.getNLSConfiguration(product.commit, userDataPath, metaDataFile, locale);
+		}
+
+		if (!nlsConfiguration) {
+			nlsConfiguration = Promise.resolve(undefined);
+		}
+
+		// First, we need to test a user defined locale. If it fails we try the app locale.
+		// If that fails we fall back to English.
+		nlsConfiguration.then(nlsConfig => {
+
+			const startup = nlsConfig => {
+				nlsConfig._languagePackSupport = true;
+				process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
+				process.env['VSCODE_NODE_CACHED_DATA_DIR'] = cachedDataDir || '';
+
+				// Load main in AMD
+				perf.mark('willLoadMainBundle');
+				require('./bootstrap-amd').load('vs/code/electron-main/main', () => {
+					perf.mark('didLoadMainBundle');
+				});
+			};
+
+			// We recevied a valid nlsConfig from a user defined locale
+			if (nlsConfig) {
+				startup(nlsConfig);
+			}
+
+			// Try to use the app locale. Please note that the app locale is only
+			// valid after we have received the app ready event. This is why the
+			// code is here.
+			else {
+				let appLocale = app.getLocale();
+				if (!appLocale) {
+					startup({ locale: 'en', availableLanguages: {} });
+				} else {
+
+					// See above the comment about the loader and case sensitiviness
+					appLocale = appLocale.toLowerCase();
+
+					lp.getNLSConfiguration(product.commit, userDataPath, metaDataFile, appLocale).then(nlsConfig => {
+						if (!nlsConfig) {
+							nlsConfig = { locale: appLocale, availableLanguages: {} };
+						}
+
+						startup(nlsConfig);
+					});
+				}
+			}
+		});
+	}, console.error);
+}
+
+/**
+ * @typedef {import('minimist').ParsedArgs} ParsedArgs
+ *
+ * @param {ParsedArgs} cliArgs
+ * @param {{ jsFlags: () => string }} nodeCachedDataDir
+ */
+function configureCommandlineSwitches(cliArgs, nodeCachedDataDir) {
+
+	// Force pre-Chrome-60 color profile handling (for https://github.com/Microsoft/vscode/issues/51791)
+	app.commandLine.appendSwitch('disable-color-correct-rendering');
+
+	// Support JS Flags
+	const jsFlags = resolveJSFlags(cliArgs, nodeCachedDataDir.jsFlags());
+	if (jsFlags) {
+		app.commandLine.appendSwitch('--js-flags', jsFlags);
+	}
+}
+
+/**
+ * @param {ParsedArgs} cliArgs
+ * @param {string[]} jsFlags
+ * @returns {string}
+ */
+function resolveJSFlags(cliArgs, ...jsFlags) {
+
+	// Add any existing JS flags we already got from the command line
+	if (cliArgs['js-flags']) {
+		jsFlags.push(cliArgs['js-flags']);
+	}
+
+	// Support max-memory flag
+	if (cliArgs['max-memory'] && !/max_old_space_size=(\d+)/g.exec(cliArgs['js-flags'])) {
+		jsFlags.push(`--max_old_space_size=${cliArgs['max-memory']}`);
+	}
+
+	return jsFlags.length > 0 ? jsFlags.join(' ') : null;
+}
+
+/**
+ * @param {ParsedArgs} cliArgs
+ *
+ * @returns {string}
+ */
+function getUserDataPath(cliArgs) {
+	if (portable.isPortable) {
+		return path.join(portable.portableDataPath, 'user-data');
+	}
+
+	return path.resolve(cliArgs['user-data-dir'] || paths.getDefaultUserDataPath(process.platform));
+}
+
+/**
+ * @returns {ParsedArgs}
+ */
+function parseCLIArgs() {
+	const minimist = require('minimist');
+
+	return minimist(process.argv, {
+		string: [
+			'user-data-dir',
+			'locale',
+			'js-flags',
+			'max-memory'
+		]
+	});
+}
+
+function setCurrentWorkingDirectory() {
+	try {
+		if (process.platform === 'win32') {
+			process.env['VSCODE_CWD'] = process.cwd(); // remember as environment letiable
+			process.chdir(path.dirname(app.getPath('exe'))); // always set application folder as cwd
+		} else if (process.env['VSCODE_CWD']) {
+			process.chdir(process.env['VSCODE_CWD']);
+		}
+	} catch (err) {
+		console.error(err);
+	}
+}
+
+function registerListeners() {
+
+	/**
+	 * Mac: when someone drops a file to the not-yet running VSCode, the open-file event fires even before
+	 * the app-ready event. We listen very early for open-file and remember this upon startup as path to open.
+	 *
+	 * @type {string[]}
+	 */
+	const macOpenFiles = [];
+	global['macOpenFiles'] = macOpenFiles;
+	app.on('open-file', function (event, path) {
+		macOpenFiles.push(path);
+	});
+
+	/**
+	 * React to open-url requests.
+	 *
+	 * @type {string[]}
+	 */
+	const openUrls = [];
+	const onOpenUrl = function (event, url) {
+		event.preventDefault();
+
+		openUrls.push(url);
+	};
+
+	app.on('will-finish-launching', function () {
+		app.on('open-url', onOpenUrl);
+	});
+
+	global['getOpenUrls'] = function () {
+		app.removeListener('open-url', onOpenUrl);
+
+		return openUrls;
+	};
+}
+
+/**
+ * @returns {{ jsFlags: () => string; ensureExists: () => Promise<string | void>, _compute: () => string; }}
+ */
+function getNodeCachedDir() {
+	return new class {
+
+		constructor() {
+			this.value = this._compute();
+		}
+
+		jsFlags() {
+			// return this.value ? '--nolazy' : undefined;
+			return undefined;
+		}
+
+		ensureExists() {
+			return bootstrap.mkdirp(this.value).then(() => this.value, () => { /*ignore*/ });
+		}
+
+		_compute() {
+			if (process.argv.indexOf('--no-cached-data') > 0) {
+				return undefined;
+			}
+
+			// IEnvironmentService.isBuilt
+			if (process.env['VSCODE_DEV']) {
+				return undefined;
+			}
+
+			// find commit id
+			const commit = product.commit;
+			if (!commit) {
+				return undefined;
+			}
+
+			return path.join(userDataPath, 'CachedData', commit);
+		}
+	};
+}
+
+//#region NLS Support
+/**
+ * @param {string} content
+ * @returns {string}
+ */
 function stripComments(content) {
-	var regexp = /("(?:[^\\\"]*(?:\\.)?)*")|('(?:[^\\\']*(?:\\.)?)*')|(\/\*(?:\r?\n|.)*?\*\/)|(\/{2,}.*?(?:(?:\r?\n)|$))/g;
-	var result = content.replace(regexp, function (match, m1, m2, m3, m4) {
+	const regexp = /("(?:[^\\"]*(?:\\.)?)*")|('(?:[^\\']*(?:\\.)?)*')|(\/\*(?:\r?\n|.)*?\*\/)|(\/{2,}.*?(?:(?:\r?\n)|$))/g;
+
+	return content.replace(regexp, function (match, m1, m2, m3, m4) {
 		// Only one of m1, m2, m3, m4 matches
 		if (m3) {
 			// A block comment. Replace with nothing
 			return '';
-		}
-		else if (m4) {
+		} else if (m4) {
 			// A line comment. If it ends in \r?\n then keep it.
-			var length_1 = m4.length;
+			const length_1 = m4.length;
 			if (length_1 > 2 && m4[length_1 - 1] === '\n') {
 				return m4[length_1 - 2] === '\r' ? '\r\n' : '\n';
 			}
 			else {
 				return '';
 			}
-		}
-		else {
+		} else {
 			// We match a string
 			return match;
 		}
 	});
-	return result;
 }
 
-function getNLSConfiguration() {
-	var locale = args['locale'];
+// Language tags are case insensitive however an amd loader is case sensitive
+// To make this work on case preserving & insensitive FS we do the following:
+// the language bundles have lower case language tags and we always lower case
+// the locale we receive from the user or OS.
+/**
+ * @returns {Promise<string>}
+ */
+function getUserDefinedLocale() {
+	const locale = args['locale'];
+	if (locale) {
+		return Promise.resolve(locale.toLowerCase());
+	}
 
-	if (!locale) {
-		var userData = app.getPath('userData');
-		var localeConfig = path.join(userData, 'User', 'locale.json');
-		if (fs.existsSync(localeConfig)) {
-			try {
-				var content = stripComments(fs.readFileSync(localeConfig, 'utf8'));
-				var value = JSON.parse(content).locale;
-				if (value && typeof value === 'string') {
-					locale = value;
-				}
-			} catch (e) {
-				// noop
-			}
+	const localeConfig = path.join(userDataPath, 'User', 'locale.json');
+	return bootstrap.readFile(localeConfig).then(content => {
+		content = stripComments(content);
+		try {
+			const value = JSON.parse(content).locale;
+			return value && typeof value === 'string' ? value.toLowerCase() : undefined;
+		} catch (e) {
+			return undefined;
 		}
-	}
-
-	var appLocale = app.getLocale();
-	locale = locale || appLocale;
-	// Language tags are case insensitve however an amd loader is case sensitive
-	// To make this work on case preserving & insensitive FS we do the following:
-	// the language bundles have lower case language tags and we always lower case
-	// the locale we receive from the user or OS.
-	locale = locale ? locale.toLowerCase() : locale;
-	if (locale === 'pseudo') {
-		return { locale: locale, availableLanguages: {}, pseudo: true };
-	}
-	var initialLocale = locale;
-	if (process.env['VSCODE_DEV']) {
-		return { locale: locale, availableLanguages: {} };
-	}
-
-	// We have a built version so we have extracted nls file. Try to find
-	// the right file to use.
-
-	// Check if we have an English locale. If so fall to default since that is our
-	// English translation (we don't ship *.nls.en.json files)
-	if (locale && (locale == 'en' || locale.startsWith('en-'))) {
-		return { locale: locale, availableLanguages: {} };
-	}
-
-	function resolveLocale(locale) {
-		while (locale) {
-			var candidate = path.join(__dirname, 'vs', 'code', 'electron-main', 'main.nls.') + locale + '.js';
-			if (fs.existsSync(candidate)) {
-				return { locale: initialLocale, availableLanguages: { '*': locale } };
-			} else {
-				var index = locale.lastIndexOf('-');
-				if (index > 0) {
-					locale = locale.substring(0, index);
-				} else {
-					locale = null;
-				}
-			}
-		}
-		return null;
-	}
-
-	var resolvedLocale = resolveLocale(locale);
-	if (!resolvedLocale && appLocale && appLocale !== locale) {
-		resolvedLocale = resolveLocale(appLocale);
-	}
-	return resolvedLocale ? resolvedLocale : { locale: initialLocale, availableLanguages: {} };
-}
-
-function getNodeCachedDataDir() {
-
-	// IEnvironmentService.isBuilt
-	if (process.env['VSCODE_DEV']) {
-		return Promise.resolve(undefined);
-	}
-
-	// find commit id
-	var productJson = require(path.join(__dirname, '../product.json'));
-	if (!productJson.commit) {
-		return Promise.resolve(undefined);
-	}
-
-	var dir = path.join(app.getPath('userData'), 'CachedData', productJson.commit);
-
-	return mkdirp(dir).then(undefined, function () { /*ignore*/ });
-}
-
-function mkdirp(dir) {
-	return mkdir(dir)
-		.then(null, function (err) {
-			if (err && err.code === 'ENOENT') {
-				var parent = path.dirname(dir);
-				if (parent !== dir) { // if not arrived at root
-					return mkdirp(parent)
-						.then(function () {
-							return mkdir(dir);
-						});
-				}
-			}
-			throw err;
-		});
-}
-
-function mkdir(dir) {
-	return new Promise(function (resolve, reject) {
-		fs.mkdir(dir, function (err) {
-			if (err && err.code !== 'EEXIST') {
-				reject(err);
-			} else {
-				resolve(dir);
-			}
-		});
+	}, () => {
+		return undefined;
 	});
 }
-
-// Set userData path before app 'ready' event and call to process.chdir
-var userData = path.resolve(args['user-data-dir'] || paths.getDefaultUserDataPath(process.platform));
-app.setPath('userData', userData);
-
-// Update cwd based on environment and platform
-try {
-	if (process.platform === 'win32') {
-		process.env['VSCODE_CWD'] = process.cwd(); // remember as environment variable
-		process.chdir(path.dirname(app.getPath('exe'))); // always set application folder as cwd
-	} else if (process.env['VSCODE_CWD']) {
-		process.chdir(process.env['VSCODE_CWD']);
-	}
-} catch (err) {
-	console.error(err);
-}
-
-// Mac: when someone drops a file to the not-yet running VSCode, the open-file event fires even before
-// the app-ready event. We listen very early for open-file and remember this upon startup as path to open.
-global.macOpenFiles = [];
-app.on('open-file', function (event, path) {
-	global.macOpenFiles.push(path);
-});
-
-var openUrls = [];
-var onOpenUrl = function (event, url) {
-	event.preventDefault();
-	openUrls.push(url);
-};
-
-app.on('will-finish-launching', function () {
-	app.on('open-url', onOpenUrl);
-});
-
-global.getOpenUrls = function () {
-	app.removeListener('open-url', onOpenUrl);
-	return openUrls;
-};
-
-
-// use '<UserData>/CachedData'-directory to store
-// node/v8 cached data.
-var nodeCachedDataDir = getNodeCachedDataDir().then(function (value) {
-	if (value) {
-		// store the data directory
-		process.env['VSCODE_NODE_CACHED_DATA_DIR_' + process.pid] = value;
-
-		// tell v8 to not be lazy when parsing JavaScript. Generally this makes startup slower
-		// but because we generate cached data it makes subsequent startups much faster
-		app.commandLine.appendSwitch('--js-flags', '--nolazy');
-	}
-});
-
-// Load our code once ready
-app.once('ready', function () {
-	perf.mark('main:appReady');
-	global.perfAppReady = Date.now();
-	var nlsConfig = getNLSConfiguration();
-	process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
-
-	nodeCachedDataDir.then(function () {
-		require('./bootstrap-amd').bootstrap('vs/code/electron-main/main');
-	}, console.error);
-});
+//#endregion

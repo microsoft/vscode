@@ -54,12 +54,13 @@
 
 /* TODO: actions should be part of the panel, but they aren't yet */
 .monaco-panel-view .panel:hover > .panel-header.expanded > .actions,
+.monaco-panel-view .panel > .panel-header.actions-always-visible.expanded > .actions,
 .monaco-panel-view .panel > .panel-header.focused.expanded > .actions {
 	display: initial;
 }
 
 /* TODO: actions should be part of the panel, but they aren't yet */
-.monaco-panel-view .panel > .panel-header > .actions .action-label {
+.monaco-panel-view .panel > .panel-header > .actions .action-label.icon {
 	width: 28px;
 	height: 22px;
 	background-size: 16px;
@@ -89,21 +90,13 @@
 
 .monaco-panel-view.animated .split-view-view {
 	transition-duration: 0.15s;
-	-webkit-transition-duration: 0.15s;
-	-moz-transition-duration: 0.15s;
 	transition-timing-function: ease-out;
-	-webkit-transition-timing-function: ease-out;
-	-moz-transition-timing-function: ease-out;
 }
 
 .monaco-panel-view.animated.vertical .split-view-view {
 	transition-property: height;
-	-webkit-transition-property: height;
-	-moz-transition-property: height;
 }
 
 .monaco-panel-view.animated.horizontal .split-view-view {
 	transition-property: width;
-	-webkit-transition-property: width;
-	-moz-transition-property: width;
 }

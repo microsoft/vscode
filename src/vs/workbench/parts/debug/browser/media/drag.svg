@@ -1,8 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="16px" height="32px" fill="#999">
-  <circle cx="5px" cy="11px" r="1.2"/>
-  <circle cx="10px" cy="11px" r="1.2"/>
-  <circle cx="5px" cy="16px" r="1.2"/>
-  <circle cx="10px" cy="16px" r="1.2"/>
-  <circle cx="5px" cy="21px" r="1.2"/>
-  <circle cx="10px" cy="21px" r="1.2"/>
-</svg>

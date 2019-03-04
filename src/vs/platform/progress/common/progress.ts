@@ -2,10 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 
 export const IProgressService = createDecorator<IProgressService>('progressService');
 
@@ -15,14 +15,44 @@ export interface IProgressService {
 	/**
 	 * Show progress customized with the provided flags.
 	 */
-	show(infinite: boolean, delay?: number): IProgressRunner;
+	show(infinite: true, delay?: number): IProgressRunner;
 	show(total: number, delay?: number): IProgressRunner;
 
 	/**
 	 * Indicate progress for the duration of the provided promise. Progress will stop in
 	 * any case of promise completion, error or cancellation.
 	 */
-	showWhile(promise: TPromise<any>, delay?: number): TPromise<void>;
+	showWhile(promise: Promise<any>, delay?: number): Promise<void>;
+}
+
+export const enum ProgressLocation {
+	Explorer = 1,
+	Scm = 3,
+	Extensions = 5,
+	Window = 10,
+	Notification = 15
+}
+
+export interface IProgressOptions {
+	location: ProgressLocation | string;
+	title?: string;
+	source?: string;
+	total?: number;
+	cancellable?: boolean;
+}
+
+export interface IProgressStep {
+	message?: string;
+	increment?: number;
+}
+
+export const IProgressService2 = createDecorator<IProgressService2>('progressService2');
+
+export interface IProgressService2 {
+
+	_serviceBrand: any;
+
+	withProgress<R=any>(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => Promise<R>, onDidCancel?: () => void): Promise<R>;
 }
 
 export interface IProgressRunner {
@@ -30,6 +60,12 @@ export interface IProgressRunner {
 	worked(value: number): void;
 	done(): void;
 }
+
+export const emptyProgressRunner: IProgressRunner = Object.freeze({
+	total() { },
+	worked() { },
+	done() { }
+});
 
 export interface IProgress<T> {
 	report(item: T): void;
@@ -56,27 +92,66 @@ export class Progress<T> implements IProgress<T> {
 	}
 }
 
-export enum ProgressLocation {
-	Scm = 1,
-	Window = 10,
+/**
+ * A helper to show progress during a long running operation. If the operation
+ * is started multiple times, only the last invocation will drive the progress.
+ */
+export interface IOperation {
+	id: number;
+	isCurrent: () => boolean;
+	token: CancellationToken;
+	stop(): void;
 }
 
-export interface IProgressOptions {
-	location: ProgressLocation;
-	title?: string;
-	tooltip?: string;
-}
+export class LongRunningOperation {
+	private currentOperationId = 0;
+	private currentOperationDisposables: IDisposable[] = [];
+	private currentProgressRunner: IProgressRunner;
+	private currentProgressTimeout: any;
 
-export interface IProgressStep {
-	message?: string;
-	percentage?: number;
-}
+	constructor(
+		private progressService: IProgressService
+	) { }
 
-export const IProgressService2 = createDecorator<IProgressService2>('progressService2');
+	start(progressDelay: number): IOperation {
 
-export interface IProgressService2 {
+		// Stop any previous operation
+		this.stop();
 
-	_serviceBrand: any;
+		// Start new
+		const newOperationId = ++this.currentOperationId;
+		const newOperationToken = new CancellationTokenSource();
+		this.currentProgressTimeout = setTimeout(() => {
+			if (newOperationId === this.currentOperationId) {
+				this.currentProgressRunner = this.progressService.show(true);
+			}
+		}, progressDelay);
 
-	withProgress(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => TPromise<any>): void;
+		this.currentOperationDisposables.push(
+			toDisposable(() => clearTimeout(this.currentProgressTimeout)),
+			toDisposable(() => newOperationToken.cancel()),
+			toDisposable(() => this.currentProgressRunner ? this.currentProgressRunner.done() : undefined)
+		);
+
+		return {
+			id: newOperationId,
+			token: newOperationToken.token,
+			stop: () => this.doStop(newOperationId),
+			isCurrent: () => this.currentOperationId === newOperationId
+		};
+	}
+
+	stop(): void {
+		this.doStop(this.currentOperationId);
+	}
+
+	private doStop(operationId: number): void {
+		if (this.currentOperationId === operationId) {
+			this.currentOperationDisposables = dispose(this.currentOperationDisposables);
+		}
+	}
+
+	dispose(): void {
+		this.currentOperationDisposables = dispose(this.currentOperationDisposables);
+	}
 }

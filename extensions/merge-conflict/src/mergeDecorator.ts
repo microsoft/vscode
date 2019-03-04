@@ -7,13 +7,13 @@ import * as interfaces from './interfaces';
 import { loadMessageBundle } from 'vscode-nls';
 const localize = loadMessageBundle();
 
-export default class MergeDectorator implements vscode.Disposable {
+export default class MergeDecorator implements vscode.Disposable {
 
 	private decorations: { [key: string]: vscode.TextEditorDecorationType } = {};
 
 	private decorationUsesWholeLine: boolean = true; // Useful for debugging, set to false to see exact match ranges
 
-	private config: interfaces.IExtensionConfiguration;
+	private config?: interfaces.IExtensionConfiguration;
 	private tracker: interfaces.IDocumentMergeConflictTracker;
 	private updating = new Map<vscode.TextEditor, boolean>();
 
@@ -153,10 +153,10 @@ export default class MergeDectorator implements vscode.Disposable {
 	}
 
 	private applyDecorationsFromEvent(eventDocument: vscode.TextDocument) {
-		for (var i = 0; i < vscode.window.visibleTextEditors.length; i++) {
-			if (vscode.window.visibleTextEditors[i].document === eventDocument) {
+		for (const editor of vscode.window.visibleTextEditors) {
+			if (editor.document === eventDocument) {
 				// Attempt to apply
-				this.applyDecorations(vscode.window.visibleTextEditors[i]);
+				this.applyDecorations(editor);
 			}
 		}
 	}
@@ -188,9 +188,9 @@ export default class MergeDectorator implements vscode.Disposable {
 
 			// Store decorations keyed by the type of decoration, set decoration wants a "style"
 			// to go with it, which will match this key (see constructor);
-			let matchDecorations: { [key: string]: vscode.DecorationOptions[] } = {};
+			let matchDecorations: { [key: string]: vscode.Range[] } = {};
 
-			let pushDecoration = (key: string, d: vscode.DecorationOptions) => {
+			let pushDecoration = (key: string, d: vscode.Range) => {
 				matchDecorations[key] = matchDecorations[key] || [];
 				matchDecorations[key].push(d);
 			};
@@ -198,25 +198,25 @@ export default class MergeDectorator implements vscode.Disposable {
 			conflicts.forEach(conflict => {
 				// TODO, this could be more effective, just call getMatchPositions once with a map of decoration to position
 				if (!conflict.current.decoratorContent.isEmpty) {
-					pushDecoration('current.content', { range: conflict.current.decoratorContent });
+					pushDecoration('current.content', conflict.current.decoratorContent);
 				}
 				if (!conflict.incoming.decoratorContent.isEmpty) {
-					pushDecoration('incoming.content', { range: conflict.incoming.decoratorContent });
+					pushDecoration('incoming.content', conflict.incoming.decoratorContent);
 				}
 
 				conflict.commonAncestors.forEach(commonAncestorsRegion => {
 					if (!commonAncestorsRegion.decoratorContent.isEmpty) {
-						pushDecoration('commonAncestors.content', { range: commonAncestorsRegion.decoratorContent });
+						pushDecoration('commonAncestors.content', commonAncestorsRegion.decoratorContent);
 					}
 				});
 
-				if (this.config.enableDecorations) {
-					pushDecoration('current.header', { range: conflict.current.header });
-					pushDecoration('splitter', { range: conflict.splitter });
-					pushDecoration('incoming.header', { range: conflict.incoming.header });
+				if (this.config!.enableDecorations) {
+					pushDecoration('current.header', conflict.current.header);
+					pushDecoration('splitter', conflict.splitter);
+					pushDecoration('incoming.header', conflict.incoming.header);
 
 					conflict.commonAncestors.forEach(commonAncestorsRegion => {
-						pushDecoration('commonAncestors.header', { range: commonAncestorsRegion.header });
+						pushDecoration('commonAncestors.header', commonAncestorsRegion.header);
 					});
 				}
 			});

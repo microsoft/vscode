@@ -1,14 +1,24 @@
 {
 	"compilerOptions": {
-		"target": "es5",
+		"target": "es2017",
 		"module": "commonjs",
-		"noImplicitAny": false,
 		"removeComments": false,
 		"preserveConstEnums": true,
 		"sourceMap": false,
+		"resolveJsonModule": true,
 		"experimentalDecorators": true,
-		"newLine": "LF"
+		// enable JavaScript type checking for the language service
+		// use the tsconfig.build.json for compiling wich disable JavaScript
+		// type checking so that JavaScript file are not transpiled
+		"allowJs": true,
+		"checkJs": true,
+		"strict": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true
 	},
+	"include": [
+		"**/*.ts"
+	],
 	"exclude": [
 		"node_modules/**"
 	]

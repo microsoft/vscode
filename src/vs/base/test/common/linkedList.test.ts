@@ -3,25 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { LinkedList } from 'vs/base/common/linkedList';
 
 suite('LinkedList', function () {
 
 	function assertElements<E>(list: LinkedList<E>, ...elements: E[]) {
-		// first: assert toArray
+
+		// check size
+		assert.equal(list.size, elements.length);
+
+		// assert toArray
 		assert.deepEqual(list.toArray(), elements);
 
-		// second: assert iterator
+		// assert iterator
 		for (let iter = list.iterator(), element = iter.next(); !element.done; element = iter.next()) {
 			assert.equal(elements.shift(), element.value);
 		}
 		assert.equal(elements.length, 0);
 	}
 
-	test('Push/Iter', function () {
+	test('Push/Iter', () => {
 		const list = new LinkedList<number>();
 		list.push(0);
 		list.push(1);
@@ -29,7 +31,7 @@ suite('LinkedList', function () {
 		assertElements(list, 0, 1, 2);
 	});
 
-	test('Push/Remove', function () {
+	test('Push/Remove', () => {
 		let list = new LinkedList<number>();
 		let disp = list.push(0);
 		list.push(1);
@@ -52,25 +54,17 @@ suite('LinkedList', function () {
 		assertElements(list, 0, 1);
 	});
 
-	test('Push/toArray', function () {
+	test('Push/toArray', () => {
 		let list = new LinkedList<string>();
 		list.push('foo');
 		list.push('bar');
 		list.push('far');
 		list.push('boo');
 
-		assert.deepEqual(
-			list.toArray(),
-			[
-				'foo',
-				'bar',
-				'far',
-				'boo',
-			]
-		);
+		assertElements(list, 'foo', 'bar', 'far', 'boo');
 	});
 
-	test('unshift/Iter', function () {
+	test('unshift/Iter', () => {
 		const list = new LinkedList<number>();
 		list.unshift(0);
 		list.unshift(1);
@@ -78,7 +72,7 @@ suite('LinkedList', function () {
 		assertElements(list, 2, 1, 0);
 	});
 
-	test('unshift/Remove', function () {
+	test('unshift/Remove', () => {
 		let list = new LinkedList<number>();
 		let disp = list.unshift(0);
 		list.unshift(1);
@@ -101,21 +95,32 @@ suite('LinkedList', function () {
 		assertElements(list, 1, 0);
 	});
 
-	test('unshift/toArray', function () {
+	test('unshift/toArray', () => {
 		let list = new LinkedList<string>();
 		list.unshift('foo');
 		list.unshift('bar');
 		list.unshift('far');
 		list.unshift('boo');
+		assertElements(list, 'boo', 'far', 'bar', 'foo');
+	});
 
-		assert.deepEqual(
-			list.toArray(),
-			[
-				'boo',
-				'far',
-				'bar',
-				'foo',
-			]
-		);
+	test('pop/unshift', function () {
+		let list = new LinkedList<string>();
+		list.push('a');
+		list.push('b');
+
+		assertElements(list, 'a', 'b');
+
+		let a = list.shift();
+		assert.equal(a, 'a');
+		assertElements(list, 'b');
+
+		list.unshift('a');
+		assertElements(list, 'a', 'b');
+
+		let b = list.pop();
+		assert.equal(b, 'b');
+		assertElements(list, 'a');
+
 	});
 });

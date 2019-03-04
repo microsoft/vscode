@@ -2,11 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as platform from 'vs/base/common/platform';
-import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
+import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 
 /**
  * Determined from empirical observations.
@@ -14,9 +13,22 @@ import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
  */
 const GOLDEN_LINE_HEIGHT_RATIO = platform.isMacintosh ? 1.5 : 1.35;
 
-function safeParseFloat(n: number | string, defaultValue: number): number {
+/**
+ * Font settings maximum and minimum limits
+ */
+const MINIMUM_FONT_SIZE = 8;
+const MAXIMUM_FONT_SIZE = 100;
+const MINIMUM_LINE_HEIGHT = 8;
+const MAXIMUM_LINE_HEIGHT = 150;
+const MINIMUM_LETTER_SPACING = -5;
+const MAXIMUM_LETTER_SPACING = 20;
+
+function safeParseFloat(n: number | string | undefined, defaultValue: number): number {
 	if (typeof n === 'number') {
 		return n;
+	}
+	if (typeof n === 'undefined') {
+		return defaultValue;
 	}
 	let r = parseFloat(n);
 	if (isNaN(r)) {
@@ -25,9 +37,12 @@ function safeParseFloat(n: number | string, defaultValue: number): number {
 	return r;
 }
 
-function safeParseInt(n: number | string, defaultValue: number): number {
+function safeParseInt(n: number | string | undefined, defaultValue: number): number {
 	if (typeof n === 'number') {
 		return Math.round(n);
+	}
+	if (typeof n === 'undefined') {
+		return defaultValue;
 	}
 	let r = parseInt(n);
 	if (isNaN(r)) {
@@ -70,24 +85,25 @@ export class BareFontInfo {
 		let fontFamily = _string(opts.fontFamily, EDITOR_FONT_DEFAULTS.fontFamily);
 		let fontWeight = _string(opts.fontWeight, EDITOR_FONT_DEFAULTS.fontWeight);
 
+
 		let fontSize = safeParseFloat(opts.fontSize, EDITOR_FONT_DEFAULTS.fontSize);
-		fontSize = clamp(fontSize, 0, 100);
+		fontSize = clamp(fontSize, 0, MAXIMUM_FONT_SIZE);
 		if (fontSize === 0) {
 			fontSize = EDITOR_FONT_DEFAULTS.fontSize;
-		} else if (fontSize < 8) {
-			fontSize = 8;
+		} else if (fontSize < MINIMUM_FONT_SIZE) {
+			fontSize = MINIMUM_FONT_SIZE;
 		}
 
 		let lineHeight = safeParseInt(opts.lineHeight, 0);
-		lineHeight = clamp(lineHeight, 0, 150);
+		lineHeight = clamp(lineHeight, 0, MAXIMUM_LINE_HEIGHT);
 		if (lineHeight === 0) {
 			lineHeight = Math.round(GOLDEN_LINE_HEIGHT_RATIO * fontSize);
-		} else if (lineHeight < 8) {
-			lineHeight = 8;
+		} else if (lineHeight < MINIMUM_LINE_HEIGHT) {
+			lineHeight = MINIMUM_LINE_HEIGHT;
 		}
 
 		let letterSpacing = safeParseFloat(opts.letterSpacing, 0);
-		letterSpacing = clamp(letterSpacing, -20, 20);
+		letterSpacing = clamp(letterSpacing, MINIMUM_LETTER_SPACING, MAXIMUM_LETTER_SPACING);
 
 		let editorZoomLevelMultiplier = 1 + (EditorZoom.getZoomLevel() * 0.1);
 		fontSize *= editorZoomLevelMultiplier;
@@ -135,6 +151,22 @@ export class BareFontInfo {
 	public getId(): string {
 		return this.zoomLevel + '-' + this.fontFamily + '-' + this.fontWeight + '-' + this.fontSize + '-' + this.lineHeight + '-' + this.letterSpacing;
 	}
+
+	/**
+	 * @internal
+	 */
+	public getMassagedFontFamily(): string {
+		if (/[,"']/.test(this.fontFamily)) {
+			// Looks like the font family might be already escaped
+			return this.fontFamily;
+		}
+		if (/[+ ]/.test(this.fontFamily)) {
+			// Wrap a font family using + or <space> with quotes
+			return `"${this.fontFamily}"`;
+		}
+
+		return this.fontFamily;
+	}
 }
 
 export class FontInfo extends BareFontInfo {
@@ -144,6 +176,7 @@ export class FontInfo extends BareFontInfo {
 	readonly isMonospace: boolean;
 	readonly typicalHalfwidthCharacterWidth: number;
 	readonly typicalFullwidthCharacterWidth: number;
+	readonly canUseHalfwidthRightwardsArrow: boolean;
 	readonly spaceWidth: number;
 	readonly maxDigitWidth: number;
 
@@ -160,6 +193,7 @@ export class FontInfo extends BareFontInfo {
 		isMonospace: boolean;
 		typicalHalfwidthCharacterWidth: number;
 		typicalFullwidthCharacterWidth: number;
+		canUseHalfwidthRightwardsArrow: boolean;
 		spaceWidth: number;
 		maxDigitWidth: number;
 	}, isTrusted: boolean) {
@@ -168,6 +202,7 @@ export class FontInfo extends BareFontInfo {
 		this.isMonospace = opts.isMonospace;
 		this.typicalHalfwidthCharacterWidth = opts.typicalHalfwidthCharacterWidth;
 		this.typicalFullwidthCharacterWidth = opts.typicalFullwidthCharacterWidth;
+		this.canUseHalfwidthRightwardsArrow = opts.canUseHalfwidthRightwardsArrow;
 		this.spaceWidth = opts.spaceWidth;
 		this.maxDigitWidth = opts.maxDigitWidth;
 	}
@@ -184,6 +219,7 @@ export class FontInfo extends BareFontInfo {
 			&& this.letterSpacing === other.letterSpacing
 			&& this.typicalHalfwidthCharacterWidth === other.typicalHalfwidthCharacterWidth
 			&& this.typicalFullwidthCharacterWidth === other.typicalFullwidthCharacterWidth
+			&& this.canUseHalfwidthRightwardsArrow === other.canUseHalfwidthRightwardsArrow
 			&& this.spaceWidth === other.spaceWidth
 			&& this.maxDigitWidth === other.maxDigitWidth
 		);

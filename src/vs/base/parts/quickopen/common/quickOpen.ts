@@ -2,15 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 
-/* __GDPR__FRAGMENT__
-	"IQuickNavigateConfiguration" : {
-		"keybindings" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-	}
-*/
 export interface IQuickNavigateConfiguration {
 	keybindings: ResolvedKeybinding[];
 }
@@ -46,7 +40,7 @@ export interface IAutoFocus {
 	autoFocusPrefixMatch?: string;
 }
 
-export enum Mode {
+export const enum Mode {
 	PREVIEW,
 	OPEN,
 	OPEN_IN_BACKGROUND
@@ -54,13 +48,18 @@ export enum Mode {
 
 export interface IEntryRunContext {
 	event: any;
-	keymods: number[];
-	quickNavigateConfiguration: IQuickNavigateConfiguration;
+	keymods: IKeyMods;
+	quickNavigateConfiguration: IQuickNavigateConfiguration | undefined;
+}
+
+export interface IKeyMods {
+	ctrlCmd: boolean;
+	alt: boolean;
 }
 
 export interface IDataSource<T> {
 	getId(entry: T): string;
-	getLabel(entry: T): string;
+	getLabel(entry: T): string | null;
 }
 
 /**

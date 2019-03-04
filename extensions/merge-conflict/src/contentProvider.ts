@@ -2,12 +2,21 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
+
 import * as vscode from 'vscode';
 
 export default class MergeConflictContentProvider implements vscode.TextDocumentContentProvider, vscode.Disposable {
 
 	static scheme = 'merge-conflict.conflict-diff';
+
+	constructor(private context: vscode.ExtensionContext) {
+	}
+
+	begin() {
+		this.context.subscriptions.push(
+			vscode.workspace.registerTextDocumentContentProvider(MergeConflictContentProvider.scheme, this)
+		);
+	}
 
 	dispose() {
 	}

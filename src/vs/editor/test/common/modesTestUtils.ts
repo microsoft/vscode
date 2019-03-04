@@ -2,11 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
-import { createScopedLineTokens, ScopedLineTokens } from 'vs/editor/common/modes/supports';
-import { StandardTokenType, MetadataConsts } from 'vs/editor/common/modes';
+import { MetadataConsts, StandardTokenType } from 'vs/editor/common/modes';
+import { ScopedLineTokens, createScopedLineTokens } from 'vs/editor/common/modes/supports';
 
 export interface TokenText {
 	text: string;
@@ -30,5 +29,6 @@ export function createFakeScopedLineTokens(rawTokens: TokenText[]): ScopedLineTo
 		line += rawToken.text;
 	}
 
+	LineTokens.convertToEndOffset(tokens, line.length);
 	return createScopedLineTokens(new LineTokens(tokens, line), 0);
 }

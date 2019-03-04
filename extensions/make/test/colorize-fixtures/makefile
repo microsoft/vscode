@@ -1,5 +1,5 @@
 .PHONY: all
-all: hello
+all: echo hello
 
 .PHONY: hello
 hello: main.o factorial.o \
@@ -25,6 +25,20 @@ hello.o: hello.cpp \
 clean:
 	rm *o hello
 
+.PHONY: var
+var:
+	# "$$" in a shell means to escape makefile's variable substitution.
+	some_shell_var=$$(sed -nre 's/some regex with (group)/\1/p')
+
+.PHONY: echo
+echo:
+	echo "#" and '#' in quotes are not comments \
+		and '\' will be continued
+	@echo Shell is not printed out, just a message.
+	@-+-+echo Error will be ignored here; invalidcommand
+	# And we can see variables are highlited as supposed to be:
+	@echo '$(CC) $(shell echo "123") -o $@'
+
 define defined
   $(info Checking existance of $(1) $(flavor $(1)))
   $(if $(filter undefined,$(flavor $(1))),0,1)
@@ -39,3 +53,32 @@ endif
 ifeq ($(strip $(call defined,CODIT_DIR)),0)
   $(info CODIT_DIR must be set in $(TOP_DIR)3rdparty.mk)
 endif
+
+CXXVER_GE480 := $(shell expr `$(CXX) -dumpversion | sed -e 's/\.\([0-9][0-9]\)/\1/g' -e 's/\.\([0-9]\)/0\1/g' -e 's/^[0-9]\{3,4\}$$/&00/'` \>= 40800)
+
+ok := ok
+$(info Braces {} in parentheses ({}): ${ok})
+${info Parentheses () in braces {()}: $(ok)}
+
+ifeq ("${ok}", "skip")
+  $(ok))}
+  ${ok}})
+endif
+
+result != echo "'$(ok)' $(shell echo "from inlined shell")"
+$(info $(result))
+
+# Below is a test of variable assignment without any spacing.
+var=val
+var?=val
+var:=123
+var!=echo val
+var:=val \
+notvar=butval
+
+var-$(nested-var)=val
+
+# Spaces in a nested shell will hurt a colorizing of variable,
+# but not so much.
+var-$(shell printf 2) := val2
+$(info Should be 'val2' here: $(var-2))

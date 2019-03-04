@@ -9,17 +9,13 @@
 	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif;
 }
 
-.monaco-menu .monaco-action-bar.vertical .action-item .action-label:focus {
-	color: #0059AC;
+.monaco-menu .monaco-action-bar.vertical .action-item .action-menu-item:focus .action-label {
 	stroke-width: 1.2px;
-	text-shadow: 0px 0px 0.15px #0059AC;
 }
 
-.monaco-editor.vs-dark .monaco-menu .monaco-action-bar.vertical .action-item .action-label:focus,
-.monaco-editor.hc-black .monaco-menu .monaco-action-bar.vertical .action-item .action-label:focus {
-	color: #ACDDFF;
+.monaco-editor.vs-dark .monaco-menu .monaco-action-bar.vertical .action-menu-item:focus .action-label,
+.monaco-editor.hc-black .monaco-menu .monaco-action-bar.vertical .action-menu-item:focus .action-label {
 	stroke-width: 1.2px;
-	text-shadow: 0px 0px 0.15px #ACDDFF;
 }
 
 .monaco-editor-hover p {
@@ -192,29 +188,33 @@
 	}
 
 	/* squiggles */
-	.monaco-editor.vs .squiggly-c-error,
-	.monaco-editor.vs-dark .squiggly-c-error {
+	.monaco-editor.vs .squiggly-d-error,
+	.monaco-editor.vs-dark .squiggly-d-error {
 		background: transparent !important;
 		border-bottom: 4px double #E47777;
 	}
-	.monaco-editor.vs .squiggly-b-warning,
-	.monaco-editor.vs-dark .squiggly-b-warning {
+	.monaco-editor.vs .squiggly-c-warning,
+	.monaco-editor.vs-dark .squiggly-c-warning {
 		border-bottom: 4px double #71B771;
 	}
-	.monaco-editor.vs .squiggly-a-info,
-	.monaco-editor.vs-dark .squiggly-a-info {
+	.monaco-editor.vs .squiggly-b-info,
+	.monaco-editor.vs-dark .squiggly-b-info {
 		border-bottom: 4px double #71B771;
+	}
+	.monaco-editor.vs .squiggly-a-hint,
+	.monaco-editor.vs-dark .squiggly-a-hint {
+		border-bottom: 4px double #6c6c6c;
 	}
 
 	/* contextmenu */
-	.monaco-editor.vs .monaco-menu .monaco-action-bar.vertical .action-item .action-label:focus,
-	.monaco-editor.vs-dark .monaco-menu .monaco-action-bar.vertical .action-item .action-label:focus {
+	.monaco-editor.vs .monaco-menu .monaco-action-bar.vertical .action-menu-item:focus .action-label,
+	.monaco-editor.vs-dark .monaco-menu .monaco-action-bar.vertical .action-menu-item:focus .action-label {
 		-ms-high-contrast-adjust: none;
 		color: highlighttext !important;
 		background-color: highlight !important;
 	}
-	.monaco-editor.vs .monaco-menu .monaco-action-bar.vertical .action-item .action-label:hover,
-	.monaco-editor.vs-dark .monaco-menu .monaco-action-bar.vertical .action-item .action-label:hover {
+	.monaco-editor.vs .monaco-menu .monaco-action-bar.vertical .action-menu-item:hover .action-label,
+	.monaco-editor.vs-dark .monaco-menu .monaco-action-bar.vertical .action-menu-item:hover .action-label {
 		-ms-high-contrast-adjust: none;
 		background: transparent !important;
 		border: 1px solid highlight;

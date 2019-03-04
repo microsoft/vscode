@@ -40,7 +40,7 @@
 }
 
 .monaco-icon-label > .monaco-icon-label-description-container > .label-description {
-	opacity: 0.7;
+	opacity: .7;
 	margin-left: 0.5em;
 	font-size: 0.9em;
 	white-space: pre; /* enable to show labels that include multiple whitespaces */
@@ -63,8 +63,15 @@
 /* make sure selection color wins when a label is being selected */
 .monaco-tree.focused .selected .monaco-icon-label, /* tree */
 .monaco-tree.focused .selected .monaco-icon-label::after,
-.monaco-list:focus .focused.selected .monaco-icon-label, /* list */
-.monaco-list:focus .focused.selected .monaco-icon-label::after
+.monaco-list:focus .selected .monaco-icon-label, /* list */
+.monaco-list:focus .selected .monaco-icon-label::after
 {
 	color: inherit !important;
+}
+
+.monaco-tree-row.focused.selected .label-description,
+.monaco-tree-row.selected .label-description,
+.monaco-list-row.focused.selected .label-description,
+.monaco-list-row.selected .label-description {
+	opacity: .8;
 }

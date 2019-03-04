@@ -7,26 +7,28 @@ else
 	ROOT=$(dirname $(dirname $(readlink -f $0)))
 fi
 
-cd $ROOT
+pushd $ROOT
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
 	NAME=`node -p "require('./product.json').nameLong"`
-	CODE="./.build/electron/$NAME.app/Contents/MacOS/Electron"
+	CODE="$ROOT/.build/electron/$NAME.app/Contents/MacOS/Electron"
 else
 	NAME=`node -p "require('./product.json').applicationName"`
-	CODE=".build/electron/$NAME"
+	CODE="$ROOT/.build/electron/$NAME"
 fi
 
 # Get electron
 node build/lib/electron.js || ./node_modules/.bin/gulp electron
 
+popd
+
 export VSCODE_DEV=1
 if [[ "$OSTYPE" == "darwin"* ]]; then
-	cd $ROOT ; ulimit -n 4096 ; ELECTRON_RUN_AS_NODE=1 \
+	ulimit -n 4096 ; ELECTRON_RUN_AS_NODE=1 \
 		"$CODE" \
 		"$@"
 else
-	cd $ROOT ; ELECTRON_RUN_AS_NODE=1 \
+	ELECTRON_RUN_AS_NODE=1 \
 		"$CODE" \
 		"$@"
 fi

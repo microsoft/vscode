@@ -3,17 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { TPromise } from 'vs/base/common/winjs.base';
 import { isBoolean, isNumber } from 'vs/base/common/types';
-import https = require('https');
-import http = require('http');
+import * as https from 'https';
+import * as http from 'http';
 import { Stream } from 'stream';
 import { parse as parseUrl } from 'url';
 import { createWriteStream } from 'fs';
 import { assign } from 'vs/base/common/objects';
 import { createGunzip } from 'zlib';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { canceled } from 'vs/base/common/errors';
 
 export type Agent = any;
 
@@ -28,7 +27,7 @@ export interface IRequestOptions {
 	password?: string;
 	headers?: any;
 	timeout?: number;
-	data?: any;
+	data?: string | Stream;
 	agent?: Agent;
 	followRedirects?: number;
 	strictSSL?: boolean;
@@ -46,25 +45,26 @@ export interface IRequestContext {
 }
 
 export interface IRequestFunction {
-	(options: IRequestOptions): TPromise<IRequestContext>;
+	(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext>;
 }
 
-async function getNodeRequest(options: IRequestOptions): TPromise<IRawRequestFunction> {
-	const endpoint = parseUrl(options.url);
+async function getNodeRequest(options: IRequestOptions): Promise<IRawRequestFunction> {
+	const endpoint = parseUrl(options.url!);
 	const module = endpoint.protocol === 'https:' ? await import('https') : await import('http');
 	return module.request;
 }
 
-export function request(options: IRequestOptions): TPromise<IRequestContext> {
+export function request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
 	let req: http.ClientRequest;
 
 	const rawRequestPromise = options.getRawRequest
-		? TPromise.as(options.getRawRequest(options))
-		: getNodeRequest(options);
+		? Promise.resolve(options.getRawRequest(options))
+		: Promise.resolve(getNodeRequest(options));
 
 	return rawRequestPromise.then(rawRequest => {
-		return new TPromise<IRequestContext>((c, e) => {
-			const endpoint = parseUrl(options.url);
+
+		return new Promise<IRequestContext>((c, e) => {
+			const endpoint = parseUrl(options.url!);
 
 			const opts: https.RequestOptions = {
 				hostname: endpoint.hostname,
@@ -81,14 +81,13 @@ export function request(options: IRequestOptions): TPromise<IRequestContext> {
 				opts.auth = options.user + ':' + options.password;
 			}
 
-			req = rawRequest(opts, (res: http.ClientResponse) => {
-				const followRedirects = isNumber(options.followRedirects) ? options.followRedirects : 3;
-
-				if (res.statusCode >= 300 && res.statusCode < 400 && followRedirects > 0 && res.headers['location']) {
+			req = rawRequest(opts, (res: http.IncomingMessage) => {
+				const followRedirects: number = isNumber(options.followRedirects) ? options.followRedirects : 3;
+				if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && followRedirects > 0 && res.headers['location']) {
 					request(assign({}, options, {
 						url: res.headers['location'],
 						followRedirects: followRedirects - 1
-					})).done(c, e);
+					}), token).then(c, e);
 				} else {
 					let stream: Stream = res;
 
@@ -96,7 +95,7 @@ export function request(options: IRequestOptions): TPromise<IRequestContext> {
 						stream = stream.pipe(createGunzip());
 					}
 
-					c({ res, stream });
+					c({ res, stream } as IRequestContext);
 				}
 			});
 
@@ -107,34 +106,44 @@ export function request(options: IRequestOptions): TPromise<IRequestContext> {
 			}
 
 			if (options.data) {
-				req.write(options.data);
+				if (typeof options.data === 'string') {
+					req.write(options.data);
+				} else {
+					options.data.pipe(req);
+					return;
+				}
 			}
 
 			req.end();
-		}, () => req && req.abort());
+
+			token.onCancellationRequested(() => {
+				req.abort();
+				e(canceled());
+			});
+		});
 	});
 }
 
 function isSuccess(context: IRequestContext): boolean {
-	return (context.res.statusCode >= 200 && context.res.statusCode < 300) || context.res.statusCode === 1223;
+	return (context.res.statusCode && context.res.statusCode >= 200 && context.res.statusCode < 300) || context.res.statusCode === 1223;
 }
 
 function hasNoContent(context: IRequestContext): boolean {
 	return context.res.statusCode === 204;
 }
 
-export function download(filePath: string, context: IRequestContext): TPromise<void> {
-	return new TPromise<void>((c, e) => {
+export function download(filePath: string, context: IRequestContext): Promise<void> {
+	return new Promise<void>((c, e) => {
 		const out = createWriteStream(filePath);
 
-		out.once('finish', () => c(null));
+		out.once('finish', () => c(undefined));
 		context.stream.once('error', e);
 		context.stream.pipe(out);
 	});
 }
 
-export function asText(context: IRequestContext): TPromise<string> {
-	return new TPromise((c, e) => {
+export function asText(context: IRequestContext): Promise<string | null> {
+	return new Promise((c, e) => {
 		if (!isSuccess(context)) {
 			return e('Server returned ' + context.res.statusCode);
 		}
@@ -150,8 +159,8 @@ export function asText(context: IRequestContext): TPromise<string> {
 	});
 }
 
-export function asJson<T>(context: IRequestContext): TPromise<T> {
-	return new TPromise((c, e) => {
+export function asJson<T>(context: IRequestContext): Promise<T | null> {
+	return new Promise((c, e) => {
 		if (!isSuccess(context)) {
 			return e('Server returned ' + context.res.statusCode);
 		}
@@ -160,13 +169,15 @@ export function asJson<T>(context: IRequestContext): TPromise<T> {
 			return c(null);
 		}
 
-		if (!/application\/json/.test(context.res.headers['content-type'])) {
-			return e('Response doesn\'t appear to be JSON');
-		}
-
 		const buffer: string[] = [];
 		context.stream.on('data', (d: string) => buffer.push(d));
-		context.stream.on('end', () => c(JSON.parse(buffer.join(''))));
+		context.stream.on('end', () => {
+			try {
+				c(JSON.parse(buffer.join('')));
+			} catch (err) {
+				e(err);
+			}
+		});
 		context.stream.on('error', e);
 	});
 }

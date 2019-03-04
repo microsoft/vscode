@@ -28,7 +28,7 @@ export default class ServiceWrapper implements vscode.Disposable {
 			documentTracker,
 			new CommandHandler(documentTracker),
 			new CodeLensProvider(documentTracker),
-			new ContentProvider(),
+			new ContentProvider(this.context),
 			new Decorator(this.context, documentTracker),
 		);
 

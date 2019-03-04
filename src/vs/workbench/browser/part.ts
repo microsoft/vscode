@@ -3,12 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./media/part';
-import { Dimension, Builder } from 'vs/base/browser/builder';
 import { Component } from 'vs/workbench/common/component';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
+import { Dimension, size } from 'vs/base/browser/dom';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export interface IPartOptions {
 	hasTitle?: boolean;
@@ -16,21 +15,22 @@ export interface IPartOptions {
 }
 
 /**
- * Parts are layed out in the workbench and have their own layout that arranges an optional title
- * and mandatory content area to show content.
+ * Parts are layed out in the workbench and have their own layout that
+ * arranges an optional title and mandatory content area to show content.
  */
 export abstract class Part extends Component {
-	private parent: Builder;
-	private titleArea: Builder;
-	private contentArea: Builder;
+	private parent: HTMLElement;
+	private titleArea: HTMLElement | null;
+	private contentArea: HTMLElement | null;
 	private partLayout: PartLayout;
 
 	constructor(
 		id: string,
 		private options: IPartOptions,
-		themeService: IThemeService
+		themeService: IThemeService,
+		storageService: IStorageService
 	) {
-		super(id, themeService);
+		super(id, themeService, storageService);
 	}
 
 	protected onThemeChange(theme: ITheme): void {
@@ -47,7 +47,7 @@ export abstract class Part extends Component {
 	 *
 	 * Called to create title and content area of the part.
 	 */
-	public create(parent: Builder): void {
+	create(parent: HTMLElement): void {
 		this.parent = parent;
 		this.titleArea = this.createTitleArea(parent);
 		this.contentArea = this.createContentArea(parent);
@@ -60,54 +60,53 @@ export abstract class Part extends Component {
 	/**
 	 * Returns the overall part container.
 	 */
-	public getContainer(): Builder {
+	getContainer(): HTMLElement {
 		return this.parent;
 	}
 
 	/**
 	 * Subclasses override to provide a title area implementation.
 	 */
-	protected createTitleArea(parent: Builder): Builder {
+	protected createTitleArea(parent: HTMLElement): HTMLElement | null {
 		return null;
 	}
 
 	/**
 	 * Returns the title area container.
 	 */
-	protected getTitleArea(): Builder {
+	protected getTitleArea(): HTMLElement | null {
 		return this.titleArea;
 	}
 
 	/**
 	 * Subclasses override to provide a content area implementation.
 	 */
-	protected createContentArea(parent: Builder): Builder {
+	protected createContentArea(parent: HTMLElement): HTMLElement | null {
 		return null;
 	}
 
 	/**
 	 * Returns the content area container.
 	 */
-	protected getContentArea(): Builder {
+	protected getContentArea(): HTMLElement | null {
 		return this.contentArea;
 	}
 
 	/**
 	 * Layout title and content area in the given dimension.
 	 */
-	public layout(dimension: Dimension): Dimension[] {
+	layout(dimension: Dimension): Dimension[] {
 		return this.partLayout.layout(dimension);
 	}
 }
 
-const TITLE_HEIGHT = 35;
-
 export class PartLayout {
 
-	constructor(container: Builder, private options: IPartOptions, titleArea: Builder, private contentArea: Builder) {
-	}
+	private static readonly TITLE_HEIGHT = 35;
 
-	public layout(dimension: Dimension): Dimension[] {
+	constructor(container: HTMLElement, private options: IPartOptions, titleArea: HTMLElement | null, private contentArea: HTMLElement | null) { }
+
+	layout(dimension: Dimension): Dimension[] {
 		const { width, height } = dimension;
 
 		// Return the applied sizes to title and content
@@ -116,7 +115,7 @@ export class PartLayout {
 		// Title Size: Width (Fill), Height (Variable)
 		let titleSize: Dimension;
 		if (this.options && this.options.hasTitle) {
-			titleSize = new Dimension(width, Math.min(height, TITLE_HEIGHT));
+			titleSize = new Dimension(width, Math.min(height, PartLayout.TITLE_HEIGHT));
 		} else {
 			titleSize = new Dimension(0, 0);
 		}
@@ -133,7 +132,7 @@ export class PartLayout {
 
 		// Content
 		if (this.contentArea) {
-			this.contentArea.size(contentSize.width, contentSize.height);
+			size(this.contentArea, contentSize.width, contentSize.height);
 		}
 
 		return sizes;

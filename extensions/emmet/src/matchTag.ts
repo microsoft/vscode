@@ -5,20 +5,19 @@
 
 import * as vscode from 'vscode';
 import { HtmlNode } from 'EmmetNode';
-import { getNode, parseDocument, validate } from './util';
+import { getHtmlNode, parseDocument, validate } from './util';
+
 
 export function matchTag() {
-	let editor = vscode.window.activeTextEditor;
-	if (!validate(false)) {
+	if (!validate(false) || !vscode.window.activeTextEditor) {
 		return;
 	}
 
-	let rootNode = <HtmlNode>parseDocument(editor.document);
-	if (!rootNode) {
-		return;
-	}
+	const editor = vscode.window.activeTextEditor;
+	let rootNode: HtmlNode = <HtmlNode>parseDocument(editor.document);
+	if (!rootNode) { return; }
 
-	let updatedSelections = [];
+	let updatedSelections: vscode.Selection[] = [];
 	editor.selections.forEach(selection => {
 		let updatedSelection = getUpdatedSelections(editor, selection.start, rootNode);
 		if (updatedSelection) {
@@ -31,11 +30,9 @@ export function matchTag() {
 	}
 }
 
-function getUpdatedSelections(editor: vscode.TextEditor, position: vscode.Position, rootNode: HtmlNode): vscode.Selection {
-	let currentNode = <HtmlNode>getNode(rootNode, position, true);
-	if (!currentNode) {
-		return;
-	}
+function getUpdatedSelections(editor: vscode.TextEditor, position: vscode.Position, rootNode: HtmlNode): vscode.Selection | undefined {
+	let currentNode = getHtmlNode(editor.document, rootNode, position, true);
+	if (!currentNode) { return; }
 
 	// If no closing tag or cursor is between open and close tag, then no-op
 	if (!currentNode.close || (position.isAfter(currentNode.open.end) && position.isBefore(currentNode.close.start))) {
@@ -46,5 +43,3 @@ function getUpdatedSelections(editor: vscode.TextEditor, position: vscode.Positi
 	let finalPosition = position.isBeforeOrEqual(currentNode.open.end) ? currentNode.close.start.translate(0, 2) : currentNode.open.start.translate(0, 1);
 	return new vscode.Selection(finalPosition, finalPosition);
 }
-
-

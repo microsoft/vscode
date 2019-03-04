@@ -5,12 +5,8 @@
 		"Once accepted there, we are happy to receive an update request."
 	],
 	"version": "https://github.com/textmate/ini.tmbundle/commit/2af0cbb0704940f967152616f2f1ff0aae6287a6",
-	"fileTypes": [
-		"ini",
-		"conf"
-	],
-	"keyEquivalent": "^~I",
 	"name": "Ini",
+	"scopeName": "source.ini",
 	"patterns": [
 		{
 			"begin": "(^[ \\t]+)?(?=#)",
@@ -113,7 +109,5 @@
 			},
 			"name": "string.quoted.double.ini"
 		}
-	],
-	"scopeName": "source.ini",
-	"uuid": "77DC23B6-8A90-11D9-BAA4-000A9584EC8C"
+	]
 }

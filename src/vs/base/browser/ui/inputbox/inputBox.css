@@ -74,7 +74,6 @@
 	box-sizing:			border-box;
 	white-space: pre-wrap;
 	visibility: hidden;
-	min-height: 26px;
 	word-wrap: break-word;
 }
 
@@ -99,6 +98,7 @@
 	line-height: 17px;
 	min-height: 34px;
 	margin-top: -1px;
+	word-wrap: break-word;
 }
 
 /* Action bar support */

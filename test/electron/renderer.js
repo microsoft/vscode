@@ -12,6 +12,13 @@ const glob = require('glob');
 const minimatch = require('minimatch');
 const istanbul = require('istanbul');
 const i_remap = require('remap-istanbul/lib/remap');
+const util = require('util');
+const bootstrap = require('../../src/bootstrap');
+
+// Disabled custom inspect. See #38847
+if (util.inspect && util.inspect['defaultOptions']) {
+	util.inspect['defaultOptions'].customInspect = false;
+}
 
 let _tests_glob = '**/test/**/*.test.js';
 let loader;
@@ -27,11 +34,11 @@ function initLoader(opts) {
 		nodeRequire: require,
 		nodeMain: __filename,
 		catchError: true,
-		baseUrl: path.join(__dirname, '../../src'),
+		baseUrl: bootstrap.uriFromPath(path.join(__dirname, '../../src')),
 		paths: {
 			'vs': `../${outdir}/vs`,
 			'lib': `../${outdir}/lib`,
-			'bootstrap': `../${outdir}/bootstrap`
+			'bootstrap-fork': `../${outdir}/bootstrap-fork`
 		}
 	};
 
@@ -56,7 +63,7 @@ function createCoverageReport(opts) {
 			return resolve(undefined);
 		}
 
-		const exclude = /\b((winjs\.base)|(marked)|(raw\.marked)|(nls)|(css))\.js$/;
+		const exclude = /\b((marked)|(raw\.marked)|(nls)|(css))\.js$/;
 		const remappedCoverage = i_remap(global.__coverage__, { exclude: exclude }).getFinalCoverage();
 
 		// The remapped coverage comes out with broken paths
@@ -113,6 +120,8 @@ function loadTestModules(opts) {
 	if (opts.run) {
 		const files = Array.isArray(opts.run) ? opts.run : [opts.run];
 		const modules = files.map(file => {
+			file = file.replace(/^src/, 'out');
+			file = file.replace(/\.ts$/, '.js');
 			return path.relative(_out, file).replace(/\.js$/, '');
 		});
 		return new Promise((resolve, reject) => {
@@ -181,6 +190,9 @@ function loadTests(opts) {
 
 function serializeSuite(suite) {
 	return {
+		root: suite.root,
+		suites: suite.suites.map(serializeSuite),
+		tests: suite.tests.map(serializeRunnable),
 		title: suite.title,
 		fullTitle: suite.fullTitle(),
 		timeout: suite.timeout(),
@@ -261,5 +273,5 @@ function runTests(opts) {
 
 ipcRenderer.on('run', (e, opts) => {
 	initLoader(opts);
-	runTests(opts).catch(err => console.error(err));
+	runTests(opts).catch(err => console.error(typeof err === 'string' ? err : JSON.stringify(err)));
 });

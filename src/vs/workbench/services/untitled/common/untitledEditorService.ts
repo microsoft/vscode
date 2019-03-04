@@ -2,29 +2,27 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import arrays = require('vs/base/common/arrays');
+import * as arrays from 'vs/base/common/arrays';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { IFilesConfiguration } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import Event, { Emitter, once } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { ResourceMap } from 'vs/base/common/map';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
 import { Schemas } from 'vs/base/common/network';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 export const IUntitledEditorService = createDecorator<IUntitledEditorService>('untitledEditorService');
-
-export const UNTITLED_SCHEMA = 'untitled';
 
 export interface IModelLoadOrCreateOptions {
 	resource?: URI;
 	modeId?: string;
 	initialValue?: string;
 	encoding?: string;
+	useResourcePath?: boolean;
 }
 
 export interface IUntitledEditorService {
@@ -87,7 +85,7 @@ export interface IUntitledEditorService {
 	 * It is valid to pass in a file resource. In that case the path will be used as identifier.
 	 * The use case is to be able to create a new file with a specific path with VSCode.
 	 */
-	loadOrCreate(options: IModelLoadOrCreateOptions): TPromise<UntitledEditorModel>;
+	loadOrCreate(options: IModelLoadOrCreateOptions): Promise<UntitledEditorModel>;
 
 	/**
 	 * A check to find out if a untitled resource has a file path associated or not.
@@ -97,53 +95,41 @@ export interface IUntitledEditorService {
 	/**
 	 * Suggests a filename for the given untitled resource if it is known.
 	 */
-	suggestFileName(resource: URI): string;
+	suggestFileName(resource: URI): string | undefined;
 
 	/**
 	 * Get the configured encoding for the given untitled resource if any.
 	 */
-	getEncoding(resource: URI): string;
+	getEncoding(resource: URI): string | undefined;
 }
 
-export class UntitledEditorService implements IUntitledEditorService {
+export class UntitledEditorService extends Disposable implements IUntitledEditorService {
 
-	public _serviceBrand: any;
+	_serviceBrand: any;
 
 	private mapResourceToInput = new ResourceMap<UntitledEditorInput>();
 	private mapResourceToAssociatedFilePath = new ResourceMap<boolean>();
 
-	private _onDidChangeContent: Emitter<URI>;
-	private _onDidChangeDirty: Emitter<URI>;
-	private _onDidChangeEncoding: Emitter<URI>;
-	private _onDidDisposeModel: Emitter<URI>;
+	private readonly _onDidChangeContent: Emitter<URI> = this._register(new Emitter<URI>());
+	get onDidChangeContent(): Event<URI> { return this._onDidChangeContent.event; }
+
+	private readonly _onDidChangeDirty: Emitter<URI> = this._register(new Emitter<URI>());
+	get onDidChangeDirty(): Event<URI> { return this._onDidChangeDirty.event; }
+
+	private readonly _onDidChangeEncoding: Emitter<URI> = this._register(new Emitter<URI>());
+	get onDidChangeEncoding(): Event<URI> { return this._onDidChangeEncoding.event; }
+
+	private readonly _onDidDisposeModel: Emitter<URI> = this._register(new Emitter<URI>());
+	get onDidDisposeModel(): Event<URI> { return this._onDidDisposeModel.event; }
 
 	constructor(
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
-		this._onDidChangeContent = new Emitter<URI>();
-		this._onDidChangeDirty = new Emitter<URI>();
-		this._onDidChangeEncoding = new Emitter<URI>();
-		this._onDidDisposeModel = new Emitter<URI>();
+		super();
 	}
 
-	public get onDidDisposeModel(): Event<URI> {
-		return this._onDidDisposeModel.event;
-	}
-
-	public get onDidChangeContent(): Event<URI> {
-		return this._onDidChangeContent.event;
-	}
-
-	public get onDidChangeDirty(): Event<URI> {
-		return this._onDidChangeDirty.event;
-	}
-
-	public get onDidChangeEncoding(): Event<URI> {
-		return this._onDidChangeEncoding.event;
-	}
-
-	protected get(resource: URI): UntitledEditorInput {
+	protected get(resource: URI): UntitledEditorInput | undefined {
 		return this.mapResourceToInput.get(resource);
 	}
 
@@ -155,11 +141,11 @@ export class UntitledEditorService implements IUntitledEditorService {
 		return this.mapResourceToInput.values();
 	}
 
-	public exists(resource: URI): boolean {
+	exists(resource: URI): boolean {
 		return this.mapResourceToInput.has(resource);
 	}
 
-	public revertAll(resources?: URI[], force?: boolean): URI[] {
+	revertAll(resources?: URI[], force?: boolean): URI[] {
 		const reverted: URI[] = [];
 
 		const untitledInputs = this.getAll(resources);
@@ -175,16 +161,16 @@ export class UntitledEditorService implements IUntitledEditorService {
 		return reverted;
 	}
 
-	public isDirty(resource: URI): boolean {
+	isDirty(resource: URI): boolean {
 		const input = this.get(resource);
 
-		return input && input.isDirty();
+		return input ? input.isDirty() : false;
 	}
 
-	public getDirty(resources?: URI[]): URI[] {
+	getDirty(resources?: URI[]): URI[] {
 		let inputs: UntitledEditorInput[];
 		if (resources) {
-			inputs = resources.map(r => this.get(r)).filter(i => !!i);
+			inputs = arrays.coalesce(resources.map(r => this.get(r)));
 		} else {
 			inputs = this.mapResourceToInput.values();
 		}
@@ -194,17 +180,18 @@ export class UntitledEditorService implements IUntitledEditorService {
 			.map(i => i.getResource());
 	}
 
-	public loadOrCreate(options: IModelLoadOrCreateOptions = Object.create(null)): TPromise<UntitledEditorModel> {
-		return this.createOrGet(options.resource, options.modeId, options.initialValue, options.encoding).resolve();
+	loadOrCreate(options: IModelLoadOrCreateOptions = Object.create(null)): Promise<UntitledEditorModel> {
+		return this.createOrGet(options.resource, options.modeId, options.initialValue, options.encoding, options.useResourcePath).resolve();
 	}
 
-	public createOrGet(resource?: URI, modeId?: string, initialValue?: string, encoding?: string): UntitledEditorInput {
+	createOrGet(resource?: URI, modeId?: string, initialValue?: string, encoding?: string, hasAssociatedFilePath: boolean = false): UntitledEditorInput {
 
-		// Massage resource if it comes with a file:// scheme
-		let hasAssociatedFilePath = false;
 		if (resource) {
-			hasAssociatedFilePath = (resource.scheme === Schemas.file);
-			resource = resource.with({ scheme: UNTITLED_SCHEMA }); // ensure we have the right scheme
+			// Massage resource if it comes with a file:// scheme
+			if (resource.scheme === Schemas.file) {
+				hasAssociatedFilePath = true;
+				resource = resource.with({ scheme: Schemas.untitled }); // ensure we have the right scheme
+			}
 
 			if (hasAssociatedFilePath) {
 				this.mapResourceToAssociatedFilePath.set(resource, true); // remember for future lookups
@@ -213,7 +200,7 @@ export class UntitledEditorService implements IUntitledEditorService {
 
 		// Return existing instance if asked for it
 		if (resource && this.mapResourceToInput.has(resource)) {
-			return this.mapResourceToInput.get(resource);
+			return this.mapResourceToInput.get(resource)!;
 		}
 
 		// Create new otherwise
@@ -226,7 +213,7 @@ export class UntitledEditorService implements IUntitledEditorService {
 			// Create new taking a resource URI that is not already taken
 			let counter = this.mapResourceToInput.size + 1;
 			do {
-				resource = URI.from({ scheme: UNTITLED_SCHEMA, path: `Untitled-${counter}` });
+				resource = URI.from({ scheme: Schemas.untitled, path: `Untitled-${counter}` });
 				counter++;
 			} while (this.mapResourceToInput.has(resource));
 		}
@@ -242,23 +229,23 @@ export class UntitledEditorService implements IUntitledEditorService {
 		const input = this.instantiationService.createInstance(UntitledEditorInput, resource, hasAssociatedFilePath, modeId, initialValue, encoding);
 
 		const contentListener = input.onDidModelChangeContent(() => {
-			this._onDidChangeContent.fire(resource);
+			this._onDidChangeContent.fire(resource!);
 		});
 
 		const dirtyListener = input.onDidChangeDirty(() => {
-			this._onDidChangeDirty.fire(resource);
+			this._onDidChangeDirty.fire(resource!);
 		});
 
 		const encodingListener = input.onDidModelChangeEncoding(() => {
-			this._onDidChangeEncoding.fire(resource);
+			this._onDidChangeEncoding.fire(resource!);
 		});
 
 		const disposeListener = input.onDispose(() => {
-			this._onDidDisposeModel.fire(resource);
+			this._onDidDisposeModel.fire(resource!);
 		});
 
 		// Remove from cache on dispose
-		const onceDispose = once(input.onDispose);
+		const onceDispose = Event.once(input.onDispose);
 		onceDispose(() => {
 			this.mapResourceToInput.delete(input.getResource());
 			this.mapResourceToAssociatedFilePath.delete(input.getResource());
@@ -274,26 +261,19 @@ export class UntitledEditorService implements IUntitledEditorService {
 		return input;
 	}
 
-	public hasAssociatedFilePath(resource: URI): boolean {
+	hasAssociatedFilePath(resource: URI): boolean {
 		return this.mapResourceToAssociatedFilePath.has(resource);
 	}
 
-	public suggestFileName(resource: URI): string {
+	suggestFileName(resource: URI): string | undefined {
 		const input = this.get(resource);
 
-		return input ? input.suggestFileName() : void 0;
+		return input ? input.suggestFileName() : undefined;
 	}
 
-	public getEncoding(resource: URI): string {
+	getEncoding(resource: URI): string | undefined {
 		const input = this.get(resource);
 
-		return input ? input.getEncoding() : void 0;
-	}
-
-	public dispose(): void {
-		this._onDidChangeContent.dispose();
-		this._onDidChangeDirty.dispose();
-		this._onDidChangeEncoding.dispose();
-		this._onDidDisposeModel.dispose();
+		return input ? input.getEncoding() : undefined;
 	}
 }

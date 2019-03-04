@@ -3,17 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./marginDecorations';
 import { DecorationToRender, DedupOverlay } from 'vs/editor/browser/viewParts/glyphMargin/glyphMargin';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { RenderingContext } from 'vs/editor/common/view/renderingContext';
+import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 export class MarginViewLineDecorationsOverlay extends DedupOverlay {
 	private _context: ViewContext;
-	private _renderResult: string[];
+	private _renderResult: string[] | null;
 
 	constructor(context: ViewContext) {
 		super();
@@ -24,7 +22,6 @@ export class MarginViewLineDecorationsOverlay extends DedupOverlay {
 
 	public dispose(): void {
 		this._context.removeEventHandler(this);
-		this._context = null;
 		this._renderResult = null;
 		super.dispose();
 	}

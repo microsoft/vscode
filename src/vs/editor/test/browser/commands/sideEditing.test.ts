@@ -2,23 +2,22 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as assert from 'assert';
+import { Cursor } from 'vs/editor/common/controller/cursor';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
-import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { Model } from 'vs/editor/common/model/model';
-import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
+import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
-import { Cursor } from 'vs/editor/common/controller/cursor';
+import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 
 function testCommand(lines: string[], selections: Selection[], edits: IIdentifiedSingleEditOperation[], expectedLines: string[], expectedSelections: Selection[]): void {
 	withTestCodeEditor(lines, {}, (editor, cursor) => {
-		const model = editor.getModel();
+		const model = editor.getModel()!;
 
 		cursor.setSelections('tests', selections);
 
@@ -199,13 +198,17 @@ suite('SideEditing', () => {
 	];
 
 	function _runTest(selection: Selection, editRange: Range, editText: string, editForceMoveMarkers: boolean, expected: Selection, msg: string): void {
-		const model = Model.createFromString(LINES.join('\n'));
-		const config = new TestConfiguration(null);
-		const viewModel = new ViewModel(0, config, model, null);
+		const model = TextModel.createFromString(LINES.join('\n'));
+		const config = new TestConfiguration({});
+		const viewModel = new ViewModel(0, config, model, null!);
 		const cursor = new Cursor(config, model, viewModel);
 
 		cursor.setSelections('tests', [selection]);
-		model.applyEdits([{ range: editRange, text: editText, forceMoveMarkers: editForceMoveMarkers, identifier: null }]);
+		model.applyEdits([{
+			range: editRange,
+			text: editText,
+			forceMoveMarkers: editForceMoveMarkers
+		}]);
 		const actual = cursor.getSelection();
 		assert.deepEqual(actual.toString(), expected.toString(), msg);
 

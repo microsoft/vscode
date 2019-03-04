@@ -3,13 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { workspace, Uri, Disposable, Event, EventEmitter, window } from 'vscode';
 import { debounce, throttle } from './decorators';
 import { fromGitUri, toGitUri } from './uri';
 import { Model, ModelChangeEvent, OriginalResourceChangeEvent } from './model';
-import { filterEvent, eventToPromise } from './util';
+import { filterEvent, eventToPromise, isDescendant, pathEquals } from './util';
 
 interface CacheRow {
 	uri: Uri;
@@ -52,7 +50,7 @@ export class GitContentProvider {
 			return;
 		}
 
-		this._onDidChange.fire(toGitUri(uri, '', true));
+		this._onDidChange.fire(toGitUri(uri, '', { replaceFileExtension: true }));
 	}
 
 	@debounce(1100)
@@ -72,7 +70,7 @@ export class GitContentProvider {
 			const fsPath = uri.fsPath;
 
 			for (const root of this.changedRepositoryRoots) {
-				if (fsPath.startsWith(root)) {
+				if (isDescendant(root, fsPath)) {
 					this._onDidChange.fire(uri);
 					return;
 				}
@@ -83,6 +81,22 @@ export class GitContentProvider {
 	}
 
 	async provideTextDocumentContent(uri: Uri): Promise<string> {
+		let { path, ref, submoduleOf } = fromGitUri(uri);
+
+		if (submoduleOf) {
+			const repository = this.model.getRepository(submoduleOf);
+
+			if (!repository) {
+				return '';
+			}
+
+			if (ref === 'index') {
+				return await repository.diffIndexWithHEAD(path);
+			} else {
+				return await repository.diffWithHEAD(path);
+			}
+		}
+
 		const repository = this.model.getRepository(uri);
 
 		if (!repository) {
@@ -95,13 +109,13 @@ export class GitContentProvider {
 
 		this.cache[cacheKey] = cacheValue;
 
-		let { path, ref } = fromGitUri(uri);
-
 		if (ref === '~') {
 			const fileUri = Uri.file(path);
 			const uriString = fileUri.toString();
 			const [indexStatus] = repository.indexGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString);
 			ref = indexStatus ? '' : 'HEAD';
+		} else if (/^~\d$/.test(ref)) {
+			ref = `:${ref[1]}`;
 		}
 
 		try {
@@ -120,7 +134,7 @@ export class GitContentProvider {
 			const { path } = fromGitUri(row.uri);
 			const isOpen = workspace.textDocuments
 				.filter(d => d.uri.scheme === 'file')
-				.some(d => d.uri.fsPath === path);
+				.some(d => pathEquals(d.uri.fsPath, path));
 
 			if (isOpen || now - row.timestamp < THREE_MINUTES) {
 				cache[row.uri.toString()] = row;

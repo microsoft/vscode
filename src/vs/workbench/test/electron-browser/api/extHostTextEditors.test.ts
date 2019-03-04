@@ -2,64 +2,60 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as extHostTypes from 'vs/workbench/api/node/extHostTypes';
-import { MainContext, MainThreadEditorsShape, IWorkspaceResourceEdit } from 'vs/workbench/api/node/extHost.protocol';
-import URI from 'vs/base/common/uri';
+import { MainContext, MainThreadTextEditorsShape, WorkspaceEditDto } from 'vs/workbench/api/node/extHost.protocol';
+import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
-import { OneGetThreadService, TestThreadService } from 'vs/workbench/test/electron-browser/api/testThreadService';
+import { SingleProxyRPCProtocol, TestRPCProtocol } from 'vs/workbench/test/electron-browser/api/testRPCProtocol';
 import { ExtHostEditors } from 'vs/workbench/api/node/extHostTextEditors';
+import { ResourceTextEdit } from 'vs/editor/common/modes';
 
 suite('ExtHostTextEditors.applyWorkspaceEdit', () => {
 
 	const resource = URI.parse('foo:bar');
 	let editors: ExtHostEditors;
-	let workspaceResourceEdits: IWorkspaceResourceEdit[];
+	let workspaceResourceEdits: WorkspaceEditDto;
 
 	setup(() => {
-		workspaceResourceEdits = null;
+		workspaceResourceEdits = null!;
 
-		let threadService = new TestThreadService();
-		threadService.setTestInstance(MainContext.MainThreadEditors, new class extends mock<MainThreadEditorsShape>() {
-			$tryApplyWorkspaceEdit(_workspaceResourceEdits: IWorkspaceResourceEdit[]): TPromise<boolean> {
+		let rpcProtocol = new TestRPCProtocol();
+		rpcProtocol.set(MainContext.MainThreadTextEditors, new class extends mock<MainThreadTextEditorsShape>() {
+			$tryApplyWorkspaceEdit(_workspaceResourceEdits: WorkspaceEditDto): Promise<boolean> {
 				workspaceResourceEdits = _workspaceResourceEdits;
-				return TPromise.as(true);
+				return Promise.resolve(true);
 			}
 		});
-		const documentsAndEditors = new ExtHostDocumentsAndEditors(OneGetThreadService(null));
+		const documentsAndEditors = new ExtHostDocumentsAndEditors(SingleProxyRPCProtocol(null));
 		documentsAndEditors.$acceptDocumentsAndEditorsDelta({
 			addedDocuments: [{
 				isDirty: false,
 				modeId: 'foo',
-				url: resource,
+				uri: resource,
 				versionId: 1337,
 				lines: ['foo'],
 				EOL: '\n',
 			}]
 		});
-		editors = new ExtHostEditors(threadService, documentsAndEditors);
+		editors = new ExtHostEditors(rpcProtocol, documentsAndEditors);
 	});
 
-	test('uses version id if document available', () => {
+	test('uses version id if document available', async () => {
 		let edit = new extHostTypes.WorkspaceEdit();
 		edit.replace(resource, new extHostTypes.Range(0, 0, 0, 0), 'hello');
-		return editors.applyWorkspaceEdit(edit).then((result) => {
-			assert.equal(workspaceResourceEdits.length, 1);
-			assert.equal(workspaceResourceEdits[0].modelVersionId, 1337);
-		});
+		await editors.applyWorkspaceEdit(edit);
+		assert.equal(workspaceResourceEdits.edits.length, 1);
+		assert.equal((<ResourceTextEdit>workspaceResourceEdits.edits[0]).modelVersionId, 1337);
 	});
 
-	test('does not use version id if document is not available', () => {
+	test('does not use version id if document is not available', async () => {
 		let edit = new extHostTypes.WorkspaceEdit();
 		edit.replace(URI.parse('foo:bar2'), new extHostTypes.Range(0, 0, 0, 0), 'hello');
-		return editors.applyWorkspaceEdit(edit).then((result) => {
-			assert.equal(workspaceResourceEdits.length, 1);
-			assert.ok(typeof workspaceResourceEdits[0].modelVersionId === 'undefined');
-		});
+		await editors.applyWorkspaceEdit(edit);
+		assert.equal(workspaceResourceEdits.edits.length, 1);
+		assert.ok(typeof (<ResourceTextEdit>workspaceResourceEdits.edits[0]).modelVersionId === 'undefined');
 	});
 
 });

@@ -3,13 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { compareAnything } from 'vs/base/common/comparers';
-import { matchesPrefix, IMatch, createMatches, matchesCamelCase, isUpper } from 'vs/base/common/filters';
-import { isEqual, nativeSep } from 'vs/base/common/paths';
-import { isWindows } from 'vs/base/common/platform';
-import { stripWildcards } from 'vs/base/common/strings';
+import { matchesPrefix, IMatch, matchesCamelCase, isUpper } from 'vs/base/common/filters';
+import { sep } from 'vs/base/common/path';
+import { isWindows, isLinux } from 'vs/base/common/platform';
+import { stripWildcards, equalsIgnoreCase } from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
 
 export type Score = [number /* score */, number[] /* match positions */];
@@ -52,20 +50,6 @@ export function score(target: string, query: string, queryLower: string, fuzzy: 
 		}
 	}
 
-	// When searching fuzzy, we require the query to be contained fully
-	// in the target string as separate substrings
-	else {
-		let targetOffset = 0;
-		for (let queryIndex = 0; queryIndex < queryLength; queryIndex++) {
-			targetOffset = targetLower.indexOf(queryLower[queryIndex], targetOffset);
-			if (targetOffset === -1) {
-				return NO_SCORE;
-			}
-
-			targetOffset++;
-		}
-	}
-
 	const res = doScore(query, queryLower, queryLength, target, targetLower, targetLength);
 
 	// if (DEBUG) {
@@ -76,12 +60,13 @@ export function score(target: string, query: string, queryLower: string, fuzzy: 
 	return res;
 }
 
-function doScore(query: string, queryLower: string, queryLength: number, target: string, targetLower: string, targetLength: number): [number, number[]] {
-	const scores = [];
-	const matches = [];
+function doScore(query: string, queryLower: string, queryLength: number, target: string, targetLower: string, targetLength: number): Score {
+	const scores: number[] = [];
+	const matches: number[] = [];
 
 	//
-	// Build Scorer Matrix
+	// Build Scorer Matrix:
+	//
 	// The matrix is composed of query q and target t. For each index we score
 	// q[i] with t[i] and compare that with the previous score. If the score is
 	// equal or larger, we keep the match. In addition to the score, we also keep
@@ -95,17 +80,37 @@ function doScore(query: string, queryLower: string, queryLength: number, target:
 	//  y
 	//
 	for (let queryIndex = 0; queryIndex < queryLength; queryIndex++) {
+		const queryIndexOffset = queryIndex * targetLength;
+		const queryIndexPreviousOffset = queryIndexOffset - targetLength;
+
+		const queryIndexGtNull = queryIndex > 0;
+
+		const queryCharAtIndex = query[queryIndex];
+		const queryLowerCharAtIndex = queryLower[queryIndex];
+
 		for (let targetIndex = 0; targetIndex < targetLength; targetIndex++) {
-			const currentIndex = queryIndex * targetLength + targetIndex;
+			const targetIndexGtNull = targetIndex > 0;
+
+			const currentIndex = queryIndexOffset + targetIndex;
 			const leftIndex = currentIndex - 1;
-			const diagIndex = (queryIndex - 1) * targetLength + targetIndex - 1;
+			const diagIndex = queryIndexPreviousOffset + targetIndex - 1;
 
-			const leftScore = targetIndex > 0 ? scores[leftIndex] : 0;
-			const diagScore = queryIndex > 0 && targetIndex > 0 ? scores[diagIndex] : 0;
+			const leftScore = targetIndexGtNull ? scores[leftIndex] : 0;
+			const diagScore = queryIndexGtNull && targetIndexGtNull ? scores[diagIndex] : 0;
 
-			const matchesSequenceLength = queryIndex > 0 && targetIndex > 0 ? matches[diagIndex] : 0;
+			const matchesSequenceLength = queryIndexGtNull && targetIndexGtNull ? matches[diagIndex] : 0;
 
-			const score = computeCharScore(query, queryLower, queryIndex, target, targetLower, targetIndex, matchesSequenceLength);
+			// If we are not matching on the first query character any more, we only produce a
+			// score if we had a score previously for the last query index (by looking at the diagScore).
+			// This makes sure that the query always matches in sequence on the target. For example
+			// given a target of "ede" and a query of "de", we would otherwise produce a wrong high score
+			// for query[1] ("e") matching on target[0] ("e") because of the "beginning of word" boost.
+			let score: number;
+			if (!diagScore && queryIndexGtNull) {
+				score = 0;
+			} else {
+				score = computeCharScore(queryCharAtIndex, queryLowerCharAtIndex, target, targetLower, targetIndex, matchesSequenceLength);
+			}
 
 			// We have a score and its equal or larger than the left score
 			// Match: sequence continues growing from previous diag value
@@ -126,7 +131,7 @@ function doScore(query: string, queryLower: string, queryLength: number, target:
 	}
 
 	// Restore Positions (starting from bottom right of matrix)
-	const positions = [];
+	const positions: number[] = [];
 	let queryIndex = queryLength - 1;
 	let targetIndex = targetLength - 1;
 	while (queryIndex >= 0 && targetIndex >= 0) {
@@ -145,16 +150,16 @@ function doScore(query: string, queryLower: string, queryLength: number, target:
 
 	// Print matrix
 	// if (DEBUG_MATRIX) {
-	// 	printMatrix(query, target, matches, scores);
+	// printMatrix(query, target, matches, scores);
 	// }
 
 	return [scores[queryLength * targetLength - 1], positions.reverse()];
 }
 
-function computeCharScore(query: string, queryLower: string, queryIndex: number, target: string, targetLower: string, targetIndex: number, matchesSequenceLength: number): number {
+function computeCharScore(queryCharAtIndex, queryLowerCharAtIndex, target: string, targetLower: string, targetIndex: number, matchesSequenceLength: number): number {
 	let score = 0;
 
-	if (queryLower[queryIndex] !== targetLower[targetIndex]) {
+	if (queryLowerCharAtIndex !== targetLower[targetIndex]) {
 		return score; // no match of characters
 	}
 
@@ -175,7 +180,7 @@ function computeCharScore(query: string, queryLower: string, queryIndex: number,
 	}
 
 	// Same case bonus
-	if (query[queryIndex] === target[targetIndex]) {
+	if (queryCharAtIndex === target[targetIndex]) {
 		score += 1;
 
 		// if (DEBUG) {
@@ -280,17 +285,17 @@ export interface IItemAccessor<T> {
 	/**
 	 * Just the label of the item to score on.
 	 */
-	getItemLabel(item: T): string;
+	getItemLabel(item: T): string | null;
 
 	/**
 	 * The optional description of the item to score on. Can be null.
 	 */
-	getItemDescription(item: T): string;
+	getItemDescription(item: T): string | null;
 
 	/**
 	 * If the item is a file, the path of the file to score on. Can be null.
 	 */
-	getItemPath(file: T): string;
+	getItemPath(file: T): string | undefined;
 }
 
 const PATH_IDENTITY_SCORE = 1 << 18;
@@ -299,6 +304,7 @@ const LABEL_CAMELCASE_SCORE = 1 << 16;
 const LABEL_SCORE_THRESHOLD = 1 << 15;
 
 export interface IPreparedQuery {
+	original: string;
 	value: string;
 	lowercase: string;
 	containsPathSeparator: boolean;
@@ -307,21 +313,20 @@ export interface IPreparedQuery {
 /**
  * Helper function to prepare a search value for scoring in quick open by removing unwanted characters.
  */
-export function prepareQuery(value: string): IPreparedQuery {
-	let lowercase: string;
-	let containsPathSeparator: boolean;
-
-	if (value) {
-		value = stripWildcards(value).replace(/\s/g, ''); // get rid of all wildcards and whitespace
-		if (isWindows) {
-			value = value.replace(/\//g, '\\'); // Help Windows users to search for paths when using slash
-		}
-
-		lowercase = value.toLowerCase();
-		containsPathSeparator = value.indexOf(nativeSep) >= 0;
+export function prepareQuery(original: string): IPreparedQuery {
+	if (!original) {
+		original = '';
 	}
 
-	return { value, lowercase, containsPathSeparator };
+	let value = stripWildcards(original).replace(/\s/g, ''); // get rid of all wildcards and whitespace
+	if (isWindows) {
+		value = value.replace(/\//g, sep); // Help Windows users to search for paths when using slash
+	}
+
+	const lowercase = value.toLowerCase();
+	const containsPathSeparator = value.indexOf(sep) >= 0;
+
+	return { original, value, lowercase, containsPathSeparator };
 }
 
 export function scoreItem<T>(item: T, query: IPreparedQuery, fuzzy: boolean, accessor: IItemAccessor<T>, cache: ScorerCache): IItemScore {
@@ -354,11 +359,28 @@ export function scoreItem<T>(item: T, query: IPreparedQuery, fuzzy: boolean, acc
 	return itemScore;
 }
 
-function doScoreItem(label: string, description: string, path: string, query: IPreparedQuery, fuzzy: boolean): IItemScore {
+function createMatches(offsets: undefined | number[]): IMatch[] {
+	let ret: IMatch[] = [];
+	if (!offsets) {
+		return ret;
+	}
+	let last: IMatch | undefined;
+	for (const pos of offsets) {
+		if (last && last.end === pos) {
+			last.end += 1;
+		} else {
+			last = { start: pos, end: pos + 1 };
+			ret.push(last);
+		}
+	}
+	return ret;
+}
+
+function doScoreItem(label: string, description: string | null, path: string | undefined, query: IPreparedQuery, fuzzy: boolean): IItemScore {
 
 	// 1.) treat identity matches on full path highest
-	if (path && isEqual(query.value, path, true)) {
-		return { score: PATH_IDENTITY_SCORE, labelMatch: [{ start: 0, end: label.length }], descriptionMatch: description ? [{ start: 0, end: description.length }] : void 0 };
+	if (path && (isLinux ? query.original === path : equalsIgnoreCase(query.original, path))) {
+		return { score: PATH_IDENTITY_SCORE, labelMatch: [{ start: 0, end: label.length }], descriptionMatch: description ? [{ start: 0, end: description.length }] : undefined };
 	}
 
 	// We only consider label matches if the query is not including file path separators
@@ -388,7 +410,7 @@ function doScoreItem(label: string, description: string, path: string, query: IP
 	if (description) {
 		let descriptionPrefix = description;
 		if (!!path) {
-			descriptionPrefix = `${description}${nativeSep}`; // assume this is a file path
+			descriptionPrefix = `${description}${sep}`; // assume this is a file path
 		}
 
 		const descriptionPrefixLength = descriptionPrefix.length;
@@ -447,8 +469,8 @@ export function compareItemsByScore<T>(itemA: T, itemB: T, query: IPreparedQuery
 			return scoreA === LABEL_PREFIX_SCORE ? -1 : 1;
 		}
 
-		const labelA = accessor.getItemLabel(itemA);
-		const labelB = accessor.getItemLabel(itemB);
+		const labelA = accessor.getItemLabel(itemA) || '';
+		const labelB = accessor.getItemLabel(itemB) || '';
 
 		// prefer shorter names when both match on label prefix
 		if (labelA.length !== labelB.length) {
@@ -462,8 +484,8 @@ export function compareItemsByScore<T>(itemA: T, itemB: T, query: IPreparedQuery
 			return scoreA === LABEL_CAMELCASE_SCORE ? -1 : 1;
 		}
 
-		const labelA = accessor.getItemLabel(itemA);
-		const labelB = accessor.getItemLabel(itemB);
+		const labelA = accessor.getItemLabel(itemA) || '';
+		const labelB = accessor.getItemLabel(itemB) || '';
 
 		// prefer more compact camel case matches over longer
 		const comparedByMatchLength = compareByMatchLength(itemScoreA.labelMatch, itemScoreB.labelMatch);
@@ -506,28 +528,25 @@ export function compareItemsByScore<T>(itemA: T, itemB: T, query: IPreparedQuery
 }
 
 function computeLabelAndDescriptionMatchDistance<T>(item: T, score: IItemScore, accessor: IItemAccessor<T>): number {
-	const hasLabelMatches = (score.labelMatch && score.labelMatch.length);
-	const hasDescriptionMatches = (score.descriptionMatch && score.descriptionMatch.length);
-
 	let matchStart: number = -1;
 	let matchEnd: number = -1;
 
 	// If we have description matches, the start is first of description match
-	if (hasDescriptionMatches) {
+	if (score.descriptionMatch && score.descriptionMatch.length) {
 		matchStart = score.descriptionMatch[0].start;
 	}
 
 	// Otherwise, the start is the first label match
-	else if (hasLabelMatches) {
+	else if (score.labelMatch && score.labelMatch.length) {
 		matchStart = score.labelMatch[0].start;
 	}
 
 	// If we have label match, the end is the last label match
 	// If we had a description match, we add the length of the description
 	// as offset to the end to indicate this.
-	if (hasLabelMatches) {
+	if (score.labelMatch && score.labelMatch.length) {
 		matchEnd = score.labelMatch[score.labelMatch.length - 1].end;
-		if (hasDescriptionMatches) {
+		if (score.descriptionMatch && score.descriptionMatch.length) {
 			const itemDescription = accessor.getItemDescription(item);
 			if (itemDescription) {
 				matchEnd += itemDescription.length;
@@ -536,7 +555,7 @@ function computeLabelAndDescriptionMatchDistance<T>(item: T, score: IItemScore, 
 	}
 
 	// If we have just a description match, the end is the last description match
-	else if (hasDescriptionMatches) {
+	else if (score.descriptionMatch && score.descriptionMatch.length) {
 		matchEnd = score.descriptionMatch[score.descriptionMatch.length - 1].end;
 	}
 
@@ -544,7 +563,7 @@ function computeLabelAndDescriptionMatchDistance<T>(item: T, score: IItemScore, 
 }
 
 function compareByMatchLength(matchesA?: IMatch[], matchesB?: IMatch[]): number {
-	if ((!matchesA && !matchesB) || (!matchesA.length && !matchesB.length)) {
+	if ((!matchesA && !matchesB) || ((!matchesA || !matchesA.length) && (!matchesB || !matchesB.length))) {
 		return 0; // make sure to not cause bad comparing when matches are not provided
 	}
 
@@ -573,8 +592,8 @@ function compareByMatchLength(matchesA?: IMatch[], matchesB?: IMatch[]): number 
 export function fallbackCompare<T>(itemA: T, itemB: T, query: IPreparedQuery, accessor: IItemAccessor<T>): number {
 
 	// check for label + description length and prefer shorter
-	const labelA = accessor.getItemLabel(itemA);
-	const labelB = accessor.getItemLabel(itemB);
+	const labelA = accessor.getItemLabel(itemA) || '';
+	const labelB = accessor.getItemLabel(itemB) || '';
 
 	const descriptionA = accessor.getItemDescription(itemA);
 	const descriptionB = accessor.getItemDescription(itemB);

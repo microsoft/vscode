@@ -2,28 +2,27 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { IDisposable } from 'vs/base/common/lifecycle';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
-import { editorFindMatchHighlight, editorFindMatch } from 'vs/platform/theme/common/colorRegistry';
+import { FindMatch, IModelDecorationsChangeAccessor, IModelDeltaDecoration, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import { overviewRulerFindMatchForeground } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export class FindDecorations implements IDisposable {
 
-	private _editor: ICodeEditor;
+	private _editor: IActiveCodeEditor;
 	private _decorations: string[];
 	private _overviewRulerApproximateDecorations: string[];
-	private _findScopeDecorationId: string;
-	private _rangeHighlightDecorationId: string;
-	private _highlightedDecorationId: string;
+	private _findScopeDecorationId: string | null;
+	private _rangeHighlightDecorationId: string | null;
+	private _highlightedDecorationId: string | null;
 	private _startPosition: Position;
 
-	constructor(editor: ICodeEditor) {
+	constructor(editor: IActiveCodeEditor) {
 		this._editor = editor;
 		this._decorations = [];
 		this._overviewRulerApproximateDecorations = [];
@@ -36,13 +35,11 @@ export class FindDecorations implements IDisposable {
 	public dispose(): void {
 		this._editor.deltaDecorations(this._allDecorations(), []);
 
-		this._editor = null;
 		this._decorations = [];
 		this._overviewRulerApproximateDecorations = [];
 		this._findScopeDecorationId = null;
 		this._rangeHighlightDecorationId = null;
 		this._highlightedDecorationId = null;
-		this._startPosition = null;
 	}
 
 	public reset(): void {
@@ -57,7 +54,7 @@ export class FindDecorations implements IDisposable {
 		return this._decorations.length;
 	}
 
-	public getFindScope(): Range {
+	public getFindScope(): Range | null {
 		if (this._findScopeDecorationId) {
 			return this._editor.getModel().getDecorationRange(this._findScopeDecorationId);
 		}
@@ -83,8 +80,7 @@ export class FindDecorations implements IDisposable {
 
 	public getCurrentMatchesPosition(desiredRange: Range): number {
 		let candidates = this._editor.getModel().getDecorationsInRange(desiredRange);
-		for (let i = 0, len = candidates.length; i < len; i++) {
-			const candidate = candidates[i];
+		for (const candidate of candidates) {
 			const candidateOpts = candidate.options;
 			if (candidateOpts === FindDecorations._FIND_MATCH_DECORATION || candidateOpts === FindDecorations._CURRENT_FIND_MATCH_DECORATION) {
 				return this._getDecorationIndex(candidate.id);
@@ -93,8 +89,8 @@ export class FindDecorations implements IDisposable {
 		return 1;
 	}
 
-	public setCurrentFindMatch(nextMatch: Range): number {
-		let newCurrentDecorationId: string = null;
+	public setCurrentFindMatch(nextMatch: Range | null): number {
+		let newCurrentDecorationId: string | null = null;
 		let matchPosition = 0;
 		if (nextMatch) {
 			for (let i = 0, len = this._decorations.length; i < len; i++) {
@@ -108,7 +104,7 @@ export class FindDecorations implements IDisposable {
 		}
 
 		if (this._highlightedDecorationId !== null || newCurrentDecorationId !== null) {
-			this._editor.changeDecorations((changeAccessor: editorCommon.IModelDecorationsChangeAccessor) => {
+			this._editor.changeDecorations((changeAccessor: IModelDecorationsChangeAccessor) => {
 				if (this._highlightedDecorationId !== null) {
 					changeAccessor.changeDecorationOptions(this._highlightedDecorationId, FindDecorations._FIND_MATCH_DECORATION);
 					this._highlightedDecorationId = null;
@@ -122,7 +118,7 @@ export class FindDecorations implements IDisposable {
 					this._rangeHighlightDecorationId = null;
 				}
 				if (newCurrentDecorationId !== null) {
-					let rng = this._editor.getModel().getDecorationRange(newCurrentDecorationId);
+					let rng = this._editor.getModel().getDecorationRange(newCurrentDecorationId)!;
 					if (rng.startLineNumber !== rng.endLineNumber && rng.endColumn === 1) {
 						let lineBeforeEnd = rng.endLineNumber - 1;
 						let lineBeforeEndMaxColumn = this._editor.getModel().getLineMaxColumn(lineBeforeEnd);
@@ -136,11 +132,11 @@ export class FindDecorations implements IDisposable {
 		return matchPosition;
 	}
 
-	public set(findMatches: editorCommon.FindMatch[], findScope: Range): void {
+	public set(findMatches: FindMatch[], findScope: Range | null): void {
 		this._editor.changeDecorations((accessor) => {
 
 			let findMatchesOptions: ModelDecorationOptions = FindDecorations._FIND_MATCH_DECORATION;
-			let newOverviewRulerApproximateDecorations: editorCommon.IModelDeltaDecoration[] = [];
+			let newOverviewRulerApproximateDecorations: IModelDeltaDecoration[] = [];
 
 			if (findMatches.length > 1000) {
 				// we go into a mode where the overview ruler gets "approximate" decorations
@@ -179,7 +175,7 @@ export class FindDecorations implements IDisposable {
 			}
 
 			// Find matches
-			let newFindMatchesDecorations: editorCommon.IModelDeltaDecoration[] = new Array<editorCommon.IModelDeltaDecoration>(findMatches.length);
+			let newFindMatchesDecorations: IModelDeltaDecoration[] = new Array<IModelDeltaDecoration>(findMatches.length);
 			for (let i = 0, len = findMatches.length; i < len; i++) {
 				newFindMatchesDecorations[i] = {
 					range: findMatches[i].range,
@@ -208,6 +204,50 @@ export class FindDecorations implements IDisposable {
 		});
 	}
 
+	public matchBeforePosition(position: Position): Range | null {
+		if (this._decorations.length === 0) {
+			return null;
+		}
+		for (let i = this._decorations.length - 1; i >= 0; i--) {
+			let decorationId = this._decorations[i];
+			let r = this._editor.getModel().getDecorationRange(decorationId);
+			if (!r || r.endLineNumber > position.lineNumber) {
+				continue;
+			}
+			if (r.endLineNumber < position.lineNumber) {
+				return r;
+			}
+			if (r.endColumn > position.column) {
+				continue;
+			}
+			return r;
+		}
+
+		return this._editor.getModel().getDecorationRange(this._decorations[this._decorations.length - 1]);
+	}
+
+	public matchAfterPosition(position: Position): Range | null {
+		if (this._decorations.length === 0) {
+			return null;
+		}
+		for (let i = 0, len = this._decorations.length; i < len; i++) {
+			let decorationId = this._decorations[i];
+			let r = this._editor.getModel().getDecorationRange(decorationId);
+			if (!r || r.startLineNumber < position.lineNumber) {
+				continue;
+			}
+			if (r.startLineNumber > position.lineNumber) {
+				return r;
+			}
+			if (r.startColumn < position.column) {
+				continue;
+			}
+			return r;
+		}
+
+		return this._editor.getModel().getDecorationRange(this._decorations[0]);
+	}
+
 	private _allDecorations(): string[] {
 		let result: string[] = [];
 		result = result.concat(this._decorations);
@@ -221,50 +261,48 @@ export class FindDecorations implements IDisposable {
 		return result;
 	}
 
-	private static _CURRENT_FIND_MATCH_DECORATION = ModelDecorationOptions.register({
-		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+	private static readonly _CURRENT_FIND_MATCH_DECORATION = ModelDecorationOptions.register({
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		zIndex: 13,
 		className: 'currentFindMatch',
 		showIfCollapsed: true,
 		overviewRuler: {
-			color: themeColorFromId(editorFindMatch),
-			darkColor: themeColorFromId(editorFindMatch),
-			position: editorCommon.OverviewRulerLane.Center
+			color: themeColorFromId(overviewRulerFindMatchForeground),
+			position: OverviewRulerLane.Center
 		}
 	});
 
-	private static _FIND_MATCH_DECORATION = ModelDecorationOptions.register({
-		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+	private static readonly _FIND_MATCH_DECORATION = ModelDecorationOptions.register({
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'findMatch',
 		showIfCollapsed: true,
 		overviewRuler: {
-			color: themeColorFromId(editorFindMatchHighlight),
-			darkColor: themeColorFromId(editorFindMatchHighlight),
-			position: editorCommon.OverviewRulerLane.Center
+			color: themeColorFromId(overviewRulerFindMatchForeground),
+			position: OverviewRulerLane.Center
 		}
 	});
 
-	private static _FIND_MATCH_NO_OVERVIEW_DECORATION = ModelDecorationOptions.register({
-		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+	private static readonly _FIND_MATCH_NO_OVERVIEW_DECORATION = ModelDecorationOptions.register({
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'findMatch',
 		showIfCollapsed: true
 	});
 
-	private static _FIND_MATCH_ONLY_OVERVIEW_DECORATION = ModelDecorationOptions.register({
-		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+	private static readonly _FIND_MATCH_ONLY_OVERVIEW_DECORATION = ModelDecorationOptions.register({
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		overviewRuler: {
-			color: themeColorFromId(editorFindMatchHighlight),
-			darkColor: themeColorFromId(editorFindMatchHighlight),
-			position: editorCommon.OverviewRulerLane.Center
+			color: themeColorFromId(overviewRulerFindMatchForeground),
+			position: OverviewRulerLane.Center
 		}
 	});
 
-	private static _RANGE_HIGHLIGHT_DECORATION = ModelDecorationOptions.register({
-		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+	private static readonly _RANGE_HIGHLIGHT_DECORATION = ModelDecorationOptions.register({
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'rangeHighlight',
 		isWholeLine: true
 	});
 
-	private static _FIND_SCOPE_DECORATION = ModelDecorationOptions.register({
+	private static readonly _FIND_SCOPE_DECORATION = ModelDecorationOptions.register({
 		className: 'findScope',
 		isWholeLine: true
 	});

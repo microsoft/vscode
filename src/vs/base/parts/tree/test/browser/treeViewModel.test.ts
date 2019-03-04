@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import assert = require('assert');
+import * as assert from 'assert';
 import { ArrayIterator } from 'vs/base/common/iterator';
 import { HeightMap, IViewItem } from 'vs/base/parts/tree/browser/treeViewModel';
 
@@ -19,9 +17,9 @@ function makeItem(id, height): any {
 }
 
 function makeItems(...args: any[]) {
-	var r = [];
+	let r: any[] = [];
 
-	for (var i = 0; i < args.length; i += 2) {
+	for (let i = 0; i < args.length; i += 2) {
 		r.push(makeItem(args[i], args[i + 1]));
 	}
 
@@ -29,8 +27,8 @@ function makeItems(...args: any[]) {
 }
 
 function makeNavigator(...args: any[]): any {
-	var items = makeItems.apply(null, args);
-	var i = 0;
+	let items = makeItems.apply(null, args);
+	let i = 0;
 
 	return {
 		next: function () {
@@ -45,13 +43,14 @@ class TestHeightMap extends HeightMap {
 		return {
 			model: item,
 			top: 0,
-			height: item.getHeight()
+			height: item.getHeight(),
+			width: 0
 		};
 	}
 }
 
 suite('TreeView - HeightMap', () => {
-	var rangeMap: HeightMap;
+	let rangeMap: HeightMap;
 
 	setup(() => {
 		rangeMap = new TestHeightMap();
@@ -60,7 +59,7 @@ suite('TreeView - HeightMap', () => {
 
 	teardown(() => {
 		rangeMap.dispose();
-		rangeMap = null;
+		rangeMap = null!;
 	});
 
 	test('simple', () => {
@@ -77,7 +76,7 @@ suite('TreeView - HeightMap', () => {
 	});
 
 	test('onInsertItems at beginning', () => {
-		var navigator = makeNavigator('x', 4, 'y', 20, 'z', 8);
+		let navigator = makeNavigator('x', 4, 'y', 20, 'z', 8);
 		rangeMap.onInsertItems(navigator);
 
 		assert.equal(rangeMap.itemAt(0), 'x');
@@ -98,7 +97,7 @@ suite('TreeView - HeightMap', () => {
 	});
 
 	test('onInsertItems in middle', () => {
-		var navigator = makeNavigator('x', 4, 'y', 20, 'z', 8);
+		let navigator = makeNavigator('x', 4, 'y', 20, 'z', 8);
 		rangeMap.onInsertItems(navigator, 'a');
 
 		assert.equal(rangeMap.itemAt(0), 'a');
@@ -119,7 +118,7 @@ suite('TreeView - HeightMap', () => {
 	});
 
 	test('onInsertItems at end', () => {
-		var navigator = makeNavigator('x', 4, 'y', 20, 'z', 8);
+		let navigator = makeNavigator('x', 4, 'y', 20, 'z', 8);
 		rangeMap.onInsertItems(navigator, 'd');
 
 		assert.equal(rangeMap.itemAt(0), 'a');
@@ -172,7 +171,7 @@ suite('TreeView - HeightMap', () => {
 	});
 
 	test('onRefreshItems at beginning', () => {
-		var navigator = makeNavigator('a', 1, 'b', 1);
+		let navigator = makeNavigator('a', 1, 'b', 1);
 		rangeMap.onRefreshItems(navigator);
 
 		assert.equal(rangeMap.itemAt(0), 'a');
@@ -185,7 +184,7 @@ suite('TreeView - HeightMap', () => {
 	});
 
 	test('onRefreshItems in middle', () => {
-		var navigator = makeNavigator('b', 40, 'c', 4);
+		let navigator = makeNavigator('b', 40, 'c', 4);
 		rangeMap.onRefreshItems(navigator);
 
 		assert.equal(rangeMap.itemAt(0), 'a');
@@ -200,7 +199,7 @@ suite('TreeView - HeightMap', () => {
 	});
 
 	test('onRefreshItems at end', () => {
-		var navigator = makeNavigator('d', 22);
+		let navigator = makeNavigator('d', 22);
 		rangeMap.onRefreshItems(navigator);
 
 		assert.equal(rangeMap.itemAt(0), 'a');
@@ -215,8 +214,8 @@ suite('TreeView - HeightMap', () => {
 	});
 
 	test('withItemsInRange', () => {
-		var i = 0;
-		var itemsInRange = ['a', 'b'];
+		let i = 0;
+		let itemsInRange = ['a', 'b'];
 		rangeMap.withItemsInRange(2, 27, function (item) { assert.equal(item, itemsInRange[i++]); });
 		assert.equal(i, itemsInRange.length);
 

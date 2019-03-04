@@ -3,14 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import * as cp from 'child_process';
 import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
-import URI from 'vs/base/common/uri';
-import processes = require('vs/base/node/processes');
+import * as processes from 'vs/base/node/processes';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 function fork(id: string): cp.ChildProcess {
 	const opts: any = {
@@ -21,7 +19,7 @@ function fork(id: string): cp.ChildProcess {
 		})
 	};
 
-	return cp.fork(URI.parse(require.toUrl('bootstrap')).fsPath, ['--type=processTests'], opts);
+	return cp.fork(getPathFromAmdModule(require, 'bootstrap-fork'), ['--type=processTests'], opts);
 }
 
 suite('Processes', () => {
@@ -85,5 +83,30 @@ suite('Processes', () => {
 				done();
 			}
 		});
+	});
+
+
+	test('sanitizeProcessEnvironment', () => {
+		let env = {
+			FOO: 'bar',
+			ELECTRON_ENABLE_STACK_DUMPING: 'x',
+			ELECTRON_ENABLE_LOGGING: 'x',
+			ELECTRON_NO_ASAR: 'x',
+			ELECTRON_NO_ATTACH_CONSOLE: 'x',
+			ELECTRON_RUN_AS_NODE: 'x',
+			GOOGLE_API_KEY: 'x',
+			VSCODE_CLI: 'x',
+			VSCODE_DEV: 'x',
+			VSCODE_IPC_HOOK: 'x',
+			VSCODE_LOGS: 'x',
+			VSCODE_NLS_CONFIG: 'x',
+			VSCODE_PORTABLE: 'x',
+			VSCODE_PID: 'x',
+			VSCODE_NODE_CACHED_DATA_DIR: 'x',
+			VSCODE_NEW_VAR: 'x'
+		};
+		processes.sanitizeProcessEnvironment(env);
+		assert.equal(env['FOO'], 'bar');
+		assert.equal(Object.keys(env).length, 1);
 	});
 });

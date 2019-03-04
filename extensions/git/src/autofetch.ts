@@ -3,16 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+import { workspace, Disposable, EventEmitter, Memento, window, MessageItem, ConfigurationTarget, Uri } from 'vscode';
+import { Repository, Operation } from './repository';
+import { eventToPromise, filterEvent, onceEvent } from './util';
+import * as nls from 'vscode-nls';
+import { GitErrorCodes } from './api/git';
 
-import { workspace, Disposable, EventEmitter } from 'vscode';
-import { GitErrorCodes } from './git';
-import { Repository } from './repository';
-import { eventToPromise, filterEvent } from './util';
+const localize = nls.loadMessageBundle();
+
+function isRemoteOperation(operation: Operation): boolean {
+	return operation === Operation.Pull || operation === Operation.Push || operation === Operation.Sync || operation === Operation.Fetch;
+}
 
 export class AutoFetcher {
 
-	private static Period = 3 * 60 * 1000 /* three minutes */;
+	private static DidInformUser = 'autofetch.didInformUser';
 
 	private _onDidChange = new EventEmitter<boolean>();
 	private onDidChange = this._onDidChange.event;
@@ -23,13 +28,47 @@ export class AutoFetcher {
 
 	private disposables: Disposable[] = [];
 
-	constructor(private repository: Repository) {
+	constructor(private repository: Repository, private globalState: Memento) {
 		workspace.onDidChangeConfiguration(this.onConfiguration, this, this.disposables);
 		this.onConfiguration();
+
+		const onGoodRemoteOperation = filterEvent(repository.onDidRunOperation, ({ operation, error }) => !error && isRemoteOperation(operation));
+		const onFirstGoodRemoteOperation = onceEvent(onGoodRemoteOperation);
+		onFirstGoodRemoteOperation(this.onFirstGoodRemoteOperation, this, this.disposables);
+	}
+
+	private async onFirstGoodRemoteOperation(): Promise<void> {
+		const didInformUser = !this.globalState.get<boolean>(AutoFetcher.DidInformUser);
+
+		if (this.enabled && !didInformUser) {
+			this.globalState.update(AutoFetcher.DidInformUser, true);
+		}
+
+		const shouldInformUser = !this.enabled && didInformUser;
+
+		if (!shouldInformUser) {
+			return;
+		}
+
+		const yes: MessageItem = { title: localize('yes', "Yes") };
+		const no: MessageItem = { isCloseAffordance: true, title: localize('no', "No") };
+		const askLater: MessageItem = { title: localize('not now', "Ask Me Later") };
+		const result = await window.showInformationMessage(localize('suggest auto fetch', "Would you like Code to [periodically run 'git fetch']({0})?", 'https://go.microsoft.com/fwlink/?linkid=865294'), yes, no, askLater);
+
+		if (result === askLater) {
+			return;
+		}
+
+		if (result === yes) {
+			const gitConfig = workspace.getConfiguration('git', Uri.file(this.repository.root));
+			gitConfig.update('autofetch', true, ConfigurationTarget.Global);
+		}
+
+		this.globalState.update(AutoFetcher.DidInformUser, true);
 	}
 
 	private onConfiguration(): void {
-		const gitConfig = workspace.getConfiguration('git');
+		const gitConfig = workspace.getConfiguration('git', Uri.file(this.repository.root));
 
 		if (gitConfig.get<boolean>('autofetch') === false) {
 			this.disable();
@@ -60,7 +99,7 @@ export class AutoFetcher {
 			}
 
 			try {
-				await this.repository.fetch();
+				await this.repository.fetchDefault();
 			} catch (err) {
 				if (err.gitErrorCode === GitErrorCodes.AuthenticationFailed) {
 					this.disable();
@@ -71,8 +110,10 @@ export class AutoFetcher {
 				return;
 			}
 
-			const timeout = new Promise(c => setTimeout(c, AutoFetcher.Period));
+			const period = workspace.getConfiguration('git', Uri.file(this.repository.root)).get<number>('autofetchPeriod', 180) * 1000;
+			const timeout = new Promise(c => setTimeout(c, period));
 			const whenDisabled = eventToPromise(filterEvent(this.onDidChange, enabled => !enabled));
+
 			await Promise.race([timeout, whenDisabled]);
 		}
 	}

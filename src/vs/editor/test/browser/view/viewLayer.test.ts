@@ -2,10 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as assert from 'assert';
-import { RenderedLinesCollection, ILine } from 'vs/editor/browser/view/viewLayer';
+import { ILine, RenderedLinesCollection } from 'vs/editor/browser/view/viewLayer';
 
 class TestLine implements ILine {
 

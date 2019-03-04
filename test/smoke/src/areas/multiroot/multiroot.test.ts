@@ -3,35 +3,57 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { SpectronApplication } from '../../spectron/application';
+import * as fs from 'fs';
+import * as path from 'path';
+import { Application } from '../../application';
 
-describe('Multiroot', () => {
+function toUri(path: string): string {
+	if (process.platform === 'win32') {
+		return `${path.replace(/\\/g, '/')}`;
+	}
 
-	before(async function () {
-		this.app.suiteName = 'Multiroot';
+	return `${path}`;
+}
 
-		const app = this.app as SpectronApplication;
+async function createWorkspaceFile(workspacePath: string): Promise<string> {
+	const workspaceFilePath = path.join(path.dirname(workspacePath), 'smoketest.code-workspace');
+	const workspace = {
+		folders: [
+			{ path: toUri(path.join(workspacePath, 'public')) },
+			{ path: toUri(path.join(workspacePath, 'routes')) },
+			{ path: toUri(path.join(workspacePath, 'views')) }
+		]
+	};
 
-		await app.restart([app.workspaceFilePath]);
+	fs.writeFileSync(workspaceFilePath, JSON.stringify(workspace, null, '\t'));
 
-		// for some reason Code opens 2 windows at this point
-		// so let's select the last one
-		await app.client.windowByIndex(2);
+	return workspaceFilePath;
+}
+
+export function setup() {
+	describe('Multiroot', () => {
+
+		before(async function () {
+			const app = this.app as Application;
+
+			const workspaceFilePath = await createWorkspaceFile(app.workspacePathOrFolder);
+
+			// restart with preventing additional windows from restoring
+			// to ensure the window after restart is the multi-root workspace
+			await app.restart({ workspaceOrFolder: workspaceFilePath, extraArgs: ['--disable-restore-windows'] });
+		});
+
+		it('shows results from all folders', async function () {
+			const app = this.app as Application;
+			await app.workbench.quickopen.openQuickOpen('*.*');
+
+			await app.workbench.quickopen.waitForQuickOpenElements(names => names.length === 6);
+			await app.workbench.quickopen.closeQuickOpen();
+		});
+
+		it('shows workspace name in title', async function () {
+			const app = this.app as Application;
+			await app.code.waitForTitle(title => /smoketest \(Workspace\)/i.test(title));
+		});
 	});
-
-	it('shows results from all folders', async function () {
-		const app = this.app as SpectronApplication;
-		await app.workbench.quickopen.openQuickOpen('*.*');
-
-		await app.workbench.quickopen.waitForQuickOpenElements(names => names.length >= 6);
-		await app.workbench.quickopen.closeQuickOpen();
-	});
-
-	it('shows workspace name in title', async function () {
-		const app = this.app as SpectronApplication;
-		const title = await app.client.getTitle();
-		await app.screenCapturer.capture('window title');
-		assert.ok(title.indexOf('smoketest (Workspace)') >= 0);
-	});
-});
+}

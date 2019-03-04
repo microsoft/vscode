@@ -5,8 +5,6 @@
 
 // Based on @sergeche's work on the emmet plugin for atom
 
-'use strict';
-
 import { TextEditor, Range, Position, window, TextEdit } from 'vscode';
 import * as path from 'path';
 import { getImageSize } from './imageSizeHelper';
@@ -48,8 +46,10 @@ export function updateImageSize() {
 /**
  * Updates image size of context tag of HTML model
  */
-function updateImageSizeHTML(editor: TextEditor, position: Position): Promise<TextEdit[] | undefined> {
-	const src = getImageSrcHTML(getImageHTMLNode(editor, position));
+function updateImageSizeHTML(editor: TextEditor, position: Position): Promise<TextEdit[]> {
+	const imageNode = getImageHTMLNode(editor, position);
+
+	const src = imageNode && getImageSrcHTML(imageNode);
 
 	if (!src) {
 		return updateImageSizeStyleTag(editor, position);
@@ -61,25 +61,27 @@ function updateImageSizeHTML(editor: TextEditor, position: Position): Promise<Te
 			// since this action is asynchronous, we have to ensure that editor wasn’t
 			// changed and user didn’t moved caret outside <img> node
 			const img = getImageHTMLNode(editor, position);
-			if (getImageSrcHTML(img) === src) {
+			if (img && getImageSrcHTML(img) === src) {
 				return updateHTMLTag(editor, img, size.width, size.height);
 			}
+			return [];
 		})
 		.catch(err => { console.warn('Error while updating image size:', err); return []; });
 }
 
 function updateImageSizeStyleTag(editor: TextEditor, position: Position): Promise<TextEdit[]> {
-	const getPropertyInsiderStyleTag = (editor: TextEditor): Property | undefined => {
+	const getPropertyInsiderStyleTag = (editor: TextEditor): Property | null => {
 		const rootNode = parseDocument(editor.document);
-		const currentNode = <HtmlNode>getNode(rootNode, position);
+		const currentNode = <HtmlNode>getNode(rootNode, position, true);
 		if (currentNode && currentNode.name === 'style'
 			&& currentNode.open.end.isBefore(position)
 			&& currentNode.close.start.isAfter(position)) {
 			let buffer = new DocumentStreamReader(editor.document, currentNode.open.end, new Range(currentNode.open.end, currentNode.close.start));
 			let rootNode = parseStylesheet(buffer);
-			const node = getNode(rootNode, position);
-			return (node && node.type === 'property') ? <Property>node : undefined;
+			const node = getNode(rootNode, position, true);
+			return (node && node.type === 'property') ? <Property>node : null;
 		}
+		return null;
 	};
 
 	return updateImageSizeCSS(editor, position, getPropertyInsiderStyleTag);
@@ -92,9 +94,9 @@ function updateImageSizeCSSFile(editor: TextEditor, position: Position): Promise
 /**
  * Updates image size of context rule of stylesheet model
  */
-function updateImageSizeCSS(editor: TextEditor, position: Position, fetchNode: (editor: TextEditor, position: Position) => Property | undefined): Promise<TextEdit[]> {
-
-	const src = getImageSrcCSS(fetchNode(editor, position), position);
+function updateImageSizeCSS(editor: TextEditor, position: Position, fetchNode: (editor: TextEditor, position: Position) => Property | null): Promise<TextEdit[]> {
+	const node = fetchNode(editor, position);
+	const src = node && getImageSrcCSS(node, position);
 
 	if (!src) {
 		return Promise.reject(new Error('No valid image source'));
@@ -102,13 +104,14 @@ function updateImageSizeCSS(editor: TextEditor, position: Position, fetchNode: (
 
 	return locateFile(path.dirname(editor.document.fileName), src)
 		.then(getImageSize)
-		.then((size: any) => {
+		.then((size: any): TextEdit[] => {
 			// since this action is asynchronous, we have to ensure that editor wasn’t
 			// changed and user didn’t moved caret outside <img> node
 			const prop = fetchNode(editor, position);
-			if (getImageSrcCSS(prop, position) === src) {
+			if (prop && getImageSrcCSS(prop, position) === src) {
 				return updateCSSNode(editor, prop, size.width, size.height);
 			}
+			return [];
 		})
 		.catch(err => { console.warn('Error while updating image size:', err); return []; });
 }
@@ -116,10 +119,8 @@ function updateImageSizeCSS(editor: TextEditor, position: Position, fetchNode: (
 /**
  * Returns <img> node under caret in given editor or `null` if such node cannot
  * be found
- * @param  {TextEditor}  editor
- * @return {HtmlNode}
  */
-function getImageHTMLNode(editor: TextEditor, position: Position): HtmlNode {
+function getImageHTMLNode(editor: TextEditor, position: Position): HtmlNode | null {
 	const rootNode = parseDocument(editor.document);
 	const node = <HtmlNode>getNode(rootNode, position, true);
 
@@ -129,10 +130,8 @@ function getImageHTMLNode(editor: TextEditor, position: Position): HtmlNode {
 /**
  * Returns css property under caret in given editor or `null` if such node cannot
  * be found
- * @param  {TextEditor}  editor
- * @return {Property}
  */
-function getImageCSSNode(editor: TextEditor, position: Position): Property {
+function getImageCSSNode(editor: TextEditor, position: Position): Property | null {
 	const rootNode = parseDocument(editor.document);
 	const node = getNode(rootNode, position, true);
 	return node && node.type === 'property' ? <Property>node : null;
@@ -173,10 +172,6 @@ function getImageSrcCSS(node: Property | undefined, position: Position): string 
 
 /**
  * Updates size of given HTML node
- * @param  {TextEditor} editor
- * @param  {HtmlNode}   node
- * @param  {number}     width
- * @param  {number}     height
  */
 function updateHTMLTag(editor: TextEditor, node: HtmlNode, width: number, height: number): TextEdit[] {
 	const srcAttr = getAttribute(node, 'src');
@@ -245,7 +240,7 @@ function updateCSSNode(editor: TextEditor, srcProp: Property, width: number, hei
  */
 function getAttribute(node: HtmlNode, attrName: string): Attribute {
 	attrName = attrName.toLowerCase();
-	return node && (node.open as any).attributes.find(attr => attr.name.value.toLowerCase() === attrName);
+	return node && (node.open as any).attributes.find((attr: any) => attr.name.value.toLowerCase() === attrName);
 }
 
 /**
@@ -268,12 +263,14 @@ function findUrlToken(node: Property, pos: Position): CssToken | undefined {
 				url = token;
 				return false;
 			}
+			return true;
 		});
 
 		if (url) {
 			return url;
 		}
 	}
+	return;
 }
 
 /**

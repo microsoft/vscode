@@ -2,41 +2,46 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
-import { TPromise } from 'vs/base/common/winjs.base';
-import arrays = require('vs/base/common/arrays');
+import * as arrays from 'vs/base/common/arrays';
 
 suite('Arrays', () => {
-	test('findFirst', function () {
+	test('findFirst', () => {
 		const array = [1, 4, 5, 7, 55, 59, 60, 61, 64, 69];
 
-		let idx = arrays.findFirst(array, e => e >= 0);
+		let idx = arrays.findFirstInSorted(array, e => e >= 0);
 		assert.equal(array[idx], 1);
 
-		idx = arrays.findFirst(array, e => e > 1);
+		idx = arrays.findFirstInSorted(array, e => e > 1);
 		assert.equal(array[idx], 4);
 
-		idx = arrays.findFirst(array, e => e >= 8);
+		idx = arrays.findFirstInSorted(array, e => e >= 8);
 		assert.equal(array[idx], 55);
 
-		idx = arrays.findFirst(array, e => e >= 61);
+		idx = arrays.findFirstInSorted(array, e => e >= 61);
 		assert.equal(array[idx], 61);
 
-		idx = arrays.findFirst(array, e => e >= 69);
+		idx = arrays.findFirstInSorted(array, e => e >= 69);
 		assert.equal(array[idx], 69);
 
-		idx = arrays.findFirst(array, e => e >= 70);
+		idx = arrays.findFirstInSorted(array, e => e >= 70);
 		assert.equal(idx, array.length);
 
-		idx = arrays.findFirst([], e => e >= 0);
+		idx = arrays.findFirstInSorted([], e => e >= 0);
 		assert.equal(array[idx], 1);
 	});
 
-	test('stableSort', function () {
+	test('stableSort', () => {
+		function fill<T>(num: number, valueFn: () => T, arr: T[] = []): T[] {
+			for (let i = 0; i < num; i++) {
+				arr[i] = valueFn();
+			}
+
+			return arr;
+		}
+
 		let counter = 0;
-		let data = arrays.fill(10000, () => ({ n: 1, m: counter++ }));
+		let data = fill(10000, () => ({ n: 1, m: counter++ }));
 
 		arrays.mergeSort(data, (a, b) => a.n - b.n);
 
@@ -47,9 +52,14 @@ suite('Arrays', () => {
 		}
 	});
 
-	test('mergeSort', function () {
+	test('mergeSort', () => {
 		let data = arrays.mergeSort([6, 5, 3, 1, 8, 7, 2, 4], (a, b) => a - b);
 		assert.deepEqual(data, [1, 2, 3, 4, 5, 6, 7, 8]);
+	});
+
+	test('mergeSort, sorted array', function () {
+		let data = arrays.mergeSort([1, 2, 3, 4, 5, 6], (a, b) => a - b);
+		assert.deepEqual(data, [1, 2, 3, 4, 5, 6]);
 	});
 
 	test('mergeSort, is stable', function () {
@@ -75,7 +85,7 @@ suite('Arrays', () => {
 			for (let i = 1; i < array.length; i++) {
 				let n = array[i];
 				if (last > n) {
-					assert.fail(array.slice(i - 10, i + 10));
+					assert.fail(JSON.stringify(array.slice(i - 10, i + 10)));
 				}
 			}
 		}
@@ -95,19 +105,19 @@ suite('Arrays', () => {
 		}
 	});
 
-	test('sortedDiff', function () {
+	test('sortedDiff', () => {
 		function compare(a: number, b: number): number {
 			return a - b;
 		}
 
 		let d = arrays.sortedDiff([1, 2, 4], [], compare);
 		assert.deepEqual(d, [
-			{ start: 0, deleteCount: 3, inserted: [] }
+			{ start: 0, deleteCount: 3, toInsert: [] }
 		]);
 
 		d = arrays.sortedDiff([], [1, 2, 4], compare);
 		assert.deepEqual(d, [
-			{ start: 0, deleteCount: 0, inserted: [1, 2, 4] }
+			{ start: 0, deleteCount: 0, toInsert: [1, 2, 4] }
 		]);
 
 		d = arrays.sortedDiff([1, 2, 4], [1, 2, 4], compare);
@@ -115,27 +125,27 @@ suite('Arrays', () => {
 
 		d = arrays.sortedDiff([1, 2, 4], [2, 3, 4, 5], compare);
 		assert.deepEqual(d, [
-			{ start: 0, deleteCount: 1, inserted: [] },
-			{ start: 2, deleteCount: 0, inserted: [3] },
-			{ start: 3, deleteCount: 0, inserted: [5] },
+			{ start: 0, deleteCount: 1, toInsert: [] },
+			{ start: 2, deleteCount: 0, toInsert: [3] },
+			{ start: 3, deleteCount: 0, toInsert: [5] },
 		]);
 
 		d = arrays.sortedDiff([2, 3, 4, 5], [1, 2, 4], compare);
 		assert.deepEqual(d, [
-			{ start: 0, deleteCount: 0, inserted: [1] },
-			{ start: 1, deleteCount: 1, inserted: [] },
-			{ start: 3, deleteCount: 1, inserted: [] },
+			{ start: 0, deleteCount: 0, toInsert: [1] },
+			{ start: 1, deleteCount: 1, toInsert: [] },
+			{ start: 3, deleteCount: 1, toInsert: [] },
 		]);
 
 		d = arrays.sortedDiff([1, 3, 5, 7], [5, 9, 11], compare);
 		assert.deepEqual(d, [
-			{ start: 0, deleteCount: 2, inserted: [] },
-			{ start: 3, deleteCount: 1, inserted: [9, 11] }
+			{ start: 0, deleteCount: 2, toInsert: [] },
+			{ start: 3, deleteCount: 1, toInsert: [9, 11] }
 		]);
 
 		d = arrays.sortedDiff([1, 3, 7], [5, 9, 11], compare);
 		assert.deepEqual(d, [
-			{ start: 0, deleteCount: 3, inserted: [5, 9, 11] }
+			{ start: 0, deleteCount: 3, toInsert: [5, 9, 11] }
 		]);
 	});
 
@@ -173,7 +183,7 @@ suite('Arrays', () => {
 		assert.deepEqual(d.added, [5, 9, 11]);
 	});
 
-	test('binarySearch', function () {
+	test('binarySearch', () => {
 		function compare(a: number, b: number): number {
 			return a - b;
 		}
@@ -189,7 +199,7 @@ suite('Arrays', () => {
 
 	});
 
-	test('distinct', function () {
+	test('distinct', () => {
 		function compare(a: string): string {
 			return a;
 		}
@@ -201,7 +211,7 @@ suite('Arrays', () => {
 		assert.deepEqual(arrays.distinct(['32', '4', '5', '32', '4', '5', '32', '4', '5', '5'], compare), ['32', '4', '5']);
 	});
 
-	test('top', function () {
+	test('top', () => {
 		const cmp = (a: number, b: number) => {
 			assert.strictEqual(typeof a, 'number', 'typeof a');
 			assert.strictEqual(typeof b, 'number', 'typeof b');
@@ -217,57 +227,120 @@ suite('Arrays', () => {
 		assert.deepEqual(arrays.top([4, 6, 2, 7, 8, 3, 5, 1], cmp, 3), [1, 2, 3]);
 	});
 
-	test('topAsync', function (done) {
+	test('topAsync', async () => {
 		const cmp = (a: number, b: number) => {
 			assert.strictEqual(typeof a, 'number', 'typeof a');
 			assert.strictEqual(typeof b, 'number', 'typeof b');
 			return a - b;
 		};
 
-		testTopAsync(cmp, 1)
-			.then(() => {
-				return testTopAsync(cmp, 2);
-			})
-			.then(done, done);
+		await testTopAsync(cmp, 1);
+		return testTopAsync(cmp, 2);
 	});
 
-	function testTopAsync(cmp: any, m: number) {
-		return TPromise.as(null).then(() => {
-			return arrays.topAsync([], cmp, 1, m)
-				.then(result => {
-					assert.deepEqual(result, []);
-				});
-		}).then(() => {
-			return arrays.topAsync([1], cmp, 0, m)
-				.then(result => {
-					assert.deepEqual(result, []);
-				});
-		}).then(() => {
-			return arrays.topAsync([1, 2], cmp, 1, m)
-				.then(result => {
-					assert.deepEqual(result, [1]);
-				});
-		}).then(() => {
-			return arrays.topAsync([2, 1], cmp, 1, m)
-				.then(result => {
-					assert.deepEqual(result, [1]);
-				});
-		}).then(() => {
-			return arrays.topAsync([1, 3, 2], cmp, 2, m)
-				.then(result => {
-					assert.deepEqual(result, [1, 2]);
-				});
-		}).then(() => {
-			return arrays.topAsync([3, 2, 1], cmp, 3, m)
-				.then(result => {
-					assert.deepEqual(result, [1, 2, 3]);
-				});
-		}).then(() => {
-			return arrays.topAsync([4, 6, 2, 7, 8, 3, 5, 1], cmp, 3, m)
-				.then(result => {
-					assert.deepEqual(result, [1, 2, 3]);
-				});
-		});
+	async function testTopAsync(cmp: any, m: number) {
+		{
+			const result = await arrays.topAsync([], cmp, 1, m);
+			assert.deepEqual(result, []);
+		}
+		{
+			const result = await arrays.topAsync([1], cmp, 0, m);
+			assert.deepEqual(result, []);
+		}
+		{
+			const result = await arrays.topAsync([1, 2], cmp, 1, m);
+			assert.deepEqual(result, [1]);
+		}
+		{
+			const result = await arrays.topAsync([2, 1], cmp, 1, m);
+			assert.deepEqual(result, [1]);
+		}
+		{
+			const result = await arrays.topAsync([1, 3, 2], cmp, 2, m);
+			assert.deepEqual(result, [1, 2]);
+		}
+		{
+			const result = await arrays.topAsync([3, 2, 1], cmp, 3, m);
+			assert.deepEqual(result, [1, 2, 3]);
+		}
+		{
+			const result = await arrays.topAsync([4, 6, 2, 7, 8, 3, 5, 1], cmp, 3, m);
+			assert.deepEqual(result, [1, 2, 3]);
+		}
 	}
+
+	test('coalesce', () => {
+		let a: Array<number | undefined | null> = arrays.coalesce([null, 1, null, 2, 3]);
+		assert.equal(a.length, 3);
+		assert.equal(a[0], 1);
+		assert.equal(a[1], 2);
+		assert.equal(a[2], 3);
+
+		arrays.coalesce([null, 1, null, undefined, undefined, 2, 3]);
+		assert.equal(a.length, 3);
+		assert.equal(a[0], 1);
+		assert.equal(a[1], 2);
+		assert.equal(a[2], 3);
+
+		let b: number[] = [];
+		b[10] = 1;
+		b[20] = 2;
+		b[30] = 3;
+		b = arrays.coalesce(b);
+		assert.equal(b.length, 3);
+		assert.equal(b[0], 1);
+		assert.equal(b[1], 2);
+		assert.equal(b[2], 3);
+
+		let sparse: number[] = [];
+		sparse[0] = 1;
+		sparse[1] = 1;
+		sparse[17] = 1;
+		sparse[1000] = 1;
+		sparse[1001] = 1;
+
+		assert.equal(sparse.length, 1002);
+
+		sparse = arrays.coalesce(sparse);
+		assert.equal(sparse.length, 5);
+	});
+
+	test('coalesce - inplace', function () {
+		let a: Array<number | undefined | null> = [null, 1, null, 2, 3];
+		arrays.coalesceInPlace(a);
+		assert.equal(a.length, 3);
+		assert.equal(a[0], 1);
+		assert.equal(a[1], 2);
+		assert.equal(a[2], 3);
+
+		a = [null, 1, null, undefined!, undefined!, 2, 3];
+		arrays.coalesceInPlace(a);
+		assert.equal(a.length, 3);
+		assert.equal(a[0], 1);
+		assert.equal(a[1], 2);
+		assert.equal(a[2], 3);
+
+		let b: number[] = [];
+		b[10] = 1;
+		b[20] = 2;
+		b[30] = 3;
+		arrays.coalesceInPlace(b);
+		assert.equal(b.length, 3);
+		assert.equal(b[0], 1);
+		assert.equal(b[1], 2);
+		assert.equal(b[2], 3);
+
+		let sparse: number[] = [];
+		sparse[0] = 1;
+		sparse[1] = 1;
+		sparse[17] = 1;
+		sparse[1000] = 1;
+		sparse[1001] = 1;
+
+		assert.equal(sparse.length, 1002);
+
+		arrays.coalesceInPlace(sparse);
+		assert.equal(sparse.length, 5);
+	});
 });
 

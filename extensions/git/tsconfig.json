@@ -1,16 +1,11 @@
 {
+	"extends": "../shared.tsconfig.json",
 	"compilerOptions": {
-		"target": "es6",
-		"lib": [
-			"es2016"
-		],
-		"module": "commonjs",
 		"outDir": "./out",
+		"experimentalDecorators": true,
 		"typeRoots": [
 			"./node_modules/@types"
-		],
-		"strict": true,
-		"experimentalDecorators": true
+		]
 	},
 	"include": [
 		"src/**/*"

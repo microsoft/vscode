@@ -2,41 +2,43 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { SuggestRegistry } from 'vs/editor/common/modes';
+import { CompletionProviderRegistry, CompletionItemKind } from 'vs/editor/common/modes';
 import { provideSuggestionItems } from 'vs/editor/contrib/suggest/suggest';
 import { Position } from 'vs/editor/common/core/position';
-import { Model } from 'vs/editor/common/model/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { Range } from 'vs/editor/common/core/range';
 
 
 suite('Suggest', function () {
 
-	let model: Model;
+	let model: TextModel;
 	let registration: IDisposable;
 
 	setup(function () {
 
-		model = Model.createFromString('FOO\nbar\BAR\nfoo', undefined, undefined, URI.parse('foo:bar/path'));
-		registration = SuggestRegistry.register({ pattern: 'bar/path', scheme: 'foo' }, {
-			provideCompletionItems() {
+		model = TextModel.createFromString('FOO\nbar\BAR\nfoo', undefined, undefined, URI.parse('foo:bar/path'));
+		registration = CompletionProviderRegistry.register({ pattern: 'bar/path', scheme: 'foo' }, {
+			provideCompletionItems(_doc, pos) {
 				return {
 					incomplete: false,
 					suggestions: [{
 						label: 'aaa',
-						type: 'snippet',
-						insertText: 'aaa'
+						kind: CompletionItemKind.Snippet,
+						insertText: 'aaa',
+						range: Range.fromPositions(pos)
 					}, {
 						label: 'zzz',
-						type: 'snippet',
-						insertText: 'zzz'
+						kind: CompletionItemKind.Snippet,
+						insertText: 'zzz',
+						range: Range.fromPositions(pos)
 					}, {
 						label: 'fff',
-						type: 'property',
-						insertText: 'fff'
+						kind: CompletionItemKind.Property,
+						insertText: 'fff',
+						range: Range.fromPositions(pos)
 					}]
 				};
 			}
@@ -48,38 +50,34 @@ suite('Suggest', function () {
 		model.dispose();
 	});
 
-	test('sort - snippet inline', function () {
-		return provideSuggestionItems(model, new Position(1, 1), 'inline').then(items => {
-			assert.equal(items.length, 3);
-			assert.equal(items[0].suggestion.label, 'aaa');
-			assert.equal(items[1].suggestion.label, 'fff');
-			assert.equal(items[2].suggestion.label, 'zzz');
-		});
+	test('sort - snippet inline', async function () {
+		const items = await provideSuggestionItems(model, new Position(1, 1), 'inline');
+		assert.equal(items.length, 3);
+		assert.equal(items[0].completion.label, 'aaa');
+		assert.equal(items[1].completion.label, 'fff');
+		assert.equal(items[2].completion.label, 'zzz');
 	});
 
-	test('sort - snippet top', function () {
-		return provideSuggestionItems(model, new Position(1, 1), 'top').then(items => {
-			assert.equal(items.length, 3);
-			assert.equal(items[0].suggestion.label, 'aaa');
-			assert.equal(items[1].suggestion.label, 'zzz');
-			assert.equal(items[2].suggestion.label, 'fff');
-		});
+	test('sort - snippet top', async function () {
+		const items = await provideSuggestionItems(model, new Position(1, 1), 'top');
+		assert.equal(items.length, 3);
+		assert.equal(items[0].completion.label, 'aaa');
+		assert.equal(items[1].completion.label, 'zzz');
+		assert.equal(items[2].completion.label, 'fff');
 	});
 
-	test('sort - snippet bottom', function () {
-		return provideSuggestionItems(model, new Position(1, 1), 'bottom').then(items => {
-			assert.equal(items.length, 3);
-			assert.equal(items[0].suggestion.label, 'fff');
-			assert.equal(items[1].suggestion.label, 'aaa');
-			assert.equal(items[2].suggestion.label, 'zzz');
-		});
+	test('sort - snippet bottom', async function () {
+		const items = await provideSuggestionItems(model, new Position(1, 1), 'bottom');
+		assert.equal(items.length, 3);
+		assert.equal(items[0].completion.label, 'fff');
+		assert.equal(items[1].completion.label, 'aaa');
+		assert.equal(items[2].completion.label, 'zzz');
 	});
 
-	test('sort - snippet none', function () {
-		return provideSuggestionItems(model, new Position(1, 1), 'none').then(items => {
-			assert.equal(items.length, 1);
-			assert.equal(items[0].suggestion.label, 'fff');
-		});
+	test('sort - snippet none', async function () {
+		const items = await provideSuggestionItems(model, new Position(1, 1), 'none');
+		assert.equal(items.length, 1);
+		assert.equal(items[0].completion.label, 'fff');
 	});
 
 	test('only from', function () {
@@ -98,13 +96,13 @@ suite('Suggest', function () {
 				};
 			}
 		};
-		const registration = SuggestRegistry.register({ pattern: 'bar/path', scheme: 'foo' }, foo);
+		const registration = CompletionProviderRegistry.register({ pattern: 'bar/path', scheme: 'foo' }, foo);
 
 		provideSuggestionItems(model, new Position(1, 1), undefined, [foo]).then(items => {
 			registration.dispose();
 
 			assert.equal(items.length, 1);
-			assert.ok(items[0].support === foo);
+			assert.ok(items[0].provider === foo);
 		});
 	});
 });

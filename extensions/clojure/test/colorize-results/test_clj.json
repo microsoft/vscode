@@ -3,9 +3,9 @@
 		"c": ";",
 		"t": "source.clojure comment.line.semicolon.clojure punctuation.definition.comment.clojure",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -14,9 +14,9 @@
 		"c": "; from http://clojure-doc.org/articles/tutorials/introduction.html",
 		"t": "source.clojure comment.line.semicolon.clojure",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -199,13 +199,13 @@
 	},
 	{
 		"c": "42",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure entity.global.clojure",
+		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure constant.numeric.long.clojure",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #09885A",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #09885A",
+			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
 	{
@@ -311,9 +311,9 @@
 		"c": ";",
 		"t": "source.clojure comment.line.semicolon.clojure punctuation.definition.comment.clojure",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -322,9 +322,9 @@
 		"c": " A vector",
 		"t": "source.clojure comment.line.semicolon.clojure",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -905,9 +905,9 @@
 		"c": ";",
 		"t": "source.clojure comment.line.semicolon.clojure punctuation.definition.comment.clojure",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -916,9 +916,9 @@
 		"c": " this is more typical usage.",
 		"t": "source.clojure comment.line.semicolon.clojure",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -1342,7 +1342,18 @@
 		}
 	},
 	{
-		"c": "+ ",
+		"c": "+",
+		"t": "source.clojure meta.quoted-expression.clojure meta.symbol.clojure",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
 		"t": "source.clojure meta.quoted-expression.clojure",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -1422,9 +1433,9 @@
 		"c": ";",
 		"t": "source.clojure comment.line.semicolon.clojure punctuation.definition.comment.clojure",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -1433,9 +1444,9 @@
 		"c": "; ⇒ (+ 1 2 3)",
 		"t": "source.clojure comment.line.semicolon.clojure",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -1829,9 +1840,9 @@
 		"c": ";",
 		"t": "source.clojure comment.line.semicolon.clojure punctuation.definition.comment.clojure",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -1840,9 +1851,9 @@
 		"c": "; Vectors",
 		"t": "source.clojure comment.line.semicolon.clojure",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -1870,7 +1881,29 @@
 		}
 	},
 	{
-		"c": " v   ",
+		"c": " ",
+		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "v",
+		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure entity.global.clojure",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "   ",
 		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -2134,7 +2167,29 @@
 		}
 	},
 	{
-		"c": " v  ",
+		"c": " ",
+		"t": "source.clojure meta.expression.clojure",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "v",
+		"t": "source.clojure meta.expression.clojure meta.symbol.clojure",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "  ",
 		"t": "source.clojure meta.expression.clojure",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -2181,9 +2236,9 @@
 		"c": ";",
 		"t": "source.clojure comment.line.semicolon.clojure punctuation.definition.comment.clojure",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -2192,9 +2247,9 @@
 		"c": " ⇒ [:a :b :c :d]",
 		"t": "source.clojure comment.line.semicolon.clojure",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -2291,9 +2346,9 @@
 		"c": ";",
 		"t": "source.clojure comment.line.semicolon.clojure punctuation.definition.comment.clojure",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -2302,15 +2357,26 @@
 		"c": " ⇒ (:d :a :b :c)",
 		"t": "source.clojure comment.line.semicolon.clojure",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
 	},
 	{
-		"c": "v   ",
+		"c": "v",
+		"t": "source.clojure meta.symbol.clojure",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "   ",
 		"t": "source.clojure",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -2324,9 +2390,9 @@
 		"c": ";",
 		"t": "source.clojure comment.line.semicolon.clojure punctuation.definition.comment.clojure",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -2335,9 +2401,9 @@
 		"c": " ⇒ is still [:a :b :c]",
 		"t": "source.clojure comment.line.semicolon.clojure",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -2368,9 +2434,9 @@
 		"c": ";",
 		"t": "source.clojure comment.line.semicolon.clojure punctuation.definition.comment.clojure",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -2379,9 +2445,9 @@
 		"c": " ⇒ is still (:a :b :c)",
 		"t": "source.clojure comment.line.semicolon.clojure",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -2390,9 +2456,9 @@
 		"c": ";",
 		"t": "source.clojure comment.line.semicolon.clojure punctuation.definition.comment.clojure",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -2401,9 +2467,9 @@
 		"c": "; Maps",
 		"t": "source.clojure comment.line.semicolon.clojure",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -2431,7 +2497,29 @@
 		}
 	},
 	{
-		"c": " m ",
+		"c": " ",
+		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "m",
+		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure entity.global.clojure",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
 		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -2574,7 +2662,29 @@
 		}
 	},
 	{
-		"c": " m ",
+		"c": " ",
+		"t": "source.clojure meta.expression.clojure",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "m",
+		"t": "source.clojure meta.expression.clojure meta.symbol.clojure",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
 		"t": "source.clojure meta.expression.clojure",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -2643,9 +2753,9 @@
 		"c": ";",
 		"t": "source.clojure comment.line.semicolon.clojure punctuation.definition.comment.clojure",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -2654,9 +2764,9 @@
 		"c": " ⇒ {:a 1 :c 3 :b 2}",
 		"t": "source.clojure comment.line.semicolon.clojure",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -2684,7 +2794,29 @@
 		}
 	},
 	{
-		"c": " m ",
+		"c": " ",
+		"t": "source.clojure meta.expression.clojure",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "m",
+		"t": "source.clojure meta.expression.clojure meta.symbol.clojure",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
 		"t": "source.clojure meta.expression.clojure",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -2731,9 +2863,9 @@
 		"c": ";",
 		"t": "source.clojure comment.line.semicolon.clojure punctuation.definition.comment.clojure",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -2742,9 +2874,9 @@
 		"c": " ⇒ {:a 1}",
 		"t": "source.clojure comment.line.semicolon.clojure",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -2918,9 +3050,9 @@
 		"c": ";",
 		"t": "source.clojure comment.line.semicolon.clojure punctuation.definition.comment.clojure",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -2929,9 +3061,9 @@
 		"c": "; ⇒ #'user/my-atom",
 		"t": "source.clojure comment.line.semicolon.clojure",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -2962,9 +3094,9 @@
 		"c": ";",
 		"t": "source.clojure comment.line.semicolon.clojure punctuation.definition.comment.clojure",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -2973,9 +3105,9 @@
 		"c": "; ⇒ {:foo 1}",
 		"t": "source.clojure comment.line.semicolon.clojure",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -3127,9 +3259,9 @@
 		"c": ";",
 		"t": "source.clojure comment.line.semicolon.clojure punctuation.definition.comment.clojure",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -3138,9 +3270,9 @@
 		"c": "; ⇒ {:foo 2}",
 		"t": "source.clojure comment.line.semicolon.clojure",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -3171,9 +3303,9 @@
 		"c": ";",
 		"t": "source.clojure comment.line.semicolon.clojure punctuation.definition.comment.clojure",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -3182,9 +3314,9 @@
 		"c": "; ⇒ {:foo 2}",
 		"t": "source.clojure comment.line.semicolon.clojure",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}

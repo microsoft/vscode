@@ -2,28 +2,26 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { ok } from 'vs/base/common/assert';
+import { Schemas } from 'vs/base/common/network';
 import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
-import { MirrorModel } from 'vs/editor/common/model/mirrorModel';
-import URI from 'vs/base/common/uri';
-import { Range, Position, EndOfLine } from 'vs/workbench/api/node/extHostTypes';
+import { URI } from 'vs/base/common/uri';
+import { MirrorTextModel } from 'vs/editor/common/model/mirrorTextModel';
+import { ensureValidWordDefinition, getWordAtText } from 'vs/editor/common/model/wordHelper';
+import { MainThreadDocumentsShape } from 'vs/workbench/api/node/extHost.protocol';
+import { EndOfLine, Position, Range } from 'vs/workbench/api/node/extHostTypes';
 import * as vscode from 'vscode';
-import { getWordAtText, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
-import { MainThreadDocumentsShape } from './extHost.protocol';
-import { ITextSource } from 'vs/editor/common/model/textSource';
-import { TPromise } from 'vs/base/common/winjs.base';
 
 const _modeId2WordDefinition = new Map<string, RegExp>();
-export function setWordDefinitionFor(modeId: string, wordDefinition: RegExp): void {
+export function setWordDefinitionFor(modeId: string, wordDefinition: RegExp | undefined): void {
 	_modeId2WordDefinition.set(modeId, wordDefinition);
 }
-export function getWordDefinitionFor(modeId: string): RegExp {
+export function getWordDefinitionFor(modeId: string): RegExp | undefined {
 	return _modeId2WordDefinition.get(modeId);
 }
 
-export class ExtHostDocumentData extends MirrorModel {
+export class ExtHostDocumentData extends MirrorTextModel {
 
 	private _proxy: MainThreadDocumentsShape;
 	private _languageId: string;
@@ -50,7 +48,7 @@ export class ExtHostDocumentData extends MirrorModel {
 		this._isDirty = false;
 	}
 
-	equalLines({ lines }: ITextSource): boolean {
+	equalLines(lines: string[]): boolean {
 		const len = lines.length;
 		if (len !== this._lines.length) {
 			return false;
@@ -69,7 +67,7 @@ export class ExtHostDocumentData extends MirrorModel {
 			this._document = {
 				get uri() { return data._uri; },
 				get fileName() { return data._uri.fsPath; },
-				get isUntitled() { return data._uri.scheme !== 'file'; },
+				get isUntitled() { return data._uri.scheme === Schemas.untitled; },
 				get languageId() { return data._languageId; },
 				get version() { return data._versionId; },
 				get isClosed() { return data._isDisposed; },
@@ -99,9 +97,9 @@ export class ExtHostDocumentData extends MirrorModel {
 		this._isDirty = isDirty;
 	}
 
-	private _save(): TPromise<boolean> {
+	private _save(): Promise<boolean> {
 		if (this._isDisposed) {
-			return TPromise.wrapError<boolean>(new Error('Document has been closed'));
+			return Promise.reject(new Error('Document has been closed'));
 		}
 		return this._proxy.$trySaveDocument(this._uri);
 	}
@@ -133,14 +131,14 @@ export class ExtHostDocumentData extends MirrorModel {
 
 	private _lineAt(lineOrPosition: number | vscode.Position): vscode.TextLine {
 
-		let line: number;
+		let line: number | undefined;
 		if (lineOrPosition instanceof Position) {
 			line = lineOrPosition.line;
 		} else if (typeof lineOrPosition === 'number') {
 			line = lineOrPosition;
 		}
 
-		if (line < 0 || line >= this._lines.length) {
+		if (typeof line !== 'number' || line < 0 || line >= this._lines.length) {
 			throw new Error('Illegal value for `line`');
 		}
 
@@ -148,7 +146,7 @@ export class ExtHostDocumentData extends MirrorModel {
 		if (!result || result.lineNumber !== line || result.text !== this._lines[line]) {
 
 			const text = this._lines[line];
-			const firstNonWhitespaceCharacterIndex = /^(\s*)/.exec(text)[1].length;
+			const firstNonWhitespaceCharacterIndex = /^(\s*)/.exec(text)![1].length;
 			const range = new Range(line, 0, line, text.length);
 			const rangeIncludingLineBreak = line < this._lines.length - 1
 				? new Range(line, 0, line + 1, 0)
@@ -172,7 +170,7 @@ export class ExtHostDocumentData extends MirrorModel {
 	private _offsetAt(position: vscode.Position): number {
 		position = this._validatePosition(position);
 		this._ensureLineStarts();
-		return this._lineStarts.getAccumulatedValue(position.line - 1) + position.character;
+		return this._lineStarts!.getAccumulatedValue(position.line - 1) + position.character;
 	}
 
 	private _positionAt(offset: number): vscode.Position {
@@ -180,7 +178,7 @@ export class ExtHostDocumentData extends MirrorModel {
 		offset = Math.max(0, offset);
 
 		this._ensureLineStarts();
-		let out = this._lineStarts.getIndexOf(offset);
+		let out = this._lineStarts!.getIndexOf(offset);
 
 		let lineLength = this._lines[out.index].length;
 
@@ -240,7 +238,7 @@ export class ExtHostDocumentData extends MirrorModel {
 		return new Position(line, character);
 	}
 
-	private _getWordRangeAtPosition(_position: vscode.Position, regexp?: RegExp): vscode.Range {
+	private _getWordRangeAtPosition(_position: vscode.Position, regexp?: RegExp): vscode.Range | undefined {
 		let position = this._validatePosition(_position);
 
 		if (!regexp) {

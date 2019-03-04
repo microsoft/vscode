@@ -3,9 +3,9 @@
 		"c": "#!",
 		"t": "source.shell comment.line.number-sign.shebang.shell punctuation.definition.comment.shebang.shell",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -14,9 +14,9 @@
 		"c": "/usr/bin/env bash",
 		"t": "source.shell comment.line.number-sign.shebang.shell",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -1246,9 +1246,9 @@
 		"c": "#",
 		"t": "source.shell meta.function.shell meta.scope.group.shell comment.line.number-sign.shell punctuation.definition.comment.shell",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -1257,9 +1257,9 @@
 		"c": " Node modules",
 		"t": "source.shell meta.function.shell meta.scope.group.shell comment.line.number-sign.shell",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -1334,9 +1334,9 @@
 		"c": "#",
 		"t": "source.shell meta.function.shell meta.scope.group.shell comment.line.number-sign.shell punctuation.definition.comment.shell",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -1345,9 +1345,9 @@
 		"c": " Configuration",
 		"t": "source.shell meta.function.shell meta.scope.group.shell comment.line.number-sign.shell",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -1400,9 +1400,9 @@
 		"c": "#",
 		"t": "source.shell meta.function.shell meta.scope.group.shell comment.line.number-sign.shell punctuation.definition.comment.shell",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -1411,9 +1411,9 @@
 		"c": " Launch Code",
 		"t": "source.shell meta.function.shell meta.scope.group.shell comment.line.number-sign.shell",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}

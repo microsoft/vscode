@@ -1,0 +1,29 @@
+{
+	"injectionSelector": "L:comment.block.documentation",
+	"patterns": [
+		{
+			"include": "#example"
+		}
+	],
+	"repository": {
+		"example": {
+			"begin": "((@)example)\\s+(?=([^*]|[*](?!/))*$).*$",
+			"while": "(^|\\G)\\s(?!@)(?=([^*]|[*](?!/))*$)",
+			"beginCaptures": {
+				"1": {
+					"name": "storage.type.class.jsdoc"
+				},
+				"2": {
+					"name": "punctuation.definition.block.tag.jsdoc"
+				}
+			},
+			"contentName": "meta.embedded.block.example.source.ts",
+			"patterns": [
+				{
+					"include": "source.tsx"
+				}
+			]
+		}
+	},
+	"scopeName": "documentation.example.injection"
+}

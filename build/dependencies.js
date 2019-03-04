@@ -43,7 +43,7 @@ function asYarnDependency(prefix, tree) {
 }
 
 function getYarnProductionDependencies(cwd) {
-	const raw = cp.execSync('yarn list --json', { cwd, encoding: 'utf8', env: { ...process.env, NODE_ENV: 'production' }, stdio: [null, null, 'ignore'] });
+	const raw = cp.execSync('yarn list --json', { cwd, encoding: 'utf8', env: { ...process.env, NODE_ENV: 'production' }, stdio: [null, null, 'inherit'] });
 	const match = /^{"type":"tree".*$/m.exec(raw);
 
 	if (!match || match.length !== 1) {

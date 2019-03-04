@@ -11,14 +11,13 @@ const reNumber = /[0-9]/;
 
 /**
  * Incerement number under caret of given editor
- * @param  {Number}     delta
  */
-export function incrementDecrement(delta: number): Thenable<boolean> {
-	let editor = vscode.window.activeTextEditor;
-	if (!editor) {
+export function incrementDecrement(delta: number): Thenable<boolean> | undefined {
+	if (!vscode.window.activeTextEditor) {
 		vscode.window.showInformationMessage('No editor is active');
 		return;
 	}
+	const editor = vscode.window.activeTextEditor;
 
 	return editor.edit(editBuilder => {
 		editor.selections.forEach(selection => {
@@ -38,19 +37,16 @@ export function incrementDecrement(delta: number): Thenable<boolean> {
 /**
  * Updates given number with `delta` and returns string formatted according
  * to original string format
- * @param  {String} numString
- * @param  {Number} delta
- * @return {String}
  */
-export function update(numString, delta): string {
-	let m;
+export function update(numString: string, delta: number): string {
+	let m: RegExpMatchArray | null;
 	let decimals = (m = numString.match(/\.(\d+)$/)) ? m[1].length : 1;
 	let output = String((parseFloat(numString) + delta).toFixed(decimals)).replace(/\.0+$/, '');
 
 	if (m = numString.match(/^\-?(0\d+)/)) {
 		// padded number: preserve padding
-		output = output.replace(/^(\-?)(\d+)/, (str, minus, prefix) =>
-			minus + '0'.repeat(Math.max(0, m[1].length - prefix.length)) + prefix);
+		output = output.replace(/^(\-?)(\d+)/, (_, minus, prefix) =>
+			minus + '0'.repeat(Math.max(0, (m ? m[1].length : 0) - prefix.length)) + prefix);
 	}
 
 	if (/^\-?\./.test(numString)) {
@@ -63,11 +59,10 @@ export function update(numString, delta): string {
 
 /**
  * Locates number from given position in the document
- * @param  {document} Textdocument
- * @param  {Point}      pos
- * @return {Range}      Range of number or `undefined` if not found
+ *
+ * @return Range of number or `undefined` if not found
  */
-export function locate(document: vscode.TextDocument, pos: vscode.Position): vscode.Range {
+export function locate(document: vscode.TextDocument, pos: vscode.Position): vscode.Range | undefined {
 
 	const line = document.lineAt(pos.line).text;
 	let start = pos.character;
@@ -107,13 +102,13 @@ export function locate(document: vscode.TextDocument, pos: vscode.Position): vsc
 	if (start !== end && isValidNumber(line.slice(start, end))) {
 		return new vscode.Range(pos.line, start, pos.line, end);
 	}
+
+	return;
 }
 
 /**
  * Check if given string contains valid number
- * @param  {String}  str
- * @return {Boolean}
  */
-function isValidNumber(str): boolean {
-	return str && !isNaN(parseFloat(str));
+function isValidNumber(str: string): boolean {
+	return str ? !isNaN(parseFloat(str)) : false;
 }

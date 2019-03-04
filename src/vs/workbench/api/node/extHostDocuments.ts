@@ -2,18 +2,16 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import Event, { Emitter } from 'vs/base/common/event';
-import URI from 'vs/base/common/uri';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import * as TypeConverters from './extHostTypeConverters';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { URI, UriComponents } from 'vs/base/common/uri';
+import { IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
+import { ExtHostDocumentsShape, IMainContext, MainContext, MainThreadDocumentsShape } from 'vs/workbench/api/node/extHost.protocol';
+import { ExtHostDocumentData, setWordDefinitionFor } from 'vs/workbench/api/node/extHostDocumentData';
+import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
+import * as TypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import * as vscode from 'vscode';
-import { MainContext, MainThreadDocumentsShape, ExtHostDocumentsShape, IMainContext } from './extHost.protocol';
-import { ExtHostDocumentData, setWordDefinitionFor } from './extHostDocumentData';
-import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors';
-import { IModelChangedEvent } from 'vs/editor/common/model/mirrorModel';
 
 export class ExtHostDocuments implements ExtHostDocumentsShape {
 
@@ -30,10 +28,10 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 	private _toDispose: IDisposable[];
 	private _proxy: MainThreadDocumentsShape;
 	private _documentsAndEditors: ExtHostDocumentsAndEditors;
-	private _documentLoader = new Map<string, TPromise<ExtHostDocumentData>>();
+	private _documentLoader = new Map<string, Promise<ExtHostDocumentData>>();
 
 	constructor(mainContext: IMainContext, documentsAndEditors: ExtHostDocumentsAndEditors) {
-		this._proxy = mainContext.get(MainContext.MainThreadDocuments);
+		this._proxy = mainContext.getProxy(MainContext.MainThreadDocuments);
 		this._documentsAndEditors = documentsAndEditors;
 
 		this._toDispose = [
@@ -58,32 +56,40 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 		return this._documentsAndEditors.allDocuments();
 	}
 
-	public getDocumentData(resource: vscode.Uri): ExtHostDocumentData {
+	public getDocumentData(resource: vscode.Uri): ExtHostDocumentData | undefined {
 		if (!resource) {
 			return undefined;
 		}
-		const data = this._documentsAndEditors.getDocument(resource.toString());
+		const data = this._documentsAndEditors.getDocument(resource);
 		if (data) {
 			return data;
 		}
 		return undefined;
 	}
 
-	public ensureDocumentData(uri: URI): TPromise<ExtHostDocumentData> {
+	public getDocument(resource: vscode.Uri): vscode.TextDocument {
+		const data = this.getDocumentData(resource);
+		if (!data || !data.document) {
+			throw new Error('Unable to retrieve document from URI');
+		}
+		return data.document;
+	}
 
-		let cached = this._documentsAndEditors.getDocument(uri.toString());
+	public ensureDocumentData(uri: URI): Promise<ExtHostDocumentData> {
+
+		let cached = this._documentsAndEditors.getDocument(uri);
 		if (cached) {
-			return TPromise.as(cached);
+			return Promise.resolve(cached);
 		}
 
 		let promise = this._documentLoader.get(uri.toString());
 		if (!promise) {
 			promise = this._proxy.$tryOpenDocument(uri).then(() => {
 				this._documentLoader.delete(uri.toString());
-				return this._documentsAndEditors.getDocument(uri.toString());
+				return this._documentsAndEditors.getDocument(uri);
 			}, err => {
 				this._documentLoader.delete(uri.toString());
-				return TPromise.wrapError<ExtHostDocumentData>(err);
+				return Promise.reject(err);
 			});
 			this._documentLoader.set(uri.toString(), promise);
 		}
@@ -91,12 +97,13 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 		return promise;
 	}
 
-	public createDocumentData(options?: { language?: string; content?: string }): TPromise<URI> {
-		return this._proxy.$tryCreateDocument(options);
+	public createDocumentData(options?: { language?: string; content?: string }): Promise<URI> {
+		return this._proxy.$tryCreateDocument(options).then(data => URI.revive(data));
 	}
 
-	public $acceptModelModeChanged(strURL: string, oldModeId: string, newModeId: string): void {
-		let data = this._documentsAndEditors.getDocument(strURL);
+	public $acceptModelModeChanged(uriComponents: UriComponents, oldModeId: string, newModeId: string): void {
+		const uri = URI.revive(uriComponents);
+		let data = this._documentsAndEditors.getDocument(uri);
 
 		// Treat a mode change as a remove + add
 
@@ -105,14 +112,16 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 		this._onDidAddDocument.fire(data.document);
 	}
 
-	public $acceptModelSaved(strURL: string): void {
-		let data = this._documentsAndEditors.getDocument(strURL);
-		this.$acceptDirtyStateChanged(strURL, false);
+	public $acceptModelSaved(uriComponents: UriComponents): void {
+		const uri = URI.revive(uriComponents);
+		let data = this._documentsAndEditors.getDocument(uri);
+		this.$acceptDirtyStateChanged(uriComponents, false);
 		this._onDidSaveDocument.fire(data.document);
 	}
 
-	public $acceptDirtyStateChanged(strURL: string, isDirty: boolean): void {
-		let data = this._documentsAndEditors.getDocument(strURL);
+	public $acceptDirtyStateChanged(uriComponents: UriComponents, isDirty: boolean): void {
+		const uri = URI.revive(uriComponents);
+		let data = this._documentsAndEditors.getDocument(uri);
 		data._acceptIsDirty(isDirty);
 		this._onDidChangeDocument.fire({
 			document: data.document,
@@ -120,15 +129,17 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 		});
 	}
 
-	public $acceptModelChanged(strURL: string, events: IModelChangedEvent, isDirty: boolean): void {
-		let data = this._documentsAndEditors.getDocument(strURL);
+	public $acceptModelChanged(uriComponents: UriComponents, events: IModelChangedEvent, isDirty: boolean): void {
+		const uri = URI.revive(uriComponents);
+		let data = this._documentsAndEditors.getDocument(uri);
 		data._acceptIsDirty(isDirty);
 		data.onEvents(events);
 		this._onDidChangeDocument.fire({
 			document: data.document,
 			contentChanges: events.changes.map((change) => {
 				return {
-					range: TypeConverters.toRange(change.range),
+					range: TypeConverters.Range.to(change.range),
+					rangeOffset: change.rangeOffset,
 					rangeLength: change.rangeLength,
 					text: change.text
 				};
@@ -136,7 +147,7 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 		});
 	}
 
-	public setWordDefinitionFor(modeId: string, wordDefinition: RegExp): void {
+	public setWordDefinitionFor(modeId: string, wordDefinition: RegExp | undefined): void {
 		setWordDefinitionFor(modeId, wordDefinition);
 	}
 }

@@ -11,15 +11,6 @@
 .monaco-findInput .monaco-inputbox {
 	font-size: 13px;
 	width: 100%;
-	height: 25px;
-}
-
-.fl:after {
-	clear: both;
-	content: '';
-	display: block;
-	visibility: hidden;
-	height: 0;
 }
 
 .monaco-findInput > .controls {

@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 export interface IEditorWhitespace {
 	readonly id: number;
@@ -20,6 +19,11 @@ export class WhitespaceComputer {
 	 * heights[i] is the height in pixels for whitespace at index i
 	 */
 	private _heights: number[];
+
+	/**
+	 * minWidths[i] is the min width in pixels for whitespace at index i
+	 */
+	private _minWidths: number[];
 
 	/**
 	 * afterLineNumbers[i] is the line number whitespace at index i is after
@@ -58,8 +62,11 @@ export class WhitespaceComputer {
 	 */
 	private _lastWhitespaceId: number;
 
+	private _minWidth: number;
+
 	constructor() {
 		this._heights = [];
+		this._minWidths = [];
 		this._ids = [];
 		this._afterLineNumbers = [];
 		this._ordinals = [];
@@ -67,6 +74,7 @@ export class WhitespaceComputer {
 		this._prefixSumValidIndex = -1;
 		this._whitespaceId2Index = {};
 		this._lastWhitespaceId = 0;
+		this._minWidth = -1; /* marker for not being computed */
 	}
 
 	/**
@@ -105,25 +113,29 @@ export class WhitespaceComputer {
 	 * @param heightInPx The height of the whitespace, in pixels.
 	 * @return An id that can be used later to mutate or delete the whitespace
 	 */
-	public insertWhitespace(afterLineNumber: number, ordinal: number, heightInPx: number): number {
+	public insertWhitespace(afterLineNumber: number, ordinal: number, heightInPx: number, minWidth: number): number {
 		afterLineNumber = afterLineNumber | 0;
 		ordinal = ordinal | 0;
 		heightInPx = heightInPx | 0;
+		minWidth = minWidth | 0;
 
 		let id = (++this._lastWhitespaceId);
 		let insertionIndex = WhitespaceComputer.findInsertionIndex(this._afterLineNumbers, afterLineNumber, this._ordinals, ordinal);
-		this._insertWhitespaceAtIndex(id, insertionIndex, afterLineNumber, ordinal, heightInPx);
+		this._insertWhitespaceAtIndex(id, insertionIndex, afterLineNumber, ordinal, heightInPx, minWidth);
+		this._minWidth = -1; /* marker for not being computed */
 		return id;
 	}
 
-	private _insertWhitespaceAtIndex(id: number, insertIndex: number, afterLineNumber: number, ordinal: number, heightInPx: number): void {
+	private _insertWhitespaceAtIndex(id: number, insertIndex: number, afterLineNumber: number, ordinal: number, heightInPx: number, minWidth: number): void {
 		id = id | 0;
 		insertIndex = insertIndex | 0;
 		afterLineNumber = afterLineNumber | 0;
 		ordinal = ordinal | 0;
 		heightInPx = heightInPx | 0;
+		minWidth = minWidth | 0;
 
 		this._heights.splice(insertIndex, 0, heightInPx);
+		this._minWidths.splice(insertIndex, 0, minWidth);
 		this._ids.splice(insertIndex, 0, id);
 		this._afterLineNumbers.splice(insertIndex, 0, afterLineNumber);
 		this._ordinals.splice(insertIndex, 0, ordinal);
@@ -202,12 +214,15 @@ export class WhitespaceComputer {
 				// Record old height
 				let heightInPx = this._heights[index];
 
+				// Record old min width
+				let minWidth = this._minWidths[index];
+
 				// Since changing `afterLineNumber` can trigger a reordering, we're gonna remove this whitespace
 				this.removeWhitespace(id);
 
 				// And add it again
 				let insertionIndex = WhitespaceComputer.findInsertionIndex(this._afterLineNumbers, newAfterLineNumber, this._ordinals, ordinal);
-				this._insertWhitespaceAtIndex(id, insertionIndex, newAfterLineNumber, ordinal, heightInPx);
+				this._insertWhitespaceAtIndex(id, insertionIndex, newAfterLineNumber, ordinal, heightInPx, minWidth);
 
 				return true;
 			}
@@ -230,6 +245,7 @@ export class WhitespaceComputer {
 			let index = this._whitespaceId2Index[sid];
 			delete this._whitespaceId2Index[sid];
 			this._removeWhitespaceAtIndex(index);
+			this._minWidth = -1; /* marker for not being computed */
 			return true;
 		}
 
@@ -240,6 +256,7 @@ export class WhitespaceComputer {
 		removeIndex = removeIndex | 0;
 
 		this._heights.splice(removeIndex, 1);
+		this._minWidths.splice(removeIndex, 1);
 		this._ids.splice(removeIndex, 1);
 		this._afterLineNumbers.splice(removeIndex, 1);
 		this._ordinals.splice(removeIndex, 1);
@@ -408,6 +425,20 @@ export class WhitespaceComputer {
 	 */
 	public getCount(): number {
 		return this._heights.length;
+	}
+
+	/**
+	 * The maximum min width for all whitespaces.
+	 */
+	public getMinWidth(): number {
+		if (this._minWidth === -1) {
+			let minWidth = 0;
+			for (let i = 0, len = this._minWidths.length; i < len; i++) {
+				minWidth = Math.max(minWidth, this._minWidths[i]);
+			}
+			this._minWidth = minWidth;
+		}
+		return this._minWidth;
 	}
 
 	/**

@@ -2,11 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { SerializedError, onUnexpectedError } from 'vs/base/common/errors';
-import { MainThreadErrorsShape, MainContext } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
+import { MainContext, MainThreadErrorsShape } from 'vs/workbench/api/node/extHost.protocol';
 
 @extHostNamedCustomer(MainContext.MainThreadErrors)
 export class MainThreadErrors implements MainThreadErrorsShape {
@@ -15,11 +14,11 @@ export class MainThreadErrors implements MainThreadErrorsShape {
 		//
 	}
 
-	$onUnexpectedError(err: any | SerializedError, extensionId: string | undefined): void {
-		if (err.$isError) {
+	$onUnexpectedError(err: any | SerializedError): void {
+		if (err && err.$isError) {
 			const { name, message, stack } = err;
 			err = new Error();
-			err.message = extensionId ? `[${extensionId}] ${message}` : message;
+			err.message = message;
 			err.name = name;
 			err.stack = stack;
 		}

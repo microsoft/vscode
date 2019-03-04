@@ -13,7 +13,7 @@ export class SettingsDocument {
 
 	constructor(private document: vscode.TextDocument) { }
 
-	public provideCompletionItems(position: vscode.Position, token: vscode.CancellationToken): vscode.ProviderResult<vscode.CompletionItem[]> {
+	public provideCompletionItems(position: vscode.Position, _token: vscode.CancellationToken): vscode.ProviderResult<vscode.CompletionItem[]> {
 		const location = getLocation(this.document.getText(), this.document.offsetAt(position));
 		const range = this.document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
 
@@ -40,12 +40,15 @@ export class SettingsDocument {
 		return this.provideLanguageOverridesCompletionItems(location, position);
 	}
 
-	private provideWindowTitleCompletionItems(location: Location, range: vscode.Range): vscode.ProviderResult<vscode.CompletionItem[]> {
+	private provideWindowTitleCompletionItems(_location: Location, range: vscode.Range): vscode.ProviderResult<vscode.CompletionItem[]> {
 		const completions: vscode.CompletionItem[] = [];
 
 		completions.push(this.newSimpleCompletionItem('${activeEditorShort}', range, localize('activeEditorShort', "the file name (e.g. myFile.txt)")));
-		completions.push(this.newSimpleCompletionItem('${activeEditorMedium}', range, localize('activeEditorMedium', "the path of the file relative to the workspace folder (e.g. myFolder/myFile.txt)")));
-		completions.push(this.newSimpleCompletionItem('${activeEditorLong}', range, localize('activeEditorLong', "the full path of the file (e.g. /Users/Development/myProject/myFolder/myFile.txt)")));
+		completions.push(this.newSimpleCompletionItem('${activeEditorMedium}', range, localize('activeEditorMedium', "the path of the file relative to the workspace folder (e.g. myFolder/myFileFolder/myFile.txt)")));
+		completions.push(this.newSimpleCompletionItem('${activeEditorLong}', range, localize('activeEditorLong', "the full path of the file (e.g. /Users/Development/myFolder/myFileFolder/myFile.txt)")));
+		completions.push(this.newSimpleCompletionItem('${activeFolderShort}', range, localize('activeFolderShort', "the name of the folder the file is contained in (e.g. myFileFolder)")));
+		completions.push(this.newSimpleCompletionItem('${activeFolderMedium}', range, localize('activeFolderMedium', "the path of the folder the file is contained in, relative to the workspace folder (e.g. myFolder/myFileFolder)")));
+		completions.push(this.newSimpleCompletionItem('${activeFolderLong}', range, localize('activeFolderLong', "the full path of the folder the file is contained in (e.g. /Users/Development/myFolder/myFileFolder)")));
 		completions.push(this.newSimpleCompletionItem('${rootName}', range, localize('rootName', "name of the workspace (e.g. myFolder or myWorkspace)")));
 		completions.push(this.newSimpleCompletionItem('${rootPath}', range, localize('rootPath', "file path of the workspace (e.g. /Users/Development/myWorkspace)")));
 		completions.push(this.newSimpleCompletionItem('${folderName}', range, localize('folderName', "name of the workspace folder the file is contained in (e.g. myFolder)")));
@@ -60,26 +63,26 @@ export class SettingsDocument {
 	private provideFilesAssociationsCompletionItems(location: Location, range: vscode.Range): vscode.ProviderResult<vscode.CompletionItem[]> {
 		const completions: vscode.CompletionItem[] = [];
 
-		// Key
-		if (location.path.length === 1) {
-			completions.push(this.newSnippetCompletionItem({
-				label: localize('assocLabelFile', "Files with Extension"),
-				documentation: localize('assocDescriptionFile', "Map all files matching the glob pattern in their filename to the language with the given identifier."),
-				snippet: location.isAtPropertyKey ? '"*.${1:extension}": "${2:language}"' : '{ "*.${1:extension}": "${2:language}" }',
-				range
-			}));
+		if (location.path.length === 2) {
+			// Key
+			if (!location.isAtPropertyKey || location.path[1] === '') {
+				completions.push(this.newSnippetCompletionItem({
+					label: localize('assocLabelFile', "Files with Extension"),
+					documentation: localize('assocDescriptionFile', "Map all files matching the glob pattern in their filename to the language with the given identifier."),
+					snippet: location.isAtPropertyKey ? '"*.${1:extension}": "${2:language}"' : '{ "*.${1:extension}": "${2:language}" }',
+					range
+				}));
 
-			completions.push(this.newSnippetCompletionItem({
-				label: localize('assocLabelPath', "Files with Path"),
-				documentation: localize('assocDescriptionPath', "Map all files matching the absolute path glob pattern in their path to the language with the given identifier."),
-				snippet: location.isAtPropertyKey ? '"/${1:path to file}/*.${2:extension}": "${3:language}"' : '{ "/${1:path to file}/*.${2:extension}": "${3:language}" }',
-				range
-			}));
-		}
-
-		// Value
-		else if (location.path.length === 2 && !location.isAtPropertyKey) {
-			return this.provideLanguageCompletionItems(location, range);
+				completions.push(this.newSnippetCompletionItem({
+					label: localize('assocLabelPath', "Files with Path"),
+					documentation: localize('assocDescriptionPath', "Map all files matching the absolute path glob pattern in their path to the language with the given identifier."),
+					snippet: location.isAtPropertyKey ? '"/${1:path to file}/*.${2:extension}": "${3:language}"' : '{ "/${1:path to file}/*.${2:extension}": "${3:language}" }',
+					range
+				}));
+			} else {
+				// Value
+				return this.provideLanguageCompletionItems(location, range);
+			}
 		}
 
 		return Promise.resolve(completions);
@@ -149,11 +152,20 @@ export class SettingsDocument {
 		return Promise.resolve(completions);
 	}
 
-	private provideLanguageCompletionItems(location: Location, range: vscode.Range, formatFunc: (string: string) => string = (l) => JSON.stringify(l)): vscode.ProviderResult<vscode.CompletionItem[]> {
+	private provideLanguageCompletionItems(_location: Location, range: vscode.Range, formatFunc: (string: string) => string = (l) => JSON.stringify(l)): vscode.ProviderResult<vscode.CompletionItem[]> {
 		return vscode.languages.getLanguages().then(languages => {
-			return languages.map(l => {
-				return this.newSimpleCompletionItem(formatFunc(l), range);
-			});
+			const completionItems = [];
+			const configuration = vscode.workspace.getConfiguration();
+			for (const language of languages) {
+				const inspect = configuration.inspect(`[${language}]`);
+				if (!inspect || !inspect.defaultValue) {
+					const item = new vscode.CompletionItem(formatFunc(language));
+					item.kind = vscode.CompletionItemKind.Property;
+					item.range = range;
+					completionItems.push(item);
+				}
+			}
+			return completionItems;
 		});
 	}
 

@@ -1,0 +1,18 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "atom/language-css",
+					"repositoryUrl": "https://github.com/atom/language-css",
+					"commitHash": "7e06c88b89218fe6e8eba77fb674152f1cea0b10"
+				}
+			},
+			"license": "MIT",
+			"description": "The file syntaxes/css.tmLanguage.json was derived from the Atom package https://github.com/atom/language-css which was originally converted from the TextMate bundle https://github.com/textmate/css.tmbundle.",
+			"version": "0.0.0"
+		}
+	],
+	"version": 1
+}

@@ -3,37 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import 'vs/workbench/parts/search/browser/search.contribution'; // load contributions
+import 'vs/workbench/contrib/search/browser/search.contribution'; // load contributions
 import * as assert from 'assert';
 import * as fs from 'fs';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { createSyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { ISearchService, IQueryOptions } from 'vs/platform/search/common/search';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { ISearchService } from 'vs/workbench/services/search/common/search';
 import { ITelemetryService, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import * as minimist from 'minimist';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import { SearchService } from 'vs/workbench/services/search/node/searchService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { TestEnvironmentService, TestEditorService, TestEditorGroupService, TestContextService } from 'vs/workbench/test/workbenchTestServices';
+import { TestEnvironmentService, TestContextService, TestEditorService, TestEditorGroupsService, TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTestServices';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { TPromise } from 'vs/base/common/winjs.base';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { SimpleConfigurationService } from 'vs/editor/standalone/browser/simpleServices';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
 
-import { SearchModel } from 'vs/workbench/parts/search/common/searchModel';
-import { QueryBuilder } from 'vs/workbench/parts/search/common/queryBuilder';
+import { SearchModel } from 'vs/workbench/contrib/search/common/searchModel';
+import { QueryBuilder, ITextQueryBuilderOptions } from 'vs/workbench/contrib/search/common/queryBuilder';
 
-import Event, * as event from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
+import { NullLogService, ILogService } from 'vs/platform/log/common/log';
+import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 
 declare var __dirname: string;
 
@@ -41,7 +40,7 @@ declare var __dirname: string;
 // git clone --separate-git-dir=testGit --no-checkout --single-branch https://chromium.googlesource.com/chromium/src testWorkspace
 // cd testWorkspace; git checkout 39a7f93d67f7
 // Run from repository root folder with (test.bat on Windows): ./scripts/test-int-mocha.sh --grep TextSearch.performance --timeout 500000 --testWorkspace <path>
-suite('TextSearch performance (integration)', () => {
+suite.skip('TextSearch performance (integration)', () => {
 
 	test('Measure', () => {
 		if (process.env['VSCODE_PID']) {
@@ -57,31 +56,34 @@ suite('TextSearch performance (integration)', () => {
 		}
 
 		const telemetryService = new TestTelemetryService();
-		const configurationService = new SimpleConfigurationService();
+		const configurationService = new TestConfigurationService();
+		const textResourcePropertiesService = new TestTextResourcePropertiesService(configurationService);
 		const instantiationService = new InstantiationService(new ServiceCollection(
 			[ITelemetryService, telemetryService],
 			[IConfigurationService, configurationService],
-			[IModelService, new ModelServiceImpl(null, configurationService)],
+			[ITextResourcePropertiesService, textResourcePropertiesService],
+			[IModelService, new ModelServiceImpl(configurationService, textResourcePropertiesService)],
 			[IWorkspaceContextService, new TestContextService(testWorkspace(URI.file(testWorkspacePath)))],
-			[IWorkbenchEditorService, new TestEditorService()],
-			[IEditorGroupService, new TestEditorGroupService()],
+			[IEditorService, new TestEditorService()],
+			[IEditorGroupsService, new TestEditorGroupsService()],
 			[IEnvironmentService, TestEnvironmentService],
 			[IUntitledEditorService, createSyncDescriptor(UntitledEditorService)],
-			[ISearchService, createSyncDescriptor(SearchService)]
+			[ISearchService, createSyncDescriptor(SearchService)],
+			[ILogService, new NullLogService()]
 		));
 
-		const queryOptions: IQueryOptions = {
+		const queryOptions: ITextQueryBuilderOptions = {
 			maxResults: 2048
 		};
 
 		const searchModel: SearchModel = instantiationService.createInstance(SearchModel);
-		function runSearch(): TPromise<any> {
+		function runSearch(): Promise<any> {
 			const queryBuilder: QueryBuilder = instantiationService.createInstance(QueryBuilder);
 			const query = queryBuilder.text({ pattern: 'static_library(' }, [URI.file(testWorkspacePath)], queryOptions);
 
 			// Wait for the 'searchResultsFinished' event, which is fired after the search() promise is resolved
-			const onSearchResultsFinished = event.filterEvent(telemetryService.eventLogged, e => e.name === 'searchResultsFinished');
-			event.once(onSearchResultsFinished)(onComplete);
+			const onSearchResultsFinished = Event.filter(telemetryService.eventLogged, e => e.name === 'searchResultsFinished');
+			Event.once(onSearchResultsFinished)(onComplete);
 
 			function onComplete(): void {
 				try {
@@ -104,7 +106,7 @@ suite('TextSearch performance (integration)', () => {
 
 			let resolve;
 			let error;
-			return new TPromise((_resolve, _error) => {
+			return new Promise((_resolve, _error) => {
 				resolve = _resolve;
 				error = _error;
 
@@ -115,7 +117,7 @@ suite('TextSearch performance (integration)', () => {
 			});
 		}
 
-		const finishedEvents = [];
+		const finishedEvents: any[] = [];
 		return runSearch() // Warm-up first
 			.then(() => {
 				if (testWorkspaceArg) { // Don't measure by default
@@ -146,21 +148,21 @@ class TestTelemetryService implements ITelemetryService {
 
 	public events: any[] = [];
 
-	private emitter = new event.Emitter<any>();
+	private emitter = new Emitter<any>();
 
 	public get eventLogged(): Event<any> {
 		return this.emitter.event;
 	}
 
-	public publicLog(eventName: string, data?: any): TPromise<void> {
+	public publicLog(eventName: string, data?: any): Promise<void> {
 		const event = { name: eventName, data: data };
 		this.events.push(event);
 		this.emitter.fire(event);
-		return TPromise.wrap<void>(null);
+		return Promise.resolve();
 	}
 
-	public getTelemetryInfo(): TPromise<ITelemetryInfo> {
-		return TPromise.wrap({
+	public getTelemetryInfo(): Promise<ITelemetryInfo> {
+		return Promise.resolve({
 			instanceId: 'someValue.instanceId',
 			sessionId: 'someValue.sessionId',
 			machineId: 'someValue.machineId'

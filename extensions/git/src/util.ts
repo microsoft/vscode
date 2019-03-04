@@ -3,10 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { Event } from 'vscode';
-import { dirname } from 'path';
+import { dirname, sep } from 'path';
 import { Readable } from 'stream';
 import * as fs from 'fs';
 import * as byline from 'byline';
@@ -34,12 +32,28 @@ export function combinedDisposable(disposables: IDisposable[]): IDisposable {
 
 export const EmptyDisposable = toDisposable(() => null);
 
+export function fireEvent<T>(event: Event<T>): Event<T> {
+	return (listener, thisArgs = null, disposables?) => event(_ => (listener as any).call(thisArgs), null, disposables);
+}
+
 export function mapEvent<I, O>(event: Event<I>, map: (i: I) => O): Event<O> {
 	return (listener, thisArgs = null, disposables?) => event(i => listener.call(thisArgs, map(i)), null, disposables);
 }
 
 export function filterEvent<T>(event: Event<T>, filter: (e: T) => boolean): Event<T> {
 	return (listener, thisArgs = null, disposables?) => event(e => filter(e) && listener.call(thisArgs, e), null, disposables);
+}
+
+export function latchEvent<T>(event: Event<T>): Event<T> {
+	let firstCall = true;
+	let cache: T;
+
+	return filterEvent(event, value => {
+		let shouldEmit = firstCall || value !== cache;
+		firstCall = false;
+		cache = value;
+		return shouldEmit;
+	});
 }
 
 export function anyEvent<T>(...events: Event<T>[]): Event<T> {
@@ -55,7 +69,7 @@ export function anyEvent<T>(...events: Event<T>[]): Event<T> {
 }
 
 export function done<T>(promise: Promise<T>): Promise<void> {
-	return promise.then<void>(() => void 0);
+	return promise.then<void>(() => undefined);
 }
 
 export function onceEvent<T>(event: Event<T>): Event<T> {
@@ -66,6 +80,16 @@ export function onceEvent<T>(event: Event<T>): Event<T> {
 		}, null, disposables);
 
 		return result;
+	};
+}
+
+export function debounceEvent<T>(event: Event<T>, delay: number): Event<T> {
+	return (listener, thisArgs = null, disposables?) => {
+		let timer: NodeJS.Timer;
+		return event(e => {
+			clearTimeout(timer);
+			timer = setTimeout(() => listener.call(thisArgs, e), delay);
+		}, null, disposables);
 	};
 }
 
@@ -116,6 +140,10 @@ export function groupBy<T>(arr: T[], fn: (el: T) => string): { [key: string]: T[
 	}, Object.create(null));
 }
 
+export function denodeify<A, B, C, R>(fn: Function): (a: A, b: B, c: C) => Promise<R>;
+export function denodeify<A, B, R>(fn: Function): (a: A, b: B) => Promise<R>;
+export function denodeify<A, R>(fn: Function): (a: A) => Promise<R>;
+export function denodeify<R>(fn: Function): (...args: any[]) => Promise<R>;
 export function denodeify<R>(fn: Function): (...args: any[]) => Promise<R> {
 	return (...args) => new Promise<R>((c, e) => fn(...args, (err: any, r: any) => err ? e(err) : c(r)));
 }
@@ -177,6 +205,16 @@ export function uniqueFilter<T>(keyFn: (t: T) => string): (t: T) => boolean {
 	};
 }
 
+export function firstIndex<T>(array: T[], fn: (t: T) => boolean): number {
+	for (let i = 0; i < array.length; i++) {
+		if (fn(array[i])) {
+			return i;
+		}
+	}
+
+	return -1;
+}
+
 export function find<T>(array: T[], fn: (t: T) => boolean): T | undefined {
 	let result: T | undefined = undefined;
 
@@ -211,7 +249,7 @@ export async function grep(filename: string, pattern: RegExp): Promise<boolean> 
 export function readBytes(stream: Readable, bytes: number): Promise<Buffer> {
 	return new Promise<Buffer>((complete, error) => {
 		let done = false;
-		let buffer = new Buffer(bytes);
+		let buffer = Buffer.allocUnsafe(bytes);
 		let bytesRead = 0;
 
 		stream.on('data', (data: Buffer) => {
@@ -240,7 +278,7 @@ export function readBytes(stream: Readable, bytes: number): Promise<Buffer> {
 	});
 }
 
-export enum Encoding {
+export const enum Encoding {
 	UTF8 = 'utf8',
 	UTF16be = 'utf16be',
 	UTF16le = 'utf16le'
@@ -273,4 +311,36 @@ export function detectUnicodeEncoding(buffer: Buffer): Encoding | null {
 	}
 
 	return null;
+}
+
+function isWindowsPath(path: string): boolean {
+	return /^[a-zA-Z]:\\/.test(path);
+}
+
+export function isDescendant(parent: string, descendant: string): boolean {
+	if (parent === descendant) {
+		return true;
+	}
+
+	if (parent.charAt(parent.length - 1) !== sep) {
+		parent += sep;
+	}
+
+	// Windows is case insensitive
+	if (isWindowsPath(parent)) {
+		parent = parent.toLowerCase();
+		descendant = descendant.toLowerCase();
+	}
+
+	return descendant.startsWith(parent);
+}
+
+export function pathEquals(a: string, b: string): boolean {
+	// Windows is case insensitive
+	if (isWindowsPath(a)) {
+		a = a.toLowerCase();
+		b = b.toLowerCase();
+	}
+
+	return a === b;
 }

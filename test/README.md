@@ -2,7 +2,7 @@
 
 ## Run
 
-The best way to run the Code tests is from the terminal. To make development changes to unit tests you need to be running `gulp`. See [Development Workflow](https://github.com/Microsoft/vscode/wiki/How-to-Contribute#incremental-build) for more details. From the `vscode` folder run:
+The best way to run the Code tests is from the terminal. To make development changes to unit tests you need to be running `yarn run watch`. See [Development Workflow](https://github.com/Microsoft/vscode/wiki/How-to-Contribute#incremental-build) for more details. From the `vscode` folder run:
 
 **OS X and Linux**
 

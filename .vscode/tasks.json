@@ -29,6 +29,23 @@
 			}
 		},
 		{
+			"type": "npm",
+			"script": "strict-null-check-watch",
+			"label": "TS - Strict Null Checks",
+			"isBackground": true,
+			"presentation": {
+				"reveal": "never"
+			},
+			"problemMatcher": {
+				"base": "$tsc-watch",
+				"owner": "typescript-strict-null",
+				"applyTo": "allDocuments"
+			},
+			"runOptions": {
+				"runOn": "folderOpen"
+			}
+		},
+		{
 			"type": "gulp",
 			"task": "tslint",
 			"label": "Run tslint",

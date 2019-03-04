@@ -2,22 +2,20 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import * as Platform from 'vs/base/common/platform';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
 class WindowManager {
 
-	public static INSTANCE = new WindowManager();
+	public static readonly INSTANCE = new WindowManager();
 
 	// --- Zoom Level
 	private _zoomLevel: number = 0;
 	private _lastZoomLevelChangeTime: number = 0;
-	private _onDidChangeZoomLevel: Emitter<number> = new Emitter<number>();
+	private readonly _onDidChangeZoomLevel = new Emitter<number>();
 
-	public onDidChangeZoomLevel: Event<number> = this._onDidChangeZoomLevel.event;
+	public readonly onDidChangeZoomLevel: Event<number> = this._onDidChangeZoomLevel.event;
 	public getZoomLevel(): number {
 		return this._zoomLevel;
 	}
@@ -35,9 +33,8 @@ class WindowManager {
 		this._onDidChangeZoomLevel.fire(this._zoomLevel);
 	}
 
-
 	// --- Zoom Factor
-	private _zoomFactor: number = 0;
+	private _zoomFactor: number = 1;
 
 	public getZoomFactor(): number {
 		return this._zoomFactor;
@@ -45,7 +42,6 @@ class WindowManager {
 	public setZoomFactor(zoomFactor: number): void {
 		this._zoomFactor = zoomFactor;
 	}
-
 
 	// --- Pixel Ratio
 	public getPixelRatio(): number {
@@ -61,9 +57,9 @@ class WindowManager {
 
 	// --- Fullscreen
 	private _fullscreen: boolean;
-	private _onDidChangeFullscreen: Emitter<void> = new Emitter<void>();
+	private readonly _onDidChangeFullscreen = new Emitter<void>();
 
-	public onDidChangeFullscreen: Event<void> = this._onDidChangeFullscreen.event;
+	public readonly onDidChangeFullscreen: Event<void> = this._onDidChangeFullscreen.event;
 	public setFullscreen(fullscreen: boolean): void {
 		if (this._fullscreen === fullscreen) {
 			return;
@@ -75,25 +71,6 @@ class WindowManager {
 	public isFullscreen(): boolean {
 		return this._fullscreen;
 	}
-
-	// --- Accessibility
-	private _accessibilitySupport = Platform.AccessibilitySupport.Unknown;
-	private _onDidChangeAccessibilitySupport: Emitter<void> = new Emitter<void>();
-
-	public onDidChangeAccessibilitySupport: Event<void> = this._onDidChangeAccessibilitySupport.event;
-	public setAccessibilitySupport(accessibilitySupport: Platform.AccessibilitySupport): void {
-		if (this._accessibilitySupport === accessibilitySupport) {
-			return;
-		}
-
-		this._accessibilitySupport = accessibilitySupport;
-		this._onDidChangeAccessibilitySupport.fire();
-	}
-	public getAccessibilitySupport(): Platform.AccessibilitySupport {
-		return this._accessibilitySupport;
-	}
-
-
 }
 
 /** A zoom index, e.g. 1, 2, 3 */
@@ -129,19 +106,7 @@ export function setFullscreen(fullscreen: boolean): void {
 export function isFullscreen(): boolean {
 	return WindowManager.INSTANCE.isFullscreen();
 }
-export function onDidChangeFullscreen(callback: () => void): IDisposable {
-	return WindowManager.INSTANCE.onDidChangeFullscreen(callback);
-}
-
-export function setAccessibilitySupport(accessibilitySupport: Platform.AccessibilitySupport): void {
-	WindowManager.INSTANCE.setAccessibilitySupport(accessibilitySupport);
-}
-export function getAccessibilitySupport(): Platform.AccessibilitySupport {
-	return WindowManager.INSTANCE.getAccessibilitySupport();
-}
-export function onDidChangeAccessibilitySupport(callback: () => void): IDisposable {
-	return WindowManager.INSTANCE.onDidChangeAccessibilitySupport(callback);
-}
+export const onDidChangeFullscreen = WindowManager.INSTANCE.onDidChangeFullscreen;
 
 const userAgent = navigator.userAgent;
 
@@ -153,11 +118,24 @@ export const isOpera = (userAgent.indexOf('Opera') >= 0);
 export const isFirefox = (userAgent.indexOf('Firefox') >= 0);
 export const isWebKit = (userAgent.indexOf('AppleWebKit') >= 0);
 export const isChrome = (userAgent.indexOf('Chrome') >= 0);
-export const isSafari = (userAgent.indexOf('Chrome') === -1) && (userAgent.indexOf('Safari') >= 0);
+export const isSafari = (!isChrome && (userAgent.indexOf('Safari') >= 0));
+export const isWebkitWebView = (!isChrome && !isSafari && isWebKit);
 export const isIPad = (userAgent.indexOf('iPad') >= 0);
+export const isEdgeWebView = isEdge && (userAgent.indexOf('WebView/') >= 0);
 
-export const isChromev56 = (
-	userAgent.indexOf('Chrome/56.') >= 0
-	// Edge likes to impersonate Chrome sometimes
-	&& userAgent.indexOf('Edge/') === -1
-);
+export function hasClipboardSupport() {
+	if (isIE) {
+		return false;
+	}
+
+	if (isEdge) {
+		let index = userAgent.indexOf('Edge/');
+		let version = parseInt(userAgent.substring(index + 5, userAgent.indexOf('.', index)), 10);
+
+		if (!version || (version >= 12 && version <= 16)) {
+			return false;
+		}
+	}
+
+	return true;
+}

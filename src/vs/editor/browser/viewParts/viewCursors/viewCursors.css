@@ -10,9 +10,12 @@
 .monaco-editor .cursors-layer > .cursor {
 	position: absolute;
 	cursor: text;
+	overflow: hidden;
 }
-.monaco-editor .cursors-layer > .cursor.secondary {
-	opacity: 0.6;
+
+/* -- smooth-caret-animation -- */
+.monaco-editor .cursors-layer.cursor-smooth-caret-animation > .cursor {
+	transition: 80ms;
 }
 
 /* -- block-outline-style -- */

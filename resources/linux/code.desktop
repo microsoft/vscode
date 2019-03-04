@@ -5,7 +5,7 @@ GenericName=Text Editor
 Exec=/usr/share/@@NAME@@/@@NAME@@ --unity-launch %F
 Icon=@@ICON@@
 Type=Application
-StartupNotify=true
+StartupNotify=false
 StartupWMClass=@@NAME_SHORT@@
 Categories=Utility;TextEditor;Development;IDE;
 MimeType=text/plain;inode/directory;
@@ -15,4 +15,4 @@ Keywords=vscode;
 [Desktop Action new-empty-window]
 Name=New Empty Window
 Exec=/usr/share/@@NAME@@/@@NAME@@ --new-window %F
-Icon=@@NAME@@
+Icon=@@ICON@@

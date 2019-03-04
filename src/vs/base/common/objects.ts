@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { isObject, isUndefinedOrNull, isArray } from 'vs/base/common/types';
 
 export function deepClone<T>(obj: T): T {
@@ -16,7 +14,7 @@ export function deepClone<T>(obj: T): T {
 		return obj as any;
 	}
 	const result: any = Array.isArray(obj) ? [] : {};
-	Object.keys(obj).forEach((key: keyof T) => {
+	Object.keys(obj).forEach((key: string) => {
 		if (obj[key] && typeof obj[key] === 'object') {
 			result[key] = deepClone(obj[key]);
 		} else {
@@ -49,10 +47,10 @@ export function deepFreeze<T>(obj: T): T {
 const _hasOwnProperty = Object.prototype.hasOwnProperty;
 
 export function cloneAndChange(obj: any, changer: (orig: any) => any): any {
-	return _cloneAndChange(obj, changer, []);
+	return _cloneAndChange(obj, changer, new Set());
 }
 
-function _cloneAndChange(obj: any, changer: (orig: any) => any, encounteredObjects: any[]): any {
+function _cloneAndChange(obj: any, changer: (orig: any) => any, seen: Set<any>): any {
 	if (isUndefinedOrNull(obj)) {
 		return obj;
 	}
@@ -64,24 +62,24 @@ function _cloneAndChange(obj: any, changer: (orig: any) => any, encounteredObjec
 
 	if (isArray(obj)) {
 		const r1: any[] = [];
-		for (let i1 = 0; i1 < obj.length; i1++) {
-			r1.push(_cloneAndChange(obj[i1], changer, encounteredObjects));
+		for (const e of obj) {
+			r1.push(_cloneAndChange(e, changer, seen));
 		}
 		return r1;
 	}
 
 	if (isObject(obj)) {
-		if (encounteredObjects.indexOf(obj) >= 0) {
+		if (seen.has(obj)) {
 			throw new Error('Cannot clone recursive data-structure');
 		}
-		encounteredObjects.push(obj);
+		seen.add(obj);
 		const r2 = {};
 		for (let i2 in obj) {
 			if (_hasOwnProperty.call(obj, i2)) {
-				(r2 as any)[i2] = _cloneAndChange(obj[i2], changer, encounteredObjects);
+				(r2 as any)[i2] = _cloneAndChange(obj[i2], changer, seen);
 			}
 		}
-		encounteredObjects.pop();
+		seen.delete(obj);
 		return r2;
 	}
 
@@ -115,13 +113,13 @@ export function mixin(destination: any, source: any, overwrite: boolean = true):
 	return destination;
 }
 
+export function assign<T>(destination: T): T;
+export function assign<T, U>(destination: T, u: U): T & U;
+export function assign<T, U, V>(destination: T, u: U, v: V): T & U & V;
+export function assign<T, U, V, W>(destination: T, u: U, v: V, w: W): T & U & V & W;
 export function assign(destination: any, ...sources: any[]): any {
 	sources.forEach(source => Object.keys(source).forEach(key => destination[key] = source[key]));
 	return destination;
-}
-
-export function toObject<T>(arr: T[], keyMap: (t: T) => string): { [key: string]: T } {
-	return arr.reduce((o, d) => assign(o, { [keyMap(d)]: d }), Object.create(null));
 }
 
 export function equals(one: any, other: any): boolean {
@@ -177,10 +175,10 @@ export function equals(one: any, other: any): boolean {
 	return true;
 }
 
-export function arrayToHash(array: any[]) {
+function arrayToHash(array: string[]): { [name: string]: true } {
 	const result: any = {};
-	for (let i = 0; i < array.length; ++i) {
-		result[array[i]] = true;
+	for (const e of array) {
+		result[e] = true;
 	}
 	return result;
 }
@@ -224,11 +222,12 @@ export function safeStringify(obj: any): string {
 	});
 }
 
-export function getOrDefault<T, R>(obj: T, fn: (obj: T) => R, defaultValue: R = null): R {
+export function getOrDefault<T, R>(obj: T, fn: (obj: T) => R | undefined, defaultValue: R): R {
 	const result = fn(obj);
 	return typeof result === 'undefined' ? defaultValue : result;
 }
 
+type obj = { [key: string]: any; };
 /**
  * Returns an object that has keys for each value that is different in the base object. Keys
  * that do not exist in the target but in the base object are not considered.
@@ -239,7 +238,6 @@ export function getOrDefault<T, R>(obj: T, fn: (obj: T) => R, defaultValue: R = 
  * @param base the object to diff against
  * @param obj the object to use for diffing
  */
-export type obj = { [key: string]: any; };
 export function distinct(base: obj, target: obj): obj {
 	const result = Object.create(null);
 

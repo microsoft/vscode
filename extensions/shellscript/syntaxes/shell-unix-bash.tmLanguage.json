@@ -4,35 +4,9 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-shellscript/commit/f2cec59e541e3e10153a8e3e5e681baf139c81a3",
-	"scopeName": "source.shell",
+	"version": "https://github.com/atom/language-shellscript/commit/4c3711edbe8eac6f501976893976b1ac6a043d50",
 	"name": "Shell Script",
-	"fileTypes": [
-		"sh",
-		"bash",
-		"ksh",
-		"zsh",
-		"zsh-theme",
-		"zshenv",
-		"zlogin",
-		"zlogout",
-		"zprofile",
-		"zshrc",
-		"bashrc",
-		"bash_aliases",
-		"bash_profile",
-		"bash_login",
-		"profile",
-		"bash_logout",
-		".textmate_init",
-		"npmrc",
-		"PKGBUILD",
-		"install",
-		"cygport",
-		"bats",
-		"ebuild"
-	],
-	"firstLineMatch": "(?x)\n# Hashbang\n^\\#!.*(?:\\s|\\/)\n  (?:bash|zsh|sh|tcsh|ksh|dash|ash|csh|rc)\n(?:$|\\s)\n|\n# Modeline\n(?i:\n  # Emacs\n  -\\*-(?:\\s*(?=[^:;\\s]+\\s*-\\*-)|(?:.*?[;\\s]|(?<=-\\*-))mode\\s*:\\s*)\n    (?:shell-script|sh)\n  (?=[\\s;]|(?<![-*])-\\*-).*?-\\*-\n  |\n  # Vim\n  (?:(?:\\s|^)vi(?:m[<=>]?\\d+|m)?|\\sex)(?=:(?=\\s*set?\\s[^\\n:]+:)|:(?!\\s* set?\\s))(?:(?:\\s|\\s*:\\s*)\\w*(?:\\s*=(?:[^\\n\\\\\\s]|\\\\.)*)?)*[\\s:](?:filetype|ft|syntax)\\s*=\n    sh\n  (?=\\s|:|$)\n)",
+	"scopeName": "source.shell",
 	"patterns": [
 		{
 			"include": "#comment"
@@ -141,7 +115,7 @@
 			]
 		},
 		"comment": {
-			"begin": "(^\\s+)?(?<=^|\\W)(?=#)(?!#{)",
+			"begin": "(^\\s+)?(?<=^|\\W)(?<!-)(?=#)(?!#{)",
 			"beginCaptures": {
 				"1": {
 					"name": "punctuation.whitespace.comment.leading.shell"
@@ -314,7 +288,7 @@
 		"heredoc": {
 			"patterns": [
 				{
-					"begin": "(<<)-(\"|'|)\\s*(RUBY)(?=\\s|;|&|<|\"|')\\2",
+					"begin": "(<<)-\\s*(\"|'|)\\s*(RUBY)(?=\\s|;|&|<|\"|')\\2",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.operator.heredoc.shell"
@@ -338,7 +312,7 @@
 					]
 				},
 				{
-					"begin": "(<<)(\"|'|)\\s*(RUBY)(?=\\s|;|&|<|\"|')\\2",
+					"begin": "(<<)\\s*(\"|'|)\\s*(RUBY)(?=\\s|;|&|<|\"|')\\2",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.operator.heredoc.shell"
@@ -362,7 +336,7 @@
 					]
 				},
 				{
-					"begin": "(<<)-(\"|'|)\\s*(PYTHON)(?=\\s|;|&|<|\"|')\\2",
+					"begin": "(<<)-\\s*(\"|'|)\\s*(PYTHON)(?=\\s|;|&|<|\"|')\\2",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.operator.heredoc.shell"
@@ -386,7 +360,7 @@
 					]
 				},
 				{
-					"begin": "(<<)(\"|'|)\\s*(PYTHON)(?=\\s|;|&|<|\"|')\\2",
+					"begin": "(<<)\\s*(\"|'|)\\s*(PYTHON)(?=\\s|;|&|<|\"|')\\2",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.operator.heredoc.shell"
@@ -410,7 +384,7 @@
 					]
 				},
 				{
-					"begin": "(<<)-(\"|'|)\\s*(APPLESCRIPT)(?=\\s|;|&|<|\"|')\\2",
+					"begin": "(<<)-\\s*(\"|'|)\\s*(APPLESCRIPT)(?=\\s|;|&|<|\"|')\\2",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.operator.heredoc.shell"
@@ -434,7 +408,7 @@
 					]
 				},
 				{
-					"begin": "(<<)(\"|'|)\\s*(APPLESCRIPT)(?=\\s|;|&|<|\"|')\\2",
+					"begin": "(<<)\\s*(\"|'|)\\s*(APPLESCRIPT)(?=\\s|;|&|<|\"|')\\2",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.operator.heredoc.shell"
@@ -458,7 +432,7 @@
 					]
 				},
 				{
-					"begin": "(<<)-(\"|'|)\\s*(HTML)(?=\\s|;|&|<|\"|')\\2",
+					"begin": "(<<)-\\s*(\"|'|)\\s*(HTML)(?=\\s|;|&|<|\"|')\\2",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.operator.heredoc.shell"
@@ -482,7 +456,7 @@
 					]
 				},
 				{
-					"begin": "(<<)(\"|'|)\\s*(HTML)(?=\\s|;|&|<|\"|')\\2",
+					"begin": "(<<)\\s*(\"|'|)\\s*(HTML)(?=\\s|;|&|<|\"|')\\2",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.operator.heredoc.shell"
@@ -506,7 +480,7 @@
 					]
 				},
 				{
-					"begin": "(<<)-(\"|'|)\\s*(MARKDOWN)(?=\\s|;|&|<|\"|')\\2",
+					"begin": "(<<)-\\s*(\"|'|)\\s*(MARKDOWN)(?=\\s|;|&|<|\"|')\\2",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.operator.heredoc.shell"
@@ -530,7 +504,7 @@
 					]
 				},
 				{
-					"begin": "(<<)(\"|'|)\\s*(MARKDOWN)(?=\\s|;|&|<|\"|')\\2",
+					"begin": "(<<)\\s*(\"|'|)\\s*(MARKDOWN)(?=\\s|;|&|<|\"|')\\2",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.operator.heredoc.shell"
@@ -554,7 +528,7 @@
 					]
 				},
 				{
-					"begin": "(<<)-(\"|'|)\\s*(TEXTILE)(?=\\s|;|&|<|\"|')\\2",
+					"begin": "(<<)-\\s*(\"|'|)\\s*(TEXTILE)(?=\\s|;|&|<|\"|')\\2",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.operator.heredoc.shell"
@@ -578,7 +552,7 @@
 					]
 				},
 				{
-					"begin": "(<<)(\"|'|)\\s*(TEXTILE)(?=\\s|;|&|<|\"|')\\2",
+					"begin": "(<<)\\s*(\"|'|)\\s*(TEXTILE)(?=\\s|;|&|<|\"|')\\2",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.operator.heredoc.shell"
@@ -602,7 +576,7 @@
 					]
 				},
 				{
-					"begin": "(<<)-(\"|'|)\\s*(SHELL)(?=\\s|;|&|<|\"|')\\2",
+					"begin": "(<<)-\\s*(\"|'|)\\s*(SHELL)(?=\\s|;|&|<|\"|')\\2",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.operator.heredoc.shell"
@@ -626,7 +600,7 @@
 					]
 				},
 				{
-					"begin": "(<<)(\"|'|)\\s*(SHELL)(?=\\s|;|&|<|\"|')\\2",
+					"begin": "(<<)\\s*(\"|'|)\\s*(SHELL)(?=\\s|;|&|<|\"|')\\2",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.operator.heredoc.shell"
@@ -650,7 +624,7 @@
 					]
 				},
 				{
-					"begin": "(<<)-(\"|'|)\\s*\\\\?([^;&<\\s]+)\\2",
+					"begin": "(<<)-\\s*(\"|'|)\\s*\\\\?([^;&<\\s]+)\\2",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.operator.heredoc.shell"
@@ -668,7 +642,7 @@
 					"name": "string.unquoted.heredoc.no-indent.shell"
 				},
 				{
-					"begin": "(<<)(\"|'|)\\s*\\\\?([^;&<\\s]+)\\2",
+					"begin": "(<<)\\s*(\"|'|)\\s*\\\\?([^;&<\\s]+)\\2",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.operator.heredoc.shell"
@@ -753,7 +727,7 @@
 							]
 						}
 					},
-					"match": "(<<<)\\s*(([^\\s\\\\]|\\\\.)+)",
+					"match": "(<<<)\\s*(([^\\s)\\\\]|\\\\.)+)",
 					"name": "meta.herestring.shell"
 				}
 			]

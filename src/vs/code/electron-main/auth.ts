@@ -3,19 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { localize } from 'vs/nls';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
-import { fromNodeEventEmitter } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { BrowserWindow, app } from 'electron';
 
 type LoginEvent = {
 	event: Electron.Event;
 	webContents: Electron.WebContents;
-	req: Electron.LoginRequest;
-	authInfo: Electron.LoginAuthInfo;
+	req: Electron.Request;
+	authInfo: Electron.AuthInfo;
 	cb: (username: string, password: string) => void;
 };
 
@@ -32,9 +30,9 @@ export class ProxyAuthHandler {
 	private disposables: IDisposable[] = [];
 
 	constructor(
-		@IWindowsMainService private windowsService: IWindowsMainService
+		@IWindowsMainService private readonly windowsMainService: IWindowsMainService
 	) {
-		const onLogin = fromNodeEventEmitter<LoginEvent>(app, 'login', (event, webContents, req, authInfo, cb) => ({ event, webContents, req, authInfo, cb }));
+		const onLogin = Event.fromNodeEventEmitter<LoginEvent>(app, 'login', (event, webContents, req, authInfo, cb) => ({ event, webContents, req, authInfo, cb }));
 		onLogin(this.onLogin, this, this.disposables);
 	}
 
@@ -59,7 +57,7 @@ export class ProxyAuthHandler {
 			title: 'VS Code'
 		};
 
-		const focusedWindow = this.windowsService.getFocusedWindow();
+		const focusedWindow = this.windowsMainService.getFocusedWindow();
 
 		if (focusedWindow) {
 			opts.parent = focusedWindow.win;
@@ -68,7 +66,7 @@ export class ProxyAuthHandler {
 
 		const win = new BrowserWindow(opts);
 		const config = {};
-		const baseUrl = require.toUrl('./auth.html');
+		const baseUrl = require.toUrl('vs/code/electron-browser/proxy/auth.html');
 		const url = `${baseUrl}?config=${encodeURIComponent(JSON.stringify(config))}`;
 		const proxyUrl = `${authInfo.host}:${authInfo.port}`;
 		const title = localize('authRequire', "Proxy Authentication Required");

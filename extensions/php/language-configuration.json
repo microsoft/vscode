@@ -21,7 +21,8 @@
 		["[", "]"],
 		["(", ")"],
 		["'", "'"],
-		["\"", "\""]
+		["\"", "\""],
+		["`", "`"]
 	],
 	"indentationRules": {
 		"increaseIndentPattern": "({(?!.+}).*|\\(|\\[|((else(\\s)?)?if|else|for(each)?|while|switch).*:)\\s*(/[/*].*)?$",

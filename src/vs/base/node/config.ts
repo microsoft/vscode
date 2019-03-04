@@ -3,15 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as fs from 'fs';
-import { dirname, basename } from 'path';
+import { dirname, basename } from 'vs/base/common/path';
 import * as objects from 'vs/base/common/objects';
-import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import Event, { Emitter } from 'vs/base/common/event';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Event, Emitter } from 'vs/base/common/event';
 import * as json from 'vs/base/common/json';
 import * as extfs from 'vs/base/node/extfs';
+import { isWindows } from 'vs/base/common/platform';
 
 export interface IConfigurationChangeEvent<T> {
 	config: T;
@@ -23,12 +22,11 @@ export interface IConfigWatcher<T> {
 
 	reload(callback: (config: T) => void): void;
 	getConfig(): T;
-	getValue<V>(key: string, fallback?: V): V;
 }
 
 export interface IConfigOptions<T> {
 	onError: (error: Error | string) => void;
-	defaultConfig?: T;
+	defaultConfig: T;
 	changeBufferDelay?: number;
 	parse?: (content: string, errors: any[]) => T;
 	initCallback?: (config: T) => void;
@@ -47,12 +45,12 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 	private parseErrors: json.ParseError[];
 	private disposed: boolean;
 	private loaded: boolean;
-	private timeoutHandle: NodeJS.Timer;
+	private timeoutHandle: NodeJS.Timer | null;
 	private disposables: IDisposable[];
-	private _onDidUpdateConfiguration: Emitter<IConfigurationChangeEvent<T>>;
+	private readonly _onDidUpdateConfiguration: Emitter<IConfigurationChangeEvent<T>>;
 	private configName: string;
 
-	constructor(private _path: string, private options: IConfigOptions<T> = { changeBufferDelay: 0, defaultConfig: Object.create(null), onError: error => console.error(error) }) {
+	constructor(private _path: string, private options: IConfigOptions<T> = { defaultConfig: Object.create(null), onError: error => console.error(error) }) {
 		this.disposables = [];
 		this.configName = basename(this._path);
 
@@ -114,11 +112,11 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 		try {
 			this.parseErrors = [];
 			res = this.options.parse ? this.options.parse(raw, this.parseErrors) : json.parse(raw, this.parseErrors);
+			return res || this.options.defaultConfig;
 		} catch (error) {
 			// Ignore parsing errors
+			return this.options.defaultConfig;
 		}
-
-		return res || this.options.defaultConfig;
 	}
 
 	private registerWatcher(): void {
@@ -151,26 +149,25 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 			return; // avoid watchers that will never get disposed by checking for being disposed
 		}
 
-		try {
-			const watcher = extfs.watch(path, (type, file) => this.onConfigFileChange(type, file, isParentFolder));
-			watcher.on('error', (code: number, signal: string) => this.options.onError(`Error watching ${path} for configuration changes (${code}, ${signal})`));
-
-			this.disposables.push(toDisposable(() => {
-				watcher.removeAllListeners();
-				watcher.close();
-			}));
-		} catch (error) {
-			fs.exists(path, exists => {
-				if (exists) {
-					this.options.onError(`Failed to watch ${path} for configuration changes (${error.toString()})`);
-				}
-			});
-		}
+		this.disposables.push(extfs.watch(path,
+			(type, file) => this.onConfigFileChange(type, file, isParentFolder),
+			(error: string) => this.options.onError(error)
+		));
 	}
 
-	private onConfigFileChange(eventType: string, filename: string, isParentFolder: boolean): void {
-		if (isParentFolder && filename !== this.configName) {
-			return; // a change to a sibling file that is not our config file
+	private onConfigFileChange(eventType: string, filename: string | undefined, isParentFolder: boolean): void {
+		if (isParentFolder) {
+
+			// Windows: in some cases the filename contains artifacts from the absolute path
+			// see https://github.com/nodejs/node/issues/19170
+			// As such, we have to ensure that the filename basename is used for comparison.
+			if (isWindows && filename && filename !== this.configName) {
+				filename = basename(filename);
+			}
+
+			if (filename !== this.configName) {
+				return; // a change to a sibling file that is not our config file
+			}
 		}
 
 		if (this.timeoutHandle) {
@@ -179,7 +176,7 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 		}
 
 		// we can get multiple change events for one change, so we buffer through a timeout
-		this.timeoutHandle = global.setTimeout(() => this.reload(), this.options.changeBufferDelay);
+		this.timeoutHandle = global.setTimeout(() => this.reload(), this.options.changeBufferDelay || 0);
 	}
 
 	public reload(callback?: (config: T) => void): void {
@@ -200,18 +197,6 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 		this.ensureLoaded();
 
 		return this.cache;
-	}
-
-	public getValue<V>(key: string, fallback?: V): V {
-		this.ensureLoaded();
-
-		if (!key) {
-			return fallback;
-		}
-
-		const value = this.cache ? (this.cache as any)[key] : void 0;
-
-		return typeof value !== 'undefined' ? value : fallback;
 	}
 
 	private ensureLoaded(): void {

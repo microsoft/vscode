@@ -1,0 +1,23 @@
+{
+	"type": "array",
+	"items": {
+		"type": "object",
+		"required": [
+			"name",
+			"licenseDetail"
+		],
+		"properties": {
+			"name": {
+				"type": "string",
+				"description": "The name of the dependency"
+			},
+			"licenseDetail": {
+				"type": "array",
+				"description": "The complete license text of the dependency",
+				"items": {
+					"type": "string"
+				}
+			}
+		}
+	}
+}

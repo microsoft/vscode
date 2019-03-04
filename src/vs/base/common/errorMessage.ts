@@ -2,11 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import nls = require('vs/nls');
-import types = require('vs/base/common/types');
-import arrays = require('vs/base/common/arrays');
+import * as nls from 'vs/nls';
+import * as types from 'vs/base/common/types';
+import * as arrays from 'vs/base/common/arrays';
 
 function exceptionToErrorMessage(exception: any, verbose: boolean): string {
 	if (exception.message) {

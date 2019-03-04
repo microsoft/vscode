@@ -11,6 +11,7 @@
 	padding: 4px;
 	text-align: center;
 	cursor: pointer;
+	outline-offset: 2px !important;
 }
 
 .monaco-text-button:hover {
@@ -20,11 +21,4 @@
 .monaco-button.disabled {
 	opacity: 0.4;
 	cursor: default;
-}
-
-/* Theming support */
-
-.vs .monaco-text-button:focus,
-.vs-dark .monaco-text-button:focus {
-	outline-color: rgba(255, 255, 255, .5); /* buttons have a blue color, so focus indication needs to be different */
 }

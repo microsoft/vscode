@@ -3,4 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-require('./bootstrap-amd').bootstrap('vs/code/node/cli');
+//@ts-check
+'use strict';
+
+const bootstrap = require('./bootstrap');
+
+// Avoid Monkey Patches from Application Insights
+bootstrap.avoidMonkeyPatchFromAppInsights();
+
+// Enable portable support
+bootstrap.configurePortable();
+
+// Enable ASAR support
+bootstrap.enableASARSupport();
+
+// Load CLI through AMD loader
+require('./bootstrap-amd').load('vs/code/node/cli');

@@ -1,0 +1,34 @@
+{
+	"name": "log",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"version": "1.0.0",
+	"publisher": "vscode",
+	"engines": {
+		"vscode": "*"
+	},
+	"scripts": {
+		"update-grammar": "node ../../build/npm/update-grammar.js emilast/vscode-logfile-highlighter syntaxes/log.tmLanguage ./syntaxes/log.tmLanguage.json"
+	},
+	"contributes": {
+		"languages": [
+			{
+				"id": "log",
+				"extensions": [
+					".log",
+					"*.log.?"
+				],
+				"aliases": [
+					"log"
+				]
+			}
+		],
+		"grammars": [
+			{
+				"language": "log",
+				"scopeName": "text.log",
+				"path": "./syntaxes/log.tmLanguage.json"
+			}
+		]
+	}
+}

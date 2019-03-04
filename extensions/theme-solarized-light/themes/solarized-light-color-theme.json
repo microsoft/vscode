@@ -352,8 +352,10 @@
 		"editorWhitespace.foreground": "#586E7580",
 		"editor.lineHighlightBackground": "#EEE8D5",
 		"editor.selectionBackground": "#EEE8D5",
-		// "editorIndentGuide.background": "",
+		"editorIndentGuide.background": "#586E7580",
+		"editorIndentGuide.activeBackground": "#081E2580",
 		"editorHoverWidget.background": "#CCC4B0",
+		"editorLineNumber.activeForeground": "#567983",
 		// "editorHoverWidget.border": "",
 		// "editorLineNumber.foreground": "",
 		// "editorMarkerNavigation.background": "",
@@ -407,7 +409,6 @@
 		// Workbench: Editors
 		// "editorGroupHeader.noTabsBackground": "",
 		"editorGroup.border": "#DDD6C1",
-		"editorGroup.background": "#FFFBF2",
 		"editorGroup.dropBackground": "#DDD6C1AA",
 		"editorGroupHeader.tabsBackground": "#D9D2C2",
 
@@ -416,6 +417,7 @@
 		"tab.activeBackground": "#FDF6E3",
 		"tab.inactiveForeground": "#586E75",
 		"tab.inactiveBackground": "#D3CBB7",
+		"tab.modifiedBorder": "#cb4b16",
 		// "tab.activeBackground": "",
 		// "tab.activeForeground": "",
 		// "tab.inactiveForeground": "",
@@ -455,10 +457,6 @@
 		"debugExceptionWidget.background": "#DDD6C1",
 		"debugExceptionWidget.border": "#AB395B",
 
-		// Workbench: Notifications
-		"notification.background": "#999178",
-		// "notification.foreground": "",
-
 		// Workbench: Quick Open
 		"pickerGroup.border": "#2AA19899",
 		"pickerGroup.foreground": "#2AA19899",
@@ -484,6 +482,9 @@
 		"terminal.ansiBrightBlue": "#839496",
 		"terminal.ansiBrightMagenta": "#6c71c4",
 		"terminal.ansiBrightCyan": "#93a1a1",
-		"terminal.ansiBrightWhite": "#eee8d5"
+		"terminal.ansiBrightWhite": "#eee8d5",
+
+		// Interactive Playground
+		"walkThrough.embeddedEditorBackground": "#00000014"
 	}
 }

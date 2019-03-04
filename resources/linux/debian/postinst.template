@@ -15,6 +15,7 @@ update-alternatives --install /usr/bin/editor editor /usr/bin/@@NAME@@ 0
 # Install the desktop entry
 if hash desktop-file-install 2>/dev/null; then
 	desktop-file-install /usr/share/applications/@@NAME@@.desktop
+	desktop-file-install /usr/share/applications/@@NAME@@-url-handler.desktop
 fi
 
 if [ "@@NAME@@" != "code-oss" ]; then

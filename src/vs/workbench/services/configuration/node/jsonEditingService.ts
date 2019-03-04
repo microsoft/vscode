@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as json from 'vs/base/common/json';
 import * as encoding from 'vs/base/node/encoding';
 import * as strings from 'vs/base/common/strings';
@@ -13,7 +12,6 @@ import { setProperty } from 'vs/base/common/jsonEdit';
 import { Queue } from 'vs/base/common/async';
 import { Edit } from 'vs/base/common/jsonFormatter';
 import { IReference } from 'vs/base/common/lifecycle';
-import * as editorCommon from 'vs/editor/common/editorCommon';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -21,6 +19,8 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IFileService } from 'vs/platform/files/common/files';
 import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IJSONEditingService, IJSONValue, JSONEditingError, JSONEditingErrorCode } from 'vs/workbench/services/configuration/common/jsonEditing';
+import { ITextModel } from 'vs/editor/common/model';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class JSONEditingService implements IJSONEditingService {
 
@@ -29,32 +29,31 @@ export class JSONEditingService implements IJSONEditingService {
 	private queue: Queue<void>;
 
 	constructor(
-		@IFileService private fileService: IFileService,
-		@ITextModelService private textModelResolverService: ITextModelService,
-		@ITextFileService private textFileService: ITextFileService
+		@IFileService private readonly fileService: IFileService,
+		@ITextModelService private readonly textModelResolverService: ITextModelService,
+		@ITextFileService private readonly textFileService: ITextFileService
 	) {
 		this.queue = new Queue<void>();
 	}
 
-	write(resource: URI, value: IJSONValue, save: boolean): TPromise<void> {
-		return this.queue.queue(() => this.doWriteConfiguration(resource, value, save)); // queue up writes to prevent race conditions
+	write(resource: URI, value: IJSONValue, save: boolean): Promise<void> {
+		return Promise.resolve(this.queue.queue(() => this.doWriteConfiguration(resource, value, save))); // queue up writes to prevent race conditions
 	}
 
-	private doWriteConfiguration(resource: URI, value: IJSONValue, save: boolean): TPromise<void> {
+	private doWriteConfiguration(resource: URI, value: IJSONValue, save: boolean): Promise<void> {
 		return this.resolveAndValidate(resource, save)
 			.then(reference => this.writeToBuffer(reference.object.textEditorModel, value)
 				.then(() => reference.dispose()));
 	}
 
-	private writeToBuffer(model: editorCommon.IModel, value: IJSONValue): TPromise<any> {
+	private async writeToBuffer(model: ITextModel, value: IJSONValue): Promise<any> {
 		const edit = this.getEdits(model, value)[0];
 		if (this.applyEditsToBuffer(edit, model)) {
 			return this.textFileService.save(model.uri);
 		}
-		return TPromise.as(null);
 	}
 
-	private applyEditsToBuffer(edit: Edit, model: editorCommon.IModel): boolean {
+	private applyEditsToBuffer(edit: Edit, model: ITextModel): boolean {
 		const startPosition = model.getPositionAt(edit.offset);
 		const endPosition = model.getPositionAt(edit.offset + edit.length);
 		const range = new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column);
@@ -67,7 +66,7 @@ export class JSONEditingService implements IJSONEditingService {
 		return false;
 	}
 
-	private getEdits(model: editorCommon.IModel, configurationValue: IJSONValue): Edit[] {
+	private getEdits(model: ITextModel, configurationValue: IJSONValue): Edit[] {
 		const { tabSize, insertSpaces } = model.getOptions();
 		const eol = model.getEOL();
 		const { key, value } = configurationValue;
@@ -85,40 +84,40 @@ export class JSONEditingService implements IJSONEditingService {
 		return setProperty(model.getValue(), [key], value, { tabSize, insertSpaces, eol });
 	}
 
-	private resolveModelReference(resource: URI): TPromise<IReference<ITextEditorModel>> {
-		return this.fileService.existsFile(resource)
-			.then(exists => {
-				const result = exists ? TPromise.as(null) : this.fileService.updateContent(resource, '{}', { encoding: encoding.UTF8 });
-				return result.then(() => this.textModelResolverService.createModelReference(resource));
-			});
+	private async resolveModelReference(resource: URI): Promise<IReference<ITextEditorModel>> {
+		const exists = await this.fileService.existsFile(resource);
+		if (!exists) {
+			await this.fileService.updateContent(resource, '{}', { encoding: encoding.UTF8 });
+		}
+		return this.textModelResolverService.createModelReference(resource);
 	}
 
-	private hasParseErrors(model: editorCommon.IModel): boolean {
+	private hasParseErrors(model: ITextModel): boolean {
 		const parseErrors: json.ParseError[] = [];
-		json.parse(model.getValue(), parseErrors, { allowTrailingComma: true });
+		json.parse(model.getValue(), parseErrors);
 		return parseErrors.length > 0;
 	}
 
-	private resolveAndValidate(resource: URI, checkDirty: boolean): TPromise<IReference<ITextEditorModel>> {
+	private resolveAndValidate(resource: URI, checkDirty: boolean): Promise<IReference<ITextEditorModel>> {
 		return this.resolveModelReference(resource)
 			.then(reference => {
 				const model = reference.object.textEditorModel;
 
 				if (this.hasParseErrors(model)) {
-					return this.wrapError<IReference<ITextEditorModel>>(JSONEditingErrorCode.ERROR_INVALID_FILE);
+					return this.reject<IReference<ITextEditorModel>>(JSONEditingErrorCode.ERROR_INVALID_FILE);
 				}
 
 				// Target cannot be dirty if not writing into buffer
 				if (checkDirty && this.textFileService.isDirty(resource)) {
-					return this.wrapError<IReference<ITextEditorModel>>(JSONEditingErrorCode.ERROR_FILE_DIRTY);
+					return this.reject<IReference<ITextEditorModel>>(JSONEditingErrorCode.ERROR_FILE_DIRTY);
 				}
 				return reference;
 			});
 	}
 
-	private wrapError<T>(code: JSONEditingErrorCode): TPromise<T> {
+	private reject<T>(code: JSONEditingErrorCode): Promise<T> {
 		const message = this.toErrorMessage(code);
-		return TPromise.wrapError<T>(new JSONEditingError(message, code));
+		return Promise.reject(new JSONEditingError(message, code));
 	}
 
 	private toErrorMessage(error: JSONEditingErrorCode): string {
@@ -133,3 +132,5 @@ export class JSONEditingService implements IJSONEditingService {
 		}
 	}
 }
+
+registerSingleton(IJSONEditingService, JSONEditingService, true);

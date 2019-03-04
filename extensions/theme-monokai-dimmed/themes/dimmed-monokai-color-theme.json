@@ -5,7 +5,7 @@
 		"list.activeSelectionBackground": "#707070",
 		"list.focusBackground": "#707070",
 		"list.inactiveSelectionBackground": "#4e4e4e",
-		"list.hoverBackground": "#707070",
+		"list.hoverBackground": "#444444",
 		"list.highlightForeground": "#e58520",
 		"button.background": "#565656",
 		"editor.background": "#1e1e1e",
@@ -13,15 +13,17 @@
 		"editor.selectionBackground": "#676b7180",
 		"editor.selectionHighlightBackground": "#575b6180",
 		"editor.lineHighlightBackground": "#303030",
+		"editorLineNumber.activeForeground": "#949494",
 		"editor.wordHighlightBackground": "#4747a180",
         "editor.wordHighlightStrongBackground": "#6767ce80",
 		"editorCursor.foreground": "#c07020",
 		"editorWhitespace.foreground": "#505037",
 		"editorIndentGuide.background": "#505037",
+		"editorIndentGuide.activeBackground": "#707057",
 		"editorGroupHeader.tabsBackground": "#282828",
-		"editorGroup.background": "#1e1e1e",
 		"tab.inactiveBackground": "#404040",
 		"tab.border": "#303030",
+		"tab.modifiedBorder": "#6796e6",
 		"tab.inactiveForeground": "#d8d8d8",
 		"peekView.border": "#3655b5",
 		"panelTitle.activeForeground": "#ffffff",
@@ -34,7 +36,8 @@
 		"activityBarBadge.background": "#3655b5",
 		"sideBar.background": "#272727",
 		"sideBarSectionHeader.background": "#505050",
-		"notification.background": "#353535",
+		"menu.background": "#272727",
+		"menu.foreground": "#CCCCCC",
 		"pickerGroup.foreground": "#b0b0b0",
 		"terminal.ansiWhite": "#ffffff",
 		"inputOption.activeBorder": "#3655b5",
@@ -208,14 +211,6 @@
 			"settings": {
 				"fontStyle": "",
 				"foreground": "#6089B4"
-			}
-		},
-		{
-			"name": "Language Constant",
-			"scope": "constant.language",
-			"settings": {
-				"fontStyle": "",
-				"foreground": "#FF0080"
 			}
 		},
 		{

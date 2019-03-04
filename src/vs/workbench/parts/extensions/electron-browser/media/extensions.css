@@ -1,9 +1,0 @@
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
-
-.monaco-workbench > .activitybar > .content .monaco-action-bar .action-label.extensions {
-	-webkit-mask: url('extensions-dark.svg') no-repeat 50% 50%;
-	-webkit-mask-size: 22px;
-}

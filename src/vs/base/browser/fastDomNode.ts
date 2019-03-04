@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as dom from 'vs/base/browser/dom';
 
@@ -199,10 +198,6 @@ export class FastDomNode<T extends HTMLElement> {
 
 	public setAttribute(name: string, value: string): void {
 		this.domNode.setAttribute(name, value);
-	}
-
-	public getAttribute(name: string): string {
-		return this.domNode.getAttribute(name);
 	}
 
 	public removeAttribute(name: string): void {

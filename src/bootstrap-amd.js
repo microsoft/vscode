@@ -3,41 +3,55 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-var path = require('path');
-var loader = require('./vs/loader');
+//@ts-check
+'use strict';
 
-function uriFromPath(_path) {
-	var pathName = path.resolve(_path).replace(/\\/g, '/');
+const loader = require('./vs/loader');
+const bootstrap = require('./bootstrap');
 
-	if (pathName.length > 0 && pathName.charAt(0) !== '/') {
-		pathName = '/' + pathName;
-	}
+// Bootstrap: NLS
+const nlsConfig = bootstrap.setupNLS();
 
-	return encodeURI('file://' + pathName);
-}
-
-var rawNlsConfig = process.env['VSCODE_NLS_CONFIG'];
-var nlsConfig = rawNlsConfig ? JSON.parse(rawNlsConfig) : { availableLanguages: {} };
-
+// Bootstrap: Loader
 loader.config({
-	baseUrl: uriFromPath(__dirname),
+	baseUrl: bootstrap.uriFromPath(__dirname),
 	catchError: true,
 	nodeRequire: require,
 	nodeMain: __filename,
-	'vs/nls': nlsConfig,
-	nodeCachedDataDir: process.env['VSCODE_NODE_CACHED_DATA_DIR_' + process.pid]
+	'vs/nls': nlsConfig
 });
 
+// Running in Electron
+if (process.env['ELECTRON_RUN_AS_NODE'] || process.versions['electron']) {
+	loader.define('fs', ['original-fs'], function (originalFS) {
+		return originalFS;  // replace the patched electron fs with the original node fs for all AMD code
+	});
+}
+
+// Pseudo NLS support
 if (nlsConfig.pseudo) {
 	loader(['vs/nls'], function (nlsPlugin) {
 		nlsPlugin.setPseudoTranslation(nlsConfig.pseudo);
 	});
 }
 
-exports.bootstrap = function (entrypoint) {
+exports.load = function (entrypoint, onLoad, onError) {
 	if (!entrypoint) {
 		return;
 	}
 
-	loader([entrypoint], function () { }, function (err) { console.error(err); });
+	// cached data config
+	if (process.env['VSCODE_NODE_CACHED_DATA_DIR']) {
+		loader.config({
+			nodeCachedData: {
+				path: process.env['VSCODE_NODE_CACHED_DATA_DIR'],
+				seed: entrypoint
+			}
+		});
+	}
+
+	onLoad = onLoad || function () { };
+	onError = onError || function (err) { console.error(err); };
+
+	loader([entrypoint], onLoad, onError);
 };
