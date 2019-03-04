@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import * as aria from 'vs/base/browser/ui/aria/aria';
@@ -35,7 +34,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TreeResourceNavigator2, WorkbenchObjectTree, getSelectionKeyboardEvent } from 'vs/platform/list/browser/listService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IProgressService } from 'vs/platform/progress/common/progress';
-import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ISearchHistoryService, ISearchHistoryValues, ITextQuery, SearchErrorCode, VIEW_ID } from 'vs/workbench/services/search/common/search';
+import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ITextQuery, SearchErrorCode, VIEW_ID } from 'vs/workbench/services/search/common/search';
+import { ISearchHistoryService, ISearchHistoryValues } from 'vs/workbench/contrib/search/common/searchHistoryService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { diffInserted, diffInsertedOutline, diffRemoved, diffRemovedOutline, editorFindMatchHighlight, editorFindMatchHighlightBorder, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -62,6 +62,7 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPreferencesService, ISettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { relativePath } from 'vs/base/common/resources';
+import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 
 const $ = dom.$;
 
@@ -146,7 +147,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		@ISearchHistoryService private readonly searchHistoryService: ISearchHistoryService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IMenuService private readonly menuService: IMenuService
+		@IMenuService private readonly menuService: IMenuService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
 		super(VIEW_ID, configurationService, partService, telemetryService, themeService, storageService);
 
@@ -295,8 +297,6 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 		this._register(this.searchWidget.searchInput.onInput(() => this.updateActions()));
 		this._register(this.searchWidget.replaceInput.onDidChange(() => this.updateActions()));
-		this._register(this.searchIncludePattern.inputBox.onDidChange(() => this.updateActions()));
-		this._register(this.searchExcludePattern.inputBox.onDidChange(() => this.updateActions()));
 
 		this._register(this.onDidFocus(() => this.viewletFocused.set(true)));
 		this._register(this.onDidBlur(() => this.viewletFocused.set(false)));
@@ -349,7 +349,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	}
 
 	private isScreenReaderOptimized() {
-		const detected = browser.getAccessibilitySupport() === env.AccessibilitySupport.Enabled;
+		const detected = this.accessibilityService.getAccessibilitySupport() === AccessibilitySupport.Enabled;
 		const config = this.configurationService.getValue<IEditorOptions>('editor').accessibilitySupport;
 		return config === 'on' || (config === 'auto' && detected);
 	}
@@ -926,9 +926,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 	allSearchFieldsClear(): boolean {
 		return this.searchWidget.getReplaceValue() === '' &&
-			this.searchWidget.searchInput.getValue() === '' &&
-			this.searchIncludePattern.getValue() === '' &&
-			this.searchExcludePattern.getValue() === '';
+			this.searchWidget.searchInput.getValue() === '';
 	}
 
 	hasSearchResults(): boolean {
@@ -942,8 +940,6 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			this.showSearchWithoutFolderMessage();
 		}
 		this.searchWidget.clear();
-		this.searchIncludePattern.setValue('');
-		this.searchExcludePattern.setValue('');
 		this.viewModel.cancelSearch();
 		this.updateActions();
 	}

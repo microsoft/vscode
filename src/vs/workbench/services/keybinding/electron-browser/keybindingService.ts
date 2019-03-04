@@ -237,7 +237,6 @@ let keybindingType: IJSONSchema = {
 };
 
 const keybindingsExtPoint = ExtensionsRegistry.registerExtensionPoint<ContributedKeyBinding | ContributedKeyBinding[]>({
-	isDynamic: true,
 	extensionPoint: 'keybindings',
 	jsonSchema: {
 		description: nls.localize('vscode.extension.contributes.keybindings', "Contributes keybindings."),
@@ -347,7 +346,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		});
 	}
 
-	public dumpDebugInfo(): string {
+	public _dumpDebugInfo(): string {
 		const layoutInfo = JSON.stringify(KeyboardMapperFactory.INSTANCE.getCurrentKeyboardLayout(), null, '\t');
 		const mapperInfo = this._keyboardMapper.dumpDebugInfo();
 		const rawMapping = JSON.stringify(KeyboardMapperFactory.INSTANCE.getRawKeyboardMapping(), null, '\t');

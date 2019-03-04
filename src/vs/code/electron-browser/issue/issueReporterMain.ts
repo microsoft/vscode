@@ -10,8 +10,8 @@ import { $ } from 'vs/base/browser/dom';
 import * as collections from 'vs/base/common/collections';
 import * as browser from 'vs/base/browser/browser';
 import { escape } from 'vs/base/common/strings';
-import product from 'vs/platform/node/product';
-import pkg from 'vs/platform/node/package';
+import product from 'vs/platform/product/node/product';
+import pkg from 'vs/platform/product/node/package';
 import * as os from 'os';
 import { debounce } from 'vs/base/common/decorators';
 import * as platform from 'vs/base/common/platform';
@@ -346,7 +346,7 @@ export class IssueReporter extends Disposable {
 			const value = (<HTMLInputElement>e.target).value;
 			const problemSourceHelpText = this.getElementById('problem-source-help-text')!;
 			if (value === '') {
-				this.issueReporterModel.update({ fileOnExtension: undefined, includeExtensions: false });
+				this.issueReporterModel.update({ fileOnExtension: undefined });
 				show(problemSourceHelpText);
 				this.clearSearchResults();
 				this.render();
@@ -356,7 +356,7 @@ export class IssueReporter extends Disposable {
 			}
 
 			const fileOnExtension = JSON.parse(value);
-			this.issueReporterModel.update({ fileOnExtension: fileOnExtension, includeExtensions: !fileOnExtension });
+			this.issueReporterModel.update({ fileOnExtension: fileOnExtension });
 			this.render();
 
 			const title = (<HTMLInputElement>this.getElementById('issue-title')).value;

@@ -8,7 +8,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
-import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
+import { IExtHostWorkspaceProvider } from 'vs/workbench/api/node/extHostWorkspace';
 import { InputBox, InputBoxOptions, QuickInput, QuickInputButton, QuickPick, QuickPickItem, QuickPickOptions, WorkspaceFolder, WorkspaceFolderPickOptions } from 'vscode';
 import { ExtHostQuickOpenShape, IMainContext, MainContext, MainThreadQuickOpenShape, TransferQuickPickItems, TransferQuickInput, TransferQuickInputButton } from './extHost.protocol';
 import { URI } from 'vs/base/common/uri';
@@ -21,7 +21,7 @@ export type Item = string | QuickPickItem;
 export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 
 	private _proxy: MainThreadQuickOpenShape;
-	private _workspace: ExtHostWorkspace;
+	private _workspace: IExtHostWorkspaceProvider;
 	private _commands: ExtHostCommands;
 
 	private _onDidSelectItem: (handle: number) => void;
@@ -31,7 +31,7 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 
 	private _instances = 0;
 
-	constructor(mainContext: IMainContext, workspace: ExtHostWorkspace, commands: ExtHostCommands) {
+	constructor(mainContext: IMainContext, workspace: IExtHostWorkspaceProvider, commands: ExtHostCommands) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadQuickOpen);
 		this._workspace = workspace;
 		this._commands = commands;
@@ -159,12 +159,12 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 	// ---- workspace folder picker
 
 	showWorkspaceFolderPick(options?: WorkspaceFolderPickOptions, token = CancellationToken.None): Promise<WorkspaceFolder> {
-		return this._commands.executeCommand('_workbench.pickWorkspaceFolder', [options]).then((selectedFolder: WorkspaceFolder) => {
+		return this._commands.executeCommand('_workbench.pickWorkspaceFolder', [options]).then(async (selectedFolder: WorkspaceFolder) => {
 			if (!selectedFolder) {
 				return undefined;
 			}
-
-			return this._workspace.getWorkspaceProvider().then(workspaceProvider => workspaceProvider.getWorkspaceFolders().filter(folder => folder.uri.toString() === selectedFolder.uri.toString())[0]);
+			const workspaceFolders = await this._workspace.getWorkspaceFolders2();
+			return workspaceFolders.filter(folder => folder.uri.toString() === selectedFolder.uri.toString())[0];
 		});
 	}
 

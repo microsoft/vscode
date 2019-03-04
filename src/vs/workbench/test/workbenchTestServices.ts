@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/workbench/contrib/files/electron-browser/files.contribution'; // load our contribution into the test
+import 'vs/workbench/contrib/files/browser/files.contribution'; // load our contribution into the test
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { join } from 'vs/base/common/path';
@@ -444,9 +444,10 @@ export class TestPartService implements IPartService {
 
 	public _serviceBrand: any;
 
+	onZenModeChange: Event<boolean> = Event.None;
+
 	private _onTitleBarVisibilityChange = new Emitter<void>();
 	private _onMenubarVisibilityChange = new Emitter<Dimension>();
-	private _onEditorLayout = new Emitter<IDimension>();
 
 	public get onTitleBarVisibilityChange(): Event<void> {
 		return this._onTitleBarVisibilityChange.event;
@@ -454,10 +455,6 @@ export class TestPartService implements IPartService {
 
 	public get onMenubarVisibilityChange(): Event<Dimension> {
 		return this._onMenubarVisibilityChange.event;
-	}
-
-	public get onEditorLayout(): Event<IDimension> {
-		return this._onEditorLayout.event;
 	}
 
 	public isRestored(): boolean {
@@ -554,6 +551,7 @@ export class TestEditorGroupsService implements EditorGroupsServiceImpl {
 	onDidAddGroup: Event<IEditorGroup> = Event.None;
 	onDidRemoveGroup: Event<IEditorGroup> = Event.None;
 	onDidMoveGroup: Event<IEditorGroup> = Event.None;
+	onDidLayout: Event<IDimension> = Event.None;
 
 	orientation: any;
 	whenRestored: Promise<void> = Promise.resolve(undefined);

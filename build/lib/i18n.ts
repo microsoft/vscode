@@ -1186,7 +1186,7 @@ export function prepareI18nPackFiles(externalExtensions: Map<string>, resultingT
 	let extensionsPacks: Map<I18nPack> = {};
 	let errors: any[] = [];
 	return through(function (this: ThroughStream, xlf: File) {
-		let project = path.dirname(xlf.relative);
+		let project = path.basename(path.dirname(xlf.relative));
 		let resource = path.basename(xlf.relative, '.xlf');
 		let contents = xlf.contents.toString();
 		let parsePromise = pseudo ? XLF.parsePseudo(contents) : XLF.parse(contents);

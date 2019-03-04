@@ -51,6 +51,7 @@ suite('keyboardMapper - MAC fallback', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: false,
 				shiftKey: false,
 				altKey: false,
@@ -68,6 +69,10 @@ suite('keyboardMapper - MAC fallback', () => {
 				dispatchParts: ['meta+Z'],
 			}
 		);
+	});
+
+	test('resolveUserBinding empty', () => {
+		assertResolveUserBinding(mapper, [], []);
 	});
 
 	test('resolveUserBinding Cmd+[Comma] Cmd+/', () => {
@@ -92,6 +97,7 @@ suite('keyboardMapper - MAC fallback', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: false,
 				shiftKey: false,
 				altKey: false,
@@ -154,6 +160,7 @@ suite('keyboardMapper - LINUX fallback', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: true,
 				shiftKey: false,
 				altKey: false,
@@ -212,6 +219,7 @@ suite('keyboardMapper - LINUX fallback', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: true,
 				shiftKey: false,
 				altKey: false,

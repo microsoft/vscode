@@ -6,8 +6,8 @@
 import { WorkspaceStats, collectWorkspaceStats } from 'vs/base/node/stats';
 import { IMainProcessInfo } from 'vs/platform/launch/electron-main/launchService';
 import { ProcessItem, listProcesses } from 'vs/base/node/ps';
-import product from 'vs/platform/node/product';
-import pkg from 'vs/platform/node/package';
+import product from 'vs/platform/product/node/product';
+import pkg from 'vs/platform/product/node/package';
 import * as os from 'os';
 import { virtualMachineHint } from 'vs/base/node/id';
 import { repeat, pad } from 'vs/base/common/strings';

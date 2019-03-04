@@ -52,8 +52,8 @@ export interface IStorageMainService {
 	 * the provided defaultValue if the element is null or undefined. The element
 	 * will be converted to a number using parseInt with a base of 10.
 	 */
-	getInteger(key: string, fallbackValue: number): number;
-	getInteger(key: string, fallbackValue?: number): number | undefined;
+	getNumber(key: string, fallbackValue: number): number;
+	getNumber(key: string, fallbackValue?: number): number | undefined;
 
 	/**
 	 * Store a string value under the given key to storage. The value will
@@ -100,7 +100,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 	}
 
 	private get storagePath(): string {
-		if (!!this.environmentService.extensionTestsPath) {
+		if (!!this.environmentService.extensionTestsLocationURI) {
 			return SQLiteStorageDatabase.IN_MEMORY_PATH; // no storage during extension tests!
 		}
 
@@ -222,6 +222,10 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 					'update/updateNotificationTime'
 				].forEach(key => supportedKeys.set(key.toLowerCase(), key));
 
+				// https://github.com/Microsoft/vscode/issues/68468
+				const wellKnownPublishers = ['Microsoft', 'GitHub'];
+				const wellKnownExtensions = ['ms-vscode.Go', 'WallabyJs.quokka-vscode', 'Telerik.nativescript', 'Shan.code-settings-sync', 'ritwickdey.LiveServer', 'PKief.material-icon-theme', 'PeterJausovec.vscode-docker', 'ms-vscode.PowerShell', 'LaurentTreguier.vscode-simple-icons', 'KnisterPeter.vscode-github', 'DotJoshJohnson.xml', 'Dart-Code.dart-code', 'alefragnani.Bookmarks'];
+
 				// Support extension storage as well (always the ID of the extension)
 				extensions.forEach(extension => {
 					let extensionId: string;
@@ -232,6 +236,22 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 					}
 
 					if (extensionId) {
+						for (let i = 0; i < wellKnownPublishers.length; i++) {
+							const publisher = wellKnownPublishers[i];
+							if (startsWith(extensionId, `${publisher.toLowerCase()}.`)) {
+								extensionId = `${publisher}${extensionId.substr(publisher.length)}`;
+								break;
+							}
+						}
+
+						for (let j = 0; j < wellKnownExtensions.length; j++) {
+							const wellKnownExtension = wellKnownExtensions[j];
+							if (extensionId === wellKnownExtension.toLowerCase()) {
+								extensionId = wellKnownExtension;
+								break;
+							}
+						}
+
 						supportedKeys.set(extensionId.toLowerCase(), extensionId);
 					}
 				});
@@ -342,10 +362,10 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 		return this.storage.getBoolean(key, fallbackValue);
 	}
 
-	getInteger(key: string, fallbackValue: number): number;
-	getInteger(key: string, fallbackValue?: number): number | undefined;
-	getInteger(key: string, fallbackValue?: number): number | undefined {
-		return this.storage.getInteger(key, fallbackValue);
+	getNumber(key: string, fallbackValue: number): number;
+	getNumber(key: string, fallbackValue?: number): number | undefined;
+	getNumber(key: string, fallbackValue?: number): number | undefined {
+		return this.storage.getNumber(key, fallbackValue);
 	}
 
 	store(key: string, value: any): Promise<void> {

@@ -158,7 +158,7 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 		this._domNode.style.fontSize = `${fontSize}px`;
 		this._domNode.style.lineHeight = `${lineHeight}px`;
 		this._domNode.style.maxHeight = `${height}px`;
-		this._domNode.style.maxWidth = `${Math.max(this._editor.getLayoutInfo().width - 50, 500)}px`;
+		this._domNode.style.maxWidth = `${Math.max(this._editor.getLayoutInfo().width * 0.66, 500)}px`;
 	}
 }
 

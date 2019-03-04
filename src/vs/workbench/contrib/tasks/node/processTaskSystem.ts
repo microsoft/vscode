@@ -15,7 +15,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { SuccessData, ErrorData } from 'vs/base/common/processes';
 import { LineProcess, LineData } from 'vs/base/node/processes';
 
-import { IOutputService, IOutputChannel } from 'vs/workbench/contrib/output/common/output';
+import { IOutputService } from 'vs/workbench/contrib/output/common/output';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 
 import { IMarkerService } from 'vs/platform/markers/common/markers';
@@ -48,8 +48,6 @@ export class ProcessTaskSystem implements ITaskSystem {
 	private telemetryService: ITelemetryService;
 	private configurationResolverService: IConfigurationResolverService;
 
-	private outputChannel: IOutputChannel;
-
 	private errorsShown: boolean;
 	private childProcess: LineProcess | null;
 	private activeTask: CustomTask | null;
@@ -58,7 +56,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 	private readonly _onDidStateChange: Emitter<TaskEvent>;
 
 	constructor(markerService: IMarkerService, modelService: IModelService, telemetryService: ITelemetryService,
-		outputService: IOutputService, configurationResolverService: IConfigurationResolverService, outputChannelId: string) {
+		outputService: IOutputService, configurationResolverService: IConfigurationResolverService, private outputChannelId: string) {
 		this.markerService = markerService;
 		this.modelService = modelService;
 		this.outputService = outputService;
@@ -68,7 +66,6 @@ export class ProcessTaskSystem implements ITaskSystem {
 		this.childProcess = null;
 		this.activeTask = null;
 		this.activeTaskPromise = null;
-		this.outputChannel = this.outputService.getChannel(outputChannelId);
 		this.errorsShown = true;
 		this._onDidStateChange = new Emitter();
 	}
@@ -188,10 +185,10 @@ export class ProcessTaskSystem implements ITaskSystem {
 				throw err;
 			} else if (err instanceof Error) {
 				let error = <Error>err;
-				this.outputChannel.append(error.message);
+				this.appendOutput(error.message);
 				throw new TaskError(Severity.Error, error.message, TaskErrors.UnknownError);
 			} else {
-				this.outputChannel.append(err.toString());
+				this.appendOutput(err.toString());
 				throw new TaskError(Severity.Error, nls.localize('TaskRunnerSystem.unknownError', 'A unknown error has occurred while executing a task. See task output log for details.'), TaskErrors.UnknownError);
 			}
 		}
@@ -256,7 +253,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 			let processStartedSignaled: boolean = false;
 			const onProgress = (progress: LineData) => {
 				let line = Strings.removeAnsiEscapeCodes(progress.line);
-				this.outputChannel.append(line + '\n');
+				this.appendOutput(line + '\n');
 				watchingProblemMatcher.processLine(line);
 				if (delayer === null) {
 					delayer = new Async.Delayer(3000);
@@ -320,7 +317,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 			let processStartedSignaled: boolean = false;
 			const onProgress = (progress) => {
 				let line = Strings.removeAnsiEscapeCodes(progress.line);
-				this.outputChannel.append(line + '\n');
+				this.appendOutput(line + '\n');
 				startStopProblemMatcher.processLine(line);
 			};
 			const startPromise = this.childProcess.start(onProgress);
@@ -367,16 +364,16 @@ export class ProcessTaskSystem implements ITaskSystem {
 		if (errorData.error && !errorData.terminated) {
 			let args: string = task.command.args ? task.command.args.join(' ') : '';
 			this.log(nls.localize('TaskRunnerSystem.childProcessError', 'Failed to launch external program {0} {1}.', JSON.stringify(task.command.name), args));
-			this.outputChannel.append(errorData.error.message);
+			this.appendOutput(errorData.error.message);
 			makeVisible = true;
 		}
 
 		if (errorData.stdout) {
-			this.outputChannel.append(errorData.stdout);
+			this.appendOutput(errorData.stdout);
 			makeVisible = true;
 		}
 		if (errorData.stderr) {
-			this.outputChannel.append(errorData.stderr);
+			this.appendOutput(errorData.stderr);
 			makeVisible = true;
 		}
 		makeVisible = this.checkTerminated(task, errorData) || makeVisible;
@@ -436,7 +433,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 				matcher = value;
 			}
 			if (!matcher) {
-				this.outputChannel.append(nls.localize('unkownProblemMatcher', 'Problem matcher {0} can\'t be resolved. The matcher will be ignored'));
+				this.appendOutput(nls.localize('unkownProblemMatcher', 'Problem matcher {0} can\'t be resolved. The matcher will be ignored'));
 				return;
 			}
 			if (!matcher.filePrefix) {
@@ -455,14 +452,24 @@ export class ProcessTaskSystem implements ITaskSystem {
 	}
 
 	public log(value: string): void {
-		this.outputChannel.append(value + '\n');
+		this.appendOutput(value + '\n');
 	}
 
 	private showOutput(): void {
-		this.outputService.showChannel(this.outputChannel.id, true);
+		this.outputService.showChannel(this.outputChannelId, true);
+	}
+
+	private appendOutput(output: string): void {
+		const outputChannel = this.outputService.getChannel(this.outputChannelId);
+		if (outputChannel) {
+			outputChannel.append(output);
+		}
 	}
 
 	private clearOutput(): void {
-		this.outputChannel.clear();
+		const outputChannel = this.outputService.getChannel(this.outputChannelId);
+		if (outputChannel) {
+			outputChannel.clear();
+		}
 	}
 }

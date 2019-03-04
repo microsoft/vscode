@@ -201,10 +201,10 @@ export class FileMatchRenderer extends Disposable implements ITreeRenderer<FileM
 		templateData.actions.push(actions, { icon: true, label: false });
 	}
 
-	disposeElement(element: ITreeNode<RenderableMatch, any>, index: number, templateData: IFolderMatchTemplate): void {
+	disposeElement(element: ITreeNode<RenderableMatch, any>, index: number, templateData: IFileMatchTemplate): void {
 	}
 
-	disposeTemplate(templateData: IFolderMatchTemplate): void {
+	disposeTemplate(templateData: IFileMatchTemplate): void {
 		dispose(templateData.disposables);
 	}
 }

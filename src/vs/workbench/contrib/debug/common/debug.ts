@@ -419,6 +419,11 @@ export interface IDebugConfiguration {
 	internalConsoleOptions: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart';
 	extensionHostDebugAdapter: boolean;
 	enableAllHovers: boolean;
+	console: {
+		fontSize: number;
+		fontFamily: string;
+		lineHeight: number;
+	};
 }
 
 export interface IGlobalConfig {

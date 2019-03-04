@@ -17,6 +17,7 @@ import { IURLHandler, IURLService } from 'vs/platform/url/common/url';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 const FIVE_MINUTES = 5 * 60 * 1000;
 const THIRTY_SECONDS = 30 * 1000;
@@ -90,9 +91,15 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		}
 
 		if (!confirmed) {
+			let uriString = uri.toString();
+
+			if (uriString.length > 40) {
+				uriString = `${uriString.substring(0, 30)}...${uriString.substring(uriString.length - 5)}`;
+			}
+
 			const result = await this.dialogService.confirm({
 				message: localize('confirmUrl', "Allow an extension to open this URL?", extensionId),
-				detail: `${extension.displayName || extension.name} (${extensionId}) wants to open a URL:\n\n${uri.toString()}`,
+				detail: `${extension.displayName || extension.name} (${extensionId}) wants to open a URL:\n\n${uriString}`,
 				primaryButton: localize('open', "&&Open"),
 				type: 'question'
 			});
@@ -265,3 +272,5 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		this.uriBuffer.clear();
 	}
 }
+
+registerSingleton(IExtensionUrlHandler, ExtensionUrlHandler);

@@ -8,7 +8,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { readdir, rimraf, stat } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import product from 'vs/platform/node/product';
+import product from 'vs/platform/product/node/product';
 
 export class NodeCachedDataCleaner {
 

@@ -74,8 +74,7 @@ const taskDefinitionsExtPoint = ExtensionsRegistry.registerExtensionPoint<Config
 		description: nls.localize('TaskDefinitionExtPoint', 'Contributes task kinds'),
 		type: 'array',
 		items: taskDefinitionSchema
-	},
-	isDynamic: true
+	}
 });
 
 export interface ITaskDefinitionRegistry {

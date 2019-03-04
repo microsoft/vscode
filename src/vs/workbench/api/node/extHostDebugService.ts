@@ -16,7 +16,7 @@ import {
 import * as vscode from 'vscode';
 import { Disposable, Position, Location, SourceBreakpoint, FunctionBreakpoint, DebugAdapterServer, DebugAdapterExecutable } from 'vs/workbench/api/node/extHostTypes';
 import { ExecutableDebugAdapter, SocketDebugAdapter, AbstractDebugAdapter } from 'vs/workbench/contrib/debug/node/debugAdapter';
-import { ExtHostWorkspace, ExtHostWorkspaceProvider } from 'vs/workbench/api/node/extHostWorkspace';
+import { IExtHostWorkspaceProvider } from 'vs/workbench/api/node/extHostWorkspace';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
 import { ITerminalSettings, IDebuggerContribution, IConfig, IDebugAdapter, IDebugAdapterServer, IDebugAdapterExecutable, IAdapterDescriptor } from 'vs/workbench/contrib/debug/common/debug';
@@ -82,7 +82,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 
 	constructor(mainContext: IMainContext,
-		private _workspaceService: ExtHostWorkspace,
+		private _workspaceService: IExtHostWorkspaceProvider,
 		private _extensionService: ExtHostExtensionService,
 		private _editorsService: ExtHostDocumentsAndEditors,
 		private _configurationService: ExtHostConfiguration,
@@ -121,27 +121,35 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		this._breakpointEventsActive = false;
 
 		this._extensionService.getExtensionRegistry().then((extensionRegistry: ExtensionDescriptionRegistry) => {
-			// register all debug extensions
-			const debugTypes: string[] = [];
-			for (const ed of extensionRegistry.getAllExtensionDescriptions()) {
-				if (ed.contributes) {
-					const debuggers = <IDebuggerContribution[]>ed.contributes['debuggers'];
-					if (debuggers && debuggers.length > 0) {
-						for (const dbg of debuggers) {
-							if (isDebuggerMainContribution(dbg)) {
-								debugTypes.push(dbg.type);
-								if (dbg.adapterExecutableCommand) {
-									this._aexCommands.set(dbg.type, dbg.adapterExecutableCommand);
-								}
+			extensionRegistry.onDidChange(_ => {
+				this.registerAllDebugTypes(extensionRegistry);
+			});
+			this.registerAllDebugTypes(extensionRegistry);
+		});
+	}
+
+	private registerAllDebugTypes(extensionRegistry: ExtensionDescriptionRegistry) {
+
+		const debugTypes: string[] = [];
+		this._aexCommands.clear();
+
+		for (const ed of extensionRegistry.getAllExtensionDescriptions()) {
+			if (ed.contributes) {
+				const debuggers = <IDebuggerContribution[]>ed.contributes['debuggers'];
+				if (debuggers && debuggers.length > 0) {
+					for (const dbg of debuggers) {
+						if (isDebuggerMainContribution(dbg)) {
+							debugTypes.push(dbg.type);
+							if (dbg.adapterExecutableCommand) {
+								this._aexCommands.set(dbg.type, dbg.adapterExecutableCommand);
 							}
 						}
 					}
 				}
 			}
-			if (debugTypes.length > 0) {
-				this._debugServiceProxy.$registerDebugTypes(debugTypes);
-			}
-		});
+		}
+
+		this._debugServiceProxy.$registerDebugTypes(debugTypes);
 	}
 
 	// extension debug API
@@ -359,12 +367,12 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 	}
 
 	public async $substituteVariables(folderUri: UriComponents | undefined, config: IConfig): Promise<IConfig> {
-		const [workspaceProvider, configProvider] = await Promise.all([this._workspaceService.getWorkspaceProvider(), this._configurationService.getConfigProvider()]);
+		const [workspaceFolders, configProvider] = await Promise.all([this._workspaceService.getWorkspaceFolders2(), this._configurationService.getConfigProvider()]);
 		if (!this._variableResolver) {
-			this._variableResolver = new ExtHostVariableResolverService(workspaceProvider, this._editorsService, configProvider);
+			this._variableResolver = new ExtHostVariableResolverService(workspaceFolders, this._editorsService, configProvider);
 		}
 		let ws: IWorkspaceFolder | undefined;
-		const folder = this.getFolder(folderUri, workspaceProvider);
+		const folder = await this.getFolder(folderUri);
 		if (folder) {
 			ws = {
 				uri: folder.uri,
@@ -379,10 +387,9 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 	}
 
 	public async $startDASession(debugAdapterHandle: number, sessionDto: IDebugSessionDto): Promise<void> {
-		const workspaceProvider = await this._workspaceService.getWorkspaceProvider();
 		const mythis = this;
 
-		const session = this.getSession(sessionDto, workspaceProvider);
+		const session = await this.getSession(sessionDto);
 		return this.getAdapterDescriptor(this.getAdapterFactoryByType(session.type), session).then(x => {
 
 			const adapter = this.convertToDto(x);
@@ -547,7 +554,6 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 	}
 
 	public async $provideDebugConfigurations(configProviderHandle: number, folderUri: UriComponents | undefined): Promise<vscode.DebugConfiguration[]> {
-		const workspaceProvider = await this._workspaceService.getWorkspaceProvider();
 		let provider = this.getConfigProviderByHandle(configProviderHandle);
 		if (!provider) {
 			return Promise.reject(new Error('no handler found'));
@@ -555,11 +561,11 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		if (!provider.provideDebugConfigurations) {
 			return Promise.reject(new Error('handler has no method provideDebugConfigurations'));
 		}
-		return asPromise(() => provider.provideDebugConfigurations(this.getFolder(folderUri, workspaceProvider), CancellationToken.None));
+		const folder = await this.getFolder(folderUri);
+		return asPromise(() => provider.provideDebugConfigurations(folder, CancellationToken.None));
 	}
 
 	public async $resolveDebugConfiguration(configProviderHandle: number, folderUri: UriComponents | undefined, debugConfiguration: vscode.DebugConfiguration): Promise<vscode.DebugConfiguration> {
-		const workspaceProvider = await this._workspaceService.getWorkspaceProvider();
 		let provider = this.getConfigProviderByHandle(configProviderHandle);
 		if (!provider) {
 			return Promise.reject(new Error('no handler found'));
@@ -567,12 +573,12 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		if (!provider.resolveDebugConfiguration) {
 			return Promise.reject(new Error('handler has no method resolveDebugConfiguration'));
 		}
-		return asPromise(() => provider.resolveDebugConfiguration(this.getFolder(folderUri, workspaceProvider), debugConfiguration, CancellationToken.None));
+		const folder = await this.getFolder(folderUri);
+		return asPromise(() => provider.resolveDebugConfiguration(folder, debugConfiguration, CancellationToken.None));
 	}
 
 	// TODO@AW legacy
 	public async $legacyDebugAdapterExecutable(configProviderHandle: number, folderUri: UriComponents | undefined): Promise<IAdapterDescriptor> {
-		const workspaceProvider = await this._workspaceService.getWorkspaceProvider();
 		let provider = this.getConfigProviderByHandle(configProviderHandle);
 		if (!provider) {
 			return Promise.reject(new Error('no handler found'));
@@ -580,26 +586,30 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		if (!provider.debugAdapterExecutable) {
 			return Promise.reject(new Error('handler has no method debugAdapterExecutable'));
 		}
-		return asPromise(() => provider.debugAdapterExecutable(this.getFolder(folderUri, workspaceProvider), CancellationToken.None)).then(x => this.convertToDto(x));
+		const folder = await this.getFolder(folderUri);
+		return asPromise(() => provider.debugAdapterExecutable(folder, CancellationToken.None)).then(x => this.convertToDto(x));
 	}
 
 	public async $provideDebugAdapter(adapterProviderHandle: number, sessionDto: IDebugSessionDto): Promise<IAdapterDescriptor> {
-		const workspaceProvider = await this._workspaceService.getWorkspaceProvider();
 		let adapterProvider = this.getAdapterProviderByHandle(adapterProviderHandle);
 		if (!adapterProvider) {
 			return Promise.reject(new Error('no handler found'));
 		}
-		return this.getAdapterDescriptor(adapterProvider, this.getSession(sessionDto, workspaceProvider)).then(x => this.convertToDto(x));
+		const session = await this.getSession(sessionDto);
+		return this.getAdapterDescriptor(adapterProvider, session).then(x => this.convertToDto(x));
 	}
 
 	public async $acceptDebugSessionStarted(sessionDto: IDebugSessionDto): Promise<void> {
-		const workspaceProvider = await this._workspaceService.getWorkspaceProvider();
-		this._onDidStartDebugSession.fire(this.getSession(sessionDto, workspaceProvider));
+		const session = await this.getSession(sessionDto);
+		if (session) {
+			this._onDidStartDebugSession.fire(session);
+		} else {
+			console.error('undefined session received in acceptDebugSessionStarted');	// should not happen (but see #69128)
+		}
 	}
 
 	public async $acceptDebugSessionTerminated(sessionDto: IDebugSessionDto): Promise<void> {
-		const workspaceProvider = await this._workspaceService.getWorkspaceProvider();
-		const session = this.getSession(sessionDto, workspaceProvider);
+		const session = await this.getSession(sessionDto);
 		if (session) {
 			this._onDidTerminateDebugSession.fire(session);
 			this._debugSessions.delete(session.id);
@@ -607,15 +617,14 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 	}
 
 	public async $acceptDebugSessionActiveChanged(sessionDto: IDebugSessionDto | undefined): Promise<void> {
-		const workspaceProvider = await this._workspaceService.getWorkspaceProvider();
-		this._activeDebugSession = sessionDto ? this.getSession(sessionDto, workspaceProvider) : undefined;
+		this._activeDebugSession = sessionDto ? await this.getSession(sessionDto) : undefined;
 		this._onDidChangeActiveDebugSession.fire(this._activeDebugSession);
 	}
 
 	public async $acceptDebugSessionCustomEvent(sessionDto: IDebugSessionDto, event: any): Promise<void> {
-		const workspaceProvider = await this._workspaceService.getWorkspaceProvider();
+		const session = await this.getSession(sessionDto);
 		const ee: vscode.DebugSessionCustomEvent = {
-			session: this.getSession(sessionDto, workspaceProvider),
+			session: session,
 			event: event.event,
 			body: event.body
 		};
@@ -780,12 +789,13 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		}
 	}
 
-	private getSession(dto: IDebugSessionDto, workspaceProvider: ExtHostWorkspaceProvider): ExtHostDebugSession {
+	private async getSession(dto: IDebugSessionDto): Promise<ExtHostDebugSession> {
 		if (dto) {
 			if (typeof dto === 'string') {
 				return this._debugSessions.get(dto);
 			} else {
-				const debugSession = new ExtHostDebugSession(this._debugServiceProxy, dto.id, dto.type, dto.name, this.getFolder(dto.folderUri, workspaceProvider), dto.configuration);
+				const folder = await this.getFolder(dto.folderUri);
+				const debugSession = new ExtHostDebugSession(this._debugServiceProxy, dto.id, dto.type, dto.name, folder, dto.configuration);
 				this._debugSessions.set(debugSession.id, debugSession);
 				return debugSession;
 			}
@@ -793,10 +803,10 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		return undefined;
 	}
 
-	private getFolder(_folderUri: UriComponents | undefined, workspaceProvider: ExtHostWorkspaceProvider): vscode.WorkspaceFolder | undefined {
+	private async getFolder(_folderUri: UriComponents | undefined): Promise<vscode.WorkspaceFolder | undefined> {
 		if (_folderUri) {
 			const folderURI = URI.revive(_folderUri);
-			return workspaceProvider.resolveWorkspaceFolder(folderURI);
+			return await this._workspaceService.resolveWorkspaceFolder(folderURI);
 		}
 		return undefined;
 	}
@@ -857,10 +867,9 @@ export class ExtHostDebugConsole implements vscode.DebugConsole {
 
 export class ExtHostVariableResolverService extends AbstractVariableResolverService {
 
-	constructor(workspaceService: ExtHostWorkspaceProvider, editorService: ExtHostDocumentsAndEditors, configurationService: ExtHostConfigProvider) {
+	constructor(folders: vscode.WorkspaceFolder[], editorService: ExtHostDocumentsAndEditors, configurationService: ExtHostConfigProvider) {
 		super({
 			getFolderUri: (folderName: string): URI => {
-				const folders = workspaceService.getWorkspaceFolders();
 				const found = folders.filter(f => f.name === folderName);
 				if (found && found.length > 0) {
 					return found[0].uri;
@@ -868,7 +877,7 @@ export class ExtHostVariableResolverService extends AbstractVariableResolverServ
 				return undefined;
 			},
 			getWorkspaceFolderCount: (): number => {
-				return workspaceService.getWorkspaceFolders().length;
+				return folders.length;
 			},
 			getConfigurationValue: (folderUri: URI, section: string) => {
 				return configurationService.getConfiguration(undefined, folderUri).get<string>(section);
@@ -900,7 +909,7 @@ export class ExtHostVariableResolverService extends AbstractVariableResolverServ
 				}
 				return undefined;
 			}
-		});
+		}, process.env);
 	}
 }
 

@@ -309,7 +309,7 @@ export class CodeInsetController implements editorCommon.IEditorContribution {
 
 				const widgetPromises = widgetRequests.map(request => {
 					if (request.resolved) {
-						return Promise.resolve(void 0);
+						return Promise.resolve(undefined);
 					}
 					let a = new Promise(resolve => {
 						this._pendingWebviews.set(request.symbol.id, element => {

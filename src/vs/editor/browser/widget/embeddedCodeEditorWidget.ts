@@ -15,6 +15,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 export class EmbeddedCodeEditorWidget extends CodeEditorWidget {
 
@@ -30,9 +31,10 @@ export class EmbeddedCodeEditorWidget extends CodeEditorWidget {
 		@ICommandService commandService: ICommandService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
-		@INotificationService notificationService: INotificationService
+		@INotificationService notificationService: INotificationService,
+		@IAccessibilityService accessibilityService: IAccessibilityService
 	) {
-		super(domElement, parentEditor.getRawConfiguration(), {}, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService);
+		super(domElement, parentEditor.getRawConfiguration(), {}, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService, accessibilityService);
 
 		this._parentEditor = parentEditor;
 		this._overwriteOptions = options;

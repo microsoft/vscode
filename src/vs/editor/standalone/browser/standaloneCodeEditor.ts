@@ -28,6 +28,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 /**
  * Description of an action contribution
@@ -163,7 +164,8 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IThemeService themeService: IThemeService,
-		@INotificationService notificationService: INotificationService
+		@INotificationService notificationService: INotificationService,
+		@IAccessibilityService accessibilityService: IAccessibilityService
 	) {
 		options = options || {};
 		options.ariaLabel = options.ariaLabel || nls.localize('editorViewAccessibleLabel', "Editor content");
@@ -172,7 +174,7 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 				? nls.localize('accessibilityHelpMessageIE', "Press Ctrl+F1 for Accessibility Options.")
 				: nls.localize('accessibilityHelpMessage', "Press Alt+F1 for Accessibility Options.")
 		);
-		super(domElement, options, {}, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService);
+		super(domElement, options, {}, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService, accessibilityService);
 
 		if (keybindingService instanceof StandaloneKeybindingService) {
 			this._standaloneKeybindingService = keybindingService;
@@ -294,7 +296,8 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		@IContextViewService contextViewService: IContextViewService,
 		@IStandaloneThemeService themeService: IStandaloneThemeService,
 		@INotificationService notificationService: INotificationService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IAccessibilityService accessibilityService: IAccessibilityService
 	) {
 		applyConfigurationValues(configurationService, options, false);
 		options = options || {};
@@ -303,7 +306,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		}
 		let _model: ITextModel | null | undefined = options.model;
 		delete options.model;
-		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, keybindingService, themeService, notificationService);
+		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, keybindingService, themeService, notificationService, accessibilityService);
 
 		this._contextViewService = <ContextViewService>contextViewService;
 		this._configurationService = configurationService;

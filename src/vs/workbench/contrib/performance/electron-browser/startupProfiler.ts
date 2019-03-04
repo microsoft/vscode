@@ -10,7 +10,7 @@ import { localize } from 'vs/nls';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import product from 'vs/platform/node/product';
+import product from 'vs/platform/product/node/product';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { PerfviewInput } from 'vs/workbench/contrib/performance/electron-browser/perfviewEditor';
@@ -87,7 +87,7 @@ export class StartupProfiler implements IWorkbenchContribution {
 							message: localize('prof.thanks', "Thanks for helping us."),
 							detail: localize('prof.detail.restart', "A final restart is required to continue to use '{0}'. Again, thank you for your contribution.", this._environmentService.appNameLong),
 							primaryButton: localize('prof.restart', "Restart"),
-							secondaryButton: null
+							secondaryButton: undefined
 						}).then(() => {
 							// now we are ready to restart
 							this._windowsService.relaunch({ removeArgs });

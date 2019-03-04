@@ -25,7 +25,7 @@ import { IConfigurationNode, IConfigurationRegistry, Extensions, IConfigurationP
 import { IWorkspaceIdentifier, isWorkspaceIdentifier, IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, isSingleFolderWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload, IEmptyWorkspaceInitializationPayload, useSlashForPath, getStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import product from 'vs/platform/node/product';
+import product from 'vs/platform/product/node/product';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ConfigurationEditingService } from 'vs/workbench/services/configuration/node/configurationEditingService';
 import { WorkspaceConfiguration, FolderConfiguration } from 'vs/workbench/services/configuration/node/configuration';
@@ -589,14 +589,14 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		})]);
 	}
 
-	private writeConfigurationValue(key: string, value: any, target: ConfigurationTarget, overrides: IConfigurationOverrides, donotNotifyError: boolean): Promise<void> {
+	private writeConfigurationValue(key: string, value: any, target: ConfigurationTarget, overrides: IConfigurationOverrides | undefined, donotNotifyError: boolean): Promise<void> {
 		if (target === ConfigurationTarget.DEFAULT) {
 			return Promise.reject(new Error('Invalid configuration target'));
 		}
 
 		if (target === ConfigurationTarget.MEMORY) {
 			this._configuration.updateValue(key, value, overrides);
-			this.triggerConfigurationChange(new ConfigurationChangeEvent().change(overrides.overrideIdentifier ? [keyFromOverrideIdentifier(overrides.overrideIdentifier)] : [key], overrides.resource), target);
+			this.triggerConfigurationChange(new ConfigurationChangeEvent().change(overrides && overrides.overrideIdentifier ? [keyFromOverrideIdentifier(overrides.overrideIdentifier)] : [key], overrides && overrides.resource), target);
 			return Promise.resolve(undefined);
 		}
 

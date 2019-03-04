@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import product from 'vs/platform/node/product';
+import product from 'vs/platform/product/node/product';
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';

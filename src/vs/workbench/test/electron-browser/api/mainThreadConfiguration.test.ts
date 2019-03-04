@@ -63,7 +63,7 @@ suite('MainThreadConfiguration', function () {
 		instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{ getWorkbenchState: () => WorkbenchState.WORKSPACE });
 		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(proxy));
 
-		testObject.$updateConfigurationOption(null, 'extHostConfiguration.resource', 'value', null);
+		testObject.$updateConfigurationOption(null, 'extHostConfiguration.resource', 'value', undefined);
 
 		assert.equal(ConfigurationTarget.WORKSPACE, target.args[0][3]);
 	});
@@ -81,7 +81,7 @@ suite('MainThreadConfiguration', function () {
 		instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{ getWorkbenchState: () => WorkbenchState.FOLDER });
 		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(proxy));
 
-		testObject.$updateConfigurationOption(null, 'extHostConfiguration.resource', 'value', null);
+		testObject.$updateConfigurationOption(null, 'extHostConfiguration.resource', 'value', undefined);
 
 		assert.equal(ConfigurationTarget.WORKSPACE, target.args[0][3]);
 	});
@@ -90,7 +90,7 @@ suite('MainThreadConfiguration', function () {
 		instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{ getWorkbenchState: () => WorkbenchState.WORKSPACE });
 		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(proxy));
 
-		testObject.$updateConfigurationOption(null, 'extHostConfiguration.window', 'value', null);
+		testObject.$updateConfigurationOption(null, 'extHostConfiguration.window', 'value', undefined);
 
 		assert.equal(ConfigurationTarget.WORKSPACE, target.args[0][3]);
 	});
@@ -117,7 +117,7 @@ suite('MainThreadConfiguration', function () {
 		instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{ getWorkbenchState: () => WorkbenchState.FOLDER });
 		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(proxy));
 
-		testObject.$updateConfigurationOption(null, 'extHostConfiguration.window', 'value', null);
+		testObject.$updateConfigurationOption(null, 'extHostConfiguration.window', 'value', undefined);
 
 		assert.equal(ConfigurationTarget.WORKSPACE, target.args[0][3]);
 	});
@@ -162,7 +162,7 @@ suite('MainThreadConfiguration', function () {
 		instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{ getWorkbenchState: () => WorkbenchState.WORKSPACE });
 		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(proxy));
 
-		testObject.$removeConfigurationOption(null, 'extHostConfiguration.resource', null);
+		testObject.$removeConfigurationOption(null, 'extHostConfiguration.resource', undefined);
 
 		assert.equal(ConfigurationTarget.WORKSPACE, target.args[0][3]);
 	});
@@ -180,7 +180,7 @@ suite('MainThreadConfiguration', function () {
 		instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{ getWorkbenchState: () => WorkbenchState.FOLDER });
 		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(proxy));
 
-		testObject.$removeConfigurationOption(null, 'extHostConfiguration.resource', null);
+		testObject.$removeConfigurationOption(null, 'extHostConfiguration.resource', undefined);
 
 		assert.equal(ConfigurationTarget.WORKSPACE, target.args[0][3]);
 	});
@@ -189,7 +189,7 @@ suite('MainThreadConfiguration', function () {
 		instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{ getWorkbenchState: () => WorkbenchState.WORKSPACE });
 		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(proxy));
 
-		testObject.$removeConfigurationOption(null, 'extHostConfiguration.window', null);
+		testObject.$removeConfigurationOption(null, 'extHostConfiguration.window', undefined);
 
 		assert.equal(ConfigurationTarget.WORKSPACE, target.args[0][3]);
 	});
@@ -216,7 +216,7 @@ suite('MainThreadConfiguration', function () {
 		instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{ getWorkbenchState: () => WorkbenchState.FOLDER });
 		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(proxy));
 
-		testObject.$removeConfigurationOption(null, 'extHostConfiguration.window', null);
+		testObject.$removeConfigurationOption(null, 'extHostConfiguration.window', undefined);
 
 		assert.equal(ConfigurationTarget.WORKSPACE, target.args[0][3]);
 	});

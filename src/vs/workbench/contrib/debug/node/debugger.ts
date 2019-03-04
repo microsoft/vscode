@@ -51,7 +51,7 @@ export class Debugger implements IDebugger {
 		 * Copies all properties of source into destination. The optional parameter "overwrite" allows to control
 		 * if existing non-structured properties on the destination should be overwritten or not. Defaults to true (overwrite).
 		 */
-		function mixin(destination: any, source: any, overwrite: boolean = true): any {
+		function mixin(destination: any, source: any, overwrite: boolean, level = 0): any {
 
 			if (!isObject(destination)) {
 				return source;
@@ -60,11 +60,15 @@ export class Debugger implements IDebugger {
 			if (isObject(source)) {
 				Object.keys(source).forEach(key => {
 					if (isObject(destination[key]) && isObject(source[key])) {
-						mixin(destination[key], source[key], overwrite);
+						mixin(destination[key], source[key], overwrite, level + 1);
 					} else {
 						if (key in destination) {
 							if (overwrite) {
-								destination[key] = source[key];
+								if (level === 0 && key === 'type') {
+									// don't merge the 'type' property
+								} else {
+									destination[key] = source[key];
+								}
 							}
 						} else {
 							destination[key] = source[key];
@@ -76,15 +80,19 @@ export class Debugger implements IDebugger {
 			return destination;
 		}
 
-		// remember all extensions that have been merged for this debugger
-		this.mergedExtensionDescriptions.push(extensionDescription);
+		// only if not already merged
+		if (this.mergedExtensionDescriptions.indexOf(extensionDescription) < 0) {
 
-		// merge new debugger contribution into existing contributions (and don't overwrite values in built-in extensions)
-		mixin(this.debuggerContribution, otherDebuggerContribution, extensionDescription.isBuiltin);
+			// remember all extensions that have been merged for this debugger
+			this.mergedExtensionDescriptions.push(extensionDescription);
 
-		// remember the extension that is considered the "main" debugger contribution
-		if (isDebuggerMainContribution(otherDebuggerContribution)) {
-			this.mainExtensionDescription = extensionDescription;
+			// merge new debugger contribution into existing contributions (and don't overwrite values in built-in extensions)
+			mixin(this.debuggerContribution, otherDebuggerContribution, extensionDescription.isBuiltin);
+
+			// remember the extension that is considered the "main" debugger contribution
+			if (isDebuggerMainContribution(otherDebuggerContribution)) {
+				this.mainExtensionDescription = extensionDescription;
+			}
 		}
 	}
 

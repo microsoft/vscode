@@ -447,7 +447,7 @@ class StackFramesRenderer implements ITreeRenderer<IStackFrame, FuzzyScore, ISta
 
 	renderElement(element: ITreeNode<IStackFrame, FuzzyScore>, index: number, data: IStackFrameTemplateData): void {
 		const stackFrame = element.element;
-		dom.toggleClass(data.stackFrame, 'disabled', !stackFrame.source || !stackFrame.source.available || stackFrame.source.presentationHint === 'deemphasize');
+		dom.toggleClass(data.stackFrame, 'disabled', !stackFrame.source || !stackFrame.source.available || isDeemphasized(stackFrame));
 		dom.toggleClass(data.stackFrame, 'label', stackFrame.presentationHint === 'label');
 		dom.toggleClass(data.stackFrame, 'subtle', stackFrame.presentationHint === 'subtle');
 
@@ -581,6 +581,10 @@ function isDebugModel(obj: any): obj is IDebugModel {
 	return typeof obj.getSessions === 'function';
 }
 
+function isDeemphasized(frame: IStackFrame): boolean {
+	return frame.source.presentationHint === 'deemphasize' || frame.presentationHint === 'deemphasize';
+}
+
 class CallStackDataSource implements IAsyncDataSource<IDebugModel, CallStackItem> {
 	deemphasizedStackFramesToShow: IStackFrame[];
 
@@ -613,7 +617,7 @@ class CallStackDataSource implements IAsyncDataSource<IDebugModel, CallStackItem
 			// Check if some stack frames should be hidden under a parent element since they are deemphasized
 			const result = [];
 			children.forEach((child, index) => {
-				if (child instanceof StackFrame && child.source && child.source.presentationHint === 'deemphasize') {
+				if (child instanceof StackFrame && child.source && isDeemphasized(child)) {
 					// Check if the user clicked to show the deemphasized source
 					if (this.deemphasizedStackFramesToShow.indexOf(child) === -1) {
 						if (result.length && result[result.length - 1] instanceof Array) {
@@ -623,7 +627,7 @@ class CallStackDataSource implements IAsyncDataSource<IDebugModel, CallStackItem
 						}
 
 						const nextChild = index < children.length - 1 ? children[index + 1] : undefined;
-						if (nextChild instanceof StackFrame && nextChild.source && nextChild.source.presentationHint === 'deemphasize') {
+						if (nextChild instanceof StackFrame && nextChild.source && isDeemphasized(nextChild)) {
 							// Start collecting stackframes that will be "collapsed"
 							result.push([child]);
 							return;

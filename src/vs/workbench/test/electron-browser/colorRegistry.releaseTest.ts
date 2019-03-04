@@ -10,8 +10,8 @@ import { overviewRulerModifiedForeground } from 'vs/workbench/contrib/scm/electr
 import { STATUS_BAR_DEBUGGING_BACKGROUND } from 'vs/workbench/contrib/debug/browser/statusbarColorProvider';
 import { debugExceptionWidgetBackground } from 'vs/workbench/contrib/debug/browser/exceptionWidget';
 import { debugToolBarBackground } from 'vs/workbench/contrib/debug/browser/debugToolbar';
-import { buttonBackground } from 'vs/workbench/contrib/welcome/page/electron-browser/welcomePage';
-import { embeddedEditorBackground } from 'vs/workbench/contrib/welcome/walkThrough/electron-browser/walkThroughPart';
+import { buttonBackground } from 'vs/workbench/contrib/welcome/page/browser/welcomePage';
+import { embeddedEditorBackground } from 'vs/workbench/contrib/welcome/walkThrough/browser/walkThroughPart';
 import { request, asText } from 'vs/base/node/request';
 import * as pfs from 'vs/base/node/pfs';
 import * as path from 'vs/base/common/path';

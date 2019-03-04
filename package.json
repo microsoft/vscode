@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.32.0",
-  "distro": "6f5d9db8821add003be71e726b4ef49df83a51b4",
+  "version": "1.33.0",
+  "distro": "d7aadf23b016949c24a43083a0b3deecb8aa81fa",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -46,13 +46,13 @@
     "sudo-prompt": "8.2.0",
     "v8-inspect-profiler": "^0.0.20",
     "vscode-chokidar": "1.6.5",
-    "vscode-debugprotocol": "^1.34.0-pre.0",
+    "vscode-debugprotocol": "1.34.0",
     "vscode-nsfw": "1.1.1",
     "vscode-proxy-agent": "0.4.0",
     "vscode-ripgrep": "^1.2.5",
     "vscode-sqlite3": "4.0.7",
     "vscode-textmate": "^4.0.1",
-    "vscode-xterm": "3.12.0-beta4",
+    "vscode-xterm": "3.12.0-beta5",
     "yauzl": "^2.9.1",
     "yazl": "^2.4.3"
   },
@@ -145,6 +145,7 @@
     "url": "https://github.com/Microsoft/vscode/issues"
   },
   "optionalDependencies": {
+    "vscode-windows-registry": "1.0.1",
     "windows-foreground-love": "0.1.0",
     "windows-mutex": "0.2.1",
     "windows-process-tree": "0.2.3"

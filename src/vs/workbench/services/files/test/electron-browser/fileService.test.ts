@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import * as path from 'vs/base/common/path';
 import * as os from 'os';
 import * as assert from 'assert';
-import { FileService } from 'vs/workbench/services/files/electron-browser/fileService';
+import { FileService } from 'vs/workbench/services/files/node/fileService';
 import { FileOperation, FileOperationEvent, FileChangesEvent, FileOperationResult, FileOperationError } from 'vs/platform/files/common/files';
 import { URI as uri } from 'vs/base/common/uri';
 import * as uuid from 'vs/base/common/uuid';
@@ -20,7 +20,7 @@ import { TestNotificationService } from 'vs/platform/notification/test/common/te
 import { Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { IEncodingOverride } from 'vs/workbench/services/files/electron-browser/encoding';
+import { IEncodingOverride } from 'vs/workbench/services/files/node/encoding';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 suite('FileService', () => {

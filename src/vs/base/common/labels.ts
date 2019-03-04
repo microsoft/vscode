@@ -36,7 +36,7 @@ export function getPathLabel(resource: URI | string, userHomeProvider?: IUserHom
 			const hasMultipleRoots = rootProvider.getWorkspace().folders.length > 1;
 
 			let pathLabel: string;
-			if (isEqual(baseResource.uri, resource, !isLinux)) {
+			if (isEqual(baseResource.uri, resource)) {
 				pathLabel = ''; // no label if paths are identical
 			} else {
 				// TODO: isidor use resources.relative

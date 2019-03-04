@@ -15,7 +15,7 @@ import { ITree, ITreeConfiguration, ITreeOptions } from 'vs/base/parts/tree/brow
 import { ClickBehavior, DefaultController, DefaultTreestyler, IControllerOptions, OpenMode } from 'vs/base/parts/tree/browser/treeDefaults';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, getMigratedSettingValue } from 'vs/platform/configuration/common/configuration';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
@@ -26,7 +26,7 @@ import { attachListStyler, computeStyles, defaultListStyles } from 'vs/platform/
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
 import { ObjectTree, IObjectTreeOptions } from 'vs/base/browser/ui/tree/objectTree';
-import { ITreeEvent, ITreeRenderer, IAsyncDataSource, IDataSource } from 'vs/base/browser/ui/tree/tree';
+import { ITreeEvent, ITreeRenderer, IAsyncDataSource, IDataSource, ITreeMouseEvent } from 'vs/base/browser/ui/tree/tree';
 import { AsyncDataTree, IAsyncDataTreeOptions } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { DataTree, IDataTreeOptions } from 'vs/base/browser/ui/tree/dataTree';
 import { IKeyboardNavigationEventFilter } from 'vs/base/browser/ui/tree/abstractTree';
@@ -111,10 +111,14 @@ function createScopedContextKeyService(contextKeyService: IContextKeyService, wi
 
 export const multiSelectModifierSettingKey = 'workbench.list.multiSelectModifier';
 export const openModeSettingKey = 'workbench.list.openMode';
-export const horizontalScrollingKey = 'workbench.tree.horizontalScrolling';
+export const horizontalScrollingKey = 'workbench.list.horizontalScrolling';
 export const keyboardNavigationSettingKey = 'workbench.list.keyboardNavigation';
 export const automaticKeyboardNavigationSettingKey = 'workbench.list.automaticKeyboardNavigation';
 const treeIndentKey = 'workbench.tree.indent';
+
+function getHorizontalScrollingSetting(configurationService: IConfigurationService): boolean {
+	return getMigratedSettingValue<boolean>(configurationService, horizontalScrollingKey, 'workbench.tree.horizontalScrolling');
+}
 
 function useAltAsMultipleSelectionModifier(configurationService: IConfigurationService): boolean {
 	return configurationService.getValue(multiSelectModifierSettingKey) === 'alt';
@@ -251,7 +255,7 @@ export class WorkbenchList<T> extends List<T> {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
-		const horizontalScrolling = typeof options.horizontalScrolling !== 'undefined' ? options.horizontalScrolling : configurationService.getValue<boolean>(horizontalScrollingKey);
+		const horizontalScrolling = typeof options.horizontalScrolling !== 'undefined' ? options.horizontalScrolling : getHorizontalScrollingSetting(configurationService);
 		const [workbenchListOptions, workbenchListOptionsDisposable] = toWorkbenchListOptions(options, configurationService, keybindingService);
 
 		super(container, delegate, renderers,
@@ -334,7 +338,7 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
-		const horizontalScrolling = typeof options.horizontalScrolling !== 'undefined' ? options.horizontalScrolling : configurationService.getValue<boolean>(horizontalScrollingKey);
+		const horizontalScrolling = typeof options.horizontalScrolling !== 'undefined' ? options.horizontalScrolling : getHorizontalScrollingSetting(configurationService);
 		const [workbenchListOptions, workbenchListOptionsDisposable] = toWorkbenchListOptions(options, configurationService, keybindingService);
 		super(container, delegate, renderers,
 			{
@@ -688,6 +692,8 @@ export class TreeResourceNavigator2<T, TFilterData> extends Disposable {
 		}
 
 		this._register(this.tree.onDidChangeSelection(e => this.onSelection(e)));
+		this._register(this.tree.onMouseDblClick(e => this.onSelection(e)));
+		this._register(this.tree.onDidOpen(e => this.onSelection(e)));
 	}
 
 	private onFocus(e: ITreeEvent<T | null>): void {
@@ -705,7 +711,7 @@ export class TreeResourceNavigator2<T, TFilterData> extends Disposable {
 		}
 	}
 
-	private onSelection(e: ITreeEvent<T | null>): void {
+	private onSelection(e: ITreeEvent<T | null> | ITreeMouseEvent<T | null>, doubleClick = false): void {
 		if (!e.browserEvent || e.browserEvent.type === 'contextmenu') {
 			return;
 		}
@@ -800,7 +806,7 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 		};
 
 		const keyboardNavigation = configurationService.getValue<string>(keyboardNavigationSettingKey);
-		const horizontalScrolling = typeof options.horizontalScrolling !== 'undefined' ? options.horizontalScrolling : configurationService.getValue<boolean>(horizontalScrollingKey);
+		const horizontalScrolling = typeof options.horizontalScrolling !== 'undefined' ? options.horizontalScrolling : getHorizontalScrollingSetting(configurationService);
 		const openOnSingleClick = useSingleClickToOpen(configurationService);
 		const [workbenchListOptions, workbenchListOptionsDisposable] = toWorkbenchListOptions(options, configurationService, keybindingService);
 
@@ -933,7 +939,7 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 		};
 
 		const keyboardNavigation = configurationService.getValue<string>(keyboardNavigationSettingKey);
-		const horizontalScrolling = typeof options.horizontalScrolling !== 'undefined' ? options.horizontalScrolling : configurationService.getValue<boolean>(horizontalScrollingKey);
+		const horizontalScrolling = typeof options.horizontalScrolling !== 'undefined' ? options.horizontalScrolling : getHorizontalScrollingSetting(configurationService);
 		const openOnSingleClick = useSingleClickToOpen(configurationService);
 		const [workbenchListOptions, workbenchListOptionsDisposable] = toWorkbenchListOptions(options, configurationService, keybindingService);
 
@@ -1061,7 +1067,7 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 		};
 
 		const keyboardNavigation = configurationService.getValue<string>(keyboardNavigationSettingKey);
-		const horizontalScrolling = typeof options.horizontalScrolling !== 'undefined' ? options.horizontalScrolling : configurationService.getValue<boolean>(horizontalScrollingKey);
+		const horizontalScrolling = typeof options.horizontalScrolling !== 'undefined' ? options.horizontalScrolling : getHorizontalScrollingSetting(configurationService);
 		const openOnSingleClick = useSingleClickToOpen(configurationService);
 		const [workbenchListOptions, workbenchListOptionsDisposable] = toWorkbenchListOptions(options, configurationService, keybindingService);
 
@@ -1186,6 +1192,12 @@ configurationRegistry.registerConfiguration({
 			'default': false,
 			'description': localize('horizontalScrolling setting', "Controls whether lists and trees support horizontal scrolling in the workbench.")
 		},
+		'workbench.tree.horizontalScrolling': {
+			'type': 'boolean',
+			'default': false,
+			'description': localize('tree horizontalScrolling setting', "Controls whether trees support horizontal scrolling in the workbench."),
+			'deprecationMessage': localize('deprecated', "This setting is deprecated, please use '{0}' instead.", horizontalScrollingKey)
+		},
 		[treeIndentKey]: {
 			'type': 'number',
 			'default': 8,
@@ -1207,7 +1219,7 @@ configurationRegistry.registerConfiguration({
 		[automaticKeyboardNavigationSettingKey]: {
 			'type': 'boolean',
 			'default': true,
-			'description': localize('automatic keyboard navigation setting', "Controls whether keyboard navigation in lists and trees is automatically triggered simply by typing. If set to `false`, keyboard navigation is only triggered when executing the `list.toggleKeyboardNavigation` command, for which you can assign a keyboard shortcut.")
+			markdownDescription: localize('automatic keyboard navigation setting', "Controls whether keyboard navigation in lists and trees is automatically triggered simply by typing. If set to `false`, keyboard navigation is only triggered when executing the `list.toggleKeyboardNavigation` command, for which you can assign a keyboard shortcut.")
 		}
 	}
 });

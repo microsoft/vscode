@@ -14,7 +14,7 @@ import { registerEditorContribution, EditorAction, registerEditorAction } from '
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { IEditorContribution, IModelChangedEvent } from 'vs/editor/common/editorCommon';
-import { IRange } from 'vs/editor/common/core/range';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import * as modes from 'vs/editor/common/modes';
 import { peekViewResultsBackground, peekViewResultsSelectionBackground, peekViewTitleBackground } from 'vs/editor/contrib/referenceSearch/referencesWidget';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -37,6 +37,7 @@ import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async
 import { overviewRulerCommentingRangeForeground } from 'vs/workbench/contrib/comments/electron-browser/commentGlyphWidget';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { STATUS_BAR_ITEM_HOVER_BACKGROUND, STATUS_BAR_ITEM_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export const ctxReviewPanelVisible = new RawContextKey<boolean>('reviewPanelVisible', false);
 
@@ -66,7 +67,7 @@ class CommentingRangeDecoration {
 		return this._decorationId;
 	}
 
-	constructor(private _editor: ICodeEditor, private _ownerId: string, private _extensionId: string, private _range: IRange, private _reply: modes.Command, commentingOptions: ModelDecorationOptions) {
+	constructor(private _editor: ICodeEditor, private _ownerId: string, private _extensionId: string, private _range: IRange, private _reply: modes.Command, commentingOptions: ModelDecorationOptions, private commentingRangesInfo?: modes.CommentingRanges) {
 		const startLineNumber = _range.startLineNumber;
 		const endLineNumber = _range.endLineNumber;
 		let commentingRangeDecorations = [{
@@ -83,11 +84,12 @@ class CommentingRangeDecoration {
 		}
 	}
 
-	public getCommentAction(): { replyCommand: modes.Command, ownerId: string, extensionId: string } {
+	public getCommentAction(): { replyCommand: modes.Command, ownerId: string, extensionId: string, commentingRangesInfo: modes.CommentingRanges } {
 		return {
 			extensionId: this._extensionId,
 			replyCommand: this._reply,
-			ownerId: this._ownerId
+			ownerId: this._ownerId,
+			commentingRangesInfo: this.commentingRangesInfo
 		};
 	}
 
@@ -122,9 +124,15 @@ class CommentingRangeDecorator {
 
 		let commentingRangeDecorations: CommentingRangeDecoration[] = [];
 		for (const info of commentInfos) {
-			info.commentingRanges.forEach(range => {
-				commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, info.extensionId, range, info.reply, this.decorationOptions));
-			});
+			if (Array.isArray(info.commentingRanges)) {
+				info.commentingRanges.forEach(range => {
+					commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, info.extensionId, range, info.reply, this.decorationOptions));
+				});
+			} else {
+				info.commentingRanges.ranges.forEach(range => {
+					commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, info.extensionId, range, (info.commentingRanges as modes.CommentingRanges).newCommentThreadCommand, this.decorationOptions, info.commentingRanges as modes.CommentingRanges));
+				});
+			}
 		}
 
 		let oldDecorations = this.commentingRangeDecorations.map(decoration => decoration.id);
@@ -171,6 +179,7 @@ export class ReviewController implements IEditorContribution {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService private readonly themeService: IThemeService,
 		@ICommentService private readonly commentService: ICommentService,
+		@ICommandService private readonly _commandService: ICommandService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IModeService private readonly modeService: IModeService,
@@ -396,7 +405,7 @@ export class ReviewController implements IEditorContribution {
 				}
 			});
 			added.forEach(thread => {
-				let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.openerService, this.dialogService, this.notificationService, this.contextMenuService, this.editor, e.owner, thread, null, draftMode);
+				let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this._commandService, this.modelService, this.themeService, this.commentService, this.openerService, this.dialogService, this.notificationService, this.contextMenuService, this.editor, e.owner, thread, null, draftMode);
 				zoneWidget.display(thread.range.startLineNumber);
 				this._commentWidgets.push(zoneWidget);
 				this._commentInfos.filter(info => info.owner === e.owner)[0].threads.push(thread);
@@ -415,7 +424,7 @@ export class ReviewController implements IEditorContribution {
 
 		// add new comment
 		this._reviewPanelVisible.set(true);
-		this._newCommentWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.openerService, this.dialogService, this.notificationService, this.contextMenuService, this.editor, ownerId, {
+		this._newCommentWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this._commandService, this.modelService, this.themeService, this.commentService, this.openerService, this.dialogService, this.notificationService, this.contextMenuService, this.editor, ownerId, {
 			extensionId: extensionId,
 			threadId: null,
 			resource: null,
@@ -508,16 +517,24 @@ export class ReviewController implements IEditorContribution {
 			if (!newCommentInfo) {
 				return;
 			}
-			const { replyCommand, ownerId, extensionId } = newCommentInfo;
+			const { replyCommand, ownerId, extensionId, commentingRangesInfo } = newCommentInfo;
 
 			let commentInfo = this._commentInfos.filter(info => info.owner === ownerId);
 			if (!commentInfo || !commentInfo.length) {
 				return;
 			}
 
-			let draftMode = commentInfo[0].draftMode;
+			if (commentingRangesInfo) {
+				let range = new Range(lineNumber, 1, lineNumber, 1);
+				this.commentService.setActiveCommentingRange(range, commentingRangesInfo);
+				let commandId = replyCommand.id;
+				let args = replyCommand.arguments || [];
 
-			this.addComment(lineNumber, replyCommand, ownerId, extensionId, draftMode, null);
+				this._commandService.executeCommand(commandId, ...args);
+			} else {
+				let draftMode = commentInfo[0].draftMode;
+				this.addComment(lineNumber, replyCommand, ownerId, extensionId, draftMode, null);
+			}
 		}
 	}
 
@@ -530,7 +547,7 @@ export class ReviewController implements IEditorContribution {
 		this._commentInfos = commentInfos;
 		let lineDecorationsWidth: number = this.editor.getConfiguration().layoutInfo.decorationsWidth;
 
-		if (this._commentInfos.some(info => Boolean(info.commentingRanges && info.commentingRanges.length))) {
+		if (this._commentInfos.some(info => Boolean(info.commentingRanges && (Array.isArray(info.commentingRanges) ? info.commentingRanges : info.commentingRanges.ranges).length))) {
 			if (!this._commentingRangeSpaceReserved) {
 				this._commentingRangeSpaceReserved = true;
 				let extraEditorClassName: string[] = [];
@@ -573,7 +590,7 @@ export class ReviewController implements IEditorContribution {
 					thread.collapsibleState = modes.CommentThreadCollapsibleState.Expanded;
 				}
 
-				let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.openerService, this.dialogService, this.notificationService, this.contextMenuService, this.editor, info.owner, thread, pendingComment, info.draftMode);
+				let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this._commandService, this.modelService, this.themeService, this.commentService, this.openerService, this.dialogService, this.notificationService, this.contextMenuService, this.editor, info.owner, thread, pendingComment, info.draftMode);
 				zoneWidget.display(thread.range.startLineNumber);
 				this._commentWidgets.push(zoneWidget);
 			});
@@ -581,7 +598,7 @@ export class ReviewController implements IEditorContribution {
 
 		const commentingRanges: IRange[] = [];
 		this._commentInfos.forEach(info => {
-			commentingRanges.push(...info.commentingRanges);
+			commentingRanges.push(...(Array.isArray(info.commentingRanges) ? info.commentingRanges : info.commentingRanges.ranges));
 		});
 		this._commentingRangeDecorator.update(this.editor, this._commentInfos);
 	}
@@ -753,6 +770,6 @@ registerThemingParticipant((theme, collector) => {
 
 	const statusBarItemActiveBackground = theme.getColor(STATUS_BAR_ITEM_ACTIVE_BACKGROUND);
 	if (statusBarItemActiveBackground) {
-		collector.addRule(`.monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label:active { background-color: ${statusBarItemActiveBackground}; border: none;}`);
+		collector.addRule(`.monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label:active { background-color: ${statusBarItemActiveBackground}; border: 1px solid transparent;}`);
 	}
 });

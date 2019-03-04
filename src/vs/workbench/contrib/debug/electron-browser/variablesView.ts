@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import * as dom from 'vs/base/browser/dom';
-import { CollapseAction2 } from 'vs/workbench/browser/viewlet';
+import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDebugService, IExpression, IScope, CONTEXT_VARIABLES_FOCUSED, IViewModel } from 'vs/workbench/contrib/debug/common/debug';
 import { Variable, Scope } from 'vs/workbench/contrib/debug/common/debugModel';
@@ -88,7 +88,7 @@ export class VariablesView extends ViewletPanel {
 
 		CONTEXT_VARIABLES_FOCUSED.bindTo(this.contextKeyService.createScoped(treeContainer));
 
-		const collapseAction = new CollapseAction2(this.tree, true, 'explorer-action collapse-explorer');
+		const collapseAction = new CollapseAction(this.tree, true, 'explorer-action collapse-explorer');
 		this.toolbar.setActions([collapseAction])();
 		this.tree.updateChildren();
 
@@ -114,7 +114,7 @@ export class VariablesView extends ViewletPanel {
 		}));
 		this.disposables.push(this.debugService.getViewModel().onDidSelectExpression(e => {
 			if (e instanceof Variable) {
-				this.tree.refresh(e);
+				this.tree.rerender(e);
 			}
 		}));
 	}

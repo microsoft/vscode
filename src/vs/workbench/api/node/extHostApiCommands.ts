@@ -15,7 +15,7 @@ import * as search from 'vs/workbench/contrib/search/common/search';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { CustomCodeAction } from 'vs/workbench/api/node/extHostLanguageFeatures';
-import { ICommandsExecutor, PreviewHTMLAPICommand, OpenFolderAPICommand, DiffAPICommand, OpenAPICommand, RemoveFromRecentlyOpenedAPICommand, SetEditorLayoutAPICommand } from './apiCommands';
+import { ICommandsExecutor, OpenFolderAPICommand, DiffAPICommand, OpenAPICommand, RemoveFromRecentlyOpenedAPICommand, SetEditorLayoutAPICommand } from './apiCommands';
 import { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 
@@ -135,7 +135,7 @@ export class ExtHostApiCommands {
 			args: [
 				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
 				{ name: 'range', description: 'Range in a text document', constraint: types.Range },
-				{ name: 'kind', description: '(optional) Code action kind to return code actions for', },
+				{ name: 'kind', description: '(optional) Code action kind to return code actions for', constraint: (value: any) => !value || typeof value.value === 'string' },
 			],
 			returns: 'A promise that resolves to an array of Command-instances.'
 		});
@@ -218,20 +218,6 @@ export class ExtHostApiCommands {
 				return handler(this._commands, ...args);
 			};
 		};
-
-		this._register(PreviewHTMLAPICommand.ID, adjustHandler(PreviewHTMLAPICommand.execute), {
-			description: `
-					Render the HTML of the resource in an editor view.
-
-					See [working with the HTML preview](https://code.visualstudio.com/docs/extensionAPI/vscode-api-commands#working-with-the-html-preview) for more information about the HTML preview's integration with the editor and for best practices for extension authors.
-				`,
-			args: [
-				{ name: 'uri', description: 'Uri of the resource to preview.', constraint: (value: any) => value instanceof URI || typeof value === 'string' },
-				{ name: 'column', description: '(optional) Column in which to preview.', constraint: (value: any) => typeof value === 'undefined' || (typeof value === 'number' && typeof types.ViewColumn[value] === 'string') },
-				{ name: 'label', description: '(optional) An human readable string that is used as title for the preview.', constraint: (v: any) => typeof v === 'string' || typeof v === 'undefined' },
-				{ name: 'options', description: '(optional) Options for controlling webview environment.', constraint: (v: any) => typeof v === 'object' || typeof v === 'undefined' }
-			]
-		});
 
 		this._register(OpenFolderAPICommand.ID, adjustHandler(OpenFolderAPICommand.execute), {
 			description: 'Open a folder or workspace in the current window or new window depending on the newWindow argument. Note that opening in the same window will shutdown the current extension host process and start a new one on the given folder/workspace unless the newWindow parameter is set to true.',

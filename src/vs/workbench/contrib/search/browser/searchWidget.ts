@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -15,7 +14,6 @@ import { Action } from 'vs/base/common/actions';
 import { Delayer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import * as env from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { CONTEXT_FIND_WIDGET_NOT_VISIBLE } from 'vs/editor/contrib/find/findModel';
 import * as nls from 'vs/nls';
@@ -34,6 +32,7 @@ import * as Constants from 'vs/workbench/contrib/search/common/constants';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 
 export interface ISearchWidgetOptions {
 	value?: string;
@@ -134,7 +133,8 @@ export class SearchWidget extends Widget {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly keyBindingService: IKeybindingService,
 		@IClipboardService private readonly clipboardServce: IClipboardService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
 		super();
 		this.replaceActive = Constants.ReplaceActiveKey.bindTo(this.contextKeyService);
@@ -148,7 +148,7 @@ export class SearchWidget extends Widget {
 				this.updateAccessibilitySupport();
 			}
 		});
-		browser.onDidChangeAccessibilitySupport(() => this.updateAccessibilitySupport());
+		this.accessibilityService.onDidChangeAccessibilitySupport(() => this.updateAccessibilitySupport());
 		this.updateAccessibilitySupport();
 	}
 
@@ -169,6 +169,7 @@ export class SearchWidget extends Widget {
 	}
 
 	setWidth(width: number) {
+		this.searchInput.inputBox.layout();
 		this.replaceInput.width = width - 28;
 		this.replaceInput.layout();
 	}
@@ -252,7 +253,7 @@ export class SearchWidget extends Widget {
 	}
 
 	private isScreenReaderOptimized() {
-		const detected = browser.getAccessibilitySupport() === env.AccessibilitySupport.Enabled;
+		const detected = this.accessibilityService.getAccessibilitySupport() === AccessibilitySupport.Enabled;
 		const config = this.configurationService.getValue<IEditorOptions>('editor').accessibilitySupport;
 		return config === 'on' || (config === 'auto' && detected);
 	}

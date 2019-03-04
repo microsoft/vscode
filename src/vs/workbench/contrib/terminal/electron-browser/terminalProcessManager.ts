@@ -97,7 +97,6 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 
 		if (shellLaunchConfig.cwd && typeof shellLaunchConfig.cwd === 'object') {
 			launchRemotely = !!getRemoteAuthority(shellLaunchConfig.cwd);
-			shellLaunchConfig.cwd = shellLaunchConfig.cwd.fsPath;
 		} else {
 			launchRemotely = !!this._windowService.getConfiguration().remoteAuthority;
 		}
@@ -139,7 +138,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 
 				// Sanitize the environment, removing any undesirable VS Code and Electron environment
 				// variables
-				sanitizeProcessEnvironment(env);
+				sanitizeProcessEnvironment(env, 'VSCODE_IPC_HOOK_CLI');
 
 				// Adding other env keys necessary to create the process
 				terminalEnvironment.addTerminalEnvironmentKeys(env, platform.locale, this._configHelper.config.setLocaleVariables);

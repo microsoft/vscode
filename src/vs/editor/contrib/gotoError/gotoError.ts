@@ -25,6 +25,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { Action } from 'vs/base/common/actions';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 class MarkerModel {
 
@@ -212,7 +213,8 @@ export class MarkerController implements editorCommon.IEditorContribution {
 		@IMarkerService private readonly _markerService: IMarkerService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IThemeService private readonly _themeService: IThemeService,
-		@ICodeEditorService private readonly _editorService: ICodeEditorService
+		@ICodeEditorService private readonly _editorService: ICodeEditorService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
 		this._editor = editor;
 		this._widgetVisible = CONTEXT_MARKERS_NAVIGATION_VISIBLE.bindTo(this._contextKeyService);
@@ -243,9 +245,11 @@ export class MarkerController implements editorCommon.IEditorContribution {
 		this._model = new MarkerModel(this._editor, markers);
 		this._markerService.onMarkerChanged(this._onMarkerChanged, this, this._disposeOnClose);
 
+		const prevMarkerKeybinding = this._keybindingService.lookupKeybinding(PrevMarkerAction.ID);
+		const nextMarkerKeybinding = this._keybindingService.lookupKeybinding(NextMarkerAction.ID);
 		const actions = [
-			new Action(PrevMarkerAction.ID, PrevMarkerAction.LABEL, 'show-previous-problem octicon octicon-chevron-up', this._model.canNavigate(), async () => { if (this._model) { this._model.move(false, true); } }),
-			new Action(NextMarkerAction.ID, NextMarkerAction.LABEL, 'show-next-problem octicon octicon-chevron-down', this._model.canNavigate(), async () => { if (this._model) { this._model.move(true, true); } })
+			new Action(PrevMarkerAction.ID, PrevMarkerAction.LABEL + (prevMarkerKeybinding ? ` (${prevMarkerKeybinding.getLabel()})` : ''), 'show-previous-problem chevron-up', this._model.canNavigate(), async () => { if (this._model) { this._model.move(false, true); } }),
+			new Action(NextMarkerAction.ID, NextMarkerAction.LABEL + (nextMarkerKeybinding ? ` (${nextMarkerKeybinding.getLabel()})` : ''), 'show-next-problem chevron-down', this._model.canNavigate(), async () => { if (this._model) { this._model.move(true, true); } })
 		];
 		this._widget = new MarkerNavigationWidget(this._editor, actions, this._themeService);
 		this._widgetVisible.set(true);
@@ -416,7 +420,7 @@ class MarkerNavigationAction extends EditorAction {
 	}
 }
 
-class NextMarkerAction extends MarkerNavigationAction {
+export class NextMarkerAction extends MarkerNavigationAction {
 	static ID: string = 'editor.action.marker.next';
 	static LABEL: string = nls.localize('markerAction.next.label', "Go to Next Problem (Error, Warning, Info)");
 	constructor() {
@@ -424,7 +428,8 @@ class NextMarkerAction extends MarkerNavigationAction {
 			id: NextMarkerAction.ID,
 			label: NextMarkerAction.LABEL,
 			alias: 'Go to Next Error or Warning',
-			precondition: EditorContextKeys.writable
+			precondition: EditorContextKeys.writable,
+			kbOpts: { kbExpr: EditorContextKeys.editorTextFocus, primary: KeyMod.Alt | KeyCode.F8, weight: KeybindingWeight.EditorContrib }
 		});
 	}
 }
@@ -437,7 +442,8 @@ class PrevMarkerAction extends MarkerNavigationAction {
 			id: PrevMarkerAction.ID,
 			label: PrevMarkerAction.LABEL,
 			alias: 'Go to Previous Error or Warning',
-			precondition: EditorContextKeys.writable
+			precondition: EditorContextKeys.writable,
+			kbOpts: { kbExpr: EditorContextKeys.editorTextFocus, primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F8, weight: KeybindingWeight.EditorContrib }
 		});
 	}
 }

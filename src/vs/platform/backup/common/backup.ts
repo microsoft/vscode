@@ -7,7 +7,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { URI } from 'vs/base/common/uri';
 
-export interface ISerializedWorkspace { id: string; configURIPath: string; }
+export interface ISerializedWorkspace { id: string; configURIPath: string; remoteAuthority?: string; }
 
 export interface IBackupWorkspacesFormat {
 	rootURIWorkspaces: ISerializedWorkspace[];
@@ -27,16 +27,21 @@ export interface IEmptyWindowBackupInfo {
 	remoteAuthority?: string;
 }
 
+export interface IWorkspaceBackupInfo {
+	workspace: IWorkspaceIdentifier;
+	remoteAuthority?: string;
+}
+
 export interface IBackupMainService {
 	_serviceBrand: any;
 
 	isHotExitEnabled(): boolean;
 
-	getWorkspaceBackups(): IWorkspaceIdentifier[];
+	getWorkspaceBackups(): IWorkspaceBackupInfo[];
 	getFolderBackupPaths(): URI[];
 	getEmptyWindowBackupPaths(): IEmptyWindowBackupInfo[];
 
-	registerWorkspaceBackupSync(workspace: IWorkspaceIdentifier, migrateFrom?: string): string;
+	registerWorkspaceBackupSync(workspace: IWorkspaceBackupInfo, migrateFrom?: string): string;
 	registerFolderBackupSync(folderUri: URI): string;
 	registerEmptyWindowBackupSync(backupInfo: IEmptyWindowBackupInfo): string;
 

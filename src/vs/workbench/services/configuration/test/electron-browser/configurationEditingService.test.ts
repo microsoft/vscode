@@ -20,7 +20,7 @@ import { TestNotificationService } from 'vs/platform/notification/test/common/te
 import * as uuid from 'vs/base/common/uuid';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
-import { FileService } from 'vs/workbench/services/files/electron-browser/fileService';
+import { FileService } from 'vs/workbench/services/files/node/fileService';
 import { ConfigurationEditingService, ConfigurationEditingError, ConfigurationEditingErrorCode } from 'vs/workbench/services/configuration/node/configurationEditingService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { WORKSPACE_STANDALONE_CONFIGURATIONS } from 'vs/workbench/services/configuration/common/configuration';

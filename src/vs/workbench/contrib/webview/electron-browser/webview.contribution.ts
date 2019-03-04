@@ -15,9 +15,8 @@ import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } fro
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { Extensions as EditorInputExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { WebviewEditorInputFactory } from 'vs/workbench/contrib/webview/electron-browser/webviewEditorInputFactory';
-import { KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE } from './baseWebviewEditor';
 import { HideWebViewEditorFindCommand, OpenWebviewDeveloperToolsAction, ReloadWebviewAction, ShowWebViewEditorFindWidgetCommand, SelectAllWebviewEditorCommand, CopyWebviewEditorCommand, PasteWebviewEditorCommand, CutWebviewEditorCommand, UndoWebviewEditorCommand, RedoWebviewEditorCommand } from './webviewCommands';
-import { WebviewEditor } from './webviewEditor';
+import { WebviewEditor, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE } from './webviewEditor';
 import { WebviewEditorInput } from './webviewEditorInput';
 import { IWebviewEditorService, WebviewEditorService } from './webviewEditorService';
 import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';

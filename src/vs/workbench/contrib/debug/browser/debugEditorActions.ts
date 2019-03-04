@@ -16,7 +16,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { openBreakpointSource } from 'vs/workbench/contrib/debug/browser/breakpointsView';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { PanelFocusContext } from 'vs/workbench/browser/parts/panel/panelPart';
+import { PanelFocusContext } from 'vs/workbench/common/panel';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 
 export const TOGGLE_BREAKPOINT_ID = 'editor.debug.action.toggleBreakpoint';
@@ -299,8 +299,8 @@ registerEditorAction(GoToPreviousBreakpointAction);
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: RunToCursorAction.ID,
-		title: RunToCursorAction.LABEL,
-		category: 'Debug'
+		title: { value: RunToCursorAction.LABEL, original: 'Debug: Run to Cursor' },
+		category: nls.localize('debug', "Debug")
 	},
 	group: 'debug',
 	when: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEqualTo('stopped')),

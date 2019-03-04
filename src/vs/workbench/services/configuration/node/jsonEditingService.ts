@@ -20,6 +20,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IJSONEditingService, IJSONValue, JSONEditingError, JSONEditingErrorCode } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { ITextModel } from 'vs/editor/common/model';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class JSONEditingService implements IJSONEditingService {
 
@@ -131,3 +132,5 @@ export class JSONEditingService implements IJSONEditingService {
 		}
 	}
 }
+
+registerSingleton(IJSONEditingService, JSONEditingService, true);

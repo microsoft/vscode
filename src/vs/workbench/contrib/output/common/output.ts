@@ -68,7 +68,7 @@ export interface IOutputService {
 	 * Given the channel id returns the output channel instance.
 	 * Channel should be first registered via OutputChannelRegistry.
 	 */
-	getChannel(id: string): IOutputChannel;
+	getChannel(id: string): IOutputChannel | null;
 
 	/**
 	 * Returns an array of all known output channels descriptors.
@@ -79,7 +79,7 @@ export interface IOutputService {
 	 * Returns the currently active channel.
 	 * Only one channel can be active at a given moment.
 	 */
-	getActiveChannel(): IOutputChannel;
+	getActiveChannel(): IOutputChannel | null;
 
 	/**
 	 * Show the channel with the passed id.
@@ -135,6 +135,10 @@ export interface IOutputChannelDescriptor {
 	label: string;
 	log: boolean;
 	file?: URI;
+}
+
+export interface IFileOutputChannelDescriptor extends IOutputChannelDescriptor {
+	file: URI;
 }
 
 export interface IOutputChannelRegistry {

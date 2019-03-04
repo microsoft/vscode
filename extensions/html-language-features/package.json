@@ -12,8 +12,7 @@
   "icon": "icons/html.png",
   "activationEvents": [
     "onLanguage:html",
-    "onLanguage:handlebars",
-    "onLanguage:razor"
+    "onLanguage:handlebars"
   ],
   "main": "./client/out/htmlMain",
   "scripts": {

@@ -725,6 +725,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 				const hwAltKey = (mod & 0b100) ? true : false;
 				const scanCodeCombo = new ScanCodeCombo(hwCtrlKey, hwShiftKey, hwAltKey, scanCode);
 				const resolvedKb = this.resolveKeyboardEvent({
+					_standardKeyboardEventBrand: true,
 					ctrlKey: scanCodeCombo.ctrlKey,
 					shiftKey: scanCodeCombo.shiftKey,
 					altKey: scanCodeCombo.altKey,
@@ -967,6 +968,13 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		for (let part of keybinding.parts) {
 			chordParts.push(this.simpleKeybindingToScanCodeBinding(part));
 		}
+		return this._toResolvedKeybinding(chordParts);
+	}
+
+	private _toResolvedKeybinding(chordParts: ScanCodeBinding[][]): NativeResolvedKeybinding[] {
+		if (chordParts.length === 0) {
+			return [];
+		}
 		let result: NativeResolvedKeybinding[] = [];
 		this._generateResolvedKeybindings(chordParts, 0, [], result);
 		return result;
@@ -1055,9 +1063,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 
 	public resolveUserBinding(input: (SimpleKeybinding | ScanCodeBinding)[]): ResolvedKeybinding[] {
 		const parts: ScanCodeBinding[][] = input.map(keybinding => this._resolveSimpleUserBinding(keybinding));
-		let result: NativeResolvedKeybinding[] = [];
-		this._generateResolvedKeybindings(parts, 0, [], result);
-		return result;
+		return this._toResolvedKeybinding(parts);
 	}
 
 	private static _charCodeToKb(charCode: number): { keyCode: KeyCode; shiftKey: boolean } | null {

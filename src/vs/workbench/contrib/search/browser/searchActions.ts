@@ -27,7 +27,8 @@ import { BaseFolderMatch, FileMatch, FileMatchOrMatch, FolderMatch, Match, Rende
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { ISearchConfiguration, ISearchHistoryService, VIEW_ID } from 'vs/workbench/services/search/common/search';
+import { ISearchConfiguration, VIEW_ID } from 'vs/workbench/services/search/common/search';
+import { ISearchHistoryService } from 'vs/workbench/contrib/search/common/searchHistoryService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 
 export function isSearchViewFocused(viewletService: IViewletService, panelService: IPanelService): boolean {

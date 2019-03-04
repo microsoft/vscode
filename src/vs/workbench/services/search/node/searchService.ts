@@ -29,6 +29,7 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { IRawSearchService, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, isSerializedSearchComplete, isSerializedSearchSuccess } from './search';
 import { SearchChannelClient } from './searchIpc';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class SearchService extends Disposable implements ISearchService {
 	_serviceBrand: any;
@@ -79,8 +80,6 @@ export class SearchService extends Disposable implements ISearchService {
 			arrays.coalesce(localResults.values()).forEach(onProgress);
 		}
 
-		this.logService.trace('SearchService#search', JSON.stringify(query));
-
 		const onProviderProgress = progress => {
 			if (progress.resource) {
 				// Match
@@ -105,6 +104,8 @@ export class SearchService extends Disposable implements ISearchService {
 	}
 
 	private doSearch(query: ISearchQuery, token?: CancellationToken, onProgress?: (item: ISearchProgressItem) => void): Promise<ISearchComplete> {
+		this.logService.trace('SearchService#search', JSON.stringify(query));
+
 		const schemesInQuery = this.getSchemesInQuery(query);
 
 		const providerActivations: Promise<any>[] = [Promise.resolve(null)];
@@ -586,3 +587,5 @@ export class DiskSearch implements ISearchResultProvider {
 		return this.raw.clearCache(cacheKey);
 	}
 }
+
+registerSingleton(ISearchService, SearchService, true);

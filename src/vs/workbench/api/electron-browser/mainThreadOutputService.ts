@@ -86,8 +86,11 @@ export class MainThreadOutputService extends Disposable implements MainThreadOut
 
 	public $close(channelId: string): Promise<void> | undefined {
 		const panel = this._panelService.getActivePanel();
-		if (panel && panel.getId() === OUTPUT_PANEL_ID && channelId === this._outputService.getActiveChannel().id) {
-			this._partService.setPanelHidden(true);
+		if (panel && panel.getId() === OUTPUT_PANEL_ID) {
+			const activeChannel = this._outputService.getActiveChannel();
+			if (activeChannel && channelId === activeChannel.id) {
+				this._partService.setPanelHidden(true);
+			}
 		}
 
 		return undefined;
@@ -101,7 +104,7 @@ export class MainThreadOutputService extends Disposable implements MainThreadOut
 		return undefined;
 	}
 
-	private _getChannel(channelId: string): IOutputChannel {
+	private _getChannel(channelId: string): IOutputChannel | null {
 		return this._outputService.getChannel(channelId);
 	}
 }

@@ -5,7 +5,7 @@
 
 import { Registry } from 'vs/platform/registry/common/platform';
 import * as nls from 'vs/nls';
-import product from 'vs/platform/node/product';
+import product from 'vs/platform/product/node/product';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { OpenIssueReporterAction, ReportPerformanceIssueUsingReporterAction, OpenProcessExplorer } from 'vs/workbench/contrib/issue/electron-browser/issueActions';

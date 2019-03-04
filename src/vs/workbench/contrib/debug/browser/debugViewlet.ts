@@ -27,6 +27,10 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { DebugToolbar } from 'vs/workbench/contrib/debug/browser/debugToolbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
+import { IMenu, MenuId, IMenuService, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { MenuItemActionItem } from 'vs/platform/actions/browser/menuItemActionItem';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export class DebugViewlet extends ViewContainerViewlet {
 
@@ -35,6 +39,7 @@ export class DebugViewlet extends ViewContainerViewlet {
 	private breakpointView: ViewletPanel;
 	private panelListeners = new Map<string, IDisposable>();
 	private allActions: AbstractDebugAction[] = [];
+	private debugToolbarMenu: IMenu;
 
 	constructor(
 		@IPartService partService: IPartService,
@@ -50,6 +55,9 @@ export class DebugViewlet extends ViewContainerViewlet {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
+		@IMenuService private readonly menuService: IMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@INotificationService private readonly notificationService: INotificationService
 	) {
 		super(VIEWLET_ID, `${VIEWLET_ID}.state`, false, configurationService, partService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
 
@@ -102,7 +110,11 @@ export class DebugViewlet extends ViewContainerViewlet {
 			return [this.startAction, this.configureAction, this.toggleReplAction];
 		}
 
-		return DebugToolbar.getActions(this.allActions, this.toDispose, this.debugService, this.keybindingService, this.instantiationService);
+		if (!this.debugToolbarMenu) {
+			this.debugToolbarMenu = this.menuService.createMenu(MenuId.DebugToolbar, this.contextKeyService);
+			this.toDispose.push(this.debugToolbarMenu);
+		}
+		return DebugToolbar.getActions(this.debugToolbarMenu, this.allActions, this.toDispose, this.debugService, this.keybindingService, this.instantiationService);
 	}
 
 	get showInitialDebugActions(): boolean {
@@ -125,6 +137,9 @@ export class DebugViewlet extends ViewContainerViewlet {
 		}
 		if (action.id === FocusSessionAction.ID) {
 			return new FocusSessionActionItem(action, this.debugService, this.themeService, this.contextViewService);
+		}
+		if (action instanceof MenuItemAction) {
+			return new MenuItemActionItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
 		}
 
 		return null;
