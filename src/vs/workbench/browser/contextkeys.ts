@@ -8,7 +8,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
 import { IWindowConfiguration, IWindowService } from 'vs/platform/windows/common/windows';
-import { ActiveEditorContext, EditorsVisibleContext, TextCompareEditorVisibleContext, TextCompareEditorActiveContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, TEXT_DIFF_EDITOR_ID, SplitEditorsVertically } from 'vs/workbench/common/editor';
+import { ActiveEditorContext, EditorsVisibleContext, TextCompareEditorVisibleContext, TextCompareEditorActiveContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, TEXT_DIFF_EDITOR_ID, SplitEditorsVertically, InEditorZenModeContext } from 'vs/workbench/common/editor';
 import { IsMacContext, IsLinuxContext, IsWindowsContext, HasMacNativeTabsContext, IsDevelopmentContext, SupportsWorkspacesContext, SupportsOpenFileFolderContext, WorkbenchStateContext, WorkspaceFolderCountContext } from 'vs/workbench/common/contextkeys';
 import { trackFocus, addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { preferredSideBySideGroupDirection, GroupDirection, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -17,18 +17,28 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { EditorGroupsServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
+import { SidebarVisibleContext } from 'vs/workbench/common/viewlet';
+import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 
 export class WorkbenchContextKeysHandler extends Disposable {
 	private inputFocusedContext: IContextKey<boolean>;
+
 	private activeEditorContext: IContextKey<string | null>;
 	private editorsVisibleContext: IContextKey<boolean>;
 	private textCompareEditorVisibleContext: IContextKey<boolean>;
 	private textCompareEditorActiveContext: IContextKey<boolean>;
 	private activeEditorGroupEmpty: IContextKey<boolean>;
 	private multipleEditorGroupsContext: IContextKey<boolean>;
+	private splitEditorsVerticallyContext: IContextKey<boolean>;
+
 	private workbenchStateContext: IContextKey<string>;
 	private workspaceFolderCountContext: IContextKey<number>;
-	private splitEditorsVerticallyContext: IContextKey<boolean>;
+
+
+	private inZenModeContext: IContextKey<boolean>;
+
+	private sideBarVisibleContext: IContextKey<boolean>;
 
 	constructor(
 		@IContextKeyService private contextKeyService: IContextKeyService,
@@ -37,7 +47,9 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWindowService private windowService: IWindowService,
 		@IEditorService private editorService: IEditorService,
-		@IEditorGroupsService private editorGroupService: EditorGroupsServiceImpl
+		@IEditorGroupsService private editorGroupService: EditorGroupsServiceImpl,
+		@IPartService private partService: IPartService,
+		@IViewletService private viewletService: IViewletService
 	) {
 		super();
 
@@ -63,6 +75,11 @@ export class WorkbenchContextKeysHandler extends Disposable {
 				this.updateSplitEditorsVerticallyContext();
 			}
 		}));
+
+		this._register(this.partService.onZenModeChange(enabled => this.inZenModeContext.set(enabled)));
+
+		this._register(this.viewletService.onDidViewletClose(() => this.updateSideBarContextKeys()));
+		this._register(this.viewletService.onDidViewletOpen(() => this.updateSideBarContextKeys()));
 	}
 
 	private initContextKeys(): void {
@@ -105,6 +122,12 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		// Editor Layout
 		this.splitEditorsVerticallyContext = SplitEditorsVertically.bindTo(this.contextKeyService);
 		this.updateSplitEditorsVerticallyContext();
+
+		// Zen Mode
+		this.inZenModeContext = InEditorZenModeContext.bindTo(this.contextKeyService);
+
+		// Sidebar
+		this.sideBarVisibleContext = SidebarVisibleContext.bindTo(this.contextKeyService);
 	}
 
 	private updateEditorContextKeys(): void {
@@ -177,5 +200,9 @@ export class WorkbenchContextKeysHandler extends Disposable {
 			case WorkbenchState.FOLDER: return 'folder';
 			case WorkbenchState.WORKSPACE: return 'workspace';
 		}
+	}
+
+	private updateSideBarContextKeys(): void {
+		this.sideBarVisibleContext.set(this.partService.isVisible(Parts.SIDEBAR_PART));
 	}
 }

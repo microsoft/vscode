@@ -19,7 +19,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { isWindows, isLinux, isMacintosh, language } from 'vs/base/common/platform';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { IEditorInputFactoryRegistry, Extensions as EditorExtensions, IUntitledResourceInput, IResourceDiffInput, InEditorZenModeContext } from 'vs/workbench/common/editor';
+import { IEditorInputFactoryRegistry, Extensions as EditorExtensions, IUntitledResourceInput, IResourceDiffInput } from 'vs/workbench/common/editor';
 import { ActivitybarPart } from 'vs/workbench/browser/parts/activitybar/activitybarPart';
 import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
@@ -40,7 +40,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IActivityService } from 'vs/workbench/services/activity/common/activity';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -111,7 +111,6 @@ import { WorkbenchThemeService } from 'vs/workbench/services/themes/browser/work
 import { IProductService } from 'vs/platform/product/common/product';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { WorkbenchContextKeysHandler } from 'vs/workbench/browser/contextkeys';
-import { SidebarVisibleContext } from 'vs/workbench/common/viewlet';
 
 // import@node
 import { BackupFileService, InMemoryBackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
@@ -202,7 +201,6 @@ export class Workbench extends Disposable implements IPartService {
 	private editorService: EditorService;
 	private editorGroupService: IEditorGroupsService;
 	private contextViewService: ContextViewService;
-	private contextKeyService: IContextKeyService;
 	private keybindingService: IKeybindingService;
 	private backupFileService: IBackupFileService;
 	private notificationService: NotificationService;
@@ -225,8 +223,6 @@ export class Workbench extends Disposable implements IPartService {
 	private notificationsToasts: NotificationsToasts;
 
 	private fontAliasing: FontAliasingOption;
-	private inZenModeContext: IContextKey<boolean>;
-	private sideBarVisibleContext: IContextKey<boolean>;
 
 	constructor(
 		private container: HTMLElement,
@@ -335,8 +331,6 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Context Keys
 		this._register(this.instantiationService.createInstance(WorkbenchContextKeysHandler));
-		this.inZenModeContext = InEditorZenModeContext.bindTo(this.contextKeyService);
-		this.sideBarVisibleContext = SidebarVisibleContext.bindTo(this.contextKeyService);
 
 		// Register Listeners
 		this.registerListeners();
@@ -494,8 +488,7 @@ export class Workbench extends Disposable implements IPartService {
 		serviceCollection.set(IStatusbarService, this.statusbarPart);
 
 		// Context Keys
-		this.contextKeyService = this.instantiationService.createInstance(ContextKeyService);
-		serviceCollection.set(IContextKeyService, this.contextKeyService);
+		serviceCollection.set(IContextKeyService, new SyncDescriptor(ContextKeyService));
 
 		// Keybindings
 		this.keybindingService = this.instantiationService.createInstance(WorkbenchKeybindingService, window);
@@ -696,8 +689,6 @@ export class Workbench extends Disposable implements IPartService {
 		// Restore Sidebar
 		let viewletIdToRestore: string | undefined;
 		if (!this.state.sideBar.hidden) {
-			this.sideBarVisibleContext.set(true);
-
 			if (this.shouldRestoreLastOpenedViewlet()) {
 				viewletIdToRestore = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE);
 			}
@@ -1055,6 +1046,9 @@ export class Workbench extends Disposable implements IPartService {
 	private readonly _onTitleBarVisibilityChange: Emitter<void> = this._register(new Emitter<void>());
 	get onTitleBarVisibilityChange(): Event<void> { return this._onTitleBarVisibilityChange.event; }
 
+	private readonly _onZenMode: Emitter<boolean> = this._register(new Emitter<boolean>());
+	get onZenModeChange(): Event<boolean> { return this._onZenMode.event; }
+
 	get onEditorLayout(): Event<IDimension> { return this.editorPart.onDidLayout; }
 
 	private workbenchGrid: Grid<View> | WorkbenchLayout;
@@ -1346,8 +1340,6 @@ export class Workbench extends Disposable implements IPartService {
 			toggleFullScreen = this.state.zenMode.transitionedToFullScreen && isFullscreen();
 		}
 
-		this.inZenModeContext.set(this.state.zenMode.active);
-
 		if (!skipLayout) {
 			this.layout();
 		}
@@ -1355,6 +1347,9 @@ export class Workbench extends Disposable implements IPartService {
 		if (toggleFullScreen) {
 			this.windowService.toggleFullScreen();
 		}
+
+		// Event
+		this._onZenMode.fire(this.state.zenMode.active);
 	}
 
 	private setStatusBarHidden(hidden: boolean, skipLayout?: boolean): void {
@@ -1601,7 +1596,6 @@ export class Workbench extends Disposable implements IPartService {
 
 	setSideBarHidden(hidden: boolean, skipLayout?: boolean): void {
 		this.state.sideBar.hidden = hidden;
-		this.sideBarVisibleContext.set(!hidden);
 
 		// Adjust CSS
 		if (hidden) {

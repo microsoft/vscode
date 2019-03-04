@@ -50,6 +50,11 @@ export interface IPartService {
 	onTitleBarVisibilityChange: Event<void>;
 
 	/**
+	 * Emits when the zen mode is enabled or disabled.
+	 */
+	onZenModeChange: Event<boolean>;
+
+	/**
 	 * Emits when the editor part's layout changes.
 	 */
 	onEditorLayout: Event<IDimension>;
