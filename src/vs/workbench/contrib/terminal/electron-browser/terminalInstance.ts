@@ -754,7 +754,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._disposables = lifecycle.dispose(this._disposables);
 	}
 
-	public finishedWithRenderer(result?: number): void {
+	public rendererExit(result?: number): void {
 		// The use of this API is for cases where there is no backing process
 		// behind a terminal instance (such as when executing an custom execution task).
 		// There is no associated string, error text, etc, as the consumer of the renderer

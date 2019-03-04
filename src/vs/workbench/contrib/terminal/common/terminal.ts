@@ -434,7 +434,7 @@ export interface ITerminalInstance {
 	 *
 	 * @param result - Optional result code from a from a task process or custom execution.
 	 */
-	finishedWithRenderer(result?: number): void;
+	rendererExit(result?: number): void;
 
 	/**
 	 * Forces the terminal to redraw its viewport.

@@ -278,7 +278,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}
 
 		return new Promise<void>((resolve) => {
-			activeTerminal.terminal.finishedWithRenderer(result);
+			activeTerminal.terminal.rendererExit(result);
 			resolve();
 		});
 	}
