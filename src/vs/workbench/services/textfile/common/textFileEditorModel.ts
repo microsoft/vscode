@@ -480,7 +480,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// where `value` was captured in the content change listener closure scope.
 
 		// Content Change
-		this._register(this.textEditorModel!.onDidChangeContent(() => this.onModelContentChanged()));
+		if (this.textEditorModel) {
+			this._register(this.textEditorModel.onDidChangeContent(() => this.onModelContentChanged()));
+		}
 	}
 
 	private doLoadBackup(backup: URI | undefined): Promise<ITextBufferFactory | null> {
@@ -511,7 +513,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// In this case we clear the dirty flag and emit a SAVED event to indicate this state.
 		// Note: we currently only do this check when auto-save is turned off because there you see
 		// a dirty indicator that you want to get rid of when undoing to the saved version.
-		if (!this.autoSaveAfterMilliesEnabled && this.textEditorModel!.getAlternativeVersionId() === this.bufferSavedVersionId) {
+		if (!this.autoSaveAfterMilliesEnabled && this.textEditorModel && this.textEditorModel.getAlternativeVersionId() === this.bufferSavedVersionId) {
 			this.logService.trace('onModelContentChanged() - model content changed back to last saved version', this.resource);
 
 			// Clear flags
@@ -642,8 +644,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// Push all edit operations to the undo stack so that the user has a chance to
 		// Ctrl+Z back to the saved version. We only do this when auto-save is turned off
-		if (!this.autoSaveAfterMilliesEnabled) {
-			this.textEditorModel!.pushStackElement();
+		if (!this.autoSaveAfterMilliesEnabled && this.textEditorModel) {
+			this.textEditorModel.pushStackElement();
 		}
 
 		// A save participant can still change the model now and since we are so close to saving
@@ -698,7 +700,11 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// Save to Disk
 			// mark the save operation as currently pending with the versionId (it might have changed from a save participant triggering)
 			this.logService.trace(`doSave(${versionId}) - before updateContent()`, this.resource);
-			return this.saveSequentializer.setPending(newVersionId, this.fileService.updateContent(this.lastResolvedDiskStat.resource, this.createSnapshot()!, {
+			const snapshot = this.createSnapshot();
+			if (!snapshot) {
+				throw new Error('Invalid snapshot');
+			}
+			return this.saveSequentializer.setPending(newVersionId, this.fileService.updateContent(this.lastResolvedDiskStat.resource, snapshot, {
 				overwriteReadonly: options.overwriteReadonly,
 				overwriteEncoding: options.overwriteEncoding,
 				mtime: this.lastResolvedDiskStat.mtime,
@@ -834,7 +840,11 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	private doTouch(versionId: number): Promise<void> {
-		return this.saveSequentializer.setPending(versionId, this.fileService.updateContent(this.lastResolvedDiskStat.resource, this.createSnapshot()!, {
+		const snapshot = this.createSnapshot();
+		if (!snapshot) {
+			throw new Error('invalid snapshot');
+		}
+		return this.saveSequentializer.setPending(versionId, this.fileService.updateContent(this.lastResolvedDiskStat.resource, snapshot, {
 			mtime: this.lastResolvedDiskStat.mtime,
 			encoding: this.getEncoding(),
 			etag: this.lastResolvedDiskStat.etag
@@ -1120,7 +1130,7 @@ export class SaveSequentializer {
 			this._nextSave.run = run;
 		}
 
-		return this._nextSave!.promise;
+		return this._nextSave.promise;
 	}
 }
 
