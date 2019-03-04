@@ -54,6 +54,11 @@ import { IDownloadService } from 'vs/platform/download/common/download';
 import { SimpleDownloadService } from 'vs/workbench/nodeless/services/simpleDownloadService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { SimpleClipboardService } from 'vs/workbench/nodeless/services/simpleClipboardService';
+import { SimpleJSONEditingService } from 'vs/workbench/nodeless/services/simpleJSONEditingService';
+import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
+import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { SimpleFileDialogService } from 'vs/workbench/nodeless/services/simpleFileDialogService';
+import { SimpleDialogService } from 'vs/workbench/nodeless/services/simpleDialogService';
 
 import 'vs/workbench/services/bulkEdit/browser/bulkEditService';
 // import 'vs/workbench/services/integrity/node/integrityService';
@@ -68,6 +73,9 @@ import 'vs/workbench/nodeless/services/simpleSearchService';
 import 'vs/workbench/services/progress/browser/progressService2';
 import 'vs/workbench/services/editor/browser/codeEditorService';
 import 'vs/workbench/nodeless/services/simpleBroadcastService';
+import 'vs/workbench/services/preferences/browser/preferencesService';
+import 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
+import 'vs/workbench/services/textfile/common/textFileService';
 
 registerSingleton(IMenuService, MenuService, true);
 registerSingleton(IListService, ListService, true);
@@ -77,6 +85,9 @@ registerSingleton(IMarkerDecorationsService, MarkerDecorationsService);
 registerSingleton(IMarkerService, MarkerService, true);
 registerSingleton(IDownloadService, SimpleDownloadService, true);
 registerSingleton(IClipboardService, SimpleClipboardService, true);
+registerSingleton(IJSONEditingService, SimpleJSONEditingService, true);
+registerSingleton(IDialogService, SimpleDialogService, true);
+registerSingleton(IFileDialogService, SimpleFileDialogService, true);
 
 //#endregion
 

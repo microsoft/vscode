@@ -29,11 +29,10 @@ import { SimpleConfigurationService } from 'vs/workbench/nodeless/services/simpl
 import { SimpleWindowConfiguration } from 'vs/workbench/nodeless/services/simpleWindowService';
 import { SimpleLogService } from 'vs/workbench/nodeless/services/simpleLogService';
 import { SimpleStorageService } from 'vs/workbench/nodeless/services/simpleStorageService';
+import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 
 // tslint:disable-next-line: layering
 import { Workbench } from 'vs/workbench/electron-browser/workbench';
-// tslint:disable-next-line: layering
-import { InstantiationService } from 'vs/platform/instantiation/node/instantiationService';
 
 class CodeRendererMain extends Disposable {
 

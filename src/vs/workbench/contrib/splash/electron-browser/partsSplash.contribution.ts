@@ -21,6 +21,7 @@ import { IPartService, Parts, Position } from 'vs/workbench/services/part/common
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 class PartsSplash {
 
@@ -38,11 +39,12 @@ class PartsSplash {
 		@IEnvironmentService private readonly _envService: IEnvironmentService,
 		@IBroadcastService private readonly _broadcastService: IBroadcastService,
 		@ILifecycleService lifecycleService: ILifecycleService,
+		@IEditorGroupsService editorGroupsService: IEditorGroupsService
 	) {
 		lifecycleService.when(LifecyclePhase.Restored).then(_ => this._removePartsSplash());
 		Event.debounce(Event.any<any>(
 			onDidChangeFullscreen,
-			_partService.onEditorLayout
+			editorGroupsService.onDidLayout
 		), () => { }, 800)(this._savePartsSplash, this, this._disposables);
 	}
 
