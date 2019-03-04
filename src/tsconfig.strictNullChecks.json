@@ -116,6 +116,7 @@
 		"./vs/workbench/browser/parts/editor/rangeDecorations.ts",
 		"./vs/workbench/browser/parts/editor/resourceViewer.ts",
 		"./vs/workbench/browser/parts/editor/sideBySideEditor.ts",
+		"./vs/workbench/browser/parts/editor/textDiffEditor.ts",
 		"./vs/workbench/browser/parts/editor/textEditor.ts",
 		"./vs/workbench/browser/parts/editor/textResourceEditor.ts",
 		"./vs/workbench/browser/parts/quickinput/quickInputBox.ts",
