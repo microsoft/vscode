@@ -575,7 +575,7 @@ export class Workbench extends Disposable implements IPartService {
 		serviceCollection.set(IQuickInputService, this.quickInput);
 
 		// PreferencesService
-		serviceCollection.set(IPreferencesService, this.instantiationService.createInstance(PreferencesService));
+		serviceCollection.set(IPreferencesService, new SyncDescriptor(PreferencesService));
 
 		// Contributed services
 		const contributedServices = getServices();
