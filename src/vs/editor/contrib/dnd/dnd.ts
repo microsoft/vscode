@@ -64,7 +64,7 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 		this._removeDecoration();
 		this._dragSelection = null;
 		this._mouseDown = false;
-		this._modiferPressed = false;
+		this._modifierPressed = false;
 	}
 
 	private onEditorKeyDown(e: IKeyboardEvent): void {
