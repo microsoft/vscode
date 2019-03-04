@@ -7,16 +7,13 @@ import * as nls from 'vs/nls';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { MenuId, MenuRegistry, SyncActionDescriptor, ILocalizedString } from 'vs/platform/actions/common/actions';
-import { KeybindingsRegistry, IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { MenuId, MenuRegistry, SyncActionDescriptor, registerAction } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { OutputService, LogContentProvider } from 'vs/workbench/contrib/output/electron-browser/outputServices';
 import { ToggleOutputAction, ClearOutputAction, OpenLogOutputFile, ShowLogsOutputChannelAction, OpenOutputLogFileAction } from 'vs/workbench/contrib/output/browser/outputActions';
 import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_PANEL_ID, IOutputService, CONTEXT_IN_OUTPUT, LOG_SCHEME, LOG_MODE_ID, LOG_MIME, CONTEXT_ACTIVE_LOG_OUTPUT } from 'vs/workbench/contrib/output/common/output';
 import { PanelRegistry, Extensions, PanelDescriptor } from 'vs/workbench/browser/panel';
-import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { OutputPanel } from 'vs/workbench/contrib/output/browser/outputPanel';
 import { IEditorRegistry, Extensions as EditorExtensions, EditorDescriptor } from 'vs/workbench/browser/editor';
 import { LogViewer, LogViewerInput } from 'vs/workbench/contrib/output/browser/logViewer';
@@ -92,69 +89,6 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ClearOutputActio
 const devCategory = nls.localize('developer', "Developer");
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ShowLogsOutputChannelAction, ShowLogsOutputChannelAction.ID, ShowLogsOutputChannelAction.LABEL), 'Developer: Show Logs...', devCategory);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenOutputLogFileAction, OpenOutputLogFileAction.ID, OpenOutputLogFileAction.LABEL), 'Developer: Open Log File...', devCategory);
-
-interface IActionDescriptor {
-	id: string;
-	handler: ICommandHandler;
-
-	// ICommandUI
-	title: ILocalizedString;
-	category?: string;
-	f1?: boolean;
-
-	// menus
-	menu?: {
-		menuId: MenuId,
-		when?: ContextKeyExpr;
-		group?: string;
-	};
-
-	// keybindings
-	keybinding?: {
-		when?: ContextKeyExpr;
-		weight: number;
-		keys: IKeybindings;
-	};
-}
-
-function registerAction(desc: IActionDescriptor) {
-
-	const { id, handler, title, category, f1, menu, keybinding } = desc;
-
-	// 1) register as command
-	CommandsRegistry.registerCommand(id, handler);
-
-	// 2) command palette
-	let command = { id, title, category };
-	if (f1) {
-		MenuRegistry.addCommand(command);
-	}
-
-	// 3) menus
-	if (menu) {
-		let { menuId, when, group } = menu;
-		MenuRegistry.appendMenuItem(menuId, {
-			command,
-			when,
-			group
-		});
-	}
-
-	// 4) keybindings
-	if (keybinding) {
-		let { when, weight, keys } = keybinding;
-		KeybindingsRegistry.registerKeybindingRule({
-			id,
-			when,
-			weight,
-			primary: keys.primary,
-			secondary: keys.secondary,
-			linux: keys.linux,
-			mac: keys.mac,
-			win: keys.win
-		});
-	}
-}
 
 // Define clear command, contribute to editor context menu
 registerAction({
