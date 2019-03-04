@@ -993,7 +993,7 @@ export class TerminalInstance implements ITerminalInstance {
 		// Use 'typeof exitCode' because simply doing if (exitCode) would return false for both "not undefined" and a value of 0
 		// which is not the intention.
 		const isExitCodeSpecified: boolean = (typeof exitCode === `number`);
-		if (isExitCodeSpecified) {
+		if (exitCode) {
 			this._logService.debug(`Terminal process exit (id: ${this.id}) with code ${exitCode}`);
 		}
 
