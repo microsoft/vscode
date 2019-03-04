@@ -93,6 +93,7 @@
 		"./vs/workbench/api/shared/tasks.ts",
 		"./vs/workbench/browser/actions.ts",
 		"./vs/workbench/browser/actions/layoutActions.ts",
+		"./vs/workbench/browser/actions/listCommands.ts",
 		"./vs/workbench/browser/actions/navigationActions.ts",
 		"./vs/workbench/browser/actions/workspaceActions.ts",
 		"./vs/workbench/browser/actions/workspaceCommands.ts",
