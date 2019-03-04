@@ -210,9 +210,10 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 		if (platform.isLinux) {
 			return new Promise<string>(resolve => {
 				fs.readlink('/proc/' + this._ptyProcess.pid + '/cwd', (err, linkedstr) => {
-					if (linkedstr) {
-						resolve(linkedstr);
+					if (err) {
+						resolve(this._initialCwd);
 					}
+					resolve(linkedstr);
 				});
 			});
 		}
