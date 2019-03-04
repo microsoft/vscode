@@ -321,14 +321,14 @@ export abstract class AbstractProcess<TProgressData> {
 	private useExec(): Promise<boolean> {
 		return new Promise<boolean>((c, e) => {
 			if (!this.shell || !Platform.isWindows) {
-				c(false);
+				return c(false);
 			}
 			let cmdShell = cp.spawn(getWindowsShell(), ['/s', '/c']);
 			cmdShell.on('error', (error: Error) => {
-				c(true);
+				return c(true);
 			});
 			cmdShell.on('exit', (data: any) => {
-				c(false);
+				return c(false);
 			});
 		});
 	}
