@@ -73,7 +73,7 @@ import { ContextViewService } from 'vs/platform/contextview/browser/contextViewS
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { Sizing, Direction, Grid, View } from 'vs/base/browser/ui/grid/grid';
 import { IEditor } from 'vs/editor/common/editorCommon';
-import { WorkbenchLayout } from 'vs/workbench/browser/layout';
+import { WorkbenchLegacyLayout } from 'vs/workbench/browser/legacyLayout';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { setARIAContainer } from 'vs/base/browser/ui/aria/aria';
 import { restoreFontInfo, readFontInfo, saveFontInfo } from 'vs/editor/browser/config/configuration';
@@ -425,13 +425,6 @@ export class Workbench extends Disposable implements IPartService {
 		const remoteAgentService = new RemoteAgentService(this.configuration, this.notificationService, this.environmentService, remoteAuthorityResolverService);
 		serviceCollection.set(IRemoteAgentService, remoteAgentService);
 
-		const remoteAgentConnection = remoteAgentService.getConnection();
-		if (remoteAgentConnection) {
-			remoteAgentConnection.registerChannel('dialog', this.instantiationService.createInstance(DialogChannel));
-			remoteAgentConnection.registerChannel('download', new DownloadServiceChannel());
-			remoteAgentConnection.registerChannel('loglevel', new LogLevelSetterChannel(this.logService));
-		}
-
 		// Extensions Management
 		const extensionManagementChannel = getDelayedChannel(sharedProcess.then(c => c.getChannel('extensions')));
 		const extensionManagementChannelClient = new ExtensionManagementChannelClient(extensionManagementChannel);
@@ -552,6 +545,14 @@ export class Workbench extends Disposable implements IPartService {
 		const contributedServices = getServices();
 		for (let contributedService of contributedServices) {
 			serviceCollection.set(contributedService.id, contributedService.descriptor);
+		}
+
+		// TODO this should move somewhere else
+		const remoteAgentConnection = remoteAgentService.getConnection();
+		if (remoteAgentConnection) {
+			remoteAgentConnection.registerChannel('dialog', this.instantiationService.createInstance(DialogChannel));
+			remoteAgentConnection.registerChannel('download', new DownloadServiceChannel());
+			remoteAgentConnection.registerChannel('loglevel', new LogLevelSetterChannel(this.logService));
 		}
 
 		// Set the some services to registries that have been created eagerly
@@ -912,7 +913,7 @@ export class Workbench extends Disposable implements IPartService {
 	private readonly _onZenMode: Emitter<boolean> = this._register(new Emitter<boolean>());
 	get onZenModeChange(): Event<boolean> { return this._onZenMode.event; }
 
-	private workbenchGrid: Grid<View> | WorkbenchLayout;
+	private workbenchGrid: Grid<View> | WorkbenchLegacyLayout;
 
 	private titleBarPartView: View;
 	private activityBarPartView: View;
@@ -1373,7 +1374,7 @@ export class Workbench extends Disposable implements IPartService {
 			this.workbench.prepend(this.workbenchGrid.element);
 		} else {
 			this.workbenchGrid = this.instantiationService.createInstance(
-				WorkbenchLayout,
+				WorkbenchLegacyLayout,
 				this.container,
 				this.workbench,
 				{

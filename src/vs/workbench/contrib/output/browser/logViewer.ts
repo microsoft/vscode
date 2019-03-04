@@ -17,7 +17,7 @@ import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorIn
 import { URI } from 'vs/base/common/uri';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
-import { LOG_SCHEME, IOutputChannelDescriptor } from 'vs/workbench/contrib/output/common/output';
+import { LOG_SCHEME, IFileOutputChannelDescriptor } from 'vs/workbench/contrib/output/common/output';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWindowService } from 'vs/platform/windows/common/windows';
@@ -26,7 +26,7 @@ export class LogViewerInput extends ResourceEditorInput {
 
 	public static readonly ID = 'workbench.editorinputs.output';
 
-	constructor(private outputChannelDescriptor: IOutputChannelDescriptor,
+	constructor(private outputChannelDescriptor: IFileOutputChannelDescriptor,
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IHashService hashService: IHashService
 	) {

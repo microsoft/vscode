@@ -28,7 +28,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { ITerminalService, ITerminalInstance, IShellLaunchConfig } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IOutputService, IOutputChannel } from 'vs/workbench/contrib/output/common/output';
+import { IOutputService } from 'vs/workbench/contrib/output/common/output';
 import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEventKind } from 'vs/workbench/contrib/tasks/common/problemCollectors';
 import {
 	Task, CustomTask, ContributedTask, RevealKind, CommandOptions, ShellConfiguration, RuntimeType, PanelKind,
@@ -148,7 +148,6 @@ export class TerminalTaskSystem implements ITaskSystem {
 		'win32': TerminalTaskSystem.shellQuotes['powershell']
 	};
 
-	private outputChannel: IOutputChannel;
 	private activeTasks: IStringDictionary<ActiveTerminalData>;
 	private terminals: IStringDictionary<TerminalData>;
 	private idleTaskTerminals: LinkedMap<string, string>;
@@ -166,10 +165,9 @@ export class TerminalTaskSystem implements ITaskSystem {
 		private telemetryService: ITelemetryService,
 		private contextService: IWorkspaceContextService,
 		private windowService: IWindowService,
-		outputChannelId: string,
+		private outputChannelId: string,
 		taskSystemInfoResolver: TaskSystemInfoResovler) {
 
-		this.outputChannel = this.outputService.getChannel(outputChannelId);
 		this.activeTasks = Object.create(null);
 		this.terminals = Object.create(null);
 		this.idleTaskTerminals = new LinkedMap<string, string>();
@@ -184,11 +182,11 @@ export class TerminalTaskSystem implements ITaskSystem {
 	}
 
 	public log(value: string): void {
-		this.outputChannel.append(value + '\n');
+		this.appendOutput(value + '\n');
 	}
 
 	protected showOutput(): void {
-		this.outputService.showChannel(this.outputChannel.id, true);
+		this.outputService.showChannel(this.outputChannelId, true);
 	}
 
 	public run(task: Task, resolver: ITaskResolver, trigger: string = Triggers.command): ITaskExecuteResult {
@@ -1213,7 +1211,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 				matcher = value;
 			}
 			if (!matcher) {
-				this.outputChannel.append(nls.localize('unkownProblemMatcher', 'Problem matcher {0} can\'t be resolved. The matcher will be ignored'));
+				this.appendOutput(nls.localize('unkownProblemMatcher', 'Problem matcher {0} can\'t be resolved. The matcher will be ignored'));
 				return;
 			}
 			let taskSystemInfo: TaskSystemInfo | undefined = resolver.taskSystemInfo;
@@ -1341,5 +1339,12 @@ export class TerminalTaskSystem implements ITaskSystem {
 			return result;
 		}
 		return 'other';
+	}
+
+	private appendOutput(output: string): void {
+		const outputChannel = this.outputService.getChannel(this.outputChannelId);
+		if (outputChannel) {
+			outputChannel.append(output);
+		}
 	}
 }

@@ -517,7 +517,7 @@ export abstract class CommonTask {
 		return 'unknown';
 	}
 
-	public matches(key: string | KeyedTaskIdentifier, compareId: boolean = false): boolean {
+	public matches(key: string | KeyedTaskIdentifier | undefined, compareId: boolean = false): boolean {
 		if (key === undefined) {
 			return false;
 		}
@@ -650,7 +650,7 @@ export class CustomTask extends CommonTask {
 		return JSON.stringify(key);
 	}
 
-	public getWorkspaceFolder(): IWorkspaceFolder | undefined {
+	public getWorkspaceFolder(): IWorkspaceFolder {
 		return this._source.config.workspaceFolder;
 	}
 

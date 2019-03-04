@@ -14,12 +14,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { EXT_HOST_CREATION_DELAY } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalProcess } from 'vs/workbench/contrib/terminal/node/terminalProcess';
 import { timeout } from 'vs/base/common/async';
-import { generateRandomPipeName } from 'vs/base/parts/ipc/node/ipc.net';
-import * as http from 'http';
-import * as fs from 'fs';
-import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { sanitizeProcessEnvironment } from 'vs/base/node/processes';
-import { IURIToOpen, URIType } from 'vs/platform/windows/common/windows';
 
 const RENDERER_NO_PROCESS_ID = -1;
 
@@ -284,7 +279,6 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	private _terminalProcesses: { [id: number]: TerminalProcess } = {};
 	private _terminalRenderers: ExtHostTerminalRenderer[] = [];
 	private _getTerminalPromises: { [id: number]: Promise<ExtHostTerminal> } = {};
-	private _cliServer: CLIServer | undefined;
 
 	public get activeTerminal(): ExtHostTerminal { return this._activeTerminal; }
 	public get terminals(): ExtHostTerminal[] { return this._terminals; }
@@ -302,7 +296,6 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		mainContext: IMainContext,
 		private _extHostConfiguration: ExtHostConfiguration,
 		private _logService: ILogService,
-		private _commands: ExtHostCommands
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadTerminalService);
 	}
@@ -483,16 +476,11 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 
 		// Sanitize the environment, removing any undesirable VS Code and Electron environment
 		// variables
-		sanitizeProcessEnvironment(env);
+		sanitizeProcessEnvironment(env, 'VSCODE_IPC_HOOK_CLI');
 
 		// Continue env initialization, merging in the env from the launch
 		// config and adding keys that are needed to create the process
 		terminalEnvironment.addTerminalEnvironmentKeys(env, platform.locale, terminalConfig.get('setLocaleVariables'));
-
-		if (!this._cliServer) {
-			this._cliServer = new CLIServer(this._commands);
-		}
-		env['VSCODE_IPC_HOOK_CLI'] = this._cliServer.ipcHandlePath;
 
 		// Fork the process and listen for messages
 		this._logService.debug(`Terminal process launching on ext host`, shellLaunchConfig, initialCwd, cols, rows, env);
@@ -541,11 +529,6 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 
 		// Send exit event to main side
 		this._proxy.$sendProcessExit(id, exitCode);
-
-		if (this._cliServer && !Object.keys(this._terminalProcesses).length) {
-			this._cliServer.dispose();
-			this._cliServer = undefined;
-		}
 
 	}
 
@@ -616,76 +599,5 @@ class ApiRequest {
 
 	public run(proxy: MainThreadTerminalServiceShape, id: number) {
 		this._callback.apply(proxy, [id].concat(this._args));
-	}
-}
-
-
-class CLIServer {
-
-	private _server: http.Server;
-	private _ipcHandlePath: string | undefined;
-
-	constructor(private _commands: ExtHostCommands) {
-		this._server = http.createServer((req, res) => this.onRequest(req, res));
-		this.setup().catch(err => {
-			console.error(err);
-			return '';
-		});
-	}
-
-	public get ipcHandlePath() {
-		return this._ipcHandlePath;
-	}
-
-	private async setup(): Promise<string> {
-		this._ipcHandlePath = generateRandomPipeName();
-
-		try {
-			this._server.listen(this.ipcHandlePath);
-			this._server.on('error', err => console.error(err));
-		} catch (err) {
-			console.error('Could not start open from terminal server.');
-		}
-
-		return this.ipcHandlePath;
-	}
-	private collectURIToOpen(strs: string[], typeHint: URIType, result: IURIToOpen[]): void {
-		if (Array.isArray(strs)) {
-			for (const s of strs) {
-				try {
-					result.push({ uri: URI.parse(s), typeHint });
-				} catch (e) {
-					// ignore
-				}
-			}
-		}
-	}
-
-	private onRequest(req: http.IncomingMessage, res: http.ServerResponse): void {
-		const chunks: string[] = [];
-		req.setEncoding('utf8');
-		req.on('data', (d: string) => chunks.push(d));
-		req.on('end', () => {
-			let { fileURIs, folderURIs, forceNewWindow, diffMode, addMode, forceReuseWindow } = JSON.parse(chunks.join(''));
-			if (folderURIs && folderURIs.length || fileURIs && fileURIs.length) {
-				if (folderURIs && folderURIs.length && !forceReuseWindow) {
-					forceNewWindow = true;
-				}
-				const urisToOpen: IURIToOpen[] = [];
-				this.collectURIToOpen(folderURIs, 'folder', urisToOpen);
-				this.collectURIToOpen(fileURIs, 'file', urisToOpen);
-				this._commands.executeCommand('_files.windowOpen', { urisToOpen, forceNewWindow, diffMode, addMode, forceReuseWindow });
-			}
-			res.writeHead(200);
-			res.end();
-		});
-	}
-
-	dispose(): void {
-		this._server.close();
-
-		if (this._ipcHandlePath && process.platform !== 'win32' && fs.existsSync(this._ipcHandlePath)) {
-			fs.unlinkSync(this._ipcHandlePath);
-		}
 	}
 }

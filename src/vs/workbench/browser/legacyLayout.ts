@@ -43,9 +43,9 @@ const HIDE_PANEL_HEIGHT_THRESHOLD = 50;
 const HIDE_PANEL_WIDTH_THRESHOLD = 100;
 
 /**
- * The workbench layout is responsible to lay out all parts that make the Workbench.
+ * @deprecated to be replaced by new Grid layout
  */
-export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutProvider, IHorizontalSashLayoutProvider {
+export class WorkbenchLegacyLayout extends Disposable implements IVerticalSashLayoutProvider, IHorizontalSashLayoutProvider {
 
 	private static readonly sashXOneWidthSettingsKey = 'workbench.sidebar.width';
 	private static readonly sashXTwoWidthSettingsKey = 'workbench.panel.width';
@@ -103,13 +103,13 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 	}
 
 	private restorePreviousState(): void {
-		this._sidebarWidth = Math.max(this.partLayoutInfo.sidebar.minWidth, this.storageService.getNumber(WorkbenchLayout.sashXOneWidthSettingsKey, StorageScope.GLOBAL, DEFAULT_SIDEBAR_PART_WIDTH));
+		this._sidebarWidth = Math.max(this.partLayoutInfo.sidebar.minWidth, this.storageService.getNumber(WorkbenchLegacyLayout.sashXOneWidthSettingsKey, StorageScope.GLOBAL, DEFAULT_SIDEBAR_PART_WIDTH));
 
-		this._panelWidth = Math.max(this.partLayoutInfo.panel.minWidth, this.storageService.getNumber(WorkbenchLayout.sashXTwoWidthSettingsKey, StorageScope.GLOBAL, DEFAULT_PANEL_PART_SIZE));
-		this._panelHeight = Math.max(this.partLayoutInfo.panel.minHeight, this.storageService.getNumber(WorkbenchLayout.sashYHeightSettingsKey, StorageScope.GLOBAL, DEFAULT_PANEL_PART_SIZE));
+		this._panelWidth = Math.max(this.partLayoutInfo.panel.minWidth, this.storageService.getNumber(WorkbenchLegacyLayout.sashXTwoWidthSettingsKey, StorageScope.GLOBAL, DEFAULT_PANEL_PART_SIZE));
+		this._panelHeight = Math.max(this.partLayoutInfo.panel.minHeight, this.storageService.getNumber(WorkbenchLegacyLayout.sashYHeightSettingsKey, StorageScope.GLOBAL, DEFAULT_PANEL_PART_SIZE));
 
 		this.panelMaximized = false;
-		this.panelSizeBeforeMaximized = this.storageService.getNumber(WorkbenchLayout.panelSizeBeforeMaximizedKey, StorageScope.GLOBAL, 0);
+		this.panelSizeBeforeMaximized = this.storageService.getNumber(WorkbenchLegacyLayout.panelSizeBeforeMaximizedKey, StorageScope.GLOBAL, 0);
 	}
 
 	private registerListeners(): void {
@@ -369,20 +369,20 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 		}));
 
 		this._register(this.sashXOne.onDidEnd(() => {
-			this.storageService.store(WorkbenchLayout.sashXOneWidthSettingsKey, this.sidebarWidth, StorageScope.GLOBAL);
+			this.storageService.store(WorkbenchLegacyLayout.sashXOneWidthSettingsKey, this.sidebarWidth, StorageScope.GLOBAL);
 		}));
 
 		this._register(this.sashY.onDidEnd(() => {
-			this.storageService.store(WorkbenchLayout.sashYHeightSettingsKey, this.panelHeight, StorageScope.GLOBAL);
+			this.storageService.store(WorkbenchLegacyLayout.sashYHeightSettingsKey, this.panelHeight, StorageScope.GLOBAL);
 		}));
 
 		this._register(this.sashXTwo.onDidEnd(() => {
-			this.storageService.store(WorkbenchLayout.sashXTwoWidthSettingsKey, this.panelWidth, StorageScope.GLOBAL);
+			this.storageService.store(WorkbenchLegacyLayout.sashXTwoWidthSettingsKey, this.panelWidth, StorageScope.GLOBAL);
 		}));
 
 		this._register(this.sashY.onDidReset(() => {
 			this.panelHeight = this.sidebarHeight * DEFAULT_PANEL_SIZE_COEFFICIENT;
-			this.storageService.store(WorkbenchLayout.sashYHeightSettingsKey, this.panelHeight, StorageScope.GLOBAL);
+			this.storageService.store(WorkbenchLegacyLayout.sashYHeightSettingsKey, this.panelHeight, StorageScope.GLOBAL);
 
 			this.layout();
 		}));
@@ -391,7 +391,7 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 			let activeViewlet = this.viewletService.getActiveViewlet();
 			let optimalWidth = activeViewlet && activeViewlet.getOptimalWidth();
 			this.sidebarWidth = Math.max(optimalWidth, DEFAULT_SIDEBAR_PART_WIDTH);
-			this.storageService.store(WorkbenchLayout.sashXOneWidthSettingsKey, this.sidebarWidth, StorageScope.GLOBAL);
+			this.storageService.store(WorkbenchLegacyLayout.sashXOneWidthSettingsKey, this.sidebarWidth, StorageScope.GLOBAL);
 
 			this.partService.setSideBarHidden(false);
 			this.layout();
@@ -399,7 +399,7 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 
 		this._register(this.sashXTwo.onDidReset(() => {
 			this.panelWidth = (this.workbenchSize.width - this.sidebarWidth - this.activitybarWidth) * DEFAULT_PANEL_SIZE_COEFFICIENT;
-			this.storageService.store(WorkbenchLayout.sashXTwoWidthSettingsKey, this.panelWidth, StorageScope.GLOBAL);
+			this.storageService.store(WorkbenchLegacyLayout.sashXTwoWidthSettingsKey, this.panelWidth, StorageScope.GLOBAL);
 
 			this.layout();
 		}));
@@ -474,7 +474,7 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 			}
 		}
 
-		this.storageService.store(WorkbenchLayout.panelSizeBeforeMaximizedKey, this.panelSizeBeforeMaximized, StorageScope.GLOBAL);
+		this.storageService.store(WorkbenchLegacyLayout.panelSizeBeforeMaximizedKey, this.panelSizeBeforeMaximized, StorageScope.GLOBAL);
 
 		const panelDimension = new Dimension(panelWidth, panelHeight);
 
@@ -530,16 +530,16 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 
 		if (!isSidebarHidden) {
 			this.sidebarWidth = sidebarSize.width;
-			this.storageService.store(WorkbenchLayout.sashXOneWidthSettingsKey, this.sidebarWidth, StorageScope.GLOBAL);
+			this.storageService.store(WorkbenchLegacyLayout.sashXOneWidthSettingsKey, this.sidebarWidth, StorageScope.GLOBAL);
 		}
 
 		if (!isPanelHidden) {
 			if (panelPosition === Position.BOTTOM) {
 				this.panelHeight = panelDimension.height;
-				this.storageService.store(WorkbenchLayout.sashYHeightSettingsKey, this.panelHeight, StorageScope.GLOBAL);
+				this.storageService.store(WorkbenchLegacyLayout.sashYHeightSettingsKey, this.panelHeight, StorageScope.GLOBAL);
 			} else {
 				this.panelWidth = panelDimension.width;
-				this.storageService.store(WorkbenchLayout.sashXTwoWidthSettingsKey, this.panelWidth, StorageScope.GLOBAL);
+				this.storageService.store(WorkbenchLegacyLayout.sashXTwoWidthSettingsKey, this.panelWidth, StorageScope.GLOBAL);
 			}
 		}
 

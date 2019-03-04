@@ -38,10 +38,10 @@ export interface TaskFilter {
 }
 
 interface WorkspaceTaskResult {
-	set: TaskSet;
+	set: TaskSet | undefined;
 	configurations: {
 		byIdentifier: IStringDictionary<ConfiguringTask>;
-	};
+	} | undefined;
 	hasErrors: boolean;
 }
 

@@ -394,7 +394,10 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 				// 	console.log('%c' + sanitize(data), 'background: #ddd; font-style: italic;');
 				// });
 				this.serverProcess.stderr.on('data', (data: string) => {
-					outputService.getChannel(ExtensionsChannelId).append(sanitize(data));
+					const channel = outputService.getChannel(ExtensionsChannelId);
+					if (channel) {
+						channel.append(sanitize(data));
+					}
 				});
 			}
 

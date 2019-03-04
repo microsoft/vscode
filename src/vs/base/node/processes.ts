@@ -75,7 +75,11 @@ export function getWindowsShell(): string {
 /**
  * Sanitizes a VS Code process environment by removing all Electron/VS Code-related values.
  */
-export function sanitizeProcessEnvironment(env: Platform.IProcessEnvironment): void {
+export function sanitizeProcessEnvironment(env: Platform.IProcessEnvironment, ...preserve: string[]): void {
+	const set = preserve.reduce((set, key) => {
+		set[key] = true;
+		return set;
+	}, {} as Record<string, boolean>);
 	const keysToRemove = [
 		/^ELECTRON_.+$/,
 		/^GOOGLE_API_KEY$/,
@@ -83,14 +87,16 @@ export function sanitizeProcessEnvironment(env: Platform.IProcessEnvironment): v
 		/^SNAP(|_.*)$/
 	];
 	const envKeys = Object.keys(env);
-	envKeys.forEach(envKey => {
-		for (let i = 0; i < keysToRemove.length; i++) {
-			if (envKey.search(keysToRemove[i]) !== -1) {
-				delete env[envKey];
-				break;
+	envKeys
+		.filter(key => !set[key])
+		.forEach(envKey => {
+			for (let i = 0; i < keysToRemove.length; i++) {
+				if (envKey.search(keysToRemove[i]) !== -1) {
+					delete env[envKey];
+					break;
+				}
 			}
-		}
-	});
+		});
 }
 
 export abstract class AbstractProcess<TProgressData> {
