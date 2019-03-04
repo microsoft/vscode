@@ -1011,12 +1011,11 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		const editorWidth = this.getEditorWidth();
 		const leftDetailWidth = this.getLeftDetailWidth();
 		const rightDetailWidth = this.getRightDetailWidth();
-		if (leftDetailWidth && rightDetailWidth) {
-			let tmp = Math.max(leftDetailWidth, rightDetailWidth, this.listWidth);
-			return Math.min(tmp, editorWidth * 0.66);
-		} else {
+		if (leftDetailWidth === null || rightDetailWidth === null) {
 			return null;
 		}
+		const tmp = Math.max(leftDetailWidth, rightDetailWidth, this.listWidth);
+		return Math.min(tmp, editorWidth * 0.66);
 	}
 
 	private getCursorX(): number | null {
