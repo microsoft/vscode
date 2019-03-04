@@ -581,7 +581,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			const list = focused;
 			const fakeKeyboardEvent = getSelectionKeyboardEvent('keydown', false);
 			list.setSelection(list.getFocus(), fakeKeyboardEvent);
-			list.open(list.getFocus());
+			list.open(list.getFocus(), fakeKeyboardEvent);
 		}
 
 		// Tree
@@ -752,7 +752,8 @@ CommandsRegistry.registerCommand({
 
 		// List
 		if (focused instanceof List || focused instanceof PagedList) {
-			// TODO@joao
+			const list = focused;
+			list.toggleKeyboardNavigation();
 		}
 
 		// ObjectTree

@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import * as fs from 'fs';
 import * as cp from 'child_process';
 import * as nls from 'vs/nls';
 import * as Types from 'vs/base/common/types';
 import { IStringDictionary } from 'vs/base/common/collections';
 import * as Objects from 'vs/base/common/objects';
-import * as TPath from 'vs/base/common/paths';
+import * as extpath from 'vs/base/common/extpath';
 import * as Platform from 'vs/base/common/platform';
 import { LineDecoder } from 'vs/base/node/decoder';
 import { CommandOptions, ForkOptions, SuccessData, Source, TerminateResponse, TerminateResponseCode, Executable } from 'vs/base/common/processes';
@@ -75,21 +75,28 @@ export function getWindowsShell(): string {
 /**
  * Sanitizes a VS Code process environment by removing all Electron/VS Code-related values.
  */
-export function sanitizeProcessEnvironment(env: Platform.IProcessEnvironment): void {
+export function sanitizeProcessEnvironment(env: Platform.IProcessEnvironment, ...preserve: string[]): void {
+	const set = preserve.reduce((set, key) => {
+		set[key] = true;
+		return set;
+	}, {} as Record<string, boolean>);
 	const keysToRemove = [
 		/^ELECTRON_.+$/,
 		/^GOOGLE_API_KEY$/,
-		/^VSCODE_.+$/
+		/^VSCODE_.+$/,
+		/^SNAP(|_.*)$/
 	];
 	const envKeys = Object.keys(env);
-	envKeys.forEach(envKey => {
-		for (let i = 0; i < keysToRemove.length; i++) {
-			if (envKey.search(keysToRemove[i]) !== -1) {
-				delete env[envKey];
-				break;
+	envKeys
+		.filter(key => !set[key])
+		.forEach(envKey => {
+			for (let i = 0; i < keysToRemove.length; i++) {
+				if (envKey.search(keysToRemove[i]) !== -1) {
+					delete env[envKey];
+					break;
+				}
 			}
-		}
-	});
+		});
 }
 
 export abstract class AbstractProcess<TProgressData> {
@@ -168,7 +175,7 @@ export abstract class AbstractProcess<TProgressData> {
 	}
 
 	public start(pp: ProgressCallback<TProgressData>): Promise<SuccessData> {
-		if (Platform.isWindows && ((this.options && this.options.cwd && TPath.isUNC(this.options.cwd)) || !this.options && TPath.isUNC(process.cwd()))) {
+		if (Platform.isWindows && ((this.options && this.options.cwd && extpath.isUNC(this.options.cwd)) || !this.options && extpath.isUNC(process.cwd()))) {
 			return Promise.reject(new Error(nls.localize('TaskRunner.UNC', 'Can\'t execute a shell command on a UNC drive.')));
 		}
 		return this.useExec().then((useExec) => {
@@ -320,14 +327,14 @@ export abstract class AbstractProcess<TProgressData> {
 	private useExec(): Promise<boolean> {
 		return new Promise<boolean>((c, e) => {
 			if (!this.shell || !Platform.isWindows) {
-				c(false);
+				return c(false);
 			}
 			let cmdShell = cp.spawn(getWindowsShell(), ['/s', '/c']);
 			cmdShell.on('error', (error: Error) => {
-				c(true);
+				return c(true);
 			});
 			cmdShell.on('exit', (data: any) => {
-				c(false);
+				return c(false);
 			});
 		});
 	}

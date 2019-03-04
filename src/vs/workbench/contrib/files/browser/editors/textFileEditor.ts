@@ -6,7 +6,8 @@
 import * as nls from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import * as types from 'vs/base/common/types';
-import * as paths from 'vs/base/common/paths';
+import { isValidBasename } from 'vs/base/common/extpath';
+import { basename } from 'vs/base/common/resources';
 import { Action } from 'vs/base/common/actions';
 import { VIEWLET_ID, TEXT_FILE_EDITOR_ID, IExplorerService } from 'vs/workbench/contrib/files/common/files';
 import { ITextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -181,10 +182,10 @@ export class TextFileEditor extends BaseTextEditor {
 				}
 
 				// Offer to create a file from the error if we have a file not found and the name is valid
-				if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND && paths.isValidBasename(paths.basename(input.getResource().fsPath))) {
+				if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND && isValidBasename(basename(input.getResource()))) {
 					return Promise.reject(createErrorWithActions(toErrorMessage(error), {
 						actions: [
-							new Action('workbench.files.action.createMissingFile', nls.localize('createFile', "Create File"), null, true, () => {
+							new Action('workbench.files.action.createMissingFile', nls.localize('createFile', "Create File"), undefined, true, () => {
 								return this.fileService.updateContent(input.getResource(), '').then(() => this.editorService.openEditor({
 									resource: input.getResource(),
 									options: {
@@ -201,14 +202,14 @@ export class TextFileEditor extends BaseTextEditor {
 
 					return Promise.reject(createErrorWithActions(toErrorMessage(error), {
 						actions: [
-							new Action('workbench.window.action.relaunchWithIncreasedMemoryLimit', nls.localize('relaunchWithIncreasedMemoryLimit', "Restart with {0} MB", memoryLimit), null, true, () => {
+							new Action('workbench.window.action.relaunchWithIncreasedMemoryLimit', nls.localize('relaunchWithIncreasedMemoryLimit', "Restart with {0} MB", memoryLimit), undefined, true, () => {
 								return this.windowsService.relaunch({
 									addArgs: [
 										`--max-memory=${memoryLimit}`
 									]
 								});
 							}),
-							new Action('workbench.window.action.configureMemoryLimit', nls.localize('configureMemoryLimit', 'Configure Memory Limit'), null, true, () => {
+							new Action('workbench.window.action.configureMemoryLimit', nls.localize('configureMemoryLimit', 'Configure Memory Limit'), undefined, true, () => {
 								return this.preferencesService.openGlobalSettings(undefined, { query: 'files.maxMemoryForLargeFilesMB' });
 							})
 						]

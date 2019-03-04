@@ -35,7 +35,7 @@ import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector }
 import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { StandardKeyboardEvent, IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { listHighlightForeground, badgeBackground, contrastBorder, badgeForeground, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
+import { listHighlightForeground, badgeBackground, contrastBorder, badgeForeground, listActiveSelectionForeground, listInactiveSelectionForeground, listHoverForeground, listFocusForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
@@ -129,7 +129,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	setInput(input: KeybindingsEditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
 		this.keybindingsEditorContextKey.set(true);
 		return super.setInput(input, options, token)
-			.then(() => this.render(options && options.preserveFocus, token));
+			.then(() => this.render(!!(options && options.preserveFocus), token));
 	}
 
 	clearInput(): void {
@@ -913,7 +913,7 @@ class CommandColumn extends Column {
 		const commandDefaultLabelMatched = !!keybindingItemEntry.commandDefaultLabelMatches;
 		DOM.toggleClass(this.commandColumn, 'vertical-align-column', commandIdMatched || commandDefaultLabelMatched);
 		this.commandColumn.setAttribute('aria-label', this.getAriaLabel(keybindingItemEntry));
-		let commandLabel: HighlightedLabel;
+		let commandLabel: HighlightedLabel | undefined;
 		if (keybindingItem.commandLabel) {
 			commandLabel = new HighlightedLabel(this.commandColumn, false);
 			commandLabel.set(keybindingItem.commandLabel, keybindingItemEntry.commandLabelMatches);
@@ -1122,8 +1122,21 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (listHighlightForegroundColor) {
 		collector.addRule(`.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row > .column .highlight { color: ${listHighlightForegroundColor}; }`);
 	}
-	const listFocusAndSelectionForegroundColor = theme.getColor(listActiveSelectionForeground);
-	if (listFocusAndSelectionForegroundColor) {
-		collector.addRule(`.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list:focus .monaco-list-row.selected.focused > .column .monaco-keybinding-key { color: ${listFocusAndSelectionForegroundColor}; }`);
+	const listActiveSelectionForegroundColor = theme.getColor(listActiveSelectionForeground);
+	if (listActiveSelectionForegroundColor) {
+		collector.addRule(`.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list:focus .monaco-list-row.selected.focused > .column .monaco-keybinding-key { color: ${listActiveSelectionForegroundColor}; }`);
+		collector.addRule(`.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list:focus .monaco-list-row.selected > .column .monaco-keybinding-key { color: ${listActiveSelectionForegroundColor}; }`);
+	}
+	const listInactiveFocusAndSelectionForegroundColor = theme.getColor(listInactiveSelectionForeground);
+	if (listActiveSelectionForegroundColor) {
+		collector.addRule(`.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list .monaco-list-row.selected > .column .monaco-keybinding-key { color: ${listInactiveFocusAndSelectionForegroundColor}; }`);
+	}
+	const listHoverForegroundColor = theme.getColor(listHoverForeground);
+	if (listHoverForegroundColor) {
+		collector.addRule(`.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list .monaco-list-row:hover:not(.selected):not(.focused) > .column .monaco-keybinding-key { color: ${listHoverForegroundColor}; }`);
+	}
+	const listFocusForegroundColor = theme.getColor(listFocusForeground);
+	if (listFocusForegroundColor) {
+		collector.addRule(`.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list .monaco-list-row.focused > .column .monaco-keybinding-key { color: ${listFocusForegroundColor}; }`);
 	}
 });

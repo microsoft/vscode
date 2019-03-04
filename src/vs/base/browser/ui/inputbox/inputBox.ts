@@ -230,6 +230,10 @@ export class InputBox extends Widget {
 		}
 	}
 
+	public get mirrorElement(): HTMLElement {
+		return this.mirror;
+	}
+
 	public get inputElement(): HTMLInputElement {
 		return this.input;
 	}

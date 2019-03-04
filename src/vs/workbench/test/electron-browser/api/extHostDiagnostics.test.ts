@@ -188,7 +188,7 @@ suite('ExtHostDiagnostics', () => {
 		lastEntries = undefined!;
 	});
 
-	test('don\'t send message when not making a change', function () {
+	test('do send message when not making a change', function () {
 
 		let changeCount = 0;
 		let eventCount = 0;
@@ -209,7 +209,7 @@ suite('ExtHostDiagnostics', () => {
 		assert.equal(eventCount, 1);
 
 		collection.set(uri, [diag]);
-		assert.equal(changeCount, 1);
+		assert.equal(changeCount, 2);
 		assert.equal(eventCount, 2);
 	});
 
@@ -418,10 +418,10 @@ suite('ExtHostDiagnostics', () => {
 		assert.equal(callCount, 1);
 
 		collection.set(URI.parse('test:me'), array);
-		assert.equal(callCount, 1); // equal array
+		assert.equal(callCount, 2); // equal array
 
 		array.push(diag2);
 		collection.set(URI.parse('test:me'), array);
-		assert.equal(callCount, 2); // same but un-equal array
+		assert.equal(callCount, 3); // same but un-equal array
 	});
 });

@@ -15,7 +15,6 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL, PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { URI } from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 
@@ -161,7 +160,7 @@ export class SaveWorkspaceAsAction extends Action {
 			saveLabel: mnemonicButtonLabel(nls.localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save")),
 			title: nls.localize('saveWorkspace', "Save Workspace"),
 			filters: WORKSPACE_FILTER,
-			defaultUri: this.dialogService.defaultWorkspacePath(Schemas.file)
+			defaultUri: this.dialogService.defaultWorkspacePath()
 		});
 	}
 }
@@ -253,8 +252,9 @@ export class DuplicateWorkspaceInNewWindowAction extends Action {
 
 	run(): Promise<any> {
 		const folders = this.workspaceContextService.getWorkspace().folders;
+		const remoteAuthority = this.windowService.getConfiguration().remoteAuthority;
 
-		return this.workspacesService.createUntitledWorkspace(folders).then(newWorkspace => {
+		return this.workspacesService.createUntitledWorkspace(folders, remoteAuthority).then(newWorkspace => {
 			return this.workspaceEditingService.copyWorkspaceSettings(newWorkspace).then(() => {
 				return this.windowService.openWindow([{ uri: newWorkspace.configPath, typeHint: 'file' }], { forceNewWindow: true });
 			});

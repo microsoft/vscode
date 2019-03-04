@@ -4,13 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { isMacintosh, isLinux, isWindows } from 'vs/base/common/platform';
 
 export const InputFocusedContextKey = 'inputFocus';
 export const InputFocusedContext = new RawContextKey<boolean>(InputFocusedContextKey, false);
-export const IsMacContext = new RawContextKey<boolean>('isMac', isMacintosh);
-export const IsLinuxContext = new RawContextKey<boolean>('isLinux', isLinux);
-export const IsWindowsContext = new RawContextKey<boolean>('isWindows', isWindows);
-
-export const SupportsWorkspacesContext = new RawContextKey<boolean>('supportsWorkspaces', true);
-export const SupportsOpenFileFolderContext = new RawContextKey<boolean>('supportsOpenFileFolder', isMacintosh);

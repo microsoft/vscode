@@ -90,7 +90,24 @@ function registerActiveEditorMoveCommand(): void {
 				{
 					name: nls.localize('editorCommand.activeEditorMove.arg.name', "Active editor move argument"),
 					description: nls.localize('editorCommand.activeEditorMove.arg.description', "Argument Properties:\n\t* 'to': String value providing where to move.\n\t* 'by': String value providing the unit for move (by tab or by group).\n\t* 'value': Number value providing how many positions or an absolute position to move."),
-					constraint: isActiveEditorMoveArg
+					constraint: isActiveEditorMoveArg,
+					schema: {
+						'type': 'object',
+						'required': ['to'],
+						'properties': {
+							'to': {
+								'type': 'string',
+								'enum': ['left', 'right']
+							},
+							'by': {
+								'type': 'string',
+								'enum': ['tab', 'group']
+							},
+							'value': {
+								'type': 'number'
+							}
+						},
+					}
 				}
 			]
 		}
@@ -422,7 +439,7 @@ export function splitEditor(editorGroupService: IEditorGroupsService, direction:
 	const newGroup = editorGroupService.addGroup(sourceGroup, direction);
 
 	// Split editor (if it can be split)
-	let editorToCopy: IEditorInput;
+	let editorToCopy: IEditorInput | null;
 	if (context && typeof context.editorIndex === 'number') {
 		editorToCopy = sourceGroup.getEditor(context.editorIndex);
 	} else {

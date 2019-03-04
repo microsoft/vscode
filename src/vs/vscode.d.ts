@@ -1235,11 +1235,16 @@ declare module 'vscode' {
 		 * Create an URI from a string, e.g. `http://www.msft.com/some/path`,
 		 * `file:///usr/home`, or `scheme:with/path`.
 		 *
+		 * *Note* that for a while uris without a `scheme` were accepted. That is not correct
+		 * as all uris should have a scheme. To avoid breakage of existing code the optional
+		 * `strict`-argument has been added. We *strongly* advise to use it, e.g. `Uri.parse('my:uri', true)`
+		 *
 		 * @see [Uri.toString](#Uri.toString)
 		 * @param value The string value of an Uri.
+		 * @param strict Throw an error when `value` is empty or when no `scheme` can be parsed.
 		 * @return A new Uri instance.
 		 */
-		static parse(value: string): Uri;
+		static parse(value: string, strict?: boolean): Uri;
 
 		/**
 		 * Create an URI from a file system path. The [scheme](#Uri.scheme)
@@ -2014,6 +2019,14 @@ declare module 'vscode' {
 		 */
 		static readonly SourceOrganizeImports: CodeActionKind;
 
+		/**
+		 * Base kind for auto-fix source actions: `source.fixAll`.
+		 *
+		 * Fix all actions automatically fix errors that have a clear fix that do not require user input.
+		 * They should not suppress errors or perform unsafe fixes such as generating new types or classes.
+		 */
+		static readonly SourceFixAll: CodeActionKind;
+
 		private constructor(value: string);
 
 		/**
@@ -2101,6 +2114,15 @@ declare module 'vscode' {
 		 * Used to filter code actions.
 		 */
 		kind?: CodeActionKind;
+
+		/**
+		 * Marks this as a preferred action. Preferred actions are used by the `auto fix` command and can be targeted
+		 * by keybindings.
+		 *
+		 * A quick fix should be marked preferred if it properly addresses the underlying error.
+		 * A refactoring should be marked preferred if it is the most reasonable choice of actions to take.
+		 */
+		isPreferred?: boolean;
 
 		/**
 		 * Creates a new code action.
@@ -2655,7 +2677,7 @@ declare module 'vscode' {
 		 * [location](#SymbolInformation.location)-objects, without a `range` defined. The editor will then call
 		 * `resolveWorkspaceSymbol` for selected symbols only, e.g. when opening a workspace symbol.
 		 *
-		 * @param query A non-empty query string.
+		 * @param query A query string, can be the empty string in which case all symbols should be returned.
 		 * @param token A cancellation token.
 		 * @return An array of document highlights or a thenable that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined`, `null`, or an empty array.
@@ -3684,7 +3706,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A line based folding range. To be valid, start and end line must a zero or larger and smaller than the number of lines in the document.
+	 * A line based folding range. To be valid, start and end line must be bigger than zero and smaller than the number of lines in the document.
 	 * Invalid ranges will be ignored.
 	 */
 	export class FoldingRange {

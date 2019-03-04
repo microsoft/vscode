@@ -5,7 +5,6 @@
 
 import { IStringDictionary } from 'vs/base/common/collections';
 import { Event } from 'vs/base/common/event';
-import { join } from 'vs/base/common/paths';
 import { URI } from 'vs/base/common/uri';
 import { IRange } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
@@ -13,7 +12,6 @@ import { localize } from 'vs/nls';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { EditorOptions, IEditor } from 'vs/workbench/common/editor';
@@ -124,7 +122,6 @@ export interface IFilterMetadata {
 	timestamp: number;
 	duration: number;
 	scoredResults: IScoredResults;
-	extensions?: ILocalExtension[];
 
 	/** The number of requests made, since requests are split by number of filters */
 	requestCount?: number;
@@ -135,7 +132,7 @@ export interface IFilterMetadata {
 
 export interface IPreferencesEditorModel<T> {
 	uri?: URI;
-	getPreference(key: string): T;
+	getPreference(key: string): T | null;
 	dispose(): void;
 }
 
@@ -147,7 +144,7 @@ export interface ISettingsEditorModel extends IPreferencesEditorModel<ISetting> 
 	settingsGroups: ISettingsGroup[];
 	filterSettings(filter: string, groupFilter: IGroupFilter, settingMatcher: ISettingMatcher): ISettingMatch[];
 	findValueMatches(filter: string, setting: ISetting): IRange[];
-	updateResultGroup(id: string, resultGroup: ISearchResultGroup): IFilterResult;
+	updateResultGroup(id: string, resultGroup: ISearchResultGroup): IFilterResult | null;
 }
 
 export interface ISettingsEditorOptions extends IEditorOptions {
@@ -165,7 +162,7 @@ export class SettingsEditorOptions extends EditorOptions implements ISettingsEdi
 	folderUri?: URI;
 	query?: string;
 
-	static create(settings: ISettingsEditorOptions): SettingsEditorOptions {
+	static create(settings: ISettingsEditorOptions): SettingsEditorOptions | null {
 		if (!settings) {
 			return null;
 		}
@@ -230,6 +227,6 @@ export function getSettingsTargetName(target: ConfigurationTarget, resource: URI
 	return '';
 }
 
-export const FOLDER_SETTINGS_PATH = join('.vscode', 'settings.json');
+export const FOLDER_SETTINGS_PATH = '.vscode/settings.json';
 export const DEFAULT_SETTINGS_EDITOR_SETTING = 'workbench.settings.openDefaultSettings';
 export const USE_SPLIT_JSON_SETTING = 'workbench.settings.useSplitJSON';

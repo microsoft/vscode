@@ -3,15 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { join, relative } from 'path';
+import { join } from 'vs/base/common/path';
 import { delta as arrayDelta, mapArrayOrNot } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { Counter } from 'vs/base/common/numbers';
-import { normalize } from 'vs/base/common/paths';
 import { isLinux } from 'vs/base/common/platform';
-import { basenameOrAuthority, dirname, isEqual } from 'vs/base/common/resources';
+import { basenameOrAuthority, dirname, isEqual, relativePath } from 'vs/base/common/resources';
 import { compare } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
@@ -23,9 +22,16 @@ import { Range, RelativePattern } from 'vs/workbench/api/node/extHostTypes';
 import { ITextQueryBuilderOptions } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import * as vscode from 'vscode';
-import { ExtHostWorkspaceShape, IWorkspaceData, MainThreadMessageServiceShape, MainThreadWorkspaceShape, IMainContext, MainContext } from './extHost.protocol';
+import { ExtHostWorkspaceShape, IWorkspaceData, MainThreadMessageServiceShape, MainThreadWorkspaceShape, IMainContext, MainContext, IStaticWorkspaceData } from './extHost.protocol';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { Barrier } from 'vs/base/common/async';
+
+export interface IExtHostWorkspaceProvider {
+	getWorkspaceFolder2(uri: vscode.Uri, resolveParent?: boolean): Promise<vscode.WorkspaceFolder | undefined>;
+	resolveWorkspaceFolder(uri: vscode.Uri): Promise<vscode.WorkspaceFolder | undefined>;
+	getWorkspaceFolders2(): Promise<vscode.WorkspaceFolder[] | undefined>;
+	resolveProxy(url: string): Promise<string | undefined>;
+}
 
 function isFolderEqual(folderA: URI, folderB: URI): boolean {
 	return isEqual(folderA, folderB, !isLinux);
@@ -57,7 +63,7 @@ interface MutableWorkspaceFolder extends vscode.WorkspaceFolder {
 
 class ExtHostWorkspaceImpl extends Workspace {
 
-	static toExtHostWorkspace(data: IWorkspaceData, previousConfirmedWorkspace?: ExtHostWorkspaceImpl, previousUnconfirmedWorkspace?: ExtHostWorkspaceImpl): { workspace: ExtHostWorkspaceImpl | null, added: vscode.WorkspaceFolder[], removed: vscode.WorkspaceFolder[] } {
+	static toExtHostWorkspace(data: IWorkspaceData | null, previousConfirmedWorkspace?: ExtHostWorkspaceImpl, previousUnconfirmedWorkspace?: ExtHostWorkspaceImpl): { workspace: ExtHostWorkspaceImpl | null, added: vscode.WorkspaceFolder[], removed: vscode.WorkspaceFolder[] } {
 		if (!data) {
 			return { workspace: null, added: [], removed: [] };
 		}
@@ -110,7 +116,7 @@ class ExtHostWorkspaceImpl extends Workspace {
 	private readonly _workspaceFolders: vscode.WorkspaceFolder[] = [];
 	private readonly _structure = TernarySearchTree.forPaths<vscode.WorkspaceFolder>();
 
-	private constructor(id: string, private _name: string, folders: vscode.WorkspaceFolder[]) {
+	constructor(id: string, private _name: string, folders: vscode.WorkspaceFolder[]) {
 		super(id, folders.map(f => new WorkspaceFolder(f)));
 
 		// setup the workspace folder data structure
@@ -131,7 +137,7 @@ class ExtHostWorkspaceImpl extends Workspace {
 	getWorkspaceFolder(uri: URI, resolveParent?: boolean): vscode.WorkspaceFolder | undefined {
 		if (resolveParent && this._structure.get(uri.toString())) {
 			// `uri` is a workspace folder so we check for its parent
-			uri = dirname(uri)!;
+			uri = dirname(uri);
 		}
 		return this._structure.findSubstr(uri.toString());
 	}
@@ -141,51 +147,14 @@ class ExtHostWorkspaceImpl extends Workspace {
 	}
 }
 
-export class ExtHostWorkspace implements ExtHostWorkspaceShape {
+export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspaceProvider {
 
-	private readonly _mainContext: IMainContext;
+	private readonly _onDidChangeWorkspace = new Emitter<vscode.WorkspaceFoldersChangeEvent>();
+	readonly onDidChangeWorkspace: Event<vscode.WorkspaceFoldersChangeEvent> = this._onDidChangeWorkspace.event;
+
 	private readonly _logService: ILogService;
 	private readonly _requestIdProvider: Counter;
 	private readonly _barrier: Barrier;
-	private _actual: ExtHostWorkspaceProvider | null;
-
-	constructor(
-		mainContext: IMainContext,
-		logService: ILogService,
-		requestIdProvider: Counter
-	) {
-		this._mainContext = mainContext;
-		this._logService = logService;
-		this._requestIdProvider = requestIdProvider;
-		this._barrier = new Barrier();
-		this._actual = null;
-	}
-
-	public getWorkspaceProvider(): Promise<ExtHostWorkspaceProvider> {
-		return this._barrier.wait().then(_ => this._actual!);
-	}
-
-	$initializeWorkspace(data: IWorkspaceData): void {
-		this._actual = new ExtHostWorkspaceProvider(this._mainContext, data, this._logService, this._requestIdProvider);
-		this._barrier.open();
-	}
-
-	$acceptWorkspaceData(workspace: IWorkspaceData): void {
-		if (this._actual) {
-			this._actual.$acceptWorkspaceData(workspace);
-		}
-	}
-
-	$handleTextSearchResult(result: IRawFileMatch2, requestId: number): void {
-		if (this._actual) {
-			this._actual.$handleTextSearchResult(result, requestId);
-		}
-	}
-
-}
-export class ExtHostWorkspaceProvider {
-
-	private readonly _onDidChangeWorkspace = new Emitter<vscode.WorkspaceFoldersChangeEvent>();
 
 	private _confirmedWorkspace?: ExtHostWorkspaceImpl;
 	private _unconfirmedWorkspace?: ExtHostWorkspaceImpl;
@@ -193,19 +162,30 @@ export class ExtHostWorkspaceProvider {
 	private readonly _proxy: MainThreadWorkspaceShape;
 	private readonly _messageService: MainThreadMessageServiceShape;
 
-	readonly onDidChangeWorkspace: Event<vscode.WorkspaceFoldersChangeEvent> = this._onDidChangeWorkspace.event;
-
 	private readonly _activeSearchCallbacks: ((match: IRawFileMatch2) => any)[] = [];
 
 	constructor(
 		mainContext: IMainContext,
-		data: IWorkspaceData,
-		private _logService: ILogService,
-		private _requestIdProvider: Counter
+		logService: ILogService,
+		requestIdProvider: Counter,
+		data?: IStaticWorkspaceData
 	) {
+		this._logService = logService;
+		this._requestIdProvider = requestIdProvider;
+		this._barrier = new Barrier();
+
 		this._proxy = mainContext.getProxy(MainContext.MainThreadWorkspace);
 		this._messageService = mainContext.getProxy(MainContext.MainThreadMessageService);
-		this._confirmedWorkspace = ExtHostWorkspaceImpl.toExtHostWorkspace(data).workspace || undefined;
+		this._confirmedWorkspace = data ? new ExtHostWorkspaceImpl(data.id, data.name, []) : undefined;
+	}
+
+	$initializeWorkspace(data: IWorkspaceData): void {
+		this.$acceptWorkspaceData(data);
+		this._barrier.open();
+	}
+
+	waitForInitializeCall(): Promise<boolean> {
+		return this._barrier.wait();
 	}
 
 	// --- workspace ---
@@ -223,6 +203,14 @@ export class ExtHostWorkspaceProvider {
 	}
 
 	getWorkspaceFolders(): vscode.WorkspaceFolder[] | undefined {
+		if (!this._actualWorkspace) {
+			return undefined;
+		}
+		return this._actualWorkspace.workspaceFolders.slice(0);
+	}
+
+	async getWorkspaceFolders2(): Promise<vscode.WorkspaceFolder[] | undefined> {
+		await this._barrier.wait();
 		if (!this._actualWorkspace) {
 			return undefined;
 		}
@@ -283,7 +271,7 @@ export class ExtHostWorkspaceProvider {
 				this._unconfirmedWorkspace = undefined;
 
 				// show error to user
-				this._messageService.$showMessage(Severity.Error, localize('updateerror', "Extension '{0}' failed to update workspace folders: {1}", extName, error.toString()), { extension }, []);
+				this._messageService.$showMessage(Severity.Error, localize('updateerror', "Extension '{0}' failed to update workspace folders: {1}", extName, error), { extension }, []);
 			});
 		}
 
@@ -300,7 +288,16 @@ export class ExtHostWorkspaceProvider {
 		return this._actualWorkspace.getWorkspaceFolder(uri, resolveParent);
 	}
 
-	resolveWorkspaceFolder(uri: vscode.Uri): vscode.WorkspaceFolder | undefined {
+	async getWorkspaceFolder2(uri: vscode.Uri, resolveParent?: boolean): Promise<vscode.WorkspaceFolder | undefined> {
+		await this._barrier.wait();
+		if (!this._actualWorkspace) {
+			return undefined;
+		}
+		return this._actualWorkspace.getWorkspaceFolder(uri, resolveParent);
+	}
+
+	async resolveWorkspaceFolder(uri: vscode.Uri): Promise<vscode.WorkspaceFolder | undefined> {
+		await this._barrier.wait();
 		if (!this._actualWorkspace) {
 			return undefined;
 		}
@@ -326,19 +323,22 @@ export class ExtHostWorkspaceProvider {
 
 	getRelativePath(pathOrUri: string | vscode.Uri, includeWorkspace?: boolean): string | undefined {
 
+		let resource: URI | undefined;
 		let path: string | undefined;
 		if (typeof pathOrUri === 'string') {
+			resource = URI.file(pathOrUri);
 			path = pathOrUri;
 		} else if (typeof pathOrUri !== 'undefined') {
+			resource = pathOrUri;
 			path = pathOrUri.fsPath;
 		}
 
-		if (!path) {
+		if (!resource) {
 			return path;
 		}
 
 		const folder = this.getWorkspaceFolder(
-			typeof pathOrUri === 'string' ? URI.file(pathOrUri) : pathOrUri,
+			resource,
 			true
 		);
 
@@ -350,11 +350,11 @@ export class ExtHostWorkspaceProvider {
 			includeWorkspace = this._actualWorkspace.folders.length > 1;
 		}
 
-		let result = relative(folder.uri.fsPath, path);
-		if (includeWorkspace) {
+		let result = relativePath(folder.uri, resource);
+		if (includeWorkspace && folder.name) {
 			result = `${folder.name}/${result}`;
 		}
-		return normalize(result, true);
+		return result;
 	}
 
 	private trySetWorkspaceFolders(folders: vscode.WorkspaceFolder[]): void {

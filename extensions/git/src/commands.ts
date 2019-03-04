@@ -1458,8 +1458,7 @@ export class CommandCenter {
 			name.trim().replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$|\[|\]$/g, branchWhitespaceChar)
 			: name;
 
-		const rawBranchName = await window.showInputBox({
-			value: defaultName,
+		const rawBranchName = defaultName || await window.showInputBox({
 			placeHolder: localize('branch name', "Branch name"),
 			prompt: localize('provide branch name', "Please provide a branch name"),
 			ignoreFocusOut: true,
@@ -1480,7 +1479,7 @@ export class CommandCenter {
 		}
 
 		const picks = [new HEADItem(repository), ...createCheckoutItems(repository)];
-		const placeHolder = localize('select a ref to create a new branch from', 'Select a ref to create a new branch from');
+		const placeHolder = localize('select a ref to create a new branch from', 'Select a ref to create the \'{0}\' branch from', branchName);
 		const target = await window.showQuickPick(picks, { placeHolder });
 
 		if (!target) {

@@ -27,7 +27,7 @@ export abstract class AbstractSettingsModel extends EditorModel {
 
 	protected _currentResultGroups = new Map<string, ISearchResultGroup>();
 
-	updateResultGroup(id: string, resultGroup: ISearchResultGroup): IFilterResult {
+	updateResultGroup(id: string, resultGroup: ISearchResultGroup): IFilterResult | null {
 		if (resultGroup) {
 			this._currentResultGroups.set(id, resultGroup);
 		} else {
@@ -44,9 +44,9 @@ export abstract class AbstractSettingsModel extends EditorModel {
 	private removeDuplicateResults(): void {
 		const settingKeys = new Set<string>();
 		map.keys(this._currentResultGroups)
-			.sort((a, b) => this._currentResultGroups.get(a).order - this._currentResultGroups.get(b).order)
+			.sort((a, b) => this._currentResultGroups.get(a)!.order - this._currentResultGroups.get(b)!.order)
 			.forEach(groupId => {
-				const group = this._currentResultGroups.get(groupId);
+				const group = this._currentResultGroups.get(groupId)!;
 				group.result.filterMatches = group.result.filterMatches.filter(s => !settingKeys.has(s.setting.key));
 				group.result.filterMatches.forEach(s => settingKeys.add(s.setting.key));
 			});
@@ -76,7 +76,7 @@ export abstract class AbstractSettingsModel extends EditorModel {
 		return filterMatches.sort((a, b) => b.score - a.score);
 	}
 
-	getPreference(key: string): ISetting {
+	getPreference(key: string): ISetting | null {
 		for (const group of this.settingsGroups) {
 			for (const section of group.sections) {
 				for (const setting of section.settings) {
@@ -111,12 +111,12 @@ export abstract class AbstractSettingsModel extends EditorModel {
 
 	abstract findValueMatches(filter: string, setting: ISetting): IRange[];
 
-	protected abstract update(): IFilterResult;
+	protected abstract update(): IFilterResult | null;
 }
 
 export class SettingsEditorModel extends AbstractSettingsModel implements ISettingsEditorModel {
 
-	private _settingsGroups: ISettingsGroup[];
+	private _settingsGroups: ISettingsGroup[] | null;
 	protected settingsModel: ITextModel;
 
 	private readonly _onDidChangeGroups: Emitter<void> = this._register(new Emitter<void>());
@@ -144,7 +144,7 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 		if (!this._settingsGroups) {
 			this.parse();
 		}
-		return this._settingsGroups;
+		return this._settingsGroups!;
 	}
 
 	get content(): string {
@@ -163,7 +163,7 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 		this._settingsGroups = parse(this.settingsModel, (property: string, previousParents: string[]): boolean => this.isSettingsProperty(property, previousParents));
 	}
 
-	protected update(): IFilterResult {
+	protected update(): IFilterResult | null {
 		const resultGroups = map.values(this._currentResultGroups);
 		if (!resultGroups.length) {
 			return null;
@@ -179,7 +179,7 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 			});
 		});
 
-		let filteredGroup: ISettingsGroup;
+		let filteredGroup: ISettingsGroup | undefined;
 		const modelGroup = this.settingsGroups[0]; // Editable model has one or zero groups
 		if (modelGroup) {
 			filteredGroup = {
@@ -836,7 +836,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		return [];
 	}
 
-	getPreference(key: string): ISetting {
+	getPreference(key: string): ISetting | null {
 		for (const group of this.settingsGroups) {
 			for (const section of group.sections) {
 				for (const setting of section.settings) {
@@ -1003,7 +1003,7 @@ class SettingsContentBuilder {
 	}
 }
 
-export function createValidator(prop: IConfigurationPropertySchema): ((value: any) => string) | null {
+export function createValidator(prop: IConfigurationPropertySchema): (value: any) => (string | null) {
 	return value => {
 		let exclusiveMax: number | undefined;
 		let exclusiveMin: number | undefined;
@@ -1037,28 +1037,28 @@ export function createValidator(prop: IConfigurationPropertySchema): ((value: an
 		const numericValidations: Validator<number>[] = isNumeric ? [
 			{
 				enabled: exclusiveMax !== undefined && (prop.maximum === undefined || exclusiveMax <= prop.maximum),
-				isValid: (value => value < exclusiveMax),
+				isValid: (value => value < exclusiveMax!),
 				message: nls.localize('validations.exclusiveMax', "Value must be strictly less than {0}.", exclusiveMax)
 			},
 			{
 				enabled: exclusiveMin !== undefined && (prop.minimum === undefined || exclusiveMin >= prop.minimum),
-				isValid: (value => value > exclusiveMin),
+				isValid: (value => value > exclusiveMin!),
 				message: nls.localize('validations.exclusiveMin', "Value must be strictly greater than {0}.", exclusiveMin)
 			},
 
 			{
 				enabled: prop.maximum !== undefined && (exclusiveMax === undefined || exclusiveMax > prop.maximum),
-				isValid: (value => value <= prop.maximum),
+				isValid: (value => value <= prop.maximum!),
 				message: nls.localize('validations.max', "Value must be less than or equal to {0}.", prop.maximum)
 			},
 			{
 				enabled: prop.minimum !== undefined && (exclusiveMin === undefined || exclusiveMin < prop.minimum),
-				isValid: (value => value >= prop.minimum),
+				isValid: (value => value >= prop.minimum!),
 				message: nls.localize('validations.min', "Value must be greater than or equal to {0}.", prop.minimum)
 			},
 			{
 				enabled: prop.multipleOf !== undefined,
-				isValid: (value => value % prop.multipleOf === 0),
+				isValid: (value => value % prop.multipleOf! === 0),
 				message: nls.localize('validations.multipleOf', "Value must be a multiple of {0}.", prop.multipleOf)
 			},
 			{
@@ -1071,17 +1071,17 @@ export function createValidator(prop: IConfigurationPropertySchema): ((value: an
 		const stringValidations: Validator<string>[] = [
 			{
 				enabled: prop.maxLength !== undefined,
-				isValid: (value => value.length <= prop.maxLength),
+				isValid: (value => value.length <= prop.maxLength!),
 				message: nls.localize('validations.maxLength', "Value must be {0} or fewer characters long.", prop.maxLength)
 			},
 			{
 				enabled: prop.minLength !== undefined,
-				isValid: (value => value.length >= prop.minLength),
+				isValid: (value => value.length >= prop.minLength!),
 				message: nls.localize('validations.minLength', "Value must be {0} or more characters long.", prop.minLength)
 			},
 			{
 				enabled: patternRegex !== undefined,
-				isValid: (value => patternRegex.test(value)),
+				isValid: (value => patternRegex!.test(value)),
 				message: prop.patternErrorMessage || nls.localize('validations.regex', "Value must match regex `{0}`.", prop.pattern)
 			},
 		].filter(validation => validation.enabled);

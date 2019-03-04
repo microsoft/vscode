@@ -7,6 +7,7 @@ import * as nls from 'vs/nls';
 import { Client as TelemetryClient } from 'vs/base/parts/ipc/node/ipc.cp';
 import * as strings from 'vs/base/common/strings';
 import * as objects from 'vs/base/common/objects';
+import { isObject } from 'vs/base/common/types';
 import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
 import { IJSONSchema, IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -46,15 +47,52 @@ export class Debugger implements IDebugger {
 
 	public merge(otherDebuggerContribution: IDebuggerContribution, extensionDescription: IExtensionDescription): void {
 
-		// remember all extensions that have been merged for this debugger
-		this.mergedExtensionDescriptions.push(extensionDescription);
+		/**
+		 * Copies all properties of source into destination. The optional parameter "overwrite" allows to control
+		 * if existing non-structured properties on the destination should be overwritten or not. Defaults to true (overwrite).
+		 */
+		function mixin(destination: any, source: any, overwrite: boolean, level = 0): any {
 
-		// merge new debugger contribution into existing contributions.
-		objects.mixin(this.debuggerContribution, otherDebuggerContribution, extensionDescription.isBuiltin);
+			if (!isObject(destination)) {
+				return source;
+			}
 
-		// remember the extension that is considered the "main" debugger contribution
-		if (isDebuggerMainContribution(otherDebuggerContribution)) {
-			this.mainExtensionDescription = extensionDescription;
+			if (isObject(source)) {
+				Object.keys(source).forEach(key => {
+					if (isObject(destination[key]) && isObject(source[key])) {
+						mixin(destination[key], source[key], overwrite, level + 1);
+					} else {
+						if (key in destination) {
+							if (overwrite) {
+								if (level === 0 && key === 'type') {
+									// don't merge the 'type' property
+								} else {
+									destination[key] = source[key];
+								}
+							}
+						} else {
+							destination[key] = source[key];
+						}
+					}
+				});
+			}
+
+			return destination;
+		}
+
+		// only if not already merged
+		if (this.mergedExtensionDescriptions.indexOf(extensionDescription) < 0) {
+
+			// remember all extensions that have been merged for this debugger
+			this.mergedExtensionDescriptions.push(extensionDescription);
+
+			// merge new debugger contribution into existing contributions (and don't overwrite values in built-in extensions)
+			mixin(this.debuggerContribution, otherDebuggerContribution, extensionDescription.isBuiltin);
+
+			// remember the extension that is considered the "main" debugger contribution
+			if (isDebuggerMainContribution(otherDebuggerContribution)) {
+				this.mainExtensionDescription = extensionDescription;
+			}
 		}
 	}
 
@@ -146,9 +184,9 @@ export class Debugger implements IDebugger {
 
 	private inExtHost(): boolean {
 		const debugConfigs = this.configurationService.getValue<IDebugConfiguration>('debug');
-		return debugConfigs.extensionHostDebugAdapter
+		return !!debugConfigs.extensionHostDebugAdapter
 			|| this.configurationManager.needsToRunInExtHost(this.type)
-			|| (this.mainExtensionDescription && this.mainExtensionDescription.extensionLocation.scheme !== 'file');
+			|| (!!this.mainExtensionDescription && this.mainExtensionDescription.extensionLocation.scheme !== 'file');
 	}
 
 	get label(): string {

@@ -15,7 +15,6 @@ interface IJSONValidationExtensionPoint {
 
 const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IJSONValidationExtensionPoint[]>({
 	extensionPoint: 'jsonValidation',
-	isDynamic: true,
 	jsonSchema: {
 		description: nls.localize('contributes.jsonValidation', 'Contributes json schema configuration.'),
 		type: 'array',

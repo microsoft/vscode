@@ -8,12 +8,12 @@ import { MainContext, IMainContext, ExtHostFileSystemShape, MainThreadFileSystem
 import * as vscode from 'vscode';
 import * as files from 'vs/platform/files/common/files';
 import { IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
-import { FileChangeType, DocumentLink } from 'vs/workbench/api/node/extHostTypes';
+import { FileChangeType } from 'vs/workbench/api/node/extHostTypes';
 import * as typeConverter from 'vs/workbench/api/node/extHostTypeConverters';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFeatures';
 import { Schemas } from 'vs/base/common/network';
 import { ResourceLabelFormatter } from 'vs/platform/label/common/label';
-import { State, StateMachine, LinkComputer } from 'vs/editor/common/modes/linkComputer';
+import { State, StateMachine, LinkComputer, Edge } from 'vs/editor/common/modes/linkComputer';
 import { commonPrefixLength } from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
 
@@ -41,8 +41,8 @@ class FsLinkProvider {
 			// sort and compute common prefix with previous scheme
 			// then build state transitions based on the data
 			const schemes = this._schemes.sort();
-			const edges = [];
-			let prevScheme: string;
+			const edges: Edge[] = [];
+			let prevScheme: string | undefined;
 			let prevState: State;
 			let nextState = State.LastKnownState;
 			for (const scheme of schemes) {
@@ -94,11 +94,9 @@ class FsLinkProvider {
 		}, this._stateMachine);
 
 		for (const link of links) {
-			try {
-				let uri = URI.parse(link.url, true);
-				result.push(new DocumentLink(typeConverter.Range.to(link.range), uri));
-			} catch (err) {
-				// ignore
+			let docLink = typeConverter.DocumentLink.to(link);
+			if (docLink.target) {
+				result.push(docLink);
 			}
 		}
 		return result;
@@ -114,6 +112,7 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 	private readonly _watches = new Map<number, IDisposable>();
 
 	private _linkProviderRegistration: IDisposable;
+	// Used as a handle both for file system providers and resource label formatters (being lazy)
 	private _handlePool: number = 0;
 
 	constructor(mainContext: IMainContext, private _extHostLanguageFeatures: ExtHostLanguageFeatures) {
@@ -180,7 +179,7 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 					// dropping events for wrong scheme
 					continue;
 				}
-				let newType: files.FileChangeType;
+				let newType: files.FileChangeType | undefined;
 				switch (type) {
 					case FileChangeType.Changed:
 						newType = files.FileChangeType.UPDATED;
@@ -206,8 +205,13 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		});
 	}
 
-	setUriFormatter(formatter: ResourceLabelFormatter): void {
-		this._proxy.$setUriFormatter(formatter);
+	registerResourceLabelFormatter(formatter: ResourceLabelFormatter): IDisposable {
+		const handle = this._handlePool++;
+		this._proxy.$registerResourceLabelFormatter(handle, formatter);
+
+		return toDisposable(() => {
+			this._proxy.$unregisterResourceLabelFormatter(handle);
+		});
 	}
 
 	private static _asIStat(stat: vscode.FileStat): files.IStat {
@@ -272,7 +276,7 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		this._watches.set(session, subscription);
 	}
 
-	$unwatch(session: number): void {
+	$unwatch(_handle: number, session: number): void {
 		let subscription = this._watches.get(session);
 		if (subscription) {
 			subscription.dispose();

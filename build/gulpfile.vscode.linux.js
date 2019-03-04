@@ -12,6 +12,7 @@ const shell = require('gulp-shell');
 const es = require('event-stream');
 const vfs = require('vinyl-fs');
 const util = require('./lib/util');
+const task = require('./lib/task');
 const packageJson = require('../package.json');
 const product = require('../product.json');
 const rpmDependencies = require('../resources/linux/rpm/dependencies.json');
@@ -241,30 +242,24 @@ BUILD_TARGETS.forEach((buildTarget) => {
 
 	{
 		const debArch = getDebPackageArch(arch);
-		const prepareDebTask = util.task.series(util.rimraf(`.build/linux/deb/${debArch}`), prepareDebPackage(arch));
-		prepareDebTask.displayName = `vscode-linux-${arch}-prepare-deb`;
-		// gulp.task(prepareDebTask.displayName, prepareDebTask);
-		const buildDebTask = util.task.series(prepareDebTask, buildDebPackage(arch));
-		buildDebTask.displayName = `vscode-linux-${arch}-build-deb`;
-		gulp.task(buildDebTask.displayName, buildDebTask);
+		const prepareDebTask = task.define(`vscode-linux-${arch}-prepare-deb`, task.series(util.rimraf(`.build/linux/deb/${debArch}`), prepareDebPackage(arch)));
+		// gulp.task(prepareDebTask);
+		const buildDebTask = task.define(`vscode-linux-${arch}-build-deb`, task.series(prepareDebTask, buildDebPackage(arch)));
+		gulp.task(buildDebTask);
 	}
 
 	{
 		const rpmArch = getRpmPackageArch(arch);
-		const prepareRpmTask = util.task.series(util.rimraf(`.build/linux/rpm/${rpmArch}`), prepareRpmPackage(arch));
-		prepareRpmTask.displayName = `vscode-linux-${arch}-prepare-rpm`;
-		// gulp.task(prepareRpmTask.displayName, prepareRpmTask);
-		const buildRpmTask = util.task.series(prepareRpmTask, buildRpmPackage(arch));
-		buildRpmTask.displayName = `vscode-linux-${arch}-build-rpm`;
-		gulp.task(buildRpmTask.displayName, buildRpmTask);
+		const prepareRpmTask = task.define(`vscode-linux-${arch}-prepare-rpm`, task.series(util.rimraf(`.build/linux/rpm/${rpmArch}`), prepareRpmPackage(arch)));
+		// gulp.task(prepareRpmTask);
+		const buildRpmTask = task.define(`vscode-linux-${arch}-build-rpm`, task.series(prepareRpmTask, buildRpmPackage(arch)));
+		gulp.task(buildRpmTask);
 	}
 
 	{
-		const prepareSnapTask = util.task.series(util.rimraf(`.build/linux/snap/${arch}`), prepareSnapPackage(arch));
-		prepareSnapTask.displayName = `vscode-linux-${arch}-prepare-snap`;
-		gulp.task(prepareSnapTask.displayName, prepareSnapTask);
-		const buildSnapTask = util.task.series(prepareSnapTask, buildSnapPackage(arch));
-		buildSnapTask.displayName = `vscode-linux-${arch}-build-snap`;
-		gulp.task(buildSnapTask.displayName, buildSnapTask);
+		const prepareSnapTask = task.define(`vscode-linux-${arch}-prepare-snap`, task.series(util.rimraf(`.build/linux/snap/${arch}`), prepareSnapPackage(arch)));
+		gulp.task(prepareSnapTask);
+		const buildSnapTask = task.define(`vscode-linux-${arch}-build-snap`, task.series(prepareSnapTask, buildSnapPackage(arch)));
+		gulp.task(buildSnapTask);
 	}
 });

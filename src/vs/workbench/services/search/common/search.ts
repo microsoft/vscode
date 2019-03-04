@@ -5,11 +5,10 @@
 
 import { mapArrayOrNot } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
 import * as glob from 'vs/base/common/glob';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
-import * as paths from 'vs/base/common/paths';
+import * as extpath from 'vs/base/common/extpath';
 import { getNLines } from 'vs/base/common/strings';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IFilesConfiguration } from 'vs/platform/files/common/files';
@@ -17,7 +16,6 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 
 export const VIEW_ID = 'workbench.view.search';
 
-export const ISearchHistoryService = createDecorator<ISearchHistoryService>('searchHistoryService');
 export const ISearchService = createDecorator<ISearchService>('searchService');
 
 /**
@@ -29,21 +27,6 @@ export interface ISearchService {
 	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete>;
 	clearCache(cacheKey: string): Promise<void>;
 	registerSearchResultProvider(scheme: string, type: SearchProviderType, provider: ISearchResultProvider): IDisposable;
-}
-
-export interface ISearchHistoryValues {
-	search?: string[];
-	replace?: string[];
-	include?: string[];
-	exclude?: string[];
-}
-
-export interface ISearchHistoryService {
-	_serviceBrand: any;
-	onDidClearHistory: Event<void>;
-	clearHistory(): void;
-	load(): ISearchHistoryValues;
-	save(history: ISearchHistoryValues): void;
 }
 
 /**
@@ -371,7 +354,7 @@ export function pathIncludedInQuery(queryProps: ICommonQueryProps<URI>, fsPath: 
 	if (queryProps.usingSearchPaths) {
 		return !!queryProps.folderQueries && queryProps.folderQueries.every(fq => {
 			const searchPath = fq.folder.fsPath;
-			if (paths.isEqualOrParent(fsPath, searchPath)) {
+			if (extpath.isEqualOrParent(fsPath, searchPath)) {
 				return !fq.includePattern || !!glob.match(fq.includePattern, fsPath);
 			} else {
 				return false;

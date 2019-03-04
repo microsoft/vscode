@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import * as fs from 'fs';
 import * as os from 'os';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import * as extfs from 'vs/base/node/extfs';
 import * as pfs from 'vs/base/node/pfs';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
@@ -15,7 +15,7 @@ import { WorkspacesMainService, IStoredWorkspace } from 'vs/platform/workspaces/
 import { WORKSPACE_EXTENSION, IWorkspaceIdentifier, IRawFileWorkspaceFolder, IWorkspaceFolderCreationData, IRawUriWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { URI } from 'vs/base/common/uri';
-import { getRandomTestPath } from 'vs/workbench/test/workbenchTestServices';
+import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { isWindows } from 'vs/base/common/platform';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 
@@ -111,18 +111,23 @@ suite('WorkspacesMainService', () => {
 	});
 
 	test('createUntitledWorkspace (folders as other resource URIs)', () => {
-		return service.createUntitledWorkspace([{ uri: URI.from({ scheme: 'myScheme', path: process.cwd() }) }, { uri: URI.from({ scheme: 'myScheme', path: os.tmpdir() }) }]).then(workspace => {
+		const folder1URI = URI.parse('myscheme://server/work/p/f1');
+		const folder2URI = URI.parse('myscheme://server/work/o/f3');
+
+		return service.createUntitledWorkspace([{ uri: folder1URI }, { uri: folder2URI }], 'server').then(workspace => {
 			assert.ok(workspace);
 			assert.ok(fs.existsSync(workspace.configPath.fsPath));
 			assert.ok(service.isUntitledWorkspace(workspace));
 
 			const ws = JSON.parse(fs.readFileSync(workspace.configPath.fsPath).toString()) as IStoredWorkspace;
 			assert.equal(ws.folders.length, 2);
-			assert.equal((<IRawUriWorkspaceFolder>ws.folders[0]).uri, URI.from({ scheme: 'myScheme', path: process.cwd() }).toString(true));
-			assert.equal((<IRawUriWorkspaceFolder>ws.folders[1]).uri, URI.from({ scheme: 'myScheme', path: os.tmpdir() }).toString(true));
+			assert.equal((<IRawUriWorkspaceFolder>ws.folders[0]).uri, folder1URI.toString(true));
+			assert.equal((<IRawUriWorkspaceFolder>ws.folders[1]).uri, folder2URI.toString(true));
 
 			assert.ok(!(<IRawFileWorkspaceFolder>ws.folders[0]).name);
 			assert.ok(!(<IRawFileWorkspaceFolder>ws.folders[1]).name);
+
+			assert.equal(ws.remoteAuthority, 'server');
 		});
 	});
 
@@ -157,15 +162,18 @@ suite('WorkspacesMainService', () => {
 	});
 
 	test('createUntitledWorkspaceSync (folders as other resource URIs)', () => {
-		const workspace = service.createUntitledWorkspaceSync([{ uri: URI.from({ scheme: 'myScheme', path: process.cwd() }) }, { uri: URI.from({ scheme: 'myScheme', path: os.tmpdir() }) }]);
+		const folder1URI = URI.parse('myscheme://server/work/p/f1');
+		const folder2URI = URI.parse('myscheme://server/work/o/f3');
+
+		const workspace = service.createUntitledWorkspaceSync([{ uri: folder1URI }, { uri: folder2URI }]);
 		assert.ok(workspace);
 		assert.ok(fs.existsSync(workspace.configPath.fsPath));
 		assert.ok(service.isUntitledWorkspace(workspace));
 
 		const ws = JSON.parse(fs.readFileSync(workspace.configPath.fsPath).toString()) as IStoredWorkspace;
 		assert.equal(ws.folders.length, 2);
-		assert.equal((<IRawUriWorkspaceFolder>ws.folders[0]).uri, URI.from({ scheme: 'myScheme', path: process.cwd() }).toString(true));
-		assert.equal((<IRawUriWorkspaceFolder>ws.folders[1]).uri, URI.from({ scheme: 'myScheme', path: os.tmpdir() }).toString(true));
+		assert.equal((<IRawUriWorkspaceFolder>ws.folders[0]).uri, folder1URI.toString(true));
+		assert.equal((<IRawUriWorkspaceFolder>ws.folders[1]).uri, folder2URI.toString(true));
 
 		assert.ok(!(<IRawFileWorkspaceFolder>ws.folders[0]).name);
 		assert.ok(!(<IRawFileWorkspaceFolder>ws.folders[1]).name);
@@ -262,7 +270,7 @@ suite('WorkspacesMainService', () => {
 					assert.equal(ws.folders.length, 3);
 					assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[0]).path, process.cwd()); // absolute path because outside of tmpdir
 					assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[1]).path, '.'); // relative path because inside of tmpdir
-					assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[2]).path, path.relative(path.dirname(workspaceConfigPath), path.join(os.tmpdir(), 'somefolder'))); // relative
+					assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[2]).path, 'somefolder'); // relative
 
 					extfs.delSync(workspaceConfigPath);
 					extfs.delSync(newWorkspaceConfigPath);
@@ -353,7 +361,7 @@ suite('WorkspacesMainService', () => {
 			untitled = service.getUntitledWorkspacesSync();
 
 			assert.equal(1, untitled.length);
-			assert.equal(untitledOne.id, untitled[0].id);
+			assert.equal(untitledOne.id, untitled[0].workspace.id);
 
 			return createWorkspace([os.tmpdir(), process.cwd()]).then(untitledTwo => {
 				assert.ok(fs.existsSync(untitledTwo.configPath.fsPath));

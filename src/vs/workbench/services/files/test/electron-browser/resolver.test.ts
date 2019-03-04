@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import * as assert from 'assert';
 
-import { StatResolver } from 'vs/workbench/services/files/electron-browser/fileService';
+import { StatResolver } from 'vs/workbench/services/files/node/fileService';
 import { URI as uri } from 'vs/base/common/uri';
 import { isLinux } from 'vs/base/common/platform';
 import * as utils from 'vs/workbench/services/files/test/electron-browser/utils';

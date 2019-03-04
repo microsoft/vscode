@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { tmpdir } from 'os';
 import { firstIndex } from 'vs/base/common/arrays';
 import { localize } from 'vs/nls';
 import { ParsedArgs } from '../common/environment';
 import { MIN_MAX_MEMORY_SIZE_MB } from 'vs/platform/files/common/files';
 import { parseArgs } from 'vs/platform/environment/node/argv';
-
+import { join } from 'vs/base/common/path';
+import { writeFile } from 'vs/base/node/pfs';
 
 function validate(args: ParsedArgs): ParsedArgs {
 	if (args.goto) {
@@ -17,7 +19,7 @@ function validate(args: ParsedArgs): ParsedArgs {
 	}
 
 	if (args['max-memory']) {
-		assert(args['max-memory'] >= MIN_MAX_MEMORY_SIZE_MB, `The max-memory argument cannot be specified lower than ${MIN_MAX_MEMORY_SIZE_MB} MB.`);
+		assert(parseInt(args['max-memory']) >= MIN_MAX_MEMORY_SIZE_MB, `The max-memory argument cannot be specified lower than ${MIN_MAX_MEMORY_SIZE_MB} MB.`);
 	}
 
 	return args;
@@ -57,4 +59,22 @@ export function parseCLIProcessArgv(processArgv: string[]): ParsedArgs {
 	}
 
 	return validate(parseArgs(args));
+}
+
+export function createWaitMarkerFile(verbose?: boolean): Promise<string> {
+	const randomWaitMarkerPath = join(tmpdir(), Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 10));
+
+	return writeFile(randomWaitMarkerPath, '').then(() => {
+		if (verbose) {
+			console.log(`Marker file for --wait created: ${randomWaitMarkerPath}`);
+		}
+
+		return randomWaitMarkerPath;
+	}, error => {
+		if (verbose) {
+			console.error(`Failed to create marker file for --wait: ${error}`);
+		}
+
+		return Promise.resolve(undefined);
+	});
 }

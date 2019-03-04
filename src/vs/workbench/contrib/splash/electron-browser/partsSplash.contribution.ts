@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { join } from 'vs/base/common/path';
 import { onDidChangeFullscreen, isFullscreen } from 'vs/base/browser/browser';
 import { getTotalHeight, getTotalWidth } from 'vs/base/browser/dom';
 import { Color } from 'vs/base/common/color';
@@ -20,7 +21,7 @@ import { IPartService, Parts, Position } from 'vs/workbench/services/part/common
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
-import { join } from 'vs/base/common/paths';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 class PartsSplash {
 
@@ -38,11 +39,12 @@ class PartsSplash {
 		@IEnvironmentService private readonly _envService: IEnvironmentService,
 		@IBroadcastService private readonly _broadcastService: IBroadcastService,
 		@ILifecycleService lifecycleService: ILifecycleService,
+		@IEditorGroupsService editorGroupsService: IEditorGroupsService
 	) {
 		lifecycleService.when(LifecyclePhase.Restored).then(_ => this._removePartsSplash());
 		Event.debounce(Event.any<any>(
 			onDidChangeFullscreen,
-			_partService.onEditorLayout
+			editorGroupsService.onDidLayout
 		), () => { }, 800)(this._savePartsSplash, this, this._disposables);
 	}
 

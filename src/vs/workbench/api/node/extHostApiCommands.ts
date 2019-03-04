@@ -15,7 +15,7 @@ import * as search from 'vs/workbench/contrib/search/common/search';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { CustomCodeAction } from 'vs/workbench/api/node/extHostLanguageFeatures';
-import { ICommandsExecutor, PreviewHTMLAPICommand, OpenFolderAPICommand, DiffAPICommand, OpenAPICommand, RemoveFromRecentlyOpenedAPICommand, SetEditorLayoutAPICommand } from './apiCommands';
+import { ICommandsExecutor, OpenFolderAPICommand, DiffAPICommand, OpenAPICommand, RemoveFromRecentlyOpenedAPICommand, SetEditorLayoutAPICommand } from './apiCommands';
 import { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 
@@ -134,7 +134,8 @@ export class ExtHostApiCommands {
 			description: 'Execute code action provider.',
 			args: [
 				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
-				{ name: 'range', description: 'Range in a text document', constraint: types.Range }
+				{ name: 'range', description: 'Range in a text document', constraint: types.Range },
+				{ name: 'kind', description: '(optional) Code action kind to return code actions for', constraint: (value: any) => !value || typeof value.value === 'string' },
 			],
 			returns: 'A promise that resolves to an array of Command-instances.'
 		});
@@ -218,20 +219,6 @@ export class ExtHostApiCommands {
 			};
 		};
 
-		this._register(PreviewHTMLAPICommand.ID, adjustHandler(PreviewHTMLAPICommand.execute), {
-			description: `
-					Render the HTML of the resource in an editor view.
-
-					See [working with the HTML preview](https://code.visualstudio.com/docs/extensionAPI/vscode-api-commands#working-with-the-html-preview) for more information about the HTML preview's integration with the editor and for best practices for extension authors.
-				`,
-			args: [
-				{ name: 'uri', description: 'Uri of the resource to preview.', constraint: (value: any) => value instanceof URI || typeof value === 'string' },
-				{ name: 'column', description: '(optional) Column in which to preview.', constraint: (value: any) => typeof value === 'undefined' || (typeof value === 'number' && typeof types.ViewColumn[value] === 'string') },
-				{ name: 'label', description: '(optional) An human readable string that is used as title for the preview.', constraint: (v: any) => typeof v === 'string' || typeof v === 'undefined' },
-				{ name: 'options', description: '(optional) Options for controlling webview environment.', constraint: (v: any) => typeof v === 'object' || typeof v === 'undefined' }
-			]
-		});
-
 		this._register(OpenFolderAPICommand.ID, adjustHandler(OpenFolderAPICommand.execute), {
 			description: 'Open a folder or workspace in the current window or new window depending on the newWindow argument. Note that opening in the same window will shutdown the current extension host process and start a new one on the given folder/workspace unless the newWindow parameter is set to true.',
 			args: [
@@ -298,7 +285,7 @@ export class ExtHostApiCommands {
 		});
 	}
 
-	private _executeDefinitionProvider(resource: URI, position: types.Position): Promise<types.Location[]> {
+	private _executeDefinitionProvider(resource: URI, position: types.Position): Promise<types.Location[] | undefined> {
 		const args = {
 			resource,
 			position: position && typeConverters.Position.from(position)
@@ -307,7 +294,7 @@ export class ExtHostApiCommands {
 			.then(tryMapWith(typeConverters.location.to));
 	}
 
-	private _executeDeclaraionProvider(resource: URI, position: types.Position): Promise<types.Location[]> {
+	private _executeDeclaraionProvider(resource: URI, position: types.Position): Promise<types.Location[] | undefined> {
 		const args = {
 			resource,
 			position: position && typeConverters.Position.from(position)
@@ -316,7 +303,7 @@ export class ExtHostApiCommands {
 			.then(tryMapWith(typeConverters.location.to));
 	}
 
-	private _executeTypeDefinitionProvider(resource: URI, position: types.Position): Promise<types.Location[]> {
+	private _executeTypeDefinitionProvider(resource: URI, position: types.Position): Promise<types.Location[] | undefined> {
 		const args = {
 			resource,
 			position: position && typeConverters.Position.from(position)
@@ -325,7 +312,7 @@ export class ExtHostApiCommands {
 			.then(tryMapWith(typeConverters.location.to));
 	}
 
-	private _executeImplementationProvider(resource: URI, position: types.Position): Promise<types.Location[]> {
+	private _executeImplementationProvider(resource: URI, position: types.Position): Promise<types.Location[] | undefined> {
 		const args = {
 			resource,
 			position: position && typeConverters.Position.from(position)
@@ -334,7 +321,7 @@ export class ExtHostApiCommands {
 			.then(tryMapWith(typeConverters.location.to));
 	}
 
-	private _executeHoverProvider(resource: URI, position: types.Position): Promise<types.Hover[]> {
+	private _executeHoverProvider(resource: URI, position: types.Position): Promise<types.Hover[] | undefined> {
 		const args = {
 			resource,
 			position: position && typeConverters.Position.from(position)
@@ -343,7 +330,7 @@ export class ExtHostApiCommands {
 			.then(tryMapWith(typeConverters.Hover.to));
 	}
 
-	private _executeDocumentHighlights(resource: URI, position: types.Position): Promise<types.DocumentHighlight[]> {
+	private _executeDocumentHighlights(resource: URI, position: types.Position): Promise<types.DocumentHighlight[] | undefined> {
 		const args = {
 			resource,
 			position: position && typeConverters.Position.from(position)
@@ -352,7 +339,7 @@ export class ExtHostApiCommands {
 			.then(tryMapWith(typeConverters.DocumentHighlight.to));
 	}
 
-	private _executeReferenceProvider(resource: URI, position: types.Position): Promise<types.Location[]> {
+	private _executeReferenceProvider(resource: URI, position: types.Position): Promise<types.Location[] | undefined> {
 		const args = {
 			resource,
 			position: position && typeConverters.Position.from(position)
@@ -378,7 +365,7 @@ export class ExtHostApiCommands {
 		});
 	}
 
-	private _executeSignatureHelpProvider(resource: URI, position: types.Position, triggerCharacter: string): Promise<types.SignatureHelp> {
+	private _executeSignatureHelpProvider(resource: URI, position: types.Position, triggerCharacter: string): Promise<types.SignatureHelp | undefined> {
 		const args = {
 			resource,
 			position: position && typeConverters.Position.from(position),
@@ -392,7 +379,7 @@ export class ExtHostApiCommands {
 		});
 	}
 
-	private _executeCompletionItemProvider(resource: URI, position: types.Position, triggerCharacter: string, maxItemsToResolve: number): Promise<types.CompletionList> {
+	private _executeCompletionItemProvider(resource: URI, position: types.Position, triggerCharacter: string, maxItemsToResolve: number): Promise<types.CompletionList | undefined> {
 		const args = {
 			resource,
 			position: position && typeConverters.Position.from(position),
@@ -446,7 +433,7 @@ export class ExtHostApiCommands {
 		});
 	}
 
-	private _executeDocumentSymbolProvider(resource: URI): Promise<vscode.SymbolInformation[]> {
+	private _executeDocumentSymbolProvider(resource: URI): Promise<vscode.SymbolInformation[] | undefined> {
 		const args = {
 			resource
 		};
@@ -478,10 +465,11 @@ export class ExtHostApiCommands {
 		});
 	}
 
-	private _executeCodeActionProvider(resource: URI, range: types.Range): Promise<(vscode.CodeAction | vscode.Command)[]> {
+	private _executeCodeActionProvider(resource: URI, range: types.Range, kind?: string): Promise<(vscode.CodeAction | vscode.Command)[] | undefined> {
 		const args = {
 			resource,
-			range: typeConverters.Range.from(range)
+			range: typeConverters.Range.from(range),
+			kind
 		};
 		return this._commands.executeCommand<CustomCodeAction[]>('_executeCodeActionProvider', args)
 			.then(tryMapWith(codeAction => {
@@ -503,7 +491,7 @@ export class ExtHostApiCommands {
 			}));
 	}
 
-	private _executeCodeLensProvider(resource: URI, itemResolveCount: number): Promise<vscode.CodeLens[]> {
+	private _executeCodeLensProvider(resource: URI, itemResolveCount: number): Promise<vscode.CodeLens[] | undefined> {
 		const args = { resource, itemResolveCount };
 		return this._commands.executeCommand<modes.ICodeLensSymbol[]>('_executeCodeLensProvider', args)
 			.then(tryMapWith(item => {
@@ -514,7 +502,7 @@ export class ExtHostApiCommands {
 
 	}
 
-	private _executeFormatDocumentProvider(resource: URI, options: vscode.FormattingOptions): Promise<vscode.TextEdit[]> {
+	private _executeFormatDocumentProvider(resource: URI, options: vscode.FormattingOptions): Promise<vscode.TextEdit[] | undefined> {
 		const args = {
 			resource,
 			options
@@ -523,7 +511,7 @@ export class ExtHostApiCommands {
 			.then(tryMapWith(edit => new types.TextEdit(typeConverters.Range.to(edit.range), edit.text)));
 	}
 
-	private _executeFormatRangeProvider(resource: URI, range: types.Range, options: vscode.FormattingOptions): Promise<vscode.TextEdit[]> {
+	private _executeFormatRangeProvider(resource: URI, range: types.Range, options: vscode.FormattingOptions): Promise<vscode.TextEdit[] | undefined> {
 		const args = {
 			resource,
 			range: typeConverters.Range.from(range),
@@ -533,7 +521,7 @@ export class ExtHostApiCommands {
 			.then(tryMapWith(edit => new types.TextEdit(typeConverters.Range.to(edit.range), edit.text)));
 	}
 
-	private _executeFormatOnTypeProvider(resource: URI, position: types.Position, ch: string, options: vscode.FormattingOptions): Promise<vscode.TextEdit[]> {
+	private _executeFormatOnTypeProvider(resource: URI, position: types.Position, ch: string, options: vscode.FormattingOptions): Promise<vscode.TextEdit[] | undefined> {
 		const args = {
 			resource,
 			position: typeConverters.Position.from(position),
@@ -544,7 +532,7 @@ export class ExtHostApiCommands {
 			.then(tryMapWith(edit => new types.TextEdit(typeConverters.Range.to(edit.range), edit.text)));
 	}
 
-	private _executeDocumentLinkProvider(resource: URI): Promise<vscode.DocumentLink[]> {
+	private _executeDocumentLinkProvider(resource: URI): Promise<vscode.DocumentLink[] | undefined> {
 		return this._commands.executeCommand<modes.ILink[]>('_executeLinkProvider', resource)
 			.then(tryMapWith(typeConverters.DocumentLink.to));
 	}

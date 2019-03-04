@@ -79,6 +79,7 @@ export class Match {
 			after = this._oneLinePreviewText.substring(this._rangeInPreviewText.endColumn - 1);
 
 		before = lcut(before, 26);
+		before = before.trimLeft();
 
 		let charsRemaining = Match.MAX_PREVIEW_CHARS - before.length;
 		inside = inside.substr(0, charsRemaining);
@@ -598,7 +599,7 @@ export class FolderMatch extends BaseFolderMatch {
  * and their sort order is undefined.
  */
 export function searchMatchComparer(elementA: RenderableMatch, elementB: RenderableMatch): number {
-	if (elementA instanceof FolderMatch && elementB instanceof FolderMatch) {
+	if (elementA instanceof BaseFolderMatch && elementB instanceof BaseFolderMatch) {
 		return elementA.index() - elementB.index();
 	}
 

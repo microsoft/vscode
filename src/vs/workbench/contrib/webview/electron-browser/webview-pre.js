@@ -197,7 +197,7 @@
 
 			newDocument.querySelectorAll('a').forEach(a => {
 				if (!a.title) {
-					a.title = a.href;
+					a.title = a.getAttribute('href');
 				}
 			});
 
@@ -243,7 +243,7 @@
 					delete window.frameElement;
 				`;
 
-				newDocument.head.prepend(defaultScript, newDocument.head.firstChild);
+				newDocument.head.prepend(defaultScript);
 			}
 
 			// apply default styles

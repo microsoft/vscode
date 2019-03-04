@@ -61,6 +61,13 @@ export class PanelRegistry extends CompositeRegistry<Panel> {
 	getDefaultPanelId(): string {
 		return this.defaultPanelId;
 	}
+
+	/**
+	 * Find out if a panel exists with the provided ID.
+	 */
+	hasPanel(id: string): boolean {
+		return this.getPanels().some(panel => panel.id === id);
+	}
 }
 
 /**
@@ -89,7 +96,7 @@ export abstract class TogglePanelAction extends Action {
 			this.panelService.openPanel(this.panelId, true);
 		}
 
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 
 	private isPanelActive(): boolean {

@@ -223,7 +223,7 @@ export interface PresentationOptions {
 
 export namespace PresentationOptions {
 	export const defaults: PresentationOptions = {
-		echo: false, reveal: RevealKind.Always, focus: false, panel: PanelKind.Shared, showReuseMessage: true, clear: false
+		echo: true, reveal: RevealKind.Always, focus: false, panel: PanelKind.Shared, showReuseMessage: true, clear: false
 	};
 }
 
@@ -514,7 +514,7 @@ export abstract class CommonTask {
 		return 'unknown';
 	}
 
-	public matches(key: string | KeyedTaskIdentifier, compareId: boolean = false): boolean {
+	public matches(key: string | KeyedTaskIdentifier | undefined, compareId: boolean = false): boolean {
 		if (key === undefined) {
 			return false;
 		}
@@ -631,7 +631,7 @@ export class CustomTask extends CommonTask {
 		return JSON.stringify(key);
 	}
 
-	public getWorkspaceFolder(): IWorkspaceFolder | undefined {
+	public getWorkspaceFolder(): IWorkspaceFolder {
 		return this._source.config.workspaceFolder;
 	}
 

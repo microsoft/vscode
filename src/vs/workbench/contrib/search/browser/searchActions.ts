@@ -9,7 +9,7 @@ import { INavigator } from 'vs/base/common/iterator';
 import { createKeybinding, ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
-import { normalize } from 'vs/base/common/paths';
+import { normalize } from 'vs/base/common/path';
 import { isWindows, OS } from 'vs/base/common/platform';
 import { repeat } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
@@ -17,24 +17,24 @@ import * as nls from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ICommandHandler } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
-import { ISearchConfiguration, ISearchHistoryService, VIEW_ID } from 'vs/workbench/services/search/common/search';
+import { getSelectionKeyboardEvent, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
 import { IReplaceService } from 'vs/workbench/contrib/search/common/replace';
-import { FileMatch, FileMatchOrMatch, FolderMatch, Match, RenderableMatch, searchMatchComparer, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { BaseFolderMatch, FileMatch, FileMatchOrMatch, FolderMatch, Match, RenderableMatch, searchMatchComparer, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { ISearchConfiguration, VIEW_ID } from 'vs/workbench/services/search/common/search';
+import { ISearchHistoryService } from 'vs/workbench/contrib/search/common/searchHistoryService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 
 export function isSearchViewFocused(viewletService: IViewletService, panelService: IPanelService): boolean {
 	const searchView = getSearchView(viewletService, panelService);
 	const activeElement = document.activeElement;
-	return searchView && activeElement && DOM.isAncestor(activeElement, searchView.getContainer());
+	return !!(searchView && activeElement && DOM.isAncestor(activeElement, searchView.getContainer()));
 }
 
 export function appendKeyBindingLabel(label: string, keyBinding: number | ResolvedKeybinding, keyBindingService2: IKeybindingService): string {
@@ -262,7 +262,7 @@ export class CollapseDeepestExpandedLevelAction extends Action {
 
 	update(): void {
 		const searchView = getSearchView(this.viewletService, this.panelService);
-		this.enabled = searchView && searchView.hasSearchResults();
+		this.enabled = !!searchView && searchView.hasSearchResults();
 	}
 
 	run(): Promise<void> {
@@ -277,7 +277,7 @@ export class CollapseDeepestExpandedLevelAction extends Action {
 			const navigator = viewer.navigate();
 			let node = navigator.first();
 			let collapseFileMatchLevel = false;
-			if (node instanceof FolderMatch) {
+			if (node instanceof BaseFolderMatch) {
 				while (node = navigator.next()) {
 					if (node instanceof Match) {
 						collapseFileMatchLevel = true;
@@ -319,7 +319,7 @@ export class ClearSearchResultsAction extends Action {
 
 	update(): void {
 		const searchView = getSearchView(this.viewletService, this.panelService);
-		this.enabled = searchView && (!searchView.allSearchFieldsClear() || searchView.hasSearchResults());
+		this.enabled = !!searchView && (!searchView.allSearchFieldsClear() || searchView.hasSearchResults());
 	}
 
 	run(): Promise<void> {
@@ -327,7 +327,7 @@ export class ClearSearchResultsAction extends Action {
 		if (searchView) {
 			searchView.clearSearchResults();
 		}
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 
@@ -346,7 +346,7 @@ export class CancelSearchAction extends Action {
 
 	update(): void {
 		const searchView = getSearchView(this.viewletService, this.panelService);
-		this.enabled = searchView && searchView.isSearching();
+		this.enabled = !!searchView && searchView.isSearching();
 	}
 
 	run(): Promise<void> {
@@ -407,8 +407,8 @@ export abstract class AbstractSearchAndReplaceAction extends Action {
 
 	getNextElementAfterRemoved(viewer: WorkbenchObjectTree<RenderableMatch>, element: RenderableMatch): RenderableMatch {
 		const navigator: INavigator<any> = viewer.navigate(element);
-		if (element instanceof FolderMatch) {
-			while (!!navigator.next() && !(navigator.current() instanceof FolderMatch)) { }
+		if (element instanceof BaseFolderMatch) {
+			while (!!navigator.next() && !(navigator.current() instanceof BaseFolderMatch)) { }
 		} else if (element instanceof FileMatch) {
 			while (!!navigator.next() && !(navigator.current() instanceof FileMatch)) { }
 		} else {
@@ -435,7 +435,7 @@ export abstract class AbstractSearchAndReplaceAction extends Action {
 
 		// If the previous element is a File or Folder, expand it and go to its last child.
 		// Spell out the two cases, would be too easy to create an infinite loop, like by adding another level...
-		if (element instanceof Match && previousElement && previousElement instanceof FolderMatch) {
+		if (element instanceof Match && previousElement && previousElement instanceof BaseFolderMatch) {
 			navigator.next();
 			viewer.expand(previousElement);
 			previousElement = navigator.previous();
@@ -456,7 +456,6 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 	static LABEL = nls.localize('RemoveAction.label', "Dismiss");
 
 	constructor(
-		private viewlet: SearchView,
 		private viewer: WorkbenchObjectTree<RenderableMatch>,
 		private element: RenderableMatch
 	) {
@@ -471,27 +470,12 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 
 		if (nextFocusElement) {
 			this.viewer.reveal(nextFocusElement);
-			this.viewer.setFocus([nextFocusElement], getKeyboardEventForEditorOpen());
+			this.viewer.setFocus([nextFocusElement], getSelectionKeyboardEvent());
 		}
 
-		let elementToRefresh: FolderMatch | FileMatch | SearchResult;
-		const element = this.element;
-		if (element instanceof FolderMatch) {
-			const parent = element.parent();
-			parent.remove(element);
-			elementToRefresh = parent;
-		} else if (element instanceof FileMatch) {
-			const parent = element.parent();
-			parent.remove(element);
-			elementToRefresh = parent;
-		} else if (element instanceof Match) {
-			const parent = element.parent();
-			parent.remove(element);
-			elementToRefresh = parent.count() === 0 ? parent.parent() : parent;
-		}
-
+		this.element.parent().remove(<any>this.element);
 		this.viewer.domFocus();
-		this.viewlet.refreshTree({ elements: [elementToRefresh] });
+
 		return Promise.resolve();
 	}
 }
@@ -523,7 +507,7 @@ export class ReplaceAllAction extends AbstractSearchAndReplaceAction {
 		const nextFocusElement = this.getElementToFocusAfterRemoved(tree, this.fileMatch);
 		return this.fileMatch.parent().replace(this.fileMatch).then(() => {
 			if (nextFocusElement) {
-				tree.setFocus([nextFocusElement], getKeyboardEventForEditorOpen());
+				tree.setFocus([nextFocusElement], getSelectionKeyboardEvent());
 			}
 
 			tree.domFocus();
@@ -546,7 +530,7 @@ export class ReplaceAllInFolderAction extends AbstractSearchAndReplaceAction {
 		const nextFocusElement = this.getElementToFocusAfterRemoved(this.viewer, this.folderMatch);
 		return this.folderMatch.replaceAll().then(() => {
 			if (nextFocusElement) {
-				this.viewer.setFocus([nextFocusElement], getKeyboardEventForEditorOpen());
+				this.viewer.setFocus([nextFocusElement], getSelectionKeyboardEvent());
 			}
 			this.viewer.domFocus();
 		});
@@ -571,7 +555,7 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 		return this.element.parent().replace(this.element).then(() => {
 			const elementToFocus = this.getElementToFocusAfterReplace();
 			if (elementToFocus) {
-				this.viewer.setFocus([elementToFocus], getKeyboardEventForEditorOpen());
+				this.viewer.setFocus([elementToFocus], getSelectionKeyboardEvent());
 			}
 
 			return this.getElementToShowReplacePreview(elementToFocus);
@@ -640,7 +624,7 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 }
 
 function uriToClipboardString(resource: URI): string {
-	return resource.scheme === Schemas.file ? normalize(normalizeDriveLetter(resource.fsPath), true) : resource.toString();
+	return resource.scheme === Schemas.file ? normalize(normalizeDriveLetter(resource.fsPath)) : resource.toString();
 }
 
 export const copyPathCommand: ICommandHandler = (accessor, fileMatch: FileMatch | FolderMatch) => {
@@ -711,12 +695,12 @@ const maxClipboardMatches = 1e4;
 export const copyMatchCommand: ICommandHandler = (accessor, match: RenderableMatch) => {
 	const clipboardService = accessor.get(IClipboardService);
 
-	let text: string;
+	let text: string | undefined;
 	if (match instanceof Match) {
 		text = matchToString(match);
 	} else if (match instanceof FileMatch) {
 		text = fileMatchToString(match, maxClipboardMatches).text;
-	} else if (match instanceof FolderMatch) {
+	} else if (match instanceof BaseFolderMatch) {
 		text = folderMatchToString(match, maxClipboardMatches).text;
 	}
 
@@ -764,13 +748,3 @@ export const focusSearchListCommand: ICommandHandler = accessor => {
 		searchView.moveFocusToResults();
 	});
 };
-
-export function getKeyboardEventForEditorOpen(options: IEditorOptions = {}): KeyboardEvent {
-	const fakeKeyboardEvent = new KeyboardEvent('keydown');
-	if (options.preserveFocus) {
-		// fake double click
-		(<any>fakeKeyboardEvent).detail = 2;
-	}
-
-	return fakeKeyboardEvent;
-}

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as paths from 'vs/base/common/paths';
+import { dirname, basename } from 'vs/base/common/path';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -17,7 +17,7 @@ import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorIn
 import { URI } from 'vs/base/common/uri';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
-import { LOG_SCHEME, IOutputChannelDescriptor } from 'vs/workbench/contrib/output/common/output';
+import { LOG_SCHEME, IFileOutputChannelDescriptor } from 'vs/workbench/contrib/output/common/output';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWindowService } from 'vs/platform/windows/common/windows';
@@ -26,11 +26,11 @@ export class LogViewerInput extends ResourceEditorInput {
 
 	public static readonly ID = 'workbench.editorinputs.output';
 
-	constructor(private outputChannelDescriptor: IOutputChannelDescriptor,
+	constructor(private outputChannelDescriptor: IFileOutputChannelDescriptor,
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IHashService hashService: IHashService
 	) {
-		super(paths.basename(outputChannelDescriptor.file.path), paths.dirname(outputChannelDescriptor.file.path), URI.from({ scheme: LOG_SCHEME, path: outputChannelDescriptor.id }), textModelResolverService, hashService);
+		super(basename(outputChannelDescriptor.file.path), dirname(outputChannelDescriptor.file.path), URI.from({ scheme: LOG_SCHEME, path: outputChannelDescriptor.id }), textModelResolverService, hashService);
 	}
 
 	public getTypeId(): string {

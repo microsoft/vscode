@@ -61,7 +61,7 @@ export const options: Option[] = [
 	{ id: 'inspect-brk-extensions', type: 'string', deprecates: 'debugBrkPluginHost', args: 'port', cat: 't', description: localize('inspect-brk-extensions', "Allow debugging and profiling of extensions with the extension host being paused after start. Check the developer tools for the connection URI.") },
 	{ id: 'disable-gpu', type: 'boolean', cat: 't', description: localize('disableGPU', "Disable GPU hardware acceleration.") },
 	{ id: 'upload-logs', type: 'string', cat: 't', description: localize('uploadLogs', "Uploads logs from current session to a secure endpoint.") },
-	{ id: 'max-memory', type: 'boolean', cat: 't', description: localize('maxMemory', "Max memory size for a window (in Mbytes).") },
+	{ id: 'max-memory', type: 'string', cat: 't', description: localize('maxMemory', "Max memory size for a window (in Mbytes).") },
 
 	{ id: 'remote', type: 'string' },
 	{ id: 'extensionDevelopmentPath', type: 'string' },
@@ -238,4 +238,18 @@ export function hasArgs(arg: string | string[] | undefined): boolean {
 		return true;
 	}
 	return false;
+}
+
+export function addArg(argv: string[], ...args: string[]): string[] {
+	const endOfArgsMarkerIndex = argv.indexOf('--');
+	if (endOfArgsMarkerIndex === -1) {
+		argv.push(...args);
+	} else {
+		// if the we have an argument "--" (end of argument marker)
+		// we cannot add arguments at the end. rather, we add
+		// arguments before the "--" marker.
+		argv.splice(endOfArgsMarkerIndex, 0, ...args);
+	}
+
+	return argv;
 }

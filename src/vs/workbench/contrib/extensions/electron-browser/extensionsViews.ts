@@ -40,9 +40,10 @@ import { alert } from 'vs/base/browser/ui/aria/aria';
 import { IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
 import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { getKeywordsForExtension } from 'vs/workbench/contrib/extensions/electron-browser/extensionsUtils';
 import { IAction } from 'vs/base/common/actions';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import product from 'vs/platform/product/node/product';
 
 class ExtensionsViewState extends Disposable implements IExtensionsViewState {
 
@@ -84,7 +85,8 @@ export class ExtensionsListView extends ViewletPanel {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
-		@IExperimentService private readonly experimentService: IExperimentService
+		@IExperimentService private readonly experimentService: IExperimentService,
+		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: options.title }, keybindingService, contextMenuService, configurationService);
 	}
@@ -175,24 +177,24 @@ export class ExtensionsListView extends ViewletPanel {
 		return Promise.resolve(emptyModel);
 	}
 
-	private onContextMenu(e: IListContextMenuEvent<IExtension>): void {
+	private async onContextMenu(e: IListContextMenuEvent<IExtension>): Promise<void> {
 		if (e.element) {
-			this.extensionService.getExtensions()
-				.then(runningExtensions => {
-					const manageExtensionAction = this.instantiationService.createInstance(ManageExtensionAction);
-					manageExtensionAction.extension = e.element;
-					const groups = manageExtensionAction.getActionGroups(runningExtensions);
-					let actions: IAction[] = [];
-					for (const menuActions of groups) {
-						actions = [...actions, ...menuActions, new Separator()];
-					}
-					if (manageExtensionAction.enabled) {
-						this.contextMenuService.showContextMenu({
-							getAnchor: () => e.anchor,
-							getActions: () => actions.slice(0, actions.length - 1)
-						});
-					}
+			const runningExtensions = await this.extensionService.getExtensions();
+			const colorThemes = await this.workbenchThemeService.getColorThemes();
+			const fileIconThemes = await this.workbenchThemeService.getFileIconThemes();
+			const manageExtensionAction = this.instantiationService.createInstance(ManageExtensionAction);
+			manageExtensionAction.extension = e.element;
+			const groups = manageExtensionAction.getActionGroups(runningExtensions, colorThemes, fileIconThemes);
+			let actions: IAction[] = [];
+			for (const menuActions of groups) {
+				actions = [...actions, ...menuActions, new Separator()];
+			}
+			if (manageExtensionAction.enabled) {
+				this.contextMenuService.showContextMenu({
+					getAnchor: () => e.anchor,
+					getActions: () => actions.slice(0, actions.length - 1)
 				});
+			}
 		}
 	}
 
@@ -220,7 +222,8 @@ export class ExtensionsListView extends ViewletPanel {
 
 			if (showThemesOnly) {
 				const themesExtensions = result.filter(e => {
-					return e.local.manifest
+					return e.local
+						&& e.local.manifest
 						&& e.local.manifest.contributes
 						&& Array.isArray(e.local.manifest.contributes.themes)
 						&& e.local.manifest.contributes.themes.length;
@@ -229,7 +232,7 @@ export class ExtensionsListView extends ViewletPanel {
 			}
 			if (showBasicsOnly) {
 				const basics = result.filter(e => {
-					return e.local.manifest
+					return e.local && e.local.manifest
 						&& e.local.manifest.contributes
 						&& Array.isArray(e.local.manifest.contributes.grammars)
 						&& e.local.manifest.contributes.grammars.length
@@ -239,7 +242,8 @@ export class ExtensionsListView extends ViewletPanel {
 			}
 			if (showFeaturesOnly) {
 				const others = result.filter(e => {
-					return e.local.manifest
+					return e.local
+						&& e.local.manifest
 						&& e.local.manifest.contributes
 						&& (!Array.isArray(e.local.manifest.contributes.grammars) || e.local.identifier.id === 'vscode.git')
 						&& !Array.isArray(e.local.manifest.contributes.themes);
@@ -268,7 +272,7 @@ export class ExtensionsListView extends ViewletPanel {
 			result = result
 				.filter(e => e.type === ExtensionType.User
 					&& (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1)
-					&& (!categories.length || categories.some(category => (e.local.manifest.categories || []).some(c => c.toLowerCase() === category))));
+					&& (!categories.length || categories.some(category => (e.local && e.local.manifest.categories || []).some(c => c.toLowerCase() === category))));
 
 			return this.getPagedModel(this.sortExtensions(result, options));
 		}
@@ -282,7 +286,7 @@ export class ExtensionsListView extends ViewletPanel {
 				.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
 				.filter(extension => extension.outdated
 					&& (extension.name.toLowerCase().indexOf(value) > -1 || extension.displayName.toLowerCase().indexOf(value) > -1)
-					&& (!categories.length || categories.some(category => extension.local.manifest.categories.some(c => c.toLowerCase() === category))));
+					&& (!categories.length || categories.some(category => !!extension.local && extension.local.manifest.categories!.some(c => c.toLowerCase() === category))));
 
 			return this.getPagedModel(this.sortExtensions(result, options));
 		}
@@ -297,7 +301,7 @@ export class ExtensionsListView extends ViewletPanel {
 				.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
 				.filter(e => runningExtensions.every(r => !areSameExtensions({ id: r.identifier.value }, e.identifier))
 					&& (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1)
-					&& (!categories.length || categories.some(category => (e.local.manifest.categories || []).some(c => c.toLowerCase() === category))));
+					&& (!categories.length || categories.some(category => (e.local && e.local.manifest.categories || []).some(c => c.toLowerCase() === category))));
 
 			return this.getPagedModel(this.sortExtensions(result, options));
 		}
@@ -312,7 +316,7 @@ export class ExtensionsListView extends ViewletPanel {
 				.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
 				.filter(e => runningExtensions.some(r => areSameExtensions({ id: r.identifier.value }, e.identifier))
 					&& (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1)
-					&& (!categories.length || categories.some(category => (e.local.manifest.categories || []).some(c => c.toLowerCase() === category))));
+					&& (!categories.length || categories.some(category => (e.local && e.local.manifest.categories || []).some(c => c.toLowerCase() === category))));
 
 			return this.getPagedModel(this.sortExtensions(result, options));
 		}
@@ -362,7 +366,8 @@ export class ExtensionsListView extends ViewletPanel {
 			text = query.value.replace(extensionRegex, (m, ext) => {
 
 				// Get curated keywords
-				const keywords = getKeywordsForExtension(ext);
+				const lookup = product.extensionKeywords || {};
+				const keywords = lookup[ext] || [];
 
 				// Get mode name
 				const modeId = this.modeService.getModeIdByFilepathOrFirstLine(`.${ext}`);
@@ -385,7 +390,7 @@ export class ExtensionsListView extends ViewletPanel {
 			if (!hasUserDefinedSortOrder) {
 				const searchExperiments = await this.getSearchExperiments();
 				for (const experiment of searchExperiments) {
-					if (text.toLowerCase() === experiment.action.properties['searchText'] && Array.isArray(experiment.action.properties['preferredResults'])) {
+					if (experiment.action && text.toLowerCase() === experiment.action.properties['searchText'] && Array.isArray(experiment.action.properties['preferredResults'])) {
 						preferredResults = experiment.action.properties['preferredResults'];
 						options.source += `-experiment-${experiment.id}`;
 						break;
@@ -426,11 +431,11 @@ export class ExtensionsListView extends ViewletPanel {
 	private sortExtensions(extensions: IExtension[], options: IQueryOptions): IExtension[] {
 		switch (options.sortBy) {
 			case SortBy.InstallCount:
-				extensions = extensions.sort((e1, e2) => e2.installCount - e1.installCount);
+				extensions = extensions.sort((e1, e2) => typeof e2.installCount === 'number' && typeof e1.installCount === 'number' ? e2.installCount - e1.installCount : NaN);
 				break;
 			case SortBy.AverageRating:
 			case SortBy.WeightedRating:
-				extensions = extensions.sort((e1, e2) => e2.rating - e1.rating);
+				extensions = extensions.sort((e1, e2) => typeof e2.rating === 'number' && typeof e1.rating === 'number' ? e2.rating - e1.rating : NaN);
 				break;
 			default:
 				extensions = extensions.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName));

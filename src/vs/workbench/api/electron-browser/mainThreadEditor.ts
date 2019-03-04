@@ -84,6 +84,7 @@ export class MainThreadTextEditorProperties {
 		return {
 			insertSpaces: modelOptions.insertSpaces,
 			tabSize: modelOptions.tabSize,
+			indentSize: modelOptions.indentSize,
 			cursorStyle: cursorStyle,
 			lineNumbers: lineNumbers
 		};
@@ -166,6 +167,7 @@ export class MainThreadTextEditorProperties {
 		}
 		return (
 			a.tabSize === b.tabSize
+			&& a.indentSize === b.indentSize
 			&& a.insertSpaces === b.insertSpaces
 			&& a.cursorStyle === b.cursorStyle
 			&& a.lineNumbers === b.lineNumbers
@@ -321,10 +323,10 @@ export class MainThreadTextEditor {
 	}
 
 	private _setIndentConfiguration(newConfiguration: ITextEditorConfigurationUpdate): void {
+		let creationOpts = this._modelService.getCreationOptions(this._model.getLanguageIdentifier().language, this._model.uri, this._model.isForSimpleWidget);
+
 		if (newConfiguration.tabSize === 'auto' || newConfiguration.insertSpaces === 'auto') {
 			// one of the options was set to 'auto' => detect indentation
-
-			let creationOpts = this._modelService.getCreationOptions(this._model.getLanguageIdentifier().language, this._model.uri, this._model.isForSimpleWidget);
 			let insertSpaces = creationOpts.insertSpaces;
 			let tabSize = creationOpts.tabSize;
 
@@ -346,6 +348,13 @@ export class MainThreadTextEditor {
 		}
 		if (typeof newConfiguration.tabSize !== 'undefined') {
 			newOpts.tabSize = newConfiguration.tabSize;
+		}
+		if (typeof newConfiguration.indentSize !== 'undefined') {
+			if (newConfiguration.indentSize === 'tabSize') {
+				newOpts.indentSize = newOpts.tabSize || creationOpts.tabSize;
+			} else {
+				newOpts.indentSize = newConfiguration.indentSize;
+			}
 		}
 		this._model.updateOptions(newOpts);
 	}

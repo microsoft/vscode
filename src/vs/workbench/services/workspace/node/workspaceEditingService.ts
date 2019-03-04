@@ -9,7 +9,7 @@ import * as nls from 'vs/nls';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWindowService, MessageBoxOptions, IWindowsService } from 'vs/platform/windows/common/windows';
 import { IJSONEditingService, JSONEditingError, JSONEditingErrorCode } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, isWorkspaceIdentifier, toWorkspaceIdentifier, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, isWorkspaceIdentifier, toWorkspaceIdentifier, IWorkspacesService, rewriteWorkspaceFileForNewLocation } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -25,7 +25,8 @@ import { isLinux } from 'vs/base/common/platform';
 import { isEqual, basename } from 'vs/base/common/resources';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IFileService } from 'vs/platform/files/common/files';
-import { rewriteWorkspaceFileForNewLocation } from 'vs/platform/workspaces/node/workspaces';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class WorkspaceEditingService implements IWorkspaceEditingService {
 
@@ -43,7 +44,8 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		@ICommandService private readonly commandService: ICommandService,
 		@IFileService private readonly fileSystemService: IFileService,
 		@IWindowsService private readonly windowsService: IWindowsService,
-		@IWorkspacesService private readonly workspaceService: IWorkspacesService
+		@IWorkspacesService private readonly workspaceService: IWorkspacesService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
 	}
 
@@ -63,7 +65,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		}
 
 		// Add Folders
-		if (wantsToAdd && !wantsToDelete) {
+		if (wantsToAdd && !wantsToDelete && Array.isArray(foldersToAdd)) {
 			return this.doAddFolders(foldersToAdd, index, donotNotifyError);
 		}
 
@@ -79,16 +81,16 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 			// other folders, we handle this specially and just enter workspace
 			// mode with the folders that are being added.
 			if (this.includesSingleFolderWorkspace(foldersToDelete)) {
-				return this.createAndEnterWorkspace(foldersToAdd);
+				return this.createAndEnterWorkspace(foldersToAdd!);
 			}
 
 			// if we are not in workspace-state, we just add the folders
 			if (this.contextService.getWorkbenchState() !== WorkbenchState.WORKSPACE) {
-				return this.doAddFolders(foldersToAdd, index, donotNotifyError);
+				return this.doAddFolders(foldersToAdd!, index, donotNotifyError);
 			}
 
 			// finally, update folders within the workspace
-			return this.doUpdateFolders(foldersToAdd, foldersToDelete, index, donotNotifyError);
+			return this.doUpdateFolders(foldersToAdd!, foldersToDelete, index, donotNotifyError);
 		}
 	}
 
@@ -177,7 +179,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		const windows = await this.windowsService.getWindows();
 
 		// Prevent overwriting a workspace that is currently opened in another window
-		if (windows.some(window => window.workspace && isEqual(window.workspace.configPath, path))) {
+		if (windows.some(window => !!window.workspace && isEqual(window.workspace.configPath, path))) {
 			const options: MessageBoxOptions = {
 				type: 'info',
 				buttons: [nls.localize('ok', "OK")],
@@ -239,12 +241,20 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	}
 
 	enterWorkspace(path: URI): Promise<void> {
+		if (!!this.environmentService.extensionTestsLocationURI) {
+			return Promise.reject(new Error('Entering a new workspace is not possible in tests.'));
+		}
 
+		// Restart extension host if first root folder changed (impact on deprecated workspace.rootPath API)
 		// Stop the extension host first to give extensions most time to shutdown
 		this.extensionService.stopExtensionHost();
 		let extensionHostStarted: boolean = false;
 
 		const startExtensionHost = () => {
+			if (this.windowService.getConfiguration().remoteAuthority) {
+				this.windowService.reloadWindow(); // TODO aeschli: workaround until restarting works
+			}
+
 			this.extensionService.startExtensionHost();
 			extensionHostStarted = true;
 		};
@@ -257,7 +267,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 
 					// Reinitialize backup service
 					if (this.backupFileService instanceof BackupFileService) {
-						this.backupFileService.initialize(result.backupPath);
+						this.backupFileService.initialize(result.backupPath!);
 					}
 
 					// Reinitialize configuration service
@@ -320,3 +330,5 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		return this.jsonEditingService.write(toWorkspace.configPath, { key: 'settings', value: targetWorkspaceConfiguration }, true);
 	}
 }
+
+registerSingleton(IWorkspaceEditingService, WorkspaceEditingService, true);

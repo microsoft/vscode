@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import * as assert from 'vs/base/common/assert';
 import { Emitter, Event } from 'vs/base/common/event';
 import { dispose } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -131,8 +131,8 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 		}
 	}
 
-	getDocument(strUrl: string): ExtHostDocumentData {
-		return this._documents.get(strUrl);
+	getDocument(uri: URI): ExtHostDocumentData {
+		return this._documents.get(uri.toString());
 	}
 
 	allDocuments(): ExtHostDocumentData[] {

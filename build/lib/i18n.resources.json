@@ -39,6 +39,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/codeinset",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/comments",
 			"project": "vscode-workbench"
 		},
@@ -116,6 +120,10 @@
 		},
 		{
 			"name": "vs/workbench/contrib/snippets",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/format",
 			"project": "vscode-workbench"
 		},
 		{

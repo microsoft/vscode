@@ -8,7 +8,7 @@ import * as cp from 'child_process';
 import * as stream from 'stream';
 import * as nls from 'vs/nls';
 import * as net from 'net';
-import * as paths from 'vs/base/common/paths';
+import * as path from 'vs/base/common/path';
 import * as strings from 'vs/base/common/strings';
 import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
@@ -316,7 +316,7 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 
 			// verify executables
 			if (this.adapterExecutable.command) {
-				if (paths.isAbsolute(this.adapterExecutable.command)) {
+				if (path.isAbsolute(this.adapterExecutable.command)) {
 					if (!fs.existsSync(this.adapterExecutable.command)) {
 						reject(new Error(nls.localize('debugAdapterBinNotFound', "Debug adapter executable '{0}' does not exist.", this.adapterExecutable.command)));
 					}
@@ -394,7 +394,10 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 				// 	console.log('%c' + sanitize(data), 'background: #ddd; font-style: italic;');
 				// });
 				this.serverProcess.stderr.on('data', (data: string) => {
-					outputService.getChannel(ExtensionsChannelId).append(sanitize(data));
+					const channel = outputService.getChannel(ExtensionsChannelId);
+					if (channel) {
+						channel.append(sanitize(data));
+					}
 				});
 			}
 
@@ -440,7 +443,7 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 		const result: IDebuggerContribution = Object.create(null);
 		if (contribution.runtime) {
 			if (contribution.runtime.indexOf('./') === 0) {	// TODO
-				result.runtime = paths.join(extensionFolderPath, contribution.runtime);
+				result.runtime = path.join(extensionFolderPath, contribution.runtime);
 			} else {
 				result.runtime = contribution.runtime;
 			}
@@ -449,8 +452,8 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 			result.runtimeArgs = contribution.runtimeArgs;
 		}
 		if (contribution.program) {
-			if (!paths.isAbsolute(contribution.program)) {
-				result.program = paths.join(extensionFolderPath, contribution.program);
+			if (!path.isAbsolute(contribution.program)) {
+				result.program = path.join(extensionFolderPath, contribution.program);
 			} else {
 				result.program = contribution.program;
 			}

@@ -5,7 +5,7 @@
 
 import { Action } from 'vs/base/common/actions';
 import * as nls from 'vs/nls';
-import product from 'vs/platform/node/product';
+import product from 'vs/platform/product/node/product';
 import { isMacintosh, isLinux, language } from 'vs/base/common/platform';
 
 export class KeybindingsReferenceAction extends Action {

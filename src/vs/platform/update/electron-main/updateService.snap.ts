@@ -9,7 +9,7 @@ import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycle
 import { IUpdateService, State, StateType, AvailableForDownload, UpdateType } from 'vs/platform/update/common/update';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import { realpath, watch } from 'fs';
 import { spawn } from 'child_process';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';

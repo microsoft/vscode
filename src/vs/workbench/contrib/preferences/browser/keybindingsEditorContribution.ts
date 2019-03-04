@@ -265,13 +265,20 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 			return true;
 		}
 
-		const [parsedA1, parsedA2] = KeybindingParser.parseUserBinding(a);
-		const [parsedB1, parsedB2] = KeybindingParser.parseUserBinding(b);
+		const aParts = KeybindingParser.parseUserBinding(a);
+		const bParts = KeybindingParser.parseUserBinding(b);
 
-		return (
-			this._userBindingEquals(parsedA1, parsedB1)
-			&& this._userBindingEquals(parsedA2, parsedB2)
-		);
+		if (aParts.length !== bParts.length) {
+			return false;
+		}
+
+		for (let i = 0, len = aParts.length; i < len; i++) {
+			if (!this._userBindingEquals(aParts[i], bParts[i])) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	private static _userBindingEquals(a: SimpleKeybinding | ScanCodeBinding, b: SimpleKeybinding | ScanCodeBinding): boolean {

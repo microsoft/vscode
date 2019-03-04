@@ -380,6 +380,7 @@ declare namespace monaco {
 	}
 
 	export interface IKeyboardEvent {
+		readonly _standardKeyboardEventBrand: true;
 		readonly browserEvent: KeyboardEvent;
 		readonly target: HTMLElement;
 		readonly ctrlKey: boolean;
@@ -922,6 +923,11 @@ declare namespace monaco.editor {
 	 */
 	export function setTheme(themeName: string): void;
 
+	/**
+	 * Clears all cached font measurements and triggers re-measurement.
+	 */
+	export function remeasureFonts(): void;
+
 	export type BuiltinTheme = 'vs' | 'vs-dark' | 'hc-black';
 
 	export interface IStandaloneThemeData {
@@ -1421,6 +1427,7 @@ declare namespace monaco.editor {
 	export class TextModelResolvedOptions {
 		_textModelResolvedOptionsBrand: void;
 		readonly tabSize: number;
+		readonly indentSize: number;
 		readonly insertSpaces: boolean;
 		readonly defaultEOL: DefaultEndOfLine;
 		readonly trimAutoWhitespace: boolean;
@@ -1428,6 +1435,7 @@ declare namespace monaco.editor {
 
 	export interface ITextModelUpdateOptions {
 		tabSize?: number;
+		indentSize?: number;
 		insertSpaces?: boolean;
 		trimAutoWhitespace?: boolean;
 	}
@@ -1714,10 +1722,6 @@ declare namespace monaco.editor {
 		 * Normalize a string containing whitespace according to indentation rules (converts to spaces or to tabs).
 		 */
 		normalizeIndentation(str: string): string;
-		/**
-		 * Get what is considered to be one indent (e.g. a tab character or 4 spaces, etc.).
-		 */
-		getOneIndent(): string;
 		/**
 		 * Change the options of this model.
 		 */
@@ -2278,6 +2282,7 @@ declare namespace monaco.editor {
 
 	export interface IModelOptionsChangedEvent {
 		readonly tabSize: boolean;
+		readonly indentSize: boolean;
 		readonly insertSpaces: boolean;
 		readonly trimAutoWhitespace: boolean;
 	}
@@ -2433,6 +2438,7 @@ declare namespace monaco.editor {
 		 * Controls if Find in Selection flag is turned on when multiple lines of text are selected in the editor.
 		 */
 		autoFindInSelection: boolean;
+		addExtraSpaceOnTop?: boolean;
 	}
 
 	/**
@@ -2581,6 +2587,11 @@ declare namespace monaco.editor {
 		 * Defaults to true.
 		 */
 		lineNumbers?: 'on' | 'off' | 'relative' | 'interval' | ((lineNumber: number) => string);
+		/**
+		 * Render last line number when the file ends with a newline.
+		 * Defaults to true on Windows/Mac and to false on Linux.
+		*/
+		renderFinalNewline?: boolean;
 		/**
 		 * Should the corresponding line be selected when clicking on the line number?
 		 * Defaults to true.
@@ -3169,6 +3180,7 @@ declare namespace monaco.editor {
 	export interface InternalEditorFindOptions {
 		readonly seedSearchStringFromSelection: boolean;
 		readonly autoFindInSelection: boolean;
+		readonly addExtraSpaceOnTop: boolean;
 	}
 
 	export interface InternalEditorHoverOptions {
@@ -3217,6 +3229,7 @@ declare namespace monaco.editor {
 		readonly ariaLabel: string;
 		readonly renderLineNumbers: RenderLineNumbersType;
 		readonly renderCustomLineNumbers: ((lineNumber: number) => string) | null;
+		readonly renderFinalNewline: boolean;
 		readonly selectOnLineNumbers: boolean;
 		readonly glyphMargin: boolean;
 		readonly revealHorizontalRightPadding: number;
@@ -4271,12 +4284,12 @@ declare namespace monaco.languages {
 	/**
 	 * Set the tokens provider for a language (manual implementation).
 	 */
-	export function setTokensProvider(languageId: string, provider: TokensProvider | EncodedTokensProvider): IDisposable;
+	export function setTokensProvider(languageId: string, provider: TokensProvider | EncodedTokensProvider | Thenable<TokensProvider | EncodedTokensProvider>): IDisposable;
 
 	/**
 	 * Set the tokens provider for a language (monarch implementation).
 	 */
-	export function setMonarchTokensProvider(languageId: string, languageDef: IMonarchLanguage): IDisposable;
+	export function setMonarchTokensProvider(languageId: string, languageDef: IMonarchLanguage | Thenable<IMonarchLanguage>): IDisposable;
 
 	/**
 	 * Register a reference provider (used by e.g. reference search).
@@ -5167,7 +5180,6 @@ declare namespace monaco.languages {
 	 * the formatting-feature.
 	 */
 	export interface DocumentFormattingEditProvider {
-		displayName?: string;
 		/**
 		 * Provide formatting edits for a whole document.
 		 */
@@ -5179,7 +5191,6 @@ declare namespace monaco.languages {
 	 * the formatting-feature.
 	 */
 	export interface DocumentRangeFormattingEditProvider {
-		displayName?: string;
 		/**
 		 * Provide formatting edits for a range in a document.
 		 *
@@ -5211,7 +5222,7 @@ declare namespace monaco.languages {
 	 */
 	export interface ILink {
 		range: IRange;
-		url?: string;
+		url?: Uri | string;
 	}
 
 	/**

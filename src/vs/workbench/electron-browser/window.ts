@@ -23,24 +23,26 @@ import * as browser from 'vs/base/browser/browser';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
-import { Themable } from 'vs/workbench/common/theme';
 import { ipcRenderer as ipc, webFrame, crashReporter } from 'electron';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { IMenuService, MenuId, IMenu, MenuItemAction, ICommandAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { fillInActionBarActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { LifecyclePhase, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
-import { AccessibilitySupport, isRootUser, isWindows, isMacintosh, isLinux } from 'vs/base/common/platform';
-import product from 'vs/platform/node/product';
-import pkg from 'vs/platform/node/package';
+import { isRootUser, isWindows, isMacintosh, isLinux } from 'vs/base/common/platform';
+import product from 'vs/platform/product/node/product';
+import pkg from 'vs/platform/product/node/package';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { coalesce } from 'vs/base/common/arrays';
 
 const TextInputActions: IAction[] = [
 	new Action('undo', nls.localize('undo', "Undo"), undefined, true, () => Promise.resolve(document.execCommand('undo'))),
@@ -53,7 +55,9 @@ const TextInputActions: IAction[] = [
 	new Action('editor.action.selectAll', nls.localize('selectAll', "Select All"), undefined, true, () => Promise.resolve(document.execCommand('selectAll')))
 ];
 
-export class ElectronWindow extends Themable {
+export class ElectronWindow extends Disposable {
+
+	private static readonly closeWhenEmptyConfigurationKey = 'window.closeWhenEmpty';
 
 	private touchBarMenu?: IMenu;
 	private touchBarUpdater: RunOnceScheduler;
@@ -64,6 +68,8 @@ export class ElectronWindow extends Themable {
 
 	private addFoldersScheduler: RunOnceScheduler;
 	private pendingFoldersToAdd: URI[];
+
+	private closeEmptyWindowScheduler: RunOnceScheduler = this._register(new RunOnceScheduler(() => this.onAllEditorsClosed(), 50));
 
 	constructor(
 		@IEditorService private readonly editorService: EditorServiceImpl,
@@ -82,9 +88,11 @@ export class ElectronWindow extends Themable {
 		@IMenuService private readonly menuService: IMenuService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IIntegrityService private readonly integrityService: IIntegrityService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
 	) {
-		super(themeService);
+		super();
 
 		this.touchBarDisposables = [];
 
@@ -204,7 +212,7 @@ export class ElectronWindow extends Themable {
 
 		// keyboard layout changed event
 		ipc.on('vscode:accessibilitySupportChanged', (event: any, accessibilitySupportEnabled: boolean) => {
-			browser.setAccessibilitySupport(accessibilitySupportEnabled ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled);
+			this.accessibilityService.setAccessibilitySupport(accessibilitySupportEnabled ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled);
 		});
 
 		// Zoom level changes
@@ -217,6 +225,51 @@ export class ElectronWindow extends Themable {
 
 		// Context menu support in input/textarea
 		window.document.addEventListener('contextmenu', e => this.onContextMenu(e));
+
+		// Listen to visible editor changes
+		this._register(this.editorService.onDidVisibleEditorsChange(() => this.onDidVisibleEditorsChange()));
+
+		// Listen to editor closing (if we run with --wait)
+		const filesToWait = this.windowService.getConfiguration().filesToWait;
+		if (filesToWait) {
+			const resourcesToWaitFor = coalesce(filesToWait.paths.map(p => p.fileUri));
+			const waitMarkerFile = URI.file(filesToWait.waitMarkerFilePath);
+			const listenerDispose = this.editorService.onDidCloseEditor(() => this.onEditorClosed(listenerDispose, resourcesToWaitFor, waitMarkerFile));
+
+			this._register(listenerDispose);
+		}
+	}
+
+	private onDidVisibleEditorsChange(): void {
+
+		// Close when empty: check if we should close the window based on the setting
+		// Overruled by: window has a workspace opened or this window is for extension development
+		// or setting is disabled. Also enabled when running with --wait from the command line.
+		const visibleEditors = this.editorService.visibleControls;
+		if (visibleEditors.length === 0 && this.contextService.getWorkbenchState() === WorkbenchState.EMPTY && !this.environmentService.isExtensionDevelopment) {
+			const closeWhenEmpty = this.configurationService.getValue<boolean>(ElectronWindow.closeWhenEmptyConfigurationKey);
+			if (closeWhenEmpty || this.environmentService.args.wait) {
+				this.closeEmptyWindowScheduler.schedule();
+			}
+		}
+	}
+
+	private onAllEditorsClosed(): void {
+		const visibleEditors = this.editorService.visibleControls.length;
+		if (visibleEditors === 0) {
+			this.windowService.closeWindow();
+		}
+	}
+
+	private onEditorClosed(listenerDispose: IDisposable, resourcesToWaitFor: URI[], waitMarkerFile: URI): void {
+
+		// In wait mode, listen to changes to the editors and wait until the files
+		// are closed that the user wants to wait for. When this happens we delete
+		// the wait marker file to signal to the outside that editing is done.
+		if (resourcesToWaitFor.every(resource => !this.editorService.isOpen({ resource }))) {
+			listenerDispose.dispose();
+			this.fileService.del(waitMarkerFile);
+		}
 	}
 
 	private onContextMenu(e: MouseEvent): void {

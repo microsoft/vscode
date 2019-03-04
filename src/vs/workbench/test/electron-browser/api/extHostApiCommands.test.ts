@@ -27,10 +27,11 @@ import { MainContext, ExtHostContext } from 'vs/workbench/api/node/extHost.proto
 import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
 import * as vscode from 'vscode';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import 'vs/workbench/contrib/search/electron-browser/search.contribution';
+import 'vs/workbench/contrib/search/browser/search.contribution';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { ITextModel } from 'vs/editor/common/model';
 import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { dispose } from 'vs/base/common/lifecycle';
 
 const defaultSelector = { scheme: 'far' };
 const model: ITextModel = EditorModel.createFromString(
@@ -86,15 +87,15 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			instantiationService.stub(IModelService, <IModelService>{
 				_serviceBrand: IModelService,
 				getModel(): any { return model; },
-				createModel(): any { throw new Error(); },
-				updateModel(): any { throw new Error(); },
-				setMode(): any { throw new Error(); },
-				destroyModel(): any { throw new Error(); },
-				getModels(): any { throw new Error(); },
-				onModelAdded: undefined,
-				onModelModeChanged: undefined,
-				onModelRemoved: undefined,
-				getCreationOptions(): any { throw new Error(); }
+				createModel() { throw new Error(); },
+				updateModel() { throw new Error(); },
+				setMode() { throw new Error(); },
+				destroyModel() { throw new Error(); },
+				getModels() { throw new Error(); },
+				onModelAdded: undefined!,
+				onModelModeChanged: undefined!,
+				onModelRemoved: undefined!,
+				getCreationOptions() { throw new Error(); }
 			});
 			inst = instantiationService;
 		}
@@ -137,10 +138,8 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		mainThread.dispose();
 	});
 
-	teardown(function () {
-		while (disposables.length) {
-			disposables.pop().dispose();
-		}
+	teardown(() => {
+		disposables = dispose(disposables);
 		return rpcProtocol.sync();
 	});
 
@@ -191,8 +190,8 @@ suite('ExtHostLanguageFeatureCommands', function () {
 	test('executeWorkspaceSymbolProvider should accept empty string, #39522', async function () {
 
 		disposables.push(extHost.registerWorkspaceSymbolProvider(nullExtensionDescription, {
-			provideWorkspaceSymbols(query) {
-				return [new types.SymbolInformation('hello', types.SymbolKind.Array, new types.Range(0, 0, 0, 0), URI.parse('foo:bar'))];
+			provideWorkspaceSymbols(query): vscode.SymbolInformation[] {
+				return [new types.SymbolInformation('hello', types.SymbolKind.Array, new types.Range(0, 0, 0, 0), URI.parse('foo:bar')) as vscode.SymbolInformation];
 			}
 		}));
 
@@ -664,9 +663,9 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 				assert.equal(first.command!.title, 'Title');
 				assert.equal(first.command!.command, 'cmd');
-				assert.equal(first.command!.arguments[0], 1);
-				assert.equal(first.command!.arguments[1], true);
-				assert.equal(first.command!.arguments[2], complexArg);
+				assert.equal(first.command!.arguments![0], 1);
+				assert.equal(first.command!.arguments![1], true);
+				assert.equal(first.command!.arguments![2], complexArg);
 			});
 		});
 	});

@@ -26,7 +26,7 @@ const NLS_CLOSE_BTN_LABEL = nls.localize('label.closeButton', "Close");
 
 export abstract class SimpleFindWidget extends Widget {
 	private _findInput: FindInput;
-	private _domNode?: HTMLElement;
+	private _domNode: HTMLElement;
 	private _innerDomNode: HTMLElement;
 	private _isVisible: boolean = false;
 	private _focusTracker: dom.IFocusTracker;
@@ -182,7 +182,6 @@ export abstract class SimpleFindWidget extends Widget {
 
 		if (this._domNode && this._domNode.parentElement) {
 			this._domNode.parentElement.removeChild(this._domNode);
-			this._domNode = undefined;
 		}
 	}
 
@@ -204,10 +203,9 @@ export abstract class SimpleFindWidget extends Widget {
 
 		setTimeout(() => {
 			dom.addClass(this._innerDomNode, 'visible');
+			dom.addClass(this._innerDomNode, 'visible-transition');
 			this._innerDomNode.setAttribute('aria-hidden', 'false');
-			setTimeout(() => {
-				this._findInput.select();
-			}, 200);
+			this._findInput.select();
 		}, 0);
 	}
 
@@ -220,16 +218,20 @@ export abstract class SimpleFindWidget extends Widget {
 
 		setTimeout(() => {
 			dom.addClass(this._innerDomNode, 'visible');
+			dom.addClass(this._innerDomNode, 'visible-transition');
 			this._innerDomNode.setAttribute('aria-hidden', 'false');
 		}, 0);
 	}
 
 	public hide(): void {
 		if (this._isVisible) {
-			this._isVisible = false;
-
-			dom.removeClass(this._innerDomNode, 'visible');
+			dom.removeClass(this._innerDomNode, 'visible-transition');
 			this._innerDomNode.setAttribute('aria-hidden', 'true');
+			// Need to delay toggling visibility until after Transition, then visibility hidden - removes from tabIndex list
+			setTimeout(() => {
+				this._isVisible = false;
+				dom.removeClass(this._innerDomNode, 'visible');
+			}, 200);
 		}
 	}
 

@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import * as fs from 'fs';
 import * as os from 'os';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import { Readable } from 'stream';
 import { canNormalize } from 'vs/base/common/normalization';
 import { isLinux, isWindows } from 'vs/base/common/platform';

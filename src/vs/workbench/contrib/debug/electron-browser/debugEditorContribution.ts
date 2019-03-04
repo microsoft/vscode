@@ -298,7 +298,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				}
 			});
 		} else {
-			let overrides: IConfigurationOverrides;
+			let overrides: IConfigurationOverrides | undefined;
 			if (model) {
 				overrides = {
 					resource: model.uri,
@@ -485,7 +485,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		}
 
 		// First call stack frame that is available is the frame where exception has been thrown
-		const exceptionSf = first(callStack, sf => sf.source && sf.source.available, undefined);
+		const exceptionSf = first(callStack, sf => sf.source && sf.source.available && sf.source.presentationHint !== 'deemphasize', undefined);
 		if (!exceptionSf || exceptionSf !== focusedSf) {
 			this.closeExceptionWidget();
 			return;
@@ -537,7 +537,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			"debug/addLaunchConfiguration" : {}
 		*/
 		this.telemetryService.publicLog('debug/addLaunchConfiguration');
-		let configurationsArrayPosition: Position;
+		let configurationsArrayPosition: Position | undefined;
 		const model = this.editor.getModel();
 		let depthInArray = 0;
 		let lastProperty: string;

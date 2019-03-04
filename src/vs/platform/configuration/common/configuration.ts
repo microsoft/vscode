@@ -280,3 +280,16 @@ export function overrideIdentifierFromKey(key: string): string {
 export function keyFromOverrideIdentifier(overrideIdentifier: string): string {
 	return `[${overrideIdentifier}]`;
 }
+
+export function getMigratedSettingValue<T>(configurationService: IConfigurationService, currentSettingName: string, legacySettingName: string): T {
+	const setting = configurationService.inspect<T>(currentSettingName);
+	const legacySetting = configurationService.inspect<T>(legacySettingName);
+
+	if (typeof setting.user !== 'undefined' || typeof setting.workspace !== 'undefined' || typeof setting.workspaceFolder !== 'undefined') {
+		return setting.value;
+	} else if (typeof legacySetting.user !== 'undefined' || typeof legacySetting.workspace !== 'undefined' || typeof legacySetting.workspaceFolder !== 'undefined') {
+		return legacySetting.value;
+	} else {
+		return setting.default;
+	}
+}

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import product from 'vs/platform/node/product';
+import product from 'vs/platform/product/node/product';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { IRequestService } from 'vs/platform/request/node/request';
@@ -15,7 +15,7 @@ import { createUpdateURL, AbstractUpdateService } from 'vs/platform/update/elect
 import { asJson } from 'vs/base/node/request';
 import { shell } from 'electron';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import { spawn } from 'child_process';
 import { realpath } from 'fs';
 

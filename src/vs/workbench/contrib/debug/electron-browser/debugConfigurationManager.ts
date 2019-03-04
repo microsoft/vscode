@@ -249,14 +249,26 @@ export class ConfigurationManager implements IConfigurationManager {
 						});
 					}
 
-					const existing = this.getDebugger(rawAdapter.type);
-					if (existing) {
-						existing.merge(rawAdapter, added.description);
-					} else {
-						this.debuggers.push(this.instantiationService.createInstance(Debugger, this, rawAdapter, added.description));
+					if (rawAdapter.type !== '*') {
+						const existing = this.getDebugger(rawAdapter.type);
+						if (existing) {
+							existing.merge(rawAdapter, added.description);
+						} else {
+							this.debuggers.push(this.instantiationService.createInstance(Debugger, this, rawAdapter, added.description));
+						}
 					}
 				});
 			});
+
+			// take care of all wildcard contributions
+			extensions.forEach(extension => {
+				extension.value.forEach(rawAdapter => {
+					if (rawAdapter.type === '*') {
+						this.debuggers.forEach(dbg => dbg.merge(rawAdapter, extension.description));
+					}
+				});
+			});
+
 			delta.removed.forEach(removed => {
 				const removedTypes = removed.value.map(rawAdapter => rawAdapter.type);
 				this.debuggers = this.debuggers.filter(d => removedTypes.indexOf(d.type) === -1);
@@ -412,7 +424,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		}
 
 		const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
-		let candidates: Promise<Debugger[]>;
+		let candidates: Promise<Debugger[]> | undefined;
 		if (isCodeEditor(activeTextEditorWidget)) {
 			const model = activeTextEditorWidget.getModel();
 			const language = model ? model.getLanguageIdentifier().language : undefined;

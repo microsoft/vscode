@@ -161,11 +161,11 @@ export class TerminalPanel extends Panel {
 			});
 		}
 		const activeInstance = this._terminalService.getActiveInstance();
-		this._copyContextMenuAction.enabled = activeInstance && activeInstance.hasSelection();
+		this._copyContextMenuAction.enabled = !!activeInstance && activeInstance.hasSelection();
 		return this._contextMenuActions;
 	}
 
-	public getActionItem(action: Action): IActionItem {
+	public getActionItem(action: Action): IActionItem | null {
 		if (action.id === SwitchTerminalAction.ID) {
 			return this._instantiationService.createInstance(SwitchTerminalActionItem, action);
 		}
@@ -182,7 +182,7 @@ export class TerminalPanel extends Panel {
 
 	public focusFindWidget() {
 		const activeInstance = this._terminalService.getActiveInstance();
-		if (activeInstance && activeInstance.hasSelection() && (activeInstance.selection.indexOf('\n') === -1)) {
+		if (activeInstance && activeInstance.hasSelection() && activeInstance.selection!.indexOf('\n') === -1) {
 			this._findWidget.reveal(activeInstance.selection);
 		} else {
 			this._findWidget.reveal();
@@ -195,7 +195,7 @@ export class TerminalPanel extends Panel {
 
 	public showFindWidget() {
 		const activeInstance = this._terminalService.getActiveInstance();
-		if (activeInstance && activeInstance.hasSelection() && (activeInstance.selection.indexOf('\n') === -1)) {
+		if (activeInstance && activeInstance.hasSelection() && activeInstance.selection!.indexOf('\n') === -1) {
 			this._findWidget.show(activeInstance.selection);
 		} else {
 			this._findWidget.show();
@@ -215,10 +215,16 @@ export class TerminalPanel extends Panel {
 			if (event.which === 2 && platform.isLinux) {
 				// Drop selection and focus terminal on Linux to enable middle button paste when click
 				// occurs on the selection itself.
-				this._terminalService.getActiveInstance().focus();
+				const terminal = this._terminalService.getActiveInstance();
+				if (terminal) {
+					terminal.focus();
+				}
 			} else if (event.which === 3) {
 				if (this._terminalService.configHelper.config.rightClickBehavior === 'copyPaste') {
 					const terminal = this._terminalService.getActiveInstance();
+					if (!terminal) {
+						return;
+					}
 					if (terminal.hasSelection()) {
 						terminal.copySelection();
 						terminal.clearSelection();
@@ -246,7 +252,7 @@ export class TerminalPanel extends Panel {
 
 				if (event.which === 1) {
 					const terminal = this._terminalService.getActiveInstance();
-					if (terminal.hasSelection()) {
+					if (terminal && terminal.hasSelection()) {
 						terminal.copySelection();
 					}
 				}
@@ -285,7 +291,7 @@ export class TerminalPanel extends Panel {
 				}
 
 				// Check if files were dragged from the tree explorer
-				let path: string;
+				let path: string | undefined;
 				const resources = e.dataTransfer.getData(DataTransfers.RESOURCES);
 				if (resources) {
 					path = URI.parse(JSON.parse(resources)[0]).fsPath;
@@ -299,7 +305,9 @@ export class TerminalPanel extends Panel {
 				}
 
 				const terminal = this._terminalService.getActiveInstance();
-				terminal.sendText(terminalEnvironment.preparePathForTerminal(path), false);
+				if (terminal) {
+					terminal.sendText(terminalEnvironment.preparePathForTerminal(path), false);
+				}
 			}
 		}));
 	}

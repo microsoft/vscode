@@ -64,7 +64,8 @@ export class Rulers extends ViewPart {
 		}
 
 		if (currentCount < desiredCount) {
-			const rulerWidth = this._context.model.getTabSize();
+			const { tabSize } = this._context.model.getOptions();
+			const rulerWidth = tabSize;
 			let addCount = desiredCount - currentCount;
 			while (addCount > 0) {
 				let node = createFastDomNode(document.createElement('div'));

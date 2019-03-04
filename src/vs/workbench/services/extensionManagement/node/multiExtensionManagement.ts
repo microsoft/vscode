@@ -9,7 +9,7 @@ import {
 	IExtensionManagementServerService, IExtensionManagementServer, IExtensionGalleryService
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { flatten } from 'vs/base/common/arrays';
-import { ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { ExtensionType, IExtensionManifest, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -60,7 +60,10 @@ export class MultiExtensionManagementService extends Disposable implements IExte
 				return Promise.reject(`Invalid location ${extension.location.toString()}`);
 			}
 			const syncExtensions = await this.hasToSyncExtensions();
-			return syncExtensions ? this.uninstallEverywhere(extension, force) : this.uninstallInServer(extension, server, force);
+			if (syncExtensions || isLanguagePackExtension(extension.manifest)) {
+				return this.uninstallEverywhere(extension, force);
+			}
+			return this.uninstallInServer(extension, server, force);
 		}
 		return this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.uninstall(extension, force);
 	}
@@ -133,12 +136,12 @@ export class MultiExtensionManagementService extends Disposable implements IExte
 	async install(vsix: URI): Promise<IExtensionIdentifier> {
 		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
 			const syncExtensions = await this.hasToSyncExtensions();
-			if (syncExtensions) {
+			const manifest = await getManifest(vsix.fsPath);
+			if (syncExtensions || isLanguagePackExtension(manifest)) {
 				// Install on both servers
 				const [extensionIdentifier] = await Promise.all(this.servers.map(server => server.extensionManagementService.install(vsix)));
 				return extensionIdentifier;
 			}
-			const manifest = await getManifest(vsix.fsPath);
 			if (isUIExtension(manifest, this.configurationService)) {
 				// Install only on local server
 				return this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.install(vsix);
@@ -156,7 +159,7 @@ export class MultiExtensionManagementService extends Disposable implements IExte
 		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
 			const [manifest, syncExtensions] = await Promise.all([this.extensionGalleryService.getManifest(gallery, CancellationToken.None), this.hasToSyncExtensions()]);
 			if (manifest) {
-				if (syncExtensions) {
+				if (syncExtensions || isLanguagePackExtension(manifest)) {
 					// Install on both servers
 					return Promise.all(this.servers.map(server => server.extensionManagementService.installFromGallery(gallery))).then(() => undefined);
 				}

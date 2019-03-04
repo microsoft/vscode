@@ -8,8 +8,8 @@ import severity from 'vs/base/common/severity';
 import { IAction, Action } from 'vs/base/common/actions';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
-import pkg from 'vs/platform/node/package';
-import product from 'vs/platform/node/product';
+import pkg from 'vs/platform/product/node/package';
+import product from 'vs/platform/product/node/product';
 import { URI } from 'vs/base/common/uri';
 import { IActivityService, NumberBadge, IBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -35,7 +35,7 @@ function showReleaseNotes(instantiationService: IInstantiationService, version: 
 		releaseNotesManager = instantiationService.createInstance(ReleaseNotesManager);
 	}
 
-	return instantiationService.invokeFunction(accessor => releaseNotesManager.show(accessor, version));
+	return instantiationService.invokeFunction(accessor => releaseNotesManager!.show(accessor, version));
 }
 
 export class OpenLatestReleaseNotesInBrowserAction extends Action {
@@ -43,7 +43,7 @@ export class OpenLatestReleaseNotesInBrowserAction extends Action {
 	constructor(
 		@IOpenerService private readonly openerService: IOpenerService
 	) {
-		super('update.openLatestReleaseNotes', nls.localize('releaseNotes', "Release Notes"), null, true);
+		super('update.openLatestReleaseNotes', nls.localize('releaseNotes', "Release Notes"), undefined, true);
 	}
 
 	run(): Promise<any> {
@@ -63,7 +63,7 @@ export abstract class AbstractShowReleaseNotesAction extends Action {
 		private version: string,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
-		super(id, label, null, true);
+		super(id, label, undefined, true);
 	}
 
 	run(): Promise<boolean> {
@@ -200,6 +200,53 @@ export class Win3264BitContribution implements IWorkbenchContribution {
 			severity.Info,
 			nls.localize('64bitisavailable', "{0} for 64-bit Windows is now available! Click [here]({1}) to learn more.", product.nameShort, url),
 			[{
+				label: nls.localize('neveragain', "Don't Show Again"),
+				isSecondary: true,
+				run: () => {
+					neverShowAgain.action.run(handle);
+					neverShowAgain.action.dispose();
+				}
+			}],
+			{ sticky: true }
+		);
+	}
+}
+
+export class Linux32BitContribution implements IWorkbenchContribution {
+
+	private static readonly KEY = 'update/linux32-64bits';
+	private static readonly URL = 'https://code.visualstudio.com/updates/v1_32#_linux-32-bit-support-ends-soon';
+	private static readonly INSIDER_URL = 'https://github.com/Microsoft/vscode-docs/blob/vnext/release-notes/v1_32.md#linux-32-bit-support-ends-soon';
+
+	constructor(
+		@IStorageService storageService: IStorageService,
+		@INotificationService notificationService: INotificationService,
+		@IEnvironmentService environmentService: IEnvironmentService
+	) {
+		if (environmentService.disableUpdates) {
+			return;
+		}
+
+		const neverShowAgain = new NeverShowAgain(Linux32BitContribution.KEY, storageService);
+
+		if (!neverShowAgain.shouldShow()) {
+			return;
+		}
+
+		const url = product.quality === 'insider'
+			? Linux32BitContribution.INSIDER_URL
+			: Linux32BitContribution.URL;
+
+		const handle = notificationService.prompt(
+			severity.Info,
+			nls.localize('linux64bits', "{0} for 32-bit Linux will soon be discontinued. Please update to the 64-bit version.", product.nameShort, url),
+			[{
+				label: nls.localize('learnmore', "Learn More"),
+				run: () => {
+					window.open(url);
+				}
+			},
+			{
 				label: nls.localize('neveragain', "Don't Show Again"),
 				isSecondary: true,
 				run: () => {
@@ -461,11 +508,11 @@ export class UpdateContribution implements IGlobalActivity {
 
 		// if version != stored version, save version and date
 		if (currentVersion !== lastKnownVersion) {
-			this.storageService.store('update/lastKnownVersion', currentVersion, StorageScope.GLOBAL);
+			this.storageService.store('update/lastKnownVersion', currentVersion!, StorageScope.GLOBAL);
 			this.storageService.store('update/updateNotificationTime', currentMillis, StorageScope.GLOBAL);
 		}
 
-		const updateNotificationMillis = this.storageService.getInteger('update/updateNotificationTime', StorageScope.GLOBAL, currentMillis);
+		const updateNotificationMillis = this.storageService.getNumber('update/updateNotificationTime', StorageScope.GLOBAL, currentMillis);
 		const diffDays = (currentMillis - updateNotificationMillis) / (1000 * 60 * 60 * 24);
 
 		return diffDays > 5;
@@ -510,7 +557,7 @@ export class UpdateContribution implements IGlobalActivity {
 				return new Action('update.checking', nls.localize('checkingForUpdates', "Checking For Updates..."), undefined, false);
 
 			case StateType.AvailableForDownload:
-				return new Action('update.downloadNow', nls.localize('download now', "Download Now"), null, true, () =>
+				return new Action('update.downloadNow', nls.localize('download now', "Download Now"), undefined, true, () =>
 					this.updateService.downloadUpdate());
 
 			case StateType.Downloading:

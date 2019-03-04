@@ -70,7 +70,7 @@ abstract class BaseNavigationAction extends Action {
 
 		const activePanelId = this.panelService.getActivePanel()!.getId();
 
-		return this.panelService.openPanel(activePanelId, true);
+		return this.panelService.openPanel(activePanelId, true)!;
 	}
 
 	protected navigateToSidebar(): Promise<IViewlet | boolean> {

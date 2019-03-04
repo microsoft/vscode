@@ -9,8 +9,8 @@ import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as 
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import pkg from 'vs/platform/node/package';
-import product from 'vs/platform/node/product';
+import pkg from 'vs/platform/product/node/package';
+import product from 'vs/platform/product/node/product';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Severity, INotificationService } from 'vs/platform/notification/common/notification';
 
@@ -39,7 +39,7 @@ class NPSContribution implements IWorkbenchContribution {
 			return;
 		}
 
-		const sessionCount = (storageService.getInteger(SESSION_COUNT_KEY, StorageScope.GLOBAL, 0) || 0) + 1;
+		const sessionCount = (storageService.getNumber(SESSION_COUNT_KEY, StorageScope.GLOBAL, 0) || 0) + 1;
 		storageService.store(LAST_SESSION_DATE_KEY, date, StorageScope.GLOBAL);
 		storageService.store(SESSION_COUNT_KEY, sessionCount, StorageScope.GLOBAL);
 

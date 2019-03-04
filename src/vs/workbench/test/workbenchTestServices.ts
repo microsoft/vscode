@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/workbench/contrib/files/electron-browser/files.contribution'; // load our contribution into the test
+import 'vs/workbench/contrib/files/browser/files.contribution'; // load our contribution into the test
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import * as paths from 'vs/base/common/paths';
+import { join } from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -42,7 +42,6 @@ import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { generateUuid } from 'vs/base/common/uuid';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
@@ -61,7 +60,7 @@ import { IExtensionService, NullExtensionService } from 'vs/workbench/services/e
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IDecorationsService, IResourceDecorationChangeEvent, IDecoration, IDecorationData, IDecorationsProvider } from 'vs/workbench/services/decorations/browser/decorations';
 import { IDisposable, toDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { IEditorGroupsService, IEditorGroup, GroupsOrder, GroupsArrangement, GroupDirection, IAddGroupOptions, IMergeGroupOptions, IMoveEditorOptions, ICopyEditorOptions, IEditorReplacement, IGroupChangeEvent, EditorsOrder, IFindGroupScope, EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroupsService, IEditorGroup, GroupsOrder, GroupsArrangement, GroupDirection, IAddGroupOptions, IMergeGroupOptions, IMoveEditorOptions, ICopyEditorOptions, IEditorReplacement, IGroupChangeEvent, EditorsOrder, IFindGroupScope, EditorGroupLayout, ICloseEditorOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverrideHandler, IActiveEditor } from 'vs/workbench/services/editor/common/editorService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
@@ -163,7 +162,7 @@ export class TestContextService implements IWorkspaceContextService {
 	}
 
 	public toResource(workspaceRelativePath: string): URI {
-		return URI.file(paths.join('C:\\', workspaceRelativePath));
+		return URI.file(join('C:\\', workspaceRelativePath));
 	}
 
 	public isCurrentWorkspace(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): boolean {
@@ -412,13 +411,13 @@ export class TestFileDialogService implements IFileDialogService {
 
 	public _serviceBrand: any;
 
-	public defaultFilePath(_schemeFilter: string): URI | undefined {
+	public defaultFilePath(_schemeFilter?: string): URI | undefined {
 		return undefined;
 	}
-	public defaultFolderPath(_schemeFilter: string): URI | undefined {
+	public defaultFolderPath(_schemeFilter?: string): URI | undefined {
 		return undefined;
 	}
-	public defaultWorkspacePath(_schemeFilter: string): URI | undefined {
+	public defaultWorkspacePath(_schemeFilter?: string): URI | undefined {
 		return undefined;
 	}
 	public pickFileFolderAndOpen(_options: IPickAndOpenOptions): Promise<any> {
@@ -445,9 +444,10 @@ export class TestPartService implements IPartService {
 
 	public _serviceBrand: any;
 
+	onZenModeChange: Event<boolean> = Event.None;
+
 	private _onTitleBarVisibilityChange = new Emitter<void>();
 	private _onMenubarVisibilityChange = new Emitter<Dimension>();
-	private _onEditorLayout = new Emitter<IDimension>();
 
 	public get onTitleBarVisibilityChange(): Event<void> {
 		return this._onTitleBarVisibilityChange.event;
@@ -455,10 +455,6 @@ export class TestPartService implements IPartService {
 
 	public get onMenubarVisibilityChange(): Event<Dimension> {
 		return this._onMenubarVisibilityChange.event;
-	}
-
-	public get onEditorLayout(): Event<IDimension> {
-		return this._onEditorLayout.event;
 	}
 
 	public isRestored(): boolean {
@@ -555,6 +551,7 @@ export class TestEditorGroupsService implements EditorGroupsServiceImpl {
 	onDidAddGroup: Event<IEditorGroup> = Event.None;
 	onDidRemoveGroup: Event<IEditorGroup> = Event.None;
 	onDidMoveGroup: Event<IEditorGroup> = Event.None;
+	onDidLayout: Event<IDimension> = Event.None;
 
 	orientation: any;
 	whenRestored: Promise<void> = Promise.resolve(undefined);
@@ -629,7 +626,7 @@ export class TestEditorGroup implements IEditorGroupView {
 	constructor(public id: number) { }
 
 	get group(): EditorGroup { throw new Error('not implemented'); }
-	activeControl: IEditor;
+	activeControl: IActiveEditor;
 	activeEditor: IEditorInput;
 	previewEditor: IEditorInput;
 	count: number;
@@ -688,11 +685,11 @@ export class TestEditorGroup implements IEditorGroupView {
 
 	copyEditor(_editor: IEditorInput, _target: IEditorGroup, _options?: ICopyEditorOptions): void { }
 
-	closeEditor(_editor?: IEditorInput): Promise<void> {
+	closeEditor(_editor?: IEditorInput, options?: ICloseEditorOptions): Promise<void> {
 		return Promise.resolve();
 	}
 
-	closeEditors(_editors: IEditorInput[] | { except?: IEditorInput; direction?: CloseDirection; savedOnly?: boolean; }): Promise<void> {
+	closeEditors(_editors: IEditorInput[] | { except?: IEditorInput; direction?: CloseDirection; savedOnly?: boolean; }, options?: ICloseEditorOptions): Promise<void> {
 		return Promise.resolve();
 	}
 
@@ -818,7 +815,7 @@ export class TestFileService implements IFileService {
 			encoding: 'utf8',
 			mtime: Date.now(),
 			isDirectory: false,
-			name: paths.basename(resource.fsPath)
+			name: resources.basename(resource)
 		});
 	}
 
@@ -837,7 +834,7 @@ export class TestFileService implements IFileService {
 			etag: 'index.txt',
 			encoding: 'utf8',
 			mtime: Date.now(),
-			name: paths.basename(resource.fsPath)
+			name: resources.basename(resource)
 		});
 	}
 
@@ -857,7 +854,7 @@ export class TestFileService implements IFileService {
 			etag: 'index.txt',
 			encoding: 'utf8',
 			mtime: Date.now(),
-			name: paths.basename(resource.fsPath)
+			name: resources.basename(resource)
 		});
 	}
 
@@ -868,7 +865,7 @@ export class TestFileService implements IFileService {
 			encoding: 'utf8',
 			mtime: Date.now(),
 			isDirectory: false,
-			name: paths.basename(resource.fsPath)
+			name: resources.basename(resource)
 		}));
 	}
 
@@ -1472,9 +1469,4 @@ export class TestViewletService implements IViewletService {
 	getViewlets(): ViewletDescriptor[] { return []; }
 
 	getProgressIndicator(_id: string): IProgressService | null { return null; }
-
-}
-
-export function getRandomTestPath(tmpdir: string, ...segments: string[]): string {
-	return paths.join(tmpdir, ...segments, generateUuid());
 }

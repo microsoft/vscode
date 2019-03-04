@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import * as Objects from 'vs/base/common/objects';
 import * as Strings from 'vs/base/common/strings';
 import * as Assert from 'vs/base/common/assert';
-import * as Paths from 'vs/base/common/paths';
+import { join } from 'vs/base/common/path';
 import * as Types from 'vs/base/common/types';
 import * as UUID from 'vs/base/common/uuid';
 import * as Platform from 'vs/base/common/platform';
@@ -188,7 +188,7 @@ export function getResource(filename: string, matcher: ProblemMatcher): URI {
 	if (kind === FileLocationKind.Absolute) {
 		fullPath = filename;
 	} else if ((kind === FileLocationKind.Relative) && matcher.filePrefix) {
-		fullPath = Paths.join(matcher.filePrefix, filename);
+		fullPath = join(matcher.filePrefix, filename);
 	}
 	if (fullPath === undefined) {
 		throw new Error('FileLocationKind is not actionable. Does the matcher have a filePrefix? This should never happen.');
@@ -1093,8 +1093,7 @@ const problemPatternExtPoint = ExtensionsRegistry.registerExtensionPoint<Config.
 				Schemas.NamedMultiLineProblemPattern
 			]
 		}
-	},
-	isDynamic: true
+	}
 });
 
 export interface IProblemPatternRegistry {
@@ -1674,8 +1673,7 @@ const problemMatchersExtPoint = ExtensionsRegistry.registerExtensionPoint<Config
 		description: localize('ProblemMatcherExtPoint', 'Contributes problem matchers'),
 		type: 'array',
 		items: Schemas.NamedProblemMatcher
-	},
-	isDynamic: true
+	}
 });
 
 export interface IProblemMatcherRegistry {

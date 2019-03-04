@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import * as fs from 'fs';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import * as os from 'os';
 import { URI } from 'vs/base/common/uri';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -24,7 +24,7 @@ import { IWorkspaceContextService, WorkbenchState, IWorkspaceFoldersChangeEvent 
 import { ConfigurationTarget, IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { workbenchInstantiationService, TestTextResourceConfigurationService, TestTextFileService, TestLifecycleService, TestEnvironmentService, TestStorageService } from 'vs/workbench/test/workbenchTestServices';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { FileService } from 'vs/workbench/services/files/electron-browser/fileService';
+import { FileService } from 'vs/workbench/services/files/node/fileService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -32,11 +32,10 @@ import { TextModelResolverService } from 'vs/workbench/services/textmodelResolve
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { JSONEditingService } from 'vs/workbench/services/configuration/node/jsonEditingService';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { Uri } from 'vscode';
 import { createHash } from 'crypto';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
-import { fsPath } from 'vs/base/common/resources';
+import { originalFSPath } from 'vs/base/common/resources';
 import { isLinux } from 'vs/base/common/platform';
 import { IWorkspaceIdentifier } from 'vs/workbench/services/configuration/node/configuration';
 
@@ -61,7 +60,7 @@ function setUpFolder(folderName: string, parentDir: string): Promise<string> {
 	return Promise.resolve(pfs.mkdirp(workspaceSettingsDir, 493).then(() => folderDir));
 }
 
-function convertToWorkspacePayload(folder: Uri): ISingleFolderWorkspaceInitializationPayload {
+function convertToWorkspacePayload(folder: URI): ISingleFolderWorkspaceInitializationPayload {
 	return {
 		id: createHash('md5').update(folder.fsPath).digest('hex'),
 		folder
@@ -913,6 +912,18 @@ suite('WorkspaceConfigurationService - Folder', () => {
 			.then(() => assert.ok(target.called));
 	});
 
+	test('update memory configuration', () => {
+		return testObject.updateValue('configurationService.folder.testSetting', 'memoryValue', ConfigurationTarget.MEMORY)
+			.then(() => assert.equal(testObject.getValue('configurationService.folder.testSetting'), 'memoryValue'));
+	});
+
+	test('update memory configuration should trigger change event before promise is resolve', () => {
+		const target = sinon.spy();
+		testObject.onDidChangeConfiguration(target);
+		return testObject.updateValue('configurationService.folder.testSetting', 'memoryValue', ConfigurationTarget.MEMORY)
+			.then(() => assert.ok(target.called));
+	});
+
 	test('update task configuration should trigger change event before promise is resolve', () => {
 		const target = sinon.spy();
 		testObject.onDidChangeConfiguration(target);
@@ -1217,6 +1228,18 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 			});
 	});
 
+	test('update memory configuration', () => {
+		return testObject.updateValue('configurationService.workspace.testSetting', 'memoryValue', ConfigurationTarget.MEMORY)
+			.then(() => assert.equal(testObject.getValue('configurationService.workspace.testSetting'), 'memoryValue'));
+	});
+
+	test('update memory configuration should trigger change event before promise is resolve', () => {
+		const target = sinon.spy();
+		testObject.onDidChangeConfiguration(target);
+		return testObject.updateValue('configurationService.workspace.testSetting', 'memoryValue', ConfigurationTarget.MEMORY)
+			.then(() => assert.ok(target.called));
+	});
+
 	test('update tasks configuration in a folder', () => {
 		const workspace = workspaceContextService.getWorkspace();
 		return testObject.updateValue('tasks', { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] }, { resource: workspace.folders[0].uri }, ConfigurationTarget.WORKSPACE_FOLDER)
@@ -1246,7 +1269,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 });
 
 function getWorkspaceId(configPath: URI): string {
-	let workspaceConfigPath = configPath.scheme === Schemas.file ? fsPath(configPath) : configPath.toString();
+	let workspaceConfigPath = configPath.scheme === Schemas.file ? originalFSPath(configPath) : configPath.toString();
 	if (!isLinux) {
 		workspaceConfigPath = workspaceConfigPath.toLowerCase(); // sanitize for platform file system
 	}

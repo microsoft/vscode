@@ -8,13 +8,12 @@ import { localize } from 'vs/nls';
 import { IAction, Action } from 'vs/base/common/actions';
 import { Throttler, Delayer } from 'vs/base/common/async';
 import * as DOM from 'vs/base/browser/dom';
-import * as paths from 'vs/base/common/paths';
 import { Event } from 'vs/base/common/event';
 import * as json from 'vs/base/common/json';
 import { ActionItem, Separator, IActionItemOptions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
-import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewlet, AutoUpdateConfigurationKey, IExtensionContainer } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewlet, AutoUpdateConfigurationKey, IExtensionContainer, EXTENSIONS_CONFIG } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ExtensionsConfigurationInitialContent } from 'vs/workbench/contrib/extensions/common/extensionsFileTemplate';
 import { IExtensionEnablementService, IExtensionTipsService, EnablementState, ExtensionsLabel, IExtensionRecommendation, IGalleryExtension, IExtensionsConfigContent, IExtensionGalleryService, INSTALL_ERROR_MALICIOUS, INSTALL_ERROR_INCOMPATIBLE, IGalleryExtensionVersion, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -48,14 +47,14 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
-import product from 'vs/platform/node/product';
+import product from 'vs/platform/product/node/product';
 import { IQuickPickItem, IQuickInputService, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { clipboard } from 'electron';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { coalesce } from 'vs/base/common/arrays';
-import { IWorkbenchThemeService, COLOR_THEME_SETTING, ICON_THEME_SETTING } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IWorkbenchThemeService, COLOR_THEME_SETTING, ICON_THEME_SETTING, IFileIconTheme, IColorTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 
 function toExtensionDescription(local: ILocalExtension): IExtensionDescription {
 	return {
@@ -185,17 +184,17 @@ export class InstallAction extends ExtensionAction {
 		if (extension.local) {
 			const runningExtension = await this.getRunningExtension(extension.local);
 			if (runningExtension) {
-				const colorThemes = await this.workbenchThemeService.getColorThemes(runningExtension.identifier);
-				const fileIconThemes = await this.workbenchThemeService.getFileIconThemes(runningExtension.identifier);
-				if (colorThemes.length) {
-					const action = this.instantiationService.createInstance(SetColorThemeAction);
+				const colorThemes = await this.workbenchThemeService.getColorThemes();
+				const fileIconThemes = await this.workbenchThemeService.getFileIconThemes();
+				if (SetColorThemeAction.getColorThemes(colorThemes, this.extension).length) {
+					const action = this.instantiationService.createInstance(SetColorThemeAction, colorThemes);
 					action.extension = extension;
-					return action.run(true);
+					return action.run({ showCurrentTheme: true, ignoreFocusLost: true });
 				}
-				if (fileIconThemes.length) {
-					const action = this.instantiationService.createInstance(SetFileIconThemeAction);
+				if (SetFileIconThemeAction.getFileIconThemes(fileIconThemes, this.extension).length) {
+					const action = this.instantiationService.createInstance(SetFileIconThemeAction, fileIconThemes);
 					action.extension = extension;
-					return action.run(true);
+					return action.run({ showCurrentTheme: true, ignoreFocusLost: true });
 				}
 			}
 		}
@@ -360,7 +359,7 @@ export class CombinedInstallAction extends ExtensionAction {
 			return this.uninstallAction.run();
 		}
 
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 
 	dispose(): void {
@@ -492,7 +491,7 @@ export abstract class ExtensionDropDownAction extends ExtensionAction {
 		if (this._actionItem) {
 			this._actionItem.showMenu(actionGroups, disposeActionsOnHide);
 		}
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 
 	dispose(): void {
@@ -548,7 +547,8 @@ export class ManageExtensionAction extends ExtensionDropDownAction {
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IExtensionService private readonly extensionService: IExtensionService
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService
 	) {
 
 		super(ManageExtensionAction.ID, '', '', true, true, instantiationService);
@@ -558,8 +558,22 @@ export class ManageExtensionAction extends ExtensionDropDownAction {
 		this.update();
 	}
 
-	getActionGroups(runningExtensions: IExtensionDescription[]): IAction[][] {
+	getActionGroups(runningExtensions: IExtensionDescription[], colorThemes: IColorTheme[], fileIconThemes: IFileIconTheme[]): IAction[][] {
 		const groups: ExtensionAction[][] = [];
+		if (this.extension) {
+			const extensionColorThemes = SetColorThemeAction.getColorThemes(colorThemes, this.extension);
+			const extensionFileIconThemes = SetFileIconThemeAction.getFileIconThemes(fileIconThemes, this.extension);
+			if (extensionColorThemes.length || extensionFileIconThemes.length) {
+				const themesGroup: ExtensionAction[] = [];
+				if (extensionColorThemes.length) {
+					themesGroup.push(this.instantiationService.createInstance(SetColorThemeAction, colorThemes));
+				}
+				if (extensionFileIconThemes.length) {
+					themesGroup.push(this.instantiationService.createInstance(SetFileIconThemeAction, fileIconThemes));
+				}
+				groups.push(themesGroup);
+			}
+		}
 		groups.push([
 			this.instantiationService.createInstance(EnableGloballyAction),
 			this.instantiationService.createInstance(EnableForWorkspaceAction)
@@ -577,8 +591,11 @@ export class ManageExtensionAction extends ExtensionDropDownAction {
 		return groups;
 	}
 
-	run(): Promise<any> {
-		return this.extensionService.getExtensions().then(runtimeExtensions => super.run({ actionGroups: this.getActionGroups(runtimeExtensions), disposeActionsOnHide: true }));
+	async run(): Promise<any> {
+		const runtimeExtensions = await this.extensionService.getExtensions();
+		const colorThemes = await this.workbenchThemeService.getColorThemes();
+		const fileIconThemes = await this.workbenchThemeService.getFileIconThemes();
+		return super.run({ actionGroups: this.getActionGroups(runtimeExtensions, colorThemes, fileIconThemes), disposeActionsOnHide: true });
 	}
 
 	update(): void {
@@ -672,7 +689,7 @@ export class ExtensionInfoAction extends ExtensionAction {
 		const clipboardStr = `${name}\n${id}\n${description}\n${verision}\n${publisher}${link ? '\n' + link : ''}`;
 
 		clipboard.writeText(clipboardStr);
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 
@@ -817,7 +834,7 @@ export abstract class ExtensionEditorDropDownAction extends ExtensionDropDownAct
 		} else {
 			return super.run({ actionGroups: [this.actions], disposeActionsOnHide: false });
 		}
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 
@@ -1107,12 +1124,17 @@ export class ReloadAction extends ExtensionAction {
 
 export class SetColorThemeAction extends ExtensionAction {
 
+	static getColorThemes(colorThemes: IColorTheme[], extension: IExtension): IColorTheme[] {
+		return colorThemes.filter(c => c.extensionData && ExtensionIdentifier.equals(c.extensionData.extensionId, extension.identifier.id));
+	}
+
 	private static readonly EnabledClass = 'extension-action theme';
 	private static readonly DisabledClass = `${SetColorThemeAction.EnabledClass} disabled`;
 
 	private disposables: IDisposable[] = [];
 
 	constructor(
+		private readonly colorThemes: IColorTheme[],
 		@IExtensionService extensionService: IExtensionService,
 		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
@@ -1123,34 +1145,33 @@ export class SetColorThemeAction extends ExtensionAction {
 		this.update();
 	}
 
-	async update(): Promise<void> {
+	update(): void {
 		this.enabled = false;
 		if (this.extension) {
 			const isInstalled = this.extension.state === ExtensionState.Installed;
 			if (isInstalled) {
-				const colorThemes = await this.workbenchThemeService.getColorThemes(new ExtensionIdentifier(this.extension.identifier.id));
-				this.enabled = colorThemes.length > 0;
+				const extensionThemes = SetColorThemeAction.getColorThemes(this.colorThemes, this.extension);
+				this.enabled = extensionThemes.length > 0;
 			}
 		}
 		this.class = this.enabled ? SetColorThemeAction.EnabledClass : SetColorThemeAction.DisabledClass;
 	}
 
-	async run(showCurrentTheme: boolean): Promise<any> {
-		await this.update();
+	async run({ showCurrentTheme, ignoreFocusLost }: { showCurrentTheme: boolean, ignoreFocusLost: boolean } = { showCurrentTheme: false, ignoreFocusLost: false }): Promise<any> {
+		this.update();
 		if (!this.enabled) {
 			return;
 		}
-		let colorThemes = await this.workbenchThemeService.getColorThemes(new ExtensionIdentifier(this.extension.identifier.id));
-		const allThemes = await this.workbenchThemeService.getColorThemes();
-		const currentTheme = allThemes.filter(t => t.settingsId === this.configurationService.getValue(COLOR_THEME_SETTING))[0];
-		showCurrentTheme = showCurrentTheme || colorThemes.some(t => t.id === currentTheme.id);
+		let extensionThemes = SetColorThemeAction.getColorThemes(this.colorThemes, this.extension);
+		const currentTheme = this.colorThemes.filter(t => t.settingsId === this.configurationService.getValue(COLOR_THEME_SETTING))[0];
+		showCurrentTheme = showCurrentTheme || extensionThemes.some(t => t.id === currentTheme.id);
 		if (showCurrentTheme) {
-			colorThemes = colorThemes.filter(t => t.id !== currentTheme.id);
+			extensionThemes = extensionThemes.filter(t => t.id !== currentTheme.id);
 		}
 
 		const delayer = new Delayer<any>(100);
 		const picks: (IQuickPickItem | IQuickPickSeparator)[] = [];
-		picks.push(...colorThemes.map(theme => (<IQuickPickItem>{ label: theme.label, id: theme.id })));
+		picks.push(...extensionThemes.map(theme => (<IQuickPickItem>{ label: theme.label, id: theme.id })));
 		if (showCurrentTheme) {
 			picks.push(<IQuickPickSeparator>{ type: 'separator', label: localize('current', "Current") });
 			picks.push(<IQuickPickItem>{ label: currentTheme.label, id: currentTheme.id });
@@ -1159,7 +1180,8 @@ export class SetColorThemeAction extends ExtensionAction {
 			picks,
 			{
 				placeHolder: localize('select color theme', "Select Color Theme"),
-				onDidFocus: item => delayer.trigger(() => this.workbenchThemeService.setColorTheme(item.id, undefined))
+				onDidFocus: item => delayer.trigger(() => this.workbenchThemeService.setColorTheme(item.id, undefined)),
+				ignoreFocusLost
 			});
 		let confValue = this.configurationService.inspect(COLOR_THEME_SETTING);
 		const target = typeof confValue.workspace !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
@@ -1179,7 +1201,12 @@ export class SetFileIconThemeAction extends ExtensionAction {
 
 	private disposables: IDisposable[] = [];
 
+	static getFileIconThemes(fileIconThemes: IFileIconTheme[], extension: IExtension): IFileIconTheme[] {
+		return fileIconThemes.filter(c => c.extensionData && ExtensionIdentifier.equals(c.extensionData.extensionId, extension.identifier.id));
+	}
+
 	constructor(
+		private readonly fileIconThemes: IFileIconTheme[],
 		@IExtensionService extensionService: IExtensionService,
 		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
@@ -1190,34 +1217,33 @@ export class SetFileIconThemeAction extends ExtensionAction {
 		this.update();
 	}
 
-	async update(): Promise<void> {
+	update(): void {
 		this.enabled = false;
 		if (this.extension) {
 			const isInstalled = this.extension.state === ExtensionState.Installed;
 			if (isInstalled) {
-				const fileIconThemes = await this.workbenchThemeService.getFileIconThemes(new ExtensionIdentifier(this.extension.identifier.id));
-				this.enabled = fileIconThemes.length > 0;
+				const extensionThemes = SetFileIconThemeAction.getFileIconThemes(this.fileIconThemes, this.extension);
+				this.enabled = extensionThemes.length > 0;
 			}
 		}
 		this.class = this.enabled ? SetFileIconThemeAction.EnabledClass : SetFileIconThemeAction.DisabledClass;
 	}
 
-	async run(showCurrentTheme: boolean): Promise<any> {
+	async run({ showCurrentTheme, ignoreFocusLost }: { showCurrentTheme: boolean, ignoreFocusLost: boolean } = { showCurrentTheme: false, ignoreFocusLost: false }): Promise<any> {
 		await this.update();
 		if (!this.enabled) {
 			return;
 		}
-		let fileIconThemes = await this.workbenchThemeService.getFileIconThemes(new ExtensionIdentifier(this.extension.identifier.id));
-		const allThemes = await this.workbenchThemeService.getFileIconThemes();
-		const currentTheme = allThemes.filter(t => t.settingsId === this.configurationService.getValue(ICON_THEME_SETTING))[0] || this.workbenchThemeService.getFileIconTheme();
-		showCurrentTheme = showCurrentTheme || fileIconThemes.some(t => t.id === currentTheme.id);
+		let extensionThemes = SetFileIconThemeAction.getFileIconThemes(this.fileIconThemes, this.extension);
+		const currentTheme = this.fileIconThemes.filter(t => t.settingsId === this.configurationService.getValue(ICON_THEME_SETTING))[0] || this.workbenchThemeService.getFileIconTheme();
+		showCurrentTheme = showCurrentTheme || extensionThemes.some(t => t.id === currentTheme.id);
 		if (showCurrentTheme) {
-			fileIconThemes = fileIconThemes.filter(t => t.id !== currentTheme.id);
+			extensionThemes = extensionThemes.filter(t => t.id !== currentTheme.id);
 		}
 
 		const delayer = new Delayer<any>(100);
 		const picks: (IQuickPickItem | IQuickPickSeparator)[] = [];
-		picks.push(...fileIconThemes.map(theme => (<IQuickPickItem>{ label: theme.label, id: theme.id })));
+		picks.push(...extensionThemes.map(theme => (<IQuickPickItem>{ label: theme.label, id: theme.id })));
 		if (showCurrentTheme && currentTheme.label) {
 			picks.push(<IQuickPickSeparator>{ type: 'separator', label: localize('current', "Current") });
 			picks.push(<IQuickPickItem>{ label: currentTheme.label, id: currentTheme.id });
@@ -1226,7 +1252,8 @@ export class SetFileIconThemeAction extends ExtensionAction {
 			picks,
 			{
 				placeHolder: localize('select file icon theme', "Select File Icon Theme"),
-				onDidFocus: item => delayer.trigger(() => this.workbenchThemeService.setFileIconTheme(item.id, undefined))
+				onDidFocus: item => delayer.trigger(() => this.workbenchThemeService.setFileIconTheme(item.id, undefined)),
+				ignoreFocusLost
 			});
 		let confValue = this.configurationService.inspect(ICON_THEME_SETTING);
 		const target = typeof confValue.workspace !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
@@ -1566,7 +1593,7 @@ export class IgnoreExtensionRecommendationAction extends Action {
 
 	public run(): Promise<any> {
 		this.extensionsTipsService.toggleIgnoredRecommendation(this.extension.identifier.id, true);
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 
 	dispose(): void {
@@ -1596,7 +1623,7 @@ export class UndoIgnoreExtensionRecommendationAction extends Action {
 
 	public run(): Promise<any> {
 		this.extensionsTipsService.toggleIgnoredRecommendation(this.extension.identifier.id, false);
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 
 	dispose(): void {
@@ -1757,6 +1784,7 @@ export class ConfigureRecommendedExtensionsCommandsContributor extends Disposabl
 			command: {
 				id: ConfigureWorkspaceRecommendedExtensionsAction.ID,
 				title: { value: `${ExtensionsLabel}: ${ConfigureWorkspaceRecommendedExtensionsAction.LABEL}`, original: 'Extensions: Configure Recommended Extensions (Workspace)' },
+				category: localize('extensions', "Extensions")
 			},
 			when: this.workspaceContextKey
 		});
@@ -1768,6 +1796,7 @@ export class ConfigureRecommendedExtensionsCommandsContributor extends Disposabl
 			command: {
 				id: ConfigureWorkspaceFolderRecommendedExtensionsAction.ID,
 				title: { value: `${ExtensionsLabel}: ${ConfigureWorkspaceFolderRecommendedExtensionsAction.LABEL}`, original: 'Extensions: Configure Recommended Extensions (Workspace Folder)' },
+				category: localize('extensions', "Extensions")
 			},
 			when: this.workspaceFolderContextKey
 		});
@@ -1780,7 +1809,8 @@ export class ConfigureRecommendedExtensionsCommandsContributor extends Disposabl
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 			command: {
 				id: AddToWorkspaceRecommendationsAction.ADD_ID,
-				title: { value: `${ExtensionsLabel}: ${AddToWorkspaceRecommendationsAction.ADD_LABEL}`, original: 'Extensions: Add to Recommended Extensions (Workspace)' }
+				title: { value: `${ExtensionsLabel}: ${AddToWorkspaceRecommendationsAction.ADD_LABEL}`, original: 'Extensions: Add to Recommended Extensions (Workspace)' },
+				category: localize('extensions', "Extensions")
 			},
 			when: this.addToWorkspaceRecommendationsContextKey
 		});
@@ -1793,7 +1823,8 @@ export class ConfigureRecommendedExtensionsCommandsContributor extends Disposabl
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 			command: {
 				id: AddToWorkspaceFolderRecommendationsAction.ADD_ID,
-				title: { value: `${ExtensionsLabel}: ${AddToWorkspaceFolderRecommendationsAction.ADD_LABEL}`, original: 'Extensions: Add to Recommended Extensions (Workspace Folder)' }
+				title: { value: `${ExtensionsLabel}: ${AddToWorkspaceFolderRecommendationsAction.ADD_LABEL}`, original: 'Extensions: Add to Recommended Extensions (Workspace Folder)' },
+				category: localize('extensions', "Extensions")
 			},
 			when: this.addToWorkspaceFolderRecommendationsContextKey
 		});
@@ -1806,7 +1837,8 @@ export class ConfigureRecommendedExtensionsCommandsContributor extends Disposabl
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 			command: {
 				id: AddToWorkspaceRecommendationsAction.IGNORE_ID,
-				title: { value: `${ExtensionsLabel}: ${AddToWorkspaceRecommendationsAction.IGNORE_LABEL}`, original: 'Extensions: Ignore Recommended Extension (Workspace)' }
+				title: { value: `${ExtensionsLabel}: ${AddToWorkspaceRecommendationsAction.IGNORE_LABEL}`, original: 'Extensions: Ignore Recommended Extension (Workspace)' },
+				category: localize('extensions', "Extensions")
 			},
 			when: this.addToWorkspaceRecommendationsContextKey
 		});
@@ -1819,7 +1851,8 @@ export class ConfigureRecommendedExtensionsCommandsContributor extends Disposabl
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 			command: {
 				id: AddToWorkspaceFolderRecommendationsAction.IGNORE_ID,
-				title: { value: `${ExtensionsLabel}: ${AddToWorkspaceFolderRecommendationsAction.IGNORE_LABEL}`, original: 'Extensions: Ignore Recommended Extension (Workspace Folder)' }
+				title: { value: `${ExtensionsLabel}: ${AddToWorkspaceFolderRecommendationsAction.IGNORE_LABEL}`, original: 'Extensions: Ignore Recommended Extension (Workspace Folder)' },
+				category: localize('extensions', "Extensions")
 			},
 			when: this.addToWorkspaceFolderRecommendationsContextKey
 		});
@@ -2016,7 +2049,7 @@ export class ConfigureWorkspaceRecommendedExtensionsAction extends AbstractConfi
 	public run(): Promise<void> {
 		switch (this.contextService.getWorkbenchState()) {
 			case WorkbenchState.FOLDER:
-				return this.openExtensionsFile(this.contextService.getWorkspace().folders[0].toResource(paths.join('.vscode', 'extensions.json')));
+				return this.openExtensionsFile(this.contextService.getWorkspace().folders[0].toResource(EXTENSIONS_CONFIG));
 			case WorkbenchState.WORKSPACE:
 				return this.openWorkspaceConfigurationFile(this.contextService.getWorkspace().configuration!);
 		}
@@ -2061,7 +2094,7 @@ export class ConfigureWorkspaceFolderRecommendedExtensionsAction extends Abstrac
 		return Promise.resolve(pickFolderPromise)
 			.then(workspaceFolder => {
 				if (workspaceFolder) {
-					return this.openExtensionsFile(workspaceFolder.toResource(paths.join('.vscode', 'extensions.json')));
+					return this.openExtensionsFile(workspaceFolder.toResource(EXTENSIONS_CONFIG));
 				}
 				return null;
 			});
@@ -2114,7 +2147,7 @@ export class AddToWorkspaceFolderRecommendationsAction extends AbstractConfigure
 				if (!workspaceFolder) {
 					return Promise.resolve();
 				}
-				const configurationFile = workspaceFolder.toResource(paths.join('.vscode', 'extensions.json'));
+				const configurationFile = workspaceFolder.toResource(EXTENSIONS_CONFIG);
 				return this.getWorkspaceFolderExtensionsConfigContent(configurationFile).then(content => {
 					const extensionIdLowerCase = extensionId.id.toLowerCase();
 					if (shouldRecommend) {
@@ -2231,18 +2264,18 @@ export class StatusLabelAction extends Action implements IExtensionContainer {
 	private static readonly ENABLED_CLASS = 'extension-status-label';
 	private static readonly DISABLED_CLASS = `${StatusLabelAction.ENABLED_CLASS} hide`;
 
+	private initialStatus: ExtensionState | null = null;
 	private status: ExtensionState | null = null;
 	private enablementState: EnablementState | null = null;
-	private version: string | null = null;
 
 	private _extension: IExtension;
 	get extension(): IExtension { return this._extension; }
 	set extension(extension: IExtension) {
 		if (!(this._extension && extension && areSameExtensions(this._extension.identifier, extension.identifier))) {
 			// Different extension. Reset
+			this.initialStatus = null;
 			this.status = null;
 			this.enablementState = null;
-			this.version = null;
 		}
 		this._extension = extension;
 		this.update();
@@ -2269,10 +2302,11 @@ export class StatusLabelAction extends Action implements IExtensionContainer {
 
 		const currentStatus = this.status;
 		const currentEnablementState = this.enablementState;
-		const currentVersion = this.version;
 		this.status = this.extension.state;
+		if (this.initialStatus === null) {
+			this.initialStatus = this.status;
+		}
 		this.enablementState = this.extension.enablementState;
-		this.version = this.extension.version;
 
 		const runningExtensions = await this.extensionService.getExtensions();
 		const canAddExtension = () => {
@@ -2297,7 +2331,7 @@ export class StatusLabelAction extends Action implements IExtensionContainer {
 
 		if (currentStatus !== null) {
 			if (currentStatus === ExtensionState.Installing && this.status === ExtensionState.Installed) {
-				return canAddExtension() ? currentVersion !== this.version ? localize('updated', "Updated") : localize('installed', "Installed") : null;
+				return canAddExtension() ? this.initialStatus === ExtensionState.Installed ? localize('updated', "Updated") : localize('installed', "Installed") : null;
 			}
 			if (currentStatus === ExtensionState.Uninstalling && this.status === ExtensionState.Uninstalled) {
 				return canRemoveExtension() ? localize('uninstalled', "Uninstalled") : null;
@@ -2320,7 +2354,7 @@ export class StatusLabelAction extends Action implements IExtensionContainer {
 	}
 
 	run(): Promise<any> {
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 
 }
@@ -2345,7 +2379,7 @@ export class MaliciousStatusLabelAction extends ExtensionAction {
 	}
 
 	run(): Promise<any> {
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 
@@ -2492,14 +2526,14 @@ export class OpenExtensionsFolderAction extends Action {
 	}
 
 	run(): Promise<void> {
-		const extensionsHome = this.environmentService.extensionsPath;
+		const extensionsHome = URI.file(this.environmentService.extensionsPath);
 
-		return Promise.resolve(this.fileService.resolveFile(URI.file(extensionsHome))).then(file => {
+		return Promise.resolve(this.fileService.resolveFile(extensionsHome)).then(file => {
 			let itemToShow: string;
 			if (file.children && file.children.length > 0) {
 				itemToShow = file.children[0].resource.fsPath;
 			} else {
-				itemToShow = paths.normalize(extensionsHome, true);
+				itemToShow = extensionsHome.fsPath;
 			}
 
 			return this.windowsService.showItemInFolder(itemToShow);
@@ -2532,7 +2566,7 @@ export class InstallVSIXAction extends Action {
 			buttonLabel: mnemonicButtonLabel(localize({ key: 'installButton', comment: ['&& denotes a mnemonic'] }, "&&Install"))
 		})).then(result => {
 			if (!result) {
-				return Promise.resolve(null);
+				return Promise.resolve();
 			}
 
 			return Promise.all(result.map(vsix => this.extensionsWorkbenchService.install(vsix)))
