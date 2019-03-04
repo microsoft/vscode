@@ -444,6 +444,8 @@ export class TestPartService implements IPartService {
 
 	public _serviceBrand: any;
 
+	onZenModeChange: Event<boolean> = Event.None;
+
 	private _onTitleBarVisibilityChange = new Emitter<void>();
 	private _onMenubarVisibilityChange = new Emitter<Dimension>();
 	private _onEditorLayout = new Emitter<IDimension>();
