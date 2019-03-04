@@ -63,7 +63,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		return this.resource;
 	}
 
-	getModeId(): string {
+	getModeId(): string | null {
 		if (this.cachedModel) {
 			return this.cachedModel.getModeId();
 		}

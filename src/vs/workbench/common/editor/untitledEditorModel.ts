@@ -90,7 +90,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 		return this.versionId;
 	}
 
-	getModeId(): string {
+	getModeId(): string | null {
 		if (this.textEditorModel) {
 			return this.textEditorModel.getLanguageIdentifier().language;
 		}
@@ -139,7 +139,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 	load(): Promise<UntitledEditorModel> {
 
 		// Check for backups first
-		return this.backupFileService.loadBackupResource(this.resource).then(backupResource => {
+		return this.backupFileService.loadBackupResource(this.resource).then((backupResource) => {
 			if (backupResource) {
 				return this.backupFileService.resolveBackupContent(backupResource);
 			}
@@ -193,7 +193,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 
 		// mark the untitled editor as non-dirty once its content becomes empty and we do
 		// not have an associated path set. we never want dirty indicator in that case.
-		if (!this._hasAssociatedFilePath && this.textEditorModel.getLineCount() === 1 && this.textEditorModel.getLineContent(1) === '') {
+		if (!this._hasAssociatedFilePath && this.textEditorModel && this.textEditorModel.getLineCount() === 1 && this.textEditorModel.getLineContent(1) === '') {
 			this.setDirty(false);
 		}
 
