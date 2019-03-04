@@ -73,7 +73,7 @@ import { ContextViewService } from 'vs/platform/contextview/browser/contextViewS
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { Sizing, Direction, Grid, View } from 'vs/base/browser/ui/grid/grid';
 import { IEditor } from 'vs/editor/common/editorCommon';
-import { WorkbenchLayout } from 'vs/workbench/browser/layout';
+import { WorkbenchLegacyLayout } from 'vs/workbench/browser/legacyLayout';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { setARIAContainer } from 'vs/base/browser/ui/aria/aria';
 import { restoreFontInfo, readFontInfo, saveFontInfo } from 'vs/editor/browser/config/configuration';
@@ -913,7 +913,7 @@ export class Workbench extends Disposable implements IPartService {
 	private readonly _onZenMode: Emitter<boolean> = this._register(new Emitter<boolean>());
 	get onZenModeChange(): Event<boolean> { return this._onZenMode.event; }
 
-	private workbenchGrid: Grid<View> | WorkbenchLayout;
+	private workbenchGrid: Grid<View> | WorkbenchLegacyLayout;
 
 	private titleBarPartView: View;
 	private activityBarPartView: View;
@@ -1374,7 +1374,7 @@ export class Workbench extends Disposable implements IPartService {
 			this.workbench.prepend(this.workbenchGrid.element);
 		} else {
 			this.workbenchGrid = this.instantiationService.createInstance(
-				WorkbenchLayout,
+				WorkbenchLegacyLayout,
 				this.container,
 				this.workbench,
 				{
