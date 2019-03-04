@@ -989,6 +989,10 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 	}
 
+	/**
+	 * Called when either a process tied to a terminal has exited or when a custom execution has completed.
+	 * @param exitCode The exit code can be undefined if the terminal was exited through user action or if a custom execution callback did not provide a exit code when it finished.
+	 */
 	private _onProcessOrExtensionCallbackExit(exitCode?: number): void {
 		// Use 'typeof exitCode' because simply doing if (exitCode) would return false for both "not undefined" and a value of 0
 		// which is not the intention.
