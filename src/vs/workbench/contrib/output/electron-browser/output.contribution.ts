@@ -30,7 +30,6 @@ registerSingleton(IOutputService, OutputService);
 ModesRegistry.registerLanguage({
 	id: OUTPUT_MODE_ID,
 	extensions: [],
-	aliases: [null],
 	mimetypes: [OUTPUT_MIME]
 });
 
@@ -38,7 +37,6 @@ ModesRegistry.registerLanguage({
 ModesRegistry.registerLanguage({
 	id: LOG_MODE_ID,
 	extensions: [],
-	aliases: [null],
 	mimetypes: [LOG_MIME]
 });
 
@@ -99,7 +97,10 @@ registerAction({
 		when: CONTEXT_IN_OUTPUT
 	},
 	handler(accessor) {
-		accessor.get(IOutputService).getActiveChannel().clear();
+		const activeChannel = accessor.get(IOutputService).getActiveChannel();
+		if (activeChannel) {
+			activeChannel.clear();
+		}
 	}
 });
 
