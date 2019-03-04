@@ -175,13 +175,13 @@ export class TerminalInstance implements ITerminalInstance {
 	private _cols: number;
 	private _rows: number;
 	private _dimensionsOverride: ITerminalDimensions;
-	private _windowsShellHelper: WindowsShellHelper;
+	private _windowsShellHelper: WindowsShellHelper | undefined;
 	private _xtermReadyPromise: Promise<void>;
 	private _titleReadyPromise: Promise<string>;
 	private _titleReadyComplete: (title: string) => any;
 
 	private _disposables: lifecycle.IDisposable[];
-	private _messageTitleDisposable: lifecycle.IDisposable;
+	private _messageTitleDisposable: lifecycle.IDisposable | undefined;
 
 	private _widgetManager: TerminalWidgetManager;
 	private _linkHandler: TerminalLinkHandler;
@@ -717,7 +717,8 @@ export class TerminalInstance implements ITerminalInstance {
 	public dispose(immediate?: boolean): void {
 		this._logService.trace(`terminalInstance#dispose (id: ${this.id})`);
 
-		this._windowsShellHelper = lifecycle.dispose(this._windowsShellHelper);
+		lifecycle.dispose(this._windowsShellHelper);
+		this._windowsShellHelper = undefined;
 		this._linkHandler = lifecycle.dispose(this._linkHandler);
 		this._commandTracker = lifecycle.dispose(this._commandTracker);
 		this._widgetManager = lifecycle.dispose(this._widgetManager);
@@ -1255,6 +1256,9 @@ export class TerminalInstance implements ITerminalInstance {
 			// automatically updates the terminal name
 			if (this._messageTitleDisposable) {
 				lifecycle.dispose(this._messageTitleDisposable);
+				lifecycle.dispose(this._windowsShellHelper);
+				this._messageTitleDisposable = undefined;
+				this._windowsShellHelper = undefined;
 			}
 		}
 		const didTitleChange = title !== this._title;
