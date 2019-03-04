@@ -21,13 +21,6 @@ export const enum Position {
 	RIGHT,
 	BOTTOM
 }
-export function PositionToString(position: Position): string {
-	switch (position) {
-		case Position.LEFT: return 'LEFT';
-		case Position.RIGHT: return 'RIGHT';
-		case Position.BOTTOM: return 'BOTTOM';
-	}
-}
 
 export interface ILayoutOptions {
 	toggleMaximizedPanel?: boolean;

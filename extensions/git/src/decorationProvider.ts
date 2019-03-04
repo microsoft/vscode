@@ -119,7 +119,7 @@ class GitDecorationProvider implements DecorationProvider {
 
 		const uris = new Set([...this.decorations.keys()].concat([...newDecorations.keys()]));
 		this.decorations = newDecorations;
-		this._onDidChangeDecorations.fire([...uris.values()].map(Uri.parse));
+		this._onDidChangeDecorations.fire([...uris.values()].map(value => Uri.parse(value, true)));
 	}
 
 	private collectDecorationData(group: GitResourceGroup, bucket: Map<string, DecorationData>): void {

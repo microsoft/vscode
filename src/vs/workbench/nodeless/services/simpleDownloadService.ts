@@ -11,7 +11,7 @@ export class SimpleDownloadService implements IDownloadService {
 
 	_serviceBrand: any;
 
-	download(uri: URI, to: string, cancellationToken?: CancellationToken): Promise<void> {
-		return Promise.resolve();
+	download(uri: URI, to?: string, cancellationToken?: CancellationToken): Promise<string> {
+		return Promise.resolve(undefined);
 	}
 }

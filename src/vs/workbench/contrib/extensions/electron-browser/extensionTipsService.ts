@@ -43,7 +43,6 @@ import { URI } from 'vs/base/common/uri';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExperimentService, ExperimentActionType, ExperimentState } from 'vs/workbench/contrib/experiments/node/experimentService';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { getKeywordsForExtension } from 'vs/workbench/contrib/extensions/electron-browser/extensionsUtils';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { extname } from 'vs/base/common/resources';
 
@@ -759,7 +758,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 					return;
 				}
 
-				const keywords = getKeywordsForExtension(fileExtension);
+				const lookup = product.extensionKeywords || {};
+				const keywords = lookup[fileExtension] || [];
 				this._galleryService.query({ text: `tag:"__ext_${fileExtension}" ${keywords.map(tag => `tag:"${tag}"`)}` }).then(pager => {
 					if (!pager || !pager.firstPage || !pager.firstPage.length) {
 						return;

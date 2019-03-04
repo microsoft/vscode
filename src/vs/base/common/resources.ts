@@ -250,21 +250,6 @@ export function distinctParents<T>(items: T[], resourceAccessor: (item: T) => UR
 }
 
 /**
- * Tests whether the given URL is a file URI created by `URI.parse` instead of `URI.file`.
- * Such URI have no scheme or scheme that consist of a single letter (windows drive letter)
- * @param candidate The URI to test
- * @returns A corrected, real file URI if the input seems to be malformed.
- * Undefined is returned if the input URI looks fine.
- */
-export function isMalformedFileUri(candidate: URI): URI | undefined {
-	if (!candidate.scheme || isWindows && candidate.scheme.match(/^[a-zA-Z]$/)) {
-		return URI.file((candidate.scheme ? candidate.scheme + ':' : '') + candidate.path);
-	}
-	return undefined;
-}
-
-
-/**
  * Data URI related helpers.
  */
 export namespace DataUri {

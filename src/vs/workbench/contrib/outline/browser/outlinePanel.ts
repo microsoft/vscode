@@ -522,8 +522,6 @@ export class OutlinePanel extends ViewletPanel {
 			await this._tree.setInput(newModel, state);
 		}
 
-		this._tree.layout();
-
 		// transfer focus from domNode to the tree
 		if (this._domNode === document.activeElement) {
 			this._tree.domFocus();
