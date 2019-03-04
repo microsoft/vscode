@@ -113,6 +113,8 @@
 		"./vs/workbench/browser/parts/editor/breadcrumbs.ts",
 		"./vs/workbench/browser/parts/editor/breadcrumbsModel.ts",
 		"./vs/workbench/browser/parts/editor/editor.ts",
+		"./vs/workbench/browser/parts/editor/editorActions.ts",
+		"./vs/workbench/browser/parts/editor/editorCommands.ts",
 		"./vs/workbench/browser/parts/editor/editorControl.ts",
 		"./vs/workbench/browser/parts/editor/editorDropTarget.ts",
 		"./vs/workbench/browser/parts/editor/editorPicker.ts",
