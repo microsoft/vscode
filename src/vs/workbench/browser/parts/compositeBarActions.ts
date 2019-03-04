@@ -108,14 +108,14 @@ export class ActivityAction extends Action {
 }
 
 export interface ICompositeBarColors {
-	activeBackgroundColor: Color;
-	inactiveBackgroundColor: Color;
-	activeBorderBottomColor: Color;
-	activeForegroundColor: Color;
-	inactiveForegroundColor: Color;
-	badgeBackground: Color;
-	badgeForeground: Color;
-	dragAndDropBackground: Color;
+	activeBackgroundColor?: Color;
+	inactiveBackgroundColor?: Color;
+	activeBorderBottomColor?: Color;
+	activeForegroundColor?: Color;
+	inactiveForegroundColor?: Color;
+	badgeBackground?: Color;
+	badgeForeground?: Color;
+	dragAndDropBackground?: Color;
 }
 
 export interface IActivityActionItemOptions extends IBaseActionItemOptions {

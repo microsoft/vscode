@@ -23,7 +23,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 
 export interface ICompositeBarItem {
 	id: string;
-	name: string;
+	name?: string;
 	pinned: boolean;
 	order?: number;
 	visible: boolean;
@@ -404,7 +404,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		this._onDidChange.fire();
 	}
 
-	private getOverflowingComposites(): { id: string, name: string }[] {
+	private getOverflowingComposites(): { id: string, name?: string }[] {
 		let overflowingIds = this.model.visibleItems.filter(item => item.pinned).map(item => item.id);
 
 		// Show the active composite even if it is not pinned
@@ -513,7 +513,7 @@ class CompositeBarModel {
 		return this.items.filter(item => item.visible && item.pinned);
 	}
 
-	private createCompositeBarItem(id: string, name: string, order: number | undefined, pinned: boolean, visible: boolean): ICompositeBarModelItem {
+	private createCompositeBarItem(id: string, name: string | undefined, order: number | undefined, pinned: boolean, visible: boolean): ICompositeBarModelItem {
 		const options = this.options;
 		return {
 			id, name, pinned, order, visible,
