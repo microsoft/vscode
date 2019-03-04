@@ -378,7 +378,7 @@ export interface ITreeItem {
 
 	handle: string;
 
-	parentHandle: string;
+	parentHandle: string | null;
 
 	collapsibleState: TreeItemCollapsibleState;
 
