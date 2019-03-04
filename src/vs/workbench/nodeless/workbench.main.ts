@@ -142,9 +142,6 @@ import 'vs/workbench/contrib/markers/browser/markers.contribution';
 // Comments
 // import 'vs/workbench/contrib/comments/electron-browser/comments.contribution';
 
-// HTML Preview
-// import 'vs/workbench/contrib/html/electron-browser/html.contribution';
-
 // URL Support
 import 'vs/workbench/contrib/url/common/url.contribution';
 
@@ -213,13 +210,13 @@ import 'vs/workbench/contrib/themes/browser/themes.contribution';
 // import 'vs/workbench/contrib/themes/test/electron-browser/themes.test.contribution';
 
 // Watermark
-// import 'vs/workbench/contrib/watermark/electron-browser/watermark';
+import 'vs/workbench/contrib/watermark/browser/watermark';
 
 // Welcome
-// import 'vs/workbench/contrib/welcome/walkThrough/electron-browser/walkThrough.contribution';
+import 'vs/workbench/contrib/welcome/walkThrough/browser/walkThrough.contribution';
 // import 'vs/workbench/contrib/welcome/gettingStarted/electron-browser/gettingStarted.contribution';
-// import 'vs/workbench/contrib/welcome/overlay/browser/welcomeOverlay';
-// import 'vs/workbench/contrib/welcome/page/electron-browser/welcomePage.contribution';
+import 'vs/workbench/contrib/welcome/overlay/browser/welcomeOverlay';
+import 'vs/workbench/contrib/welcome/page/browser/welcomePage.contribution';
 
 // Outline
 import 'vs/workbench/contrib/outline/browser/outline.contribution';
