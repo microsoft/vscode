@@ -276,7 +276,7 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		this._watches.set(session, subscription);
 	}
 
-	$unwatch(session: number): void {
+	$unwatch(_handle: number, session: number): void {
 		let subscription = this._watches.get(session);
 		if (subscription) {
 			subscription.dispose();
