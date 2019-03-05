@@ -341,11 +341,8 @@ export class Workbench extends Disposable implements IPartService {
 		// Layout
 		this.layout();
 
-		// Restore Parts
-		let error: Error;
-		return this.restoreParts()
-			.catch(err => error = err)
-			.finally(() => this.instantiationService.invokeFunction(accessor => this.whenStarted(accessor, error)));
+		// Restore
+		return this.restoreWorkbench();
 	}
 
 	private createWorkbenchContainer(): void {
@@ -721,7 +718,7 @@ export class Workbench extends Disposable implements IPartService {
 		registerNotificationCommands(this.notificationsCenter, this.notificationsToasts);
 	}
 
-	private restoreParts(): Promise<void> {
+	private restoreWorkbench(): Promise<void> {
 		const restorePromises: Promise<any>[] = [];
 
 		// Restore editors
@@ -777,10 +774,15 @@ export class Workbench extends Disposable implements IPartService {
 		// Emit a warning after 10s if restore does not complete
 		const restoreTimeoutHandle = setTimeout(() => this.logService.warn('Workbench did not finish loading in 10 seconds, that might be a problem that should be reported.'), 10000);
 
-		return Promise.all(restorePromises).then(() => clearTimeout(restoreTimeoutHandle));
+		let error: Error;
+		return Promise.all(restorePromises)
+			.then(() => clearTimeout(restoreTimeoutHandle))
+			.catch(err => error = err)
+			.finally(() => this.instantiationService.invokeFunction(accessor => this.whenRestored(accessor, error)));
+
 	}
 
-	private whenStarted(accessor: ServicesAccessor, error?: Error): void {
+	private whenRestored(accessor: ServicesAccessor, error?: Error): void {
 		const lifecycleService = accessor.get(ILifecycleService);
 
 		this.restored = true;
