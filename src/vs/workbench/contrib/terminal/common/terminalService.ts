@@ -15,6 +15,8 @@ import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IFileService } from 'vs/platform/files/common/files';
 
 export abstract class TerminalService implements ITerminalService {
 	public _serviceBrand: any;
@@ -65,7 +67,9 @@ export abstract class TerminalService implements ITerminalService {
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IStorageService protected readonly _storageService: IStorageService,
 		@INotificationService protected readonly _notificationService: INotificationService,
-		@IDialogService private readonly _dialogService: IDialogService
+		@IDialogService private readonly _dialogService: IDialogService,
+		@IExtensionService private readonly _extensionService: IExtensionService,
+		@IFileService private readonly _fileService: IFileService
 	) {
 		this._activeTabIndex = 0;
 		this._isShuttingDown = false;
@@ -97,7 +101,6 @@ export abstract class TerminalService implements ITerminalService {
 	public abstract createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement, shellLaunchConfig: IShellLaunchConfig, doCreateProcess: boolean): ITerminalInstance;
 	public abstract selectDefaultWindowsShell(): Promise<string | undefined>;
 	public abstract setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
-	public abstract requestExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI, cols: number, rows: number): void;
 
 	public createTerminalRenderer(name: string): ITerminalInstance {
 		return this.createTerminal({ name, isRendererOnly: true });
@@ -106,6 +109,16 @@ export abstract class TerminalService implements ITerminalService {
 	public getActiveOrCreateInstance(wasNewTerminalAction?: boolean): ITerminalInstance {
 		const activeInstance = this.getActiveInstance();
 		return activeInstance ? activeInstance : this.createTerminal(undefined, wasNewTerminalAction);
+	}
+
+	public requestExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI, cols: number, rows: number): void {
+		// Ensure extension host is ready before requesting a process
+		this._extensionService.whenInstalledExtensionsRegistered().then(() => {
+			// TODO: MainThreadTerminalService is not ready at this point, fix this
+			setTimeout(() => {
+				this._onInstanceRequestExtHostProcess.fire({ proxy, shellLaunchConfig, activeWorkspaceRootUri, cols, rows });
+			}, 500);
+		});
 	}
 
 	private _onBeforeShutdown(): boolean | Promise<boolean> {
@@ -397,5 +410,18 @@ export abstract class TerminalService implements ITerminalService {
 
 	protected _showNotEnoughSpaceToast(): void {
 		this._notificationService.info(nls.localize('terminal.minWidth', "Not enough space to split terminal."));
+	}
+
+	protected _validateShellPaths(label: string, potentialPaths: string[]): Promise<[string, string] | null> {
+		if (potentialPaths.length === 0) {
+			return Promise.resolve(null);
+		}
+		const current = potentialPaths.shift();
+		return this._fileService.existsFile(URI.file(current!)).then(exists => {
+			if (!exists) {
+				return this._validateShellPaths(label, potentialPaths);
+			}
+			return [label, current] as [string, string];
+		});
 	}
 }

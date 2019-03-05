@@ -12,22 +12,20 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { ITerminalInstance, ITerminalService, IShellLaunchConfig, ITerminalConfigHelper, NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalInstance, ITerminalService, IShellLaunchConfig, ITerminalConfigHelper } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalService as BrowserTerminalService } from 'vs/workbench/contrib/terminal/browser/terminalService';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
-import Severity from 'vs/base/common/severity';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 import { getDefaultShell, linuxDistro } from 'vs/workbench/contrib/terminal/node/terminal';
-import { TerminalTab } from 'vs/workbench/contrib/terminal/browser/terminalTab';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ipcRenderer as ipc } from 'electron';
 import { IOpenFileRequest, IWindowService } from 'vs/platform/windows/common/windows';
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/electron-browser/terminalInstance';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { URI } from 'vs/base/common/uri';
 import { IQuickInputService, IQuickPickItem, IPickOptions } from 'vs/platform/quickinput/common/quickInput';
 import { coalesce } from 'vs/base/common/arrays';
+import { IFileService } from 'vs/platform/files/common/files';
 
 export class TerminalService extends BrowserTerminalService implements ITerminalService {
 	private _configHelper: TerminalConfigHelper;
@@ -40,14 +38,15 @@ export class TerminalService extends BrowserTerminalService implements ITerminal
 		@IStorageService storageService: IStorageService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@INotificationService notificationService: INotificationService,
 		@IDialogService dialogService: IDialogService,
-		@IExtensionService private readonly _extensionService: IExtensionService,
-		@IWindowService private readonly _windowService: IWindowService,
+		@IExtensionService extensionService: IExtensionService,
+		@IWindowService windowService: IWindowService,
+		@IFileService fileService: IFileService
 	) {
-		super(contextKeyService, panelService, partService, lifecycleService, storageService, notificationService, dialogService);
+		super(contextKeyService, panelService, partService, lifecycleService, storageService, notificationService, dialogService, instantiationService, windowService, extensionService, fileService);
 
 		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper, linuxDistro);
 		ipc.on('vscode:openFiles', (_event: any, request: IOpenFileRequest) => {
@@ -74,104 +73,14 @@ export class TerminalService extends BrowserTerminalService implements ITerminal
 		});
 	}
 
-	public createTerminal(shell: IShellLaunchConfig = {}, wasNewTerminalAction?: boolean): ITerminalInstance {
-		const terminalTab = this._instantiationService.createInstance(TerminalTab,
-			this._terminalFocusContextKey,
-			this._configHelper,
-			this._terminalContainer,
-			shell);
-		this._terminalTabs.push(terminalTab);
-		const instance = terminalTab.terminalInstances[0];
-		terminalTab.addDisposable(terminalTab.onDisposed(this._onTabDisposed.fire, this._onTabDisposed));
-		terminalTab.addDisposable(terminalTab.onInstancesChanged(this._onInstancesChanged.fire, this._onInstancesChanged));
-		this._initInstanceListeners(instance);
-		if (this.terminalInstances.length === 1) {
-			// It's the first instance so it should be made active automatically
-			this.setActiveInstanceByIndex(0);
-		}
-		this._onInstancesChanged.fire();
-		this._suggestShellChange(wasNewTerminalAction);
-		return instance;
-	}
-
 	public createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement | undefined, shellLaunchConfig: IShellLaunchConfig, doCreateProcess: boolean): ITerminalInstance {
 		const instance = this._instantiationService.createInstance(TerminalInstance, terminalFocusContextKey, configHelper, container, shellLaunchConfig);
 		this._onInstanceCreated.fire(instance);
 		return instance;
 	}
 
-	public requestExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI, cols: number, rows: number): void {
-		// Ensure extension host is ready before requesting a process
-		this._extensionService.whenInstalledExtensionsRegistered().then(() => {
-			// TODO: MainThreadTerminalService is not ready at this point, fix this
-			setTimeout(() => {
-				this._onInstanceRequestExtHostProcess.fire({ proxy, shellLaunchConfig, activeWorkspaceRootUri, cols, rows });
-			}, 500);
-		});
-	}
-
-	private _suggestShellChange(wasNewTerminalAction?: boolean): void {
-		// Only suggest on Windows since $SHELL works great for macOS/Linux
-		if (!platform.isWindows) {
-			return;
-		}
-
-		if (this._windowService.getConfiguration().remoteAuthority) {
-			// Don't suggest if the opened workspace is remote
-			return;
-		}
-
-		// Only suggest when the terminal instance is being created by an explicit user action to
-		// launch a terminal, as opposed to something like tasks, debug, panel restore, etc.
-		if (!wasNewTerminalAction) {
-			return;
-		}
-
-		if (this._windowService.getConfiguration().remoteAuthority) {
-			// Don't suggest if the opened workspace is remote
-			return;
-		}
-
-		// Don't suggest if the user has explicitly opted out
-		const neverSuggest = this._storageService.getBoolean(NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, StorageScope.GLOBAL, false);
-		if (neverSuggest) {
-			return;
-		}
-
-		// Never suggest if the setting is non-default already (ie. they set the setting manually)
-		if (this._configHelper.config.shell.windows !== getDefaultShell(platform.Platform.Windows)) {
-			this._storageService.store(NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, true, StorageScope.GLOBAL);
-			return;
-		}
-
-		this._notificationService.prompt(
-			Severity.Info,
-			nls.localize('terminal.integrated.chooseWindowsShellInfo', "You can change the default terminal shell by selecting the customize button."),
-			[{
-				label: nls.localize('customize', "Customize"),
-				run: () => {
-					this.selectDefaultWindowsShell().then(shell => {
-						if (!shell) {
-							return Promise.resolve(null);
-						}
-						// Launch a new instance with the newly selected shell
-						const instance = this.createTerminal({
-							executable: shell,
-							args: this._configHelper.config.shellArgs.windows
-						});
-						if (instance) {
-							this.setActiveInstance(instance);
-						}
-						return Promise.resolve(null);
-					});
-				}
-			},
-			{
-				label: nls.localize('never again', "Don't Show Again"),
-				isSecondary: true,
-				run: () => this._storageService.store(NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, true, StorageScope.GLOBAL)
-			}]
-		);
+	protected _getDefaultShell(p: platform.Platform): string {
+		return getDefaultShell(p);
 	}
 
 	public selectDefaultWindowsShell(): Promise<string | undefined> {
@@ -227,19 +136,6 @@ export class TerminalService extends BrowserTerminalService implements ITerminal
 					};
 				});
 			});
-	}
-
-	private _validateShellPaths(label: string, potentialPaths: string[]): Promise<[string, string] | null> {
-		if (potentialPaths.length === 0) {
-			return Promise.resolve(null);
-		}
-		const current = potentialPaths.shift();
-		return pfs.fileExists(current!).then(exists => {
-			if (!exists) {
-				return this._validateShellPaths(label, potentialPaths);
-			}
-			return [label, current] as [string, string];
-		});
 	}
 
 	public setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void {
