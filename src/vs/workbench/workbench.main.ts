@@ -121,8 +121,8 @@ import 'vs/workbench/contrib/search/browser/searchView';
 import 'vs/workbench/contrib/search/browser/openAnythingHandler';
 
 // SCM
-import 'vs/workbench/contrib/scm/electron-browser/scm.contribution';
-import 'vs/workbench/contrib/scm/electron-browser/scmViewlet';
+import 'vs/workbench/contrib/scm/browser/scm.contribution';
+import 'vs/workbench/contrib/scm/browser/scmViewlet';
 
 // Debug
 import 'vs/workbench/contrib/debug/electron-browser/debug.contribution';
