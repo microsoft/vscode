@@ -22,7 +22,7 @@ import { URI } from 'vs/base/common/uri';
 interface CommandHandler {
 	callback: Function;
 	thisArg: any;
-	description: ICommandHandlerDescription;
+	description?: ICommandHandlerDescription;
 }
 
 export interface ArgumentProcessor {

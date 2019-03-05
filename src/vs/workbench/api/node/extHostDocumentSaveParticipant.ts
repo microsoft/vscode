@@ -60,7 +60,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 
 				if (didTimeout) {
 					// timeout - no more listeners
-					return undefined;
+					return Promise.resolve();
 				}
 
 				const document = this._documents.getDocument(resource);
