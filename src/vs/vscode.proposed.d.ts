@@ -910,6 +910,9 @@ declare module 'vscode' {
 		readonly hasReacted?: boolean;
 	}
 
+	/**
+	 * DEPRECATED
+	 */
 	interface DocumentCommentProvider {
 		/**
 		 * Provide the commenting ranges and comment threads for the given document. The comments are displayed within the editor.
@@ -954,6 +957,9 @@ declare module 'vscode' {
 		onDidChangeCommentThreads: Event<CommentThreadChangedEvent>;
 	}
 
+	/**
+	 * DEPRECATED
+	 */
 	interface WorkspaceCommentProvider {
 		/**
 		 * Provide all comments for the workspace. Comments are shown within the comments panel. Selecting a comment
@@ -967,31 +973,27 @@ declare module 'vscode' {
 		onDidChangeCommentThreads: Event<CommentThreadChangedEvent>;
 	}
 
-	export interface CommentWidget {
-		/*
-		 * Comment thread in this Comment Widget
-		 */
-		commentThread: CommentThread;
+	export interface CommentInputBox {
 
-		/*
-		 * Textarea content in the comment widget.
-		 * There is only one active input box in a comment widget.
+		/**
+		 * Setter and getter for the contents of the input box.
 		 */
-		input: string;
+		value: string;
 	}
 
 	export interface CommentController {
 		readonly id: string;
 		readonly label: string;
 		/**
-		 * The active (focused) comment widget.
+		 * The active (focused) comment input box.
 		 */
-		readonly widget?: CommentWidget;
+		readonly inputBox?: CommentInputBox;
+
 		/**
 		 * The active range users attempt to create comments against.
 		 */
 		readonly activeCommentingRange?: Range;
-		createCommentThread(id: string, resource: Uri, range: Range, comments: Comment[], acceptInputCommands: Command[], collapsibleState?: CommentThreadCollapsibleState): CommentThread;
+		createCommentThread(id: string, resource: Uri, range: Range): CommentThread;
 		createCommentingRanges(resource: Uri, ranges: Range[], newCommentThreadCommand: Command): CommentingRanges;
 		dispose(): void;
 	}

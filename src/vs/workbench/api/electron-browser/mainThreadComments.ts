@@ -130,6 +130,19 @@ export class MainThreadCommentThread implements modes.CommentThread2 {
 	private _onDidChangeRange = new Emitter<IRange>();
 	public onDidChangeRange = this._onDidChangeRange.event;
 
+	get collapsibleState() {
+		return this._collapsibleState;
+	}
+
+	set collapsibleState(newState: modes.CommentThreadCollapsibleState) {
+		this._collapsibleState = newState;
+
+	}
+
+	private _onDidChangeCollasibleState = new Emitter<modes.CommentThreadCollapsibleState>();
+	public onDidChangeCollasibleState = this._onDidChangeCollasibleState.event;
+
+
 	constructor(
 		public commentThreadHandle: number,
 		public controller: MainThreadCommentController,
@@ -139,7 +152,7 @@ export class MainThreadCommentThread implements modes.CommentThread2 {
 		private _range: IRange,
 		private _comments: modes.Comment[],
 		private _acceptInputCommands: modes.Command[],
-		public collapsibleState?: modes.CommentThreadCollapsibleState,
+		private _collapsibleState: modes.CommentThreadCollapsibleState
 	) {
 
 	}
@@ -210,6 +223,7 @@ export class MainThreadCommentController {
 	}
 
 	private _threads: Map<number, MainThreadCommentThread> = new Map<number, MainThreadCommentThread>();
+	private _activeCommentThread?: MainThreadCommentThread;
 	private _commentingRanges: Map<number, MainThreadCommentingRanges> = new Map<number, MainThreadCommentingRanges>();
 	constructor(
 		private _proxy: ExtHostCommentsShape,
@@ -299,15 +313,21 @@ export class MainThreadCommentController {
 		thread.acceptInputCommands = acceptInputCommands;
 	}
 
+	updateCollapsibleState(commentThreadHandle: number, collapseState: modes.CommentThreadCollapsibleState) {
+		let thread = this._threads.get(commentThreadHandle);
+		thread.collapsibleState = collapseState;
+	}
+
 	updateCommentThreadRange(commentThreadHandle: number, range: IRange) {
 		let thread = this._threads.get(commentThreadHandle);
 		thread.range = range;
 	}
 
-	updateInput(commentThreadHandle: number, input: string) {
-		let thread = this._threads.get(commentThreadHandle);
-		let commentInput = thread.input;
-		if (commentInput) {
+	updateInput(input: string) {
+		let thread = this._activeCommentThread;
+
+		if (thread && thread.input) {
+			let commentInput = thread.input;
 			commentInput.value = input;
 			thread.input = commentInput;
 		}
@@ -355,7 +375,6 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	private _commentControllers = new Map<number, MainThreadCommentController>();
 
 	private _activeCommentThread?: MainThreadCommentThread;
-	private _activeComment?: modes.Comment;
 	private _input?: modes.CommentInput;
 	private _openPanelListener: IDisposable | null;
 
@@ -383,10 +402,10 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 
 			this._activeCommentThreadDisposables.push(this._activeCommentThread.onDidChangeInput(input => { // todo, dispose
 				this._input = input;
-				this._proxy.$onActiveCommentWidgetChange(controller.handle, this._activeCommentThread, this._activeComment, this._input ? this._input.value : undefined);
+				this._proxy.$onCommentWidgetInputChange(controller.handle, this._input ? this._input.value : undefined);
 			}));
 
-			await this._proxy.$onActiveCommentWidgetChange(controller.handle, this._activeCommentThread, this._activeComment, this._input ? this._input.value : undefined);
+			await this._proxy.$onCommentWidgetInputChange(controller.handle, this._input ? this._input.value : undefined);
 		}));
 
 		this._disposables.push(this._commentService.onDidChangeActiveCommentingRange(value => {
@@ -481,15 +500,14 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		provider.updateComments(commentThreadHandle, comments);
 	}
 
-	$setInputValue(handle: number, commentThreadHandle: number, input: string) {
+	$setInputValue(handle: number, input: string) {
 		let provider = this._commentControllers.get(handle);
 
 		if (!provider) {
 			return;
 		}
 
-		provider.updateInput(commentThreadHandle, input);
-
+		provider.updateInput(input);
 	}
 
 	$updateCommentThreadCommands(handle: number, commentThreadHandle: number, acceptInputCommands: modes.Command[]) {
@@ -500,6 +518,16 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		}
 
 		provider.updateAcceptInputCommands(commentThreadHandle, acceptInputCommands);
+	}
+
+	$updateCommentThreadCollapsibleState(handle: number, commentThreadHandle: number, collapseState: modes.CommentThreadCollapsibleState): void {
+		let provider = this._commentControllers.get(handle);
+
+		if (!provider) {
+			return;
+		}
+
+		provider.updateCollapsibleState(commentThreadHandle, collapseState);
 	}
 
 	$updateCommentThreadRange(handle: number, commentThreadHandle: number, range: any): void {

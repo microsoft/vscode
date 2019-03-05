@@ -1261,6 +1261,7 @@ export interface CommentThread2 {
 	acceptInputCommands: Command[];
 	onDidChangeAcceptInputCommands: Event<Command[]>;
 	onDidChangeRange: Event<IRange>;
+	onDidChangeCollasibleState: Event<CommentThreadCollapsibleState>;
 }
 
 /**

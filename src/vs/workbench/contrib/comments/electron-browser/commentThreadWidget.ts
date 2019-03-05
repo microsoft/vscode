@@ -450,6 +450,20 @@ export class ReviewZoneWidget extends ZoneWidget {
 					this.show({ lineNumber, column: 1 }, 2);
 				}
 			}));
+
+			this._disposables.push((this._commentThread as modes.CommentThread2).onDidChangeCollasibleState(state => {
+				if (state === modes.CommentThreadCollapsibleState.Expanded && this._isCollapsed) {
+					const lineNumber = this._commentThread.range.startLineNumber;
+
+					this.show({ lineNumber, column: 1 }, 2);
+					return;
+				}
+
+				if (state === modes.CommentThreadCollapsibleState.Collapsed && !this._isCollapsed) {
+					this.hide();
+					return;
+				}
+			}));
 		} else {
 			this.createCommentWidgetActions(this._formActions, model);
 		}
