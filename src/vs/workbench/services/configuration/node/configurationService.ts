@@ -9,7 +9,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { ResourceMap } from 'vs/base/common/map';
 import { equals, deepClone } from 'vs/base/common/objects';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { Queue } from 'vs/base/common/async';
+import { Queue, Barrier } from 'vs/base/common/async';
 import { writeFile } from 'vs/base/node/pfs';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IWorkspaceContextService, Workspace, WorkbenchState, IWorkspaceFolder, toWorkspaceFolders, IWorkspaceFoldersChangeEvent, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -35,14 +35,14 @@ import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { localize } from 'vs/nls';
 import { isEqual, dirname } from 'vs/base/common/resources';
 import { mark } from 'vs/base/common/performance';
+import { Schemas } from 'vs/base/common/network';
 
 export class WorkspaceService extends Disposable implements IWorkspaceConfigurationService, IWorkspaceContextService {
 
 	public _serviceBrand: any;
 
 	private workspace: Workspace;
-	private resolvePromise: Promise<void>;
-	private resolveCallback: () => void;
+	private completeWorkspaceBarrier: Barrier;
 	private _configuration: Configuration;
 	private defaultConfiguration: DefaultConfigurationModel;
 	private userConfiguration: UserConfiguration;
@@ -70,7 +70,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	constructor(private environmentService: IEnvironmentService, private workspaceSettingsRootFolder: string = FOLDER_CONFIG_FOLDER_NAME) {
 		super();
 
-		this.resolvePromise = new Promise(c => this.resolveCallback = c);
+		this.completeWorkspaceBarrier = new Barrier();
 		this.defaultConfiguration = new DefaultConfigurationModel();
 		this.userConfiguration = this._register(new UserConfiguration(environmentService.appSettingsPath));
 		this.workspaceConfiguration = this._register(new WorkspaceConfiguration(environmentService));
@@ -86,7 +86,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	// Workspace Context Service Impl
 
 	public getCompleteWorkspace(): Promise<Workspace> {
-		return this.resolvePromise.then(() => this.getWorkspace());
+		return this.completeWorkspaceBarrier.wait().then(() => this.getWorkspace());
 	}
 
 	public getWorkspace(): Workspace {
@@ -304,7 +304,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 				for (const workspaceFolder of changedWorkspaceFolders) {
 					this.onWorkspaceFolderConfigurationChanged(workspaceFolder);
 				}
-				this.resolveCallback();
+				this.releaseWorkspaceBarrier();
 			});
 	}
 
@@ -331,7 +331,11 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 				const workspaceConfigPath = workspaceIdentifier.configPath;
 				const workspaceFolders = toWorkspaceFolders(this.workspaceConfiguration.getFolders(), dirname(workspaceConfigPath));
 				const workspaceId = workspaceIdentifier.id;
-				return new Workspace(workspaceId, workspaceFolders, workspaceConfigPath);
+				const workspace = new Workspace(workspaceId, workspaceFolders, workspaceConfigPath);
+				if (workspace.configuration.scheme === Schemas.file) {
+					this.releaseWorkspaceBarrier(); // Release barrier as workspace is complete because it is from disk.
+				}
+				return workspace;
 			});
 	}
 
@@ -345,11 +349,21 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 			configuredFolders = [{ uri: folder.toString() }];
 		}
 
-		return Promise.resolve(new Workspace(singleFolder.id, toWorkspaceFolders(configuredFolders)));
+		const workspace = new Workspace(singleFolder.id, toWorkspaceFolders(configuredFolders));
+		this.releaseWorkspaceBarrier(); // Release barrier as workspace is complete because it is single folder.
+		return Promise.resolve(workspace);
 	}
 
 	private createEmptyWorkspace(emptyWorkspace: IEmptyWorkspaceInitializationPayload): Promise<Workspace> {
-		return Promise.resolve(new Workspace(emptyWorkspace.id));
+		const workspace = new Workspace(emptyWorkspace.id);
+		this.releaseWorkspaceBarrier(); // Release barrier as workspace is complete because it is an empty workspace.
+		return Promise.resolve(workspace);
+	}
+
+	private releaseWorkspaceBarrier(): void {
+		if (!this.completeWorkspaceBarrier.isOpen()) {
+			this.completeWorkspaceBarrier.open();
+		}
 	}
 
 	private updateWorkspaceAndInitializeConfiguration(workspace: Workspace, postInitialisationTask: () => void): Promise<void> {
