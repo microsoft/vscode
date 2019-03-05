@@ -32,7 +32,6 @@
 		"./vs/workbench/services/timer/**/*.ts"
 	],
 	"files": [
-		"./vs/workbench/api/electron-browser/mainThreadSaveParticipant.ts",
 		"./vs/monaco.d.ts",
 		"./vs/nls.d.ts",
 		"./vs/nls.mock.ts",
@@ -64,6 +63,7 @@
 		"./vs/workbench/api/electron-browser/mainThreadProgress.ts",
 		"./vs/workbench/api/electron-browser/mainThreadQuickOpen.ts",
 		"./vs/workbench/api/electron-browser/mainThreadSCM.ts",
+		"./vs/workbench/api/electron-browser/mainThreadSaveParticipant.ts",
 		"./vs/workbench/api/electron-browser/mainThreadSearch.ts",
 		"./vs/workbench/api/electron-browser/mainThreadStatusBar.ts",
 		"./vs/workbench/api/electron-browser/mainThreadStorage.ts",
