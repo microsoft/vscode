@@ -4679,7 +4679,7 @@ declare module 'vscode' {
 	 * **Example:** Create a terminal renderer, show it and write hello world in red
 	 * ```typescript
 	 * const renderer = window.createTerminalRenderer('foo');
-	 * renderer.terminal.then(t => t.show());
+	 * renderer.show();
 	 * renderer.write('\x1b[31mHello world\x1b[0m');
 	 * ```
 	 */
@@ -4713,11 +4713,6 @@ declare module 'vscode' {
 		readonly maximumDimensions: TerminalDimensions | undefined;
 
 		/**
-		 * The corresponding [Terminal](#Terminal) for this TerminalRenderer.
-		 */
-		readonly terminal: Terminal;
-
-		/**
 		 * Write text to the terminal. Unlike [Terminal.sendText](#Terminal.sendText) which sends
 		 * text to the underlying _process_, this will write the text to the terminal itself.
 		 *
@@ -4734,6 +4729,23 @@ declare module 'vscode' {
 		 * @param text The text to write.
 		 */
 		write(text: string): void;
+
+		/**
+		 * Show the terminal panel and reveal this terminal in the UI.
+		 *
+		 * @param preserveFocus When `true` the terminal will not take focus.
+		 */
+		show(preserveFocus?: boolean): void;
+
+		/**
+		 * Hide the terminal panel if this terminal is currently showing.
+		 */
+		hide(): void;
+
+		/**
+		 * Dispose and free associated resources.
+		 */
+		dispose(): void;
 
 		/**
 		 * An event which fires on keystrokes in the terminal or when an extension calls

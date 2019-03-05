@@ -1093,4 +1093,15 @@ declare module 'vscode' {
 		group?: string;
 	}
 	//#endregion
+
+	//#region Terminal
+	export interface TerminalRenderer {
+		/**
+		 * The corresponding [Terminal](#Terminal) for this TerminalRenderer.
+		 *
+		 * @deprecated This will not make it to stable, migrate off this API.
+		 */
+		readonly terminal: Terminal;
+	}
+	//#endregio`n
 }

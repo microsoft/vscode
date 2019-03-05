@@ -258,6 +258,18 @@ export class ExtHostTerminalRenderer extends BaseExtHostTerminal implements vsco
 		this._maximumDimensions = { columns, rows };
 		this._onDidChangeMaximumDimensions.fire(this.maximumDimensions);
 	}
+
+	public show(preserveFocus?: boolean): void {
+		this._terminal.show(preserveFocus);
+	}
+
+	public hide(): void {
+		this._terminal.hide();
+	}
+
+	public dispose(): void {
+		this._terminal.dispose();
+	}
 }
 
 export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
