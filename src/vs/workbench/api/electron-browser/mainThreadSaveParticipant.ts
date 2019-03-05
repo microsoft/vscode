@@ -34,7 +34,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IProgressService2, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { extHostCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { ISaveParticipant, ITextFileEditorModel, SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
+import { ISaveParticipant, SaveReason, IActiveTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { ExtHostContext, ExtHostDocumentSaveParticipantShape, IExtHostContext } from '../node/extHost.protocol';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
@@ -51,7 +51,7 @@ class TrimWhitespaceParticipant implements ISaveParticipantParticipant {
 		// Nothing
 	}
 
-	async participate(model: ITextFileEditorModel, env: { reason: SaveReason }): Promise<void> {
+	async participate(model: IActiveTextFileEditorModel, env: { reason: SaveReason }): Promise<void> {
 		if (this.configurationService.getValue('files.trimTrailingWhitespace', { overrideIdentifier: model.textEditorModel.getLanguageIdentifier().language, resource: model.getResource() })) {
 			this.doTrimTrailingWhitespace(model.textEditorModel, env.reason === SaveReason.AUTO);
 		}
@@ -113,7 +113,7 @@ export class FinalNewLineParticipant implements ISaveParticipantParticipant {
 		// Nothing
 	}
 
-	async participate(model: ITextFileEditorModel, env: { reason: SaveReason }): Promise<void> {
+	async participate(model: IActiveTextFileEditorModel, env: { reason: SaveReason }): Promise<void> {
 		if (this.configurationService.getValue('files.insertFinalNewline', { overrideIdentifier: model.textEditorModel.getLanguageIdentifier().language, resource: model.getResource() })) {
 			this.doInsertFinalNewLine(model.textEditorModel);
 		}
@@ -151,7 +151,7 @@ export class TrimFinalNewLinesParticipant implements ISaveParticipantParticipant
 		// Nothing
 	}
 
-	async participate(model: ITextFileEditorModel, env: { reason: SaveReason }): Promise<void> {
+	async participate(model: IActiveTextFileEditorModel, env: { reason: SaveReason }): Promise<void> {
 		if (this.configurationService.getValue('files.trimFinalNewlines', { overrideIdentifier: model.textEditorModel.getLanguageIdentifier().language, resource: model.getResource() })) {
 			this.doTrimFinalNewLines(model.textEditorModel, env.reason === SaveReason.AUTO);
 		}
@@ -222,7 +222,7 @@ class FormatOnSaveParticipant implements ISaveParticipantParticipant {
 		// Nothing
 	}
 
-	async participate(editorModel: ITextFileEditorModel, env: { reason: SaveReason }): Promise<void> {
+	async participate(editorModel: IActiveTextFileEditorModel, env: { reason: SaveReason }): Promise<void> {
 
 		const model = editorModel.textEditorModel;
 		if (env.reason === SaveReason.AUTO
@@ -293,7 +293,7 @@ class CodeActionOnSaveParticipant implements ISaveParticipant {
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) { }
 
-	async participate(editorModel: ITextFileEditorModel, env: { reason: SaveReason }): Promise<void> {
+	async participate(editorModel: IActiveTextFileEditorModel, env: { reason: SaveReason }): Promise<void> {
 		if (env.reason === SaveReason.AUTO) {
 			return undefined;
 		}
@@ -373,7 +373,7 @@ class ExtHostSaveParticipant implements ISaveParticipantParticipant {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocumentSaveParticipant);
 	}
 
-	async participate(editorModel: ITextFileEditorModel, env: { reason: SaveReason }): Promise<void> {
+	async participate(editorModel: IActiveTextFileEditorModel, env: { reason: SaveReason }): Promise<void> {
 
 		if (!shouldSynchronizeModel(editorModel.textEditorModel)) {
 			// the model never made it to the extension
@@ -424,7 +424,7 @@ export class SaveParticipant implements ISaveParticipant {
 		this._saveParticipants.dispose();
 	}
 
-	async participate(model: ITextFileEditorModel, env: { reason: SaveReason }): Promise<void> {
+	async participate(model: IActiveTextFileEditorModel, env: { reason: SaveReason }): Promise<void> {
 		return this._progressService.withProgress({ location: ProgressLocation.Window }, progress => {
 			progress.report({ message: localize('saveParticipants', "Running Save Participants...") });
 			const promiseFactory = this._saveParticipants.getValue().map(p => () => {

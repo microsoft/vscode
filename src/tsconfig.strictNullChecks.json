@@ -32,6 +32,7 @@
 		"./vs/workbench/services/timer/**/*.ts"
 	],
 	"files": [
+		"./vs/workbench/api/electron-browser/mainThreadSaveParticipant.ts",
 		"./vs/monaco.d.ts",
 		"./vs/nls.d.ts",
 		"./vs/nls.mock.ts",
