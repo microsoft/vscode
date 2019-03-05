@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { IEditor as ICodeEditor, IEditorViewState, ScrollType, IDiffEditor } from 'vs/editor/common/editorCommon';
 import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput } from 'vs/platform/editor/common/editor';
-import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, IConstructorSignature0, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITextModel } from 'vs/editor/common/model';
@@ -175,7 +175,10 @@ export interface IEditorInputFactoryRegistry {
 	 */
 	getEditorInputFactory(editorInputId: string): IEditorInputFactory;
 
-	setInstantiationService(service: IInstantiationService): void;
+	/**
+	 * Starts the registry by providing the required services.
+	 */
+	start(accessor: ServicesAccessor): void;
 }
 
 export interface IEditorInputFactory {
@@ -1034,8 +1037,8 @@ class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
 	private editorInputFactoryConstructors: { [editorInputId: string]: IConstructorSignature0<IEditorInputFactory> } = Object.create(null);
 	private editorInputFactoryInstances: { [editorInputId: string]: IEditorInputFactory } = Object.create(null);
 
-	setInstantiationService(service: IInstantiationService): void {
-		this.instantiationService = service;
+	start(accessor: ServicesAccessor): void {
+		this.instantiationService = accessor.get(IInstantiationService);
 
 		for (let key in this.editorInputFactoryConstructors) {
 			const element = this.editorInputFactoryConstructors[key];

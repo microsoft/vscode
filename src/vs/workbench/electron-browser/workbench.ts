@@ -311,10 +311,13 @@ export class Workbench extends Disposable implements IPartService {
 		readFontInfo(BareFontInfo.createFromRawSettings(this.configurationService.getValue('editor'), getZoomLevel()));
 
 		// Create Workbench Container
-		this.createWorkbench();
+		this.createWorkbenchContainer();
 
 		// Services
 		this.initServices(this.serviceCollection);
+
+		// Registries
+		this.startRegistries();
 
 		// Context Keys
 		this._register(this.instantiationService.createInstance(WorkbenchContextKeysHandler));
@@ -343,7 +346,7 @@ export class Workbench extends Disposable implements IPartService {
 		return this.restoreParts().then(() => this.whenStarted(), error => this.whenStarted(error));
 	}
 
-	private createWorkbench(): void {
+	private createWorkbenchContainer(): void {
 		this.workbench = document.createElement('div');
 
 		const platformClass = isWindows ? 'windows' : isLinux ? 'linux' : 'mac';
@@ -415,8 +418,7 @@ export class Workbench extends Disposable implements IPartService {
 		serviceCollection.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService, undefined, true));
 
 		// Remote Resolver
-		const remoteAuthorityResolverService = new RemoteAuthorityResolverService();
-		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
+		serviceCollection.set(IRemoteAuthorityResolverService, new SyncDescriptor(RemoteAuthorityResolverService, undefined, true));
 
 		// Remote Agent
 		const remoteAgentService = new RemoteAgentService(this.configuration, this.notificationService, this.environmentService, remoteAuthorityResolverService);
@@ -552,13 +554,16 @@ export class Workbench extends Disposable implements IPartService {
 			remoteAgentConnection.registerChannel('loglevel', new LogLevelSetterChannel(this.logService));
 		}
 
-		// Set the some services to registries that have been created eagerly
-		Registry.as<IActionBarRegistry>(ActionBarExtensions.Actionbar).setInstantiationService(this.instantiationService);
-		Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).start(this.instantiationService, this.lifecycleService);
-		Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).setInstantiationService(this.instantiationService);
-
 		// TODO@Sandeep debt around cyclic dependencies
 		this.configurationService.acquireInstantiationService(this.instantiationService);
+	}
+
+	private startRegistries(): void {
+		this.instantiationService.invokeFunction(accessor => {
+			Registry.as<IActionBarRegistry>(ActionBarExtensions.Actionbar).start(accessor);
+			Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).start(accessor);
+			Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).start(accessor);
+		});
 	}
 
 	private hasInitialFilesToOpen(): boolean {
@@ -575,6 +580,25 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Configuration changes
 		this._register(this.configurationService.onDidChangeConfiguration(() => this.setFontAliasing()));
+	}
+
+	private fontAliasing: 'default' | 'antialiased' | 'none' | 'auto';
+	private setFontAliasing() {
+		const aliasing = this.configurationService.getValue<'default' | 'antialiased' | 'none' | 'auto'>(Settings.FONT_ALIASING);
+		if (this.fontAliasing === aliasing) {
+			return;
+		}
+
+		this.fontAliasing = aliasing;
+
+		// Remove all
+		const fontAliasingValues: (typeof aliasing)[] = ['antialiased', 'none', 'auto'];
+		removeClasses(this.workbench, ...fontAliasingValues.map(value => `monaco-font-aliasing-${value}`));
+
+		// Add specific
+		if (fontAliasingValues.some(option => option === aliasing)) {
+			addClass(this.workbench, `monaco-font-aliasing-${aliasing}`);
+		}
 	}
 
 	private renderWorkbench(): void {
@@ -610,25 +634,6 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Add Workbench to DOM
 		this.container.appendChild(this.workbench);
-	}
-
-	private fontAliasing: 'default' | 'antialiased' | 'none' | 'auto';
-	private setFontAliasing() {
-		const aliasing = this.configurationService.getValue<'default' | 'antialiased' | 'none' | 'auto'>(Settings.FONT_ALIASING);
-		if (this.fontAliasing === aliasing) {
-			return;
-		}
-
-		this.fontAliasing = aliasing;
-
-		// Remove all
-		const fontAliasingValues: (typeof aliasing)[] = ['antialiased', 'none', 'auto'];
-		removeClasses(this.workbench, ...fontAliasingValues.map(value => `monaco-font-aliasing-${value}`));
-
-		// Add specific
-		if (fontAliasingValues.some(option => option === aliasing)) {
-			addClass(this.workbench, `monaco-font-aliasing-${aliasing}`);
-		}
 	}
 
 	private createTitlebarPart(): void {
@@ -736,14 +741,20 @@ export class Workbench extends Disposable implements IPartService {
 		if (this.state.sideBar.viewletToRestore) {
 			mark('willRestoreViewlet');
 			restorePromises.push(this.sidebarPart.openViewlet(this.state.sideBar.viewletToRestore)
-				.then(viewlet => viewlet || this.sidebarPart.openViewlet(this.sidebarPart.getDefaultViewletId()))
+				.then(viewlet => {
+					if (!viewlet) {
+						return this.sidebarPart.openViewlet(this.sidebarPart.getDefaultViewletId()); // fallback to default viewlet as needed
+					}
+
+					return viewlet;
+				})
 				.then(() => mark('didRestoreViewlet')));
 		}
 
 		// Restore Panel
 		if (this.state.panel.panelToRestore) {
 			mark('willRestorePanel');
-			this.panelPart.openPanel(this.state.panel.panelToRestore, false);
+			this.panelPart.openPanel(this.state.panel.panelToRestore);
 			mark('didRestorePanel');
 		}
 
