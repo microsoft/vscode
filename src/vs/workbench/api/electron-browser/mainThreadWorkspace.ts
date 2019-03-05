@@ -134,6 +134,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 				disregardSearchExcludeSettings: true,
 				disregardIgnoreFiles: true,
 				includePattern,
+				excludePattern: typeof excludePatternOrDisregardExcludes === 'string' ? excludePatternOrDisregardExcludes : undefined,
 				_reason: 'startFileSearch'
 			});
 
@@ -181,6 +182,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		const query = queryBuilder.file(folders, {
 			_reason: 'checkExists',
 			includePattern: includes.join(', '),
+			expandPatterns: true,
 			exists: true
 		});
 
