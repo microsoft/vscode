@@ -189,7 +189,6 @@ export class Workbench extends Disposable implements IPartService {
 	private editorGroupService: IEditorGroupsService;
 	private contextViewService: ContextViewService;
 	private windowService: IWindowService;
-	private lifecycleService: ILifecycleService;
 
 	private instantiationService: IInstantiationService;
 	private contextService: IWorkspaceContextService;
@@ -342,10 +341,6 @@ export class Workbench extends Disposable implements IPartService {
 		// Layout
 		this.layout();
 
-		// Handle case where workbench is not starting up properly
-		const timeoutHandle = setTimeout(() => this.logService.warn('Workbench did not finish loading in 10 seconds, that might be a problem that should be reported.'), 10000);
-		this.lifecycleService.when(LifecyclePhase.Restored).then(() => clearTimeout(timeoutHandle));
-
 		// Restore Parts
 		let error: Error;
 		return this.restoreParts()
@@ -408,10 +403,10 @@ export class Workbench extends Disposable implements IPartService {
 		serviceCollection.set(ITelemetryService, telemetryService);
 
 		// Lifecycle
-		this.lifecycleService = this.instantiationService.createInstance(LifecycleService);
-		serviceCollection.set(ILifecycleService, this.lifecycleService);
-		this._register(this.lifecycleService.onWillShutdown(event => this._onWillShutdown.fire(event)));
-		this._register(this.lifecycleService.onShutdown(() => {
+		const lifecycleService = this.instantiationService.createInstance(LifecycleService);
+		serviceCollection.set(ILifecycleService, lifecycleService);
+		this._register(lifecycleService.onWillShutdown(event => this._onWillShutdown.fire(event)));
+		this._register(lifecycleService.onShutdown(() => {
 			this._onShutdown.fire();
 			this.dispose();
 		}));
@@ -726,7 +721,7 @@ export class Workbench extends Disposable implements IPartService {
 		registerNotificationCommands(this.notificationsCenter, this.notificationsToasts);
 	}
 
-	private restoreParts(): Promise<any[]> {
+	private restoreParts(): Promise<void> {
 		const restorePromises: Promise<any>[] = [];
 
 		// Restore editors
@@ -779,7 +774,10 @@ export class Workbench extends Disposable implements IPartService {
 			this.centerEditorLayout(true);
 		}
 
-		return Promise.all(restorePromises);
+		// Emit a warning after 10s if restore does not complete
+		const restoreTimeoutHandle = setTimeout(() => this.logService.warn('Workbench did not finish loading in 10 seconds, that might be a problem that should be reported.'), 10000);
+
+		return Promise.all(restorePromises).then(() => clearTimeout(restoreTimeoutHandle));
 	}
 
 	private whenStarted(accessor: ServicesAccessor, error?: Error): void {
