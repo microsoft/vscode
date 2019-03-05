@@ -7,7 +7,6 @@ import * as dom from 'vs/base/browser/dom';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { Action, IAction, RadioGroup } from 'vs/base/common/actions';
-import { firstIndex } from 'vs/base/common/arrays';
 import { createCancelablePromise, TimeoutTimer } from 'vs/base/common/async';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
@@ -15,7 +14,6 @@ import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LRUCache } from 'vs/base/common/map';
 import { escape } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
 import 'vs/css!./outlinePanel';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
@@ -24,7 +22,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
 import { LanguageFeatureRegistry } from 'vs/editor/common/modes/languageFeatureRegistry';
-import { OutlineElement, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
+import { OutlineElement, OutlineModel, TreeElement, IOutlineMarker } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -33,7 +31,6 @@ import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { WorkbenchDataTree } from 'vs/platform/list/browser/listService';
-import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -48,6 +45,7 @@ import { IDataTreeViewState } from 'vs/base/browser/ui/tree/dataTree';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { basename } from 'vs/base/common/resources';
 import { IDataSource } from 'vs/base/browser/ui/tree/tree';
+import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
 
 class RequestState {
 
@@ -261,7 +259,7 @@ export class OutlinePanel extends ViewletPanel {
 		@IThemeService private readonly _themeService: IThemeService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IMarkerService private readonly _markerService: IMarkerService,
+		@IMarkerDecorationsService private readonly _markerDecorationService: IMarkerDecorationsService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -569,21 +567,23 @@ export class OutlinePanel extends ViewletPanel {
 		}));
 
 		// feature: show markers in outline
-		const updateMarker = (e: URI[], ignoreEmpty?: boolean) => {
+		const updateMarker = (model: ITextModel, ignoreEmpty?: boolean) => {
 			if (!this._configurationService.getValue(OutlineConfigKeys.problemsEnabled)) {
 				return;
 			}
-			if (firstIndex(e, a => a.toString() === textModel.uri.toString()) < 0) {
+			if (model !== textModel) {
 				return;
 			}
-			const marker = this._markerService.read({ resource: textModel.uri, severities: MarkerSeverity.Error | MarkerSeverity.Warning });
+			const marker = this._markerDecorationService.getLiveMarkers(textModel).map(([range, marker]) => {
+				return { ...range, severity: marker.severity } as IOutlineMarker;
+			});
 			if (marker.length > 0 || !ignoreEmpty) {
 				newModel.updateMarker(marker);
 				this._tree.updateChildren();
 			}
 		};
-		updateMarker([textModel.uri], true);
-		this._editorDisposables.push(this._markerService.onMarkerChanged(updateMarker));
+		updateMarker(textModel, true);
+		this._editorDisposables.push(this._markerDecorationService.onDidChangeMarker(updateMarker));
 
 		this._editorDisposables.push(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(OutlineConfigKeys.problemsBadges) || e.affectsConfiguration(OutlineConfigKeys.problemsColors)) {
@@ -597,7 +597,7 @@ export class OutlinePanel extends ViewletPanel {
 				newModel.updateMarker([]);
 				this._tree.updateChildren();
 			} else {
-				updateMarker([textModel.uri], true);
+				updateMarker(textModel, true);
 			}
 		}));
 	}

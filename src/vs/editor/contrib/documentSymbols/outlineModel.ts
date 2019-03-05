@@ -13,7 +13,7 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { DocumentSymbol, DocumentSymbolProvider, DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
-import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
+import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 
 export abstract class TreeElement {
 
@@ -86,6 +86,14 @@ export abstract class TreeElement {
 	}
 }
 
+export interface IOutlineMarker {
+	startLineNumber: number;
+	startColumn: number;
+	endLineNumber: number;
+	endColumn: number;
+	severity: MarkerSeverity;
+}
+
 export class OutlineElement extends TreeElement {
 
 	children: { [id: string]: OutlineElement; } = Object.create(null);
@@ -140,13 +148,13 @@ export class OutlineGroup extends TreeElement {
 		return undefined;
 	}
 
-	updateMarker(marker: IMarker[]): void {
+	updateMarker(marker: IOutlineMarker[]): void {
 		for (const key in this.children) {
 			this._updateMarker(marker, this.children[key]);
 		}
 	}
 
-	private _updateMarker(markers: IMarker[], item: OutlineElement): void {
+	private _updateMarker(markers: IOutlineMarker[], item: OutlineElement): void {
 		item.marker = undefined;
 
 		// find the proper start index to check for item/marker overlap.
@@ -161,7 +169,7 @@ export class OutlineGroup extends TreeElement {
 			start = idx;
 		}
 
-		let myMarkers: IMarker[] = [];
+		let myMarkers: IOutlineMarker[] = [];
 		let myTopSev: MarkerSeverity | undefined;
 
 		for (; start < markers.length && Range.areIntersecting(item.symbol.range, markers[start]); start++) {
@@ -169,7 +177,7 @@ export class OutlineGroup extends TreeElement {
 			// and store them in a 'private' array.
 			let marker = markers[start];
 			myMarkers.push(marker);
-			(markers as Array<IMarker | undefined>)[start] = undefined;
+			(markers as Array<IOutlineMarker | undefined>)[start] = undefined;
 			if (!myTopSev || marker.severity > myTopSev) {
 				myTopSev = marker.severity;
 			}
@@ -413,7 +421,7 @@ export class OutlineModel extends TreeElement {
 		return TreeElement.getElementById(id, this);
 	}
 
-	updateMarker(marker: IMarker[]): void {
+	updateMarker(marker: IOutlineMarker[]): void {
 		// sort markers by start range so that we can use
 		// outline element starts for quicker look up
 		marker.sort(Range.compareRangesUsingStarts);
