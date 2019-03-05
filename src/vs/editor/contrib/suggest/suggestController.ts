@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { alert } from 'vs/base/browser/ui/aria/aria';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -291,8 +292,10 @@ export class SuggestController implements IEditorContribution {
 	}
 
 	private _alertCompletionItem({ completion: suggestion }: CompletionItem): void {
-		// A temporary fix for too verbose, unnecesary screen reader alerts.
-		// Todo: Remove calls to this empty method body.
+		if (isNonEmptyArray(suggestion.additionalTextEdits)) {
+			let msg = nls.localize('arai.alert.snippet', "Accepting '{0}' made {1} additional edits", suggestion.label, suggestion.additionalTextEdits.length);
+			alert(msg);
+		}
 	}
 
 	triggerSuggest(onlyFrom?: CompletionItemProvider[]): void {

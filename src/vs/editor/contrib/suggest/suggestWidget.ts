@@ -540,20 +540,10 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	}
 
 	private _getSuggestionAriaAlertLabel(item: CompletionItem): string {
-		// It is not so important to know the type of completion: regular or snippet.
-		// Snippets can be identified by their names.
-		// They are usually created by users themselves.
-		const isSnippet = item.completion.kind === CompletionItemKind.Snippet;
-
-		if (!canExpandCompletionItem(item)) {
-			return isSnippet ? item.completion.label
-				: item.completion.label;
-		} else if (this.expandDocsSettingFromStorage()) {
-			return isSnippet ? nls.localize('ariaCurrentSnippeSuggestionReadDetails', "Item {0}, docs: {1}", item.completion.label, this.details.getAriaLabel())
-				: nls.localize('ariaCurrenttSuggestionReadDetails', "Item {0}, docs: {1}", item.completion.label, this.details.getAriaLabel());
+		if (this.expandDocsSettingFromStorage()) {
+			return nls.localize('ariaCurrenttSuggestionReadDetails', "Item {0}, docs: {1}", item.completion.label, this.details.getAriaLabel());
 		} else {
-			return isSnippet ? item.completion.label
-				: item.completion.label;
+			return item.completion.label;
 		}
 	}
 
