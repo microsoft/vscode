@@ -688,3 +688,9 @@ export interface ITerminalProcessExtHostRequest {
 	cols: number;
 	rows: number;
 }
+
+export enum LinuxDistro {
+	Fedora,
+	Ubuntu,
+	Unknown
+}

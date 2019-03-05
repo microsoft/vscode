@@ -23,7 +23,7 @@ export abstract class TerminalService implements ITerminalService {
 	protected _terminalFocusContextKey: IContextKey<boolean>;
 	protected _findWidgetVisible: IContextKey<boolean>;
 	protected _terminalContainer: HTMLElement;
-	protected _terminalTabs: ITerminalTab[];
+	protected _terminalTabs: ITerminalTab[] = [];
 	protected get _terminalInstances(): ITerminalInstance[] {
 		return this._terminalTabs.reduce((p, c) => p.concat(c.terminalInstances), <ITerminalInstance[]>[]);
 	}

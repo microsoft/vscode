@@ -8,6 +8,7 @@ import * as platform from 'vs/base/common/platform';
 import * as processes from 'vs/base/node/processes';
 import { readFile, fileExists } from 'vs/base/node/pfs';
 import { Event } from 'vs/base/common/event';
+import { LinuxDistro } from 'vs/workbench/contrib/terminal/common/terminal';
 
 /**
  * An interface representing a raw terminal child process, this contains a subset of the
@@ -78,6 +79,7 @@ function getTerminalDefaultShellWindows(): string {
 	return _TERMINAL_DEFAULT_SHELL_WINDOWS;
 }
 
+let detectedDistro = LinuxDistro.Unknown;
 if (platform.isLinux) {
 	const file = '/etc/os-release';
 	fileExists(file).then(exists => {
@@ -87,13 +89,12 @@ if (platform.isLinux) {
 		readFile(file).then(b => {
 			const contents = b.toString();
 			if (/NAME="?Fedora"?/.test(contents)) {
-				isFedora = true;
+				detectedDistro = LinuxDistro.Fedora;
 			} else if (/NAME="?Ubuntu"?/.test(contents)) {
-				isUbuntu = true;
+				detectedDistro = LinuxDistro.Ubuntu;
 			}
 		});
 	});
 }
 
-export let isFedora = false;
-export let isUbuntu = false;
+export const linuxDistro = detectedDistro;

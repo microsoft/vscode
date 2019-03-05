@@ -14,10 +14,10 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { ITerminalInstance, ITerminalService, IShellLaunchConfig, ITerminalConfigHelper, NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalService as BrowserTerminalService } from 'vs/workbench/contrib/terminal/browser/terminalService';
-import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/electron-browser/terminalConfigHelper';
+import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import Severity from 'vs/base/common/severity';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { getDefaultShell } from 'vs/workbench/contrib/terminal/node/terminal';
+import { getDefaultShell, linuxDistro } from 'vs/workbench/contrib/terminal/node/terminal';
 import { TerminalTab } from 'vs/workbench/contrib/terminal/browser/terminalTab';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -49,8 +49,7 @@ export class TerminalService extends BrowserTerminalService implements ITerminal
 	) {
 		super(contextKeyService, panelService, partService, lifecycleService, storageService, notificationService, dialogService);
 
-		this._terminalTabs = [];
-		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper);
+		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper, linuxDistro);
 		ipc.on('vscode:openFiles', (_event: any, request: IOpenFileRequest) => {
 			// if the request to open files is coming in from the integrated terminal (identified though
 			// the termProgram variable) and we are instructed to wait for editors close, wait for the
