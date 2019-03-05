@@ -488,7 +488,14 @@ suite('workspace-namespace', () => {
 	});
 
 	test('findFiles', () => {
-		return vscode.workspace.findFiles('*.png').then((res) => {
+		return vscode.workspace.findFiles('**/*.png').then((res) => {
+			assert.equal(res.length, 2);
+			assert.equal(basename(vscode.workspace.asRelativePath(res[0])), 'image.png');
+		});
+	});
+
+	test('findFiles, exclude', () => {
+		return vscode.workspace.findFiles('**/*.png', '**/sub/**').then((res) => {
 			assert.equal(res.length, 1);
 			assert.equal(basename(vscode.workspace.asRelativePath(res[0])), 'image.png');
 		});

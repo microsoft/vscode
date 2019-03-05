@@ -134,6 +134,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 				disregardSearchExcludeSettings: true,
 				disregardIgnoreFiles: true,
 				includePattern,
+				excludePattern: typeof excludePatternOrDisregardExcludes === 'string' ? excludePatternOrDisregardExcludes : undefined,
 				_reason: 'startFileSearch'
 			});
 
