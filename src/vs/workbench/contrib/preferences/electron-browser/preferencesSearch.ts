@@ -23,6 +23,7 @@ import { IPreferencesSearchService, ISearchProvider, IWorkbenchSettingsConfigura
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { canceled } from 'vs/base/common/errors';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { nullRange } from 'vs/workbench/services/preferences/common/preferencesModels';
 
 export interface IEndpointDetails {
 	urlBase: string;
@@ -426,12 +427,12 @@ function remoteSettingToISetting(remoteSetting: IRemoteSetting): IExtensionSetti
 	return {
 		description: remoteSetting.description.split('\n'),
 		descriptionIsMarkdown: false,
-		descriptionRanges: null,
+		descriptionRanges: [],
 		key: remoteSetting.key,
-		keyRange: null,
+		keyRange: nullRange,
 		value: remoteSetting.defaultValue,
-		range: null,
-		valueRange: null,
+		range: nullRange,
+		valueRange: nullRange,
 		overrides: [],
 		extensionName: remoteSetting.extensionName,
 		extensionPublisher: remoteSetting.extensionPublisher
@@ -536,16 +537,6 @@ class SettingMatches {
 	}
 
 	private toKeyRange(setting: ISetting, match: IMatch): IRange {
-		if (!setting.keyRange) {
-			// No source range? Return fake range, don't care
-			return {
-				startLineNumber: 0,
-				startColumn: 0,
-				endLineNumber: 0,
-				endColumn: 0,
-			};
-		}
-
 		return {
 			startLineNumber: setting.keyRange.startLineNumber,
 			startColumn: setting.keyRange.startColumn + match.start,
@@ -555,16 +546,6 @@ class SettingMatches {
 	}
 
 	private toDescriptionRange(setting: ISetting, match: IMatch, lineIndex: number): IRange {
-		if (!setting.keyRange) {
-			// No source range? Return fake range, don't care
-			return {
-				startLineNumber: 0,
-				startColumn: 0,
-				endLineNumber: 0,
-				endColumn: 0,
-			};
-		}
-
 		return {
 			startLineNumber: setting.descriptionRanges[lineIndex].startLineNumber,
 			startColumn: setting.descriptionRanges[lineIndex].startColumn + match.start,
@@ -574,16 +555,6 @@ class SettingMatches {
 	}
 
 	private toValueRange(setting: ISetting, match: IMatch): IRange {
-		if (!setting.keyRange) {
-			// No source range? Return fake range, don't care
-			return {
-				startLineNumber: 0,
-				startColumn: 0,
-				endLineNumber: 0,
-				endColumn: 0,
-			};
-		}
-
 		return {
 			startLineNumber: setting.valueRange.startLineNumber,
 			startColumn: setting.valueRange.startColumn + match.start + 1,

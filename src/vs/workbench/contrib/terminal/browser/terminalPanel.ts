@@ -6,7 +6,6 @@
 import * as dom from 'vs/base/browser/dom';
 import * as nls from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
-import * as terminalEnvironment from 'vs/workbench/contrib/terminal/node/terminalEnvironment';
 import { Action, IAction } from 'vs/base/common/actions';
 import { IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -17,14 +16,13 @@ import { ITerminalService, TERMINAL_PANEL_ID } from 'vs/workbench/contrib/termin
 import { IThemeService, ITheme, registerThemingParticipant, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
 import { editorHoverBackground, editorHoverBorder, editorForeground } from 'vs/platform/theme/common/colorRegistry';
-import { KillTerminalAction, SwitchTerminalAction, SwitchTerminalActionItem, CopyTerminalSelectionAction, TerminalPasteAction, ClearTerminalAction, SelectAllTerminalAction, CreateNewTerminalAction, SplitTerminalAction } from 'vs/workbench/contrib/terminal/electron-browser/terminalActions';
+import { KillTerminalAction, SwitchTerminalAction, SwitchTerminalActionItem, CopyTerminalSelectionAction, TerminalPasteAction, ClearTerminalAction, SelectAllTerminalAction, CreateNewTerminalAction, SplitTerminalAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { Panel } from 'vs/workbench/browser/panel';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { URI } from 'vs/base/common/uri';
 import { TERMINAL_BACKGROUND_COLOR, TERMINAL_BORDER_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
-import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/electron-browser/terminalConfigHelper';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 
 const FIND_FOCUS_CLASS = 'find-focused';
@@ -82,14 +80,12 @@ export class TerminalPanel extends Panel {
 
 			if (e.affectsConfiguration('terminal.integrated.fontFamily') || e.affectsConfiguration('editor.fontFamily')) {
 				const configHelper = this._terminalService.configHelper;
-				if (configHelper instanceof TerminalConfigHelper) {
-					if (!configHelper.configFontIsMonospace()) {
-						const choices: IPromptChoice[] = [{
-							label: nls.localize('terminal.useMonospace', "Use 'monospace'"),
-							run: () => this._configurationService.updateValue('terminal.integrated.fontFamily', 'monospace'),
-						}];
-						this._notificationService.prompt(Severity.Warning, nls.localize('terminal.monospaceOnly', "The terminal only supports monospace fonts."), choices);
-					}
+				if (!configHelper.configFontIsMonospace()) {
+					const choices: IPromptChoice[] = [{
+						label: nls.localize('terminal.useMonospace', "Use 'monospace'"),
+						run: () => this._configurationService.updateValue('terminal.integrated.fontFamily', 'monospace'),
+					}];
+					this._notificationService.prompt(Severity.Warning, nls.localize('terminal.monospaceOnly', "The terminal only supports monospace fonts."), choices);
 				}
 			}
 		}));
@@ -165,7 +161,7 @@ export class TerminalPanel extends Panel {
 		return this._contextMenuActions;
 	}
 
-	public getActionItem(action: Action): IActionItem {
+	public getActionItem(action: Action): IActionItem | null {
 		if (action.id === SwitchTerminalAction.ID) {
 			return this._instantiationService.createInstance(SwitchTerminalActionItem, action);
 		}
@@ -182,7 +178,7 @@ export class TerminalPanel extends Panel {
 
 	public focusFindWidget() {
 		const activeInstance = this._terminalService.getActiveInstance();
-		if (activeInstance && activeInstance.hasSelection() && (activeInstance.selection.indexOf('\n') === -1)) {
+		if (activeInstance && activeInstance.hasSelection() && activeInstance.selection!.indexOf('\n') === -1) {
 			this._findWidget.reveal(activeInstance.selection);
 		} else {
 			this._findWidget.reveal();
@@ -195,7 +191,7 @@ export class TerminalPanel extends Panel {
 
 	public showFindWidget() {
 		const activeInstance = this._terminalService.getActiveInstance();
-		if (activeInstance && activeInstance.hasSelection() && (activeInstance.selection.indexOf('\n') === -1)) {
+		if (activeInstance && activeInstance.hasSelection() && activeInstance.selection!.indexOf('\n') === -1) {
 			this._findWidget.show(activeInstance.selection);
 		} else {
 			this._findWidget.show();
@@ -215,10 +211,16 @@ export class TerminalPanel extends Panel {
 			if (event.which === 2 && platform.isLinux) {
 				// Drop selection and focus terminal on Linux to enable middle button paste when click
 				// occurs on the selection itself.
-				this._terminalService.getActiveInstance().focus();
+				const terminal = this._terminalService.getActiveInstance();
+				if (terminal) {
+					terminal.focus();
+				}
 			} else if (event.which === 3) {
 				if (this._terminalService.configHelper.config.rightClickBehavior === 'copyPaste') {
 					const terminal = this._terminalService.getActiveInstance();
+					if (!terminal) {
+						return;
+					}
 					if (terminal.hasSelection()) {
 						terminal.copySelection();
 						terminal.clearSelection();
@@ -246,7 +248,7 @@ export class TerminalPanel extends Panel {
 
 				if (event.which === 1) {
 					const terminal = this._terminalService.getActiveInstance();
-					if (terminal.hasSelection()) {
+					if (terminal && terminal.hasSelection()) {
 						terminal.copySelection();
 					}
 				}
@@ -278,7 +280,7 @@ export class TerminalPanel extends Panel {
 				event.stopPropagation();
 			}
 		}));
-		this._register(dom.addDisposableListener(this._parentDomElement, dom.EventType.DROP, (e: DragEvent) => {
+		this._register(dom.addDisposableListener(this._parentDomElement, dom.EventType.DROP, async (e: DragEvent) => {
 			if (e.target === this._parentDomElement || dom.isAncestor(e.target as HTMLElement, this._parentDomElement)) {
 				if (!e.dataTransfer) {
 					return;
@@ -299,7 +301,11 @@ export class TerminalPanel extends Panel {
 				}
 
 				const terminal = this._terminalService.getActiveInstance();
-				terminal.sendText(terminalEnvironment.preparePathForTerminal(path), false);
+				if (terminal) {
+					return this._terminalService.preparePathForTerminalAsync(path, terminal.shellLaunchConfig.executable, terminal.title).then(preparedPath => {
+						terminal.sendText(preparedPath, false);
+					});
+				}
 			}
 		}));
 	}

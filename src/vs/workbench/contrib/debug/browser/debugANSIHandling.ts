@@ -56,7 +56,7 @@ export function handleANSIOutput(text: string, linkDetector: LinkDetector): HTML
 					* Certain ranges that are matched here do not contain real graphics rendition sequences. For
 					* the sake of having a simpler expression, they have been included anyway.
 					*/
-				if (ansiSequence.match(/^(?:[349][0-7]|10[0-7]|[01]|4|[34]9)(?:;(?:[349][0-7]|10[0-7]|[01]|4|[34]9))*;?m$/)) {
+				if (ansiSequence.match(/^(?:[349][0-7]|10[0-7]|[013]|4|[34]9)(?:;(?:[349][0-7]|10[0-7]|[013]|4|[34]9))*;?m$/)) {
 
 					const styleCodes: number[] = ansiSequence.slice(0, -1)	// Remove final 'm' character.
 						.split(';')					// Separate style codes.
@@ -68,6 +68,8 @@ export function handleANSIOutput(text: string, linkDetector: LinkDetector): HTML
 							styleNames = [];
 						} else if (code === 1) {
 							styleNames.push('code-bold');
+						} else if (code === 3) {
+							styleNames.push('code-italic');
 						} else if (code === 4) {
 							styleNames.push('code-underline');
 						} else if ((code >= 30 && code <= 37) || (code >= 90 && code <= 97)) {

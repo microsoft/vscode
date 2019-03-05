@@ -16,7 +16,7 @@ import { mark } from 'vs/base/common/performance';
 import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { isWindows, isLinux, isMacintosh, language } from 'vs/base/common/platform';
+import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IEditorInputFactoryRegistry, Extensions as EditorExtensions, IUntitledResourceInput, IResourceDiffInput } from 'vs/workbench/common/editor';
@@ -33,7 +33,7 @@ import { QuickOpenController } from 'vs/workbench/browser/parts/quickopen/quickO
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { QuickInputService } from 'vs/workbench/browser/parts/quickinput/quickInput';
 import { getServices } from 'vs/platform/instantiation/common/extensions';
-import { Position, Parts, IPartService, PositionToString, ILayoutOptions } from 'vs/workbench/services/part/common/partService';
+import { Position, Parts, IPartService, ILayoutOptions } from 'vs/workbench/services/part/common/partService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IStorageService, StorageScope, IWillSaveStateEvent, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { ContextMenuService as HTMLContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
@@ -72,7 +72,6 @@ import { EditorService } from 'vs/workbench/services/editor/browser/editorServic
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { Sizing, Direction, Grid, View } from 'vs/base/browser/ui/grid/grid';
-import { IEditor } from 'vs/editor/common/editorCommon';
 import { WorkbenchLegacyLayout } from 'vs/workbench/browser/legacyLayout';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { setARIAContainer } from 'vs/base/browser/ui/aria/aria';
@@ -83,8 +82,7 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { combinedAppender, LogAppender, NullTelemetryService, configurationTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
-import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
+import { combinedAppender, LogAppender, NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IExtensionGalleryService, IExtensionManagementServerService, IExtensionManagementService, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { ExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
@@ -104,10 +102,9 @@ import { WorkbenchThemeService } from 'vs/workbench/services/themes/browser/work
 import { IProductService } from 'vs/platform/product/common/product';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { WorkbenchContextKeysHandler } from 'vs/workbench/browser/contextkeys';
+import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 
 // import@node
-import { BackupFileService, InMemoryBackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
-import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
 import { getDelayedChannel } from 'vs/base/parts/ipc/node/ipc';
 import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
 import { DialogChannel } from 'vs/platform/dialogs/node/dialogIpc';
@@ -158,10 +155,7 @@ enum Settings {
 	ZEN_MODE_RESTORE = 'zenMode.restore'
 }
 
-type FontAliasingOption = 'default' | 'antialiased' | 'none' | 'auto';
-const fontAliasingValues: FontAliasingOption[] = ['antialiased', 'none', 'auto'];
-
-enum State {
+enum Storage {
 	SIDEBAR_HIDDEN = 'workbench.sidebar.hidden',
 
 	PANEL_HIDDEN = 'workbench.panel.hidden',
@@ -172,6 +166,8 @@ enum State {
 }
 
 export class Workbench extends Disposable implements IPartService {
+
+	//#region workbench
 
 	_serviceBrand: any;
 
@@ -192,13 +188,16 @@ export class Workbench extends Disposable implements IPartService {
 	private editorService: EditorService;
 	private editorGroupService: IEditorGroupsService;
 	private contextViewService: ContextViewService;
-	private keybindingService: IKeybindingService;
-	private backupFileService: IBackupFileService;
-	private notificationService: NotificationService;
-	private themeService: WorkbenchThemeService;
-	private telemetryService: ITelemetryService;
 	private windowService: IWindowService;
-	private lifecycleService: LifecycleService;
+	private lifecycleService: ILifecycleService;
+
+	private instantiationService: IInstantiationService;
+	private contextService: IWorkspaceContextService;
+	private storageService: IStorageService;
+	private configurationService: IConfigurationService;
+	private environmentService: IEnvironmentService;
+	private logService: ILogService;
+	private windowsService: IWindowsService;
 
 	private titlebarPart: TitlebarPart;
 	private activitybarPart: ActivitybarPart;
@@ -213,21 +212,27 @@ export class Workbench extends Disposable implements IPartService {
 	private notificationsCenter: NotificationsCenter;
 	private notificationsToasts: NotificationsToasts;
 
-	private fontAliasing: FontAliasingOption;
-
 	constructor(
 		private container: HTMLElement,
 		private configuration: IWindowConfiguration,
 		private serviceCollection: ServiceCollection,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IStorageService private readonly storageService: IStorageService,
-		@IConfigurationService private readonly configurationService: WorkspaceService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@ILogService private readonly logService: ILogService,
-		@IWindowsService private readonly windowsService: IWindowsService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IStorageService storageService: IStorageService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@ILogService logService: ILogService,
+		@IWindowsService windowsService: IWindowsService
 	) {
 		super();
+
+		this.instantiationService = instantiationService;
+		this.contextService = contextService;
+		this.storageService = storageService;
+		this.configurationService = configurationService;
+		this.environmentService = environmentService;
+		this.logService = logService;
+		this.windowsService = windowsService;
 
 		this.registerErrorHandler();
 	}
@@ -273,11 +278,6 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Log it
 		this.logService.error(errorMsg);
-
-		// Show to user if friendly message provided
-		if (error && error.friendlyMessage && this.notificationService) {
-			this.notificationService.error(error.friendlyMessage);
-		}
 	}
 
 	startup(): void {
@@ -315,21 +315,25 @@ export class Workbench extends Disposable implements IPartService {
 		readFontInfo(BareFontInfo.createFromRawSettings(this.configurationService.getValue('editor'), getZoomLevel()));
 
 		// Create Workbench Container
-		this.createWorkbench();
+		this.createWorkbenchContainer();
 
 		// Services
 		this.initServices(this.serviceCollection);
+
+		// Registries
+		this.startRegistries();
 
 		// Context Keys
 		this._register(this.instantiationService.createInstance(WorkbenchContextKeysHandler));
 
 		// Register Listeners
 		this.registerListeners();
+		this.registerLayoutListeners();
 
-		// Settings
-		this.initState();
+		// Layout State
+		this.instantiationService.invokeFunction(accessor => this.initLayoutState(accessor));
 
-		// Create Workbench and Parts
+		// Render Workbench
 		this.renderWorkbench();
 
 		// Workbench Layout
@@ -343,10 +347,13 @@ export class Workbench extends Disposable implements IPartService {
 		this.lifecycleService.when(LifecyclePhase.Restored).then(() => clearTimeout(timeoutHandle));
 
 		// Restore Parts
-		return this.restoreParts().then(() => this.whenStarted(), error => this.whenStarted(error));
+		let error: Error;
+		return this.restoreParts()
+			.catch(err => error = err)
+			.finally(() => this.instantiationService.invokeFunction(accessor => this.whenStarted(accessor, error)));
 	}
 
-	private createWorkbench(): void {
+	private createWorkbenchContainer(): void {
 		this.workbench = document.createElement('div');
 
 		const platformClass = isWindows ? 'windows' : isLinux ? 'linux' : 'mac';
@@ -364,8 +371,7 @@ export class Workbench extends Disposable implements IPartService {
 		serviceCollection.set(ILabelService, new SyncDescriptor(LabelService, undefined, true));
 
 		// Notifications
-		this.notificationService = new NotificationService();
-		serviceCollection.set(INotificationService, this.notificationService);
+		serviceCollection.set(INotificationService, new SyncDescriptor(NotificationService, undefined, true));
 
 		// Window
 		this.windowService = this.instantiationService.createInstance(WindowService, this.configuration);
@@ -385,6 +391,7 @@ export class Workbench extends Disposable implements IPartService {
 			});
 
 		// Telemetry
+		let telemetryService: ITelemetryService;
 		if (!this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!productService.enableTelemetry) {
 			const channel = getDelayedChannel(sharedProcess.then(c => c.getChannel('telemetryAppender')));
 			const config: ITelemetryServiceConfig = {
@@ -393,14 +400,12 @@ export class Workbench extends Disposable implements IPartService {
 				piiPaths: [this.environmentService.appRoot, this.environmentService.extensionsPath]
 			};
 
-			this.telemetryService = this._register(this.instantiationService.createInstance(TelemetryService, config));
-			this._register(new ErrorTelemetry(this.telemetryService));
+			telemetryService = this._register(this.instantiationService.createInstance(TelemetryService, config));
 		} else {
-			this.telemetryService = NullTelemetryService;
+			telemetryService = NullTelemetryService;
 		}
 
-		serviceCollection.set(ITelemetryService, this.telemetryService);
-		this._register(configurationTelemetry(this.telemetryService, this.configurationService));
+		serviceCollection.set(ITelemetryService, telemetryService);
 
 		// Lifecycle
 		this.lifecycleService = this.instantiationService.createInstance(LifecycleService);
@@ -418,12 +423,10 @@ export class Workbench extends Disposable implements IPartService {
 		serviceCollection.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService, undefined, true));
 
 		// Remote Resolver
-		const remoteAuthorityResolverService = new RemoteAuthorityResolverService();
-		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
+		serviceCollection.set(IRemoteAuthorityResolverService, new SyncDescriptor(RemoteAuthorityResolverService, undefined, true));
 
 		// Remote Agent
-		const remoteAgentService = new RemoteAgentService(this.configuration, this.notificationService, this.environmentService, remoteAuthorityResolverService);
-		serviceCollection.set(IRemoteAgentService, remoteAgentService);
+		serviceCollection.set(IRemoteAgentService, new SyncDescriptor(RemoteAgentService, [this.configuration]));
 
 		// Extensions Management
 		const extensionManagementChannel = getDelayedChannel(sharedProcess.then(c => c.getChannel('extensions')));
@@ -438,8 +441,7 @@ export class Workbench extends Disposable implements IPartService {
 		serviceCollection.set(IExtensionService, new SyncDescriptor(ExtensionService));
 
 		// Theming
-		this.themeService = this.instantiationService.createInstance(WorkbenchThemeService, document.body);
-		serviceCollection.set(IWorkbenchThemeService, this.themeService);
+		serviceCollection.set(IWorkbenchThemeService, new SyncDescriptor(WorkbenchThemeService, [document.body]));
 
 		// Commands
 		serviceCollection.set(ICommandService, new SyncDescriptor(CommandService, undefined, true));
@@ -471,8 +473,7 @@ export class Workbench extends Disposable implements IPartService {
 		serviceCollection.set(IContextKeyService, new SyncDescriptor(ContextKeyService));
 
 		// Keybindings
-		this.keybindingService = this.instantiationService.createInstance(WorkbenchKeybindingService, window);
-		serviceCollection.set(IKeybindingService, this.keybindingService);
+		serviceCollection.set(IKeybindingService, new SyncDescriptor(WorkbenchKeybindingService, [window]));
 
 		// Context view service
 		this.contextViewService = this.instantiationService.createInstance(ContextViewService, this.workbench);
@@ -503,10 +504,7 @@ export class Workbench extends Disposable implements IPartService {
 		serviceCollection.set(IActivityService, new SyncDescriptor(ActivityService, [this.activitybarPart, this.panelPart], true));
 
 		// File Service
-		const fileService = this.instantiationService.createInstance(RemoteFileService);
-		serviceCollection.set(IFileService, fileService);
-		this.configurationService.acquireFileService(fileService);
-		this.themeService.acquireFileService(fileService);
+		serviceCollection.set(IFileService, new SyncDescriptor(RemoteFileService));
 
 		// Editor and Group services
 		this.editorPart = this.instantiationService.createInstance(EditorPart, Identifiers.EDITOR_PART, !this.hasInitialFilesToOpen());
@@ -525,14 +523,6 @@ export class Workbench extends Disposable implements IPartService {
 		// History
 		serviceCollection.set(IHistoryService, new SyncDescriptor(HistoryService));
 
-		// Backup File Service
-		if (this.configuration.backupPath) {
-			this.backupFileService = this.instantiationService.createInstance(BackupFileService, this.configuration.backupPath);
-		} else {
-			this.backupFileService = new InMemoryBackupFileService();
-		}
-		serviceCollection.set(IBackupFileService, this.backupFileService);
-
 		// Quick open service (quick open controller)
 		this.quickOpen = this.instantiationService.createInstance(QuickOpenController);
 		serviceCollection.set(IQuickOpenService, this.quickOpen);
@@ -547,21 +537,43 @@ export class Workbench extends Disposable implements IPartService {
 			serviceCollection.set(contributedService.id, contributedService.descriptor);
 		}
 
-		// TODO this should move somewhere else
-		const remoteAgentConnection = remoteAgentService.getConnection();
-		if (remoteAgentConnection) {
-			remoteAgentConnection.registerChannel('dialog', this.instantiationService.createInstance(DialogChannel));
-			remoteAgentConnection.registerChannel('download', new DownloadServiceChannel());
-			remoteAgentConnection.registerChannel('loglevel', new LogLevelSetterChannel(this.logService));
-		}
+		// TODO@Alex TODO@Sandeep this should move somewhere else
+		this.instantiationService.invokeFunction(accessor => {
+			const remoteAgentConnection = accessor.get(IRemoteAgentService).getConnection();
+			if (remoteAgentConnection) {
+				remoteAgentConnection.registerChannel('dialog', this.instantiationService.createInstance(DialogChannel));
+				remoteAgentConnection.registerChannel('download', new DownloadServiceChannel());
+				remoteAgentConnection.registerChannel('loglevel', new LogLevelSetterChannel(this.logService));
+			}
+		});
 
-		// Set the some services to registries that have been created eagerly
-		Registry.as<IActionBarRegistry>(ActionBarExtensions.Actionbar).setInstantiationService(this.instantiationService);
-		Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).start(this.instantiationService, this.lifecycleService);
-		Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).setInstantiationService(this.instantiationService);
+		// TODO@Sandeep TODO@Martin debt around cyclic dependencies
+		this.instantiationService.invokeFunction(accessor => {
+			const fileService = accessor.get(IFileService);
+			const instantiationService = accessor.get(IInstantiationService);
+			const configurationService = accessor.get(IConfigurationService) as any;
+			const themeService = accessor.get(IWorkbenchThemeService) as any;
 
-		// TODO@Sandeep debt around cyclic dependencies
-		this.configurationService.acquireInstantiationService(this.instantiationService);
+			if (typeof configurationService.acquireFileService === 'function') {
+				configurationService.acquireFileService(fileService);
+			}
+
+			if (typeof configurationService.acquireInstantiationService === 'function') {
+				configurationService.acquireInstantiationService(instantiationService);
+			}
+
+			if (typeof themeService.acquireFileService === 'function') {
+				themeService.acquireFileService(fileService);
+			}
+		});
+	}
+
+	private startRegistries(): void {
+		this.instantiationService.invokeFunction(accessor => {
+			Registry.as<IActionBarRegistry>(ActionBarExtensions.Actionbar).start(accessor);
+			Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).start(accessor);
+			Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).start(accessor);
+		});
 	}
 
 	private hasInitialFilesToOpen(): boolean {
@@ -571,73 +583,35 @@ export class Workbench extends Disposable implements IPartService {
 			(this.configuration.filesToDiff && this.configuration.filesToDiff.length > 0));
 	}
 
-	//#region event handling
-
 	private registerListeners(): void {
 
 		// Storage
 		this._register(this.storageService.onWillSaveState(e => this.saveState(e)));
 
-		// Restore editor if hidden and it changes
-		this._register(this.editorService.onDidVisibleEditorsChange(() => this.setEditorHidden(false)));
-		this._register(this.editorPart.onDidActivateGroup(() => this.setEditorHidden(false)));
-
 		// Configuration changes
 		this._register(this.configurationService.onDidChangeConfiguration(() => this.setFontAliasing()));
-		this._register(this.configurationService.onDidChangeConfiguration(() => this.onDidUpdateConfiguration()));
-
-		// Fullscreen changes
-		this._register(onDidChangeFullscreen(() => this.onFullscreenChanged()));
-
-		// Group changes
-		this._register(this.editorGroupService.onDidAddGroup(() => this.centerEditorLayout(this.state.editor.centered)));
-		this._register(this.editorGroupService.onDidRemoveGroup(() => this.centerEditorLayout(this.state.editor.centered)));
-
-		// Prevent workbench from scrolling #55456
-		this._register(addDisposableListener(this.workbench, EventType.SCROLL, () => this.workbench.scrollTop = 0));
-
-		// Menubar visibility changes
-		if ((isWindows || isLinux) && getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
-			this._register(this.titlebarPart.onMenubarVisibilityChange(visible => this.onMenubarToggled(visible)));
-		}
 	}
 
-	private onMenubarToggled(visible: boolean) {
-		if (visible !== this.state.menuBar.toggled) {
-			this.state.menuBar.toggled = visible;
+	private fontAliasing: 'default' | 'antialiased' | 'none' | 'auto';
+	private setFontAliasing() {
+		const aliasing = this.configurationService.getValue<'default' | 'antialiased' | 'none' | 'auto'>(Settings.FONT_ALIASING);
+		if (this.fontAliasing === aliasing) {
+			return;
+		}
 
-			if (isFullscreen() && (this.state.menuBar.visibility === 'toggle' || this.state.menuBar.visibility === 'default')) {
-				this._onTitleBarVisibilityChange.fire();
-				this.layout();
-			}
+		this.fontAliasing = aliasing;
+
+		// Remove all
+		const fontAliasingValues: (typeof aliasing)[] = ['antialiased', 'none', 'auto'];
+		removeClasses(this.workbench, ...fontAliasingValues.map(value => `monaco-font-aliasing-${value}`));
+
+		// Add specific
+		if (fontAliasingValues.some(option => option === aliasing)) {
+			addClass(this.workbench, `monaco-font-aliasing-${aliasing}`);
 		}
 	}
-
-	private onFullscreenChanged(): void {
-
-		// Apply as CSS class
-		if (isFullscreen()) {
-			addClass(this.workbench, 'fullscreen');
-		} else {
-			removeClass(this.workbench, 'fullscreen');
-
-			if (this.state.zenMode.transitionedToFullScreen && this.state.zenMode.active) {
-				this.toggleZenMode();
-			}
-		}
-
-		// Changing fullscreen state of the window has an impact on custom title bar visibility, so we need to update
-		if (getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
-			this._onTitleBarVisibilityChange.fire();
-			this.layout(); // handle title bar when fullscreen changes
-		}
-	}
-
-	//#endregion
 
 	private renderWorkbench(): void {
-
-		// Apply sidebar state as CSS class
 		if (this.state.sideBar.hidden) {
 			addClass(this.workbench, 'nosidebar');
 		}
@@ -650,13 +624,12 @@ export class Workbench extends Disposable implements IPartService {
 			addClass(this.workbench, 'nostatusbar');
 		}
 
-		// Apply font aliasing
-		this.setFontAliasing();
-
-		// Apply fullscreen state
-		if (isFullscreen()) {
+		if (this.state.fullscreen) {
 			addClass(this.workbench, 'fullscreen');
 		}
+
+		// Apply font aliasing
+		this.setFontAliasing();
 
 		// Create Parts
 		this.createTitlebarPart();
@@ -667,27 +640,10 @@ export class Workbench extends Disposable implements IPartService {
 		this.createStatusbarPart();
 
 		// Notification Handlers
-		this.createNotificationsHandlers();
+		this.instantiationService.invokeFunction(accessor => this.createNotificationsHandlers(accessor));
 
 		// Add Workbench to DOM
 		this.container.appendChild(this.workbench);
-	}
-
-	private setFontAliasing() {
-		const aliasing = this.configurationService.getValue<FontAliasingOption>(Settings.FONT_ALIASING);
-		if (this.fontAliasing === aliasing) {
-			return;
-		}
-
-		this.fontAliasing = aliasing;
-
-		// Remove all
-		removeClasses(this.workbench, ...fontAliasingValues.map(value => `monaco-font-aliasing-${value}`));
-
-		// Add specific
-		if (fontAliasingValues.some(option => option === aliasing)) {
-			addClass(this.workbench, `monaco-font-aliasing-${aliasing}`);
-		}
 	}
 
 	private createTitlebarPart(): void {
@@ -741,19 +697,20 @@ export class Workbench extends Disposable implements IPartService {
 		return part;
 	}
 
-	private createNotificationsHandlers(): void {
+	private createNotificationsHandlers(accessor: ServicesAccessor): void {
+		const notificationService = accessor.get(INotificationService) as NotificationService;
 
 		// Notifications Center
-		this.notificationsCenter = this._register(this.instantiationService.createInstance(NotificationsCenter, this.workbench, this.notificationService.model));
+		this.notificationsCenter = this._register(this.instantiationService.createInstance(NotificationsCenter, this.workbench, notificationService.model));
 
 		// Notifications Toasts
-		this.notificationsToasts = this._register(this.instantiationService.createInstance(NotificationsToasts, this.workbench, this.notificationService.model));
+		this.notificationsToasts = this._register(this.instantiationService.createInstance(NotificationsToasts, this.workbench, notificationService.model));
 
 		// Notifications Alerts
-		this._register(this.instantiationService.createInstance(NotificationsAlerts, this.notificationService.model));
+		this._register(this.instantiationService.createInstance(NotificationsAlerts, notificationService.model));
 
 		// Notifications Status
-		const notificationsStatus = this.instantiationService.createInstance(NotificationsStatus, this.notificationService.model);
+		const notificationsStatus = this.instantiationService.createInstance(NotificationsStatus, notificationService.model);
 
 		// Eventing
 		this._register(this.notificationsCenter.onDidChangeVisibility(() => {
@@ -795,14 +752,20 @@ export class Workbench extends Disposable implements IPartService {
 		if (this.state.sideBar.viewletToRestore) {
 			mark('willRestoreViewlet');
 			restorePromises.push(this.sidebarPart.openViewlet(this.state.sideBar.viewletToRestore)
-				.then(viewlet => viewlet || this.sidebarPart.openViewlet(this.sidebarPart.getDefaultViewletId()))
+				.then(viewlet => {
+					if (!viewlet) {
+						return this.sidebarPart.openViewlet(this.sidebarPart.getDefaultViewletId()); // fallback to default viewlet as needed
+					}
+
+					return viewlet;
+				})
 				.then(() => mark('didRestoreViewlet')));
 		}
 
 		// Restore Panel
 		if (this.state.panel.panelToRestore) {
 			mark('willRestorePanel');
-			this.panelPart.openPanel(this.state.panel.panelToRestore, false);
+			this.panelPart.openPanel(this.state.panel.panelToRestore);
 			mark('didRestorePanel');
 		}
 
@@ -819,17 +782,19 @@ export class Workbench extends Disposable implements IPartService {
 		return Promise.all(restorePromises);
 	}
 
-	private whenStarted(error?: Error): void {
+	private whenStarted(accessor: ServicesAccessor, error?: Error): void {
+		const lifecycleService = accessor.get(ILifecycleService);
+
 		this.restored = true;
 
 		// Set lifecycle phase to `Restored`
-		this.lifecycleService.phase = LifecyclePhase.Restored;
+		lifecycleService.phase = LifecyclePhase.Restored;
 
 		// Set lifecycle phase to `Eventually` after a short delay and when
 		// idle (min 2.5sec, max 5sec)
 		setTimeout(() => {
 			this._register(runWhenIdle(() => {
-				this.lifecycleService.phase = LifecyclePhase.Eventually;
+				lifecycleService.phase = LifecyclePhase.Eventually;
 			}, 2500));
 		}, 2500);
 
@@ -837,63 +802,11 @@ export class Workbench extends Disposable implements IPartService {
 			onUnexpectedError(error);
 		}
 
-		const { filesToOpen, filesToCreate, filesToDiff } = this.configuration;
-
-		/* __GDPR__
-			"workspaceLoad" : {
-				"userAgent" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"windowSize.innerHeight": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"windowSize.innerWidth": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"windowSize.outerHeight": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"windowSize.outerWidth": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"emptyWorkbench": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"workbench.filesToOpen": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"workbench.filesToCreate": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"workbench.filesToDiff": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"customKeybindingsCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"theme": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"language": { "classification": "SystemMetaData", "purpose": "BusinessInsight" },
-				"pinnedViewlets": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"restoredViewlet": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"restoredEditors": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"pinnedViewlets": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"startupKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-			}
-		*/
-		this.telemetryService.publicLog('workspaceLoad', {
-			userAgent: navigator.userAgent,
-			windowSize: { innerHeight: window.innerHeight, innerWidth: window.innerWidth, outerHeight: window.outerHeight, outerWidth: window.outerWidth },
-			emptyWorkbench: this.contextService.getWorkbenchState() === WorkbenchState.EMPTY,
-			'workbench.filesToOpen': filesToOpen && filesToOpen.length || 0,
-			'workbench.filesToCreate': filesToCreate && filesToCreate.length || 0,
-			'workbench.filesToDiff': filesToDiff && filesToDiff.length || 0,
-			customKeybindingsCount: this.keybindingService.customKeybindingsCount(),
-			theme: this.themeService.getColorTheme().id,
-			language,
-			pinnedViewlets: this.activitybarPart.getPinnedViewletIds(),
-			restoredViewlet: this.state.sideBar.viewletToRestore,
-			restoredEditors: this.editorService.visibleEditors.length,
-			startupKind: this.lifecycleService.startupKind
-		});
-
 		// Telemetry: startup metrics
 		mark('didStartWorkbench');
 	}
 
 	private saveState(e: IWillSaveStateEvent): void {
-
-		// Zen Mode
-		if (this.state.zenMode.active) {
-			this.storageService.store(State.ZEN_MODE_ENABLED, true, StorageScope.WORKSPACE);
-		} else {
-			this.storageService.remove(State.ZEN_MODE_ENABLED, StorageScope.WORKSPACE);
-		}
-
-		if (e.reason === WillSaveStateReason.SHUTDOWN && this.state.zenMode.active) {
-			if (!this.configurationService.getValue(Settings.ZEN_MODE_RESTORE)) {
-				this.toggleZenMode(true); // We will not restore zen mode, need to clear all zen mode state changes
-			}
-		}
 
 		// Font info
 		saveFontInfo(this.storageService);
@@ -904,6 +817,8 @@ export class Workbench extends Disposable implements IPartService {
 
 		this.disposed = true;
 	}
+
+	//#endregion
 
 	//#region IPartService
 
@@ -922,7 +837,9 @@ export class Workbench extends Disposable implements IPartService {
 	private editorPartView: View;
 	private statusBarPartView: View;
 
-	private state = {
+	private readonly state = {
+		fullscreen: false,
+
 		menuBar: {
 			visibility: undefined as MenuBarVisibility,
 			toggled: false
@@ -969,51 +886,159 @@ export class Workbench extends Disposable implements IPartService {
 		}
 	};
 
-	private onDidUpdateConfiguration(skipLayout?: boolean): void {
+	private registerLayoutListeners(): void {
 
-		// Sidebar Position
+		// Storage
+		this._register(this.storageService.onWillSaveState(e => this.saveLayoutState(e)));
+
+		// Restore editor if hidden and it changes
+		this._register(this.editorService.onDidVisibleEditorsChange(() => this.setEditorHidden(false)));
+		this._register(this.editorPart.onDidActivateGroup(() => this.setEditorHidden(false)));
+
+		// Configuration changes
+		this._register(this.configurationService.onDidChangeConfiguration(() => this.doUpdateLayoutConfiguration()));
+
+		// Fullscreen changes
+		this._register(onDidChangeFullscreen(() => this.onFullscreenChanged()));
+
+		// Group changes
+		this._register(this.editorGroupService.onDidAddGroup(() => this.centerEditorLayout(this.state.editor.centered)));
+		this._register(this.editorGroupService.onDidRemoveGroup(() => this.centerEditorLayout(this.state.editor.centered)));
+
+		// Prevent workbench from scrolling #55456
+		this._register(addDisposableListener(this.workbench, EventType.SCROLL, () => this.workbench.scrollTop = 0));
+
+		// Menubar visibility changes
+		if ((isWindows || isLinux) && getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
+			this._register(this.titlebarPart.onMenubarVisibilityChange(visible => this.onMenubarToggled(visible)));
+		}
+	}
+
+	private onMenubarToggled(visible: boolean) {
+		if (visible !== this.state.menuBar.toggled) {
+			this.state.menuBar.toggled = visible;
+
+			if (this.state.fullscreen && (this.state.menuBar.visibility === 'toggle' || this.state.menuBar.visibility === 'default')) {
+				this._onTitleBarVisibilityChange.fire();
+				this.layout();
+			}
+		}
+	}
+
+	private onFullscreenChanged(): void {
+		this.state.fullscreen = isFullscreen();
+
+		// Apply as CSS class
+		if (this.state.fullscreen) {
+			addClass(this.workbench, 'fullscreen');
+		} else {
+			removeClass(this.workbench, 'fullscreen');
+
+			if (this.state.zenMode.transitionedToFullScreen && this.state.zenMode.active) {
+				this.toggleZenMode();
+			}
+		}
+
+		// Changing fullscreen state of the window has an impact on custom title bar visibility, so we need to update
+		if (getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
+			this._onTitleBarVisibilityChange.fire();
+			this.layout(); // handle title bar when fullscreen changes
+		}
+	}
+
+	private doUpdateLayoutConfiguration(skipLayout?: boolean): void {
+
+		// Sidebar position
 		const newSidebarPositionValue = this.configurationService.getValue<string>(Settings.SIDEBAR_POSITION);
 		const newSidebarPosition = (newSidebarPositionValue === 'right') ? Position.RIGHT : Position.LEFT;
 		if (newSidebarPosition !== this.getSideBarPosition()) {
 			this.setSideBarPosition(newSidebarPosition);
 		}
 
-		// Panel Position
-		this.setPanelPositionFromStorageOrConfig();
+		// Panel position
+		this.updatePanelPosition();
 
 		if (!this.state.zenMode.active) {
 
-			// Statusbar Visibility
+			// Statusbar visibility
 			const newStatusbarHiddenValue = !this.configurationService.getValue<boolean>(Settings.STATUSBAR_VISIBLE);
 			if (newStatusbarHiddenValue !== this.state.statusBar.hidden) {
 				this.setStatusBarHidden(newStatusbarHiddenValue, skipLayout);
 			}
 
-			// Activitybar Visibility
+			// Activitybar visibility
 			const newActivityBarHiddenValue = !this.configurationService.getValue<boolean>(Settings.ACTIVITYBAR_VISIBLE);
 			if (newActivityBarHiddenValue !== this.state.activityBar.hidden) {
 				this.setActivityBarHidden(newActivityBarHiddenValue, skipLayout);
 			}
 		}
 
-		// Menubar Visibility
+		// Menubar visibility
 		const newMenubarVisibility = this.configurationService.getValue<MenuBarVisibility>(Settings.MENUBAR_VISIBLE);
 		this.setMenubarVisibility(newMenubarVisibility, !!skipLayout);
 	}
 
-	private initState(): void {
+	private setSideBarPosition(position: Position): void {
+		const wasHidden = this.state.sideBar.hidden;
+
+		if (this.state.sideBar.hidden) {
+			this.setSideBarHidden(false, true /* Skip Layout */);
+		}
+
+		const newPositionValue = (position === Position.LEFT) ? 'left' : 'right';
+		const oldPositionValue = (this.state.sideBar.position === Position.LEFT) ? 'left' : 'right';
+		this.state.sideBar.position = position;
+
+		// Adjust CSS
+		removeClass(this.activitybarPart.getContainer(), oldPositionValue);
+		removeClass(this.sidebarPart.getContainer(), oldPositionValue);
+		addClass(this.activitybarPart.getContainer(), newPositionValue);
+		addClass(this.sidebarPart.getContainer(), newPositionValue);
+
+		// Update Styles
+		this.activitybarPart.updateStyles();
+		this.sidebarPart.updateStyles();
+
+		// Layout
+		if (this.workbenchGrid instanceof Grid) {
+			if (!wasHidden) {
+				this.state.sideBar.width = this.workbenchGrid.getViewSize(this.sideBarPartView);
+			}
+
+			this.workbenchGrid.removeView(this.sideBarPartView);
+			this.workbenchGrid.removeView(this.activityBarPartView);
+
+			if (!this.state.panel.hidden && this.state.panel.position === Position.BOTTOM) {
+				this.workbenchGrid.removeView(this.panelPartView);
+			}
+
+			this.layout();
+		} else {
+			this.workbenchGrid.layout();
+		}
+	}
+
+	private initLayoutState(accessor: ServicesAccessor): void {
+		const configurationService = accessor.get(IConfigurationService);
+		const storageService = accessor.get(IStorageService);
+		const lifecycleService = accessor.get(ILifecycleService);
+		const contextService = accessor.get(IWorkspaceContextService);
+		const environmentService = accessor.get(IEnvironmentService);
+
+		// Fullscreen
+		this.state.fullscreen = isFullscreen();
 
 		// Menubar visibility
-		this.state.menuBar.visibility = this.configurationService.getValue<MenuBarVisibility>(Settings.MENUBAR_VISIBLE);
+		this.state.menuBar.visibility = configurationService.getValue<MenuBarVisibility>(Settings.MENUBAR_VISIBLE);
 
 		// Activity bar visibility
-		this.state.activityBar.hidden = !this.configurationService.getValue<string>(Settings.ACTIVITYBAR_VISIBLE);
+		this.state.activityBar.hidden = !configurationService.getValue<string>(Settings.ACTIVITYBAR_VISIBLE);
 
 		// Sidebar visibility
-		this.state.sideBar.hidden = this.storageService.getBoolean(State.SIDEBAR_HIDDEN, StorageScope.WORKSPACE, this.contextService.getWorkbenchState() === WorkbenchState.EMPTY);
+		this.state.sideBar.hidden = storageService.getBoolean(Storage.SIDEBAR_HIDDEN, StorageScope.WORKSPACE, contextService.getWorkbenchState() === WorkbenchState.EMPTY);
 
 		// Sidebar position
-		this.state.sideBar.position = (this.configurationService.getValue<string>(Settings.SIDEBAR_POSITION) === 'right') ? Position.RIGHT : Position.LEFT;
+		this.state.sideBar.position = (configurationService.getValue<string>(Settings.SIDEBAR_POSITION) === 'right') ? Position.RIGHT : Position.LEFT;
 
 		// Sidebar viewlet
 		if (!this.state.sideBar.hidden) {
@@ -1021,8 +1046,8 @@ export class Workbench extends Disposable implements IPartService {
 
 			// Only restore last viewlet if window was reloaded or we are in development mode
 			let viewletToRestore: string;
-			if (!this.environmentService.isBuilt || this.lifecycleService.startupKind === StartupKind.ReloadedWindow) {
-				viewletToRestore = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE, viewletRegistry.getDefaultViewletId());
+			if (!environmentService.isBuilt || lifecycleService.startupKind === StartupKind.ReloadedWindow) {
+				viewletToRestore = storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE, viewletRegistry.getDefaultViewletId());
 			} else {
 				viewletToRestore = viewletRegistry.getDefaultViewletId();
 			}
@@ -1035,22 +1060,22 @@ export class Workbench extends Disposable implements IPartService {
 		}
 
 		// Editor centered layout
-		this.state.editor.restoreCentered = this.storageService.getBoolean(State.CENTERED_LAYOUT_ENABLED, StorageScope.WORKSPACE, false);
+		this.state.editor.restoreCentered = storageService.getBoolean(Storage.CENTERED_LAYOUT_ENABLED, StorageScope.WORKSPACE, false);
 
 		// Editors to open
-		this.state.editor.editorsToOpen = this.resolveEditorsToOpen();
+		this.state.editor.editorsToOpen = this.resolveEditorsToOpen(accessor);
 
 		// Panel visibility
-		this.state.panel.hidden = this.storageService.getBoolean(State.PANEL_HIDDEN, StorageScope.WORKSPACE, true);
+		this.state.panel.hidden = storageService.getBoolean(Storage.PANEL_HIDDEN, StorageScope.WORKSPACE, true);
 
 		// Panel position
-		this.setPanelPositionFromStorageOrConfig();
+		this.updatePanelPosition();
 
 		// Panel to restore
 		if (!this.state.panel.hidden) {
 			const panelRegistry = Registry.as<PanelRegistry>(PanelExtensions.Panels);
 
-			let panelToRestore = this.storageService.get(PanelPart.activePanelSettingsKey, StorageScope.WORKSPACE, panelRegistry.getDefaultPanelId());
+			let panelToRestore = storageService.get(PanelPart.activePanelSettingsKey, StorageScope.WORKSPACE, panelRegistry.getDefaultPanelId());
 			if (!panelRegistry.hasPanel(panelToRestore)) {
 				panelToRestore = panelRegistry.getDefaultPanelId(); // fallback to default if panel is unknown
 			}
@@ -1063,21 +1088,24 @@ export class Workbench extends Disposable implements IPartService {
 		}
 
 		// Statusbar visibility
-		const statusBarVisible = this.configurationService.getValue<string>(Settings.STATUSBAR_VISIBLE);
-		this.state.statusBar.hidden = !statusBarVisible;
+		this.state.statusBar.hidden = !configurationService.getValue<string>(Settings.STATUSBAR_VISIBLE);
 
 		// Zen mode enablement
-		const wasZenActive = this.storageService.getBoolean(State.ZEN_MODE_ENABLED, StorageScope.WORKSPACE, false);
-		this.state.zenMode.restore = wasZenActive && this.configurationService.getValue(Settings.ZEN_MODE_RESTORE);
+		this.state.zenMode.restore = storageService.getBoolean(Storage.ZEN_MODE_ENABLED, StorageScope.WORKSPACE, false) && configurationService.getValue(Settings.ZEN_MODE_RESTORE);
 	}
 
-	private resolveEditorsToOpen(): Promise<IResourceEditor[]> | IResourceEditor[] {
+	private resolveEditorsToOpen(accessor: ServicesAccessor): Promise<IResourceEditor[]> | IResourceEditor[] {
+		const configuration = accessor.get(IWindowService).getConfiguration();
+		const configurationService = accessor.get(IConfigurationService);
+		const contextService = accessor.get(IWorkspaceContextService);
+		const editorGroupService = accessor.get(IEditorGroupsService);
+		const backupFileService = accessor.get(IBackupFileService);
 
 		// Files to open, diff or create
 		if (this.hasInitialFilesToOpen()) {
 
 			// Files to diff is exclusive
-			const filesToDiff = this.toInputs(this.configuration.filesToDiff, false);
+			const filesToDiff = this.toInputs(configuration.filesToDiff, false);
 			if (filesToDiff && filesToDiff.length === 2) {
 				return [<IResourceDiffInput>{
 					leftResource: filesToDiff[0].resource,
@@ -1087,21 +1115,21 @@ export class Workbench extends Disposable implements IPartService {
 				}];
 			}
 
-			const filesToCreate = this.toInputs(this.configuration.filesToCreate, true);
-			const filesToOpen = this.toInputs(this.configuration.filesToOpen, false);
+			const filesToCreate = this.toInputs(configuration.filesToCreate, true);
+			const filesToOpen = this.toInputs(configuration.filesToOpen, false);
 
 			// Otherwise: Open/Create files
 			return [...filesToOpen, ...filesToCreate];
 		}
 
 		// Empty workbench
-		else if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY && this.openUntitledFile()) {
-			const isEmpty = this.editorGroupService.count === 1 && this.editorGroupService.activeGroup.count === 0;
+		else if (contextService.getWorkbenchState() === WorkbenchState.EMPTY && configurationService.inspect('workbench.startupEditor').value === 'newUntitledFile') {
+			const isEmpty = editorGroupService.count === 1 && editorGroupService.activeGroup.count === 0;
 			if (!isEmpty) {
 				return []; // do not open any empty untitled file if we restored editors from previous session
 			}
 
-			return this.backupFileService.hasBackups().then(hasBackups => {
+			return backupFileService.hasBackups().then(hasBackups => {
 				if (hasBackups) {
 					return []; // do not open any empty untitled file if we have backups to restore
 				}
@@ -1138,23 +1166,9 @@ export class Workbench extends Disposable implements IPartService {
 		});
 	}
 
-	private openUntitledFile(): boolean {
-		const startupEditor = this.configurationService.inspect('workbench.startupEditor');
-
-		// Fallback to previous workbench.welcome.enabled setting in case startupEditor is not defined
-		if (!startupEditor.user && !startupEditor.workspace) {
-			const welcomeEnabledValue = this.configurationService.getValue('workbench.welcome.enabled');
-			if (typeof welcomeEnabledValue === 'boolean') {
-				return !welcomeEnabledValue;
-			}
-		}
-
-		return startupEditor.value === 'newUntitledFile';
-	}
-
-	private setPanelPositionFromStorageOrConfig() {
+	private updatePanelPosition() {
 		const defaultPanelPosition = this.configurationService.getValue<string>(Settings.PANEL_POSITION);
-		const panelPosition = this.storageService.get(State.PANEL_POSITION, StorageScope.WORKSPACE, defaultPanelPosition);
+		const panelPosition = this.storageService.get(Storage.PANEL_POSITION, StorageScope.WORKSPACE, defaultPanelPosition);
 
 		this.state.panel.position = (panelPosition === 'right') ? Position.RIGHT : Position.BOTTOM;
 	}
@@ -1198,7 +1212,7 @@ export class Workbench extends Disposable implements IPartService {
 			case Parts.TITLEBAR_PART:
 				if (getTitleBarStyle(this.configurationService, this.environmentService) === 'native') {
 					return false;
-				} else if (!isFullscreen()) {
+				} else if (!this.state.fullscreen) {
 					return true;
 				} else if (isMacintosh) {
 					return false;
@@ -1249,17 +1263,11 @@ export class Workbench extends Disposable implements IPartService {
 		this.state.zenMode.active = !this.state.zenMode.active;
 		this.state.zenMode.transitionDisposeables = dispose(this.state.zenMode.transitionDisposeables);
 
+		const setLineNumbers = (lineNumbers: any) => this.editorService.visibleTextEditorWidgets.forEach(editor => editor.updateOptions({ lineNumbers }));
+
 		// Check if zen mode transitioned to full screen and if now we are out of zen mode
 		// -> we need to go out of full screen (same goes for the centered editor layout)
 		let toggleFullScreen = false;
-		const setLineNumbers = (lineNumbers: any) => {
-			this.editorService.visibleControls.forEach(editor => {
-				const control = <IEditor>editor.getControl();
-				if (control) {
-					control.updateOptions({ lineNumbers });
-				}
-			});
-		};
 
 		// Zen Mode Active
 		if (this.state.zenMode.active) {
@@ -1272,7 +1280,8 @@ export class Workbench extends Disposable implements IPartService {
 				hideLineNumbers: boolean;
 			} = this.configurationService.getValue('zenMode');
 
-			toggleFullScreen = !isFullscreen() && config.fullScreen;
+			toggleFullScreen = !this.state.fullscreen && config.fullScreen;
+
 			this.state.zenMode.transitionedToFullScreen = restoring ? config.fullScreen : toggleFullScreen;
 			this.state.zenMode.transitionedToCenteredEditorLayout = !this.isEditorLayoutCentered() && config.centerLayout;
 			this.state.zenMode.wasSideBarVisible = this.isVisible(Parts.SIDEBAR_PART);
@@ -1319,11 +1328,11 @@ export class Workbench extends Disposable implements IPartService {
 			setLineNumbers(this.configurationService.getValue('editor.lineNumbers'));
 
 			// Status bar and activity bar visibility come from settings -> update their visibility.
-			this.onDidUpdateConfiguration(true);
+			this.doUpdateLayoutConfiguration(true);
 
 			this.editorGroupService.activeGroup.focus();
 
-			toggleFullScreen = this.state.zenMode.transitionedToFullScreen && isFullscreen();
+			toggleFullScreen = this.state.zenMode.transitionedToFullScreen && this.state.fullscreen;
 		}
 
 		if (!skipLayout) {
@@ -1507,13 +1516,18 @@ export class Workbench extends Disposable implements IPartService {
 		}
 	}
 
+	private getPanelDimension(position: Position): number | undefined {
+		return position === Position.BOTTOM ? this.state.panel.height : this.state.panel.width;
+	}
+
 	isEditorLayoutCentered(): boolean {
 		return this.state.editor.centered;
 	}
 
 	centerEditorLayout(active: boolean, skipLayout?: boolean): void {
-		this.storageService.store(State.CENTERED_LAYOUT_ENABLED, active, StorageScope.WORKSPACE);
 		this.state.editor.centered = active;
+
+		this.storageService.store(Storage.CENTERED_LAYOUT_ENABLED, active, StorageScope.WORKSPACE);
 
 		let smartActive = active;
 		if (this.editorPart.groups.length > 1 && this.configurationService.getValue('workbench.editor.centeredLayoutAutoResize')) {
@@ -1617,9 +1631,9 @@ export class Workbench extends Disposable implements IPartService {
 		// Remember in settings
 		const defaultHidden = this.contextService.getWorkbenchState() === WorkbenchState.EMPTY;
 		if (hidden !== defaultHidden) {
-			this.storageService.store(State.SIDEBAR_HIDDEN, hidden ? 'true' : 'false', StorageScope.WORKSPACE);
+			this.storageService.store(Storage.SIDEBAR_HIDDEN, hidden ? 'true' : 'false', StorageScope.WORKSPACE);
 		} else {
-			this.storageService.remove(State.SIDEBAR_HIDDEN, StorageScope.WORKSPACE);
+			this.storageService.remove(Storage.SIDEBAR_HIDDEN, StorageScope.WORKSPACE);
 		}
 
 		// Layout
@@ -1659,9 +1673,9 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Remember in settings
 		if (!hidden) {
-			this.storageService.store(State.PANEL_HIDDEN, 'false', StorageScope.WORKSPACE);
+			this.storageService.store(Storage.PANEL_HIDDEN, 'false', StorageScope.WORKSPACE);
 		} else {
-			this.storageService.remove(State.PANEL_HIDDEN, StorageScope.WORKSPACE);
+			this.storageService.remove(Storage.PANEL_HIDDEN, StorageScope.WORKSPACE);
 		}
 
 		// The editor and panel cannot be hidden at the same time
@@ -1703,46 +1717,6 @@ export class Workbench extends Disposable implements IPartService {
 		return this.state.sideBar.position;
 	}
 
-	private setSideBarPosition(position: Position): void {
-		const wasHidden = this.state.sideBar.hidden;
-
-		if (this.state.sideBar.hidden) {
-			this.setSideBarHidden(false, true /* Skip Layout */);
-		}
-
-		const newPositionValue = (position === Position.LEFT) ? 'left' : 'right';
-		const oldPositionValue = (this.state.sideBar.position === Position.LEFT) ? 'left' : 'right';
-		this.state.sideBar.position = position;
-
-		// Adjust CSS
-		removeClass(this.activitybarPart.getContainer(), oldPositionValue);
-		removeClass(this.sidebarPart.getContainer(), oldPositionValue);
-		addClass(this.activitybarPart.getContainer(), newPositionValue);
-		addClass(this.sidebarPart.getContainer(), newPositionValue);
-
-		// Update Styles
-		this.activitybarPart.updateStyles();
-		this.sidebarPart.updateStyles();
-
-		// Layout
-		if (this.workbenchGrid instanceof Grid) {
-			if (!wasHidden) {
-				this.state.sideBar.width = this.workbenchGrid.getViewSize(this.sideBarPartView);
-			}
-
-			this.workbenchGrid.removeView(this.sideBarPartView);
-			this.workbenchGrid.removeView(this.activityBarPartView);
-
-			if (!this.state.panel.hidden && this.state.panel.position === Position.BOTTOM) {
-				this.workbenchGrid.removeView(this.panelPartView);
-			}
-
-			this.layout();
-		} else {
-			this.workbenchGrid.layout();
-		}
-	}
-
 	setMenubarVisibility(visibility: MenuBarVisibility, skipLayout: boolean): void {
 		if (this.state.menuBar.visibility !== visibility) {
 			this.state.menuBar.visibility = visibility;
@@ -1779,7 +1753,16 @@ export class Workbench extends Disposable implements IPartService {
 		const newPositionValue = (position === Position.BOTTOM) ? 'bottom' : 'right';
 		const oldPositionValue = (this.state.panel.position === Position.BOTTOM) ? 'bottom' : 'right';
 		this.state.panel.position = position;
-		this.storageService.store(State.PANEL_POSITION, PositionToString(this.state.panel.position).toLowerCase(), StorageScope.WORKSPACE);
+
+		function positionToString(position: Position): string {
+			switch (position) {
+				case Position.LEFT: return 'left';
+				case Position.RIGHT: return 'right';
+				case Position.BOTTOM: return 'bottom';
+			}
+		}
+
+		this.storageService.store(Storage.PANEL_POSITION, positionToString(this.state.panel.position), StorageScope.WORKSPACE);
 
 		// Adjust CSS
 		removeClass(this.panelPart.getContainer(), oldPositionValue);
@@ -1801,10 +1784,6 @@ export class Workbench extends Disposable implements IPartService {
 		}
 	}
 
-	private getPanelDimension(position: Position): number | undefined {
-		return position === Position.BOTTOM ? this.state.panel.height : this.state.panel.width;
-	}
-
 	private savePanelDimension(): void {
 		if (!(this.workbenchGrid instanceof Grid)) {
 			return;
@@ -1814,6 +1793,22 @@ export class Workbench extends Disposable implements IPartService {
 			this.state.panel.height = this.workbenchGrid.getViewSize(this.panelPartView);
 		} else {
 			this.state.panel.width = this.workbenchGrid.getViewSize(this.panelPartView);
+		}
+	}
+
+	private saveLayoutState(e: IWillSaveStateEvent): void {
+
+		// Zen Mode
+		if (this.state.zenMode.active) {
+			this.storageService.store(Storage.ZEN_MODE_ENABLED, true, StorageScope.WORKSPACE);
+		} else {
+			this.storageService.remove(Storage.ZEN_MODE_ENABLED, StorageScope.WORKSPACE);
+		}
+
+		if (e.reason === WillSaveStateReason.SHUTDOWN && this.state.zenMode.active) {
+			if (!this.configurationService.getValue(Settings.ZEN_MODE_RESTORE)) {
+				this.toggleZenMode(true); // We will not restore zen mode, need to clear all zen mode state changes
+			}
 		}
 	}
 

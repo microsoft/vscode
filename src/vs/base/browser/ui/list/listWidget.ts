@@ -1127,13 +1127,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 			.map(e => new StandardKeyboardEvent(e))
 			.filter(e => this.didJustPressContextMenuKey = e.keyCode === KeyCode.ContextMenu || (e.shiftKey && e.keyCode === KeyCode.F10))
 			.filter(e => { e.preventDefault(); e.stopPropagation(); return false; })
-			.map(event => {
-				const index = this.getFocus()[0];
-				const element = this.view.element(index);
-				const anchor = this.view.domElement(index) || undefined;
-				return { index, element, anchor, browserEvent: event.browserEvent };
-			})
-			.event;
+			.event as Event<any>;
 
 		const fromKeyup = Event.chain(domEvent(this.view.domNode, 'keyup'))
 			.filter(() => {
@@ -1141,14 +1135,13 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 				this.didJustPressContextMenuKey = false;
 				return didJustPressContextMenuKey;
 			})
-			.filter(() => this.getFocus().length > 0)
+			.filter(() => this.getFocus().length > 0 && !!this.view.domElement(this.getFocus()[0]))
 			.map(browserEvent => {
 				const index = this.getFocus()[0];
 				const element = this.view.element(index);
-				const anchor = this.view.domElement(index) || undefined;
+				const anchor = this.view.domElement(index) as HTMLElement;
 				return { index, element, anchor, browserEvent };
 			})
-			.filter(({ anchor }) => !!anchor)
 			.event;
 
 		const fromMouse = Event.chain(this.view.onContextMenu)

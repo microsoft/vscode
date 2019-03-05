@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepEqual, equal } from 'assert';
-import { WinTerminalService, LinuxTerminalService, MacTerminalService } from 'vs/workbench/contrib/execution/electron-browser/terminalService';
-import { getDefaultTerminalWindows, getDefaultTerminalLinuxReady, DEFAULT_TERMINAL_OSX } from 'vs/workbench/contrib/execution/electron-browser/terminal';
+import { WindowsExternalTerminalService, LinuxExternalTerminalService, MacExternalTerminalService } from 'vs/workbench/contrib/externalTerminal/electron-browser/externalTerminalService';
+import { getDefaultTerminalWindows, getDefaultTerminalLinuxReady, DEFAULT_TERMINAL_OSX } from 'vs/workbench/contrib/externalTerminal/electron-browser/externalTerminal';
 
-suite('Execution - TerminalService', () => {
+suite('ExternalTerminalService', () => {
 	let mockOnExit: Function;
 	let mockOnError: Function;
 	let mockConfig: any;
@@ -42,7 +42,7 @@ suite('Execution - TerminalService', () => {
 				};
 			}
 		};
-		let testService = new WinTerminalService(mockConfig);
+		let testService = new WindowsExternalTerminalService(mockConfig);
 		(<any>testService).spawnTerminal(
 			mockSpawner,
 			mockConfig,
@@ -67,7 +67,7 @@ suite('Execution - TerminalService', () => {
 			}
 		};
 		mockConfig.terminal.external.windowsExec = undefined;
-		let testService = new WinTerminalService(mockConfig);
+		let testService = new WindowsExternalTerminalService(mockConfig);
 		(<any>testService).spawnTerminal(
 			mockSpawner,
 			mockConfig,
@@ -91,7 +91,7 @@ suite('Execution - TerminalService', () => {
 				};
 			}
 		};
-		let testService = new WinTerminalService(mockConfig);
+		let testService = new WindowsExternalTerminalService(mockConfig);
 		(<any>testService).spawnTerminal(
 			mockSpawner,
 			mockConfig,
@@ -115,7 +115,7 @@ suite('Execution - TerminalService', () => {
 				return { on: (evt: any) => evt };
 			}
 		};
-		let testService = new WinTerminalService(mockConfig);
+		let testService = new WindowsExternalTerminalService(mockConfig);
 		(<any>testService).spawnTerminal(
 			mockSpawner,
 			mockConfig,
@@ -138,7 +138,7 @@ suite('Execution - TerminalService', () => {
 				};
 			}
 		};
-		let testService = new MacTerminalService(mockConfig);
+		let testService = new MacExternalTerminalService(mockConfig);
 		(<any>testService).spawnTerminal(
 			mockSpawner,
 			mockConfig,
@@ -161,7 +161,7 @@ suite('Execution - TerminalService', () => {
 			}
 		};
 		mockConfig.terminal.external.osxExec = undefined;
-		let testService = new MacTerminalService(mockConfig);
+		let testService = new MacExternalTerminalService(mockConfig);
 		(<any>testService).spawnTerminal(
 			mockSpawner,
 			mockConfig,
@@ -184,7 +184,7 @@ suite('Execution - TerminalService', () => {
 				};
 			}
 		};
-		let testService = new LinuxTerminalService(mockConfig);
+		let testService = new LinuxExternalTerminalService(mockConfig);
 		(<any>testService).spawnTerminal(
 			mockSpawner,
 			mockConfig,
@@ -208,7 +208,7 @@ suite('Execution - TerminalService', () => {
 				}
 			};
 			mockConfig.terminal.external.linuxExec = undefined;
-			let testService = new LinuxTerminalService(mockConfig);
+			let testService = new LinuxExternalTerminalService(mockConfig);
 			(<any>testService).spawnTerminal(
 				mockSpawner,
 				mockConfig,

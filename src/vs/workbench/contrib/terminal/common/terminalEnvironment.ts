@@ -3,10 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as os from 'os';
 import * as path from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
-import pkg from 'vs/platform/product/node/package';
 import { URI as Uri } from 'vs/base/common/uri';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IShellLaunchConfig, ITerminalEnvironment } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -51,9 +49,9 @@ function _mergeEnvironmentValue(env: ITerminalEnvironment, key: string, value: s
 	}
 }
 
-export function addTerminalEnvironmentKeys(env: ITerminalEnvironment, locale: string | undefined, setLocaleVariables: boolean): void {
+export function addTerminalEnvironmentKeys(env: ITerminalEnvironment, version: string | undefined, locale: string | undefined, setLocaleVariables: boolean): void {
 	env['TERM_PROGRAM'] = 'vscode';
-	env['TERM_PROGRAM_VERSION'] = pkg.version;
+	env['TERM_PROGRAM_VERSION'] = version ? version : null;
 	if (setLocaleVariables) {
 		env['LANG'] = _getLangEnvVariable(locale);
 	}
@@ -102,7 +100,7 @@ function _getLangEnvVariable(locale?: string) {
 	return parts.join('_') + '.UTF-8';
 }
 
-export function getCwd(shell: IShellLaunchConfig, root?: Uri, customCwd?: string): string {
+export function getCwd(shell: IShellLaunchConfig, userHome: string, root?: Uri, customCwd?: string): string {
 	if (shell.cwd) {
 		return (typeof shell.cwd === 'object') ? shell.cwd.fsPath : shell.cwd;
 	}
@@ -120,7 +118,7 @@ export function getCwd(shell: IShellLaunchConfig, root?: Uri, customCwd?: string
 
 	// If there was no custom cwd or it was relative with no workspace
 	if (!cwd) {
-		cwd = root ? root.fsPath : os.homedir();
+		cwd = root ? root.fsPath : userHome;
 	}
 
 	return _sanitizeCwd(cwd);
@@ -134,26 +132,15 @@ function _sanitizeCwd(cwd: string): string {
 	return cwd;
 }
 
-/**
- * Adds quotes to a path if it contains whitespaces
- */
-export function preparePathForTerminal(path: string): string {
-	if (platform.isWindows) {
-		if (/\s+/.test(path)) {
-			return `"${path}"`;
-		}
-		return path;
+export function escapeNonWindowsPath(path: string): string {
+	let newPath = path;
+	if (newPath.indexOf('\\') !== 0) {
+		newPath = newPath.replace(/\\/g, '\\\\');
 	}
-	path = path.replace(/(%5C|\\)/g, '\\\\');
-	const charsToEscape = [
-		' ', '\'', '"', '?', ':', ';', '!', '*', '(', ')', '{', '}', '[', ']'
-	];
-	for (let i = 0; i < path.length; i++) {
-		const indexOfChar = charsToEscape.indexOf(path.charAt(i));
-		if (indexOfChar >= 0) {
-			path = `${path.substring(0, i)}\\${path.charAt(i)}${path.substring(i + 1)}`;
-			i++; // Skip char due to escape char being added
-		}
+	if (!newPath && (newPath.indexOf('"') !== -1)) {
+		newPath = '\'' + newPath + '\'';
+	} else if (newPath.indexOf(' ') !== -1) {
+		newPath = newPath.replace(/ /g, '\\ ');
 	}
-	return path;
+	return newPath;
 }

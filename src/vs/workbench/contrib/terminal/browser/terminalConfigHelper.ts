@@ -10,11 +10,11 @@ import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/ed
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { ITerminalConfiguration, ITerminalConfigHelper, ITerminalFont, IShellLaunchConfig, IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, TERMINAL_CONFIG_SECTION, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, MINIMUM_LETTER_SPACING } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalConfiguration, ITerminalFont, IShellLaunchConfig, IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, TERMINAL_CONFIG_SECTION, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, MINIMUM_LETTER_SPACING, LinuxDistro } from 'vs/workbench/contrib/terminal/common/terminal';
 import Severity from 'vs/base/common/severity';
-import { isFedora, isUbuntu } from 'vs/workbench/contrib/terminal/node/terminal';
 import { Terminal as XTermTerminal } from 'vscode-xterm';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IBrowserTerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 const MINIMUM_FONT_SIZE = 6;
 const MAXIMUM_FONT_SIZE = 25;
@@ -23,7 +23,7 @@ const MAXIMUM_FONT_SIZE = 25;
  * Encapsulates terminal configuration logic, the primary purpose of this file is so that platform
  * specific test cases can be written.
  */
-export class TerminalConfigHelper implements ITerminalConfigHelper {
+export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 	public panelContainer: HTMLElement;
 
 	private _charMeasureElement: HTMLElement;
@@ -31,6 +31,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 	public config: ITerminalConfiguration;
 
 	public constructor(
+		private readonly _linuxDistro: LinuxDistro,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IWorkspaceConfigurationService private readonly _workspaceConfigurationService: IWorkspaceConfigurationService,
 		@INotificationService private readonly _notificationService: INotificationService,
@@ -118,10 +119,10 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 
 		// Work around bad font on Fedora/Ubuntu
 		if (!this.config.fontFamily) {
-			if (isFedora) {
+			if (this._linuxDistro === LinuxDistro.Fedora) {
 				fontFamily = '\'DejaVu Sans Mono\', monospace';
 			}
-			if (isUbuntu) {
+			if (this._linuxDistro === LinuxDistro.Ubuntu) {
 				fontFamily = '\'Ubuntu Mono\', monospace';
 
 				// Ubuntu mono is somehow smaller, so set fontSize a bit larger to get the same perceived size.

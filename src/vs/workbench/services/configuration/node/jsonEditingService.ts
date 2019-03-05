@@ -17,7 +17,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService } from 'vs/platform/files/common/files';
-import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
+import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IJSONEditingService, IJSONValue, JSONEditingError, JSONEditingErrorCode } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { ITextModel } from 'vs/editor/common/model';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -84,7 +84,7 @@ export class JSONEditingService implements IJSONEditingService {
 		return setProperty(model.getValue(), [key], value, { tabSize, insertSpaces, eol });
 	}
 
-	private async resolveModelReference(resource: URI): Promise<IReference<ITextEditorModel>> {
+	private async resolveModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
 		const exists = await this.fileService.existsFile(resource);
 		if (!exists) {
 			await this.fileService.updateContent(resource, '{}', { encoding: encoding.UTF8 });
@@ -98,18 +98,18 @@ export class JSONEditingService implements IJSONEditingService {
 		return parseErrors.length > 0;
 	}
 
-	private resolveAndValidate(resource: URI, checkDirty: boolean): Promise<IReference<ITextEditorModel>> {
+	private resolveAndValidate(resource: URI, checkDirty: boolean): Promise<IReference<IResolvedTextEditorModel>> {
 		return this.resolveModelReference(resource)
 			.then(reference => {
 				const model = reference.object.textEditorModel;
 
 				if (this.hasParseErrors(model)) {
-					return this.reject<IReference<ITextEditorModel>>(JSONEditingErrorCode.ERROR_INVALID_FILE);
+					return this.reject<IReference<IResolvedTextEditorModel>>(JSONEditingErrorCode.ERROR_INVALID_FILE);
 				}
 
 				// Target cannot be dirty if not writing into buffer
 				if (checkDirty && this.textFileService.isDirty(resource)) {
-					return this.reject<IReference<ITextEditorModel>>(JSONEditingErrorCode.ERROR_FILE_DIRTY);
+					return this.reject<IReference<IResolvedTextEditorModel>>(JSONEditingErrorCode.ERROR_FILE_DIRTY);
 				}
 				return reference;
 			});

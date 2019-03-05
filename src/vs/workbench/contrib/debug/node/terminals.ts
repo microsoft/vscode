@@ -129,7 +129,7 @@ class MacTerminalService extends TerminalLauncher {
 				// and then launches the program inside that window.
 
 				const script = terminalApp === MacTerminalService.DEFAULT_TERMINAL_OSX ? 'TerminalHelper' : 'iTermHelper';
-				const scriptpath = getPathFromAmdModule(require, `vs/workbench/contrib/execution/electron-browser/${script}.scpt`);
+				const scriptpath = getPathFromAmdModule(require, `vs/workbench/contrib/externalTerminal/electron-browser/${script}.scpt`);
 
 				const osaArgs = [
 					scriptpath,
