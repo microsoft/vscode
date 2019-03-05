@@ -16,7 +16,7 @@ import { ITerminalInstance, ITerminalService, IShellLaunchConfig, ITerminalConfi
 import { TerminalService as BrowserTerminalService } from 'vs/workbench/contrib/terminal/browser/terminalService';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { getDefaultShell, linuxDistro, getWindowsBuildNumber } from 'vs/workbench/contrib/terminal/node/terminal';
+import { getDefaultShell, linuxDistro, getWindowsBuildNumber, getWslPath } from 'vs/workbench/contrib/terminal/node/terminal';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ipcRenderer as ipc } from 'electron';
@@ -26,6 +26,8 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IQuickInputService, IQuickPickItem, IPickOptions } from 'vs/platform/quickinput/common/quickInput';
 import { coalesce } from 'vs/base/common/arrays';
 import { IFileService } from 'vs/platform/files/common/files';
+import { escapeNonWindowsPath } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
+import { basename } from 'vs/base/common/path';
 
 export class TerminalService extends BrowserTerminalService implements ITerminalService {
 	private _configHelper: TerminalConfigHelper;
@@ -142,5 +144,43 @@ export class TerminalService extends BrowserTerminalService implements ITerminal
 		this._configHelper.panelContainer = panelContainer;
 		this._terminalContainer = terminalContainer;
 		this._terminalTabs.forEach(tab => tab.attachToElement(this._terminalContainer));
+	}
+
+	public preparePathForTerminalAsync(originalPath: string, executable: string, title: string): Promise<string> {
+		return new Promise<string>(c => {
+			const exe = executable;
+			if (!exe) {
+				c(originalPath);
+				return;
+			}
+
+			const hasSpace = originalPath.indexOf(' ') !== -1;
+
+			const pathBasename = basename(exe, '.exe');
+			const isPowerShell = pathBasename === 'pwsh' ||
+				title === 'pwsh' ||
+				pathBasename === 'powershell' ||
+				title === 'powershell';
+
+			if (isPowerShell && (hasSpace || originalPath.indexOf('\'') !== -1)) {
+				c(`& '${originalPath.replace(/'/g, '\'\'')}'`);
+				return;
+			}
+
+			if (platform.isWindows) {
+				// 17063 is the build number where wsl path was introduced.
+				// Update Windows uriPath to be executed in WSL.
+				if (((exe.indexOf('wsl') !== -1) || ((exe.indexOf('bash.exe') !== -1) && (exe.indexOf('git') === -1))) && (getWindowsBuildNumber() >= 17063)) {
+					c(getWslPath(originalPath));
+					return;
+				} else if (hasSpace) {
+					c('"' + originalPath + '"');
+				} else {
+					c(originalPath);
+				}
+				return;
+			}
+			c(escapeNonWindowsPath(originalPath));
+		});
 	}
 }

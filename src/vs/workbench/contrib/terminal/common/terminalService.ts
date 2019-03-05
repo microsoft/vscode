@@ -101,6 +101,7 @@ export abstract class TerminalService implements ITerminalService {
 	public abstract createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement, shellLaunchConfig: IShellLaunchConfig, doCreateProcess: boolean): ITerminalInstance;
 	public abstract selectDefaultWindowsShell(): Promise<string | undefined>;
 	public abstract setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
+	public abstract preparePathForTerminalAsync(path: string, executable: string, title: string): Promise<string>;
 
 	public createTerminalRenderer(name: string): ITerminalInstance {
 		return this.createTerminal({ name, isRendererOnly: true });

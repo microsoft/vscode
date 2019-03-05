@@ -696,7 +696,7 @@ export class RunActiveFileInTerminalAction extends Action {
 			return Promise.resolve(undefined);
 		}
 
-		return instance.preparePathForTerminalAsync(uri.fsPath).then(path => {
+		return this.terminalService.preparePathForTerminalAsync(uri.fsPath, instance.shellLaunchConfig.executable, instance.title).then(path => {
 			instance.sendText(path, true);
 			return this.terminalService.showPanel();
 		});

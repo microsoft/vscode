@@ -33,6 +33,8 @@ import { TerminalPickerHandler } from 'vs/workbench/contrib/terminal/browser/ter
 import { setupTerminalCommands, TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminalCommands';
 import { setupTerminalMenu } from 'vs/workbench/contrib/terminal/common/terminalMenu';
 import { DEFAULT_COMMANDS_TO_SKIP_SHELL } from 'vs/workbench/contrib/terminal/electron-browser/terminalInstance';
+import { TerminalInstanceService } from 'vs/workbench/contrib/terminal/electron-browser/terminalInstanceService';
+import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 const quickOpenRegistry = (Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen));
 
@@ -291,6 +293,7 @@ configurationRegistry.registerConfiguration({
 });
 
 registerSingleton(ITerminalService, TerminalService, true);
+registerSingleton(ITerminalInstanceService, TerminalInstanceService, true);
 
 (<panel.PanelRegistry>Registry.as(panel.Extensions.Panels)).registerPanel(new panel.PanelDescriptor(
 	TerminalPanel,
