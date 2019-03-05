@@ -111,7 +111,7 @@ function save(
 
 		// Save As (or Save untitled with associated path)
 		if (isSaveAs || resource.scheme === Schemas.untitled) {
-			let encodingOfSource: string;
+			let encodingOfSource: string | undefined;
 			if (resource.scheme === Schemas.untitled) {
 				encodingOfSource = untitledEditorService.getEncoding(resource);
 			} else if (fileService.canHandleResource(resource)) {
@@ -119,17 +119,17 @@ function save(
 				encodingOfSource = textModel && textModel.getEncoding(); // text model can be null e.g. if this is a binary file!
 			}
 
-			let viewStateOfSource: IEditorViewState;
+			let viewStateOfSource: IEditorViewState | null;
 			const activeTextEditorWidget = getCodeEditor(editorService.activeTextEditorWidget);
 			if (activeTextEditorWidget) {
-				const activeResource = toResource(editorService.activeEditor, { supportSideBySide: true });
+				const activeResource = toResource(editorService.activeEditor || null, { supportSideBySide: true });
 				if (activeResource && (fileService.canHandleResource(activeResource) || resource.scheme === Schemas.untitled) && activeResource.toString() === resource.toString()) {
 					viewStateOfSource = activeTextEditorWidget.saveViewState();
 				}
 			}
 
 			// Special case: an untitled file with associated path gets saved directly unless "saveAs" is true
-			let savePromise: Promise<URI>;
+			let savePromise: Promise<URI | null>;
 			if (!isSaveAs && resource.scheme === Schemas.untitled && untitledEditorService.hasAssociatedFilePath(resource)) {
 				savePromise = textFileService.save(resource, options).then((result) => {
 					if (result) {
@@ -152,7 +152,7 @@ function save(
 
 			return savePromise.then((target) => {
 				if (!target || target.toString() === resource.toString()) {
-					return undefined; // save canceled or same resource used
+					return false; // save canceled or same resource used
 				}
 
 				const replacement: IResourceInput = {
@@ -175,7 +175,7 @@ function save(
 		// Pin the active editor if we are saving it
 		const activeControl = editorService.activeControl;
 		const activeEditorResource = activeControl && activeControl.input && activeControl.input.getResource();
-		if (activeEditorResource && activeEditorResource.toString() === resource.toString()) {
+		if (activeControl && activeEditorResource && activeEditorResource.toString() === resource.toString()) {
 			activeControl.group.pinEditor(activeControl.input);
 		}
 
@@ -203,7 +203,7 @@ function saveAll(saveAllArguments: any, editorService: IEditorService, untitledE
 					groupIdToUntitledResourceInput.set(g.id, []);
 				}
 
-				groupIdToUntitledResourceInput.get(g.id).push({
+				groupIdToUntitledResourceInput.get(g.id)!.push({
 					encoding: untitledEditorService.getEncoding(resource),
 					resource,
 					options: {

@@ -832,7 +832,7 @@ export class ShowActiveFileInExplorer extends Action {
 	}
 
 	public run(): Promise<any> {
-		const resource = toResource(this.editorService.activeEditor, { supportSideBySide: true });
+		const resource = toResource(this.editorService.activeEditor || null, { supportSideBySide: true });
 		if (resource) {
 			this.commandService.executeCommand(REVEAL_IN_EXPLORER_COMMAND_ID, resource);
 		} else {
@@ -904,7 +904,7 @@ export class ShowOpenedFileInNewWindow extends Action {
 	}
 
 	public run(): Promise<any> {
-		const fileResource = toResource(this.editorService.activeEditor, { supportSideBySide: true });
+		const fileResource = toResource(this.editorService.activeEditor || null, { supportSideBySide: true });
 		if (fileResource) {
 			if (this.fileService.canHandleResource(fileResource)) {
 				this.windowService.openWindow([{ uri: fileResource, typeHint: 'file' }], { forceNewWindow: true, forceOpenWorkspaceAsFile: true });
@@ -1007,7 +1007,7 @@ export class CompareWithClipboardAction extends Action {
 	}
 
 	public run(): Promise<any> {
-		const resource = toResource(this.editorService.activeEditor, { supportSideBySide: true });
+		const resource = toResource(this.editorService.activeEditor || null, { supportSideBySide: true });
 		if (resource && (this.fileService.canHandleResource(resource) || resource.scheme === Schemas.untitled)) {
 			if (!this.registrationDisposal) {
 				const provider = this.instantiationService.createInstance(ClipboardContentProvider);
@@ -1076,7 +1076,7 @@ function openExplorerAndRunAction(accessor: ServicesAccessor, constructor: ICons
 
 	return explorerPromise.then((explorer: ExplorerViewlet) => {
 		const explorerView = explorer.getExplorerView();
-		if (explorerView && explorerView.isBodyVisible()) {
+		if (explorerView && explorerView.isBodyVisible() && listService.lastFocusedList) {
 			explorerView.focus();
 			const { stat } = getContext(listService.lastFocusedList);
 			const action = instantationService.createInstance(constructor, () => stat);
@@ -1106,6 +1106,10 @@ export const renameHandler = (accessor: ServicesAccessor) => {
 	const listService = accessor.get(IListService);
 	const explorerService = accessor.get(IExplorerService);
 	const textFileService = accessor.get(ITextFileService);
+	if (!listService.lastFocusedList) {
+		return;
+	}
+
 	const { stat } = getContext(listService.lastFocusedList);
 
 	explorerService.setEditable(stat, {
@@ -1124,6 +1128,9 @@ export const renameHandler = (accessor: ServicesAccessor) => {
 export const moveFileToTrashHandler = (accessor: ServicesAccessor) => {
 	const instantationService = accessor.get(IInstantiationService);
 	const listService = accessor.get(IListService);
+	if (!listService.lastFocusedList) {
+		return Promise.resolve();
+	}
 	const explorerContext = getContext(listService.lastFocusedList);
 	const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
 
@@ -1134,6 +1141,9 @@ export const moveFileToTrashHandler = (accessor: ServicesAccessor) => {
 export const deleteFileHandler = (accessor: ServicesAccessor) => {
 	const instantationService = accessor.get(IInstantiationService);
 	const listService = accessor.get(IListService);
+	if (!listService.lastFocusedList) {
+		return Promise.resolve();
+	}
 	const explorerContext = getContext(listService.lastFocusedList);
 	const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
 
@@ -1143,6 +1153,9 @@ export const deleteFileHandler = (accessor: ServicesAccessor) => {
 
 export const copyFileHandler = (accessor: ServicesAccessor) => {
 	const listService = accessor.get(IListService);
+	if (!listService.lastFocusedList) {
+		return;
+	}
 	const explorerContext = getContext(listService.lastFocusedList);
 	const explorerService = accessor.get(IExplorerService);
 	const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
@@ -1152,6 +1165,9 @@ export const copyFileHandler = (accessor: ServicesAccessor) => {
 
 export const cutFileHandler = (accessor: ServicesAccessor) => {
 	const listService = accessor.get(IListService);
+	if (!listService.lastFocusedList) {
+		return;
+	}
 	const explorerContext = getContext(listService.lastFocusedList);
 	const explorerService = accessor.get(IExplorerService);
 	const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
@@ -1163,6 +1179,9 @@ export const pasteFileHandler = (accessor: ServicesAccessor) => {
 	const instantationService = accessor.get(IInstantiationService);
 	const listService = accessor.get(IListService);
 	const clipboardService = accessor.get(IClipboardService);
+	if (!listService.lastFocusedList) {
+		return Promise.resolve();
+	}
 	const explorerContext = getContext(listService.lastFocusedList);
 
 	return sequence(resources.distinctParents(clipboardService.readResources(), r => r).map(toCopy => {
