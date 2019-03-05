@@ -409,6 +409,7 @@
 		"./vs/workbench/services/extensions/node/rpcProtocol.ts",
 		"./vs/workbench/services/extensions/test/node/rpcProtocol.test.ts",
 		"./vs/workbench/services/files/node/encoding.ts",
+		"./vs/workbench/services/files/node/fileService.ts",
 		"./vs/workbench/services/files/node/streams.ts",
 		"./vs/workbench/services/files/test/electron-browser/utils.ts",
 		"./vs/workbench/services/files/test/electron-browser/watcher.test.ts",
