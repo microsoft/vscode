@@ -16,8 +16,8 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IIdentifiedSingleEditOperation, ISingleEditOperation, ITextModel } from 'vs/editor/common/model';
-import { CodeAction } from 'vs/editor/common/modes';
+import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
+import { CodeAction, TextEdit } from 'vs/editor/common/modes';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { shouldSynchronizeModel } from 'vs/editor/common/services/modelService';
 import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
@@ -234,7 +234,7 @@ class FormatOnSaveParticipant implements ISaveParticipantParticipant {
 
 		const timeout = this._configurationService.getValue<number>('editor.formatOnSaveTimeout', { overrideIdentifier: model.getLanguageIdentifier().language, resource: editorModel.getResource() });
 
-		return new Promise<ISingleEditOperation[] | null | undefined>((resolve, reject) => {
+		return new Promise<TextEdit[] | null | undefined>((resolve, reject) => {
 			let source = new CancellationTokenSource();
 			let request = getDocumentFormattingEdits(this._telemetryService, this._editorWorkerService, model, model.getFormattingOptions(), FormatMode.Auto, source.token);
 
@@ -257,11 +257,11 @@ class FormatOnSaveParticipant implements ISaveParticipantParticipant {
 		});
 	}
 
-	private _editsWithEditor(editor: ICodeEditor, edits: ISingleEditOperation[]): void {
+	private _editsWithEditor(editor: ICodeEditor, edits: TextEdit[]): void {
 		FormattingEdit.execute(editor, edits);
 	}
 
-	private _editWithModel(model: ITextModel, edits: ISingleEditOperation[]): void {
+	private _editWithModel(model: ITextModel, edits: TextEdit[]): void {
 
 		const [{ range }] = edits;
 		const initialSelection = new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
@@ -276,7 +276,7 @@ class FormatOnSaveParticipant implements ISaveParticipantParticipant {
 		});
 	}
 
-	private static _asIdentEdit({ text, range }: ISingleEditOperation): IIdentifiedSingleEditOperation {
+	private static _asIdentEdit({ text, range }: TextEdit): IIdentifiedSingleEditOperation {
 		return {
 			text,
 			range: Range.lift(range),

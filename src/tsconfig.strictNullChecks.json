@@ -74,6 +74,7 @@
 		"./vs/workbench/api/electron-browser/mainThreadUrls.ts",
 		"./vs/workbench/api/electron-browser/mainThreadWindow.ts",
 		"./vs/workbench/api/electron-browser/mainThreadWorkspace.ts",
+		"./vs/workbench/api/node/apiCommands.ts",
 		"./vs/workbench/api/node/extHost.protocol.ts",
 		"./vs/workbench/api/node/extHostClipboard.ts",
 		"./vs/workbench/api/node/extHostConfiguration.ts",
