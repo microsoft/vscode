@@ -255,6 +255,7 @@
 		"./vs/workbench/contrib/feedback/electron-browser/feedbackStatusbarItem.ts",
 		"./vs/workbench/contrib/files/browser/editors/binaryFileEditor.ts",
 		"./vs/workbench/contrib/files/browser/editors/fileEditorTracker.ts",
+		"./vs/workbench/contrib/files/browser/editors/textFileEditor.ts",
 		"./vs/workbench/contrib/files/browser/files.ts",
 		"./vs/workbench/contrib/files/browser/views/emptyView.ts",
 		"./vs/workbench/contrib/files/browser/views/explorerDecorationsProvider.ts",
