@@ -21,7 +21,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ipcRenderer as ipc } from 'electron';
 import { IOpenFileRequest, IWindowService } from 'vs/platform/windows/common/windows';
-import { TerminalInstance } from 'vs/workbench/contrib/terminal/electron-browser/terminalInstance';
+import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IQuickInputService, IQuickPickItem, IPickOptions } from 'vs/platform/quickinput/common/quickInput';
 import { coalesce } from 'vs/base/common/arrays';
