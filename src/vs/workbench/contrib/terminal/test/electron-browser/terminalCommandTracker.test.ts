@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { Terminal, TerminalCore } from 'vscode-xterm';
-import { TerminalCommandTracker } from 'vs/workbench/contrib/terminal/node/terminalCommandTracker';
+import { TerminalCommandTracker } from 'vs/workbench/contrib/terminal/browser/terminalCommandTracker';
 import { isWindows } from 'vs/base/common/platform';
 
 interface TestTerminalCore extends TerminalCore {
