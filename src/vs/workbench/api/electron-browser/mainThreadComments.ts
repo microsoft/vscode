@@ -223,7 +223,7 @@ export class MainThreadCommentController {
 	}
 
 	private _threads: Map<number, MainThreadCommentThread> = new Map<number, MainThreadCommentThread>();
-	private _activeCommentThread?: MainThreadCommentThread;
+	public activeCommentThread?: MainThreadCommentThread;
 	private _commentingRanges: Map<number, MainThreadCommentingRanges> = new Map<number, MainThreadCommentingRanges>();
 	constructor(
 		private _proxy: ExtHostCommentsShape,
@@ -324,7 +324,7 @@ export class MainThreadCommentController {
 	}
 
 	updateInput(input: string) {
-		let thread = this._activeCommentThread;
+		let thread = this.activeCommentThread;
 
 		if (thread && thread.input) {
 			let commentInput = thread.input;
@@ -399,6 +399,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 
 			this._activeCommentThreadDisposables = dispose(this._activeCommentThreadDisposables);
 			this._activeCommentThread = thread as MainThreadCommentThread;
+			controller.activeCommentThread = this._activeCommentThread;
 
 			this._activeCommentThreadDisposables.push(this._activeCommentThread.onDidChangeInput(input => { // todo, dispose
 				this._input = input;
