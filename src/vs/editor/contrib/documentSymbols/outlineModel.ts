@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { binarySearch, coalesceInPlace } from 'vs/base/common/arrays';
+import { binarySearch, coalesceInPlace, equals } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { first, forEach, size } from 'vs/base/common/collections';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
@@ -266,13 +266,17 @@ export class OutlineModel extends TreeElement {
 
 	static _create(textModel: ITextModel, token: CancellationToken): Promise<OutlineModel> {
 
-		let result = new OutlineModel(textModel);
-		let promises = DocumentSymbolProviderRegistry.ordered(textModel).map((provider, index) => {
+		const chainedCancellation = new CancellationTokenSource();
+		token.onCancellationRequested(() => chainedCancellation.cancel());
+
+		const result = new OutlineModel(textModel);
+		const provider = DocumentSymbolProviderRegistry.ordered(textModel);
+		const promises = provider.map((provider, index) => {
 
 			let id = TreeElement.findId(`provider_${index}`, result);
 			let group = new OutlineGroup(id, result, provider, index);
 
-			return Promise.resolve(provider.provideDocumentSymbols(result.textModel, token)).then(result => {
+			return Promise.resolve(provider.provideDocumentSymbols(result.textModel, chainedCancellation.token)).then(result => {
 				for (const info of result || []) {
 					OutlineModel._makeOutlineElement(info, group);
 				}
@@ -289,7 +293,22 @@ export class OutlineModel extends TreeElement {
 			});
 		});
 
-		return Promise.all(promises).then(() => result._compact());
+		const listener = DocumentSymbolProviderRegistry.onDidChange(() => {
+			const newProvider = DocumentSymbolProviderRegistry.ordered(textModel);
+			if (!equals(newProvider, provider)) {
+				chainedCancellation.cancel();
+			}
+		});
+
+		return Promise.all(promises).then(() => {
+			if (chainedCancellation.token.isCancellationRequested && !token.isCancellationRequested) {
+				return OutlineModel._create(textModel, token);
+			} else {
+				return result._compact();
+			}
+		}).finally(() => {
+			listener.dispose();
+		});
 	}
 
 	private static _makeOutlineElement(info: DocumentSymbol, container: OutlineGroup | OutlineElement): void {
