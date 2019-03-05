@@ -116,6 +116,9 @@ class ExtensionStoragePath {
 			return Promise.resolve(undefined);
 		}
 
+		if (!this._environment.appSettingsHome) {
+			return undefined;
+		}
 		const storageName = this._workspace.id;
 		const storagePath = path.join(this._environment.appSettingsHome.fsPath, 'workspaceStorage', storageName);
 

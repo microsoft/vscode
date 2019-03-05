@@ -85,7 +85,7 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 
 	// ---- input
 
-	$input(options: InputBoxOptions, validateInput: boolean, token: CancellationToken): Promise<string> {
+	$input(options: InputBoxOptions | undefined, validateInput: boolean, token: CancellationToken): Promise<string> {
 		const inputOptions: IInputOptions = Object.create(null);
 
 		if (options) {
