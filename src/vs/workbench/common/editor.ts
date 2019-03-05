@@ -533,7 +533,12 @@ export class SideBySideEditorInput extends EditorInput {
 
 	static readonly ID: string = 'workbench.editorinputs.sidebysideEditorInput';
 
-	constructor(private name: string, private description: string | null, private _details: EditorInput, private _master: EditorInput) {
+	constructor(
+		private readonly name: string,
+		private readonly description: string | null,
+		private readonly _details: EditorInput,
+		private readonly _master: EditorInput
+	) {
 		super();
 
 		this.registerListeners();
