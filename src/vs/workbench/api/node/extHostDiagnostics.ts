@@ -37,7 +37,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 		if (!this._isDisposed) {
 			this._onDidChangeDiagnostics.fire(keys(this._data));
 			this._proxy.$clear(this._owner);
-			this._data = undefined;
+			this._data = undefined!;
 			this._isDisposed = true;
 		}
 	}
@@ -85,7 +85,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 			for (const tuple of first) {
 				const [uri, diagnostics] = tuple;
 				if (!lastUri || uri.toString() !== lastUri.toString()) {
-					if (lastUri && this._data.get(lastUri.toString()).length === 0) {
+					if (lastUri && this._data.get(lastUri.toString())!.length === 0) {
 						this._data.delete(lastUri.toString());
 					}
 					lastUri = uri;
@@ -95,9 +95,15 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 
 				if (!diagnostics) {
 					// [Uri, undefined] means clear this
-					this._data.get(uri.toString()).length = 0;
+					const currentDiagnostics = this._data.get(uri.toString());
+					if (currentDiagnostics) {
+						currentDiagnostics.length = 0;
+					}
 				} else {
-					this._data.get(uri.toString()).push(...diagnostics);
+					const currentDiagnostics = this._data.get(uri.toString());
+					if (currentDiagnostics) {
+						currentDiagnostics.push(...diagnostics);
+					}
 				}
 			}
 		}
@@ -108,7 +114,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 		// compute change and send to main side
 		const entries: [URI, IMarkerData[]][] = [];
 		for (let uri of toSync) {
-			let marker: IMarkerData[] | undefined;
+			let marker: IMarkerData[] = [];
 			let diagnostics = this._data.get(uri.toString());
 			if (diagnostics) {
 
@@ -137,7 +143,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 						endColumn: marker[marker.length - 1].endColumn
 					});
 				} else {
-					marker = diagnostics.map(converter.Diagnostic.from);
+					marker = diagnostics.map(diag => converter.Diagnostic.from(diag));
 				}
 			}
 
@@ -175,7 +181,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 		if (Array.isArray(result)) {
 			return <vscode.Diagnostic[]>Object.freeze(result.slice(0));
 		}
-		return undefined;
+		return [];
 	}
 
 	has(uri: URI): boolean {

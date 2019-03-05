@@ -142,7 +142,7 @@ export interface MainThreadConfigurationShape extends IDisposable {
 }
 
 export interface MainThreadDiagnosticsShape extends IDisposable {
-	$changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]): void;
+	$changeMany(owner: string, entries: [UriComponents, IMarkerData[] | undefined][]): void;
 	$clear(owner: string): void;
 }
 
