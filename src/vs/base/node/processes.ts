@@ -72,33 +72,6 @@ export function getWindowsShell(): string {
 	return process.env['comspec'] || 'cmd.exe';
 }
 
-/**
- * Sanitizes a VS Code process environment by removing all Electron/VS Code-related values.
- */
-export function sanitizeProcessEnvironment(env: Platform.IProcessEnvironment, ...preserve: string[]): void {
-	const set = preserve.reduce((set, key) => {
-		set[key] = true;
-		return set;
-	}, {} as Record<string, boolean>);
-	const keysToRemove = [
-		/^ELECTRON_.+$/,
-		/^GOOGLE_API_KEY$/,
-		/^VSCODE_.+$/,
-		/^SNAP(|_.*)$/
-	];
-	const envKeys = Object.keys(env);
-	envKeys
-		.filter(key => !set[key])
-		.forEach(envKey => {
-			for (let i = 0; i < keysToRemove.length; i++) {
-				if (envKey.search(keysToRemove[i]) !== -1) {
-					delete env[envKey];
-					break;
-				}
-			}
-		});
-}
-
 export abstract class AbstractProcess<TProgressData> {
 	private cmd: string;
 	private args: string[];

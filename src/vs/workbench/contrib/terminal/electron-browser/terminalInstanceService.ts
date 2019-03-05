@@ -6,16 +6,19 @@
 import * as nls from 'vs/nls';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { Terminal as XTermTerminal } from 'vscode-xterm';
-import { ITerminalInstance, IWindowsShellHelper, ITerminalConfigHelper, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalInstance, IWindowsShellHelper, ITerminalConfigHelper, ITerminalProcessManager, IShellLaunchConfig, ITerminalChildProcess } from 'vs/workbench/contrib/terminal/common/terminal';
 import { WindowsShellHelper } from 'vs/workbench/contrib/terminal/node/windowsShellHelper';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/node/terminalProcessManager';
+import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
+import { IProcessEnvironment } from 'vs/base/common/platform';
+import { TerminalProcess } from 'vs/workbench/contrib/terminal/node/terminalProcess';
 
 let Terminal: typeof XTermTerminal;
 
 /**
- * A service used by TerminalInstance that allows it to break its dependency on electron-browser and
- * node layers, while at the same time avoiding a cyclic dependency on ITerminalService.
+ * A service used by TerminalInstance (and components owned by it) that allows it to break its
+ * dependency on electron-browser and node layers, while at the same time avoiding a cyclic
+ * dependency on ITerminalService.
  */
 export class TerminalInstanceService implements ITerminalInstanceService {
 	public _serviceBrand: any;
@@ -25,7 +28,7 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 	) {
 	}
 
-	async getXtermConstructor(): Promise<typeof XTermTerminal> {
+	public async getXtermConstructor(): Promise<typeof XTermTerminal> {
 		if (!Terminal) {
 			Terminal = (await import('vscode-xterm')).Terminal;
 			// Enable xterm.js addons
@@ -40,11 +43,15 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 		return Terminal;
 	}
 
-	createWindowsShellHelper(shellProcessId: number, instance: ITerminalInstance, xterm: XTermTerminal): IWindowsShellHelper {
+	public createWindowsShellHelper(shellProcessId: number, instance: ITerminalInstance, xterm: XTermTerminal): IWindowsShellHelper {
 		return new WindowsShellHelper(shellProcessId, instance, xterm);
 	}
 
-	createTerminalProcessManager(id: number, configHelper: ITerminalConfigHelper): ITerminalProcessManager {
+	public createTerminalProcessManager(id: number, configHelper: ITerminalConfigHelper): ITerminalProcessManager {
 		return this._instantiationService.createInstance(TerminalProcessManager, id, configHelper);
+	}
+
+	public createTerminalProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean): ITerminalChildProcess {
+		return new TerminalProcess(shellLaunchConfig, cwd, cols, rows, env, windowsEnableConpty);
 	}
 }

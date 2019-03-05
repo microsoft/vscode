@@ -16,7 +16,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { EXT_HOST_CREATION_DELAY } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalProcess } from 'vs/workbench/contrib/terminal/node/terminalProcess';
 import { timeout } from 'vs/base/common/async';
-import { sanitizeProcessEnvironment } from 'vs/base/node/processes';
+import { sanitizeProcessEnvironment } from 'vs/base/common/processes';
 
 const RENDERER_NO_PROCESS_ID = -1;
 
