@@ -17,7 +17,7 @@ import { ITerminalService, TERMINAL_PANEL_ID } from 'vs/workbench/contrib/termin
 import { IThemeService, ITheme, registerThemingParticipant, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
 import { editorHoverBackground, editorHoverBorder, editorForeground } from 'vs/platform/theme/common/colorRegistry';
-import { KillTerminalAction, SwitchTerminalAction, SwitchTerminalActionItem, CopyTerminalSelectionAction, TerminalPasteAction, ClearTerminalAction, SelectAllTerminalAction, CreateNewTerminalAction, SplitTerminalAction } from 'vs/workbench/contrib/terminal/electron-browser/terminalActions';
+import { KillTerminalAction, SwitchTerminalAction, SwitchTerminalActionItem, CopyTerminalSelectionAction, TerminalPasteAction, ClearTerminalAction, SelectAllTerminalAction, CreateNewTerminalAction, SplitTerminalAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { Panel } from 'vs/workbench/browser/panel';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { URI } from 'vs/base/common/uri';
