@@ -698,3 +698,27 @@ export enum LinuxDistro {
 export interface IWindowsShellHelper extends IDisposable {
 	getShellName(): Promise<string>;
 }
+
+/**
+ * An interface representing a raw terminal child process, this contains a subset of the
+ * child_process.ChildProcess node.js interface.
+ */
+export interface ITerminalChildProcess {
+	onProcessData: Event<string>;
+	onProcessExit: Event<number>;
+	onProcessIdReady: Event<number>;
+	onProcessTitleChanged: Event<string>;
+
+	/**
+	 * Shutdown the terminal process.
+	 *
+	 * @param immediate When true the process will be killed immediately, otherwise the process will
+	 * be given some time to make sure no additional data comes through.
+	 */
+	shutdown(immediate: boolean): void;
+	input(data: string): void;
+	resize(cols: number, rows: number): void;
+
+	getInitialCwd(): Promise<string>;
+	getCwd(): Promise<string>;
+}

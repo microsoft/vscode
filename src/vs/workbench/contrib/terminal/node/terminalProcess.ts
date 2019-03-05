@@ -9,9 +9,9 @@ import * as platform from 'vs/base/common/platform';
 import * as pty from 'node-pty';
 import * as fs from 'fs';
 import { Event, Emitter } from 'vs/base/common/event';
-import { ITerminalChildProcess, getWindowsBuildNumber } from 'vs/workbench/contrib/terminal/node/terminal';
+import { getWindowsBuildNumber } from 'vs/workbench/contrib/terminal/node/terminal';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IShellLaunchConfig } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalChildProcess } from 'vs/workbench/contrib/terminal/common/terminal';
 import { exec } from 'child_process';
 
 export class TerminalProcess implements ITerminalChildProcess, IDisposable {

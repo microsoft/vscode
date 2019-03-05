@@ -7,34 +7,9 @@ import * as os from 'os';
 import * as platform from 'vs/base/common/platform';
 import * as processes from 'vs/base/node/processes';
 import { readFile, fileExists } from 'vs/base/node/pfs';
-import { Event } from 'vs/base/common/event';
 import { LinuxDistro } from 'vs/workbench/contrib/terminal/common/terminal';
 import { execFile } from 'child_process';
 import { escapeNonWindowsPath } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
-
-/**
- * An interface representing a raw terminal child process, this contains a subset of the
- * child_process.ChildProcess node.js interface.
- */
-export interface ITerminalChildProcess {
-	onProcessData: Event<string>;
-	onProcessExit: Event<number>;
-	onProcessIdReady: Event<number>;
-	onProcessTitleChanged: Event<string>;
-
-	/**
-	 * Shutdown the terminal process.
-	 *
-	 * @param immediate When true the process will be killed immediately, otherwise the process will
-	 * be given some time to make sure no additional data comes through.
-	 */
-	shutdown(immediate: boolean): void;
-	input(data: string): void;
-	resize(cols: number, rows: number): void;
-
-	getInitialCwd(): Promise<string>;
-	getCwd(): Promise<string>;
-}
 
 export function getDefaultShell(p: platform.Platform): string {
 	if (p === platform.Platform.Windows) {

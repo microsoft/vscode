@@ -6,12 +6,11 @@
 import * as platform from 'vs/base/common/platform';
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { ProcessState, ITerminalProcessManager, IShellLaunchConfig, ITerminalConfigHelper } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ProcessState, ITerminalProcessManager, IShellLaunchConfig, ITerminalConfigHelper, ITerminalChildProcess } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { ITerminalChildProcess } from 'vs/workbench/contrib/terminal/node/terminal';
-import { TerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/node/terminalProcessExtHostProxy';
+import { TerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminalProcessExtHostProxy';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TerminalProcess } from 'vs/workbench/contrib/terminal/node/terminalProcess';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
