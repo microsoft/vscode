@@ -84,11 +84,11 @@ class StatusBarAction extends Action {
 		private commandService: ICommandService
 	) {
 		super(`statusbaraction{${command.id}}`, command.title, '', true);
-		this.tooltip = command.tooltip;
+		this.tooltip = command.tooltip || '';
 	}
 
 	run(): Promise<void> {
-		return this.commandService.executeCommand(this.command.id, ...this.command.arguments);
+		return this.commandService.executeCommand(this.command.id, ...(this.command.arguments || []));
 	}
 }
 
@@ -198,7 +198,7 @@ class ProviderRenderer implements IListRenderer<ISCMRepository, RepositoryTempla
 
 			const count = repository.provider.count || 0;
 			toggleClass(templateData.countContainer, 'hidden', count === 0);
-			templateData.count.setCount(repository.provider.count);
+			templateData.count.setCount(count);
 
 			this._onDidRenderElement.fire(repository);
 		};
@@ -529,13 +529,13 @@ class ResourceRenderer implements IListRenderer<ISCMResource, ResourceTemplate> 
 		if (icon) {
 			template.decorationIcon.style.display = '';
 			template.decorationIcon.style.backgroundImage = `url('${icon}')`;
-			template.decorationIcon.title = resource.decorations.tooltip;
+			template.decorationIcon.title = resource.decorations.tooltip || '';
 		} else {
 			template.decorationIcon.style.display = 'none';
 			template.decorationIcon.style.backgroundImage = '';
 		}
 
-		template.element.setAttribute('data-tooltip', resource.decorations.tooltip);
+		template.element.setAttribute('data-tooltip', resource.decorations.tooltip || '');
 		template.elementDisposable = combinedDisposable(disposables);
 	}
 
@@ -821,7 +821,7 @@ export class RepositoryPanel extends ViewletPanel {
 
 		const validationDelayer = new ThrottledDelayer<any>(200);
 		const validate = () => {
-			return this.repository.input.validateInput(this.inputBox.value, this.inputBox.inputElement.selectionStart).then(result => {
+			return this.repository.input.validateInput(this.inputBox.value, this.inputBox.inputElement.selectionStart || 0).then(result => {
 				if (!result) {
 					this.inputBox.inputElement.removeAttribute('aria-invalid');
 					this.inputBox.hideMessage();
@@ -916,7 +916,7 @@ export class RepositoryPanel extends ViewletPanel {
 		}
 	}
 
-	layoutBody(height: number = this.cachedHeight, width: number = this.cachedWidth): void {
+	layoutBody(height: number | undefined = this.cachedHeight, width: number | undefined = this.cachedWidth): void {
 		if (height === undefined) {
 			return;
 		}
@@ -962,9 +962,9 @@ export class RepositoryPanel extends ViewletPanel {
 		return this.menus.getTitleSecondaryActions();
 	}
 
-	getActionItem(action: IAction): IActionItem {
+	getActionItem(action: IAction): IActionItem | null {
 		if (!(action instanceof MenuItemAction)) {
-			return undefined;
+			return null;
 		}
 
 		return new ContextAwareMenuItemActionItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
@@ -1176,9 +1176,9 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 			this.onSelectionChange(this.mainPanel.getSelection());
 
 			this.mainPanelDisposable = toDisposable(() => {
-				this.removePanels([this.mainPanel]);
+				this.removePanels([this.mainPanel!]);
 				selectionChangeDisposable.dispose();
-				this.mainPanel.dispose();
+				this.mainPanel!.dispose();
 			});
 		} else {
 			this.mainPanelDisposable.dispose();
@@ -1203,7 +1203,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 		super.setVisible(visible);
 
 		if (!visible) {
-			this.cachedMainPanelHeight = this.getPanelSize(this.mainPanel);
+			this.cachedMainPanelHeight = this.mainPanel ? this.getPanelSize(this.mainPanel) : 0;
 		}
 
 		const start = this.getContributedViewsStartIndex();
@@ -1247,9 +1247,9 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 		}
 	}
 
-	getActionItem(action: IAction): IActionItem {
+	getActionItem(action: IAction): IActionItem | null {
 		if (!(action instanceof MenuItemAction)) {
-			return undefined;
+			return null;
 		}
 
 		return new ContextAwareMenuItemActionItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
@@ -1318,14 +1318,14 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 		this.removePanels(panelsToRemove);
 
 		// Restore main panel height
-		if (this.isVisible() && typeof this.cachedMainPanelHeight === 'number') {
+		if (this.mainPanel && this.isVisible() && typeof this.cachedMainPanelHeight === 'number') {
 			this.resizePanel(this.mainPanel, this.cachedMainPanelHeight);
 			this.cachedMainPanelHeight = undefined;
 		}
 
 		// Resize all panels equally
 		const height = typeof this.height === 'number' ? this.height : 1000;
-		const mainPanelHeight = this.getPanelSize(this.mainPanel);
+		const mainPanelHeight = this.mainPanel ? this.getPanelSize(this.mainPanel) : 0;
 		const size = (height - mainPanelHeight - contributableViewsHeight) / repositories.length;
 		for (const panel of this.repositoryPanels) {
 			this.resizePanel(panel, size);

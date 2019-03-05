@@ -9,6 +9,7 @@ import { ITextSnapshot } from 'vs/platform/files/common/files';
 import { ITextBufferFactory } from 'vs/editor/common/model';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { keys } from 'vs/base/common/map';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class SimpleBackupFileService implements IBackupFileService {
 
@@ -65,3 +66,5 @@ export class SimpleBackupFileService implements IBackupFileService {
 		return resource;
 	}
 }
+
+registerSingleton(IBackupFileService, SimpleBackupFileService, true);

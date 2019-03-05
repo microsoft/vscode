@@ -53,7 +53,7 @@ export interface ISetting {
 	value: any;
 	valueRange: IRange;
 	description: string[];
-	descriptionIsMarkdown: boolean;
+	descriptionIsMarkdown?: boolean;
 	descriptionRanges: IRange[];
 	overrides?: ISetting[];
 	overrideOf?: ISetting;
@@ -65,7 +65,7 @@ export interface ISetting {
 	enumDescriptions?: string[];
 	enumDescriptionsAreMarkdown?: boolean;
 	tags?: string[];
-	validator?: (value: any) => string;
+	validator?: (value: any) => string | null;
 }
 
 export interface IExtensionSetting extends ISetting {
@@ -162,11 +162,7 @@ export class SettingsEditorOptions extends EditorOptions implements ISettingsEdi
 	folderUri?: URI;
 	query?: string;
 
-	static create(settings: ISettingsEditorOptions): SettingsEditorOptions | null {
-		if (!settings) {
-			return null;
-		}
-
+	static create(settings: ISettingsEditorOptions): SettingsEditorOptions {
 		const options = new SettingsEditorOptions();
 
 		options.target = settings.target;
@@ -195,10 +191,10 @@ export interface IPreferencesService {
 	_serviceBrand: any;
 
 	userSettingsResource: URI;
-	workspaceSettingsResource: URI;
-	getFolderSettingsResource(resource: URI): URI;
+	workspaceSettingsResource: URI | null;
+	getFolderSettingsResource(resource: URI): URI | null;
 
-	resolveModel(uri: URI): Promise<ITextModel>;
+	resolveModel(uri: URI): Promise<ITextModel | null>;
 	createPreferencesEditorModel<T>(uri: URI): Promise<IPreferencesEditorModel<T>>;
 	createSettings2EditorModel(): Settings2EditorModel; // TODO
 

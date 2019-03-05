@@ -22,6 +22,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 class PartsSplash {
 
@@ -29,6 +30,7 @@ class PartsSplash {
 
 	private readonly _disposables: IDisposable[] = [];
 
+	private _didChangeTitleBarStyle: boolean;
 	private _lastBaseTheme: string;
 	private _lastBackground?: string;
 
@@ -39,13 +41,18 @@ class PartsSplash {
 		@IEnvironmentService private readonly _envService: IEnvironmentService,
 		@IBroadcastService private readonly _broadcastService: IBroadcastService,
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@IEditorGroupsService editorGroupsService: IEditorGroupsService
+		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
+		@IConfigurationService configService: IConfigurationService,
 	) {
 		lifecycleService.when(LifecyclePhase.Restored).then(_ => this._removePartsSplash());
 		Event.debounce(Event.any<any>(
 			onDidChangeFullscreen,
 			editorGroupsService.onDidLayout
 		), () => { }, 800)(this._savePartsSplash, this, this._disposables);
+
+		configService.onDidChangeConfiguration(e => {
+			this._didChangeTitleBarStyle = e.affectsConfiguration('window.titleBarStyle');
+		}, this, this._disposables);
 	}
 
 	dispose(): void {
@@ -100,7 +107,7 @@ class PartsSplash {
 	}
 
 	private _shouldSaveLayoutInfo(): boolean {
-		return !isFullscreen() && !this._envService.isExtensionDevelopment;
+		return !isFullscreen() && !this._envService.isExtensionDevelopment && !this._didChangeTitleBarStyle;
 	}
 
 	private _removePartsSplash(): void {

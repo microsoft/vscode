@@ -76,6 +76,7 @@ import 'vs/workbench/nodeless/services/simpleBroadcastService';
 import 'vs/workbench/services/preferences/browser/preferencesService';
 import 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import 'vs/workbench/services/textfile/common/textFileService';
+import 'vs/workbench/nodeless/services/simpleBackupFileService';
 
 registerSingleton(IMenuService, MenuService, true);
 registerSingleton(IListService, ListService, true);
@@ -93,6 +94,9 @@ registerSingleton(IFileDialogService, SimpleFileDialogService, true);
 
 
 //#region --- workbench contributions
+
+// Telemetry
+import 'vs/workbench/contrib/telemetry/browser/telemetry.contribution';
 
 // Localizations
 // import 'vs/workbench/contrib/localizations/browser/localizations.contribution';
@@ -127,8 +131,8 @@ import 'vs/workbench/contrib/search/browser/searchView';
 import 'vs/workbench/contrib/search/browser/openAnythingHandler';
 
 // SCM
-// import 'vs/workbench/contrib/scm/electron-browser/scm.contribution';
-// import 'vs/workbench/contrib/scm/electron-browser/scmViewlet';
+import 'vs/workbench/contrib/scm/browser/scm.contribution';
+import 'vs/workbench/contrib/scm/browser/scmViewlet';
 
 // Debug
 // import 'vs/workbench/contrib/debug/electron-browser/debug.contribution';
@@ -158,9 +162,10 @@ import 'vs/workbench/contrib/url/common/url.contribution';
 // import 'vs/workbench/contrib/output/browser/outputPanel';
 
 // Terminal
+// import 'vs/workbench/contrib/terminal/browser/terminal.contribution';
 // import 'vs/workbench/contrib/terminal/electron-browser/terminal.contribution';
 // import 'vs/workbench/contrib/terminal/browser/terminalQuickOpen';
-// import 'vs/workbench/contrib/terminal/electron-browser/terminalPanel';
+// import 'vs/workbench/contrib/terminal/browser/terminalPanel';
 
 // Relauncher
 // import 'vs/workbench/contrib/relauncher/electron-browser/relauncher.contribution';
@@ -177,7 +182,7 @@ import 'vs/workbench/contrib/codeEditor/browser/codeEditor.contribution';
 // import 'vs/workbench/contrib/codeEditor/electron-browser/codeEditor.contribution';
 
 // Execution
-// import 'vs/workbench/contrib/execution/electron-browser/execution.contribution';
+// import 'vs/workbench/contrib/externalTerminal/electron-browser/externalTerminal.contribution';
 
 // Snippets
 import 'vs/workbench/contrib/snippets/browser/snippets.contribution';

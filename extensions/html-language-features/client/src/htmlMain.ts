@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-import { languages, ExtensionContext, IndentAction, Position, TextDocument, Range, CompletionItem, CompletionItemKind, SnippetString, workspace, SelectionRange, SelectionRangeKind } from 'vscode';
+import { languages, ExtensionContext, IndentAction, Position, TextDocument, Range, CompletionItem, CompletionItemKind, SnippetString, workspace, SelectionRange } from 'vscode';
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, TextDocumentPositionParams } from 'vscode-languageclient';
 import { EMPTY_ELEMENTS } from './htmlEmptyTagsShared';
 import { activateTagClosing } from './tagClosing';
@@ -92,18 +92,18 @@ export function activate(context: ExtensionContext) {
 			context.subscriptions.push(languages.registerSelectionRangeProvider(selector, {
 				async provideSelectionRanges(document: TextDocument, positions: Position[]): Promise<SelectionRange[][]> {
 					const textDocument = client.code2ProtocolConverter.asTextDocumentIdentifier(document);
-					return Promise.all(positions.map(async position => {
-						const rawRanges = await client.sendRequest<Range[]>('$/textDocument/selectionRange', { textDocument, position });
-						if (Array.isArray(rawRanges)) {
-							return rawRanges.map(r => {
+					const rawResult = await client.sendRequest<SelectionRange[][]>('$/textDocument/selectionRanges', { textDocument, positions: positions.map(client.code2ProtocolConverter.asPosition) });
+					if (Array.isArray(rawResult)) {
+						return rawResult.map(rawSelectionRanges => {
+							return rawSelectionRanges.map(selectionRange => {
 								return {
-									range: client.protocol2CodeConverter.asRange(r),
-									kind: SelectionRangeKind.Declaration
+									range: client.protocol2CodeConverter.asRange(selectionRange.range),
+									kind: selectionRange.kind
 								};
 							});
-						}
-						return [];
-					}));
+						});
+					}
+					return [];
 				}
 			}));
 		});

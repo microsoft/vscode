@@ -7,7 +7,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Action, IAction } from 'vs/base/common/actions';
 import { BaseActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ITree, IActionProvider } from 'vs/base/parts/tree/browser/tree';
-import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, IConstructorSignature0, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 /**
  * The action bar contributor allows to add actions to an actionbar in a given context.
@@ -235,7 +235,10 @@ export interface IActionBarRegistry {
 	 */
 	getActionBarContributors(scope: string): ActionBarContributor[];
 
-	setInstantiationService(service: IInstantiationService): void;
+	/**
+	 * Starts the registry by providing the required services.
+	 */
+	start(accessor: ServicesAccessor): void;
 }
 
 class ActionBarRegistry implements IActionBarRegistry {
@@ -243,8 +246,8 @@ class ActionBarRegistry implements IActionBarRegistry {
 	private actionBarContributorInstances: { [scope: string]: ActionBarContributor[] } = Object.create(null);
 	private instantiationService: IInstantiationService;
 
-	setInstantiationService(service: IInstantiationService): void {
-		this.instantiationService = service;
+	start(accessor: ServicesAccessor): void {
+		this.instantiationService = accessor.get(IInstantiationService);
 
 		while (this.actionBarContributorConstructors.length > 0) {
 			const entry = this.actionBarContributorConstructors.shift()!;

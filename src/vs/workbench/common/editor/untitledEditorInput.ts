@@ -121,25 +121,21 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		return this.labelService.getUriLabel(this.resource);
 	}
 
-	getTitle(verbosity: Verbosity): string {
+	getTitle(verbosity: Verbosity): string | null {
 		if (!this.hasAssociatedFilePath) {
 			return this.getName();
 		}
 
-		let title: string | undefined;
 		switch (verbosity) {
 			case Verbosity.SHORT:
-				title = this.shortTitle;
-				break;
+				return this.shortTitle;
 			case Verbosity.MEDIUM:
-				title = this.mediumTitle;
-				break;
+				return this.mediumTitle;
 			case Verbosity.LONG:
-				title = this.longTitle;
-				break;
+				return this.longTitle;
 		}
 
-		return title;
+		return null;
 	}
 
 	isDirty(): boolean {

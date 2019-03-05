@@ -39,8 +39,7 @@ export class ProgressService2 implements IProgressService2 {
 			if (viewlet) {
 				return this._withViewletProgress(location, task);
 			}
-			console.warn(`Bad progress location: ${location}`);
-			return undefined;
+			return Promise.reject(new Error(`Bad progress location: ${location}`));
 		}
 
 		switch (location) {
@@ -55,8 +54,7 @@ export class ProgressService2 implements IProgressService2 {
 			case ProgressLocation.Extensions:
 				return this._withViewletProgress('workbench.view.extensions', task);
 			default:
-				console.warn(`Bad progress location: ${location}`);
-				return undefined;
+				return Promise.reject(new Error(`Bad progress location: ${location}`));
 		}
 	}
 

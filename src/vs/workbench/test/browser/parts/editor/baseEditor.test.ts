@@ -180,7 +180,7 @@ suite('Workbench base editor', () => {
 	});
 
 	test('Editor Input Factory', function () {
-		EditorInputRegistry.setInstantiationService(workbenchInstantiationService());
+		workbenchInstantiationService().invokeFunction(accessor => EditorInputRegistry.start(accessor));
 		EditorInputRegistry.registerEditorInputFactory('myInputId', MyInputFactory);
 
 		let factory = EditorInputRegistry.getEditorInputFactory('myInputId');

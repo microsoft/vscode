@@ -23,6 +23,9 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorModel } from 'vs/workbench/common/editor';
 import { IFilterMetadata, IFilterResult, IGroupFilter, IKeybindingsEditorModel, ISearchResultGroup, ISetting, ISettingMatch, ISettingMatcher, ISettingsEditorModel, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
 
+export const nullRange: IRange = { startLineNumber: -1, startColumn: -1, endLineNumber: -1, endColumn: -1 };
+export function isNullRange(range: IRange): boolean { return range.startLineNumber === -1 && range.startColumn === -1 && range.endLineNumber === -1 && range.endColumn === -1; }
+
 export abstract class AbstractSettingsModel extends EditorModel {
 
 	protected _currentResultGroups = new Map<string, ISearchResultGroup>();
@@ -124,7 +127,7 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 
 	constructor(reference: IReference<ITextEditorModel>, private _configurationTarget: ConfigurationTarget) {
 		super();
-		this.settingsModel = reference.object.textEditorModel;
+		this.settingsModel = reference.object.textEditorModel!;
 		this._register(this.onDispose(() => reference.dispose()));
 		this._register(this.settingsModel.onDidChangeContent(() => {
 			this._settingsGroups = null;
@@ -268,7 +271,7 @@ function parse(model: ITextModel, isSettingsProperty: (currentProperty: string, 
 		}
 		if (previousParents.length === settingsPropertyIndex + 1 || (previousParents.length === settingsPropertyIndex + 2 && overrideSetting !== null)) {
 			// settings value started
-			const setting = previousParents.length === settingsPropertyIndex + 1 ? settings[settings.length - 1] : overrideSetting.overrides[overrideSetting.overrides.length - 1];
+			const setting = previousParents.length === settingsPropertyIndex + 1 ? settings[settings.length - 1] : overrideSetting!.overrides![overrideSetting!.overrides!.length - 1];
 			if (setting) {
 				const valueStartPosition = model.getPositionAt(offset);
 				const valueEndPosition = model.getPositionAt(offset + length);
@@ -288,7 +291,7 @@ function parse(model: ITextModel, isSettingsProperty: (currentProperty: string, 
 	}
 	const visitor: JSONVisitor = {
 		onObjectBegin: (offset: number, length: number) => {
-			if (isSettingsProperty(currentProperty, previousParents)) {
+			if (isSettingsProperty(currentProperty!, previousParents)) {
 				// Settings started
 				settingsPropertyIndex = previousParents.length;
 				const position = model.getPositionAt(offset);
@@ -323,10 +326,10 @@ function parse(model: ITextModel, isSettingsProperty: (currentProperty: string, 
 						endColumn: 0
 					},
 					value: null,
-					valueRange: null,
-					descriptionRanges: null,
+					valueRange: nullRange,
+					descriptionRanges: [],
 					overrides: [],
-					overrideOf: overrideSetting
+					overrideOf: overrideSetting || undefined
 				};
 				if (previousParents.length === settingsPropertyIndex + 1) {
 					settings.push(setting);
@@ -334,7 +337,7 @@ function parse(model: ITextModel, isSettingsProperty: (currentProperty: string, 
 						overrideSetting = setting;
 					}
 				} else {
-					overrideSetting.overrides.push(setting);
+					overrideSetting!.overrides!.push(setting);
 				}
 			}
 		},
@@ -342,7 +345,7 @@ function parse(model: ITextModel, isSettingsProperty: (currentProperty: string, 
 			currentParent = previousParents.pop();
 			if (previousParents.length === settingsPropertyIndex + 1 || (previousParents.length === settingsPropertyIndex + 2 && overrideSetting !== null)) {
 				// setting ended
-				const setting = previousParents.length === settingsPropertyIndex + 1 ? settings[settings.length - 1] : overrideSetting.overrides[overrideSetting.overrides.length - 1];
+				const setting = previousParents.length === settingsPropertyIndex + 1 ? settings[settings.length - 1] : overrideSetting!.overrides![overrideSetting!.overrides!.length - 1];
 				if (setting) {
 					const valueEndPosition = model.getPositionAt(offset + length);
 					setting.valueRange = assign(setting.valueRange, {
@@ -377,7 +380,7 @@ function parse(model: ITextModel, isSettingsProperty: (currentProperty: string, 
 			currentParent = previousParents.pop();
 			if (previousParents.length === settingsPropertyIndex + 1 || (previousParents.length === settingsPropertyIndex + 2 && overrideSetting !== null)) {
 				// setting value ended
-				const setting = previousParents.length === settingsPropertyIndex + 1 ? settings[settings.length - 1] : overrideSetting.overrides[overrideSetting.overrides.length - 1];
+				const setting = previousParents.length === settingsPropertyIndex + 1 ? settings[settings.length - 1] : overrideSetting!.overrides![overrideSetting!.overrides!.length - 1];
 				if (setting) {
 					const valueEndPosition = model.getPositionAt(offset + length);
 					setting.valueRange = assign(setting.valueRange, {
@@ -394,7 +397,7 @@ function parse(model: ITextModel, isSettingsProperty: (currentProperty: string, 
 		onLiteralValue: onValue,
 		onError: (error) => {
 			const setting = settings[settings.length - 1];
-			if (setting && (!setting.range || !setting.keyRange || !setting.valueRange)) {
+			if (setting && (isNullRange(setting.range) || isNullRange(setting.keyRange) || isNullRange(setting.valueRange))) {
 				settings.pop();
 			}
 		}
@@ -408,8 +411,8 @@ function parse(model: ITextModel, isSettingsProperty: (currentProperty: string, 
 				settings
 			}
 		],
-		title: null,
-		titleRange: null,
+		title: '',
+		titleRange: nullRange,
 		range
 	}] : [];
 }
@@ -514,13 +517,15 @@ export class DefaultSettings extends Disposable {
 					description: setting.description,
 					key: setting.key,
 					value: setting.value,
-					range: null,
-					valueRange: null,
+					keyRange: nullRange,
+					range: nullRange,
+					valueRange: nullRange,
 					overrides: [],
 					scope: ConfigurationScope.RESOURCE,
 					type: setting.type,
 					enum: setting.enum,
-					enumDescriptions: setting.enumDescriptions
+					enumDescriptions: setting.enumDescriptions,
+					descriptionRanges: []
 				};
 			}
 			return null;
@@ -528,9 +533,9 @@ export class DefaultSettings extends Disposable {
 
 		return <ISettingsGroup>{
 			id: 'mostCommonlyUsed',
-			range: null,
+			range: nullRange,
 			title: nls.localize('commonlyUsed', "Commonly Used"),
-			titleRange: null,
+			titleRange: nullRange,
 			sections: [
 				{
 					settings
@@ -552,7 +557,7 @@ export class DefaultSettings extends Disposable {
 			if (!settingsGroup) {
 				settingsGroup = find(result, g => g.title === title);
 				if (!settingsGroup) {
-					settingsGroup = { sections: [{ settings: [] }], id: config.id, title: title, titleRange: null, range: null, contributedByExtension: !!config.contributedByExtension };
+					settingsGroup = { sections: [{ settings: [] }], id: config.id || '', title: title || '', titleRange: nullRange, range: nullRange, contributedByExtension: !!config.contributedByExtension };
 					result.push(settingsGroup);
 				}
 			} else {
@@ -561,7 +566,7 @@ export class DefaultSettings extends Disposable {
 		}
 		if (config.properties) {
 			if (!settingsGroup) {
-				settingsGroup = { sections: [{ settings: [] }], id: config.id, title: config.id, titleRange: null, range: null, contributedByExtension: !!config.contributedByExtension };
+				settingsGroup = { sections: [{ settings: [] }], id: config.id || '', title: config.id || '', titleRange: nullRange, range: nullRange, contributedByExtension: !!config.contributedByExtension };
 				result.push(settingsGroup);
 			}
 			const configurationSettings: ISetting[] = [];
@@ -605,9 +610,9 @@ export class DefaultSettings extends Disposable {
 					value,
 					description,
 					descriptionIsMarkdown: !prop.description,
-					range: null,
-					keyRange: null,
-					valueRange: null,
+					range: nullRange,
+					keyRange: nullRange,
+					valueRange: nullRange,
 					descriptionRanges: [],
 					overrides,
 					scope: prop.scope,
@@ -630,9 +635,9 @@ export class DefaultSettings extends Disposable {
 			value: overrideSettings[key],
 			description: [],
 			descriptionIsMarkdown: false,
-			range: null,
-			keyRange: null,
-			valueRange: null,
+			range: nullRange,
+			keyRange: nullRange,
+			valueRange: nullRange,
 			descriptionRanges: [],
 			overrides: []
 		}));
@@ -691,7 +696,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		super();
 
 		this._register(defaultSettings.onDidChange(() => this._onDidChangeGroups.fire()));
-		this._model = reference.object.textEditorModel;
+		this._model = reference.object.textEditorModel!;
 		this._register(this.onDispose(() => reference.dispose()));
 	}
 
@@ -712,7 +717,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		return this.settingsGroups.slice(1);
 	}
 
-	protected update(): IFilterResult {
+	protected update(): IFilterResult | null {
 		if (this._model.isDisposed()) {
 			return null;
 		}
@@ -825,10 +830,10 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 			overrideOf: setting.overrideOf,
 			tags: setting.tags,
 			deprecationMessage: setting.deprecationMessage,
-			keyRange: undefined,
-			valueRange: undefined,
+			keyRange: nullRange,
+			valueRange: nullRange,
 			descriptionIsMarkdown: undefined,
-			descriptionRanges: undefined
+			descriptionRanges: []
 		};
 	}
 
@@ -852,9 +857,9 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 	private getGroup(resultGroup: ISearchResultGroup): ISettingsGroup {
 		return <ISettingsGroup>{
 			id: resultGroup.id,
-			range: null,
+			range: nullRange,
 			title: resultGroup.label,
-			titleRange: null,
+			titleRange: nullRange,
 			sections: [
 				{
 					settings: resultGroup.result.filterMatches.map(m => this.copySetting(m.setting))
@@ -899,7 +904,7 @@ class SettingsContentBuilder {
 		this._contentByLines.push('}');
 	}
 
-	protected _pushGroup(group: ISettingsGroup, indent: string): ISetting {
+	protected _pushGroup(group: ISettingsGroup, indent: string): ISetting | null {
 		let lastSetting: ISetting | null = null;
 		const groupStart = this.lineCountWithOffset + 1;
 		for (const section of group.sections) {
@@ -959,7 +964,7 @@ class SettingsContentBuilder {
 
 		if (setting.enumDescriptions && setting.enumDescriptions.some(desc => !!desc)) {
 			setting.enumDescriptions.forEach((desc, i) => {
-				const displayEnum = escapeInvisibleChars(String(setting.enum[i]));
+				const displayEnum = escapeInvisibleChars(String(setting.enum![i]));
 				const line = desc ?
 					`${displayEnum}: ${fixSettingLink(desc)}` :
 					displayEnum;
@@ -974,7 +979,7 @@ class SettingsContentBuilder {
 	private pushValue(setting: ISetting, preValueConent: string, indent: string): void {
 		const valueString = JSON.stringify(setting.value, null, indent);
 		if (valueString && (typeof setting.value === 'object')) {
-			if (setting.overrides.length) {
+			if (setting.overrides && setting.overrides.length) {
 				this._contentByLines.push(preValueConent + ' {');
 				for (const subSetting of setting.overrides) {
 					this.pushSetting(subSetting, indent + indent);
