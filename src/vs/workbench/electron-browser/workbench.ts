@@ -104,7 +104,6 @@ import { IProductService } from 'vs/platform/product/common/product';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { WorkbenchContextKeysHandler } from 'vs/workbench/browser/contextkeys';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 // import@node
 import { BackupFileService, InMemoryBackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
@@ -569,7 +568,7 @@ export class Workbench extends Disposable implements IPartService {
 		this.instantiationService.invokeFunction(accessor => {
 			const fileService = accessor.get(IFileService);
 			const instantiationService = accessor.get(IInstantiationService);
-			const themeService = accessor.get(IThemeService) as WorkbenchThemeService;
+			const themeService = accessor.get(IWorkbenchThemeService) as WorkbenchThemeService;
 
 			this.configurationService.acquireFileService(fileService);
 			this.configurationService.acquireInstantiationService(instantiationService);
