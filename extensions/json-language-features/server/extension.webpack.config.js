@@ -21,10 +21,6 @@ module.exports = withDefaults({
 		path: path.join(__dirname, 'dist')
 	},
 	plugins: [
-		new webpack.NormalModuleReplacementPlugin(
-			/[/\\]vscode-languageserver[/\\]lib[/\\]files\.js/,
-			require.resolve('./build/filesFillIn')
-		),
 		new webpack.IgnorePlugin(/vertx/)
 	],
 });
