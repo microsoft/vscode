@@ -147,6 +147,7 @@
 		"./vs/workbench/browser/parts/statusbar/statusbar.ts",
 		"./vs/workbench/browser/parts/statusbar/statusbarPart.ts",
 		"./vs/workbench/browser/parts/titlebar/menubarControl.ts",
+		"./vs/workbench/browser/parts/titlebar/titlebarPart.ts",
 		"./vs/workbench/browser/parts/views/customView.ts",
 		"./vs/workbench/browser/parts/views/panelViewlet.ts",
 		"./vs/workbench/browser/parts/views/views.ts",
