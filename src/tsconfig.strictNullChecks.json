@@ -14,7 +14,7 @@
 		"./vs/workbench/browser/parts/quickinput/**/*",
 		"./vs/workbench/electron-browser/actions/**/*",
 		"./vs/workbench/contrib/emmet/**/*",
-		"./vs/workbench/contrib/execution/**/*",
+		"./vs/workbench/contrib/externalTerminal/**/*",
 		"./vs/workbench/contrib/snippets/**/*.ts",
 		"./vs/workbench/contrib/welcome/**/*.ts",
 		"./vs/workbench/contrib/issue/**/*",
