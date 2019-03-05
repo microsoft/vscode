@@ -60,24 +60,24 @@ export class BaseActionItem extends Disposable implements IActionItem {
 	}
 
 	private handleActionChangeEvent(event: IActionChangeEvent): void {
-		if (event.enabled !== void 0) {
+		if (event.enabled !== undefined) {
 			this.updateEnabled();
 		}
 
-		if (event.checked !== void 0) {
+		if (event.checked !== undefined) {
 			this.updateChecked();
 		}
 
-		if (event.class !== void 0) {
+		if (event.class !== undefined) {
 			this.updateClass();
 		}
 
-		if (event.label !== void 0) {
+		if (event.label !== undefined) {
 			this.updateLabel();
 			this.updateTooltip();
 		}
 
-		if (event.tooltip !== void 0) {
+		if (event.tooltip !== undefined) {
 			this.updateTooltip();
 		}
 	}
@@ -679,7 +679,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 	focus(selectFirst?: boolean): void;
 	focus(arg?: any): void {
 		let selectFirst: boolean = false;
-		let index: number | undefined = void 0;
+		let index: number | undefined = undefined;
 		if (arg === undefined) {
 			selectFirst = true;
 		} else if (typeof arg === 'number') {

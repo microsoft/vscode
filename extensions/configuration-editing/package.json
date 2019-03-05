@@ -96,6 +96,6 @@
     ]
   },
   "devDependencies": {
-    "@types/node": "^8.10.25"
+    "@types/node": "^10.12.21"
   }
 }

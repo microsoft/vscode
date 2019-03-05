@@ -58,7 +58,7 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			return {
 				getText: (start, end) => text.substring(start, end),
 				getLength: () => text.length,
-				getChangeRange: () => void 0
+				getChangeRange: () => undefined
 			};
 		},
 		getCurrentDirectory: () => '',

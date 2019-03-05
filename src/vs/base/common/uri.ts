@@ -56,6 +56,21 @@ function _validateUri(ret: URI, _strict?: boolean): void {
 	}
 }
 
+// for a while we allowed uris *without* schemes and this is the migration
+// for them, e.g. an uri without scheme and without strict-mode warns and falls
+// back to the file-scheme. that should cause the least carnage and still be a
+// clear warning
+function _schemeFix(scheme: string, _strict: boolean): string {
+	if (_strict || _throwOnMissingSchema) {
+		return scheme || _empty;
+	}
+	if (!scheme) {
+		console.trace('BAD uri lacks scheme, falling back to file-scheme.');
+		scheme = 'file';
+	}
+	return scheme;
+}
+
 // implements a bit of https://tools.ietf.org/html/rfc3986#section-5
 function _referenceResolution(scheme: string, path: string): string {
 
@@ -108,7 +123,10 @@ export class URI implements UriComponents {
 			&& typeof (<URI>thing).fragment === 'string'
 			&& typeof (<URI>thing).path === 'string'
 			&& typeof (<URI>thing).query === 'string'
-			&& typeof (<URI>thing).scheme === 'string';
+			&& typeof (<URI>thing).scheme === 'string'
+			&& typeof (<URI>thing).fsPath === 'function'
+			&& typeof (<URI>thing).with === 'function'
+			&& typeof (<URI>thing).toString === 'function';
 	}
 
 	/**
@@ -151,7 +169,7 @@ export class URI implements UriComponents {
 	/**
 	 * @internal
 	 */
-	protected constructor(schemeOrData: string | UriComponents, authority?: string, path?: string, query?: string, fragment?: string, _strict?: boolean) {
+	protected constructor(schemeOrData: string | UriComponents, authority?: string, path?: string, query?: string, fragment?: string, _strict: boolean = false) {
 
 		if (typeof schemeOrData === 'object') {
 			this.scheme = schemeOrData.scheme || _empty;
@@ -163,7 +181,7 @@ export class URI implements UriComponents {
 			// that creates uri components.
 			// _validateUri(this);
 		} else {
-			this.scheme = schemeOrData || _empty;
+			this.scheme = _schemeFix(schemeOrData, _strict);
 			this.authority = authority || _empty;
 			this.path = _referenceResolution(this.scheme, path || _empty);
 			this.query = query || _empty;
@@ -215,27 +233,27 @@ export class URI implements UriComponents {
 		}
 
 		let { scheme, authority, path, query, fragment } = change;
-		if (scheme === void 0) {
+		if (scheme === undefined) {
 			scheme = this.scheme;
 		} else if (scheme === null) {
 			scheme = _empty;
 		}
-		if (authority === void 0) {
+		if (authority === undefined) {
 			authority = this.authority;
 		} else if (authority === null) {
 			authority = _empty;
 		}
-		if (path === void 0) {
+		if (path === undefined) {
 			path = this.path;
 		} else if (path === null) {
 			path = _empty;
 		}
-		if (query === void 0) {
+		if (query === undefined) {
 			query = this.query;
 		} else if (query === null) {
 			query = _empty;
 		}
-		if (fragment === void 0) {
+		if (fragment === undefined) {
 			fragment = this.fragment;
 		} else if (fragment === null) {
 			fragment = _empty;
@@ -546,7 +564,6 @@ function encodeURIComponentMinimal(path: string): string {
 
 /**
  * Compute `fsPath` for the given uri
- * @param uri
  */
 function _makeFsPath(uri: URI): string {
 

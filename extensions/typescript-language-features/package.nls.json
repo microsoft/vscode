@@ -37,7 +37,6 @@
 	"typescript.restartTsServer": "Restart TS server.",
 	"typescript.selectTypeScriptVersion.title": "Select TypeScript Version.",
 	"typescript.reportStyleChecksAsWarnings": "Report style checks as warnings.",
-	"jsDocCompletion.enabled": "Enable/disable auto JSDoc comments.",
 	"javascript.implicitProjectConfig.checkJs": "Enable/disable semantic checking of JavaScript files. Existing jsconfig.json or tsconfig.json files override this setting. Requires using TypeScript 2.3.1 or newer in the workspace.",
 	"typescript.npm": "Specifies the path to the NPM executable used for Automatic Type Acquisition. Requires using TypeScript 2.3.4 or newer in the workspace.",
 	"typescript.check.npmIsInstalled": "Check if NPM is installed for Automatic Type Acquisition.",
@@ -67,5 +66,7 @@
 	"typescript.updateImportsOnFileMove.enabled.never": "Never rename paths and don't prompt.",
 	"typescript.autoClosingTags": "Enable/disable automatic closing of JSX tags. Requires using TypeScript 3.0 or newer in the workspace.",
 	"typescript.suggest.enabled": "Enabled/disable autocomplete suggestions.",
-	"configuration.surveys.enabled": "Enabled/disable occasional surveys that help us improve VS Code's JavaScript and TypeScript support."
+	"configuration.surveys.enabled": "Enabled/disable occasional surveys that help us improve VS Code's JavaScript and TypeScript support.",
+	"configuration.suggest.completeJSDocs": "Enable/disable suggestion to complete JSDoc comments.",
+	"typescript.preferences.renameShorthandProperties": "Enable/disable introducing aliases for object shorthand properties during renames. Requires using TypeScript 3.4 or newer in the workspace."
 }

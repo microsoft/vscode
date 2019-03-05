@@ -8,11 +8,12 @@ import * as fs from 'fs';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-import { languages, ExtensionContext, IndentAction, Position, TextDocument, Range, CompletionItem, CompletionItemKind, SnippetString, workspace } from 'vscode';
+import { languages, ExtensionContext, IndentAction, Position, TextDocument, Range, CompletionItem, CompletionItemKind, SnippetString, workspace, SelectionRange } from 'vscode';
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, TextDocumentPositionParams } from 'vscode-languageclient';
 import { EMPTY_ELEMENTS } from './htmlEmptyTagsShared';
 import { activateTagClosing } from './tagClosing';
 import TelemetryReporter from 'vscode-extension-telemetry';
+import { getCustomDataPathsInAllWorkspaces, getCustomDataPathsFromAllExtensions } from './customData';
 
 namespace TagCloseRequest {
 	export const type: RequestType<TextDocumentPositionParams, string, any, any> = new RequestType('html/tag');
@@ -46,26 +47,13 @@ export function activate(context: ExtensionContext) {
 		debug: { module: serverModule, transport: TransportKind.ipc, options: debugOptions }
 	};
 
-	let documentSelector = ['html', 'handlebars', 'razor'];
+	let documentSelector = ['html', 'handlebars'];
 	let embeddedLanguages = { css: true, javascript: true };
 
-	let tagPaths: string[] = workspace.getConfiguration('html').get('experimental.custom.tags', []);
-	let attributePaths: string[] = workspace.getConfiguration('html').get('experimental.custom.attributes', []);
-
-	if (tagPaths && tagPaths.length > 0) {
-		if (!workspace.workspaceFolders) {
-			tagPaths = [];
-		} else {
-			try {
-				const workspaceRoot = workspace.workspaceFolders[0].uri.fsPath;
-				tagPaths = tagPaths.map(d => {
-					return path.resolve(workspaceRoot, d);
-				});
-			} catch (err) {
-				tagPaths = [];
-			}
-		}
-	}
+	let dataPaths = [
+		...getCustomDataPathsInAllWorkspaces(workspace.workspaceFolders),
+		...getCustomDataPathsFromAllExtensions()
+	];
 
 	// Options to control the language client
 	let clientOptions: LanguageClientOptions = {
@@ -75,8 +63,7 @@ export function activate(context: ExtensionContext) {
 		},
 		initializationOptions: {
 			embeddedLanguages,
-			tagPaths,
-			attributePaths
+			dataPaths
 		}
 	};
 
@@ -91,7 +78,7 @@ export function activate(context: ExtensionContext) {
 			let param = client.code2ProtocolConverter.asTextDocumentPositionParams(document, position);
 			return client.sendRequest(TagCloseRequest.type, param);
 		};
-		disposable = activateTagClosing(tagRequestor, { html: true, handlebars: true, razor: true }, 'html.autoClosingTags');
+		disposable = activateTagClosing(tagRequestor, { html: true, handlebars: true }, 'html.autoClosingTags');
 		toDispose.push(disposable);
 
 		disposable = client.onTelemetry(e => {
@@ -100,6 +87,26 @@ export function activate(context: ExtensionContext) {
 			}
 		});
 		toDispose.push(disposable);
+
+		documentSelector.forEach(selector => {
+			context.subscriptions.push(languages.registerSelectionRangeProvider(selector, {
+				async provideSelectionRanges(document: TextDocument, positions: Position[]): Promise<SelectionRange[][]> {
+					const textDocument = client.code2ProtocolConverter.asTextDocumentIdentifier(document);
+					const rawResult = await client.sendRequest<SelectionRange[][]>('$/textDocument/selectionRanges', { textDocument, positions: positions.map(client.code2ProtocolConverter.asPosition) });
+					if (Array.isArray(rawResult)) {
+						return rawResult.map(rawSelectionRanges => {
+							return rawSelectionRanges.map(selectionRange => {
+								return {
+									range: client.protocol2CodeConverter.asRange(selectionRange.range),
+									kind: selectionRange.kind
+								};
+							});
+						});
+					}
+					return [];
+				}
+			}));
+		});
 	});
 
 	languages.setLanguageConfiguration('html', {
@@ -123,21 +130,6 @@ export function activate(context: ExtensionContext) {
 
 	languages.setLanguageConfiguration('handlebars', {
 		wordPattern: /(-?\d*\.\d\w*)|([^\`\~\!\@\$\^\&\*\(\)\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\s]+)/g,
-		onEnterRules: [
-			{
-				beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))([_:\\w][_:\\w-.\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
-				afterText: /^<\/([_:\w][_:\w-.\d]*)\s*>/i,
-				action: { indentAction: IndentAction.IndentOutdent }
-			},
-			{
-				beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
-				action: { indentAction: IndentAction.Indent }
-			}
-		],
-	});
-
-	languages.setLanguageConfiguration('razor', {
-		wordPattern: /(-?\d*\.\d\w*)|([^\`\~\!\@\$\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\s]+)/g,
 		onEnterRules: [
 			{
 				beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))([_:\\w][_:\\w-.\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),

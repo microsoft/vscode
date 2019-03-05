@@ -6,7 +6,7 @@
 import * as sinon from 'sinon';
 import * as assert from 'assert';
 import * as os from 'os';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import * as fs from 'fs';
 import * as json from 'vs/base/common/json';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -20,7 +20,7 @@ import { TestNotificationService } from 'vs/platform/notification/test/common/te
 import * as uuid from 'vs/base/common/uuid';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
-import { FileService } from 'vs/workbench/services/files/electron-browser/fileService';
+import { FileService } from 'vs/workbench/services/files/node/fileService';
 import { ConfigurationEditingService, ConfigurationEditingError, ConfigurationEditingErrorCode } from 'vs/workbench/services/configuration/node/configurationEditingService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { WORKSPACE_STANDALONE_CONFIGURATIONS } from 'vs/workbench/services/configuration/common/configuration';
@@ -122,18 +122,18 @@ suite('ConfigurationEditingService', () => {
 			if (configuraitonService) {
 				configuraitonService.dispose();
 			}
-			instantiationService = null;
+			instantiationService = null!;
 		}
 	}
 
 	function clearWorkspace(): Promise<void> {
 		return new Promise<void>((c, e) => {
 			if (parentDir) {
-				extfs.del(parentDir, os.tmpdir(), () => c(void 0), () => c(void 0));
+				extfs.del(parentDir, os.tmpdir(), () => c(undefined), () => c(undefined));
 			} else {
-				c(void 0);
+				c(undefined);
 			}
-		}).then(() => parentDir = null);
+		}).then(() => parentDir = null!);
 	}
 
 	test('errors cases - invalid key', () => {
@@ -178,7 +178,7 @@ suite('ConfigurationEditingService', () => {
 	test('do not notify error', () => {
 		instantiationService.stub(ITextFileService, 'isDirty', true);
 		const target = sinon.stub();
-		instantiationService.stub(INotificationService, <INotificationService>{ prompt: target, _serviceBrand: null, notify: null, error: null, info: null, warn: null });
+		instantiationService.stub(INotificationService, <INotificationService>{ prompt: target, _serviceBrand: null, notify: null!, error: null!, info: null!, warn: null! });
 		return testObject.writeConfiguration(ConfigurationTarget.USER, { key: 'configurationEditing.service.testSetting', value: 'value' }, { donotNotifyError: true })
 			.then(() => assert.fail('Should fail with ERROR_CONFIGURATION_FILE_DIRTY error.'),
 				(error: ConfigurationEditingError) => {

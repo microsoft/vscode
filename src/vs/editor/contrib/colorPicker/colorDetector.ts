@@ -242,7 +242,7 @@ export class ColorDetector implements IEditorContribution {
 			return null;
 		}
 
-		return this._colorDatas.get(decorations[0].id);
+		return this._colorDatas.get(decorations[0].id)!;
 	}
 }
 

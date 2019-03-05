@@ -18,7 +18,7 @@ export interface IToolBarOptions {
 	orientation?: ActionsOrientation;
 	actionItemProvider?: IActionItemProvider;
 	ariaLabel?: string;
-	getKeyBinding?: (action: IAction) => ResolvedKeybinding;
+	getKeyBinding?: (action: IAction) => ResolvedKeybinding | undefined;
 	actionRunner?: IActionRunner;
 	toggleMenuTitle?: string;
 	anchorAlignmentProvider?: () => AnchorAlignment;
@@ -133,9 +133,9 @@ export class ToolBar extends Disposable {
 	}
 
 	private getKeybindingLabel(action: IAction): string | undefined {
-		const key = this.lookupKeybindings && this.options.getKeyBinding ? this.options.getKeyBinding(action) : void 0;
+		const key = this.lookupKeybindings && this.options.getKeyBinding ? this.options.getKeyBinding(action) : undefined;
 
-		return (key && key.getLabel()) || void 0;
+		return (key && key.getLabel()) || undefined;
 	}
 
 	addPrimaryAction(primaryAction: IAction): () => void {
@@ -157,7 +157,7 @@ export class ToolBar extends Disposable {
 	dispose(): void {
 		if (this.toggleMenuActionItem) {
 			this.toggleMenuActionItem.dispose();
-			this.toggleMenuActionItem = void 0;
+			this.toggleMenuActionItem = undefined;
 		}
 
 		super.dispose();
@@ -173,7 +173,7 @@ class ToggleMenuAction extends Action {
 
 	constructor(toggleDropdownMenu: () => void, title?: string) {
 		title = title || nls.localize('moreActions', "More Actions...");
-		super(ToggleMenuAction.ID, title, void 0, true);
+		super(ToggleMenuAction.ID, title, undefined, true);
 
 		this.toggleDropdownMenu = toggleDropdownMenu;
 	}

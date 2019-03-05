@@ -72,6 +72,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 	private createParamaterHintDOMNodes() {
 		this.element = $('.editor-widget.parameter-hints-widget');
 		const wrapper = dom.append(this.element, $('.wrapper'));
+		wrapper.tabIndex = -1;
 
 		const buttons = dom.append(wrapper, $('.buttons'));
 		const previous = dom.append(buttons, $('.button.previous'));
@@ -284,12 +285,14 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
 	next(): void {
 		if (this.model) {
+			this.editor.focus();
 			this.model.next();
 		}
 	}
 
 	previous(): void {
 		if (this.model) {
+			this.editor.focus();
 			this.model.previous();
 		}
 	}

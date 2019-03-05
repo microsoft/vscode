@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as paths from 'vs/base/common/paths';
-import * as strings from 'vs/base/common/strings';
-import * as arrays from 'vs/base/common/arrays';
+import { basename, posix, extname } from 'vs/base/common/path';
+import { endsWith, startsWithUTF8BOM, startsWith } from 'vs/base/common/strings';
+import { coalesce } from 'vs/base/common/arrays';
 import { match } from 'vs/base/common/glob';
 
 export const MIME_TEXT = 'text/plain';
@@ -82,10 +82,10 @@ function toTextMimeAssociationItem(association: ITextMimeAssociation): ITextMime
 		filepattern: association.filepattern,
 		firstline: association.firstline,
 		userConfigured: association.userConfigured,
-		filenameLowercase: association.filename ? association.filename.toLowerCase() : void 0,
-		extensionLowercase: association.extension ? association.extension.toLowerCase() : void 0,
-		filepatternLowercase: association.filepattern ? association.filepattern.toLowerCase() : void 0,
-		filepatternOnPath: association.filepattern ? association.filepattern.indexOf(paths.sep) >= 0 : false
+		filenameLowercase: association.filename ? association.filename.toLowerCase() : undefined,
+		extensionLowercase: association.extension ? association.extension.toLowerCase() : undefined,
+		filepatternLowercase: association.filepattern ? association.filepattern.toLowerCase() : undefined,
+		filepatternOnPath: association.filepattern ? association.filepattern.indexOf(posix.sep) >= 0 : false
 	};
 }
 
@@ -112,7 +112,7 @@ export function guessMimeTypes(path: string | null, firstLine?: string): string[
 	}
 
 	path = path.toLowerCase();
-	const filename = paths.basename(path);
+	const filename = basename(path);
 
 	// 1.) User configured mappings have highest priority
 	const configuredMime = guessMimeTypeByPath(path, filename, userRegisteredAssociations);
@@ -166,7 +166,7 @@ function guessMimeTypeByPath(path: string, filename: string, associations: IText
 		// Longest extension match
 		if (association.extension) {
 			if (!extensionMatch || association.extension.length > extensionMatch.extension!.length) {
-				if (strings.endsWith(filename, association.extensionLowercase!)) {
+				if (endsWith(filename, association.extensionLowercase!)) {
 					extensionMatch = association;
 				}
 			}
@@ -192,13 +192,12 @@ function guessMimeTypeByPath(path: string, filename: string, associations: IText
 }
 
 function guessMimeTypeByFirstline(firstLine: string): string | null {
-	if (strings.startsWithUTF8BOM(firstLine)) {
+	if (startsWithUTF8BOM(firstLine)) {
 		firstLine = firstLine.substr(1);
 	}
 
 	if (firstLine.length > 0) {
-		for (let i = 0; i < registeredAssociations.length; ++i) {
-			const association = registeredAssociations[i];
+		for (const association of registeredAssociations) {
 			if (!association.firstline) {
 				continue;
 			}
@@ -235,8 +234,8 @@ export function suggestFilename(langId: string, prefix: string): string {
 	const extensions = registeredAssociations
 		.filter(assoc => !assoc.userConfigured && assoc.extension && assoc.id === langId)
 		.map(assoc => assoc.extension);
-	const extensionsWithDotFirst = arrays.coalesce(extensions)
-		.filter(assoc => strings.startsWith(assoc, '.'));
+	const extensionsWithDotFirst = coalesce(extensions)
+		.filter(assoc => startsWith(assoc, '.'));
 
 	if (extensionsWithDotFirst.length > 0) {
 		return prefix + extensionsWithDotFirst[0];
@@ -300,6 +299,6 @@ const mapExtToMediaMimes: MapExtToMediaMimes = {
 };
 
 export function getMediaMime(path: string): string | undefined {
-	const ext = paths.extname(path);
+	const ext = extname(path);
 	return mapExtToMediaMimes[ext.toLowerCase()];
 }

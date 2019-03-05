@@ -45,17 +45,20 @@ export class ExtHostDocumentContentProvider implements ExtHostDocumentContentPro
 		this._documentContentProviders.set(handle, provider);
 		this._proxy.$registerTextContentProvider(handle, scheme);
 
-		let subscription: IDisposable;
+		let subscription: IDisposable | undefined;
 		if (typeof provider.onDidChange === 'function') {
 			subscription = provider.onDidChange(uri => {
 				if (uri.scheme !== scheme) {
 					this._logService.warn(`Provider for scheme '${scheme}' is firing event for schema '${uri.scheme}' which will be IGNORED`);
 					return;
 				}
-				if (this._documentsAndEditors.getDocument(uri.toString())) {
+				if (this._documentsAndEditors.getDocument(uri)) {
 					this.$provideTextDocumentContent(handle, uri).then(value => {
+						if (!value) {
+							return;
+						}
 
-						const document = this._documentsAndEditors.getDocument(uri.toString());
+						const document = this._documentsAndEditors.getDocument(uri);
 						if (!document) {
 							// disposed in the meantime
 							return;
@@ -84,7 +87,7 @@ export class ExtHostDocumentContentProvider implements ExtHostDocumentContentPro
 		});
 	}
 
-	$provideTextDocumentContent(handle: number, uri: UriComponents): Promise<string> {
+	$provideTextDocumentContent(handle: number, uri: UriComponents): Promise<string | null | undefined> {
 		const provider = this._documentContentProviders.get(handle);
 		if (!provider) {
 			return Promise.reject(new Error(`unsupported uri-scheme: ${uri.scheme}`));

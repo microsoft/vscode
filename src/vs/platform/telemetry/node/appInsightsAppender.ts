@@ -150,7 +150,7 @@ export class AppInsightsAppender implements ITelemetryAppender {
 					callback: () => {
 						// all data flushed
 						this._aiClient = undefined;
-						resolve(void 0);
+						resolve(undefined);
 					}
 				});
 			});

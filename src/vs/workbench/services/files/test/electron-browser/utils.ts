@@ -10,9 +10,9 @@ export function getByName(root: IFileStat, name: string): IFileStat | null {
 		return null;
 	}
 
-	for (let i = 0; i < root.children.length; i++) {
-		if (root.children[i].name === name) {
-			return root.children[i];
+	for (const child of root.children) {
+		if (child.name === name) {
+			return child;
 		}
 	}
 

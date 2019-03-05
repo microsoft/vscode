@@ -28,8 +28,8 @@ class MoveCaretAction extends EditorAction {
 		let commands: ICommand[] = [];
 		let selections = editor.getSelections();
 
-		for (let i = 0; i < selections.length; i++) {
-			commands.push(new MoveCaretCommand(selections[i], this.left));
+		for (const selection of selections) {
+			commands.push(new MoveCaretCommand(selection, this.left));
 		}
 
 		editor.pushUndoStop();

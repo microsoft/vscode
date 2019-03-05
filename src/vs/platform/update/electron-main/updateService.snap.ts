@@ -6,15 +6,13 @@
 import { Event, Emitter } from 'vs/base/common/event';
 import { timeout } from 'vs/base/common/async';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
-import product from 'vs/platform/node/product';
 import { IUpdateService, State, StateType, AvailableForDownload, UpdateType } from 'vs/platform/update/common/update';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import { realpath, watch } from 'fs';
 import { spawn } from 'child_process';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { stat } from 'vs/base/node/pfs';
 
 abstract class AbstractUpdateService2 implements IUpdateService {
 
@@ -36,7 +34,7 @@ abstract class AbstractUpdateService2 implements IUpdateService {
 	}
 
 	constructor(
-		@ILifecycleService private lifecycleService: ILifecycleService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@ILogService protected logService: ILogService,
 	) {
@@ -81,7 +79,7 @@ abstract class AbstractUpdateService2 implements IUpdateService {
 	}
 
 	protected doDownloadUpdate(state: AvailableForDownload): Promise<void> {
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	async applyUpdate(): Promise<void> {
@@ -95,14 +93,14 @@ abstract class AbstractUpdateService2 implements IUpdateService {
 	}
 
 	protected doApplyUpdate(): Promise<void> {
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	quitAndInstall(): Promise<void> {
 		this.logService.trace('update#quitAndInstall, state = ', this.state.type);
 
 		if (this.state.type !== StateType.Ready) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		this.logService.trace('update#quitAndInstall(): before lifecycle quit()');
@@ -117,7 +115,7 @@ abstract class AbstractUpdateService2 implements IUpdateService {
 			this.doQuitAndInstall();
 		});
 
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 
@@ -137,19 +135,15 @@ export class SnapUpdateService extends AbstractUpdateService2 {
 
 	_serviceBrand: any;
 
-	private snapUpdatePath: string;
-
 	constructor(
 		private snap: string,
 		private snapRevision: string,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@ILogService logService: ILogService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super(lifecycleService, environmentService, logService);
-
-		this.snapUpdatePath = path.join(this.snap, `usr/share/${product.applicationName}/snapUpdate.sh`);
 
 		const watcher = watch(path.dirname(this.snap));
 		const onChange = Event.fromNodeEventEmitter(watcher, 'change', (_, fileName: string) => fileName);
@@ -196,19 +190,14 @@ export class SnapUpdateService extends AbstractUpdateService2 {
 		this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
 
 		// Allow 3 seconds for VS Code to close
-		spawn('bash', ['-c', this.snapUpdatePath], {
+		spawn('sleep 3 && $SNAP_NAME', {
+			shell: true,
 			detached: true,
-			stdio: ['ignore', 'ignore', 'ignore']
+			stdio: 'ignore',
 		});
 	}
 
 	private async isUpdateAvailable(): Promise<boolean> {
-		try {
-			await stat(this.snapUpdatePath);
-		} catch (err) {
-			return false;
-		}
-
 		const resolvedCurrentSnapPath = await new Promise<string>((c, e) => realpath(`${path.dirname(this.snap)}/current`, (err, r) => err ? e(err) : c(r)));
 		const currentRevision = path.basename(resolvedCurrentSnapPath);
 		return this.snapRevision !== currentRevision;

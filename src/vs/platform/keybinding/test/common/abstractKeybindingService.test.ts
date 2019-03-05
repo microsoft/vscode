@@ -61,7 +61,7 @@ suite('AbstractKeybindingService', () => {
 				keyboardEvent.altKey,
 				keyboardEvent.metaKey,
 				keyboardEvent.keyCode
-			);
+			).toChord();
 			return this.resolveKeybinding(keybinding)[0];
 		}
 
@@ -72,20 +72,25 @@ suite('AbstractKeybindingService', () => {
 		public testDispatch(kb: number): boolean {
 			const keybinding = createSimpleKeybinding(kb, OS);
 			return this._dispatch({
+				_standardKeyboardEventBrand: true,
 				ctrlKey: keybinding.ctrlKey,
 				shiftKey: keybinding.shiftKey,
 				altKey: keybinding.altKey,
 				metaKey: keybinding.metaKey,
 				keyCode: keybinding.keyCode,
-				code: null
-			}, null);
+				code: null!
+			}, null!);
+		}
+
+		public _dumpDebugInfo(): string {
+			return '';
 		}
 	}
 
-	let createTestKeybindingService: (items: ResolvedKeybindingItem[], contextValue?: any) => TestKeybindingService = null;
+	let createTestKeybindingService: (items: ResolvedKeybindingItem[], contextValue?: any) => TestKeybindingService = null!;
 	let currentContextValue: IContext | null = null;
-	let executeCommandCalls: { commandId: string; args: any[]; }[] = null;
-	let showMessageCalls: { sev: Severity, message: any; }[] = null;
+	let executeCommandCalls: { commandId: string; args: any[]; }[] = null!;
+	let showMessageCalls: { sev: Severity, message: any; }[] = null!;
 	let statusMessageCalls: string[] | null = null;
 	let statusMessageCallsDisposed: string[] | null = null;
 
@@ -99,12 +104,12 @@ suite('AbstractKeybindingService', () => {
 
 			let contextKeyService: IContextKeyService = {
 				_serviceBrand: undefined,
-				dispose: undefined,
-				onDidChangeContext: undefined,
-				createKey: undefined,
-				contextMatchesRules: undefined,
-				getContextKeyValue: undefined,
-				createScoped: undefined,
+				dispose: undefined!,
+				onDidChangeContext: undefined!,
+				createKey: undefined!,
+				contextMatchesRules: undefined!,
+				getContextKeyValue: undefined!,
+				createScoped: undefined!,
 				getContext: (target: IContextKeyServiceTarget): any => {
 					return currentContextValue;
 				}
@@ -118,7 +123,7 @@ suite('AbstractKeybindingService', () => {
 						commandId: commandId,
 						args: args
 					});
-					return Promise.resolve(void 0);
+					return Promise.resolve(undefined);
 				}
 			};
 
@@ -147,12 +152,12 @@ suite('AbstractKeybindingService', () => {
 
 			let statusbarService: IStatusbarService = {
 				_serviceBrand: undefined,
-				addEntry: undefined,
+				addEntry: undefined!,
 				setStatusMessage: (message: string, autoDisposeAfter?: number, delayBy?: number): IDisposable => {
-					statusMessageCalls.push(message);
+					statusMessageCalls!.push(message);
 					return {
 						dispose: () => {
-							statusMessageCallsDisposed.push(message);
+							statusMessageCallsDisposed!.push(message);
 						}
 					};
 				}
@@ -166,15 +171,15 @@ suite('AbstractKeybindingService', () => {
 
 	teardown(() => {
 		currentContextValue = null;
-		executeCommandCalls = null;
-		showMessageCalls = null;
-		createTestKeybindingService = null;
+		executeCommandCalls = null!;
+		showMessageCalls = null!;
+		createTestKeybindingService = null!;
 		statusMessageCalls = null;
 		statusMessageCallsDisposed = null;
 	});
 
 	function kbItem(keybinding: number, command: string, when: ContextKeyExpr | null = null): ResolvedKeybindingItem {
-		const resolvedKeybinding = (keybinding !== 0 ? new USLayoutResolvedKeybinding(createKeybinding(keybinding, OS), OS) : null);
+		const resolvedKeybinding = (keybinding !== 0 ? new USLayoutResolvedKeybinding(createKeybinding(keybinding, OS)!, OS) : null);
 		return new ResolvedKeybindingItem(
 			resolvedKeybinding,
 			command,
@@ -185,8 +190,8 @@ suite('AbstractKeybindingService', () => {
 	}
 
 	function toUsLabel(keybinding: number): string {
-		const usResolvedKeybinding = new USLayoutResolvedKeybinding(createKeybinding(keybinding, OS), OS);
-		return usResolvedKeybinding.getLabel();
+		const usResolvedKeybinding = new USLayoutResolvedKeybinding(createKeybinding(keybinding, OS)!, OS);
+		return usResolvedKeybinding.getLabel()!;
 	}
 
 	test('issue #16498: chord mode is quit for invalid chords', () => {

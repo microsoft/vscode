@@ -14,6 +14,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IProgressService, LongRunningOperation } from 'vs/platform/progress/common/progress';
 import { IEditorGroupView, DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
 import { Event, Emitter } from 'vs/base/common/event';
+import { IActiveEditor } from 'vs/workbench/services/editor/common/editorService';
 
 export interface IOpenEditorResult {
 	readonly control: BaseEditor;
@@ -27,13 +28,13 @@ export class EditorControl extends Disposable {
 	get maximumWidth() { return this._activeControl ? this._activeControl.maximumWidth : DEFAULT_EDITOR_MAX_DIMENSIONS.width; }
 	get maximumHeight() { return this._activeControl ? this._activeControl.maximumHeight : DEFAULT_EDITOR_MAX_DIMENSIONS.height; }
 
-	private _onDidFocus: Emitter<void> = this._register(new Emitter<void>());
+	private readonly _onDidFocus: Emitter<void> = this._register(new Emitter<void>());
 	get onDidFocus(): Event<void> { return this._onDidFocus.event; }
 
-	private _onDidSizeConstraintsChange = this._register(new Emitter<{ width: number; height: number; }>());
-	get onDidSizeConstraintsChange(): Event<{ width: number; height: number; }> { return this._onDidSizeConstraintsChange.event; }
+	private _onDidSizeConstraintsChange = this._register(new Emitter<{ width: number; height: number; } | undefined>());
+	get onDidSizeConstraintsChange(): Event<{ width: number; height: number; } | undefined> { return this._onDidSizeConstraintsChange.event; }
 
-	private _activeControl: BaseEditor;
+	private _activeControl: BaseEditor | null;
 	private controls: BaseEditor[] = [];
 
 	private activeControlDisposeables: IDisposable[] = [];
@@ -43,8 +44,8 @@ export class EditorControl extends Disposable {
 	constructor(
 		private parent: HTMLElement,
 		private groupView: IEditorGroupView,
-		@IPartService private partService: IPartService,
-		@IInstantiationService private instantiationService: IInstantiationService,
+		@IPartService private readonly partService: IPartService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IProgressService progressService: IProgressService
 	) {
 		super();
@@ -52,18 +53,21 @@ export class EditorControl extends Disposable {
 		this.editorOperation = this._register(new LongRunningOperation(progressService));
 	}
 
-	get activeControl(): BaseEditor {
-		return this._activeControl;
+	get activeControl(): IActiveEditor | null {
+		return this._activeControl as IActiveEditor | null;
 	}
 
 	openEditor(editor: EditorInput, options?: EditorOptions): Promise<IOpenEditorResult> {
 
 		// Editor control
 		const descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(editor);
+		if (!descriptor) {
+			throw new Error('No editor descriptor found');
+		}
 		const control = this.doShowEditorControl(descriptor);
 
 		// Set input
-		return this.doSetInput(control, editor, options).then((editorChanged => (({ control, editorChanged } as IOpenEditorResult))));
+		return this.doSetInput(control, editor, options || null).then((editorChanged => (({ control, editorChanged } as IOpenEditorResult))));
 	}
 
 	private doShowEditorControl(descriptor: IEditorDescriptor): BaseEditor {
@@ -129,7 +133,7 @@ export class EditorControl extends Disposable {
 		return control;
 	}
 
-	private doSetActiveControl(control: BaseEditor) {
+	private doSetActiveControl(control: BaseEditor | null) {
 		this._activeControl = control;
 
 		// Clear out previous active control listeners
@@ -142,10 +146,10 @@ export class EditorControl extends Disposable {
 		}
 
 		// Indicate that size constraints could have changed due to new editor
-		this._onDidSizeConstraintsChange.fire();
+		this._onDidSizeConstraintsChange.fire(undefined);
 	}
 
-	private doSetInput(control: BaseEditor, editor: EditorInput, options: EditorOptions): Promise<boolean> {
+	private doSetInput(control: BaseEditor, editor: EditorInput, options: EditorOptions | null): Promise<boolean> {
 
 		// If the input did not change, return early and only apply the options
 		// unless the options instruct us to force open it even if it is the same

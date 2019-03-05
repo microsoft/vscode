@@ -122,10 +122,10 @@ export class LaunchService implements ILaunchService {
 	_serviceBrand: any;
 
 	constructor(
-		@ILogService private logService: ILogService,
-		@IWindowsMainService private windowsMainService: IWindowsMainService,
-		@IURLService private urlService: IURLService,
-		@IWorkspacesMainService private workspacesMainService: IWorkspacesMainService,
+		@ILogService private readonly logService: ILogService,
+		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
+		@IURLService private readonly urlService: IURLService,
+		@IWorkspacesMainService private readonly workspacesMainService: IWorkspacesMainService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) { }
@@ -152,7 +152,7 @@ export class LaunchService implements ILaunchService {
 				}
 			});
 
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		// Otherwise handle in windows service
@@ -165,7 +165,7 @@ export class LaunchService implements ILaunchService {
 
 		// Special case extension development
 		if (!!args.extensionDevelopmentPath) {
-			this.windowsMainService.openExtensionDevelopmentHostWindow({ context, cli: args, userEnv });
+			this.windowsMainService.openExtensionDevelopmentHostWindow(args.extensionDevelopmentPath, { context, cli: args, userEnv });
 		}
 
 		// Start without file/folder arguments
@@ -226,10 +226,10 @@ export class LaunchService implements ILaunchService {
 			return Promise.race([
 				this.windowsMainService.waitForWindowCloseOrLoad(usedWindows[0].id),
 				whenDeleted(args.waitMarkerFilePath)
-			]).then(() => void 0, () => void 0);
+			]).then(() => undefined, () => undefined);
 		}
 
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	getMainProcessId(): Promise<number> {
@@ -270,12 +270,16 @@ export class LaunchService implements ILaunchService {
 		if (window.openedFolderUri) {
 			folderURIs.push(window.openedFolderUri);
 		} else if (window.openedWorkspace) {
-			const resolvedWorkspace = this.workspacesMainService.resolveWorkspaceSync(window.openedWorkspace.configPath);
+			// workspace folders can only be shown for local workspaces
+			const workspaceConfigPath = window.openedWorkspace.configPath;
+			const resolvedWorkspace = this.workspacesMainService.resolveLocalWorkspaceSync(workspaceConfigPath);
 			if (resolvedWorkspace) {
 				const rootFolders = resolvedWorkspace.folders;
 				rootFolders.forEach(root => {
 					folderURIs.push(root.uri);
 				});
+			} else {
+				//TODO: can we add the workspace file here?
 			}
 		}
 

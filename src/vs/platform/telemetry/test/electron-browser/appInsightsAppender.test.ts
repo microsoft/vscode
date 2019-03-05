@@ -73,9 +73,9 @@ class TestableLogService extends AbstractLogService implements ILogService {
 }
 
 suite('AIAdapter', () => {
-	var appInsightsMock: AppInsightsMock;
-	var adapter: AppInsightsAppender;
-	var prefix = 'prefix';
+	let appInsightsMock: AppInsightsMock;
+	let adapter: AppInsightsAppender;
+	let prefix = 'prefix';
 
 
 	setup(() => {
@@ -107,33 +107,33 @@ suite('AIAdapter', () => {
 	});
 
 	test('property limits', () => {
-		var reallyLongPropertyName = 'abcdefghijklmnopqrstuvwxyz';
+		let reallyLongPropertyName = 'abcdefghijklmnopqrstuvwxyz';
 		for (let i = 0; i < 6; i++) {
 			reallyLongPropertyName += 'abcdefghijklmnopqrstuvwxyz';
 		}
 		assert(reallyLongPropertyName.length > 150);
 
-		var reallyLongPropertyValue = 'abcdefghijklmnopqrstuvwxyz012345678901234567890123';
+		let reallyLongPropertyValue = 'abcdefghijklmnopqrstuvwxyz012345678901234567890123';
 		for (let i = 0; i < 21; i++) {
 			reallyLongPropertyValue += 'abcdefghijklmnopqrstuvwxyz012345678901234567890123';
 		}
 		assert(reallyLongPropertyValue.length > 1024);
 
-		var data = Object.create(null);
+		let data = Object.create(null);
 		data[reallyLongPropertyName] = '1234';
 		data['reallyLongPropertyValue'] = reallyLongPropertyValue;
 		adapter.log('testEvent', data);
 
 		assert.equal(appInsightsMock.events.length, 1);
 
-		for (var prop in appInsightsMock.events[0].properties!) {
+		for (let prop in appInsightsMock.events[0].properties!) {
 			assert(prop.length < 150);
 			assert(appInsightsMock.events[0].properties![prop].length < 1024);
 		}
 	});
 
 	test('Different data types', () => {
-		var date = new Date();
+		let date = new Date();
 		adapter.log('testEvent', { favoriteDate: date, likeRed: false, likeBlue: true, favoriteNumber: 1, favoriteColor: 'blue', favoriteCars: ['bmw', 'audi', 'ford'] });
 
 		assert.equal(appInsightsMock.events.length, 1);

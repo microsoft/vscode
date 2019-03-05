@@ -189,7 +189,7 @@ export interface ITextFileEditorModelManager {
 	onModelsSaved: Event<TextFileModelChangeEvent[]>;
 	onModelsReverted: Event<TextFileModelChangeEvent[]>;
 
-	get(resource: URI): ITextFileEditorModel;
+	get(resource: URI): ITextFileEditorModel | undefined;
 
 	getAll(resource?: URI): ITextFileEditorModel[];
 
@@ -236,17 +236,17 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	hasState(state: ModelState): boolean;
 
-	getETag(): string;
+	getETag(): string | null;
 
 	updatePreferredEncoding(encoding: string): void;
 
-	save(options?: ISaveOptions): Promise<void>;
+	save(options?: ISaveOptions): Promise<void> | undefined;
 
 	load(options?: ILoadOptions): Promise<ITextFileEditorModel>;
 
 	revert(soft?: boolean): Promise<void>;
 
-	createSnapshot(): ITextSnapshot;
+	createSnapshot(): ITextSnapshot | null;
 
 	isDirty(): boolean;
 

@@ -12,14 +12,14 @@ import throttle = require('lodash.throttle');
 
 declare var acquireVsCodeApi: any;
 
-var scrollDisabled = true;
+let scrollDisabled = true;
 const marker = new ActiveLineMarker();
 const settings = getSettings();
 
 const vscode = acquireVsCodeApi();
 
 // Set VS Code state
-const state = getData('data-state');
+let state = getData('data-state');
 vscode.setState(state);
 
 const messaging = createPosterForVsCode(vscode);
@@ -152,6 +152,8 @@ if (settings.scrollEditorWithPreview) {
 			const line = getEditorLineNumberForPageOffset(window.scrollY);
 			if (typeof line === 'number' && !isNaN(line)) {
 				messaging.postMessage('revealLine', { line });
+				state.line = line;
+				vscode.setState(state);
 			}
 		}
 	}, 50));

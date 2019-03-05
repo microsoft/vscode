@@ -364,7 +364,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		const lineHeight = this.editor.getConfiguration().lineHeight;
 
 		// adjust heightInLines to viewport
-		const maxHeightInLines = (this.editor.getLayoutInfo().height / lineHeight) * .8;
+		const maxHeightInLines = (this.editor.getLayoutInfo().height / lineHeight) * 0.8;
 		if (heightInLines >= maxHeightInLines) {
 			heightInLines = maxHeightInLines;
 		}

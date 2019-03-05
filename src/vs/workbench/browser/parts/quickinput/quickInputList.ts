@@ -32,14 +32,14 @@ import { IListOptions } from 'vs/base/browser/ui/list/listWidget';
 const $ = dom.$;
 
 interface IListElement {
-	index: number;
-	item: IQuickPickItem;
-	saneLabel: string;
-	saneDescription?: string;
-	saneDetail?: string;
-	checked: boolean;
-	separator: IQuickPickSeparator;
-	fireButtonTriggered: (event: IQuickPickItemButtonEvent<IQuickPickItem>) => void;
+	readonly index: number;
+	readonly item: IQuickPickItem;
+	readonly saneLabel: string;
+	readonly saneDescription?: string;
+	readonly saneDetail?: string;
+	readonly checked: boolean;
+	readonly separator?: IQuickPickSeparator;
+	readonly fireButtonTriggered: (event: IQuickPickItemButtonEvent<IQuickPickItem>) => void;
 }
 
 class ListElement implements IListElement {
@@ -53,7 +53,7 @@ class ListElement implements IListElement {
 	onChecked = this._onChecked.event;
 	_checked?: boolean;
 	get checked() {
-		return this._checked;
+		return !!this._checked;
 	}
 	set checked(value: boolean) {
 		if (value !== this._checked) {
@@ -61,7 +61,7 @@ class ListElement implements IListElement {
 			this._onChecked.fire(value);
 		}
 	}
-	separator: IQuickPickSeparator;
+	separator?: IQuickPickSeparator;
 	labelHighlights?: IMatch[];
 	descriptionHighlights?: IMatch[];
 	detailHighlights?: IMatch[];
@@ -173,14 +173,14 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 		const buttons = element.item.buttons;
 		if (buttons && buttons.length) {
 			data.actionBar.push(buttons.map((button, index) => {
-				const action = new Action(`id-${index}`, '', button.iconClass || getIconClass(button.iconPath), true, () => {
+				const action = new Action(`id-${index}`, '', button.iconClass || (button.iconPath ? getIconClass(button.iconPath) : undefined), true, () => {
 					element.fireButtonTriggered({
 						button,
 						item: element.item
 					});
-					return null;
+					return Promise.resolve();
 				});
-				action.tooltip = button.tooltip;
+				action.tooltip = button.tooltip || '';
 				return action;
 			}), { icon: true, label: false });
 			dom.addClass(data.entry, 'has-actions');
@@ -220,6 +220,7 @@ export class QuickInputList {
 	private elementsToIndexes = new Map<IQuickPickItem, number>();
 	matchOnDescription = false;
 	matchOnDetail = false;
+	matchOnLabel = true;
 	private _onChangedAllVisibleChecked = new Emitter<boolean>();
 	onChangedAllVisibleChecked: Event<boolean> = this._onChangedAllVisibleChecked.event;
 	private _onChangedCheckedCount = new Emitter<number>();
@@ -239,7 +240,7 @@ export class QuickInputList {
 	constructor(
 		private parent: HTMLElement,
 		id: string,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		this.id = id;
 		this.container = dom.append(this.parent, $('.quick-input-list'));
@@ -248,7 +249,8 @@ export class QuickInputList {
 			identityProvider: { getId: element => element.saneLabel },
 			openController: { shouldOpen: () => false }, // Workaround #58124
 			setRowLineHeight: false,
-			multipleSelectionSupport: false
+			multipleSelectionSupport: false,
+			horizontalScrolling: false
 		} as IListOptions<ListElement>) as WorkbenchList<ListElement>;
 		this.list.getHTMLElement().id = id;
 		this.disposables.push(this.list);
@@ -395,7 +397,10 @@ export class QuickInputList {
 	setFocusedElements(items: IQuickPickItem[]) {
 		this.list.setFocus(items
 			.filter(item => this.elementsToIndexes.has(item))
-			.map(item => this.elementsToIndexes.get(item)));
+			.map(item => this.elementsToIndexes.get(item)!));
+		if (items.length > 0) {
+			this.list.reveal(this.list.getFocus()[0]);
+		}
 	}
 
 	getActiveDescendant() {
@@ -410,7 +415,7 @@ export class QuickInputList {
 	setSelectedElements(items: IQuickPickItem[]) {
 		this.list.setSelection(items
 			.filter(item => this.elementsToIndexes.has(item))
-			.map(item => this.elementsToIndexes.get(item)));
+			.map(item => this.elementsToIndexes.get(item)!));
 	}
 
 	getCheckedElements() {
@@ -467,6 +472,9 @@ export class QuickInputList {
 	}
 
 	filter(query: string) {
+		if (!(this.matchOnLabel || this.matchOnDescription || this.matchOnDetail)) {
+			return;
+		}
 		query = query.trim();
 
 		// Reset filtering
@@ -484,9 +492,9 @@ export class QuickInputList {
 		// Filter by value (since we support octicons, use octicon aware fuzzy matching)
 		else {
 			this.elements.forEach(element => {
-				const labelHighlights = matchesFuzzyOcticonAware(query, parseOcticons(element.saneLabel));
-				const descriptionHighlights = this.matchOnDescription ? matchesFuzzyOcticonAware(query, parseOcticons(element.saneDescription || '')) : undefined;
-				const detailHighlights = this.matchOnDetail ? matchesFuzzyOcticonAware(query, parseOcticons(element.saneDetail || '')) : undefined;
+				const labelHighlights = this.matchOnLabel ? matchesFuzzyOcticonAware(query, parseOcticons(element.saneLabel)) || undefined : undefined;
+				const descriptionHighlights = this.matchOnDescription ? matchesFuzzyOcticonAware(query, parseOcticons(element.saneDescription || '')) || undefined : undefined;
+				const detailHighlights = this.matchOnDetail ? matchesFuzzyOcticonAware(query, parseOcticons(element.saneDetail || '')) || undefined : undefined;
 
 				if (labelHighlights || descriptionHighlights || detailHighlights) {
 					element.labelHighlights = labelHighlights;

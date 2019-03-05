@@ -105,7 +105,7 @@ export class SharedProcess implements ISharedProcess {
 				});
 
 				disposables.push(toDisposable(() => sender.send('handshake:goodbye')));
-				ipcMain.once('handshake:im ready', () => c(void 0));
+				ipcMain.once('handshake:im ready', () => c(undefined));
 			});
 		});
 	}

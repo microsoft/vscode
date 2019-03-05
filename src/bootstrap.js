@@ -69,7 +69,15 @@ exports.uriFromPath = function (_path) {
 		pathName = '/' + pathName;
 	}
 
-	return encodeURI('file://' + pathName).replace(/#/g, '%23');
+	/** @type {string} */
+	let uri;
+	if (process.platform === 'win32' && pathName.startsWith('//')) { // specially handle Windows UNC paths
+		uri = encodeURI('file:' + pathName);
+	} else {
+		uri = encodeURI('file://' + pathName);
+	}
+
+	return uri.replace(/#/g, '%23');
 };
 //#endregion
 
@@ -108,6 +116,36 @@ exports.writeFile = function (file, content) {
 			}
 			resolve();
 		});
+	});
+};
+
+/**
+ * @param {string} dir
+ * @returns {Promise<string>}
+ */
+function mkdir(dir) {
+	const fs = require('fs');
+
+	return new Promise((c, e) => fs.mkdir(dir, err => (err && err.code !== 'EEXIST') ? e(err) : c(dir)));
+}
+
+/**
+ * @param {string} dir
+ * @returns {Promise<string>}
+ */
+exports.mkdirp = function mkdirp(dir) {
+	const path = require('path');
+
+	return mkdir(dir).then(null, err => {
+		if (err && err.code === 'ENOENT') {
+			const parent = path.dirname(dir);
+
+			if (parent !== dir) { // if not arrived at root
+				return mkdirp(parent).then(() => mkdir(dir));
+			}
+		}
+
+		throw err;
 	});
 };
 //#endregion

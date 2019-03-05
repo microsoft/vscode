@@ -7,7 +7,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Action, IAction } from 'vs/base/common/actions';
 import { BaseActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ITree, IActionProvider } from 'vs/base/parts/tree/browser/tree';
-import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, IConstructorSignature0, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 /**
  * The action bar contributor allows to add actions to an actionbar in a given context.
@@ -45,7 +45,7 @@ export class ActionBarContributor {
 	/**
 	 * Can return a specific IActionItem to render the given action.
 	 */
-	getActionItem(context: any, action: Action): BaseActionItem {
+	getActionItem(context: any, action: Action): BaseActionItem | null {
 		return null;
 	}
 }
@@ -54,6 +54,7 @@ export class ActionBarContributor {
  * Some predefined scopes to contribute actions to
  */
 export const Scope = {
+
 	/**
 	 * Actions inside tree widgets.
 	 */
@@ -81,8 +82,7 @@ export class ContributableActionProvider implements IActionProvider {
 		const context = this.toContext(tree, element);
 
 		const contributors = this.registry.getActionBarContributors(Scope.VIEWER);
-		for (let i = 0; i < contributors.length; i++) {
-			const contributor = contributors[i];
+		for (const contributor of contributors) {
 			if (contributor.hasActions(context)) {
 				return true;
 			}
@@ -97,8 +97,7 @@ export class ContributableActionProvider implements IActionProvider {
 
 		// Collect Actions
 		const contributors = this.registry.getActionBarContributors(Scope.VIEWER);
-		for (let i = 0; i < contributors.length; i++) {
-			const contributor = contributors[i];
+		for (const contributor of contributors) {
 			if (contributor.hasActions(context)) {
 				actions.push(...contributor.getActions(context));
 			}
@@ -111,8 +110,7 @@ export class ContributableActionProvider implements IActionProvider {
 		const context = this.toContext(tree, element);
 
 		const contributors = this.registry.getActionBarContributors(Scope.VIEWER);
-		for (let i = 0; i < contributors.length; i++) {
-			const contributor = contributors[i];
+		for (const contributor of contributors) {
 			if (contributor.hasSecondaryActions(context)) {
 				return true;
 			}
@@ -127,8 +125,7 @@ export class ContributableActionProvider implements IActionProvider {
 
 		// Collect Actions
 		const contributors = this.registry.getActionBarContributors(Scope.VIEWER);
-		for (let i = 0; i < contributors.length; i++) {
-			const contributor = contributors[i];
+		for (const contributor of contributors) {
 			if (contributor.hasSecondaryActions(context)) {
 				actions.push(...contributor.getSecondaryActions(context));
 			}
@@ -137,7 +134,7 @@ export class ContributableActionProvider implements IActionProvider {
 		return prepareActions(actions);
 	}
 
-	getActionItem(tree: ITree, element: any, action: Action): BaseActionItem {
+	getActionItem(tree: ITree, element: any, action: Action): BaseActionItem | null {
 		const contributors = this.registry.getActionBarContributors(Scope.VIEWER);
 		const context = this.toContext(tree, element);
 
@@ -225,7 +222,7 @@ export interface IActionBarRegistry {
 	 * Goes through all action bar contributors and asks them for contributed action item for
 	 * the provided scope and context.
 	 */
-	getActionItemForContext(scope: string, context: any, action: Action): BaseActionItem;
+	getActionItemForContext(scope: string, context: any, action: Action): BaseActionItem | null;
 
 	/**
 	 * Registers an Actionbar contributor. It will be called to contribute actions to all the action bars
@@ -238,7 +235,10 @@ export interface IActionBarRegistry {
 	 */
 	getActionBarContributors(scope: string): ActionBarContributor[];
 
-	setInstantiationService(service: IInstantiationService): void;
+	/**
+	 * Starts the registry by providing the required services.
+	 */
+	start(accessor: ServicesAccessor): void;
 }
 
 class ActionBarRegistry implements IActionBarRegistry {
@@ -246,11 +246,11 @@ class ActionBarRegistry implements IActionBarRegistry {
 	private actionBarContributorInstances: { [scope: string]: ActionBarContributor[] } = Object.create(null);
 	private instantiationService: IInstantiationService;
 
-	setInstantiationService(service: IInstantiationService): void {
-		this.instantiationService = service;
+	start(accessor: ServicesAccessor): void {
+		this.instantiationService = accessor.get(IInstantiationService);
 
 		while (this.actionBarContributorConstructors.length > 0) {
-			const entry = this.actionBarContributorConstructors.shift();
+			const entry = this.actionBarContributorConstructors.shift()!;
 			this.createActionBarContributor(entry.scope, entry.ctor);
 		}
 	}
@@ -298,10 +298,9 @@ class ActionBarRegistry implements IActionBarRegistry {
 		return actions;
 	}
 
-	getActionItemForContext(scope: string, context: any, action: Action): BaseActionItem {
+	getActionItemForContext(scope: string, context: any, action: Action): BaseActionItem | null {
 		const contributors = this.getContributors(scope);
-		for (let i = 0; i < contributors.length; i++) {
-			const contributor = contributors[i];
+		for (const contributor of contributors) {
 			const item = contributor.getActionItem(context, action);
 			if (item) {
 				return item;

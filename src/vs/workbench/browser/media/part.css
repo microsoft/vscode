@@ -3,34 +3,42 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench > .part > .title {
+.monaco-workbench > .part {
+	position: absolute; /* only position absolute when grid is not used (TODO@sbatten TODO@ben remove eventually) */
+}
+
+.monaco-workbench .part {
+	box-sizing:	border-box;
+}
+
+.monaco-workbench .part > .title {
 	display: none; /* Parts have to opt in to show title area */
 }
 
-.monaco-workbench > .part > .title {
+.monaco-workbench .part > .title {
 	height: 35px;
 	display: flex;
 	box-sizing:	border-box;
 	overflow: hidden;
 }
 
-.monaco-workbench > .part > .title {
+.monaco-workbench .part > .title {
 	padding-left: 8px;
 	padding-right: 8px;
 }
 
-.monaco-workbench > .part > .title > .title-label {
+.monaco-workbench .part > .title > .title-label {
 	line-height: 35px;
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
 }
 
-.monaco-workbench > .part > .title > .title-label {
+.monaco-workbench .part > .title > .title-label {
 	padding-left: 12px;
 }
 
-.monaco-workbench > .part > .title > .title-label h2 {
+.monaco-workbench .part > .title > .title-label h2 {
 	font-size: 11px;
 	cursor: default;
 	font-weight: normal;
@@ -41,19 +49,19 @@
 	text-overflow: ellipsis;
 }
 
-.monaco-workbench > .part > .title > .title-label a {
+.monaco-workbench .part > .title > .title-label a {
 	text-decoration: none;
 	font-size: 13px;
 	cursor: default;
 }
 
-.monaco-workbench > .part > .title > .title-actions {
+.monaco-workbench .part > .title > .title-actions {
 	height: 35px;
 	flex: 1;
 	padding-left: 5px;
 }
 
-.monaco-workbench > .part > .title > .title-actions .action-label {
+.monaco-workbench .part > .title > .title-actions .action-label {
 	display: block;
 	height: 35px;
 	line-height: 35px;
@@ -63,16 +71,16 @@
 	background-repeat: no-repeat;
 }
 
-.monaco-workbench > .part > .title > .title-actions .action-label .label {
+.monaco-workbench .part > .title > .title-actions .action-label .label {
 	display: none;
 }
 
-.monaco-workbench > .part > .content {
+.monaco-workbench .part > .content {
 	font-size: 13px;
 }
 
-.monaco-workbench > .part > .content > .monaco-progress-container,
-.monaco-workbench > .part.editor > .content .monaco-progress-container {
+.monaco-workbench .part > .content > .monaco-progress-container,
+.monaco-workbench .part.editor > .content .monaco-progress-container {
 	position: absolute;
 	left: 0;
 	top: 33px; /* at the bottom of the 35px height title container */
@@ -80,7 +88,7 @@
 	height: 2px;
 }
 
-.monaco-workbench > .part > .content > .monaco-progress-container .progress-bit,
-.monaco-workbench > .part.editor > .content .monaco-progress-container .progress-bit {
+.monaco-workbench .part > .content > .monaco-progress-container .progress-bit,
+.monaco-workbench .part.editor > .content .monaco-progress-container .progress-bit {
 	height: 2px;
 }

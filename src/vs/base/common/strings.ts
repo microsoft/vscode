@@ -56,7 +56,7 @@ export function format(value: string, ...args: any[]): string {
  * being used e.g. in HTMLElement.innerHTML.
  */
 export function escape(html: string): string {
-	return html.replace(/[<|>|&]/g, function (match) {
+	return html.replace(/[<>&]/g, function (match) {
 		switch (match) {
 			case '<': return '&lt;';
 			case '>': return '&gt;';
@@ -626,6 +626,21 @@ export function removeAnsiEscapeCodes(str: string): string {
 
 	return str;
 }
+
+export const removeAccents: (str: string) => string = (function () {
+	if (typeof (String.prototype as any).normalize !== 'function') {
+		// ☹️ no ES6 features...
+		return function (str: string) { return str; };
+	} else {
+		// transform into NFD form and remove accents
+		// see: https://stackoverflow.com/questions/990904/remove-accents-diacritics-in-a-string-in-javascript/37511463#37511463
+		const regex = /[\u0300-\u036f]/g;
+		return function (str: string) {
+			return (str as any).normalize('NFD').replace(regex, empty);
+		};
+	}
+})();
+
 
 // -- UTF-8 BOM
 

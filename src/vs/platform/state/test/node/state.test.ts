@@ -5,9 +5,9 @@
 
 import * as assert from 'assert';
 import * as os from 'os';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import * as extfs from 'vs/base/node/extfs';
-import { getRandomTestPath } from 'vs/workbench/test/workbenchTestServices';
+import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { FileStorage } from 'vs/platform/state/node/stateService';
 
 suite('StateService', () => {
@@ -41,7 +41,7 @@ suite('StateService', () => {
 			service.setItem('some.other.key', 'some.other.value');
 			assert.equal(service.getItem('some.other.key'), 'some.other.value');
 
-			service.setItem('some.undefined.key', void 0);
+			service.setItem('some.undefined.key', undefined);
 			assert.equal(service.getItem('some.undefined.key', 'some.default'), 'some.default');
 
 			service.setItem('some.null.key', null);

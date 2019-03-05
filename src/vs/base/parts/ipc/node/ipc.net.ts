@@ -6,7 +6,7 @@
 import { Socket, Server as NetServer, createConnection, createServer } from 'net';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IMessagePassingProtocol, ClientConnectionEvent, IPCServer, IPCClient } from 'vs/base/parts/ipc/node/ipc';
-import { join } from 'path';
+import { join } from 'vs/base/common/path';
 import { tmpdir } from 'os';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -292,7 +292,7 @@ function createBufferedEvent<T>(source: Event<T>): Event<T> {
 		}
 		isDeliveringMessages = true;
 		while (hasListeners && bufferedMessages.length > 0) {
-			emitter.fire(bufferedMessages.shift());
+			emitter.fire(bufferedMessages.shift()!);
 		}
 		isDeliveringMessages = false;
 	};

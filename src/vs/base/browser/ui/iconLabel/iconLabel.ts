@@ -100,13 +100,13 @@ export class IconLabel extends Disposable {
 		this.labelDescriptionContainer = this._register(new FastLabelNode(dom.append(this.domNode.element, dom.$('.monaco-icon-label-description-container'))));
 
 		if (options && options.supportHighlights) {
-			this.labelNode = this._register(new HighlightedLabel(dom.append(this.labelDescriptionContainer.element, dom.$('a.label-name')), !options.donotSupportOcticons));
+			this.labelNode = new HighlightedLabel(dom.append(this.labelDescriptionContainer.element, dom.$('a.label-name')), !options.donotSupportOcticons);
 		} else {
 			this.labelNode = this._register(new FastLabelNode(dom.append(this.labelDescriptionContainer.element, dom.$('a.label-name'))));
 		}
 
 		if (options && options.supportDescriptionHighlights) {
-			this.descriptionNodeFactory = () => this._register(new HighlightedLabel(dom.append(this.labelDescriptionContainer.element, dom.$('span.label-description')), !options.donotSupportOcticons));
+			this.descriptionNodeFactory = () => new HighlightedLabel(dom.append(this.labelDescriptionContainer.element, dom.$('span.label-description')), !options.donotSupportOcticons);
 		} else {
 			this.descriptionNodeFactory = () => this._register(new FastLabelNode(dom.append(this.labelDescriptionContainer.element, dom.$('span.label-description'))));
 		}
@@ -132,7 +132,7 @@ export class IconLabel extends Disposable {
 		this.domNode.title = options && options.title ? options.title : '';
 
 		if (this.labelNode instanceof HighlightedLabel) {
-			this.labelNode.set(label || '', options ? options.matches : void 0, options && options.title ? options.title : void 0, options && options.labelEscapeNewLines);
+			this.labelNode.set(label || '', options ? options.matches : undefined, options && options.title ? options.title : undefined, options && options.labelEscapeNewLines);
 		} else {
 			this.labelNode.textContent = label || '';
 		}
@@ -143,7 +143,7 @@ export class IconLabel extends Disposable {
 			}
 
 			if (this.descriptionNode instanceof HighlightedLabel) {
-				this.descriptionNode.set(description || '', options ? options.descriptionMatches : void 0);
+				this.descriptionNode.set(description || '', options ? options.descriptionMatches : undefined);
 				if (options && options.descriptionTitle) {
 					this.descriptionNode.element.title = options.descriptionTitle;
 				} else {
@@ -157,4 +157,3 @@ export class IconLabel extends Disposable {
 		}
 	}
 }
-

@@ -40,7 +40,7 @@ export class NoTabsTitleControl extends TitleControl {
 		this.titleContainer.appendChild(labelContainer);
 
 		// Editor Label
-		this.editorLabel = this._register(this.instantiationService.createInstance(ResourceLabel, labelContainer, void 0)).element;
+		this.editorLabel = this._register(this.instantiationService.createInstance(ResourceLabel, labelContainer, undefined)).element;
 		this._register(addDisposableListener(this.editorLabel.element, EventType.CLICK, e => this.onTitleLabelClick(e)));
 
 		// Breadcrumbs
@@ -244,7 +244,7 @@ export class NoTabsTitleControl extends TitleControl {
 				title = ''; // dont repeat what is already shown
 			}
 
-			this.editorLabel.setResource({ name, description, resource }, { title, italic: !isEditorPinned, extraClasses: ['no-tabs', 'title-label'] });
+			this.editorLabel.setResource({ name, description, resource: resource || undefined }, { title, italic: !isEditorPinned, extraClasses: ['no-tabs', 'title-label'] });
 			if (isGroupActive) {
 				this.editorLabel.element.style.color = this.getColor(TAB_ACTIVE_FOREGROUND);
 			} else {
@@ -256,7 +256,7 @@ export class NoTabsTitleControl extends TitleControl {
 		}
 	}
 
-	private getVerbosity(style: string): Verbosity {
+	private getVerbosity(style: string | undefined): Verbosity {
 		switch (style) {
 			case 'short': return Verbosity.SHORT;
 			case 'long': return Verbosity.LONG;

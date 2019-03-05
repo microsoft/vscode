@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import * as fs from 'fs';
 import * as cp from 'child_process';
 import * as nls from 'vs/nls';
 import * as Types from 'vs/base/common/types';
 import { IStringDictionary } from 'vs/base/common/collections';
 import * as Objects from 'vs/base/common/objects';
-import * as TPath from 'vs/base/common/paths';
+import * as extpath from 'vs/base/common/extpath';
 import * as Platform from 'vs/base/common/platform';
 import { LineDecoder } from 'vs/base/node/decoder';
 import { CommandOptions, ForkOptions, SuccessData, Source, TerminateResponse, TerminateResponseCode, Executable } from 'vs/base/common/processes';
@@ -107,7 +107,7 @@ export abstract class AbstractProcess<TProgressData> {
 	public constructor(executable: Executable);
 	public constructor(cmd: string, args: string[] | undefined, shell: boolean, options: CommandOptions | undefined);
 	public constructor(arg1: string | Executable, arg2?: string[], arg3?: boolean, arg4?: CommandOptions) {
-		if (arg2 !== void 0 && arg3 !== void 0 && arg4 !== void 0) {
+		if (arg2 !== undefined && arg3 !== undefined && arg4 !== undefined) {
 			this.cmd = <string>arg1;
 			this.args = arg2;
 			this.shell = arg3;
@@ -148,7 +148,7 @@ export abstract class AbstractProcess<TProgressData> {
 	}
 
 	public start(pp: ProgressCallback<TProgressData>): Promise<SuccessData> {
-		if (Platform.isWindows && ((this.options && this.options.cwd && TPath.isUNC(this.options.cwd)) || !this.options && TPath.isUNC(process.cwd()))) {
+		if (Platform.isWindows && ((this.options && this.options.cwd && extpath.isUNC(this.options.cwd)) || !this.options && extpath.isUNC(process.cwd()))) {
 			return Promise.reject(new Error(nls.localize('TaskRunner.UNC', 'Can\'t execute a shell command on a UNC drive.')));
 		}
 		return this.useExec().then((useExec) => {
@@ -300,14 +300,14 @@ export abstract class AbstractProcess<TProgressData> {
 	private useExec(): Promise<boolean> {
 		return new Promise<boolean>((c, e) => {
 			if (!this.shell || !Platform.isWindows) {
-				c(false);
+				return c(false);
 			}
 			let cmdShell = cp.spawn(getWindowsShell(), ['/s', '/c']);
 			cmdShell.on('error', (error: Error) => {
-				c(true);
+				return c(true);
 			});
 			cmdShell.on('exit', (data: any) => {
-				c(false);
+				return c(false);
 			});
 		});
 	}
@@ -409,7 +409,7 @@ export namespace win32 {
 		if (path.isAbsolute(command)) {
 			return command;
 		}
-		if (cwd === void 0) {
+		if (cwd === undefined) {
 			cwd = process.cwd();
 		}
 		let dir = path.dirname(command);
@@ -418,11 +418,11 @@ export namespace win32 {
 			// to the current working directory.
 			return path.join(cwd, command);
 		}
-		if (paths === void 0 && Types.isString(process.env.PATH)) {
+		if (paths === undefined && Types.isString(process.env.PATH)) {
 			paths = process.env.PATH.split(path.delimiter);
 		}
 		// No PATH environment. Make path absolute to the cwd.
-		if (paths === void 0 || paths.length === 0) {
+		if (paths === undefined || paths.length === 0) {
 			return path.join(cwd, command);
 		}
 		// We have a simple file name. We get the path variable from the env

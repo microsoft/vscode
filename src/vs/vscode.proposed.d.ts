@@ -16,6 +16,72 @@
 
 declare module 'vscode' {
 
+	//#region Alex - resolvers
+
+	export class ResolvedAuthority {
+		readonly host: string;
+		readonly port: number;
+		debugListenPort?: number;
+		debugConnectPort?: number;
+
+		constructor(host: string, port: number);
+	}
+
+	export interface RemoteAuthorityResolver {
+		resolve(authority: string): ResolvedAuthority | Thenable<ResolvedAuthority>;
+	}
+
+	export interface ResourceLabelFormatter {
+		scheme: string;
+		authority?: string;
+		formatting: ResourceLabelFormatting;
+	}
+
+	export interface ResourceLabelFormatting {
+		label: string; // myLabel:/${path}
+		separator: '/' | '\\' | '';
+		tildify?: boolean;
+		normalizeDriveLetter?: boolean;
+		workspaceSuffix?: string;
+		authorityPrefix?: string;
+	}
+
+	export namespace workspace {
+		export function registerRemoteAuthorityResolver(authorityPrefix: string, resolver: RemoteAuthorityResolver): Disposable;
+		export function registerResourceLabelFormatter(formatter: ResourceLabelFormatter): Disposable;
+	}
+
+	//#endregion
+
+
+	// #region Joh - code insets
+
+	/**
+	 */
+	export class CodeInset {
+		range: Range;
+		height?: number;
+		constructor(range: Range, height?: number);
+	}
+
+	export interface CodeInsetProvider {
+		onDidChangeCodeInsets?: Event<void>;
+		provideCodeInsets(document: TextDocument, token: CancellationToken): ProviderResult<CodeInset[]>;
+		resolveCodeInset(codeInset: CodeInset, webview: Webview, token: CancellationToken): ProviderResult<CodeInset>;
+	}
+
+	export namespace languages {
+
+		/**
+		 * Register a code inset provider.
+		 *
+		 */
+		export function registerCodeInsetProvider(selector: DocumentSelector, provider: CodeInsetProvider): Disposable;
+	}
+
+	//#endregion
+
+
 	//#region Joh - selection range provider
 
 	export class SelectionRangeKind {
@@ -26,7 +92,7 @@ declare module 'vscode' {
 		static readonly Empty: SelectionRangeKind;
 
 		/**
-		 * The statment kind, its value is `statement`, possible extensions can be
+		 * The statement kind, its value is `statement`, possible extensions can be
 		 * `statement.if` etc
 		 */
 		static readonly Statement: SelectionRangeKind;
@@ -52,13 +118,13 @@ declare module 'vscode' {
 
 	export interface SelectionRangeProvider {
 		/**
-		 * Provide selection ranges starting at a given position. The first range must [contain](#Range.contains)
-		 * position and subsequent ranges must contain the previous range.
-		 * @param document
-		 * @param position
-		 * @param token
+		 * Provide selection ranges for the given positions. Selection ranges should be computed individually and
+		 * independend for each postion. The editor will merge and deduplicate ranges but providers must return sequences
+		 * of ranges (per position) where a range must [contain](#Range.contains) and subsequent ranges.
+		 *
+		 * todo@joh
 		 */
-		provideSelectionRanges(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<SelectionRange[]>;
+		provideSelectionRanges(document: TextDocument, positions: Position[], token: CancellationToken): ProviderResult<SelectionRange[][]>;
 	}
 
 	export namespace languages {
@@ -70,7 +136,8 @@ declare module 'vscode' {
 	//#region Joh - read/write in chunks
 
 	export interface FileSystemProvider {
-		open?(resource: Uri): number | Thenable<number>;
+		seperator?: '/' | '\\';
+		open?(resource: Uri, options: { create: boolean }): number | Thenable<number>;
 		close?(fd: number): void | Thenable<void>;
 		read?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): number | Thenable<number>;
 		write?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): number | Thenable<number>;
@@ -559,34 +626,12 @@ declare module 'vscode' {
 
 	// deprecated
 
-	export interface DebugAdapterTracker {
-		// VS Code -> Debug Adapter
-		startDebugAdapter?(): void;
-		toDebugAdapter?(message: any): void;
-		stopDebugAdapter?(): void;
-
-		// Debug Adapter -> VS Code
-		fromDebugAdapter?(message: any): void;
-		debugAdapterError?(error: Error): void;
-		debugAdapterExit?(code?: number, signal?: string): void;
-	}
-
 	export interface DebugConfigurationProvider {
 		/**
 		 * Deprecated, use DebugAdapterDescriptorFactory.provideDebugAdapter instead.
 		 * @deprecated Use DebugAdapterDescriptorFactory.createDebugAdapterDescriptor instead
 		 */
 		debugAdapterExecutable?(folder: WorkspaceFolder | undefined, token?: CancellationToken): ProviderResult<DebugAdapterExecutable>;
-
-		/**
-		 * Deprecated, use DebugAdapterTrackerFactory.createDebugAdapterTracker instead.
-		 * @deprecated Use DebugAdapterTrackerFactory.createDebugAdapterTracker instead
-		 *
-		 * The optional method 'provideDebugAdapterTracker' is called at the start of a debug session to provide a tracker that gives access to the communication between VS Code and a Debug Adapter.
-		 * @param session The [debug session](#DebugSession) for which the tracker will be used.
-		 * @param token A cancellation token.
-		 */
-		provideDebugAdapterTracker?(session: DebugSession, workspaceFolder: WorkspaceFolder | undefined, config: DebugConfiguration, token?: CancellationToken): ProviderResult<DebugAdapterTracker>;
 	}
 
 	//#endregion
@@ -735,6 +780,12 @@ declare module 'vscode' {
 		Expanded = 1
 	}
 
+	interface CommentingRanges {
+		readonly resource: Uri;
+		ranges: Range[];
+		newCommentThreadCommand: Command;
+	}
+
 	/**
 	 * A collection of comments representing a conversation at a particular range in a document.
 	 */
@@ -759,11 +810,13 @@ declare module 'vscode' {
 		 * The ordered comments of the thread.
 		 */
 		comments: Comment[];
+		acceptInputCommands?: Command[];
 
 		/**
 		 * Whether the thread should be collapsed or expanded when opening the document. Defaults to Collapsed.
 		 */
 		collapsibleState?: CommentThreadCollapsibleState;
+		dispose?(): void;
 	}
 
 	/**
@@ -801,6 +854,8 @@ declare module 'vscode' {
 		 *
 		 * This will be treated as false if the comment is provided by a `WorkspaceCommentProvider`, or
 		 * if it is provided by a `DocumentCommentProvider` and  no `editComment` method is given.
+		 *
+		 * DEPRECATED, use editCommand
 		 */
 		canEdit?: boolean;
 
@@ -809,6 +864,8 @@ declare module 'vscode' {
 		 *
 		 * This will be treated as false if the comment is provided by a `WorkspaceCommentProvider`, or
 		 * if it is provided by a `DocumentCommentProvider` and  no `deleteComment` method is given.
+		 *
+		 * DEPRECATED, use deleteCommand
 		 */
 		canDelete?: boolean;
 
@@ -817,7 +874,11 @@ declare module 'vscode' {
 		 */
 		command?: Command;
 
+		editCommand?: Command;
+		deleteCommand?: Command;
+
 		isDraft?: boolean;
+		commentReactions?: CommentReaction[];
 	}
 
 	export interface CommentThreadChangedEvent {
@@ -840,6 +901,13 @@ declare module 'vscode' {
 		 * Changed draft mode
 		 */
 		readonly inDraftMode: boolean;
+	}
+
+	interface CommentReaction {
+		readonly label?: string;
+		readonly iconPath?: string | Uri;
+		count?: number;
+		readonly hasReacted?: boolean;
 	}
 
 	interface DocumentCommentProvider {
@@ -876,6 +944,10 @@ declare module 'vscode' {
 		deleteDraftLabel?: string;
 		finishDraftLabel?: string;
 
+		addReaction?(document: TextDocument, comment: Comment, reaction: CommentReaction): Promise<void>;
+		deleteReaction?(document: TextDocument, comment: Comment, reaction: CommentReaction): Promise<void>;
+		reactionGroup?: CommentReaction[];
+
 		/**
 		 * Notify of updates to comment threads.
 		 */
@@ -895,21 +967,83 @@ declare module 'vscode' {
 		onDidChangeCommentThreads: Event<CommentThreadChangedEvent>;
 	}
 
+	export interface CommentWidget {
+		/*
+		 * Comment thread in this Comment Widget
+		 */
+		commentThread: CommentThread;
+
+		/*
+		 * Textarea content in the comment widget.
+		 * There is only one active input box in a comment widget.
+		 */
+		input: string;
+	}
+
+	export interface CommentControl {
+		readonly id: string;
+		readonly label: string;
+		/**
+		 * The active (focused) comment widget.
+		 */
+		readonly widget?: CommentWidget;
+		/**
+		 * The active range users attempt to create comments against.
+		 */
+		readonly activeCommentingRange?: Range;
+		createCommentThread(id: string, resource: Uri, range: Range, comments: Comment[], acceptInputCommands: Command[], collapsibleState?: CommentThreadCollapsibleState): CommentThread;
+		createCommentingRanges(resource: Uri, ranges: Range[], newCommentThreadCommand: Command): CommentingRanges;
+		dispose(): void;
+	}
+
+	namespace comment {
+		export function createCommentControl(id: string, label: string): CommentControl;
+	}
+
 	namespace workspace {
 		export function registerDocumentCommentProvider(provider: DocumentCommentProvider): Disposable;
 		export function registerWorkspaceCommentProvider(provider: WorkspaceCommentProvider): Disposable;
 	}
+
 	//#endregion
 
 	//#region Terminal
 
+	/**
+	 * An [event](#Event) which fires when a [Terminal](#Terminal)'s dimensions change.
+	 */
+	export interface TerminalDimensionsChangeEvent {
+		/**
+		 * The [terminal](#Terminal) for which the dimensions have changed.
+		 */
+		readonly terminal: Terminal;
+		/**
+		 * The new value for the [terminal's dimensions](#Terminal.dimensions).
+		 */
+		readonly dimensions: TerminalDimensions;
+	}
+
+	namespace window {
+		/**
+		 * An event which fires when the [dimensions](#Terminal.dimensions) of the terminal change.
+		 */
+		export const onDidChangeTerminalDimensions: Event<TerminalDimensionsChangeEvent>;
+	}
+
 	export interface Terminal {
+		/**
+		 * The current dimensions of the terminal. This will be `undefined` immediately after the
+		 * terminal is created as the dimensions are not known until shortly after the terminal is
+		 * created.
+		 */
+		readonly dimensions: TerminalDimensions | undefined;
+
 		/**
 		 * Fires when the terminal's pty slave pseudo-device is written to. In other words, this
 		 * provides access to the raw data stream from the process running within the terminal,
 		 * including VT sequences.
 		 */
-		onDidWriteData: Event<string>;
+		readonly onDidWriteData: Event<string>;
 	}
 
 	/**
@@ -930,7 +1064,7 @@ declare module 'vscode' {
 	/**
 	 * Represents a terminal without a process where all interaction and output in the terminal is
 	 * controlled by an extension. This is similar to an output window but has the same VT sequence
-	 * compatility as the regular terminal.
+	 * compatibility as the regular terminal.
 	 *
 	 * Note that an instance of [Terminal](#Terminal) will be created when a TerminalRenderer is
 	 * created with all its APIs available for use by extensions. When using the Terminal object
@@ -978,7 +1112,7 @@ declare module 'vscode' {
 		readonly maximumDimensions: TerminalDimensions | undefined;
 
 		/**
-		 * The corressponding [Terminal](#Terminal) for this TerminalRenderer.
+		 * The corresponding [Terminal](#Terminal) for this TerminalRenderer.
 		 */
 		readonly terminal: Terminal;
 
@@ -1010,9 +1144,9 @@ declare module 'vscode' {
 		 * ```typescript
 		 * const terminalRenderer = window.createTerminalRenderer('test');
 		 * terminalRenderer.onDidAcceptInput(data => {
-		 *   cosole.log(data); // 'Hello world'
+		 *   console.log(data); // 'Hello world'
 		 * });
-		 * terminalRenderer.terminal.then(t => t.sendText('Hello world'));
+		 * terminalRenderer.terminal.sendText('Hello world');
 		 * ```
 		 */
 		readonly onDidAcceptInput: Event<string>;
@@ -1113,18 +1247,12 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	//#region Extension Context
-	export interface ExtensionContext {
-
+	//#region Tasks
+	export interface TaskPresentationOptions {
 		/**
-		 * An absolute file path in which the extension can store gloabal state.
-		 * The directory might not exist on disk and creation is
-		 * up to the extension. However, the parent directory is guaranteed to be existent.
-		 *
-		 * Use [`globalState`](#ExtensionContext.globalState) to store key value data.
+		 * Controls whether the task is executed in a specific terminal group using split panes.
 		 */
-		globalStoragePath: string;
-
+		group?: string;
 	}
 	//#endregion
 }

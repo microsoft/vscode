@@ -9,9 +9,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IStorage, Storage, SQLiteStorageDatabase, ISQLiteStorageDatabaseLoggingOptions, InMemoryStorageDatabase } from 'vs/base/node/storage';
-import { join } from 'path';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { mark, getDuration } from 'vs/base/common/performance';
+import { join } from 'vs/base/common/path';
 import { exists, readdir } from 'vs/base/node/pfs';
 import { Database } from 'vscode-sqlite3';
 import { endsWith, startsWith } from 'vs/base/common/strings';
@@ -39,6 +37,7 @@ export interface IStorageMainService {
 	 * the provided defaultValue if the element is null or undefined.
 	 */
 	get(key: string, fallbackValue: string): string;
+	get(key: string, fallbackValue?: string): string | undefined;
 
 	/**
 	 * Retrieve an element stored with the given key from storage. Use
@@ -46,13 +45,15 @@ export interface IStorageMainService {
 	 * will be converted to a boolean.
 	 */
 	getBoolean(key: string, fallbackValue: boolean): boolean;
+	getBoolean(key: string, fallbackValue?: boolean): boolean | undefined;
 
 	/**
 	 * Retrieve an element stored with the given key from storage. Use
 	 * the provided defaultValue if the element is null or undefined. The element
 	 * will be converted to a number using parseInt with a base of 10.
 	 */
-	getInteger(key: string, fallbackValue: number): number;
+	getNumber(key: string, fallbackValue: number): number;
+	getNumber(key: string, fallbackValue?: number): number | undefined;
 
 	/**
 	 * Store a string value under the given key to storage. The value will
@@ -76,20 +77,21 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 
 	private static STORAGE_NAME = 'state.vscdb';
 
-	private _onDidChangeStorage: Emitter<IStorageChangeEvent> = this._register(new Emitter<IStorageChangeEvent>());
+	private readonly _onDidChangeStorage: Emitter<IStorageChangeEvent> = this._register(new Emitter<IStorageChangeEvent>());
 	get onDidChangeStorage(): Event<IStorageChangeEvent> { return this._onDidChangeStorage.event; }
 
-	private _onWillSaveState: Emitter<void> = this._register(new Emitter<void>());
+	private readonly _onWillSaveState: Emitter<void> = this._register(new Emitter<void>());
 	get onWillSaveState(): Event<void> { return this._onWillSaveState.event; }
 
 	get items(): Map<string, string> { return this.storage.items; }
 
 	private storage: IStorage;
 
+	private initializePromise: Promise<void>;
+
 	constructor(
-		@ILogService private logService: ILogService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@ILogService private readonly logService: ILogService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
 		super();
 
@@ -98,7 +100,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 	}
 
 	private get storagePath(): string {
-		if (!!this.environmentService.extensionTestsPath) {
+		if (!!this.environmentService.extensionTestsLocationURI) {
 			return SQLiteStorageDatabase.IN_MEMORY_PATH; // no storage during extension tests!
 		}
 
@@ -106,31 +108,21 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 	}
 
 	private createLogginOptions(): ISQLiteStorageDatabaseLoggingOptions {
-		const loggedStorageErrors = new Set<string>();
-
 		return {
-			logTrace: (this.logService.getLevel() === LogLevel.Trace) ? msg => this.logService.trace(msg) : void 0,
-			logError: error => {
-				this.logService.error(error);
-
-				const errorStr = `${error}`;
-				if (!loggedStorageErrors.has(errorStr)) {
-					loggedStorageErrors.add(errorStr);
-
-					/* __GDPR__
-						"sqliteMainStorageError" : {
-							"storageError": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-						}
-					*/
-					this.telemetryService.publicLog('sqliteMainStorageError', {
-						'storageError': errorStr
-					});
-				}
-			}
+			logTrace: (this.logService.getLevel() === LogLevel.Trace) ? msg => this.logService.trace(msg) : undefined,
+			logError: error => this.logService.error(error)
 		} as ISQLiteStorageDatabaseLoggingOptions;
 	}
 
 	initialize(): Promise<void> {
+		if (!this.initializePromise) {
+			this.initializePromise = this.doInitialize();
+		}
+
+		return this.initializePromise;
+	}
+
+	private doInitialize(): Promise<void> {
 		const useInMemoryStorage = this.storagePath === SQLiteStorageDatabase.IN_MEMORY_PATH;
 
 		let globalStorageExists: Promise<boolean>;
@@ -148,14 +140,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 
 			this._register(this.storage.onDidChangeStorage(key => this._onDidChangeStorage.fire({ key })));
 
-			mark('main:willInitGlobalStorage');
 			return this.storage.init().then(() => {
-				mark('main:didInitGlobalStorage');
-			}, error => {
-				mark('main:didInitGlobalStorage');
-
-				return Promise.reject(error);
-			}).then(() => {
 
 				// Migrate storage if this is the first start and we are not using in-memory
 				let migrationPromise: Promise<void>;
@@ -237,6 +222,10 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 					'update/updateNotificationTime'
 				].forEach(key => supportedKeys.set(key.toLowerCase(), key));
 
+				// https://github.com/Microsoft/vscode/issues/68468
+				const wellKnownPublishers = ['Microsoft', 'GitHub'];
+				const wellKnownExtensions = ['ms-vscode.Go', 'WallabyJs.quokka-vscode', 'Telerik.nativescript', 'Shan.code-settings-sync', 'ritwickdey.LiveServer', 'PKief.material-icon-theme', 'PeterJausovec.vscode-docker', 'ms-vscode.PowerShell', 'LaurentTreguier.vscode-simple-icons', 'KnisterPeter.vscode-github', 'DotJoshJohnson.xml', 'Dart-Code.dart-code', 'alefragnani.Bookmarks'];
+
 				// Support extension storage as well (always the ID of the extension)
 				extensions.forEach(extension => {
 					let extensionId: string;
@@ -247,13 +236,29 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 					}
 
 					if (extensionId) {
+						for (let i = 0; i < wellKnownPublishers.length; i++) {
+							const publisher = wellKnownPublishers[i];
+							if (startsWith(extensionId, `${publisher.toLowerCase()}.`)) {
+								extensionId = `${publisher}${extensionId.substr(publisher.length)}`;
+								break;
+							}
+						}
+
+						for (let j = 0; j < wellKnownExtensions.length; j++) {
+							const wellKnownExtension = wellKnownExtensions[j];
+							if (extensionId === wellKnownExtension.toLowerCase()) {
+								extensionId = wellKnownExtension;
+								break;
+							}
+						}
+
 						supportedKeys.set(extensionId.toLowerCase(), extensionId);
 					}
 				});
 
 				return import('vscode-sqlite3').then(sqlite3 => {
 
-					return new Promise((resolve, reject) => {
+					return new Promise<void>((resolve, reject) => {
 						const handleSuffixKey = (row, key: string, suffix: string) => {
 							if (endsWith(key, suffix.toLowerCase())) {
 								const value: string = row.value.toString('utf16le');
@@ -345,16 +350,22 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 		});
 	}
 
-	get(key: string, fallbackValue: string): string {
+	get(key: string, fallbackValue: string): string;
+	get(key: string, fallbackValue?: string): string | undefined;
+	get(key: string, fallbackValue?: string): string | undefined {
 		return this.storage.get(key, fallbackValue);
 	}
 
-	getBoolean(key: string, fallbackValue: boolean): boolean {
+	getBoolean(key: string, fallbackValue: boolean): boolean;
+	getBoolean(key: string, fallbackValue?: boolean): boolean | undefined;
+	getBoolean(key: string, fallbackValue?: boolean): boolean | undefined {
 		return this.storage.getBoolean(key, fallbackValue);
 	}
 
-	getInteger(key: string, fallbackValue: number): number {
-		return this.storage.getInteger(key, fallbackValue);
+	getNumber(key: string, fallbackValue: number): number;
+	getNumber(key: string, fallbackValue?: number): number | undefined;
+	getNumber(key: string, fallbackValue?: number): number | undefined {
+		return this.storage.getNumber(key, fallbackValue);
 	}
 
 	store(key: string, value: any): Promise<void> {
@@ -366,18 +377,12 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 	}
 
 	close(): Promise<void> {
-		this.logService.trace('StorageMainService#close() - begin');
 
 		// Signal as event so that clients can still store data
 		this._onWillSaveState.fire();
 
 		// Do it
-		mark('main:willCloseGlobalStorage');
-		return this.storage.close().then(() => {
-			mark('main:didCloseGlobalStorage');
-
-			this.logService.trace(`StorageMainService#close() - finished in ${getDuration('main:willCloseGlobalStorage', 'main:didCloseGlobalStorage')}ms`);
-		});
+		return this.storage.close();
 	}
 
 	checkIntegrity(full: boolean): Promise<string> {

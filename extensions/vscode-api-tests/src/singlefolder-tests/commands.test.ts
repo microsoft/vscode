@@ -74,23 +74,6 @@ suite('commands namespace tests', () => {
 
 	});
 
-	test('api-command: vscode.previewHtml', async function () {
-
-		let registration = workspace.registerTextDocumentContentProvider('speciale', {
-			provideTextDocumentContent(uri) {
-				return `content of URI <b>${uri.toString()}</b>`;
-			}
-		});
-
-		let virtualDocumentUri = Uri.parse('speciale://authority/path');
-		let title = 'A title';
-
-		const success = await commands.executeCommand('vscode.previewHtml', virtualDocumentUri, ViewColumn.Three, title);
-		assert.ok(success);
-		registration.dispose();
-
-	});
-
 	test('api-command: vscode.diff', function () {
 
 		let registration = workspace.registerTextDocumentContentProvider('sc', {
@@ -101,17 +84,17 @@ suite('commands namespace tests', () => {
 
 
 		let a = commands.executeCommand('vscode.diff', Uri.parse('sc:a'), Uri.parse('sc:b'), 'DIFF').then(value => {
-			assert.ok(value === void 0);
+			assert.ok(value === undefined);
 			registration.dispose();
 		});
 
 		let b = commands.executeCommand('vscode.diff', Uri.parse('sc:a'), Uri.parse('sc:b')).then(value => {
-			assert.ok(value === void 0);
+			assert.ok(value === undefined);
 			registration.dispose();
 		});
 
 		let c = commands.executeCommand('vscode.diff', Uri.parse('sc:a'), Uri.parse('sc:b'), 'Title', { selection: new Range(new Position(1, 1), new Position(1, 2)) }).then(value => {
-			assert.ok(value === void 0);
+			assert.ok(value === undefined);
 			registration.dispose();
 		});
 

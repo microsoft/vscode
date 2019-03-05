@@ -13,7 +13,7 @@ const localize = nls.loadMessageBundle();
 import { Logger } from '../logger';
 import { ContentSecurityPolicyArbiter, MarkdownPreviewSecurityLevel } from '../security';
 import { MarkdownPreviewConfigurationManager, MarkdownPreviewConfiguration } from './previewConfig';
-import { MarkdownContributions } from '../markdownExtensions';
+import { MarkdownContributionProvider } from '../markdownExtensions';
 
 /**
  * Strings used inside the markdown preview.
@@ -40,7 +40,7 @@ export class MarkdownContentProvider {
 		private readonly engine: MarkdownEngine,
 		private readonly context: vscode.ExtensionContext,
 		private readonly cspArbiter: ContentSecurityPolicyArbiter,
-		private readonly contributions: MarkdownContributions,
+		private readonly contributionProvider: MarkdownContributionProvider,
 		private readonly logger: Logger
 	) { }
 
@@ -68,7 +68,7 @@ export class MarkdownContentProvider {
 		const nonce = new Date().getTime() + '' + new Date().getMilliseconds();
 		const csp = this.getCspForResource(sourceUri, nonce);
 
-		const body = await this.engine.render(sourceUri, config.previewFrontMatter === 'hide', markdownDocument.getText());
+		const body = await this.engine.render(markdownDocument);
 		return `<!DOCTYPE html>
 			<html>
 			<head>
@@ -163,7 +163,7 @@ export class MarkdownContentProvider {
 	}
 
 	private getStyles(resource: vscode.Uri, nonce: string, config: MarkdownPreviewConfiguration, state?: any): string {
-		const baseStyles = this.contributions.previewStyles
+		const baseStyles = this.contributionProvider.contributions.previewStyles
 			.map(resource => `<link rel="stylesheet" type="text/css" href="${resource.toString()}">`)
 			.join('\n');
 
@@ -174,7 +174,7 @@ export class MarkdownContentProvider {
 	}
 
 	private getScripts(nonce: string): string {
-		return this.contributions.previewScripts
+		return this.contributionProvider.contributions.previewScripts
 			.map(resource => `<script async src="${resource.toString()}" nonce="${nonce}" charset="UTF-8"></script>`)
 			.join('\n');
 	}

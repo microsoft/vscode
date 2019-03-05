@@ -42,6 +42,7 @@ suite('StandaloneKeybindingService', () => {
 		}, null);
 
 		keybindingService.testDispatch({
+			_standardKeyboardEventBrand: true,
 			ctrlKey: false,
 			shiftKey: false,
 			altKey: false,

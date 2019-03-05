@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import * as glob from 'vs/base/common/glob';
-import { IFileSearchStats, IFolderQuery, IProgress, IRawFileQuery, IRawTextQuery, ISearchEngineStats, ISearchQuery, ITextSearchMatch, ITextSearchStats, ITextSearchResult } from 'vs/platform/search/common/search';
+import { IFileSearchStats, IFolderQuery, IProgress, IRawFileQuery, IRawTextQuery, ISearchEngineStats, ISearchQuery, ITextSearchMatch, ITextSearchStats, ITextSearchResult } from 'vs/workbench/services/search/common/search';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 
 export interface ITelemetryEvent {
@@ -27,7 +27,7 @@ export interface IRawFileMatch {
 }
 
 export interface ISearchEngine<T> {
-	search: (onResult: (matches: T) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISearchEngineSuccess) => void) => void;
+	search: (onResult: (matches: T) => void, onProgress: (progress: IProgress) => void, done: (error: Error | null, complete: ISearchEngineSuccess) => void) => void;
 	cancel: () => void;
 }
 
@@ -154,7 +154,7 @@ export class QueryGlobTester {
 	/**
 	 * Guaranteed sync - siblingsFn should not return a promise.
 	 */
-	public includedInQuerySync(testPath: string, basename?: string, hasSibling?: (name: string) => boolean): boolean {
+	includedInQuerySync(testPath: string, basename?: string, hasSibling?: (name: string) => boolean): boolean {
 		if (this._parsedExcludeExpression && this._parsedExcludeExpression(testPath, basename, hasSibling)) {
 			return false;
 		}
@@ -169,7 +169,7 @@ export class QueryGlobTester {
 	/**
 	 * Guaranteed async.
 	 */
-	public includedInQuery(testPath: string, basename?: string, hasSibling?: (name: string) => boolean | Promise<boolean>): Promise<boolean> {
+	includedInQuery(testPath: string, basename?: string, hasSibling?: (name: string) => boolean | Promise<boolean>): Promise<boolean> {
 		const excludeP = this._parsedExcludeExpression ?
 			Promise.resolve(this._parsedExcludeExpression(testPath, basename, hasSibling)).then(result => !!result) :
 			Promise.resolve(false);
@@ -187,13 +187,13 @@ export class QueryGlobTester {
 		});
 	}
 
-	public hasSiblingExcludeClauses(): boolean {
+	hasSiblingExcludeClauses(): boolean {
 		return hasSiblingClauses(this._excludeExpression);
 	}
 }
 
 function hasSiblingClauses(pattern: glob.IExpression): boolean {
-	for (let key in pattern) {
+	for (const key in pattern) {
 		if (typeof pattern[key] !== 'boolean') {
 			return true;
 		}

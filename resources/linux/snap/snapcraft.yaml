@@ -16,7 +16,6 @@ parts:
     stage-packages:
       - libasound2
       - libc++1
-      - libgconf2-4
       - libnotify4
       - libnspr4
       - libnss3

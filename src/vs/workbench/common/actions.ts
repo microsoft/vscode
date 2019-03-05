@@ -44,7 +44,7 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 		KeybindingsRegistry.registerKeybindingRule({
 			id: descriptor.id,
 			weight: weight,
-			when: descriptor.keybindingContext,
+			when: (descriptor.keybindingContext || when ? ContextKeyExpr.and(descriptor.keybindingContext, when) : null),
 			primary: keybindings ? keybindings.primary : 0,
 			secondary: keybindings && keybindings.secondary,
 			win: keybindings && keybindings.win,
@@ -54,7 +54,7 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 
 		// menu item
 		// TODO@Rob slightly weird if-check required because of
-		// https://github.com/Microsoft/vscode/blob/master/src/vs/workbench/parts/search/electron-browser/search.contribution.ts#L266
+		// https://github.com/Microsoft/vscode/blob/master/src/vs/workbench/contrib/search/electron-browser/search.contribution.ts#L266
 		if (descriptor.label) {
 
 			let idx = alias.indexOf(': ');
@@ -87,7 +87,7 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 			const instantiationService = accessor.get(IInstantiationService);
 			const lifecycleService = accessor.get(ILifecycleService);
 
-			Promise.resolve(this.triggerAndDisposeAction(instantiationService, lifecycleService, descriptor, args)).then(void 0, err => {
+			Promise.resolve(this.triggerAndDisposeAction(instantiationService, lifecycleService, descriptor, args)).then(undefined, err => {
 				notificationService.error(err);
 			});
 		};
@@ -105,7 +105,7 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 				if (!actionInstance.enabled) {
 					actionInstance.dispose();
 
-					return void 0;
+					return undefined;
 				}
 
 				const from = args && args.from || 'keybinding';

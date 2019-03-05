@@ -20,7 +20,7 @@ suite('DataUriEditorInput', () => {
 
 	test('simple', () => {
 		const resource = URI.parse('data:image/png;label:SomeLabel;description:SomeDescription;size:1024;base64,77+9UE5');
-		const input: DataUriEditorInput = instantiationService.createInstance(DataUriEditorInput, void 0, void 0, resource);
+		const input: DataUriEditorInput = instantiationService.createInstance(DataUriEditorInput, undefined, undefined, resource);
 
 		assert.equal(input.getName(), 'SomeLabel');
 		assert.equal(input.getDescription(), 'SomeDescription');

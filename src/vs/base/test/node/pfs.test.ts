@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import * as os from 'os';
 
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import * as fs from 'fs';
 
 import * as uuid from 'vs/base/common/uuid';
@@ -73,11 +73,11 @@ suite('PFS', () => {
 			assert.ok(fs.existsSync(newDir));
 
 			return Promise.all([
-				pfs.writeFile(testFile, 'Hello World 1', void 0),
-				pfs.writeFile(testFile, 'Hello World 2', void 0),
-				timeout(10).then(() => pfs.writeFile(testFile, 'Hello World 3', void 0)),
-				pfs.writeFile(testFile, 'Hello World 4', void 0),
-				timeout(10).then(() => pfs.writeFile(testFile, 'Hello World 5', void 0))
+				pfs.writeFile(testFile, 'Hello World 1', undefined),
+				pfs.writeFile(testFile, 'Hello World 2', undefined),
+				timeout(10).then(() => pfs.writeFile(testFile, 'Hello World 3', undefined)),
+				pfs.writeFile(testFile, 'Hello World 4', undefined),
+				timeout(10).then(() => pfs.writeFile(testFile, 'Hello World 5', undefined))
 			]).then(() => {
 				assert.equal(fs.readFileSync(testFile), 'Hello World 5');
 
@@ -115,23 +115,6 @@ suite('PFS', () => {
 
 			return pfs.rimraf(newDir).then(() => {
 				assert.ok(!fs.existsSync(newDir));
-			});
-		});
-	});
-
-	test('unlinkIgnoreError', function () {
-		const id = uuid.generateUuid();
-		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
-		const newDir = path.join(parentDir, 'extfs', id);
-
-		return pfs.mkdirp(newDir, 493).then(() => {
-			return pfs.unlinkIgnoreError(path.join(newDir, 'foo')).then(() => {
-
-				return pfs.del(parentDir, os.tmpdir());
-			}, error => {
-				assert.fail(error);
-
-				return Promise.reject(error);
 			});
 		});
 	});

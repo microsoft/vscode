@@ -9,7 +9,7 @@ import { Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { isObject } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -18,6 +18,7 @@ import * as model from 'vs/editor/common/model';
 import { LanguageFeatureRegistry } from 'vs/editor/common/modes/languageFeatureRegistry';
 import { TokenizationRegistryImpl } from 'vs/editor/common/modes/tokenizationRegistry';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 /**
  * Open ended enum at runtime
@@ -516,6 +517,7 @@ export interface CodeAction {
 	edit?: WorkspaceEdit;
 	diagnostics?: IMarkerData[];
 	kind?: string;
+	isPreferred?: boolean;
 }
 
 /**
@@ -618,6 +620,7 @@ export interface SignatureHelpContext {
 	readonly triggerKind: SignatureHelpTriggerKind;
 	readonly triggerCharacter?: string;
 	readonly isRetrigger: boolean;
+	readonly activeSignatureHelp?: SignatureHelp;
 }
 
 /**
@@ -665,7 +668,7 @@ export interface DocumentHighlight {
 	/**
 	 * The highlight kind, default is [text](#DocumentHighlightKind.Text).
 	 */
-	kind: DocumentHighlightKind;
+	kind?: DocumentHighlightKind;
 }
 /**
  * The document highlight provider interface defines the contract between extensions and
@@ -714,19 +717,41 @@ export interface Location {
 	 */
 	range: IRange;
 }
-/**
- * The definition of a symbol represented as one or many [locations](#Location).
- * For most programming languages there is only one location at which a symbol is
- * defined.
- */
-export type Definition = Location | Location[];
 
-export interface DefinitionLink {
-	origin?: IRange;
+export interface LocationLink {
+	/**
+	 * A range to select where this link originates from.
+	 */
+	originSelectionRange?: IRange;
+
+	/**
+	 * The target uri this link points to.
+	 */
 	uri: URI;
+
+	/**
+	 * The full range this link points to.
+	 */
 	range: IRange;
-	selectionRange?: IRange;
+
+	/**
+	 * A range to select this link points to. Must be contained
+	 * in `LocationLink.range`.
+	 */
+	targetSelectionRange?: IRange;
 }
+
+/**
+ * @internal
+ */
+export function isLocationLink(thing: any): thing is LocationLink {
+	return thing
+		&& URI.isUri((thing as LocationLink).uri)
+		&& Range.isIRange((thing as LocationLink).range)
+		&& (Range.isIRange((thing as LocationLink).originSelectionRange) || Range.isIRange((thing as LocationLink).targetSelectionRange));
+}
+
+export type Definition = Location | Location[] | LocationLink[];
 
 /**
  * The definition provider interface defines the contract between extensions and
@@ -737,7 +762,7 @@ export interface DefinitionProvider {
 	/**
 	 * Provide the definition of the symbol at the given position and document.
 	 */
-	provideDefinition(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | DefinitionLink[]>;
+	provideDefinition(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | LocationLink[]>;
 }
 
 /**
@@ -749,7 +774,7 @@ export interface DeclarationProvider {
 	/**
 	 * Provide the declaration of the symbol at the given position and document.
 	 */
-	provideDeclaration(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | DefinitionLink[]>;
+	provideDeclaration(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | LocationLink[]>;
 }
 
 /**
@@ -760,7 +785,7 @@ export interface ImplementationProvider {
 	/**
 	 * Provide the implementation of the symbol at the given position and document.
 	 */
-	provideImplementation(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | DefinitionLink[]>;
+	provideImplementation(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | LocationLink[]>;
 }
 
 /**
@@ -771,7 +796,7 @@ export interface TypeDefinitionProvider {
 	/**
 	 * Provide the type definition of the symbol at the given position and document.
 	 */
-	provideTypeDefinition(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | DefinitionLink[]>;
+	provideTypeDefinition(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | LocationLink[]>;
 }
 
 /**
@@ -840,8 +865,8 @@ export const symbolKindToCssClass = (function () {
 	_fromMapping[SymbolKind.Operator] = 'operator';
 	_fromMapping[SymbolKind.TypeParameter] = 'type-parameter';
 
-	return function toCssClassName(kind: SymbolKind): string {
-		return `symbol-icon ${_fromMapping[kind] || 'property'}`;
+	return function toCssClassName(kind: SymbolKind, inline?: boolean): string {
+		return `symbol-icon ${inline ? 'inline' : 'block'} ${_fromMapping[kind] || 'property'}`;
 	};
 })();
 
@@ -889,6 +914,12 @@ export interface FormattingOptions {
  * the formatting-feature.
  */
 export interface DocumentFormattingEditProvider {
+
+	/**
+	 * @internal
+	 */
+	readonly extensionId?: ExtensionIdentifier;
+
 	/**
 	 * Provide formatting edits for a whole document.
 	 */
@@ -899,6 +930,13 @@ export interface DocumentFormattingEditProvider {
  * the formatting-feature.
  */
 export interface DocumentRangeFormattingEditProvider {
+
+
+	/**
+	 * @internal
+	 */
+	readonly extensionId?: ExtensionIdentifier;
+
 	/**
 	 * Provide formatting edits for a range in a document.
 	 *
@@ -913,7 +951,15 @@ export interface DocumentRangeFormattingEditProvider {
  * the formatting-feature.
  */
 export interface OnTypeFormattingEditProvider {
+
+
+	/**
+	 * @internal
+	 */
+	readonly extensionId?: ExtensionIdentifier;
+
 	autoFormatTriggerCharacters: string[];
+
 	/**
 	 * Provide formatting edits after a character has been typed.
 	 *
@@ -937,7 +983,7 @@ export interface IInplaceReplaceSupportResult {
  */
 export interface ILink {
 	range: IRange;
-	url?: string;
+	url?: URI | string;
 }
 /**
  * A provider of links.
@@ -1034,7 +1080,7 @@ export interface SelectionRangeProvider {
 	/**
 	 * Provide ranges that should be selected from the given position.
 	 */
-	provideSelectionRanges(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<SelectionRange[]>;
+	provideSelectionRanges(model: model.ITextModel, positions: Position[], token: CancellationToken): ProviderResult<SelectionRange[][]>;
 }
 
 export interface FoldingContext {
@@ -1148,8 +1194,9 @@ export interface Command {
  * @internal
  */
 export interface CommentInfo {
+	extensionId: string;
 	threads: CommentThread[];
-	commentingRanges?: IRange[];
+	commentingRanges?: (IRange[] | CommentingRanges);
 	reply?: Command;
 	draftMode: DraftMode;
 }
@@ -1177,10 +1224,59 @@ export enum CommentThreadCollapsibleState {
 	Expanded = 1
 }
 
+
+
+/**
+ * @internal
+ */
+export interface CommentWidget {
+	commentThread: CommentThread;
+	comment?: Comment;
+	input: string;
+	onDidChangeInput: Event<string>;
+}
+
+/**
+ * @internal
+ */
+export interface CommentInput {
+	value: string;
+	uri: URI;
+}
+
+/**
+ * @internal
+ */
+export interface CommentThread2 {
+	commentThreadHandle: number;
+	extensionId: string;
+	threadId: string;
+	resource: string;
+	range: IRange;
+	comments: Comment[];
+	onDidChangeComments: Event<Comment[]>;
+	collapsibleState?: CommentThreadCollapsibleState;
+	input: CommentInput;
+	onDidChangeInput: Event<CommentInput>;
+	acceptInputCommands: Command[];
+	onDidChangeAcceptInputCommands: Event<Command[]>;
+}
+
+/**
+ * @internal
+ */
+
+export interface CommentingRanges {
+	readonly resource: URI;
+	ranges: IRange[];
+	newCommentThreadCommand: Command;
+}
+
 /**
  * @internal
  */
 export interface CommentThread {
+	extensionId: string;
 	threadId: string;
 	resource: string;
 	range: IRange;
@@ -1200,6 +1296,17 @@ export interface NewCommentAction {
 /**
  * @internal
  */
+export interface CommentReaction {
+	readonly label?: string;
+	readonly iconPath?: UriComponents;
+	readonly count?: number;
+	readonly hasReacted?: boolean;
+	readonly canEdit?: boolean;
+}
+
+/**
+ * @internal
+ */
 export interface Comment {
 	readonly commentId: string;
 	readonly body: IMarkdownString;
@@ -1208,7 +1315,10 @@ export interface Comment {
 	readonly canEdit?: boolean;
 	readonly canDelete?: boolean;
 	readonly command?: Command;
+	readonly editCommand?: Command;
+	readonly deleteCommand?: Command;
 	readonly isDraft?: boolean;
+	readonly commentReactions?: CommentReaction[];
 }
 
 /**
@@ -1218,22 +1328,22 @@ export interface CommentThreadChangedEvent {
 	/**
 	 * Added comment threads.
 	 */
-	readonly added: CommentThread[];
+	readonly added: (CommentThread | CommentThread2)[];
 
 	/**
 	 * Removed comment threads.
 	 */
-	readonly removed: CommentThread[];
+	readonly removed: (CommentThread | CommentThread2)[];
 
 	/**
 	 * Changed comment threads.
 	 */
-	readonly changed: CommentThread[];
+	readonly changed: (CommentThread | CommentThread2)[];
 
 	/**
 	 * changed draft mode.
 	 */
-	readonly draftMode: DraftMode;
+	readonly draftMode?: DraftMode;
 }
 
 /**
@@ -1252,7 +1362,12 @@ export interface DocumentCommentProvider {
 	startDraftLabel?: string;
 	deleteDraftLabel?: string;
 	finishDraftLabel?: string;
-	onDidChangeCommentThreads(): Event<CommentThreadChangedEvent>;
+
+	addReaction?(resource: URI, comment: Comment, reaction: CommentReaction, token: CancellationToken): Promise<void>;
+	deleteReaction?(resource: URI, comment: Comment, reaction: CommentReaction, token: CancellationToken): Promise<void>;
+	reactionGroup?: CommentReaction[];
+
+	onDidChangeCommentThreads?(): Event<CommentThreadChangedEvent>;
 }
 
 /**

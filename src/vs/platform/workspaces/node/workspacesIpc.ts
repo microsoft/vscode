@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
-import { IWorkspacesService, IWorkspaceIdentifier, IWorkspaceFolderCreationData, IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspacesService, IWorkspaceIdentifier, IWorkspaceFolderCreationData, IWorkspacesMainService, reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 
@@ -18,8 +18,9 @@ export class WorkspacesChannel implements IServerChannel {
 
 	call(_, command: string, arg?: any): Promise<any> {
 		switch (command) {
-			case 'createWorkspace': {
-				const rawFolders: IWorkspaceFolderCreationData[] = arg;
+			case 'createUntitledWorkspace': {
+				const rawFolders: IWorkspaceFolderCreationData[] = arg[0];
+				const remoteAuthority: string = arg[1];
 				let folders: IWorkspaceFolderCreationData[] | undefined = undefined;
 				if (Array.isArray(rawFolders)) {
 					folders = rawFolders.map(rawFolder => {
@@ -30,7 +31,7 @@ export class WorkspacesChannel implements IServerChannel {
 					});
 				}
 
-				return this.service.createWorkspace(folders);
+				return this.service.createUntitledWorkspace(folders, remoteAuthority);
 			}
 		}
 
@@ -44,7 +45,7 @@ export class WorkspacesChannelClient implements IWorkspacesService {
 
 	constructor(private channel: IChannel) { }
 
-	createWorkspace(folders?: IWorkspaceFolderCreationData[]): Promise<IWorkspaceIdentifier> {
-		return this.channel.call('createWorkspace', folders);
+	createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[], remoteAuthority?: string): Promise<IWorkspaceIdentifier> {
+		return this.channel.call('createUntitledWorkspace', [folders, remoteAuthority]).then(reviveWorkspaceIdentifier);
 	}
 }

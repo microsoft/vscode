@@ -62,7 +62,7 @@ export abstract class ViewletPanel extends Panel implements IView {
 	readonly id: string;
 	readonly title: string;
 
-	protected actionRunner: IActionRunner;
+	protected actionRunner?: IActionRunner;
 	protected toolbar: ToolBar;
 	private headerContainer: HTMLElement;
 
@@ -127,7 +127,7 @@ export abstract class ViewletPanel extends Panel implements IView {
 			orientation: ActionsOrientation.HORIZONTAL,
 			actionItemProvider: action => this.getActionItem(action),
 			ariaLabel: nls.localize('viewToolbarAriaLabel', "{0} actions", this.title),
-			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
+			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id) || undefined,
 			actionRunner: this.actionRunner
 		});
 
@@ -140,7 +140,7 @@ export abstract class ViewletPanel extends Panel implements IView {
 	}
 
 	protected renderHeaderTitle(container: HTMLElement, title: string): void {
-		append(container, $('h3.title', null, title));
+		append(container, $('h3.title', undefined, title));
 	}
 
 	focus(): void {
@@ -173,7 +173,7 @@ export abstract class ViewletPanel extends Panel implements IView {
 		return [];
 	}
 
-	getActionItem(action: IAction): IActionItem {
+	getActionItem(action: IAction): IActionItem | null {
 		return null;
 	}
 
@@ -259,7 +259,7 @@ export class PanelViewlet extends Viewlet {
 		let title = Registry.as<ViewletRegistry>(Extensions.Viewlets).getViewlet(this.getId()).name;
 
 		if (this.isSingleView()) {
-			title += ': ' + this.panelItems[0].panel.title;
+			title = `${title}: ${this.panelItems[0].panel.title}`;
 		}
 
 		return title;
@@ -281,7 +281,7 @@ export class PanelViewlet extends Viewlet {
 		return [];
 	}
 
-	getActionItem(action: IAction): IActionItem {
+	getActionItem(action: IAction): IActionItem | null {
 		if (this.isSingleView()) {
 			return this.panelItems[0].panel.getActionItem(action);
 		}
@@ -305,7 +305,7 @@ export class PanelViewlet extends Viewlet {
 	}
 
 	layout(dimension: Dimension): void {
-		this.panelview.layout(dimension.height);
+		this.panelview.layout(dimension.height, dimension.width);
 	}
 
 	getOptimalWidth(): number {

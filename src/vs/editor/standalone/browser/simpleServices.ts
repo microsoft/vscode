@@ -22,7 +22,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { TextEdit, WorkspaceEdit, isResourceTextEdit } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { ITextEditorModel, ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
+import { IResolvedTextEditorModel, ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ITextResourceConfigurationService, ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 import { CommandsRegistry, ICommand, ICommandEvent, ICommandHandler, ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -36,14 +36,15 @@ import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingReso
 import { IKeybindingItem, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
-import { ILabelService, LabelRules, RegisterFormatterEvent } from 'vs/platform/label/common/label';
+import { ILabelService, ResourceLabelFormatter } from 'vs/platform/label/common/label';
 import { INotification, INotificationHandle, INotificationService, IPromptChoice, IPromptOptions, NoOpNotification } from 'vs/platform/notification/common/notification';
 import { IProgressRunner, IProgressService } from 'vs/platform/progress/common/progress';
 import { ITelemetryInfo, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkbenchState, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 
-export class SimpleModel implements ITextEditorModel {
+export class SimpleModel implements IResolvedTextEditorModel {
 
 	private model: ITextModel;
 	private readonly _onDispose: Emitter<void>;
@@ -97,7 +98,7 @@ export class SimpleEditorModelResolverService implements ITextModelService {
 		this.editor = editor;
 	}
 
-	public createModelReference(resource: URI): Promise<IReference<ITextEditorModel>> {
+	public createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
 		let model: ITextModel | null = withTypedEditor(this.editor,
 			(editor) => this.findModel(editor, resource),
 			(diffEditor) => this.findModel(diffEditor.getOriginalEditor(), resource) || this.findModel(diffEditor.getModifiedEditor(), resource)
@@ -139,14 +140,14 @@ export class SimpleProgressService implements IProgressService {
 		worked: () => { }
 	};
 
-	show(infinite: boolean, delay?: number): IProgressRunner;
+	show(infinite: true, delay?: number): IProgressRunner;
 	show(total: number, delay?: number): IProgressRunner;
 	show(): IProgressRunner {
 		return SimpleProgressService.NULL_PROGRESS_RUNNER;
 	}
 
 	showWhile(promise: Promise<any>, delay?: number): Promise<void> {
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -213,6 +214,31 @@ export class SimpleNotificationService implements INotificationService {
 
 	public prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions): INotificationHandle {
 		return SimpleNotificationService.NO_OP;
+	}
+}
+
+export class BrowserAccessibilityService implements IAccessibilityService {
+	_serviceBrand: any;
+
+	private _accessibilitySupport = AccessibilitySupport.Unknown;
+	private readonly _onDidChangeAccessibilitySupport = new Emitter<void>();
+	readonly onDidChangeAccessibilitySupport: Event<void> = this._onDidChangeAccessibilitySupport.event;
+
+	alwaysUnderlineAccessKeys(): Promise<boolean> {
+		return Promise.resolve(false);
+	}
+
+	setAccessibilitySupport(accessibilitySupport: AccessibilitySupport): void {
+		if (this._accessibilitySupport === accessibilitySupport) {
+			return;
+		}
+
+		this._accessibilitySupport = accessibilitySupport;
+		this._onDidChangeAccessibilitySupport.fire();
+	}
+
+	getAccessibilitySupport(): AccessibilitySupport {
+		return this._accessibilitySupport;
 	}
 }
 
@@ -340,8 +366,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 
 	private _toNormalizedKeybindingItems(items: IKeybindingItem[], isDefault: boolean): ResolvedKeybindingItem[] {
 		let result: ResolvedKeybindingItem[] = [], resultLen = 0;
-		for (let i = 0, len = items.length; i < len; i++) {
-			const item = items[i];
+		for (const item of items) {
 			const when = (item.when ? item.when.normalize() : null);
 			const keybinding = item.keybinding;
 
@@ -350,8 +375,8 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 				result[resultLen++] = new ResolvedKeybindingItem(null, item.command, item.commandArgs, when, isDefault);
 			} else {
 				const resolvedKeybindings = this.resolveKeybinding(keybinding);
-				for (let j = 0; j < resolvedKeybindings.length; j++) {
-					result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybindings[j], item.command, item.commandArgs, when, isDefault);
+				for (const resolvedKeybinding of resolvedKeybindings) {
+					result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybinding, item.command, item.commandArgs, when, isDefault);
 				}
 			}
 		}
@@ -370,12 +395,16 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 			keyboardEvent.altKey,
 			keyboardEvent.metaKey,
 			keyboardEvent.keyCode
-		);
+		).toChord();
 		return new USLayoutResolvedKeybinding(keybinding, OS);
 	}
 
 	public resolveUserBinding(userBinding: string): ResolvedKeybinding[] {
 		return [];
+	}
+
+	public _dumpDebugInfo(): string {
+		return '';
 	}
 }
 
@@ -408,9 +437,9 @@ export class SimpleConfigurationService implements IConfigurationService {
 	getValue<T>(overrides: IConfigurationOverrides): T;
 	getValue<T>(section: string, overrides: IConfigurationOverrides): T;
 	getValue(arg1?: any, arg2?: any): any {
-		const section = typeof arg1 === 'string' ? arg1 : void 0;
+		const section = typeof arg1 === 'string' ? arg1 : undefined;
 		const overrides = isConfigurationOverrides(arg1) ? arg1 : isConfigurationOverrides(arg2) ? arg2 : {};
-		return this.configuration().getValue(section, overrides, null);
+		return this.configuration().getValue(section, overrides, undefined);
 	}
 
 	public updateValue(key: string, value: any, arg3?: any, arg4?: any): Promise<void> {
@@ -425,15 +454,15 @@ export class SimpleConfigurationService implements IConfigurationService {
 		workspaceFolder?: C
 		value: C,
 	} {
-		return this.configuration().inspect<C>(key, options, null);
+		return this.configuration().inspect<C>(key, options, undefined);
 	}
 
 	public keys() {
-		return this.configuration().keys(null);
+		return this.configuration().keys(undefined);
 	}
 
 	public reloadConfiguration(): Promise<void> {
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	public getConfigurationData(): IConfigurationData | null {
@@ -458,7 +487,7 @@ export class SimpleResourceConfigurationService implements ITextResourceConfigur
 	getValue<T>(resource: URI, position?: IPosition, section?: string): T;
 	getValue<T>(resource: any, arg2?: any, arg3?: any) {
 		const position: IPosition | null = Pos.isIPosition(arg2) ? arg2 : null;
-		const section: string | undefined = position ? (typeof arg3 === 'string' ? arg3 : void 0) : (typeof arg2 === 'string' ? arg2 : void 0);
+		const section: string | undefined = position ? (typeof arg3 === 'string' ? arg3 : undefined) : (typeof arg2 === 'string' ? arg2 : undefined);
 		if (typeof section === 'undefined') {
 			return this.configurationService.getValue<T>();
 		}
@@ -471,7 +500,7 @@ export class SimpleResourcePropertiesService implements ITextResourcePropertiesS
 	_serviceBrand: any;
 
 	constructor(
-		@IConfigurationService private configurationService: IConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 	}
 
@@ -492,7 +521,7 @@ export class StandaloneTelemetryService implements ITelemetryService {
 	public isOptedIn = false;
 
 	public publicLog(eventName: string, data?: any): Promise<void> {
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	public getTelemetryInfo(): Promise<ITelemetryInfo> {
@@ -520,6 +549,10 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 	constructor() {
 		const resource = URI.from({ scheme: SimpleWorkspaceContextService.SCHEME, authority: 'model', path: '/' });
 		this.workspace = { id: '4064f6ec-cb38-4ad0-af64-ee6467e63c82', folders: [new WorkspaceFolder({ uri: resource, name: '', index: 0 })] };
+	}
+
+	getCompleteWorkspace(): Promise<IWorkspace> {
+		return Promise.resolve(this.getWorkspace());
 	}
 
 	public getWorkspace(): IWorkspace {
@@ -573,7 +606,7 @@ export class SimpleBulkEditService implements IBulkEditService {
 		//
 	}
 
-	apply(workspaceEdit: WorkspaceEdit, options: IBulkEditOptions): Promise<IBulkEditResult> {
+	apply(workspaceEdit: WorkspaceEdit, options?: IBulkEditOptions): Promise<IBulkEditResult> {
 
 		let edits = new Map<ITextModel, TextEdit[]>();
 
@@ -612,8 +645,8 @@ export class SimpleBulkEditService implements IBulkEditService {
 export class SimpleUriLabelService implements ILabelService {
 	_serviceBrand: any;
 
-	private readonly _onDidRegisterFormatter = new Emitter<RegisterFormatterEvent>();
-	public readonly onDidRegisterFormatter: Event<RegisterFormatterEvent> = this._onDidRegisterFormatter.event;
+	private readonly _onDidRegisterFormatter = new Emitter<void>();
+	public readonly onDidChangeFormatters: Event<void> = this._onDidRegisterFormatter.event;
 
 	public getUriLabel(resource: URI, options?: { relative?: boolean, forceNoTildify?: boolean }): string {
 		if (resource.scheme === 'file') {
@@ -626,7 +659,11 @@ export class SimpleUriLabelService implements ILabelService {
 		return '';
 	}
 
-	public registerFormatter(selector: string, formatter: LabelRules): IDisposable {
+	public getSeparator(scheme: string, authority?: string): '/' | '\\' {
+		return '/';
+	}
+
+	public registerFormatter(formatter: ResourceLabelFormatter): IDisposable {
 		throw new Error('Not implemented');
 	}
 

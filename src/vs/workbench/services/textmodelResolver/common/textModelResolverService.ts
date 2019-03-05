@@ -16,6 +16,7 @@ import { ITextModelService, ITextModelContentProvider, ITextEditorModel } from '
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { IFileService } from 'vs/platform/files/common/files';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorModel>> {
 
@@ -23,9 +24,9 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 	private modelsToDispose = new Set<string>();
 
 	constructor(
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@ITextFileService private textFileService: ITextFileService,
-		@IFileService private fileService: IFileService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		super();
 	}
@@ -107,7 +108,7 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 
 		return first(factories).then(model => {
 			if (!model) {
-				return Promise.reject(new Error('resource is not available'));
+				return Promise.reject<any>(new Error('resource is not available'));
 			}
 
 			return model;
@@ -122,9 +123,9 @@ export class TextModelResolverService implements ITextModelService {
 	private resourceModelCollection: ResourceModelCollection;
 
 	constructor(
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IModelService private modelService: IModelService
+		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IModelService private readonly modelService: IModelService
 	) {
 		this.resourceModelCollection = instantiationService.createInstance(ResourceModelCollection);
 	}
@@ -171,3 +172,5 @@ export class TextModelResolverService implements ITextModelService {
 		return this.resourceModelCollection.hasTextModelContentProvider(scheme);
 	}
 }
+
+registerSingleton(ITextModelService, TextModelResolverService, true);

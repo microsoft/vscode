@@ -65,9 +65,9 @@ suite('Multicursor selection', () => {
 		onWillSaveState: Event.None,
 		get: (key: string) => queryState[key],
 		getBoolean: (key: string) => !!queryState[key],
-		getInteger: (key: string) => undefined!,
+		getNumber: (key: string) => undefined!,
 		store: (key: string, value: any) => { queryState[key] = value; return Promise.resolve(); },
-		remove: (key) => void 0
+		remove: (key) => undefined
 	} as IStorageService);
 
 	test('issue #8817: Cursor position changes when you cancel multicursor', () => {

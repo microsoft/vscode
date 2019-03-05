@@ -30,7 +30,7 @@ export class DarwinUpdateService extends AbstractUpdateService {
 	constructor(
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@ITelemetryService private telemetryService: ITelemetryService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IRequestService requestService: IRequestService,
 		@ILogService logService: ILogService

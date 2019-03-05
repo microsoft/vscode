@@ -154,8 +154,8 @@ function testLineStarts(str: string, pieceTable: PieceTreeBase) {
 
 function createTextBuffer(val: string[], normalizeEOL: boolean = true): PieceTreeBase {
 	let bufferBuilder = new PieceTreeTextBufferBuilder();
-	for (let i = 0; i < val.length; i++) {
-		bufferBuilder.acceptChunk(val[i]);
+	for (const chunk of val) {
+		bufferBuilder.acceptChunk(chunk);
 	}
 	let factory = bufferBuilder.finish(normalizeEOL);
 	return (<PieceTreeTextBuffer>factory.create(DefaultEndOfLine.LF)).getPieceTree();

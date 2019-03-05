@@ -176,7 +176,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 				scrollState.restore(this._editor);
 			} else {
 				// No accessors available
-				this._disposeAllLenses(void 0, void 0);
+				this._disposeAllLenses(undefined, undefined);
 			}
 		}));
 		this._localToDispose.push(this._editor.onDidChangeConfiguration(e => {
@@ -309,13 +309,14 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 
 				const resolvedSymbols = new Array<ICodeLensSymbol | undefined | null>(request.length);
 				const promises = request.map((request, i) => {
-					if (typeof request.provider.resolveCodeLens === 'function') {
+					if (!request.symbol.command && typeof request.provider.resolveCodeLens === 'function') {
 						return Promise.resolve(request.provider.resolveCodeLens(model, request.symbol, token)).then(symbol => {
 							resolvedSymbols[i] = symbol;
 						});
+					} else {
+						resolvedSymbols[i] = request.symbol;
+						return Promise.resolve(undefined);
 					}
-					resolvedSymbols[i] = request.symbol;
-					return Promise.resolve(void 0);
 				});
 
 				return Promise.all(promises).then(() => {

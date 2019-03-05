@@ -11,7 +11,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { addClass, append, $, hide, removeClass, show, toggleClass, getDomNodePagePosition, hasClass } from 'vs/base/browser/dom';
-import { IListVirtualDelegate, IListEvent, IListRenderer } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate, IListEvent, IListRenderer, IListMouseEvent } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -63,11 +63,19 @@ export const editorSuggestWidgetHighlightForeground = registerColor('editorSugge
 
 
 const colorRegExp = /^(#([\da-f]{3}){1,2}|(rgb|hsl)a\(\s*(\d{1,3}%?\s*,\s*){3}(1|0?\.\d+)\)|(rgb|hsl)\(\s*\d{1,3}%?(\s*,\s*\d{1,3}%?){2}\s*\))$/i;
-function matchesColor(text: string) {
-	return text && text.match(colorRegExp) ? text : null;
+function extractColor(item: CompletionItem, out: string[]): boolean {
+	if (item.completion.label.match(colorRegExp)) {
+		out[0] = item.completion.label;
+		return true;
+	}
+	if (typeof item.completion.documentation === 'string' && item.completion.documentation.match(colorRegExp)) {
+		out[0] = item.completion.documentation;
+		return true;
+	}
+	return false;
 }
 
-function canExpandCompletionItem(item: CompletionItem) {
+function canExpandCompletionItem(item: CompletionItem | null) {
 	if (!item) {
 		return false;
 	}
@@ -156,16 +164,16 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 			matches: createMatches(element.score)
 		};
 
-		let color: string;
-		if (suggestion.kind === CompletionItemKind.Color && (color = matchesColor(suggestion.label) || typeof suggestion.documentation === 'string' && matchesColor(suggestion.documentation))) {
+		let color: string[] = [];
+		if (suggestion.kind === CompletionItemKind.Color && extractColor(element, color)) {
 			// special logic for 'color' completion items
 			data.icon.className = 'icon customcolor';
-			data.colorspan.style.backgroundColor = color;
+			data.colorspan.style.backgroundColor = color[0];
 
 		} else if (suggestion.kind === CompletionItemKind.File && this._themeService.getIconTheme().hasFileIcons) {
 			// special logic for 'file' completion items
 			data.icon.className = 'icon hide';
-			labelOptions.extraClasses = [].concat(
+			labelOptions.extraClasses = ([] as string[]).concat(
 				getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: suggestion.label }), FileKind.FILE),
 				getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: suggestion.detail }), FileKind.FILE)
 			);
@@ -173,7 +181,7 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 		} else if (suggestion.kind === CompletionItemKind.Folder && this._themeService.getIconTheme().hasFolderIcons) {
 			// special logic for 'folder' completion items
 			data.icon.className = 'icon hide';
-			labelOptions.extraClasses = [].concat(
+			labelOptions.extraClasses = ([] as string[]).concat(
 				getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: suggestion.label }), FileKind.FOLDER),
 				getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: suggestion.detail }), FileKind.FOLDER)
 			);
@@ -229,7 +237,7 @@ class SuggestionDetails {
 	private header: HTMLElement;
 	private type: HTMLElement;
 	private docs: HTMLElement;
-	private ariaLabel: string;
+	private ariaLabel: string | null;
 	private disposables: IDisposable[];
 	private renderDisposeable: IDisposable;
 	private borderWidth: number = 1;
@@ -324,7 +332,7 @@ class SuggestionDetails {
 			item.completion.documentation ? (typeof item.completion.documentation === 'string' ? item.completion.documentation : item.completion.documentation.value) : '');
 	}
 
-	getAriaLabel(): string {
+	getAriaLabel() {
 		return this.ariaLabel;
 	}
 
@@ -394,13 +402,13 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	// Editor.IContentWidget.allowEditorOverflow
 	readonly allowEditorOverflow = true;
 
-	private state: State;
+	private state: State | null;
 	private isAuto: boolean;
 	private loadingTimeout: any;
-	private currentSuggestionDetails: CancelablePromise<void>;
-	private focusedItem: CompletionItem;
+	private currentSuggestionDetails: CancelablePromise<void> | null;
+	private focusedItem: CompletionItem | null;
 	private ignoreFocusEvents = false;
-	private completionModel: CompletionModel;
+	private completionModel: CompletionModel | null;
 
 	private element: HTMLElement;
 	private messageElement: HTMLElement;
@@ -436,11 +444,11 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	private firstFocusInCurrentList: boolean = false;
 
 	private preferDocPositionTop: boolean = false;
-	private docsPositionPreviousWidgetY: number;
+	private docsPositionPreviousWidgetY: number | null;
 
 	constructor(
 		private editor: ICodeEditor,
-		@ITelemetryService private telemetryService: ITelemetryService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
@@ -470,9 +478,8 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 
 		this.list = new List(this.listElement, this, [renderer], {
 			useShadows: false,
-			selectOnMouseDown: true,
-			focusOnMouseDown: false,
-			openController: { shouldOpen: () => false }
+			openController: { shouldOpen: () => false },
+			mouseSupport: false
 		});
 
 		this.toDispose = [
@@ -482,6 +489,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 			}),
 			themeService.onThemeChange(t => this.onThemeChange(t)),
 			editor.onDidLayoutChange(() => this.onEditorLayoutChange()),
+			this.list.onMouseDown(e => this.onListMouseDown(e)),
 			this.list.onSelectionChange(e => this.onListSelection(e)),
 			this.list.onFocusChange(e => this.onListFocus(e)),
 			this.editor.onDidChangeCursorSelection(() => this.onCursorSelectionChanged())
@@ -510,37 +518,49 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		}
 	}
 
+	private onListMouseDown(e: IListMouseEvent<CompletionItem>): void {
+		if (typeof e.element === 'undefined' || typeof e.index === 'undefined') {
+			return;
+		}
+
+		// prevent stealing browser focus from the editor
+		e.browserEvent.preventDefault();
+		e.browserEvent.stopPropagation();
+
+		this.select(e.element, e.index);
+	}
+
 	private onListSelection(e: IListEvent<CompletionItem>): void {
 		if (!e.elements.length) {
 			return;
 		}
 
-		const item = e.elements[0];
-		const index = e.indexes[0];
+		this.select(e.elements[0], e.indexes[0]);
+	}
+
+	private select(item: CompletionItem, index: number): void {
+		const completionModel = this.completionModel;
+
+		if (!completionModel) {
+			return;
+		}
+
 		item.resolve(CancellationToken.None).then(() => {
-			this.onDidSelectEmitter.fire({ item, index, model: this.completionModel });
-			alert(nls.localize('suggestionAriaAccepted', "{0}, accepted", item.completion.label));
+			this.onDidSelectEmitter.fire({ item, index, model: completionModel });
 			this.editor.focus();
 		});
 	}
 
 	private _getSuggestionAriaAlertLabel(item: CompletionItem): string {
-		const isSnippet = item.completion.kind === CompletionItemKind.Snippet;
-
-		if (!canExpandCompletionItem(item)) {
-			return isSnippet ? nls.localize('ariaCurrentSnippetSuggestion', "{0}, snippet suggestion", item.completion.label)
-				: nls.localize('ariaCurrentSuggestion', "{0}, suggestion", item.completion.label);
-		} else if (this.expandDocsSettingFromStorage()) {
-			return isSnippet ? nls.localize('ariaCurrentSnippeSuggestionReadDetails', "{0}, snippet suggestion. Reading details. {1}", item.completion.label, this.details.getAriaLabel())
-				: nls.localize('ariaCurrenttSuggestionReadDetails', "{0}, suggestion. Reading details. {1}", item.completion.label, this.details.getAriaLabel());
+		if (this.expandDocsSettingFromStorage()) {
+			return nls.localize('ariaCurrenttSuggestionReadDetails', "Item {0}, docs: {1}", item.completion.label, this.details.getAriaLabel());
 		} else {
-			return isSnippet ? nls.localize('ariaCurrentSnippetSuggestionWithDetails', "{0}, snippet suggestion, has details", item.completion.label)
-				: nls.localize('ariaCurrentSuggestionWithDetails', "{0}, suggestion, has details", item.completion.label);
+			return item.completion.label;
 		}
 	}
 
-	private _lastAriaAlertLabel: string;
-	private _ariaAlert(newAriaAlertLabel: string): void {
+	private _lastAriaAlertLabel: string | null;
+	private _ariaAlert(newAriaAlertLabel: string | null): void {
 		if (this._lastAriaAlertLabel === newAriaAlertLabel) {
 			return;
 		}
@@ -584,6 +604,10 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 			}
 
 			this._ariaAlert(null);
+			return;
+		}
+
+		if (!this.completionModel) {
 			return;
 		}
 
@@ -861,10 +885,12 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		}
 	}
 
-	getFocusedItem(): ISelectedSuggestion {
+	getFocusedItem(): ISelectedSuggestion | undefined {
 		if (this.state !== State.Hidden
 			&& this.state !== State.Empty
-			&& this.state !== State.Loading) {
+			&& this.state !== State.Loading
+			&& this.completionModel
+		) {
 
 			return {
 				item: this.list.getFocusedElements()[0],
@@ -933,7 +959,6 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 			*/
 			this.telemetryService.publicLog('suggestWidget:expandDetails', this.editor.getTelemetryData());
 		}
-
 	}
 
 	showDetails(): void {
@@ -981,7 +1006,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		this.onDidHideEmitter.fire(this);
 	}
 
-	getPosition(): IContentWidgetPosition {
+	getPosition(): IContentWidgetPosition | null {
 		if (this.state === State.Hidden) {
 			return null;
 		}
@@ -1025,6 +1050,10 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	 * Adds the propert classes, margins when positioning the docs to the side
 	 */
 	private adjustDocsPosition() {
+		if (!this.editor.hasModel()) {
+			return;
+		}
+
 		const lineHeight = this.editor.getConfiguration().fontInfo.lineHeight;
 		const cursorCoords = this.editor.getScrolledVisiblePosition(this.editor.getPosition());
 		const editorCoords = getDomNodePagePosition(this.editor.getDomNode());
@@ -1075,7 +1104,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 			return;
 		}
 
-		let matches = this.element.style.maxWidth.match(/(\d+)px/);
+		let matches = this.element.style.maxWidth!.match(/(\d+)px/);
 		if (!matches || Number(matches[1]) < this.maxWidgetWidth) {
 			addClass(this.element, 'docs-below');
 			removeClass(this.element, 'docs-side');
@@ -1118,13 +1147,13 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		this.state = null;
 		this.currentSuggestionDetails = null;
 		this.focusedItem = null;
-		this.element = null;
-		this.messageElement = null;
-		this.listElement = null;
+		this.element = null!; // StrictNullOverride: nulling out ok in dispose
+		this.messageElement = null!; // StrictNullOverride: nulling out ok in dispose
+		this.listElement = null!; // StrictNullOverride: nulling out ok in dispose
 		this.details.dispose();
-		this.details = null;
+		this.details = null!; // StrictNullOverride: nulling out ok in dispose
 		this.list.dispose();
-		this.list = null;
+		this.list = null!; // StrictNullOverride: nulling out ok in dispose
 		this.toDispose = dispose(this.toDispose);
 		if (this.loadingTimeout) {
 			clearTimeout(this.loadingTimeout);

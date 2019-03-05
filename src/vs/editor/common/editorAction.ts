@@ -38,10 +38,10 @@ export class InternalEditorAction implements IEditorAction {
 
 	public run(): Promise<void> {
 		if (!this.isSupported()) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		const r = this._run();
-		return r ? r : Promise.resolve(void 0);
+		return r ? r : Promise.resolve(undefined);
 	}
 }

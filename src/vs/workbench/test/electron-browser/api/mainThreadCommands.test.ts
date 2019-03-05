@@ -12,7 +12,7 @@ suite('MainThreadCommands', function () {
 
 	test('dispose on unregister', function () {
 
-		const commands = new MainThreadCommands(SingleProxyRPCProtocol(null), undefined);
+		const commands = new MainThreadCommands(SingleProxyRPCProtocol(null), undefined!);
 		assert.equal(CommandsRegistry.getCommand('foo'), undefined);
 
 		// register
@@ -26,7 +26,7 @@ suite('MainThreadCommands', function () {
 
 	test('unregister all on dispose', function () {
 
-		const commands = new MainThreadCommands(SingleProxyRPCProtocol(null), undefined);
+		const commands = new MainThreadCommands(SingleProxyRPCProtocol(null), undefined!);
 		assert.equal(CommandsRegistry.getCommand('foo'), undefined);
 
 		commands.$registerCommand('foo');

@@ -39,7 +39,7 @@ suite('workspace-namespace', () => {
 		if (vscode.workspace.rootPath) {
 			assert.ok(pathEquals(vscode.workspace.rootPath, join(__dirname, '../../testWorkspace')));
 		}
-		assert.throws(() => vscode.workspace.rootPath = 'farboo');
+		assert.throws(() => (vscode.workspace as any).rootPath = 'farboo');
 	});
 
 	test('workspaceFolders', () => {
@@ -488,9 +488,9 @@ suite('workspace-namespace', () => {
 	});
 
 	test('findFiles', () => {
-		return vscode.workspace.findFiles('*.js').then((res) => {
+		return vscode.workspace.findFiles('*.png').then((res) => {
 			assert.equal(res.length, 1);
-			assert.equal(basename(vscode.workspace.asRelativePath(res[0])), 'far.js');
+			assert.equal(basename(vscode.workspace.asRelativePath(res[0])), 'image.png');
 		});
 	});
 
@@ -568,7 +568,7 @@ suite('workspace-namespace', () => {
 
 	test('applyEdit should fail when editing renamed from resource', async () => {
 		const resource = await createRandomFile();
-		const newResource = vscode.Uri.parse(resource.fsPath + '.1');
+		const newResource = vscode.Uri.file(resource.fsPath + '.1');
 		const edit = new vscode.WorkspaceEdit();
 		edit.renameFile(resource, newResource);
 		edit.insert(resource, new vscode.Position(0, 0), '');

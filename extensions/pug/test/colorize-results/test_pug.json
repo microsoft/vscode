@@ -980,13 +980,13 @@
 	},
 	{
 		"c": "name",
-		"t": "text.pug text.block.pug string.interpolated.pug support.variable.property.dom.js",
+		"t": "text.pug text.block.pug string.interpolated.pug variable.other.property.js",
 		"r": {
-			"dark_plus": "support.variable: #9CDCFE",
-			"light_plus": "support.variable: #001080",
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string.interpolated.pug: #0000FF",
-			"hc_black": "support.variable: #9CDCFE"
+			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{

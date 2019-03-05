@@ -6,7 +6,7 @@
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 
 export function isThenable<T>(obj: any): obj is Promise<T> {
@@ -43,6 +43,9 @@ export function createCancelablePromise<T>(callback: (token: CancellationToken) 
 		}
 		catch<TResult = never>(reject?: ((reason: any) => TResult | Promise<TResult>) | undefined | null): Promise<T | TResult> {
 			return this.then(undefined, reject);
+		}
+		finally(onfinally?: (() => void) | undefined | null): Promise<T> {
+			return promise.finally(onfinally);
 		}
 	};
 }
@@ -318,32 +321,9 @@ export function timeout(millis: number, token?: CancellationToken): CancelablePr
 	});
 }
 
-export function disposableTimeout(handler: Function, timeout = 0): IDisposable {
+export function disposableTimeout(handler: () => void, timeout = 0): IDisposable {
 	const timer = setTimeout(handler, timeout);
-	return {
-		dispose() {
-			clearTimeout(timer);
-		}
-	};
-}
-
-/**
- * Returns a new promise that joins the provided promise. Upon completion of
- * the provided promise the provided function will always be called. This
- * method is comparable to a try-finally code block.
- * @param promise a promise
- * @param callback a function that will be call in the success and error case.
- */
-export function always<T>(promise: Promise<T>, callback: () => void): Promise<T> {
-	function safeCallback() {
-		try {
-			callback();
-		} catch (err) {
-			errors.onUnexpectedError(err);
-		}
-	}
-	promise.then(_ => safeCallback(), _ => safeCallback());
-	return Promise.resolve(promise);
+	return toDisposable(() => clearTimeout(timer));
 }
 
 export function ignoreErrors<T>(promise: Promise<T>): Promise<T | undefined> {
@@ -712,8 +692,8 @@ declare function cancelIdleCallback(handle: number): void;
 			didTimeout: true,
 			timeRemaining() { return 15; }
 		});
-		runWhenIdle = (runner, timeout = 0) => {
-			let handle = setTimeout(() => runner(dummyIdle), timeout);
+		runWhenIdle = (runner) => {
+			let handle = setTimeout(() => runner(dummyIdle));
 			let disposed = false;
 			return {
 				dispose() {

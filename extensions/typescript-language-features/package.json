@@ -18,7 +18,7 @@
   "dependencies": {
     "jsonc-parser": "^2.0.1",
     "semver": "5.5.1",
-    "vscode-extension-telemetry": "0.1.0",
+    "vscode-extension-telemetry": "0.1.1",
     "vscode-nls": "^4.0.0"
   },
   "devDependencies": {
@@ -358,12 +358,6 @@
           "description": "%format.placeOpenBraceOnNewLineForControlBlocks%",
           "scope": "resource"
         },
-        "jsDocCompletion.enabled": {
-          "type": "boolean",
-          "default": true,
-          "description": "%jsDocCompletion.enabled%",
-          "scope": "resource"
-        },
         "javascript.implicitProjectConfig.checkJs": {
           "type": "boolean",
           "default": false,
@@ -422,6 +416,18 @@
           "type": "boolean",
           "default": true,
           "description": "%configuration.suggest.autoImports%",
+          "scope": "resource"
+        },
+        "javascript.suggest.completeJSDocs": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.completeJSDocs%",
+          "scope": "resource"
+        },
+        "typescript.suggest.completeJSDocs": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.completeJSDocs%",
           "scope": "resource"
         },
         "typescript.locale": {
@@ -510,6 +516,18 @@
           ],
           "default": "auto",
           "description": "%typescript.preferences.importModuleSpecifier%",
+          "scope": "resource"
+        },
+        "javascript.preferences.renameShorthandProperties": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.preferences.renameShorthandProperties%",
+          "scope": "resource"
+        },
+        "typescript.preferences.renameShorthandProperties": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.preferences.renameShorthandProperties%",
           "scope": "resource"
         },
         "typescript.updateImportsOnFileMove.enabled": {

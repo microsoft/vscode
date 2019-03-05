@@ -15,6 +15,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService, Parts, Position } from 'vs/workbench/services/part/common/partService';
 import { ActivityAction } from 'vs/workbench/browser/parts/compositeBarActions';
 import { IActivity } from 'vs/workbench/common/activity';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export class ClosePanelAction extends Action {
 
@@ -24,14 +25,14 @@ export class ClosePanelAction extends Action {
 	constructor(
 		id: string,
 		name: string,
-		@IPartService private partService: IPartService
+		@IPartService private readonly partService: IPartService
 	) {
 		super(id, name, 'hide-panel-action');
 	}
 
 	run(): Promise<any> {
 		this.partService.setPanelHidden(true);
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 
@@ -43,14 +44,14 @@ export class TogglePanelAction extends Action {
 	constructor(
 		id: string,
 		name: string,
-		@IPartService private partService: IPartService
+		@IPartService private readonly partService: IPartService
 	) {
 		super(id, name, partService.isVisible(Parts.PANEL_PART) ? 'panel expanded' : 'panel');
 	}
 
 	run(): Promise<any> {
 		this.partService.setPanelHidden(this.partService.isVisible(Parts.PANEL_PART));
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 
@@ -62,8 +63,8 @@ class FocusPanelAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IPanelService private panelService: IPanelService,
-		@IPartService private partService: IPartService
+		@IPanelService private readonly panelService: IPanelService,
+		@IPartService private readonly partService: IPartService
 	) {
 		super(id, label);
 	}
@@ -73,7 +74,7 @@ class FocusPanelAction extends Action {
 		// Show panel
 		if (!this.partService.isVisible(Parts.PANEL_PART)) {
 			this.partService.setPanelHidden(false);
-			return Promise.resolve(null);
+			return Promise.resolve();
 		}
 
 		// Focus into active panel
@@ -82,7 +83,7 @@ class FocusPanelAction extends Action {
 			panel.focus();
 		}
 
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 
@@ -99,7 +100,8 @@ export class TogglePanelPositionAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IPartService private partService: IPartService,
+		@IPartService private readonly partService: IPartService,
+		@IEditorGroupsService editorGroupsService: IEditorGroupsService
 	) {
 		super(id, label, partService.getPanelPosition() === Position.RIGHT ? 'move-panel-to-bottom' : 'move-panel-to-right');
 
@@ -111,7 +113,7 @@ export class TogglePanelPositionAction extends Action {
 			this.label = positionRight ? TogglePanelPositionAction.MOVE_TO_BOTTOM_LABEL : TogglePanelPositionAction.MOVE_TO_RIGHT_LABEL;
 		};
 
-		this.toDispose.push(partService.onEditorLayout(() => setClassAndLabel()));
+		this.toDispose.push(editorGroupsService.onDidLayout(() => setClassAndLabel()));
 
 		setClassAndLabel();
 	}
@@ -120,7 +122,7 @@ export class TogglePanelPositionAction extends Action {
 		const position = this.partService.getPanelPosition();
 
 		this.partService.setPanelPosition(position === Position.BOTTOM ? Position.RIGHT : Position.BOTTOM);
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 
 	dispose(): void {
@@ -143,13 +145,14 @@ export class ToggleMaximizedPanelAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IPartService private partService: IPartService
+		@IPartService private readonly partService: IPartService,
+		@IEditorGroupsService editorGroupsService: IEditorGroupsService
 	) {
 		super(id, label, partService.isPanelMaximized() ? 'minimize-panel-action' : 'maximize-panel-action');
 
 		this.toDispose = [];
 
-		this.toDispose.push(partService.onEditorLayout(() => {
+		this.toDispose.push(editorGroupsService.onDidLayout(() => {
 			const maximized = this.partService.isPanelMaximized();
 			this.class = maximized ? 'minimize-panel-action' : 'maximize-panel-action';
 			this.label = maximized ? ToggleMaximizedPanelAction.RESTORE_LABEL : ToggleMaximizedPanelAction.MAXIMIZE_LABEL;
@@ -162,7 +165,7 @@ export class ToggleMaximizedPanelAction extends Action {
 		}
 
 		this.partService.toggleMaximizedPanel();
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 
 	dispose(): void {
@@ -176,7 +179,7 @@ export class PanelActivityAction extends ActivityAction {
 
 	constructor(
 		activity: IActivity,
-		@IPanelService private panelService: IPanelService
+		@IPanelService private readonly panelService: IPanelService
 	) {
 		super(activity);
 	}
@@ -184,7 +187,7 @@ export class PanelActivityAction extends ActivityAction {
 	run(event: any): Promise<any> {
 		this.panelService.openPanel(this.activity.id, true);
 		this.activate();
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 
@@ -193,7 +196,7 @@ export class SwitchPanelViewAction extends Action {
 	constructor(
 		id: string,
 		name: string,
-		@IPanelService private panelService: IPanelService
+		@IPanelService private readonly panelService: IPanelService
 	) {
 		super(id, name);
 	}
@@ -202,17 +205,19 @@ export class SwitchPanelViewAction extends Action {
 		const pinnedPanels = this.panelService.getPinnedPanels();
 		const activePanel = this.panelService.getActivePanel();
 		if (!activePanel) {
-			return Promise.resolve(null);
+			return Promise.resolve();
 		}
-		let targetPanelId: string;
+		let targetPanelId: string | undefined;
 		for (let i = 0; i < pinnedPanels.length; i++) {
 			if (pinnedPanels[i].id === activePanel.getId()) {
 				targetPanelId = pinnedPanels[(i + pinnedPanels.length + offset) % pinnedPanels.length].id;
 				break;
 			}
 		}
-		this.panelService.openPanel(targetPanelId, true);
-		return Promise.resolve(null);
+		if (typeof targetPanelId === 'string') {
+			this.panelService.openPanel(targetPanelId, true);
+		}
+		return Promise.resolve();
 	}
 }
 
@@ -247,7 +252,7 @@ export class NextPanelViewAction extends SwitchPanelViewAction {
 		super(id, name, panelService);
 	}
 
-	public run(): Promise<any> {
+	run(): Promise<any> {
 		return super.run(1);
 	}
 }

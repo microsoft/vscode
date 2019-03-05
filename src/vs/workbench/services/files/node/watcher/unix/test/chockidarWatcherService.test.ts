@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import * as os from 'os';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import * as pfs from 'vs/base/node/pfs';
 
 import { normalizeRoots, ChokidarWatcherService } from '../chokidarWatcherService';
@@ -16,7 +16,7 @@ import { Delayer } from 'vs/base/common/async';
 import { IRawFileChange } from 'vs/workbench/services/files/node/watcher/common';
 import { FileChangeType } from 'vs/platform/files/common/files';
 
-function newRequest(basePath: string, ignored = []): IWatcherRequest {
+function newRequest(basePath: string, ignored: string[] = []): IWatcherRequest {
 	return { basePath, ignored };
 }
 
@@ -127,7 +127,7 @@ suite.skip('Chockidar watching', () => {
 
 	const service = new ChokidarWatcherService();
 	const result: IRawFileChange[] = [];
-	let error = null;
+	let error: string | null = null;
 
 	suiteSetup(async () => {
 		await pfs.mkdirp(testDir);

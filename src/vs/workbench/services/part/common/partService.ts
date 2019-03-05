@@ -13,21 +13,13 @@ export const enum Parts {
 	PANEL_PART,
 	EDITOR_PART,
 	STATUSBAR_PART,
-	TITLEBAR_PART,
-	MENUBAR_PART
+	TITLEBAR_PART
 }
 
 export const enum Position {
 	LEFT,
 	RIGHT,
 	BOTTOM
-}
-export function PositionToString(position: Position): string {
-	switch (position) {
-		case Position.LEFT: return 'LEFT';
-		case Position.RIGHT: return 'RIGHT';
-		case Position.BOTTOM: return 'BOTTOM';
-	}
 }
 
 export interface ILayoutOptions {
@@ -51,9 +43,9 @@ export interface IPartService {
 	onTitleBarVisibilityChange: Event<void>;
 
 	/**
-	 * Emits when the editor part's layout changes.
+	 * Emits when the zen mode is enabled or disabled.
 	 */
-	onEditorLayout: Event<IDimension>;
+	onZenModeChange: Event<boolean>;
 
 	/**
 	 * Asks the part service if all parts have been fully restored. For editor part
@@ -69,7 +61,7 @@ export interface IPartService {
 	/**
 	 * Returns the parts HTML element, if there is one.
 	 */
-	getContainer(part: Parts): HTMLElement;
+	getContainer(part: Parts): HTMLElement | null;
 
 	/**
 	 * Returns if the part is visible.
@@ -85,6 +77,12 @@ export interface IPartService {
 	 * Number of pixels (adjusted for zooming) that the title bar (if visible) pushes down the workbench contents.
 	 */
 	getTitleBarOffset(): number;
+
+	/**
+	 *
+	 * Set editor area hidden or not
+	 */
+	setEditorHidden(hidden: boolean): void;
 
 	/**
 	 * Set sidebar hidden or not

@@ -9,9 +9,7 @@ import { CharCode } from 'vs/base/common/charCode';
 import * as errors from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { MarshalledObject } from 'vs/base/common/marshalling';
-import { URI } from 'vs/base/common/uri';
-import { IURITransformer } from 'vs/base/common/uriIpc';
+import { IURITransformer, transformIncomingURIs } from 'vs/base/common/uriIpc';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
 import { LazyPromise } from 'vs/workbench/services/extensions/node/lazyPromise';
 import { IRPCProtocol, ProxyIdentifier, getStringIdentifierForProxy } from 'vs/workbench/services/extensions/node/proxyIdentifier';
@@ -38,75 +36,6 @@ function createURIReplacer(transformer: IURITransformer | null): JSONStringifyRe
 		}
 		return value;
 	};
-}
-
-function _transformOutgoingURIs(obj: any, transformer: IURITransformer, depth: number): any {
-
-	if (!obj || depth > 200) {
-		return null;
-	}
-
-	if (typeof obj === 'object') {
-		if (obj instanceof URI) {
-			return transformer.transformOutgoing(obj);
-		}
-
-		// walk object (or array)
-		for (let key in obj) {
-			if (Object.hasOwnProperty.call(obj, key)) {
-				const r = _transformOutgoingURIs(obj[key], transformer, depth + 1);
-				if (r !== null) {
-					obj[key] = r;
-				}
-			}
-		}
-	}
-
-	return null;
-}
-
-export function transformOutgoingURIs<T>(obj: T, transformer: IURITransformer): T {
-	const result = _transformOutgoingURIs(obj, transformer, 0);
-	if (result === null) {
-		// no change
-		return obj;
-	}
-	return result;
-}
-
-function _transformIncomingURIs(obj: any, transformer: IURITransformer, depth: number): any {
-
-	if (!obj || depth > 200) {
-		return null;
-	}
-
-	if (typeof obj === 'object') {
-
-		if ((<MarshalledObject>obj).$mid === 1) {
-			return transformer.transformIncoming(obj);
-		}
-
-		// walk object (or array)
-		for (let key in obj) {
-			if (Object.hasOwnProperty.call(obj, key)) {
-				const r = _transformIncomingURIs(obj[key], transformer, depth + 1);
-				if (r !== null) {
-					obj[key] = r;
-				}
-			}
-		}
-	}
-
-	return null;
-}
-
-function transformIncomingURIs<T>(obj: T, transformer: IURITransformer): T {
-	const result = _transformIncomingURIs(obj, transformer, 0);
-	if (result === null) {
-		// no change
-		return obj;
-	}
-	return result;
 }
 
 export const enum RequestInitiator {

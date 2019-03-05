@@ -17,7 +17,7 @@ export class ContextViewService extends Disposable implements IContextViewServic
 	constructor(
 		container: HTMLElement,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@ILogService private logService: ILogService
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 

@@ -7,15 +7,16 @@ import 'vs/code/code.main';
 import { app, dialog } from 'electron';
 import { assign } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
-import product from 'vs/platform/node/product';
-import { parseMainProcessArgv } from 'vs/platform/environment/node/argv';
+import product from 'vs/platform/product/node/product';
+import { parseMainProcessArgv, createWaitMarkerFile } from 'vs/platform/environment/node/argvHelper';
+import { addArg } from 'vs/platform/environment/node/argv';
 import { mkdirp } from 'vs/base/node/pfs';
 import { validatePaths } from 'vs/code/node/paths';
 import { LifecycleService, ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { Server, serve, connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { LaunchChannelClient } from 'vs/platform/launch/electron-main/launchService';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { InstantiationService } from 'vs/platform/instantiation/node/instantiationService';
+import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ILogService, ConsoleLogMainService, MultiplexLogService, getLogLevel } from 'vs/platform/log/common/log';
@@ -36,9 +37,6 @@ import { IDiagnosticsService, DiagnosticsService } from 'vs/platform/diagnostics
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
 import { uploadLogs } from 'vs/code/electron-main/logUploader';
 import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { CommandLineDialogService } from 'vs/platform/dialogs/node/dialogService';
-import { createWaitMarkerFile } from 'vs/code/node/wait';
 
 class ExpectedError extends Error {
 	readonly isExpected = true;
@@ -116,7 +114,7 @@ function setupIPC(accessor: ServicesAccessor): Promise<Server> {
 				client => {
 
 					// Tests from CLI require to be the only instance currently
-					if (environmentService.extensionTestsPath && !environmentService.debugExtensionHost.break) {
+					if (environmentService.extensionTestsLocationURI && !environmentService.debugExtensionHost.break) {
 						const msg = 'Running extension tests from the command line is currently only supported if no other instance of Code is running.';
 						logService.error(msg);
 						client.dispose();
@@ -160,7 +158,7 @@ function setupIPC(accessor: ServicesAccessor): Promise<Server> {
 					logService.trace('Sending env to running instance...');
 
 					return allowSetForegroundWindow(service)
-						.then(() => service.start(environmentService.args, process.env))
+						.then(() => service.start(environmentService.args, process.env as platform.IProcessEnvironment))
 						.then(() => client.dispose())
 						.then(() => {
 
@@ -218,7 +216,7 @@ function handleStartupDataDirError(environmentService: IEnvironmentService, erro
 	if (error.code === 'EACCES' || error.code === 'EPERM') {
 		showStartupWarningDialog(
 			localize('startupDataDirError', "Unable to write program user data."),
-			localize('startupDataDirErrorDetail', "Please make sure the directory {0} is writeable.", environmentService.userDataPath)
+			localize('startupDataDirErrorDetail', "Please make sure the directories {0} and {1} are writeable.", environmentService.userDataPath, environmentService.extensionsPath)
 		);
 	}
 }
@@ -310,7 +308,6 @@ function createServices(args: ParsedArgs, bufferLogService: BufferLogService): I
 	services.set(IStateService, new SyncDescriptor(StateService));
 	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
 	services.set(IRequestService, new SyncDescriptor(RequestService));
-	services.set(IDialogService, new SyncDescriptor(CommandLineDialogService));
 	services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService));
 
 	return new InstantiationService(services, true);
@@ -319,14 +316,14 @@ function createServices(args: ParsedArgs, bufferLogService: BufferLogService): I
 function initServices(environmentService: IEnvironmentService, stateService: StateService): Promise<any> {
 
 	// Ensure paths for environment service exist
-	const environmentServiceInitialization = Promise.all([
+	const environmentServiceInitialization = Promise.all<boolean | undefined>([
 		environmentService.extensionsPath,
 		environmentService.nodeCachedDataDir,
 		environmentService.logsPath,
 		environmentService.globalStorageHome,
 		environmentService.workspaceStorageHome,
 		environmentService.backupHome
-	].map(path => path && mkdirp(path)));
+	].map((path): undefined | Promise<boolean> => path ? mkdirp(path) : undefined));
 
 	// State service
 	const stateServiceInitialization = stateService.init();
@@ -349,7 +346,7 @@ function main(): void {
 		console.error(err.message);
 		app.exit(1);
 
-		return void 0;
+		return undefined;
 	}
 
 	// If we are started with --wait create a random temporary file
@@ -362,7 +359,7 @@ function main(): void {
 	if (args.wait && !args.waitMarkerFilePath) {
 		createWaitMarkerFile(args.verbose).then(waitMarkerFilePath => {
 			if (waitMarkerFilePath) {
-				process.argv.push('--waitMarkerFilePath', waitMarkerFilePath);
+				addArg(process.argv, '--waitMarkerFilePath', waitMarkerFilePath);
 				args.waitMarkerFilePath = waitMarkerFilePath;
 			}
 

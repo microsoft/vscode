@@ -36,7 +36,7 @@ export class FakeRenderer {
 
 class TreeContext implements _.ITreeContext {
 
-	public tree: _.ITree = null;
+	public tree: _.ITree = null!;
 	public options: _.ITreeOptions = { autoExpandSingleChildren: true };
 	public dataSource: _.IDataSource;
 	public renderer: _.IRenderer;
@@ -105,7 +105,7 @@ class EventCounter {
 	}
 }
 
-var SAMPLE: any = {
+const SAMPLE: any = {
 	ONE: { id: 'one' },
 
 	AB: {
@@ -179,8 +179,8 @@ class TestDataSource implements _.IDataSource {
 }
 
 suite('TreeModel', () => {
-	var model: model.TreeModel;
-	var counter: EventCounter;
+	let model: model.TreeModel;
+	let counter: EventCounter;
 
 	setup(() => {
 		counter = new EventCounter();
@@ -313,7 +313,7 @@ suite('TreeModel', () => {
 		return model.setInput(SAMPLE.AB).then(() => {
 			return model.expandAll(['a', 'c']).then(() => {
 				// going internals
-				var r = (<any>model).registry;
+				const r = (<any>model).registry;
 
 				assert(r.getItem('a').intersects(r.getItem('a')));
 				assert(r.getItem('a').intersects(r.getItem('aa')));
@@ -331,8 +331,8 @@ suite('TreeModel', () => {
 });
 
 suite('TreeModel - TreeNavigator', () => {
-	var model: model.TreeModel;
-	var counter: EventCounter;
+	let model: model.TreeModel;
+	let counter: EventCounter;
 
 	setup(() => {
 		counter = new EventCounter();
@@ -348,7 +348,7 @@ suite('TreeModel - TreeNavigator', () => {
 
 	test('next()', () => {
 		return model.setInput(SAMPLE.AB).then(() => {
-			var nav = model.getNavigator();
+			const nav = model.getNavigator();
 			assert.equal(nav.next()!.id, 'a');
 			assert.equal(nav.next()!.id, 'b');
 			assert.equal(nav.next()!.id, 'c');
@@ -358,7 +358,7 @@ suite('TreeModel - TreeNavigator', () => {
 
 	test('previous()', () => {
 		return model.setInput(SAMPLE.AB).then(() => {
-			var nav = model.getNavigator();
+			const nav = model.getNavigator();
 
 			nav.next();
 			nav.next();
@@ -373,7 +373,7 @@ suite('TreeModel - TreeNavigator', () => {
 	test('parent()', () => {
 		return model.setInput(SAMPLE.AB).then(() => {
 			return model.expandAll([{ id: 'a' }, { id: 'c' }]).then(() => {
-				var nav = model.getNavigator();
+				const nav = model.getNavigator();
 
 				assert.equal(nav.next()!.id, 'a');
 				assert.equal(nav.next()!.id, 'aa');
@@ -397,7 +397,7 @@ suite('TreeModel - TreeNavigator', () => {
 
 	test('next() - scoped', () => {
 		return model.setInput(SAMPLE.AB).then(() => {
-			var nav = model.getNavigator(SAMPLE.AB.children[0]);
+			const nav = model.getNavigator(SAMPLE.AB.children[0]);
 			return model.expand({ id: 'a' }).then(() => {
 				assert.equal(nav.next()!.id, 'aa');
 				assert.equal(nav.next()!.id, 'ab');
@@ -408,7 +408,7 @@ suite('TreeModel - TreeNavigator', () => {
 
 	test('previous() - scoped', () => {
 		return model.setInput(SAMPLE.AB).then(() => {
-			var nav = model.getNavigator(SAMPLE.AB.children[0]);
+			const nav = model.getNavigator(SAMPLE.AB.children[0]);
 			return model.expand({ id: 'a' }).then(() => {
 				assert.equal(nav.next()!.id, 'aa');
 				assert.equal(nav.next()!.id, 'ab');
@@ -421,7 +421,7 @@ suite('TreeModel - TreeNavigator', () => {
 	test('parent() - scoped', () => {
 		return model.setInput(SAMPLE.AB).then(() => {
 			return model.expandAll([{ id: 'a' }, { id: 'c' }]).then(() => {
-				var nav = model.getNavigator(SAMPLE.AB.children[0]);
+				const nav = model.getNavigator(SAMPLE.AB.children[0]);
 
 				assert.equal(nav.next()!.id, 'aa');
 				assert.equal(nav.next()!.id, 'ab');
@@ -432,7 +432,7 @@ suite('TreeModel - TreeNavigator', () => {
 
 	test('next() - non sub tree only', () => {
 		return model.setInput(SAMPLE.AB).then(() => {
-			var nav = model.getNavigator(SAMPLE.AB.children[0], false);
+			const nav = model.getNavigator(SAMPLE.AB.children[0], false);
 			return model.expand({ id: 'a' }).then(() => {
 				assert.equal(nav.next()!.id, 'aa');
 				assert.equal(nav.next()!.id, 'ab');
@@ -445,7 +445,7 @@ suite('TreeModel - TreeNavigator', () => {
 
 	test('previous() - non sub tree only', () => {
 		return model.setInput(SAMPLE.AB).then(() => {
-			var nav = model.getNavigator(SAMPLE.AB.children[0], false);
+			const nav = model.getNavigator(SAMPLE.AB.children[0], false);
 			return model.expand({ id: 'a' }).then(() => {
 				assert.equal(nav.next()!.id, 'aa');
 				assert.equal(nav.next()!.id, 'ab');
@@ -463,7 +463,7 @@ suite('TreeModel - TreeNavigator', () => {
 	test('parent() - non sub tree only', () => {
 		return model.setInput(SAMPLE.AB).then(() => {
 			return model.expandAll([{ id: 'a' }, { id: 'c' }]).then(() => {
-				var nav = model.getNavigator(SAMPLE.AB.children[0], false);
+				const nav = model.getNavigator(SAMPLE.AB.children[0], false);
 
 				assert.equal(nav.next()!.id, 'aa');
 				assert.equal(nav.next()!.id, 'ab');
@@ -477,7 +477,7 @@ suite('TreeModel - TreeNavigator', () => {
 		return model.setInput(SAMPLE.DEEP).then(() => {
 			return model.expand(SAMPLE.DEEP.children[0]).then(() => {
 				return model.expand(SAMPLE.DEEP.children[0].children[0]).then(() => {
-					var nav = model.getNavigator(SAMPLE.DEEP.children[0].children[0]);
+					const nav = model.getNavigator(SAMPLE.DEEP.children[0].children[0]);
 					assert.equal(nav.next()!.id, 'xa');
 					assert.equal(nav.next()!.id, 'xb');
 					assert.equal(nav.next() && false, null);
@@ -490,7 +490,7 @@ suite('TreeModel - TreeNavigator', () => {
 		return model.setInput(SAMPLE.DEEP).then(() => {
 			return model.expand(SAMPLE.DEEP.children[0]).then(() => {
 				return model.expand(SAMPLE.DEEP.children[0].children[0]).then(() => {
-					var nav = model.getNavigator(SAMPLE.DEEP.children[0].children[0]);
+					const nav = model.getNavigator(SAMPLE.DEEP.children[0].children[0]);
 					assert.equal(nav.next()!.id, 'xa');
 					assert.equal(nav.next()!.id, 'xb');
 					assert.equal(nav.previous()!.id, 'xa');
@@ -511,8 +511,8 @@ suite('TreeModel - TreeNavigator', () => {
 });
 
 suite('TreeModel - Expansion', () => {
-	var model: model.TreeModel;
-	var counter: EventCounter;
+	let model: model.TreeModel;
+	let counter: EventCounter;
 
 	setup(() => {
 		counter = new EventCounter();
@@ -530,13 +530,13 @@ suite('TreeModel - Expansion', () => {
 		return model.setInput(SAMPLE.AB).then(() => {
 			counter.listen(model.onExpandItem, (e) => {
 				assert.equal(e.item.id, 'a');
-				var nav = model.getNavigator(e.item);
+				const nav = model.getNavigator(e.item);
 				assert.equal(nav.next() && false, null);
 			});
 
 			counter.listen(model.onDidExpandItem, (e) => {
 				assert.equal(e.item.id, 'a');
-				var nav = model.getNavigator(e.item);
+				const nav = model.getNavigator(e.item);
 				assert.equal(nav.next()!.id, 'aa');
 				assert.equal(nav.next()!.id, 'ab');
 				assert.equal(nav.next() && false, null);
@@ -544,7 +544,7 @@ suite('TreeModel - Expansion', () => {
 
 			assert(!model.isExpanded(SAMPLE.AB.children[0]));
 
-			var nav = model.getNavigator();
+			let nav = model.getNavigator();
 			assert.equal(nav.next()!.id, 'a');
 			assert.equal(nav.next()!.id, 'b');
 			assert.equal(nav.next()!.id, 'c');
@@ -563,7 +563,7 @@ suite('TreeModel - Expansion', () => {
 				assert.equal(nav.next()!.id, 'c');
 				assert.equal(nav.next() && false, null);
 
-				var expandedElements = model.getExpandedElements();
+				const expandedElements = model.getExpandedElements();
 				assert.equal(expandedElements.length, 1);
 				assert.equal(expandedElements[0].id, 'a');
 
@@ -626,18 +626,18 @@ suite('TreeModel - Expansion', () => {
 
 			assert(!model.isExpanded(SAMPLE.AB.children[0]));
 
-			var nav = model.getNavigator();
+			let nav = model.getNavigator();
 			assert.equal(nav.next()!.id, 'a');
 			assert.equal(nav.next()!.id, 'b');
 			assert.equal(nav.next()!.id, 'c');
 			assert.equal(nav.next() && false, null);
 
-			var f: () => void = counter.listen(model.onRefreshItemChildren, (e) => {
+			const f: () => void = counter.listen(model.onRefreshItemChildren, (e) => {
 				assert.equal(e.item.id, 'a');
 				f();
 			});
 
-			var g: () => void = counter.listen(model.onDidRefreshItemChildren, (e) => {
+			const g: () => void = counter.listen(model.onDidRefreshItemChildren, (e) => {
 				assert.equal(e.item.id, 'a');
 				g();
 			});
@@ -661,7 +661,7 @@ suite('TreeModel - Expansion', () => {
 	test('top level collapsed', () => {
 		return model.setInput(SAMPLE.AB).then(() => {
 			return model.collapseAll([{ id: 'a' }, { id: 'b' }, { id: 'c' }]).then(() => {
-				var nav = model.getNavigator();
+				const nav = model.getNavigator();
 				assert.equal(nav.next()!.id, 'a');
 				assert.equal(nav.next()!.id, 'b');
 				assert.equal(nav.next()!.id, 'c');
@@ -712,9 +712,9 @@ class TestFilter implements _.IFilter {
 }
 
 suite('TreeModel - Filter', () => {
-	var model: model.TreeModel;
-	var counter: EventCounter;
-	var filter: TestFilter;
+	let model: model.TreeModel;
+	let counter: EventCounter;
+	let filter: TestFilter;
 
 	setup(() => {
 		counter = new EventCounter();
@@ -734,7 +734,7 @@ suite('TreeModel - Filter', () => {
 		return model.setInput(SAMPLE.AB).then(() => {
 
 			return model.expandAll([{ id: 'a' }, { id: 'c' }]).then(() => {
-				var nav = model.getNavigator();
+				const nav = model.getNavigator();
 				assert.equal(nav.next()!.id, 'a');
 				assert.equal(nav.next()!.id, 'aa');
 				assert.equal(nav.next()!.id, 'ab');
@@ -759,7 +759,7 @@ suite('TreeModel - Filter', () => {
 
 		return model.setInput(SAMPLE.AB).then(() => {
 			return model.refresh().then(() => {
-				var nav = model.getNavigator();
+				const nav = model.getNavigator();
 				assert.equal(nav.next() && false, null);
 			});
 		});
@@ -772,7 +772,7 @@ suite('TreeModel - Filter', () => {
 		return model.setInput(SAMPLE.AB).then(() => {
 			return model.expand({ id: 'a' }).then(() => {
 
-				var nav = model.getNavigator();
+				const nav = model.getNavigator();
 				assert.equal(nav.next()!.id, 'a');
 				assert.equal(nav.next()!.id, 'aa');
 				assert.equal(nav.next()!.id, 'ab');
@@ -789,7 +789,7 @@ suite('TreeModel - Filter', () => {
 
 		return model.setInput(SAMPLE.AB).then(() => {
 			return model.expand({ id: 'a' }).then(() => {
-				var nav = model.getNavigator();
+				const nav = model.getNavigator();
 				assert.equal(nav.next()!.id, 'a');
 				assert.equal(nav.next()!.id, 'aa');
 				assert.equal(nav.next()!.id, 'b');
@@ -806,7 +806,7 @@ suite('TreeModel - Filter', () => {
 		return model.setInput(SAMPLE.AB).then(() => {
 			return model.expand({ id: 'c' }).then(() => {
 
-				var nav = model.getNavigator();
+				const nav = model.getNavigator();
 				assert.equal(nav.next()!.id, 'b');
 				assert.equal(nav.next()!.id, 'c');
 				assert.equal(nav.next()!.id, 'ca');
@@ -826,7 +826,7 @@ suite('TreeModel - Filter', () => {
 		return model.setInput(SAMPLE.AB).then(() => {
 			return model.expand({ id: 'c' }).then(() => {
 
-				var nav = model.getNavigator();
+				const nav = model.getNavigator();
 				assert.equal(nav.next()!.id, 'b');
 				assert.equal(nav.next()!.id, 'c');
 				assert.equal(nav.next()!.id, 'ca');
@@ -844,7 +844,7 @@ suite('TreeModel - Filter', () => {
 		filter.fn = (e) => e.id !== 'b';
 
 		return model.setInput(SAMPLE.AB).then(() => {
-			var nav = model.getNavigator({ id: 'c' }, false);
+			const nav = model.getNavigator({ id: 'c' }, false);
 			assert.equal(nav.previous()!.id, 'a');
 			assert.equal(nav.previous() && false, null);
 		});
@@ -852,8 +852,8 @@ suite('TreeModel - Filter', () => {
 });
 
 suite('TreeModel - Traits', () => {
-	var model: model.TreeModel;
-	var counter: EventCounter;
+	let model: model.TreeModel;
+	let counter: EventCounter;
 
 	setup(() => {
 		counter = new EventCounter();
@@ -1126,7 +1126,7 @@ class DynamicModel implements _.IDataSource {
 
 	public getChildren(tree, element): Promise<any> {
 		this._onGetChildren.fire(element);
-		var result = this.promiseFactory ? this.promiseFactory() : Promise.resolve(null);
+		const result = this.promiseFactory ? this.promiseFactory() : Promise.resolve(null);
 		return result.then(() => {
 			this._onDidGetChildren.fire(element);
 			return Promise.resolve(this.data[element]);
@@ -1139,9 +1139,9 @@ class DynamicModel implements _.IDataSource {
 }
 
 suite('TreeModel - Dynamic data model', () => {
-	var model: model.TreeModel;
-	var dataModel: DynamicModel;
-	var counter: EventCounter;
+	let model: model.TreeModel;
+	let dataModel: DynamicModel;
+	let counter: EventCounter;
 
 	setup(() => {
 		counter = new EventCounter();
@@ -1167,8 +1167,8 @@ suite('TreeModel - Dynamic data model', () => {
 			return model.expandAll(['grandfather', 'father', 'son']).then(() => {
 				dataModel.removeChild('grandfather', 'father');
 
-				var items = ['baby', 'son', 'daughter', 'father'];
-				var times = 0;
+				const items = ['baby', 'son', 'daughter', 'father'];
+				let times = 0;
 				counter.listen(model.onDidDisposeItem, item => {
 					assert.equal(items[times++], item.id);
 				});
@@ -1187,7 +1187,7 @@ suite('TreeModel - Dynamic data model', () => {
 		dataModel.addChild('root', 'mega');
 
 		return model.setInput('root').then(() => {
-			var nav = model.getNavigator();
+			let nav = model.getNavigator();
 			assert.equal(nav.next()!.id, 'super');
 			assert.equal(nav.next()!.id, 'hyper');
 			assert.equal(nav.next()!.id, 'mega');
@@ -1237,7 +1237,7 @@ suite('TreeModel - Dynamic data model', () => {
 
 			return model.expand('super').then(() => {
 
-				var nav = model.getNavigator();
+				let nav = model.getNavigator();
 				assert.equal(nav.next()!.id, 'super');
 				assert.equal(nav.next()!.id, 'apples');
 				assert.equal(nav.next()!.id, 'bananas');
@@ -1274,8 +1274,8 @@ suite('TreeModel - Dynamic data model', () => {
 		return model.setInput('root').then(() => {
 			return model.expand('grandfather').then(() => {
 				return model.collapse('father').then(() => {
-					var times = 0;
-					var listener = dataModel.onGetChildren((element) => {
+					let times = 0;
+					let listener = dataModel.onGetChildren((element) => {
 						times++;
 						assert.equal(element, 'grandfather');
 					});
@@ -1309,7 +1309,7 @@ suite('TreeModel - Dynamic data model', () => {
 			return model.expand('father').then(() => {
 				return model.expand('mother').then(() => {
 
-					var nav = model.getNavigator();
+					let nav = model.getNavigator();
 					assert.equal(nav.next()!.id, 'father');
 					assert.equal(nav.next()!.id, 'son');
 					assert.equal(nav.next()!.id, 'mother');
@@ -1323,16 +1323,16 @@ suite('TreeModel - Dynamic data model', () => {
 
 					dataModel.promiseFactory = () => { return timeout(0); };
 
-					var getTimes = 0;
-					var gotTimes = 0;
-					var getListener = dataModel.onGetChildren((element) => { getTimes++; });
-					var gotListener = dataModel.onDidGetChildren((element) => { gotTimes++; });
+					let getTimes = 0;
+					let gotTimes = 0;
+					const getListener = dataModel.onGetChildren((element) => { getTimes++; });
+					const gotListener = dataModel.onDidGetChildren((element) => { gotTimes++; });
 
-					var p1 = model.refresh('father');
+					const p1 = model.refresh('father');
 					assert.equal(getTimes, 1);
 					assert.equal(gotTimes, 0);
 
-					var p2 = model.refresh('mother');
+					const p2 = model.refresh('mother');
 					assert.equal(getTimes, 2);
 					assert.equal(gotTimes, 0);
 
@@ -1363,22 +1363,22 @@ suite('TreeModel - Dynamic data model', () => {
 		return model.setInput('root').then(() => {
 			return model.expand('grandfather').then(() => {
 				return model.expand('father').then(() => {
-					var nav = model.getNavigator();
+					let nav = model.getNavigator();
 					assert.equal(nav.next()!.id, 'grandfather');
 					assert.equal(nav.next()!.id, 'father');
 					assert.equal(nav.next()!.id, 'son');
 					assert.equal(nav.next() && false, null);
 
-					var refreshTimes = 0;
+					let refreshTimes = 0;
 					counter.listen(model.onDidRefreshItem, (e) => { refreshTimes++; });
 
-					var getTimes = 0;
-					var getListener = dataModel.onGetChildren((element) => { getTimes++; });
+					let getTimes = 0;
+					const getListener = dataModel.onGetChildren((element) => { getTimes++; });
 
-					var gotTimes = 0;
-					var gotListener = dataModel.onDidGetChildren((element) => { gotTimes++; });
+					let gotTimes = 0;
+					const gotListener = dataModel.onDidGetChildren((element) => { gotTimes++; });
 
-					var p1Completes: Array<(value?: any) => void> = [];
+					const p1Completes: Array<(value?: any) => void> = [];
 					dataModel.promiseFactory = () => { return new Promise((c) => { p1Completes.push(c); }); };
 
 					model.refresh('grandfather').then(() => {
@@ -1395,9 +1395,9 @@ suite('TreeModel - Dynamic data model', () => {
 						assert.equal(getTimes, 2);
 						assert.equal(gotTimes, 1);
 
-						var p2Complete;
+						let p2Complete;
 						dataModel.promiseFactory = () => { return new Promise((c) => { p2Complete = c; }); };
-						var p2 = model.refresh('father');
+						const p2 = model.refresh('father');
 
 						// same situation still
 						assert.equal(refreshTimes, 3); // (+1) second father refresh
@@ -1529,7 +1529,7 @@ suite('TreeModel - Dynamic data model', () => {
 			// delay expansions and refreshes
 			dataModel.promiseFactory = () => { return timeout(0); };
 
-			var promises: Promise<any>[] = [];
+			const promises: Promise<any>[] = [];
 
 			promises.push(model.expand('father'));
 			dataModel.removeChild('root', 'father');
@@ -1549,7 +1549,7 @@ suite('TreeModel - Dynamic data model', () => {
 });
 
 suite('TreeModel - bugs', () => {
-	var counter: EventCounter;
+	let counter: EventCounter;
 
 	setup(() => {
 		counter = new EventCounter();
@@ -1580,10 +1580,10 @@ suite('TreeModel - bugs', () => {
 		let listeners = <any>[];
 
 		// helpers
-		var getGetRootChildren = (children: string[], millis = 0) => () => timeout(millis).then(() => children);
-		var getRootChildren = getGetRootChildren(['homer', 'bart', 'lisa', 'marge', 'maggie'], 0);
-		var getGetBartChildren = (millis = 0) => () => timeout(millis).then(() => ['milhouse', 'nelson']);
-		var getBartChildren = getGetBartChildren(0);
+		const getGetRootChildren = (children: string[], millis = 0) => () => timeout(millis).then(() => children);
+		let getRootChildren = getGetRootChildren(['homer', 'bart', 'lisa', 'marge', 'maggie'], 0);
+		const getGetBartChildren = (millis = 0) => () => timeout(millis).then(() => ['milhouse', 'nelson']);
+		const getBartChildren = getGetBartChildren(0);
 
 		// item expanding should not exist!
 		counter.listen(model.onExpandItem, () => { assert(false, 'should never receive item:expanding event'); });
@@ -1595,14 +1595,14 @@ suite('TreeModel - bugs', () => {
 			getRootChildren = getGetRootChildren(['homer', 'lisa', 'marge', 'maggie'], 10);
 
 			// refresh root
-			var p1 = model.refresh('root', true).then(() => {
+			const p1 = model.refresh('root', true).then(() => {
 				assert(true);
 			}, () => {
 				assert(false, 'should never reach this');
 			});
 
 			// at the same time, try to expand bart!
-			var p2 = model.expand('bart').then(() => {
+			const p2 = model.expand('bart').then(() => {
 				assert(false, 'should never reach this');
 			}, () => {
 				assert(true, 'bart should fail to expand since he was removed meanwhile');

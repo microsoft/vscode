@@ -10,10 +10,10 @@ import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/c
 
 suite('Preferences Model test', () => {
 	class Tester {
-		private validator: (value: any) => string;
+		private validator: (value: any) => string | null;
 
 		constructor(private settings: IConfigurationPropertySchema) {
-			this.validator = createValidator(settings);
+			this.validator = createValidator(settings)!;
 		}
 
 		public accepts(input) {
@@ -24,8 +24,12 @@ suite('Preferences Model test', () => {
 			assert.notEqual(this.validator(input), '', `Expected ${JSON.stringify(this.settings)} to reject \`${input}\`.`);
 			return {
 				withMessage:
-					(message) => assert(this.validator(input).indexOf(message) > -1,
-						`Expected error of ${JSON.stringify(this.settings)} on \`${input}\` to contain ${message}. Got ${this.validator(input)}.`)
+					(message) => {
+						const actual = this.validator(input);
+						assert.ok(actual);
+						assert(actual!.indexOf(message) > -1,
+							`Expected error of ${JSON.stringify(this.settings)} on \`${input}\` to contain ${message}. Got ${this.validator(input)}.`);
+					}
 			};
 		}
 

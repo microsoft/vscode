@@ -74,7 +74,7 @@ suite('SuggestMemories', function () {
 		assert.equal(mem.select(buffer, pos, []), 0);
 
 		mem.memorize(buffer, pos, items[0]);
-		mem.memorize(buffer, pos, null);
+		mem.memorize(buffer, pos, null!);
 	});
 
 	test('LRUMemory', () => {

@@ -6,7 +6,7 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
-import { CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export const IStatusbarService = createDecorator<IStatusbarService>('statusbarService');
 
@@ -49,7 +49,7 @@ export interface IStatusbarEntry {
 	/**
 	 * An optional extension ID if this entry is provided from an extension.
 	 */
-	readonly extensionId?: CanonicalExtensionIdentifier;
+	readonly extensionId?: ExtensionIdentifier;
 
 	/**
 	 * Wether to show a beak above the status bar entry.

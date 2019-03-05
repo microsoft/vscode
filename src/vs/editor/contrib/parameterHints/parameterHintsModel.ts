@@ -18,17 +18,25 @@ export interface TriggerContext {
 	readonly triggerCharacter?: string;
 }
 
-const DefaultState = new class { readonly state = 'default'; };
-const PendingState = new class { readonly state = 'pending'; };
+namespace ParameterHintState {
+	export const enum Type {
+		Default,
+		Active,
+		Pending,
+	}
 
-class ActiveState {
-	readonly state = 'active';
-	constructor(
-		readonly hints: modes.SignatureHelp
-	) { }
+	export const Default = new class { readonly type = Type.Default; };
+	export const Pending = new class { readonly type = Type.Pending; };
+
+	export class Active {
+		readonly type = Type.Active;
+		constructor(
+			readonly hints: modes.SignatureHelp
+		) { }
+	}
+
+	export type State = typeof Default | typeof Pending | Active;
 }
-
-type ParameterHintState = typeof DefaultState | typeof PendingState | ActiveState;
 
 export class ParameterHintsModel extends Disposable {
 
@@ -39,7 +47,7 @@ export class ParameterHintsModel extends Disposable {
 
 	private editor: ICodeEditor;
 	private enabled: boolean;
-	private state: ParameterHintState = DefaultState;
+	private state: ParameterHintState.State = ParameterHintState.Default;
 	private triggerChars = new CharacterSet();
 	private retriggerChars = new CharacterSet();
 
@@ -71,7 +79,7 @@ export class ParameterHintsModel extends Disposable {
 	}
 
 	cancel(silent: boolean = false): void {
-		this.state = DefaultState;
+		this.state = ParameterHintState.Default;
 
 		this.throttledDelayer.cancel();
 
@@ -96,12 +104,13 @@ export class ParameterHintsModel extends Disposable {
 			() => this.doTrigger({
 				triggerKind: context.triggerKind,
 				triggerCharacter: context.triggerCharacter,
-				isRetrigger: this.state.state === 'active' || this.state.state === 'pending',
+				isRetrigger: this.state.type === ParameterHintState.Type.Active || this.state.type === ParameterHintState.Type.Pending,
+				activeSignatureHelp: this.state.type === ParameterHintState.Type.Active ? this.state.hints : undefined
 			}, triggerId), delay).then(undefined, onUnexpectedError);
 	}
 
 	public next(): void {
-		if (this.state.state !== 'active') {
+		if (this.state.type !== ParameterHintState.Type.Active) {
 			return;
 		}
 
@@ -120,7 +129,7 @@ export class ParameterHintsModel extends Disposable {
 	}
 
 	public previous(): void {
-		if (this.state.state !== 'active') {
+		if (this.state.type !== ParameterHintState.Type.Active) {
 			return;
 		}
 
@@ -139,14 +148,11 @@ export class ParameterHintsModel extends Disposable {
 	}
 
 	private updateActiveSignature(activeSignature: number) {
-		if (this.state.state !== 'active') {
+		if (this.state.type !== ParameterHintState.Type.Active) {
 			return;
 		}
 
-		this.state = {
-			state: 'active',
-			hints: { ...this.state.hints, activeSignature }
-		};
+		this.state = new ParameterHintState.Active({ ...this.state.hints, activeSignature });
 		this._onChangedHints.fire(this.state.hints);
 	}
 
@@ -160,7 +166,7 @@ export class ParameterHintsModel extends Disposable {
 		const model = this.editor.getModel();
 		const position = this.editor.getPosition();
 
-		this.state = PendingState;
+		this.state = ParameterHintState.Pending;
 
 		this.provideSignatureHelpRequest = createCancelablePromise(token =>
 			provideSignatureHelp(model, position, triggerContext, token));
@@ -175,19 +181,21 @@ export class ParameterHintsModel extends Disposable {
 				this.cancel();
 				return false;
 			} else {
-				this.state = new ActiveState(result);
+				this.state = new ParameterHintState.Active(result);
 				this._onChangedHints.fire(this.state.hints);
 				return true;
 			}
 		}).catch(error => {
-			this.state = DefaultState;
+			this.state = ParameterHintState.Default;
 			onUnexpectedError(error);
 			return false;
 		});
 	}
 
 	private get isTriggered(): boolean {
-		return this.state.state === 'active' || this.state.state === 'pending' || this.throttledDelayer.isTriggered();
+		return this.state.type === ParameterHintState.Type.Active
+			|| this.state.type === ParameterHintState.Type.Pending
+			|| this.throttledDelayer.isTriggered();
 	}
 
 	private onModelChanged(): void {

@@ -539,8 +539,7 @@ export class MouseTargetFactory {
 			// Check if we've hit a painted cursor
 			const lastViewCursorsRenderData = ctx.lastViewCursorsRenderData;
 
-			for (let i = 0, len = lastViewCursorsRenderData.length; i < len; i++) {
-				const d = lastViewCursorsRenderData[i];
+			for (const d of lastViewCursorsRenderData) {
 
 				if (request.target === d.domNode) {
 					return request.fulfill(MouseTargetType.CONTENT_TEXT, d.position);
@@ -558,8 +557,7 @@ export class MouseTargetFactory {
 			const mouseContentHorizontalOffset = request.mouseContentHorizontalOffset;
 			const mouseVerticalOffset = request.mouseVerticalOffset;
 
-			for (let i = 0, len = lastViewCursorsRenderData.length; i < len; i++) {
-				const d = lastViewCursorsRenderData[i];
+			for (const d of lastViewCursorsRenderData) {
 
 				if (mouseContentHorizontalOffset < d.contentLeft) {
 					// mouse position is to the left of the cursor
@@ -645,7 +643,7 @@ export class MouseTargetFactory {
 			// This most likely indicates it happened after the last view-line
 			const lineCount = ctx.model.getLineCount();
 			const maxLineColumn = ctx.model.getLineMaxColumn(lineCount);
-			return request.fulfill(MouseTargetType.CONTENT_EMPTY, new Position(lineCount, maxLineColumn), void 0, EMPTY_CONTENT_AFTER_LINES);
+			return request.fulfill(MouseTargetType.CONTENT_EMPTY, new Position(lineCount, maxLineColumn), undefined, EMPTY_CONTENT_AFTER_LINES);
 		}
 
 		if (domHitTestExecuted) {
@@ -656,7 +654,7 @@ export class MouseTargetFactory {
 				if (ctx.model.getLineLength(lineNumber) === 0) {
 					const lineWidth = ctx.getLineWidth(lineNumber);
 					const detail = createEmptyContentDataInLines(request.mouseContentHorizontalOffset - lineWidth);
-					return request.fulfill(MouseTargetType.CONTENT_EMPTY, new Position(lineNumber, 1), void 0, detail);
+					return request.fulfill(MouseTargetType.CONTENT_EMPTY, new Position(lineNumber, 1), undefined, detail);
 				}
 			}
 
@@ -731,10 +729,10 @@ export class MouseTargetFactory {
 			if (browser.isEdge && pos.column === 1) {
 				// See https://github.com/Microsoft/vscode/issues/10875
 				const detail = createEmptyContentDataInLines(request.mouseContentHorizontalOffset - lineWidth);
-				return request.fulfill(MouseTargetType.CONTENT_EMPTY, new Position(lineNumber, ctx.model.getLineMaxColumn(lineNumber)), void 0, detail);
+				return request.fulfill(MouseTargetType.CONTENT_EMPTY, new Position(lineNumber, ctx.model.getLineMaxColumn(lineNumber)), undefined, detail);
 			}
 			const detail = createEmptyContentDataInLines(request.mouseContentHorizontalOffset - lineWidth);
-			return request.fulfill(MouseTargetType.CONTENT_EMPTY, pos, void 0, detail);
+			return request.fulfill(MouseTargetType.CONTENT_EMPTY, pos, undefined, detail);
 		}
 
 		const visibleRange = ctx.visibleRangeForPosition2(lineNumber, column);

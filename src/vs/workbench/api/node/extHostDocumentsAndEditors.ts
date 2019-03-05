@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import * as assert from 'vs/base/common/assert';
 import { Emitter, Event } from 'vs/base/common/event';
 import { dispose } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -52,7 +52,9 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 				const id = uri.toString();
 				const data = this._documents.get(id);
 				this._documents.delete(id);
-				removedDocuments.push(data);
+				if (data) {
+					removedDocuments.push(data);
+				}
 			}
 		}
 
@@ -79,7 +81,9 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 			for (const id of delta.removedEditors) {
 				const editor = this._editors.get(id);
 				this._editors.delete(id);
-				removedEditors.push(editor);
+				if (editor) {
+					removedEditors.push(editor);
+				}
 			}
 		}
 
@@ -97,7 +101,7 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 					data.selections.map(typeConverters.Selection.to),
 					data.options,
 					data.visibleRanges.map(typeConverters.Range.to),
-					typeConverters.ViewColumn.to(data.editorPosition)
+					typeof data.editorPosition === 'number' ? typeConverters.ViewColumn.to(data.editorPosition) : undefined
 				);
 				this._editors.set(data.id, editor);
 			}
@@ -127,8 +131,8 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 		}
 	}
 
-	getDocument(strUrl: string): ExtHostDocumentData {
-		return this._documents.get(strUrl);
+	getDocument(uri: URI): ExtHostDocumentData {
+		return this._documents.get(uri.toString());
 	}
 
 	allDocuments(): ExtHostDocumentData[] {

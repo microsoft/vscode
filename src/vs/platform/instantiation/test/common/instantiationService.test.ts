@@ -94,7 +94,7 @@ class TargetOptional {
 	constructor(@IService1 service1: IService1, @optional(IService2) service2: IService2) {
 		assert.ok(service1);
 		assert.equal(service1.c, 1);
-		assert.ok(service2 === void 0);
+		assert.ok(service2 === undefined);
 	}
 }
 

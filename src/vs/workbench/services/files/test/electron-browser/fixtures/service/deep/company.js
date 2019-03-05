@@ -8,8 +8,8 @@ var Workforce;
         return Company;
     })();
     (function (property, Workforce, IEmployee) {
-        if (property === void 0) { property = employees; }
-        if (IEmployee === void 0) { IEmployee = []; }
+        if (property === undefined) { property = employees; }
+        if (IEmployee === undefined) { IEmployee = []; }
         property;
         calculateMonthlyExpenses();
         {

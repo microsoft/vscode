@@ -25,12 +25,12 @@ export interface IPanelService {
 	/**
 	 * Opens a panel with the given identifier and pass keyboard focus to it if specified.
 	 */
-	openPanel(id: string, focus?: boolean): IPanel;
+	openPanel(id: string, focus?: boolean): IPanel | null;
 
 	/**
 	 * Returns the current active panel or null if none
 	 */
-	getActivePanel(): IPanel;
+	getActivePanel(): IPanel | null;
 
 	/**
 	 * * Returns all built-in panels following the default order (Problems - Output - Debug Console - Terminal)
@@ -41,10 +41,4 @@ export interface IPanelService {
 	 * Returns pinned panels following the visual order
 	 */
 	getPinnedPanels(): IPanelIdentifier[];
-
-	/**
-	 * Enables or disables a panel. Disabled panels are completly hidden from UI.
-	 * By default all panels are enabled.
-	 */
-	setPanelEnablement(id: string, enabled: boolean): void;
 }

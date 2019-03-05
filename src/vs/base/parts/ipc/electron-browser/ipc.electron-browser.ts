@@ -14,7 +14,7 @@ export class Client extends IPCClient implements IDisposable {
 	private protocol: Protocol;
 
 	private static createProtocol(): Protocol {
-		const onMessage = Event.fromNodeEventEmitter<string>(ipcRenderer, 'ipc:message', (_, message: string) => message);
+		const onMessage = Event.fromNodeEventEmitter<Buffer>(ipcRenderer, 'ipc:message', (_, message: Buffer) => message);
 		ipcRenderer.send('ipc:hello');
 		return new Protocol(ipcRenderer, onMessage);
 	}

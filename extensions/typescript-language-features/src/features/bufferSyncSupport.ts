@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
 import * as vscode from 'vscode';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
@@ -14,9 +13,15 @@ import * as languageModeIds from '../utils/languageModeIds';
 import { ResourceMap } from '../utils/resourceMap';
 import * as typeConverters from '../utils/typeConverters';
 
-enum BufferKind {
+const enum BufferKind {
 	TypeScript = 1,
 	JavaScript = 2,
+}
+
+const enum BufferState {
+	Initial = 1,
+	Open = 2,
+	Closed = 2,
 }
 
 function mode2ScriptKind(mode: string): 'TS' | 'TSX' | 'JS' | 'JSX' | undefined {
@@ -30,6 +35,8 @@ function mode2ScriptKind(mode: string): 'TS' | 'TSX' | 'JS' | 'JSX' | undefined 
 }
 
 class SyncedBuffer {
+
+	private state = BufferState.Initial;
 
 	constructor(
 		private readonly document: vscode.TextDocument,
@@ -64,6 +71,7 @@ class SyncedBuffer {
 		}
 
 		this.client.executeWithoutWaitingForResponse('open', args);
+		this.state = BufferState.Open;
 	}
 
 	public get resource(): vscode.Uri {
@@ -92,9 +100,14 @@ class SyncedBuffer {
 			file: this.filepath
 		};
 		this.client.executeWithoutWaitingForResponse('close', args);
+		this.state = BufferState.Closed;
 	}
 
 	public onContentChanged(events: vscode.TextDocumentContentChangeEvent[]): void {
+		if (this.state !== BufferState.Open) {
+			console.error(`Unexpected buffer state: ${this.state}`);
+		}
+
 		for (const { range, text } of events) {
 			const args: Proto.ChangeRequestArgs = {
 				insertString: text,
@@ -124,7 +137,7 @@ class PendingDiagnostics extends ResourceMap<number> {
 
 		const map = new ResourceMap<void>();
 		for (const resource of orderedResources) {
-			map.set(resource, void 0);
+			map.set(resource, undefined);
 		}
 		return map;
 	}
@@ -157,8 +170,7 @@ class GetErrRequest {
 		};
 
 		client.executeAsync('geterr', args, _token.token)
-			.catch(() => true)
-			.then(() => {
+			.finally(() => {
 				if (this._done) {
 					return;
 				}
@@ -267,10 +279,8 @@ export default class BufferSyncSupport extends Disposable {
 		this.pendingDiagnostics.delete(resource);
 		this.syncedBuffers.delete(resource);
 		syncedBuffer.close();
-		if (!fs.existsSync(resource.fsPath)) {
-			this._onDelete.fire(resource);
-			this.requestAllDiagnostics();
-		}
+		this._onDelete.fire(resource);
+		this.requestAllDiagnostics();
 	}
 
 	public interuptGetErr<R>(f: () => R): R {
@@ -355,7 +365,7 @@ export default class BufferSyncSupport extends Disposable {
 
 		// Add all open TS buffers to the geterr request. They might be visible
 		for (const buffer of this.syncedBuffers.values) {
-			orderedFileSet.set(buffer.resource, void 0);
+			orderedFileSet.set(buffer.resource, undefined);
 		}
 
 		if (orderedFileSet.size) {
@@ -363,7 +373,7 @@ export default class BufferSyncSupport extends Disposable {
 				this.pendingGetErr.cancel();
 
 				for (const file of this.pendingGetErr.files.entries) {
-					orderedFileSet.set(file.resource, void 0);
+					orderedFileSet.set(file.resource, undefined);
 				}
 			}
 

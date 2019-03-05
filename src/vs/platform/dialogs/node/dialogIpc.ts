@@ -10,7 +10,7 @@ import { Event } from 'vs/base/common/event';
 
 export class DialogChannel implements IServerChannel {
 
-	constructor(@IDialogService private dialogService: IDialogService) { }
+	constructor(@IDialogService private readonly dialogService: IDialogService) { }
 
 	listen<T>(_, event: string): Event<T> {
 		throw new Error(`Event not found: ${event}`);

@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommands';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Cursor } from 'vs/editor/common/controller/cursor';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -18,7 +18,7 @@ import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 
 suite('FindModel', () => {
 
-	function findTest(testName: string, callback: (editor: ICodeEditor, cursor: Cursor) => void): void {
+	function findTest(testName: string, callback: (editor: IActiveCodeEditor, cursor: Cursor) => void): void {
 		test(testName, () => {
 			const textArr = [
 				'// my cool header',
@@ -34,7 +34,7 @@ suite('FindModel', () => {
 				'// blablablaciao',
 				''
 			];
-			withTestCodeEditor(textArr, {}, callback);
+			withTestCodeEditor(textArr, {}, (editor, cursor) => callback(editor as unknown as IActiveCodeEditor, cursor));
 
 			const text = textArr.join('\n');
 			const ptBuilder = new PieceTreeTextBufferBuilder();
@@ -45,7 +45,9 @@ suite('FindModel', () => {
 			withTestCodeEditor([],
 				{
 					model: new TextModel(factory, TextModel.DEFAULT_CREATION_OPTIONS, null, null)
-				}, callback);
+				},
+				(editor, cursor) => callback(editor as unknown as IActiveCodeEditor, cursor)
+			);
 		});
 	}
 
@@ -1505,7 +1507,7 @@ suite('FindModel', () => {
 			]
 		);
 
-		editor.getModel().setValue('hello\nhi');
+		editor!.getModel()!.setValue('hello\nhi');
 		assertFindState(
 			editor,
 			[1, 1, 1, 1],
@@ -1536,7 +1538,7 @@ suite('FindModel', () => {
 
 		findModel.selectAllMatches();
 
-		assert.deepEqual(editor.getSelections().map(s => s.toString()), [
+		assert.deepEqual(editor!.getSelections()!.map(s => s.toString()), [
 			new Selection(6, 14, 6, 19),
 			new Selection(6, 27, 6, 32),
 			new Selection(7, 14, 7, 19),
@@ -1580,14 +1582,14 @@ suite('FindModel', () => {
 
 		findModel.selectAllMatches();
 
-		assert.deepEqual(editor.getSelections().map(s => s.toString()), [
+		assert.deepEqual(editor!.getSelections()!.map(s => s.toString()), [
 			new Selection(7, 14, 7, 19),
 			new Selection(6, 14, 6, 19),
 			new Selection(6, 27, 6, 32),
 			new Selection(8, 14, 8, 19)
 		].map(s => s.toString()));
 
-		assert.deepEqual(editor.getSelection().toString(), new Selection(7, 14, 7, 19).toString());
+		assert.deepEqual(editor!.getSelection()!.toString(), new Selection(7, 14, 7, 19).toString());
 
 		assertFindState(
 			editor,
@@ -1982,7 +1984,7 @@ suite('FindModel', () => {
 		for (let i = 0; i < 1100; i++) {
 			initialText += 'line' + i + '\n';
 		}
-		editor.getModel().setValue(initialText);
+		editor!.getModel()!.setValue(initialText);
 		let findState = new FindReplaceState();
 		findState.change({ searchString: '^', replaceString: 'a ', isRegex: true }, false);
 		let findModel = new FindModelBoundToEditorModel(editor, findState);
@@ -1994,7 +1996,7 @@ suite('FindModel', () => {
 			expectedText += 'a line' + i + '\n';
 		}
 		expectedText += 'a ';
-		assert.equal(editor.getModel().getValue(), expectedText);
+		assert.equal(editor!.getModel()!.getValue(), expectedText);
 
 		findModel.dispose();
 		findState.dispose();

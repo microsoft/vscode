@@ -58,7 +58,9 @@ suite('Files - TextFileService', () => {
 	});
 
 	teardown(() => {
-		model.dispose();
+		if (model) {
+			model.dispose();
+		}
 		(<TextFileEditorModelManager>accessor.textFileService.models).clear();
 		(<TextFileEditorModelManager>accessor.textFileService.models).dispose();
 		accessor.untitledEditorService.revertAll();
@@ -121,7 +123,7 @@ suite('Files - TextFileService', () => {
 				assert.ok(service.cleanupBackupsBeforeShutdownCalled);
 				assert.ok(!veto);
 
-				return void 0;
+				return undefined;
 			} else {
 				return veto.then(veto => {
 					assert.ok(service.cleanupBackupsBeforeShutdownCalled);
@@ -219,9 +221,9 @@ suite('Files - TextFileService', () => {
 				assert.equal(res.results.length, 1);
 				assert.ok(res.results[0].success);
 
-				assert.equal(res.results[0].target.scheme, Schemas.file);
-				assert.equal(res.results[0].target.authority, untitledUncUri.authority);
-				assert.equal(res.results[0].target.path, untitledUncUri.path);
+				assert.equal(res.results[0].target!.scheme, Schemas.file);
+				assert.equal(res.results[0].target!.authority, untitledUncUri.authority);
+				assert.equal(res.results[0].target!.path, untitledUncUri.path);
 			});
 		});
 	});

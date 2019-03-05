@@ -4,13 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { basename, dirname } from 'vs/base/common/paths';
+import { basename, dirname } from 'vs/base/common/path';
 import { ITextModel } from 'vs/editor/common/model';
 import { Selection } from 'vs/editor/common/core/selection';
 import { VariableResolver, Variable, Text } from 'vs/editor/contrib/snippet/snippetParser';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { getLeadingWhitespace, commonPrefixLength, isFalsyOrWhitespace, pad } from 'vs/base/common/strings';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier, WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 
 export const KnownSnippetVariableNames = Object.freeze({
 	'CURRENT_YEAR': true,
@@ -38,6 +40,7 @@ export const KnownSnippetVariableNames = Object.freeze({
 	'BLOCK_COMMENT_START': true,
 	'BLOCK_COMMENT_END': true,
 	'LINE_COMMENT': true,
+	'WORKSPACE_NAME': true,
 });
 
 export class CompositeSnippetVariableResolver implements VariableResolver {
@@ -49,7 +52,7 @@ export class CompositeSnippetVariableResolver implements VariableResolver {
 	resolve(variable: Variable): string | undefined {
 		for (const delegate of this._delegates) {
 			let value = delegate.resolve(variable);
-			if (value !== void 0) {
+			if (value !== undefined) {
 				return value;
 			}
 		}
@@ -242,5 +245,31 @@ export class TimeBasedVariableResolver implements VariableResolver {
 		}
 
 		return undefined;
+	}
+}
+
+export class WorkspaceBasedVariableResolver implements VariableResolver {
+	constructor(
+		private readonly _workspaceService: IWorkspaceContextService,
+	) {
+		//
+	}
+
+	resolve(variable: Variable): string | undefined {
+		if (variable.name !== 'WORKSPACE_NAME' || !this._workspaceService) {
+			return undefined;
+		}
+
+		const workspaceIdentifier = toWorkspaceIdentifier(this._workspaceService.getWorkspace());
+		if (!workspaceIdentifier) {
+			return undefined;
+		}
+
+		if (isSingleFolderWorkspaceIdentifier(workspaceIdentifier)) {
+			return basename(workspaceIdentifier.path);
+		}
+
+		const filename = basename(workspaceIdentifier.configPath.path);
+		return filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
 	}
 }

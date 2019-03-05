@@ -21,7 +21,7 @@ declare namespace monaco {
 	export class Emitter<T> {
 		constructor();
 		readonly event: IEvent<T>;
-		fire(event?: T): void;
+		fire(event: T): void;
 		dispose(): void;
 	}
 
@@ -380,6 +380,7 @@ declare namespace monaco {
 	}
 
 	export interface IKeyboardEvent {
+		readonly _standardKeyboardEventBrand: true;
 		readonly browserEvent: KeyboardEvent;
 		readonly target: HTMLElement;
 		readonly ctrlKey: boolean;
@@ -846,8 +847,8 @@ declare namespace monaco.editor {
 
 	/**
 	 * Get markers for owner and/or resource
-	 * @returns {IMarker[]} list of markers
-	 * @param filter
+	 *
+	 * @returns list of markers
 	 */
 	export function getModelMarkers(filter: {
 		owner?: string;
@@ -921,6 +922,11 @@ declare namespace monaco.editor {
 	 * Switches to a theme.
 	 */
 	export function setTheme(themeName: string): void;
+
+	/**
+	 * Clears all cached font measurements and triggers re-measurement.
+	 */
+	export function remeasureFonts(): void;
 
 	export type BuiltinTheme = 'vs' | 'vs-dark' | 'hc-black';
 
@@ -1071,13 +1077,13 @@ declare namespace monaco.editor {
 	}
 
 	export interface IStandaloneCodeEditor extends ICodeEditor {
-		addCommand(keybinding: number, handler: ICommandHandler, context: string): string | null;
+		addCommand(keybinding: number, handler: ICommandHandler, context?: string): string | null;
 		createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
 		addAction(descriptor: IActionDescriptor): IDisposable;
 	}
 
 	export interface IStandaloneDiffEditor extends IDiffEditor {
-		addCommand(keybinding: number, handler: ICommandHandler, context: string): string | null;
+		addCommand(keybinding: number, handler: ICommandHandler, context?: string): string | null;
 		createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
 		addAction(descriptor: IActionDescriptor): IDisposable;
 		getOriginalEditor(): IStandaloneCodeEditor;
@@ -1421,6 +1427,7 @@ declare namespace monaco.editor {
 	export class TextModelResolvedOptions {
 		_textModelResolvedOptionsBrand: void;
 		readonly tabSize: number;
+		readonly indentSize: number;
 		readonly insertSpaces: boolean;
 		readonly defaultEOL: DefaultEndOfLine;
 		readonly trimAutoWhitespace: boolean;
@@ -1428,6 +1435,7 @@ declare namespace monaco.editor {
 
 	export interface ITextModelUpdateOptions {
 		tabSize?: number;
+		indentSize?: number;
 		insertSpaces?: boolean;
 		trimAutoWhitespace?: boolean;
 	}
@@ -1714,10 +1722,6 @@ declare namespace monaco.editor {
 		 * Normalize a string containing whitespace according to indentation rules (converts to spaces or to tabs).
 		 */
 		normalizeIndentation(str: string): string;
-		/**
-		 * Get what is considered to be one indent (e.g. a tab character or 4 spaces, etc.).
-		 */
-		getOneIndent(): string;
 		/**
 		 * Change the options of this model.
 		 */
@@ -2263,6 +2267,7 @@ declare namespace monaco.editor {
 	 * An event describing that some ranges of lines have been tokenized (their tokens have changed).
 	 */
 	export interface IModelTokensChangedEvent {
+		readonly tokenizationSupportChanged: boolean;
 		readonly ranges: {
 			/**
 			 * The start of the range (inclusive)
@@ -2277,6 +2282,7 @@ declare namespace monaco.editor {
 
 	export interface IModelOptionsChangedEvent {
 		readonly tabSize: boolean;
+		readonly indentSize: boolean;
 		readonly insertSpaces: boolean;
 		readonly trimAutoWhitespace: boolean;
 	}
@@ -2432,6 +2438,7 @@ declare namespace monaco.editor {
 		 * Controls if Find in Selection flag is turned on when multiple lines of text are selected in the editor.
 		 */
 		autoFindInSelection: boolean;
+		addExtraSpaceOnTop?: boolean;
 	}
 
 	/**
@@ -2580,6 +2587,11 @@ declare namespace monaco.editor {
 		 * Defaults to true.
 		 */
 		lineNumbers?: 'on' | 'off' | 'relative' | 'interval' | ((lineNumber: number) => string);
+		/**
+		 * Render last line number when the file ends with a newline.
+		 * Defaults to true on Windows/Mac and to false on Linux.
+		*/
+		renderFinalNewline?: boolean;
 		/**
 		 * Should the corresponding line be selected when clicking on the line number?
 		 * Defaults to true.
@@ -3168,6 +3180,7 @@ declare namespace monaco.editor {
 	export interface InternalEditorFindOptions {
 		readonly seedSearchStringFromSelection: boolean;
 		readonly autoFindInSelection: boolean;
+		readonly addExtraSpaceOnTop: boolean;
 	}
 
 	export interface InternalEditorHoverOptions {
@@ -3216,6 +3229,7 @@ declare namespace monaco.editor {
 		readonly ariaLabel: string;
 		readonly renderLineNumbers: RenderLineNumbersType;
 		readonly renderCustomLineNumbers: ((lineNumber: number) => string) | null;
+		readonly renderFinalNewline: boolean;
 		readonly selectOnLineNumbers: boolean;
 		readonly glyphMargin: boolean;
 		readonly revealHorizontalRightPadding: number;
@@ -4042,7 +4056,7 @@ declare namespace monaco.editor {
 		/**
 		 * Force an editor render now.
 		 */
-		render(): void;
+		render(forceRedraw?: boolean): void;
 		/**
 		 * Get the hit test target at coordinates `clientX` and `clientY`.
 		 * The coordinates are relative to the top-left of the viewport.
@@ -4270,12 +4284,12 @@ declare namespace monaco.languages {
 	/**
 	 * Set the tokens provider for a language (manual implementation).
 	 */
-	export function setTokensProvider(languageId: string, provider: TokensProvider | EncodedTokensProvider): IDisposable;
+	export function setTokensProvider(languageId: string, provider: TokensProvider | EncodedTokensProvider | Thenable<TokensProvider | EncodedTokensProvider>): IDisposable;
 
 	/**
 	 * Set the tokens provider for a language (monarch implementation).
 	 */
-	export function setMonarchTokensProvider(languageId: string, languageDef: IMonarchLanguage): IDisposable;
+	export function setMonarchTokensProvider(languageId: string, languageDef: IMonarchLanguage | Thenable<IMonarchLanguage>): IDisposable;
 
 	/**
 	 * Register a reference provider (used by e.g. reference search).
@@ -4374,8 +4388,6 @@ declare namespace monaco.languages {
 	export interface CodeActionContext {
 		/**
 		 * An array of diagnostics.
-		 *
-		 * @readonly
 		 */
 		readonly markers: editor.IMarkerData[];
 		/**
@@ -4850,6 +4862,7 @@ declare namespace monaco.languages {
 		edit?: WorkspaceEdit;
 		diagnostics?: editor.IMarkerData[];
 		kind?: string;
+		isPreferred?: boolean;
 	}
 
 	/**
@@ -4921,6 +4934,7 @@ declare namespace monaco.languages {
 		readonly triggerKind: SignatureHelpTriggerKind;
 		readonly triggerCharacter?: string;
 		readonly isRetrigger: boolean;
+		readonly activeSignatureHelp?: SignatureHelp;
 	}
 
 	/**
@@ -4967,7 +4981,7 @@ declare namespace monaco.languages {
 		/**
 		 * The highlight kind, default is [text](#DocumentHighlightKind.Text).
 		 */
-		kind: DocumentHighlightKind;
+		kind?: DocumentHighlightKind;
 	}
 
 	/**
@@ -5019,19 +5033,27 @@ declare namespace monaco.languages {
 		range: IRange;
 	}
 
-	/**
-	 * The definition of a symbol represented as one or many [locations](#Location).
-	 * For most programming languages there is only one location at which a symbol is
-	 * defined.
-	 */
-	export type Definition = Location | Location[];
-
-	export interface DefinitionLink {
-		origin?: IRange;
+	export interface LocationLink {
+		/**
+		 * A range to select where this link originates from.
+		 */
+		originSelectionRange?: IRange;
+		/**
+		 * The target uri this link points to.
+		 */
 		uri: Uri;
+		/**
+		 * The full range this link points to.
+		 */
 		range: IRange;
-		selectionRange?: IRange;
+		/**
+		 * A range to select this link points to. Must be contained
+		 * in `LocationLink.range`.
+		 */
+		targetSelectionRange?: IRange;
 	}
+
+	export type Definition = Location | Location[] | LocationLink[];
 
 	/**
 	 * The definition provider interface defines the contract between extensions and
@@ -5042,7 +5064,7 @@ declare namespace monaco.languages {
 		/**
 		 * Provide the definition of the symbol at the given position and document.
 		 */
-		provideDefinition(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | DefinitionLink[]>;
+		provideDefinition(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | LocationLink[]>;
 	}
 
 	/**
@@ -5054,7 +5076,7 @@ declare namespace monaco.languages {
 		/**
 		 * Provide the declaration of the symbol at the given position and document.
 		 */
-		provideDeclaration(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | DefinitionLink[]>;
+		provideDeclaration(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | LocationLink[]>;
 	}
 
 	/**
@@ -5065,7 +5087,7 @@ declare namespace monaco.languages {
 		/**
 		 * Provide the implementation of the symbol at the given position and document.
 		 */
-		provideImplementation(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | DefinitionLink[]>;
+		provideImplementation(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | LocationLink[]>;
 	}
 
 	/**
@@ -5076,7 +5098,7 @@ declare namespace monaco.languages {
 		/**
 		 * Provide the type definition of the symbol at the given position and document.
 		 */
-		provideTypeDefinition(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | DefinitionLink[]>;
+		provideTypeDefinition(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | LocationLink[]>;
 	}
 
 	/**
@@ -5200,7 +5222,7 @@ declare namespace monaco.languages {
 	 */
 	export interface ILink {
 		range: IRange;
-		url?: string;
+		url?: Uri | string;
 	}
 
 	/**
@@ -5292,7 +5314,7 @@ declare namespace monaco.languages {
 		/**
 		 * Provide ranges that should be selected from the given position.
 		 */
-		provideSelectionRanges(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<SelectionRange[]>;
+		provideSelectionRanges(model: editor.ITextModel, positions: Position[], token: CancellationToken): ProviderResult<SelectionRange[][]>;
 	}
 
 	export interface FoldingContext {

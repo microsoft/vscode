@@ -17,6 +17,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import EDITOR_DEFAULTS = editorOptions.EDITOR_DEFAULTS;
 import EDITOR_FONT_DEFAULTS = editorOptions.EDITOR_FONT_DEFAULTS;
 import EDITOR_MODEL_DEFAULTS = editorOptions.EDITOR_MODEL_DEFAULTS;
+import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 
 /**
  * Control what pressing Tab does.
@@ -57,7 +58,7 @@ export interface IEnvConfiguration {
 	emptySelectionClipboard: boolean;
 	pixelRatio: number;
 	zoomLevel: number;
-	accessibilitySupport: platform.AccessibilitySupport;
+	accessibilitySupport: AccessibilitySupport;
 }
 
 const hasOwnProperty = Object.hasOwnProperty;
@@ -264,6 +265,11 @@ const editorConfiguration: IConfigurationNode = {
 			'default': 'on',
 			'description': nls.localize('lineNumbers', "Controls the display of line numbers.")
 		},
+		'editor.renderFinalNewline': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.viewInfo.renderFinalNewline,
+			'description': nls.localize('renderFinalNewline', "Render last line number when the file ends with a newline.")
+		},
 		'editor.rulers': {
 			'type': 'array',
 			'items': {
@@ -283,6 +289,20 @@ const editorConfiguration: IConfigurationNode = {
 			'minimum': 1,
 			'markdownDescription': nls.localize('tabSize', "The number of spaces a tab is equal to. This setting is overridden based on the file contents when `#editor.detectIndentation#` is on.")
 		},
+		// 'editor.indentSize': {
+		// 	'anyOf': [
+		// 		{
+		// 			'type': 'string',
+		// 			'enum': ['tabSize']
+		// 		},
+		// 		{
+		// 			'type': 'number',
+		// 			'minimum': 1
+		// 		}
+		// 	],
+		// 	'default': 'tabSize',
+		// 	'markdownDescription': nls.localize('indentSize', "The number of spaces used for indentation or 'tabSize' to use the value from `#editor.tabSize#`. This setting is overridden based on the file contents when `#editor.detectIndentation#` is on.")
+		// },
 		'editor.insertSpaces': {
 			'type': 'boolean',
 			'default': EDITOR_MODEL_DEFAULTS.insertSpaces,
@@ -371,6 +391,11 @@ const editorConfiguration: IConfigurationNode = {
 			'description': nls.localize('find.globalFindClipboard', "Controls whether the Find Widget should read or modify the shared find clipboard on macOS."),
 			'included': platform.isMacintosh
 		},
+		'editor.find.addExtraSpaceOnTop': {
+			'type': 'boolean',
+			'default': true,
+			'description': nls.localize('find.addExtraSpaceOnTop', "Controls whether the Find Widget should add extra lines on top of the editor. When true, you can scroll beyond the first line when the Find Widget is visible.")
+		},
 		'editor.wordWrap': {
 			'type': 'string',
 			'enum': ['off', 'on', 'wordWrapColumn', 'bounded'],
@@ -432,7 +457,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.fastScrollSensitivity': {
 			'type': 'number',
 			'default': EDITOR_DEFAULTS.viewInfo.scrollbar.fastScrollSensitivity,
-			'markdownDescription': nls.localize('fastScrollSensitivity', "Scrolling speed mulitiplier when pressing `Alt`")
+			'markdownDescription': nls.localize('fastScrollSensitivity', "Scrolling speed mulitiplier when pressing `Alt`.")
 		},
 		'editor.multiCursorModifier': {
 			'type': 'string',
@@ -657,7 +682,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.selectionHighlight': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.selectionHighlight,
-			'description': nls.localize('selectionHighlight', "Controls whether the editor should highlight matches similar to the selection")
+			'description': nls.localize('selectionHighlight', "Controls whether the editor should highlight matches similar to the selection.")
 		},
 		'editor.occurrencesHighlight': {
 			'type': 'boolean',
@@ -752,12 +777,12 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.codeLens': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.codeLens,
-			'description': nls.localize('codeLens', "Controls whether the editor shows CodeLens")
+			'description': nls.localize('codeLens', "Controls whether the editor shows CodeLens.")
 		},
 		'editor.folding': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.folding,
-			'description': nls.localize('folding', "Controls whether the editor has code folding enabled")
+			'description': nls.localize('folding', "Controls whether the editor has code folding enabled.")
 		},
 		'editor.foldingStrategy': {
 			'type': 'string',
@@ -832,12 +857,21 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.contribInfo.lightbulbEnabled,
 			'description': nls.localize('codeActions', "Enables the code action lightbulb in the editor.")
 		},
+		'editor.maxTokenizationLineLength': {
+			'type': 'integer',
+			'default': 20_000,
+			'description': nls.localize('maxTokenizationLineLength', "Lines above this length will not be tokenized for performance reasons")
+		},
 		'editor.codeActionsOnSave': {
 			'type': 'object',
 			'properties': {
 				'source.organizeImports': {
 					'type': 'boolean',
 					'description': nls.localize('codeActionsOnSave.organizeImports', "Controls whether organize imports action should be run on file save.")
+				},
+				'source.fixAll': {
+					'type': 'boolean',
+					'description': nls.localize('codeActionsOnSave.fixAll', "Controls whether auto fix action should be run on file save.")
 				}
 			},
 			'additionalProperties': {

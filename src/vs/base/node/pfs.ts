@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as extfs from 'vs/base/node/extfs';
-import { join } from 'path';
+import { join } from 'vs/base/common/path';
 import { nfcall, Queue } from 'vs/base/common/async';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -36,7 +36,7 @@ export function rimraf(path: string): Promise<void> {
 		}
 	}, (err: NodeJS.ErrnoException) => {
 		if (err.code === 'ENOENT') {
-			return void 0;
+			return undefined;
 		}
 
 		return Promise.reject(err);
@@ -75,12 +75,6 @@ export function rmdir(path: string): Promise<void> {
 
 export function unlink(path: string): Promise<void> {
 	return nfcall(fs.unlink, path);
-}
-
-export function unlinkIgnoreError(path: string): Promise<void> {
-	return new Promise(resolve => {
-		fs.unlink(path, () => resolve());
-	});
 }
 
 export function symlink(target: string, path: string, type?: string): Promise<void> {
@@ -194,7 +188,7 @@ export function whenDeleted(path: string): Promise<void> {
 
 					if (!exists) {
 						clearInterval(interval);
-						resolve(void 0);
+						resolve(undefined);
 					}
 				});
 			}

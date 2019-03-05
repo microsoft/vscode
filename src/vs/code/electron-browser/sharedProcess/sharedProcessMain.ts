@@ -5,8 +5,8 @@
 
 import * as fs from 'fs';
 import * as platform from 'vs/base/common/platform';
-import product from 'vs/platform/node/product';
-import pkg from 'vs/platform/node/package';
+import product from 'vs/platform/product/node/product';
+import pkg from 'vs/platform/product/node/package';
 import { serve, Server, connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -43,7 +43,6 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { DownloadService } from 'vs/platform/download/node/downloadService';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { StaticRouter } from 'vs/base/parts/ipc/node/ipc';
-import { DefaultURITransformer } from 'vs/base/common/uriIpc';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;
@@ -124,7 +123,7 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 		}
 		server.registerChannel('telemetryAppender', new TelemetryAppenderChannel(appInsightsAppender));
 
-		services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
+		services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService, [false]));
 		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
 		services.set(ILocalizationsService, new SyncDescriptor(LocalizationsService));
 
@@ -133,7 +132,7 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 		instantiationService2.invokeFunction(accessor => {
 
 			const extensionManagementService = accessor.get(IExtensionManagementService);
-			const channel = new ExtensionManagementChannel(extensionManagementService, () => DefaultURITransformer);
+			const channel = new ExtensionManagementChannel(extensionManagementService, () => null);
 			server.registerChannel('extensions', channel);
 
 			// clean up deprecated extensions

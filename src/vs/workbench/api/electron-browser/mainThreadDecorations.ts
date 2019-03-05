@@ -58,7 +58,7 @@ class DecorationRequestsQueue {
 			// reset
 			this._requests = [];
 			this._resolver = [];
-			this._timer = void 0;
+			this._timer = undefined;
 		}, 0);
 	}
 }
@@ -109,13 +109,17 @@ export class MainThreadDecorations implements MainThreadDecorationsShape {
 	}
 
 	$onDidChange(handle: number, resources: UriComponents[]): void {
-		const [emitter] = this._provider.get(handle);
-		emitter.fire(resources && resources.map(URI.revive));
+		const provider = this._provider.get(handle);
+		if (provider) {
+			const [emitter] = provider;
+			emitter.fire(resources && resources.map(URI.revive));
+		}
 	}
 
 	$unregisterDecorationProvider(handle: number): void {
-		if (this._provider.has(handle)) {
-			dispose(this._provider.get(handle));
+		const provider = this._provider.get(handle);
+		if (provider) {
+			dispose(provider);
 			this._provider.delete(handle);
 		}
 	}

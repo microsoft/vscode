@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-var updateGrammar = require('../../../build/npm/update-grammar');
+const updateGrammar = require('../../../build/npm/update-grammar');
 
 function adaptInjectionScope(grammar) {
 	// we're using the HTML grammar from https://github.com/textmate/html.tmbundle which has moved away from source.js.embedded.html
-	let oldInjectionKey = "text.html.php - (meta.embedded | meta.tag), L:text.html.php meta.tag, L:source.js.embedded.html";
-	let newInjectionKey = "text.html.php - (meta.embedded | meta.tag), L:text.html.php meta.tag, L:text.html.php source.js";
+	const oldInjectionKey = "text.html.php - (meta.embedded | meta.tag), L:((text.html.php meta.tag) - (meta.embedded.block.php | meta.embedded.line.php)), L:(source.js.embedded.html - (meta.embedded.block.php | meta.embedded.line.php))";
+	const newInjectionKey = "text.html.php - (meta.embedded | meta.tag), L:((text.html.php meta.tag) - (meta.embedded.block.php | meta.embedded.line.php)), L:(source.js - (meta.embedded.block.php | meta.embedded.line.php))";
 
-	var injections = grammar.injections;
-	var injection = injections[oldInjectionKey];
-	if (!injections) {
-		throw new Error("Can not find PHP injection");
+	const injections = grammar.injections;
+	const injection = injections[oldInjectionKey];
+	if (!injection) {
+		throw new Error("Can not find PHP injection to patch");
 	}
 	delete injections[oldInjectionKey];
 	injections[newInjectionKey] = injection;
@@ -37,4 +37,3 @@ function fixBadRegex(grammar) {
 
 updateGrammar.update('atom/language-php', 'grammars/php.cson', './syntaxes/php.tmLanguage.json', fixBadRegex);
 updateGrammar.update('atom/language-php', 'grammars/html.cson', './syntaxes/html.tmLanguage.json', adaptInjectionScope);
-

@@ -5,121 +5,324 @@
 
 import { URI } from 'vs/base/common/uri';
 import { createHash } from 'crypto';
-import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as pfs from 'vs/base/node/pfs';
 import * as errors from 'vs/base/common/errors';
 import * as collections from 'vs/base/common/collections';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler, Delayer } from 'vs/base/common/async';
-import { FileChangeType, FileChangesEvent, IContent, IFileService } from 'vs/platform/files/common/files';
-import { isLinux } from 'vs/base/common/platform';
-import { ConfigWatcher } from 'vs/base/node/config';
+import { FileChangeType, FileChangesEvent, IContent, IFileService, FileListener } from 'vs/platform/files/common/files';
 import { ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { WorkspaceConfigurationModelParser, FolderSettingsModelParser, StandaloneConfigurationModelParser } from 'vs/workbench/services/configuration/common/configurationModels';
 import { FOLDER_SETTINGS_PATH, TASKS_CONFIGURATION_KEY, FOLDER_SETTINGS_NAME, LAUNCH_CONFIGURATION_KEY } from 'vs/workbench/services/configuration/common/configuration';
-import { IStoredWorkspace, IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
+import { IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import * as extfs from 'vs/base/node/extfs';
 import { JSONEditingService } from 'vs/workbench/services/configuration/node/jsonEditingService';
 import { WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { relative } from 'path';
+import { extname, join } from 'vs/base/common/path';
 import { equals } from 'vs/base/common/objects';
 import { Schemas } from 'vs/base/common/network';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationModel } from 'vs/platform/configuration/common/configuration';
 
+export interface IWorkspaceIdentifier {
+	id: string;
+	configPath: URI;
+}
+
 export class WorkspaceConfiguration extends Disposable {
 
-	private _workspaceConfigPath: URI;
-	private _workspaceConfigurationWatcher: ConfigWatcher<WorkspaceConfigurationModelParser>;
-	private _workspaceConfigurationWatcherDisposables: IDisposable[] = [];
+	private readonly _cachedConfiguration: CachedWorkspaceConfiguration;
+	private _workspaceConfiguration: IWorkspaceConfiguration;
+	private _workspaceIdentifier: IWorkspaceIdentifier | null = null;
+	private _fileService: IFileService | null = null;
 
 	private readonly _onDidUpdateConfiguration: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidUpdateConfiguration: Event<void> = this._onDidUpdateConfiguration.event;
 
-	private _workspaceConfigurationModelParser: WorkspaceConfigurationModelParser = new WorkspaceConfigurationModelParser(this._workspaceConfigPath ? this._workspaceConfigPath.fsPath : '');
-	private _cache: ConfigurationModel = new ConfigurationModel();
+	constructor(
+		environmentService: IEnvironmentService
+	) {
+		super();
+		this._cachedConfiguration = new CachedWorkspaceConfiguration(environmentService);
+		this._workspaceConfiguration = this._cachedConfiguration;
+	}
 
-	load(workspaceConfigPath: URI): Promise<void> {
-		if (this._workspaceConfigPath && this._workspaceConfigPath.fsPath === workspaceConfigPath.fsPath) {
-			return this.reload();
-		}
-
-		this._workspaceConfigPath = workspaceConfigPath;
-
-		return new Promise<void>((c, e) => {
-			const defaultConfig = new WorkspaceConfigurationModelParser(this._workspaceConfigPath.fsPath);
-			defaultConfig.parse(JSON.stringify({ folders: [] } as IStoredWorkspace, null, '\t'));
-			if (this._workspaceConfigurationWatcher) {
-				this.disposeConfigurationWatcher();
+	adopt(fileService: IFileService): Promise<boolean> {
+		if (!this._fileService) {
+			this._fileService = fileService;
+			if (this.adoptWorkspaceConfiguration()) {
+				if (this._workspaceIdentifier) {
+					return this._workspaceConfiguration.load(this._workspaceIdentifier).then(() => true);
+				}
 			}
-			this._workspaceConfigurationWatcher = new ConfigWatcher(this._workspaceConfigPath.fsPath, {
-				changeBufferDelay: 300,
-				onError: error => errors.onUnexpectedError(error),
-				defaultConfig,
-				parse: (content: string, parseErrors: any[]) => {
-					this._workspaceConfigurationModelParser = new WorkspaceConfigurationModelParser(this._workspaceConfigPath.fsPath);
-					this._workspaceConfigurationModelParser.parse(content);
-					parseErrors = [...this._workspaceConfigurationModelParser.errors];
-					this.consolidate();
-					return this._workspaceConfigurationModelParser;
-				}, initCallback: () => c(void 0)
-			});
-			this.listenToWatcher();
-		});
+		}
+		return Promise.resolve(false);
+	}
+
+	load(workspaceIdentifier: IWorkspaceIdentifier): Promise<void> {
+		this._workspaceIdentifier = workspaceIdentifier;
+		this.adoptWorkspaceConfiguration();
+		return this._workspaceConfiguration.load(this._workspaceIdentifier);
 	}
 
 	reload(): Promise<void> {
-		this.stopListeningToWatcher();
-		return new Promise<void>(c => this._workspaceConfigurationWatcher.reload(() => {
-			this.listenToWatcher();
-			c(void 0);
-		}));
+		return this._workspaceIdentifier ? this.load(this._workspaceIdentifier) : Promise.resolve();
 	}
 
 	getFolders(): IStoredWorkspaceFolder[] {
-		return this._workspaceConfigurationModelParser.folders;
+		return this._workspaceConfiguration.getFolders();
 	}
 
 	setFolders(folders: IStoredWorkspaceFolder[], jsonEditingService: JSONEditingService): Promise<void> {
-		return jsonEditingService.write(this._workspaceConfigPath, { key: 'folders', value: folders }, true)
-			.then(() => this.reload());
+		if (this._workspaceIdentifier) {
+			return jsonEditingService.write(this._workspaceIdentifier.configPath, { key: 'folders', value: folders }, true)
+				.then(() => this.reload());
+		}
+		return Promise.resolve();
 	}
 
 	getConfiguration(): ConfigurationModel {
-		return this._cache;
+		return this._workspaceConfiguration.getWorkspaceSettings();
 	}
 
 	reprocessWorkspaceSettings(): ConfigurationModel {
-		this._workspaceConfigurationModelParser.reprocessWorkspaceSettings();
-		this.consolidate();
+		this._workspaceConfiguration.reprocessWorkspaceSettings();
 		return this.getConfiguration();
 	}
 
-	private listenToWatcher() {
-		this._workspaceConfigurationWatcher.onDidUpdateConfiguration(() => this._onDidUpdateConfiguration.fire(), this, this._workspaceConfigurationWatcherDisposables);
+	private adoptWorkspaceConfiguration(): boolean {
+		if (this._workspaceIdentifier) {
+			if (this._fileService) {
+				if (!(this._workspaceConfiguration instanceof FileServiceBasedWorkspaceConfiguration)) {
+					const oldWorkspaceConfiguration = this._workspaceConfiguration;
+					this._workspaceConfiguration = new FileServiceBasedWorkspaceConfiguration(this._fileService, oldWorkspaceConfiguration);
+					this._register(this._workspaceConfiguration.onDidChange(e => this.onDidWorkspaceConfigurationChange()));
+					if (oldWorkspaceConfiguration instanceof CachedWorkspaceConfiguration) {
+						this.updateCache();
+						return true;
+					} else {
+						dispose(oldWorkspaceConfiguration);
+						return false;
+					}
+				}
+				return false;
+			}
+			if (this._workspaceIdentifier.configPath.scheme === Schemas.file) {
+				if (!(this._workspaceConfiguration instanceof NodeBasedWorkspaceConfiguration)) {
+					dispose(this._workspaceConfiguration);
+					this._workspaceConfiguration = new NodeBasedWorkspaceConfiguration();
+					return true;
+				}
+				return false;
+			}
+		}
+		return false;
 	}
 
-	private stopListeningToWatcher() {
-		this._workspaceConfigurationWatcherDisposables = dispose(this._workspaceConfigurationWatcherDisposables);
+	private onDidWorkspaceConfigurationChange(): void {
+		this.updateCache();
+		this.reload().then(() => this._onDidUpdateConfiguration.fire());
+	}
+
+	private updateCache(): Promise<void> {
+		if (this._workspaceIdentifier && this._workspaceIdentifier.configPath.scheme !== Schemas.file && this._workspaceConfiguration instanceof FileServiceBasedWorkspaceConfiguration) {
+			return this._workspaceConfiguration.load(this._workspaceIdentifier)
+				.then(() => this._cachedConfiguration.updateWorkspace(this._workspaceIdentifier!, this._workspaceConfiguration.getConfigurationModel()));
+		}
+		return Promise.resolve(undefined);
+	}
+}
+
+interface IWorkspaceConfiguration extends IDisposable {
+	readonly onDidChange: Event<void>;
+	workspaceConfigurationModelParser: WorkspaceConfigurationModelParser;
+	workspaceSettings: ConfigurationModel;
+	workspaceIdentifier: IWorkspaceIdentifier | null;
+	load(workspaceIdentifier: IWorkspaceIdentifier): Promise<void>;
+	getConfigurationModel(): ConfigurationModel;
+	getFolders(): IStoredWorkspaceFolder[];
+	getWorkspaceSettings(): ConfigurationModel;
+	reprocessWorkspaceSettings(): ConfigurationModel;
+}
+
+abstract class AbstractWorkspaceConfiguration extends Disposable implements IWorkspaceConfiguration {
+
+	workspaceConfigurationModelParser: WorkspaceConfigurationModelParser;
+	workspaceSettings: ConfigurationModel;
+	private _workspaceIdentifier: IWorkspaceIdentifier | null = null;
+
+	protected readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
+	readonly onDidChange: Event<void> = this._onDidChange.event;
+
+	constructor(from?: IWorkspaceConfiguration) {
+		super();
+
+		this.workspaceConfigurationModelParser = from ? from.workspaceConfigurationModelParser : new WorkspaceConfigurationModelParser('');
+		this.workspaceSettings = from ? from.workspaceSettings : new ConfigurationModel();
+	}
+
+	get workspaceIdentifier(): IWorkspaceIdentifier | null {
+		return this._workspaceIdentifier;
+	}
+
+	load(workspaceIdentifier: IWorkspaceIdentifier): Promise<void> {
+		this._workspaceIdentifier = workspaceIdentifier;
+		return this.loadWorkspaceConfigurationContents(workspaceIdentifier)
+			.then(contents => {
+				this.workspaceConfigurationModelParser = new WorkspaceConfigurationModelParser(workspaceIdentifier.id);
+				this.workspaceConfigurationModelParser.parse(contents);
+				this.consolidate();
+			});
+	}
+
+	getConfigurationModel(): ConfigurationModel {
+		return this.workspaceConfigurationModelParser.configurationModel;
+	}
+
+	getFolders(): IStoredWorkspaceFolder[] {
+		return this.workspaceConfigurationModelParser.folders;
+	}
+
+	getWorkspaceSettings(): ConfigurationModel {
+		return this.workspaceSettings;
+	}
+
+	reprocessWorkspaceSettings(): ConfigurationModel {
+		this.workspaceConfigurationModelParser.reprocessWorkspaceSettings();
+		this.consolidate();
+		return this.getWorkspaceSettings();
 	}
 
 	private consolidate(): void {
-		this._cache = this._workspaceConfigurationModelParser.settingsModel.merge(this._workspaceConfigurationModelParser.launchModel);
+		this.workspaceSettings = this.workspaceConfigurationModelParser.settingsModel.merge(this.workspaceConfigurationModelParser.launchModel);
 	}
 
-	private disposeConfigurationWatcher(): void {
-		this.stopListeningToWatcher();
-		if (this._workspaceConfigurationWatcher) {
-			this._workspaceConfigurationWatcher.dispose();
+	protected abstract loadWorkspaceConfigurationContents(workspaceIdentifier: IWorkspaceIdentifier): Promise<string>;
+}
+
+class NodeBasedWorkspaceConfiguration extends AbstractWorkspaceConfiguration {
+
+	protected loadWorkspaceConfigurationContents(workspaceIdentifier: IWorkspaceIdentifier): Promise<string> {
+		return pfs.readFile(workspaceIdentifier.configPath.fsPath)
+			.then(contents => contents.toString(), e => {
+				errors.onUnexpectedError(e);
+				return '';
+			});
+	}
+
+}
+
+class FileServiceBasedWorkspaceConfiguration extends AbstractWorkspaceConfiguration {
+
+	private workspaceConfig: URI | null = null;
+	private readonly reloadConfigurationScheduler: RunOnceScheduler;
+	private fileListener: FileListener | null;
+	private fileListenerDisposables: IDisposable[] = [];
+
+	constructor(private fileService: IFileService, from?: IWorkspaceConfiguration) {
+		super(from);
+		this.workspaceConfig = from && from.workspaceIdentifier ? from.workspaceIdentifier.configPath : null;
+		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this._onDidChange.fire(), 50));
+		this.listenToWorkspaceConfigurationFile();
+		this._register(toDisposable(() => dispose(this.fileListenerDisposables)));
+	}
+
+	protected loadWorkspaceConfigurationContents(workspaceIdentifier: IWorkspaceIdentifier): Promise<string> {
+		if (!(this.workspaceConfig && resources.isEqual(this.workspaceConfig, workspaceIdentifier.configPath))) {
+			this.workspaceConfig = workspaceIdentifier.configPath;
+			this.listenToWorkspaceConfigurationFile();
+		}
+		return this.fileService.resolveContent(this.workspaceConfig)
+			.then(content => content.value, e => {
+				errors.onUnexpectedError(e);
+				return '';
+			});
+	}
+
+	private listenToWorkspaceConfigurationFile(): void {
+		if (this.fileListener) {
+			this.fileListenerDisposables = dispose(this.fileListenerDisposables);
+			this.fileListener = null;
+		}
+		if (this.workspaceConfig) {
+			this.fileListener = new FileListener(this.workspaceConfig, this.fileService);
+			this.fileListenerDisposables.push(this.fileListener);
+			this.fileListener.watch();
+			this.fileListener.onDidContentChange(() => this.reloadConfigurationScheduler.schedule(), this, this.fileListenerDisposables);
+		}
+	}
+}
+
+class CachedWorkspaceConfiguration extends Disposable implements IWorkspaceConfiguration {
+
+	private readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
+	readonly onDidChange: Event<void> = this._onDidChange.event;
+
+	private cachedWorkspacePath: string;
+	private cachedConfigurationPath: string;
+	workspaceConfigurationModelParser: WorkspaceConfigurationModelParser;
+	workspaceSettings: ConfigurationModel;
+
+	constructor(private environmentService: IEnvironmentService) {
+		super();
+		this.workspaceConfigurationModelParser = new WorkspaceConfigurationModelParser('');
+		this.workspaceSettings = new ConfigurationModel();
+	}
+
+	load(workspaceIdentifier: IWorkspaceIdentifier): Promise<void> {
+		this.createPaths(workspaceIdentifier);
+		return pfs.readFile(this.cachedConfigurationPath)
+			.then(contents => {
+				this.workspaceConfigurationModelParser = new WorkspaceConfigurationModelParser(this.cachedConfigurationPath);
+				this.workspaceConfigurationModelParser.parse(contents.toString());
+				this.workspaceSettings = this.workspaceConfigurationModelParser.settingsModel.merge(this.workspaceConfigurationModelParser.launchModel);
+			}, () => { });
+	}
+
+	get workspaceIdentifier(): IWorkspaceIdentifier | null {
+		return null;
+	}
+
+	getConfigurationModel(): ConfigurationModel {
+		return this.workspaceConfigurationModelParser.configurationModel;
+	}
+
+	getFolders(): IStoredWorkspaceFolder[] {
+		return this.workspaceConfigurationModelParser.folders;
+	}
+
+	getWorkspaceSettings(): ConfigurationModel {
+		return this.workspaceSettings;
+	}
+
+	reprocessWorkspaceSettings(): ConfigurationModel {
+		return this.workspaceSettings;
+	}
+
+	async updateWorkspace(workspaceIdentifier: IWorkspaceIdentifier, configurationModel: ConfigurationModel): Promise<void> {
+		try {
+			this.createPaths(workspaceIdentifier);
+			if (configurationModel.keys.length) {
+				const exists = await pfs.exists(this.cachedWorkspacePath);
+				if (!exists) {
+					await pfs.mkdirp(this.cachedWorkspacePath);
+				}
+				const raw = JSON.stringify(configurationModel.toJSON().contents);
+				await pfs.writeFile(this.cachedConfigurationPath, raw);
+			} else {
+				pfs.rimraf(this.cachedWorkspacePath);
+			}
+		} catch (error) {
+			errors.onUnexpectedError(error);
 		}
 	}
 
-	dispose(): void {
-		this.disposeConfigurationWatcher();
-		super.dispose();
+	private createPaths(workspaceIdentifier: IWorkspaceIdentifier) {
+		this.cachedWorkspacePath = join(this.environmentService.userDataPath, 'CachedConfigurations', 'workspaces', workspaceIdentifier.id);
+		this.cachedConfigurationPath = join(this.cachedWorkspacePath, 'workspace.json');
 	}
 }
 
@@ -133,12 +336,11 @@ function isFolderSettingsConfigurationFile(resource: URI): boolean {
 	return resources.isEqual(URI.from({ scheme: resource.scheme, path: resources.basename(resource) }), URI.from({ scheme: resource.scheme, path: `${FOLDER_SETTINGS_NAME}.json` }));
 }
 
-export interface IFolderConfiguration {
+export interface IFolderConfiguration extends IDisposable {
 	readonly onDidChange: Event<void>;
 	readonly loaded: boolean;
 	loadConfiguration(): Promise<ConfigurationModel>;
 	reprocess(): ConfigurationModel;
-	dispose(): void;
 }
 
 export abstract class AbstractFolderConfiguration extends Disposable implements IFolderConfiguration {
@@ -231,7 +433,7 @@ export class NodeBasedFolderConfiguration extends AbstractFolderConfiguration {
 			return this.resolveContents(stat.children.filter(stat => isFolderConfigurationFile(stat.resource))
 				.map(stat => stat.resource));
 		}, err => [] /* never fail this call */)
-			.then(void 0, e => {
+			.then(undefined, e => {
 				errors.onUnexpectedError(e);
 				return [];
 			});
@@ -282,7 +484,7 @@ export class FileServiceBasedFolderConfiguration extends AbstractFolderConfigura
 	}
 
 	private doLoadFolderConfigurationContents(): Promise<Array<{ resource: URI, value: string }>> {
-		const workspaceFilePathToConfiguration: { [relativeWorkspacePath: string]: Promise<IContent> } = Object.create(null);
+		const workspaceFilePathToConfiguration: { [relativeWorkspacePath: string]: Promise<IContent | undefined> } = Object.create(null);
 		const bulkContentFetchromise = Promise.resolve(this.fileService.resolveFile(this.folderConfigurationPath))
 			.then(stat => {
 				if (stat.isDirectory && stat.children) {
@@ -291,13 +493,13 @@ export class FileServiceBasedFolderConfiguration extends AbstractFolderConfigura
 						.forEach(child => {
 							const folderRelativePath = this.toFolderRelativePath(child.resource);
 							if (folderRelativePath) {
-								workspaceFilePathToConfiguration[folderRelativePath] = Promise.resolve(this.fileService.resolveContent(child.resource)).then(void 0, errors.onUnexpectedError);
+								workspaceFilePathToConfiguration[folderRelativePath] = Promise.resolve(this.fileService.resolveContent(child.resource)).then(undefined, errors.onUnexpectedError);
 							}
 						});
 				}
-			}).then(void 0, err => [] /* never fail this call */);
+			}).then(undefined, err => [] /* never fail this call */);
 
-		return bulkContentFetchromise.then(() => Promise.all(collections.values(workspaceFilePathToConfiguration)));
+		return bulkContentFetchromise.then(() => Promise.all<IContent>(collections.values(workspaceFilePathToConfiguration))).then(contents => contents.filter(content => content !== undefined));
 	}
 
 	private handleWorkspaceFileEvents(event: FileChangesEvent): void {
@@ -306,10 +508,9 @@ export class FileServiceBasedFolderConfiguration extends AbstractFolderConfigura
 
 		// Find changes that affect workspace configuration files
 		for (let i = 0, len = events.length; i < len; i++) {
-
 			const resource = events[i].resource;
 			const basename = resources.basename(resource);
-			const isJson = paths.extname(basename) === '.json';
+			const isJson = extname(basename) === '.json';
 			const isDeletedSettingsFolder = (events[i].type === FileChangeType.DELETED && basename === this.configFolderRelativePath);
 
 			if (!isJson && !isDeletedSettingsFolder) {
@@ -324,6 +525,7 @@ export class FileServiceBasedFolderConfiguration extends AbstractFolderConfigura
 			// Handle case where ".vscode" got deleted
 			if (isDeletedSettingsFolder) {
 				affectedByChanges = true;
+				break;
 			}
 
 			// only valid workspace config files
@@ -331,12 +533,8 @@ export class FileServiceBasedFolderConfiguration extends AbstractFolderConfigura
 				continue;
 			}
 
-			switch (events[i].type) {
-				case FileChangeType.DELETED:
-				case FileChangeType.UPDATED:
-				case FileChangeType.ADDED:
-					affectedByChanges = true;
-			}
+			affectedByChanges = true;
+			break;
 		}
 
 		if (affectedByChanges) {
@@ -344,17 +542,11 @@ export class FileServiceBasedFolderConfiguration extends AbstractFolderConfigura
 		}
 	}
 
-	private toFolderRelativePath(resource: URI): string | null {
-		if (resource.scheme === Schemas.file) {
-			if (paths.isEqualOrParent(resource.fsPath, this.folderConfigurationPath.fsPath, !isLinux /* ignorecase */)) {
-				return paths.normalize(relative(this.folderConfigurationPath.fsPath, resource.fsPath));
-			}
-		} else {
-			if (resources.isEqualOrParent(resource, this.folderConfigurationPath)) {
-				return paths.normalize(relative(this.folderConfigurationPath.path, resource.path));
-			}
+	private toFolderRelativePath(resource: URI): string | undefined {
+		if (resources.isEqualOrParent(resource, this.folderConfigurationPath)) {
+			return resources.relativePath(this.folderConfigurationPath, resource);
 		}
-		return null;
+		return undefined;
 	}
 }
 
@@ -374,8 +566,8 @@ export class CachedFolderConfiguration extends Disposable implements IFolderConf
 		configFolderRelativePath: string,
 		environmentService: IEnvironmentService) {
 		super();
-		this.cachedFolderPath = paths.join(environmentService.appSettingsHome, createHash('md5').update(paths.join(folder.path, configFolderRelativePath)).digest('hex'));
-		this.cachedConfigurationPath = paths.join(this.cachedFolderPath, 'configuration.json');
+		this.cachedFolderPath = join(environmentService.userDataPath, 'CachedConfigurations', 'folders', createHash('md5').update(join(folder.path, configFolderRelativePath)).digest('hex'));
+		this.cachedConfigurationPath = join(this.cachedFolderPath, 'configuration.json');
 		this.configurationModel = new ConfigurationModel();
 	}
 
@@ -395,7 +587,7 @@ export class CachedFolderConfiguration extends Disposable implements IFolderConf
 			if (created) {
 				return configurationModel.keys.length ? pfs.writeFile(this.cachedConfigurationPath, raw) : pfs.rimraf(this.cachedFolderPath);
 			}
-			return void 0;
+			return undefined;
 		});
 	}
 
@@ -409,7 +601,7 @@ export class CachedFolderConfiguration extends Disposable implements IFolderConf
 
 	private createCachedFolder(): Promise<boolean> {
 		return Promise.resolve(pfs.exists(this.cachedFolderPath))
-			.then(void 0, () => false)
+			.then(undefined, () => false)
 			.then(exists => exists ? exists : pfs.mkdirp(this.cachedFolderPath).then(() => true, () => false));
 	}
 }
@@ -500,6 +692,6 @@ export class FolderConfiguration extends Disposable implements IFolderConfigurat
 			return this.folderConfiguration.loadConfiguration()
 				.then(configurationModel => this.cachedFolderConfiguration.updateConfiguration(configurationModel));
 		}
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 }

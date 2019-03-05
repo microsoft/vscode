@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import * as pfs from 'vs/base/node/pfs';
 
 import { IStringDictionary } from 'vs/base/common/collections';
-import product from 'vs/platform/node/product';
+import product from 'vs/platform/product/node/product';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -103,7 +103,7 @@ export class LanguagePackCachedDataCleaner {
 
 		this._disposables.push({
 			dispose() {
-				if (handle !== void 0) {
+				if (handle !== undefined) {
 					clearTimeout(handle);
 				}
 			}

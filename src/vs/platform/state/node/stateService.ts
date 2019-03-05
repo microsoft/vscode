@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import * as fs from 'fs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { writeFileAndFlushSync } from 'vs/base/node/extfs';
@@ -91,7 +91,7 @@ export class FileStorage {
 
 		// Only update if the key is actually present (not undefined)
 		if (!isUndefined(this.database[key])) {
-			this.database[key] = void 0;
+			this.database[key] = undefined;
 			this.saveSync();
 		}
 	}

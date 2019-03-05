@@ -15,7 +15,7 @@
         css-less-scss: [],
         debug-console: [],
         debug: {
-            assignees: [ isidorn ],
+            assignees: [ weinand ],
             assignLabel: false
         },
         diff-editor: [],
@@ -52,7 +52,7 @@
         editor-symbols: [],
         editor-textbuffer: [],
         editor-wrapping: [],
-        emmet: [ ramya-rao-a ],
+        emmet: [ octref, ramya-rao-a ],
         error-list: [],
         explorer-custom: [],
         extension-host: [],
@@ -76,7 +76,7 @@
             assignLabel: false
         },
         formatting: [],
-        git: [ joaomoreno ],
+        git: [],
         grammar: [],
         hot-exit: [],
         html: [],

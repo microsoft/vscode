@@ -53,7 +53,7 @@ suite('Async', () => {
 		order.push('afterCreate');
 
 		const promise = cancellablePromise
-			.then(void 0, err => null)
+			.then(undefined, err => null)
 			.then(() => order.push('finally'));
 
 		cancellablePromise.cancel();
@@ -75,7 +75,7 @@ suite('Async', () => {
 		order.push('afterCreate');
 
 		const promise = cancellablePromise
-			.then(void 0, err => null)
+			.then(undefined, err => null)
 			.then(() => order.push('finally'));
 
 		cancellablePromise.cancel();
@@ -208,13 +208,13 @@ suite('Async', () => {
 
 		assert(!delayer.isTriggered());
 
-		promises.push(delayer.trigger(factory).then(void 0, () => { assert(true, 'yes, it was cancelled'); }));
+		promises.push(delayer.trigger(factory).then(undefined, () => { assert(true, 'yes, it was cancelled'); }));
 		assert(delayer.isTriggered());
 
-		promises.push(delayer.trigger(factory).then(void 0, () => { assert(true, 'yes, it was cancelled'); }));
+		promises.push(delayer.trigger(factory).then(undefined, () => { assert(true, 'yes, it was cancelled'); }));
 		assert(delayer.isTriggered());
 
-		promises.push(delayer.trigger(factory).then(void 0, () => { assert(true, 'yes, it was cancelled'); }));
+		promises.push(delayer.trigger(factory).then(undefined, () => { assert(true, 'yes, it was cancelled'); }));
 		assert(delayer.isTriggered());
 
 		delayer.cancel();
@@ -239,10 +239,10 @@ suite('Async', () => {
 			assert.equal(result, 1);
 			assert(!delayer.isTriggered());
 
-			promises.push(delayer.trigger(factory).then(void 0, () => { assert(true, 'yes, it was cancelled'); }));
+			promises.push(delayer.trigger(factory).then(undefined, () => { assert(true, 'yes, it was cancelled'); }));
 			assert(delayer.isTriggered());
 
-			promises.push(delayer.trigger(factory).then(void 0, () => { assert(true, 'yes, it was cancelled'); }));
+			promises.push(delayer.trigger(factory).then(undefined, () => { assert(true, 'yes, it was cancelled'); }));
 			assert(delayer.isTriggered());
 
 			delayer.cancel();
@@ -444,7 +444,7 @@ suite('Async', () => {
 
 		queue.queue(f1);
 		queue.queue(f2);
-		queue.queue(f3).then(void 0, () => error = true);
+		queue.queue(f3).then(undefined, () => error = true);
 		queue.queue(f4);
 		return queue.queue(f5).then(() => {
 			assert.equal(res[0], 1);

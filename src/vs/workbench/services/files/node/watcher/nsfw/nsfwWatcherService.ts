@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as glob from 'vs/base/common/glob';
-import * as paths from 'vs/base/common/paths';
-import * as path from 'path';
+import * as extpath from 'vs/base/common/extpath';
+import * as path from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
 import * as watcher from 'vs/workbench/services/files/node/watcher/common';
 import * as nsfw from 'vscode-nsfw';
@@ -99,9 +99,7 @@ export class NsfwWatcherService implements IWatcherService {
 		}
 
 		nsfw(request.basePath, events => {
-			for (let i = 0; i < events.length; i++) {
-				const e = events[i];
-
+			for (const e of events) {
 				// Logging
 				if (this._verboseLogging) {
 					const logPath = e.action === nsfw.actions.RENAMED ? path.join(e.directory, e.oldFile || '') + ' -> ' + e.newFile : path.join(e.directory, e.file || '');
@@ -166,7 +164,7 @@ export class NsfwWatcherService implements IWatcherService {
 					});
 				}
 
-				return Promise.resolve(void 0);
+				return Promise.resolve(undefined);
 			});
 		}).then(watcher => {
 			this._pathWatchers[request.basePath].watcher = watcher;
@@ -211,12 +209,12 @@ export class NsfwWatcherService implements IWatcherService {
 			}
 		});
 
-		return Promise.all(promises).then(() => void 0);
+		return Promise.all(promises).then(() => undefined);
 	}
 
 	public setVerboseLogging(enabled: boolean): Promise<void> {
 		this._verboseLogging = enabled;
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	public stop(): Promise<void> {
@@ -235,7 +233,7 @@ export class NsfwWatcherService implements IWatcherService {
 	 */
 	protected _normalizeRoots(roots: IWatcherRequest[]): IWatcherRequest[] {
 		return roots.filter(r => roots.every(other => {
-			return !(r.basePath.length > other.basePath.length && paths.isEqualOrParent(r.basePath, other.basePath));
+			return !(r.basePath.length > other.basePath.length && extpath.isEqualOrParent(r.basePath, other.basePath));
 		}));
 	}
 
