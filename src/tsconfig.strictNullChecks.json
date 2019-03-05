@@ -29,7 +29,8 @@
 		"./vs/workbench/services/bulkEdit/**/*.ts",
 		"./vs/workbench/services/progress/**/*.ts",
 		"./vs/workbench/services/preferences/**/*.ts",
-		"./vs/workbench/services/timer/**/*.ts"
+		"./vs/workbench/services/timer/**/*.ts",
+		"./vs/workbench/contrib/webview/**/*.ts"
 	],
 	"files": [
 		"./vs/monaco.d.ts",
@@ -238,8 +239,10 @@
 		"./vs/workbench/contrib/extensions/common/extensionsFileTemplate.ts",
 		"./vs/workbench/contrib/extensions/common/extensionsInput.ts",
 		"./vs/workbench/contrib/extensions/common/extensionsUtils.ts",
+		"./vs/workbench/contrib/extensions/electron-browser/extensionEditor.ts",
 		"./vs/workbench/contrib/extensions/electron-browser/extensionProfileService.ts",
 		"./vs/workbench/contrib/extensions/electron-browser/extensionTipsService.ts",
+		"./vs/workbench/contrib/extensions/electron-browser/extensions.contribution.ts",
 		"./vs/workbench/contrib/extensions/electron-browser/extensionsActions.ts",
 		"./vs/workbench/contrib/extensions/electron-browser/extensionsActivationProgress.ts",
 		"./vs/workbench/contrib/extensions/electron-browser/extensionsAutoProfiler.ts",
@@ -370,8 +373,10 @@
 		"./vs/workbench/contrib/terminal/test/node/terminalEnvironment.test.ts",
 		"./vs/workbench/contrib/themes/browser/themes.contribution.ts",
 		"./vs/workbench/contrib/themes/test/electron-browser/themes.test.contribution.ts",
+		"./vs/workbench/contrib/update/electron-browser/releaseNotesEditor.ts",
+		"./vs/workbench/contrib/update/electron-browser/update.contribution.ts",
+		"./vs/workbench/contrib/update/electron-browser/update.ts",
 		"./vs/workbench/contrib/url/common/url.contribution.ts",
-		"./vs/workbench/contrib/webview/electron-browser/webviewProtocols.ts",
 		"./vs/workbench/electron-browser/window.ts",
 		"./vs/workbench/services/activity/browser/activityService.ts",
 		"./vs/workbench/services/activity/common/activity.ts",
