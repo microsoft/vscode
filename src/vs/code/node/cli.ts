@@ -5,7 +5,8 @@
 
 import { spawn, ChildProcess } from 'child_process';
 import { assign } from 'vs/base/common/objects';
-import { buildHelpMessage, buildVersionMessage } from 'vs/platform/environment/node/argv';
+import { buildHelpMessage, buildVersionMessage, addArg } from 'vs/platform/environment/node/argv';
+import { parseCLIProcessArgv, createWaitMarkerFile } from 'vs/platform/environment/node/argvHelper';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import product from 'vs/platform/product/node/product';
 import pkg from 'vs/platform/product/node/package';
@@ -19,8 +20,6 @@ import * as iconv from 'iconv-lite';
 import { writeFileAndFlushSync } from 'vs/base/node/extfs';
 import { isWindows } from 'vs/base/common/platform';
 import { ProfilingSession, Target } from 'v8-inspect-profiler';
-import { createWaitMarkerFile } from 'vs/code/node/wait';
-import { parseCLIProcessArgv } from 'vs/platform/environment/node/argvHelper';
 
 function shouldSpawnCliProcess(argv: ParsedArgs): boolean {
 	return !!argv['install-source']
@@ -180,11 +179,11 @@ export async function main(argv: string[]): Promise<any> {
 					});
 
 					// Make sure to open tmp file
-					argv.push(stdinFilePath);
+					addArg(argv, stdinFilePath);
 
 					// Enable --wait to get all data and ignore adding this to history
-					argv.push('--wait');
-					argv.push('--skip-add-to-recently-opened');
+					addArg(argv, '--wait');
+					addArg(argv, '--skip-add-to-recently-opened');
 					args.wait = true;
 				}
 
@@ -232,7 +231,7 @@ export async function main(argv: string[]): Promise<any> {
 		if (args.wait) {
 			waitMarkerFilePath = await createWaitMarkerFile(verbose);
 			if (waitMarkerFilePath) {
-				argv.push('--waitMarkerFilePath', waitMarkerFilePath);
+				addArg(argv, '--waitMarkerFilePath', waitMarkerFilePath);
 			}
 		}
 
@@ -252,11 +251,11 @@ export async function main(argv: string[]): Promise<any> {
 
 			const filenamePrefix = paths.join(os.homedir(), 'prof-' + Math.random().toString(16).slice(-4));
 
-			argv.push(`--inspect-brk=${portMain}`);
-			argv.push(`--remote-debugging-port=${portRenderer}`);
-			argv.push(`--inspect-brk-extensions=${portExthost}`);
-			argv.push(`--prof-startup-prefix`, filenamePrefix);
-			argv.push(`--no-cached-data`);
+			addArg(argv, `--inspect-brk=${portMain}`);
+			addArg(argv, `--remote-debugging-port=${portRenderer}`);
+			addArg(argv, `--inspect-brk-extensions=${portExthost}`);
+			addArg(argv, `--prof-startup-prefix`, filenamePrefix);
+			addArg(argv, `--no-cached-data`);
 
 			fs.writeFileSync(filenamePrefix, argv.slice(-6).join('|'));
 
@@ -341,7 +340,7 @@ export async function main(argv: string[]): Promise<any> {
 		if (args['js-flags']) {
 			const match = /max_old_space_size=(\d+)/g.exec(args['js-flags']);
 			if (match && !args['max-memory']) {
-				argv.push(`--max-memory=${match[1]}`);
+				addArg(argv, `--max-memory=${match[1]}`);
 			}
 		}
 

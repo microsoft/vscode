@@ -15,9 +15,10 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { IIdentifiedSingleEditOperation, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { Choice, Placeholder, SnippetParser, Text, TextmateSnippet } from './snippetParser';
-import { ClipboardBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, SelectionBasedVariableResolver, TimeBasedVariableResolver, CommentBasedVariableResolver } from './snippetVariables';
+import { ClipboardBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, SelectionBasedVariableResolver, TimeBasedVariableResolver, CommentBasedVariableResolver, WorkspaceBasedVariableResolver } from './snippetVariables';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import * as colors from 'vs/platform/theme/common/colorRegistry';
 
@@ -354,6 +355,7 @@ export class SnippetSession {
 
 		const modelBasedVariableResolver = new ModelBasedVariableResolver(model);
 		const clipboardService = editor.invokeWithinContext(accessor => accessor.get(IClipboardService, optional));
+		const workspaceService = editor.invokeWithinContext(accessor => accessor.get(IWorkspaceContextService, optional));
 
 		let delta = 0;
 
@@ -409,7 +411,8 @@ export class SnippetSession {
 				new ClipboardBasedVariableResolver(clipboardService, idx, indexedSelections.length),
 				new SelectionBasedVariableResolver(model, selection),
 				new CommentBasedVariableResolver(model),
-				new TimeBasedVariableResolver
+				new TimeBasedVariableResolver,
+				new WorkspaceBasedVariableResolver(workspaceService),
 			]));
 
 			const offset = model.getOffsetAt(start) + delta;

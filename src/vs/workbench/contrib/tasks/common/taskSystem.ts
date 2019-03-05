@@ -93,7 +93,7 @@ export interface ITaskExecuteResult {
 }
 
 export interface ITaskResolver {
-	resolve(workspaceFolder: IWorkspaceFolder, identifier: string | KeyedTaskIdentifier): Task;
+	resolve(workspaceFolder: IWorkspaceFolder, identifier: string | KeyedTaskIdentifier | undefined): Task | undefined;
 }
 
 export interface TaskTerminateResponse extends TerminateResponse {
@@ -122,7 +122,7 @@ export interface TaskSystemInfo {
 }
 
 export interface TaskSystemInfoResovler {
-	(workspaceFolder: IWorkspaceFolder): TaskSystemInfo;
+	(workspaceFolder: IWorkspaceFolder): TaskSystemInfo | undefined;
 }
 
 export interface ITaskSystem {

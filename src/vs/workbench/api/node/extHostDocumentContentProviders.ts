@@ -52,13 +52,13 @@ export class ExtHostDocumentContentProvider implements ExtHostDocumentContentPro
 					this._logService.warn(`Provider for scheme '${scheme}' is firing event for schema '${uri.scheme}' which will be IGNORED`);
 					return;
 				}
-				if (this._documentsAndEditors.getDocument(uri.toString())) {
+				if (this._documentsAndEditors.getDocument(uri)) {
 					this.$provideTextDocumentContent(handle, uri).then(value => {
 						if (!value) {
 							return;
 						}
 
-						const document = this._documentsAndEditors.getDocument(uri.toString());
+						const document = this._documentsAndEditors.getDocument(uri);
 						if (!document) {
 							// disposed in the meantime
 							return;

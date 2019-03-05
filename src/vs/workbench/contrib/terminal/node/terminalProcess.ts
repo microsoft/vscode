@@ -7,6 +7,7 @@ import * as os from 'os';
 import * as path from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
 import * as pty from 'node-pty';
+import * as fs from 'fs';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ITerminalChildProcess } from 'vs/workbench/contrib/terminal/node/terminal';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -196,18 +197,29 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 	}
 
 	public getCwd(): Promise<string> {
-		if (platform.isWindows) {
+		if (platform.isMacintosh) {
 			return new Promise<string>(resolve => {
-				resolve(this._initialCwd);
+				exec('lsof -p ' + this._ptyProcess.pid + ' | grep cwd', (error, stdout, stderr) => {
+					if (stdout !== '') {
+						resolve(stdout.substring(stdout.indexOf('/'), stdout.length - 1));
+					}
+				});
+			});
+		}
+
+		if (platform.isLinux) {
+			return new Promise<string>(resolve => {
+				fs.readlink('/proc/' + this._ptyProcess.pid + '/cwd', (err, linkedstr) => {
+					if (err) {
+						resolve(this._initialCwd);
+					}
+					resolve(linkedstr);
+				});
 			});
 		}
 
 		return new Promise<string>(resolve => {
-			exec('lsof -p ' + this._ptyProcess.pid + ' | grep cwd', (error, stdout, stderr) => {
-				if (stdout !== '') {
-					resolve(stdout.substring(stdout.indexOf('/'), stdout.length - 1));
-				}
-			});
+			resolve(this._initialCwd);
 		});
 	}
 }

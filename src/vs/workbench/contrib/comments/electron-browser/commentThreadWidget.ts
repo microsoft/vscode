@@ -117,7 +117,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._draftMode = draftMode;
 		this._isCollapsed = commentThread.collapsibleState !== modes.CommentThreadCollapsibleState.Expanded;
 		this._globalToDispose = [];
-		this._disposables = [];
+		this._submitActionsDisposables = [];
 		this._formActions = null;
 		this.create();
 

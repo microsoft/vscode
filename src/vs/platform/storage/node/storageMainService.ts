@@ -52,8 +52,8 @@ export interface IStorageMainService {
 	 * the provided defaultValue if the element is null or undefined. The element
 	 * will be converted to a number using parseInt with a base of 10.
 	 */
-	getInteger(key: string, fallbackValue: number): number;
-	getInteger(key: string, fallbackValue?: number): number | undefined;
+	getNumber(key: string, fallbackValue: number): number;
+	getNumber(key: string, fallbackValue?: number): number | undefined;
 
 	/**
 	 * Store a string value under the given key to storage. The value will
@@ -362,10 +362,10 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 		return this.storage.getBoolean(key, fallbackValue);
 	}
 
-	getInteger(key: string, fallbackValue: number): number;
-	getInteger(key: string, fallbackValue?: number): number | undefined;
-	getInteger(key: string, fallbackValue?: number): number | undefined {
-		return this.storage.getInteger(key, fallbackValue);
+	getNumber(key: string, fallbackValue: number): number;
+	getNumber(key: string, fallbackValue?: number): number | undefined;
+	getNumber(key: string, fallbackValue?: number): number | undefined {
+		return this.storage.getNumber(key, fallbackValue);
 	}
 
 	store(key: string, value: any): Promise<void> {

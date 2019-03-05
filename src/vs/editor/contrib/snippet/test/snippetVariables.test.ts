@@ -6,10 +6,11 @@ import * as assert from 'assert';
 import { isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { Selection } from 'vs/editor/common/core/selection';
-import { SelectionBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, ClipboardBasedVariableResolver, TimeBasedVariableResolver } from 'vs/editor/contrib/snippet/snippetVariables';
+import { SelectionBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, ClipboardBasedVariableResolver, TimeBasedVariableResolver, WorkspaceBasedVariableResolver } from 'vs/editor/contrib/snippet/snippetVariables';
 import { SnippetParser, Variable, VariableResolver } from 'vs/editor/contrib/snippet/snippetParser';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { Workspace, toWorkspaceFolders, IWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 suite('Snippet Variables Resolver', function () {
 
@@ -300,5 +301,38 @@ suite('Snippet Variables Resolver', function () {
 
 		snippet.resolveVariables({ resolve() { return '11'; } });
 		assert.equal(snippet.toString(), 'It is not line 10');
+	});
+
+	test('Add workspace name variable for snippets #68261', function () {
+
+		let workspace: IWorkspace;
+		let resolver: VariableResolver;
+		const workspaceService = new class implements IWorkspaceContextService {
+			_serviceBrand: any;
+			_throw = () => { throw new Error(); };
+			onDidChangeWorkbenchState = this._throw;
+			onDidChangeWorkspaceName = this._throw;
+			onDidChangeWorkspaceFolders = this._throw;
+			getCompleteWorkspace = this._throw;
+			getWorkspace(): IWorkspace { return workspace; }
+			getWorkbenchState = this._throw;
+			getWorkspaceFolder = this._throw;
+			isCurrentWorkspace = this._throw;
+			isInsideWorkspace = this._throw;
+		};
+
+		resolver = new WorkspaceBasedVariableResolver(workspaceService);
+
+		// empty workspace
+		workspace = new Workspace('');
+		assertVariableResolve(resolver, 'WORKSPACE_NAME', undefined);
+
+		// single folder workspace without config
+		workspace = new Workspace('', toWorkspaceFolders([{ path: '/folderName' }]));
+		assertVariableResolve(resolver, 'WORKSPACE_NAME', 'folderName');
+
+		// workspace with config
+		workspace = new Workspace('', toWorkspaceFolders([{ path: 'folderName' }]), URI.file('testWorkspace.code-workspace'));
+		assertVariableResolve(resolver, 'WORKSPACE_NAME', 'testWorkspace');
 	});
 });

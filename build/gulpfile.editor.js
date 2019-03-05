@@ -234,6 +234,14 @@ const finalEditorResourcesTask = task.define('final-editor-resources', () => {
 			}))
 			.pipe(gulp.dest('out-monaco-editor-core')),
 
+		// version.txt
+		gulp.src('build/monaco/version.txt')
+			.pipe(es.through(function (data) {
+				data.contents = Buffer.from(`monaco-editor-core: https://github.com/Microsoft/vscode/tree/${sha1}`);
+				this.emit('data', data);
+			}))
+			.pipe(gulp.dest('out-monaco-editor-core')),
+
 		// README.md
 		gulp.src('build/monaco/README-npm.md')
 			.pipe(es.through(function (data) {

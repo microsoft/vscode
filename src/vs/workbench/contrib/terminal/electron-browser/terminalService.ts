@@ -64,7 +64,10 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 			if (request.termProgram === 'vscode' && request.filesToWait) {
 				pfs.whenDeleted(request.filesToWait.waitMarkerFilePath).then(() => {
 					if (this.terminalInstances.length > 0) {
-						this.getActiveInstance().focus();
+						const terminal = this.getActiveInstance();
+						if (terminal) {
+							terminal.focus();
+						}
 					}
 				});
 			}
@@ -215,14 +218,14 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		);
 	}
 
-	public selectDefaultWindowsShell(): Promise<string> {
+	public selectDefaultWindowsShell(): Promise<string | undefined> {
 		return this._detectWindowsShells().then(shells => {
 			const options: IPickOptions<IQuickPickItem> = {
 				placeHolder: nls.localize('terminal.integrated.chooseWindowsShell', "Select your preferred terminal shell, you can change this later in your settings")
 			};
 			return this._quickInputService.pick(shells, options).then(value => {
 				if (!value) {
-					return null;
+					return undefined;
 				}
 				const shell = value.description;
 				return this._configurationService.updateValue('terminal.integrated.shell.windows', shell, ConfigurationTarget.USER).then(() => shell);
@@ -270,13 +273,13 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 			});
 	}
 
-	private _validateShellPaths(label: string, potentialPaths: string[]): Promise<[string, string]> {
+	private _validateShellPaths(label: string, potentialPaths: string[]): Promise<[string, string] | null> {
+		if (potentialPaths.length === 0) {
+			return Promise.resolve(null);
+		}
 		const current = potentialPaths.shift();
-		return pfs.fileExists(current).then(exists => {
+		return pfs.fileExists(current!).then(exists => {
 			if (!exists) {
-				if (potentialPaths.length === 0) {
-					return null;
-				}
 				return this._validateShellPaths(label, potentialPaths);
 			}
 			return [label, current] as [string, string];

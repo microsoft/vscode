@@ -8,14 +8,15 @@ import { app, dialog } from 'electron';
 import { assign } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import product from 'vs/platform/product/node/product';
-import { parseMainProcessArgv } from 'vs/platform/environment/node/argvHelper';
+import { parseMainProcessArgv, createWaitMarkerFile } from 'vs/platform/environment/node/argvHelper';
+import { addArg } from 'vs/platform/environment/node/argv';
 import { mkdirp } from 'vs/base/node/pfs';
 import { validatePaths } from 'vs/code/node/paths';
 import { LifecycleService, ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { Server, serve, connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { LaunchChannelClient } from 'vs/platform/launch/electron-main/launchService';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { InstantiationService } from 'vs/platform/instantiation/node/instantiationService';
+import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ILogService, ConsoleLogMainService, MultiplexLogService, getLogLevel } from 'vs/platform/log/common/log';
@@ -36,7 +37,6 @@ import { IDiagnosticsService, DiagnosticsService } from 'vs/platform/diagnostics
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
 import { uploadLogs } from 'vs/code/electron-main/logUploader';
 import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
-import { createWaitMarkerFile } from 'vs/code/node/wait';
 
 class ExpectedError extends Error {
 	readonly isExpected = true;
@@ -359,7 +359,7 @@ function main(): void {
 	if (args.wait && !args.waitMarkerFilePath) {
 		createWaitMarkerFile(args.verbose).then(waitMarkerFilePath => {
 			if (waitMarkerFilePath) {
-				process.argv.push('--waitMarkerFilePath', waitMarkerFilePath);
+				addArg(process.argv, '--waitMarkerFilePath', waitMarkerFilePath);
 				args.waitMarkerFilePath = waitMarkerFilePath;
 			}
 

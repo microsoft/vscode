@@ -141,7 +141,10 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 	private removeDefaultKeybinding(keybindingItem: ResolvedKeybindingItem, model: ITextModel): void {
 		const { tabSize, insertSpaces } = model.getOptions();
 		const eol = model.getEOL();
-		this.applyEditsToBuffer(setProperty(model.getValue(), [-1], this.asObject(keybindingItem.resolvedKeybinding.getUserSettingsLabel(), keybindingItem.command, keybindingItem.when ? keybindingItem.when.serialize() : undefined, true), { tabSize, insertSpaces, eol })[0], model);
+		const key = keybindingItem.resolvedKeybinding ? keybindingItem.resolvedKeybinding.getUserSettingsLabel() : null;
+		if (key) {
+			this.applyEditsToBuffer(setProperty(model.getValue(), [-1], this.asObject(key, keybindingItem.command, keybindingItem.when ? keybindingItem.when.serialize() : undefined, true), { tabSize, insertSpaces, eol })[0], model);
+		}
 	}
 
 	private removeUnassignedDefaultKeybinding(keybindingItem: ResolvedKeybindingItem, model: ITextModel): void {
@@ -162,7 +165,8 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 					return index;
 				}
 				if (keybinding.when && keybindingItem.when) {
-					if (ContextKeyExpr.deserialize(keybinding.when).serialize() === keybindingItem.when.serialize()) {
+					const contextKeyExpr = ContextKeyExpr.deserialize(keybinding.when);
+					if (contextKeyExpr && contextKeyExpr.serialize() === keybindingItem.when.serialize()) {
 						return index;
 					}
 				}
@@ -181,9 +185,11 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 		return indices;
 	}
 
-	private asObject(key: string, command: string, when: string, negate: boolean): any {
+	private asObject(key: string, command: string | null, when: string | undefined, negate: boolean): any {
 		const object = { key };
-		object['command'] = negate ? `-${command}` : command;
+		if (command) {
+			object['command'] = negate ? `-${command}` : command;
+		}
 		if (when) {
 			object['when'] = when;
 		}

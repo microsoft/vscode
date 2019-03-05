@@ -270,7 +270,7 @@ export class LanguagesRegistry extends Disposable {
 		return (language.mimetypes[0] || null);
 	}
 
-	public extractModeIds(commaSeparatedMimetypesOrCommaSeparatedIds: string): string[] {
+	public extractModeIds(commaSeparatedMimetypesOrCommaSeparatedIds: string | undefined): string[] {
 		if (!commaSeparatedMimetypesOrCommaSeparatedIds) {
 			return [];
 		}

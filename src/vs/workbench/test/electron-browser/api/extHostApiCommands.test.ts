@@ -87,15 +87,15 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			instantiationService.stub(IModelService, <IModelService>{
 				_serviceBrand: IModelService,
 				getModel(): any { return model; },
-				createModel(): any { throw new Error(); },
-				updateModel(): any { throw new Error(); },
-				setMode(): any { throw new Error(); },
-				destroyModel(): any { throw new Error(); },
-				getModels(): any { throw new Error(); },
-				onModelAdded: undefined,
-				onModelModeChanged: undefined,
-				onModelRemoved: undefined,
-				getCreationOptions(): any { throw new Error(); }
+				createModel() { throw new Error(); },
+				updateModel() { throw new Error(); },
+				setMode() { throw new Error(); },
+				destroyModel() { throw new Error(); },
+				getModels() { throw new Error(); },
+				onModelAdded: undefined!,
+				onModelModeChanged: undefined!,
+				onModelRemoved: undefined!,
+				getCreationOptions() { throw new Error(); }
 			});
 			inst = instantiationService;
 		}
@@ -190,8 +190,8 @@ suite('ExtHostLanguageFeatureCommands', function () {
 	test('executeWorkspaceSymbolProvider should accept empty string, #39522', async function () {
 
 		disposables.push(extHost.registerWorkspaceSymbolProvider(nullExtensionDescription, {
-			provideWorkspaceSymbols(query) {
-				return [new types.SymbolInformation('hello', types.SymbolKind.Array, new types.Range(0, 0, 0, 0), URI.parse('foo:bar'))];
+			provideWorkspaceSymbols(query): vscode.SymbolInformation[] {
+				return [new types.SymbolInformation('hello', types.SymbolKind.Array, new types.Range(0, 0, 0, 0), URI.parse('foo:bar')) as vscode.SymbolInformation];
 			}
 		}));
 

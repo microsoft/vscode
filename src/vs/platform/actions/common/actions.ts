@@ -6,9 +6,9 @@
 import { Action } from 'vs/base/common/actions';
 import { SyncDescriptor0, createSyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IConstructorSignature2, createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IKeybindings, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ICommandService, ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -319,5 +319,65 @@ export class SyncActionDescriptor {
 
 	public get keybindingWeight(): number | undefined {
 		return this._keybindingWeight;
+	}
+}
+
+
+export interface IActionDescriptor {
+	id: string;
+	handler: ICommandHandler;
+
+	// ICommandUI
+	title?: ILocalizedString;
+	category?: string;
+	f1?: boolean;
+
+	//
+	menu?: {
+		menuId: MenuId,
+		when?: ContextKeyExpr;
+		group?: string;
+	};
+
+	//
+	keybinding?: {
+		when?: ContextKeyExpr;
+		weight?: number;
+		keys: IKeybindings;
+	};
+}
+
+
+export function registerAction(desc: IActionDescriptor) {
+
+	const { id, handler, title, category, menu, keybinding } = desc;
+
+	// 1) register as command
+	CommandsRegistry.registerCommand(id, handler);
+
+	// 2) menus
+	if (menu && title) {
+		let command = { id, title, category };
+		let { menuId, when, group } = menu;
+		MenuRegistry.appendMenuItem(menuId, {
+			command,
+			when,
+			group
+		});
+	}
+
+	// 3) keybindings
+	if (keybinding) {
+		let { when, weight, keys } = keybinding;
+		KeybindingsRegistry.registerKeybindingRule({
+			id,
+			when,
+			weight: weight || 0,
+			primary: keys.primary,
+			secondary: keys.secondary,
+			linux: keys.linux,
+			mac: keys.mac,
+			win: keys.win
+		});
 	}
 }
