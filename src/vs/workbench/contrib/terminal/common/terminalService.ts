@@ -17,6 +17,9 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
+import { escapeNonWindowsPath } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
+import { isWindows } from 'vs/base/common/platform';
+import { basename } from 'vs/base/common/path';
 
 export abstract class TerminalService implements ITerminalService {
 	public _serviceBrand: any;
@@ -97,11 +100,13 @@ export abstract class TerminalService implements ITerminalService {
 		this.onInstancesChanged(() => updateTerminalContextKeys());
 	}
 
+	protected abstract _getWslPath(path: string): Promise<string>;
+	protected abstract _getWindowsBuildNumber(): number;
+
 	public abstract createTerminal(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
 	public abstract createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement, shellLaunchConfig: IShellLaunchConfig, doCreateProcess: boolean): ITerminalInstance;
 	public abstract selectDefaultWindowsShell(): Promise<string | undefined>;
 	public abstract setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
-	public abstract preparePathForTerminalAsync(path: string, executable: string, title: string): Promise<string>;
 
 	public createTerminalRenderer(name: string): ITerminalInstance {
 		return this.createTerminal({ name, isRendererOnly: true });
@@ -423,6 +428,44 @@ export abstract class TerminalService implements ITerminalService {
 				return this._validateShellPaths(label, potentialPaths);
 			}
 			return [label, current] as [string, string];
+		});
+	}
+
+	public preparePathForTerminalAsync(originalPath: string, executable: string, title: string): Promise<string> {
+		return new Promise<string>(c => {
+			const exe = executable;
+			if (!exe) {
+				c(originalPath);
+				return;
+			}
+
+			const hasSpace = originalPath.indexOf(' ') !== -1;
+
+			const pathBasename = basename(exe, '.exe');
+			const isPowerShell = pathBasename === 'pwsh' ||
+				title === 'pwsh' ||
+				pathBasename === 'powershell' ||
+				title === 'powershell';
+
+			if (isPowerShell && (hasSpace || originalPath.indexOf('\'') !== -1)) {
+				c(`& '${originalPath.replace(/'/g, '\'\'')}'`);
+				return;
+			}
+
+			if (isWindows) {
+				// 17063 is the build number where wsl path was introduced.
+				// Update Windows uriPath to be executed in WSL.
+				if (((exe.indexOf('wsl') !== -1) || ((exe.indexOf('bash.exe') !== -1) && (exe.indexOf('git') === -1))) && (this._getWindowsBuildNumber() >= 17063)) {
+					c(this._getWslPath(originalPath));
+					return;
+				} else if (hasSpace) {
+					c('"' + originalPath + '"');
+				} else {
+					c(originalPath);
+				}
+				return;
+			}
+			c(escapeNonWindowsPath(originalPath));
 		});
 	}
 }

@@ -6,31 +6,29 @@
 import * as nls from 'vs/nls';
 import * as pfs from 'vs/base/node/pfs';
 import * as platform from 'vs/base/common/platform';
-import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { ITerminalInstance, ITerminalService, IShellLaunchConfig, ITerminalConfigHelper } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalService, ITerminalConfigHelper } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalService as BrowserTerminalService } from 'vs/workbench/contrib/terminal/browser/terminalService';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { getDefaultShell, linuxDistro, getWindowsBuildNumber, getWslPath } from 'vs/workbench/contrib/terminal/node/terminal';
+import { getDefaultShell, linuxDistro, getWindowsBuildNumber } from 'vs/workbench/contrib/terminal/node/terminal';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ipcRenderer as ipc } from 'electron';
 import { IOpenFileRequest, IWindowService } from 'vs/platform/windows/common/windows';
-import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IQuickInputService, IQuickPickItem, IPickOptions } from 'vs/platform/quickinput/common/quickInput';
 import { coalesce } from 'vs/base/common/arrays';
 import { IFileService } from 'vs/platform/files/common/files';
 import { escapeNonWindowsPath } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
-import { basename } from 'vs/base/common/path';
+import { execFile } from 'child_process';
 
 export class TerminalService extends BrowserTerminalService implements ITerminalService {
-	private _configHelper: TerminalConfigHelper;
 	public get configHelper(): ITerminalConfigHelper { return this._configHelper; }
 
 	constructor(
@@ -73,12 +71,6 @@ export class TerminalService extends BrowserTerminalService implements ITerminal
 			}
 			activeTab.terminalInstances.forEach(instance => instance.forceRedraw());
 		});
-	}
-
-	public createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement | undefined, shellLaunchConfig: IShellLaunchConfig, doCreateProcess: boolean): ITerminalInstance {
-		const instance = this._instantiationService.createInstance(TerminalInstance, terminalFocusContextKey, configHelper, container, shellLaunchConfig);
-		this._onInstanceCreated.fire(instance);
-		return instance;
 	}
 
 	protected _getDefaultShell(p: platform.Platform): string {
@@ -140,47 +132,22 @@ export class TerminalService extends BrowserTerminalService implements ITerminal
 			});
 	}
 
-	public setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void {
-		this._configHelper.panelContainer = panelContainer;
-		this._terminalContainer = terminalContainer;
-		this._terminalTabs.forEach(tab => tab.attachToElement(this._terminalContainer));
+	protected _getWindowsBuildNumber(): number {
+		return getWindowsBuildNumber();
 	}
 
-	public preparePathForTerminalAsync(originalPath: string, executable: string, title: string): Promise<string> {
+	/**
+	 * Converts a path to a path on WSL using the wslpath utility.
+	 * @param path The original path.
+	 */
+	protected _getWslPath(path: string): Promise<string> {
+		if (getWindowsBuildNumber() < 17063) {
+			throw new Error('wslpath does not exist on Windows build < 17063');
+		}
 		return new Promise<string>(c => {
-			const exe = executable;
-			if (!exe) {
-				c(originalPath);
-				return;
-			}
-
-			const hasSpace = originalPath.indexOf(' ') !== -1;
-
-			const pathBasename = basename(exe, '.exe');
-			const isPowerShell = pathBasename === 'pwsh' ||
-				title === 'pwsh' ||
-				pathBasename === 'powershell' ||
-				title === 'powershell';
-
-			if (isPowerShell && (hasSpace || originalPath.indexOf('\'') !== -1)) {
-				c(`& '${originalPath.replace(/'/g, '\'\'')}'`);
-				return;
-			}
-
-			if (platform.isWindows) {
-				// 17063 is the build number where wsl path was introduced.
-				// Update Windows uriPath to be executed in WSL.
-				if (((exe.indexOf('wsl') !== -1) || ((exe.indexOf('bash.exe') !== -1) && (exe.indexOf('git') === -1))) && (getWindowsBuildNumber() >= 17063)) {
-					c(getWslPath(originalPath));
-					return;
-				} else if (hasSpace) {
-					c('"' + originalPath + '"');
-				} else {
-					c(originalPath);
-				}
-				return;
-			}
-			c(escapeNonWindowsPath(originalPath));
+			execFile('bash.exe', ['-c', 'echo $(wslpath ' + escapeNonWindowsPath(path) + ')'], {}, (error, stdout, stderr) => {
+				c(escapeNonWindowsPath(stdout.trim()));
+			});
 		});
 	}
 }

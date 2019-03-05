@@ -5,9 +5,9 @@
 
 import * as nls from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
-import { ITerminalService, TERMINAL_PANEL_ID, ITerminalInstance, IShellLaunchConfig, NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalService, TERMINAL_PANEL_ID, ITerminalInstance, IShellLaunchConfig, NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, ITerminalConfigHelper } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalService as CommonTerminalService } from 'vs/workbench/contrib/terminal/common/terminalService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
@@ -20,8 +20,11 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
+import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
+import { IBrowserTerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 export abstract class TerminalService extends CommonTerminalService implements ITerminalService {
+	protected _configHelper: IBrowserTerminalConfigHelper;
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -40,6 +43,12 @@ export abstract class TerminalService extends CommonTerminalService implements I
 	}
 
 	protected abstract _getDefaultShell(p: platform.Platform): string;
+
+	public createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement | undefined, shellLaunchConfig: IShellLaunchConfig, doCreateProcess: boolean): ITerminalInstance {
+		const instance = this._instantiationService.createInstance(TerminalInstance, terminalFocusContextKey, configHelper, container, shellLaunchConfig);
+		this._onInstanceCreated.fire(instance);
+		return instance;
+	}
 
 	public createTerminal(shell: IShellLaunchConfig = {}, wasNewTerminalAction?: boolean): ITerminalInstance {
 		const terminalTab = this._instantiationService.createInstance(TerminalTab,
@@ -156,5 +165,11 @@ export abstract class TerminalService extends CommonTerminalService implements I
 			panel.showFindWidget();
 			panel.getFindWidget().find(true);
 		}
+	}
+
+	public setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void {
+		this._configHelper.panelContainer = panelContainer;
+		this._terminalContainer = terminalContainer;
+		this._terminalTabs.forEach(tab => tab.attachToElement(this._terminalContainer));
 	}
 }

@@ -18,3 +18,7 @@ export interface ITerminalInstanceService {
 	createTerminalProcessManager(id: number, configHelper: ITerminalConfigHelper): ITerminalProcessManager;
 	createTerminalProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean): ITerminalChildProcess;
 }
+
+export interface IBrowserTerminalConfigHelper extends ITerminalConfigHelper {
+	panelContainer: HTMLElement;
+}
