@@ -351,7 +351,6 @@ export class InMemoryBackupFileService implements IBackupFileService {
 	toBackupResource(resource: Uri): Uri {
 		return Uri.file(path.join(resource.scheme, hashPath(resource)));
 	}
-
 }
 
 /*
