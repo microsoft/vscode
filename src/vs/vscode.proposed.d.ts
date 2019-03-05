@@ -1114,25 +1114,5 @@ declare module 'vscode' {
 		 */
 		readonly terminal: Terminal;
 	}
-
-	export interface TerminalDataWriteEvent {
-		/**
-		 * The [terminal](#Terminal) for which the data was written.
-		 */
-		readonly terminal: Terminal;
-		/**
-		 * The data written to the terminal.
-		 */
-		readonly data: string;
-	}
-
-	export namespace window {
-		/**
-		 * Fires when the terminal's pty slave pseudo-device is written to. In other words, this
-		 * provides access to the raw data stream from the process running within the terminal,
-		 * including VT sequences.
-		 */
-		export const onDidWriteTerminalData: Event<TerminalDataWriteEvent>;
-	}
 	//#endregio`n
 }

@@ -4604,6 +4604,17 @@ declare module 'vscode' {
 		readonly dimensions: TerminalDimensions;
 	}
 
+	export interface TerminalDataWriteEvent {
+		/**
+		 * The [terminal](#Terminal) for which the data was written.
+		 */
+		readonly terminal: Terminal;
+		/**
+		 * The data written to the terminal.
+		 */
+		readonly data: string;
+	}
+
 	/**
 	 * An individual terminal instance within the integrated terminal.
 	 */
@@ -6315,6 +6326,13 @@ declare module 'vscode' {
 		 * An event which fires when the [dimensions](#Terminal.dimensions) of the terminal change.
 		 */
 		export const onDidChangeTerminalDimensions: Event<TerminalDimensionsChangeEvent>;
+
+		/**
+		 * Fires when the terminal's pty slave pseudo-device is written to. In other words, this
+		 * provides access to the raw data stream from the process running within the terminal,
+		 * including VT sequences.
+		 */
+		export const onDidWriteTerminalData: Event<TerminalDataWriteEvent>;
 
 		/**
 		 * Represents the current window's state.
