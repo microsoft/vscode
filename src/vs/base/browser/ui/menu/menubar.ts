@@ -22,7 +22,7 @@ const $ = DOM.$;
 export interface IMenuBarOptions {
 	enableMnemonics?: boolean;
 	visibility?: string;
-	getKeybinding?: (action: IAction) => ResolvedKeybinding;
+	getKeybinding?: (action: IAction) => ResolvedKeybinding | undefined;
 	alwaysOnMnemonics?: boolean;
 }
 
