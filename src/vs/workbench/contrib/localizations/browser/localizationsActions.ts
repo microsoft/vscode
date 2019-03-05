@@ -36,13 +36,13 @@ export class ConfigureLocaleAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): Promise<IEditor | undefined> {
+	public run(event?: any): Promise<IEditor | null> {
 		const file = URI.file(join(this.environmentService.appSettingsHome, 'locale.json'));
 		return this.fileService.resolveFile(file).then(undefined, (error) => {
 			return this.fileService.createFile(file, ConfigureLocaleAction.DEFAULT_CONTENT);
-		}).then((stat): Promise<IEditor | undefined> | undefined => {
+		}).then((stat): Promise<IEditor | null> | null => {
 			if (!stat) {
-				return undefined;
+				return null;
 			}
 			return this.editorService.openEditor({
 				resource: stat.resource
