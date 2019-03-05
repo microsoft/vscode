@@ -252,9 +252,9 @@ export class ActivityActionItem extends BaseActionItem {
 						const noOfThousands = badge.number / 1000;
 						const floor = Math.floor(noOfThousands);
 						if (noOfThousands > floor) {
-							number = nls.localize('largeNumberBadge1', '{0}k+', floor);
+							number = `${floor}K+`;
 						} else {
-							number = nls.localize('largeNumberBadge2', '{0}k', noOfThousands);
+							number = `${noOfThousands}K`;
 						}
 					}
 					this.badgeContent.textContent = number;
