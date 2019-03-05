@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import * as platform from 'vs/base/common/platform';
-import * as terminalEnvironment from 'vs/workbench/contrib/terminal/node/terminalEnvironment';
+import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { URI as Uri } from 'vs/base/common/uri';
 import { IStringDictionary } from 'vs/base/common/collections';
 
@@ -13,21 +13,21 @@ suite('Workbench - TerminalEnvironment', () => {
 	test('addTerminalEnvironmentKeys', () => {
 		const env = { FOO: 'bar' };
 		const locale = 'en-au';
-		terminalEnvironment.addTerminalEnvironmentKeys(env, locale, true);
+		terminalEnvironment.addTerminalEnvironmentKeys(env, '1.2.3', locale, true);
 		assert.equal(env['TERM_PROGRAM'], 'vscode');
-		assert.equal(env['TERM_PROGRAM_VERSION'].search(/^\d+\.\d+\.\d+$/), 0);
+		assert.equal(env['TERM_PROGRAM_VERSION'], '1.2.3');
 		assert.equal(env['LANG'], 'en_AU.UTF-8', 'LANG is equal to the requested locale with UTF-8');
 
 		const env2 = { FOO: 'bar' };
-		terminalEnvironment.addTerminalEnvironmentKeys(env2, undefined, true);
+		terminalEnvironment.addTerminalEnvironmentKeys(env2, '1.2.3', undefined, true);
 		assert.equal(env2['LANG'], 'en_US.UTF-8', 'LANG is equal to en_US.UTF-8 as fallback.'); // More info on issue #14586
 
 		const env3 = { LANG: 'replace' };
-		terminalEnvironment.addTerminalEnvironmentKeys(env3, undefined, true);
+		terminalEnvironment.addTerminalEnvironmentKeys(env3, '1.2.3', undefined, true);
 		assert.equal(env3['LANG'], 'en_US.UTF-8', 'LANG is set to the fallback LANG');
 
 		const env4 = { LANG: 'en_US.UTF-8' };
-		terminalEnvironment.addTerminalEnvironmentKeys(env3, undefined, true);
+		terminalEnvironment.addTerminalEnvironmentKeys(env3, '1.2.3', undefined, true);
 		assert.equal(env4['LANG'], 'en_US.UTF-8', 'LANG is equal to the parent environment\'s LANG');
 	});
 

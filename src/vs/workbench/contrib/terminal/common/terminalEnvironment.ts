@@ -5,7 +5,6 @@
 
 import * as path from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
-import pkg from 'vs/platform/product/node/package';
 import { URI as Uri } from 'vs/base/common/uri';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IShellLaunchConfig, ITerminalEnvironment } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -50,9 +49,9 @@ function _mergeEnvironmentValue(env: ITerminalEnvironment, key: string, value: s
 	}
 }
 
-export function addTerminalEnvironmentKeys(env: ITerminalEnvironment, locale: string | undefined, setLocaleVariables: boolean): void {
+export function addTerminalEnvironmentKeys(env: ITerminalEnvironment, version: string | undefined, locale: string | undefined, setLocaleVariables: boolean): void {
 	env['TERM_PROGRAM'] = 'vscode';
-	env['TERM_PROGRAM_VERSION'] = pkg.version;
+	env['TERM_PROGRAM_VERSION'] = version ? version : null;
 	if (setLocaleVariables) {
 		env['LANG'] = _getLangEnvVariable(locale);
 	}

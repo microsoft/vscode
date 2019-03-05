@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as platform from 'vs/base/common/platform';
-import * as terminalEnvironment from 'vs/workbench/contrib/terminal/node/terminalEnvironment';
+import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ProcessState, ITerminalProcessManager, IShellLaunchConfig, ITerminalConfigHelper } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -22,6 +22,7 @@ import { REMOTE_HOST_SCHEME, getRemoteAuthority } from 'vs/platform/remote/commo
 import { sanitizeProcessEnvironment } from 'vs/base/node/processes';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IProductService } from 'vs/platform/product/common/product';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -62,7 +63,8 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService,
 		@IWindowService private readonly _windowService: IWindowService,
 		@IWorkspaceConfigurationService private readonly _workspaceConfigurationService: IWorkspaceConfigurationService,
-		@IEnvironmentService private readonly _environmentSertvice: IEnvironmentService
+		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@IProductService private readonly _productService: IProductService
 	) {
 		this.ptyProcessReady = new Promise<void>(c => {
 			this.onProcessReady(() => {
@@ -112,7 +114,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 			}
 
 			const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.file);
-			const initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, this._environmentSertvice.userHome, activeWorkspaceRootUri, this._configHelper.config.cwd);
+			const initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, this._environmentService.userHome, activeWorkspaceRootUri, this._configHelper.config.cwd);
 
 			// Compel type system as process.env should not have any undefined entries
 			let env: platform.IProcessEnvironment = {};
@@ -143,7 +145,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 				sanitizeProcessEnvironment(env, 'VSCODE_IPC_HOOK_CLI');
 
 				// Adding other env keys necessary to create the process
-				terminalEnvironment.addTerminalEnvironmentKeys(env, platform.locale, this._configHelper.config.setLocaleVariables);
+				terminalEnvironment.addTerminalEnvironmentKeys(env, this._productService.version, platform.locale, this._configHelper.config.setLocaleVariables);
 			}
 
 			this._logService.debug(`Terminal process launching`, shellLaunchConfig, initialCwd, cols, rows, env);
