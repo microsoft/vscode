@@ -12,13 +12,12 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { ITerminalInstance, ITerminalService, IShellLaunchConfig, ITerminalConfigHelper, NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, TERMINAL_PANEL_ID, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalInstance, ITerminalService, IShellLaunchConfig, ITerminalConfigHelper, NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalService as BrowserTerminalService } from 'vs/workbench/contrib/terminal/browser/terminalService';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/electron-browser/terminalConfigHelper';
 import Severity from 'vs/base/common/severity';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { getDefaultShell } from 'vs/workbench/contrib/terminal/node/terminal';
-import { TerminalPanel } from 'vs/workbench/contrib/terminal/browser/terminalPanel';
 import { TerminalTab } from 'vs/workbench/contrib/terminal/browser/terminalTab';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -43,12 +42,12 @@ export class TerminalService extends BrowserTerminalService implements ITerminal
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
-		@INotificationService private readonly _notificationService: INotificationService,
-		@IDialogService private readonly _dialogService: IDialogService,
+		@INotificationService notificationService: INotificationService,
+		@IDialogService dialogService: IDialogService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IWindowService private readonly _windowService: IWindowService,
 	) {
-		super(contextKeyService, panelService, partService, lifecycleService, storageService);
+		super(contextKeyService, panelService, partService, lifecycleService, storageService, notificationService, dialogService);
 
 		this._terminalTabs = [];
 		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper);
@@ -110,39 +109,6 @@ export class TerminalService extends BrowserTerminalService implements ITerminal
 				this._onInstanceRequestExtHostProcess.fire({ proxy, shellLaunchConfig, activeWorkspaceRootUri, cols, rows });
 			}, 500);
 		});
-	}
-
-	public focusFindWidget(): Promise<void> {
-		return this.showPanel(false).then(() => {
-			const panel = this._panelService.getActivePanel() as TerminalPanel;
-			panel.focusFindWidget();
-			this._findWidgetVisible.set(true);
-		});
-	}
-
-	public hideFindWidget(): void {
-		const panel = this._panelService.getActivePanel() as TerminalPanel;
-		if (panel && panel.getId() === TERMINAL_PANEL_ID) {
-			panel.hideFindWidget();
-			this._findWidgetVisible.reset();
-			panel.focus();
-		}
-	}
-
-	public findNext(): void {
-		const panel = this._panelService.getActivePanel() as TerminalPanel;
-		if (panel && panel.getId() === TERMINAL_PANEL_ID) {
-			panel.showFindWidget();
-			panel.getFindWidget().find(false);
-		}
-	}
-
-	public findPrevious(): void {
-		const panel = this._panelService.getActivePanel() as TerminalPanel;
-		if (panel && panel.getId() === TERMINAL_PANEL_ID) {
-			panel.showFindWidget();
-			panel.getFindWidget().find(true);
-		}
 	}
 
 	private _suggestShellChange(wasNewTerminalAction?: boolean): void {
@@ -275,29 +241,6 @@ export class TerminalService extends BrowserTerminalService implements ITerminal
 			}
 			return [label, current] as [string, string];
 		});
-	}
-
-	public getActiveOrCreateInstance(wasNewTerminalAction?: boolean): ITerminalInstance {
-		const activeInstance = this.getActiveInstance();
-		return activeInstance ? activeInstance : this.createTerminal(undefined, wasNewTerminalAction);
-	}
-
-	protected _showTerminalCloseConfirmation(): Promise<boolean> {
-		let message;
-		if (this.terminalInstances.length === 1) {
-			message = nls.localize('terminalService.terminalCloseConfirmationSingular', "There is an active terminal session, do you want to kill it?");
-		} else {
-			message = nls.localize('terminalService.terminalCloseConfirmationPlural', "There are {0} active terminal sessions, do you want to kill them?", this.terminalInstances.length);
-		}
-
-		return this._dialogService.confirm({
-			message,
-			type: 'warning',
-		}).then(res => !res.confirmed);
-	}
-
-	protected _showNotEnoughSpaceToast(): void {
-		this._notificationService.info(nls.localize('terminal.minWidth', "Not enough space to split terminal."));
 	}
 
 	public setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void {

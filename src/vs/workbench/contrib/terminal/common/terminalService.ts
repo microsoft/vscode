@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
@@ -12,6 +13,8 @@ import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalConfi
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 export abstract class TerminalService implements ITerminalService {
 	public _serviceBrand: any;
@@ -60,7 +63,9 @@ export abstract class TerminalService implements ITerminalService {
 		@IPanelService protected readonly _panelService: IPanelService,
 		@IPartService private readonly _partService: IPartService,
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@IStorageService protected readonly _storageService: IStorageService
+		@IStorageService protected readonly _storageService: IStorageService,
+		@INotificationService protected readonly _notificationService: INotificationService,
+		@IDialogService private readonly _dialogService: IDialogService
 	) {
 		this._activeTabIndex = 0;
 		this._isShuttingDown = false;
@@ -88,17 +93,19 @@ export abstract class TerminalService implements ITerminalService {
 		this.onInstancesChanged(() => updateTerminalContextKeys());
 	}
 
-	protected abstract _showTerminalCloseConfirmation(): Promise<boolean>;
-	protected abstract _showNotEnoughSpaceToast(): void;
 	public abstract createTerminal(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
 	public abstract createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement, shellLaunchConfig: IShellLaunchConfig, doCreateProcess: boolean): ITerminalInstance;
-	public abstract getActiveOrCreateInstance(wasNewTerminalAction?: boolean): ITerminalInstance;
 	public abstract selectDefaultWindowsShell(): Promise<string | undefined>;
 	public abstract setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 	public abstract requestExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI, cols: number, rows: number): void;
 
 	public createTerminalRenderer(name: string): ITerminalInstance {
 		return this.createTerminal({ name, isRendererOnly: true });
+	}
+
+	public getActiveOrCreateInstance(wasNewTerminalAction?: boolean): ITerminalInstance {
+		const activeInstance = this.getActiveInstance();
+		return activeInstance ? activeInstance : this.createTerminal(undefined, wasNewTerminalAction);
 	}
 
 	private _onBeforeShutdown(): boolean | Promise<boolean> {
@@ -372,5 +379,23 @@ export abstract class TerminalService implements ITerminalService {
 
 	public setWorkspaceShellAllowed(isAllowed: boolean): void {
 		this.configHelper.setWorkspaceShellAllowed(isAllowed);
+	}
+
+	protected _showTerminalCloseConfirmation(): Promise<boolean> {
+		let message;
+		if (this.terminalInstances.length === 1) {
+			message = nls.localize('terminalService.terminalCloseConfirmationSingular', "There is an active terminal session, do you want to kill it?");
+		} else {
+			message = nls.localize('terminalService.terminalCloseConfirmationPlural', "There are {0} active terminal sessions, do you want to kill them?", this.terminalInstances.length);
+		}
+
+		return this._dialogService.confirm({
+			message,
+			type: 'warning',
+		}).then(res => !res.confirmed);
+	}
+
+	protected _showNotEnoughSpaceToast(): void {
+		this._notificationService.info(nls.localize('terminal.minWidth', "Not enough space to split terminal."));
 	}
 }
