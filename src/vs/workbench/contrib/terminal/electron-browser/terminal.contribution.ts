@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/scrollbar';
-import 'vs/css!./media/terminal';
-import 'vs/css!./media/xterm';
-import 'vs/css!./media/widgets';
+import 'vs/css!../browser/media/scrollbar';
+import 'vs/css!../browser/media/terminal';
+import 'vs/css!../browser/media/xterm';
+import 'vs/css!../browser/media/widgets';
 import * as nls from 'vs/nls';
 import * as panel from 'vs/workbench/browser/panel';
 import * as platform from 'vs/base/common/platform';
