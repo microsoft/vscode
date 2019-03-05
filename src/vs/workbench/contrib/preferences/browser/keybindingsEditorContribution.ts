@@ -14,7 +14,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { registerEditorContribution, ServicesAccessor, registerEditorCommand, EditorCommand } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { SmartSnippetInserter } from 'vs/workbench/contrib/preferences/common/smartSnippetInserter';
 import { DefineKeybindingOverlayWidget } from 'vs/workbench/contrib/preferences/browser/keybindingWidgets';
@@ -42,17 +42,14 @@ export class DefineKeybindingController extends Disposable implements editorComm
 		return editor.getContribution<DefineKeybindingController>(DefineKeybindingController.ID);
 	}
 
-	private _keybindingWidgetRenderer: KeybindingWidgetRenderer;
-	private _keybindingDecorationRenderer: KeybindingEditorDecorationsRenderer;
+	private _keybindingWidgetRenderer?: KeybindingWidgetRenderer;
+	private _keybindingDecorationRenderer?: KeybindingEditorDecorationsRenderer;
 
 	constructor(
 		private _editor: ICodeEditor,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
-
-		this._keybindingWidgetRenderer = null;
-		this._keybindingDecorationRenderer = null;
 
 		this._register(this._editor.onDidChangeModel(e => this._update()));
 		this._update();
@@ -62,7 +59,7 @@ export class DefineKeybindingController extends Disposable implements editorComm
 		return DefineKeybindingController.ID;
 	}
 
-	get keybindingWidgetRenderer(): KeybindingWidgetRenderer {
+	get keybindingWidgetRenderer(): KeybindingWidgetRenderer | undefined {
 		return this._keybindingWidgetRenderer;
 	}
 
@@ -99,7 +96,7 @@ export class DefineKeybindingController extends Disposable implements editorComm
 	private _disposeKeybindingWidgetRenderer(): void {
 		if (this._keybindingWidgetRenderer) {
 			this._keybindingWidgetRenderer.dispose();
-			this._keybindingWidgetRenderer = null;
+			this._keybindingWidgetRenderer = undefined;
 		}
 	}
 
@@ -112,7 +109,7 @@ export class DefineKeybindingController extends Disposable implements editorComm
 	private _disposeKeybindingDecorationRenderer(): void {
 		if (this._keybindingDecorationRenderer) {
 			this._keybindingDecorationRenderer.dispose();
-			this._keybindingDecorationRenderer = null;
+			this._keybindingDecorationRenderer = undefined;
 		}
 	}
 }
@@ -140,7 +137,7 @@ export class KeybindingWidgetRenderer extends Disposable {
 
 	private _onAccepted(keybinding: string): void {
 		this._editor.focus();
-		if (keybinding) {
+		if (keybinding && this._editor.hasModel()) {
 			const regexp = new RegExp(/\\/g);
 			const backslash = regexp.test(keybinding);
 			if (backslash) {
@@ -169,7 +166,7 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 	private _dec: string[] = [];
 
 	constructor(
-		private _editor: ICodeEditor,
+		private _editor: IActiveCodeEditor,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		super();
@@ -207,7 +204,7 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 		this._dec = this._editor.deltaDecorations(this._dec, newDecorations);
 	}
 
-	private _getDecorationForEntry(model: ITextModel, entry: Node): IModelDeltaDecoration {
+	private _getDecorationForEntry(model: ITextModel, entry: Node): IModelDeltaDecoration | null {
 		if (!Array.isArray(entry.children)) {
 			return null;
 		}
@@ -239,7 +236,7 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 			}
 			if (!resolvedKeybinding.isWYSIWYG()) {
 				const uiLabel = resolvedKeybinding.getLabel();
-				if (value.value.toLowerCase() === uiLabel.toLowerCase()) {
+				if (typeof uiLabel === 'string' && value.value.toLowerCase() === uiLabel.toLowerCase()) {
 					// coincidentally, this is actually WYSIWYG
 					return null;
 				}
@@ -249,7 +246,7 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 				return this._createDecoration(false, resolvedKeybinding.getLabel(), usLabel, model, value);
 			}
 			const expectedUserSettingsLabel = resolvedKeybinding.getUserSettingsLabel();
-			if (!KeybindingEditorDecorationsRenderer._userSettingsFuzzyEquals(value.value, expectedUserSettingsLabel)) {
+			if (typeof expectedUserSettingsLabel === 'string' && !KeybindingEditorDecorationsRenderer._userSettingsFuzzyEquals(value.value, expectedUserSettingsLabel)) {
 				return this._createDecoration(false, resolvedKeybinding.getLabel(), usLabel, model, value);
 			}
 			return null;
@@ -300,7 +297,7 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 		return false;
 	}
 
-	private _createDecoration(isError: boolean, uiLabel: string, usLabel: string, model: ITextModel, keyNode: Node): IModelDeltaDecoration {
+	private _createDecoration(isError: boolean, uiLabel: string | null, usLabel: string | null, model: ITextModel, keyNode: Node): IModelDeltaDecoration {
 		let msg: MarkdownString;
 		let className: string;
 		let beforeContentClassName: string;
