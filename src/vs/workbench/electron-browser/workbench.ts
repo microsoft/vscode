@@ -16,7 +16,7 @@ import { mark } from 'vs/base/common/performance';
 import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { isWindows, isLinux, isMacintosh, language } from 'vs/base/common/platform';
+import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IEditorInputFactoryRegistry, Extensions as EditorExtensions, IUntitledResourceInput, IResourceDiffInput } from 'vs/workbench/common/editor';
@@ -82,8 +82,7 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { combinedAppender, LogAppender, NullTelemetryService, configurationTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
-import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
+import { combinedAppender, LogAppender, NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IExtensionGalleryService, IExtensionManagementServerService, IExtensionManagementService, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { ExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
@@ -356,7 +355,10 @@ export class Workbench extends Disposable implements IPartService {
 		this.lifecycleService.when(LifecyclePhase.Restored).then(() => clearTimeout(timeoutHandle));
 
 		// Restore Parts
-		return this.restoreParts().then(() => this.instantiationService.invokeFunction(accessor => this.whenStarted(accessor)), error => this.instantiationService.invokeFunction(accessor => this.whenStarted(accessor, error)));
+		let error: Error;
+		return this.restoreParts()
+			.catch(err => error = err)
+			.finally(() => this.instantiationService.invokeFunction(accessor => this.whenStarted(accessor, error)));
 	}
 
 	private createWorkbenchContainer(): void {
@@ -408,13 +410,11 @@ export class Workbench extends Disposable implements IPartService {
 			};
 
 			telemetryService = this._register(this.instantiationService.createInstance(TelemetryService, config));
-			this._register(new ErrorTelemetry(telemetryService));
 		} else {
 			telemetryService = NullTelemetryService;
 		}
 
 		serviceCollection.set(ITelemetryService, telemetryService);
-		this._register(configurationTelemetry(telemetryService, this.configurationService));
 
 		// Lifecycle
 		this.lifecycleService = this.instantiationService.createInstance(LifecycleService);
@@ -791,13 +791,7 @@ export class Workbench extends Disposable implements IPartService {
 	}
 
 	private whenStarted(accessor: ServicesAccessor, error?: Error): void {
-		const themeService = accessor.get(IWorkbenchThemeService);
-		const keybindingsService = accessor.get(IKeybindingService);
 		const lifecycleService = accessor.get(ILifecycleService) as LifecycleService;
-		const editorService = accessor.get(IEditorService);
-		const activityService = accessor.get(IActivityService);
-		const contextService = accessor.get(IWorkspaceContextService);
-		const telemetryService = accessor.get(ITelemetryService);
 
 		this.restored = true;
 
@@ -815,45 +809,6 @@ export class Workbench extends Disposable implements IPartService {
 		if (error) {
 			onUnexpectedError(error);
 		}
-
-		const { filesToOpen, filesToCreate, filesToDiff } = this.configuration;
-
-		/* __GDPR__
-			"workspaceLoad" : {
-				"userAgent" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"windowSize.innerHeight": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"windowSize.innerWidth": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"windowSize.outerHeight": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"windowSize.outerWidth": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"emptyWorkbench": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"workbench.filesToOpen": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"workbench.filesToCreate": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"workbench.filesToDiff": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"customKeybindingsCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"theme": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"language": { "classification": "SystemMetaData", "purpose": "BusinessInsight" },
-				"pinnedViewlets": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"restoredViewlet": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"restoredEditors": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"pinnedViewlets": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"startupKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-			}
-		*/
-		telemetryService.publicLog('workspaceLoad', {
-			userAgent: navigator.userAgent,
-			windowSize: { innerHeight: window.innerHeight, innerWidth: window.innerWidth, outerHeight: window.outerHeight, outerWidth: window.outerWidth },
-			emptyWorkbench: contextService.getWorkbenchState() === WorkbenchState.EMPTY,
-			'workbench.filesToOpen': filesToOpen && filesToOpen.length || 0,
-			'workbench.filesToCreate': filesToCreate && filesToCreate.length || 0,
-			'workbench.filesToDiff': filesToDiff && filesToDiff.length || 0,
-			customKeybindingsCount: keybindingsService.customKeybindingsCount(),
-			theme: themeService.getColorTheme().id,
-			language,
-			pinnedViewlets: activityService.getPinnedViewletIds(),
-			restoredViewlet: this.state.sideBar.viewletToRestore,
-			restoredEditors: editorService.visibleEditors.length,
-			startupKind: lifecycleService.startupKind
-		});
 
 		// Telemetry: startup metrics
 		mark('didStartWorkbench');

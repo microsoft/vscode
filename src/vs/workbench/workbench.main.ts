@@ -88,6 +88,9 @@ registerSingleton(IClipboardService, ClipboardService, true);
 
 //#region --- workbench contributions
 
+// Telemetry
+import 'vs/workbench/contrib/telemetry/browser/telemetry.contribution';
+
 // Localizations
 import 'vs/workbench/contrib/localizations/browser/localizations.contribution';
 
