@@ -152,6 +152,7 @@ import 'vs/workbench/contrib/output/electron-browser/output.contribution';
 import 'vs/workbench/contrib/output/browser/outputPanel';
 
 // Terminal
+import 'vs/workbench/contrib/terminal/browser/terminal.contribution';
 import 'vs/workbench/contrib/terminal/electron-browser/terminal.contribution';
 import 'vs/workbench/contrib/terminal/browser/terminalQuickOpen';
 import 'vs/workbench/contrib/terminal/browser/terminalPanel';
