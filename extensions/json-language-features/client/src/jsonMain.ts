@@ -6,6 +6,8 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import * as nls from 'vscode-nls';
+import { xhr, XHRResponse, getErrorStatusDescription } from 'request-light';
+
 const localize = nls.loadMessageBundle();
 
 import { workspace, window, languages, commands, ExtensionContext, extensions, Uri, LanguageConfiguration, Diagnostic, StatusBarAlignment, TextEditor, TextDocument, Position, SelectionRange } from 'vscode';
@@ -93,6 +95,9 @@ export function activate(context: ExtensionContext) {
 	let clientOptions: LanguageClientOptions = {
 		// Register the server for json documents
 		documentSelector,
+		initializationOptions: {
+			handledSchemaProtocols: ['file'] // language server only loads file-URI. Fetching schemas with other protocols ('http'...) are made on the client.
+		},
 		synchronize: {
 			// Synchronize the setting section 'json' to the server
 			configurationSection: ['json', 'http'],
@@ -138,11 +143,20 @@ export function activate(context: ExtensionContext) {
 		// handle content request
 		client.onRequest(VSCodeContentRequest.type, (uriPath: string) => {
 			let uri = Uri.parse(uriPath);
-			return workspace.openTextDocument(uri).then(doc => {
-				return doc.getText();
-			}, error => {
-				return Promise.reject(error);
-			});
+			if (uri.scheme !== 'http' && uri.scheme !== 'https') {
+				return workspace.openTextDocument(uri).then(doc => {
+					return doc.getText();
+				}, error => {
+					return Promise.reject(error);
+				});
+			} else {
+				const headers = { 'Accept-Encoding': 'gzip, deflate' };
+				return xhr({ url: uriPath, followRedirects: 5, headers }).then(response => {
+					return response.responseText;
+				}, (error: XHRResponse) => {
+					return Promise.reject(error.responseText || getErrorStatusDescription(error.status) || error.toString());
+				});
+			}
 		});
 
 		let handleContentChange = (uri: Uri) => {
