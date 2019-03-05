@@ -56,6 +56,10 @@ function createGroupIterator(group: SettingsTreeGroupElement): Iterator<ITreeEle
 
 const $ = DOM.$;
 
+interface IFocusEventFromScroll extends KeyboardEvent {
+	fromScroll: true;
+}
+
 const SETTINGS_EDITOR_STATE_KEY = 'settingsEditorState';
 export class SettingsEditor2 extends BaseEditor {
 
@@ -586,7 +590,7 @@ export class SettingsEditor2 extends BaseEditor {
 					this.renderTree();
 					this.settingsTree.scrollTop = 0;
 				}
-			} else if (element && (!e.browserEvent || !(<any>e.browserEvent).fromScroll)) {
+			} else if (element && (!e.browserEvent || !(<IFocusEventFromScroll>e.browserEvent).fromScroll)) {
 				this.settingsTree.reveal(element, 0);
 			}
 		}));
@@ -709,7 +713,7 @@ export class SettingsEditor2 extends BaseEditor {
 			this.tocTree.setSelection([element]);
 
 			const fakeKeyboardEvent = new KeyboardEvent('keydown');
-			(<any>fakeKeyboardEvent).fromScroll = true;
+			(<IFocusEventFromScroll>fakeKeyboardEvent).fromScroll = true;
 			this.tocTree.setFocus([element], fakeKeyboardEvent);
 		}
 	}
