@@ -8,6 +8,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import * as modes from 'vs/editor/common/modes';
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import * as extHostTypeConverter from 'vs/workbench/api/node/extHostTypeConverters';
+import * as types from 'vs/workbench/api/node/extHostTypes';
 import * as vscode from 'vscode';
 import { ExtHostCommentsShape, IMainContext, MainContext, MainThreadCommentsShape } from './extHost.protocol';
 import { CommandsConverter, ExtHostCommands } from './extHostCommands';
@@ -316,7 +317,7 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 		this._proxy.$updateCommentThreadCommands(this._commentControlHandle, this.handle, internals);
 	}
 
-	private _collapseState?: vscode.CommentThreadCollapsibleState = vscode.CommentThreadCollapsibleState.Collapsed;
+	private _collapseState?: vscode.CommentThreadCollapsibleState;
 
 	get collapsibleState(): vscode.CommentThreadCollapsibleState {
 		return this._collapseState;
@@ -324,8 +325,7 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 
 	set collapsibleState(newState: vscode.CommentThreadCollapsibleState) {
 		this._collapseState = newState;
-		this._proxy.$updateCommentThreadCollapsibleState(this._commentControlHandle, this.handle, newState);
-
+		this._proxy.$updateCommentThreadCollapsibleState(this._commentControlHandle, this.handle, convertToCollapsibleState(newState));
 	}
 
 	constructor(
@@ -625,4 +625,16 @@ function convertFromReaction(reaction: modes.CommentReaction): vscode.CommentRea
 		count: reaction.count,
 		hasReacted: reaction.hasReacted
 	};
+}
+
+function convertToCollapsibleState(kind: vscode.CommentThreadCollapsibleState | undefined): modes.CommentThreadCollapsibleState {
+	if (kind !== undefined) {
+		switch (kind) {
+			case types.CommentThreadCollapsibleState.Expanded:
+				return modes.CommentThreadCollapsibleState.Expanded;
+			case types.CommentThreadCollapsibleState.Collapsed:
+				return modes.CommentThreadCollapsibleState.Collapsed;
+		}
+	}
+	return modes.CommentThreadCollapsibleState.Collapsed;
 }
