@@ -583,11 +583,8 @@ export class SettingsEditor2 extends BaseEditor {
 			if (this.searchResultModel) {
 				if (this.viewState.filterToCategory !== element) {
 					this.viewState.filterToCategory = element;
-					// see https://github.com/Microsoft/vscode/issues/66796
-					setTimeout(() => {
-						this.renderTree();
-						this.settingsTree.scrollTop = 0;
-					}, 0);
+					this.renderTree();
+					this.settingsTree.scrollTop = 0;
 				}
 			} else if (element && (!e.browserEvent || !(<any>e.browserEvent).fromScroll)) {
 				this.settingsTree.reveal(element, 0);
