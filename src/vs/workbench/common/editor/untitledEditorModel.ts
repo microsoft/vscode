@@ -95,7 +95,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 			return this.textEditorModel.getLanguageIdentifier().language;
 		}
 
-		return null;
+		return this.modeId;
 	}
 
 	getEncoding(): string {
@@ -144,7 +144,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 				return this.backupFileService.resolveBackupContent(backupResource);
 			}
 
-			return null;
+			return undefined;
 		}).then(backupTextBufferFactory => {
 			const hasBackup = !!backupTextBufferFactory;
 
@@ -171,17 +171,24 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 			// Encoding
 			this.configuredEncoding = this.configurationService.getValue<string>(this.resource, 'files.encoding');
 
+			// We know for a fact there is a text editor model here
+			const textEditorModel = this.textEditorModel!;
+
 			// Listen to content changes
-			this._register(this.textEditorModel.onDidChangeContent(() => this.onModelContentChanged()));
+			this._register(textEditorModel.onDidChangeContent(() => this.onModelContentChanged()));
 
 			// Listen to mode changes
-			this._register(this.textEditorModel.onDidChangeLanguage(() => this.onConfigurationChange())); // mode change can have impact on config
+			this._register(textEditorModel.onDidChangeLanguage(() => this.onConfigurationChange())); // mode change can have impact on config
 
 			return this;
 		});
 	}
 
 	private onModelContentChanged(): void {
+		if (!this.isResolved()) {
+			return;
+		}
+
 		this.versionId++;
 
 		// mark the untitled editor as non-dirty once its content becomes empty and we do

@@ -15,6 +15,7 @@
 		"./vs/workbench/electron-browser/actions/**/*",
 		"./vs/workbench/contrib/emmet/**/*",
 		"./vs/workbench/contrib/externalTerminal/**/*",
+		"./vs/workbench/contrib/scm/**/*.ts",
 		"./vs/workbench/contrib/snippets/**/*.ts",
 		"./vs/workbench/contrib/outline/**/*.ts",
 		"./vs/workbench/contrib/performance/**/*.ts",
