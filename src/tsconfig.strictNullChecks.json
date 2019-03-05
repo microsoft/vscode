@@ -279,6 +279,7 @@
 		"./vs/workbench/contrib/surveys/electron-browser/nps.contribution.ts",
 
 		"./vs/workbench/contrib/terminal/browser/terminalFindWidget.ts",
+		"./vs/workbench/contrib/terminal/browser/terminalLinkHandler.ts",
 		"./vs/workbench/contrib/terminal/browser/terminalQuickOpen.ts",
 		"./vs/workbench/contrib/terminal/browser/terminalTab.ts",
 		"./vs/workbench/contrib/terminal/browser/terminalWidgetManager.ts",
@@ -290,7 +291,6 @@
 		"./vs/workbench/contrib/terminal/electron-browser/terminalActions.ts",
 		"./vs/workbench/contrib/terminal/electron-browser/terminalConfigHelper.ts",
 		"./vs/workbench/contrib/terminal/electron-browser/terminalInstance.ts",
-		"./vs/workbench/contrib/terminal/electron-browser/terminalLinkHandler.ts",
 		"./vs/workbench/contrib/terminal/electron-browser/terminalPanel.ts",
 		"./vs/workbench/contrib/terminal/electron-browser/terminalProcessManager.ts",
 		"./vs/workbench/contrib/terminal/node/terminal.ts",

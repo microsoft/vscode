@@ -31,7 +31,7 @@ import { IShellLaunchConfig, ITerminalDimensions, ITerminalInstance, ITerminalPr
 import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminalCommands';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/electron-browser/terminalConfigHelper';
-import { TerminalLinkHandler } from 'vs/workbench/contrib/terminal/electron-browser/terminalLinkHandler';
+import { TerminalLinkHandler } from 'vs/workbench/contrib/terminal/browser/terminalLinkHandler';
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/electron-browser/terminalProcessManager';
 import { TerminalCommandTracker } from 'vs/workbench/contrib/terminal/node/terminalCommandTracker';
 import { WindowsShellHelper } from 'vs/workbench/contrib/terminal/node/windowsShellHelper';

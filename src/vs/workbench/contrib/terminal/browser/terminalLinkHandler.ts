@@ -6,8 +6,7 @@
 import * as nls from 'vs/nls';
 import * as path from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
-import * as pfs from 'vs/base/node/pfs';
-import { URI as Uri } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/terminalWidgetManager';
@@ -15,7 +14,53 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ITerminalService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ILinkMatcherOptions } from 'vscode-xterm';
+import { IFileService } from 'vs/platform/files/common/files';
+
+// Since importing from vscode-xterm would be a layer breakage here the type is copied inline
+// import { ILinkMatcherOptions } from 'vscode-xterm';
+
+/**
+ * An object containing options for a link matcher.
+ */
+export interface ILinkMatcherOptions {
+	/**
+	 * The index of the link from the regex.match(text) call. This defaults to 0
+	 * (for regular expressions without capture groups).
+	 */
+	matchIndex?: number;
+
+	/**
+	 * A callback that validates whether to create an individual link, pass
+	 * whether the link is valid to the callback.
+	 */
+	validationCallback?: (uri: string, callback: (isValid: boolean) => void) => void;
+
+	/**
+	 * A callback that fires when the mouse hovers over a link for a moment.
+	 */
+	tooltipCallback?: (event: MouseEvent, uri: string) => boolean | void;
+
+	/**
+	 * A callback that fires when the mouse leaves a link. Note that this can
+	 * happen even when tooltipCallback hasn't fired for the link yet.
+	 */
+	leaveCallback?: (event: MouseEvent, uri: string) => boolean | void;
+
+	/**
+	 * The priority of the link matcher, this defines the order in which the link
+	 * matcher is evaluated relative to others, from highest to lowest. The
+	 * default value is 0.
+	 */
+	priority?: number;
+
+	/**
+	 * A callback that fires when the mousedown and click events occur that
+	 * determines whether a link will be activated upon click. This enables
+	 * only activating a link when a certain modifier is held down, if not the
+	 * mouse event will continue propagation (eg. double click to select word).
+	 */
+	willLinkActivate?: (event: MouseEvent, uri: string) => boolean;
+}
 
 const pathPrefix = '(\\.\\.?|\\~)';
 const pathSeparatorClause = '\\/';
@@ -74,6 +119,7 @@ export class TerminalLinkHandler {
 		@IEditorService private readonly _editorService: IEditorService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
+		@IFileService private readonly _fileService: IFileService
 	) {
 		const baseLocalLinkClause = _platform === platform.Platform.Windows ? winLocalLinkClause : unixLocalLinkClause;
 		// Append line and column number regex
@@ -203,7 +249,7 @@ export class TerminalLinkHandler {
 			if (!normalizedUrl) {
 				return Promise.resolve(null);
 			}
-			const resource = Uri.file(normalizedUrl);
+			const resource = URI.file(normalizedUrl);
 			const lineColumnInfo: LineColumnInfo = this.extractLineColumnInfo(link);
 			const selection: ITextEditorSelection = {
 				startLineNumber: lineColumnInfo.lineNumber,
@@ -223,7 +269,7 @@ export class TerminalLinkHandler {
 	}
 
 	private _handleHypertextLink(url: string): void {
-		const uri = Uri.parse(url);
+		const uri = URI.parse(url);
 		this._openerService.open(uri);
 	}
 
@@ -288,7 +334,7 @@ export class TerminalLinkHandler {
 		}
 
 		// Ensure the file exists on disk, so an editor can be opened after clicking it
-		return pfs.fileExists(linkUrl).then(isFile => {
+		return this._fileService.existsFile(URI.file(linkUrl)).then(isFile => {
 			if (!isFile) {
 				return null;
 			}
