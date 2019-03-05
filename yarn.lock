@@ -3482,10 +3482,10 @@ gauge@~2.7.3:
     strip-ansi "^3.0.1"
     wide-align "^1.1.0"
 
-gc-signals@^0.0.1:
-  version "0.0.1"
-  resolved "https://registry.yarnpkg.com/gc-signals/-/gc-signals-0.0.1.tgz#91e3b7904168b58aa3dc78b619b7b4495b4038ab"
-  integrity sha1-keO3kEFotYqj3Hi2Gbe0SVtAOKs=
+gc-signals@^0.0.2:
+  version "0.0.2"
+  resolved "https://registry.yarnpkg.com/gc-signals/-/gc-signals-0.0.2.tgz#1cfa8a00adecaeeb93ea0dda72dad9e9f333e62f"
+  integrity sha512-Ghj4Co6x5bd3dvbAFuiDc6gN+BVK8ic8CBn70dXjzrtbC5hq4a+s4S6acEvftMP7LcQuHKN5v+30PGXhkCLoCQ==
 
 generate-function@^2.0.0:
   version "2.0.0"
