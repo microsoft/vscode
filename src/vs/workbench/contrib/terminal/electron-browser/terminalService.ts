@@ -13,7 +13,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { ITerminalInstance, ITerminalService, IShellLaunchConfig, ITerminalConfigHelper, NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, TERMINAL_PANEL_ID, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalService as AbstractTerminalService } from 'vs/workbench/contrib/terminal/common/terminalService';
+import { TerminalService as BrowserTerminalService } from 'vs/workbench/contrib/terminal/browser/terminalService';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/electron-browser/terminalConfigHelper';
 import Severity from 'vs/base/common/severity';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -30,14 +30,9 @@ import { URI } from 'vs/base/common/uri';
 import { IQuickInputService, IQuickPickItem, IPickOptions } from 'vs/platform/quickinput/common/quickInput';
 import { coalesce } from 'vs/base/common/arrays';
 
-export class TerminalService extends AbstractTerminalService implements ITerminalService {
+export class TerminalService extends BrowserTerminalService implements ITerminalService {
 	private _configHelper: TerminalConfigHelper;
 	public get configHelper(): ITerminalConfigHelper { return this._configHelper; }
-
-	protected _terminalTabs: TerminalTab[];
-	protected get _terminalInstances(): ITerminalInstance[] {
-		return this._terminalTabs.reduce((p, c) => p.concat(c.terminalInstances), <ITerminalInstance[]>[]);
-	}
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -96,10 +91,6 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		this._onInstancesChanged.fire();
 		this._suggestShellChange(wasNewTerminalAction);
 		return instance;
-	}
-
-	public createTerminalRenderer(name: string): ITerminalInstance {
-		return this.createTerminal({ name, isRendererOnly: true });
 	}
 
 	public createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement | undefined, shellLaunchConfig: IShellLaunchConfig, doCreateProcess: boolean): ITerminalInstance {

@@ -21,7 +21,9 @@ export abstract class TerminalService implements ITerminalService {
 	protected _findWidgetVisible: IContextKey<boolean>;
 	protected _terminalContainer: HTMLElement;
 	protected _terminalTabs: ITerminalTab[];
-	protected abstract _terminalInstances: ITerminalInstance[];
+	protected get _terminalInstances(): ITerminalInstance[] {
+		return this._terminalTabs.reduce((p, c) => p.concat(c.terminalInstances), <ITerminalInstance[]>[]);
+	}
 	private _findState: FindReplaceState;
 
 	private _activeTabIndex: number;
@@ -89,12 +91,15 @@ export abstract class TerminalService implements ITerminalService {
 	protected abstract _showTerminalCloseConfirmation(): Promise<boolean>;
 	protected abstract _showNotEnoughSpaceToast(): void;
 	public abstract createTerminal(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
-	public abstract createTerminalRenderer(name: string): ITerminalInstance;
 	public abstract createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement, shellLaunchConfig: IShellLaunchConfig, doCreateProcess: boolean): ITerminalInstance;
 	public abstract getActiveOrCreateInstance(wasNewTerminalAction?: boolean): ITerminalInstance;
 	public abstract selectDefaultWindowsShell(): Promise<string>;
 	public abstract setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 	public abstract requestExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI, cols: number, rows: number): void;
+
+	public createTerminalRenderer(name: string): ITerminalInstance {
+		return this.createTerminal({ name, isRendererOnly: true });
+	}
 
 	private _onBeforeShutdown(): boolean | Promise<boolean> {
 		if (this.terminalInstances.length === 0) {

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as os from 'os';
 import * as path from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
 import pkg from 'vs/platform/product/node/package';
@@ -102,7 +101,7 @@ function _getLangEnvVariable(locale?: string) {
 	return parts.join('_') + '.UTF-8';
 }
 
-export function getCwd(shell: IShellLaunchConfig, root?: Uri, customCwd?: string): string {
+export function getCwd(shell: IShellLaunchConfig, userHome: string, root?: Uri, customCwd?: string): string {
 	if (shell.cwd) {
 		return (typeof shell.cwd === 'object') ? shell.cwd.fsPath : shell.cwd;
 	}
@@ -120,7 +119,7 @@ export function getCwd(shell: IShellLaunchConfig, root?: Uri, customCwd?: string
 
 	// If there was no custom cwd or it was relative with no workspace
 	if (!cwd) {
-		cwd = root ? root.fsPath : os.homedir();
+		cwd = root ? root.fsPath : userHome;
 	}
 
 	return _sanitizeCwd(cwd);

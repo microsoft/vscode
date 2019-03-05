@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import * as os from 'os';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as platform from 'vs/base/common/platform';
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/node/terminalEnvironment';
@@ -429,7 +430,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 
 		// TODO: @daniel
 		const activeWorkspaceRootUri = URI.revive(activeWorkspaceRootUriComponents);
-		const initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, activeWorkspaceRootUri, terminalConfig.cwd);
+		const initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, os.homedir(), activeWorkspaceRootUri, terminalConfig.cwd);
 
 		// TODO: Pull in and resolve config settings
 		// // Resolve env vars from config and shell

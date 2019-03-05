@@ -21,6 +21,7 @@ import { Schemas } from 'vs/base/common/network';
 import { REMOTE_HOST_SCHEME, getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 import { sanitizeProcessEnvironment } from 'vs/base/node/processes';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -61,6 +62,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService,
 		@IWindowService private readonly _windowService: IWindowService,
 		@IWorkspaceConfigurationService private readonly _workspaceConfigurationService: IWorkspaceConfigurationService,
+		@IEnvironmentService private readonly _environmentSertvice: IEnvironmentService
 	) {
 		this.ptyProcessReady = new Promise<void>(c => {
 			this.onProcessReady(() => {
@@ -110,7 +112,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 			}
 
 			const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.file);
-			const initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, activeWorkspaceRootUri, this._configHelper.config.cwd);
+			const initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, this._environmentSertvice.userHome, activeWorkspaceRootUri, this._configHelper.config.cwd);
 
 			// Compel type system as process.env should not have any undefined entries
 			let env: platform.IProcessEnvironment = {};
