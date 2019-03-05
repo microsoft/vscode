@@ -79,12 +79,11 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 	private _cols: number | undefined;
 	private _rows: number | undefined;
 
+	// TODO: This event is a deprecated proposed API and should be removed in the future once Live Share has migrated off
 	private readonly _onData = new Emitter<string>();
 	public get onDidWriteData(): Event<string> {
 		// Tell the main side to start sending data if it's not already
-		this._idPromise.then(c => {
-			this._proxy.$registerOnDataListener(this._id);
-		});
+		this._proxy.$startSendingDataEvents();
 		return this._onData && this._onData.event;
 	}
 
@@ -197,8 +196,6 @@ export class ExtHostTerminalRenderer extends BaseExtHostTerminal implements vsco
 	public get onDidAcceptInput(): Event<string> {
 		this._checkDisposed();
 		this._queueApiRequest(this._proxy.$terminalRendererRegisterOnInputListener, [this._id]);
-		// Tell the main side to start sending data if it's not already
-		// this._proxy.$terminalRendererRegisterOnDataListener(this._id);
 		return this._onInput && this._onInput.event;
 	}
 
@@ -291,6 +288,11 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	public get onDidChangeActiveTerminal(): Event<vscode.Terminal | undefined> { return this._onDidChangeActiveTerminal && this._onDidChangeActiveTerminal.event; }
 	private readonly _onDidChangeTerminalDimensions: Emitter<vscode.TerminalDimensionsChangeEvent> = new Emitter<vscode.TerminalDimensionsChangeEvent>();
 	public get onDidChangeTerminalDimensions(): Event<vscode.TerminalDimensionsChangeEvent> { return this._onDidChangeTerminalDimensions && this._onDidChangeTerminalDimensions.event; }
+	private readonly _onDidWriteTerminalData: Emitter<vscode.TerminalDataWriteEvent> = new Emitter<vscode.TerminalDataWriteEvent>({
+		onFirstListenerAdd: () => this._proxy.$startSendingDataEvents(),
+		onLastListenerRemove: () => this._proxy.$stopSendingDataEvents()
+	});
+	public get onDidWriteTerminalData(): Event<vscode.TerminalDataWriteEvent> { return this._onDidWriteTerminalData && this._onDidWriteTerminalData.event; }
 
 	constructor(
 		mainContext: IMainContext,
@@ -346,6 +348,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	public $acceptTerminalProcessData(id: number, data: string): void {
 		this._getTerminalByIdEventually(id).then(terminal => {
 			if (terminal) {
+				this._onDidWriteTerminalData.fire({ terminal, data });
 				terminal._fireOnData(data);
 			}
 		});

@@ -645,8 +645,92 @@ suite('window namespace tests', () => {
 			});
 		});
 
-		test('TerminalRenderer.write should fire Terminal.onData', (done) => {
+		test('TerminalRenderer.write should fire window.onDidWriteTerminalData', (done) => {
+			const events: number[] = [];
 			const reg1 = window.onDidOpenTerminal(terminal => {
+				events.push(1);
+				assert.equal(terminal.name, 'foo');
+				renderer.write('bar');
+			});
+			const reg2 = window.onDidWriteTerminalData(event => {
+				events.push(2);
+				assert.equal(event.terminal.name, 'foo');
+				assert.equal(event.data, 'bar');
+				event.terminal.dispose();
+			});
+			const reg3 = window.onDidCloseTerminal(terminal => {
+				events.push(3);
+				assert.equal(terminal.name, 'foo');
+				assert.deepEqual(events, [1, 2, 3]);
+				reg1.dispose();
+				reg2.dispose();
+				reg3.dispose();
+				done();
+			});
+			const renderer = window.createTerminalRenderer('foo');
+		});
+
+		test('window.onDidWriteTerminalData should start listening to terminal created before the listener', (done) => {
+			const events: number[] = [];
+			const reg1 = window.onDidOpenTerminal(terminal => {
+				events.push(1);
+				assert.equal(terminal.name, 'foo');
+				const reg2 = window.onDidWriteTerminalData(event => {
+					events.push(2);
+					assert.equal(event.terminal.name, 'foo');
+					assert.equal(event.data, 'bar');
+					reg2.dispose();
+					renderer.dispose();
+				});
+				renderer.write('bar');
+			});
+			const reg3 = window.onDidCloseTerminal(terminal => {
+				events.push(3);
+				assert.equal(terminal.name, 'foo');
+				assert.deepEqual(events, [1, 2, 3]);
+				reg1.dispose();
+				reg3.dispose();
+				done();
+			});
+			const renderer = window.createTerminalRenderer('foo');
+		});
+
+		test('window.onDidWriteTerminalData should work after data event listening has started and stopped already', (done) => {
+			const events: number[] = [];
+			const reg1 = window.onDidOpenTerminal(terminal => {
+				events.push(1);
+				assert.equal(terminal.name, 'foo');
+				const reg2 = window.onDidWriteTerminalData(event => {
+					events.push(2);
+					assert.equal(event.terminal.name, 'foo');
+					assert.equal(event.data, 'a');
+					reg2.dispose();
+					const reg3 = window.onDidWriteTerminalData(event => {
+						events.push(3);
+						assert.equal(event.terminal.name, 'foo');
+						assert.equal(event.data, 'b');
+						reg3.dispose();
+						renderer.dispose();
+					});
+					renderer.write('b');
+				});
+				renderer.write('a');
+			});
+			const reg4 = window.onDidCloseTerminal(terminal => {
+				events.push(4);
+				assert.equal(terminal.name, 'foo');
+				assert.deepEqual(events, [1, 2, 3, 4]);
+				reg1.dispose();
+				reg4.dispose();
+				done();
+			});
+			const renderer = window.createTerminalRenderer('foo');
+		});
+
+		// TODO: Remove this test when Terminal.onDidWriteData is removed
+		test('TerminalRenderer.write should fire Terminal.onDidWriteData', (done) => {
+			const reg1 = window.onDidOpenTerminal(terminal => {
+				assert.equal(terminal.name, 'foo');
 				reg1.dispose();
 				const reg2 = terminal.onDidWriteData(data => {
 					assert.equal(data, 'bar');

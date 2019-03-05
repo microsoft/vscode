@@ -4653,13 +4653,6 @@ declare module 'vscode' {
 		 * Dispose and free associated resources.
 		 */
 		dispose(): void;
-
-		/**
-		 * Fires when the terminal's pty slave pseudo-device is written to. In other words, this
-		 * provides access to the raw data stream from the process running within the terminal,
-		 * including VT sequences.
-		 */
-		readonly onDidWriteData: Event<string>;
 	}
 
 	/**
@@ -4671,8 +4664,8 @@ declare module 'vscode' {
 	 * created with all its APIs available for use by extensions. When using the Terminal object
 	 * of a TerminalRenderer it acts just like normal only the extension that created the
 	 * TerminalRenderer essentially acts as a process. For example when an
-	 * [Terminal.onDidWriteData](#Terminal.onDidWriteData) listener is registered, that will fire
-	 * when [TerminalRenderer.write](#TerminalRenderer.write) is called. Similarly when
+	 * [window.onDidWriteTerminalData](#window.onDidWriteTerminalData) listener is registered, that
+	 * will fire when [TerminalRenderer.write](#TerminalRenderer.write) is called. Similarly when
 	 * [Terminal.sendText](#Terminal.sendText) is triggered that will fire the
 	 * [TerminalRenderer.onDidAcceptInput](#TerminalRenderer.onDidAcceptInput) event.
 	 *

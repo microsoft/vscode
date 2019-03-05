@@ -420,6 +420,9 @@ export function createApiFactory(
 			onDidChangeTerminalDimensions(listener, thisArg?, disposables?) {
 				return extHostTerminalService.onDidChangeTerminalDimensions(listener, thisArg, disposables);
 			},
+			onDidWriteTerminalData(listener, thisArg?, disposables?) {
+				return extHostTerminalService.onDidWriteTerminalData(listener, thisArg, disposables);
+			},
 			get state() {
 				return extHostWindow.state;
 			},

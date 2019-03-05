@@ -1095,13 +1095,44 @@ declare module 'vscode' {
 	//#endregion
 
 	//#region Terminal
+	export interface Terminal {
+		/**
+		 * Fires when the terminal's pty slave pseudo-device is written to. In other words, this
+		 * provides access to the raw data stream from the process running within the terminal,
+		 * including VT sequences.
+		 *
+		 * @deprecated Use window.onDidWriteTerminalData.
+		 */
+		readonly onDidWriteData: Event<string>;
+	}
+
 	export interface TerminalRenderer {
 		/**
 		 * The corresponding [Terminal](#Terminal) for this TerminalRenderer.
 		 *
-		 * @deprecated This will not make it to stable, migrate off this API.
+		 * @deprecated Use TerminalRenderer.hide/show/dispose.
 		 */
 		readonly terminal: Terminal;
+	}
+
+	export interface TerminalDataWriteEvent {
+		/**
+		 * The [terminal](#Terminal) for which the data was written.
+		 */
+		readonly terminal: Terminal;
+		/**
+		 * The data written to the terminal.
+		 */
+		readonly data: string;
+	}
+
+	export namespace window {
+		/**
+		 * Fires when the terminal's pty slave pseudo-device is written to. In other words, this
+		 * provides access to the raw data stream from the process running within the terminal,
+		 * including VT sequences.
+		 */
+		export const onDidWriteTerminalData: Event<TerminalDataWriteEvent>;
 	}
 	//#endregio`n
 }

@@ -15,8 +15,12 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	private _remoteAuthority: string | null;
 	private _toDispose: IDisposable[] = [];
 	private _terminalProcesses: { [id: number]: ITerminalProcessExtHostProxy } = {};
-	private _terminalOnDidWriteDataListeners: { [id: number]: IDisposable } = {};
 	private _terminalOnDidAcceptInputListeners: { [id: number]: IDisposable } = {};
+
+	private _isListeningToDataEvents: boolean = false;
+	private _terminalDataEventInstanceCreatedListener: IDisposable | undefined;
+	private _terminalDataEventInstanceDisposedListener: IDisposable | undefined;
+	private _terminalDataEventListeners: { [id: number]: IDisposable } = {};
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -53,7 +57,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 
 	public dispose(): void {
 		this._toDispose = dispose(this._toDispose);
-
+		this._disposeDataEventListeners();
 		// TODO@Daniel: Should all the previously created terminals be disposed
 		// when the extension host process goes down ?
 	}
@@ -147,22 +151,46 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		}
 	}
 
-	public $registerOnDataListener(terminalId: number): void {
-		const terminalInstance = this.terminalService.getInstanceFromId(terminalId);
-		if (!terminalInstance) {
+	public $startSendingDataEvents(): void {
+		// Exit early if already listening
+		if (this._isListeningToDataEvents) {
 			return;
 		}
 
-		// Listener already registered
-		if (this._terminalOnDidWriteDataListeners[terminalId]) {
-			return;
-		}
-
-		// Register
-		this._terminalOnDidWriteDataListeners[terminalId] = terminalInstance.onData(data => {
-			this._onTerminalData(terminalId, data);
+		this._isListeningToDataEvents = true;
+		// Attach listeners to any existing terminals
+		this.terminalService.terminalInstances.forEach(instance => {
+			this._terminalDataEventListeners[instance.id] = instance.onData(data => {
+				this._onTerminalData(instance.id, data);
+			});
 		});
-		terminalInstance.addDisposable(this._terminalOnDidWriteDataListeners[terminalId]);
+		// Create listeners to add and remove future data listeners
+		this._terminalDataEventInstanceCreatedListener = this.terminalService.onInstanceCreated(instance => {
+			this._terminalDataEventListeners[instance.id] = instance.onData(data => {
+				this._onTerminalData(instance.id, data);
+			});
+		});
+		this._terminalDataEventInstanceDisposedListener = this.terminalService.onInstanceDisposed(instance => {
+			if (instance.id in this._terminalDataEventListeners) {
+				this._terminalDataEventListeners[instance.id].dispose();
+				delete this._terminalDataEventListeners[instance.id];
+			}
+		});
+	}
+
+	public $stopSendingDataEvents(): void {
+		this._disposeDataEventListeners();
+	}
+
+	private _disposeDataEventListeners(): void {
+		this._isListeningToDataEvents = false;
+		const listeningTerminalIds = Object.keys(this._terminalDataEventListeners);
+		listeningTerminalIds.forEach(id => this._terminalDataEventListeners[id].dispose());
+		this._terminalDataEventListeners = {};
+		this._terminalDataEventInstanceCreatedListener.dispose();
+		this._terminalDataEventInstanceCreatedListener = undefined;
+		this._terminalDataEventInstanceDisposedListener.dispose();
+		this._terminalDataEventInstanceDisposedListener = undefined;
 	}
 
 	private _onActiveTerminalChanged(terminalId: number | null): void {
