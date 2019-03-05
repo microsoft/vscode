@@ -1254,12 +1254,15 @@ declare module 'vscode' {
 		/**
 		 * @param callback The callback that will be called when the extension callback task is executed.
 		 */
-		constructor(callback: (terminalRenderer: TerminalRenderer, cancellationToken: CancellationToken, thisArg?: any) => Thenable<number | undefined>);
+		constructor(callback: (terminalRenderer: TerminalRenderer, cancellationToken: CancellationToken, thisArg?: any) => Thenable<number>);
 
 		/**
 		 * The callback used to execute the task.
+		 * @param terminalRenderer Used by the task to render output and receive input.
+		 * @param cancellationToken Cancellation used to signal a cancel request to the executing task.
+		 * @returns The callback should return '0' for success and a non-zero value for failure.
 		 */
-		callback: (terminalRenderer: TerminalRenderer, cancellationToken: CancellationToken, thisArg?: any) => Thenable<number | undefined>;
+		callback: (terminalRenderer: TerminalRenderer, cancellationToken: CancellationToken, thisArg?: any) => Thenable<number>;
 	}
 
 	/**

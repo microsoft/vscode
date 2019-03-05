@@ -269,7 +269,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		return Object.keys(this.activeTasks).map(key => this.activeTasks[key].task);
 	}
 
-	public customExecutionComplete(task: Task, result?: number): Promise<void> {
+	public customExecutionComplete(task: Task, result: number): Promise<void> {
 		let activeTerminal = this.activeTasks[task.getMapKey()];
 		if (!activeTerminal) {
 			return Promise.reject(new Error('Expected to have a terminal for an custom execution task'));

@@ -390,7 +390,7 @@ export interface ITerminalInstance {
 	 * is the processes' exit code, an exit code of null means the process was killed as a result of
 	 * the ITerminalInstance being disposed.
 	 */
-	onExit: Event<number | undefined>;
+	onExit: Event<number>;
 
 	processReady: Promise<void>;
 
@@ -442,9 +442,9 @@ export interface ITerminalInstance {
 	/**
 	 * Indicates that a consumer of a renderer only terminal is finished with it.
 	 *
-	 * @param result - Optional result code from a from a task process or custom execution.
+	 * @param result - Result code from a from a task process or custom execution. Zero indicates success, non-zero indicates failure.
 	 */
-	rendererExit(result?: number): void;
+	rendererExit(result: number): void;
 
 	/**
 	 * Forces the terminal to redraw its viewport.

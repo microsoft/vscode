@@ -136,5 +136,5 @@ export interface ITaskSystem {
 	terminate(task: Task): Promise<TaskTerminateResponse>;
 	terminateAll(): Promise<TaskTerminateResponse[]>;
 	revealTask(task: Task): boolean;
-	customExecutionComplete(task: Task, result: number | undefined): Promise<void>;
+	customExecutionComplete(task: Task, result: number): Promise<void>;
 }

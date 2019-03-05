@@ -718,7 +718,7 @@ class TaskService extends Disposable implements ITaskService {
 		this._taskSystemInfos.set(key, info);
 	}
 
-	public extensionCallbackTaskComplete(task: Task, result: number | undefined): Promise<void> {
+	public extensionCallbackTaskComplete(task: Task, result: number): Promise<void> {
 		if (!this._taskSystem) {
 			return Promise.resolve();
 		}

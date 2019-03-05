@@ -208,8 +208,8 @@ export class TerminalInstance implements ITerminalInstance {
 	public get shellLaunchConfig(): IShellLaunchConfig { return this._shellLaunchConfig; }
 	public get commandTracker(): TerminalCommandTracker { return this._commandTracker; }
 
-	private readonly _onExit = new Emitter<number | undefined>();
-	public get onExit(): Event<number | undefined> { return this._onExit.event; }
+	private readonly _onExit = new Emitter<number>();
+	public get onExit(): Event<number> { return this._onExit.event; }
 	private readonly _onDisposed = new Emitter<ITerminalInstance>();
 	public get onDisposed(): Event<ITerminalInstance> { return this._onDisposed.event; }
 	private readonly _onFocused = new Emitter<ITerminalInstance>();
@@ -731,8 +731,8 @@ export class TerminalInstance implements ITerminalInstance {
 		} else {
 			// In cases where there is no associated process (for example executing an extension callback task)
 			// consumers still expect on onExit event to be fired. An example of this is terminating the extension callback
-			// task. There is no exit code at this point, so firing undefined is appropriate.
-			this._onExit.fire(undefined);
+			// task.
+			this._onExit.fire(0);
 		}
 
 		if (!this._isDisposed) {
@@ -742,7 +742,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._disposables = lifecycle.dispose(this._disposables);
 	}
 
-	public rendererExit(result?: number): void {
+	public rendererExit(result: number): void {
 		// The use of this API is for cases where there is no backing process
 		// behind a terminal instance (such as when executing an custom execution task).
 		// There is no associated string, error text, etc, as the consumer of the renderer
@@ -918,13 +918,8 @@ export class TerminalInstance implements ITerminalInstance {
 	 * Called when either a process tied to a terminal has exited or when a custom execution has completed.
 	 * @param exitCode The exit code can be undefined if the terminal was exited through user action or if a custom execution callback did not provide a exit code when it finished.
 	 */
-	private _onProcessOrExtensionCallbackExit(exitCode?: number): void {
-		// Use 'typeof exitCode' because simply doing if (exitCode) would return false for both "not undefined" and a value of 0
-		// which is not the intention.
-		const isExitCodeSpecified: boolean = (typeof exitCode === `number`);
-		if (exitCode) {
-			this._logService.debug(`Terminal process exit (id: ${this.id}) with code ${exitCode}`);
-		}
+	private _onProcessOrExtensionCallbackExit(exitCode: number): void {
+		this._logService.debug(`Terminal process exit (id: ${this.id}) with code ${exitCode}`);
 
 		// Prevent dispose functions being triggered multiple times
 		if (this._isExiting) {
@@ -932,11 +927,8 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 
 		this._isExiting = true;
-		let exitCodeMessage: string;
 
-		if (isExitCodeSpecified) {
-			exitCodeMessage = nls.localize('terminal.integrated.exitedWithCode', 'The terminal process terminated with exit code: {0}', exitCode);
-		}
+		const exitCodeMessage: string = nls.localize('terminal.integrated.exitedWithCode', 'The terminal process terminated with exit code: {0}', exitCode);
 
 		if (this._processManager) {
 			this._logService.debug(`Terminal process exit (id: ${this.id}) state ${this._processManager!.processState}`);
@@ -945,9 +937,7 @@ export class TerminalInstance implements ITerminalInstance {
 		// Only trigger wait on exit when the exit was *not* triggered by the
 		// user (via the `workbench.action.terminal.kill` command).
 		if (this._shellLaunchConfig.waitOnExit && (!this._processManager || this._processManager.processState !== ProcessState.KILLED_BY_USER)) {
-			if (isExitCodeSpecified) {
-				this._xterm.writeln(exitCodeMessage!);
-			}
+			this._xterm.writeln(exitCodeMessage!);
 			if (typeof this._shellLaunchConfig.waitOnExit === 'string') {
 				let message = this._shellLaunchConfig.waitOnExit;
 				// Bold the message and add an extra new line to make it stand out from the rest of the output
@@ -961,30 +951,28 @@ export class TerminalInstance implements ITerminalInstance {
 			}
 		} else {
 			this.dispose();
-			if (isExitCodeSpecified) {
-				if (this._processManager && this._processManager.processState === ProcessState.KILLED_DURING_LAUNCH) {
-					let args = '';
-					if (typeof this._shellLaunchConfig.args === 'string') {
-						args = this._shellLaunchConfig.args;
-					} else if (this._shellLaunchConfig.args && this._shellLaunchConfig.args.length) {
-						args = ' ' + this._shellLaunchConfig.args.map(a => {
-							if (typeof a === 'string' && a.indexOf(' ') !== -1) {
-								return `'${a}'`;
-							}
-							return a;
-						}).join(' ');
-					}
-					if (this._shellLaunchConfig.executable) {
-						this._notificationService.error(nls.localize('terminal.integrated.launchFailed', 'The terminal process command \'{0}{1}\' failed to launch (exit code: {2})', this._shellLaunchConfig.executable, args, exitCode));
-					} else {
-						this._notificationService.error(nls.localize('terminal.integrated.launchFailedExtHost', 'The terminal process failed to launch (exit code: {0})', exitCode));
-					}
+			if (this._processManager && this._processManager.processState === ProcessState.KILLED_DURING_LAUNCH) {
+				let args = '';
+				if (typeof this._shellLaunchConfig.args === 'string') {
+					args = this._shellLaunchConfig.args;
+				} else if (this._shellLaunchConfig.args && this._shellLaunchConfig.args.length) {
+					args = ' ' + this._shellLaunchConfig.args.map(a => {
+						if (typeof a === 'string' && a.indexOf(' ') !== -1) {
+							return `'${a}'`;
+						}
+						return a;
+					}).join(' ');
+				}
+				if (this._shellLaunchConfig.executable) {
+					this._notificationService.error(nls.localize('terminal.integrated.launchFailed', 'The terminal process command \'{0}{1}\' failed to launch (exit code: {2})', this._shellLaunchConfig.executable, args, exitCode));
 				} else {
-					if (this._configHelper.config.showExitAlert) {
-						this._notificationService.error(exitCodeMessage!);
-					} else {
-						console.warn(exitCodeMessage!);
-					}
+					this._notificationService.error(nls.localize('terminal.integrated.launchFailedExtHost', 'The terminal process failed to launch (exit code: {0})', exitCode));
+				}
+			} else {
+				if (this._configHelper.config.showExitAlert) {
+					this._notificationService.error(exitCodeMessage!);
+				} else {
+					console.warn(exitCodeMessage!);
 				}
 			}
 		}
@@ -1007,7 +995,7 @@ export class TerminalInstance implements ITerminalInstance {
 
 	public reuseTerminal(shell: IShellLaunchConfig): void {
 		// Unsubscribe any key listener we may have.
-		if (!this._keyPressListener) {
+		if (this._keyPressListener) {
 			this._keyPressListener.dispose();
 			this._keyPressListener = undefined;
 		}
@@ -1037,8 +1025,11 @@ export class TerminalInstance implements ITerminalInstance {
 		this._shellLaunchConfig = shell; // Must be done before calling _createProcess()
 
 		// Launch the process unless this is only a renderer.
+		// In the renderer only cases, we still need to set the title correctly.
 		if (!this._shellLaunchConfig.isRendererOnly) {
 			this._createProcess();
+		} else if (this._shellLaunchConfig.name) {
+			this.setTitle(this._shellLaunchConfig.name, false);
 		}
 
 		if (oldTitle !== this._title) {
