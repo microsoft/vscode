@@ -11,7 +11,6 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IMatch, or, matchesContiguousSubString, matchesPrefix, matchesCamelCase, matchesWords } from 'vs/base/common/filters';
-import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IRequestService } from 'vs/platform/request/node/request';
@@ -24,6 +23,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { canceled } from 'vs/base/common/errors';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { nullRange } from 'vs/workbench/services/preferences/common/preferencesModels';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface IEndpointDetails {
 	urlBase: string;
@@ -36,7 +36,7 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 	private _installedExtensions: Promise<ILocalExtension[]>;
 
 	constructor(
-		@IWorkspaceConfigurationService private readonly configurationService: IWorkspaceConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
