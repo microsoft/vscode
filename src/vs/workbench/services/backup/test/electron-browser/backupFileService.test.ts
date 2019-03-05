@@ -13,7 +13,7 @@ import { URI as Uri } from 'vs/base/common/uri';
 import { BackupFileService, BackupFilesModel, hashPath } from 'vs/workbench/services/backup/node/backupFileService';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
 import { TextModel, createTextBufferFactory } from 'vs/editor/common/model/textModel';
-import { TestContextService, TestTextResourceConfigurationService, TestLifecycleService, TestEnvironmentService, TestStorageService } from 'vs/workbench/test/workbenchTestServices';
+import { TestContextService, TestTextResourceConfigurationService, TestLifecycleService, TestEnvironmentService, TestStorageService, TestWindowService } from 'vs/workbench/test/workbenchTestServices';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
@@ -21,6 +21,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { DefaultEndOfLine } from 'vs/editor/common/model';
 import { snapshotToString } from 'vs/platform/files/common/files';
 import { Schemas } from 'vs/base/common/network';
+import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 
 const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backupfileservice');
 const backupHome = path.join(parentDir, 'Backups');
@@ -35,11 +36,28 @@ const fooBackupPath = path.join(workspaceBackupPath, 'file', hashPath(fooFile));
 const barBackupPath = path.join(workspaceBackupPath, 'file', hashPath(barFile));
 const untitledBackupPath = path.join(workspaceBackupPath, 'untitled', hashPath(untitledFile));
 
+class TestBackupWindowService extends TestWindowService {
+
+	private config: IWindowConfiguration;
+
+	constructor(workspaceBackupPath: string) {
+		super();
+
+		this.config = Object.create(null);
+		this.config.backupPath = workspaceBackupPath;
+	}
+
+	getConfiguration(): IWindowConfiguration {
+		return this.config;
+	}
+}
+
 class TestBackupFileService extends BackupFileService {
 	constructor(workspace: Uri, backupHome: string, workspacesJsonPath: string) {
 		const fileService = new FileService(new TestContextService(new Workspace(workspace.fsPath, toWorkspaceFolders([{ path: workspace.fsPath }]))), TestEnvironmentService, new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), new TestStorageService(), new TestNotificationService(), { disableWatcher: true });
+		const windowService = new TestBackupWindowService(workspaceBackupPath);
 
-		super(workspaceBackupPath, fileService);
+		super(windowService, fileService);
 	}
 
 	public toBackupResource(resource: Uri): Uri {

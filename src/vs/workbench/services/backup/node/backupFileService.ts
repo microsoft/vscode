@@ -15,6 +15,8 @@ import { ITextBufferFactory } from 'vs/editor/common/model';
 import { createTextBufferFactoryFromStream, createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { keys } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
+import { IWindowService } from 'vs/platform/windows/common/windows';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export interface IBackupFilesModel {
 	resolve(backupRoot: string): Promise<IBackupFilesModel>;
@@ -107,6 +109,63 @@ export class BackupFilesModel implements IBackupFilesModel {
 
 export class BackupFileService implements IBackupFileService {
 
+	_serviceBrand: any;
+
+	private impl: IBackupFileService;
+
+	constructor(
+		@IWindowService windowService: IWindowService,
+		@IFileService fileService: IFileService
+	) {
+		const backupWorkspacePath = windowService.getConfiguration().backupPath;
+		if (backupWorkspacePath) {
+			this.impl = new BackupFileServiceImpl(backupWorkspacePath, fileService);
+		} else {
+			this.impl = new InMemoryBackupFileService();
+		}
+	}
+
+	initialize(backupWorkspacePath: string): void {
+		if (this.impl instanceof BackupFileServiceImpl) {
+			this.impl.initialize(backupWorkspacePath);
+		}
+	}
+
+	hasBackups(): Promise<boolean> {
+		return this.impl.hasBackups();
+	}
+
+	loadBackupResource(resource: Uri): Promise<Uri | undefined> {
+		return this.impl.loadBackupResource(resource);
+	}
+
+	backupResource(resource: Uri, content: ITextSnapshot, versionId?: number): Promise<void> {
+		return this.impl.backupResource(resource, content, versionId);
+	}
+
+	discardResourceBackup(resource: Uri): Promise<void> {
+		return this.impl.discardResourceBackup(resource);
+	}
+
+	discardAllWorkspaceBackups(): Promise<void> {
+		return this.impl.discardAllWorkspaceBackups();
+	}
+
+	getWorkspaceFileBackups(): Promise<Uri[]> {
+		return this.impl.getWorkspaceFileBackups();
+	}
+
+	resolveBackupContent(backup: Uri): Promise<ITextBufferFactory> {
+		return this.impl.resolveBackupContent(backup);
+	}
+
+	toBackupResource(resource: Uri): Uri {
+		return this.impl.toBackupResource(resource);
+	}
+}
+
+class BackupFileServiceImpl implements IBackupFileService {
+
 	private static readonly META_MARKER = '\n';
 
 	_serviceBrand: any;
@@ -170,7 +229,7 @@ export class BackupFileService implements IBackupFileService {
 			}
 
 			return this.ioOperationQueues.queueFor(backupResource).queue(() => {
-				const preamble = `${resource.toString()}${BackupFileService.META_MARKER}`;
+				const preamble = `${resource.toString()}${BackupFileServiceImpl.META_MARKER}`;
 
 				// Update content with value
 				return this.fileService.updateContent(backupResource, new BackupSnapshot(content, preamble), BACKUP_FILE_UPDATE_OPTIONS).then(() => model.add(backupResource, versionId));
@@ -202,7 +261,7 @@ export class BackupFileService implements IBackupFileService {
 
 			model.get().forEach(fileBackup => {
 				readPromises.push(
-					readToMatchingString(fileBackup.fsPath, BackupFileService.META_MARKER, 2000, 10000).then(Uri.parse)
+					readToMatchingString(fileBackup.fsPath, BackupFileServiceImpl.META_MARKER, 2000, 10000).then(Uri.parse)
 				);
 			});
 
@@ -217,7 +276,7 @@ export class BackupFileService implements IBackupFileService {
 			let metaFound = false;
 			const metaPreambleFilter = (chunk: string) => {
 				if (!metaFound && chunk) {
-					const metaIndex = chunk.indexOf(BackupFileService.META_MARKER);
+					const metaIndex = chunk.indexOf(BackupFileServiceImpl.META_MARKER);
 					if (metaIndex === -1) {
 						return ''; // meta not yet found, return empty string
 					}
@@ -302,3 +361,5 @@ export function hashPath(resource: Uri): string {
 	const str = resource.scheme === Schemas.file ? resource.fsPath : resource.toString();
 	return crypto.createHash('md5').update(str).digest('hex');
 }
+
+registerSingleton(IBackupFileService, BackupFileService);
