@@ -16,6 +16,7 @@
 		"./vs/workbench/contrib/emmet/**/*",
 		"./vs/workbench/contrib/externalTerminal/**/*",
 		"./vs/workbench/contrib/snippets/**/*.ts",
+		"./vs/workbench/contrib/outline/**/*.ts",
 		"./vs/workbench/contrib/welcome/**/*.ts",
 		"./vs/workbench/contrib/issue/**/*",
 		"./vs/workbench/contrib/tasks/**/*.ts",
@@ -277,7 +278,6 @@
 		"./vs/workbench/contrib/stats/test/workspaceStats.test.ts",
 		"./vs/workbench/contrib/surveys/electron-browser/languageSurveys.contribution.ts",
 		"./vs/workbench/contrib/surveys/electron-browser/nps.contribution.ts",
-
 		"./vs/workbench/contrib/terminal/browser/terminalActions.ts",
 		"./vs/workbench/contrib/terminal/browser/terminalCommandTracker.ts",
 		"./vs/workbench/contrib/terminal/browser/terminalConfigHelper.ts",

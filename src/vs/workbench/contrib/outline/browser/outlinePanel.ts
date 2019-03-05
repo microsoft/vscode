@@ -47,6 +47,7 @@ import { OutlineDataSource, OutlineItemComparator, OutlineSortOrder, OutlineVirt
 import { IDataTreeViewState } from 'vs/base/browser/ui/tree/dataTree';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { basename } from 'vs/base/common/resources';
+import { IDataSource } from 'vs/base/browser/ui/tree/tree';
 
 class RequestState {
 
@@ -320,7 +321,7 @@ export class OutlinePanel extends ViewletPanel {
 			treeContainer,
 			new OutlineVirtualDelegate(),
 			[new OutlineGroupRenderer(), this._treeRenderer],
-			this._treeDataSource,
+			this._treeDataSource as IDataSource<OutlineModel, OutlineItem>,
 			{
 				expandOnlyOnTwistieClick: true,
 				multipleSelectionSupport: false,
@@ -342,7 +343,7 @@ export class OutlinePanel extends ViewletPanel {
 
 		// feature: filter on type - keep tree and menu in sync
 		this.disposables.push(this._tree.onDidUpdateOptions(e => {
-			this._outlineViewState.filterOnType = e.filterOnType;
+			this._outlineViewState.filterOnType = Boolean(e.filterOnType);
 		}));
 
 		// feature: expand all nodes when filtering (not when finding)
@@ -355,7 +356,7 @@ export class OutlinePanel extends ViewletPanel {
 				viewState = this._tree.getViewState();
 				this._tree.expandAll();
 			} else if (!pattern && viewState) {
-				this._tree.setInput(this._tree.getInput(), viewState);
+				this._tree.setInput(this._tree.getInput()!, viewState);
 				viewState = undefined;
 			}
 		}));
@@ -426,7 +427,7 @@ export class OutlinePanel extends ViewletPanel {
 
 	private _showMessage(message: string) {
 		dom.addClass(this._domNode, 'message');
-		this._tree.setInput(undefined);
+		this._tree.setInput(undefined!);
 		this._progressBar.stop().hide();
 		this._message.innerText = escape(message);
 	}
