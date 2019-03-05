@@ -421,8 +421,7 @@ export class Workbench extends Disposable implements IPartService {
 		serviceCollection.set(IRemoteAuthorityResolverService, new SyncDescriptor(RemoteAuthorityResolverService, undefined, true));
 
 		// Remote Agent
-		const remoteAgentService = new RemoteAgentService(this.configuration, this.notificationService, this.environmentService, remoteAuthorityResolverService);
-		serviceCollection.set(IRemoteAgentService, remoteAgentService);
+		serviceCollection.set(IRemoteAgentService, new SyncDescriptor(RemoteAgentService, [this.configuration]));
 
 		// Extensions Management
 		const extensionManagementChannel = getDelayedChannel(sharedProcess.then(c => c.getChannel('extensions')));
@@ -547,12 +546,14 @@ export class Workbench extends Disposable implements IPartService {
 		}
 
 		// TODO this should move somewhere else
-		const remoteAgentConnection = remoteAgentService.getConnection();
-		if (remoteAgentConnection) {
-			remoteAgentConnection.registerChannel('dialog', this.instantiationService.createInstance(DialogChannel));
-			remoteAgentConnection.registerChannel('download', new DownloadServiceChannel());
-			remoteAgentConnection.registerChannel('loglevel', new LogLevelSetterChannel(this.logService));
-		}
+		this.instantiationService.invokeFunction(accessor => {
+			const remoteAgentConnection = accessor.get(IRemoteAgentService).getConnection();
+			if (remoteAgentConnection) {
+				remoteAgentConnection.registerChannel('dialog', this.instantiationService.createInstance(DialogChannel));
+				remoteAgentConnection.registerChannel('download', new DownloadServiceChannel());
+				remoteAgentConnection.registerChannel('loglevel', new LogLevelSetterChannel(this.logService));
+			}
+		});
 
 		// TODO@Sandeep debt around cyclic dependencies
 		this.configurationService.acquireInstantiationService(this.instantiationService);
