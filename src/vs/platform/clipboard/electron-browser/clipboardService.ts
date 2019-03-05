@@ -10,20 +10,19 @@ import { isMacintosh } from 'vs/base/common/platform';
 
 export class ClipboardService implements IClipboardService {
 
-	// Clipboard format for files
-	private static FILE_FORMAT = 'code/file-list';
+	private static FILE_FORMAT = 'code/file-list'; // Clipboard format for files
 
 	_serviceBrand: any;
 
-	public writeText(text: string): void {
-		clipboard.writeText(text);
+	writeText(text: string, type?: string): void {
+		clipboard.writeText(text, type);
 	}
 
-	public readText(): string {
-		return clipboard.readText();
+	readText(type?: string): string {
+		return clipboard.readText(type);
 	}
 
-	public readFindText(): string {
+	readFindText(): string {
 		if (isMacintosh) {
 			return clipboard.readFindText();
 		}
@@ -31,23 +30,23 @@ export class ClipboardService implements IClipboardService {
 		return '';
 	}
 
-	public writeFindText(text: string): void {
+	writeFindText(text: string): void {
 		if (isMacintosh) {
 			clipboard.writeFindText(text);
 		}
 	}
 
-	public writeResources(resources: URI[]): void {
+	writeResources(resources: URI[]): void {
 		if (resources.length) {
 			clipboard.writeBuffer(ClipboardService.FILE_FORMAT, this.resourcesToBuffer(resources));
 		}
 	}
 
-	public readResources(): URI[] {
+	readResources(): URI[] {
 		return this.bufferToResources(clipboard.readBuffer(ClipboardService.FILE_FORMAT));
 	}
 
-	public hasResources(): boolean {
+	hasResources(): boolean {
 		return clipboard.has(ClipboardService.FILE_FORMAT);
 	}
 

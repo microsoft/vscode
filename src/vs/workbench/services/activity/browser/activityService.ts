@@ -30,5 +30,4 @@ export class ActivityService implements IActivityService {
 	getPinnedViewletIds(): string[] {
 		return this.activitybarPart.getPinnedViewletIds();
 	}
-
 }

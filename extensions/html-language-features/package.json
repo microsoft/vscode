@@ -12,8 +12,7 @@
   "icon": "icons/html.png",
   "activationEvents": [
     "onLanguage:html",
-    "onLanguage:handlebars",
-    "onLanguage:razor"
+    "onLanguage:handlebars"
   ],
   "main": "./client/out/htmlMain",
   "scripts": {
@@ -137,20 +136,6 @@
           ],
           "description": "%html.format.wrapAttributes.desc%"
         },
-        "html.suggest.angular1": {
-          "deprecationMessage": "Angular 1 is obsolete and Angular completion will be removed.",
-          "type": "boolean",
-          "scope": "resource",
-          "default": false,
-          "description": "%html.suggest.angular1.desc%"
-        },
-        "html.suggest.ionic": {
-          "deprecationMessage": "Ionic 1 is obsolete and Ionic completion will be removed.",
-          "type": "boolean",
-          "scope": "resource",
-          "default": false,
-          "description": "%html.suggest.ionic.desc%"
-        },
         "html.suggest.html5": {
           "type": "boolean",
           "scope": "resource",
@@ -191,10 +176,10 @@
   },
   "dependencies": {
     "vscode-extension-telemetry": "0.1.1",
-    "vscode-languageclient": "^5.1.0",
+    "vscode-languageclient": "^5.2.1",
     "vscode-nls": "^4.0.0"
   },
   "devDependencies": {
-    "@types/node": "^8.10.25"
+    "@types/node": "^10.12.21"
   }
 }

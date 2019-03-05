@@ -16,6 +16,7 @@ import { ITextModelService, ITextModelContentProvider, ITextEditorModel } from '
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { IFileService } from 'vs/platform/files/common/files';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorModel>> {
 
@@ -107,7 +108,7 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 
 		return first(factories).then(model => {
 			if (!model) {
-				return Promise.reject(new Error('resource is not available'));
+				return Promise.reject<any>(new Error('resource is not available'));
 			}
 
 			return model;
@@ -171,3 +172,5 @@ export class TextModelResolverService implements ITextModelService {
 		return this.resourceModelCollection.hasTextModelContentProvider(scheme);
 	}
 }
+
+registerSingleton(ITextModelService, TextModelResolverService, true);

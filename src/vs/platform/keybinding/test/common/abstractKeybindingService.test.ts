@@ -61,7 +61,7 @@ suite('AbstractKeybindingService', () => {
 				keyboardEvent.altKey,
 				keyboardEvent.metaKey,
 				keyboardEvent.keyCode
-			);
+			).toChord();
 			return this.resolveKeybinding(keybinding)[0];
 		}
 
@@ -72,6 +72,7 @@ suite('AbstractKeybindingService', () => {
 		public testDispatch(kb: number): boolean {
 			const keybinding = createSimpleKeybinding(kb, OS);
 			return this._dispatch({
+				_standardKeyboardEventBrand: true,
 				ctrlKey: keybinding.ctrlKey,
 				shiftKey: keybinding.shiftKey,
 				altKey: keybinding.altKey,
@@ -79,6 +80,10 @@ suite('AbstractKeybindingService', () => {
 				keyCode: keybinding.keyCode,
 				code: null!
 			}, null!);
+		}
+
+		public _dumpDebugInfo(): string {
+			return '';
 		}
 	}
 

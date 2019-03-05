@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getLanguageService as getHTMLLanguageService, DocumentContext, IHTMLDataProvider } from 'vscode-html-languageservice';
+import { getLanguageService as getHTMLLanguageService, DocumentContext, IHTMLDataProvider, SelectionRange } from 'vscode-html-languageservice';
 import {
 	CompletionItem, Location, SignatureHelp, Definition, TextEdit, TextDocument, Diagnostic, DocumentLink, Range,
 	Hover, DocumentHighlight, CompletionList, Position, FormattingOptions, SymbolInformation, FoldingRange
@@ -31,7 +31,7 @@ export interface Workspace {
 
 export interface LanguageMode {
 	getId(): string;
-	doSelection?: (document: TextDocument, position: Position) => Range[];
+	getSelectionRanges?: (document: TextDocument, positions: Position[]) => SelectionRange[][];
 	doValidation?: (document: TextDocument, settings?: Settings) => Diagnostic[];
 	doComplete?: (document: TextDocument, position: Position, settings?: Settings) => CompletionList;
 	doResolve?: (document: TextDocument, item: CompletionItem) => CompletionItem;

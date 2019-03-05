@@ -43,7 +43,7 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 	private readonly _proxy: MainThreadConfigurationShape;
 	private readonly _extHostWorkspace: ExtHostWorkspace;
 	private readonly _barrier: Barrier;
-	private _actual: ExtHostConfigProvider;
+	private _actual: ExtHostConfigProvider | null;
 
 	constructor(proxy: MainThreadConfigurationShape, extHostWorkspace: ExtHostWorkspace) {
 		this._proxy = proxy;
@@ -53,7 +53,7 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 	}
 
 	public getConfigProvider(): Promise<ExtHostConfigProvider> {
-		return this._barrier.wait().then(_ => this._actual);
+		return this._barrier.wait().then(_ => this._actual!);
 	}
 
 	$initializeConfiguration(data: IConfigurationInitData): void {
@@ -62,7 +62,7 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 	}
 
 	$acceptConfigurationChanged(data: IConfigurationInitData, eventData: IWorkspaceConfigurationChangeEventData): void {
-		this._actual.$acceptConfigurationChanged(data, eventData);
+		this.getConfigProvider().then(provider => provider.$acceptConfigurationChanged(data, eventData));
 	}
 }
 
@@ -93,14 +93,14 @@ export class ExtHostConfigProvider {
 
 	getConfiguration(section?: string, resource?: URI, extensionId?: ExtensionIdentifier): vscode.WorkspaceConfiguration {
 		const config = this._toReadonlyValue(section
-			? lookUp(this._configuration.getValue(null, { resource }, this._extHostWorkspace.workspace), section)
-			: this._configuration.getValue(null, { resource }, this._extHostWorkspace.workspace));
+			? lookUp(this._configuration.getValue(undefined, { resource }, this._extHostWorkspace.workspace), section)
+			: this._configuration.getValue(undefined, { resource }, this._extHostWorkspace.workspace));
 
 		if (section) {
 			this._validateConfigurationAccess(section, resource, extensionId);
 		}
 
-		function parseConfigurationTarget(arg: boolean | ExtHostConfigurationTarget): ConfigurationTarget {
+		function parseConfigurationTarget(arg: boolean | ExtHostConfigurationTarget): ConfigurationTarget | null {
 			if (arg === undefined || arg === null) {
 				return null;
 			}
@@ -127,7 +127,7 @@ export class ExtHostConfigProvider {
 				} else {
 					let clonedConfig = undefined;
 					const cloneOnWriteProxy = (target: any, accessor: string): any => {
-						let clonedTarget = undefined;
+						let clonedTarget: any | undefined = undefined;
 						const cloneTarget = () => {
 							clonedConfig = clonedConfig ? clonedConfig : deepClone(config);
 							clonedTarget = clonedTarget ? clonedTarget : lookUp(clonedConfig, accessor);
@@ -151,17 +151,23 @@ export class ExtHostConfigProvider {
 								},
 								set: (_target: any, property: string, value: any) => {
 									cloneTarget();
-									clonedTarget[property] = value;
+									if (clonedTarget) {
+										clonedTarget[property] = value;
+									}
 									return true;
 								},
 								deleteProperty: (_target: any, property: string) => {
 									cloneTarget();
-									delete clonedTarget[property];
+									if (clonedTarget) {
+										delete clonedTarget[property];
+									}
 									return true;
 								},
 								defineProperty: (_target: any, property: string, descriptor: any) => {
 									cloneTarget();
-									Object.defineProperty(clonedTarget, property, descriptor);
+									if (clonedTarget) {
+										Object.defineProperty(clonedTarget, property, descriptor);
+									}
 									return true;
 								}
 							}) : target;
@@ -179,7 +185,7 @@ export class ExtHostConfigProvider {
 					return this._proxy.$removeConfigurationOption(target, key, resource);
 				}
 			},
-			inspect: <T>(key: string): ConfigurationInspect<T> => {
+			inspect: <T>(key: string): ConfigurationInspect<T> | undefined => {
 				key = section ? `${section}.${key}` : key;
 				const config = deepClone(this._configuration.inspect<T>(key, { resource }, this._extHostWorkspace.workspace));
 				if (config) {
@@ -218,7 +224,7 @@ export class ExtHostConfigProvider {
 		return readonlyProxy(result);
 	}
 
-	private _validateConfigurationAccess(key: string, resource: URI, extensionId: ExtensionIdentifier): void {
+	private _validateConfigurationAccess(key: string, resource: URI | undefined, extensionId?: ExtensionIdentifier): void {
 		const scope = OVERRIDE_PROPERTY_PATTERN.test(key) ? ConfigurationScope.RESOURCE : this._configurationScopes[key];
 		const extensionIdText = extensionId ? `[${extensionId.value}] ` : '';
 		if (ConfigurationScope.RESOURCE === scope) {

@@ -361,4 +361,44 @@ suite('SnippetController2', function () {
 		assertSelections(editor, new Selection(1, 7, 1, 7));
 		assertContextKeys(contextKeys, false, false, false);
 	});
+
+	test('Cancelling snippet mode should discard added cursors #68512 (soft cancel)', function () {
+		const ctrl = new SnippetController2(editor, logService, contextKeys);
+		model.setValue('');
+		editor.setSelection(new Selection(1, 1, 1, 1));
+
+		ctrl.insert('.REGION ${2:FUNCTION_NAME}\nCREATE.FUNCTION ${1:VOID} ${2:FUNCTION_NAME}(${3:})\n\t${4:}\nEND\n.ENDREGION$0');
+		assertSelections(editor, new Selection(2, 17, 2, 21));
+
+		ctrl.next();
+		assertSelections(editor, new Selection(1, 9, 1, 22), new Selection(2, 22, 2, 35));
+		assertContextKeys(contextKeys, true, true, true);
+
+		editor.setSelections([new Selection(1, 22, 1, 22), new Selection(2, 35, 2, 35)]);
+		assertContextKeys(contextKeys, true, true, true);
+
+		editor.setSelections([new Selection(2, 1, 2, 1), new Selection(2, 36, 2, 36)]);
+		assertContextKeys(contextKeys, false, false, false);
+		assertSelections(editor, new Selection(2, 1, 2, 1), new Selection(2, 36, 2, 36));
+	});
+
+	test('Cancelling snippet mode should discard added cursors #68512 (hard cancel)', function () {
+		const ctrl = new SnippetController2(editor, logService, contextKeys);
+		model.setValue('');
+		editor.setSelection(new Selection(1, 1, 1, 1));
+
+		ctrl.insert('.REGION ${2:FUNCTION_NAME}\nCREATE.FUNCTION ${1:VOID} ${2:FUNCTION_NAME}(${3:})\n\t${4:}\nEND\n.ENDREGION$0');
+		assertSelections(editor, new Selection(2, 17, 2, 21));
+
+		ctrl.next();
+		assertSelections(editor, new Selection(1, 9, 1, 22), new Selection(2, 22, 2, 35));
+		assertContextKeys(contextKeys, true, true, true);
+
+		editor.setSelections([new Selection(1, 22, 1, 22), new Selection(2, 35, 2, 35)]);
+		assertContextKeys(contextKeys, true, true, true);
+
+		ctrl.cancel(true);
+		assertContextKeys(contextKeys, false, false, false);
+		assertSelections(editor, new Selection(1, 22, 1, 22));
+	});
 });

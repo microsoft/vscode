@@ -117,7 +117,7 @@ export class EditorBreadcrumbsModel {
 			info.path.unshift(new FileElement(uriPrefix, info.path.length === 0 ? FileKind.FILE : FileKind.FOLDER));
 			let prevPathLength = uriPrefix.path.length;
 			uriPrefix = dirname(uriPrefix);
-			if (!uriPrefix || uriPrefix.path.length === prevPathLength) {
+			if (uriPrefix.path.length === prevPathLength) {
 				break;
 			}
 		}

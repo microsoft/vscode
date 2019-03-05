@@ -14,18 +14,25 @@ configurationRegistry.registerConfiguration({
 	title: localize('updateConfigurationTitle', "Update"),
 	type: 'object',
 	properties: {
-		'update.channel': {
+		'update.mode': {
 			type: 'string',
 			enum: ['none', 'manual', 'default'],
 			default: 'default',
 			scope: ConfigurationScope.APPLICATION,
-			description: localize('updateChannel', "Configure whether you receive automatic updates from an update channel. Requires a restart after change. The updates are fetched from a Microsoft online service."),
+			description: localize('updateMode', "Configure whether you receive automatic updates. Requires a restart after change. The updates are fetched from a Microsoft online service."),
 			tags: ['usesOnlineServices'],
 			enumDescriptions: [
 				localize('none', "Disable updates."),
 				localize('manual', "Disable automatic background update checks. Updates will be available if you manually check for updates."),
 				localize('default', "Enable automatic update checks. Code will check for updates automatically and periodically.")
 			]
+		},
+		'update.channel': {
+			type: 'string',
+			default: 'default',
+			scope: ConfigurationScope.APPLICATION,
+			description: localize('updateMode', "Configure whether you receive automatic updates. Requires a restart after change. The updates are fetched from a Microsoft online service."),
+			deprecationMessage: localize('deprecated', "This setting is deprecated, please use '{0}' instead.", 'update.mode')
 		},
 		'update.enableWindowsBackgroundUpdates': {
 			type: 'boolean',

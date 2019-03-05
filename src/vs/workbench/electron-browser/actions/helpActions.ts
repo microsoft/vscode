@@ -5,61 +5,8 @@
 
 import { Action } from 'vs/base/common/actions';
 import * as nls from 'vs/nls';
-import product from 'vs/platform/node/product';
+import product from 'vs/platform/product/node/product';
 import { isMacintosh, isLinux, language } from 'vs/base/common/platform';
-import { IssueType } from 'vs/platform/issue/common/issue';
-import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
-
-export class OpenIssueReporterAction extends Action {
-	static readonly ID = 'workbench.action.openIssueReporter';
-	static readonly LABEL = nls.localize({ key: 'reportIssueInEnglish', comment: ['Translate this to "Report Issue in English" in all languages please!'] }, "Report Issue");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWorkbenchIssueService private readonly issueService: IWorkbenchIssueService
-	) {
-		super(id, label);
-	}
-
-	run(): Promise<boolean> {
-		return this.issueService.openReporter().then(() => true);
-	}
-}
-
-export class OpenProcessExplorer extends Action {
-	static readonly ID = 'workbench.action.openProcessExplorer';
-	static readonly LABEL = nls.localize('openProcessExplorer', "Open Process Explorer");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWorkbenchIssueService private readonly issueService: IWorkbenchIssueService
-	) {
-		super(id, label);
-	}
-
-	run(): Promise<boolean> {
-		return this.issueService.openProcessExplorer().then(() => true);
-	}
-}
-
-export class ReportPerformanceIssueUsingReporterAction extends Action {
-	static readonly ID = 'workbench.action.reportPerformanceIssueUsingReporter';
-	static readonly LABEL = nls.localize('reportPerformanceIssue', "Report Performance Issue");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWorkbenchIssueService private readonly issueService: IWorkbenchIssueService
-	) {
-		super(id, label);
-	}
-
-	run(): Promise<boolean> {
-		return this.issueService.openReporter({ issueType: IssueType.PerformanceIssue }).then(() => true);
-	}
-}
 
 export class KeybindingsReferenceAction extends Action {
 
@@ -161,7 +108,7 @@ export class OpenTwitterUrlAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<boolean> {
+	run(): Promise<void> {
 		if (product.twitterUrl) {
 			window.open(product.twitterUrl);
 		}
@@ -182,7 +129,7 @@ export class OpenRequestFeatureUrlAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<boolean> {
+	run(): Promise<void> {
 		if (product.requestFeatureUrl) {
 			window.open(product.requestFeatureUrl);
 		}
@@ -203,7 +150,7 @@ export class OpenLicenseUrlAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<boolean> {
+	run(): Promise<void> {
 		if (product.licenseUrl) {
 			if (language) {
 				const queryArgChar = product.licenseUrl.indexOf('?') > 0 ? '&' : '?';
@@ -229,7 +176,7 @@ export class OpenPrivacyStatementUrlAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<boolean> {
+	run(): Promise<void> {
 		if (product.privacyStatementUrl) {
 			if (language) {
 				const queryArgChar = product.privacyStatementUrl.indexOf('?') > 0 ? '&' : '?';

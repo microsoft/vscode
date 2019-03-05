@@ -33,25 +33,24 @@
 	border-right: 5px solid transparent;
 }
 
-.monaco-workbench .part.statusbar > .statusbar-item.left > :first-child {
-	margin-right: 5px;
+.monaco-workbench .part.statusbar > .statusbar-item.left > :first-child,
+.monaco-workbench .part.statusbar > .statusbar-item.right > :first-child
+{
+	margin-right: 3px;
+	margin-left: 3px;
 }
 
 .monaco-workbench .part.statusbar > .statusbar-item.right {
 	float: right;
 }
 
-.monaco-workbench .part.statusbar > .statusbar-item.right > :first-child {
-	margin-left: 5px;
-}
-
 /* adding padding to the most left status bar item */
 .monaco-workbench .part.statusbar > .statusbar-item.left:first-child, .monaco-workbench .part.statusbar > .statusbar-item.right + .statusbar-item.left {
-	padding-left: 10px;
+	padding-left: 7px;
 }
 /* adding padding to the most right status bar item */
 .monaco-workbench .part.statusbar > .statusbar-item.right:first-child {
-	padding-right: 10px;
+	padding-right: 7px;
 }
 
 .monaco-workbench .part.statusbar > .statusbar-item a {

@@ -42,8 +42,8 @@
 
 /* Windows/Linux: Rules for custom title (icon, window controls)  */
 
-.windows > .monaco-workbench .part.titlebar,
-.linux > .monaco-workbench .part.titlebar {
+.monaco-workbench.windows .part.titlebar,
+.monaco-workbench.linux .part.titlebar {
 	padding: 0;
 	height: 30px;
 	line-height: 30px;
@@ -51,17 +51,17 @@
 	overflow: visible;
 }
 
-.windows > .monaco-workbench .part.titlebar > .window-title,
-.linux > .monaco-workbench .part.titlebar > .window-title {
+.monaco-workbench.windows .part.titlebar > .window-title,
+.monaco-workbench.linux .part.titlebar > .window-title {
 	cursor: default;
 }
 
-.linux > .monaco-workbench .part.titlebar > .window-title {
+.monaco-workbench.linux .part.titlebar > .window-title {
 	font-size: inherit;
 }
 
-.windows > .monaco-workbench .part.titlebar > .resizer,
-.linux > .monaco-workbench .part.titlebar > .resizer {
+.monaco-workbench.windows .part.titlebar > .resizer,
+.monaco-workbench.linux .part.titlebar > .resizer {
 	-webkit-app-region: no-drag;
 	position: absolute;
 	top: 0;
@@ -69,17 +69,16 @@
 	height: 20%;
 }
 
-.windows > .monaco-workbench.fullscreen .part.titlebar > .resizer,
-.linux > .monaco-workbench.fullscreen .part.titlebar > .resizer {
+.monaco-workbench.windows.fullscreen .part.titlebar > .resizer,
+.monaco-workbench.linux.fullscreen .part.titlebar > .resizer {
 	display: none;
 }
-
 
 .monaco-workbench .part.titlebar > .window-appicon {
 	width: 35px;
 	height: 100%;
 	position: relative;
-	z-index: 99;
+	z-index: 3000;
 	background-image: url('code-icon.svg');
 	background-repeat: no-repeat;
 	background-position: center center;
@@ -97,7 +96,7 @@
 	flex-shrink: 0;
 	text-align: center;
 	position: relative;
-	z-index: 99;
+	z-index: 3000;
 	-webkit-app-region: no-drag;
 	height: 100%;
 	width: 138px;

@@ -226,6 +226,50 @@ suite('Map', () => {
 		});
 	});
 
+	test('LinkedMap - delete Head and Tail', function () {
+		const map = new LinkedMap<string, number>();
+
+		assert.equal(map.size, 0);
+
+		map.set('1', 1);
+		assert.equal(map.size, 1);
+		map.delete('1');
+		assert.equal(map.get('1'), undefined);
+		assert.equal(map.size, 0);
+		assert.equal(map.keys().length, 0);
+	});
+
+	test('LinkedMap - delete Head', function () {
+		const map = new LinkedMap<string, number>();
+
+		assert.equal(map.size, 0);
+
+		map.set('1', 1);
+		map.set('2', 2);
+		assert.equal(map.size, 2);
+		map.delete('1');
+		assert.equal(map.get('2'), 2);
+		assert.equal(map.size, 1);
+		assert.equal(map.keys().length, 1);
+		assert.equal(map.keys()[0], 2);
+	});
+
+	test('LinkedMap - delete Tail', function () {
+		const map = new LinkedMap<string, number>();
+
+		assert.equal(map.size, 0);
+
+		map.set('1', 1);
+		map.set('2', 2);
+		assert.equal(map.size, 2);
+		map.delete('2');
+		assert.equal(map.get('1'), 1);
+		assert.equal(map.size, 1);
+		assert.equal(map.keys().length, 1);
+		assert.equal(map.keys()[0], 1);
+	});
+
+
 	test('PathIterator', () => {
 		const iter = new PathIterator();
 		iter.reset('file:///usr/bin/file.txt');

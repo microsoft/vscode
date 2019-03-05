@@ -67,8 +67,8 @@ export interface IStorageService {
 	 * The scope argument allows to define the scope of the storage
 	 * operation to either the current workspace only or all workspaces.
 	 */
-	getInteger(key: string, scope: StorageScope, fallbackValue: number): number;
-	getInteger(key: string, scope: StorageScope, fallbackValue?: number): number | undefined;
+	getNumber(key: string, scope: StorageScope, fallbackValue: number): number;
+	getNumber(key: string, scope: StorageScope, fallbackValue?: number): number | undefined;
 
 	/**
 	 * Store a value under the given key to storage. The value will be converted to a string.
@@ -108,7 +108,7 @@ export interface IWorkspaceStorageChangeEvent {
 export class InMemoryStorageService extends Disposable implements IStorageService {
 	_serviceBrand = undefined;
 
-	private _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
+	private readonly _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
 	get onDidChangeStorage(): Event<IWorkspaceStorageChangeEvent> { return this._onDidChangeStorage.event; }
 
 	readonly onWillSaveState = Event.None;
@@ -142,8 +142,8 @@ export class InMemoryStorageService extends Disposable implements IStorageServic
 		return value === 'true';
 	}
 
-	getInteger(key: string, scope: StorageScope, fallbackValue: number): number;
-	getInteger(key: string, scope: StorageScope, fallbackValue?: number): number | undefined {
+	getNumber(key: string, scope: StorageScope, fallbackValue: number): number;
+	getNumber(key: string, scope: StorageScope, fallbackValue?: number): number | undefined {
 		const value = this.getCache(scope).get(key);
 
 		if (isUndefinedOrNull(value)) {

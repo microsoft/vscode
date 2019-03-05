@@ -152,9 +152,13 @@ async function publish(commit: string, quality: string, platform: string, type: 
 
 	const queuedBy = process.env['BUILD_QUEUEDBY']!;
 	const sourceBranch = process.env['BUILD_SOURCEBRANCH']!;
-	const isReleased = quality === 'insider'
-		&& /^master$|^refs\/heads\/master$/.test(sourceBranch)
-		&& /Project Collection Service Accounts|Microsoft.VisualStudio.Services.TFS/.test(queuedBy);
+	const isReleased = (
+		// Insiders: nightly build from master
+		(quality === 'insider' && /^master$|^refs\/heads\/master$/.test(sourceBranch) && /Project Collection Service Accounts|Microsoft.VisualStudio.Services.TFS/.test(queuedBy)) ||
+
+		// Exploration: any build from electron-4.0.x branch
+		(quality === 'exploration' && /^electron-4.0.x$|^refs\/heads\/electron-4.0.x$/.test(sourceBranch))
+	);
 
 	console.log('Publishing...');
 	console.log('Quality:', quality);

@@ -7,6 +7,8 @@
 'use strict';
 
 const perf = require('./vs/base/common/performance');
+const lp = require('./vs/base/node/languagePacks');
+
 perf.mark('main:started');
 
 const fs = require('fs');
@@ -57,9 +59,11 @@ registerListeners();
  */
 let nlsConfiguration = undefined;
 const userDefinedLocale = getUserDefinedLocale();
-userDefinedLocale.then((locale) => {
+const metaDataFile = path.join(__dirname, 'nls.metadata.json');
+
+userDefinedLocale.then(locale => {
 	if (locale && !nlsConfiguration) {
-		nlsConfiguration = getNLSConfiguration(locale);
+		nlsConfiguration = lp.getNLSConfiguration(product.commit, userDataPath, metaDataFile, locale);
 	}
 });
 
@@ -89,7 +93,7 @@ function onReady() {
 
 	Promise.all([nodeCachedDataDir.ensureExists(), userDefinedLocale]).then(([cachedDataDir, locale]) => {
 		if (locale && !nlsConfiguration) {
-			nlsConfiguration = getNLSConfiguration(locale);
+			nlsConfiguration = lp.getNLSConfiguration(product.commit, userDataPath, metaDataFile, locale);
 		}
 
 		if (!nlsConfiguration) {
@@ -98,7 +102,7 @@ function onReady() {
 
 		// First, we need to test a user defined locale. If it fails we try the app locale.
 		// If that fails we fall back to English.
-		nlsConfiguration.then((nlsConfig) => {
+		nlsConfiguration.then(nlsConfig => {
 
 			const startup = nlsConfig => {
 				nlsConfig._languagePackSupport = true;
@@ -129,7 +133,7 @@ function onReady() {
 					// See above the comment about the loader and case sensitiviness
 					appLocale = appLocale.toLowerCase();
 
-					getNLSConfiguration(appLocale).then((nlsConfig) => {
+					lp.getNLSConfiguration(product.commit, userDataPath, metaDataFile, appLocale).then(nlsConfig => {
 						if (!nlsConfig) {
 							nlsConfig = { locale: appLocale, availableLanguages: {} };
 						}
@@ -151,7 +155,7 @@ function onReady() {
 function configureCommandlineSwitches(cliArgs, nodeCachedDataDir) {
 
 	// Force pre-Chrome-60 color profile handling (for https://github.com/Microsoft/vscode/issues/51791)
-	app.commandLine.appendSwitch('disable-features', 'ColorCorrectRendering');
+	app.commandLine.appendSwitch('disable-color-correct-rendering');
 
 	// Support JS Flags
 	const jsFlags = resolveJSFlags(cliArgs, nodeCachedDataDir.jsFlags());
@@ -275,7 +279,7 @@ function getNodeCachedDir() {
 		}
 
 		ensureExists() {
-			return mkdirp(this.value).then(() => this.value, () => { /*ignore*/ });
+			return bootstrap.mkdirp(this.value).then(() => this.value, () => { /*ignore*/ });
 		}
 
 		_compute() {
@@ -305,7 +309,7 @@ function getNodeCachedDir() {
  * @returns {string}
  */
 function stripComments(content) {
-	const regexp = /("(?:[^\\\"]*(?:\\.)?)*")|('(?:[^\\\']*(?:\\.)?)*')|(\/\*(?:\r?\n|.)*?\*\/)|(\/{2,}.*?(?:(?:\r?\n)|$))/g;
+	const regexp = /("(?:[^\\"]*(?:\\.)?)*")|('(?:[^\\']*(?:\\.)?)*')|(\/\*(?:\r?\n|.)*?\*\/)|(\/{2,}.*?(?:(?:\r?\n)|$))/g;
 
 	return content.replace(regexp, function (match, m1, m2, m3, m4) {
 		// Only one of m1, m2, m3, m4 matches
@@ -328,101 +332,6 @@ function stripComments(content) {
 	});
 }
 
-/**
- * @param {string} dir
- * @returns {Promise<string>}
- */
-function mkdir(dir) {
-	return new Promise((c, e) => fs.mkdir(dir, err => (err && err.code !== 'EEXIST') ? e(err) : c(dir)));
-}
-
-/**
- * @param {string} file
- * @returns {Promise<boolean>}
- */
-function exists(file) {
-	return new Promise(c => fs.exists(file, c));
-}
-
-/**
- * @param {string} file
- * @returns {Promise<void>}
- */
-function touch(file) {
-	return new Promise((c, e) => { const d = new Date(); fs.utimes(file, d, d, err => err ? e(err) : c()); });
-}
-
-/**
- * @param {string} file
- * @returns {Promise<object>}
- */
-function lstat(file) {
-	return new Promise((c, e) => fs.lstat(file, (err, stats) => err ? e(err) : c(stats)));
-}
-
-/**
- * @param {string} dir
- * @returns {Promise<string[]>}
- */
-function readdir(dir) {
-	return new Promise((c, e) => fs.readdir(dir, (err, files) => err ? e(err) : c(files)));
-}
-
-/**
- * @param {string} dir
- * @returns {Promise<void>}
- */
-function rmdir(dir) {
-	return new Promise((c, e) => fs.rmdir(dir, err => err ? e(err) : c(undefined)));
-}
-
-/**
- * @param {string} file
- * @returns {Promise<void>}
- */
-function unlink(file) {
-	return new Promise((c, e) => fs.unlink(file, err => err ? e(err) : c(undefined)));
-}
-
-/**
- * @param {string} dir
- * @returns {Promise<string>}
- */
-function mkdirp(dir) {
-	return mkdir(dir).then(null, err => {
-		if (err && err.code === 'ENOENT') {
-			const parent = path.dirname(dir);
-
-			if (parent !== dir) { // if not arrived at root
-				return mkdirp(parent).then(() => mkdir(dir));
-			}
-		}
-
-		throw err;
-	});
-}
-
-/**
- * @param {string} location
- * @returns {Promise<void>}
- */
-function rimraf(location) {
-	return lstat(location).then(stat => {
-		if (stat.isDirectory() && !stat.isSymbolicLink()) {
-			return readdir(location)
-				.then(children => Promise.all(children.map(child => rimraf(path.join(location, child)))))
-				.then(() => rmdir(location));
-		} else {
-			return unlink(location);
-		}
-	}, err => {
-		if (err.code === 'ENOENT') {
-			return undefined;
-		}
-		throw err;
-	});
-}
-
 // Language tags are case insensitive however an amd loader is case sensitive
 // To make this work on case preserving & insensitive FS we do the following:
 // the language bundles have lower case language tags and we always lower case
@@ -437,7 +346,7 @@ function getUserDefinedLocale() {
 	}
 
 	const localeConfig = path.join(userDataPath, 'User', 'locale.json');
-	return bootstrap.readFile(localeConfig).then((content) => {
+	return bootstrap.readFile(localeConfig).then(content => {
 		content = stripComments(content);
 		try {
 			const value = JSON.parse(content).locale;
@@ -448,176 +357,5 @@ function getUserDefinedLocale() {
 	}, () => {
 		return undefined;
 	});
-}
-
-/**
- * @returns {object}
- */
-function getLanguagePackConfigurations() {
-	const configFile = path.join(userDataPath, 'languagepacks.json');
-	try {
-		return require(configFile);
-	} catch (err) {
-		// Do nothing. If we can't read the file we have no
-		// language pack config.
-	}
-	return undefined;
-}
-
-/**
- * @param {object} config
- * @param {string} locale
- */
-function resolveLanguagePackLocale(config, locale) {
-	try {
-		while (locale) {
-			if (config[locale]) {
-				return locale;
-			} else {
-				const index = locale.lastIndexOf('-');
-				if (index > 0) {
-					locale = locale.substring(0, index);
-				} else {
-					return undefined;
-				}
-			}
-		}
-	} catch (err) {
-		console.error('Resolving language pack configuration failed.', err);
-	}
-	return undefined;
-}
-
-/**
- * @param {string} locale
- */
-function getNLSConfiguration(locale) {
-	if (locale === 'pseudo') {
-		return Promise.resolve({ locale: locale, availableLanguages: {}, pseudo: true });
-	}
-
-	if (process.env['VSCODE_DEV']) {
-		return Promise.resolve({ locale: locale, availableLanguages: {} });
-	}
-
-	// We have a built version so we have extracted nls file. Try to find
-	// the right file to use.
-
-	// Check if we have an English or English US locale. If so fall to default since that is our
-	// English translation (we don't ship *.nls.en.json files)
-	if (locale && (locale === 'en' || locale === 'en-us')) {
-		return Promise.resolve({ locale: locale, availableLanguages: {} });
-	}
-
-	const initialLocale = locale;
-
-	perf.mark('nlsGeneration:start');
-
-	const defaultResult = function (locale) {
-		perf.mark('nlsGeneration:end');
-		return Promise.resolve({ locale: locale, availableLanguages: {} });
-	};
-	try {
-		const commit = product.commit;
-		if (!commit) {
-			return defaultResult(initialLocale);
-		}
-		const configs = getLanguagePackConfigurations();
-		if (!configs) {
-			return defaultResult(initialLocale);
-		}
-		locale = resolveLanguagePackLocale(configs, locale);
-		if (!locale) {
-			return defaultResult(initialLocale);
-		}
-		const packConfig = configs[locale];
-		let mainPack;
-		if (!packConfig || typeof packConfig.hash !== 'string' || !packConfig.translations || typeof (mainPack = packConfig.translations['vscode']) !== 'string') {
-			return defaultResult(initialLocale);
-		}
-		return exists(mainPack).then((fileExists) => {
-			if (!fileExists) {
-				return defaultResult(initialLocale);
-			}
-			const packId = packConfig.hash + '.' + locale;
-			const cacheRoot = path.join(userDataPath, 'clp', packId);
-			const coreLocation = path.join(cacheRoot, commit);
-			const translationsConfigFile = path.join(cacheRoot, 'tcf.json');
-			const corruptedFile = path.join(cacheRoot, 'corrupted.info');
-			const result = {
-				locale: initialLocale,
-				availableLanguages: { '*': locale },
-				_languagePackId: packId,
-				_translationsConfigFile: translationsConfigFile,
-				_cacheRoot: cacheRoot,
-				_resolvedLanguagePackCoreLocation: coreLocation,
-				_corruptedFile: corruptedFile
-			};
-			return exists(corruptedFile).then((corrupted) => {
-				// The nls cache directory is corrupted.
-				let toDelete;
-				if (corrupted) {
-					toDelete = rimraf(cacheRoot);
-				} else {
-					toDelete = Promise.resolve(undefined);
-				}
-				return toDelete.then(() => {
-					return exists(coreLocation).then((fileExists) => {
-						if (fileExists) {
-							// We don't wait for this. No big harm if we can't touch
-							touch(coreLocation).catch(() => { });
-							perf.mark('nlsGeneration:end');
-							return result;
-						}
-						return mkdirp(coreLocation).then(() => {
-							return Promise.all([bootstrap.readFile(path.join(__dirname, 'nls.metadata.json')), bootstrap.readFile(mainPack)]);
-						}).then((values) => {
-							const metadata = JSON.parse(values[0]);
-							const packData = JSON.parse(values[1]).contents;
-							const bundles = Object.keys(metadata.bundles);
-							const writes = [];
-							for (let bundle of bundles) {
-								const modules = metadata.bundles[bundle];
-								const target = Object.create(null);
-								for (let module of modules) {
-									const keys = metadata.keys[module];
-									const defaultMessages = metadata.messages[module];
-									const translations = packData[module];
-									let targetStrings;
-									if (translations) {
-										targetStrings = [];
-										for (let i = 0; i < keys.length; i++) {
-											const elem = keys[i];
-											const key = typeof elem === 'string' ? elem : elem.key;
-											let translatedMessage = translations[key];
-											if (translatedMessage === undefined) {
-												translatedMessage = defaultMessages[i];
-											}
-											targetStrings.push(translatedMessage);
-										}
-									} else {
-										targetStrings = defaultMessages;
-									}
-									target[module] = targetStrings;
-								}
-								writes.push(bootstrap.writeFile(path.join(coreLocation, bundle.replace(/\//g, '!') + '.nls.json'), JSON.stringify(target)));
-							}
-							writes.push(bootstrap.writeFile(translationsConfigFile, JSON.stringify(packConfig.translations)));
-							return Promise.all(writes);
-						}).then(() => {
-							perf.mark('nlsGeneration:end');
-							return result;
-						}).catch((err) => {
-							console.error('Generating translation files failed.', err);
-							return defaultResult(locale);
-						});
-					});
-				});
-			});
-		});
-	} catch (err) {
-		console.error('Generating translation files failed.', err);
-		return defaultResult(locale);
-	}
 }
 //#endregion

@@ -12,9 +12,9 @@ export const IConfigurationResolverService = createDecorator<IConfigurationResol
 export interface IConfigurationResolverService {
 	_serviceBrand: any;
 
-	resolve(folder: IWorkspaceFolder, value: string): string;
-	resolve(folder: IWorkspaceFolder, value: string[]): string[];
-	resolve(folder: IWorkspaceFolder, value: IStringDictionary<string>): IStringDictionary<string>;
+	resolve(folder: IWorkspaceFolder | undefined, value: string): string;
+	resolve(folder: IWorkspaceFolder | undefined, value: string[]): string[];
+	resolve(folder: IWorkspaceFolder | undefined, value: IStringDictionary<string>): IStringDictionary<string>;
 
 	/**
 	 * Recursively resolves all variables in the given config and returns a copy of it with substituted values.

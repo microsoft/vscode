@@ -16,6 +16,7 @@
 }
 
 .monaco-workbench .simple-find-part {
+	visibility: hidden;		/* Use visibility to maintain flex layout while hidden otherwise interferes with transition */
 	z-index: 10;
 	position: relative;
 	top: -45px;
@@ -27,15 +28,15 @@
 }
 
 .monaco-workbench .simple-find-part.visible {
+	visibility: visible;
+}
+
+.monaco-workbench .simple-find-part.visible-transition {
 	top: 0;
 }
 
 .monaco-workbench .simple-find-part .monaco-findInput {
 	flex: 1;
-}
-
-.monaco-workbench .simple-find-part .monaco-findInput .monaco-inputbox .wrapper .input {
-	width: 100% !important;
 }
 
 .monaco-workbench .simple-find-part .button {

@@ -10,19 +10,27 @@ require('events').EventEmitter.defaultMaxListeners = 100;
 
 const gulp = require('gulp');
 const util = require('./build/lib/util');
+const task = require('./build/lib/task');
 const path = require('path');
 const compilation = require('./build/lib/compilation');
+const { monacoTypecheckTask/* , monacoTypecheckWatchTask */ } = require('./build/gulpfile.editor');
+const { compileExtensionsTask, watchExtensionsTask } = require('./build/gulpfile.extensions');
 
 // Fast compile for development time
-gulp.task('compile-client', util.task.series(util.rimraf('out'), compilation.compileTask('src', 'out', false)));
-gulp.task('watch-client', util.task.series(util.rimraf('out'), compilation.watchTask('out', false)));
+const compileClientTask = task.define('compile-client', task.series(util.rimraf('out'), compilation.compileTask('src', 'out', false)));
+gulp.task(compileClientTask);
 
-// Default
-gulp.task('default', ['compile']);
+const watchClientTask = task.define('watch-client', task.series(util.rimraf('out'), compilation.watchTask('out', false)));
+gulp.task(watchClientTask);
 
 // All
-gulp.task('compile', ['monaco-typecheck', 'compile-client', 'compile-extensions']);
-gulp.task('watch', [/* 'monaco-typecheck-watch', */ 'watch-client', 'watch-extensions']);
+const compileTask = task.define('compile', task.parallel(monacoTypecheckTask, compileClientTask, compileExtensionsTask));
+gulp.task(compileTask);
+
+gulp.task(task.define('watch', task.parallel(/* monacoTypecheckWatchTask, */ watchClientTask, watchExtensionsTask)));
+
+// Default
+gulp.task('default', compileTask);
 
 process.on('unhandledRejection', (reason, p) => {
 	console.log('Unhandled Rejection at: Promise', p, 'reason:', reason);

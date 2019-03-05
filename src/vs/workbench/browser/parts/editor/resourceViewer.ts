@@ -27,7 +27,7 @@ export interface IResourceDescriptor {
 	readonly resource: URI;
 	readonly name: string;
 	readonly size: number;
-	readonly etag: string;
+	readonly etag?: string;
 	readonly mime: string;
 }
 

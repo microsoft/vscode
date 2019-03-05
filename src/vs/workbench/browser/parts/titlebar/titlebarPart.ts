@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/titlebarpart';
-import * as paths from 'vs/base/common/paths';
+import { dirname, posix } from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import { Part } from 'vs/workbench/browser/part';
 import { ITitleService, ITitleProperties } from 'vs/workbench/services/title/common/titleService';
@@ -35,10 +35,9 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ISerializableView } from 'vs/base/browser/ui/grid/grid';
 import { Parts } from 'vs/workbench/services/part/common/partService';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 export class TitlebarPart extends Part implements ITitleService, ISerializableView {
-
-	_serviceBrand: any;
 
 	private static readonly NLS_UNSUPPORTED = nls.localize('patchedWindowTitle', "[Unsupported]");
 	private static readonly NLS_USER_IS_ADMIN = isWindows ? nls.localize('userIsAdmin', "[Administrator]") : nls.localize('userIsSudo', "[Superuser]");
@@ -47,6 +46,20 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 	private static readonly TITLE_SEPARATOR = isMacintosh ? ' — ' : ' - '; // macOS uses special - separator
 
 	element: HTMLElement;
+
+	readonly minimumWidth: number = 0;
+	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
+	get minimumHeight(): number { return isMacintosh ? 22 / getZoomFactor() : (30 / (this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility') === 'hidden' ? getZoomFactor() : 1)); }
+	get maximumHeight(): number { return isMacintosh ? 22 / getZoomFactor() : (30 / (this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility') === 'hidden' ? getZoomFactor() : 1)); }
+
+	private _onDidChange = this._register(new Emitter<{ width: number, height: number }>());
+	get onDidChange(): Event<{ width: number, height: number }> { return this._onDidChange.event; }
+
+	private _onMenubarVisibilityChange = this._register(new Emitter<boolean>());
+	get onMenubarVisibilityChange(): Event<boolean> { return this._onMenubarVisibilityChange.event; }
+
+	_serviceBrand: any;
+
 	private title: HTMLElement;
 	private dragRegion: HTMLElement;
 	private windowControls: HTMLElement;
@@ -55,6 +68,7 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 	private menubarPart: MenubarControl;
 	private menubar: HTMLElement;
 	private resizer: HTMLElement;
+	private lastLayoutDimensions: Dimension;
 
 	private pendingTitle: string;
 	private representedFileName: string;
@@ -64,13 +78,7 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 	private properties: ITitleProperties;
 	private activeEditorListeners: IDisposable[];
 
-	minimumWidth: number = 0;
-	maximumWidth: number = Number.POSITIVE_INFINITY;
-	get minimumHeight(): number { return isMacintosh ? 22 / getZoomFactor() : (30 / (this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility') === 'hidden' ? getZoomFactor() : 1)); }
-	get maximumHeight(): number { return isMacintosh ? 22 / getZoomFactor() : (30 / (this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility') === 'hidden' ? getZoomFactor() : 1)); }
-
-	private _onDidChange = new Emitter<{ width: number; height: number; }>();
-	readonly onDidChange = this._onDidChange.event;
+	private titleUpdater: RunOnceScheduler = this._register(new RunOnceScheduler(() => this.doUpdateTitle(), 0));
 
 	constructor(
 		id: string,
@@ -98,10 +106,10 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 		this._register(this.windowService.onDidChangeFocus(focused => focused ? this.onFocus() : this.onBlur()));
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChanged(e)));
 		this._register(this.editorService.onDidActiveEditorChange(() => this.onActiveEditorChange()));
-		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.doUpdateTitle()));
-		this._register(this.contextService.onDidChangeWorkbenchState(() => this.doUpdateTitle()));
-		this._register(this.contextService.onDidChangeWorkspaceName(() => this.doUpdateTitle()));
-		this._register(this.labelService.onDidChangeFormatters(() => this.doUpdateTitle()));
+		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.titleUpdater.schedule()));
+		this._register(this.contextService.onDidChangeWorkbenchState(() => this.titleUpdater.schedule()));
+		this._register(this.contextService.onDidChangeWorkspaceName(() => this.titleUpdater.schedule()));
+		this._register(this.labelService.onDidChangeFormatters(() => this.titleUpdater.schedule()));
 	}
 
 	private onBlur(): void {
@@ -116,7 +124,7 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 
 	private onConfigurationChanged(event: IConfigurationChangeEvent): void {
 		if (event.affectsConfiguration('window.title')) {
-			this.doUpdateTitle();
+			this.titleUpdater.schedule();
 		}
 
 		if (event.affectsConfiguration('window.doubleClickIconToClose')) {
@@ -136,6 +144,8 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 			}
 
 			this.adjustTitleMarginToCenter();
+
+			this._onMenubarVisibilityChange.fire(visible);
 		}
 	}
 
@@ -149,10 +159,6 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 		}
 	}
 
-	onMenubarVisibilityChange(): Event<boolean> {
-		return this.menubarPart.onVisibilityChange;
-	}
-
 	private onActiveEditorChange(): void {
 
 		// Dispose old listeners
@@ -160,13 +166,13 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 		this.activeEditorListeners = [];
 
 		// Calculate New Window Title
-		this.doUpdateTitle();
+		this.titleUpdater.schedule();
 
 		// Apply listener for dirty and label changes
 		const activeEditor = this.editorService.activeEditor;
 		if (activeEditor instanceof EditorInput) {
-			this.activeEditorListeners.push(activeEditor.onDidChangeDirty(() => this.doUpdateTitle()));
-			this.activeEditorListeners.push(activeEditor.onDidChangeLabel(() => this.doUpdateTitle()));
+			this.activeEditorListeners.push(activeEditor.onDidChangeDirty(() => this.titleUpdater.schedule()));
+			this.activeEditorListeners.push(activeEditor.onDidChangeLabel(() => this.titleUpdater.schedule()));
 		}
 
 		// Represented File Name
@@ -202,7 +208,9 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 		}
 
 		if ((isWindows || isLinux) && this.title) {
-			this.adjustTitleMarginToCenter();
+			if (this.lastLayoutDimensions) {
+				this.updateLayout(this.lastLayoutDimensions);
+			}
 		}
 	}
 
@@ -232,7 +240,7 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 			this.properties.isAdmin = isAdmin;
 			this.properties.isPure = isPure;
 
-			this.doUpdateTitle();
+			this.titleUpdater.schedule();
 		}
 	}
 
@@ -258,7 +266,7 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 		const workspace = this.contextService.getWorkspace();
 
 		// Compute root
-		let root: URI;
+		let root: URI | undefined;
 		if (workspace.configuration) {
 			root = workspace.configuration;
 		} else if (workspace.folders.length) {
@@ -343,7 +351,7 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 		if (this.pendingTitle) {
 			this.title.innerText = this.pendingTitle;
 		} else {
-			this.doUpdateTitle();
+			this.titleUpdater.schedule();
 		}
 
 		// Maximize/Restore on doubleclick
@@ -487,8 +495,7 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 		const setting = this.configurationService.getValue('window.doubleClickIconToClose');
 		if (setting) {
 			this.appIcon.style['-webkit-app-region'] = 'no-drag';
-		}
-		else {
+		} else {
 			this.appIcon.style['-webkit-app-region'] = 'drag';
 		}
 	}
@@ -514,7 +521,7 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 		const actions: IAction[] = [];
 
 		if (this.representedFileName) {
-			const segments = this.representedFileName.split(paths.sep);
+			const segments = this.representedFileName.split(posix.sep);
 			for (let i = segments.length; i > 0; i--) {
 				const isFile = (i === segments.length);
 
@@ -523,16 +530,16 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 					pathOffset++; // for segments which are not the file name we want to open the folder
 				}
 
-				const path = segments.slice(0, pathOffset).join(paths.sep);
+				const path = segments.slice(0, pathOffset).join(posix.sep);
 
 				let label: string;
 				if (!isFile) {
-					label = getBaseLabel(paths.dirname(path));
+					label = getBaseLabel(dirname(path));
 				} else {
 					label = getBaseLabel(path);
 				}
 
-				actions.push(new ShowItemInFolderAction(path, label || paths.sep, this.windowsService));
+				actions.push(new ShowItemInFolderAction(path, label || posix.sep, this.windowsService));
 			}
 		}
 
@@ -554,6 +561,8 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 	}
 
 	updateLayout(dimension: Dimension): void {
+		this.lastLayoutDimensions = dimension;
+
 		if (getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
 			// Only prevent zooming behavior on macOS or when the menubar is not visible
 			if (isMacintosh || this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility') === 'hidden') {

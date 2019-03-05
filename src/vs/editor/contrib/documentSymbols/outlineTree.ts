@@ -4,178 +4,141 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
+import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { IDataSource, ITreeNode, ITreeRenderer, ITreeSorter } from 'vs/base/browser/ui/tree/tree';
 import { values } from 'vs/base/common/collections';
-import { createMatches } from 'vs/base/common/filters';
-import { IDataSource, IFilter, IRenderer, ISorter, ITree } from 'vs/base/parts/tree/browser/tree';
+import { createMatches, FuzzyScore } from 'vs/base/common/filters';
 import 'vs/css!./media/outlineTree';
 import 'vs/css!./media/symbol-icons';
 import { Range } from 'vs/editor/common/core/range';
 import { SymbolKind, symbolKindToCssClass } from 'vs/editor/common/modes';
 import { OutlineElement, OutlineGroup, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { localize } from 'vs/nls';
+import { IKeybindingService, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
+import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { WorkbenchTreeController } from 'vs/platform/list/browser/listService';
+import { OutlineConfigKeys } from 'vs/editor/contrib/documentSymbols/outline';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
 
-export const enum OutlineItemCompareType {
-	ByPosition,
-	ByName,
-	ByKind
-}
+export type OutlineItem = OutlineGroup | OutlineElement;
 
-export class OutlineItemComparator implements ISorter {
+export class OutlineNavigationLabelProvider implements IKeyboardNavigationLabelProvider<OutlineItem> {
 
-	constructor(
-		public type: OutlineItemCompareType = OutlineItemCompareType.ByPosition
-	) { }
+	constructor(@IKeybindingService private readonly _keybindingService: IKeybindingService) { }
 
-	compare(tree: ITree, a: OutlineGroup | OutlineElement, b: OutlineGroup | OutlineElement): number {
-
-		if (a instanceof OutlineGroup && b instanceof OutlineGroup) {
-			return a.providerIndex - b.providerIndex;
+	getKeyboardNavigationLabel(element: OutlineItem): { toString(): string; } {
+		if (element instanceof OutlineGroup) {
+			return element.provider.displayName || element.id;
+		} else {
+			return element.symbol.name;
 		}
+	}
 
-		if (a instanceof OutlineElement && b instanceof OutlineElement) {
-			switch (this.type) {
-				case OutlineItemCompareType.ByKind:
-					return a.symbol.kind - b.symbol.kind;
-				case OutlineItemCompareType.ByName:
-					return a.symbol.name.localeCompare(b.symbol.name);
-				case OutlineItemCompareType.ByPosition:
-				default:
-					return Range.compareRangesUsingStarts(a.symbol.range, b.symbol.range);
-			}
-		}
-
-		return 0;
+	mightProducePrintableCharacter(event: IKeyboardEvent): boolean {
+		return this._keybindingService.mightProducePrintableCharacter(event);
 	}
 }
 
-export class OutlineItemFilter implements IFilter {
 
-	enabled: boolean = true;
-
-	isVisible(tree: ITree, element: OutlineElement | any): boolean {
-		if (!this.enabled) {
-			return true;
-		}
-		return !(element instanceof OutlineElement) || Boolean(element.score);
+export class OutlineIdentityProvider implements IIdentityProvider<OutlineItem> {
+	getId(element: TreeElement): { toString(): string; } {
+		return element.id;
 	}
 }
 
-export class OutlineDataSource implements IDataSource {
+export class OutlineGroupTemplate {
+	static id = 'OutlineGroupTemplate';
 
-	// this is a workaround for the tree showing twisties for items
-	// with only filtered children
-	filterOnScore: boolean = true;
-
-	getId(tree: ITree, element: TreeElement): string {
-		return element ? element.id : 'empty';
-	}
-
-	hasChildren(tree: ITree, element: OutlineModel | OutlineGroup | OutlineElement): boolean {
-		if (!element) {
-			return false;
-		}
-		if (element instanceof OutlineModel) {
-			return true;
-		}
-		if (element instanceof OutlineElement && (this.filterOnScore && !element.score)) {
-			return false;
-		}
-		for (const id in element.children) {
-			if (!this.filterOnScore || element.children[id].score) {
-				return true;
-			}
-		}
-		return false;
-	}
-
-	getChildren(tree: ITree, element: TreeElement): Promise<TreeElement[]> {
-		let res = values(element.children);
-		// console.log(element.id + ' with children ' + res.length);
-		return Promise.resolve(res);
-	}
-
-	getParent(tree: ITree, element: TreeElement | any): Promise<TreeElement> {
-		return Promise.resolve(element && element.parent);
-	}
-
-	shouldAutoexpand(tree: ITree, element: TreeElement): boolean {
-		return element && (element instanceof OutlineModel || element.parent instanceof OutlineModel || element instanceof OutlineGroup || element.parent instanceof OutlineGroup);
-	}
-}
-
-export interface OutlineTemplate {
 	labelContainer: HTMLElement;
 	label: HighlightedLabel;
-	icon?: HTMLElement;
-	detail?: HTMLElement;
-	decoration?: HTMLElement;
 }
 
-export class OutlineRenderer implements IRenderer {
+export class OutlineElementTemplate {
+	static id = 'OutlineElementTemplate';
+	container: HTMLElement;
+	iconLabel: IconLabel;
+	decoration: HTMLElement;
+}
 
-	renderProblemColors = true;
-	renderProblemBadges = true;
+export class OutlineVirtualDelegate implements IListVirtualDelegate<OutlineItem> {
 
-	constructor(
-		@IThemeService readonly _themeService: IThemeService,
-		@IConfigurationService readonly _configurationService: IConfigurationService
-	) {
-		//
-	}
-
-	getHeight(tree: ITree, element: any): number {
+	getHeight(_element: OutlineItem): number {
 		return 22;
 	}
 
-	getTemplateId(tree: ITree, element: OutlineGroup | OutlineElement): string {
-		return element instanceof OutlineGroup ? 'outline-group' : 'outline-element';
-	}
-
-	renderTemplate(tree: ITree, templateId: string, container: HTMLElement): OutlineTemplate {
-		if (templateId === 'outline-element') {
-			const icon = dom.$('.outline-element-icon symbol-icon');
-			const labelContainer = dom.$('.outline-element-label');
-			const detail = dom.$('.outline-element-detail');
-			const decoration = dom.$('.outline-element-decoration');
-			dom.addClass(container, 'outline-element');
-			dom.append(container, icon, labelContainer, detail, decoration);
-			return { icon, labelContainer, label: new HighlightedLabel(labelContainer, true), detail, decoration };
-		}
-		if (templateId === 'outline-group') {
-			const labelContainer = dom.$('.outline-element-label');
-			dom.addClass(container, 'outline-element');
-			dom.append(container, labelContainer);
-			return { labelContainer, label: new HighlightedLabel(labelContainer, true) };
-		}
-
-		throw new Error(templateId);
-	}
-
-	renderElement(tree: ITree, element: OutlineGroup | OutlineElement, templateId: string, template: OutlineTemplate): void {
-		if (element instanceof OutlineElement) {
-			template.icon.className = `outline-element-icon ${symbolKindToCssClass(element.symbol.kind)}`;
-			template.label.set(element.symbol.name, element.score ? createMatches(element.score) : undefined, localize('title.template', "{0} ({1})", element.symbol.name, OutlineRenderer._symbolKindNames[element.symbol.kind]));
-			template.detail.innerText = element.symbol.detail || '';
-			this._renderMarkerInfo(element, template);
-
-		}
+	getTemplateId(element: OutlineItem): string {
 		if (element instanceof OutlineGroup) {
-			template.label.set(element.provider.displayName || localize('provider', "Outline Provider"));
+			return OutlineGroupTemplate.id;
+		} else {
+			return OutlineElementTemplate.id;
 		}
 	}
+}
 
-	private _renderMarkerInfo(element: OutlineElement, template: OutlineTemplate): void {
+export class OutlineGroupRenderer implements ITreeRenderer<OutlineGroup, FuzzyScore, OutlineGroupTemplate> {
+
+	readonly templateId: string = OutlineGroupTemplate.id;
+
+	renderTemplate(container: HTMLElement): OutlineGroupTemplate {
+		const labelContainer = dom.$('.outline-element-label');
+		dom.addClass(container, 'outline-element');
+		dom.append(container, labelContainer);
+		return { labelContainer, label: new HighlightedLabel(labelContainer, true) };
+	}
+
+	renderElement(node: ITreeNode<OutlineGroup, FuzzyScore>, index: number, template: OutlineGroupTemplate): void {
+		template.label.set(
+			node.element.provider.displayName || localize('provider', "Outline Provider"),
+			createMatches(node.filterData)
+		);
+	}
+
+	disposeTemplate(_template: OutlineGroupTemplate): void {
+		// nothing
+	}
+}
+
+export class OutlineElementRenderer implements ITreeRenderer<OutlineElement, FuzzyScore, OutlineElementTemplate> {
+
+	readonly templateId: string = OutlineElementTemplate.id;
+
+	constructor(
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IThemeService private readonly _themeService: IThemeService,
+	) { }
+
+	renderTemplate(container: HTMLElement): OutlineElementTemplate {
+		dom.addClass(container, 'outline-element');
+		const iconLabel = new IconLabel(container, { supportHighlights: true });
+		const decoration = dom.$('.outline-element-decoration');
+		container.appendChild(decoration);
+		return { container, iconLabel, decoration };
+	}
+
+	renderElement(node: ITreeNode<OutlineElement, FuzzyScore>, index: number, template: OutlineElementTemplate): void {
+		const { element } = node;
+		const options = {
+			matches: createMatches(node.filterData),
+			labelEscapeNewLines: true,
+			extraClasses: <string[]>[],
+			title: localize('title.template', "{0} ({1})", element.symbol.name, OutlineElementRenderer._symbolKindNames[element.symbol.kind])
+		};
+		if (this._configurationService.getValue(OutlineConfigKeys.icons)) {
+			// add styles for the icons
+			options.extraClasses.push(`outline-element-icon ${symbolKindToCssClass(element.symbol.kind, true)}`);
+		}
+		template.iconLabel.setLabel(element.symbol.name, element.symbol.detail, options);
+		this._renderMarkerInfo(element, template);
+	}
+
+	private _renderMarkerInfo(element: OutlineElement, template: OutlineElementTemplate): void {
 
 		if (!element.marker) {
 			dom.hide(template.decoration);
-			template.labelContainer.style.removeProperty('--outline-element-color');
+			template.container.style.removeProperty('--outline-element-color');
 			return;
 		}
 
@@ -184,14 +147,14 @@ export class OutlineRenderer implements IRenderer {
 		const cssColor = color ? color.toString() : 'inherit';
 
 		// color of the label
-		if (this.renderProblemColors) {
-			template.labelContainer.style.setProperty('--outline-element-color', cssColor);
+		if (this._configurationService.getValue(OutlineConfigKeys.problemsColors)) {
+			template.container.style.setProperty('--outline-element-color', cssColor);
 		} else {
-			template.labelContainer.style.removeProperty('--outline-element-color');
+			template.container.style.removeProperty('--outline-element-color');
 		}
 
 		// badge with color/rollup
-		if (!this.renderProblemBadges) {
+		if (!this._configurationService.getValue(OutlineConfigKeys.problemsBadges)) {
 			dom.hide(template.decoration);
 
 		} else if (count > 0) {
@@ -239,77 +202,46 @@ export class OutlineRenderer implements IRenderer {
 		[SymbolKind.Variable]: localize('Variable', "variable"),
 	};
 
-	disposeTemplate(tree: ITree, templateId: string, template: OutlineTemplate): void {
-		// noop
+	disposeTemplate(_template: OutlineElementTemplate): void {
+		_template.iconLabel.dispose();
 	}
 }
 
-export class OutlineTreeState {
+export const enum OutlineSortOrder {
+	ByPosition,
+	ByName,
+	ByKind
+}
 
-	readonly selected: string;
-	readonly focused: string;
-	readonly expanded: string[];
+export class OutlineItemComparator implements ITreeSorter<OutlineItem> {
 
-	static capture(tree: ITree): OutlineTreeState {
-		// selection
-		let selected: string;
-		let element = tree.getSelection()[0];
-		if (element instanceof TreeElement) {
-			selected = element.id;
-		}
+	constructor(
+		public type: OutlineSortOrder = OutlineSortOrder.ByPosition
+	) { }
 
-		// focus
-		let focused: string;
-		element = tree.getFocus(true);
-		if (element instanceof TreeElement) {
-			focused = element.id;
-		}
+	compare(a: OutlineItem, b: OutlineItem): number {
+		if (a instanceof OutlineGroup && b instanceof OutlineGroup) {
+			return a.providerIndex - b.providerIndex;
 
-		// expansion
-		let expanded = new Array<string>();
-		let nav = tree.getNavigator();
-		while (nav.next()) {
-			let element = nav.current();
-			if (element instanceof TreeElement) {
-				if (tree.isExpanded(element)) {
-					expanded.push(element.id);
-				}
+		} else if (a instanceof OutlineElement && b instanceof OutlineElement) {
+			if (this.type === OutlineSortOrder.ByKind) {
+				return a.symbol.kind - b.symbol.kind || a.symbol.name.localeCompare(b.symbol.name);
+			} else if (this.type === OutlineSortOrder.ByName) {
+				return a.symbol.name.localeCompare(b.symbol.name) || Range.compareRangesUsingStarts(a.symbol.range, b.symbol.range);
+			} else if (this.type === OutlineSortOrder.ByPosition) {
+				return Range.compareRangesUsingStarts(a.symbol.range, b.symbol.range) || a.symbol.name.localeCompare(b.symbol.name);
 			}
 		}
-		return { selected, focused, expanded };
-	}
-
-	static async restore(tree: ITree, state: OutlineTreeState, eventPayload: any): Promise<void> {
-		let model = <OutlineModel>tree.getInput();
-		if (!state || !(model instanceof OutlineModel)) {
-			return Promise.resolve(undefined);
-		}
-
-		// expansion
-		let items: TreeElement[] = [];
-		for (const id of state.expanded) {
-			let item = model.getItemById(id);
-			if (item) {
-				items.push(item);
-			}
-		}
-		await tree.collapseAll(undefined);
-		await tree.expandAll(items);
-
-		// selection & focus
-		let selected = model.getItemById(state.selected);
-		let focused = model.getItemById(state.focused);
-		tree.setSelection([selected], eventPayload);
-		tree.setFocus(focused, eventPayload);
+		return 0;
 	}
 }
 
-export class OutlineController extends WorkbenchTreeController {
-	protected shouldToggleExpansion(element: any, event: IMouseEvent, origin: string): boolean {
-		if (element instanceof OutlineElement) {
-			return this.isClickOnTwistie(event);
-		} else {
-			return super.shouldToggleExpansion(element, event, origin);
+export class OutlineDataSource implements IDataSource<OutlineModel, OutlineItem> {
+
+	getChildren(element: undefined | OutlineModel | OutlineGroup | OutlineElement): OutlineItem[] {
+		if (!element) {
+			return [];
 		}
+		return values(element.children);
 	}
 }

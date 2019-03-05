@@ -79,7 +79,7 @@ suite('SmartSelect', () => {
 	async function assertGetRangesToPosition(text: string[], lineNumber: number, column: number, ranges: Range[]): Promise<void> {
 		let uri = URI.file('test.js');
 		let model = modelService.createModel(text.join('\n'), new StaticLanguageSelector(mode.getLanguageIdentifier()), uri);
-		let actual = await provideSelectionRanges(model, new Position(lineNumber, column), CancellationToken.None);
+		let [actual] = await provideSelectionRanges(model, [new Position(lineNumber, column)], CancellationToken.None);
 		let actualStr = actual!.map(r => new Range(r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn).toString());
 		let desiredStr = ranges.reverse().map(r => String(r));
 
@@ -203,7 +203,9 @@ suite('SmartSelect', () => {
 
 		let model = modelService.createModel(value, new StaticLanguageSelector(mode.getLanguageIdentifier()), URI.parse('fake:lang'));
 		let pos = model.getPositionAt(value.indexOf('|'));
-		let ranges = await provider.provideSelectionRanges(model, pos, CancellationToken.None);
+		let all = await provider.provideSelectionRanges(model, [pos], CancellationToken.None);
+		let ranges = all![0];
+
 		modelService.destroyModel(model.uri);
 
 		assert.equal(expected.length, ranges!.length);

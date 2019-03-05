@@ -31,7 +31,7 @@ function writeFile(filePath: string, contents: Buffer | string): void {
 }
 
 export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: string }): void {
-	const tsConfig = JSON.parse(fs.readFileSync(path.join(options.sourcesRoot, 'tsconfig.json')).toString());
+	const tsConfig = JSON.parse(fs.readFileSync(path.join(options.sourcesRoot, 'tsconfig.monaco.json')).toString());
 	let compilerOptions: { [key: string]: any };
 	if (tsConfig.extends) {
 		compilerOptions = Object.assign({}, require(path.join(options.sourcesRoot, tsConfig.extends)).compilerOptions, tsConfig.compilerOptions);
@@ -40,14 +40,12 @@ export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: str
 	}
 	tsConfig.compilerOptions = compilerOptions;
 
+	compilerOptions.noEmit = false;
 	compilerOptions.noUnusedLocals = false;
 	compilerOptions.preserveConstEnums = false;
 	compilerOptions.declaration = false;
 	compilerOptions.moduleResolution = ts.ModuleResolutionKind.Classic;
 
-	delete compilerOptions.types;
-	delete tsConfig.extends;
-	tsConfig.exclude = [];
 
 	options.compilerOptions = compilerOptions;
 

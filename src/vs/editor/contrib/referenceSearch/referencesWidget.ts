@@ -400,11 +400,22 @@ export class ReferenceWidget extends PeekViewWidget {
 			if (e.browserEvent instanceof KeyboardEvent) {
 				// todo@joh make this a command
 				goto = true;
-
 			} else if (e.browserEvent instanceof MouseEvent) {
 				aside = e.browserEvent.ctrlKey || e.browserEvent.metaKey || e.browserEvent.altKey;
 				goto = e.browserEvent.detail === 2;
 			}
+			if (aside) {
+				onEvent(e.elements[0], 'side');
+			} else if (goto) {
+				onEvent(e.elements[0], 'goto');
+			} else {
+				onEvent(e.elements[0], 'show');
+			}
+		});
+		this._tree.onDidOpen(e => {
+			const aside = (e.browserEvent instanceof MouseEvent) && (e.browserEvent.ctrlKey || e.browserEvent.metaKey || e.browserEvent.altKey);
+			const goto = !e.browserEvent || ((e.browserEvent instanceof MouseEvent) && e.browserEvent.detail === 2);
+
 			if (aside) {
 				onEvent(e.elements[0], 'side');
 			} else if (goto) {
@@ -461,14 +472,14 @@ export class ReferenceWidget extends PeekViewWidget {
 		});
 	}
 
-	public setModel(newModel: ReferencesModel | undefined): Promise<any> | undefined {
+	public setModel(newModel: ReferencesModel | undefined): Promise<any> {
 		// clean up
 		this._disposeOnNewModel = dispose(this._disposeOnNewModel);
 		this._model = newModel;
 		if (this._model) {
 			return this._onNewModel();
 		}
-		return undefined;
+		return Promise.resolve();
 	}
 
 	private _onNewModel(): Promise<any> {
@@ -488,7 +499,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		this._disposeOnNewModel.push(this._decorationsManager);
 
 		// listen on model changes
-		this._disposeOnNewModel.push(this._model.onDidChangeReferenceRange(reference => this._tree.refresh(reference)));
+		this._disposeOnNewModel.push(this._model.onDidChangeReferenceRange(reference => this._tree.rerender(reference)));
 
 		// listen on editor
 		this._disposeOnNewModel.push(this._preview.onMouseDown(e => {
@@ -543,7 +554,7 @@ export class ReferenceWidget extends PeekViewWidget {
 
 		// Update widget header
 		if (reference.uri.scheme !== Schemas.inMemory) {
-			this.setTitle(basenameOrAuthority(reference.uri), this._uriLabel.getUriLabel(dirname(reference.uri)!));
+			this.setTitle(basenameOrAuthority(reference.uri), this._uriLabel.getUriLabel(dirname(reference.uri)));
 		} else {
 			this.setTitle(nls.localize('peekView.alternateTitle', "References"));
 		}

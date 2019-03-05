@@ -175,7 +175,7 @@ connection.onDidChangeConfiguration((change) => {
 		const enableFormatter = globalSettings && globalSettings.html && globalSettings.html.format && globalSettings.html.format.enable;
 		if (enableFormatter) {
 			if (!formatterRegistration) {
-				const documentSelector: DocumentSelector = [{ language: 'html' }, { language: 'handlebars' }]; // don't register razor, the formatter does more harm than good
+				const documentSelector: DocumentSelector = [{ language: 'html' }, { language: 'handlebars' }];
 				formatterRegistration = connection.client.register(DocumentRangeFormattingRequest.type, { documentSelector });
 			}
 		} else if (formatterRegistration) {
@@ -455,15 +455,15 @@ connection.onFoldingRanges((params, token) => {
 	}, null, `Error while computing folding regions for ${params.textDocument.uri}`, token);
 });
 
-connection.onRequest('$/textDocument/selectionRange', async (params, token) => {
+connection.onRequest('$/textDocument/selectionRanges', async (params, token) => {
 	return runSafe(() => {
 		const document = documents.get(params.textDocument.uri);
-		const position: Position = params.position;
+		const positions: Position[] = params.positions;
 
 		if (document) {
 			const htmlMode = languageModes.getMode('html');
-			if (htmlMode && htmlMode.doSelection) {
-				return htmlMode.doSelection(document, position);
+			if (htmlMode && htmlMode.getSelectionRanges) {
+				return htmlMode.getSelectionRanges(document, positions);
 			}
 		}
 		return Promise.resolve(null);

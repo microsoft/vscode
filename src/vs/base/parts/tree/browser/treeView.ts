@@ -1286,8 +1286,8 @@ export class TreeView extends HeightMap {
 				element = this.model!.getInput();
 				position = DOM.getDomNodePagePosition(this.inputItem.element);
 			} else {
-				let id = this.context.dataSource.getId(this.context.tree, element);
-				let viewItem = this.items[id];
+				const id = this.context.dataSource.getId(this.context.tree, element);
+				const viewItem = this.items[id!];
 				position = DOM.getDomNodePagePosition(viewItem.element);
 			}
 
@@ -1422,6 +1422,8 @@ export class TreeView extends HeightMap {
 	}
 
 	private onDragOver(e: DragEvent): boolean {
+		e.preventDefault(); // needed so that the drop event fires (https://stackoverflow.com/questions/21339924/drop-event-not-firing-in-chrome)
+
 		let event = new Mouse.DragMouseEvent(e);
 
 		let viewItem = this.getItemAround(event.target);

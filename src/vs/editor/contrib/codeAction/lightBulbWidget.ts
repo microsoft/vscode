@@ -12,6 +12,8 @@ import 'vs/css!./lightBulbWidget';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { CodeActionsState } from './codeActionModel';
+import { CodeAction } from 'vs/editor/common/modes';
+import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
 
 export class LightBulbWidget extends Disposable implements IContentWidget {
 
@@ -127,7 +129,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		const selection = this._state.rangeOrSelection;
 		this._state.actions.then(fixes => {
 			if (!token.isCancellationRequested && fixes && fixes.length > 0 && selection) {
-				this._show();
+				this._show(fixes);
 			} else {
 				this.hide();
 			}
@@ -144,7 +146,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		return this._domNode.title;
 	}
 
-	private _show(): void {
+	private _show(codeActions: CodeAction[]): void {
 		const config = this._editor.getConfiguration();
 		if (!config.contribInfo.lightbulbEnabled) {
 			return;
@@ -184,6 +186,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			position: { lineNumber: effectiveLineNumber, column: 1 },
 			preference: LightBulbWidget._posPref
 		};
+		dom.toggleClass(this._domNode, 'autofixable', codeActions.some(fix => !!fix.kind && CodeActionKind.QuickFix.contains(new CodeActionKind(fix.kind)) && !!fix.isPreferred));
 		this._editor.layoutContentWidget(this);
 	}
 

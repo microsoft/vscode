@@ -60,6 +60,17 @@ export class TelemetryService implements ITelemetryService {
 				}
 			*/
 			this.publicLog('optInStatus', { optIn: this._userOptIn });
+
+			this._commonProperties.then(values => {
+				const isHashedId = /^[a-f0-9]+$/i.test(values['common.machineId']);
+
+				/* __GDPR__
+					"machineIdFallback" : {
+						"usingFallbackGuid" : { "classification": "SystemMetaData", "purpose": "BusinessInsight", "isMeasurement": true }
+					}
+				*/
+				this.publicLog('machineIdFallback', { usingFallbackGuid: !isHashedId });
+			});
 		}
 	}
 

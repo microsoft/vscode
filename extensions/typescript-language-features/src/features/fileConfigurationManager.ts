@@ -173,25 +173,25 @@ export default class FileConfigurationManager extends Disposable {
 			return {};
 		}
 
-		const preferences = vscode.workspace.getConfiguration(
+		const config = vscode.workspace.getConfiguration(
 			isTypeScriptDocument(document) ? 'typescript.preferences' : 'javascript.preferences',
 			document.uri);
 
 		return {
-			quotePreference: getQuoteStylePreference(preferences),
-			importModuleSpecifierPreference: getImportModuleSpecifierPreference(preferences),
+			quotePreference: this.getQuoteStylePreference(config),
+			importModuleSpecifierPreference: getImportModuleSpecifierPreference(config),
 			allowTextChangesInNewFiles: document.uri.scheme === 'file',
-			providePrefixAndSuffixTextForRename: true,
+			providePrefixAndSuffixTextForRename: config.get<boolean>('renameShorthandProperties', true),
 			allowRenameOfImportPath: true,
 		};
 	}
-}
 
-function getQuoteStylePreference(config: vscode.WorkspaceConfiguration) {
-	switch (config.get<string>('quoteStyle')) {
-		case 'single': return 'single';
-		case 'double': return 'double';
-		default: return undefined;
+	private getQuoteStylePreference(config: vscode.WorkspaceConfiguration) {
+		switch (config.get<string>('quoteStyle')) {
+			case 'single': return 'single';
+			case 'double': return 'double';
+			default: return this.client.apiVersion.gte(API.v333) ? 'auto' : undefined;
+		}
 	}
 }
 

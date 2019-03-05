@@ -206,7 +206,7 @@ export class Resource implements SourceControlResourceState {
 			case Status.INDEX_ADDED:
 			case Status.INTENT_TO_ADD:
 				return new ThemeColor('gitDecoration.addedResourceForeground');
-			case Status.INDEX_RENAMED: // todo@joh - special color?
+			case Status.INDEX_RENAMED:
 			case Status.UNTRACKED:
 				return new ThemeColor('gitDecoration.untrackedResourceForeground');
 			case Status.IGNORED:
@@ -672,20 +672,6 @@ export class Repository implements Disposable {
 				threshold = inputValidationSubjectLength;
 			}
 		}
-
-
-
-
-
-
-
-
-
-
-		// const subjectThreshold =
-
-
-		// 	Math.max(config.get<number>('inputValidationLength') || 50, config.get<number>('subjectValidationLength') || 50, 0) || 50;
 
 		if (line.length <= threshold) {
 			if (setting !== 'always') {

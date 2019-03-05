@@ -12,7 +12,7 @@ import { Action } from 'vs/base/common/actions';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { localize } from 'vs/nls';
 import { mark, getDuration } from 'vs/base/common/performance';
-import { join } from 'path';
+import { join } from 'vs/base/common/path';
 import { copy, exists, mkdirp, writeFile } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceInitializationPayload, isWorkspaceIdentifier, isSingleFolderWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
@@ -24,10 +24,10 @@ export class StorageService extends Disposable implements IStorageService {
 	private static WORKSPACE_STORAGE_NAME = 'state.vscdb';
 	private static WORKSPACE_META_NAME = 'workspace.json';
 
-	private _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
+	private readonly _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
 	get onDidChangeStorage(): Event<IWorkspaceStorageChangeEvent> { return this._onDidChangeStorage.event; }
 
-	private _onWillSaveState: Emitter<IWillSaveStateEvent> = this._register(new Emitter<IWillSaveStateEvent>());
+	private readonly _onWillSaveState: Emitter<IWillSaveStateEvent> = this._register(new Emitter<IWillSaveStateEvent>());
 	get onWillSaveState(): Event<IWillSaveStateEvent> { return this._onWillSaveState.event; }
 
 	private globalStorage: IStorage;
@@ -35,6 +35,8 @@ export class StorageService extends Disposable implements IStorageService {
 	private workspaceStoragePath: string;
 	private workspaceStorage: IStorage;
 	private workspaceStorageListener: IDisposable;
+
+	private initializePromise: Promise<void>;
 
 	constructor(
 		globalStorageDatabase: IStorageDatabase,
@@ -53,6 +55,14 @@ export class StorageService extends Disposable implements IStorageService {
 	}
 
 	initialize(payload: IWorkspaceInitializationPayload): Promise<void> {
+		if (!this.initializePromise) {
+			this.initializePromise = this.doInitialize(payload);
+		}
+
+		return this.initializePromise;
+	}
+
+	private doInitialize(payload: IWorkspaceInitializationPayload): Promise<void> {
 		return Promise.all([
 			this.initializeGlobalStorage(),
 			this.initializeWorkspaceStorage(payload)
@@ -67,7 +77,7 @@ export class StorageService extends Disposable implements IStorageService {
 
 		// Prepare workspace storage folder for DB
 		return this.prepareWorkspaceStorageFolder(payload).then(result => {
-			const useInMemoryStorage = !!this.environmentService.extensionTestsPath; // no storage during extension tests!
+			const useInMemoryStorage = !!this.environmentService.extensionTestsLocationURI; // no storage during extension tests!
 
 			// Create workspace storage and initalize
 			mark('willInitWorkspaceStorage');
@@ -160,10 +170,10 @@ export class StorageService extends Disposable implements IStorageService {
 		return this.getStorage(scope).getBoolean(key, fallbackValue);
 	}
 
-	getInteger(key: string, scope: StorageScope, fallbackValue: number): number;
-	getInteger(key: string, scope: StorageScope): number | undefined;
-	getInteger(key: string, scope: StorageScope, fallbackValue?: number): number | undefined {
-		return this.getStorage(scope).getInteger(key, fallbackValue);
+	getNumber(key: string, scope: StorageScope, fallbackValue: number): number;
+	getNumber(key: string, scope: StorageScope): number | undefined;
+	getNumber(key: string, scope: StorageScope, fallbackValue?: number): number | undefined {
+		return this.getStorage(scope).getNumber(key, fallbackValue);
 	}
 
 	store(key: string, value: string | boolean | number, scope: StorageScope): void {
@@ -227,7 +237,7 @@ export class StorageService extends Disposable implements IStorageService {
 				workspaceItemsParsed.set(key, safeParse(value));
 			});
 
-			console.group(`Storage: Global (integrity: ${result[2]}, load: ${getDuration('main:willInitGlobalStorage', 'main:didInitGlobalStorage')}, path: ${this.environmentService.globalStorageHome})`);
+			console.group(`Storage: Global (integrity: ${result[2]}, path: ${this.environmentService.globalStorageHome})`);
 			let globalValues: { key: string, value: string }[] = [];
 			globalItems.forEach((value, key) => {
 				globalValues.push({ key, value });

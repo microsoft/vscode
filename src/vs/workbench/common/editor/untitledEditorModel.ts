@@ -38,7 +38,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 	constructor(
 		private modeId: string,
 		private resource: URI,
-		private hasAssociatedFilePath: boolean,
+		private _hasAssociatedFilePath: boolean,
 		private initialValue: string,
 		private preferredEncoding: string,
 		@IModeService modeService: IModeService,
@@ -54,6 +54,10 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 		this.contentChangeEventScheduler = this._register(new RunOnceScheduler(() => this._onDidChangeContent.fire(), UntitledEditorModel.DEFAULT_CONTENT_CHANGE_BUFFER_DELAY));
 
 		this.registerListeners();
+	}
+
+	get hasAssociatedFilePath(): boolean {
+		return this._hasAssociatedFilePath;
 	}
 
 	protected getOrCreateMode(modeService: IModeService, modeId: string, firstLineText?: string): ILanguageSelection {
@@ -91,7 +95,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 			return this.textEditorModel.getLanguageIdentifier().language;
 		}
 
-		return null;
+		return this.modeId;
 	}
 
 	getEncoding(): string {
@@ -140,12 +144,12 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 				return this.backupFileService.resolveBackupContent(backupResource);
 			}
 
-			return null;
+			return undefined;
 		}).then(backupTextBufferFactory => {
 			const hasBackup = !!backupTextBufferFactory;
 
 			// untitled associated to file path are dirty right away as well as untitled with content
-			this.setDirty(this.hasAssociatedFilePath || hasBackup);
+			this.setDirty(this._hasAssociatedFilePath || hasBackup);
 
 			let untitledContents: ITextBufferFactory;
 			if (backupTextBufferFactory) {
@@ -167,22 +171,29 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 			// Encoding
 			this.configuredEncoding = this.configurationService.getValue<string>(this.resource, 'files.encoding');
 
+			// We know for a fact there is a text editor model here
+			const textEditorModel = this.textEditorModel!;
+
 			// Listen to content changes
-			this._register(this.textEditorModel.onDidChangeContent(() => this.onModelContentChanged()));
+			this._register(textEditorModel.onDidChangeContent(() => this.onModelContentChanged()));
 
 			// Listen to mode changes
-			this._register(this.textEditorModel.onDidChangeLanguage(() => this.onConfigurationChange())); // mode change can have impact on config
+			this._register(textEditorModel.onDidChangeLanguage(() => this.onConfigurationChange())); // mode change can have impact on config
 
 			return this;
 		});
 	}
 
 	private onModelContentChanged(): void {
+		if (!this.isResolved()) {
+			return;
+		}
+
 		this.versionId++;
 
 		// mark the untitled editor as non-dirty once its content becomes empty and we do
 		// not have an associated path set. we never want dirty indicator in that case.
-		if (!this.hasAssociatedFilePath && this.textEditorModel.getLineCount() === 1 && this.textEditorModel.getLineContent(1) === '') {
+		if (!this._hasAssociatedFilePath && this.textEditorModel.getLineCount() === 1 && this.textEditorModel.getLineContent(1) === '') {
 			this.setDirty(false);
 		}
 

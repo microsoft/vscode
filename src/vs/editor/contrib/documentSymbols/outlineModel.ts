@@ -3,18 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { binarySearch, coalesceInPlace } from 'vs/base/common/arrays';
+import { binarySearch, coalesceInPlace, equals } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { first, forEach, size } from 'vs/base/common/collections';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { fuzzyScore, FuzzyScore } from 'vs/base/common/filters';
 import { LRUCache } from 'vs/base/common/map';
 import { commonPrefixLength } from 'vs/base/common/strings';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { DocumentSymbol, DocumentSymbolProvider, DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
-import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
+import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 
 export abstract class TreeElement {
 
@@ -87,10 +86,17 @@ export abstract class TreeElement {
 	}
 }
 
+export interface IOutlineMarker {
+	startLineNumber: number;
+	startColumn: number;
+	endLineNumber: number;
+	endColumn: number;
+	severity: MarkerSeverity;
+}
+
 export class OutlineElement extends TreeElement {
 
 	children: { [id: string]: OutlineElement; } = Object.create(null);
-	score: FuzzyScore | undefined = FuzzyScore.Default;
 	marker: { count: number, topSev: MarkerSeverity } | undefined;
 
 	constructor(
@@ -127,33 +133,6 @@ export class OutlineGroup extends TreeElement {
 		return res;
 	}
 
-	updateMatches(pattern: string, topMatch: OutlineElement | undefined): OutlineElement | undefined {
-		for (const key in this.children) {
-			topMatch = this._updateMatches(pattern, this.children[key], topMatch);
-		}
-		return topMatch;
-	}
-
-	private _updateMatches(pattern: string, item: OutlineElement, topMatch: OutlineElement | undefined): OutlineElement | undefined {
-
-		item.score = pattern
-			? fuzzyScore(pattern, pattern.toLowerCase(), 0, item.symbol.name, item.symbol.name.toLowerCase(), 0, true)
-			: FuzzyScore.Default;
-
-		if (item.score && (!topMatch || !topMatch.score || item.score[0] > topMatch.score[0])) {
-			topMatch = item;
-		}
-		for (const key in item.children) {
-			let child = item.children[key];
-			topMatch = this._updateMatches(pattern, child, topMatch);
-			if (!item.score && child.score) {
-				// don't filter parents with unfiltered children
-				item.score = FuzzyScore.Default;
-			}
-		}
-		return topMatch;
-	}
-
 	getItemEnclosingPosition(position: IPosition): OutlineElement | undefined {
 		return position ? this._getItemEnclosingPosition(position, this.children) : undefined;
 	}
@@ -169,13 +148,13 @@ export class OutlineGroup extends TreeElement {
 		return undefined;
 	}
 
-	updateMarker(marker: IMarker[]): void {
+	updateMarker(marker: IOutlineMarker[]): void {
 		for (const key in this.children) {
 			this._updateMarker(marker, this.children[key]);
 		}
 	}
 
-	private _updateMarker(markers: IMarker[], item: OutlineElement): void {
+	private _updateMarker(markers: IOutlineMarker[], item: OutlineElement): void {
 		item.marker = undefined;
 
 		// find the proper start index to check for item/marker overlap.
@@ -190,7 +169,7 @@ export class OutlineGroup extends TreeElement {
 			start = idx;
 		}
 
-		let myMarkers: IMarker[] = [];
+		let myMarkers: IOutlineMarker[] = [];
 		let myTopSev: MarkerSeverity | undefined;
 
 		for (; start < markers.length && Range.areIntersecting(item.symbol.range, markers[start]); start++) {
@@ -198,7 +177,7 @@ export class OutlineGroup extends TreeElement {
 			// and store them in a 'private' array.
 			let marker = markers[start];
 			myMarkers.push(marker);
-			(markers as Array<IMarker | undefined>)[start] = undefined;
+			(markers as Array<IOutlineMarker | undefined>)[start] = undefined;
 			if (!myTopSev || marker.severity > myTopSev) {
 				myTopSev = marker.severity;
 			}
@@ -268,7 +247,7 @@ export class OutlineModel extends TreeElement {
 
 		if (data!.model) {
 			// resolved -> return data
-			return Promise.resolve(data.model);
+			return Promise.resolve(data.model!);
 		}
 
 		// increase usage counter
@@ -295,13 +274,17 @@ export class OutlineModel extends TreeElement {
 
 	static _create(textModel: ITextModel, token: CancellationToken): Promise<OutlineModel> {
 
-		let result = new OutlineModel(textModel);
-		let promises = DocumentSymbolProviderRegistry.ordered(textModel).map((provider, index) => {
+		const chainedCancellation = new CancellationTokenSource();
+		token.onCancellationRequested(() => chainedCancellation.cancel());
+
+		const result = new OutlineModel(textModel);
+		const provider = DocumentSymbolProviderRegistry.ordered(textModel);
+		const promises = provider.map((provider, index) => {
 
 			let id = TreeElement.findId(`provider_${index}`, result);
 			let group = new OutlineGroup(id, result, provider, index);
 
-			return Promise.resolve(provider.provideDocumentSymbols(result.textModel, token)).then(result => {
+			return Promise.resolve(provider.provideDocumentSymbols(result.textModel, chainedCancellation.token)).then(result => {
 				for (const info of result || []) {
 					OutlineModel._makeOutlineElement(info, group);
 				}
@@ -318,7 +301,22 @@ export class OutlineModel extends TreeElement {
 			});
 		});
 
-		return Promise.all(promises).then(() => result._compact());
+		const listener = DocumentSymbolProviderRegistry.onDidChange(() => {
+			const newProvider = DocumentSymbolProviderRegistry.ordered(textModel);
+			if (!equals(newProvider, provider)) {
+				chainedCancellation.cancel();
+			}
+		});
+
+		return Promise.all(promises).then(() => {
+			if (chainedCancellation.token.isCancellationRequested && !token.isCancellationRequested) {
+				return OutlineModel._create(textModel, token);
+			} else {
+				return result._compact();
+			}
+		}).finally(() => {
+			listener.dispose();
+		});
 	}
 
 	private static _makeOutlineElement(info: DocumentSymbol, container: OutlineGroup | OutlineElement): void {
@@ -395,20 +393,6 @@ export class OutlineModel extends TreeElement {
 		return true;
 	}
 
-	private _matches: [string, OutlineElement | undefined];
-
-	updateMatches(pattern: string): OutlineElement | undefined {
-		if (this._matches && this._matches[0] === pattern) {
-			return this._matches[1];
-		}
-		let topMatch: OutlineElement | undefined;
-		for (const key in this._groups) {
-			topMatch = this._groups[key].updateMatches(pattern, topMatch);
-		}
-		this._matches = [pattern, topMatch];
-		return topMatch;
-	}
-
 	getItemEnclosingPosition(position: IPosition, context?: OutlineElement): OutlineElement | undefined {
 
 		let preferredGroup: OutlineGroup | undefined;
@@ -437,7 +421,7 @@ export class OutlineModel extends TreeElement {
 		return TreeElement.getElementById(id, this);
 	}
 
-	updateMarker(marker: IMarker[]): void {
+	updateMarker(marker: IOutlineMarker[]): void {
 		// sort markers by start range so that we can use
 		// outline element starts for quicker look up
 		marker.sort(Range.compareRangesUsingStarts);
