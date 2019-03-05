@@ -205,7 +205,7 @@ export class SnippetController2 implements IEditorContribution {
 			// reset selection to the primary cursor when being asked
 			// for. this happens when explicitly cancelling snippet mode,
 			// e.g. when pressing ESC
-			this._editor.setSelections([this._editor.getSelection()]);
+			this._editor.setSelections([this._editor.getSelection()!]);
 		}
 	}
 
