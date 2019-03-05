@@ -1081,7 +1081,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return Promise.reject(new Error('no adapter found'));
 	}
 
-	private _addNewAdapter(adapter: Adapter, extension: IExtensionDescription): number {
+	private _addNewAdapter(adapter: Adapter, extension: IExtensionDescription | undefined): number {
 		const handle = this._nextHandle();
 		this._adapter.set(handle, new AdapterData(adapter, extension));
 		return handle;
@@ -1358,7 +1358,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	// --- links
 
-	registerDocumentLinkProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentLinkProvider): vscode.Disposable {
+	registerDocumentLinkProvider(extension: IExtensionDescription | undefined, selector: vscode.DocumentSelector, provider: vscode.DocumentLinkProvider): vscode.Disposable {
 		const handle = this._addNewAdapter(new LinkProviderAdapter(this._documents, this._heapService, provider), extension);
 		this._proxy.$registerDocumentLinkProvider(handle, this._transformDocumentSelector(selector));
 		return this._createDisposable(handle);

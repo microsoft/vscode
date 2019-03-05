@@ -20,7 +20,7 @@ import { CharCode } from 'vs/base/common/charCode';
 class FsLinkProvider {
 
 	private _schemes: string[] = [];
-	private _stateMachine: StateMachine;
+	private _stateMachine?: StateMachine;
 
 	add(scheme: string): void {
 		this._stateMachine = undefined;
@@ -190,6 +190,8 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 					case FileChangeType.Deleted:
 						newType = files.FileChangeType.DELETED;
 						break;
+					default:
+						throw new Error('Unknown FileChangeType');
 				}
 				mapped.push({ resource, type: newType });
 			}
@@ -219,60 +221,46 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		return { type, ctime, mtime, size };
 	}
 
-	private _checkProviderExists(handle: number): void {
-		if (!this._fsProvider.has(handle)) {
-			const err = new Error();
-			err.name = 'ENOPRO';
-			err.message = `no provider`;
-			throw err;
-		}
-	}
-
 	$stat(handle: number, resource: UriComponents): Promise<files.IStat> {
-		this._checkProviderExists(handle);
-		return Promise.resolve(this._fsProvider.get(handle).stat(URI.revive(resource))).then(ExtHostFileSystem._asIStat);
+		return Promise.resolve(this.getProvider(handle).stat(URI.revive(resource))).then(ExtHostFileSystem._asIStat);
 	}
 
 	$readdir(handle: number, resource: UriComponents): Promise<[string, files.FileType][]> {
-		this._checkProviderExists(handle);
-		return Promise.resolve(this._fsProvider.get(handle).readDirectory(URI.revive(resource)));
+		return Promise.resolve(this.getProvider(handle).readDirectory(URI.revive(resource)));
 	}
 
 	$readFile(handle: number, resource: UriComponents): Promise<Buffer> {
-		this._checkProviderExists(handle);
-		return Promise.resolve(this._fsProvider.get(handle).readFile(URI.revive(resource))).then(data => {
+		return Promise.resolve(this.getProvider(handle).readFile(URI.revive(resource))).then(data => {
 			return Buffer.isBuffer(data) ? data : Buffer.from(data.buffer, data.byteOffset, data.byteLength);
 		});
 	}
 
 	$writeFile(handle: number, resource: UriComponents, content: Buffer, opts: files.FileWriteOptions): Promise<void> {
-		this._checkProviderExists(handle);
-		return Promise.resolve(this._fsProvider.get(handle).writeFile(URI.revive(resource), content, opts));
+		return Promise.resolve(this.getProvider(handle).writeFile(URI.revive(resource), content, opts));
 	}
 
 	$delete(handle: number, resource: UriComponents, opts: files.FileDeleteOptions): Promise<void> {
-		this._checkProviderExists(handle);
-		return Promise.resolve(this._fsProvider.get(handle).delete(URI.revive(resource), opts));
+		return Promise.resolve(this.getProvider(handle).delete(URI.revive(resource), opts));
 	}
 
 	$rename(handle: number, oldUri: UriComponents, newUri: UriComponents, opts: files.FileOverwriteOptions): Promise<void> {
-		this._checkProviderExists(handle);
-		return Promise.resolve(this._fsProvider.get(handle).rename(URI.revive(oldUri), URI.revive(newUri), opts));
+		return Promise.resolve(this.getProvider(handle).rename(URI.revive(oldUri), URI.revive(newUri), opts));
 	}
 
 	$copy(handle: number, oldUri: UriComponents, newUri: UriComponents, opts: files.FileOverwriteOptions): Promise<void> {
-		this._checkProviderExists(handle);
-		return Promise.resolve(this._fsProvider.get(handle).copy(URI.revive(oldUri), URI.revive(newUri), opts));
+		const provider = this.getProvider(handle);
+		if (!provider.copy) {
+			throw new Error('FileSystemProvider does not implement "copy"');
+		}
+		return Promise.resolve(provider.copy(URI.revive(oldUri), URI.revive(newUri), opts));
 	}
 
 	$mkdir(handle: number, resource: UriComponents): Promise<void> {
-		this._checkProviderExists(handle);
-		return Promise.resolve(this._fsProvider.get(handle).createDirectory(URI.revive(resource)));
+		return Promise.resolve(this.getProvider(handle).createDirectory(URI.revive(resource)));
 	}
 
 	$watch(handle: number, session: number, resource: UriComponents, opts: files.IWatchOptions): void {
-		this._checkProviderExists(handle);
-		let subscription = this._fsProvider.get(handle).watch(URI.revive(resource), opts);
+		let subscription = this.getProvider(handle).watch(URI.revive(resource), opts);
 		this._watches.set(session, subscription);
 	}
 
@@ -285,26 +273,48 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 	}
 
 	$open(handle: number, resource: UriComponents, opts: files.FileOpenOptions): Promise<number> {
-		this._checkProviderExists(handle);
-		return Promise.resolve(this._fsProvider.get(handle).open(URI.revive(resource), opts));
+		const provider = this.getProvider(handle);
+		if (!provider.open) {
+			throw new Error('FileSystemProvider does not implement "open"');
+		}
+		return Promise.resolve(provider.open(URI.revive(resource), opts));
 	}
 
 	$close(handle: number, fd: number): Promise<void> {
-		this._checkProviderExists(handle);
-		return Promise.resolve(this._fsProvider.get(handle).close(fd));
+		const provider = this.getProvider(handle);
+		if (!provider.close) {
+			throw new Error('FileSystemProvider does not implement "close"');
+		}
+		return Promise.resolve(provider.close(fd));
 	}
 
 	$read(handle: number, fd: number, pos: number, length: number): Promise<Buffer> {
-		this._checkProviderExists(handle);
+		const provider = this.getProvider(handle);
+		if (!provider.read) {
+			throw new Error('FileSystemProvider does not implement "read"');
+		}
 		const data = Buffer.allocUnsafe(length);
-		return Promise.resolve(this._fsProvider.get(handle).read(fd, pos, data, 0, length)).then(read => {
+		return Promise.resolve(provider.read(fd, pos, data, 0, length)).then(read => {
 			return data.slice(0, read); // don't send zeros
 		});
 	}
 
 	$write(handle: number, fd: number, pos: number, data: Buffer): Promise<number> {
-		this._checkProviderExists(handle);
-		return Promise.resolve(this._fsProvider.get(handle).write(fd, pos, data, 0, data.length));
+		const provider = this.getProvider(handle);
+		if (!provider.write) {
+			throw new Error('FileSystemProvider does not implement "write"');
+		}
+		return Promise.resolve(provider.write(fd, pos, data, 0, data.length));
 	}
 
+	private getProvider(handle: number): vscode.FileSystemProvider {
+		const provider = this._fsProvider.get(handle);
+		if (!provider) {
+			const err = new Error();
+			err.name = 'ENOPRO';
+			err.message = `no provider`;
+			throw err;
+		}
+		return provider;
+	}
 }
