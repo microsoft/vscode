@@ -39,7 +39,7 @@ class NPSContribution implements IWorkbenchContribution {
 			return;
 		}
 
-		const sessionCount = (storageService.getInteger(SESSION_COUNT_KEY, StorageScope.GLOBAL, 0) || 0) + 1;
+		const sessionCount = (storageService.getNumber(SESSION_COUNT_KEY, StorageScope.GLOBAL, 0) || 0) + 1;
 		storageService.store(LAST_SESSION_DATE_KEY, date, StorageScope.GLOBAL);
 		storageService.store(SESSION_COUNT_KEY, sessionCount, StorageScope.GLOBAL);
 

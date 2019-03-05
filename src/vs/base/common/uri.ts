@@ -56,6 +56,21 @@ function _validateUri(ret: URI, _strict?: boolean): void {
 	}
 }
 
+// for a while we allowed uris *without* schemes and this is the migration
+// for them, e.g. an uri without scheme and without strict-mode warns and falls
+// back to the file-scheme. that should cause the least carnage and still be a
+// clear warning
+function _schemeFix(scheme: string, _strict: boolean): string {
+	if (_strict || _throwOnMissingSchema) {
+		return scheme || _empty;
+	}
+	if (!scheme) {
+		console.trace('BAD uri lacks scheme, falling back to file-scheme.');
+		scheme = 'file';
+	}
+	return scheme;
+}
+
 // implements a bit of https://tools.ietf.org/html/rfc3986#section-5
 function _referenceResolution(scheme: string, path: string): string {
 
@@ -154,7 +169,7 @@ export class URI implements UriComponents {
 	/**
 	 * @internal
 	 */
-	protected constructor(schemeOrData: string | UriComponents, authority?: string, path?: string, query?: string, fragment?: string, _strict?: boolean) {
+	protected constructor(schemeOrData: string | UriComponents, authority?: string, path?: string, query?: string, fragment?: string, _strict: boolean = false) {
 
 		if (typeof schemeOrData === 'object') {
 			this.scheme = schemeOrData.scheme || _empty;
@@ -166,7 +181,7 @@ export class URI implements UriComponents {
 			// that creates uri components.
 			// _validateUri(this);
 		} else {
-			this.scheme = schemeOrData || _empty;
+			this.scheme = _schemeFix(schemeOrData, _strict);
 			this.authority = authority || _empty;
 			this.path = _referenceResolution(this.scheme, path || _empty);
 			this.query = query || _empty;

@@ -61,8 +61,8 @@ export interface IStorage extends IDisposable {
 	getBoolean(key: string, fallbackValue: boolean): boolean;
 	getBoolean(key: string, fallbackValue?: boolean): boolean | undefined;
 
-	getInteger(key: string, fallbackValue: number): number;
-	getInteger(key: string, fallbackValue?: number): number | undefined;
+	getNumber(key: string, fallbackValue: number): number;
+	getNumber(key: string, fallbackValue?: number): number | undefined;
 
 	set(key: string, value: string | boolean | number): Promise<void>;
 	delete(key: string): Promise<void>;
@@ -195,9 +195,9 @@ export class Storage extends Disposable implements IStorage {
 		return value === 'true';
 	}
 
-	getInteger(key: string, fallbackValue: number): number;
-	getInteger(key: string, fallbackValue?: number): number | undefined;
-	getInteger(key: string, fallbackValue?: number): number | undefined {
+	getNumber(key: string, fallbackValue: number): number;
+	getNumber(key: string, fallbackValue?: number): number | undefined;
+	getNumber(key: string, fallbackValue?: number): number | undefined {
 		const value = this.get(key);
 
 		if (isUndefinedOrNull(value)) {

@@ -22,6 +22,7 @@ import { RemoteFileDialog } from 'vs/workbench/services/dialogs/electron-browser
 import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 interface IMassagedMessageBoxOptions {
 
@@ -389,3 +390,6 @@ export class FileDialogService implements IFileDialogService {
 function isUntitledWorkspace(path: URI, environmentService: IEnvironmentService): boolean {
 	return resources.isEqualOrParent(path, environmentService.untitledWorkspacesHome);
 }
+
+registerSingleton(IFileDialogService, FileDialogService, true);
+registerSingleton(IDialogService, DialogService, true);

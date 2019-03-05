@@ -9,7 +9,6 @@ import * as Objects from 'vs/base/common/objects';
 import * as Types from 'vs/base/common/types';
 import * as Platform from 'vs/base/common/platform';
 import * as Async from 'vs/base/common/async';
-import * as os from 'os';
 import { IStringDictionary, values } from 'vs/base/common/collections';
 import { LinkedMap, Touch } from 'vs/base/common/map';
 import Severity from 'vs/base/common/severity';
@@ -28,7 +27,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { ITerminalService, ITerminalInstance, IShellLaunchConfig } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IOutputService, IOutputChannel } from 'vs/workbench/contrib/output/common/output';
+import { IOutputService } from 'vs/workbench/contrib/output/common/output';
 import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEventKind } from 'vs/workbench/contrib/tasks/common/problemCollectors';
 import {
 	Task, CustomTask, ContributedTask, RevealKind, CommandOptions, ShellConfiguration, RuntimeType, PanelKind,
@@ -42,6 +41,7 @@ import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { URI } from 'vs/base/common/uri';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { Schemas } from 'vs/base/common/network';
+import { getWindowsBuildNumber } from 'vs/workbench/contrib/terminal/node/terminal';
 
 interface TerminalData {
 	terminal: ITerminalInstance;
@@ -148,7 +148,6 @@ export class TerminalTaskSystem implements ITaskSystem {
 		'win32': TerminalTaskSystem.shellQuotes['powershell']
 	};
 
-	private outputChannel: IOutputChannel;
 	private activeTasks: IStringDictionary<ActiveTerminalData>;
 	private terminals: IStringDictionary<TerminalData>;
 	private idleTaskTerminals: LinkedMap<string, string>;
@@ -166,10 +165,9 @@ export class TerminalTaskSystem implements ITaskSystem {
 		private telemetryService: ITelemetryService,
 		private contextService: IWorkspaceContextService,
 		private windowService: IWindowService,
-		outputChannelId: string,
+		private outputChannelId: string,
 		taskSystemInfoResolver: TaskSystemInfoResovler) {
 
-		this.outputChannel = this.outputService.getChannel(outputChannelId);
 		this.activeTasks = Object.create(null);
 		this.terminals = Object.create(null);
 		this.idleTaskTerminals = new LinkedMap<string, string>();
@@ -184,11 +182,11 @@ export class TerminalTaskSystem implements ITaskSystem {
 	}
 
 	public log(value: string): void {
-		this.outputChannel.append(value + '\n');
+		this.appendOutput(value + '\n');
 	}
 
 	protected showOutput(): void {
-		this.outputService.showChannel(this.outputChannel.id, true);
+		this.outputService.showChannel(this.outputChannelId, true);
 	}
 
 	public run(task: Task, resolver: ITaskResolver, trigger: string = Triggers.command): ITaskExecuteResult {
@@ -747,7 +745,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 					if (!shellSpecified) {
 						toAdd.push('-Command');
 					}
-				} else if ((basename === 'bash.exe') || (basename === 'zsh.exe') || ((basename === 'wsl.exe') && (this.getWindowsBuildNumber() < 17763))) { // See https://github.com/Microsoft/vscode/issues/67855
+				} else if ((basename === 'bash.exe') || (basename === 'zsh.exe') || ((basename === 'wsl.exe') && (getWindowsBuildNumber() < 17763))) { // See https://github.com/Microsoft/vscode/issues/67855
 					windowsShellArgs = false;
 					if (!shellSpecified) {
 						toAdd.push('-c');
@@ -1156,7 +1154,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 				matcher = value;
 			}
 			if (!matcher) {
-				this.outputChannel.append(nls.localize('unkownProblemMatcher', 'Problem matcher {0} can\'t be resolved. The matcher will be ignored'));
+				this.appendOutput(nls.localize('unkownProblemMatcher', 'Problem matcher {0} can\'t be resolved. The matcher will be ignored'));
 				return;
 			}
 			let taskSystemInfo: TaskSystemInfo | undefined = resolver.taskSystemInfo;
@@ -1213,15 +1211,6 @@ export class TerminalTaskSystem implements ITaskSystem {
 			});
 		}
 		return result;
-	}
-
-	private getWindowsBuildNumber(): number {
-		const osVersion = (/(\d+)\.(\d+)\.(\d+)/g).exec(os.release());
-		let buildNumber: number = 0;
-		if (osVersion && osVersion.length === 4) {
-			buildNumber = parseInt(osVersion[3]);
-		}
-		return buildNumber;
 	}
 
 	private registerLinkMatchers(terminal: ITerminalInstance, problemMatchers: ProblemMatcher[]): number[] {
@@ -1284,5 +1273,12 @@ export class TerminalTaskSystem implements ITaskSystem {
 			return result;
 		}
 		return 'other';
+	}
+
+	private appendOutput(output: string): void {
+		const outputChannel = this.outputService.getChannel(this.outputChannelId);
+		if (outputChannel) {
+			outputChannel.append(output);
+		}
 	}
 }

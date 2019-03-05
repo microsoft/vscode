@@ -48,8 +48,8 @@ suite('StorageService', () => {
 
 		strictEqual(storage.get('Monaco.IDE.Core.Storage.Test.get', scope, 'foobar'), 'foobar');
 		strictEqual(storage.get('Monaco.IDE.Core.Storage.Test.get', scope, ''), '');
-		strictEqual(storage.getInteger('Monaco.IDE.Core.Storage.Test.getInteger', scope, 5), 5);
-		strictEqual(storage.getInteger('Monaco.IDE.Core.Storage.Test.getInteger', scope, 0), 0);
+		strictEqual(storage.getNumber('Monaco.IDE.Core.Storage.Test.getNumber', scope, 5), 5);
+		strictEqual(storage.getNumber('Monaco.IDE.Core.Storage.Test.getNumber', scope, 0), 0);
 		strictEqual(storage.getBoolean('Monaco.IDE.Core.Storage.Test.getBoolean', scope, true), true);
 		strictEqual(storage.getBoolean('Monaco.IDE.Core.Storage.Test.getBoolean', scope, false), false);
 
@@ -59,11 +59,11 @@ suite('StorageService', () => {
 		storage.store('Monaco.IDE.Core.Storage.Test.get', '', scope);
 		strictEqual(storage.get('Monaco.IDE.Core.Storage.Test.get', scope, (undefined)!), '');
 
-		storage.store('Monaco.IDE.Core.Storage.Test.getInteger', 5, scope);
-		strictEqual(storage.getInteger('Monaco.IDE.Core.Storage.Test.getInteger', scope, (undefined)!), 5);
+		storage.store('Monaco.IDE.Core.Storage.Test.getNumber', 5, scope);
+		strictEqual(storage.getNumber('Monaco.IDE.Core.Storage.Test.getNumber', scope, (undefined)!), 5);
 
-		storage.store('Monaco.IDE.Core.Storage.Test.getInteger', 0, scope);
-		strictEqual(storage.getInteger('Monaco.IDE.Core.Storage.Test.getInteger', scope, (undefined)!), 0);
+		storage.store('Monaco.IDE.Core.Storage.Test.getNumber', 0, scope);
+		strictEqual(storage.getNumber('Monaco.IDE.Core.Storage.Test.getNumber', scope, (undefined)!), 0);
 
 		storage.store('Monaco.IDE.Core.Storage.Test.getBoolean', true, scope);
 		strictEqual(storage.getBoolean('Monaco.IDE.Core.Storage.Test.getBoolean', scope, (undefined)!), true);
@@ -72,7 +72,7 @@ suite('StorageService', () => {
 		strictEqual(storage.getBoolean('Monaco.IDE.Core.Storage.Test.getBoolean', scope, (undefined)!), false);
 
 		strictEqual(storage.get('Monaco.IDE.Core.Storage.Test.getDefault', scope, 'getDefault'), 'getDefault');
-		strictEqual(storage.getInteger('Monaco.IDE.Core.Storage.Test.getIntegerDefault', scope, 5), 5);
+		strictEqual(storage.getNumber('Monaco.IDE.Core.Storage.Test.getNumberDefault', scope, 5), 5);
 		strictEqual(storage.getBoolean('Monaco.IDE.Core.Storage.Test.getBooleanDefault', scope, true), true);
 	}
 
@@ -111,7 +111,7 @@ suite('StorageService', () => {
 		await storage.migrate({ id: String(Date.now() + 100) });
 
 		equal(storage.get('bar', StorageScope.WORKSPACE), 'foo');
-		equal(storage.getInteger('barNumber', StorageScope.WORKSPACE), 55);
+		equal(storage.getNumber('barNumber', StorageScope.WORKSPACE), 55);
 		equal(storage.getBoolean('barBoolean', StorageScope.GLOBAL), true);
 
 		await storage.close();

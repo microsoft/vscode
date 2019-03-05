@@ -45,7 +45,7 @@ export class TextResourcePropertiesService implements ITextResourcePropertiesSer
 		if (remoteAuthority) {
 			if (resource.scheme !== Schemas.file) {
 				const osCacheKey = `resource.authority.os.${remoteAuthority}`;
-				os = this.remoteEnvironment ? this.remoteEnvironment.os : /* Get it from cache */ this.storageService.getInteger(osCacheKey, StorageScope.WORKSPACE, OS);
+				os = this.remoteEnvironment ? this.remoteEnvironment.os : /* Get it from cache */ this.storageService.getNumber(osCacheKey, StorageScope.WORKSPACE, OS);
 				this.storageService.store(osCacheKey, os, StorageScope.WORKSPACE);
 			}
 		}

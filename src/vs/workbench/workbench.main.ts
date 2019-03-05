@@ -68,6 +68,11 @@ import 'vs/workbench/services/search/node/searchService';
 import 'vs/workbench/services/progress/browser/progressService2';
 import 'vs/workbench/services/editor/browser/codeEditorService';
 import 'vs/workbench/services/broadcast/electron-browser/broadcastService';
+import 'vs/workbench/services/preferences/browser/preferencesService';
+import 'vs/workbench/services/configuration/node/jsonEditingService';
+import 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
+import 'vs/workbench/services/textfile/common/textFileService';
+import 'vs/workbench/services/dialogs/electron-browser/dialogService';
 
 registerSingleton(IMenuService, MenuService, true);
 registerSingleton(IListService, ListService, true);
@@ -147,9 +152,10 @@ import 'vs/workbench/contrib/output/electron-browser/output.contribution';
 import 'vs/workbench/contrib/output/browser/outputPanel';
 
 // Terminal
+import 'vs/workbench/contrib/terminal/browser/terminal.contribution';
 import 'vs/workbench/contrib/terminal/electron-browser/terminal.contribution';
 import 'vs/workbench/contrib/terminal/browser/terminalQuickOpen';
-import 'vs/workbench/contrib/terminal/electron-browser/terminalPanel';
+import 'vs/workbench/contrib/terminal/browser/terminalPanel';
 
 // Relauncher
 import 'vs/workbench/contrib/relauncher/electron-browser/relauncher.contribution';
@@ -166,7 +172,7 @@ import 'vs/workbench/contrib/codeEditor/browser/codeEditor.contribution';
 import 'vs/workbench/contrib/codeEditor/electron-browser/codeEditor.contribution';
 
 // Execution
-import 'vs/workbench/contrib/execution/electron-browser/execution.contribution';
+import 'vs/workbench/contrib/externalTerminal/electron-browser/externalTerminal.contribution';
 
 // Snippets
 import 'vs/workbench/contrib/snippets/browser/snippets.contribution';
@@ -199,13 +205,13 @@ import 'vs/workbench/contrib/themes/browser/themes.contribution';
 import 'vs/workbench/contrib/themes/test/electron-browser/themes.test.contribution';
 
 // Watermark
-import 'vs/workbench/contrib/watermark/electron-browser/watermark';
+import 'vs/workbench/contrib/watermark/browser/watermark';
 
 // Welcome
-import 'vs/workbench/contrib/welcome/walkThrough/electron-browser/walkThrough.contribution';
+import 'vs/workbench/contrib/welcome/walkThrough/browser/walkThrough.contribution';
 import 'vs/workbench/contrib/welcome/gettingStarted/electron-browser/gettingStarted.contribution';
 import 'vs/workbench/contrib/welcome/overlay/browser/welcomeOverlay';
-import 'vs/workbench/contrib/welcome/page/electron-browser/welcomePage.contribution';
+import 'vs/workbench/contrib/welcome/page/browser/welcomePage.contribution';
 
 // Outline
 import 'vs/workbench/contrib/outline/browser/outline.contribution';
