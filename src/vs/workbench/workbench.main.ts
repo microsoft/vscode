@@ -171,7 +171,7 @@ import 'vs/workbench/contrib/codeEditor/browser/codeEditor.contribution';
 import 'vs/workbench/contrib/codeEditor/electron-browser/codeEditor.contribution';
 
 // Execution
-import 'vs/workbench/contrib/execution/electron-browser/execution.contribution';
+import 'vs/workbench/contrib/externalTerminal/electron-browser/externalTerminal.contribution';
 
 // Snippets
 import 'vs/workbench/contrib/snippets/browser/snippets.contribution';
