@@ -28,6 +28,7 @@
 		"./vs/workbench/services/themes/**/*.ts",
 		"./vs/workbench/services/bulkEdit/**/*.ts",
 		"./vs/workbench/services/progress/**/*.ts",
+		"./vs/workbench/services/preferences/**/*.ts",
 		"./vs/workbench/services/timer/**/*.ts"
 	],
 	"files": [
