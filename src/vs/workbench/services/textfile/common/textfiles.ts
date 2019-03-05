@@ -29,7 +29,7 @@ export interface ISaveParticipant {
 	/**
 	 * Participate in a save of a model. Allows to change the model before it is being saved to disk.
 	 */
-	participate(model: IActiveTextFileEditorModel, env: { reason: SaveReason }): Promise<void>;
+	participate(model: IResolvedTextFileEditorModel, env: { reason: SaveReason }): Promise<void>;
 }
 
 /**
@@ -255,7 +255,7 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 	isDisposed(): boolean;
 }
 
-export interface IActiveTextFileEditorModel extends ITextFileEditorModel {
+export interface IResolvedTextFileEditorModel extends ITextFileEditorModel {
 	readonly textEditorModel: ITextModel;
 }
 
