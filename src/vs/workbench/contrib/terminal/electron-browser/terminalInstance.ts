@@ -33,7 +33,7 @@ import { TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/termin
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalLinkHandler } from 'vs/workbench/contrib/terminal/browser/terminalLinkHandler';
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/electron-browser/terminalProcessManager';
-import { TerminalCommandTracker } from 'vs/workbench/contrib/terminal/node/terminalCommandTracker';
+import { TerminalCommandTracker } from 'vs/workbench/contrib/terminal/browser/terminalCommandTracker';
 import { WindowsShellHelper } from 'vs/workbench/contrib/terminal/node/windowsShellHelper';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ISearchOptions, Terminal as XTermTerminal } from 'vscode-xterm';
