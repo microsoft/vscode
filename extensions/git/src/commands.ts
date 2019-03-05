@@ -649,17 +649,16 @@ export class CommandCenter {
 
 			if (!(resource instanceof Resource)) {
 				// can happen when called from a keybinding
+				console.log('WHAT');
 				resource = this.getSCMResource();
 			}
 
 			if (resource) {
-				const resources = ([resource, ...resourceStates] as Resource[])
-					.filter(r => r.type !== Status.DELETED && r.type !== Status.INDEX_DELETED);
-
-				uris = resources.map(r => r.resourceUri);
-			}
-			else {
-				uris = [(window.activeTextEditor && window.activeTextEditor.document.uri)] as Uri[];
+				uris = ([resource, ...resourceStates] as Resource[])
+					.filter(r => r.type !== Status.DELETED && r.type !== Status.INDEX_DELETED)
+					.map(r => r.resourceUri);
+			} else if (window.activeTextEditor) {
+				uris = [window.activeTextEditor.document.uri];
 			}
 		}
 
@@ -668,6 +667,7 @@ export class CommandCenter {
 		}
 
 		const activeTextEditor = window.activeTextEditor;
+
 		for (const uri of uris) {
 			const opts: TextDocumentShowOptions = {
 				preserveFocus,
@@ -2120,6 +2120,7 @@ export class CommandCenter {
 		uri = uri ? uri : (window.activeTextEditor && window.activeTextEditor.document.uri);
 
 		this.outputChannel.appendLine(`git.getSCMResource.uri ${uri && uri.toString()}`);
+
 		for (const r of this.model.repositories.map(r => r.root)) {
 			this.outputChannel.appendLine(`repo root ${r}`);
 		}
