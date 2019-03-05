@@ -377,7 +377,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#region getOpend()
 
-	getOpened(editor: IResourceInput | IUntitledResourceInput, group?: IEditorGroup | GroupIdentifier): IEditorInput {
+	getOpened(editor: IResourceInput | IUntitledResourceInput, group?: IEditorGroup | GroupIdentifier): IEditorInput | undefined {
 		return this.doGetOpened(editor);
 	}
 
@@ -626,7 +626,7 @@ export class DelegatingEditorService extends EditorService {
 		this.editorOpenHandler = handler;
 	}
 
-	protected doOpenEditor(group: IEditorGroup, editor: IEditorInput, options?: IEditorOptions): Promise<IEditor> {
+	protected doOpenEditor(group: IEditorGroup, editor: IEditorInput, options?: IEditorOptions): Promise<IEditor | null> {
 		if (!this.editorOpenHandler) {
 			return super.doOpenEditor(group, editor, options);
 		}

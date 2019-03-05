@@ -166,7 +166,7 @@ export interface IEditorService {
 	 *
 	 * @param group optional to specify a group to check for the editor
 	 */
-	getOpened(editor: IResourceInput | IUntitledResourceInput, group?: IEditorGroup | GroupIdentifier): IEditorInput;
+	getOpened(editor: IResourceInput | IUntitledResourceInput, group?: IEditorGroup | GroupIdentifier): IEditorInput | undefined;
 
 	/**
 	 * Allows to override the opening of editors by installing a handler that will

@@ -760,9 +760,9 @@ export class TextEditorOptions extends EditorOptions {
 	private revealInCenterIfOutsideViewport: boolean;
 	private editorViewState: IEditorViewState | null;
 
-	static from(input?: IBaseResourceInput): TextEditorOptions | null {
+	static from(input?: IBaseResourceInput): TextEditorOptions | undefined {
 		if (!input || !input.options) {
-			return null;
+			return undefined;
 		}
 
 		return TextEditorOptions.create(input.options);
