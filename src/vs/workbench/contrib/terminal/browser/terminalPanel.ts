@@ -24,7 +24,6 @@ import { URI } from 'vs/base/common/uri';
 import { TERMINAL_BACKGROUND_COLOR, TERMINAL_BORDER_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
-import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/electron-browser/terminalConfigHelper';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 
 const FIND_FOCUS_CLASS = 'find-focused';
@@ -82,14 +81,12 @@ export class TerminalPanel extends Panel {
 
 			if (e.affectsConfiguration('terminal.integrated.fontFamily') || e.affectsConfiguration('editor.fontFamily')) {
 				const configHelper = this._terminalService.configHelper;
-				if (configHelper instanceof TerminalConfigHelper) {
-					if (!configHelper.configFontIsMonospace()) {
-						const choices: IPromptChoice[] = [{
-							label: nls.localize('terminal.useMonospace', "Use 'monospace'"),
-							run: () => this._configurationService.updateValue('terminal.integrated.fontFamily', 'monospace'),
-						}];
-						this._notificationService.prompt(Severity.Warning, nls.localize('terminal.monospaceOnly', "The terminal only supports monospace fonts."), choices);
-					}
+				if (!configHelper.configFontIsMonospace()) {
+					const choices: IPromptChoice[] = [{
+						label: nls.localize('terminal.useMonospace', "Use 'monospace'"),
+						run: () => this._configurationService.updateValue('terminal.integrated.fontFamily', 'monospace'),
+					}];
+					this._notificationService.prompt(Severity.Warning, nls.localize('terminal.monospaceOnly', "The terminal only supports monospace fonts."), choices);
 				}
 			}
 		}));

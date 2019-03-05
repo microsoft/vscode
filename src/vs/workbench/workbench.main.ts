@@ -154,7 +154,7 @@ import 'vs/workbench/contrib/output/browser/outputPanel';
 // Terminal
 import 'vs/workbench/contrib/terminal/electron-browser/terminal.contribution';
 import 'vs/workbench/contrib/terminal/browser/terminalQuickOpen';
-import 'vs/workbench/contrib/terminal/electron-browser/terminalPanel';
+import 'vs/workbench/contrib/terminal/browser/terminalPanel';
 
 // Relauncher
 import 'vs/workbench/contrib/relauncher/electron-browser/relauncher.contribution';

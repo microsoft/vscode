@@ -107,6 +107,7 @@ export interface ITerminalConfiguration {
 
 export interface ITerminalConfigHelper {
 	config: ITerminalConfiguration;
+	configFontIsMonospace(): boolean;
 	getFont(): ITerminalFont;
 	/**
 	 * Merges the default shell path and args into the provided launch configuration

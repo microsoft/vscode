@@ -18,7 +18,7 @@ import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/electron-bro
 import Severity from 'vs/base/common/severity';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { getDefaultShell } from 'vs/workbench/contrib/terminal/node/terminal';
-import { TerminalPanel } from 'vs/workbench/contrib/terminal/electron-browser/terminalPanel';
+import { TerminalPanel } from 'vs/workbench/contrib/terminal/browser/terminalPanel';
 import { TerminalTab } from 'vs/workbench/contrib/terminal/browser/terminalTab';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';

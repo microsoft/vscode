@@ -28,7 +28,7 @@ import { getQuickNavigateHandler } from 'vs/workbench/browser/parts/quickopen/qu
 import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs/workbench/browser/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { TerminalPanel } from 'vs/workbench/contrib/terminal/electron-browser/terminalPanel';
+import { TerminalPanel } from 'vs/workbench/contrib/terminal/browser/terminalPanel';
 import { TerminalPickerHandler } from 'vs/workbench/contrib/terminal/browser/terminalQuickOpen';
 import { setupTerminalCommands, TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminalCommands';
 import { setupTerminalMenu } from 'vs/workbench/contrib/terminal/common/terminalMenu';
