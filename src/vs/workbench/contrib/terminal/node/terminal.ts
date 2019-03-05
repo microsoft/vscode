@@ -9,6 +9,8 @@ import * as processes from 'vs/base/node/processes';
 import { readFile, fileExists } from 'vs/base/node/pfs';
 import { Event } from 'vs/base/common/event';
 import { LinuxDistro } from 'vs/workbench/contrib/terminal/common/terminal';
+import { execFile } from 'child_process';
+import { escapeNonWindowsPath } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 
 /**
  * An interface representing a raw terminal child process, this contains a subset of the
@@ -98,3 +100,27 @@ if (platform.isLinux) {
 }
 
 export const linuxDistro = detectedDistro;
+
+export function getWindowsBuildNumber(): number {
+	const osVersion = (/(\d+)\.(\d+)\.(\d+)/g).exec(os.release());
+	let buildNumber: number = 0;
+	if (osVersion && osVersion.length === 4) {
+		buildNumber = parseInt(osVersion[3]);
+	}
+	return buildNumber;
+}
+
+/**
+ * Converts a path to a path on WSL using the wslpath utility.
+ * @param path The original path.
+ */
+export function getWslPath(path: string): Promise<string> {
+	if (getWindowsBuildNumber() < 17063) {
+		throw new Error('wslpath does not exist on Windows build < 17063');
+	}
+	return new Promise<string>(c => {
+		execFile('bash.exe', ['-c', 'echo $(wslpath ' + escapeNonWindowsPath(path) + ')'], {}, (error, stdout, stderr) => {
+			c(escapeNonWindowsPath(stdout.trim()));
+		});
+	});
+}

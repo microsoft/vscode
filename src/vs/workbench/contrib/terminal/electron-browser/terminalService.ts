@@ -16,7 +16,7 @@ import { ITerminalInstance, ITerminalService, IShellLaunchConfig, ITerminalConfi
 import { TerminalService as BrowserTerminalService } from 'vs/workbench/contrib/terminal/browser/terminalService';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { getDefaultShell, linuxDistro } from 'vs/workbench/contrib/terminal/node/terminal';
+import { getDefaultShell, linuxDistro, getWindowsBuildNumber } from 'vs/workbench/contrib/terminal/node/terminal';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ipcRenderer as ipc } from 'electron';
@@ -108,7 +108,7 @@ export class TerminalService extends BrowserTerminalService implements ITerminal
 
 		let useWSLexe = false;
 
-		if (TerminalInstance.getWindowsBuildNumber() >= 16299) {
+		if (getWindowsBuildNumber() >= 16299) {
 			useWSLexe = true;
 		}
 

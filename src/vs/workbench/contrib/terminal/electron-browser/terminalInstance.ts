@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { execFile } from 'child_process';
-import * as os from 'os';
 import * as path from 'vs/base/common/path';
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -38,6 +36,8 @@ import { WindowsShellHelper } from 'vs/workbench/contrib/terminal/node/windowsSh
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ISearchOptions, Terminal as XTermTerminal } from 'vscode-xterm';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import { escapeNonWindowsPath } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
+import { getWslPath, getWindowsBuildNumber } from 'vs/workbench/contrib/terminal/node/terminal';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -829,10 +829,8 @@ export class TerminalInstance implements ITerminalInstance {
 			if (platform.isWindows) {
 				// 17063 is the build number where wsl path was introduced.
 				// Update Windows uriPath to be executed in WSL.
-				if (((exe.indexOf('wsl') !== -1) || ((exe.indexOf('bash.exe') !== -1) && (exe.indexOf('git') === -1))) && (TerminalInstance.getWindowsBuildNumber() >= 17063)) {
-					execFile('bash.exe', ['-c', 'echo $(wslpath ' + this._escapeNonWindowsPath(originalPath) + ')'], {}, (error, stdout, stderr) => {
-						c(this._escapeNonWindowsPath(stdout.trim()));
-					});
+				if (((exe.indexOf('wsl') !== -1) || ((exe.indexOf('bash.exe') !== -1) && (exe.indexOf('git') === -1))) && (getWindowsBuildNumber() >= 17063)) {
+					c(getWslPath(originalPath));
 					return;
 				} else if (hasSpace) {
 					c('"' + originalPath + '"');
@@ -841,30 +839,8 @@ export class TerminalInstance implements ITerminalInstance {
 				}
 				return;
 			}
-			c(this._escapeNonWindowsPath(originalPath));
+			c(escapeNonWindowsPath(originalPath));
 		});
-	}
-
-	private _escapeNonWindowsPath(path: string): string {
-		let newPath = path;
-		if (newPath.indexOf('\\') !== 0) {
-			newPath = newPath.replace(/\\/g, '\\\\');
-		}
-		if (!newPath && (newPath.indexOf('"') !== -1)) {
-			newPath = '\'' + newPath + '\'';
-		} else if (newPath.indexOf(' ') !== -1) {
-			newPath = newPath.replace(/ /g, '\\ ');
-		}
-		return newPath;
-	}
-
-	public static getWindowsBuildNumber(): number {
-		const osVersion = (/(\d+)\.(\d+)\.(\d+)/g).exec(os.release());
-		let buildNumber: number = 0;
-		if (osVersion && osVersion.length === 4) {
-			buildNumber = parseInt(osVersion[3]);
-		}
-		return buildNumber;
 	}
 
 	public setVisible(visible: boolean): void {
