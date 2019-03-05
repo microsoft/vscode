@@ -10,13 +10,13 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import * as paths from 'vs/base/common/path';
 import { URI as uri } from 'vs/base/common/uri';
-import { ITerminalService } from 'vs/workbench/contrib/execution/common/execution';
+import { IExternalTerminalConfiguration, IExternalTerminalService } from 'vs/workbench/contrib/externalTerminal/common/externalTerminal';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Extensions, IConfigurationRegistry, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { ITerminalService as IIntegratedTerminalService, KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED } from 'vs/workbench/contrib/terminal/common/terminal';
-import { getDefaultTerminalWindows, getDefaultTerminalLinuxReady, DEFAULT_TERMINAL_OSX, ITerminalConfiguration } from 'vs/workbench/contrib/execution/electron-browser/terminal';
-import { WinTerminalService, MacTerminalService, LinuxTerminalService } from 'vs/workbench/contrib/execution/electron-browser/terminalService';
+import { getDefaultTerminalWindows, getDefaultTerminalLinuxReady, DEFAULT_TERMINAL_OSX } from 'vs/workbench/contrib/externalTerminal/electron-browser/externalTerminal';
+import { WindowsExternalTerminalService, MacExternalTerminalService, LinuxExternalTerminalService } from 'vs/workbench/contrib/externalTerminal/electron-browser/externalTerminalService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -29,11 +29,11 @@ import { distinct } from 'vs/base/common/arrays';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 if (env.isWindows) {
-	registerSingleton(ITerminalService, WinTerminalService, true);
+	registerSingleton(IExternalTerminalService, WindowsExternalTerminalService, true);
 } else if (env.isMacintosh) {
-	registerSingleton(ITerminalService, MacTerminalService, true);
+	registerSingleton(IExternalTerminalService, MacExternalTerminalService, true);
 } else if (env.isLinux) {
-	registerSingleton(ITerminalService, LinuxTerminalService, true);
+	registerSingleton(IExternalTerminalService, LinuxExternalTerminalService, true);
 }
 
 getDefaultTerminalLinuxReady().then(defaultTerminalLinux => {
@@ -87,13 +87,13 @@ CommandsRegistry.registerCommand({
 		const editorService = accessor.get(IEditorService);
 		const fileService = accessor.get(IFileService);
 		const integratedTerminalService = accessor.get(IIntegratedTerminalService);
-		const terminalService = accessor.get(ITerminalService);
+		const terminalService = accessor.get(IExternalTerminalService);
 		const resources = getMultiSelectedResources(resource, accessor.get(IListService), editorService);
 
 		return fileService.resolveFiles(resources.map(r => ({ resource: r }))).then(stats => {
 			const directoriesToOpen = distinct(stats.map(({ stat }) => stat.isDirectory ? stat.resource.fsPath : paths.dirname(stat.resource.fsPath)));
 			return directoriesToOpen.map(dir => {
-				if (configurationService.getValue<ITerminalConfiguration>().terminal.explorerKind === 'integrated') {
+				if (configurationService.getValue<IExternalTerminalConfiguration>().terminal.explorerKind === 'integrated') {
 					const instance = integratedTerminalService.createTerminal({ cwd: dir }, true);
 					if (instance && (resources.length === 1 || !resource || dir === resource.fsPath || dir === paths.dirname(resource.fsPath))) {
 						integratedTerminalService.setActiveInstance(instance);
@@ -115,7 +115,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	handler: (accessor) => {
 		const historyService = accessor.get(IHistoryService);
-		const terminalService = accessor.get(ITerminalService);
+		const terminalService = accessor.get(IExternalTerminalService);
 		const root = historyService.getLastActiveWorkspaceRoot(Schemas.file);
 		if (root) {
 			terminalService.openTerminal(root.fsPath);
