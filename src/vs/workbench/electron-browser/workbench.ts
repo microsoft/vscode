@@ -191,7 +191,6 @@ export class Workbench extends Disposable implements IPartService {
 	private editorGroupService: IEditorGroupsService;
 	private contextViewService: ContextViewService;
 	private backupFileService: IBackupFileService;
-	private notificationService: NotificationService;
 	private windowService: IWindowService;
 	private lifecycleService: LifecycleService;
 	private instantiationService: IInstantiationService;
@@ -281,11 +280,6 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Log it
 		this.logService.error(errorMsg);
-
-		// Show to user if friendly message provided
-		if (error && error.friendlyMessage && this.notificationService) {
-			this.notificationService.error(error.friendlyMessage);
-		}
 	}
 
 	startup(): void {
@@ -379,8 +373,7 @@ export class Workbench extends Disposable implements IPartService {
 		serviceCollection.set(ILabelService, new SyncDescriptor(LabelService, undefined, true));
 
 		// Notifications
-		this.notificationService = new NotificationService();
-		serviceCollection.set(INotificationService, this.notificationService);
+		serviceCollection.set(INotificationService, new SyncDescriptor(NotificationService, undefined, true));
 
 		// Window
 		this.windowService = this.instantiationService.createInstance(WindowService, this.configuration);
@@ -649,7 +642,7 @@ export class Workbench extends Disposable implements IPartService {
 		this.createStatusbarPart();
 
 		// Notification Handlers
-		this.createNotificationsHandlers();
+		this.instantiationService.invokeFunction(accessor => this.createNotificationsHandlers(accessor));
 
 		// Add Workbench to DOM
 		this.container.appendChild(this.workbench);
@@ -706,19 +699,20 @@ export class Workbench extends Disposable implements IPartService {
 		return part;
 	}
 
-	private createNotificationsHandlers(): void {
+	private createNotificationsHandlers(accessor: ServicesAccessor): void {
+		const notificationService = accessor.get(INotificationService) as NotificationService;
 
 		// Notifications Center
-		this.notificationsCenter = this._register(this.instantiationService.createInstance(NotificationsCenter, this.workbench, this.notificationService.model));
+		this.notificationsCenter = this._register(this.instantiationService.createInstance(NotificationsCenter, this.workbench, notificationService.model));
 
 		// Notifications Toasts
-		this.notificationsToasts = this._register(this.instantiationService.createInstance(NotificationsToasts, this.workbench, this.notificationService.model));
+		this.notificationsToasts = this._register(this.instantiationService.createInstance(NotificationsToasts, this.workbench, notificationService.model));
 
 		// Notifications Alerts
-		this._register(this.instantiationService.createInstance(NotificationsAlerts, this.notificationService.model));
+		this._register(this.instantiationService.createInstance(NotificationsAlerts, notificationService.model));
 
 		// Notifications Status
-		const notificationsStatus = this.instantiationService.createInstance(NotificationsStatus, this.notificationService.model);
+		const notificationsStatus = this.instantiationService.createInstance(NotificationsStatus, notificationService.model);
 
 		// Eventing
 		this._register(this.notificationsCenter.onDidChangeVisibility(() => {
