@@ -335,8 +335,7 @@ export class OutlinePanel extends ViewletPanel {
 		this._disposables.push(this._tree);
 		this._disposables.push(this._outlineViewState.onDidChange(this._onDidChangeUserState, this));
 
-		// todo@joh workaournd for the tree resetting the filter behaviour
-		// to something globally defined
+		// override the globally defined behaviour
 		this._tree.updateOptions({
 			filterOnType: this._outlineViewState.filterOnType
 		});
