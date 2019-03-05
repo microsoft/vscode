@@ -181,6 +181,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		const query = queryBuilder.file(folders, {
 			_reason: 'checkExists',
 			includePattern: includes.join(', '),
+			expandPatterns: true,
 			exists: true
 		});
 

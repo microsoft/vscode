@@ -85,7 +85,7 @@ suite('QueryBuilder', () => {
 			});
 	});
 
-	test('splits glob pattern even with expandPatterns disabled', () => {
+	test('does not split glob pattern when expandPatterns disabled', () => {
 		assertEqualQueries(
 			queryBuilder.file([ROOT_1_URI], { includePattern: '**/foo, **/bar' }),
 			{
@@ -94,8 +94,7 @@ suite('QueryBuilder', () => {
 				}],
 				type: QueryType.File,
 				includePattern: {
-					'**/foo': true,
-					'**/bar': true
+					'**/foo, **/bar': true
 				}
 			});
 	});

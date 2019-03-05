@@ -152,14 +152,14 @@ export class QueryBuilder {
 		if (options.includePattern) {
 			includeSearchPathsInfo = options.expandPatterns ?
 				this.parseSearchPaths(options.includePattern) :
-				{ pattern: patternListToIExpression(...splitGlobPattern(options.includePattern)) };
+				{ pattern: patternListToIExpression(options.includePattern) };
 		}
 
 		let excludeSearchPathsInfo: ISearchPathsInfo = {};
 		if (options.excludePattern) {
 			excludeSearchPathsInfo = options.expandPatterns ?
 				this.parseSearchPaths(options.excludePattern) :
-				{ pattern: patternListToIExpression(...splitGlobPattern(options.excludePattern)) };
+				{ pattern: patternListToIExpression(options.excludePattern) };
 		}
 
 		// Build folderQueries from searchPaths, if given, otherwise folderResources
