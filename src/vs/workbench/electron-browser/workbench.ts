@@ -103,6 +103,8 @@ import { WorkbenchThemeService } from 'vs/workbench/services/themes/browser/work
 import { IProductService } from 'vs/platform/product/common/product';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { WorkbenchContextKeysHandler } from 'vs/workbench/browser/contextkeys';
+import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 // import@node
 import { BackupFileService, InMemoryBackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
@@ -190,13 +192,17 @@ export class Workbench extends Disposable implements IPartService {
 	private editorService: EditorService;
 	private editorGroupService: IEditorGroupsService;
 	private contextViewService: ContextViewService;
-	private keybindingService: IKeybindingService;
 	private backupFileService: IBackupFileService;
 	private notificationService: NotificationService;
-	private themeService: WorkbenchThemeService;
-	private telemetryService: ITelemetryService;
 	private windowService: IWindowService;
 	private lifecycleService: LifecycleService;
+	private instantiationService: IInstantiationService;
+	private contextService: IWorkspaceContextService;
+	private storageService: IStorageService;
+	private configurationService: WorkspaceService;
+	private environmentService: IEnvironmentService;
+	private logService: ILogService;
+	private windowsService: IWindowsService;
 
 	private titlebarPart: TitlebarPart;
 	private activitybarPart: ActivitybarPart;
@@ -215,15 +221,23 @@ export class Workbench extends Disposable implements IPartService {
 		private container: HTMLElement,
 		private configuration: IWindowConfiguration,
 		private serviceCollection: ServiceCollection,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IStorageService private readonly storageService: IStorageService,
-		@IConfigurationService private readonly configurationService: WorkspaceService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@ILogService private readonly logService: ILogService,
-		@IWindowsService private readonly windowsService: IWindowsService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IStorageService storageService: IStorageService,
+		@IConfigurationService configurationService: WorkspaceService,
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@ILogService logService: ILogService,
+		@IWindowsService windowsService: IWindowsService
 	) {
 		super();
+
+		this.instantiationService = instantiationService;
+		this.contextService = contextService;
+		this.storageService = storageService;
+		this.configurationService = configurationService;
+		this.environmentService = environmentService;
+		this.logService = logService;
+		this.windowsService = windowsService;
 
 		this.registerErrorHandler();
 	}
@@ -343,7 +357,7 @@ export class Workbench extends Disposable implements IPartService {
 		this.lifecycleService.when(LifecyclePhase.Restored).then(() => clearTimeout(timeoutHandle));
 
 		// Restore Parts
-		return this.restoreParts().then(() => this.whenStarted(), error => this.whenStarted(error));
+		return this.restoreParts().then(() => this.instantiationService.invokeFunction(accessor => this.whenStarted(accessor)), error => this.instantiationService.invokeFunction(accessor => this.whenStarted(accessor, error)));
 	}
 
 	private createWorkbenchContainer(): void {
@@ -385,6 +399,7 @@ export class Workbench extends Disposable implements IPartService {
 			});
 
 		// Telemetry
+		let telemetryService: ITelemetryService;
 		if (!this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!productService.enableTelemetry) {
 			const channel = getDelayedChannel(sharedProcess.then(c => c.getChannel('telemetryAppender')));
 			const config: ITelemetryServiceConfig = {
@@ -393,14 +408,14 @@ export class Workbench extends Disposable implements IPartService {
 				piiPaths: [this.environmentService.appRoot, this.environmentService.extensionsPath]
 			};
 
-			this.telemetryService = this._register(this.instantiationService.createInstance(TelemetryService, config));
-			this._register(new ErrorTelemetry(this.telemetryService));
+			telemetryService = this._register(this.instantiationService.createInstance(TelemetryService, config));
+			this._register(new ErrorTelemetry(telemetryService));
 		} else {
-			this.telemetryService = NullTelemetryService;
+			telemetryService = NullTelemetryService;
 		}
 
-		serviceCollection.set(ITelemetryService, this.telemetryService);
-		this._register(configurationTelemetry(this.telemetryService, this.configurationService));
+		serviceCollection.set(ITelemetryService, telemetryService);
+		this._register(configurationTelemetry(telemetryService, this.configurationService));
 
 		// Lifecycle
 		this.lifecycleService = this.instantiationService.createInstance(LifecycleService);
@@ -436,8 +451,7 @@ export class Workbench extends Disposable implements IPartService {
 		serviceCollection.set(IExtensionService, new SyncDescriptor(ExtensionService));
 
 		// Theming
-		this.themeService = this.instantiationService.createInstance(WorkbenchThemeService, document.body);
-		serviceCollection.set(IWorkbenchThemeService, this.themeService);
+		serviceCollection.set(IWorkbenchThemeService, new SyncDescriptor(WorkbenchThemeService, [document.body]));
 
 		// Commands
 		serviceCollection.set(ICommandService, new SyncDescriptor(CommandService, undefined, true));
@@ -469,8 +483,7 @@ export class Workbench extends Disposable implements IPartService {
 		serviceCollection.set(IContextKeyService, new SyncDescriptor(ContextKeyService));
 
 		// Keybindings
-		this.keybindingService = this.instantiationService.createInstance(WorkbenchKeybindingService, window);
-		serviceCollection.set(IKeybindingService, this.keybindingService);
+		serviceCollection.set(IKeybindingService, new SyncDescriptor(WorkbenchKeybindingService, [window]));
 
 		// Context view service
 		this.contextViewService = this.instantiationService.createInstance(ContextViewService, this.workbench);
@@ -501,10 +514,7 @@ export class Workbench extends Disposable implements IPartService {
 		serviceCollection.set(IActivityService, new SyncDescriptor(ActivityService, [this.activitybarPart, this.panelPart], true));
 
 		// File Service
-		const fileService = this.instantiationService.createInstance(RemoteFileService);
-		serviceCollection.set(IFileService, fileService);
-		this.configurationService.acquireFileService(fileService);
-		this.themeService.acquireFileService(fileService);
+		serviceCollection.set(IFileService, new SyncDescriptor(RemoteFileService));
 
 		// Editor and Group services
 		this.editorPart = this.instantiationService.createInstance(EditorPart, Identifiers.EDITOR_PART, !this.hasInitialFilesToOpen());
@@ -545,7 +555,7 @@ export class Workbench extends Disposable implements IPartService {
 			serviceCollection.set(contributedService.id, contributedService.descriptor);
 		}
 
-		// TODO this should move somewhere else
+		// TODO@Alex TODO@Sandeep this should move somewhere else
 		this.instantiationService.invokeFunction(accessor => {
 			const remoteAgentConnection = accessor.get(IRemoteAgentService).getConnection();
 			if (remoteAgentConnection) {
@@ -555,8 +565,17 @@ export class Workbench extends Disposable implements IPartService {
 			}
 		});
 
-		// TODO@Sandeep debt around cyclic dependencies
-		this.configurationService.acquireInstantiationService(this.instantiationService);
+		// TODO@Sandeep TODO@Martin debt around cyclic dependencies
+		this.instantiationService.invokeFunction(accessor => {
+			const fileService = accessor.get(IFileService);
+			const instantiationService = accessor.get(IInstantiationService);
+			const themeService = accessor.get(IThemeService) as WorkbenchThemeService;
+
+			this.configurationService.acquireFileService(fileService);
+			this.configurationService.acquireInstantiationService(instantiationService);
+
+			themeService.acquireFileService(fileService);
+		});
 	}
 
 	private startRegistries(): void {
@@ -772,17 +791,25 @@ export class Workbench extends Disposable implements IPartService {
 		return Promise.all(restorePromises);
 	}
 
-	private whenStarted(error?: Error): void {
+	private whenStarted(accessor: ServicesAccessor, error?: Error): void {
+		const themeService = accessor.get(IWorkbenchThemeService);
+		const keybindingsService = accessor.get(IKeybindingService);
+		const lifecycleService = accessor.get(ILifecycleService) as LifecycleService;
+		const editorService = accessor.get(IEditorService);
+		const activityService = accessor.get(IActivityService);
+		const contextService = accessor.get(IWorkspaceContextService);
+		const telemetryService = accessor.get(ITelemetryService);
+
 		this.restored = true;
 
 		// Set lifecycle phase to `Restored`
-		this.lifecycleService.phase = LifecyclePhase.Restored;
+		lifecycleService.phase = LifecyclePhase.Restored;
 
 		// Set lifecycle phase to `Eventually` after a short delay and when
 		// idle (min 2.5sec, max 5sec)
 		setTimeout(() => {
 			this._register(runWhenIdle(() => {
-				this.lifecycleService.phase = LifecyclePhase.Eventually;
+				lifecycleService.phase = LifecyclePhase.Eventually;
 			}, 2500));
 		}, 2500);
 
@@ -813,20 +840,20 @@ export class Workbench extends Disposable implements IPartService {
 				"startupKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 			}
 		*/
-		this.telemetryService.publicLog('workspaceLoad', {
+		telemetryService.publicLog('workspaceLoad', {
 			userAgent: navigator.userAgent,
 			windowSize: { innerHeight: window.innerHeight, innerWidth: window.innerWidth, outerHeight: window.outerHeight, outerWidth: window.outerWidth },
-			emptyWorkbench: this.contextService.getWorkbenchState() === WorkbenchState.EMPTY,
+			emptyWorkbench: contextService.getWorkbenchState() === WorkbenchState.EMPTY,
 			'workbench.filesToOpen': filesToOpen && filesToOpen.length || 0,
 			'workbench.filesToCreate': filesToCreate && filesToCreate.length || 0,
 			'workbench.filesToDiff': filesToDiff && filesToDiff.length || 0,
-			customKeybindingsCount: this.keybindingService.customKeybindingsCount(),
-			theme: this.themeService.getColorTheme().id,
+			customKeybindingsCount: keybindingsService.customKeybindingsCount(),
+			theme: themeService.getColorTheme().id,
 			language,
-			pinnedViewlets: this.activitybarPart.getPinnedViewletIds(),
+			pinnedViewlets: activityService.getPinnedViewletIds(),
 			restoredViewlet: this.state.sideBar.viewletToRestore,
-			restoredEditors: this.editorService.visibleEditors.length,
-			startupKind: this.lifecycleService.startupKind
+			restoredEditors: editorService.visibleEditors.length,
+			startupKind: lifecycleService.startupKind
 		});
 
 		// Telemetry: startup metrics
