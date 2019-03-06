@@ -940,6 +940,12 @@ export class SettingsEditor2 extends BaseEditor {
 			return Promise.resolve(undefined);
 		}
 
+		// If the context view is focused, delay rendering settings
+		if (this.contextViewFocused()) {
+			this.scheduleRefresh(document.querySelector('.context-view'), key);
+			return Promise.resolve(undefined);
+		}
+
 		// If a setting control is currently focused, schedule a refresh for later
 		const activeElement = this.getActiveElementInSettingsTree();
 		const focusedSetting = activeElement && this.settingRenderers.getSettingDOMElementForDOMElement(activeElement);
@@ -978,6 +984,10 @@ export class SettingsEditor2 extends BaseEditor {
 		this.tocTreeModel.update();
 		this.refreshTOCTree();
 		return Promise.resolve(undefined);
+	}
+
+	private contextViewFocused(): boolean {
+		return !!DOM.findParentWithClass(<HTMLElement>document.activeElement, 'context-view');
 	}
 
 	private refreshTree(): void {
