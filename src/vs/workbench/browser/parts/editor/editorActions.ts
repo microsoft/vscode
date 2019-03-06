@@ -882,7 +882,7 @@ export class ResetGroupSizesAction extends Action {
 export class MaximizeGroupAction extends Action {
 
 	static readonly ID = 'workbench.action.maximizeEditor';
-	static readonly LABEL = nls.localize('maximizeEditor', "Maximize Editor Group and Hide Sidebar");
+	static readonly LABEL = nls.localize('maximizeEditor', "Maximize Editor Group and Hide Side Bar");
 
 	constructor(
 		id: string,
