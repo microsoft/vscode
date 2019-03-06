@@ -117,7 +117,7 @@ export interface IWindowsService {
 	enterWorkspace(windowId: number, path: URI): Promise<IEnterWorkspaceResult | undefined>;
 	toggleFullScreen(windowId: number): Promise<void>;
 	setRepresentedFilename(windowId: number, fileName: string): Promise<void>;
-	addRecentlyOpened(files: URI[]): Promise<void>;
+	addRecentlyOpened(workspaces: URI[], folders: URI[], files: URI[]): Promise<void>;
 	removeFromRecentlyOpened(paths: Array<IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | string>): Promise<void>;
 	clearRecentlyOpened(): Promise<void>;
 	getRecentlyOpened(windowId: number): Promise<IRecentlyOpened>;

@@ -1240,7 +1240,7 @@ export class TestWindowsService implements IWindowsService {
 		return Promise.resolve();
 	}
 
-	addRecentlyOpened(_files: URI[]): Promise<void> {
+	addRecentlyOpened(_workspaces: URI[], _folders: URI[], _files: URI[]): Promise<void> {
 		return Promise.resolve();
 	}
 
