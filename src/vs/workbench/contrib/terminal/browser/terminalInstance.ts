@@ -1037,7 +1037,12 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 
 		if (this._processManager) {
-			this._processManager.onProcessData(data => this._onProcessData(data));
+			// NOTE: The "!" operator should not be required here. But, the strict-null check
+			// tasks is giving a false positive of.
+			// src/vs/workbench/contrib/terminal/browser/terminalInstance.ts(1040,25): error TS2339: Property 'onProcessData' does not exist on type 'never'.
+			// This is because the strict-null check isn't good enough to know that the "this._createProcess" call above will
+			// reset this._processManager.
+			this._processManager!.onProcessData(data => this._onProcessData(data));
 		}
 	}
 
