@@ -75,7 +75,7 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 		}
 
 		return this._proxy.$tryShowTextDocument(document.uri, options).then(id => {
-			const editor = this._extHostDocumentsAndEditors.getEditor(id);
+			const editor = id && this._extHostDocumentsAndEditors.getEditor(id);
 			if (editor) {
 				return editor;
 			} else {
