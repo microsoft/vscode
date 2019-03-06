@@ -726,6 +726,12 @@ export class TerminalInstance implements ITerminalInstance {
 			this._sendLineData(buffer, buffer.ybase + buffer.y);
 			this._xterm.dispose();
 		}
+
+		if (this._pressAnyKeyToCloseListener) {
+			this._pressAnyKeyToCloseListener.dispose();
+			this._pressAnyKeyToCloseListener = undefined;
+		}
+
 		if (this._processManager) {
 			this._processManager.dispose(immediate);
 		} else {
