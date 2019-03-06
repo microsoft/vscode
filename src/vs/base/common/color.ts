@@ -387,7 +387,7 @@ export class Color {
 		const thisA = this.rgba.a;
 		const colorA = rgba.a;
 
-		let a = thisA + colorA * (1 - thisA);
+		const a = thisA + colorA * (1 - thisA);
 		if (a < 1e-6) {
 			return Color.transparent;
 		}

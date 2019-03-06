@@ -51,8 +51,8 @@ export function binarySearch<T>(array: ReadonlyArray<T>, key: T, comparator: (op
 		high = array.length - 1;
 
 	while (low <= high) {
-		let mid = ((low + high) / 2) | 0;
-		let comp = comparator(array[mid], key);
+		const mid = ((low + high) / 2) | 0;
+		const comp = comparator(array[mid], key);
 		if (comp < 0) {
 			low = mid + 1;
 		} else if (comp > 0) {
@@ -75,7 +75,7 @@ export function findFirstInSorted<T>(array: ReadonlyArray<T>, p: (x: T) => boole
 		return 0; // no children
 	}
 	while (low < high) {
-		let mid = Math.floor((low + high) / 2);
+		const mid = Math.floor((low + high) / 2);
 		if (p(array[mid])) {
 			high = mid;
 		} else {
@@ -122,7 +122,7 @@ function _sort<T>(a: T[], compare: Compare<T>, lo: number, hi: number, aux: T[])
 	if (hi <= lo) {
 		return;
 	}
-	let mid = lo + ((hi - lo) / 2) | 0;
+	const mid = lo + ((hi - lo) / 2) | 0;
 	_sort(a, compare, lo, mid, aux);
 	_sort(a, compare, mid + 1, hi, aux);
 	if (compare(a[mid], a[mid + 1]) <= 0) {
@@ -502,8 +502,8 @@ export function shuffle<T>(array: T[], _seed?: number): void {
 	}
 
 	for (let i = array.length - 1; i > 0; i -= 1) {
-		let j = Math.floor(rand() * (i + 1));
-		let temp = array[i];
+		const j = Math.floor(rand() * (i + 1));
+		const temp = array[i];
 		array[i] = array[j];
 		array[j] = temp;
 	}

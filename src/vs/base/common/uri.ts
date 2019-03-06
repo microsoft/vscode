@@ -329,7 +329,7 @@ export class URI implements UriComponents {
 		// check for authority as used in UNC shares
 		// or use the path as given
 		if (path[0] === _slash && path[1] === _slash) {
-			let idx = path.indexOf(_slash, 2);
+			const idx = path.indexOf(_slash, 2);
 			if (idx === -1) {
 				authority = path.substring(2);
 				path = _slash;
@@ -379,7 +379,7 @@ export class URI implements UriComponents {
 		} else if (data instanceof URI) {
 			return data;
 		} else {
-			let result = new _URI(data);
+			const result = new _URI(data);
 			result._fsPath = (<UriState>data).fsPath;
 			result._formatted = (<UriState>data).external;
 			return result;
@@ -488,7 +488,7 @@ function encodeURIComponentFast(uriComponent: string, allowSlash: boolean): stri
 	let nativeEncodePos = -1;
 
 	for (let pos = 0; pos < uriComponent.length; pos++) {
-		let code = uriComponent.charCodeAt(pos);
+		const code = uriComponent.charCodeAt(pos);
 
 		// unreserved characters: https://tools.ietf.org/html/rfc3986#section-2.3
 		if (
@@ -518,7 +518,7 @@ function encodeURIComponentFast(uriComponent: string, allowSlash: boolean): stri
 			}
 
 			// check with default table first
-			let escaped = encodeTable[code];
+			const escaped = encodeTable[code];
 			if (escaped !== undefined) {
 
 				// check if we are delaying native encode
@@ -547,7 +547,7 @@ function encodeURIComponentFast(uriComponent: string, allowSlash: boolean): stri
 function encodeURIComponentMinimal(path: string): string {
 	let res: string | undefined = undefined;
 	for (let pos = 0; pos < path.length; pos++) {
-		let code = path.charCodeAt(pos);
+		const code = path.charCodeAt(pos);
 		if (code === CharCode.Hash || code === CharCode.QuestionMark) {
 			if (res === undefined) {
 				res = path.substr(0, pos);
@@ -637,12 +637,12 @@ function _asFormatted(uri: URI, skipEncoding: boolean): string {
 	if (path) {
 		// lower-case windows drive letters in /C:/fff or C:/fff
 		if (path.length >= 3 && path.charCodeAt(0) === CharCode.Slash && path.charCodeAt(2) === CharCode.Colon) {
-			let code = path.charCodeAt(1);
+			const code = path.charCodeAt(1);
 			if (code >= CharCode.A && code <= CharCode.Z) {
 				path = `/${String.fromCharCode(code + 32)}:${path.substr(3)}`; // "/c:".length === 3
 			}
 		} else if (path.length >= 2 && path.charCodeAt(1) === CharCode.Colon) {
-			let code = path.charCodeAt(0);
+			const code = path.charCodeAt(0);
 			if (code >= CharCode.A && code <= CharCode.Z) {
 				path = `${String.fromCharCode(code + 32)}:${path.substr(2)}`; // "/c:".length === 3
 			}
