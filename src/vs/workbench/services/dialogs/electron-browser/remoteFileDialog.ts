@@ -97,8 +97,8 @@ export class RemoteFileDialog {
 	}
 
 	private getOptions(options: ISaveDialogOptions | IOpenDialogOptions): IOpenDialogOptions | undefined {
-		const defaultUri = options.defaultUri ? options.defaultUri : URI.from({ scheme: REMOTE_HOST_SCHEME, authority: this.remoteAuthority, path: '/' });
-		if (!this.remoteFileService.canHandleResource(defaultUri)) {
+		const defaultUri = options.defaultUri ? options.defaultUri : URI.from({ scheme: this.scheme, authority: this.remoteAuthority, path: '/' });
+		if ((this.scheme !== Schemas.file) && !this.remoteFileService.canHandleResource(defaultUri)) {
 			this.notificationService.info(nls.localize('remoteFileDialog.notConnectedToRemote', 'File system provider for {0} is not available.', defaultUri.toString()));
 			return undefined;
 		}
@@ -119,7 +119,7 @@ export class RemoteFileDialog {
 	private async pickResource(options: IOpenDialogOptions, isSave: boolean = false): Promise<URI | undefined> {
 		this.allowFolderSelection = !!options.canSelectFolders;
 		this.allowFileSelection = !!options.canSelectFiles;
-		let homedir: URI = options.defaultUri && options.defaultUri.scheme === REMOTE_HOST_SCHEME ? options.defaultUri : this.workspaceContextService.getWorkspace().folders[0].uri;
+		let homedir: URI = options.defaultUri ? options.defaultUri : this.workspaceContextService.getWorkspace().folders[0].uri;
 		let trailing: string | undefined;
 		let stat: IFileStat | undefined;
 		let ext: string = resources.extname(options.defaultUri);
@@ -214,7 +214,7 @@ export class RemoteFileDialog {
 				if (value !== this.userValue) {
 					const trimmedPickBoxValue = ((this.filePickBox.value.length > 1) && this.endsWithSlash(this.filePickBox.value)) ? this.filePickBox.value.substr(0, this.filePickBox.value.length - 1) : this.filePickBox.value;
 					const valueUri = this.remoteUriFrom(trimmedPickBoxValue);
-					if (!resources.isEqual(this.currentFolder, valueUri)) {
+					if (!resources.isEqual(this.currentFolder, valueUri, true)) {
 						await this.tryUpdateItems(value, valueUri);
 					}
 					this.setActiveItems(value);
@@ -256,7 +256,7 @@ export class RemoteFileDialog {
 
 		// Find resolve value
 		if (this.filePickBox.activeItems.length === 0) {
-			if (!this.requiresTrailing && resources.isEqual(this.currentFolder, inputUri)) {
+			if (!this.requiresTrailing && resources.isEqual(this.currentFolder, inputUri, true)) {
 				resolveValue = inputUri;
 			} else if (this.requiresTrailing && statDirname && statDirname.isDirectory) {
 				resolveValue = inputUri;
@@ -288,7 +288,7 @@ export class RemoteFileDialog {
 	}
 
 	private async tryUpdateItems(value: string, valueUri: URI) {
-		if (this.endsWithSlash(value) || (!resources.isEqual(this.currentFolder, resources.dirname(valueUri)) && resources.isEqualOrParent(this.currentFolder, resources.dirname(valueUri)))) {
+		if (this.endsWithSlash(value) || (!resources.isEqual(this.currentFolder, resources.dirname(valueUri), true) && resources.isEqualOrParent(this.currentFolder, resources.dirname(valueUri), true))) {
 			let stat: IFileStat | undefined;
 			try {
 				stat = await this.remoteFileService.resolveFile(valueUri);
@@ -299,7 +299,7 @@ export class RemoteFileDialog {
 				this.updateItems(valueUri);
 			} else {
 				const inputUriDirname = resources.dirname(valueUri);
-				if (!resources.isEqual(this.currentFolder, inputUriDirname)) {
+				if (!resources.isEqual(this.currentFolder, inputUriDirname, true)) {
 					let statWithoutTrailing: IFileStat | undefined;
 					try {
 						statWithoutTrailing = await this.remoteFileService.resolveFile(inputUriDirname);
@@ -321,7 +321,7 @@ export class RemoteFileDialog {
 			for (let i = 0; i < this.filePickBox.items.length; i++) {
 				const item = <FileQuickPickItem>this.filePickBox.items[i];
 				const itemBasename = resources.basename(item.uri);
-				if ((itemBasename.length >= inputBasename.length) && (itemBasename.substr(0, inputBasename.length) === inputBasename)) {
+				if ((itemBasename.length >= inputBasename.length) && (itemBasename.substr(0, inputBasename.length).toLowerCase() === inputBasename.toLowerCase())) {
 					this.filePickBox.activeItems = [item];
 					this.filePickBox.value = this.filePickBox.value + itemBasename.substr(inputBasename.length);
 					this.filePickBox.valueSelection = [value.length, this.filePickBox.value.length];
@@ -442,7 +442,7 @@ export class RemoteFileDialog {
 
 	private createBackItem(currFolder: URI): FileQuickPickItem | null {
 		const parentFolder = resources.dirname(currFolder)!;
-		if (!resources.isEqual(currFolder, parentFolder)) {
+		if (!resources.isEqual(currFolder, parentFolder, true)) {
 			return { label: '..', uri: resources.dirname(currFolder), isFolder: true };
 		}
 		return null;
@@ -468,7 +468,9 @@ export class RemoteFileDialog {
 			if (i1.isFolder !== i2.isFolder) {
 				return i1.isFolder ? -1 : 1;
 			}
-			return i1.label.localeCompare(i2.label);
+			const trimmed1 = this.endsWithSlash(i1.label) ? i1.label.substr(0, i1.label.length - 1) : i1.label;
+			const trimmed2 = this.endsWithSlash(i2.label) ? i2.label.substr(0, i2.label.length - 1) : i2.label;
+			return trimmed1.localeCompare(trimmed2);
 		});
 
 		if (backDir) {

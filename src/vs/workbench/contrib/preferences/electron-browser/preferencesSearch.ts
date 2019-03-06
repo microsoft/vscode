@@ -11,7 +11,6 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IMatch, or, matchesContiguousSubString, matchesPrefix, matchesCamelCase, matchesWords } from 'vs/base/common/filters';
-import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IRequestService } from 'vs/platform/request/node/request';
@@ -23,9 +22,11 @@ import { IPreferencesSearchService, ISearchProvider, IWorkbenchSettingsConfigura
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { canceled } from 'vs/base/common/errors';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { nullRange } from 'vs/workbench/services/preferences/common/preferencesModels';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface IEndpointDetails {
-	urlBase: string;
+	urlBase?: string;
 	key?: string;
 }
 
@@ -35,7 +36,7 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 	private _installedExtensions: Promise<ILocalExtension[]>;
 
 	constructor(
-		@IWorkspaceConfigurationService private readonly configurationService: IWorkspaceConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
@@ -76,14 +77,14 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 		}
 	}
 
-	getRemoteSearchProvider(filter: string, newExtensionsOnly = false): ISearchProvider {
+	getRemoteSearchProvider(filter: string, newExtensionsOnly = false): ISearchProvider | undefined {
 		const opts: IRemoteSearchProviderOptions = {
 			filter,
 			newExtensionsOnly,
 			endpoint: this._endpoint
 		};
 
-		return this.remoteSearchAllowed && this.instantiationService.createInstance(RemoteSearchProvider, opts, this._installedExtensions);
+		return this.remoteSearchAllowed ? this.instantiationService.createInstance(RemoteSearchProvider, opts, this._installedExtensions) : undefined;
 	}
 
 	getLocalSearchProvider(filter: string): LocalSearchProvider {
@@ -164,7 +165,7 @@ class RemoteSearchProvider implements ISearchProvider {
 	private static readonly MAX_REQUESTS = 10;
 	private static readonly NEW_EXTENSIONS_MIN_SCORE = 1;
 
-	private _remoteSearchP: Promise<IFilterMetadata>;
+	private _remoteSearchP: Promise<IFilterMetadata | null>;
 
 	constructor(private options: IRemoteSearchProviderOptions, private installedExtensions: Promise<ILocalExtension[]>,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
@@ -176,8 +177,8 @@ class RemoteSearchProvider implements ISearchProvider {
 			Promise.resolve(null);
 	}
 
-	searchModel(preferencesModel: ISettingsEditorModel, token?: CancellationToken): Promise<ISearchResult> {
-		return this._remoteSearchP.then(remoteResult => {
+	searchModel(preferencesModel: ISettingsEditorModel, token?: CancellationToken): Promise<ISearchResult | null> {
+		return this._remoteSearchP.then<ISearchResult | null>((remoteResult) => {
 			if (!remoteResult) {
 				return null;
 			}
@@ -277,7 +278,7 @@ class RemoteSearchProvider implements ISearchProvider {
 			headers,
 			timeout: 5000
 		}, CancellationToken.None).then(context => {
-			if (context.res.statusCode >= 300) {
+			if (typeof context.res.statusCode === 'number' && context.res.statusCode >= 300) {
 				throw new Error(`${JSON.stringify(details)} returned status code: ${context.res.statusCode}`);
 			}
 
@@ -426,12 +427,12 @@ function remoteSettingToISetting(remoteSetting: IRemoteSetting): IExtensionSetti
 	return {
 		description: remoteSetting.description.split('\n'),
 		descriptionIsMarkdown: false,
-		descriptionRanges: null,
+		descriptionRanges: [],
 		key: remoteSetting.key,
-		keyRange: null,
+		keyRange: nullRange,
 		value: remoteSetting.defaultValue,
-		range: null,
-		valueRange: null,
+		range: nullRange,
+		valueRange: nullRange,
 		overrides: [],
 		extensionName: remoteSetting.extensionName,
 		extensionPublisher: remoteSetting.extensionPublisher
@@ -536,16 +537,6 @@ class SettingMatches {
 	}
 
 	private toKeyRange(setting: ISetting, match: IMatch): IRange {
-		if (!setting.keyRange) {
-			// No source range? Return fake range, don't care
-			return {
-				startLineNumber: 0,
-				startColumn: 0,
-				endLineNumber: 0,
-				endColumn: 0,
-			};
-		}
-
 		return {
 			startLineNumber: setting.keyRange.startLineNumber,
 			startColumn: setting.keyRange.startColumn + match.start,
@@ -555,16 +546,6 @@ class SettingMatches {
 	}
 
 	private toDescriptionRange(setting: ISetting, match: IMatch, lineIndex: number): IRange {
-		if (!setting.keyRange) {
-			// No source range? Return fake range, don't care
-			return {
-				startLineNumber: 0,
-				startColumn: 0,
-				endLineNumber: 0,
-				endColumn: 0,
-			};
-		}
-
 		return {
 			startLineNumber: setting.descriptionRanges[lineIndex].startLineNumber,
 			startColumn: setting.descriptionRanges[lineIndex].startColumn + match.start,
@@ -574,16 +555,6 @@ class SettingMatches {
 	}
 
 	private toValueRange(setting: ISetting, match: IMatch): IRange {
-		if (!setting.keyRange) {
-			// No source range? Return fake range, don't care
-			return {
-				startLineNumber: 0,
-				startColumn: 0,
-				endLineNumber: 0,
-				endColumn: 0,
-			};
-		}
-
 		return {
 			startLineNumber: setting.valueRange.startLineNumber,
 			startColumn: setting.valueRange.startColumn + match.start + 1,

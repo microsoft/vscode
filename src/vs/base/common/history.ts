@@ -66,7 +66,7 @@ export class HistoryNavigator<T> implements INavigator<T> {
 	}
 
 	private _reduceToLimit() {
-		let data = this._elements;
+		const data = this._elements;
 		if (data.length > this._limit) {
 			this._initialize(data.slice(data.length - this._limit));
 		}

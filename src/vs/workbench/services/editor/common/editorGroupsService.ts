@@ -166,6 +166,11 @@ export interface IEditorGroupsService {
 	readonly onDidMoveGroup: Event<IEditorGroup>;
 
 	/**
+	 * An event for when a group gets activated.
+	 */
+	readonly onDidActivateGroup: Event<IEditorGroup>;
+
+	/**
 	 * An event for when the group container is layed out.
 	 */
 	readonly onDidLayout: Event<IDimension>;

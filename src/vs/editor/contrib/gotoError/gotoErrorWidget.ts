@@ -178,8 +178,8 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 
 	constructor(
 		editor: ICodeEditor,
-		private actions: IAction[],
-		private _themeService: IThemeService
+		private readonly actions: IAction[],
+		private readonly _themeService: IThemeService
 	) {
 		super(editor, { showArrow: true, showFrame: true, isAccessible: true });
 		this._severity = MarkerSeverity.Warning;

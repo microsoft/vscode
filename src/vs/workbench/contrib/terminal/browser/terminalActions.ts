@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as os from 'os';
 import { Action, IAction } from 'vs/base/common/actions';
 import { EndOfLinePreference } from 'vs/editor/common/model';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -34,6 +33,7 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
+import { isWindows } from 'vs/base/common/platform';
 
 export const TERMINAL_PICKER_PREFIX = 'term ';
 
@@ -659,7 +659,7 @@ export class RunSelectedTextInTerminalAction extends Action {
 		if (selection.isEmpty()) {
 			text = editor.getModel().getLineContent(selection.selectionStartLineNumber).trim();
 		} else {
-			const endOfLinePreference = os.EOL === '\n' ? EndOfLinePreference.LF : EndOfLinePreference.CRLF;
+			const endOfLinePreference = isWindows ? EndOfLinePreference.LF : EndOfLinePreference.CRLF;
 			text = editor.getModel().getValueInRange(selection, endOfLinePreference);
 		}
 		instance.sendText(text, true);
@@ -696,7 +696,7 @@ export class RunActiveFileInTerminalAction extends Action {
 			return Promise.resolve(undefined);
 		}
 
-		return instance.preparePathForTerminalAsync(uri.fsPath).then(path => {
+		return this.terminalService.preparePathForTerminalAsync(uri.fsPath, instance.shellLaunchConfig.executable, instance.title).then(path => {
 			instance.sendText(path, true);
 			return this.terminalService.showPanel();
 		});

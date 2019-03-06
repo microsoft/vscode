@@ -15,8 +15,8 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 @extHostNamedCustomer(MainContext.MainThreadTreeViews)
 export class MainThreadTreeViews extends Disposable implements MainThreadTreeViewsShape {
 
-	private _proxy: ExtHostTreeViewsShape;
-	private _dataProviders: Map<string, TreeViewDataProvider> = new Map<string, TreeViewDataProvider>();
+	private readonly _proxy: ExtHostTreeViewsShape;
+	private readonly _dataProviders: Map<string, TreeViewDataProvider> = new Map<string, TreeViewDataProvider>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -133,11 +133,11 @@ type TreeItemHandle = string;
 
 class TreeViewDataProvider implements ITreeViewDataProvider {
 
-	private itemsMap: Map<TreeItemHandle, ITreeItem> = new Map<TreeItemHandle, ITreeItem>();
+	private readonly itemsMap: Map<TreeItemHandle, ITreeItem> = new Map<TreeItemHandle, ITreeItem>();
 
-	constructor(private treeViewId: string,
-		private _proxy: ExtHostTreeViewsShape,
-		private notificationService: INotificationService
+	constructor(private readonly treeViewId: string,
+		private readonly _proxy: ExtHostTreeViewsShape,
+		private readonly notificationService: INotificationService
 	) {
 	}
 

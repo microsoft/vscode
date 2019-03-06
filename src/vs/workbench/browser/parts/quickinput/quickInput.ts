@@ -43,6 +43,8 @@ import { getIconClass } from 'vs/workbench/browser/parts/quickinput/quickInputUt
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 
 const $ = dom.$;
 
@@ -816,7 +818,6 @@ export class QuickInputService extends Component implements IQuickInputService {
 	private static readonly MAX_WIDTH = 600; // Max total width of quick open widget
 
 	private idPrefix = 'quickInput_'; // Constant since there is still only one.
-	private layoutDimensions: dom.Dimension;
 	private titleBar: HTMLElement;
 	private filterContainer: HTMLElement;
 	private visibleCountContainer: HTMLElement;
@@ -846,12 +847,14 @@ export class QuickInputService extends Component implements IQuickInputService {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@ILayoutService private readonly layoutService: ILayoutService
 	) {
 		super(QuickInputService.ID, themeService, storageService);
 		this.inQuickOpenContext = InQuickOpenContextKey.bindTo(contextKeyService);
 		this._register(this.quickOpenService.onShow(() => this.inQuickOpen('quickOpen', true)));
 		this._register(this.quickOpenService.onHide(() => this.inQuickOpen('quickOpen', false)));
+		this._register(this.layoutService.onLayout(dimension => this.layout(dimension)));
 		this.registerKeyModsListeners();
 	}
 
@@ -1400,17 +1403,16 @@ export class QuickInputService extends Component implements IQuickInputService {
 	}
 
 	layout(dimension: dom.Dimension): void {
-		this.layoutDimensions = dimension;
 		this.updateLayout();
 	}
 
 	private updateLayout() {
-		if (this.layoutDimensions && this.ui) {
+		if (this.ui) {
 			const titlebarOffset = this.partService.getTitleBarOffset();
 			this.ui.container.style.top = `${titlebarOffset}px`;
 
 			const style = this.ui.container.style;
-			const width = Math.min(this.layoutDimensions.width * 0.62 /* golden cut */, QuickInputService.MAX_WIDTH);
+			const width = Math.min(this.layoutService.dimension.width * 0.62 /* golden cut */, QuickInputService.MAX_WIDTH);
 			style.width = width + 'px';
 			style.marginLeft = '-' + (width / 2) + 'px';
 
@@ -1467,3 +1469,5 @@ export class BackAction extends Action {
 		return Promise.resolve();
 	}
 }
+
+registerSingleton(IQuickInputService, QuickInputService, true);

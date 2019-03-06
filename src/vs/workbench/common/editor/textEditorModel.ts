@@ -6,7 +6,7 @@
 import { ITextModel, ITextBufferFactory } from 'vs/editor/common/model';
 import { EditorModel } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
-import { ITextEditorModel, IActiveTextEditorModel } from 'vs/editor/common/services/resolverService';
+import { ITextEditorModel, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IModeService, ILanguageSelection } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -135,7 +135,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		return null;
 	}
 
-	isResolved(): this is IActiveTextEditorModel {
+	isResolved(): this is IResolvedTextEditorModel {
 		return !!this.textEditorModelHandle;
 	}
 

@@ -377,7 +377,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 					const viewDescriptor = <ICustomViewDescriptor>{
 						id: item.id,
 						name: item.name,
-						ctor: CustomTreeViewPanel,
+						ctorDescriptor: { ctor: CustomTreeViewPanel },
 						when: ContextKeyExpr.deserialize(item.when),
 						canToggleVisibility: true,
 						collapsed: this.showCollapsed(container),

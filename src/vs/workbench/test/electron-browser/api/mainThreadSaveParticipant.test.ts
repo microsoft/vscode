@@ -13,7 +13,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { ITextFileService, SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, SaveReason, IResolvedTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { snapshotToString } from 'vs/platform/files/common/files';
 
@@ -38,7 +38,7 @@ suite('MainThreadSaveParticipant', function () {
 	});
 
 	test('insert final new line', async function () {
-		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/final_new_line.txt'), 'utf8');
+		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/final_new_line.txt'), 'utf8') as IResolvedTextFileEditorModel;
 
 		await model.load();
 		const configService = new TestConfigurationService();
@@ -71,7 +71,7 @@ suite('MainThreadSaveParticipant', function () {
 	});
 
 	test('trim final new lines', async function () {
-		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/trim_final_new_line.txt'), 'utf8');
+		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/trim_final_new_line.txt'), 'utf8') as IResolvedTextFileEditorModel;
 
 		await model.load();
 		const configService = new TestConfigurationService();
@@ -106,7 +106,7 @@ suite('MainThreadSaveParticipant', function () {
 	});
 
 	test('trim final new lines bug#39750', async function () {
-		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/trim_final_new_line.txt'), 'utf8');
+		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/trim_final_new_line.txt'), 'utf8') as IResolvedTextFileEditorModel;
 
 		await model.load();
 		const configService = new TestConfigurationService();
@@ -133,7 +133,7 @@ suite('MainThreadSaveParticipant', function () {
 	});
 
 	test('trim final new lines bug#46075', async function () {
-		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/trim_final_new_line.txt'), 'utf8');
+		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/trim_final_new_line.txt'), 'utf8') as IResolvedTextFileEditorModel;
 
 		await model.load();
 		const configService = new TestConfigurationService();

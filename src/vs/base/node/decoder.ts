@@ -24,8 +24,8 @@ export class LineDecoder {
 	}
 
 	public write(buffer: Buffer): string[] {
-		let result: string[] = [];
-		let value = this.remaining
+		const result: string[] = [];
+		const value = this.remaining
 			? this.remaining + this.stringDecoder.write(buffer)
 			: this.stringDecoder.write(buffer);
 
@@ -41,7 +41,7 @@ export class LineDecoder {
 				result.push(value.substring(start, idx));
 				idx++;
 				if (idx < value.length) {
-					let lastChar = ch;
+					const lastChar = ch;
 					ch = value.charCodeAt(idx);
 					if ((lastChar === CharCode.CarriageReturn && ch === CharCode.LineFeed) || (lastChar === CharCode.LineFeed && ch === CharCode.CarriageReturn)) {
 						idx++;

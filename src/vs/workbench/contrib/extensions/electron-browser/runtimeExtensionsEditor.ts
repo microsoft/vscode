@@ -100,7 +100,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 	public static readonly ID: string = 'workbench.editor.runtimeExtensions';
 
 	private _list: WorkbenchList<IRuntimeExtension> | null;
-	private _profileInfo: IExtensionHostProfile;
+	private _profileInfo: IExtensionHostProfile | null;
 
 	private _elements: IRuntimeExtension[] | null;
 	private _extensionsDescriptions: IExtensionDescription[];
@@ -385,7 +385,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 					}
 				}
 
-				if (this._profileInfo) {
+				if (this._profileInfo && element.profileInfo) {
 					data.profileTime.textContent = `Profile: ${(element.profileInfo.totalTime / 1000).toFixed(2)}ms`;
 				} else {
 					data.profileTime.textContent = '';
@@ -471,18 +471,18 @@ export class ReportExtensionIssueAction extends Action {
 	private static _label = nls.localize('reportExtensionIssue', "Report Issue");
 
 	private readonly _url: string;
-	private readonly _task: () => Promise<any>;
+	private readonly _task?: () => Promise<any>;
 
 	constructor(extension: {
 		description: IExtensionDescription;
 		marketplaceInfo: IExtension;
-		status: IExtensionsStatus;
+		status?: IExtensionsStatus;
 		unresponsiveProfile?: IExtensionHostProfile
 	}) {
 		super(ReportExtensionIssueAction._id, ReportExtensionIssueAction._label, 'extension-action report-issue');
 		this.enabled = extension.marketplaceInfo
 			&& extension.marketplaceInfo.type === ExtensionType.User
-			&& Boolean(extension.description.repository) && Boolean(extension.description.repository.url);
+			&& !!extension.description.repository && !!extension.description.repository.url;
 
 		const { url, task } = ReportExtensionIssueAction._generateNewIssueUrl(extension);
 		this._url = url;
@@ -499,11 +499,11 @@ export class ReportExtensionIssueAction extends Action {
 	private static _generateNewIssueUrl(extension: {
 		description: IExtensionDescription;
 		marketplaceInfo: IExtension;
-		status: IExtensionsStatus;
+		status?: IExtensionsStatus;
 		unresponsiveProfile?: IExtensionHostProfile
 	}): { url: string, task?: () => Promise<any> } {
 
-		let task: () => Promise<any> | undefined;
+		let task: (() => Promise<any>) | undefined;
 		let baseUrl = extension.marketplaceInfo && extension.marketplaceInfo.type === ExtensionType.User && extension.description.repository ? extension.description.repository.url : undefined;
 		if (!!baseUrl) {
 			baseUrl = `${baseUrl.indexOf('.git') !== -1 ? baseUrl.substr(0, baseUrl.length - 4) : baseUrl}/issues/new/`;
@@ -521,10 +521,10 @@ export class ReportExtensionIssueAction extends Action {
 			let path = join(os.homedir(), `${extension.description.identifier.value}-unresponsive.cpuprofile.txt`);
 			task = async () => {
 				const profiler = await import('v8-inspect-profiler');
-				const data = profiler.rewriteAbsolutePaths({ profile: <any>extension.unresponsiveProfile.data }, 'pii_removed');
+				const data = profiler.rewriteAbsolutePaths({ profile: <any>extension.unresponsiveProfile!.data }, 'pii_removed');
 				profiler.writeProfile(data, path).then(undefined, onUnexpectedError);
 			};
-			message = `:warning: Make sure to **attach** this file from your *home*-directory: \`${path}\` :warning:\n\nFind more details here: https://github.com/Microsoft/vscode/wiki/Explain:-extension-causes-high-cpu-load`;
+			message = `:warning: Make sure to **attach** this file from your *home*-directory:\n:warning:\`${path}\`\n\nFind more details here: https://github.com/Microsoft/vscode/wiki/Explain:-extension-causes-high-cpu-load`;
 
 		} else {
 			// generic
@@ -661,7 +661,7 @@ export class SaveExtensionHostProfileAction extends Action {
 		}
 
 		const profileInfo = this._extensionHostProfileService.lastProfile;
-		let dataToWrite: object = profileInfo.data;
+		let dataToWrite: object = profileInfo ? profileInfo.data : {};
 
 		if (this._environmentService.isBuilt) {
 			const profiler = await import('v8-inspect-profiler');
@@ -676,6 +676,6 @@ export class SaveExtensionHostProfileAction extends Action {
 			picked = picked + '.txt';
 		}
 
-		return writeFile(picked, JSON.stringify(profileInfo.data, null, '\t'));
+		return writeFile(picked, JSON.stringify(profileInfo ? profileInfo.data : {}, null, '\t'));
 	}
 }

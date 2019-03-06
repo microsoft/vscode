@@ -12,8 +12,7 @@ import product from 'vs/platform/product/node/product';
 import { Themable, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND } from 'vs/workbench/common/theme';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { clearNode, EventHelper, addClass, removeClass, addDisposableListener } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
@@ -62,7 +61,7 @@ export class FeedbackStatusbarItem extends Themable implements IStatusbarItem {
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IWorkspaceConfigurationService private readonly configurationService: IWorkspaceConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IThemeService themeService: IThemeService
 	) {
 		super(themeService);
@@ -155,7 +154,7 @@ export class FeedbackStatusbarItem extends Themable implements IStatusbarItem {
 class HideAction extends Action {
 
 	constructor(
-		@IWorkspaceConfigurationService private readonly configurationService: IWorkspaceConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super('feedback.hide', localize('hide', "Hide"));
 	}

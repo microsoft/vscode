@@ -17,7 +17,7 @@ import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { IWindowsMainService, ISharedProcess, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService, IRecentlyOpened } from 'vs/platform/history/common/history';
-import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { Schemas } from 'vs/base/common/network';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
@@ -50,7 +50,8 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 		@IURLService urlService: IURLService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IHistoryMainService private readonly historyService: IHistoryMainService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IWorkspacesMainService private readonly workspacesMainService: IWorkspacesMainService,
 	) {
 		urlService.registerHandler(this);
 
@@ -156,10 +157,11 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 		return this.withWindow(windowId, codeWindow => codeWindow.setRepresentedFilename(fileName));
 	}
 
-	async addRecentlyOpened(files: URI[]): Promise<void> {
+	async addRecentlyOpened(workspaces: URI[], folders: URI[], files: URI[]): Promise<void> {
 		this.logService.trace('windowsService#addRecentlyOpened');
 
-		this.historyService.addRecentlyOpened(undefined, files);
+		const workspaceIdentifiers = workspaces.map(w => this.workspacesMainService.getWorkspaceIdentifier(w));
+		this.historyService.addRecentlyOpened([...workspaceIdentifiers, ...folders], files);
 	}
 
 	async removeFromRecentlyOpened(paths: Array<IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | string>): Promise<void> {
@@ -324,10 +326,12 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 		console[severity].apply(console, ...messages);
 	}
 
-	async showItemInFolder(path: string): Promise<void> {
+	async showItemInFolder(path: URI): Promise<void> {
 		this.logService.trace('windowsService#showItemInFolder');
 
-		shell.showItemInFolder(path);
+		if (path.scheme === Schemas.file) {
+			shell.showItemInFolder(path.fsPath);
+		}
 	}
 
 	async getActiveWindowId(): Promise<number | undefined> {

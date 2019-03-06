@@ -17,6 +17,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 
 /**
  * An editor input to be used for untitled text buffers.
@@ -27,7 +28,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 
 	private _hasAssociatedFilePath: boolean;
 	private cachedModel: UntitledEditorModel;
-	private modelResolve?: Promise<UntitledEditorModel>;
+	private modelResolve?: Promise<UntitledEditorModel & IResolvedTextEditorModel>;
 
 	private readonly _onDidModelChangeContent: Emitter<void> = this._register(new Emitter<void>());
 	get onDidModelChangeContent(): Event<void> { return this._onDidModelChangeContent.event; }
@@ -63,7 +64,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		return this.resource;
 	}
 
-	getModeId(): string {
+	getModeId(): string | null {
 		if (this.cachedModel) {
 			return this.cachedModel.getModeId();
 		}
@@ -121,25 +122,21 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		return this.labelService.getUriLabel(this.resource);
 	}
 
-	getTitle(verbosity: Verbosity): string {
+	getTitle(verbosity: Verbosity): string | null {
 		if (!this.hasAssociatedFilePath) {
 			return this.getName();
 		}
 
-		let title: string | undefined;
 		switch (verbosity) {
 			case Verbosity.SHORT:
-				title = this.shortTitle;
-				break;
+				return this.shortTitle;
 			case Verbosity.MEDIUM:
-				title = this.mediumTitle;
-				break;
+				return this.mediumTitle;
 			case Verbosity.LONG:
-				title = this.longTitle;
-				break;
+				return this.longTitle;
 		}
 
-		return title;
+		return null;
 	}
 
 	isDirty(): boolean {
@@ -203,7 +200,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		}
 	}
 
-	resolve(): Promise<UntitledEditorModel> {
+	resolve(): Promise<UntitledEditorModel & IResolvedTextEditorModel> {
 
 		// Join a model resolve if we have had one before
 		if (this.modelResolve) {

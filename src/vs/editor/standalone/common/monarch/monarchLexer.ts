@@ -289,8 +289,8 @@ class MonarchClassicTokensCollector implements IMonarchTokensCollector {
 
 class MonarchModernTokensCollector implements IMonarchTokensCollector {
 
-	private _modeService: IModeService;
-	private _theme: TokenTheme;
+	private readonly _modeService: IModeService;
+	private readonly _theme: TokenTheme;
 	private _prependTokens: Uint32Array | null;
 	private _tokens: number[];
 	private _currentLanguageId: modes.LanguageId;
@@ -382,9 +382,9 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 	private readonly _standaloneThemeService: IStandaloneThemeService;
 	private readonly _modeId: string;
 	private readonly _lexer: monarchCommon.ILexer;
-	private _embeddedModes: { [modeId: string]: boolean; };
+	private readonly _embeddedModes: { [modeId: string]: boolean; };
 	public embeddedLoaded: Promise<void>;
-	private _tokenizationRegistryListener: IDisposable;
+	private readonly _tokenizationRegistryListener: IDisposable;
 
 	constructor(modeService: IModeService, standaloneThemeService: IStandaloneThemeService, modeId: string, lexer: monarchCommon.ILexer) {
 		this._modeService = modeService;

@@ -9,9 +9,9 @@ import * as platform from 'vs/base/common/platform';
 import * as pty from 'node-pty';
 import * as fs from 'fs';
 import { Event, Emitter } from 'vs/base/common/event';
-import { ITerminalChildProcess } from 'vs/workbench/contrib/terminal/node/terminal';
+import { getWindowsBuildNumber } from 'vs/workbench/contrib/terminal/node/terminal';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IShellLaunchConfig } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalChildProcess } from 'vs/workbench/contrib/terminal/common/terminal';
 import { exec } from 'child_process';
 
 export class TerminalProcess implements ITerminalChildProcess, IDisposable {
@@ -51,7 +51,7 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 		}
 
 		this._initialCwd = cwd;
-		const useConpty = windowsEnableConpty && process.platform === 'win32' && this._getWindowsBuildNumber() >= 18309;
+		const useConpty = windowsEnableConpty && process.platform === 'win32' && getWindowsBuildNumber() >= 18309;
 		const options: pty.IPtyForkOptions = {
 			name: shellName,
 			cwd,
@@ -104,15 +104,6 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 		this._onProcessExit.dispose();
 		this._onProcessIdReady.dispose();
 		this._onProcessTitleChanged.dispose();
-	}
-
-	private _getWindowsBuildNumber(): number {
-		const osVersion = (/(\d+)\.(\d+)\.(\d+)/g).exec(os.release());
-		let buildNumber: number = 0;
-		if (osVersion && osVersion.length === 4) {
-			buildNumber = parseInt(osVersion[3]);
-		}
-		return buildNumber;
 	}
 
 	private _setupTitlePolling() {

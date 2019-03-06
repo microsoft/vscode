@@ -121,8 +121,7 @@ export interface IViewDescriptor {
 
 	readonly name: string;
 
-	// TODO@Sandeep do we really need this?!
-	readonly ctor: any;
+	readonly ctorDescriptor: { ctor: any, arguments?: any[] };
 
 	readonly when?: ContextKeyExpr;
 
@@ -378,7 +377,7 @@ export interface ITreeItem {
 
 	handle: string;
 
-	parentHandle: string;
+	parentHandle: string | null;
 
 	collapsibleState: TreeItemCollapsibleState;
 

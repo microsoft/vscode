@@ -14,11 +14,11 @@ export const MAX_LINE_NUMBER = 0xFFFFFF;
 const MASK_INDENT = 0xFF000000;
 
 export class FoldingRegions {
-	private _startIndexes: Uint32Array;
-	private _endIndexes: Uint32Array;
-	private _collapseStates: Uint32Array;
+	private readonly _startIndexes: Uint32Array;
+	private readonly _endIndexes: Uint32Array;
+	private readonly _collapseStates: Uint32Array;
 	private _parentsComputed: boolean;
-	private _types: Array<string | undefined> | undefined;
+	private readonly _types: Array<string | undefined> | undefined;
 
 	constructor(startIndexes: Uint32Array, endIndexes: Uint32Array, types?: Array<string | undefined>) {
 		if (startIndexes.length !== endIndexes.length || startIndexes.length > MAX_FOLDING_REGIONS) {
@@ -154,7 +154,7 @@ export class FoldingRegions {
 
 export class FoldingRegion {
 
-	constructor(private ranges: FoldingRegions, private index: number) {
+	constructor(private readonly ranges: FoldingRegions, private index: number) {
 	}
 
 	public get startLineNumber() {

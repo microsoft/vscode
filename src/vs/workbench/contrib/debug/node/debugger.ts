@@ -31,7 +31,7 @@ import { isDebuggerMainContribution } from 'vs/workbench/contrib/debug/common/de
 
 export class Debugger implements IDebugger {
 
-	private debuggerContribution: IDebuggerContribution = {};
+	private debuggerContribution: IDebuggerContribution;
 	private mergedExtensionDescriptions: IExtensionDescription[] = [];
 	private mainExtensionDescription: IExtensionDescription | undefined;
 
@@ -42,6 +42,7 @@ export class Debugger implements IDebugger {
 		@IConfigurationResolverService private readonly configurationResolverService: IConfigurationResolverService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
+		this.debuggerContribution = { type: dbgContribution.type };
 		this.merge(dbgContribution, extensionDescription);
 	}
 
@@ -149,12 +150,15 @@ export class Debugger implements IDebugger {
 			if (this.debuggerContribution.adapterExecutableCommand) {
 				console.info('debugAdapterExecutable attribute in package.json is deprecated and support for it will be removed soon; please use DebugAdapterDescriptorFactory.createDebugAdapterDescriptor instead.');
 				const rootFolder = session.root ? session.root.uri.toString() : undefined;
-				return this.commandService.executeCommand<IDebugAdapterExecutable>(this.debuggerContribution.adapterExecutableCommand, rootFolder).then((ae: { command: string, args: string[] }) => {
-					return <IAdapterDescriptor>{
-						type: 'executable',
-						command: ae.command,
-						args: ae.args || []
-					};
+				return this.commandService.executeCommand<IDebugAdapterExecutable>(this.debuggerContribution.adapterExecutableCommand, rootFolder).then(ae => {
+					if (ae) {
+						return <IAdapterDescriptor>{
+							type: 'executable',
+							command: ae.command,
+							args: ae.args || []
+						};
+					}
+					throw new Error('command adapterExecutableCommand did not return proper command.');
 				});
 			}
 
@@ -197,15 +201,15 @@ export class Debugger implements IDebugger {
 		return this.debuggerContribution.type;
 	}
 
-	get variables(): { [key: string]: string } {
+	get variables(): { [key: string]: string } | undefined {
 		return this.debuggerContribution.variables;
 	}
 
-	get configurationSnippets(): IJSONSchemaSnippet[] {
+	get configurationSnippets(): IJSONSchemaSnippet[] | undefined {
 		return this.debuggerContribution.configurationSnippets;
 	}
 
-	get languages(): string[] {
+	get languages(): string[] | undefined {
 		return this.debuggerContribution.languages;
 	}
 
@@ -254,8 +258,11 @@ export class Debugger implements IDebugger {
 	}
 
 	@memoize
-	getCustomTelemetryService(): Promise<TelemetryService> {
-		if (!this.debuggerContribution.aiKey) {
+	getCustomTelemetryService(): Promise<TelemetryService | undefined> {
+
+		const aiKey = this.debuggerContribution.aiKey;
+
+		if (!aiKey) {
 			return Promise.resolve(undefined);
 		}
 
@@ -270,7 +277,7 @@ export class Debugger implements IDebugger {
 				{
 					serverName: 'Debug Telemetry',
 					timeout: 1000 * 60 * 5,
-					args: [`${this.getMainExtensionDescriptor().publisher}.${this.type}`, JSON.stringify(data), this.debuggerContribution.aiKey],
+					args: [`${this.getMainExtensionDescriptor().publisher}.${this.type}`, JSON.stringify(data), aiKey],
 					env: {
 						ELECTRON_RUN_AS_NODE: 1,
 						PIPE_LOGGING: 'true',
@@ -286,10 +293,12 @@ export class Debugger implements IDebugger {
 		});
 	}
 
-	getSchemaAttributes(): IJSONSchema[] {
+	getSchemaAttributes(): IJSONSchema[] | null {
+
 		if (!this.debuggerContribution.configurationAttributes) {
 			return null;
 		}
+
 		// fill in the default configuration attributes shared by all adapters.
 		const taskSchema = TaskDefinitionRegistry.getJsonSchema();
 		return Object.keys(this.debuggerContribution.configurationAttributes).map(request => {
@@ -339,9 +348,9 @@ export class Debugger implements IDebugger {
 			};
 			properties['internalConsoleOptions'] = INTERNAL_CONSOLE_OPTIONS_SCHEMA;
 			// Clear out windows, linux and osx fields to not have cycles inside the properties object
-			properties['windows'] = undefined;
-			properties['osx'] = undefined;
-			properties['linux'] = undefined;
+			delete properties['windows'];
+			delete properties['osx'];
+			delete properties['linux'];
 
 			const osProperties = objects.deepClone(properties);
 			properties['windows'] = {
@@ -359,11 +368,10 @@ export class Debugger implements IDebugger {
 				description: nls.localize('debugLinuxConfiguration', "Linux specific launch configuration attributes."),
 				properties: osProperties
 			};
-			Object.keys(attributes.properties).forEach(name => {
+			Object.keys(properties).forEach(name => {
 				// Use schema allOf property to get independent error reporting #21113
-				ConfigurationResolverUtils.applyDeprecatedVariableMessage(attributes.properties[name]);
+				ConfigurationResolverUtils.applyDeprecatedVariableMessage(properties[name]);
 			});
-
 			return attributes;
 		});
 	}

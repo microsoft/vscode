@@ -20,7 +20,6 @@ class GitIgnoreDecorationProvider implements DecorationProvider {
 	private disposables: Disposable[] = [];
 
 	constructor(private model: Model) {
-		//todo@joh -> events when the ignore status actually changes, not only when the file changes
 		this.onDidChangeDecorations = fireEvent(anyEvent<any>(
 			filterEvent(workspace.onDidSaveTextDocument, e => e.fileName.endsWith('.gitignore')),
 			model.onDidOpenRepository,

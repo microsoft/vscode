@@ -199,14 +199,14 @@ export class SidebarPart extends CompositePart<Viewlet> implements ISerializable
 		this.hideActiveComposite();
 	}
 
-	openViewlet(id: string, focus?: boolean): Promise<IViewlet | null> {
-		if (this.getViewlet(id)) {
+	openViewlet(id: string | undefined, focus?: boolean): Promise<IViewlet | null> {
+		if (typeof id === 'string' && this.getViewlet(id)) {
 			return Promise.resolve(this.doOpenViewlet(id, focus));
 		}
 
 		return this.extensionService.whenInstalledExtensionsRegistered()
 			.then(() => {
-				if (this.getViewlet(id)) {
+				if (typeof id === 'string' && this.getViewlet(id)) {
 					return this.doOpenViewlet(id, focus);
 				}
 

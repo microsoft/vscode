@@ -18,9 +18,9 @@ interface QuickInputSession {
 @extHostNamedCustomer(MainContext.MainThreadQuickOpen)
 export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 
-	private _proxy: ExtHostQuickOpenShape;
-	private _quickInputService: IQuickInputService;
-	private _items: Record<number, {
+	private readonly _proxy: ExtHostQuickOpenShape;
+	private readonly _quickInputService: IQuickInputService;
+	private readonly _items: Record<number, {
 		resolve(items: TransferQuickPickItems[]): void;
 		reject(error: Error): void;
 	}> = {};
@@ -85,7 +85,7 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 
 	// ---- input
 
-	$input(options: InputBoxOptions, validateInput: boolean, token: CancellationToken): Promise<string> {
+	$input(options: InputBoxOptions | undefined, validateInput: boolean, token: CancellationToken): Promise<string> {
 		const inputOptions: IInputOptions = Object.create(null);
 
 		if (options) {

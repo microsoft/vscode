@@ -69,10 +69,15 @@ import 'vs/workbench/services/progress/browser/progressService2';
 import 'vs/workbench/services/editor/browser/codeEditorService';
 import 'vs/workbench/services/broadcast/electron-browser/broadcastService';
 import 'vs/workbench/services/preferences/browser/preferencesService';
+import 'vs/workbench/services/output/node/outputChannelModelService';
 import 'vs/workbench/services/configuration/node/jsonEditingService';
 import 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import 'vs/workbench/services/textfile/common/textFileService';
 import 'vs/workbench/services/dialogs/electron-browser/dialogService';
+import 'vs/workbench/services/backup/node/backupFileService';
+import 'vs/workbench/services/history/browser/history';
+import 'vs/workbench/browser/parts/quickinput/quickInput';
+import 'vs/workbench/browser/parts/quickopen/quickOpenController';
 
 registerSingleton(IMenuService, MenuService, true);
 registerSingleton(IListService, ListService, true);
@@ -87,6 +92,9 @@ registerSingleton(IClipboardService, ClipboardService, true);
 
 
 //#region --- workbench contributions
+
+// Telemetry
+import 'vs/workbench/contrib/telemetry/browser/telemetry.contribution';
 
 // Localizations
 import 'vs/workbench/contrib/localizations/browser/localizations.contribution';
@@ -121,8 +129,8 @@ import 'vs/workbench/contrib/search/browser/searchView';
 import 'vs/workbench/contrib/search/browser/openAnythingHandler';
 
 // SCM
-import 'vs/workbench/contrib/scm/electron-browser/scm.contribution';
-import 'vs/workbench/contrib/scm/electron-browser/scmViewlet';
+import 'vs/workbench/contrib/scm/browser/scm.contribution';
+import 'vs/workbench/contrib/scm/browser/scmViewlet';
 
 // Debug
 import 'vs/workbench/contrib/debug/electron-browser/debug.contribution';
@@ -148,13 +156,14 @@ import 'vs/workbench/contrib/extensions/browser/extensionsQuickOpen';
 import 'vs/workbench/contrib/extensions/electron-browser/extensionsViewlet';
 
 // Output Panel
-import 'vs/workbench/contrib/output/electron-browser/output.contribution';
+import 'vs/workbench/contrib/output/browser/output.contribution';
 import 'vs/workbench/contrib/output/browser/outputPanel';
 
 // Terminal
+import 'vs/workbench/contrib/terminal/browser/terminal.contribution';
 import 'vs/workbench/contrib/terminal/electron-browser/terminal.contribution';
 import 'vs/workbench/contrib/terminal/browser/terminalQuickOpen';
-import 'vs/workbench/contrib/terminal/electron-browser/terminalPanel';
+import 'vs/workbench/contrib/terminal/browser/terminalPanel';
 
 // Relauncher
 import 'vs/workbench/contrib/relauncher/electron-browser/relauncher.contribution';

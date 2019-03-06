@@ -50,6 +50,8 @@ import { timeout } from 'vs/base/common/async';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 
 const HELP_PREFIX = '?';
 
@@ -73,7 +75,6 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	private lastInputValue: string;
 	private lastSubmittedInputValue: string;
 	private quickOpenWidget: QuickOpenWidget;
-	private dimension: Dimension;
 	private mapResolvedHandlersToPrefix: { [prefix: string]: Promise<QuickOpenHandler>; } = Object.create(null);
 	private mapContextKeyToContext: { [id: string]: IContextKey<boolean>; } = Object.create(null);
 	private handlerOnOpenCalled: { [prefix: string]: boolean; } = Object.create(null);
@@ -94,7 +95,8 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		@IPartService private readonly partService: IPartService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService
+		@IStorageService storageService: IStorageService,
+		@ILayoutService private readonly layoutService: ILayoutService
 	) {
 		super(QuickOpenController.ID, themeService, storageService);
 
@@ -109,6 +111,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		this._register(this.configurationService.onDidChangeConfiguration(() => this.updateConfiguration()));
 		this._register(this.partService.onTitleBarVisibilityChange(() => this.positionQuickOpenWidget()));
 		this._register(browser.onDidChangeZoomLevel(() => this.positionQuickOpenWidget()));
+		this._register(this.layoutService.onLayout(dimension => this.layout(dimension)));
 	}
 
 	private updateConfiguration(): void {
@@ -195,9 +198,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		}
 
 		// Layout
-		if (this.dimension) {
-			this.quickOpenWidget.layout(this.dimension);
-		}
+		this.quickOpenWidget.layout(this.layoutService.dimension);
 
 		// Show quick open with prefix or editor history
 		if (!this.quickOpenWidget.isVisible() || quickNavigateConfiguration) {
@@ -624,9 +625,8 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	}
 
 	layout(dimension: Dimension): void {
-		this.dimension = dimension;
 		if (this.quickOpenWidget) {
-			this.quickOpenWidget.layout(this.dimension);
+			this.quickOpenWidget.layout(dimension);
 		}
 	}
 }
@@ -863,3 +863,5 @@ export class RemoveFromEditorHistoryAction extends Action {
 		});
 	}
 }
+
+registerSingleton(IQuickOpenService, QuickOpenController, true);

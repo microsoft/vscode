@@ -37,7 +37,7 @@ export class ExplorerService implements IExplorerService {
 	private _onDidSelectItem = new Emitter<{ item?: ExplorerItem, reveal?: boolean }>();
 	private _onDidCopyItems = new Emitter<{ items: ExplorerItem[], cut: boolean, previouslyCutItems: ExplorerItem[] | undefined }>();
 	private disposables: IDisposable[] = [];
-	private editableStats = new Map<ExplorerItem, IEditableData>();
+	private editable: { stat: ExplorerItem, data: IEditableData } | undefined;
 	private _sortOrder: SortOrder;
 	private cutItems: ExplorerItem[] | undefined;
 
@@ -112,11 +112,10 @@ export class ExplorerService implements IExplorerService {
 
 	setEditable(stat: ExplorerItem, data: IEditableData | null): void {
 		if (!data) {
-			this.editableStats.delete(stat);
+			this.editable = undefined;
 		} else {
-			this.editableStats.set(stat, data);
+			this.editable = { stat, data };
 		}
-
 		this._onDidChangeEditable.fire(stat);
 	}
 
@@ -133,11 +132,11 @@ export class ExplorerService implements IExplorerService {
 	}
 
 	getEditableData(stat: ExplorerItem): IEditableData | undefined {
-		return this.editableStats.get(stat);
+		return this.editable && this.editable.stat === stat ? this.editable.data : undefined;
 	}
 
 	isEditable(stat: ExplorerItem): boolean {
-		return this.editableStats.has(stat);
+		return !!this.editable && this.editable.stat === stat;
 	}
 
 	select(resource: URI, reveal?: boolean): Promise<void> {

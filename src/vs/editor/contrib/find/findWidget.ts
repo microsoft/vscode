@@ -84,8 +84,8 @@ export class FindWidgetViewZone implements IViewZone {
 export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSashLayoutProvider {
 	private static readonly ID = 'editor.contrib.findWidget';
 	private readonly _codeEditor: ICodeEditor;
-	private _state: FindReplaceState;
-	private _controller: IFindController;
+	private readonly _state: FindReplaceState;
+	private readonly _controller: IFindController;
 	private readonly _contextViewProvider: IContextViewProvider;
 	private readonly _keybindingService: IKeybindingService;
 	private readonly _contextKeyService: IContextKeyService;
@@ -107,16 +107,16 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 	private _isReplaceVisible: boolean;
 	private _ignoreChangeEvent: boolean;
 
-	private _findFocusTracker: dom.IFocusTracker;
-	private _findInputFocused: IContextKey<boolean>;
-	private _replaceFocusTracker: dom.IFocusTracker;
-	private _replaceInputFocused: IContextKey<boolean>;
+	private readonly _findFocusTracker: dom.IFocusTracker;
+	private readonly _findInputFocused: IContextKey<boolean>;
+	private readonly _replaceFocusTracker: dom.IFocusTracker;
+	private readonly _replaceInputFocused: IContextKey<boolean>;
 	private _viewZone?: FindWidgetViewZone;
 	private _viewZoneId?: number;
 
 	private _resizeSash: Sash;
 	private _resized: boolean;
-	private _updateHistoryDelayer: Delayer<void>;
+	private readonly _updateHistoryDelayer: Delayer<void>;
 
 	constructor(
 		codeEditor: ICodeEditor,

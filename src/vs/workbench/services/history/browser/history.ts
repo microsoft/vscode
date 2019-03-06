@@ -30,6 +30,7 @@ import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { coalesce } from 'vs/base/common/arrays';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.
@@ -420,7 +421,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.doNavigate(this.stack[this.index], !acrossEditors).finally(() => this.navigatingInStack = false);
 	}
 
-	private doNavigate(location: IStackEntry, withSelection: boolean): Promise<IBaseEditor> {
+	private doNavigate(location: IStackEntry, withSelection: boolean): Promise<IBaseEditor | null> {
 		const options: ITextEditorOptions = {
 			revealIfOpened: true // support to navigate across editor groups
 		};
@@ -971,3 +972,5 @@ export class HistoryService extends Disposable implements IHistoryService {
 		return undefined;
 	}
 }
+
+registerSingleton(IHistoryService, HistoryService);

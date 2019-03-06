@@ -16,7 +16,7 @@ import { CLOSE_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/edito
 import { Color } from 'vs/base/common/color';
 
 interface IRenderedEditorLabel {
-	editor: IEditorInput;
+	editor?: IEditorInput;
 	pinned: boolean;
 }
 
@@ -72,8 +72,16 @@ export class NoTabsTitleControl extends TitleControl {
 		this._register(addDisposableListener(this.titleContainer, TouchEventType.Tap, (e: GestureEvent) => this.onTitleClick(e)));
 
 		// Context Menu
-		this._register(addDisposableListener(this.titleContainer, EventType.CONTEXT_MENU, (e: Event) => this.onContextMenu(this.group.activeEditor, e, this.titleContainer)));
-		this._register(addDisposableListener(this.titleContainer, TouchEventType.Contextmenu, (e: Event) => this.onContextMenu(this.group.activeEditor, e, this.titleContainer)));
+		this._register(addDisposableListener(this.titleContainer, EventType.CONTEXT_MENU, (e: Event) => {
+			if (this.group.activeEditor) {
+				this.onContextMenu(this.group.activeEditor, e, this.titleContainer);
+			}
+		}));
+		this._register(addDisposableListener(this.titleContainer, TouchEventType.Contextmenu, (e: Event) => {
+			if (this.group.activeEditor) {
+				this.onContextMenu(this.group.activeEditor, e, this.titleContainer);
+			}
+		}));
 	}
 
 	private onTitleLabelClick(e: MouseEvent): void {
@@ -95,7 +103,9 @@ export class NoTabsTitleControl extends TitleControl {
 		if (e instanceof MouseEvent && e.button === 1 /* Middle Button */) {
 			EventHelper.stop(e, true /* for https://github.com/Microsoft/vscode/issues/56715 */);
 
-			this.group.closeEditor(this.group.activeEditor);
+			if (this.group.activeEditor) {
+				this.group.closeEditor(this.group.activeEditor);
+			}
 		}
 	}
 
@@ -167,7 +177,7 @@ export class NoTabsTitleControl extends TitleControl {
 		if (
 			!this.activeLabel.editor && this.group.activeEditor || 	// active editor changed from null => editor
 			this.activeLabel.editor && !this.group.activeEditor || 	// active editor changed from editor => null
-			!this.group.isActive(this.activeLabel.editor)			// active editor changed from editorA => editorB
+			(!this.activeLabel.editor || !this.group.isActive(this.activeLabel.editor))			// active editor changed from editorA => editorB
 		) {
 			fn();
 
@@ -197,10 +207,10 @@ export class NoTabsTitleControl extends TitleControl {
 	private redraw(): void {
 		const editor = this.group.activeEditor;
 
-		const isEditorPinned = this.group.isPinned(this.group.activeEditor);
+		const isEditorPinned = this.group.activeEditor ? this.group.isPinned(this.group.activeEditor) : false;
 		const isGroupActive = this.accessor.activeGroup === this.group;
 
-		this.activeLabel = { editor, pinned: isEditorPinned };
+		this.activeLabel = { editor: editor || undefined, pinned: isEditorPinned };
 
 		// Update Breadcrumbs
 		if (this.breadcrumbsControl) {
@@ -244,7 +254,7 @@ export class NoTabsTitleControl extends TitleControl {
 				title = ''; // dont repeat what is already shown
 			}
 
-			this.editorLabel.setResource({ name, description, resource: resource || undefined }, { title, italic: !isEditorPinned, extraClasses: ['no-tabs', 'title-label'] });
+			this.editorLabel.setResource({ name, description, resource: resource || undefined }, { title: typeof title === 'string' ? title : undefined, italic: !isEditorPinned, extraClasses: ['no-tabs', 'title-label'] });
 			if (isGroupActive) {
 				this.editorLabel.element.style.color = this.getColor(TAB_ACTIVE_FOREGROUND);
 			} else {

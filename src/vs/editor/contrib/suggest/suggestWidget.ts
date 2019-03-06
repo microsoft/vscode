@@ -244,10 +244,10 @@ class SuggestionDetails {
 
 	constructor(
 		container: HTMLElement,
-		private widget: SuggestWidget,
-		private editor: ICodeEditor,
-		private markdownRenderer: MarkdownRenderer,
-		private triggerKeybindingLabel: string
+		private readonly widget: SuggestWidget,
+		private readonly editor: ICodeEditor,
+		private readonly markdownRenderer: MarkdownRenderer,
+		private readonly triggerKeybindingLabel: string
 	) {
 		this.disposables = [];
 
@@ -417,8 +417,8 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	private list: List<CompletionItem>;
 	private listHeight: number;
 
-	private suggestWidgetVisible: IContextKey<boolean>;
-	private suggestWidgetMultipleSuggestions: IContextKey<boolean>;
+	private readonly suggestWidgetVisible: IContextKey<boolean>;
+	private readonly suggestWidgetMultipleSuggestions: IContextKey<boolean>;
 
 	private readonly editorBlurTimeout = new TimeoutTimer();
 	private readonly showTimeout = new TimeoutTimer();
@@ -437,7 +437,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 
 	private readonly maxWidgetWidth = 660;
 	private readonly listWidth = 330;
-	private storageService: IStorageService;
+	private readonly storageService: IStorageService;
 	private detailsFocusBorderColor: string;
 	private detailsBorderColor: string;
 
@@ -447,7 +447,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	private docsPositionPreviousWidgetY: number | null;
 
 	constructor(
-		private editor: ICodeEditor,
+		private readonly editor: ICodeEditor,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
@@ -547,23 +547,15 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 
 		item.resolve(CancellationToken.None).then(() => {
 			this.onDidSelectEmitter.fire({ item, index, model: completionModel });
-			alert(nls.localize('suggestionAriaAccepted', "{0}, accepted", item.completion.label));
 			this.editor.focus();
 		});
 	}
 
 	private _getSuggestionAriaAlertLabel(item: CompletionItem): string {
-		const isSnippet = item.completion.kind === CompletionItemKind.Snippet;
-
-		if (!canExpandCompletionItem(item)) {
-			return isSnippet ? nls.localize('ariaCurrentSnippetSuggestion', "{0}, snippet suggestion", item.completion.label)
-				: nls.localize('ariaCurrentSuggestion', "{0}, suggestion", item.completion.label);
-		} else if (this.expandDocsSettingFromStorage()) {
-			return isSnippet ? nls.localize('ariaCurrentSnippeSuggestionReadDetails', "{0}, snippet suggestion. Reading details. {1}", item.completion.label, this.details.getAriaLabel())
-				: nls.localize('ariaCurrenttSuggestionReadDetails', "{0}, suggestion. Reading details. {1}", item.completion.label, this.details.getAriaLabel());
+		if (this.expandDocsSettingFromStorage()) {
+			return nls.localize('ariaCurrenttSuggestionReadDetails', "Item {0}, docs: {1}", item.completion.label, this.details.getAriaLabel());
 		} else {
-			return isSnippet ? nls.localize('ariaCurrentSnippetSuggestionWithDetails', "{0}, snippet suggestion, has details", item.completion.label)
-				: nls.localize('ariaCurrentSuggestionWithDetails', "{0}, suggestion, has details", item.completion.label);
+			return item.completion.label;
 		}
 	}
 

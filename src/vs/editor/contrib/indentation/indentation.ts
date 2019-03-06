@@ -205,7 +205,7 @@ export class IndentationToTabsAction extends EditorAction {
 
 export class ChangeIndentationSizeAction extends EditorAction {
 
-	constructor(private insertSpaces: boolean, opts: IActionOptions) {
+	constructor(private readonly insertSpaces: boolean, opts: IActionOptions) {
 		super(opts);
 	}
 
@@ -375,9 +375,9 @@ export class ReindentSelectedLinesAction extends EditorAction {
 
 export class AutoIndentOnPasteCommand implements ICommand {
 
-	private _edits: { range: IRange; text: string; eol?: EndOfLineSequence; }[];
+	private readonly _edits: { range: IRange; text: string; eol?: EndOfLineSequence; }[];
 
-	private _initialSelection: Selection;
+	private readonly _initialSelection: Selection;
 	private _selectionId: string;
 
 	constructor(edits: TextEdit[], initialSelection: Selection) {
@@ -422,7 +422,7 @@ export class AutoIndentOnPasteCommand implements ICommand {
 export class AutoIndentOnPaste implements IEditorContribution {
 	private static readonly ID = 'editor.contrib.autoIndentOnPaste';
 
-	private editor: ICodeEditor;
+	private readonly editor: ICodeEditor;
 	private callOnDispose: IDisposable[];
 	private callOnModel: IDisposable[];
 
@@ -653,7 +653,7 @@ export class IndentationToSpacesCommand implements ICommand {
 
 	private selectionId: string;
 
-	constructor(private selection: Selection, private tabSize: number) { }
+	constructor(private readonly selection: Selection, private tabSize: number) { }
 
 	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
 		this.selectionId = builder.trackSelection(this.selection);
@@ -669,7 +669,7 @@ export class IndentationToTabsCommand implements ICommand {
 
 	private selectionId: string;
 
-	constructor(private selection: Selection, private tabSize: number) { }
+	constructor(private readonly selection: Selection, private tabSize: number) { }
 
 	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
 		this.selectionId = builder.trackSelection(this.selection);

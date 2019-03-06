@@ -374,7 +374,7 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 	}
 
 	getComment(commentId: string): vscode.Comment | undefined {
-		let comments = this._comments.filter(comment => comment.commentId === commentId);
+		const comments = this._comments.filter(comment => comment.commentId === commentId);
 
 		if (comments && comments.length) {
 			return comments[0];

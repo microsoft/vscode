@@ -190,7 +190,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 	private menus: TitleMenus;
 
 	private markdownRenderer: MarkdownRenderer;
-	private markdownResult: IMarkdownRenderResult;
+	private markdownResult: IMarkdownRenderResult | null;
 
 	private readonly _onDidExpandItem: Emitter<ITreeItem> = this._register(new Emitter<ITreeItem>());
 	readonly onDidExpandItem: Event<ITreeItem> = this._onDidExpandItem.event;
@@ -242,15 +242,15 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		this.create();
 	}
 
-	private _dataProvider: ITreeViewDataProvider;
-	get dataProvider(): ITreeViewDataProvider {
+	private _dataProvider: ITreeViewDataProvider | null;
+	get dataProvider(): ITreeViewDataProvider | null {
 		return this._dataProvider;
 	}
 
-	set dataProvider(dataProvider: ITreeViewDataProvider) {
+	set dataProvider(dataProvider: ITreeViewDataProvider | null) {
 		if (dataProvider) {
 			this._dataProvider = new class implements ITreeViewDataProvider {
-				getChildren(node?: ITreeItem): Promise<ITreeItem[]> {
+				getChildren(node: ITreeItem): Promise<ITreeItem[]> {
 					if (node && node.children) {
 						return Promise.resolve(node.children);
 					}
@@ -377,7 +377,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 	}
 
 	private createTree() {
-		const actionItemProvider = (action: IAction) => action instanceof MenuItemAction ? this.instantiationService.createInstance(ContextAwareMenuItemActionItem, action) : undefined;
+		const actionItemProvider = (action: IAction) => action instanceof MenuItemAction ? this.instantiationService.createInstance(ContextAwareMenuItemActionItem, action) : null;
 		const menus = this._register(this.instantiationService.createInstance(TreeMenus, this.id));
 		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels, this));
 		const dataSource = this.instantiationService.createInstance(TreeDataSource, this, <T>(task: Promise<T>) => this.progressService.withProgress({ location: this.viewContainer.id }, () => task));
@@ -461,7 +461,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 				this.elementsToRefresh = [];
 			}
 			for (const element of elements) {
-				element.children = null; // reset children
+				element.children = undefined; // reset children
 			}
 			if (this.isVisible) {
 				return this.doRefresh(elements);
@@ -676,7 +676,7 @@ class TreeRenderer implements IRenderer {
 
 	renderElement(tree: ITree, node: ITreeItem, templateId: string, templateData: ITreeExplorerTemplateData): void {
 		const resource = node.resourceUri ? URI.revive(node.resourceUri) : null;
-		const treeItemLabel: ITreeItemLabel = node.label ? node.label : resource ? { label: basename(resource) } : undefined;
+		const treeItemLabel: ITreeItemLabel | undefined = node.label ? node.label : resource ? { label: basename(resource) } : undefined;
 		const description = isString(node.description) ? node.description : resource && node.description === true ? this.labelService.getUriLabel(dirname(resource), { relative: true }) : undefined;
 		const label = treeItemLabel ? treeItemLabel.label : undefined;
 		const matches = treeItemLabel && treeItemLabel.highlights ? treeItemLabel.highlights.map(([start, end]) => ({ start, end })) : undefined;
@@ -872,7 +872,7 @@ class TreeMenus extends Disposable implements IDisposable {
 		return this.getActions(MenuId.ViewItemContext, { key: 'viewItem', value: element.contextValue }).secondary;
 	}
 
-	private getActions(menuId: MenuId, context: { key: string, value: string }): { primary: IAction[]; secondary: IAction[]; } {
+	private getActions(menuId: MenuId, context: { key: string, value?: string }): { primary: IAction[]; secondary: IAction[]; } {
 		const contextKeyService = this.contextKeyService.createScoped();
 		contextKeyService.createKey('view', this.id);
 		contextKeyService.createKey(context.key, context.value);

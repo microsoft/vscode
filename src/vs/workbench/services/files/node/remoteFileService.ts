@@ -70,7 +70,7 @@ function toIFileStat(provider: IFileSystemProvider, tuple: [URI, IStat], recurse
 	return Promise.resolve(fileStat);
 }
 
-export function toDeepIFileStat(provider: IFileSystemProvider, tuple: [URI, IStat], to: URI[]): Promise<IFileStat> {
+export function toDeepIFileStat(provider: IFileSystemProvider, tuple: [URI, IStat], to?: URI[]): Promise<IFileStat> {
 
 	const trie = TernarySearchTree.forPaths<true>();
 	trie.set(tuple[0].toString(), true);
@@ -281,7 +281,7 @@ export class RemoteFileService extends FileService {
 						FileOperationResult.FILE_NOT_FOUND
 					);
 				} else {
-					return data[0].stat;
+					return data[0].stat!;
 				}
 			});
 		}
@@ -319,7 +319,7 @@ export class RemoteFileService extends FileService {
 					return toDeepIFileStat(provider, [item.resource, stat], item.options && item.options.resolveTo).then(fileStat => {
 						result[idx] = { stat: fileStat, success: true };
 					});
-				}, err => {
+				}, _err => {
 					result[idx] = { stat: undefined, success: false };
 				});
 			});
@@ -440,7 +440,7 @@ export class RemoteFileService extends FileService {
 
 				return RemoteFileService._mkdirp(provider, resources.dirname(resource)).then(() => {
 					const encoding = this.encoding.getWriteEncoding(resource);
-					return this._writeFile(provider, resource, new StringSnapshot(content), encoding, { create: true, overwrite: Boolean(options && options.overwrite) });
+					return this._writeFile(provider, resource, new StringSnapshot(content || ''), encoding, { create: true, overwrite: Boolean(options && options.overwrite) });
 				});
 
 			}).then(fileStat => {
@@ -449,7 +449,7 @@ export class RemoteFileService extends FileService {
 			}, err => {
 				const message = localize('err.create', "Failed to create file {0}", resource.toString(false));
 				const result = this._tryParseFileOperationResult(err);
-				throw new FileOperationError(message, result, options);
+				throw new FileOperationError(message, result || -1, options);
 			});
 		}
 	}
@@ -467,7 +467,7 @@ export class RemoteFileService extends FileService {
 		}
 	}
 
-	private _writeFile(provider: IFileSystemProvider, resource: URI, snapshot: ITextSnapshot, preferredEncoding: string, options: FileWriteOptions): Promise<IFileStat> {
+	private _writeFile(provider: IFileSystemProvider, resource: URI, snapshot: ITextSnapshot, preferredEncoding: string | undefined = undefined, options: FileWriteOptions): Promise<IFileStat> {
 		const readable = createReadableOfSnapshot(snapshot);
 		const encoding = this.encoding.getWriteEncoding(resource, preferredEncoding);
 		const encoder = encodeStream(encoding);
@@ -549,11 +549,11 @@ export class RemoteFileService extends FileService {
 		}
 	}
 
-	private _doMoveWithInScheme(source: URI, target: URI, overwrite?: boolean): Promise<IFileStat> {
+	private _doMoveWithInScheme(source: URI, target: URI, overwrite: boolean = false): Promise<IFileStat> {
 
 		const prepare = overwrite
-			? Promise.resolve(this.del(target, { recursive: true }).then(undefined, err => { /*ignore*/ }))
-			: Promise.resolve(null);
+			? Promise.resolve(this.del(target, { recursive: true }).catch(_err => { /*ignore*/ }))
+			: Promise.resolve();
 
 		return prepare.then(() => this._withProvider(source)).then(RemoteFileService._throwIfFileSystemIsReadonly).then(provider => {
 			return RemoteFileService._mkdirp(provider, resources.dirname(target)).then(() => {
@@ -593,7 +593,7 @@ export class RemoteFileService extends FileService {
 
 			if (source.scheme === target.scheme && (provider.capabilities & FileSystemProviderCapabilities.FileFolderCopy)) {
 				// good: provider supports copy withing scheme
-				return provider.copy(source, target, { overwrite: !!overwrite }).then(() => {
+				return provider.copy!(source, target, { overwrite: !!overwrite }).then(() => {
 					return this.resolveFile(target);
 				}).then(fileStat => {
 					this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.COPY, fileStat));
@@ -608,12 +608,12 @@ export class RemoteFileService extends FileService {
 			}
 
 			const prepare = overwrite
-				? Promise.resolve(this.del(target, { recursive: true }).then(undefined, err => { /*ignore*/ }))
-				: Promise.resolve(null);
+				? Promise.resolve(this.del(target, { recursive: true }).catch(_err => { /*ignore*/ }))
+				: Promise.resolve();
 
+			// todo@ben, can only copy text files
+			// https://github.com/Microsoft/vscode/issues/41543
 			return prepare.then(() => {
-				// todo@ben, can only copy text files
-				// https://github.com/Microsoft/vscode/issues/41543
 				return this.resolveContent(source, { acceptTextOnly: true }).then(content => {
 					return this._withProvider(target).then(provider => {
 						return this._writeFile(
@@ -643,13 +643,9 @@ export class RemoteFileService extends FileService {
 
 	private _activeWatches = new Map<string, { unwatch: Promise<IDisposable>, count: number }>();
 
-	watchFileChanges(resource: URI, opts?: IWatchOptions): void {
+	watchFileChanges(resource: URI, opts: IWatchOptions = { recursive: false, excludes: [] }): void {
 		if (resource.scheme === Schemas.file) {
 			return super.watchFileChanges(resource);
-		}
-
-		if (!opts) {
-			opts = { recursive: false, excludes: [] };
 		}
 
 		const key = resource.toString();
@@ -663,7 +659,7 @@ export class RemoteFileService extends FileService {
 			count: 1,
 			unwatch: this._withProvider(resource).then(provider => {
 				return provider.watch(resource, opts);
-			}, err => {
+			}, _err => {
 				return { dispose() { } };
 			})
 		});

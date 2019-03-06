@@ -133,7 +133,7 @@ export interface ILifecycleService {
 	/**
 	 * A flag indicating in what phase of the lifecycle we currently are.
 	 */
-	readonly phase: LifecyclePhase;
+	phase: LifecyclePhase;
 
 	/**
 	 * Fired before shutdown happens. Allows listeners to veto against the

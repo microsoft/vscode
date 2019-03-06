@@ -10,7 +10,7 @@ import { IEncodingSupport, ConfirmResult, IRevertOptions } from 'vs/workbench/co
 import { IBaseStat, IResolveContentOptions, ITextSnapshot } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
-import { ITextBufferFactory } from 'vs/editor/common/model';
+import { ITextBufferFactory, ITextModel } from 'vs/editor/common/model';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 /**
@@ -29,7 +29,7 @@ export interface ISaveParticipant {
 	/**
 	 * Participate in a save of a model. Allows to change the model before it is being saved to disk.
 	 */
-	participate(model: ITextFileEditorModel, env: { reason: SaveReason }): Promise<void>;
+	participate(model: IResolvedTextFileEditorModel, env: { reason: SaveReason }): Promise<void>;
 }
 
 /**
@@ -253,6 +253,10 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 	isResolved(): boolean;
 
 	isDisposed(): boolean;
+}
+
+export interface IResolvedTextFileEditorModel extends ITextFileEditorModel {
+	readonly textEditorModel: ITextModel;
 }
 
 

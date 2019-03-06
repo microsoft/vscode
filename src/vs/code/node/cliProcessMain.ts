@@ -104,7 +104,7 @@ export class Main {
 	}
 
 	private async installExtensions(extensions: string[], force: boolean): Promise<void> {
-		let failed: string[] = [];
+		const failed: string[] = [];
 		for (const extension of extensions) {
 			try {
 				await this.installExtension(extension, force);

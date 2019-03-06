@@ -265,8 +265,8 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 	//#region Tokenization
 	private _languageIdentifier: LanguageIdentifier;
-	private _tokenizationListener: IDisposable;
-	private _languageRegistryListener: IDisposable;
+	private readonly _tokenizationListener: IDisposable;
+	private readonly _languageRegistryListener: IDisposable;
 	private _revalidateTokensTimeout: any;
 	/*private*/_tokens: ModelLinesTokens;
 	//#endregion
@@ -2730,12 +2730,12 @@ class DecorationsTrees {
 	/**
 	 * This tree holds decorations that do not show up in the overview ruler.
 	 */
-	private _decorationsTree0: IntervalTree;
+	private readonly _decorationsTree0: IntervalTree;
 
 	/**
 	 * This tree holds decorations that show up in the overview ruler.
 	 */
-	private _decorationsTree1: IntervalTree;
+	private readonly _decorationsTree1: IntervalTree;
 
 	constructor() {
 		this._decorationsTree0 = new IntervalTree();

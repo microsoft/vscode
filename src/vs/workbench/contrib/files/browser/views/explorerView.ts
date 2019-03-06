@@ -176,13 +176,13 @@ export class ExplorerView extends ViewletPanel {
 			if (isEditing) {
 				await this.tree.expand(e.parent);
 			} else {
-				DOM.removeClass(this.tree.getHTMLElement(), 'highlight');
+				DOM.removeClass(treeContainer, 'highlight');
 			}
 
 			await this.refresh(e.parent);
 
 			if (isEditing) {
-				DOM.addClass(this.tree.getHTMLElement(), 'highlight');
+				DOM.addClass(treeContainer, 'highlight');
 				this.tree.reveal(e);
 			} else {
 				this.tree.domFocus();
