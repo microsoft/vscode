@@ -69,14 +69,14 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private currentMenuBarVisibility: MenuBarVisibility;
 	private representedFilename: string;
 
-	private whenReadyCallbacks: { (window: ICodeWindow): void }[];
+	private readonly whenReadyCallbacks: { (window: ICodeWindow): void }[];
 
 	private currentConfig: IWindowConfiguration;
 	private pendingLoadConfig?: IWindowConfiguration;
 
 	private marketplaceHeadersPromise: Promise<object>;
 
-	private touchBarGroups: Electron.TouchBarSegmentedControl[];
+	private readonly touchBarGroups: Electron.TouchBarSegmentedControl[];
 
 	constructor(
 		config: IWindowCreationOptions,

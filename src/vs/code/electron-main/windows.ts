@@ -158,11 +158,11 @@ export class WindowsManager implements IWindowsMainService {
 
 	private initialUserEnv: IProcessEnvironment;
 
-	private windowsState: IWindowsState;
+	private readonly windowsState: IWindowsState;
 	private lastClosedWindowState?: IWindowState;
 
-	private dialogs: Dialogs;
-	private workspacesManager: WorkspacesManager;
+	private readonly dialogs: Dialogs;
+	private readonly workspacesManager: WorkspacesManager;
 
 	private _onWindowReady = new Emitter<ICodeWindow>();
 	onWindowReady: CommonEvent<ICodeWindow> = this._onWindowReady.event;
@@ -367,7 +367,7 @@ export class WindowsManager implements IWindowsMainService {
 		this.logService.trace('windowsManager#open');
 		openConfig = this.validateOpenConfig(openConfig);
 
-		let pathsToOpen = this.getPathsToOpen(openConfig);
+		const pathsToOpen = this.getPathsToOpen(openConfig);
 
 		const foldersToAdd: IFolderPathToOpen[] = [];
 		const foldersToOpen: IFolderPathToOpen[] = [];
@@ -439,7 +439,7 @@ export class WindowsManager implements IWindowsMainService {
 		// Make sure to pass focus to the most relevant of the windows if we open multiple
 		if (usedWindows.length > 1) {
 
-			let focusLastActive = this.windowsState.lastActiveWindow && !openConfig.forceEmpty && !hasArgs(openConfig.cli._) && !hasArgs(openConfig.cli['file-uri']) && !hasArgs(openConfig.cli['folder-uri']) && !(openConfig.urisToOpen && openConfig.urisToOpen.length);
+			const focusLastActive = this.windowsState.lastActiveWindow && !openConfig.forceEmpty && !hasArgs(openConfig.cli._) && !hasArgs(openConfig.cli['file-uri']) && !hasArgs(openConfig.cli['folder-uri']) && !(openConfig.urisToOpen && openConfig.urisToOpen.length);
 			let focusLastOpened = true;
 			let focusLastWindow = true;
 
@@ -550,7 +550,7 @@ export class WindowsManager implements IWindowsMainService {
 			// only look at the windows with correct authority
 			const windows = WindowsManager.WINDOWS.filter(w => w.remoteAuthority === fileInputs!.remoteAuthority);
 
-			let bestWindowOrFolder = findBestWindowOrFolderForFile({
+			const bestWindowOrFolder = findBestWindowOrFolderForFile({
 				windows,
 				newWindow: openFilesInNewWindow,
 				context: openConfig.context,
@@ -819,7 +819,7 @@ export class WindowsManager implements IWindowsMainService {
 		if (!openConfig.addMode && isCommandLineOrAPICall) {
 			const foldersToOpen = windowsToOpen.filter(path => !!path.folderUri);
 			if (foldersToOpen.length > 1) {
-				let remoteAuthority = foldersToOpen[0].remoteAuthority;
+				const remoteAuthority = foldersToOpen[0].remoteAuthority;
 				if (foldersToOpen.every(f => f.remoteAuthority === remoteAuthority)) { // only if all folder have the same authority
 					const workspace = this.workspacesMainService.createUntitledWorkspaceSync(foldersToOpen.map(folder => ({ uri: folder.folderUri! })));
 
@@ -836,7 +836,7 @@ export class WindowsManager implements IWindowsMainService {
 	private doExtractPathsFromAPI(openConfig: IOpenConfiguration): IPathToOpen[] {
 		const pathsToOpen: IPathToOpen[] = [];
 		const cli = openConfig.cli;
-		let parseOptions: IPathParseOptions = { gotoLineMode: cli && cli.goto, forceOpenWorkspaceAsFile: openConfig.forceOpenWorkspaceAsFile };
+		const parseOptions: IPathParseOptions = { gotoLineMode: cli && cli.goto, forceOpenWorkspaceAsFile: openConfig.forceOpenWorkspaceAsFile };
 		for (const pathToOpen of openConfig.urisToOpen || []) {
 			if (!pathToOpen) {
 				continue;
@@ -979,7 +979,7 @@ export class WindowsManager implements IWindowsMainService {
 
 	private argToUri(arg: string): URI | undefined {
 		try {
-			let uri = URI.parse(arg);
+			const uri = URI.parse(arg);
 			if (!uri.scheme) {
 				this.logService.error(`Invalid URI input string, scheme missing: ${arg}`);
 				return undefined;
@@ -1547,7 +1547,7 @@ export class WindowsManager implements IWindowsMainService {
 
 	openNewWindow(context: OpenContext, options?: INewWindowOptions): ICodeWindow[] {
 		let cli = this.environmentService.args;
-		let remote = options && options.remoteAuthority || undefined;
+		const remote = options && options.remoteAuthority || undefined;
 		if (cli && (cli.remote !== remote)) {
 			cli = { ...cli, remote };
 		}
@@ -1784,14 +1784,14 @@ class Dialogs {
 
 	private static readonly workingDirPickerStorageKey = 'pickerWorkingDir';
 
-	private mapWindowToDialogQueue: Map<number, Queue<any>>;
-	private noWindowDialogQueue: Queue<any>;
+	private readonly mapWindowToDialogQueue: Map<number, Queue<any>>;
+	private readonly noWindowDialogQueue: Queue<any>;
 
 	constructor(
-		private environmentService: IEnvironmentService,
-		private telemetryService: ITelemetryService,
-		private stateService: IStateService,
-		private windowsMainService: IWindowsMainService,
+		private readonly environmentService: IEnvironmentService,
+		private readonly telemetryService: ITelemetryService,
+		private readonly stateService: IStateService,
+		private readonly windowsMainService: IWindowsMainService,
 	) {
 		this.mapWindowToDialogQueue = new Map<number, Queue<any>>();
 		this.noWindowDialogQueue = new Queue<any>();
