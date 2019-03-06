@@ -151,12 +151,10 @@ export class MainThreadCommentThread implements modes.CommentThread2 {
 	set collapsibleState(newState: modes.CommentThreadCollapsibleState) {
 		this._collapsibleState = newState;
 		this._onDidChangeCollasibleState.fire(this._collapsibleState);
-
 	}
 
 	private _onDidChangeCollasibleState = new Emitter<modes.CommentThreadCollapsibleState>();
 	public onDidChangeCollasibleState = this._onDidChangeCollasibleState.event;
-
 
 	constructor(
 		public commentThreadHandle: number,
@@ -172,9 +170,7 @@ export class MainThreadCommentThread implements modes.CommentThread2 {
 
 	}
 
-	dispose() {
-
-	}
+	dispose() { }
 
 	toJSON(): any {
 		return {

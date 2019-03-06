@@ -1002,7 +1002,7 @@ declare module 'vscode' {
 		 * @return A thenable that resolves to a list of commenting ranges or null and undefined if the provider
 		 * does not want to participate or was cancelled.
 		 */
-		registerCommentingRangeProvider(provider: (document: TextDocument, token: CancellationToken) => ProviderResult<Range[]>, callback: (document: TextDocument, range: Range) => void);
+		registerCommentingRangeProvider(provider: (document: TextDocument, token: CancellationToken) => ProviderResult<Range[]>, callback: (document: TextDocument, range: Range) => void): void;
 		dispose(): void;
 	}
 
