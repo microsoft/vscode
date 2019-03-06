@@ -658,8 +658,8 @@ export function createApiFactory(
 		};
 
 		const comment: typeof vscode.comment = {
-			createCommentControl(id: string, label: string) {
-				return extHostComment.createCommentControl(extension, id, label);
+			createCommentController(id: string, label: string) {
+				return extHostComment.createCommentController(extension, id, label);
 			}
 		};
 

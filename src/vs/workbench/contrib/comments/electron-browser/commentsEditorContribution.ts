@@ -526,11 +526,14 @@ export class ReviewController implements IEditorContribution {
 
 			if (commentingRangesInfo) {
 				let range = new Range(lineNumber, 1, lineNumber, 1);
-				this.commentService.setActiveCommentingRange(range, commentingRangesInfo);
-				let commandId = replyCommand.id;
-				let args = replyCommand.arguments || [];
+				if (commentingRangesInfo.newCommentThreadCommand) {
+					let commandId = replyCommand.id;
+					let args = replyCommand.arguments || [];
 
-				this._commandService.executeCommand(commandId, ...args);
+					this._commandService.executeCommand(commandId, ...args);
+				} else if (commentingRangesInfo.newCommentThreadCallback) {
+					commentingRangesInfo.newCommentThreadCallback(this.editor.getModel().uri, range);
+				}
 			} else {
 				let draftMode = commentInfo[0].draftMode;
 				this.addComment(lineNumber, replyCommand, ownerId, extensionId, draftMode, null);
