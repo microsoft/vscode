@@ -17,6 +17,7 @@ import { language } from 'vs/base/common/platform';
 import { firstIndex } from 'vs/base/common/arrays';
 import { IExtensionsViewlet, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 export class ConfigureLocaleAction extends Action {
 	public static readonly ID = 'workbench.action.configureLocale';
@@ -29,7 +30,8 @@ export class ConfigureLocaleAction extends Action {
 		@IJSONEditingService private readonly jsonEditingService: IJSONEditingService,
 		@IWindowsService private readonly windowsService: IWindowsService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IViewletService private readonly viewletService: IViewletService
+		@IViewletService private readonly viewletService: IViewletService,
+		@IDialogService private readonly dialogService: IDialogService
 	) {
 		super(id, label);
 	}
@@ -52,7 +54,7 @@ export class ConfigureLocaleAction extends Action {
 			const selectedLanguage = await this.quickInputService.pick(languageOptions,
 				{
 					canPickMany: false,
-					placeHolder: localize('chooseDisplayLanguage', "Select display language. VS Code will restart to apply the change"),
+					placeHolder: localize('chooseDisplayLanguage', "Select Display Language"),
 					activeItem: languageOptions[currentLanguageIndex]
 				});
 
@@ -67,7 +69,16 @@ export class ConfigureLocaleAction extends Action {
 			if (selectedLanguage) {
 				const file = URI.file(join(this.environmentService.appSettingsHome, 'locale.json'));
 				await this.jsonEditingService.write(file, { key: 'locale', value: selectedLanguage.label }, true);
-				this.windowsService.relaunch({});
+				const restart = await this.dialogService.confirm({
+					type: 'info',
+					message: localize('relaunchDisplayLanguageMessage', "A restart is required for the change in display language to take effect."),
+					detail: localize('relaunchDisplayLanguageDetail', "Press the restart button to restart {0} and change the display language.", this.environmentService.appNameLong),
+					primaryButton: localize('restart', "&&Restart")
+				});
+
+				if (restart.confirmed) {
+					this.windowsService.relaunch({});
+				}
 			}
 		} catch (e) {
 			this.notificationService.error(e);
