@@ -30,7 +30,10 @@
 		"./vs/workbench/services/progress/**/*.ts",
 		"./vs/workbench/services/preferences/**/*.ts",
 		"./vs/workbench/services/timer/**/*.ts",
-		"./vs/workbench/contrib/webview/**/*.ts"
+		"./vs/workbench/contrib/webview/**/*.ts",
+		"./vs/workbench/contrib/debug/common/**/*.ts",
+		"./vs/workbench/contrib/preferences/common/**/*.ts",
+		"./vs/workbench/contrib/preferences/**/settings*.ts",
 	],
 	"files": [
 		"./vs/monaco.d.ts",
@@ -242,6 +245,7 @@
 		"./vs/workbench/contrib/debug/common/debugViewModel.ts",
 		"./vs/workbench/contrib/debug/electron-browser/rawDebugSession.ts",
 		"./vs/workbench/contrib/debug/node/debugAdapter.ts",
+		"./vs/workbench/contrib/debug/node/debugger.ts",
 		"./vs/workbench/contrib/debug/node/telemetryApp.ts",
 		"./vs/workbench/contrib/debug/test/common/debugSource.test.ts",
 		"./vs/workbench/contrib/debug/test/common/debugUtils.test.ts",
@@ -516,7 +520,8 @@
 		"./vs/workbench/test/electron-browser/api/mainThreadDiagnostics.test.ts",
 		"./vs/workbench/test/electron-browser/api/mainThreadDocumentContentProviders.test.ts",
 		"./vs/workbench/test/electron-browser/api/mock.ts",
-		"./vs/workbench/test/electron-browser/api/testRPCProtocol.ts"
+		"./vs/workbench/test/electron-browser/api/testRPCProtocol.ts",
+		"./vs/workbench/contrib/debug/node/terminals.ts"
 	],
 	"exclude": [
 		"./typings/require-monaco.d.ts",

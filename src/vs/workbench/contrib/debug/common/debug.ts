@@ -112,7 +112,7 @@ export interface IExpression extends IReplElement, IExpressionContainer {
 export interface IDebugger {
 	createDebugAdapter(session: IDebugSession, outputService: IOutputService): Promise<IDebugAdapter>;
 	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): Promise<number | undefined>;
-	getCustomTelemetryService(): Promise<TelemetryService>;
+	getCustomTelemetryService(): Promise<TelemetryService | undefined>;
 }
 
 export const enum State {
@@ -152,7 +152,7 @@ export interface IDebugSession extends ITreeElement {
 	getLabel(): string;
 
 	getSourceForUri(modelUri: uri): Source;
-	getSource(raw: DebugProtocol.Source): Source;
+	getSource(raw?: DebugProtocol.Source): Source;
 
 	setConfiguration(configuration: { resolved: IConfig, unresolved: IConfig }): void;
 	rawUpdate(data: IRawModelUpdate): void;
@@ -199,7 +199,7 @@ export interface IDebugSession extends ITreeElement {
 	stackTrace(threadId: number, startFrame: number, levels: number): Promise<DebugProtocol.StackTraceResponse>;
 	exceptionInfo(threadId: number): Promise<IExceptionInfo>;
 	scopes(frameId: number): Promise<DebugProtocol.ScopesResponse>;
-	variables(variablesReference: number, filter: 'indexed' | 'named', start: number, count: number): Promise<DebugProtocol.VariablesResponse>;
+	variables(variablesReference: number | undefined, filter: 'indexed' | 'named' | undefined, start: number | undefined, count: number | undefined): Promise<DebugProtocol.VariablesResponse>;
 	evaluate(expression: string, frameId?: number, context?: string): Promise<DebugProtocol.EvaluateResponse>;
 	customRequest(request: string, args: any): Promise<DebugProtocol.Response>;
 
@@ -214,7 +214,7 @@ export interface IDebugSession extends ITreeElement {
 	terminateThreads(threadIds: number[]): Promise<void>;
 
 	completions(frameId: number, text: string, position: Position, overwriteBefore: number): Promise<CompletionItem[]>;
-	setVariable(variablesReference: number, name: string, value: string): Promise<DebugProtocol.SetVariableResponse>;
+	setVariable(variablesReference: number | undefined, name: string, value: string): Promise<DebugProtocol.SetVariableResponse>;
 	loadSource(resource: uri): Promise<DebugProtocol.SourceResponse>;
 	getLoadedSources(): Promise<Source[]>;
 }
@@ -284,7 +284,7 @@ export interface IScope extends IExpressionContainer {
 export interface IStackFrame extends ITreeElement {
 	readonly thread: IThread;
 	readonly name: string;
-	readonly presentationHint: string;
+	readonly presentationHint: string | undefined;
 	readonly frameId: number;
 	readonly range: IRange;
 	readonly source: Source;
@@ -319,9 +319,9 @@ export interface IBreakpointUpdateData {
 }
 
 export interface IBaseBreakpoint extends IEnablement {
-	readonly condition: string;
-	readonly hitCondition: string;
-	readonly logMessage: string;
+	readonly condition?: string;
+	readonly hitCondition?: string;
+	readonly logMessage?: string;
 	readonly verified: boolean;
 	readonly idFromAdapter: number | undefined;
 }
@@ -330,7 +330,7 @@ export interface IBreakpoint extends IBaseBreakpoint {
 	readonly uri: uri;
 	readonly lineNumber: number;
 	readonly endLineNumber?: number;
-	readonly column: number;
+	readonly column?: number;
 	readonly endColumn?: number;
 	readonly message?: string;
 	readonly adapterData: any;
@@ -394,7 +394,7 @@ export interface IDebugModel extends ITreeElement {
 	getExceptionBreakpoints(): ReadonlyArray<IExceptionBreakpoint>;
 	getWatchExpressions(): ReadonlyArray<IExpression & IEvaluate>;
 
-	onDidChangeBreakpoints: Event<IBreakpointsChangeEvent>;
+	onDidChangeBreakpoints: Event<IBreakpointsChangeEvent | undefined>;
 	onDidChangeCallStack: Event<void>;
 	onDidChangeWatchExpressions: Event<IExpression | undefined>;
 }
@@ -516,7 +516,7 @@ export interface IPlatformSpecificAdapterContribution {
 }
 
 export interface IDebuggerContribution extends IPlatformSpecificAdapterContribution {
-	type?: string;
+	type: string;
 	label?: string;
 	// debug adapter executable
 	adapterExecutableCommand?: string;

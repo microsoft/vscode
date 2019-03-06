@@ -29,9 +29,6 @@ import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs/workbench/browser/actions';
 import { PanelRegistry, Extensions as PanelExtensions } from 'vs/workbench/browser/panel';
 import { ViewletRegistry, Extensions as ViewletExtensions } from 'vs/workbench/browser/viewlet';
-import { QuickOpenController } from 'vs/workbench/browser/parts/quickopen/quickOpenController';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { QuickInputService } from 'vs/workbench/browser/parts/quickinput/quickInput';
 import { getServices } from 'vs/platform/instantiation/common/extensions';
 import { Position, Parts, IPartService, ILayoutOptions } from 'vs/workbench/services/part/common/partService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -46,9 +43,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
-import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { LifecyclePhase, StartupKind, ILifecycleService, WillShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
@@ -97,12 +92,11 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
-import { HistoryService } from 'vs/workbench/services/history/browser/history';
 import { WorkbenchThemeService } from 'vs/workbench/services/themes/browser/workbenchThemeService';
 import { IProductService } from 'vs/platform/product/common/product';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { WorkbenchContextKeysHandler } from 'vs/workbench/browser/contextkeys';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { ILayoutService, IDimension } from 'vs/platform/layout/browser/layoutService';
 
 // import@node
 import { getDelayedChannel } from 'vs/base/parts/ipc/node/ipc';
@@ -202,12 +196,6 @@ export class Workbench extends Disposable implements IPartService {
 	private panelPart: PanelPart;
 	private editorPart: EditorPart;
 	private statusbarPart: StatusbarPart;
-
-	private quickOpen: QuickOpenController;
-	private quickInput: QuickInputService;
-
-	private notificationsCenter: NotificationsCenter;
-	private notificationsToasts: NotificationsToasts;
 
 	constructor(
 		private container: HTMLElement,
@@ -358,6 +346,7 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Parts
 		serviceCollection.set(IPartService, this); // TODO@Ben use SyncDescriptor
+		serviceCollection.set(ILayoutService, this); // TODO@Ben use SyncDescriptor
 
 		// Labels
 		serviceCollection.set(ILabelService, new SyncDescriptor(LabelService, undefined, true));
@@ -501,17 +490,6 @@ export class Workbench extends Disposable implements IPartService {
 		// Title bar
 		this.titlebarPart = this.instantiationService.createInstance(TitlebarPart, Identifiers.TITLEBAR_PART);
 		serviceCollection.set(ITitleService, this.titlebarPart); // TODO@Ben use SyncDescriptor
-
-		// History
-		serviceCollection.set(IHistoryService, new SyncDescriptor(HistoryService));
-
-		// Quick open service (quick open controller)
-		this.quickOpen = this.instantiationService.createInstance(QuickOpenController);
-		serviceCollection.set(IQuickOpenService, this.quickOpen); // TODO@Ben use SyncDescriptor
-
-		// Quick input service
-		this.quickInput = this.instantiationService.createInstance(QuickInputService);
-		serviceCollection.set(IQuickInputService, this.quickInput); // TODO@Ben use SyncDescriptor
 
 		// Contributed services
 		const contributedServices = getServices();
@@ -692,30 +670,26 @@ export class Workbench extends Disposable implements IPartService {
 	private createNotificationsHandlers(accessor: ServicesAccessor): void {
 		const notificationService = accessor.get(INotificationService) as NotificationService;
 
-		// Notifications Center
-		this.notificationsCenter = this._register(this.instantiationService.createInstance(NotificationsCenter, this.workbench, notificationService.model));
-
-		// Notifications Toasts
-		this.notificationsToasts = this._register(this.instantiationService.createInstance(NotificationsToasts, this.workbench, notificationService.model));
-
-		// Notifications Alerts
+		// Instantiate Notification components
+		const notificationsCenter = this._register(this.instantiationService.createInstance(NotificationsCenter, this.workbench, notificationService.model));
+		const notificationsToasts = this._register(this.instantiationService.createInstance(NotificationsToasts, this.workbench, notificationService.model));
 		this._register(this.instantiationService.createInstance(NotificationsAlerts, notificationService.model));
-
-		// Notifications Status
 		const notificationsStatus = this.instantiationService.createInstance(NotificationsStatus, notificationService.model);
 
-		// Eventing
-		this._register(this.notificationsCenter.onDidChangeVisibility(() => {
+		// Visibility
+		this._register(notificationsCenter.onDidChangeVisibility(() => {
+			notificationsStatus.update(notificationsCenter.isVisible);
+			notificationsToasts.update(notificationsCenter.isVisible);
+		}));
 
-			// Update status
-			notificationsStatus.update(this.notificationsCenter.isVisible);
-
-			// Update toasts
-			this.notificationsToasts.update(this.notificationsCenter.isVisible);
+		// Layout
+		this._register(this.onLayout(dimension => {
+			notificationsCenter.layout(dimension);
+			notificationsToasts.layout(dimension);
 		}));
 
 		// Register Commands
-		registerNotificationCommands(this.notificationsCenter, this.notificationsToasts);
+		registerNotificationCommands(notificationsCenter, notificationsToasts);
 	}
 
 	private restoreWorkbench(): Promise<void> {
@@ -828,6 +802,12 @@ export class Workbench extends Disposable implements IPartService {
 	private readonly _onZenMode: Emitter<boolean> = this._register(new Emitter<boolean>());
 	get onZenModeChange(): Event<boolean> { return this._onZenMode.event; }
 
+	private readonly _onLayout = this._register(new Emitter<IDimension>());
+	get onLayout(): Event<IDimension> { return this._onLayout.event; }
+
+	private _dimension: IDimension;
+	get dimension(): IDimension { return this._dimension; }
+
 	private workbenchGrid: Grid<View> | WorkbenchLegacyLayout;
 
 	private titleBarPartView: View;
@@ -837,7 +817,6 @@ export class Workbench extends Disposable implements IPartService {
 	private editorPartView: View;
 	private statusBarPartView: View;
 
-	private contextViewService: IContextViewService;
 	private windowService: IWindowService;
 
 	private readonly state = {
@@ -1035,7 +1014,6 @@ export class Workbench extends Disposable implements IPartService {
 		const environmentService = accessor.get(IEnvironmentService);
 
 		this.windowService = accessor.get(IWindowService);
-		this.contextViewService = accessor.get(IContextViewService);
 
 		// Fullscreen
 		this.state.fullscreen = isFullscreen();
@@ -1406,38 +1384,30 @@ export class Workbench extends Disposable implements IPartService {
 					sidebar: this.sidebarPart,
 					panel: this.panelPart,
 					statusbar: this.statusbarPart,
-				},
-				this.quickOpen,
-				this.quickInput,
-				this.notificationsCenter,
-				this.notificationsToasts
+				}
 			);
 		}
 	}
 
 	layout(options?: ILayoutOptions): void {
-		this.contextViewService.layout();
-
 		if (!this.disposed) {
+			this._dimension = getClientArea(this.container);
+
 			if (this.workbenchGrid instanceof Grid) {
-				const dimensions = getClientArea(this.container);
 				position(this.workbench, 0, 0, 0, 0, 'relative');
-				size(this.workbench, dimensions.width, dimensions.height);
+				size(this.workbench, this._dimension.width, this._dimension.height);
 
-				// Layout the grid
-				this.workbenchGrid.layout(dimensions.width, dimensions.height);
+				// Layout the grid widget
+				this.workbenchGrid.layout(this._dimension.width, this._dimension.height);
 
-				// Layout non-view ui components
-				this.quickInput.layout(dimensions);
-				this.quickOpen.layout(dimensions);
-				this.notificationsCenter.layout(dimensions);
-				this.notificationsToasts.layout(dimensions);
-
-				// Layout Grid
+				// Layout grid views
 				this.layoutGrid();
 			} else {
 				this.workbenchGrid.layout(options);
 			}
+
+			// Emit as event
+			this._onLayout.fire(this._dimension);
 		}
 	}
 

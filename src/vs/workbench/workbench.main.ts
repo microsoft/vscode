@@ -74,6 +74,9 @@ import 'vs/workbench/services/textmodelResolver/common/textModelResolverService'
 import 'vs/workbench/services/textfile/common/textFileService';
 import 'vs/workbench/services/dialogs/electron-browser/dialogService';
 import 'vs/workbench/services/backup/node/backupFileService';
+import 'vs/workbench/services/history/browser/history';
+import 'vs/workbench/browser/parts/quickinput/quickInput';
+import 'vs/workbench/browser/parts/quickopen/quickOpenController';
 
 registerSingleton(IMenuService, MenuService, true);
 registerSingleton(IListService, ListService, true);

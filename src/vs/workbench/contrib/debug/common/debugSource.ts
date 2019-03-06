@@ -33,10 +33,12 @@ export class Source {
 
 	public readonly uri: uri;
 	public available: boolean;
+	public raw: DebugProtocol.Source;
 
-	constructor(public raw: DebugProtocol.Source, sessionId: string) {
+	constructor(raw_: DebugProtocol.Source | undefined, sessionId: string) {
 		let path: string;
-		if (raw) {
+		if (raw_) {
+			this.raw = raw_;
 			path = this.raw.path || this.raw.name || '';
 			this.available = true;
 		} else {

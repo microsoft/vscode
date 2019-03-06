@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { QuickOpenController } from 'vs/workbench/browser/parts/quickopen/quickOpenController';
-import { QuickInputService } from 'vs/workbench/browser/parts/quickinput/quickInput';
 import { Sash, ISashEvent, IVerticalSashLayoutProvider, IHorizontalSashLayoutProvider, Orientation } from 'vs/base/browser/ui/sash/sash';
 import { IPartService, Position, ILayoutOptions, Parts } from 'vs/workbench/services/part/common/partService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -14,8 +12,6 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { isMacintosh } from 'vs/base/common/platform';
 import { memoize } from 'vs/base/common/decorators';
-import { NotificationsCenter } from 'vs/workbench/browser/parts/notifications/notificationsCenter';
-import { NotificationsToasts } from 'vs/workbench/browser/parts/notifications/notificationsToasts';
 import { Dimension, getClientArea, size, position, hide, show } from 'vs/base/browser/dom';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
@@ -78,10 +74,6 @@ export class WorkbenchLegacyLayout extends Disposable implements IVerticalSashLa
 			panel: PanelPart,
 			statusbar: StatusbarPart
 		},
-		private quickopen: QuickOpenController,
-		private quickInput: QuickInputService,
-		private notificationsCenter: NotificationsCenter,
-		private notificationsToasts: NotificationsToasts,
 		@IStorageService private readonly storageService: IStorageService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IPartService private readonly partService: IPartService,
@@ -625,16 +617,6 @@ export class WorkbenchLegacyLayout extends Disposable implements IVerticalSashLa
 		} else {
 			show(statusbarContainer);
 		}
-
-		// Quick open
-		this.quickopen.layout(this.workbenchSize);
-
-		// Quick input
-		this.quickInput.layout(this.workbenchSize);
-
-		// Notifications
-		this.notificationsCenter.layout(this.workbenchSize);
-		this.notificationsToasts.layout(this.workbenchSize);
 
 		// Sashes
 		this.sashXOne.layout();

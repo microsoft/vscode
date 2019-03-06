@@ -785,7 +785,7 @@ export class DebugSession implements IDebugSession {
 		return this.sources.get(this.getUriKey(uri));
 	}
 
-	getSource(raw: DebugProtocol.Source): Source {
+	getSource(raw?: DebugProtocol.Source): Source {
 		let source = new Source(raw, this.getId());
 		const uriKey = this.getUriKey(source.uri);
 		const found = this.sources.get(uriKey);
