@@ -43,6 +43,7 @@ import { ITelemetryInfo, ITelemetryService } from 'vs/platform/telemetry/common/
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkbenchState, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import { ILayoutService, IDimension } from 'vs/platform/layout/browser/layoutService';
 
 export class SimpleModel implements IResolvedTextEditorModel {
 
@@ -669,5 +670,20 @@ export class SimpleUriLabelService implements ILabelService {
 
 	public getHostLabel(): string {
 		return '';
+	}
+}
+
+export class SimpleLayoutService implements ILayoutService {
+	_serviceBrand: any;
+
+	public onLayout = Event.None;
+
+	private _dimension: IDimension;
+	get dimension(): IDimension {
+		if (!this._dimension) {
+			this._dimension = dom.getClientArea(window.document.body);
+		}
+
+		return this._dimension;
 	}
 }
