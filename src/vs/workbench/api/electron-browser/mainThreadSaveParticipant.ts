@@ -367,7 +367,7 @@ class CodeActionOnSaveParticipant implements ISaveParticipant {
 
 class ExtHostSaveParticipant implements ISaveParticipantParticipant {
 
-	private _proxy: ExtHostDocumentSaveParticipantShape;
+	private readonly _proxy: ExtHostDocumentSaveParticipantShape;
 
 	constructor(extHostContext: IExtHostContext) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocumentSaveParticipant);

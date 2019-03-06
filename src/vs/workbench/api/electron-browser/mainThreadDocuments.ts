@@ -24,8 +24,8 @@ export class BoundModelReferenceCollection {
 	private _length = 0;
 
 	constructor(
-		private _maxAge: number = 1000 * 60 * 3,
-		private _maxLength: number = 1024 * 1024 * 80
+		private readonly _maxAge: number = 1000 * 60 * 3,
+		private readonly _maxLength: number = 1024 * 1024 * 80
 	) {
 		//
 	}
@@ -64,16 +64,16 @@ export class BoundModelReferenceCollection {
 
 export class MainThreadDocuments implements MainThreadDocumentsShape {
 
-	private _modelService: IModelService;
-	private _textModelResolverService: ITextModelService;
-	private _textFileService: ITextFileService;
-	private _fileService: IFileService;
-	private _untitledEditorService: IUntitledEditorService;
+	private readonly _modelService: IModelService;
+	private readonly _textModelResolverService: ITextModelService;
+	private readonly _textFileService: ITextFileService;
+	private readonly _fileService: IFileService;
+	private readonly _untitledEditorService: IUntitledEditorService;
 
 	private _toDispose: IDisposable[];
 	private _modelToDisposeMap: { [modelUrl: string]: IDisposable; };
-	private _proxy: ExtHostDocumentsShape;
-	private _modelIsSynced: { [modelId: string]: boolean; };
+	private readonly _proxy: ExtHostDocumentsShape;
+	private readonly _modelIsSynced: { [modelId: string]: boolean; };
 	private _modelReferenceCollection = new BoundModelReferenceCollection();
 
 	constructor(

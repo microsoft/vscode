@@ -31,9 +31,9 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 
 	private static INSTANCE_COUNT: number = 0;
 
-	private _instanceId: string;
-	private _proxy: ExtHostEditorsShape;
-	private _documentsAndEditors: MainThreadDocumentsAndEditors;
+	private readonly _instanceId: string;
+	private readonly _proxy: ExtHostEditorsShape;
+	private readonly _documentsAndEditors: MainThreadDocumentsAndEditors;
 	private _toDispose: IDisposable[];
 	private _textEditorsListenersMap: { [editorId: string]: IDisposable[]; };
 	private _editorPositionData: ITextEditorPositionData | null;

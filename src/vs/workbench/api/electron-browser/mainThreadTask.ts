@@ -382,9 +382,9 @@ namespace TaskFilterDTO {
 @extHostNamedCustomer(MainContext.MainThreadTask)
 export class MainThreadTask implements MainThreadTaskShape {
 
-	private _extHostContext: IExtHostContext;
-	private _proxy: ExtHostTaskShape;
-	private _providers: Map<number, { disposable: IDisposable, provider: ITaskProvider }>;
+	private readonly _extHostContext: IExtHostContext;
+	private readonly _proxy: ExtHostTaskShape;
+	private readonly _providers: Map<number, { disposable: IDisposable, provider: ITaskProvider }>;
 
 	constructor(
 		extHostContext: IExtHostContext,

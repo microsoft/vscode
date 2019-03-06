@@ -11,10 +11,10 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 @extHostNamedCustomer(MainContext.MainThreadStorage)
 export class MainThreadStorage implements MainThreadStorageShape {
 
-	private _storageService: IStorageService;
-	private _proxy: ExtHostStorageShape;
-	private _storageListener: IDisposable;
-	private _sharedStorageKeysToWatch: Map<string, boolean> = new Map<string, boolean>();
+	private readonly _storageService: IStorageService;
+	private readonly _proxy: ExtHostStorageShape;
+	private readonly _storageListener: IDisposable;
+	private readonly _sharedStorageKeysToWatch: Map<string, boolean> = new Map<string, boolean>();
 
 	constructor(
 		extHostContext: IExtHostContext,

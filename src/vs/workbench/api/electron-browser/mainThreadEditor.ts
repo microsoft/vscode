@@ -181,12 +181,12 @@ export class MainThreadTextEditorProperties {
  */
 export class MainThreadTextEditor {
 
-	private _id: string;
+	private readonly _id: string;
 	private _model: ITextModel;
-	private _modelService: IModelService;
+	private readonly _modelService: IModelService;
 	private _modelListeners: IDisposable[];
 	private _codeEditor: ICodeEditor | null;
-	private _focusTracker: IFocusTracker;
+	private readonly _focusTracker: IFocusTracker;
 	private _codeEditorListeners: IDisposable[];
 
 	private _properties: MainThreadTextEditorProperties;

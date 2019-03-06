@@ -26,10 +26,10 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesShape {
 
-	private _proxy: ExtHostLanguageFeaturesShape;
-	private _heapService: IHeapService;
-	private _modeService: IModeService;
-	private _registrations: { [handle: number]: IDisposable; } = Object.create(null);
+	private readonly _proxy: ExtHostLanguageFeaturesShape;
+	private readonly _heapService: IHeapService;
+	private readonly _modeService: IModeService;
+	private readonly _registrations: { [handle: number]: IDisposable; } = Object.create(null);
 
 	constructor(
 		extHostContext: IExtHostContext,

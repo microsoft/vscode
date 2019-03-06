@@ -304,8 +304,8 @@ class MainThreadDocumentAndEditorStateComputer {
 export class MainThreadDocumentsAndEditors {
 
 	private _toDispose: IDisposable[];
-	private _proxy: ExtHostDocumentsAndEditorsShape;
-	private _stateComputer: MainThreadDocumentAndEditorStateComputer;
+	private readonly _proxy: ExtHostDocumentsAndEditorsShape;
+	private readonly _stateComputer: MainThreadDocumentAndEditorStateComputer;
 	private _textEditors = <{ [id: string]: MainThreadTextEditor }>Object.create(null);
 
 	private _onTextEditorAdd = new Emitter<MainThreadTextEditor[]>();

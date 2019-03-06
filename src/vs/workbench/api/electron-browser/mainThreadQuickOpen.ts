@@ -18,9 +18,9 @@ interface QuickInputSession {
 @extHostNamedCustomer(MainContext.MainThreadQuickOpen)
 export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 
-	private _proxy: ExtHostQuickOpenShape;
-	private _quickInputService: IQuickInputService;
-	private _items: Record<number, {
+	private readonly _proxy: ExtHostQuickOpenShape;
+	private readonly _quickInputService: IQuickInputService;
+	private readonly _items: Record<number, {
 		resolve(items: TransferQuickPickItems[]): void;
 		reject(error: Error): void;
 	}> = {};
