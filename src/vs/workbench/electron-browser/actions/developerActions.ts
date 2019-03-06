@@ -16,6 +16,7 @@ import { Context } from 'vs/platform/contextkey/browser/contextKeyService';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { timeout } from 'vs/base/common/async';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { KeyCode } from 'vs/base/common/keyCodes';
 
 export class ToggleDevToolsAction extends Action {
 
@@ -192,7 +193,9 @@ export class ToggleScreencastModeAction extends Action {
 			const keybinding = this.keybindingService.resolveKeyboardEvent(event);
 			const label = keybinding.getLabel();
 
-			if (!event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey && this.keybindingService.mightProducePrintableCharacter(event) && label) {
+			if (!event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey &&
+				this.keybindingService.mightProducePrintableCharacter(event) && label &&
+				!(event.keyCode === KeyCode.Backspace || event.keyCode === KeyCode.Escape)) {
 				keyboardMarker.textContent += ' ' + label;
 			} else {
 				keyboardMarker.textContent = label;
