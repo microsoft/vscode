@@ -19,6 +19,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { didUseCachedData, ITimerService } from 'vs/workbench/services/timer/electron-browser/timerService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { getEntries } from 'vs/base/common/performance';
 
 export class StartupTimings implements IWorkbenchContribution {
 
@@ -41,6 +42,7 @@ export class StartupTimings implements IWorkbenchContribution {
 		const isStandardStartup = await this._isStandardStartup();
 		this._reportStartupTimes().catch(onUnexpectedError);
 		this._appendStartupTimes(isStandardStartup).catch(onUnexpectedError);
+		this._reportPerfTicks();
 	}
 
 	private async _reportStartupTimes(): Promise<void> {
@@ -109,6 +111,12 @@ export class StartupTimings implements IWorkbenchContribution {
 			return false;
 		}
 		return true;
+	}
+
+	private _reportPerfTicks(): void {
+		const entries = getEntries();
+		//todo@joh proper data declare
+		this._telemetryService.publicLog('startupRawTimers', entries);
 	}
 }
 
