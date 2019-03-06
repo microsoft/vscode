@@ -41,11 +41,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			'type': 'boolean',
 			'default': true
 		},
-		[OutlineConfigKeys.problemsEnabled]: {
-			'description': localize('outline.showProblem', "Show Errors & Warnings on Outline Elements."),
-			'type': 'boolean',
-			'default': true
-		},
 		[OutlineConfigKeys.problemsColors]: {
 			'description': localize('outline.problem.colors', "Use colors for Errors & Warnings."),
 			'type': 'boolean',
