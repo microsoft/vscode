@@ -582,7 +582,7 @@ export interface SCMProviderFeatures {
 	count?: number;
 	commitTemplate?: string;
 	acceptInputCommand?: modes.Command;
-	statusBarCommands?: modes.Command[];
+	statusBarCommands?: CommandDto[];
 }
 
 export interface SCMGroupFeatures {
