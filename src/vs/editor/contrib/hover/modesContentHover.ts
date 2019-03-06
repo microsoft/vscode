@@ -24,7 +24,7 @@ import { ContentHoverWidget } from 'vs/editor/contrib/hover/hoverWidgets';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
-import { IMarker, IMarkerData } from 'vs/platform/markers/common/markers';
+import { IMarker, IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { basename } from 'vs/base/common/resources';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -474,7 +474,8 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 
 		if (markerMessages.length) {
 			markerMessages.forEach(msg => fragment.appendChild(this.renderMarkerHover(msg)));
-			fragment.appendChild(this.renderMarkerStatusbar(markerMessages[0]));
+			const markerHoverForStatusbar = markerMessages.length === 1 ? markerMessages[0] : markerMessages.sort((a, b) => MarkerSeverity.compare(a.marker.severity, b.marker.severity))[0];
+			fragment.appendChild(this.renderMarkerStatusbar(markerHoverForStatusbar));
 		}
 
 		// show
@@ -550,15 +551,17 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				});
 			}
 		}));
-		disposables.push(this.renderAction(actionsElement, {
-			label: nls.localize('peek problem', "Peek Problem"),
-			commandId: NextMarkerAction.ID,
-			run: () => {
-				this.hide();
-				MarkerController.get(this._editor).show(markerHover.marker);
-				this._editor.focus();
-			}
-		}));
+		if (markerHover.marker.severity === MarkerSeverity.Error || markerHover.marker.severity === MarkerSeverity.Warning || markerHover.marker.severity === MarkerSeverity.Info) {
+			disposables.push(this.renderAction(actionsElement, {
+				label: nls.localize('peek problem', "Peek Problem"),
+				commandId: NextMarkerAction.ID,
+				run: () => {
+					this.hide();
+					MarkerController.get(this._editor).show(markerHover.marker);
+					this._editor.focus();
+				}
+			}));
+		}
 		this.renderDisposable = combinedDisposable(disposables);
 		return hoverElement;
 	}
