@@ -28,13 +28,13 @@ export const standardLanguageDescriptions: LanguageDescription[] = [
 		diagnosticSource: 'ts',
 		diagnosticLanguage: DiagnosticLanguage.TypeScript,
 		modeIds: [languageModeIds.typescript, languageModeIds.typescriptreact],
-		configFilePattern: /tsconfig(\..*)?\.json/gi
+		configFilePattern: /^tsconfig(\..*)?\.json$/gi
 	}, {
 		id: 'javascript',
 		diagnosticOwner: 'typescript',
 		diagnosticSource: 'ts',
 		diagnosticLanguage: DiagnosticLanguage.JavaScript,
 		modeIds: [languageModeIds.javascript, languageModeIds.javascriptreact],
-		configFilePattern: /jsconfig(\..*)?\.json/gi
+		configFilePattern: /^jsconfig(\..*)?\.json$/gi
 	}
 ];
