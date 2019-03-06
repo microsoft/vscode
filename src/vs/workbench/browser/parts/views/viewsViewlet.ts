@@ -178,7 +178,7 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 	}
 
 	protected createView(viewDescriptor: IViewDescriptor, options: IViewletViewOptions): ViewletPanel {
-		return this.instantiationService.createInstance(viewDescriptor.ctor, options) as ViewletPanel;
+		return (this.instantiationService as any).createInstance(viewDescriptor.ctorDescriptor.ctor, ...(viewDescriptor.ctorDescriptor.arguments || []), options) as ViewletPanel;
 	}
 
 	protected getView(id: string): ViewletPanel {

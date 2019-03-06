@@ -14,7 +14,7 @@ import { OutlineConfigKeys, OutlineViewId } from 'vs/editor/contrib/documentSymb
 const _outlineDesc = <IViewDescriptor>{
 	id: OutlineViewId,
 	name: localize('name', "Outline"),
-	ctor: OutlinePanel,
+	ctorDescriptor: { ctor: OutlinePanel },
 	canToggleVisibility: true,
 	hideByDefault: false,
 	collapsed: true,
