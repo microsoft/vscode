@@ -137,17 +137,21 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 					if (dto) {
 						dto.forEach(obj => {
 							this._heapService.trackObject(obj);
-							this._heapService.trackObject(obj.command);
+							if (obj.command) {
+								this._heapService.trackObject(obj.command);
+							}
 						});
 					}
 					return dto;
 				});
 			},
-			resolveCodeLens: (model: ITextModel, codeLens: modes.ICodeLensSymbol, token: CancellationToken): modes.ICodeLensSymbol | Promise<modes.ICodeLensSymbol> => {
+			resolveCodeLens: (model: ITextModel, codeLens: modes.ICodeLensSymbol, token: CancellationToken): Promise<modes.ICodeLensSymbol | undefined> => {
 				return this._proxy.$resolveCodeLens(handle, model.uri, codeLens, token).then(obj => {
 					if (obj) {
 						this._heapService.trackObject(obj);
-						this._heapService.trackObject(obj.command);
+						if (obj.command) {
+							this._heapService.trackObject(obj.command);
+						}
 					}
 					return obj;
 				});
@@ -269,7 +273,13 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		this._registrations[handle] = modes.CodeActionProviderRegistry.register(typeConverters.LanguageSelector.from(selector), <modes.CodeActionProvider>{
 			provideCodeActions: (model: ITextModel, rangeOrSelection: EditorRange | Selection, context: modes.CodeActionContext, token: CancellationToken): Promise<modes.CodeAction[]> => {
 				return this._proxy.$provideCodeActions(handle, model.uri, rangeOrSelection, context, token).then(dto => {
-					if (dto) { dto.forEach(obj => this._heapService.trackObject(obj.command)); }
+					if (dto) {
+						dto.forEach(obj => {
+							if (obj.command) {
+								this._heapService.trackObject(obj.command);
+							}
+						});
+					}
 					return MainThreadLanguageFeatures._reviveCodeActionDto(dto);
 				});
 			},
@@ -321,8 +331,13 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 					return MainThreadLanguageFeatures._reviveWorkspaceSymbolDto(result.symbols);
 				});
 			},
-			resolveWorkspaceSymbol: (item: search.IWorkspaceSymbol, token: CancellationToken): Promise<search.IWorkspaceSymbol> => {
-				return this._proxy.$resolveWorkspaceSymbol(handle, item, token).then(i => MainThreadLanguageFeatures._reviveWorkspaceSymbolDto(i));
+			resolveWorkspaceSymbol: (item: search.IWorkspaceSymbol, token: CancellationToken): Promise<search.IWorkspaceSymbol | undefined> => {
+				return this._proxy.$resolveWorkspaceSymbol(handle, item, token).then(i => {
+					if (i) {
+						return MainThreadLanguageFeatures._reviveWorkspaceSymbolDto(i);
+					}
+					return undefined;
+				});
 			}
 		});
 	}
@@ -346,7 +361,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	$registerSuggestSupport(handle: number, selector: ISerializedDocumentFilter[], triggerCharacters: string[], supportsResolveDetails: boolean): void {
 		this._registrations[handle] = modes.CompletionProviderRegistry.register(typeConverters.LanguageSelector.from(selector), <modes.CompletionItemProvider>{
 			triggerCharacters,
-			provideCompletionItems: (model: ITextModel, position: EditorPosition, context: modes.CompletionContext, token: CancellationToken): Promise<modes.CompletionList> => {
+			provideCompletionItems: (model: ITextModel, position: EditorPosition, context: modes.CompletionContext, token: CancellationToken): Promise<modes.CompletionList | undefined> => {
 				return this._proxy.$provideCompletionItems(handle, model.uri, position, context, token).then(result => {
 					if (!result) {
 						return result;
@@ -354,7 +369,11 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 					return {
 						suggestions: result.suggestions,
 						incomplete: result.incomplete,
-						dispose: () => this._proxy.$releaseCompletionItems(handle, result._id)
+						dispose: () => {
+							if (typeof result._id === 'number') {
+								this._proxy.$releaseCompletionItems(handle, result._id);
+							}
+						}
 					};
 				});
 			},
@@ -372,7 +391,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 			signatureHelpTriggerCharacters: metadata.triggerCharacters,
 			signatureHelpRetriggerCharacters: metadata.retriggerCharacters,
 
-			provideSignatureHelp: (model: ITextModel, position: EditorPosition, token: CancellationToken, context: modes.SignatureHelpContext): Promise<modes.SignatureHelp> => {
+			provideSignatureHelp: (model: ITextModel, position: EditorPosition, token: CancellationToken, context: modes.SignatureHelpContext): Promise<modes.SignatureHelp | undefined> => {
 				return this._proxy.$provideSignatureHelp(handle, model.uri, position, context, token);
 			}
 		});
@@ -395,8 +414,10 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 			},
 			resolveLink: (link, token) => {
 				return this._proxy.$resolveDocumentLink(handle, link, token).then(obj => {
-					MainThreadLanguageFeatures._reviveLinkDTO(obj);
-					this._heapService.trackObject(obj);
+					if (obj) {
+						MainThreadLanguageFeatures._reviveLinkDTO(obj);
+						this._heapService.trackObject(obj);
+					}
 					return obj;
 				});
 			}
@@ -461,46 +482,28 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	// --- configuration
 
 	private static _reviveRegExp(regExp: ISerializedRegExp): RegExp {
-		if (typeof regExp === 'undefined') {
-			return undefined;
-		}
-		if (regExp === null) {
-			return null;
-		}
 		return new RegExp(regExp.pattern, regExp.flags);
 	}
 
 	private static _reviveIndentationRule(indentationRule: ISerializedIndentationRule): IndentationRule {
-		if (typeof indentationRule === 'undefined') {
-			return undefined;
-		}
-		if (indentationRule === null) {
-			return null;
-		}
 		return {
 			decreaseIndentPattern: MainThreadLanguageFeatures._reviveRegExp(indentationRule.decreaseIndentPattern),
 			increaseIndentPattern: MainThreadLanguageFeatures._reviveRegExp(indentationRule.increaseIndentPattern),
-			indentNextLinePattern: MainThreadLanguageFeatures._reviveRegExp(indentationRule.indentNextLinePattern),
-			unIndentedLinePattern: MainThreadLanguageFeatures._reviveRegExp(indentationRule.unIndentedLinePattern),
+			indentNextLinePattern: indentationRule.indentNextLinePattern ? MainThreadLanguageFeatures._reviveRegExp(indentationRule.indentNextLinePattern) : undefined,
+			unIndentedLinePattern: indentationRule.unIndentedLinePattern ? MainThreadLanguageFeatures._reviveRegExp(indentationRule.unIndentedLinePattern) : undefined,
 		};
 	}
 
 	private static _reviveOnEnterRule(onEnterRule: ISerializedOnEnterRule): OnEnterRule {
 		return {
 			beforeText: MainThreadLanguageFeatures._reviveRegExp(onEnterRule.beforeText),
-			afterText: MainThreadLanguageFeatures._reviveRegExp(onEnterRule.afterText),
-			oneLineAboveText: MainThreadLanguageFeatures._reviveRegExp(onEnterRule.oneLineAboveText),
+			afterText: onEnterRule.afterText ? MainThreadLanguageFeatures._reviveRegExp(onEnterRule.afterText) : undefined,
+			oneLineAboveText: onEnterRule.oneLineAboveText ? MainThreadLanguageFeatures._reviveRegExp(onEnterRule.oneLineAboveText) : undefined,
 			action: onEnterRule.action
 		};
 	}
 
 	private static _reviveOnEnterRules(onEnterRules: ISerializedOnEnterRule[]): OnEnterRule[] {
-		if (typeof onEnterRules === 'undefined') {
-			return undefined;
-		}
-		if (onEnterRules === null) {
-			return null;
-		}
 		return onEnterRules.map(MainThreadLanguageFeatures._reviveOnEnterRule);
 	}
 
@@ -509,13 +512,13 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		const configuration: LanguageConfiguration = {
 			comments: _configuration.comments,
 			brackets: _configuration.brackets,
-			wordPattern: MainThreadLanguageFeatures._reviveRegExp(_configuration.wordPattern),
-			indentationRules: MainThreadLanguageFeatures._reviveIndentationRule(_configuration.indentationRules),
-			onEnterRules: MainThreadLanguageFeatures._reviveOnEnterRules(_configuration.onEnterRules),
+			wordPattern: _configuration.wordPattern ? MainThreadLanguageFeatures._reviveRegExp(_configuration.wordPattern) : undefined,
+			indentationRules: _configuration.indentationRules ? MainThreadLanguageFeatures._reviveIndentationRule(_configuration.indentationRules) : undefined,
+			onEnterRules: _configuration.onEnterRules ? MainThreadLanguageFeatures._reviveOnEnterRules(_configuration.onEnterRules) : undefined,
 
-			autoClosingPairs: null,
-			surroundingPairs: null,
-			__electricCharacterSupport: null
+			autoClosingPairs: undefined,
+			surroundingPairs: undefined,
+			__electricCharacterSupport: undefined
 		};
 
 		if (_configuration.__characterPairSupport) {

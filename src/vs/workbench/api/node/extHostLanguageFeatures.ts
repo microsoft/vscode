@@ -500,7 +500,7 @@ class NavigateTypeAdapter {
 			}
 		}).then(() => {
 			if (result.symbols.length > 0) {
-				this._resultCache[result._id] = [result.symbols[0]._id, result.symbols[result.symbols.length - 1]._id];
+				this._resultCache[result._id!] = [result.symbols[0]._id!, result.symbols[result.symbols.length - 1]._id!];
 			}
 			return result;
 		});
@@ -633,12 +633,12 @@ class SuggestAdapter {
 		this._provider = provider;
 	}
 
-	provideCompletionItems(resource: URI, position: IPosition, context: modes.CompletionContext, token: CancellationToken): Promise<SuggestResultDto> {
+	provideCompletionItems(resource: URI, position: IPosition, context: modes.CompletionContext, token: CancellationToken): Promise<SuggestResultDto | undefined> {
 
 		const doc = this._documents.getDocument(resource);
 		const pos = typeConvert.Position.to(position);
 
-		return asPromise<vscode.CompletionItem[] | vscode.CompletionList>(
+		return asPromise<vscode.CompletionItem[] | vscode.CompletionList | null | undefined>(
 			() => this._provider.provideCompletionItems(doc, pos, token, typeConvert.CompletionContext.to(context))
 		).then(value => {
 
@@ -720,7 +720,14 @@ class SuggestAdapter {
 			return undefined;
 		}
 
-		const result: SuggestionDto = {
+		// 'overwrite[Before|After]'-logic
+		const range = this.getRange(item, defaultRange);
+		if (!range.isSingleLine || range.start.line !== position.line) {
+			console.warn('INVALID text edit -> must be single line and on the same line');
+			return undefined;
+		}
+
+		return {
 			//
 			_id,
 			_parentId,
@@ -733,46 +740,47 @@ class SuggestAdapter {
 			sortText: item.sortText,
 			preselect: item.preselect,
 			//
-			range: undefined,
-			insertText: undefined,
-			insertTextRules: item.keepWhitespace ? modes.CompletionItemInsertTextRule.KeepWhitespace : 0,
+			range: typeConvert.Range.from(range),
+			insertText: this.convertInsertText(item),
+			insertTextRules: this.convertInsertTextRules(item),
 			additionalTextEdits: item.additionalTextEdits && item.additionalTextEdits.map(typeConvert.TextEdit.from),
 			command: this._commands.toInternal(item.command),
 			commitCharacters: item.commitCharacters
 		};
+	}
 
+	private convertInsertText(item: vscode.CompletionItem): string {
 		// 'insertText'-logic
 		if (item.textEdit) {
-			result.insertText = item.textEdit.newText;
-
+			return item.textEdit.newText;
 		} else if (typeof item.insertText === 'string') {
-			result.insertText = item.insertText;
-
+			return item.insertText;
 		} else if (item.insertText instanceof SnippetString) {
-			result.insertText = item.insertText.value;
-			result.insertTextRules += modes.CompletionItemInsertTextRule.InsertAsSnippet;
-
+			return item.insertText.value;
 		} else {
-			result.insertText = item.label;
+			return item.label;
 		}
+	}
 
-		// 'overwrite[Before|After]'-logic
-		let range: vscode.Range;
+	private convertInsertTextRules(item: vscode.CompletionItem): modes.CompletionItemInsertTextRule {
+		let rules: modes.CompletionItemInsertTextRule = 0;
+		if (item.keepWhitespace) {
+			rules |= modes.CompletionItemInsertTextRule.KeepWhitespace;
+		}
+		if (item.insertText instanceof SnippetString) {
+			rules |= modes.CompletionItemInsertTextRule.InsertAsSnippet;
+		}
+		return rules;
+	}
+
+	private getRange(item: vscode.CompletionItem, defaultRange: vscode.Range) {
 		if (item.textEdit) {
-			range = item.textEdit.range;
+			return item.textEdit.range;
 		} else if (item.range) {
-			range = item.range;
+			return item.range;
 		} else {
-			range = defaultRange;
+			return defaultRange;
 		}
-		result.range = typeConvert.Range.from(range);
-
-		if (!range.isSingleLine || range.start.line !== position.line) {
-			console.warn('INVALID text edit -> must be single line and on the same line');
-			return undefined;
-		}
-
-		return result;
 	}
 }
 
@@ -1140,7 +1148,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		this._proxy.$registerCodeInsetSupport(handle, this._transformDocumentSelector(selector), eventHandle);
 		let result = this._createDisposable(handle);
 
-		if (eventHandle !== undefined) {
+		if (eventHandle !== undefined && provider.onDidChangeCodeInsets) {
 			const subscription = provider.onDidChangeCodeInsets(_ => this._proxy.$emitCodeLensEvent(eventHandle));
 			result = Disposable.from(result, subscription);
 		}
@@ -1148,7 +1156,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return result;
 	}
 
-	$provideCodeInsets(handle: number, resource: UriComponents, token: CancellationToken): Promise<codeInset.ICodeInsetSymbol[]> {
+	$provideCodeInsets(handle: number, resource: UriComponents, token: CancellationToken): Promise<codeInset.ICodeInsetSymbol[] | undefined> {
 		return this._withAdapter(handle, CodeInsetAdapter, adapter => adapter.provideCodeInsets(URI.revive(resource), token));
 	}
 
@@ -1328,7 +1336,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideCompletionItems(handle: number, resource: UriComponents, position: IPosition, context: modes.CompletionContext, token: CancellationToken): Promise<SuggestResultDto> {
+	$provideCompletionItems(handle: number, resource: UriComponents, position: IPosition, context: modes.CompletionContext, token: CancellationToken): Promise<SuggestResultDto | undefined> {
 		return this._withAdapter(handle, SuggestAdapter, adapter => adapter.provideCompletionItems(URI.revive(resource), position, context, token));
 	}
 
@@ -1411,12 +1419,6 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 	// --- configuration
 
 	private static _serializeRegExp(regExp: RegExp): ISerializedRegExp {
-		if (typeof regExp === 'undefined') {
-			return undefined;
-		}
-		if (regExp === null) {
-			return null;
-		}
 		return {
 			pattern: regExp.source,
 			flags: regExpFlags(regExp),
@@ -1424,36 +1426,24 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 	}
 
 	private static _serializeIndentationRule(indentationRule: vscode.IndentationRule): ISerializedIndentationRule {
-		if (typeof indentationRule === 'undefined') {
-			return undefined;
-		}
-		if (indentationRule === null) {
-			return null;
-		}
 		return {
 			decreaseIndentPattern: ExtHostLanguageFeatures._serializeRegExp(indentationRule.decreaseIndentPattern),
 			increaseIndentPattern: ExtHostLanguageFeatures._serializeRegExp(indentationRule.increaseIndentPattern),
-			indentNextLinePattern: ExtHostLanguageFeatures._serializeRegExp(indentationRule.indentNextLinePattern),
-			unIndentedLinePattern: ExtHostLanguageFeatures._serializeRegExp(indentationRule.unIndentedLinePattern),
+			indentNextLinePattern: indentationRule.indentNextLinePattern ? ExtHostLanguageFeatures._serializeRegExp(indentationRule.indentNextLinePattern) : undefined,
+			unIndentedLinePattern: indentationRule.unIndentedLinePattern ? ExtHostLanguageFeatures._serializeRegExp(indentationRule.unIndentedLinePattern) : undefined,
 		};
 	}
 
 	private static _serializeOnEnterRule(onEnterRule: vscode.OnEnterRule): ISerializedOnEnterRule {
 		return {
 			beforeText: ExtHostLanguageFeatures._serializeRegExp(onEnterRule.beforeText),
-			afterText: ExtHostLanguageFeatures._serializeRegExp(onEnterRule.afterText),
-			oneLineAboveText: ExtHostLanguageFeatures._serializeRegExp(onEnterRule.oneLineAboveText),
+			afterText: onEnterRule.afterText ? ExtHostLanguageFeatures._serializeRegExp(onEnterRule.afterText) : undefined,
+			oneLineAboveText: onEnterRule.oneLineAboveText ? ExtHostLanguageFeatures._serializeRegExp(onEnterRule.oneLineAboveText) : undefined,
 			action: onEnterRule.action
 		};
 	}
 
-	private static _serializeOnEnterRules(onEnterRules: vscode.OnEnterRule[]): ISerializedOnEnterRule[] | undefined | null {
-		if (typeof onEnterRules === 'undefined') {
-			return undefined;
-		}
-		if (onEnterRules === null) {
-			return null;
-		}
+	private static _serializeOnEnterRules(onEnterRules: vscode.OnEnterRule[]): ISerializedOnEnterRule[] {
 		return onEnterRules.map(ExtHostLanguageFeatures._serializeOnEnterRule);
 	}
 
@@ -1476,9 +1466,9 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		const serializedConfiguration: ISerializedLanguageConfiguration = {
 			comments: configuration.comments,
 			brackets: configuration.brackets,
-			wordPattern: ExtHostLanguageFeatures._serializeRegExp(configuration.wordPattern),
-			indentationRules: ExtHostLanguageFeatures._serializeIndentationRule(configuration.indentationRules),
-			onEnterRules: ExtHostLanguageFeatures._serializeOnEnterRules(configuration.onEnterRules),
+			wordPattern: configuration.wordPattern ? ExtHostLanguageFeatures._serializeRegExp(configuration.wordPattern) : undefined,
+			indentationRules: configuration.indentationRules ? ExtHostLanguageFeatures._serializeIndentationRule(configuration.indentationRules) : undefined,
+			onEnterRules: configuration.onEnterRules ? ExtHostLanguageFeatures._serializeOnEnterRules(configuration.onEnterRules) : undefined,
 			__electricCharacterSupport: configuration.__electricCharacterSupport,
 			__characterPairSupport: configuration.__characterPairSupport,
 		};

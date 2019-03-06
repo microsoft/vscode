@@ -63,6 +63,7 @@
 		"./vs/workbench/api/electron-browser/mainThreadFileSystem.ts",
 		"./vs/workbench/api/electron-browser/mainThreadFileSystemEventService.ts",
 		"./vs/workbench/api/electron-browser/mainThreadHeapService.ts",
+		"./vs/workbench/api/electron-browser/mainThreadLanguageFeatures.ts",
 		"./vs/workbench/api/electron-browser/mainThreadLanguages.ts",
 		"./vs/workbench/api/electron-browser/mainThreadLogService.ts",
 		"./vs/workbench/api/electron-browser/mainThreadMessageService.ts",
