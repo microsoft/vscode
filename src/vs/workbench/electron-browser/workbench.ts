@@ -187,8 +187,6 @@ export class Workbench extends Disposable implements IPartService {
 
 	private editorService: EditorService;
 	private editorGroupService: IEditorGroupsService;
-	private contextViewService: ContextViewService;
-	private windowService: IWindowService;
 
 	private instantiationService: IInstantiationService;
 	private contextService: IWorkspaceContextService;
@@ -326,8 +324,10 @@ export class Workbench extends Disposable implements IPartService {
 		this._register(this.instantiationService.createInstance(WorkbenchContextKeysHandler));
 
 		// Register Listeners
-		this.registerListeners();
-		this.registerLayoutListeners();
+		this.instantiationService.invokeFunction(accessor => {
+			this.registerListeners(accessor);
+			this.registerLayoutListeners(accessor);
+		});
 
 		// Layout State
 		this.instantiationService.invokeFunction(accessor => this.initLayoutState(accessor));
@@ -357,7 +357,7 @@ export class Workbench extends Disposable implements IPartService {
 	private initServices(serviceCollection: ServiceCollection): void {
 
 		// Parts
-		serviceCollection.set(IPartService, this);
+		serviceCollection.set(IPartService, this); // TODO@Ben use SyncDescriptor
 
 		// Labels
 		serviceCollection.set(ILabelService, new SyncDescriptor(LabelService, undefined, true));
@@ -366,12 +366,11 @@ export class Workbench extends Disposable implements IPartService {
 		serviceCollection.set(INotificationService, new SyncDescriptor(NotificationService, undefined, true));
 
 		// Window
-		this.windowService = this.instantiationService.createInstance(WindowService, this.configuration);
-		serviceCollection.set(IWindowService, this.windowService);
+		serviceCollection.set(IWindowService, new SyncDescriptor(WindowService, [this.configuration]));
 
 		// Product
 		const productService = new ProductService();
-		serviceCollection.set(IProductService, productService);
+		serviceCollection.set(IProductService, productService); // TODO@Ben use SyncDescriptor
 
 		// Shared Process
 		const sharedProcess = this.windowsService.whenSharedProcessReady()
@@ -397,16 +396,10 @@ export class Workbench extends Disposable implements IPartService {
 			telemetryService = NullTelemetryService;
 		}
 
-		serviceCollection.set(ITelemetryService, telemetryService);
+		serviceCollection.set(ITelemetryService, telemetryService); // TODO@Ben use SyncDescriptor
 
 		// Lifecycle
-		const lifecycleService = this.instantiationService.createInstance(LifecycleService);
-		serviceCollection.set(ILifecycleService, lifecycleService);
-		this._register(lifecycleService.onWillShutdown(event => this._onWillShutdown.fire(event)));
-		this._register(lifecycleService.onShutdown(() => {
-			this._onShutdown.fire();
-			this.dispose();
-		}));
+		serviceCollection.set(ILifecycleService, new SyncDescriptor(LifecycleService));
 
 		// Request Service
 		serviceCollection.set(IRequestService, new SyncDescriptor(RequestService, undefined, true));
@@ -459,7 +452,7 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Status bar
 		this.statusbarPart = this.instantiationService.createInstance(StatusbarPart, Identifiers.STATUSBAR_PART);
-		serviceCollection.set(IStatusbarService, this.statusbarPart);
+		serviceCollection.set(IStatusbarService, this.statusbarPart); // TODO@Ben use SyncDescriptor
 
 		// Context Keys
 		serviceCollection.set(IContextKeyService, new SyncDescriptor(ContextKeyService));
@@ -468,8 +461,7 @@ export class Workbench extends Disposable implements IPartService {
 		serviceCollection.set(IKeybindingService, new SyncDescriptor(WorkbenchKeybindingService, [window]));
 
 		// Context view service
-		this.contextViewService = this.instantiationService.createInstance(ContextViewService, this.workbench);
-		serviceCollection.set(IContextViewService, this.contextViewService);
+		serviceCollection.set(IContextViewService, new SyncDescriptor(ContextViewService, [this.workbench], true));
 
 		// Use themable context menus when custom titlebar is enabled to match custom menubar
 		if (!isMacintosh && getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
@@ -478,15 +470,13 @@ export class Workbench extends Disposable implements IPartService {
 			serviceCollection.set(IContextMenuService, new SyncDescriptor(NativeContextMenuService));
 		}
 
-		// Sidebar part
+		// Viewlet service (sidebar part)
 		this.sidebarPart = this.instantiationService.createInstance(SidebarPart, Identifiers.SIDEBAR_PART);
-
-		// Viewlet service
-		serviceCollection.set(IViewletService, this.sidebarPart);
+		serviceCollection.set(IViewletService, this.sidebarPart); // TODO@Ben use SyncDescriptor
 
 		// Panel service (panel part)
 		this.panelPart = this.instantiationService.createInstance(PanelPart, Identifiers.PANEL_PART);
-		serviceCollection.set(IPanelService, this.panelPart);
+		serviceCollection.set(IPanelService, this.panelPart); // TODO@Ben use SyncDescriptor
 
 		// Views service
 		serviceCollection.set(IViewsService, new SyncDescriptor(ViewsService));
@@ -501,27 +491,27 @@ export class Workbench extends Disposable implements IPartService {
 		// Editor and Group services
 		this.editorPart = this.instantiationService.createInstance(EditorPart, Identifiers.EDITOR_PART, !this.hasInitialFilesToOpen());
 		this.editorGroupService = this.editorPart;
-		serviceCollection.set(IEditorGroupsService, this.editorPart);
+		serviceCollection.set(IEditorGroupsService, this.editorPart); // TODO@Ben use SyncDescriptor
 		this.editorService = this.instantiationService.createInstance(EditorService);
-		serviceCollection.set(IEditorService, this.editorService);
+		serviceCollection.set(IEditorService, this.editorService); // TODO@Ben use SyncDescriptor
 
 		// Accessibility
 		serviceCollection.set(IAccessibilityService, new SyncDescriptor(AccessibilityService, undefined, true));
 
 		// Title bar
 		this.titlebarPart = this.instantiationService.createInstance(TitlebarPart, Identifiers.TITLEBAR_PART);
-		serviceCollection.set(ITitleService, this.titlebarPart);
+		serviceCollection.set(ITitleService, this.titlebarPart); // TODO@Ben use SyncDescriptor
 
 		// History
 		serviceCollection.set(IHistoryService, new SyncDescriptor(HistoryService));
 
 		// Quick open service (quick open controller)
 		this.quickOpen = this.instantiationService.createInstance(QuickOpenController);
-		serviceCollection.set(IQuickOpenService, this.quickOpen);
+		serviceCollection.set(IQuickOpenService, this.quickOpen); // TODO@Ben use SyncDescriptor
 
 		// Quick input service
 		this.quickInput = this.instantiationService.createInstance(QuickInputService);
-		serviceCollection.set(IQuickInputService, this.quickInput);
+		serviceCollection.set(IQuickInputService, this.quickInput); // TODO@Ben use SyncDescriptor
 
 		// Contributed services
 		const contributedServices = getServices();
@@ -575,13 +565,23 @@ export class Workbench extends Disposable implements IPartService {
 			(this.configuration.filesToDiff && this.configuration.filesToDiff.length > 0));
 	}
 
-	private registerListeners(): void {
+	private registerListeners(accessor: ServicesAccessor): void {
+		const lifecycleService = accessor.get(ILifecycleService);
+		const storageService = accessor.get(IStorageService);
+		const configurationService = accessor.get(IConfigurationService);
+
+		// Lifecycle
+		this._register(lifecycleService.onWillShutdown(event => this._onWillShutdown.fire(event)));
+		this._register(lifecycleService.onShutdown(() => {
+			this._onShutdown.fire();
+			this.dispose();
+		}));
 
 		// Storage
-		this._register(this.storageService.onWillSaveState(e => this.saveState(e)));
+		this._register(storageService.onWillSaveState(e => this.saveState(e)));
 
 		// Configuration changes
-		this._register(this.configurationService.onDidChangeConfiguration(() => this.setFontAliasing()));
+		this._register(configurationService.onDidChangeConfiguration(() => this.setFontAliasing()));
 	}
 
 	private fontAliasing: 'default' | 'antialiased' | 'none' | 'auto';
@@ -837,6 +837,9 @@ export class Workbench extends Disposable implements IPartService {
 	private editorPartView: View;
 	private statusBarPartView: View;
 
+	private contextViewService: IContextViewService;
+	private windowService: IWindowService;
+
 	private readonly state = {
 		fullscreen: false,
 
@@ -886,31 +889,37 @@ export class Workbench extends Disposable implements IPartService {
 		}
 	};
 
-	private registerLayoutListeners(): void {
+	private registerLayoutListeners(accessor: ServicesAccessor): void {
+		const storageService = accessor.get(IStorageService);
+		const editorService = accessor.get(IEditorService);
+		const configurationService = accessor.get(IConfigurationService);
+		const editorGroupService = accessor.get(IEditorGroupsService);
+		const titleService = accessor.get(ITitleService);
+		const environmentService = accessor.get(IEnvironmentService);
 
 		// Storage
-		this._register(this.storageService.onWillSaveState(e => this.saveLayoutState(e)));
+		this._register(storageService.onWillSaveState(e => this.saveLayoutState(e)));
 
 		// Restore editor if hidden and it changes
-		this._register(this.editorService.onDidVisibleEditorsChange(() => this.setEditorHidden(false)));
-		this._register(this.editorPart.onDidActivateGroup(() => this.setEditorHidden(false)));
+		this._register(editorService.onDidVisibleEditorsChange(() => this.setEditorHidden(false)));
+		this._register(editorGroupService.onDidActivateGroup(() => this.setEditorHidden(false)));
 
 		// Configuration changes
-		this._register(this.configurationService.onDidChangeConfiguration(() => this.doUpdateLayoutConfiguration()));
+		this._register(configurationService.onDidChangeConfiguration(() => this.doUpdateLayoutConfiguration()));
 
 		// Fullscreen changes
 		this._register(onDidChangeFullscreen(() => this.onFullscreenChanged()));
 
 		// Group changes
-		this._register(this.editorGroupService.onDidAddGroup(() => this.centerEditorLayout(this.state.editor.centered)));
-		this._register(this.editorGroupService.onDidRemoveGroup(() => this.centerEditorLayout(this.state.editor.centered)));
+		this._register(editorGroupService.onDidAddGroup(() => this.centerEditorLayout(this.state.editor.centered)));
+		this._register(editorGroupService.onDidRemoveGroup(() => this.centerEditorLayout(this.state.editor.centered)));
 
 		// Prevent workbench from scrolling #55456
 		this._register(addDisposableListener(this.workbench, EventType.SCROLL, () => this.workbench.scrollTop = 0));
 
 		// Menubar visibility changes
-		if ((isWindows || isLinux) && getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
-			this._register(this.titlebarPart.onMenubarVisibilityChange(visible => this.onMenubarToggled(visible)));
+		if ((isWindows || isLinux) && getTitleBarStyle(configurationService, environmentService) === 'custom') {
+			this._register(titleService.onMenubarVisibilityChange(visible => this.onMenubarToggled(visible)));
 		}
 	}
 
@@ -1024,6 +1033,9 @@ export class Workbench extends Disposable implements IPartService {
 		const lifecycleService = accessor.get(ILifecycleService);
 		const contextService = accessor.get(IWorkspaceContextService);
 		const environmentService = accessor.get(IEnvironmentService);
+
+		this.windowService = accessor.get(IWindowService);
+		this.contextViewService = accessor.get(IContextViewService);
 
 		// Fullscreen
 		this.state.fullscreen = isFullscreen();
@@ -1325,6 +1337,7 @@ export class Workbench extends Disposable implements IPartService {
 			if (this.state.zenMode.transitionedToCenteredEditorLayout) {
 				this.centerEditorLayout(false, true);
 			}
+
 			setLineNumbers(this.configurationService.getValue('editor.lineNumbers'));
 
 			// Status bar and activity bar visibility come from settings -> update their visibility.

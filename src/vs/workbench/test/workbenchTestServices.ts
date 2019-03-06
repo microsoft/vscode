@@ -548,6 +548,7 @@ export class TestEditorGroupsService implements EditorGroupsServiceImpl {
 	constructor(public groups: TestEditorGroup[] = []) { }
 
 	onDidActiveGroupChange: Event<IEditorGroup> = Event.None;
+	onDidActivateGroup: Event<IEditorGroup> = Event.None;
 	onDidAddGroup: Event<IEditorGroup> = Event.None;
 	onDidRemoveGroup: Event<IEditorGroup> = Event.None;
 	onDidMoveGroup: Event<IEditorGroup> = Event.None;
