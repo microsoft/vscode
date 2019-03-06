@@ -11,7 +11,7 @@ import { asPromise } from 'vs/base/common/async';
 import * as nls from 'vs/nls';
 import {
 	MainContext, MainThreadDebugServiceShape, ExtHostDebugServiceShape, DebugSessionUUID,
-	IMainContext, IBreakpointsDeltaDto, ISourceMultiBreakpointDto, IFunctionBreakpointDto, IDebugSessionDto
+	IMainContext, IBreakpointsDeltaDto, ISourceMultiBreakpointDto, IFunctionBreakpointDto, IDebugSessionDto, IRunInTerminalResultDto
 } from 'vs/workbench/api/node/extHost.protocol';
 import * as vscode from 'vscode';
 import { Disposable, Position, Location, SourceBreakpoint, FunctionBreakpoint, DebugAdapterServer, DebugAdapterExecutable } from 'vs/workbench/api/node/extHostTypes';
@@ -316,7 +316,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 	// RPC methods (ExtHostDebugServiceShape)
 
-	public $runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Promise<number | undefined> {
+	public $runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Promise<IRunInTerminalResultDto> {
 
 		if (args.kind === 'integrated') {
 
@@ -329,7 +329,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 				});
 			}
 
-			return new Promise(resolve => {
+			return new Promise<boolean>(resolve => {
 				if (this._integratedTerminalInstance) {
 					this._integratedTerminalInstance.processId.then(pid => {
 						resolve(hasChildProcesses(pid));
@@ -352,7 +352,10 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 					const command = prepareCommand(args, config);
 					this._integratedTerminalInstance.sendText(command, true);
 
-					return shellProcessId;
+					return {
+						shellProcessId: shellProcessId,
+						terminalId: this._integratedTerminalInstance
+					};
 				});
 			});
 
@@ -360,7 +363,12 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 			const terminalLauncher = getTerminalLauncher();
 			if (terminalLauncher) {
-				return terminalLauncher.runInTerminal(args, config);
+				return terminalLauncher.runInTerminal(args, config).then(x => {
+					return {
+						shellProcessId: x.shellProcessId,
+						terminalId: null
+					};
+				});
 			}
 		}
 		return undefined;

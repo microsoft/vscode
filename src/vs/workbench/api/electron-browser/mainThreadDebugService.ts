@@ -5,7 +5,7 @@
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { URI as uri } from 'vs/base/common/uri';
-import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, ITerminalSettings, IDebugAdapter, IDebugAdapterDescriptorFactory, IDebugSession, IDebugAdapterFactory, IDebugAdapterTrackerFactory } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, ITerminalSettings, IDebugAdapter, IDebugAdapterDescriptorFactory, IDebugSession, IDebugAdapterFactory, IDebugAdapterTrackerFactory, IRunInTerminalResult } from 'vs/workbench/contrib/debug/common/debug';
 import {
 	ExtHostContext, ExtHostDebugServiceShape, MainThreadDebugServiceShape, DebugSessionUUID, MainContext,
 	IExtHostContext, IBreakpointsDeltaDto, ISourceMultiBreakpointDto, ISourceBreakpointDto, IFunctionBreakpointDto, IDebugSessionDto
@@ -78,8 +78,15 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		return Promise.resolve(this._proxy.$substituteVariables(folder ? folder.uri : undefined, config));
 	}
 
-	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Promise<number | undefined> {
-		return Promise.resolve(this._proxy.$runInTerminal(args, config));
+	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Promise<IRunInTerminalResult> {
+
+		return this._proxy.$runInTerminal(args, config).then(dto => {
+			return {
+				shellProcessId: dto.shellProcessId,
+				terminal: dto.terminalId
+			};
+		});
+		///return Promise.resolve(this._proxy.$runInTerminal(args, config));
 	}
 
 	// RPC methods (MainThreadDebugServiceShape)

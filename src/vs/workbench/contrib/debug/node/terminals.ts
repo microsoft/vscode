@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import * as env from 'vs/base/common/platform';
 import * as pfs from 'vs/base/node/pfs';
 import { assign } from 'vs/base/common/objects';
-import { ITerminalLauncher, ITerminalSettings } from 'vs/workbench/contrib/debug/common/debug';
+import { ITerminalLauncher, ITerminalSettings, IRunInTerminalResult } from 'vs/workbench/contrib/debug/common/debug';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 const TERMINAL_TITLE = nls.localize('console.title', "VS Code Console");
@@ -67,10 +67,10 @@ export function getDefaultTerminalWindows(): string {
 }
 
 abstract class TerminalLauncher implements ITerminalLauncher {
-	public runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Promise<number | undefined> {
+	public runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Promise<IRunInTerminalResult> {
 		return this.runInTerminal0(args.title, args.cwd, args.args, args.env || {}, config);
 	}
-	runInTerminal0(title: string, dir: string, args: string[], envVars: env.IProcessEnvironment, config): Promise<number | undefined> {
+	runInTerminal0(title: string, dir: string, args: string[], envVars: env.IProcessEnvironment, config): Promise<IRunInTerminalResult> {
 		return undefined;
 	}
 }
@@ -79,11 +79,11 @@ class WinTerminalService extends TerminalLauncher {
 
 	private static readonly CMD = 'cmd.exe';
 
-	public runInTerminal0(title: string, dir: string, args: string[], envVars: env.IProcessEnvironment, configuration: ITerminalSettings): Promise<number | undefined> {
+	public runInTerminal0(title: string, dir: string, args: string[], envVars: env.IProcessEnvironment, configuration: ITerminalSettings): Promise<IRunInTerminalResult> {
 
 		const exec = configuration.external.windowsExec || getDefaultTerminalWindows();
 
-		return new Promise<number | undefined>((c, e) => {
+		return new Promise<IRunInTerminalResult>((resolve, reject) => {
 
 			const title = `"${dir} - ${TERMINAL_TITLE}"`;
 			const command = `""${args.join('" "')}" & pause"`; // use '|' to only pause on non-zero exit code
@@ -105,9 +105,9 @@ class WinTerminalService extends TerminalLauncher {
 			};
 
 			const cmd = cp.spawn(WinTerminalService.CMD, cmdArgs, options);
-			cmd.on('error', e);
+			cmd.on('error', reject);
 
-			c(undefined);
+			resolve({});
 		});
 	}
 }
@@ -117,11 +117,11 @@ class MacTerminalService extends TerminalLauncher {
 	private static readonly DEFAULT_TERMINAL_OSX = 'Terminal.app';
 	private static readonly OSASCRIPT = '/usr/bin/osascript';	// osascript is the AppleScript interpreter on OS X
 
-	public runInTerminal0(title: string, dir: string, args: string[], envVars: env.IProcessEnvironment, configuration: ITerminalSettings): Promise<number | undefined> {
+	public runInTerminal0(title: string, dir: string, args: string[], envVars: env.IProcessEnvironment, configuration: ITerminalSettings): Promise<IRunInTerminalResult> {
 
 		const terminalApp = configuration.external.osxExec || MacTerminalService.DEFAULT_TERMINAL_OSX;
 
-		return new Promise<number | undefined>((c, e) => {
+		return new Promise<IRunInTerminalResult>((resolve, reject) => {
 
 			if (terminalApp === MacTerminalService.DEFAULT_TERMINAL_OSX || terminalApp === 'iTerm.app') {
 
@@ -157,24 +157,24 @@ class MacTerminalService extends TerminalLauncher {
 
 				let stderr = '';
 				const osa = cp.spawn(MacTerminalService.OSASCRIPT, osaArgs);
-				osa.on('error', e);
+				osa.on('error', reject);
 				osa.stderr.on('data', (data) => {
 					stderr += data.toString();
 				});
 				osa.on('exit', (code: number) => {
 					if (code === 0) {	// OK
-						c(undefined);
+						resolve({});
 					} else {
 						if (stderr) {
 							const lines = stderr.split('\n', 1);
-							e(new Error(lines[0]));
+							reject(new Error(lines[0]));
 						} else {
-							e(new Error(nls.localize('mac.terminal.script.failed', "Script '{0}' failed with exit code {1}", script, code)));
+							reject(new Error(nls.localize('mac.terminal.script.failed', "Script '{0}' failed with exit code {1}", script, code)));
 						}
 					}
 				});
 			} else {
-				e(new Error(nls.localize('mac.terminal.type.not.supported', "'{0}' not supported", terminalApp)));
+				reject(new Error(nls.localize('mac.terminal.type.not.supported', "'{0}' not supported", terminalApp)));
 			}
 		});
 	}
@@ -184,12 +184,12 @@ class LinuxTerminalService extends TerminalLauncher {
 
 	private static readonly WAIT_MESSAGE = nls.localize('press.any.key', "Press any key to continue...");
 
-	public runInTerminal0(title: string, dir: string, args: string[], envVars: env.IProcessEnvironment, configuration: ITerminalSettings): Promise<number | undefined> {
+	public runInTerminal0(title: string, dir: string, args: string[], envVars: env.IProcessEnvironment, configuration: ITerminalSettings): Promise<IRunInTerminalResult> {
 
 		const terminalConfig = configuration.external;
 		const execThenable: Promise<string> = terminalConfig.linuxExec ? Promise.resolve(terminalConfig.linuxExec) : getDefaultTerminalLinuxReady();
 
-		return new Promise<number | undefined>((c, e) => {
+		return new Promise<IRunInTerminalResult>((resolve, reject) => {
 
 			let termArgs: string[] = [];
 			//termArgs.push('--title');
@@ -219,19 +219,19 @@ class LinuxTerminalService extends TerminalLauncher {
 
 				let stderr = '';
 				const cmd = cp.spawn(exec, termArgs, options);
-				cmd.on('error', e);
+				cmd.on('error', reject);
 				cmd.stderr.on('data', (data) => {
 					stderr += data.toString();
 				});
 				cmd.on('exit', (code: number) => {
 					if (code === 0) {	// OK
-						c(undefined);
+						resolve({});
 					} else {
 						if (stderr) {
 							const lines = stderr.split('\n', 1);
-							e(new Error(lines[0]));
+							reject(new Error(lines[0]));
 						} else {
-							e(new Error(nls.localize('linux.term.failed', "'{0}' failed with exit code {1}", exec, code)));
+							reject(new Error(nls.localize('linux.term.failed', "'{0}' failed with exit code {1}", exec, code)));
 						}
 					}
 				});

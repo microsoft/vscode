@@ -57,13 +57,19 @@ class ServerReadyDetector extends vscode.Disposable {
 		this.disposables = [];
 	}
 
-	trackTerminals() {
-		// TODO: listen only on the Terminal associated with the debug session
-		vscode.window.terminals.forEach(terminal => {
+	trackTerminals(terminal?: vscode.Terminal) {
+		if (terminal) {
 			this.disposables.push(terminal.onDidWriteData(s => {
 				this.detectPattern(s);
 			}));
-		});
+		} else {
+			// TODO: listen only on the Terminal associated with the debug session
+			vscode.window.terminals.forEach(terminal => {
+				this.disposables.push(terminal.onDidWriteData(s => {
+					this.detectPattern(s);
+				}));
+			});
+		}
 	}
 
 	detectPattern(s: string): void {
@@ -118,7 +124,7 @@ export function activate(context: vscode.ExtensionContext) {
 		if (session && session.configuration.serverReadyAction) {
 			const detector = ServerReadyDetector.start(session);
 			if (detector) {
-				detector.trackTerminals();
+				detector.trackTerminals(session.terminal);
 			}
 		}
 	}));
