@@ -19,6 +19,7 @@ import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
 import { SnippetSession } from './snippetSession';
+import { EditorState, CodeEditorStateFlag } from 'vs/editor/browser/core/editorState';
 
 export class SnippetController2 implements IEditorContribution {
 
@@ -113,10 +114,26 @@ export class SnippetController2 implements IEditorContribution {
 
 		this._updateState();
 
+		// we listen on model and selection changes. usually
+		// both events come in together and this is to prevent
+		// that we don't call _updateState twice.
+		let state: EditorState;
+		let dedupedUpdateState = () => {
+			if (!state || !state.validate(this._editor)) {
+				this._updateState();
+				state = new EditorState(this._editor, CodeEditorStateFlag.Selection | CodeEditorStateFlag.Value);
+			}
+		};
 		this._snippetListener = [
-			this._editor.onDidChangeModelContent(e => e.isFlush && this.cancel()),
+			this._editor.onDidChangeModelContent(e => {
+				if (e.isFlush) {
+					this.cancel();
+				} else {
+					setTimeout(dedupedUpdateState, 0);
+				}
+			}),
+			this._editor.onDidChangeCursorSelection(dedupedUpdateState),
 			this._editor.onDidChangeModel(() => this.cancel()),
-			this._editor.onDidChangeCursorSelection(() => this._updateState())
 		];
 	}
 
