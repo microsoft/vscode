@@ -468,7 +468,9 @@ export class RemoteFileDialog {
 			if (i1.isFolder !== i2.isFolder) {
 				return i1.isFolder ? -1 : 1;
 			}
-			return i1.label.localeCompare(i2.label);
+			const trimmed1 = this.endsWithSlash(i1.label) ? i1.label.substr(0, i1.label.length - 1) : i1.label;
+			const trimmed2 = this.endsWithSlash(i2.label) ? i2.label.substr(0, i2.label.length - 1) : i2.label;
+			return trimmed1.localeCompare(trimmed2);
 		});
 
 		if (backDir) {
