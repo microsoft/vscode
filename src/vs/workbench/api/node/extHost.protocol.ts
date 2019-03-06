@@ -527,7 +527,7 @@ export interface ExtHostUrlsShape {
 }
 
 export interface MainThreadWorkspaceShape extends IDisposable {
-	$startFileSearch(includePattern: string | undefined, includeFolder: URI | undefined, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Promise<UriComponents[] | undefined>;
+	$startFileSearch(includePattern: string | undefined, includeFolder: URI | undefined, excludePatternOrDisregardExcludes: string | false | undefined, maxResults: number, token: CancellationToken): Promise<UriComponents[] | undefined>;
 	$startTextSearch(query: IPatternInfo, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<vscode.TextSearchComplete>;
 	$checkExists(includes: string[], token: CancellationToken): Promise<boolean>;
 	$saveAll(includeUntitled?: boolean): Promise<boolean>;
