@@ -856,7 +856,7 @@ export class SettingsEditor2 extends BaseEditor {
 		});
 	}
 
-	private onConfigUpdate(keys?: string[], forceRefresh = false): Promise<void> {
+	private onConfigUpdate(keys?: string[], forceRefresh = false): void {
 		if (keys && this.settingsTreeModel) {
 			return this.updateElementsByKey(keys);
 		}
@@ -907,10 +907,10 @@ export class SettingsEditor2 extends BaseEditor {
 			this.tocTree.collapseAll();
 		}
 
-		return Promise.resolve(undefined);
+		return;
 	}
 
-	private updateElementsByKey(keys: string[]): Promise<void> {
+	private updateElementsByKey(keys: string[]): void {
 		if (keys.length) {
 			if (this.searchResultModel) {
 				keys.forEach(key => this.searchResultModel!.updateElementsByName(key));
@@ -920,9 +920,7 @@ export class SettingsEditor2 extends BaseEditor {
 				keys.forEach(key => this.settingsTreeModel.updateElementsByName(key));
 			}
 
-			return Promise.all(
-				keys.map(key => this.renderTree(key)))
-				.then(() => { });
+			keys.forEach(key => this.renderTree(key));
 		} else {
 			return this.renderTree();
 		}
@@ -934,16 +932,16 @@ export class SettingsEditor2 extends BaseEditor {
 			null;
 	}
 
-	private renderTree(key?: string, force = false): Promise<void> {
+	private renderTree(key?: string, force = false): void {
 		if (!force && key && this.scheduledRefreshes.has(key)) {
 			this.updateModifiedLabelForKey(key);
-			return Promise.resolve(undefined);
+			return;
 		}
 
 		// If the context view is focused, delay rendering settings
 		if (this.contextViewFocused()) {
 			this.scheduleRefresh(document.querySelector('.context-view'), key);
-			return Promise.resolve(undefined);
+			return;
 		}
 
 		// If a setting control is currently focused, schedule a refresh for later
@@ -958,11 +956,11 @@ export class SettingsEditor2 extends BaseEditor {
 
 					this.updateModifiedLabelForKey(key);
 					this.scheduleRefresh(focusedSetting, key);
-					return Promise.resolve();
+					return;
 				}
 			} else {
 				this.scheduleRefresh(focusedSetting);
-				return Promise.resolve();
+				return;
 			}
 		}
 
@@ -975,7 +973,7 @@ export class SettingsEditor2 extends BaseEditor {
 				this.refreshTree();
 			} else {
 				// Refresh requested for a key that we don't know about
-				return Promise.resolve();
+				return;
 			}
 		} else {
 			this.refreshTree();
@@ -983,7 +981,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 		this.tocTreeModel.update();
 		this.refreshTOCTree();
-		return Promise.resolve(undefined);
+		return;
 	}
 
 	private contextViewFocused(): boolean {
@@ -1197,7 +1195,8 @@ export class SettingsEditor2 extends BaseEditor {
 			this.viewState.filterToCategory = undefined;
 			this.tocTree.expandAll();
 
-			return this.renderTree(undefined, true).then(() => result);
+			this.renderTree(undefined, true);
+			return result;
 		});
 	}
 
