@@ -801,6 +801,11 @@ declare module 'vscode' {
 		range: Range;
 
 		/**
+		 * Label describing the [Comment Thread](#CommentThread)
+		 */
+		label?: string;
+
+		/**
 		 * The ordered comments of the thread.
 		 */
 		comments: Comment[];
@@ -826,6 +831,11 @@ declare module 'vscode' {
 		 * The text of the comment
 		 */
 		body: MarkdownString;
+
+		/**
+		 * Label describing the [Comment](#Comment)
+		 */
+		label?: string;
 
 		/**
 		 * The display name of the user who created the comment

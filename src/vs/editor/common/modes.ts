@@ -1253,6 +1253,7 @@ export interface CommentThread2 {
 	threadId: string;
 	resource: string;
 	range: IRange;
+	label: string;
 	comments: Comment[];
 	onDidChangeComments: Event<Comment[]>;
 	collapsibleState?: CommentThreadCollapsibleState;
@@ -1261,6 +1262,7 @@ export interface CommentThread2 {
 	acceptInputCommands: Command[];
 	onDidChangeAcceptInputCommands: Event<Command[]>;
 	onDidChangeRange: Event<IRange>;
+	onDidChangeLabel: Event<string>;
 	onDidChangeCollasibleState: Event<CommentThreadCollapsibleState>;
 }
 
@@ -1322,6 +1324,7 @@ export interface Comment {
 	readonly deleteCommand?: Command;
 	readonly isDraft?: boolean;
 	readonly commentReactions?: CommentReaction[];
+	readonly label?: string;
 }
 
 /**

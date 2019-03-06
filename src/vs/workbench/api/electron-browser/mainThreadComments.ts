@@ -94,6 +94,20 @@ export class MainThreadCommentThread implements modes.CommentThread2 {
 	private _onDidChangeInput = new Emitter<modes.CommentInput | undefined>();
 	get onDidChangeInput(): Event<modes.CommentInput | undefined> { return this._onDidChangeInput.event; }
 
+	private _label: string;
+
+	get label(): string {
+		return this._label;
+	}
+
+	set label(label: string) {
+		this._label = label;
+	}
+
+	private _onDidChangeLabel = new Emitter<string>();
+	get onDidChangeLabel(): Event<string> { return this._onDidChangeLabel.event; }
+
+
 	public get comments(): modes.Comment[] {
 		return this._comments;
 	}
@@ -261,6 +275,11 @@ export class MainThreadCommentController {
 	updateCommentThreadRange(commentThreadHandle: number, range: IRange) {
 		let thread = this._threads.get(commentThreadHandle);
 		thread.range = range;
+	}
+
+	updateCommentThreadLabel(commentThreadHandle: number, label: string) {
+		let thread = this._threads.get(commentThreadHandle);
+		thread.label = label;
 	}
 
 	updateInput(input: string) {
@@ -443,6 +462,16 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		}
 
 		provider.updateCommentThreadRange(commentThreadHandle, range);
+	}
+
+	$updateCommentThreadLabel(handle: number, commentThreadHandle: number, label: string): void {
+		let provider = this._commentControllers.get(handle);
+
+		if (!provider) {
+			return;
+		}
+
+		provider.updateCommentThreadLabel(commentThreadHandle, label);
 	}
 
 	$registerDocumentCommentProvider(handle: number, features: CommentProviderFeatures): void {

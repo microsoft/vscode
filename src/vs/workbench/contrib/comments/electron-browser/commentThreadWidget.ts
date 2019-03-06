@@ -709,12 +709,18 @@ export class ReviewZoneWidget extends ZoneWidget {
 	}
 
 	private createThreadLabel() {
-		let label: string;
-		if (this._commentThread.comments.length) {
-			const participantsList = this._commentThread.comments.filter(arrays.uniqueFilter(comment => comment.userName)).map(comment => `@${comment.userName}`).join(', ');
-			label = nls.localize('commentThreadParticipants', "Participants: {0}", participantsList);
-		} else {
-			label = nls.localize('startThread', "Start discussion");
+		let label: string | undefined;
+		if ((this._commentThread as modes.CommentThread2).commentThreadHandle !== undefined) {
+			label = (this._commentThread as modes.CommentThread2).label;
+		}
+
+		if (label === undefined) {
+			if (this._commentThread.comments.length) {
+				const participantsList = this._commentThread.comments.filter(arrays.uniqueFilter(comment => comment.userName)).map(comment => `@${comment.userName}`).join(', ');
+				label = nls.localize('commentThreadParticipants', "Participants: {0}", participantsList);
+			} else {
+				label = nls.localize('startThread', "Start discussion");
+			}
 		}
 
 		this._headingLabel.innerHTML = strings.escape(label);

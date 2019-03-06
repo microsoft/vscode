@@ -308,6 +308,17 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 		return this._range;
 	}
 
+	private _label: string;
+
+	get label(): string {
+		return this._label;
+	}
+
+	set label(label: string) {
+		this._label = label;
+		this._proxy.$updateCommentThreadLabel(this._commentControlHandle, this.handle, this._label);
+	}
+
 	private _comments: vscode.Comment[] = [];
 
 	get comments(): vscode.Comment[] {
@@ -557,7 +568,8 @@ function convertToModeComment(vscodeComment: vscode.Comment, commandsConverter: 
 		userIconPath: iconPath,
 		isDraft: vscodeComment.isDraft,
 		editCommand: vscodeComment.editCommand ? commandsConverter.toInternal(vscodeComment.editCommand) : undefined,
-		deleteCommand: vscodeComment.editCommand ? commandsConverter.toInternal(vscodeComment.deleteCommand) : undefined
+		deleteCommand: vscodeComment.editCommand ? commandsConverter.toInternal(vscodeComment.deleteCommand) : undefined,
+		label: vscodeComment.label
 	};
 }
 
