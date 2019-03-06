@@ -17,7 +17,7 @@ export interface LanguageDescription {
 	readonly diagnosticSource: string;
 	readonly diagnosticLanguage: DiagnosticLanguage;
 	readonly modeIds: string[];
-	readonly configFile?: string;
+	readonly configFilePattern?: RegExp;
 	readonly isExternal?: boolean;
 }
 
@@ -28,13 +28,13 @@ export const standardLanguageDescriptions: LanguageDescription[] = [
 		diagnosticSource: 'ts',
 		diagnosticLanguage: DiagnosticLanguage.TypeScript,
 		modeIds: [languageModeIds.typescript, languageModeIds.typescriptreact],
-		configFile: 'tsconfig.json'
+		configFilePattern: /tsconfig(\..*)?\.json/gi
 	}, {
 		id: 'javascript',
 		diagnosticOwner: 'typescript',
 		diagnosticSource: 'ts',
 		diagnosticLanguage: DiagnosticLanguage.JavaScript,
 		modeIds: [languageModeIds.javascript, languageModeIds.javascriptreact],
-		configFile: 'jsconfig.json'
+		configFilePattern: /jsconfig(\..*)?\.json/gi
 	}
 ];
