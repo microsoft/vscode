@@ -155,7 +155,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private static _idCounter = 1;
 
 	private _processManager: ITerminalProcessManager | undefined;
-	private _keyPressListener: IDisposable | undefined;
+	private _pressAnyKeyToCloseListener: IDisposable | undefined;
 
 	private _id: number;
 	private _isExiting: boolean;
@@ -749,7 +749,7 @@ export class TerminalInstance implements ITerminalInstance {
 		// can simply output  the text to the renderer themselves.
 		// All this code does is handle the "wait on exit" condition.
 		if (!this.shellLaunchConfig.isRendererOnly) {
-			throw new Error('renderExit is only expected to be called on a renderer only terminal');
+			throw new Error('rendererExit is only expected to be called on a renderer only terminal');
 		}
 
 		return this._onProcessOrExtensionCallbackExit(result);
@@ -918,7 +918,7 @@ export class TerminalInstance implements ITerminalInstance {
 	 * Called when either a process tied to a terminal has exited or when a custom execution has completed.
 	 * @param exitCode The exit code can be undefined if the terminal was exited through user action or if a custom execution callback did not provide a exit code when it finished.
 	 */
-	private _onProcessOrExtensionCallbackExit(exitCode: number): void {
+	private _onProcessOrExtensionCallbackExit(exitCode?: number): void {
 		this._logService.debug(`Terminal process exit (id: ${this.id}) with code ${exitCode}`);
 
 		// Prevent dispose functions being triggered multiple times
@@ -927,17 +927,22 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 
 		this._isExiting = true;
+		let exitCodeMessage: string;
 
-		const exitCodeMessage: string = nls.localize('terminal.integrated.exitedWithCode', 'The terminal process terminated with exit code: {0}', exitCode);
+		if (exitCode) {
+			exitCodeMessage = nls.localize('terminal.integrated.exitedWithCode', 'The terminal process terminated with exit code: {0}', exitCode);
+		}
 
 		if (this._processManager) {
-			this._logService.debug(`Terminal process exit (id: ${this.id}) state ${this._processManager!.processState}`);
+			this._logService.debug(`Terminal process exit (id: ${this.id}) state ${this._processManager.processState}`);
 		}
 
 		// Only trigger wait on exit when the exit was *not* triggered by the
 		// user (via the `workbench.action.terminal.kill` command).
 		if (this._shellLaunchConfig.waitOnExit && (!this._processManager || this._processManager.processState !== ProcessState.KILLED_BY_USER)) {
-			this._xterm.writeln(exitCodeMessage!);
+			if (exitCode) {
+				this._xterm.writeln(exitCodeMessage!);
+			}
 			if (typeof this._shellLaunchConfig.waitOnExit === 'string') {
 				let message = this._shellLaunchConfig.waitOnExit;
 				// Bold the message and add an extra new line to make it stand out from the rest of the output
@@ -951,41 +956,43 @@ export class TerminalInstance implements ITerminalInstance {
 			}
 		} else {
 			this.dispose();
-			if (this._processManager && this._processManager.processState === ProcessState.KILLED_DURING_LAUNCH) {
-				let args = '';
-				if (typeof this._shellLaunchConfig.args === 'string') {
-					args = this._shellLaunchConfig.args;
-				} else if (this._shellLaunchConfig.args && this._shellLaunchConfig.args.length) {
-					args = ' ' + this._shellLaunchConfig.args.map(a => {
-						if (typeof a === 'string' && a.indexOf(' ') !== -1) {
-							return `'${a}'`;
-						}
-						return a;
-					}).join(' ');
-				}
-				if (this._shellLaunchConfig.executable) {
-					this._notificationService.error(nls.localize('terminal.integrated.launchFailed', 'The terminal process command \'{0}{1}\' failed to launch (exit code: {2})', this._shellLaunchConfig.executable, args, exitCode));
+			if (exitCode) {
+				if (this._processManager && this._processManager.processState === ProcessState.KILLED_DURING_LAUNCH) {
+					let args = '';
+					if (typeof this._shellLaunchConfig.args === 'string') {
+						args = this._shellLaunchConfig.args;
+					} else if (this._shellLaunchConfig.args && this._shellLaunchConfig.args.length) {
+						args = ' ' + this._shellLaunchConfig.args.map(a => {
+							if (typeof a === 'string' && a.indexOf(' ') !== -1) {
+								return `'${a}'`;
+							}
+							return a;
+						}).join(' ');
+					}
+					if (this._shellLaunchConfig.executable) {
+						this._notificationService.error(nls.localize('terminal.integrated.launchFailed', 'The terminal process command \'{0}{1}\' failed to launch (exit code: {2})', this._shellLaunchConfig.executable, args, exitCode));
+					} else {
+						this._notificationService.error(nls.localize('terminal.integrated.launchFailedExtHost', 'The terminal process failed to launch (exit code: {0})', exitCode));
+					}
 				} else {
-					this._notificationService.error(nls.localize('terminal.integrated.launchFailedExtHost', 'The terminal process failed to launch (exit code: {0})', exitCode));
-				}
-			} else {
-				if (this._configHelper.config.showExitAlert) {
-					this._notificationService.error(exitCodeMessage!);
-				} else {
-					console.warn(exitCodeMessage!);
+					if (this._configHelper.config.showExitAlert) {
+						this._notificationService.error(exitCodeMessage!);
+					} else {
+						console.warn(exitCodeMessage!);
+					}
 				}
 			}
 		}
 
-		this._onExit.fire(exitCode);
+		this._onExit.fire(exitCode || 0);
 	}
 
 	private _attachPressAnyKeyToCloseListener() {
-		if (!this._keyPressListener) {
-			this._keyPressListener = dom.addDisposableListener(this._xterm.textarea, 'keypress', (event: KeyboardEvent) => {
-				if (this._keyPressListener) {
-					this._keyPressListener.dispose();
-					this._keyPressListener = undefined;
+		if (!this._pressAnyKeyToCloseListener) {
+			this._pressAnyKeyToCloseListener = dom.addDisposableListener(this._xterm.textarea, 'keypress', (event: KeyboardEvent) => {
+				if (this._pressAnyKeyToCloseListener) {
+					this._pressAnyKeyToCloseListener.dispose();
+					this._pressAnyKeyToCloseListener = undefined;
 					this.dispose();
 					event.preventDefault();
 				}
@@ -995,9 +1002,9 @@ export class TerminalInstance implements ITerminalInstance {
 
 	public reuseTerminal(shell: IShellLaunchConfig): void {
 		// Unsubscribe any key listener we may have.
-		if (this._keyPressListener) {
-			this._keyPressListener.dispose();
-			this._keyPressListener = undefined;
+		if (this._pressAnyKeyToCloseListener) {
+			this._pressAnyKeyToCloseListener.dispose();
+			this._pressAnyKeyToCloseListener = undefined;
 		}
 
 		// Kill and clear up the process, making the process manager ready for a new process

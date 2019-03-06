@@ -345,7 +345,7 @@ class CustomExecutionData implements IDisposable {
 	public result: number | undefined;
 
 	constructor(
-		private readonly callbackData: vscode.CustomExecution,
+		private readonly customExecution: vscode.CustomExecution,
 		private readonly terminalService: ExtHostTerminalService) {
 	}
 
@@ -398,23 +398,28 @@ class CustomExecutionData implements IDisposable {
 		this.terminal = callbackTerminals[0];
 		const terminalRenderer: vscode.TerminalRenderer = await this.terminalService.resolveTerminalRenderer(terminalId);
 
-
-		const dimensionTimeout: Promise<void> = new Promise((resolve) => {
-			setTimeout(() => {
-				resolve();
-			}, CustomExecutionData.waitForDimensionsTimeoutInMs);
-		});
-
-		let dimensionsRegistration: IDisposable | undefined;
-		const dimensionsPromise: Promise<void> = new Promise((resolve) => {
-			dimensionsRegistration = terminalRenderer.onDidChangeMaximumDimensions((newDimensions) => {
-				resolve();
+		// If we don't have the maximum dimensions yet, then we need to wait for them (but not indefinitely).
+		// Custom executions will expect the dimensions to be set properly before they are launched.
+		// BUT, due to the API contract VSCode has for terminals and dimensions, they are still responsible for
+		// handling cases where they are not set.
+		if (!terminalRenderer.maximumDimensions) {
+			const dimensionTimeout: Promise<void> = new Promise((resolve) => {
+				setTimeout(() => {
+					resolve();
+				}, CustomExecutionData.waitForDimensionsTimeoutInMs);
 			});
-		});
 
-		await Promise.race([dimensionTimeout, dimensionsPromise]);
-		if (dimensionsRegistration) {
-			dimensionsRegistration.dispose();
+			let dimensionsRegistration: IDisposable | undefined;
+			const dimensionsPromise: Promise<void> = new Promise((resolve) => {
+				dimensionsRegistration = terminalRenderer.onDidChangeMaximumDimensions((newDimensions) => {
+					resolve();
+				});
+			});
+
+			await Promise.race([dimensionTimeout, dimensionsPromise]);
+			if (dimensionsRegistration) {
+				dimensionsRegistration.dispose();
+			}
 		}
 
 		this._cancellationSource = new CancellationTokenSource();
@@ -423,7 +428,7 @@ class CustomExecutionData implements IDisposable {
 		this._disposables.push(this.terminalService.onDidCloseTerminal(this.onDidCloseTerminal.bind(this)));
 
 		// Regardless of how the task completes, we are done with this custom execution task.
-		this.callbackData.callback(terminalRenderer, this._cancellationSource.token).then(
+		this.customExecution.callback(terminalRenderer, this._cancellationSource.token).then(
 			(success) => {
 				this.result = success;
 				this._onTaskExecutionComplete.fire(this);
