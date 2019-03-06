@@ -123,7 +123,7 @@ export class TextFileService extends Disposable implements ITextFileService {
 		});
 	}
 
-	promptForPath(resource: URI, defaultUri: URI): Promise<URI> {
+	promptForPath(resource: URI, defaultUri: URI): Promise<URI | undefined> {
 
 		// Help user to find a name for the file by opening it first
 		return this.editorService.openEditor({ resource, options: { revealIfOpened: true, preserveFocus: true, } }).then(() => {
@@ -145,7 +145,7 @@ export class TextFileService extends Disposable implements ITextFileService {
 		interface IFilter { name: string; extensions: string[]; }
 
 		// Build the file filter by using our known languages
-		const ext: string = defaultUri ? extname(defaultUri) : undefined;
+		const ext: string | undefined = defaultUri ? extname(defaultUri) : undefined;
 		let matchingFilter: IFilter | undefined;
 		const filters: IFilter[] = coalesce(this.modeService.getRegisteredLanguageNames().map(languageName => {
 			const extensions = this.modeService.getExtensions(languageName);
@@ -256,7 +256,7 @@ export class TextFileService extends Disposable implements ITextFileService {
 						return this.handleDirtyBeforeShutdown(remainingDirty, reason);
 					}
 
-					return undefined;
+					return false;
 				});
 			}
 
@@ -344,7 +344,10 @@ export class TextFileService extends Disposable implements ITextFileService {
 		const untitledToBackup: URI[] = [];
 		dirtyToBackup.forEach(s => {
 			if (this.fileService.canHandleResource(s)) {
-				filesToBackup.push(textFileEditorModelManager.get(s));
+				const model = textFileEditorModelManager.get(s);
+				if (model) {
+					filesToBackup.push(model);
+				}
 			} else if (s.scheme === Schemas.untitled) {
 				untitledToBackup.push(s);
 			}
@@ -354,9 +357,16 @@ export class TextFileService extends Disposable implements ITextFileService {
 	}
 
 	private doBackupAll(dirtyFileModels: ITextFileEditorModel[], untitledResources: URI[]): Promise<void> {
+		const promises = dirtyFileModels.map(model => {
+			const snapshot = model.createSnapshot();
+			if (snapshot) {
+				return this.backupFileService.backupResource(model.getResource(), snapshot, model.getVersionId());
+			}
+			return Promise.resolve();
+		});
 
 		// Handle file resources first
-		return Promise.all(dirtyFileModels.map(model => this.backupFileService.backupResource(model.getResource(), model.createSnapshot(), model.getVersionId()))).then(results => {
+		return Promise.all(promises).then(results => {
 
 			// Handle untitled resources
 			const untitledModelPromises = untitledResources
@@ -365,7 +375,11 @@ export class TextFileService extends Disposable implements ITextFileService {
 
 			return Promise.all(untitledModelPromises).then(untitledModels => {
 				const untitledBackupPromises = untitledModels.map(model => {
-					return this.backupFileService.backupResource(model.getResource(), model.createSnapshot(), model.getVersionId());
+					const snapshot = model.createSnapshot();
+					if (snapshot) {
+						return this.backupFileService.backupResource(model.getResource(), snapshot, model.getVersionId());
+					}
+					return Promise.resolve();
 				});
 
 				return Promise.all(untitledBackupPromises).then(() => undefined);
@@ -402,7 +416,7 @@ export class TextFileService extends Disposable implements ITextFileService {
 				return true; // veto
 			}
 
-			return undefined;
+			return false;
 		});
 	}
 
@@ -620,7 +634,10 @@ export class TextFileService extends Disposable implements ITextFileService {
 		return Promise.all(dirtyFileModels.map(model => {
 			return model.save(options).then(() => {
 				if (!model.isDirty()) {
-					mapResourceToResult.get(model.getResource()).success = true;
+					const result = mapResourceToResult.get(model.getResource());
+					if (result) {
+						result.success = true;
+					}
 				}
 			});
 		})).then(r => ({ results: mapResourceToResult.values() }));
@@ -647,10 +664,10 @@ export class TextFileService extends Disposable implements ITextFileService {
 		return this.getFileModels(arg1).filter(model => model.isDirty());
 	}
 
-	saveAs(resource: URI, target?: URI, options?: ISaveOptions): Promise<URI> {
+	saveAs(resource: URI, target?: URI, options?: ISaveOptions): Promise<URI | undefined> {
 
 		// Get to target resource
-		let targetPromise: Promise<URI>;
+		let targetPromise: Promise<URI | undefined>;
 		if (target) {
 			targetPromise = Promise.resolve(target);
 		} else {
@@ -662,9 +679,9 @@ export class TextFileService extends Disposable implements ITextFileService {
 			targetPromise = this.promptForPath(resource, dialogPath);
 		}
 
-		return targetPromise.then(target => {
+		return targetPromise.then<URI | undefined>(target => {
 			if (!target) {
-				return null; // user canceled
+				return undefined; // user canceled
 			}
 
 			// Just save if target is same as models own resource
@@ -677,10 +694,10 @@ export class TextFileService extends Disposable implements ITextFileService {
 		});
 	}
 
-	private doSaveAs(resource: URI, target?: URI, options?: ISaveOptions): Promise<URI> {
+	private doSaveAs(resource: URI, target: URI, options?: ISaveOptions): Promise<URI> {
 
 		// Retrieve text model from provided resource if any
-		let modelPromise: Promise<ITextFileEditorModel | UntitledEditorModel> = Promise.resolve(null);
+		let modelPromise: Promise<ITextFileEditorModel | UntitledEditorModel | undefined> = Promise.resolve(undefined);
 		if (this.fileService.canHandleResource(resource)) {
 			modelPromise = Promise.resolve(this._models.get(resource));
 		} else if (resource.scheme === Schemas.untitled && this.untitledEditorService.exists(resource)) {
@@ -725,7 +742,7 @@ export class TextFileService extends Disposable implements ITextFileService {
 
 		// Otherwise create the target file empty if it does not exist already and resolve it from there
 		else {
-			targetModelResolver = this.fileService.existsFile(target).then(exists => {
+			targetModelResolver = this.fileService.existsFile(target).then<any>(exists => {
 				targetExists = exists;
 
 				// create target model adhoc if file does not exist yet
@@ -757,7 +774,12 @@ export class TextFileService extends Disposable implements ITextFileService {
 
 				// take over encoding and model value from source model
 				targetModel.updatePreferredEncoding(sourceModel.getEncoding());
-				this.modelService.updateModel(targetModel.textEditorModel, createTextBufferFactoryFromSnapshot(sourceModel.createSnapshot()));
+				if (targetModel.textEditorModel) {
+					const snapshot = sourceModel.createSnapshot();
+					if (snapshot) {
+						this.modelService.updateModel(targetModel.textEditorModel, createTextBufferFactoryFromSnapshot(snapshot));
+					}
+				}
 
 				// save model
 				return targetModel.save(options).then(() => true);
@@ -774,8 +796,7 @@ export class TextFileService extends Disposable implements ITextFileService {
 	}
 
 	private suggestFileName(untitledResource: URI): URI {
-		const untitledFileName = this.untitledEditorService.suggestFileName(untitledResource);
-
+		const untitledFileName = this.untitledEditorService.suggestFileName(untitledResource) || 'untitled';
 		const remoteAuthority = this.windowService.getConfiguration().remoteAuthority;
 		const schemeFilter = remoteAuthority ? REMOTE_HOST_SCHEME : Schemas.file;
 
@@ -823,13 +844,19 @@ export class TextFileService extends Disposable implements ITextFileService {
 		return Promise.all(fileModels.map(model => {
 			return model.revert(options && options.soft).then(() => {
 				if (!model.isDirty()) {
-					mapResourceToResult.get(model.getResource()).success = true;
+					const result = mapResourceToResult.get(model.getResource());
+					if (result) {
+						result.success = true;
+					}
 				}
 			}, error => {
 
 				// FileNotFound means the file got deleted meanwhile, so still record as successful revert
 				if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
-					mapResourceToResult.get(model.getResource()).success = true;
+					const result = mapResourceToResult.get(model.getResource());
+					if (result) {
+						result.success = true;
+					}
 				}
 
 				// Otherwise bubble up the error
@@ -915,7 +942,11 @@ export class TextFileService extends Disposable implements ITextFileService {
 						dirtyTargetModels.push(targetModelResource);
 
 						// Backup dirty source model to the target resource it will become later
-						return this.backupFileService.backupResource(targetModelResource, sourceModel.createSnapshot(), sourceModel.getVersionId());
+						const snapshot = sourceModel.createSnapshot();
+						if (snapshot) {
+							return this.backupFileService.backupResource(targetModelResource, snapshot, sourceModel.getVersionId());
+						}
+						return Promise.resolve();
 					}));
 				} else {
 					handleDirtySourceModels = Promise.resolve();

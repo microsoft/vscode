@@ -489,6 +489,7 @@
 		"./vs/workbench/services/textMate/electron-browser/textMateService.ts",
 		"./vs/workbench/services/textfile/common/textFileEditorModel.ts",
 		"./vs/workbench/services/textfile/common/textFileEditorModelManager.ts",
+		"./vs/workbench/services/textfile/common/textFileService.ts",
 		"./vs/workbench/services/textfile/common/textfiles.ts",
 		"./vs/workbench/services/textfile/node/textResourcePropertiesService.ts",
 		"./vs/workbench/services/textmodelResolver/common/textModelResolverService.ts",
