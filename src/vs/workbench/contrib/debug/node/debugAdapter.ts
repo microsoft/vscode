@@ -435,32 +435,34 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 		}
 	}
 
-	private static extract(contribution: IDebuggerContribution, extensionFolderPath: string): IDebuggerContribution | undefined {
-		if (!contribution) {
+	private static extract(platformContribution: IPlatformSpecificAdapterContribution, extensionFolderPath: string): IDebuggerContribution | undefined {
+		if (!platformContribution) {
 			return undefined;
 		}
 
 		const result: IDebuggerContribution = Object.create(null);
-		if (contribution.runtime) {
-			if (contribution.runtime.indexOf('./') === 0) {	// TODO
-				result.runtime = path.join(extensionFolderPath, contribution.runtime);
+		if (platformContribution.runtime) {
+			if (platformContribution.runtime.indexOf('./') === 0) {	// TODO
+				result.runtime = path.join(extensionFolderPath, platformContribution.runtime);
 			} else {
-				result.runtime = contribution.runtime;
+				result.runtime = platformContribution.runtime;
 			}
 		}
-		if (contribution.runtimeArgs) {
-			result.runtimeArgs = contribution.runtimeArgs;
+		if (platformContribution.runtimeArgs) {
+			result.runtimeArgs = platformContribution.runtimeArgs;
 		}
-		if (contribution.program) {
-			if (!path.isAbsolute(contribution.program)) {
-				result.program = path.join(extensionFolderPath, contribution.program);
+		if (platformContribution.program) {
+			if (!path.isAbsolute(platformContribution.program)) {
+				result.program = path.join(extensionFolderPath, platformContribution.program);
 			} else {
-				result.program = contribution.program;
+				result.program = platformContribution.program;
 			}
 		}
-		if (contribution.args) {
-			result.args = contribution.args;
+		if (platformContribution.args) {
+			result.args = platformContribution.args;
 		}
+
+		const contribution = platformContribution as IDebuggerContribution;
 
 		if (contribution.win) {
 			result.win = ExecutableDebugAdapter.extract(contribution.win, extensionFolderPath);
@@ -490,7 +492,7 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 				const debuggers = <IDebuggerContribution[]>ed.contributes['debuggers'];
 				if (debuggers && debuggers.length > 0) {
 					debuggers.filter(dbg => typeof dbg.type === 'string' && strings.equalsIgnoreCase(dbg.type, debugType)).forEach(dbg => {
-						// extract relevant attributes and make then absolute where needed
+						// extract relevant attributes and make them absolute where needed
 						const extractedDbg = ExecutableDebugAdapter.extract(dbg, ed.extensionLocation.fsPath);
 
 						// merge

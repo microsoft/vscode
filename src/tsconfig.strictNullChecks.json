@@ -243,6 +243,7 @@
 		"./vs/workbench/contrib/debug/common/debugViewModel.ts",
 		"./vs/workbench/contrib/debug/electron-browser/rawDebugSession.ts",
 		"./vs/workbench/contrib/debug/node/debugAdapter.ts",
+		"./vs/workbench/contrib/debug/node/debugger.ts",
 		"./vs/workbench/contrib/debug/node/telemetryApp.ts",
 		"./vs/workbench/contrib/debug/test/common/debugSource.test.ts",
 		"./vs/workbench/contrib/debug/test/common/debugUtils.test.ts",

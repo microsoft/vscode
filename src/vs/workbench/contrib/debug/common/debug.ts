@@ -112,7 +112,7 @@ export interface IExpression extends IReplElement, IExpressionContainer {
 export interface IDebugger {
 	createDebugAdapter(session: IDebugSession, outputService: IOutputService): Promise<IDebugAdapter>;
 	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): Promise<number | undefined>;
-	getCustomTelemetryService(): Promise<TelemetryService>;
+	getCustomTelemetryService(): Promise<TelemetryService | undefined>;
 }
 
 export const enum State {
@@ -516,7 +516,7 @@ export interface IPlatformSpecificAdapterContribution {
 }
 
 export interface IDebuggerContribution extends IPlatformSpecificAdapterContribution {
-	type?: string;
+	type: string;
 	label?: string;
 	// debug adapter executable
 	adapterExecutableCommand?: string;
