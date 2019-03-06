@@ -187,7 +187,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 	public openFileAtElement(element: any, preserveFocus: boolean, sideByside: boolean, pinned: boolean): boolean {
 		const { resource, selection, event, data } = element instanceof Marker ? { resource: element.resource, selection: element.range, event: 'problems.selectDiagnostic', data: this.getTelemetryData(element.marker) } :
 			element instanceof RelatedInformation ? { resource: element.raw.resource, selection: element.raw, event: 'problems.selectRelatedInformation', data: this.getTelemetryData(element.marker) } : { resource: null, selection: null, event: null, data: null };
-		if (resource && selection) {
+		if (resource && selection && event) {
 			/* __GDPR__
 			"problems.selectDiagnostic" : {
 				"source": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
@@ -465,7 +465,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 	private onSelected(): void {
 		let selection = this.tree.getSelection();
 		if (selection && selection.length > 0) {
-			this.lastSelectedRelativeTop = this.tree.getRelativeTop(selection[0]);
+			this.lastSelectedRelativeTop = this.tree.getRelativeTop(selection[0]) || 0;
 		}
 	}
 
@@ -612,7 +612,8 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 	}
 
 	private onContextMenu(e: ITreeContextMenuEvent<TreeElement>): void {
-		if (!e.element) {
+		const element = e.element;
+		if (!element) {
 			return;
 		}
 
@@ -620,8 +621,8 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		e.browserEvent.stopPropagation();
 
 		this.contextMenuService.showContextMenu({
-			getAnchor: () => e.anchor,
-			getActions: () => this.getMenuActions(e.element),
+			getAnchor: () => e.anchor!,
+			getActions: () => this.getMenuActions(element),
 			getActionItem: (action) => {
 				const keybinding = this.keybindingService.lookupKeybinding(action.id);
 				if (keybinding) {
@@ -665,7 +666,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		return result;
 	}
 
-	public getFocusElement(): TreeElement {
+	public getFocusElement() {
 		return this.tree.getFocus()[0];
 	}
 

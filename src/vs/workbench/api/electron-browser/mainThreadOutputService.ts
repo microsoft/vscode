@@ -18,7 +18,7 @@ export class MainThreadOutputService extends Disposable implements MainThreadOut
 
 	private static _idPool = 1;
 
-	private _proxy: ExtHostOutputServiceShape;
+	private readonly _proxy: ExtHostOutputServiceShape;
 	private readonly _outputService: IOutputService;
 	private readonly _partService: IPartService;
 	private readonly _panelService: IPanelService;

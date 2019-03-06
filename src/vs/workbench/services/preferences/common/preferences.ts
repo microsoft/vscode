@@ -69,8 +69,8 @@ export interface ISetting {
 }
 
 export interface IExtensionSetting extends ISetting {
-	extensionName: string;
-	extensionPublisher: string;
+	extensionName?: string;
+	extensionPublisher?: string;
 }
 
 export interface ISearchResult {
@@ -97,7 +97,7 @@ export interface IFilterResult {
 
 export interface ISettingMatch {
 	setting: ISetting;
-	matches: IRange[];
+	matches: IRange[] | null;
 	score: number;
 }
 
@@ -136,8 +136,8 @@ export interface IPreferencesEditorModel<T> {
 	dispose(): void;
 }
 
-export type IGroupFilter = (group: ISettingsGroup) => boolean;
-export type ISettingMatcher = (setting: ISetting, group: ISettingsGroup) => { matches: IRange[], score: number };
+export type IGroupFilter = (group: ISettingsGroup) => boolean | null;
+export type ISettingMatcher = (setting: ISetting, group: ISettingsGroup) => { matches: IRange[], score: number } | null;
 
 export interface ISettingsEditorModel extends IPreferencesEditorModel<ISetting> {
 	readonly onDidChangeGroups: Event<void>;
@@ -198,16 +198,16 @@ export interface IPreferencesService {
 	createPreferencesEditorModel<T>(uri: URI): Promise<IPreferencesEditorModel<T>>;
 	createSettings2EditorModel(): Settings2EditorModel; // TODO
 
-	openRawDefaultSettings(): Promise<IEditor>;
-	openSettings(jsonEditor?: boolean): Promise<IEditor>;
-	openGlobalSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditor>;
-	openWorkspaceSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditor>;
-	openFolderSettings(folder: URI, jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditor>;
+	openRawDefaultSettings(): Promise<IEditor | null>;
+	openSettings(jsonEditor?: boolean): Promise<IEditor | null>;
+	openGlobalSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditor | null>;
+	openWorkspaceSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditor | null>;
+	openFolderSettings(folder: URI, jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditor | null>;
 	switchSettings(target: ConfigurationTarget, resource: URI, jsonEditor?: boolean): Promise<void>;
 	openGlobalKeybindingSettings(textual: boolean): Promise<void>;
-	openDefaultKeybindingsFile(): Promise<IEditor>;
+	openDefaultKeybindingsFile(): Promise<IEditor | null>;
 
-	configureSettingsForLanguage(language: string): void;
+	configureSettingsForLanguage(language: string | null): void;
 }
 
 export function getSettingsTargetName(target: ConfigurationTarget, resource: URI, workspaceContextService: IWorkspaceContextService): string {

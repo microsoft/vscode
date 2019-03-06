@@ -1387,7 +1387,7 @@ declare namespace monaco.editor {
 		/**
 		 * The text to replace with. This can be null to emulate a simple delete.
 		 */
-		text: string;
+		text: string | null;
 		/**
 		 * This indicates that this operation has "insert" semantics.
 		 * i.e. forceMoveMarkers = true => if `range` is collapsed, all markers at the position will be moved.

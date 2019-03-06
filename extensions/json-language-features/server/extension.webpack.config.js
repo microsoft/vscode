@@ -21,6 +21,6 @@ module.exports = withDefaults({
 		path: path.join(__dirname, 'dist')
 	},
 	plugins: [
-		new webpack.IgnorePlugin(/vertx/)
-	],
+		new webpack.IgnorePlugin(/vertx/) // request-light dependendeny
+	]
 });

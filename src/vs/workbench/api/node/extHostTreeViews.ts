@@ -366,7 +366,7 @@ class ExtHostTreeView<T> extends Disposable {
 	private getHandlesToRefresh(elements: T[]): TreeItemHandle[] {
 		const elementsToUpdate = new Set<TreeItemHandle>();
 		for (const element of elements) {
-			let elementNode = this.nodes.get(element);
+			const elementNode = this.nodes.get(element);
 			if (elementNode && !elementsToUpdate.has(elementNode.item.handle)) {
 				// check if an ancestor of extElement is already in the elements to update list
 				let currentNode = elementNode;
@@ -384,7 +384,7 @@ class ExtHostTreeView<T> extends Disposable {
 		// Take only top level elements
 		elementsToUpdate.forEach((handle) => {
 			const element = this.elements.get(handle);
-			let node = this.nodes.get(element);
+			const node = this.nodes.get(element);
 			if (node && (!node.parent || !elementsToUpdate.has(node.parent.item.handle))) {
 				handlesToUpdate.push(handle);
 			}
@@ -553,7 +553,7 @@ class ExtHostTreeView<T> extends Disposable {
 
 	private clearChildren(parentElement?: T): void {
 		if (parentElement) {
-			let node = this.nodes.get(parentElement);
+			const node = this.nodes.get(parentElement);
 			if (node.children) {
 				for (const child of node.children) {
 					const childEleement = this.elements.get(child.item.handle);
@@ -569,7 +569,7 @@ class ExtHostTreeView<T> extends Disposable {
 	}
 
 	private clear(element: T): void {
-		let node = this.nodes.get(element);
+		const node = this.nodes.get(element);
 		if (node.children) {
 			for (const child of node.children) {
 				const childEleement = this.elements.get(child.item.handle);

@@ -66,7 +66,7 @@ export class Position {
 		}
 		let result = positions[0];
 		for (let i = 1; i < positions.length; i++) {
-			let p = positions[i];
+			const p = positions[i];
 			if (p.isBefore(result!)) {
 				result = p;
 			}
@@ -80,7 +80,7 @@ export class Position {
 		}
 		let result = positions[0];
 		for (let i = 1; i < positions.length; i++) {
-			let p = positions[i];
+			const p = positions[i];
 			if (p.isAfter(result!)) {
 				result = p;
 			}
@@ -303,8 +303,8 @@ export class Range {
 	}
 
 	intersection(other: Range): Range | undefined {
-		let start = Position.Max(other.start, this._start);
-		let end = Position.Min(other.end, this._end);
+		const start = Position.Max(other.start, this._start);
+		const end = Position.Min(other.end, this._end);
 		if (start.isAfter(end)) {
 			// this happens when there is no overlap:
 			// |-----|
@@ -320,8 +320,8 @@ export class Range {
 		} else if (other.contains(this)) {
 			return other;
 		}
-		let start = Position.Min(other.start, this._start);
-		let end = Position.Max(other.end, this.end);
+		const start = Position.Min(other.start, this._start);
+		const end = Position.Max(other.end, this.end);
 		return new Range(start, end);
 	}
 
@@ -480,7 +480,7 @@ export class TextEdit {
 	}
 
 	static setEndOfLine(eol: EndOfLine): TextEdit {
-		let ret = new TextEdit(new Range(new Position(0, 0), new Position(0, 0)), '');
+		const ret = new TextEdit(new Range(new Position(0, 0), new Position(0, 0)), '');
 		ret.newEol = eol;
 		return ret;
 	}
@@ -616,7 +616,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	}
 
 	get(uri: URI): TextEdit[] {
-		let res: TextEdit[] = [];
+		const res: TextEdit[] = [];
 		for (let candidate of this._edits) {
 			if (candidate._type === 2 && candidate.uri.toString() === uri.toString()) {
 				res.push(candidate.edit);
@@ -626,7 +626,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	}
 
 	entries(): [URI, TextEdit[]][] {
-		let textEdits = new Map<string, [URI, TextEdit[]]>();
+		const textEdits = new Map<string, [URI, TextEdit[]]>();
 		for (let candidate of this._edits) {
 			if (candidate._type === 2) {
 				let textEdit = textEdits.get(candidate.uri.toString());
@@ -641,7 +641,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	}
 
 	_allEntries(): ([URI, TextEdit[]] | [URI?, URI?, IFileOperationOptions?])[] {
-		let res: ([URI, TextEdit[]] | [URI?, URI?, IFileOperationOptions?])[] = [];
+		const res: ([URI, TextEdit[]] | [URI?, URI?, IFileOperationOptions?])[] = [];
 		for (let edit of this._edits) {
 			if (edit._type === 1) {
 				res.push([edit.from, edit.to, edit.options]);
@@ -1883,7 +1883,7 @@ export class Task implements vscode.Task2 {
 		}
 		this.clear();
 		this._execution = value;
-		let type = this._definition.type;
+		const type = this._definition.type;
 		if (Task.EmptyType === type || Task.ProcessType === type || Task.ShellType === type || Task.ExtensionCallbackType === type) {
 			this.computeDefinitionBasedOnExecution();
 		}

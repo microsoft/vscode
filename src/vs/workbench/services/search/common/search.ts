@@ -71,9 +71,6 @@ export interface IFileQueryProps<U extends UriComponents> extends ICommonQueryPr
 	type: QueryType.File;
 	filePattern?: string;
 
-	// TODO: Remove this!
-	disregardExcludeSettings?: boolean;
-
 	/**
 	 * If true no results will be returned. Instead `limitHit` will indicate if at least one result exists or not.
 	 * Currently does not work with queries including a 'siblings clause'.

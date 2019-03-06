@@ -155,7 +155,7 @@ export class BackupFileService implements IBackupFileService {
 		return this.impl.getWorkspaceFileBackups();
 	}
 
-	resolveBackupContent(backup: Uri): Promise<ITextBufferFactory> {
+	resolveBackupContent(backup: Uri): Promise<ITextBufferFactory | undefined> {
 		return this.impl.resolveBackupContent(backup);
 	}
 
@@ -351,7 +351,6 @@ export class InMemoryBackupFileService implements IBackupFileService {
 	toBackupResource(resource: Uri): Uri {
 		return Uri.file(path.join(resource.scheme, hashPath(resource)));
 	}
-
 }
 
 /*

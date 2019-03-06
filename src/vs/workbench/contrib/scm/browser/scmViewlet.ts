@@ -1366,7 +1366,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 		const panelsToAdd: { panel: ViewletPanel, size: number, index: number }[] = [];
 
 		for (const { viewDescriptor, collapsed, index, size } of added) {
-			const panel = this.instantiationService.createInstance(viewDescriptor.ctor, <IViewletPanelOptions>{
+			const panel = this.instantiationService.createInstance(viewDescriptor.ctorDescriptor.ctor, <IViewletPanelOptions>{
 				id: viewDescriptor.id,
 				title: viewDescriptor.name,
 				actionRunner: this.getActionRunner(),

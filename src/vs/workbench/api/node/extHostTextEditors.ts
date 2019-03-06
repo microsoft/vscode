@@ -75,7 +75,7 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 		}
 
 		return this._proxy.$tryShowTextDocument(document.uri, options).then(id => {
-			let editor = this._extHostDocumentsAndEditors.getEditor(id);
+			const editor = this._extHostDocumentsAndEditors.getEditor(id);
 			if (editor) {
 				return editor;
 			} else {
@@ -97,6 +97,9 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 
 	$acceptEditorPropertiesChanged(id: string, data: IEditorPropertiesChangeData): void {
 		const textEditor = this._extHostDocumentsAndEditors.getEditor(id);
+		if (!textEditor) {
+			throw new Error('unknown text editor');
+		}
 
 		// (1) set all properties
 		if (data.options) {
@@ -137,9 +140,12 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 	}
 
 	$acceptEditorPositionData(data: ITextEditorPositionData): void {
-		for (let id in data) {
-			let textEditor = this._extHostDocumentsAndEditors.getEditor(id);
-			let viewColumn = TypeConverters.ViewColumn.to(data[id]);
+		for (const id in data) {
+			const textEditor = this._extHostDocumentsAndEditors.getEditor(id);
+			if (!textEditor) {
+				throw new Error('Unknown text editor');
+			}
+			const viewColumn = TypeConverters.ViewColumn.to(data[id]);
 			if (textEditor.viewColumn !== viewColumn) {
 				textEditor._acceptViewColumn(viewColumn);
 				this._onDidChangeTextEditorViewColumn.fire({ textEditor, viewColumn });

@@ -418,6 +418,15 @@ export class Thread implements IThread {
 		return this.staleCallStack;
 	}
 
+	get stateLabel(): string {
+		if (this.stopped) {
+			return this.stoppedDetails.description ||
+				this.stoppedDetails.reason ? nls.localize({ key: 'pausedOn', comment: ['indicates reason for program being paused'] }, "Paused on {0}", this.stoppedDetails.reason) : nls.localize('paused', "Paused");
+		}
+
+		return nls.localize({ key: 'running', comment: ['indicates state'] }, "Running");
+	}
+
 	/**
 	 * Queries the debug adapter for the callstack and returns a promise
 	 * which completes once the call stack has been retrieved.

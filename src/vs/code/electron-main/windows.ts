@@ -15,7 +15,7 @@ import { CodeWindow, defaultWindowState } from 'vs/code/electron-main/window';
 import { hasArgs, asArray } from 'vs/platform/environment/node/argv';
 import { ipcMain as ipc, screen, BrowserWindow, dialog, systemPreferences } from 'electron';
 import { parseLineAndColumnAware } from 'vs/code/node/paths';
-import { ILifecycleService, UnloadReason, IWindowUnloadEvent, LifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
+import { ILifecycleService, UnloadReason, LifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWindowSettings, OpenContext, IPath, IWindowConfiguration, INativeOpenDialogOptions, IPathsToWaitFor, IEnterWorkspaceResult, IMessageBoxResult, INewWindowOptions, IURIToOpen, URIType, OpenDialogOptions } from 'vs/platform/windows/common/windows';
@@ -25,14 +25,14 @@ import product from 'vs/platform/product/node/product';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWindowsMainService, IOpenConfiguration, IWindowsCountChangedEvent, ICodeWindow, IWindowState as ISingleWindowState, WindowMode } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService } from 'vs/platform/history/common/history';
-import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { IProcessEnvironment, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { IWorkspacesMainService, IWorkspaceIdentifier, WORKSPACE_FILTER, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
 import { normalizeNFC } from 'vs/base/common/normalization';
 import { URI } from 'vs/base/common/uri';
-import { Queue, timeout } from 'vs/base/common/async';
+import { Queue } from 'vs/base/common/async';
 import { exists } from 'vs/base/node/pfs';
 import { getComparisonKey, isEqual, normalizePath, basename as resourcesBasename, originalFSPath, hasTrailingPathSeparator, removeTrailingPathSeparator } from 'vs/base/common/resources';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
@@ -197,7 +197,7 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		this.dialogs = new Dialogs(environmentService, telemetryService, stateService, this);
-		this.workspacesManager = new WorkspacesManager(workspacesMainService, backupMainService, environmentService, historyMainService, this);
+		this.workspacesManager = new WorkspacesManager(workspacesMainService, backupMainService, this);
 	}
 
 	ready(initialUserEnv: IProcessEnvironment): void {
@@ -233,7 +233,6 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		// Handle various lifecycle events around windows
-		this.lifecycleService.onBeforeWindowUnload(e => this.onBeforeWindowUnload(e));
 		this.lifecycleService.onBeforeWindowClose(window => this.onBeforeWindowClose(window));
 		this.lifecycleService.onBeforeShutdown(() => this.onBeforeShutdown());
 		this.onWindowsCountChanged(e => {
@@ -1526,43 +1525,6 @@ export class WindowsManager implements IWindowsMainService {
 		this.workspacesManager.pickWorkspaceAndOpen(options);
 	}
 
-	private onBeforeWindowUnload(e: IWindowUnloadEvent): void {
-		const windowClosing = (e.reason === UnloadReason.CLOSE);
-		const windowLoading = (e.reason === UnloadReason.LOAD);
-		if (!windowClosing && !windowLoading) {
-			return; // only interested when window is closing or loading
-		}
-
-		const workspace = e.window.openedWorkspace;
-		if (!workspace || !this.workspacesMainService.isUntitledWorkspace(workspace)) {
-			return; // only care about untitled workspaces to ask for saving
-		}
-
-		if (e.window.config && !!e.window.config.extensionDevelopmentPath) {
-			// do not ask to save workspace when doing extension development
-			// but still delete it.
-			this.workspacesMainService.deleteUntitledWorkspaceSync(workspace);
-			return;
-		}
-
-		if (windowClosing && !isMacintosh && this.getWindowCount() === 1) {
-			return; // Windows/Linux: quits when last window is closed, so do not ask then
-		}
-
-		// Handle untitled workspaces with prompt as needed
-		e.veto(this.workspacesManager.promptToSaveUntitledWorkspace(this.getWindowById(e.window.id), workspace).then((veto): boolean | Promise<boolean> => {
-			if (veto) {
-				return veto;
-			}
-
-			// Bug in electron: somehow we need this timeout so that the window closes properly. That
-			// might be related to the fact that the untitled workspace prompt shows up async and this
-			// code can execute before the dialog is fully closed which then blocks the window from closing.
-			// Issue: https://github.com/Microsoft/vscode/issues/41989
-			return timeout(0).then(() => veto);
-		}));
-	}
-
 	focusLastActive(cli: ParsedArgs, context: OpenContext): ICodeWindow {
 		const lastActive = this.getLastActiveWindow();
 		if (lastActive) {
@@ -1994,8 +1956,6 @@ class WorkspacesManager {
 	constructor(
 		private readonly workspacesMainService: IWorkspacesMainService,
 		private readonly backupMainService: IBackupMainService,
-		private readonly environmentService: IEnvironmentService,
-		private readonly historyMainService: IHistoryMainService,
 		private readonly windowsMainService: IWindowsMainService,
 	) { }
 
@@ -2078,93 +2038,5 @@ class WorkspacesManager {
 			telemetryEventName: options.telemetryEventName,
 			telemetryExtraData: options.telemetryExtraData
 		});
-	}
-
-	promptToSaveUntitledWorkspace(window: ICodeWindow | undefined, workspace: IWorkspaceIdentifier): Promise<boolean> {
-		enum ConfirmResult {
-			SAVE,
-			DONT_SAVE,
-			CANCEL
-		}
-
-		const save = { label: mnemonicButtonLabel(localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save")), result: ConfirmResult.SAVE };
-		const dontSave = { label: mnemonicButtonLabel(localize({ key: 'doNotSave', comment: ['&& denotes a mnemonic'] }, "Do&&n't Save")), result: ConfirmResult.DONT_SAVE };
-		const cancel = { label: localize('cancel', "Cancel"), result: ConfirmResult.CANCEL };
-
-		const buttons: { label: string; result: ConfirmResult; }[] = [];
-		if (isWindows) {
-			buttons.push(save, dontSave, cancel);
-		} else if (isLinux) {
-			buttons.push(dontSave, cancel, save);
-		} else {
-			buttons.push(save, cancel, dontSave);
-		}
-
-		const options: Electron.MessageBoxOptions = {
-			title: this.environmentService.appNameLong,
-			message: localize('saveWorkspaceMessage', "Do you want to save your workspace configuration as a file?"),
-			detail: localize('saveWorkspaceDetail', "Save your workspace if you plan to open it again."),
-			noLink: true,
-			type: 'warning',
-			buttons: buttons.map(button => button.label),
-			cancelId: buttons.indexOf(cancel)
-		};
-
-		if (isLinux) {
-			options.defaultId = 2;
-		}
-
-		return this.windowsMainService.showMessageBox(options, window).then(res => {
-			switch (buttons[res.button].result) {
-
-				// Cancel: veto unload
-				case ConfirmResult.CANCEL:
-					return true;
-
-				// Don't Save: delete workspace
-				case ConfirmResult.DONT_SAVE:
-					this.workspacesMainService.deleteUntitledWorkspaceSync(workspace);
-					return false;
-
-				// Save: save workspace, but do not veto unload
-				case ConfirmResult.SAVE: {
-					return this.windowsMainService.showSaveDialog({
-						buttonLabel: mnemonicButtonLabel(localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save")),
-						title: localize('saveWorkspace', "Save Workspace"),
-						filters: WORKSPACE_FILTER,
-						defaultPath: this.getUntitledWorkspaceSaveDialogDefaultPath(workspace)
-					}, window).then(target => {
-						if (target) {
-							return this.workspacesMainService.saveWorkspaceAs(workspace, target).then(savedWorkspace => {
-								this.historyMainService.addRecentlyOpened([savedWorkspace], []);
-								this.workspacesMainService.deleteUntitledWorkspaceSync(workspace);
-								return false;
-							}, () => false);
-						}
-
-						return true; // keep veto if no target was provided
-					});
-				}
-			}
-		});
-	}
-
-	private getUntitledWorkspaceSaveDialogDefaultPath(workspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier): string | undefined {
-		if (workspace) {
-			if (isSingleFolderWorkspaceIdentifier(workspace)) {
-				return workspace.scheme === Schemas.file ? dirname(workspace.fsPath) : undefined;
-			}
-
-			const resolvedWorkspace = workspace.configPath.scheme === Schemas.file && this.workspacesMainService.resolveLocalWorkspaceSync(workspace.configPath);
-			if (resolvedWorkspace && resolvedWorkspace.folders.length > 0) {
-				for (const folder of resolvedWorkspace.folders) {
-					if (folder.uri.scheme === Schemas.file) {
-						return dirname(folder.uri.fsPath);
-					}
-				}
-			}
-		}
-
-		return undefined;
 	}
 }

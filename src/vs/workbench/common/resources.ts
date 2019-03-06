@@ -25,11 +25,11 @@ export class ResourceContextKey extends Disposable implements IContextKey<URI> {
 	static HasResource = new RawContextKey<boolean>('resourceSet', false);
 	static IsFileSystemResource = new RawContextKey<boolean>('isFileSystemResource', false);
 
-	private readonly _resourceKey: IContextKey<URI>;
-	private readonly _schemeKey: IContextKey<string>;
-	private readonly _filenameKey: IContextKey<string>;
+	private readonly _resourceKey: IContextKey<URI | null>;
+	private readonly _schemeKey: IContextKey<string | null>;
+	private readonly _filenameKey: IContextKey<string | null>;
 	private readonly _langIdKey: IContextKey<string | null>;
-	private readonly _extensionKey: IContextKey<string>;
+	private readonly _extensionKey: IContextKey<string | null>;
 	private readonly _hasResource: IContextKey<boolean>;
 	private readonly _isFileSystemResource: IContextKey<boolean>;
 
@@ -59,15 +59,15 @@ export class ResourceContextKey extends Disposable implements IContextKey<URI> {
 		}));
 	}
 
-	set(value: URI) {
+	set(value: URI | null) {
 		if (!ResourceContextKey._uriEquals(this._resourceKey.get(), value)) {
 			this._resourceKey.set(value);
-			this._schemeKey.set(value && value.scheme);
-			this._filenameKey.set(value && basename(value));
+			this._schemeKey.set(value ? value.scheme : null);
+			this._filenameKey.set(value ? basename(value) : null);
 			this._langIdKey.set(value ? this._modeService.getModeIdByFilepathOrFirstLine(value.fsPath) : null);
-			this._extensionKey.set(value && extname(value));
+			this._extensionKey.set(value ? extname(value) : null);
 			this._hasResource.set(!!value);
-			this._isFileSystemResource.set(value && this._fileService.canHandleResource(value));
+			this._isFileSystemResource.set(value ? this._fileService.canHandleResource(value) : false);
 		}
 	}
 
@@ -82,7 +82,7 @@ export class ResourceContextKey extends Disposable implements IContextKey<URI> {
 	}
 
 	get(): URI | undefined {
-		return this._resourceKey.get();
+		return this._resourceKey.get() || undefined;
 	}
 
 	private static _uriEquals(a: URI | undefined | null, b: URI | undefined | null): boolean {

@@ -180,7 +180,7 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 	}
 
 	private updateRepresentedFilename(): void {
-		const file = toResource(this.editorService.activeEditor, { supportSideBySide: true, filter: 'file' });
+		const file = toResource(this.editorService.activeEditor || null, { supportSideBySide: true, filter: 'file' });
 		const path = file ? file.fsPath : '';
 
 		// Apply to window
@@ -283,7 +283,7 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 		// Compute folder resource
 		// Single Root Workspace: always the root single workspace in this case
 		// Otherwise: root folder of the currently active file if any
-		const folder = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? workspace.folders[0] : this.contextService.getWorkspaceFolder(toResource(editor, { supportSideBySide: true }));
+		const folder = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? workspace.folders[0] : this.contextService.getWorkspaceFolder(toResource(editor || null, { supportSideBySide: true })!);
 
 		// Variables
 		const activeEditorShort = editor ? editor.getTitle(Verbosity.SHORT) : '';
@@ -473,7 +473,7 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 
 			const titleBackground = this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_BACKGROUND : TITLE_BAR_ACTIVE_BACKGROUND);
 			this.element.style.backgroundColor = titleBackground;
-			if (Color.fromHex(titleBackground).isLighter()) {
+			if (titleBackground && Color.fromHex(titleBackground).isLighter()) {
 				addClass(this.element, 'light');
 			} else {
 				removeClass(this.element, 'light');
@@ -582,7 +582,7 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 			runAtThisOrScheduleAtNextAnimationFrame(() => this.adjustTitleMarginToCenter());
 
 			if (this.menubarPart) {
-				const menubarDimension = new Dimension(undefined, dimension.height);
+				const menubarDimension = new Dimension(0, dimension.height);
 				this.menubarPart.layout(menubarDimension);
 			}
 		}
@@ -597,7 +597,7 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 			return super.layout(dim1);
 		}
 
-		const dimensions = new Dimension(dim1, dim2);
+		const dimensions = new Dimension(dim1, dim2!);
 		this.updateLayout(dimensions);
 
 		super.layout(dimensions);
@@ -617,7 +617,7 @@ class ShowItemInFolderAction extends Action {
 	}
 
 	run(): Promise<void> {
-		return this.windowsService.showItemInFolder(this.path);
+		return this.windowsService.showItemInFolder(URI.file(this.path));
 	}
 }
 

@@ -13,7 +13,7 @@ interface IProcess {
 	nextTick(callback: (...args: any[]) => void): number;
 }
 
-declare let process: IProcess;
+declare const process: IProcess;
 const safeProcess: IProcess = (typeof process === 'undefined') ? {
 	cwd(): string { return '/'; },
 	env: Object.create(null),

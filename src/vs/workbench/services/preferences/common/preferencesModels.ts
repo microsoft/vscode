@@ -178,7 +178,9 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 		resultGroups.forEach(group => {
 			group.result.filterMatches.forEach(filterMatch => {
 				filteredSettings.push(filterMatch.setting);
-				matches.push(...filterMatch.matches);
+				if (filterMatch.matches) {
+					matches.push(...filterMatch.matches);
+				}
 			});
 		});
 

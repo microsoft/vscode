@@ -17,7 +17,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { EditorGroupsServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
-import { SidebarVisibleContext } from 'vs/workbench/common/viewlet';
+import { SidebarVisibleContext, SideBarVisibleContext } from 'vs/workbench/common/viewlet';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 
@@ -39,6 +39,8 @@ export class WorkbenchContextKeysHandler extends Disposable {
 	private inZenModeContext: IContextKey<boolean>;
 
 	private sideBarVisibleContext: IContextKey<boolean>;
+	//TODO@Isidor remove in May
+	private sidebarVisibleContext: IContextKey<boolean>;
 
 	constructor(
 		@IContextKeyService private contextKeyService: IContextKeyService,
@@ -127,7 +129,8 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		this.inZenModeContext = InEditorZenModeContext.bindTo(this.contextKeyService);
 
 		// Sidebar
-		this.sideBarVisibleContext = SidebarVisibleContext.bindTo(this.contextKeyService);
+		this.sideBarVisibleContext = SideBarVisibleContext.bindTo(this.contextKeyService);
+		this.sidebarVisibleContext = SidebarVisibleContext.bindTo(this.contextKeyService);
 	}
 
 	private updateEditorContextKeys(): void {
@@ -204,5 +207,6 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 	private updateSideBarContextKeys(): void {
 		this.sideBarVisibleContext.set(this.partService.isVisible(Parts.SIDEBAR_PART));
+		this.sidebarVisibleContext.set(this.partService.isVisible(Parts.SIDEBAR_PART));
 	}
 }

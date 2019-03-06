@@ -2529,11 +2529,11 @@ export class OpenExtensionsFolderAction extends Action {
 		const extensionsHome = URI.file(this.environmentService.extensionsPath);
 
 		return Promise.resolve(this.fileService.resolveFile(extensionsHome)).then(file => {
-			let itemToShow: string;
+			let itemToShow: URI;
 			if (file.children && file.children.length > 0) {
-				itemToShow = file.children[0].resource.fsPath;
+				itemToShow = file.children[0].resource;
 			} else {
-				itemToShow = extensionsHome.fsPath;
+				itemToShow = extensionsHome;
 			}
 
 			return this.windowsService.showItemInFolder(itemToShow);

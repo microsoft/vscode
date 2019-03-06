@@ -70,7 +70,7 @@ export class FileService extends Disposable implements IFileService {
 	protected readonly _onDidChangeFileSystemProviderRegistrations = this._register(new Emitter<IFileSystemProviderRegistrationEvent>());
 	get onDidChangeFileSystemProviderRegistrations(): Event<IFileSystemProviderRegistrationEvent> { return this._onDidChangeFileSystemProviderRegistrations.event; }
 
-	private activeWorkspaceFileChangeWatcher: IDisposable;
+	private activeWorkspaceFileChangeWatcher: IDisposable | null;
 	private activeFileChangesWatchers: ResourceMap<{ unwatch: Function, count: number }>;
 	private fileChangesWatchDelayer: ThrottledDelayer<void>;
 	private undeliveredRawFileChangesEvents: IRawFileChange[];
@@ -262,7 +262,7 @@ export class FileService extends Disposable implements IFileService {
 			));
 		}
 
-		const result: IStreamContent = {
+		const result: Partial<IStreamContent> = {
 			resource: undefined,
 			name: undefined,
 			mtime: undefined,
@@ -311,7 +311,7 @@ export class FileService extends Disposable implements IFileService {
 
 			// Return early if file is too large to load
 			if (typeof stat.size === 'number') {
-				if (stat.size > Math.max(parseInt(this.environmentService.args['max-memory']) * 1024 * 1024 || 0, MAX_HEAP_SIZE)) {
+				if (stat.size > Math.max(typeof this.environmentService.args['max-memory'] === 'string' ? parseInt(this.environmentService.args['max-memory']) * 1024 * 1024 || 0 : 0, MAX_HEAP_SIZE)) {
 					return onStatError(new FileOperationError(
 						nls.localize('fileTooLargeForHeapError', "To open a file of this size, you need to restart VS Code and allow it to use more memory"),
 						FileOperationResult.FILE_EXCEED_MEMORY_LIMIT
@@ -391,17 +391,17 @@ export class FileService extends Disposable implements IFileService {
 		});
 	}
 
-	private fillInContents(content: IStreamContent, resource: uri, options: IResolveContentOptions, token: CancellationToken): Promise<void> {
+	private fillInContents(content: Partial<IStreamContent>, resource: uri, options: IResolveContentOptions | undefined, token: CancellationToken): Promise<void> {
 		return this.resolveFileData(resource, options, token).then(data => {
 			content.encoding = data.encoding;
 			content.value = data.stream;
 		});
 	}
 
-	private resolveFileData(resource: uri, options: IResolveContentOptions, token: CancellationToken): Promise<IContentData> {
+	private resolveFileData(resource: uri, options: IResolveContentOptions | undefined, token: CancellationToken): Promise<IContentData> {
 		const chunkBuffer = Buffer.allocUnsafe(64 * 1024);
 
-		const result: IContentData = {
+		const result: Partial<IContentData> = {
 			encoding: undefined,
 			stream: undefined
 		};
@@ -473,7 +473,7 @@ export class FileService extends Disposable implements IFileService {
 					}
 				};
 
-				let currentPosition: number = (options && options.position) || null;
+				let currentPosition: number | null = (options && options.position) || null;
 
 				const readChunk = () => {
 					fs.read(fd, chunkBuffer, 0, chunkBuffer.length, currentPosition, (err, bytesRead) => {
@@ -485,7 +485,7 @@ export class FileService extends Disposable implements IFileService {
 							currentPosition += bytesRead;
 						}
 
-						if (totalBytesRead > Math.max(parseInt(this.environmentService.args['max-memory']) * 1024 * 1024 || 0, MAX_HEAP_SIZE)) {
+						if (totalBytesRead > Math.max(typeof this.environmentService.args['max-memory'] === 'number' ? parseInt(this.environmentService.args['max-memory']) * 1024 * 1024 || 0 : 0, MAX_HEAP_SIZE)) {
 							finish(new FileOperationError(
 								nls.localize('fileTooLargeForHeapError', "To open a file of this size, you need to restart VS Code and allow it to use more memory"),
 								FileOperationResult.FILE_EXCEED_MEMORY_LIMIT
@@ -525,7 +525,7 @@ export class FileService extends Disposable implements IFileService {
 								} else {
 									result.encoding = this._encoding.getReadEncoding(resource, options, detected);
 									result.stream = decoder = encoding.decodeStream(result.encoding);
-									resolve(result);
+									resolve(result as IContentData);
 									handleChunk(bytesRead);
 								}
 							}).then(undefined, err => {
@@ -1168,16 +1168,18 @@ export class StatResolver {
 			let absoluteTargetPaths: string[] | null = null;
 			if (options && options.resolveTo) {
 				absoluteTargetPaths = [];
-				options.resolveTo.forEach(resource => {
+				for (const resource of options.resolveTo) {
 					absoluteTargetPaths.push(resource.fsPath);
-				});
+				}
 			}
 
 			return new Promise<IFileStat>(resolve => {
 
 				// Load children
-				this.resolveChildren(this.resource.fsPath, absoluteTargetPaths, options && options.resolveSingleChildDescendants, children => {
-					children = arrays.coalesce(children); // we don't want those null children (could be permission denied when reading a child)
+				this.resolveChildren(this.resource.fsPath, absoluteTargetPaths, !!(options && options.resolveSingleChildDescendants), children => {
+					if (children) {
+						children = arrays.coalesce(children); // we don't want those null children (could be permission denied when reading a child)
+					}
 					fileStat.children = children || [];
 
 					resolve(fileStat);
@@ -1186,7 +1188,7 @@ export class StatResolver {
 		}
 	}
 
-	private resolveChildren(absolutePath: string, absoluteTargetPaths: string[], resolveSingleChildDescendants: boolean, callback: (children: IFileStat[]) => void): void {
+	private resolveChildren(absolutePath: string, absoluteTargetPaths: string[] | null, resolveSingleChildDescendants: boolean, callback: (children: IFileStat[] | null) => void): void {
 		extfs.readdir(absolutePath, (error: Error, files: string[]) => {
 			if (error) {
 				if (this.errorLogger) {
@@ -1197,7 +1199,7 @@ export class StatResolver {
 			}
 
 			// for each file in the folder
-			flow.parallel(files, (file: string, clb: (error: Error, children: IFileStat) => void) => {
+			flow.parallel(files, (file: string, clb: (error: Error | null, children: IFileStat | null) => void) => {
 				const fileResource = uri.file(paths.resolve(absolutePath, file));
 				let fileStat: fs.Stats;
 				let isSymbolicLink = false;
@@ -1257,7 +1259,9 @@ export class StatResolver {
 						// Continue resolving children based on condition
 						if (resolveFolderChildren) {
 							$this.resolveChildren(fileResource.fsPath, absoluteTargetPaths, resolveSingleChildDescendants, children => {
-								children = arrays.coalesce(children);  // we don't want those null children
+								if (children) {
+									children = arrays.coalesce(children);  // we don't want those null children
+								}
 								childStat.children = children || [];
 
 								clb(null, childStat);

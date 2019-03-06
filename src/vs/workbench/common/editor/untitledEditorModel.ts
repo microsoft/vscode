@@ -16,6 +16,7 @@ import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { ITextBufferFactory } from 'vs/editor/common/model';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
+import { IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 
 export class UntitledEditorModel extends BaseTextEditorModel implements IEncodingSupport {
 
@@ -90,7 +91,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 		return this.versionId;
 	}
 
-	getModeId(): string {
+	getModeId(): string | null {
 		if (this.textEditorModel) {
 			return this.textEditorModel.getLanguageIdentifier().language;
 		}
@@ -136,10 +137,10 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 		this.contentChangeEventScheduler.schedule();
 	}
 
-	load(): Promise<UntitledEditorModel> {
+	load(): Promise<UntitledEditorModel & IResolvedTextEditorModel> {
 
 		// Check for backups first
-		return this.backupFileService.loadBackupResource(this.resource).then(backupResource => {
+		return this.backupFileService.loadBackupResource(this.resource).then((backupResource) => {
 			if (backupResource) {
 				return this.backupFileService.resolveBackupContent(backupResource);
 			}
@@ -180,7 +181,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 			// Listen to mode changes
 			this._register(textEditorModel.onDidChangeLanguage(() => this.onConfigurationChange())); // mode change can have impact on config
 
-			return this;
+			return this as UntitledEditorModel & IResolvedTextEditorModel;
 		});
 	}
 
@@ -193,7 +194,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 
 		// mark the untitled editor as non-dirty once its content becomes empty and we do
 		// not have an associated path set. we never want dirty indicator in that case.
-		if (!this._hasAssociatedFilePath && this.textEditorModel.getLineCount() === 1 && this.textEditorModel.getLineContent(1) === '') {
+		if (!this._hasAssociatedFilePath && this.textEditorModel && this.textEditorModel.getLineCount() === 1 && this.textEditorModel.getLineContent(1) === '') {
 			this.setDirty(false);
 		}
 

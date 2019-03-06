@@ -114,7 +114,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		return {
 			id,
 			name: viewIdNameMappings[id],
-			ctor: ExtensionsListView,
+			ctorDescriptor: { ctor: ExtensionsListView },
 			when: ContextKeyExpr.and(ContextKeyExpr.has('searchExtensions'), ContextKeyExpr.not('searchInstalledExtensions'), ContextKeyExpr.not('searchBuiltInExtensions'), ContextKeyExpr.not('recommendedExtensions'), ContextKeyExpr.not('groupByServersContext')),
 			weight: 100
 		};
@@ -127,7 +127,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		return {
 			id,
 			name: viewIdNameMappings[id],
-			ctor: EnabledExtensionsView,
+			ctorDescriptor: { ctor: EnabledExtensionsView },
 			when: ContextKeyExpr.and(ContextKeyExpr.not('searchExtensions'), ContextKeyExpr.has('hasInstalledExtensions')),
 			weight: 40,
 			canToggleVisibility: true,
@@ -142,7 +142,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		return {
 			id,
 			name: viewIdNameMappings[id],
-			ctor: DisabledExtensionsView,
+			ctorDescriptor: { ctor: DisabledExtensionsView },
 			when: ContextKeyExpr.and(ContextKeyExpr.not('searchExtensions'), ContextKeyExpr.has('hasInstalledExtensions')),
 			weight: 10,
 			canToggleVisibility: true,
@@ -158,7 +158,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		return {
 			id,
 			name: viewIdNameMappings[id],
-			ctor: ExtensionsListView,
+			ctorDescriptor: { ctor: ExtensionsListView },
 			when: ContextKeyExpr.and(ContextKeyExpr.not('searchExtensions'), ContextKeyExpr.not('hasInstalledExtensions')),
 			weight: 60,
 			order: 1
@@ -169,7 +169,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		return [{
 			id: `server.extensionsList.${server.authority}`,
 			name: server.label,
-			ctor: GroupByServerExtensionsView,
+			ctorDescriptor: { ctor: GroupByServerExtensionsView },
 			when: ContextKeyExpr.has('groupByServersContext'),
 			weight: 100
 		}];
@@ -183,7 +183,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		return {
 			id,
 			name: viewIdNameMappings[id],
-			ctor: DefaultRecommendedExtensionsView,
+			ctorDescriptor: { ctor: DefaultRecommendedExtensionsView },
 			when: ContextKeyExpr.and(ContextKeyExpr.not('searchExtensions'), ContextKeyExpr.has('defaultRecommendedExtensions')),
 			weight: 40,
 			order: 2,
@@ -198,7 +198,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		return {
 			id,
 			name: viewIdNameMappings[id],
-			ctor: RecommendedExtensionsView,
+			ctorDescriptor: { ctor: RecommendedExtensionsView },
 			when: ContextKeyExpr.has('recommendedExtensions'),
 			weight: 50,
 			canToggleVisibility: true,
@@ -213,7 +213,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		return {
 			id,
 			name: viewIdNameMappings[id],
-			ctor: WorkspaceRecommendedExtensionsView,
+			ctorDescriptor: { ctor: WorkspaceRecommendedExtensionsView },
 			when: ContextKeyExpr.and(ContextKeyExpr.has('recommendedExtensions'), ContextKeyExpr.has('nonEmptyWorkspace')),
 			weight: 50,
 			canToggleVisibility: true,
@@ -226,7 +226,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		return {
 			id,
 			name: viewIdNameMappings[id],
-			ctor: BuiltInExtensionsView,
+			ctorDescriptor: { ctor: BuiltInExtensionsView },
 			when: ContextKeyExpr.has('searchBuiltInExtensions'),
 			weight: 100,
 			canToggleVisibility: true
@@ -238,7 +238,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		return {
 			id,
 			name: viewIdNameMappings[id],
-			ctor: BuiltInThemesExtensionsView,
+			ctorDescriptor: { ctor: BuiltInThemesExtensionsView },
 			when: ContextKeyExpr.has('searchBuiltInExtensions'),
 			weight: 100,
 			canToggleVisibility: true
@@ -250,7 +250,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		return {
 			id,
 			name: viewIdNameMappings[id],
-			ctor: BuiltInBasicsExtensionsView,
+			ctorDescriptor: { ctor: BuiltInBasicsExtensionsView },
 			when: ContextKeyExpr.has('searchBuiltInExtensions'),
 			weight: 100,
 			canToggleVisibility: true
@@ -275,7 +275,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 	private searchBox: SuggestEnabledInput;
 	private extensionsBox: HTMLElement;
 	private primaryActions: IAction[];
-	private secondaryActions: IAction[];
+	private secondaryActions: IAction[] | null;
 	private disposables: IDisposable[] = [];
 	private searchViewletState: object;
 

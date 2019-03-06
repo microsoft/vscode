@@ -246,6 +246,8 @@ export interface IThread extends ITreeElement {
 	 */
 	readonly exceptionInfo: Promise<IExceptionInfo | null>;
 
+	readonly stateLabel: string;
+
 	/**
 	 * Gets the callstack if it has already been received from the debug
 	 * adapter, otherwise it returns null.
