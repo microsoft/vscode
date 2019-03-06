@@ -32,6 +32,8 @@
 		"./vs/workbench/services/timer/**/*.ts",
 		"./vs/workbench/contrib/webview/**/*.ts",
 		"./vs/workbench/contrib/debug/common/**/*.ts",
+		"./vs/workbench/contrib/preferences/common/**/*.ts",
+		"./vs/workbench/contrib/preferences/**/settings*.ts",
 	],
 	"files": [
 		"./vs/monaco.d.ts",
