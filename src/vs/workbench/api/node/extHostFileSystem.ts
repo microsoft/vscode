@@ -28,7 +28,7 @@ class FsLinkProvider {
 	}
 
 	delete(scheme: string): void {
-		let idx = this._schemes.indexOf(scheme);
+		const idx = this._schemes.indexOf(scheme);
 		if (idx >= 0) {
 			this._schemes.splice(idx, 1);
 			this._stateMachine = undefined;
@@ -94,7 +94,7 @@ class FsLinkProvider {
 		}, this._stateMachine);
 
 		for (const link of links) {
-			let docLink = typeConverter.DocumentLink.to(link);
+			const docLink = typeConverter.DocumentLink.to(link);
 			if (docLink.target) {
 				result.push(docLink);
 			}
@@ -172,7 +172,7 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		this._proxy.$registerFileSystemProvider(handle, scheme, capabilites);
 
 		const subscription = provider.onDidChangeFile(event => {
-			let mapped: IFileChangeDto[] = [];
+			const mapped: IFileChangeDto[] = [];
 			for (const e of event) {
 				let { uri: resource, type } = e;
 				if (resource.scheme !== scheme) {
@@ -260,12 +260,12 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 	}
 
 	$watch(handle: number, session: number, resource: UriComponents, opts: files.IWatchOptions): void {
-		let subscription = this.getProvider(handle).watch(URI.revive(resource), opts);
+		const subscription = this.getProvider(handle).watch(URI.revive(resource), opts);
 		this._watches.set(session, subscription);
 	}
 
 	$unwatch(_handle: number, session: number): void {
-		let subscription = this._watches.get(session);
+		const subscription = this._watches.get(session);
 		if (subscription) {
 			subscription.dispose();
 			this._watches.delete(session);

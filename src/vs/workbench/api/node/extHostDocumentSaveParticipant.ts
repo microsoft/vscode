@@ -53,7 +53,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 		const entries = this._callbacks.toArray();
 
 		let didTimeout = false;
-		let didTimeoutHandle = setTimeout(() => didTimeout = true, this._thresholds.timeout);
+		const didTimeoutHandle = setTimeout(() => didTimeout = true, this._thresholds.timeout);
 
 		const promise = sequence(entries.map(listener => {
 			return () => {

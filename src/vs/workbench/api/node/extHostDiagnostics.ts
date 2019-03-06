@@ -115,7 +115,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 		const entries: [URI, IMarkerData[]][] = [];
 		for (let uri of toSync) {
 			let marker: IMarkerData[] = [];
-			let diagnostics = this._data.get(uri.toString());
+			const diagnostics = this._data.get(uri.toString());
 			if (diagnostics) {
 
 				// no more than N diagnostics per file
@@ -170,14 +170,14 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 	forEach(callback: (uri: URI, diagnostics: vscode.Diagnostic[], collection: DiagnosticCollection) => any, thisArg?: any): void {
 		this._checkDisposed();
 		this._data.forEach((value, key) => {
-			let uri = URI.parse(key);
+			const uri = URI.parse(key);
 			callback.apply(thisArg, [uri, this.get(uri), this]);
 		});
 	}
 
 	get(uri: URI): vscode.Diagnostic[] {
 		this._checkDisposed();
-		let result = this._data.get(uri.toString());
+		const result = this._data.get(uri.toString());
 		if (Array.isArray(result)) {
 			return <vscode.Diagnostic[]>Object.freeze(result.slice(0));
 		}
@@ -224,8 +224,8 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 	}
 
 	static _mapper(last: (vscode.Uri | string)[]): { uris: vscode.Uri[] } {
-		let uris: vscode.Uri[] = [];
-		let map = new Set<string>();
+		const uris: vscode.Uri[] = [];
+		const map = new Set<string>();
 		for (const uri of last) {
 			if (typeof uri === 'string') {
 				if (!map.has(uri)) {
@@ -285,8 +285,8 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 		if (resource) {
 			return this._getDiagnostics(resource);
 		} else {
-			let index = new Map<string, number>();
-			let res: [vscode.Uri, vscode.Diagnostic[]][] = [];
+			const index = new Map<string, number>();
+			const res: [vscode.Uri, vscode.Diagnostic[]][] = [];
 			this._collections.forEach(collection => {
 				collection.forEach((uri, diagnostics) => {
 					let idx = index.get(uri.toString());

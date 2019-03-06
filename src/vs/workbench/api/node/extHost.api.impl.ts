@@ -92,7 +92,7 @@ export function createApiFactory(
 	extHostStorage: ExtHostStorage
 ): IExtensionApiFactory {
 
-	let schemeTransformer: ISchemeTransformer | null = null;
+	const schemeTransformer: ISchemeTransformer | null = null;
 
 	// Addressable instances
 	rpcProtocol.set(ExtHostContext.ExtHostLogService, extHostLogService);
@@ -188,7 +188,7 @@ export function createApiFactory(
 			},
 			registerTextEditorCommand(id: string, callback: (textEditor: vscode.TextEditor, edit: vscode.TextEditorEdit, ...args: any[]) => void, thisArg?: any): vscode.Disposable {
 				return extHostCommands.registerCommand(true, id, (...args: any[]): any => {
-					let activeTextEditor = extHostEditors.getActiveTextEditor();
+					const activeTextEditor = extHostEditors.getActiveTextEditor();
 					if (!activeTextEditor) {
 						console.warn('Cannot execute ' + id + ' because there is no active text editor.');
 						return undefined;
@@ -209,7 +209,7 @@ export function createApiFactory(
 			},
 			registerDiffInformationCommand: proposedApiFunction(extension, (id: string, callback: (diff: vscode.LineChange[], ...args: any[]) => any, thisArg?: any): vscode.Disposable => {
 				return extHostCommands.registerCommand(true, id, async (...args: any[]): Promise<any> => {
-					let activeTextEditor = extHostEditors.getActiveTextEditor();
+					const activeTextEditor = extHostEditors.getActiveTextEditor();
 					if (!activeTextEditor) {
 						console.warn('Cannot execute ' + id + ' because there is no active text editor.');
 						return undefined;
@@ -566,7 +566,7 @@ export function createApiFactory(
 			openTextDocument(uriOrFileNameOrOptions?: vscode.Uri | string | { language?: string; content?: string; }) {
 				let uriPromise: Thenable<URI>;
 
-				let options = uriOrFileNameOrOptions as { language?: string; content?: string; };
+				const options = uriOrFileNameOrOptions as { language?: string; content?: string; };
 				if (typeof uriOrFileNameOrOptions === 'string') {
 					uriPromise = Promise.resolve(URI.file(uriOrFileNameOrOptions));
 				} else if (uriOrFileNameOrOptions instanceof URI) {

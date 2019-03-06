@@ -77,7 +77,7 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 
 	public ensureDocumentData(uri: URI): Promise<ExtHostDocumentData> {
 
-		let cached = this._documentsAndEditors.getDocument(uri);
+		const cached = this._documentsAndEditors.getDocument(uri);
 		if (cached) {
 			return Promise.resolve(cached);
 		}

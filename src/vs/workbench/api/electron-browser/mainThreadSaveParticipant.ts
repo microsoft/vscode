@@ -235,8 +235,8 @@ class FormatOnSaveParticipant implements ISaveParticipantParticipant {
 		const timeout = this._configurationService.getValue<number>('editor.formatOnSaveTimeout', { overrideIdentifier: model.getLanguageIdentifier().language, resource: editorModel.getResource() });
 
 		return new Promise<TextEdit[] | null | undefined>((resolve, reject) => {
-			let source = new CancellationTokenSource();
-			let request = getDocumentFormattingEdits(this._telemetryService, this._editorWorkerService, model, model.getFormattingOptions(), FormatMode.Auto, source.token);
+			const source = new CancellationTokenSource();
+			const request = getDocumentFormattingEdits(this._telemetryService, this._editorWorkerService, model, model.getFormattingOptions(), FormatMode.Auto, source.token);
 
 			setTimeout(() => {
 				reject(localize('timeout.formatOnSave', "Aborted format on save after {0}ms", timeout));

@@ -48,7 +48,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	}
 
 	$unregister(handle: number): void {
-		let registration = this._registrations[handle];
+		const registration = this._registrations[handle];
 		if (registration) {
 			registration.dispose();
 			delete this._registrations[handle];
@@ -506,7 +506,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	$setLanguageConfiguration(handle: number, languageId: string, _configuration: ISerializedLanguageConfiguration): void {
 
-		let configuration: LanguageConfiguration = {
+		const configuration: LanguageConfiguration = {
 			comments: _configuration.comments,
 			brackets: _configuration.brackets,
 			wordPattern: MainThreadLanguageFeatures._reviveRegExp(_configuration.wordPattern),
@@ -532,7 +532,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 			};
 		}
 
-		let languageIdentifier = this._modeService.getLanguageIdentifier(languageId);
+		const languageIdentifier = this._modeService.getLanguageIdentifier(languageId);
 		if (languageIdentifier) {
 			this._registrations[handle] = LanguageConfigurationRegistry.register(languageIdentifier, configuration);
 		}

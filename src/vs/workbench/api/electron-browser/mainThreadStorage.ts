@@ -24,7 +24,7 @@ export class MainThreadStorage implements MainThreadStorageShape {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostStorage);
 
 		this._storageListener = this._storageService.onDidChangeStorage(e => {
-			let shared = e.scope === StorageScope.GLOBAL;
+			const shared = e.scope === StorageScope.GLOBAL;
 			if (shared && this._sharedStorageKeysToWatch.has(e.key)) {
 				try {
 					this._proxy.$acceptValue(shared, e.key, this._getValue(shared, e.key));
@@ -51,7 +51,7 @@ export class MainThreadStorage implements MainThreadStorageShape {
 	}
 
 	private _getValue<T>(shared: boolean, key: string): T | undefined {
-		let jsonValue = this._storageService.get(key, shared ? StorageScope.GLOBAL : StorageScope.WORKSPACE);
+		const jsonValue = this._storageService.get(key, shared ? StorageScope.GLOBAL : StorageScope.WORKSPACE);
 		if (!jsonValue) {
 			return undefined;
 		}

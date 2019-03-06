@@ -263,7 +263,7 @@ export class ExtHostApiCommands {
 	// --- command impl
 
 	private _register(id: string, handler: (...args: any[]) => any, description?: ICommandHandlerDescription): void {
-		let disposable = this._commands.registerCommand(false, id, handler, this, description);
+		const disposable = this._commands.registerCommand(false, id, handler, this, description);
 		this._disposables.push(disposable);
 	}
 
@@ -408,7 +408,7 @@ export class ExtHostApiCommands {
 	}
 
 	private _executeSelectionRangeProvider(resource: URI, positions: types.Position[]): Promise<vscode.SelectionRange[][]> {
-		let pos = positions.map(typeConverters.Position.from);
+		const pos = positions.map(typeConverters.Position.from);
 		const args = {
 			resource,
 			position: pos[0],
@@ -443,7 +443,7 @@ export class ExtHostApiCommands {
 			}
 			class MergedInfo extends types.SymbolInformation implements vscode.DocumentSymbol {
 				static to(symbol: modes.DocumentSymbol): MergedInfo {
-					let res = new MergedInfo(
+					const res = new MergedInfo(
 						symbol.name,
 						typeConverters.SymbolKind.to(symbol.kind),
 						symbol.containerName,

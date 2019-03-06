@@ -68,10 +68,10 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 
 			return itemsPromise.then(items => {
 
-				let pickItems: TransferQuickPickItems[] = [];
+				const pickItems: TransferQuickPickItems[] = [];
 				for (let handle = 0; handle < items.length; handle++) {
 
-					let item = items[handle];
+					const item = items[handle];
 					let label: string;
 					let description: string | undefined;
 					let detail: string | undefined;

@@ -105,7 +105,7 @@ export class MainThreadTextEditorProperties {
 	}
 
 	public generateDelta(oldProps: MainThreadTextEditorProperties | null, selectionChangeSource: string | null): IEditorPropertiesChangeData | null {
-		let delta: IEditorPropertiesChangeData = {
+		const delta: IEditorPropertiesChangeData = {
 			options: null,
 			selections: null,
 			visibleRanges: null
@@ -323,7 +323,7 @@ export class MainThreadTextEditor {
 	}
 
 	private _setIndentConfiguration(newConfiguration: ITextEditorConfigurationUpdate): void {
-		let creationOpts = this._modelService.getCreationOptions(this._model.getLanguageIdentifier().language, this._model.uri, this._model.isForSimpleWidget);
+		const creationOpts = this._modelService.getCreationOptions(this._model.getLanguageIdentifier().language, this._model.uri, this._model.isForSimpleWidget);
 
 		if (newConfiguration.tabSize === 'auto' || newConfiguration.insertSpaces === 'auto') {
 			// one of the options was set to 'auto' => detect indentation
@@ -342,7 +342,7 @@ export class MainThreadTextEditor {
 			return;
 		}
 
-		let newOpts: ITextModelUpdateOptions = {};
+		const newOpts: ITextModelUpdateOptions = {};
 		if (typeof newConfiguration.insertSpaces !== 'undefined') {
 			newOpts.insertSpaces = newConfiguration.insertSpaces;
 		}
@@ -367,7 +367,7 @@ export class MainThreadTextEditor {
 		}
 
 		if (newConfiguration.cursorStyle) {
-			let newCursorStyle = cursorStyleToString(newConfiguration.cursorStyle);
+			const newCursorStyle = cursorStyleToString(newConfiguration.cursorStyle);
 			this._codeEditor.updateOptions({
 				cursorStyle: newCursorStyle
 			});
@@ -402,7 +402,7 @@ export class MainThreadTextEditor {
 		if (!this._codeEditor) {
 			return;
 		}
-		let ranges: Range[] = [];
+		const ranges: Range[] = [];
 		for (let i = 0, len = Math.floor(_ranges.length / 4); i < len; i++) {
 			ranges[i] = new Range(_ranges[4 * i], _ranges[4 * i + 1], _ranges[4 * i + 2], _ranges[4 * i + 3]);
 		}
@@ -464,7 +464,7 @@ export class MainThreadTextEditor {
 			this._model.pushEOL(EndOfLineSequence.LF);
 		}
 
-		let transformedEdits = edits.map((edit): IIdentifiedSingleEditOperation => {
+		const transformedEdits = edits.map((edit): IIdentifiedSingleEditOperation => {
 			return {
 				range: Range.lift(edit.range),
 				text: edit.text,

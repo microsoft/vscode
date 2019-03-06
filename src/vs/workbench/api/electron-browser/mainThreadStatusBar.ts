@@ -34,12 +34,12 @@ export class MainThreadStatusBar implements MainThreadStatusBarShape {
 		this.$dispose(id);
 
 		// Add new
-		let entry = this._statusbarService.addEntry({ text, tooltip, command, color, extensionId }, alignment, priority);
+		const entry = this._statusbarService.addEntry({ text, tooltip, command, color, extensionId }, alignment, priority);
 		this._entries[id] = entry;
 	}
 
 	$dispose(id: number) {
-		let disposeable = this._entries[id];
+		const disposeable = this._entries[id];
 		if (disposeable) {
 			disposeable.dispose();
 		}
