@@ -118,15 +118,6 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		}
 	}
 
-	public $terminalGetDimensions(terminalId: number): Promise<ITerminalDimensions> {
-		const terminalInstance = this.terminalService.getInstanceFromId(terminalId);
-		if (terminalInstance && terminalInstance.shellLaunchConfig.isRendererOnly) {
-			return Promise.resolve({ cols: terminalInstance.cols, rows: terminalInstance.rows });
-		}
-
-		return Promise.reject(new Error('Dimensions cannot be retrieved'));
-	}
-
 	public $terminalRendererSetDimensions(terminalId: number, dimensions: ITerminalDimensions): void {
 		const terminalInstance = this.terminalService.getInstanceFromId(terminalId);
 		if (terminalInstance && terminalInstance.shellLaunchConfig.isRendererOnly) {
@@ -197,10 +188,10 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 
 	private _onTerminalOpened(terminalInstance: ITerminalInstance): void {
 		if (terminalInstance.title) {
-			this._proxy.$acceptTerminalOpened(terminalInstance.id, terminalInstance.title, !!terminalInstance.shellLaunchConfig.isRendererOnly, terminalInstance.cols, terminalInstance.rows);
+			this._proxy.$acceptTerminalOpened(terminalInstance.id, terminalInstance.title);
 		} else {
 			terminalInstance.waitForTitle().then(title => {
-				this._proxy.$acceptTerminalOpened(terminalInstance.id, title, !!terminalInstance.shellLaunchConfig.isRendererOnly, terminalInstance.cols, terminalInstance.rows);
+				this._proxy.$acceptTerminalOpened(terminalInstance.id, title);
 			});
 		}
 	}

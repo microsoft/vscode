@@ -387,7 +387,6 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 	// Renderer
 	$terminalRendererSetName(terminalId: number, name: string): void;
 	$terminalRendererSetDimensions(terminalId: number, dimensions: ITerminalDimensions): void;
-	$terminalGetDimensions(terminalId: number): Promise<ITerminalDimensions>;
 	$terminalRendererWrite(terminalId: number, text: string): void;
 	$terminalRendererRegisterOnInputListener(terminalId: number): void;
 }
@@ -974,7 +973,7 @@ export interface ShellLaunchConfigDto {
 
 export interface ExtHostTerminalServiceShape {
 	$acceptTerminalClosed(id: number): void;
-	$acceptTerminalOpened(id: number, name: string, isRendererOnly: boolean, cols: number, rows: number): void;
+	$acceptTerminalOpened(id: number, name: string): void;
 	$acceptActiveTerminalChanged(id: number | null): void;
 	$acceptTerminalProcessId(id: number, processId: number): void;
 	$acceptTerminalProcessData(id: number, data: string): void;

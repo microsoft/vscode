@@ -234,19 +234,9 @@ export class ExtHostTerminalRenderer extends BaseExtHostTerminal implements vsco
 		proxy: MainThreadTerminalServiceShape,
 		private _name: string,
 		private _terminal: ExtHostTerminal,
-		id?: number,
-		cols?: number,
-		rows?: number
+		id?: number
 	) {
 		super(proxy, id);
-
-		// TODO: Should we set maximum dimensions to these as well?
-		if (cols !== null && rows !== null) {
-			this._dimensions = {
-				columns: cols,
-				rows: rows
-			};
-		}
 
 		if (!id) {
 			this._proxy.$createTerminalRenderer(this._name).then(id => {
@@ -335,9 +325,8 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 			}
 		}
 
-		const dimensions = await this._proxy.$terminalGetDimensions(id);
 		const terminal = this._getTerminalById(id);
-		const renderer = new ExtHostTerminalRenderer(this._proxy, terminal.name, terminal, terminal._id, dimensions.cols, dimensions.rows);
+		const renderer = new ExtHostTerminalRenderer(this._proxy, terminal.name, terminal, terminal._id);
 		this._terminalRenderers.push(renderer);
 
 		return renderer;

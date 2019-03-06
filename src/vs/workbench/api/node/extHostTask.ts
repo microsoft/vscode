@@ -336,6 +336,7 @@ interface HandlerData {
 }
 
 class CustomExecutionData implements IDisposable {
+	private static waitForDimensionsTimeoutInMs: number = 5000;
 	private _cancellationSource?: CancellationTokenSource;
 	private readonly _onTaskExecutionComplete: Emitter<CustomExecutionData> = new Emitter<CustomExecutionData>();
 	private readonly _disposables: IDisposable[] = [];
@@ -396,6 +397,25 @@ class CustomExecutionData implements IDisposable {
 
 		this.terminal = callbackTerminals[0];
 		const terminalRenderer: vscode.TerminalRenderer = await this.terminalService.resolveTerminalRenderer(terminalId);
+
+
+		const dimensionTimeout: Promise<void> = new Promise((resolve) => {
+			setTimeout(() => {
+				resolve();
+			}, CustomExecutionData.waitForDimensionsTimeoutInMs);
+		});
+
+		let dimensionsRegistration: IDisposable | undefined;
+		const dimensionsPromise: Promise<void> = new Promise((resolve) => {
+			dimensionsRegistration = terminalRenderer.onDidChangeMaximumDimensions((newDimensions) => {
+				resolve();
+			});
+		});
+
+		await Promise.race([dimensionTimeout, dimensionsPromise]);
+		if (dimensionsRegistration) {
+			dimensionsRegistration.dispose();
+		}
 
 		this._cancellationSource = new CancellationTokenSource();
 		this._disposables.push(this._cancellationSource);
