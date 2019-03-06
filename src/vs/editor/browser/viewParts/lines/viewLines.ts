@@ -76,10 +76,10 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 
 	// --- width
 	private _maxLineWidth: number;
-	private _asyncUpdateLineWidths: RunOnceScheduler;
+	private readonly _asyncUpdateLineWidths: RunOnceScheduler;
 
 	private _horizontalRevealRequest: HorizontalRevealRequest | null;
-	private _lastRenderedData: LastRenderedData;
+	private readonly _lastRenderedData: LastRenderedData;
 
 	constructor(context: ViewContext, linesContent: FastDomNode<HTMLElement>) {
 		super(context);

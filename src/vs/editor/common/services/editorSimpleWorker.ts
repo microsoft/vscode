@@ -323,7 +323,7 @@ declare var require: any;
  * @internal
  */
 export abstract class BaseEditorSimpleWorker {
-	private _foreignModuleFactory: IForeignModuleFactory | null;
+	private readonly _foreignModuleFactory: IForeignModuleFactory | null;
 	private _foreignModule: any;
 
 	constructor(foreignModuleFactory: IForeignModuleFactory | null) {

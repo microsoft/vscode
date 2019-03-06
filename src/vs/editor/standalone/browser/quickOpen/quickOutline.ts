@@ -24,12 +24,12 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 let SCOPE_PREFIX = ':';
 
 export class SymbolEntry extends QuickOpenEntryGroup {
-	private name: string;
-	private type: string;
-	private description: string | null;
-	private range: Range;
-	private editor: ICodeEditor;
-	private decorator: IDecorator;
+	private readonly name: string;
+	private readonly type: string;
+	private readonly description: string | null;
+	private readonly range: Range;
+	private readonly editor: ICodeEditor;
+	private readonly decorator: IDecorator;
 
 	constructor(name: string, type: string, description: string | null, range: Range, highlights: IHighlight[], editor: ICodeEditor, decorator: IDecorator) {
 		super();

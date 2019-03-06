@@ -430,8 +430,8 @@ function createEmptyContentDataInLines(horizontalDistanceToText: number): IEmpty
 
 export class MouseTargetFactory {
 
-	private _context: ViewContext;
-	private _viewHelper: IPointerHandlerHelper;
+	private readonly _context: ViewContext;
+	private readonly _viewHelper: IPointerHandlerHelper;
 
 	constructor(context: ViewContext, viewHelper: IPointerHandlerHelper) {
 		this._context = context;

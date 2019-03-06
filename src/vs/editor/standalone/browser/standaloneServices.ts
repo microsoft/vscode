@@ -57,8 +57,8 @@ export module StaticServices {
 	const _serviceCollection = new ServiceCollection();
 
 	export class LazyStaticService<T> {
-		private _serviceId: ServiceIdentifier<T>;
-		private _factory: (overrides?: IEditorOverrideServices) => T;
+		private readonly _serviceId: ServiceIdentifier<T>;
+		private readonly _factory: (overrides?: IEditorOverrideServices) => T;
 		private _value: T | null;
 
 		public get id() { return this._serviceId; }
@@ -162,8 +162,8 @@ export module StaticServices {
 
 export class DynamicStandaloneServices extends Disposable {
 
-	private _serviceCollection: ServiceCollection;
-	private _instantiationService: IInstantiationService;
+	private readonly _serviceCollection: ServiceCollection;
+	private readonly _instantiationService: IInstantiationService;
 
 	constructor(domElement: HTMLElement, overrides: IEditorOverrideServices) {
 		super();

@@ -63,11 +63,11 @@ const invalidFunc = () => { throw new Error(`Invalid change accessor`); };
 
 export class View extends ViewEventHandler {
 
-	private eventDispatcher: ViewEventDispatcher;
+	private readonly eventDispatcher: ViewEventDispatcher;
 
 	private _scrollbar: EditorScrollbar;
-	private _context: ViewContext;
-	private _cursor: Cursor;
+	private readonly _context: ViewContext;
+	private readonly _cursor: Cursor;
 
 	// The view lines
 	private viewLines: ViewLines;

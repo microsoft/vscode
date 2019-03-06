@@ -18,7 +18,7 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 
 	public static readonly CLASS_NAME = 'line-numbers';
 
-	private _context: ViewContext;
+	private readonly _context: ViewContext;
 
 	private _lineHeight: number;
 	private _renderLineNumbers: RenderLineNumbersType;

@@ -74,7 +74,7 @@ export abstract class DedupOverlay extends DynamicViewOverlay {
 
 export class GlyphMarginOverlay extends DedupOverlay {
 
-	private _context: ViewContext;
+	private readonly _context: ViewContext;
 	private _lineHeight: number;
 	private _glyphMargin: boolean;
 	private _glyphMarginLeft: number;

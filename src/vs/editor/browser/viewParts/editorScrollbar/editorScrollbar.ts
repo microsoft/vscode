@@ -17,8 +17,8 @@ import { getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
 
 export class EditorScrollbar extends ViewPart {
 
-	private scrollbar: SmoothScrollableElement;
-	private scrollbarDomNode: FastDomNode<HTMLElement>;
+	private readonly scrollbar: SmoothScrollableElement;
+	private readonly scrollbarDomNode: FastDomNode<HTMLElement>;
 
 	constructor(
 		context: ViewContext,

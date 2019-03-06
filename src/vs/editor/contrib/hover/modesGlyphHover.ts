@@ -19,7 +19,7 @@ export interface IHoverMessage {
 
 class MarginComputer implements IHoverComputer<IHoverMessage[]> {
 
-	private _editor: ICodeEditor;
+	private readonly _editor: ICodeEditor;
 	private _lineNumber: number;
 	private _result: IHoverMessage[];
 
@@ -91,9 +91,9 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 	private _messages: IHoverMessage[];
 	private _lastLineNumber: number;
 
-	private _markdownRenderer: MarkdownRenderer;
-	private _computer: MarginComputer;
-	private _hoverOperation: HoverOperation<IHoverMessage[]>;
+	private readonly _markdownRenderer: MarkdownRenderer;
+	private readonly _computer: MarginComputer;
+	private readonly _hoverOperation: HoverOperation<IHoverMessage[]>;
 	private _renderDisposeables: IDisposable[];
 
 	constructor(

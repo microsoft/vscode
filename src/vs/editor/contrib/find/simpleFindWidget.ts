@@ -25,13 +25,13 @@ const NLS_NEXT_MATCH_BTN_LABEL = nls.localize('label.nextMatchButton', "Next mat
 const NLS_CLOSE_BTN_LABEL = nls.localize('label.closeButton', "Close");
 
 export abstract class SimpleFindWidget extends Widget {
-	private _findInput: FindInput;
-	private _domNode: HTMLElement;
-	private _innerDomNode: HTMLElement;
+	private readonly _findInput: FindInput;
+	private readonly _domNode: HTMLElement;
+	private readonly _innerDomNode: HTMLElement;
 	private _isVisible: boolean = false;
-	private _focusTracker: dom.IFocusTracker;
-	private _findInputFocusTracker: dom.IFocusTracker;
-	private _updateHistoryDelayer: Delayer<void>;
+	private readonly _focusTracker: dom.IFocusTracker;
+	private readonly _findInputFocusTracker: dom.IFocusTracker;
+	private readonly _updateHistoryDelayer: Delayer<void>;
 
 	constructor(
 		@IContextViewService private readonly _contextViewService: IContextViewService,

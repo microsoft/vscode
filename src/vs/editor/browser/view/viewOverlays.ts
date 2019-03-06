@@ -139,8 +139,8 @@ export class ViewOverlays extends ViewPart implements IVisibleLinesHost<ViewOver
 
 export class ViewOverlayLine implements IVisibleLine {
 
-	private _configuration: IConfiguration;
-	private _dynamicOverlays: DynamicViewOverlay[];
+	private readonly _configuration: IConfiguration;
+	private readonly _dynamicOverlays: DynamicViewOverlay[];
 	private _domNode: FastDomNode<HTMLElement> | null;
 	private _renderedContent: string | null;
 	private _lineHeight: number;

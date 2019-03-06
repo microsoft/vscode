@@ -89,7 +89,7 @@ export interface EditorMouseEventMerger {
 
 export class EditorMouseEventFactory {
 
-	private _editorViewDomNode: HTMLElement;
+	private readonly _editorViewDomNode: HTMLElement;
 
 	constructor(editorViewDomNode: HTMLElement) {
 		this._editorViewDomNode = editorViewDomNode;
@@ -133,8 +133,8 @@ export class EditorMouseEventFactory {
 
 export class GlobalEditorMouseMoveMonitor extends Disposable {
 
-	private _editorViewDomNode: HTMLElement;
-	private _globalMouseMoveMonitor: GlobalMouseMoveMonitor<EditorMouseEvent>;
+	private readonly _editorViewDomNode: HTMLElement;
+	private readonly _globalMouseMoveMonitor: GlobalMouseMoveMonitor<EditorMouseEvent>;
 	private _keydownListener: IDisposable | null;
 
 	constructor(editorViewDomNode: HTMLElement) {

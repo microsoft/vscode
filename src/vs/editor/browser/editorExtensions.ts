@@ -127,7 +127,7 @@ export abstract class EditorCommand extends Command {
 	 */
 	public static bindToContribution<T extends IEditorContribution>(controllerGetter: (editor: ICodeEditor) => T): EditorControllerCommand<T> {
 		return class EditorControllerCommandImpl extends EditorCommand {
-			private _callback: (controller: T, args: any) => void;
+			private readonly _callback: (controller: T, args: any) => void;
 
 			constructor(opts: IContributionCommandOptions<T>) {
 				super(opts);
@@ -320,9 +320,9 @@ class EditorContributionRegistry {
 
 	public static readonly INSTANCE = new EditorContributionRegistry();
 
-	private editorContributions: IEditorContributionCtor[];
-	private editorActions: EditorAction[];
-	private editorCommands: { [commandId: string]: EditorCommand; };
+	private readonly editorContributions: IEditorContributionCtor[];
+	private readonly editorActions: EditorAction[];
+	private readonly editorCommands: { [commandId: string]: EditorCommand; };
 
 	constructor() {
 		this.editorContributions = [];

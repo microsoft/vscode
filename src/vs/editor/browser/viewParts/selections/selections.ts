@@ -73,7 +73,7 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 
 	private static readonly ROUNDED_PIECE_WIDTH = 10;
 
-	private _context: ViewContext;
+	private readonly _context: ViewContext;
 	private _lineHeight: number;
 	private _roundedSelection: boolean;
 	private _typicalHalfwidthCharacterWidth: number;

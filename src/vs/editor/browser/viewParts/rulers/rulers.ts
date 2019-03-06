@@ -15,7 +15,7 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 export class Rulers extends ViewPart {
 
 	public domNode: FastDomNode<HTMLElement>;
-	private _renderedRulers: FastDomNode<HTMLElement>[];
+	private readonly _renderedRulers: FastDomNode<HTMLElement>[];
 	private _rulers: number[];
 	private _typicalHalfwidthCharacterWidth: number;
 

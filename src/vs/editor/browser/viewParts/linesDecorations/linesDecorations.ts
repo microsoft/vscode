@@ -11,7 +11,7 @@ import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 export class LinesDecorationsOverlay extends DedupOverlay {
 
-	private _context: ViewContext;
+	private readonly _context: ViewContext;
 
 	private _decorationsLeft: number;
 	private _decorationsWidth: number;

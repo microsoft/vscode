@@ -13,9 +13,9 @@ import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 
 export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
 
-	private _context: ViewContext;
-	private _domNode: FastDomNode<HTMLCanvasElement>;
-	private _zoneManager: OverviewZoneManager;
+	private readonly _context: ViewContext;
+	private readonly _domNode: FastDomNode<HTMLCanvasElement>;
+	private readonly _zoneManager: OverviewZoneManager;
 
 	constructor(context: ViewContext, cssClassName: string) {
 		super();

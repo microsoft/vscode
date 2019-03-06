@@ -19,8 +19,8 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 
 class CSSBasedConfigurationCache {
 
-	private _keys: { [key: string]: BareFontInfo; };
-	private _values: { [key: string]: FontInfo; };
+	private readonly _keys: { [key: string]: BareFontInfo; };
+	private readonly _values: { [key: string]: FontInfo; };
 
 	constructor() {
 		this._keys = Object.create(null);

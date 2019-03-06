@@ -398,7 +398,7 @@ class RenderedViewLine implements IRenderedViewLine {
 	/**
 	 * This is a map that is used only when the line is guaranteed to have no RTL text.
 	 */
-	private _pixelOffsetCache: Int32Array | null;
+	private readonly _pixelOffsetCache: Int32Array | null;
 
 	constructor(domNode: FastDomNode<HTMLElement>, renderLineInput: RenderLineInput, characterMapping: CharacterMapping, containsRTL: boolean, containsForeignElements: ForeignElementType) {
 		this.domNode = domNode;

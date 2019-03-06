@@ -29,7 +29,7 @@ class Coordinate {
 
 export class ViewContentWidgets extends ViewPart {
 
-	private _viewDomNode: FastDomNode<HTMLElement>;
+	private readonly _viewDomNode: FastDomNode<HTMLElement>;
 	private _widgets: { [key: string]: Widget; };
 
 	public domNode: FastDomNode<HTMLElement>;
@@ -180,7 +180,7 @@ class Widget {
 	public readonly allowEditorOverflow: boolean;
 	public readonly suppressMouseDown: boolean;
 
-	private _fixedOverflowWidgets: boolean;
+	private readonly _fixedOverflowWidgets: boolean;
 	private _contentWidth: number;
 	private _contentLeft: number;
 	private _lineHeight: number;

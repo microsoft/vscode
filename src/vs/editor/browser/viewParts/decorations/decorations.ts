@@ -13,7 +13,7 @@ import { ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
 
 export class DecorationsOverlay extends DynamicViewOverlay {
 
-	private _context: ViewContext;
+	private readonly _context: ViewContext;
 	private _lineHeight: number;
 	private _typicalHalfwidthCharacterWidth: number;
 	private _renderResult: string[] | null;

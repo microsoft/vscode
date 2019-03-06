@@ -44,8 +44,8 @@ class AccessibilityHelpController extends Disposable
 		);
 	}
 
-	private _editor: ICodeEditor;
-	private _widget: AccessibilityHelpWidget;
+	private readonly _editor: ICodeEditor;
+	private readonly _widget: AccessibilityHelpWidget;
 
 	constructor(
 		editor: ICodeEditor,
@@ -107,11 +107,11 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 	private static readonly WIDTH = 500;
 	private static readonly HEIGHT = 300;
 
-	private _editor: ICodeEditor;
-	private _domNode: FastDomNode<HTMLElement>;
-	private _contentDomNode: FastDomNode<HTMLElement>;
+	private readonly _editor: ICodeEditor;
+	private readonly _domNode: FastDomNode<HTMLElement>;
+	private readonly _contentDomNode: FastDomNode<HTMLElement>;
 	private _isVisible: boolean;
-	private _isVisibleKey: IContextKey<boolean>;
+	private readonly _isVisibleKey: IContextKey<boolean>;
 
 	constructor(
 		editor: ICodeEditor,

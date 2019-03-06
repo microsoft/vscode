@@ -45,13 +45,13 @@ export class ParameterHintsModel extends Disposable {
 	private readonly _onChangedHints = this._register(new Emitter<modes.SignatureHelp | undefined>());
 	public readonly onChangedHints = this._onChangedHints.event;
 
-	private editor: ICodeEditor;
+	private readonly editor: ICodeEditor;
 	private enabled: boolean;
 	private state: ParameterHintState.State = ParameterHintState.Default;
 	private triggerChars = new CharacterSet();
 	private retriggerChars = new CharacterSet();
 
-	private throttledDelayer: Delayer<boolean>;
+	private readonly throttledDelayer: Delayer<boolean>;
 	private provideSignatureHelpRequest?: CancelablePromise<any>;
 	private triggerId = 0;
 

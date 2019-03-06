@@ -24,7 +24,7 @@ interface IWidgetMap {
 export class ViewOverlayWidgets extends ViewPart {
 
 	private _widgets: IWidgetMap;
-	private _domNode: FastDomNode<HTMLElement>;
+	private readonly _domNode: FastDomNode<HTMLElement>;
 
 	private _verticalScrollbarWidth: number;
 	private _minimapWidth: number;

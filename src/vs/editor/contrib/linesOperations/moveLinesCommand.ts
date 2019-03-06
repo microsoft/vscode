@@ -16,9 +16,9 @@ import * as indentUtils from 'vs/editor/contrib/indentation/indentUtils';
 
 export class MoveLinesCommand implements ICommand {
 
-	private _selection: Selection;
-	private _isMovingDown: boolean;
-	private _autoIndent: boolean;
+	private readonly _selection: Selection;
+	private readonly _isMovingDown: boolean;
+	private readonly _autoIndent: boolean;
 
 	private _selectionId: string;
 	private _moveEndPositionDown: boolean;

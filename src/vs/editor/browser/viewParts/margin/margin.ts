@@ -14,7 +14,7 @@ export class Margin extends ViewPart {
 	public static readonly CLASS_NAME = 'glyph-margin';
 	public static readonly OUTER_CLASS_NAME = 'margin';
 
-	private _domNode: FastDomNode<HTMLElement>;
+	private readonly _domNode: FastDomNode<HTMLElement>;
 	private _canUseLayerHinting: boolean;
 	private _contentLeft: number;
 	private _glyphMarginLeft: number;

@@ -16,9 +16,9 @@ import { ITheme, IThemeService, ThemeColor } from 'vs/platform/theme/common/them
 
 export abstract class CodeEditorServiceImpl extends AbstractCodeEditorService {
 
-	private _styleSheet: HTMLStyleElement;
-	private _decorationOptionProviders: { [key: string]: IModelDecorationOptionsProvider };
-	private _themeService: IThemeService;
+	private readonly _styleSheet: HTMLStyleElement;
+	private readonly _decorationOptionProviders: { [key: string]: IModelDecorationOptionsProvider };
+	private readonly _themeService: IThemeService;
 
 	constructor(@IThemeService themeService: IThemeService, styleSheet = dom.createStyleSheet()) {
 		super();
@@ -79,7 +79,7 @@ class DecorationSubTypeOptionsProvider implements IModelDecorationOptionsProvide
 
 	public refCount: number;
 
-	private _parentTypeKey: string | undefined;
+	private readonly _parentTypeKey: string | undefined;
 	private _beforeContentRules: DecorationCSSRules | null;
 	private _afterContentRules: DecorationCSSRules | null;
 
@@ -245,13 +245,13 @@ const _CSS_MAP: { [prop: string]: string; } = {
 class DecorationCSSRules {
 
 	private _theme: ITheme;
-	private _className: string;
-	private _unThemedSelector: string;
+	private readonly _className: string;
+	private readonly _unThemedSelector: string;
 	private _hasContent: boolean;
 	private _hasLetterSpacing: boolean;
-	private _ruleType: ModelDecorationCSSRuleType;
+	private readonly _ruleType: ModelDecorationCSSRuleType;
 	private _themeListener: IDisposable | null;
-	private _providerArgs: ProviderArguments;
+	private readonly _providerArgs: ProviderArguments;
 	private _usesThemeColors: boolean;
 
 	public constructor(ruleType: ModelDecorationCSSRuleType, providerArgs: ProviderArguments, themeService: IThemeService) {

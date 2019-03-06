@@ -220,7 +220,7 @@ class TouchHandler extends MouseHandler {
 }
 
 export class PointerHandler implements IDisposable {
-	private handler: MouseHandler;
+	private readonly handler: MouseHandler;
 
 	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper) {
 		if (window.navigator.msPointerEnabled) {

@@ -26,7 +26,7 @@ class CodeLensViewZone implements editorBrowser.IViewZone {
 	afterLineNumber: number;
 
 	private _lastHeight: number;
-	private _onHeight: Function;
+	private readonly _onHeight: Function;
 
 	constructor(afterLineNumber: number, onHeight: Function) {
 		this.afterLineNumber = afterLineNumber;
@@ -164,9 +164,9 @@ export interface IDecorationIdCallback {
 
 export class CodeLensHelper {
 
-	private _removeDecorations: string[];
-	private _addDecorations: IModelDeltaDecoration[];
-	private _addDecorationsCallbacks: IDecorationIdCallback[];
+	private readonly _removeDecorations: string[];
+	private readonly _addDecorations: IModelDeltaDecoration[];
+	private readonly _addDecorationsCallbacks: IDecorationIdCallback[];
 
 	constructor() {
 		this._removeDecorations = [];

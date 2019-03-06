@@ -14,7 +14,7 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 
 export class IndentGuidesOverlay extends DynamicViewOverlay {
 
-	private _context: ViewContext;
+	private readonly _context: ViewContext;
 	private _primaryLineNumber: number;
 	private _lineHeight: number;
 	private _spaceWidth: number;

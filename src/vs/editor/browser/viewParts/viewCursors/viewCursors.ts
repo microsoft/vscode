@@ -28,16 +28,16 @@ export class ViewCursors extends ViewPart {
 
 	private _isVisible: boolean;
 
-	private _domNode: FastDomNode<HTMLElement>;
+	private readonly _domNode: FastDomNode<HTMLElement>;
 
-	private _startCursorBlinkAnimation: TimeoutTimer;
-	private _cursorFlatBlinkInterval: IntervalTimer;
+	private readonly _startCursorBlinkAnimation: TimeoutTimer;
+	private readonly _cursorFlatBlinkInterval: IntervalTimer;
 	private _blinkingEnabled: boolean;
 
 	private _editorHasFocus: boolean;
 
-	private _primaryCursor: ViewCursor;
-	private _secondaryCursors: ViewCursor[];
+	private readonly _primaryCursor: ViewCursor;
+	private readonly _secondaryCursors: ViewCursor[];
 	private _renderData: IViewCursorRenderData[];
 
 	constructor(context: ViewContext) {

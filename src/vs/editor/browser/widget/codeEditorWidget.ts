@@ -141,11 +141,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	private readonly _onDidLayoutChange: Emitter<editorOptions.EditorLayoutInfo> = this._register(new Emitter<editorOptions.EditorLayoutInfo>());
 	public readonly onDidLayoutChange: Event<editorOptions.EditorLayoutInfo> = this._onDidLayoutChange.event;
 
-	private _editorTextFocus: BooleanEventEmitter = this._register(new BooleanEventEmitter());
+	private readonly _editorTextFocus: BooleanEventEmitter = this._register(new BooleanEventEmitter());
 	public readonly onDidFocusEditorText: Event<void> = this._editorTextFocus.onDidChangeToTrue;
 	public readonly onDidBlurEditorText: Event<void> = this._editorTextFocus.onDidChangeToFalse;
 
-	private _editorWidgetFocus: BooleanEventEmitter = this._register(new BooleanEventEmitter());
+	private readonly _editorWidgetFocus: BooleanEventEmitter = this._register(new BooleanEventEmitter());
 	public readonly onDidFocusEditorWidget: Event<void> = this._editorWidgetFocus.onDidChangeToTrue;
 	public readonly onDidBlurEditorWidget: Event<void> = this._editorWidgetFocus.onDidChangeToFalse;
 
@@ -1549,16 +1549,16 @@ export class BooleanEventEmitter extends Disposable {
 
 class EditorContextKeysManager extends Disposable {
 
-	private _editor: CodeEditorWidget;
-	private _editorFocus: IContextKey<boolean>;
-	private _textInputFocus: IContextKey<boolean>;
-	private _editorTextFocus: IContextKey<boolean>;
-	private _editorTabMovesFocus: IContextKey<boolean>;
-	private _editorReadonly: IContextKey<boolean>;
-	private _hasMultipleSelections: IContextKey<boolean>;
-	private _hasNonEmptySelection: IContextKey<boolean>;
-	private _canUndo: IContextKey<boolean>;
-	private _canRedo: IContextKey<boolean>;
+	private readonly _editor: CodeEditorWidget;
+	private readonly _editorFocus: IContextKey<boolean>;
+	private readonly _textInputFocus: IContextKey<boolean>;
+	private readonly _editorTextFocus: IContextKey<boolean>;
+	private readonly _editorTabMovesFocus: IContextKey<boolean>;
+	private readonly _editorReadonly: IContextKey<boolean>;
+	private readonly _hasMultipleSelections: IContextKey<boolean>;
+	private readonly _hasNonEmptySelection: IContextKey<boolean>;
+	private readonly _canUndo: IContextKey<boolean>;
+	private readonly _canRedo: IContextKey<boolean>;
 
 	constructor(
 		editor: CodeEditorWidget,
@@ -1627,25 +1627,25 @@ class EditorContextKeysManager extends Disposable {
 
 export class EditorModeContext extends Disposable {
 
-	private _editor: CodeEditorWidget;
+	private readonly _editor: CodeEditorWidget;
 
-	private _langId: IContextKey<string>;
-	private _hasCompletionItemProvider: IContextKey<boolean>;
-	private _hasCodeActionsProvider: IContextKey<boolean>;
-	private _hasCodeLensProvider: IContextKey<boolean>;
-	private _hasDefinitionProvider: IContextKey<boolean>;
-	private _hasDeclarationProvider: IContextKey<boolean>;
-	private _hasImplementationProvider: IContextKey<boolean>;
-	private _hasTypeDefinitionProvider: IContextKey<boolean>;
-	private _hasHoverProvider: IContextKey<boolean>;
-	private _hasDocumentHighlightProvider: IContextKey<boolean>;
-	private _hasDocumentSymbolProvider: IContextKey<boolean>;
-	private _hasReferenceProvider: IContextKey<boolean>;
-	private _hasRenameProvider: IContextKey<boolean>;
-	private _hasDocumentFormattingProvider: IContextKey<boolean>;
-	private _hasDocumentSelectionFormattingProvider: IContextKey<boolean>;
-	private _hasSignatureHelpProvider: IContextKey<boolean>;
-	private _isInWalkThrough: IContextKey<boolean>;
+	private readonly _langId: IContextKey<string>;
+	private readonly _hasCompletionItemProvider: IContextKey<boolean>;
+	private readonly _hasCodeActionsProvider: IContextKey<boolean>;
+	private readonly _hasCodeLensProvider: IContextKey<boolean>;
+	private readonly _hasDefinitionProvider: IContextKey<boolean>;
+	private readonly _hasDeclarationProvider: IContextKey<boolean>;
+	private readonly _hasImplementationProvider: IContextKey<boolean>;
+	private readonly _hasTypeDefinitionProvider: IContextKey<boolean>;
+	private readonly _hasHoverProvider: IContextKey<boolean>;
+	private readonly _hasDocumentHighlightProvider: IContextKey<boolean>;
+	private readonly _hasDocumentSymbolProvider: IContextKey<boolean>;
+	private readonly _hasReferenceProvider: IContextKey<boolean>;
+	private readonly _hasRenameProvider: IContextKey<boolean>;
+	private readonly _hasDocumentFormattingProvider: IContextKey<boolean>;
+	private readonly _hasDocumentSelectionFormattingProvider: IContextKey<boolean>;
+	private readonly _hasSignatureHelpProvider: IContextKey<boolean>;
+	private readonly _isInWalkThrough: IContextKey<boolean>;
 
 	constructor(
 		editor: CodeEditorWidget,
@@ -1751,7 +1751,7 @@ export class EditorModeContext extends Disposable {
 class CodeEditorWidgetFocusTracker extends Disposable {
 
 	private _hasFocus: boolean;
-	private _domFocusTracker: dom.IFocusTracker;
+	private readonly _domFocusTracker: dom.IFocusTracker;
 
 	private readonly _onChange: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onChange: Event<void> = this._onChange.event;

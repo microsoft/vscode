@@ -32,21 +32,21 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 
 	private static readonly ID = 'editor.contrib.referencesController';
 
-	private _editor: ICodeEditor;
+	private readonly _editor: ICodeEditor;
 	private _widget: ReferenceWidget | null;
 	private _model: ReferencesModel | null;
 	private _requestIdPool = 0;
 	private _disposables: IDisposable[] = [];
 	private _ignoreModelChangeEvent = false;
 
-	private _referenceSearchVisible: IContextKey<boolean>;
+	private readonly _referenceSearchVisible: IContextKey<boolean>;
 
 	public static get(editor: ICodeEditor): ReferencesController {
 		return editor.getContribution<ReferencesController>(ReferencesController.ID);
 	}
 
 	public constructor(
-		private _defaultTreeKeyboardSupport: boolean,
+		private readonly _defaultTreeKeyboardSupport: boolean,
 		editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICodeEditorService private readonly _editorService: ICodeEditorService,

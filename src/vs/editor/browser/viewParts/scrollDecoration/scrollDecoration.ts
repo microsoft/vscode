@@ -14,7 +14,7 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 
 export class ScrollDecorationViewPart extends ViewPart {
 
-	private _domNode: FastDomNode<HTMLElement>;
+	private readonly _domNode: FastDomNode<HTMLElement>;
 	private _scrollTop: number;
 	private _width: number;
 	private _shouldShow: boolean;
