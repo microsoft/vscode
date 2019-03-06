@@ -517,7 +517,8 @@
 		"./vs/workbench/test/electron-browser/api/mainThreadDiagnostics.test.ts",
 		"./vs/workbench/test/electron-browser/api/mainThreadDocumentContentProviders.test.ts",
 		"./vs/workbench/test/electron-browser/api/mock.ts",
-		"./vs/workbench/test/electron-browser/api/testRPCProtocol.ts"
+		"./vs/workbench/test/electron-browser/api/testRPCProtocol.ts",
+		"./vs/workbench/contrib/debug/node/terminals.ts"
 	],
 	"exclude": [
 		"./typings/require-monaco.d.ts",
