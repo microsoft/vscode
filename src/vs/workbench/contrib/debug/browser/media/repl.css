@@ -124,6 +124,7 @@
 
 /* ANSI Codes */
 .monaco-workbench .repl .repl-tree .output.expression .code-bold	{ font-weight: bold; }
+.monaco-workbench .repl .repl-tree .output.expression .code-italic	{ font-style: italic; }
 .monaco-workbench .repl .repl-tree .output.expression .code-underline { text-decoration: underline; }
 
 /* Regular and bright color codes are currently treated the same. */

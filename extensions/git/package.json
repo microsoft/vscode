@@ -1150,6 +1150,7 @@
             "%config.postCommitCommand.sync%"
           ],
           "markdownDescription": "%config.postCommitCommand%",
+          "scope": "resource",
           "default": "none"
         },
         "git.showInlineOpenFileAction": {

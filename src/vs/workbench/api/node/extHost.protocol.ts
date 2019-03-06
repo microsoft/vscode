@@ -860,9 +860,9 @@ export interface WorkspaceSymbolsDto extends IdObject {
 }
 
 export interface ResourceFileEditDto {
-	oldUri: UriComponents;
-	newUri: UriComponents;
-	options: IFileOperationOptions;
+	oldUri?: UriComponents;
+	newUri?: UriComponents;
+	options?: IFileOperationOptions;
 }
 
 export interface ResourceTextEditDto {

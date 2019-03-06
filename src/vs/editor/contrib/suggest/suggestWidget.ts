@@ -547,23 +547,15 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 
 		item.resolve(CancellationToken.None).then(() => {
 			this.onDidSelectEmitter.fire({ item, index, model: completionModel });
-			alert(nls.localize('suggestionAriaAccepted', "{0}, accepted", item.completion.label));
 			this.editor.focus();
 		});
 	}
 
 	private _getSuggestionAriaAlertLabel(item: CompletionItem): string {
-		const isSnippet = item.completion.kind === CompletionItemKind.Snippet;
-
-		if (!canExpandCompletionItem(item)) {
-			return isSnippet ? nls.localize('ariaCurrentSnippetSuggestion', "{0}, snippet suggestion", item.completion.label)
-				: nls.localize('ariaCurrentSuggestion', "{0}, suggestion", item.completion.label);
-		} else if (this.expandDocsSettingFromStorage()) {
-			return isSnippet ? nls.localize('ariaCurrentSnippeSuggestionReadDetails', "{0}, snippet suggestion. Reading details. {1}", item.completion.label, this.details.getAriaLabel())
-				: nls.localize('ariaCurrenttSuggestionReadDetails', "{0}, suggestion. Reading details. {1}", item.completion.label, this.details.getAriaLabel());
+		if (this.expandDocsSettingFromStorage()) {
+			return nls.localize('ariaCurrenttSuggestionReadDetails', "Item {0}, docs: {1}", item.completion.label, this.details.getAriaLabel());
 		} else {
-			return isSnippet ? nls.localize('ariaCurrentSnippetSuggestionWithDetails', "{0}, snippet suggestion, has details", item.completion.label)
-				: nls.localize('ariaCurrentSuggestionWithDetails', "{0}, suggestion, has details", item.completion.label);
+			return item.completion.label;
 		}
 	}
 

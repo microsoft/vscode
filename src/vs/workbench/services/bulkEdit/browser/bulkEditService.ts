@@ -13,7 +13,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { EndOfLineSequence, IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
 import { isResourceFileEdit, isResourceTextEdit, ResourceFileEdit, ResourceTextEdit, WorkspaceEdit } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
+import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { localize } from 'vs/nls';
 import { IFileService } from 'vs/platform/files/common/files';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -53,7 +53,7 @@ class ModelEditTask implements IDisposable {
 	private _expectedModelVersionId: number | undefined;
 	protected _newEol: EndOfLineSequence;
 
-	constructor(private readonly _modelReference: IReference<ITextEditorModel>) {
+	constructor(private readonly _modelReference: IReference<IResolvedTextEditorModel>) {
 		this._model = this._modelReference.object.textEditorModel;
 		this._edits = [];
 	}
@@ -115,7 +115,7 @@ class EditorEditTask extends ModelEditTask {
 
 	private _editor: ICodeEditor;
 
-	constructor(modelReference: IReference<ITextEditorModel>, editor: ICodeEditor) {
+	constructor(modelReference: IReference<IResolvedTextEditorModel>, editor: ICodeEditor) {
 		super(modelReference);
 		this._editor = editor;
 	}

@@ -65,6 +65,7 @@ import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/n
 import * as vscode from 'vscode';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { originalFSPath } from 'vs/base/common/resources';
+import { CLIServer } from 'vs/workbench/api/node/extHostCLIServer';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription, registry: ExtensionDescriptionRegistry, configProvider: ExtHostConfigProvider): typeof vscode;
@@ -113,7 +114,7 @@ export function createApiFactory(
 	const extHostFileSystem = rpcProtocol.set(ExtHostContext.ExtHostFileSystem, new ExtHostFileSystem(rpcProtocol, extHostLanguageFeatures));
 	const extHostFileSystemEvent = rpcProtocol.set(ExtHostContext.ExtHostFileSystemEventService, new ExtHostFileSystemEventService(rpcProtocol, extHostDocumentsAndEditors));
 	const extHostQuickOpen = rpcProtocol.set(ExtHostContext.ExtHostQuickOpen, new ExtHostQuickOpen(rpcProtocol, extHostWorkspace, extHostCommands));
-	const extHostTerminalService = rpcProtocol.set(ExtHostContext.ExtHostTerminalService, new ExtHostTerminalService(rpcProtocol, extHostConfiguration, extHostLogService, extHostCommands));
+	const extHostTerminalService = rpcProtocol.set(ExtHostContext.ExtHostTerminalService, new ExtHostTerminalService(rpcProtocol, extHostConfiguration, extHostLogService));
 	const extHostDebugService = rpcProtocol.set(ExtHostContext.ExtHostDebugService, new ExtHostDebugService(rpcProtocol, extHostWorkspace, extensionService, extHostDocumentsAndEditors, extHostConfiguration, extHostTerminalService, extHostCommands));
 	const extHostSCM = rpcProtocol.set(ExtHostContext.ExtHostSCM, new ExtHostSCM(rpcProtocol, extHostCommands, extHostLogService));
 	const extHostComment = rpcProtocol.set(ExtHostContext.ExtHostComments, new ExtHostComments(rpcProtocol, extHostCommands, extHostDocuments));
@@ -124,6 +125,10 @@ export function createApiFactory(
 	const extHostProgress = rpcProtocol.set(ExtHostContext.ExtHostProgress, new ExtHostProgress(rpcProtocol.getProxy(MainContext.MainThreadProgress)));
 	const extHostOutputService = rpcProtocol.set(ExtHostContext.ExtHostOutputService, new ExtHostOutputService(initData.logsLocation, rpcProtocol));
 	rpcProtocol.set(ExtHostContext.ExtHostStorage, extHostStorage);
+	if (initData.remoteAuthority) {
+		const cliServer = new CLIServer(extHostCommands);
+		process.env['VSCODE_IPC_HOOK_CLI'] = cliServer.ipcHandlePath;
+	}
 
 	// Check that no named customers are missing
 	const expected: ProxyIdentifier<any>[] = Object.keys(ExtHostContext).map((key) => (<any>ExtHostContext)[key]);
@@ -175,23 +180,6 @@ export function createApiFactory(
 			};
 		})();
 
-		// Warn when trying to use the vscode.previewHtml command as it does not work properly in all scenarios and
-		// has security concerns.
-		const checkCommand = (() => {
-			let done = false;
-			const informOnce = () => {
-				if (!done) {
-					done = true;
-					window.showWarningMessage(localize('previewHtml.deprecated', "Extension '{0}' uses the 'vscode.previewHtml' command which is deprecated and will be removed soon. Please file an issue against this extension to update to use VS Code's webview API.", extension.identifier.value));
-				}
-			};
-			return (commandId: string) => {
-				if (commandId === 'vscode.previewHtml') {
-					informOnce();
-				}
-				return commandId;
-			};
-		})();
 
 		// namespace: commands
 		const commands: typeof vscode.commands = {
@@ -232,7 +220,7 @@ export function createApiFactory(
 				});
 			}),
 			executeCommand<T>(id: string, ...args: any[]): Thenable<T> {
-				return extHostCommands.executeCommand<T>(checkCommand(id), ...args);
+				return extHostCommands.executeCommand<T>(id, ...args);
 			},
 			getCommands(filterInternal: boolean = false): Thenable<string[]> {
 				return extHostCommands.getCommands(filterInternal);

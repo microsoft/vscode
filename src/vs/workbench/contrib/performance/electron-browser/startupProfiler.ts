@@ -87,7 +87,7 @@ export class StartupProfiler implements IWorkbenchContribution {
 							message: localize('prof.thanks', "Thanks for helping us."),
 							detail: localize('prof.detail.restart', "A final restart is required to continue to use '{0}'. Again, thank you for your contribution.", this._environmentService.appNameLong),
 							primaryButton: localize('prof.restart', "Restart"),
-							secondaryButton: null
+							secondaryButton: undefined
 						}).then(() => {
 							// now we are ready to restart
 							this._windowsService.relaunch({ removeArgs });

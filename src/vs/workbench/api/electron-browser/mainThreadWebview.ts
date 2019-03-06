@@ -11,7 +11,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ExtHostContext, ExtHostWebviewsShape, IExtHostContext, MainContext, MainThreadWebviewsShape, WebviewPanelHandle, WebviewPanelShowOptions, WebviewInsetHandle } from 'vs/workbench/api/node/extHost.protocol';
 import { editorGroupToViewColumn, EditorViewColumn, viewColumnToEditorGroup } from 'vs/workbench/api/shared/editor';
 import { WebviewEditor } from 'vs/workbench/contrib/webview/electron-browser/webviewEditor';
-import { WebviewEditorInput } from 'vs/workbench/contrib/webview/electron-browser/webviewEditorInput';
+import { WebviewEditorInput, RevivedWebviewEditorInput } from 'vs/workbench/contrib/webview/electron-browser/webviewEditorInput';
 import { ICreateWebViewShowOptions, IWebviewEditorService, WebviewInputOptions, WebviewReviver } from 'vs/workbench/contrib/webview/electron-browser/webviewEditorService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -62,7 +62,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		_editorService.onDidActiveEditorChange(this.onActiveEditorChanged, this, this._toDispose);
 		_editorService.onDidVisibleEditorsChange(this.onVisibleEditorsChanged, this, this._toDispose);
 
-		this._toDispose.push(_webviewService.registerReviver(MainThreadWebviews.viewType, this));
+		this._toDispose.push(_webviewService.registerReviver(this));
 
 		lifecycleService.onBeforeShutdown(e => {
 			e.veto(this._onBeforeShutdown());
@@ -242,11 +242,11 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 	}
 
 	public canRevive(webview: WebviewEditorInput): boolean {
-		if (webview.isDisposed() || !webview.state) {
+		if (webview.isDisposed() || !webview.state || webview.viewType !== MainThreadWebviews.viewType) {
 			return false;
 		}
 
-		return this._revivers.has(webview.state.viewType) || !!webview.reviver;
+		return this._revivers.has(webview.state.viewType) || !!(webview as RevivedWebviewEditorInput).reviver;
 	}
 
 	private _onBeforeShutdown(): boolean {

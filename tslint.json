@@ -486,6 +486,13 @@
 				]
 			},
 			{
+				"target": "**/vs/workbench/contrib/terminal/browser/**",
+				"restrictions": [
+					"vscode-xterm",
+					"**/vs/**"
+				]
+			},
+			{
 				"target": "**/vs/code/node/**",
 				"restrictions": [
 					"vs/nls",

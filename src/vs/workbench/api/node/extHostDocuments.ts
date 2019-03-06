@@ -60,7 +60,7 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 		if (!resource) {
 			return undefined;
 		}
-		const data = this._documentsAndEditors.getDocument(resource.toString());
+		const data = this._documentsAndEditors.getDocument(resource);
 		if (data) {
 			return data;
 		}
@@ -77,7 +77,7 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 
 	public ensureDocumentData(uri: URI): Promise<ExtHostDocumentData> {
 
-		let cached = this._documentsAndEditors.getDocument(uri.toString());
+		let cached = this._documentsAndEditors.getDocument(uri);
 		if (cached) {
 			return Promise.resolve(cached);
 		}
@@ -86,7 +86,7 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 		if (!promise) {
 			promise = this._proxy.$tryOpenDocument(uri).then(() => {
 				this._documentLoader.delete(uri.toString());
-				return this._documentsAndEditors.getDocument(uri.toString());
+				return this._documentsAndEditors.getDocument(uri);
 			}, err => {
 				this._documentLoader.delete(uri.toString());
 				return Promise.reject(err);
@@ -103,8 +103,7 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 
 	public $acceptModelModeChanged(uriComponents: UriComponents, oldModeId: string, newModeId: string): void {
 		const uri = URI.revive(uriComponents);
-		const strURL = uri.toString();
-		let data = this._documentsAndEditors.getDocument(strURL);
+		let data = this._documentsAndEditors.getDocument(uri);
 
 		// Treat a mode change as a remove + add
 
@@ -115,16 +114,14 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 
 	public $acceptModelSaved(uriComponents: UriComponents): void {
 		const uri = URI.revive(uriComponents);
-		const strURL = uri.toString();
-		let data = this._documentsAndEditors.getDocument(strURL);
+		let data = this._documentsAndEditors.getDocument(uri);
 		this.$acceptDirtyStateChanged(uriComponents, false);
 		this._onDidSaveDocument.fire(data.document);
 	}
 
 	public $acceptDirtyStateChanged(uriComponents: UriComponents, isDirty: boolean): void {
 		const uri = URI.revive(uriComponents);
-		const strURL = uri.toString();
-		let data = this._documentsAndEditors.getDocument(strURL);
+		let data = this._documentsAndEditors.getDocument(uri);
 		data._acceptIsDirty(isDirty);
 		this._onDidChangeDocument.fire({
 			document: data.document,
@@ -134,8 +131,7 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 
 	public $acceptModelChanged(uriComponents: UriComponents, events: IModelChangedEvent, isDirty: boolean): void {
 		const uri = URI.revive(uriComponents);
-		const strURL = uri.toString();
-		let data = this._documentsAndEditors.getDocument(strURL);
+		let data = this._documentsAndEditors.getDocument(uri);
 		data._acceptIsDirty(isDirty);
 		data.onEvents(events);
 		this._onDidChangeDocument.fire({

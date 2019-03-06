@@ -411,6 +411,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 
 		const activeEditor = this._group.activeEditor;
+		if (!activeEditor) {
+			return Promise.resolve();
+		}
+
 		options.pinned = this._group.isPinned(activeEditor);	// preserve pinned state
 		options.preserveFocus = true;							// handle focus after editor is opened
 
@@ -561,7 +565,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Pin preview editor once user disables preview
 		if (event.oldPartOptions.enablePreview && !event.newPartOptions.enablePreview) {
-			this.pinEditor(this._group.previewEditor);
+			if (this._group.previewEditor) {
+				this.pinEditor(this._group.previewEditor);
+			}
 		}
 	}
 
@@ -705,7 +711,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this._onDidFocus.fire();
 	}
 
-	pinEditor(editor: EditorInput = this.activeEditor): void {
+	pinEditor(editor: EditorInput | undefined = this.activeEditor || undefined): void {
 		if (editor && !this._group.isPinned(editor)) {
 
 			// Update model
@@ -743,7 +749,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this.doOpenEditor(editor, options);
 	}
 
-	private doOpenEditor(editor: EditorInput, options?: EditorOptions): Promise<IEditor> {
+	private doOpenEditor(editor: EditorInput, options?: EditorOptions): Promise<IEditor | null> {
 
 		// Determine options
 		const openEditorOptions: IEditorOpenOptions = {
@@ -752,7 +758,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			active: this._group.count === 0 || !options || !options.inactive
 		};
 
-		if (!openEditorOptions.active && !openEditorOptions.pinned && this._group.isPreview(this._group.activeEditor)) {
+		if (!openEditorOptions.active && !openEditorOptions.pinned && this._group.activeEditor && this._group.isPreview(this._group.activeEditor)) {
 			// Special case: we are to open an editor inactive and not pinned, but the current active
 			// editor is also not pinned, which means it will get replaced with this one. As such,
 			// the editor can only be active.
@@ -781,13 +787,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this._group.openEditor(editor, openEditorOptions);
 
 		// Show editor
-		return this.doShowEditor(editor, openEditorOptions.active, options);
+		return this.doShowEditor(editor, !!openEditorOptions.active, options);
 	}
 
-	private doShowEditor(editor: EditorInput, active: boolean, options?: EditorOptions): Promise<IEditor> {
+	private doShowEditor(editor: EditorInput, active: boolean, options?: EditorOptions): Promise<IEditor | null> {
 
 		// Show in editor control if the active editor changed
-		let openEditorPromise: Promise<IEditor>;
+		let openEditorPromise: Promise<IEditor | null>;
 		if (active) {
 			openEditorPromise = this.editorControl.openEditor(editor, options).then(result => {
 
@@ -830,7 +836,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				actions
 			});
 
-			Event.once(handle.onDidClose)(() => dispose(actions.primary));
+			Event.once(handle.onDidClose)(() => actions.primary && dispose(actions.primary));
 		}
 
 		// Event
@@ -855,7 +861,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Do not modify original array
 		editors = editors.slice(0);
 
-		let result: IEditor;
+		let result: IEditor | null;
 
 		// Use the first editor as active editor
 		const { editor, options } = editors.shift()!;
@@ -958,7 +964,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region closeEditor()
 
-	closeEditor(editor: EditorInput = this.activeEditor, options?: ICloseEditorOptions): Promise<void> {
+	closeEditor(editor: EditorInput | undefined = this.activeEditor || undefined, options?: ICloseEditorOptions): Promise<void> {
 		if (!editor) {
 			return Promise.resolve();
 		}
@@ -1015,7 +1021,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 
 		// Update model
-		this._group.closeEditor(editorToClose);
+		if (editorToClose) {
+			this._group.closeEditor(editorToClose);
+		}
 
 		// Open next active if there are more to show
 		const nextActiveEditor = this._group.activeEditor;
@@ -1038,7 +1046,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		else {
 
 			// Forward to editor control
-			this.editorControl.closeEditor(editorToClose);
+			if (editorToClose) {
+				this.editorControl.closeEditor(editorToClose);
+			}
 
 			// Restore focus to group container as needed unless group gets closed
 			if (restoreFocus && !closeEmptyGroup) {
@@ -1077,7 +1087,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			return Promise.resolve(false); // no veto
 		}
 
-		const editor = editors.shift();
+		const editor = editors.shift()!;
 
 		// To prevent multiple confirmation dialogs from showing up one after the other
 		// we check if a pending confirmation is currently showing and if so, join that
@@ -1376,8 +1386,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	get maximumWidth(): number { return this.editorControl.maximumWidth; }
 	get maximumHeight(): number { return this.editorControl.maximumHeight; }
 
-	private _onDidChange = this._register(new Relay<{ width: number; height: number; }>());
-	readonly onDidChange: Event<{ width: number; height: number; }> = this._onDidChange.event;
+	private _onDidChange = this._register(new Relay<{ width: number; height: number; } | undefined>());
+	readonly onDidChange: Event<{ width: number; height: number; } | undefined> = this._onDidChange.event;
 
 	layout(width: number, height: number): void {
 		this.dimension = new Dimension(width, height);
@@ -1422,7 +1432,7 @@ class EditorOpeningEvent implements IEditorOpeningEvent {
 	constructor(
 		private _group: GroupIdentifier,
 		private _editor: EditorInput,
-		private _options: EditorOptions
+		private _options: EditorOptions | undefined
 	) {
 	}
 
@@ -1434,7 +1444,7 @@ class EditorOpeningEvent implements IEditorOpeningEvent {
 		return this._editor;
 	}
 
-	get options(): EditorOptions {
+	get options(): EditorOptions | undefined {
 		return this._options;
 	}
 

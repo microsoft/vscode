@@ -169,7 +169,6 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 				return this._mainThreadEditors.$tryApplyWorkspaceEdit({ edits: [resourceEdit] });
 			}
 
-			// TODO@joh bubble this to listener?
 			return Promise.reject(new Error('concurrent_edits'));
 		});
 	}

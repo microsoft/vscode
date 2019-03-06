@@ -8,7 +8,7 @@ import { IAction } from 'vs/base/common/actions';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IPanel } from 'vs/workbench/common/panel';
+import { IPanel, ActivePanelContext, PanelFocusContext } from 'vs/workbench/common/panel';
 import { CompositePart, ICompositeTitleLabel } from 'vs/workbench/browser/parts/compositePart';
 import { Panel, PanelRegistry, Extensions as PanelExtensions, PanelDescriptor } from 'vs/workbench/browser/panel';
 import { IPanelService, IPanelIdentifier } from 'vs/workbench/services/panel/common/panelService';
@@ -29,14 +29,11 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { Dimension, trackFocus } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { ISerializableView } from 'vs/base/browser/ui/grid/grid';
 import { LayoutPriority } from 'vs/base/browser/ui/grid/gridview';
-
-export const ActivePanelContext = new RawContextKey<string>('activePanel', '');
-export const PanelFocusContext = new RawContextKey<boolean>('panelFocus', false);
 
 interface ICachedPanel {
 	id: string;
@@ -66,11 +63,16 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService, IS
 	private _onDidChange = this._register(new Emitter<{ width: number; height: number; }>());
 	get onDidChange(): Event<{ width: number, height: number }> { return this._onDidChange.event; }
 
+	get onDidPanelOpen(): Event<{ panel: IPanel, focus: boolean }> { return Event.map(this.onDidCompositeOpen.event, compositeOpen => ({ panel: compositeOpen.composite, focus: compositeOpen.focus })); }
+	get onDidPanelClose(): Event<IPanel> { return this.onDidCompositeClose.event; }
+
 	private activePanelContextKey: IContextKey<string>;
 	private panelFocusContextKey: IContextKey<boolean>;
-	private blockOpeningPanel: boolean;
+
 	private compositeBar: CompositeBar;
 	private compositeActions: { [compositeId: string]: { activityAction: PanelActivityAction, pinnedAction: ToggleCompositePinnedAction } } = Object.create(null);
+
+	private blockOpeningPanel: boolean;
 	private dimension: Dimension;
 
 	constructor(
@@ -142,25 +144,13 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService, IS
 		this.registerListeners();
 	}
 
-	create(parent: HTMLElement): void {
-		this.element = parent;
-
-		super.create(parent);
-
-		const focusTracker = trackFocus(parent);
-
-		focusTracker.onDidFocus(() => {
-			this.panelFocusContextKey.set(true);
-		});
-		focusTracker.onDidBlur(() => {
-			this.panelFocusContextKey.set(false);
-		});
-	}
-
 	private registerListeners(): void {
-		this._register(this.onDidPanelOpen(({ panel }) => this._onDidPanelOpen(panel)));
-		this._register(this.onDidPanelClose(this._onDidPanelClose, this));
 
+		// Panel open/close
+		this._register(this.onDidPanelOpen(({ panel }) => this.onPanelOpen(panel)));
+		this._register(this.onDidPanelClose(this.onPanelClose, this));
+
+		// Panel register/deregister
 		this._register(this.registry.onDidRegister(panelDescriptor => this.compositeBar.addComposite(panelDescriptor)));
 		this._register(this.registry.onDidDeregister(panelDescriptor => {
 			this.compositeBar.hideComposite(panelDescriptor.id);
@@ -176,17 +166,18 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService, IS
 		// Deactivate panel action on close
 		this._register(this.onDidPanelClose(panel => this.compositeBar.deactivateComposite(panel.getId())));
 
+		// State
 		this.lifecycleService.when(LifecyclePhase.Eventually).then(() => {
 			this._register(this.compositeBar.onDidChange(() => this.saveCachedPanels()));
 			this._register(this.storageService.onDidChangeStorage(e => this.onDidStorageChange(e)));
 		});
 	}
 
-	private _onDidPanelOpen(panel: IPanel): void {
+	private onPanelOpen(panel: IPanel): void {
 		this.activePanelContextKey.set(panel.getId());
 	}
 
-	private _onDidPanelClose(panel: IPanel): void {
+	private onPanelClose(panel: IPanel): void {
 		const id = panel.getId();
 
 		if (this.activePanelContextKey.get() === id) {
@@ -194,12 +185,14 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService, IS
 		}
 	}
 
-	get onDidPanelOpen(): Event<{ panel: IPanel, focus: boolean }> {
-		return Event.map(this.onDidCompositeOpen.event, compositeOpen => ({ panel: compositeOpen.composite, focus: compositeOpen.focus }));
-	}
+	create(parent: HTMLElement): void {
+		this.element = parent;
 
-	get onDidPanelClose(): Event<IPanel> {
-		return this.onDidCompositeClose.event;
+		super.create(parent);
+
+		const focusTracker = this._register(trackFocus(parent));
+		this._register(focusTracker.onDidFocus(() => this.panelFocusContextKey.set(true)));
+		this._register(focusTracker.onDidBlur(() => this.panelFocusContextKey.set(false)));
 	}
 
 	updateStyles(): void {
@@ -303,8 +296,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService, IS
 		const { width, height } = dim1 instanceof Dimension ? dim1 : { width: dim1, height: dim2 };
 
 		if (this.partService.getPanelPosition() === Position.RIGHT) {
-			// Take into account the 1px border when layouting
-			this.dimension = new Dimension(width - 1, height!);
+			this.dimension = new Dimension(width - 1, height!); // Take into account the 1px border when layouting
 		} else {
 			this.dimension = new Dimension(width, height!);
 		}
@@ -321,9 +313,9 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService, IS
 		if (this.dimension) {
 			let availableWidth = this.dimension.width - 40; // take padding into account
 			if (this.toolBar) {
-				// adjust height for global actions showing
-				availableWidth = Math.max(PanelPart.MIN_COMPOSITE_BAR_WIDTH, availableWidth - this.getToolbarWidth());
+				availableWidth = Math.max(PanelPart.MIN_COMPOSITE_BAR_WIDTH, availableWidth - this.getToolbarWidth()); // adjust height for global actions showing
 			}
+
 			this.compositeBar.layout(new Dimension(availableWidth, this.dimension.height));
 		}
 	}
@@ -337,6 +329,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService, IS
 			};
 			this.compositeActions[compositeId] = compositeActions;
 		}
+
 		return compositeActions;
 	}
 
@@ -348,8 +341,10 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService, IS
 				compositeActions.pinnedAction.dispose();
 				delete this.compositeActions[compositeId];
 			}
+
 			return true;
 		}
+
 		return false;
 	}
 
@@ -358,6 +353,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService, IS
 		if (!activePanel) {
 			return 0;
 		}
+
 		return this.toolBar.getItemsWidth();
 	}
 
@@ -396,22 +392,26 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService, IS
 
 	private saveCachedPanels(): void {
 		const state: ICachedPanel[] = [];
+
 		const compositeItems = this.compositeBar.getCompositeBarItems();
 		for (const compositeItem of compositeItems) {
 			state.push({ id: compositeItem.id, pinned: compositeItem.pinned, order: compositeItem.order, visible: compositeItem.visible });
 		}
+
 		this.cachedPanelsValue = JSON.stringify(state);
 	}
 
 	private getCachedPanels(): ICachedPanel[] {
-		const storedStates = <Array<string | ICachedPanel>>JSON.parse(this.cachedPanelsValue);
 		const registeredPanels = this.getPanels();
+
+		const storedStates = <Array<string | ICachedPanel>>JSON.parse(this.cachedPanelsValue);
 		const cachedPanels = <ICachedPanel[]>storedStates.map(c => {
 			const serialized: ICachedPanel = typeof c === 'string' /* migration from pinned states to composites states */ ? <ICachedPanel>{ id: c, pinned: true, order: undefined, visible: true } : c;
 			const registered = registeredPanels.some(p => p.id === serialized.id);
 			serialized.visible = registered ? isUndefinedOrNull(serialized.visible) ? true : serialized.visible : false;
 			return serialized;
 		});
+
 		return cachedPanels;
 	}
 
@@ -420,6 +420,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService, IS
 		if (!this._cachedPanelsValue) {
 			this._cachedPanelsValue = this.getStoredCachedPanelsValue();
 		}
+
 		return this._cachedPanelsValue;
 	}
 

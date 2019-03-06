@@ -11,6 +11,8 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { mkdirp } from 'vs/base/node/pfs';
 import { IURITransformer } from 'vs/base/common/uriIpc';
+import { tmpdir } from 'os';
+import { generateUuid } from 'vs/base/common/uuid';
 
 export type UploadResponse = Buffer | string | undefined;
 
@@ -46,21 +48,21 @@ export class DownloadServiceChannelClient implements IDownloadService {
 
 	constructor(private channel: IChannel, private getUriTransformer: () => IURITransformer) { }
 
-	download(from: URI, to: string): Promise<void> {
+	download(from: URI, to: string = path.join(tmpdir(), generateUuid())): Promise<string> {
 		from = this.getUriTransformer().transformOutgoingURI(from);
 		const dirName = path.dirname(to);
 		let out: fs.WriteStream;
-		return new Promise((c, e) => {
+		return new Promise<string>((c, e) => {
 			return mkdirp(dirName)
 				.then(() => {
 					out = fs.createWriteStream(to);
-					out.once('close', () => c());
+					out.once('close', () => c(to));
 					out.once('error', e);
 					const uploadStream = this.channel.listen<UploadResponse>('upload', from);
 					const disposable = uploadStream(result => {
 						if (result === undefined) {
 							disposable.dispose();
-							out.end(c);
+							out.end(() => c(to));
 						} else if (Buffer.isBuffer(result)) {
 							out.write(result);
 						} else if (typeof result === 'string') {

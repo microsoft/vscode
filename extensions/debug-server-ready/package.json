@@ -23,41 +23,77 @@
 					"launch": {
 						"properties": {
 							"serverReadyAction": {
-								"type": "object",
-								"markdownDescription": "%debug.server.ready.serverReadyAction.description%",
-								"default": {
-									"action": "openExternally"
-								},
-								"properties": {
-									"pattern": {
-										"type": "string",
-										"markdownDescription": "%debug.server.ready.pattern.description%",
-										"default": "listening on port ([0-9]+)"
+								"oneOf": [
+									{
+										"type": "object",
+										"additionalProperties": false,
+										"markdownDescription": "%debug.server.ready.serverReadyAction.description%",
+										"default": {
+											"action": "openExternally"
+										},
+										"properties": {
+											"action": {
+												"type": "string",
+												"enum": [
+													"openExternally"
+												],
+												"enumDescriptions": [
+													"%debug.server.ready.action.openExternally.description%",
+													"%debug.server.ready.action.debugWithChrome.description%"
+												],
+												"markdownDescription": "%debug.server.ready.action.description%",
+												"default": "openExternally"
+											},
+											"pattern": {
+												"type": "string",
+												"markdownDescription": "%debug.server.ready.pattern.description%",
+												"default": "listening on port ([0-9]+)"
+											},
+											"uriFormat": {
+												"type": "string",
+												"markdownDescription": "%debug.server.ready.uriFormat.description%",
+												"default": "http://localhost:%s"
+											}
+										}
 									},
-									"uriFormat": {
-										"type": "string",
-										"markdownDescription": "%debug.server.ready.uriFormat.description%",
-										"default": "http://localhost:%s"
-									},
-									"action": {
-										"type": "string",
-										"enum": [
-											"openExternally",
-											"debugWithChrome"
-										],
-										"enumDescriptions": [
-											"%debug.server.ready.action.openExternally.description%",
-											"%debug.server.ready.action.debugWithChrome.description%"
-										],
-										"markdownDescription": "%debug.server.ready.action.description%",
-										"default": "openExternally"
-									},
-									"webRoot": {
-										"type": "string",
-										"markdownDescription": "%debug.server.ready.webRoot.description%",
-										"default": "${workspaceFolder}"
+									{
+										"type": "object",
+										"additionalProperties": false,
+										"markdownDescription": "%debug.server.ready.serverReadyAction.description%",
+										"default": {
+											"action": "openExternally"
+										},
+										"properties": {
+											"action": {
+												"type": "string",
+												"enum": [
+													"debugWithChrome"
+												],
+												"enumDescriptions": [
+													"%debug.server.ready.action.openExternally.description%",
+													"%debug.server.ready.action.debugWithChrome.description%"
+												],
+												"markdownDescription": "%debug.server.ready.action.description%",
+												"default": "openExternally"
+											},
+											"pattern": {
+												"type": "string",
+												"markdownDescription": "%debug.server.ready.pattern.description%",
+												"default": "listening on port ([0-9]+)"
+											},
+											"uriFormat": {
+												"type": "string",
+												"markdownDescription": "%debug.server.ready.uriFormat.description%",
+												"default": "http://localhost:%s"
+											},
+											"webRoot": {
+												"type": "string",
+												"markdownDescription": "%debug.server.ready.webRoot.description%",
+												"default": "${workspaceFolder}"
+											}
+										}
 									}
-								}
+								]
 							}
 						}
 					}

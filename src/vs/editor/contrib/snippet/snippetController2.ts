@@ -193,7 +193,7 @@ export class SnippetController2 implements IEditorContribution {
 		}
 	}
 
-	cancel(): void {
+	cancel(resetSelection: boolean = false): void {
 		this._inSnippet.reset();
 		this._hasPrevTabstop.reset();
 		this._hasNextTabstop.reset();
@@ -201,6 +201,12 @@ export class SnippetController2 implements IEditorContribution {
 		dispose(this._session);
 		this._session = undefined;
 		this._modelVersionId = -1;
+		if (resetSelection) {
+			// reset selection to the primary cursor when being asked
+			// for. this happens when explicitly cancelling snippet mode,
+			// e.g. when pressing ESC
+			this._editor.setSelections([this._editor.getSelection()!]);
+		}
 	}
 
 	prev(): void {
@@ -257,7 +263,7 @@ registerEditorCommand(new CommandCtor({
 registerEditorCommand(new CommandCtor({
 	id: 'leaveSnippet',
 	precondition: SnippetController2.InSnippetMode,
-	handler: ctrl => ctrl.cancel(),
+	handler: ctrl => ctrl.cancel(true),
 	kbOpts: {
 		weight: KeybindingWeight.EditorContrib + 30,
 		kbExpr: EditorContextKeys.editorTextFocus,

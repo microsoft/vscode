@@ -103,7 +103,7 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 interface ISerializedUntitledEditorInput {
 	resource: string;
 	resourceJSON: object;
-	modeId: string;
+	modeId: string | null;
 	encoding: string;
 }
 

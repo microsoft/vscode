@@ -275,7 +275,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 	private searchBox: SuggestEnabledInput;
 	private extensionsBox: HTMLElement;
 	private primaryActions: IAction[];
-	private secondaryActions: IAction[];
+	private secondaryActions: IAction[] | null;
 	private disposables: IDisposable[] = [];
 	private searchViewletState: object;
 

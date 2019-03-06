@@ -52,8 +52,11 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 	get minimumHeight(): number { return isMacintosh ? 22 / getZoomFactor() : (30 / (this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility') === 'hidden' ? getZoomFactor() : 1)); }
 	get maximumHeight(): number { return isMacintosh ? 22 / getZoomFactor() : (30 / (this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility') === 'hidden' ? getZoomFactor() : 1)); }
 
-	private _onDidChange = this._register(new Emitter<{ width: number; height: number; }>());
+	private _onDidChange = this._register(new Emitter<{ width: number, height: number }>());
 	get onDidChange(): Event<{ width: number, height: number }> { return this._onDidChange.event; }
+
+	private _onMenubarVisibilityChange = this._register(new Emitter<boolean>());
+	get onMenubarVisibilityChange(): Event<boolean> { return this._onMenubarVisibilityChange.event; }
 
 	_serviceBrand: any;
 
@@ -141,6 +144,8 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 			}
 
 			this.adjustTitleMarginToCenter();
+
+			this._onMenubarVisibilityChange.fire(visible);
 		}
 	}
 
@@ -152,10 +157,6 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 				show(this.dragRegion);
 			}
 		}
-	}
-
-	onMenubarVisibilityChange(): Event<boolean> {
-		return this.menubarPart.onVisibilityChange;
 	}
 
 	private onActiveEditorChange(): void {
@@ -179,7 +180,7 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 	}
 
 	private updateRepresentedFilename(): void {
-		const file = toResource(this.editorService.activeEditor, { supportSideBySide: true, filter: 'file' });
+		const file = toResource(this.editorService.activeEditor || null, { supportSideBySide: true, filter: 'file' });
 		const path = file ? file.fsPath : '';
 
 		// Apply to window
@@ -282,7 +283,7 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 		// Compute folder resource
 		// Single Root Workspace: always the root single workspace in this case
 		// Otherwise: root folder of the currently active file if any
-		const folder = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? workspace.folders[0] : this.contextService.getWorkspaceFolder(toResource(editor, { supportSideBySide: true }));
+		const folder = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? workspace.folders[0] : this.contextService.getWorkspaceFolder(toResource(editor || null, { supportSideBySide: true })!);
 
 		// Variables
 		const activeEditorShort = editor ? editor.getTitle(Verbosity.SHORT) : '';
@@ -472,7 +473,7 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 
 			const titleBackground = this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_BACKGROUND : TITLE_BAR_ACTIVE_BACKGROUND);
 			this.element.style.backgroundColor = titleBackground;
-			if (Color.fromHex(titleBackground).isLighter()) {
+			if (titleBackground && Color.fromHex(titleBackground).isLighter()) {
 				addClass(this.element, 'light');
 			} else {
 				removeClass(this.element, 'light');
@@ -494,8 +495,7 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 		const setting = this.configurationService.getValue('window.doubleClickIconToClose');
 		if (setting) {
 			this.appIcon.style['-webkit-app-region'] = 'no-drag';
-		}
-		else {
+		} else {
 			this.appIcon.style['-webkit-app-region'] = 'drag';
 		}
 	}
@@ -582,7 +582,7 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 			runAtThisOrScheduleAtNextAnimationFrame(() => this.adjustTitleMarginToCenter());
 
 			if (this.menubarPart) {
-				const menubarDimension = new Dimension(undefined, dimension.height);
+				const menubarDimension = new Dimension(0, dimension.height);
 				this.menubarPart.layout(menubarDimension);
 			}
 		}
@@ -597,7 +597,7 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 			return super.layout(dim1);
 		}
 
-		const dimensions = new Dimension(dim1, dim2);
+		const dimensions = new Dimension(dim1, dim2!);
 		this.updateLayout(dimensions);
 
 		super.layout(dimensions);

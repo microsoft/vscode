@@ -279,6 +279,9 @@ export class FoldingController implements IEditorContribution {
 					}
 					return foldingModel;
 				});
+			}).then(undefined, (err) => {
+				onUnexpectedError(err);
+				return null;
 			});
 		}
 	}

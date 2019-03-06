@@ -56,6 +56,10 @@ function createGroupIterator(group: SettingsTreeGroupElement): Iterator<ITreeEle
 
 const $ = DOM.$;
 
+interface IFocusEventFromScroll extends KeyboardEvent {
+	fromScroll: true;
+}
+
 const SETTINGS_EDITOR_STATE_KEY = 'settingsEditorState';
 export class SettingsEditor2 extends BaseEditor {
 
@@ -269,9 +273,6 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	layout(dimension: DOM.Dimension): void {
-		// const firstEl = this.settingsTree.getFirstVisibleElement();
-		// const firstElTop = this.settingsTree.getRelativeTop(firstEl);
-
 		this.layoutTrees(dimension);
 
 		const innerWidth = dimension.width - 24 * 2; // 24px padding on left and right
@@ -493,7 +494,7 @@ export class SettingsEditor2 extends BaseEditor {
 			e => {
 				if (DOM.findParentWithClass(e.relatedTarget, 'settings-editor-tree')) {
 					if (this.settingsTree.scrollTop > 0) {
-						const firstElement = this.getFirstVisibleElement();
+						const firstElement = this.settingsTree.firstVisibleElement;
 						this.settingsTree.reveal(firstElement, 0.1);
 						return true;
 					}
@@ -515,7 +516,7 @@ export class SettingsEditor2 extends BaseEditor {
 			e => {
 				if (DOM.findParentWithClass(e.relatedTarget, 'settings-editor-tree')) {
 					if (this.settingsTree.scrollTop < this.settingsTree.scrollHeight) {
-						const lastElement = this.getLastVisibleElement();
+						const lastElement = this.settingsTree.lastVisibleElement;
 						this.settingsTree.reveal(lastElement, 0.9);
 						return true;
 					}
@@ -525,30 +526,6 @@ export class SettingsEditor2 extends BaseEditor {
 			},
 			'settings list focus helper'
 		);
-	}
-
-	private getFirstVisibleElement(nth = 0): SettingsTreeElement | null {
-		// Hack, see https://github.com/Microsoft/vscode/issues/64749
-		const settingItems = this.settingsTree.getHTMLElement().querySelectorAll(AbstractSettingRenderer.CONTENTS_SELECTOR);
-		const firstEl = settingItems[nth] || settingItems[0];
-		if (!firstEl) {
-			return null;
-		}
-
-		const firstSettingId = this.settingRenderers.getIdForDOMElementInSetting(<HTMLElement>firstEl);
-		return this.settingsTreeModel.getElementById(firstSettingId);
-	}
-
-	private getLastVisibleElement(): SettingsTreeElement | null {
-		// Hack, see https://github.com/Microsoft/vscode/issues/64749
-		const settingItems = this.settingsTree.getHTMLElement().querySelectorAll(AbstractSettingRenderer.CONTENTS_SELECTOR);
-		const firstEl = settingItems[settingItems.length - 1];
-		if (!firstEl) {
-			return null;
-		}
-
-		const firstSettingId = this.settingRenderers.getIdForDOMElementInSetting(<HTMLElement>firstEl);
-		return this.settingsTreeModel.getElementById(firstSettingId);
 	}
 
 	private createFocusSink(container: HTMLElement, callback: (e: any) => boolean, label: string): HTMLElement {
@@ -583,13 +560,10 @@ export class SettingsEditor2 extends BaseEditor {
 			if (this.searchResultModel) {
 				if (this.viewState.filterToCategory !== element) {
 					this.viewState.filterToCategory = element;
-					// see https://github.com/Microsoft/vscode/issues/66796
-					setTimeout(() => {
-						this.renderTree();
-						this.settingsTree.scrollTop = 0;
-					}, 0);
+					this.renderTree();
+					this.settingsTree.scrollTop = 0;
 				}
-			} else if (element && (!e.browserEvent || !(<any>e.browserEvent).fromScroll)) {
+			} else if (element && (!e.browserEvent || !(<IFocusEventFromScroll>e.browserEvent).fromScroll)) {
 				this.settingsTree.reveal(element, 0);
 			}
 		}));
@@ -687,7 +661,7 @@ export class SettingsEditor2 extends BaseEditor {
 			return;
 		}
 
-		const elementToSync = this.getFirstVisibleElement(1);
+		const elementToSync = this.settingsTree.firstVisibleElement;
 		const element = elementToSync instanceof SettingsTreeSettingElement ? elementToSync.parent :
 			elementToSync instanceof SettingsTreeGroupElement ? elementToSync :
 				null;
@@ -712,7 +686,7 @@ export class SettingsEditor2 extends BaseEditor {
 			this.tocTree.setSelection([element]);
 
 			const fakeKeyboardEvent = new KeyboardEvent('keydown');
-			(<any>fakeKeyboardEvent).fromScroll = true;
+			(<IFocusEventFromScroll>fakeKeyboardEvent).fromScroll = true;
 			this.tocTree.setFocus([element], fakeKeyboardEvent);
 		}
 	}

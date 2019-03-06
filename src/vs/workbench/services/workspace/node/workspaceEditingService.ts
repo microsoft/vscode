@@ -10,7 +10,6 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { IWindowService, MessageBoxOptions, IWindowsService } from 'vs/platform/windows/common/windows';
 import { IJSONEditingService, JSONEditingError, JSONEditingErrorCode } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, isWorkspaceIdentifier, toWorkspaceIdentifier, IWorkspacesService, rewriteWorkspaceFileForNewLocation } from 'vs/platform/workspaces/common/workspaces';
-import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { StorageService } from 'vs/platform/storage/node/storageService';
@@ -26,6 +25,8 @@ import { isEqual, basename } from 'vs/base/common/resources';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class WorkspaceEditingService implements IWorkspaceEditingService {
 
@@ -35,7 +36,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		@IJSONEditingService private readonly jsonEditingService: IJSONEditingService,
 		@IWorkspaceContextService private readonly contextService: WorkspaceService,
 		@IWindowService private readonly windowService: IWindowService,
-		@IWorkspaceConfigurationService private readonly workspaceConfigurationService: IWorkspaceConfigurationService,
+		@IConfigurationService private readonly workspaceConfigurationService: IConfigurationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IBackupFileService private readonly backupFileService: IBackupFileService,
@@ -329,3 +330,5 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		return this.jsonEditingService.write(toWorkspace.configPath, { key: 'settings', value: targetWorkspaceConfiguration }, true);
 	}
 }
+
+registerSingleton(IWorkspaceEditingService, WorkspaceEditingService, true);

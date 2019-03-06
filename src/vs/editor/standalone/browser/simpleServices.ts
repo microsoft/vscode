@@ -22,7 +22,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { TextEdit, WorkspaceEdit, isResourceTextEdit } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { ITextEditorModel, ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
+import { IResolvedTextEditorModel, ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ITextResourceConfigurationService, ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 import { CommandsRegistry, ICommand, ICommandEvent, ICommandHandler, ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -44,7 +44,7 @@ import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFolde
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 
-export class SimpleModel implements ITextEditorModel {
+export class SimpleModel implements IResolvedTextEditorModel {
 
 	private model: ITextModel;
 	private readonly _onDispose: Emitter<void>;
@@ -98,7 +98,7 @@ export class SimpleEditorModelResolverService implements ITextModelService {
 		this.editor = editor;
 	}
 
-	public createModelReference(resource: URI): Promise<IReference<ITextEditorModel>> {
+	public createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
 		let model: ITextModel | null = withTypedEditor(this.editor,
 			(editor) => this.findModel(editor, resource),
 			(diffEditor) => this.findModel(diffEditor.getOriginalEditor(), resource) || this.findModel(diffEditor.getModifiedEditor(), resource)

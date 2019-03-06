@@ -603,6 +603,8 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		};
 
 		const onDragOver = (event: DragEvent) => {
+			event.preventDefault(); // needed so that the drop event fires (https://stackoverflow.com/questions/21339924/drop-event-not-firing-in-chrome)
+
 			const x = event.screenX - left;
 			if (event.dataTransfer) {
 				event.dataTransfer.dropEffect = 'none';

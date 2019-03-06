@@ -55,7 +55,7 @@ export interface IListContextMenuEvent<T> {
 	browserEvent: UIEvent;
 	element: T | undefined;
 	index: number | undefined;
-	anchor: HTMLElement | { x: number; y: number; } | undefined;
+	anchor: HTMLElement | { x: number; y: number; };
 }
 
 export interface IIdentityProvider<T> {

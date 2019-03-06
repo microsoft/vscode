@@ -111,7 +111,7 @@ class CommandsHistory extends Disposable {
 			entries.forEach(entry => commandHistory.set(entry.key, entry.value));
 		}
 
-		commandCounter = this.storageService.getInteger(CommandsHistory.PREF_KEY_COUNTER, StorageScope.GLOBAL, commandCounter);
+		commandCounter = this.storageService.getNumber(CommandsHistory.PREF_KEY_COUNTER, StorageScope.GLOBAL, commandCounter);
 	}
 
 	push(commandId: string): void {

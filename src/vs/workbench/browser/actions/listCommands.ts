@@ -88,10 +88,12 @@ function expandMultiSelection(focused: List<any> | PagedList<any> | ITree | Obje
 
 		const focus = list.getFocus() ? list.getFocus()[0] : undefined;
 		const selection = list.getSelection();
-		if (selection && selection.indexOf(focus) >= 0) {
+		if (selection && typeof focus === 'number' && selection.indexOf(focus) >= 0) {
 			list.setSelection(selection.filter(s => s !== previousFocus));
 		} else {
-			list.setSelection(selection.concat(focus));
+			if (typeof focus === 'number') {
+				list.setSelection(selection.concat(focus));
+			}
 		}
 	}
 
@@ -636,7 +638,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 				const selectedNode = tree.getNode(start);
 				const parentNode = selectedNode.parent;
 
-				if (!parentNode.parent) { // root
+				if (!parentNode || !parentNode.parent) { // root
 					scope = undefined;
 				} else {
 					scope = parentNode.element;

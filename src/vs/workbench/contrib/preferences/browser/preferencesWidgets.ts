@@ -226,13 +226,17 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 				if (this.settingsGroup.range.startLineNumber - 3 !== 1) {
 					this.editor.focus();
 					const lineNumber = this.settingsGroup.range.startLineNumber - 2;
-					this.editor.setPosition({ lineNumber, column: this.editor.getModel().getLineMinColumn(lineNumber) });
+					if (this.editor.hasModel()) {
+						this.editor.setPosition({ lineNumber, column: this.editor.getModel().getLineMinColumn(lineNumber) });
+					}
 				}
 				break;
 			case KeyCode.DownArrow:
 				const lineNumber = this.isCollapsed() ? this.settingsGroup.range.startLineNumber : this.settingsGroup.range.startLineNumber - 1;
 				this.editor.focus();
-				this.editor.setPosition({ lineNumber, column: this.editor.getModel().getLineMinColumn(lineNumber) });
+				if (this.editor.hasModel()) {
+					this.editor.setPosition({ lineNumber, column: this.editor.getModel().getLineMinColumn(lineNumber) });
+				}
 				break;
 		}
 	}
@@ -286,7 +290,7 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 
 export class FolderSettingsActionItem extends BaseActionItem {
 
-	private _folder: IWorkspaceFolder;
+	private _folder: IWorkspaceFolder | null;
 	private _folderSettingCounts = new Map<string, number>();
 
 	private container: HTMLElement;
@@ -308,17 +312,21 @@ export class FolderSettingsActionItem extends BaseActionItem {
 		this.disposables.push(this.contextService.onDidChangeWorkspaceFolders(() => this.onWorkspaceFoldersChanged()));
 	}
 
-	get folder(): IWorkspaceFolder {
+	get folder(): IWorkspaceFolder | null {
 		return this._folder;
 	}
 
-	set folder(folder: IWorkspaceFolder) {
+	set folder(folder: IWorkspaceFolder | null) {
 		this._folder = folder;
 		this.update();
 	}
 
 	setCount(settingsTarget: URI, count: number): void {
-		const folder = this.contextService.getWorkspaceFolder(settingsTarget).uri;
+		const workspaceFolder = this.contextService.getWorkspaceFolder(settingsTarget);
+		if (!workspaceFolder) {
+			throw new Error('unknown folder');
+		}
+		const folder = workspaceFolder.uri;
 		this._folderSettingCounts.set(folder.toString(), count);
 		this.update();
 	}
@@ -374,8 +382,8 @@ export class FolderSettingsActionItem extends BaseActionItem {
 	private onWorkspaceFoldersChanged(): void {
 		const oldFolder = this._folder;
 		const workspace = this.contextService.getWorkspace();
-		if (this._folder) {
-			this._folder = workspace.folders.filter(folder => folder.uri.toString() === this._folder.uri.toString())[0] || workspace.folders[0];
+		if (oldFolder) {
+			this._folder = workspace.folders.filter(folder => folder.uri.toString() === oldFolder.uri.toString())[0] || workspace.folders[0];
 		}
 		this._folder = this._folder ? this._folder : workspace.folders.length === 1 ? workspace.folders[0] : null;
 
@@ -384,7 +392,7 @@ export class FolderSettingsActionItem extends BaseActionItem {
 		if (this._action.checked) {
 			if ((oldFolder || !this._folder)
 				|| (!oldFolder || this._folder)
-				|| (oldFolder && this._folder && oldFolder.uri.toString() === this._folder.uri.toString())) {
+				|| (oldFolder && this._folder && (oldFolder as IWorkspaceFolder).uri.toString() === (this._folder as IWorkspaceFolder).uri.toString())) {
 				this._action.run(this._folder);
 			}
 		}
@@ -625,9 +633,10 @@ export class SearchWidget extends Widget {
 		const focusTracker = this._register(DOM.trackFocus(this.inputBox.inputElement));
 		this._register(focusTracker.onDidFocus(() => this._onFocus.fire()));
 
-		if (this.options.focusKey) {
-			this._register(focusTracker.onDidFocus(() => this.options.focusKey.set(true)));
-			this._register(focusTracker.onDidBlur(() => this.options.focusKey.set(false)));
+		const focusKey = this.options.focusKey;
+		if (focusKey) {
+			this._register(focusTracker.onDidFocus(() => focusKey.set(true)));
+			this._register(focusTracker.onDidBlur(() => focusKey.set(false)));
 		}
 	}
 

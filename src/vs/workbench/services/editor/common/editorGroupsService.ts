@@ -9,6 +9,7 @@ import { IEditorInput, IEditor, GroupIdentifier, IEditorInputWithOptions, CloseD
 import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IActiveEditor } from 'vs/workbench/services/editor/common/editorService';
+import { IDimension } from 'vs/editor/common/editorCommon';
 
 export const IEditorGroupsService = createDecorator<IEditorGroupsService>('editorGroupsService');
 
@@ -163,6 +164,11 @@ export interface IEditorGroupsService {
 	 * An event for when a group was moved.
 	 */
 	readonly onDidMoveGroup: Event<IEditorGroup>;
+
+	/**
+	 * An event for when the group container is layed out.
+	 */
+	readonly onDidLayout: Event<IDimension>;
 
 	/**
 	 * An active group is the default location for new editors to open.

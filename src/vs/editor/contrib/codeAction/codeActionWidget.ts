@@ -32,6 +32,7 @@ export class CodeActionContextMenu {
 			// cancel when editor went off-dom
 			return Promise.reject(canceled());
 		}
+		this._visible = true;
 		const actions = codeActions.map(action => this.codeActionToAction(action));
 		this._contextMenuService.showContextMenu({
 			getAnchor: () => {

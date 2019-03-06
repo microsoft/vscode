@@ -1,6 +1,6 @@
 {
   "name": "code-oss-dev",
-  "version": "1.32.0",
+  "version": "1.33.0",
   "distro": "d7aadf23b016949c24a43083a0b3deecb8aa81fa",
   "author": {
     "name": "Microsoft Corporation"
@@ -28,7 +28,7 @@
   },
   "dependencies": {
     "applicationinsights": "1.0.8",
-    "gc-signals": "^0.0.1",
+    "gc-signals": "^0.0.2",
     "getmac": "1.4.1",
     "graceful-fs": "4.1.11",
     "http-proxy-agent": "^2.1.0",

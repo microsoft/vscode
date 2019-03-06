@@ -67,7 +67,7 @@ export class MarkersTreeAccessibilityProvider implements IAccessibilityProvider<
 
 	constructor(@ILabelService private readonly labelService: ILabelService) { }
 
-	public getAriaLabel(element: TreeElement): string {
+	public getAriaLabel(element: TreeElement): string | null {
 		if (element instanceof ResourceMarkers) {
 			const path = this.labelService.getUriLabel(element.resource, { relative: true }) || element.resource.fsPath;
 			return Messages.MARKERS_TREE_ARIA_LABEL_RESOURCE(element.markers.length, element.name, paths.dirname(path));
@@ -262,7 +262,7 @@ class MarkerWidget extends Disposable {
 		this._register(toDisposable(() => this.disposables = dispose(this.disposables)));
 	}
 
-	render(element: Marker, filterData: MarkerFilterData): void {
+	render(element: Marker, filterData: MarkerFilterData | undefined): void {
 		this.actionBar.clear();
 		this.multilineActionbar.clear();
 		if (this.disposables.length) {
@@ -310,7 +310,7 @@ class MarkerWidget extends Disposable {
 		this.multilineActionbar.push([action], { icon: true, label: false });
 	}
 
-	private renderMessageAndDetails(element: Marker, filterData: MarkerFilterData) {
+	private renderMessageAndDetails(element: Marker, filterData: MarkerFilterData | undefined) {
 		const { marker, lines } = element;
 		const viewState = this.markersViewModel.getViewModel(element);
 		const multiline = !viewState || viewState.multiline;
@@ -330,7 +330,7 @@ class MarkerWidget extends Disposable {
 		this.renderDetails(marker, filterData, multiline ? lastLineElement : this.messageAndDetailsContainer);
 	}
 
-	private renderDetails(marker: IMarker, filterData: MarkerFilterData, parent: HTMLElement): void {
+	private renderDetails(marker: IMarker, filterData: MarkerFilterData | undefined, parent: HTMLElement): void {
 		dom.addClass(parent, 'details-container');
 		const sourceMatches = filterData && filterData.sourceMatches || [];
 		const codeMatches = filterData && filterData.codeMatches || [];
@@ -557,7 +557,7 @@ export class MarkerViewModel extends Disposable {
 			return this.codeActionsPromise;
 		}
 		return this.getModel(waitForModel)
-			.then(model => {
+			.then<CodeAction[] | null>(model => {
 				if (model) {
 					if (!this.codeActionsPromise) {
 						this.codeActionsPromise = createCancelablePromise(cancellationToken => {
@@ -629,7 +629,7 @@ export class MarkersViewModel extends Disposable {
 
 	private bulkUpdate: boolean = false;
 
-	private hoveredMarker: Marker;
+	private hoveredMarker: Marker | null;
 	private hoverDelayer: Delayer<void> = new Delayer<void>(300);
 
 	constructor(
