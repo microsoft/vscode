@@ -10,7 +10,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { MenuId, MenuRegistry, SyncActionDescriptor, registerAction } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
-import { OutputService, LogContentProvider } from 'vs/workbench/contrib/output/electron-browser/outputServices';
+import { OutputService, LogContentProvider } from 'vs/workbench/contrib/output/browser/outputServices';
 import { ToggleOutputAction, ClearOutputAction, OpenLogOutputFile, ShowLogsOutputChannelAction, OpenOutputLogFileAction } from 'vs/workbench/contrib/output/browser/outputActions';
 import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_PANEL_ID, IOutputService, CONTEXT_IN_OUTPUT, LOG_SCHEME, LOG_MODE_ID, LOG_MIME, CONTEXT_ACTIVE_LOG_OUTPUT } from 'vs/workbench/contrib/output/common/output';
 import { PanelRegistry, Extensions, PanelDescriptor } from 'vs/workbench/browser/panel';

@@ -69,6 +69,7 @@ import 'vs/workbench/services/progress/browser/progressService2';
 import 'vs/workbench/services/editor/browser/codeEditorService';
 import 'vs/workbench/services/broadcast/electron-browser/broadcastService';
 import 'vs/workbench/services/preferences/browser/preferencesService';
+import 'vs/workbench/services/output/node/outputChannelModelService';
 import 'vs/workbench/services/configuration/node/jsonEditingService';
 import 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import 'vs/workbench/services/textfile/common/textFileService';
@@ -155,7 +156,7 @@ import 'vs/workbench/contrib/extensions/browser/extensionsQuickOpen';
 import 'vs/workbench/contrib/extensions/electron-browser/extensionsViewlet';
 
 // Output Panel
-import 'vs/workbench/contrib/output/electron-browser/output.contribution';
+import 'vs/workbench/contrib/output/browser/output.contribution';
 import 'vs/workbench/contrib/output/browser/outputPanel';
 
 // Terminal
