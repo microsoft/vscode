@@ -3944,10 +3944,10 @@ gulp-symdest@^1.1.1:
     queue "^3.1.0"
     vinyl-fs "^2.4.3"
 
-gulp-tsb@2.0.6:
-  version "2.0.6"
-  resolved "https://registry.yarnpkg.com/gulp-tsb/-/gulp-tsb-2.0.6.tgz#2f8fbee9a81cf0da088744d6da2bca457f2893d1"
-  integrity sha512-tSIAPfU9rhbtwMgRWopipWFx3NZg943bCLPcP3LxQJ4KUkSdPVc2ZivCibMojw/7HwJUMjLWQ2NCN0yStTQP0g==
+gulp-tsb@2.0.7:
+  version "2.0.7"
+  resolved "https://registry.yarnpkg.com/gulp-tsb/-/gulp-tsb-2.0.7.tgz#0e8c5cc20643d304979a59e90a6448260b314eba"
+  integrity sha512-9cllqseEkotum/aWHnCTQX/ATD3kyEi1aVzkGp0AEe768uNuU1DqPzRxvyVrfuIPcdYUUvtvmKvEvgIMffNmNA==
   dependencies:
     ansi-colors "^1.0.1"
     fancy-log "^1.3.2"
