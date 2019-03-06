@@ -368,7 +368,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		}
 
 		return this.fileService.resolveFiles(folders.map(resource => ({ resource }))).then((files: IResolveFileResult[]) => {
-			const names = (<IFileStat[]>[]).concat(...files.map(result => result.success ? (result.stat.children || []) : [])).map(c => c.name);
+			const names = (<IFileStat[]>[]).concat(...files.map(result => result.success ? (result.stat!.children || []) : [])).map(c => c.name);
 			const nameSet = names.reduce((s, n) => s.add(n.toLowerCase()), new Set());
 
 			if (participant) {
@@ -664,7 +664,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		});
 		return this.fileService.resolveFiles(uris.map(resource => ({ resource }))).then(
 			results => {
-				const names = (<IFileStat[]>[]).concat(...results.map(result => result.success ? (result.stat.children || []) : [])).map(c => c.name);
+				const names = (<IFileStat[]>[]).concat(...results.map(result => result.success ? (result.stat!.children || []) : [])).map(c => c.name);
 				const referencesAzure = WorkspaceStats.searchArray(names, /azure/i);
 				if (referencesAzure) {
 					tags['node'] = true;

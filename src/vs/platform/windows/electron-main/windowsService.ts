@@ -326,10 +326,12 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 		console[severity].apply(console, ...messages);
 	}
 
-	async showItemInFolder(path: string): Promise<void> {
+	async showItemInFolder(path: URI): Promise<void> {
 		this.logService.trace('windowsService#showItemInFolder');
 
-		shell.showItemInFolder(path);
+		if (path.scheme === Schemas.file) {
+			shell.showItemInFolder(path.fsPath);
+		}
 	}
 
 	async getActiveWindowId(): Promise<number | undefined> {

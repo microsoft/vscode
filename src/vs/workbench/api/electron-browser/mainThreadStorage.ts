@@ -11,10 +11,10 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 @extHostNamedCustomer(MainContext.MainThreadStorage)
 export class MainThreadStorage implements MainThreadStorageShape {
 
-	private _storageService: IStorageService;
-	private _proxy: ExtHostStorageShape;
-	private _storageListener: IDisposable;
-	private _sharedStorageKeysToWatch: Map<string, boolean> = new Map<string, boolean>();
+	private readonly _storageService: IStorageService;
+	private readonly _proxy: ExtHostStorageShape;
+	private readonly _storageListener: IDisposable;
+	private readonly _sharedStorageKeysToWatch: Map<string, boolean> = new Map<string, boolean>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -24,7 +24,7 @@ export class MainThreadStorage implements MainThreadStorageShape {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostStorage);
 
 		this._storageListener = this._storageService.onDidChangeStorage(e => {
-			let shared = e.scope === StorageScope.GLOBAL;
+			const shared = e.scope === StorageScope.GLOBAL;
 			if (shared && this._sharedStorageKeysToWatch.has(e.key)) {
 				try {
 					this._proxy.$acceptValue(shared, e.key, this._getValue(shared, e.key));
@@ -51,7 +51,7 @@ export class MainThreadStorage implements MainThreadStorageShape {
 	}
 
 	private _getValue<T>(shared: boolean, key: string): T | undefined {
-		let jsonValue = this._storageService.get(key, shared ? StorageScope.GLOBAL : StorageScope.WORKSPACE);
+		const jsonValue = this._storageService.get(key, shared ? StorageScope.GLOBAL : StorageScope.WORKSPACE);
 		if (!jsonValue) {
 			return undefined;
 		}

@@ -210,7 +210,7 @@ export class EditStack {
 	}
 
 	public canUndo(): boolean {
-		return (this.past.length > 0);
+		return (this.past.length > 0) || this.currentOpenStackElement !== null;
 	}
 
 	public redo(): IUndoRedoResult | null {

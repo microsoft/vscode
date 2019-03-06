@@ -11,7 +11,7 @@ import { Action } from 'vs/base/common/actions';
 import * as arrays from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
@@ -69,7 +69,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 	private _owner: string;
 	private _pendingComment: string;
 	private _draftMode: modes.DraftMode;
-	private _localToDispose: IDisposable[];
+	private _submitActionsDisposables: IDisposable[];
 	private _globalToDispose: IDisposable[];
 	private _markdownRenderer: MarkdownRenderer;
 	private _styleElement: HTMLStyleElement;
@@ -117,7 +117,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._draftMode = draftMode;
 		this._isCollapsed = commentThread.collapsibleState !== modes.CommentThreadCollapsibleState.Expanded;
 		this._globalToDispose = [];
-		this._localToDispose = [];
+		this._submitActionsDisposables = [];
 		this._formActions = null;
 		this.create();
 
@@ -296,12 +296,14 @@ export class ReviewZoneWidget extends ZoneWidget {
 	}
 
 	updateDraftMode(draftMode: modes.DraftMode) {
-		this._draftMode = draftMode;
+		if (this._draftMode !== draftMode) {
+			this._draftMode = draftMode;
 
-		if (this._formActions) {
-			let model = this._commentEditor.getModel();
-			dom.clearNode(this._formActions);
-			this.createCommentWidgetActions(this._formActions, model);
+			if (this._formActions) {
+				let model = this._commentEditor.getModel();
+				dom.clearNode(this._formActions);
+				this.createCommentWidgetActions(this._formActions, model);
+			}
 		}
 	}
 
@@ -316,8 +318,8 @@ export class ReviewZoneWidget extends ZoneWidget {
 	display(lineNumber: number) {
 		this._commentGlyph = new CommentGlyphWidget(this.editor, lineNumber);
 
-		this._localToDispose.push(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
-		this._localToDispose.push(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
+		this._disposables.push(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
+		this._disposables.push(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
 		let headHeight = Math.ceil(this.editor.getConfiguration().lineHeight * 1.2);
 		this._headElement.style.height = `${headHeight}px`;
 		this._headElement.style.lineHeight = this._headElement.style.height;
@@ -343,12 +345,12 @@ export class ReviewZoneWidget extends ZoneWidget {
 		});
 		const resource = URI.parse(`${COMMENT_SCHEME}:commentinput-${modeId}.md?${params}`);
 		const model = this.modelService.createModel(this._pendingComment || '', this.modeService.createByFilepathOrFirstLine(resource.path), resource, false);
-		this._localToDispose.push(model);
+		this._disposables.push(model);
 		this._commentEditor.setModel(model);
-		this._localToDispose.push(this._commentEditor);
-		this._localToDispose.push(this._commentEditor.getModel().onDidChangeContent(() => this.setCommentEditorDecorations()));
+		this._disposables.push(this._commentEditor);
+		this._disposables.push(this._commentEditor.getModel().onDidChangeContent(() => this.setCommentEditorDecorations()));
 		if ((this._commentThread as modes.CommentThread2).commentThreadHandle !== undefined) {
-			this._localToDispose.push(this._commentEditor.onDidFocusEditorWidget(() => {
+			this._disposables.push(this._commentEditor.onDidFocusEditorWidget(() => {
 				let commentThread = this._commentThread as modes.CommentThread2;
 				commentThread.input = {
 					uri: this._commentEditor.getModel().uri,
@@ -357,7 +359,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 				this.commentService.setActiveCommentThread(this._commentThread);
 			}));
 
-			this._localToDispose.push(this._commentEditor.getModel().onDidChangeContent(() => {
+			this._disposables.push(this._commentEditor.getModel().onDidChangeContent(() => {
 				let modelContent = this._commentEditor.getValue();
 				let thread = (this._commentThread as modes.CommentThread2);
 				if (thread.input.uri === this._commentEditor.getModel().uri && thread.input.value !== modelContent) {
@@ -367,7 +369,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 				}
 			}));
 
-			this._localToDispose.push((this._commentThread as modes.CommentThread2).onDidChangeInput(input => {
+			this._disposables.push((this._commentThread as modes.CommentThread2).onDidChangeInput(input => {
 				let thread = (this._commentThread as modes.CommentThread2);
 
 				if (thread.input.uri !== this._commentEditor.getModel().uri) {
@@ -389,7 +391,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 				}
 			}));
 
-			this._localToDispose.push((this._commentThread as modes.CommentThread2).onDidChangeComments(_ => {
+			this._disposables.push((this._commentThread as modes.CommentThread2).onDidChangeComments(_ => {
 				this.update(this._commentThread);
 			}));
 		}
@@ -406,7 +408,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 			}
 		}
 
-		this._localToDispose.push(this._commentEditor.onKeyDown((ev: IKeyboardEvent) => {
+		this._disposables.push(this._commentEditor.onKeyDown((ev: IKeyboardEvent) => {
 			const hasExistingComments = this._commentThread.comments.length > 0;
 
 			if (this._commentEditor.getModel().getValueLength() === 0 && ev.keyCode === KeyCode.Escape) {
@@ -432,7 +434,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		if ((this._commentThread as modes.CommentThread2).commentThreadHandle !== undefined) {
 			this.createCommentWidgetActions2(this._formActions, model);
 
-			this._localToDispose.push((this._commentThread as modes.CommentThread2).onDidChangeAcceptInputCommands(_ => {
+			this._disposables.push((this._commentThread as modes.CommentThread2).onDidChangeAcceptInputCommands(_ => {
 				dom.clearNode(this._formActions);
 				this.createCommentWidgetActions2(this._formActions, model);
 			}));
@@ -471,12 +473,14 @@ export class ReviewZoneWidget extends ZoneWidget {
 	}
 
 	private createCommentWidgetActions(container: HTMLElement, model: ITextModel) {
+		dispose(this._submitActionsDisposables);
+
 		const button = new Button(container);
-		this._localToDispose.push(attachButtonStyler(button, this.themeService));
+		this._submitActionsDisposables.push(attachButtonStyler(button, this.themeService));
 		button.label = 'Add comment';
 
 		button.enabled = model.getValueLength() > 0;
-		this._localToDispose.push(this._commentEditor.onDidChangeModelContent(_ => {
+		this._submitActionsDisposables.push(this._commentEditor.onDidChangeModelContent(_ => {
 			if (this._commentEditor.getValue()) {
 				button.enabled = true;
 			} else {
@@ -498,7 +502,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 				const deleteDraftLabel = this.commentService.getDeleteDraftLabel(this._owner);
 				if (deleteDraftLabel) {
 					const deletedraftButton = new Button(container);
-					this._disposables.push(attachButtonStyler(deletedraftButton, this.themeService));
+					this._submitActionsDisposables.push(attachButtonStyler(deletedraftButton, this.themeService));
 					deletedraftButton.label = deleteDraftLabel;
 					deletedraftButton.enabled = true;
 
@@ -514,7 +518,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 				const submitDraftLabel = this.commentService.getFinishDraftLabel(this._owner);
 				if (submitDraftLabel) {
 					const submitdraftButton = new Button(container);
-					this._disposables.push(attachButtonStyler(submitdraftButton, this.themeService));
+					this._submitActionsDisposables.push(attachButtonStyler(submitdraftButton, this.themeService));
 					submitdraftButton.label = this.commentService.getFinishDraftLabel(this._owner);
 					submitdraftButton.enabled = true;
 
@@ -540,7 +544,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 					draftButton.label = this.commentService.getStartDraftLabel(this._owner);
 
 					draftButton.enabled = model.getValueLength() > 0;
-					this._localToDispose.push(this._commentEditor.onDidChangeModelContent(_ => {
+					this._submitActionsDisposables.push(this._commentEditor.onDidChangeModelContent(_ => {
 						if (this._commentEditor.getValue()) {
 							draftButton.enabled = true;
 						} else {
@@ -571,12 +575,12 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 		commentThread.acceptInputCommands.reverse().forEach(command => {
 			const button = new Button(container);
-			this._localToDispose.push(attachButtonStyler(button, this.themeService));
+			this._disposables.push(attachButtonStyler(button, this.themeService));
 
 			button.label = command.title;
 			let commandId = command.id;
 			let args = command.arguments || [];
-			this._localToDispose.push(button.onDidClick(async () => {
+			this._disposables.push(button.onDidClick(async () => {
 				commentThread.input = {
 					uri: this._commentEditor.getModel().uri,
 					value: this._commentEditor.getValue()
@@ -707,8 +711,8 @@ export class ReviewZoneWidget extends ZoneWidget {
 		}
 		this._reviewThreadReplyButton.textContent = nls.localize('reply', "Reply...");
 		// bind click/escape actions for reviewThreadReplyButton and textArea
-		this._localToDispose.push(dom.addDisposableListener(this._reviewThreadReplyButton, 'click', _ => this.expandReplyArea()));
-		this._localToDispose.push(dom.addDisposableListener(this._reviewThreadReplyButton, 'focus', _ => this.expandReplyArea()));
+		this._disposables.push(dom.addDisposableListener(this._reviewThreadReplyButton, 'click', _ => this.expandReplyArea()));
+		this._disposables.push(dom.addDisposableListener(this._reviewThreadReplyButton, 'focus', _ => this.expandReplyArea()));
 
 		this._commentEditor.onDidBlurEditorWidget(() => {
 			if (this._commentEditor.getModel().getValueLength() === 0 && dom.hasClass(this._commentForm, 'expand')) {
@@ -920,7 +924,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		}
 
 		this._globalToDispose.forEach(global => global.dispose());
-		this._localToDispose.forEach(local => local.dispose());
+		this._submitActionsDisposables.forEach(local => local.dispose());
 		this._onDidClose.fire(undefined);
 	}
 }

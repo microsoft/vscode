@@ -209,7 +209,7 @@ export function createScanner(text: string, ignoreTrivia: boolean = false): JSON
 		let digits = 0;
 		let value = 0;
 		while (digits < count) {
-			let ch = text.charCodeAt(pos);
+			const ch = text.charCodeAt(pos);
 			if (ch >= CharacterCodes._0 && ch <= CharacterCodes._9) {
 				value = value * 16 + ch - CharacterCodes._0;
 			}
@@ -240,7 +240,7 @@ export function createScanner(text: string, ignoreTrivia: boolean = false): JSON
 	}
 
 	function scanNumber(): string {
-		let start = pos;
+		const start = pos;
 		if (text.charCodeAt(pos) === CharacterCodes._0) {
 			pos++;
 		} else {
@@ -331,7 +331,7 @@ export function createScanner(text: string, ignoreTrivia: boolean = false): JSON
 						result += '\t';
 						break;
 					case CharacterCodes.u:
-						let ch = scanHexDigits(4);
+						const ch = scanHexDigits(4);
 						if (ch >= 0) {
 							result += String.fromCharCode(ch);
 						} else {
@@ -424,7 +424,7 @@ export function createScanner(text: string, ignoreTrivia: boolean = false): JSON
 
 			// comments
 			case CharacterCodes.slash:
-				let start = pos - 1;
+				const start = pos - 1;
 				// Single-line comment
 				if (text.charCodeAt(pos + 1) === CharacterCodes.slash) {
 					pos += 2;
@@ -444,10 +444,10 @@ export function createScanner(text: string, ignoreTrivia: boolean = false): JSON
 				if (text.charCodeAt(pos + 1) === CharacterCodes.asterisk) {
 					pos += 2;
 
-					let safeLength = len - 1; // For lookahead.
+					const safeLength = len - 1; // For lookahead.
 					let commentClosed = false;
 					while (pos < safeLength) {
-						let ch = text.charCodeAt(pos);
+						const ch = text.charCodeAt(pos);
 
 						if (ch === CharacterCodes.asterisk && text.charCodeAt(pos + 1) === CharacterCodes.slash) {
 							pos += 2;
@@ -720,8 +720,8 @@ interface NodeImpl extends Node {
  * For a given offset, evaluate the location in the JSON document. Each segment in the location path is either a property name or an array index.
  */
 export function getLocation(text: string, position: number): Location {
-	let segments: Segment[] = []; // strings or numbers
-	let earlyReturnException = new Object();
+	const segments: Segment[] = []; // strings or numbers
+	const earlyReturnException = new Object();
 	let previousNode: NodeImpl | undefined = undefined;
 	const previousNodeInst: NodeImpl = {
 		value: {},
@@ -800,7 +800,7 @@ export function getLocation(text: string, position: number): Location {
 					isAtPropertyKey = false;
 					previousNode = undefined;
 				} else if (sep === ',') {
-					let last = segments[segments.length - 1];
+					const last = segments[segments.length - 1];
 					if (typeof last === 'number') {
 						segments[segments.length - 1] = last + 1;
 					} else {
@@ -843,7 +843,7 @@ export function getLocation(text: string, position: number): Location {
 export function parse(text: string, errors: ParseError[] = [], options: ParseOptions = ParseOptions.DEFAULT): any {
 	let currentProperty: string | null = null;
 	let currentParent: any = [];
-	let previousParents: any[] = [];
+	const previousParents: any[] = [];
 
 	function onValue(value: any) {
 		if (Array.isArray(currentParent)) {
@@ -853,9 +853,9 @@ export function parse(text: string, errors: ParseError[] = [], options: ParseOpt
 		}
 	}
 
-	let visitor: JSONVisitor = {
+	const visitor: JSONVisitor = {
 		onObjectBegin: () => {
-			let object = {};
+			const object = {};
 			onValue(object);
 			previousParents.push(currentParent);
 			currentParent = object;
@@ -868,7 +868,7 @@ export function parse(text: string, errors: ParseError[] = [], options: ParseOpt
 			currentParent = previousParents.pop();
 		},
 		onArrayBegin: () => {
-			let array: any[] = [];
+			const array: any[] = [];
 			onValue(array);
 			previousParents.push(currentParent);
 			currentParent = array;
@@ -905,7 +905,7 @@ export function parseTree(text: string, errors: ParseError[] = [], options: Pars
 		return valueNode;
 	}
 
-	let visitor: JSONVisitor = {
+	const visitor: JSONVisitor = {
 		onObjectBegin: (offset: number) => {
 			currentParent = onValue({ type: 'object', offset, length: -1, parent: currentParent, children: [] });
 		},
@@ -945,7 +945,7 @@ export function parseTree(text: string, errors: ParseError[] = [], options: Pars
 	};
 	visit(text, visitor, options);
 
-	let result = currentParent.children![0];
+	const result = currentParent.children![0];
 	if (result) {
 		delete result.parent;
 	}
@@ -977,7 +977,7 @@ export function findNodeAtLocation(root: Node, path: JSONPath): Node | undefined
 				return undefined;
 			}
 		} else {
-			let index = <number>segment;
+			const index = <number>segment;
 			if (node.type !== 'array' || index < 0 || !Array.isArray(node.children) || index >= node.children.length) {
 				return undefined;
 			}
@@ -994,12 +994,12 @@ export function getNodePath(node: Node): JSONPath {
 	if (!node.parent || !node.parent.children) {
 		return [];
 	}
-	let path = getNodePath(node.parent);
+	const path = getNodePath(node.parent);
 	if (node.parent.type === 'property') {
-		let key = node.parent.children[0].value;
+		const key = node.parent.children[0].value;
 		path.push(key);
 	} else if (node.parent.type === 'array') {
-		let index = node.parent.children.indexOf(node);
+		const index = node.parent.children.indexOf(node);
 		if (index !== -1) {
 			path.push(index);
 		}
@@ -1015,9 +1015,9 @@ export function getNodeValue(node: Node): any {
 		case 'array':
 			return node.children!.map(getNodeValue);
 		case 'object':
-			let obj = Object.create(null);
+			const obj = Object.create(null);
 			for (let prop of node.children!) {
-				let valueNode = prop.children![1];
+				const valueNode = prop.children![1];
 				if (valueNode) {
 					obj[prop.children![0].value] = getNodeValue(valueNode);
 				}
@@ -1043,10 +1043,10 @@ export function contains(node: Node, offset: number, includeRightBound = false):
  */
 export function findNodeAtOffset(node: Node, offset: number, includeRightBound = false): Node | undefined {
 	if (contains(node, offset, includeRightBound)) {
-		let children = node.children;
+		const children = node.children;
 		if (Array.isArray(children)) {
 			for (let i = 0; i < children.length && children[i].offset <= offset; i++) {
-				let item = findNodeAtOffset(children[i], offset, includeRightBound);
+				const item = findNodeAtOffset(children[i], offset, includeRightBound);
 				if (item) {
 					return item;
 				}
@@ -1064,7 +1064,7 @@ export function findNodeAtOffset(node: Node, offset: number, includeRightBound =
  */
 export function visit(text: string, visitor: JSONVisitor, options: ParseOptions = ParseOptions.DEFAULT): any {
 
-	let _scanner = createScanner(text, false);
+	const _scanner = createScanner(text, false);
 
 	function toNoArgVisit(visitFunction?: (offset: number, length: number) => void): () => void {
 		return visitFunction ? () => visitFunction(_scanner.getTokenOffset(), _scanner.getTokenLength()) : () => true;
@@ -1073,7 +1073,7 @@ export function visit(text: string, visitor: JSONVisitor, options: ParseOptions 
 		return visitFunction ? (arg: T) => visitFunction(arg, _scanner.getTokenOffset(), _scanner.getTokenLength()) : () => true;
 	}
 
-	let onObjectBegin = toNoArgVisit(visitor.onObjectBegin),
+	const onObjectBegin = toNoArgVisit(visitor.onObjectBegin),
 		onObjectProperty = toOneArgVisit(visitor.onObjectProperty),
 		onObjectEnd = toNoArgVisit(visitor.onObjectEnd),
 		onArrayBegin = toNoArgVisit(visitor.onArrayBegin),
@@ -1083,11 +1083,11 @@ export function visit(text: string, visitor: JSONVisitor, options: ParseOptions 
 		onComment = toNoArgVisit(visitor.onComment),
 		onError = toOneArgVisit(visitor.onError);
 
-	let disallowComments = options && options.disallowComments;
-	let allowTrailingComma = options && options.allowTrailingComma;
+	const disallowComments = options && options.disallowComments;
+	const allowTrailingComma = options && options.allowTrailingComma;
 	function scanNext(): SyntaxKind {
 		while (true) {
-			let token = _scanner.scan();
+			const token = _scanner.scan();
 			switch (_scanner.getTokenError()) {
 				case ScanError.InvalidUnicode:
 					handleError(ParseErrorCode.InvalidUnicode);
@@ -1148,7 +1148,7 @@ export function visit(text: string, visitor: JSONVisitor, options: ParseOptions 
 	}
 
 	function parseString(isValue: boolean): boolean {
-		let value = _scanner.getTokenValue();
+		const value = _scanner.getTokenValue();
 		if (isValue) {
 			onLiteralValue(value);
 		} else {

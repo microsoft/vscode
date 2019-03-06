@@ -142,7 +142,7 @@ export interface MainThreadConfigurationShape extends IDisposable {
 }
 
 export interface MainThreadDiagnosticsShape extends IDisposable {
-	$changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]): void;
+	$changeMany(owner: string, entries: [UriComponents, IMarkerData[] | undefined][]): void;
 	$clear(owner: string): void;
 }
 
@@ -368,7 +368,7 @@ export interface MainThreadProgressShape extends IDisposable {
 }
 
 export interface MainThreadTerminalServiceShape extends IDisposable {
-	$createTerminal(name?: string, shellPath?: string, shellArgs?: string[], cwd?: string | URI, env?: { [key: string]: string }, waitOnExit?: boolean, strictEnv?: boolean): Promise<{ id: number, name: string }>;
+	$createTerminal(name?: string, shellPath?: string, shellArgs?: string[], cwd?: string | UriComponents, env?: { [key: string]: string }, waitOnExit?: boolean, strictEnv?: boolean): Promise<{ id: number, name: string }>;
 	$createTerminalRenderer(name: string): Promise<number>;
 	$dispose(terminalId: number): void;
 	$hide(terminalId: number): void;
@@ -460,7 +460,7 @@ export interface MainThreadQuickOpenShape extends IDisposable {
 	$show(instance: number, options: IPickOptions<TransferQuickPickItems>, token: CancellationToken): Promise<number | number[] | undefined>;
 	$setItems(instance: number, items: TransferQuickPickItems[]): Promise<void>;
 	$setError(instance: number, error: Error): Promise<void>;
-	$input(options: vscode.InputBoxOptions, validateInput: boolean, token: CancellationToken): Promise<string>;
+	$input(options: vscode.InputBoxOptions | undefined, validateInput: boolean, token: CancellationToken): Promise<string>;
 	$createOrUpdate(params: TransferQuickInput): Promise<void>;
 	$dispose(id: number): Promise<void>;
 }
@@ -527,7 +527,7 @@ export interface ExtHostUrlsShape {
 }
 
 export interface MainThreadWorkspaceShape extends IDisposable {
-	$startFileSearch(includePattern: string | undefined, includeFolder: URI | undefined, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Promise<UriComponents[] | undefined>;
+	$startFileSearch(includePattern: string | undefined, includeFolder: UriComponents | undefined, excludePatternOrDisregardExcludes: string | false | undefined, maxResults: number, token: CancellationToken): Promise<UriComponents[] | undefined>;
 	$startTextSearch(query: IPatternInfo, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<vscode.TextSearchComplete>;
 	$checkExists(includes: string[], token: CancellationToken): Promise<boolean>;
 	$saveAll(includeUntitled?: boolean): Promise<boolean>;
@@ -582,7 +582,7 @@ export interface SCMProviderFeatures {
 	count?: number;
 	commitTemplate?: string;
 	acceptInputCommand?: modes.Command;
-	statusBarCommands?: modes.Command[];
+	statusBarCommands?: CommandDto[];
 }
 
 export interface SCMGroupFeatures {
@@ -860,9 +860,9 @@ export interface WorkspaceSymbolsDto extends IdObject {
 }
 
 export interface ResourceFileEditDto {
-	oldUri: UriComponents;
-	newUri: UriComponents;
-	options: IFileOperationOptions;
+	oldUri?: UriComponents;
+	newUri?: UriComponents;
+	options?: IFileOperationOptions;
 }
 
 export interface ResourceTextEditDto {
@@ -965,7 +965,7 @@ export interface ShellLaunchConfigDto {
 	name?: string;
 	executable?: string;
 	args?: string[] | string;
-	cwd?: string | URI;
+	cwd?: string | UriComponents;
 	env?: { [key: string]: string | null };
 }
 
@@ -978,7 +978,7 @@ export interface ExtHostTerminalServiceShape {
 	$acceptTerminalRendererInput(id: number, data: string): void;
 	$acceptTerminalTitleChange(id: number, name: string): void;
 	$acceptTerminalDimensions(id: number, cols: number, rows: number): void;
-	$createProcess(id: number, shellLaunchConfig: ShellLaunchConfigDto, activeWorkspaceRootUri: URI, cols: number, rows: number): void;
+	$createProcess(id: number, shellLaunchConfig: ShellLaunchConfigDto, activeWorkspaceRootUri: UriComponents, cols: number, rows: number): void;
 	$acceptProcessInput(id: number, data: string): void;
 	$acceptProcessResize(id: number, cols: number, rows: number): void;
 	$acceptProcessShutdown(id: number, immediate: boolean): void;

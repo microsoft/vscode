@@ -217,47 +217,16 @@ export default class TypeScriptServiceClientHost extends Disposable {
 			return;
 		}
 
-		(this.findLanguage(this.client.toResource(body.configFile))).then(language => {
+		this.findLanguage(this.client.toResource(body.configFile)).then(language => {
 			if (!language) {
 				return;
 			}
-			if (body.diagnostics.length === 0) {
-				language.configFileDiagnosticsReceived(this.client.toResource(body.configFile), []);
-			} else if (body.diagnostics.length >= 1) {
-				vscode.workspace.openTextDocument(vscode.Uri.file(body.configFile)).then((document) => {
-					let curly: [number, number, number] | undefined = undefined;
-					let nonCurly: [number, number, number] | undefined = undefined;
-					let diagnostic: vscode.Diagnostic;
-					for (let index = 0; index < document.lineCount; index++) {
-						const line = document.lineAt(index);
-						const text = line.text;
-						const firstNonWhitespaceCharacterIndex = line.firstNonWhitespaceCharacterIndex;
-						if (firstNonWhitespaceCharacterIndex < text.length) {
-							if (text.charAt(firstNonWhitespaceCharacterIndex) === '{') {
-								curly = [index, firstNonWhitespaceCharacterIndex, firstNonWhitespaceCharacterIndex + 1];
-								break;
-							} else {
-								const matches = /\s*([^\s]*)(?:\s*|$)/.exec(text.substr(firstNonWhitespaceCharacterIndex));
-								if (matches && matches.length >= 1) {
-									nonCurly = [index, firstNonWhitespaceCharacterIndex, firstNonWhitespaceCharacterIndex + matches[1].length];
-								}
-							}
-						}
-					}
-					const match = curly || nonCurly;
-					if (match) {
-						diagnostic = new vscode.Diagnostic(new vscode.Range(match[0], match[1], match[0], match[2]), body.diagnostics[0].text);
-					} else {
-						diagnostic = new vscode.Diagnostic(new vscode.Range(0, 0, 0, 0), body.diagnostics[0].text);
-					}
-					if (diagnostic) {
-						diagnostic.source = language.diagnosticSource;
-						language.configFileDiagnosticsReceived(this.client.toResource(body.configFile), [diagnostic]);
-					}
-				}, _error => {
-					language.configFileDiagnosticsReceived(this.client.toResource(body.configFile), [new vscode.Diagnostic(new vscode.Range(0, 0, 0, 0), body.diagnostics[0].text)]);
-				});
-			}
+
+			language.configFileDiagnosticsReceived(this.client.toResource(body.configFile), body.diagnostics.map(tsDiag => {
+				const diagnostic = new vscode.Diagnostic(typeConverters.Range.fromTextSpan(tsDiag), body.diagnostics[0].text);
+				diagnostic.source = language.diagnosticSource;
+				return diagnostic;
+			}));
 		});
 	}
 

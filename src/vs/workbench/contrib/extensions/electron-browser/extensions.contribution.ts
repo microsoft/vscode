@@ -33,7 +33,7 @@ import * as jsonContributionRegistry from 'vs/platform/jsonschemas/common/jsonCo
 import { ExtensionsConfigurationSchema, ExtensionsConfigurationSchemaId } from 'vs/workbench/contrib/extensions/common/extensionsFileTemplate';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { KeymapExtensions } from 'vs/workbench/contrib/extensions/electron-browser/extensionsUtils';
+import { KeymapExtensions } from 'vs/workbench/contrib/extensions/common/extensionsUtils';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { GalleryExtensionsHandler, ExtensionsHandler } from 'vs/workbench/contrib/extensions/browser/extensionsQuickOpen';
 import { EditorDescriptor, IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
@@ -70,7 +70,7 @@ Registry.as<IQuickOpenRegistry>(Extensions.Quickopen).registerQuickOpenHandler(
 		ExtensionsHandler,
 		ExtensionsHandler.ID,
 		'ext ',
-		null,
+		undefined,
 		localize('extensionsCommands', "Manage Extensions"),
 		true
 	)
@@ -81,7 +81,7 @@ Registry.as<IQuickOpenRegistry>(Extensions.Quickopen).registerQuickOpenHandler(
 		GalleryExtensionsHandler,
 		GalleryExtensionsHandler.ID,
 		'ext install ',
-		null,
+		undefined,
 		localize('galleryExtensionsCommands', "Install Gallery Extensions"),
 		true
 	)

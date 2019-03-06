@@ -10,7 +10,7 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { ITextAreaWrapper, ITypeData, TextAreaState } from 'vs/editor/browser/controller/textAreaState';
@@ -105,6 +105,7 @@ export class TextAreaInput extends Disposable {
 	private readonly _asyncTriggerCut: RunOnceScheduler;
 
 	private _textAreaState: TextAreaState;
+	private _selectionChangeListener: IDisposable | null;
 
 	private _hasFocus: boolean;
 	private _isDoingComposition: boolean;
@@ -330,8 +331,9 @@ export class TextAreaInput extends Disposable {
 			this._lastTextAreaEvent = TextAreaInputEventType.blur;
 			this._setHasFocus(false);
 		}));
+	}
 
-
+	private _installSelectionChangeListener(): IDisposable {
 		// See https://github.com/Microsoft/vscode/issues/27216
 		// When using a Braille display, it is possible for users to reposition the
 		// system caret. This is reflected in Chrome as a `selectionchange` event.
@@ -351,7 +353,7 @@ export class TextAreaInput extends Disposable {
 		// `selectionchange` events often come multiple times for a single logical change
 		// so throttle multiple `selectionchange` events that burst in a short period of time.
 		let previousSelectionChangeEventTime = 0;
-		this._register(dom.addDisposableListener(document, 'selectionchange', (e) => {
+		return dom.addDisposableListener(document, 'selectionchange', (e) => {
 			if (!this._hasFocus) {
 				return;
 			}
@@ -411,11 +413,15 @@ export class TextAreaInput extends Disposable {
 			);
 
 			this._onSelectionChangeRequest.fire(newSelection);
-		}));
+		});
 	}
 
 	public dispose(): void {
 		super.dispose();
+		if (this._selectionChangeListener) {
+			this._selectionChangeListener.dispose();
+			this._selectionChangeListener = null;
+		}
 	}
 
 	public focusTextArea(): void {
@@ -434,6 +440,14 @@ export class TextAreaInput extends Disposable {
 			return;
 		}
 		this._hasFocus = newHasFocus;
+
+		if (this._selectionChangeListener) {
+			this._selectionChangeListener.dispose();
+			this._selectionChangeListener = null;
+		}
+		if (this._hasFocus) {
+			this._selectionChangeListener = this._installSelectionChangeListener();
+		}
 
 		if (this._hasFocus) {
 			if (browser.isEdge) {

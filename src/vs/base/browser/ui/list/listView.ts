@@ -445,6 +445,15 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	get firstVisibleIndex(): number {
 		const range = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
+		const firstElTop = this.rangeMap.positionAt(range.start);
+		const nextElTop = this.rangeMap.positionAt(range.start + 1);
+		if (nextElTop !== -1) {
+			const firstElMidpoint = (nextElTop - firstElTop) / 2 + firstElTop;
+			if (firstElMidpoint < this.scrollTop) {
+				return range.start + 1;
+			}
+		}
+
 		return range.start;
 	}
 
@@ -786,6 +795,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	private onDragOver(event: IListDragEvent<T>): boolean {
+		event.browserEvent.preventDefault(); // needed so that the drop event fires (https://stackoverflow.com/questions/21339924/drop-event-not-firing-in-chrome)
+
 		this.onDragLeaveTimeout.dispose();
 
 		if (StaticDND.CurrentDragAndDropData && StaticDND.CurrentDragAndDropData.getData() === 'vscode-ui') {
@@ -1079,14 +1090,20 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		}
 
 		const size = item.size;
-		const renderer = this.renderers.get(item.templateId);
 		const row = this.cache.alloc(item.templateId);
 
 		row.domNode!.style.height = '';
 		this.rowsContainer.appendChild(row.domNode!);
+
+		const renderer = this.renderers.get(item.templateId);
 		if (renderer) {
-			renderer.renderElement(item.element, index, row.templateData);
+			renderer.renderElement(item.element, index, row.templateData, true);
+
+			if (renderer.disposeElement) {
+				renderer.disposeElement(item.element, index, row.templateData, true);
+			}
 		}
+
 		item.size = row.domNode!.offsetHeight;
 		item.lastDynamicHeightWidth = this.renderWidth;
 		this.rowsContainer.removeChild(row.domNode!);

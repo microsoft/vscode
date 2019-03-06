@@ -221,7 +221,7 @@ export class BreadcrumbsControl {
 			input = input.master;
 		}
 
-		if (!input || !input.getResource() || (input.getResource().scheme !== Schemas.untitled && !this._fileService.canHandleResource(input.getResource()))) {
+		if (!input || !input.getResource() || (input.getResource()!.scheme !== Schemas.untitled && !this._fileService.canHandleResource(input.getResource()!))) {
 			// cleanup and return when there is no input or when
 			// we cannot handle this input
 			this._ckBreadcrumbsPossible.set(false);
@@ -238,7 +238,7 @@ export class BreadcrumbsControl {
 		this._ckBreadcrumbsPossible.set(true);
 
 		let editor = this._getActiveCodeEditor();
-		let model = new EditorBreadcrumbsModel(input.getResource(), editor, this._workspaceService, this._configurationService);
+		let model = new EditorBreadcrumbsModel(input.getResource()!, editor, this._workspaceService, this._configurationService);
 		dom.toggleClass(this.domNode, 'relative-path', model.isRelative());
 
 		let updateBreadcrumbs = () => {
@@ -435,7 +435,7 @@ export class BreadcrumbsControl {
 		this._ckBreadcrumbsActive.set(value);
 	}
 
-	private _revealInEditor(event: IBreadcrumbsItemEvent, element: any, group: SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE, pinned: boolean = false): void {
+	private _revealInEditor(event: IBreadcrumbsItemEvent, element: any, group: SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | undefined, pinned: boolean = false): void {
 		if (element instanceof FileElement) {
 			if (element.kind === FileKind.FILE) {
 				// open file in any editor
@@ -450,14 +450,16 @@ export class BreadcrumbsControl {
 
 		} else if (element instanceof OutlineElement) {
 			// open symbol in code editor
-			let model = OutlineModel.get(element);
-			this._codeEditorService.openCodeEditor({
-				resource: model.textModel.uri,
-				options: {
-					selection: Range.collapseToStart(element.symbol.selectionRange),
-					revealInCenterIfOutsideViewport: true
-				}
-			}, this._getActiveCodeEditor(), group === SIDE_GROUP);
+			const model = OutlineModel.get(element);
+			if (model) {
+				this._codeEditorService.openCodeEditor({
+					resource: model.textModel.uri,
+					options: {
+						selection: Range.collapseToStart(element.symbol.selectionRange),
+						revealInCenterIfOutsideViewport: true
+					}
+				}, this._getActiveCodeEditor() || null, group === SIDE_GROUP);
+			}
 		}
 	}
 
@@ -640,7 +642,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		}
 		widget.setFocused(undefined);
 		widget.setSelection(undefined);
-		groups.activeGroup.activeControl.focus();
+		if (groups.activeGroup.activeControl) {
+			groups.activeGroup.activeControl.focus();
+		}
 	}
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -651,15 +655,20 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler(accessor) {
 		const editors = accessor.get(IEditorService);
 		const lists = accessor.get(IListService);
-		const element = <OutlineElement | IFileStat>lists.lastFocusedList.getFocus();
+		const element = lists.lastFocusedList ? <OutlineElement | IFileStat>lists.lastFocusedList.getFocus() : undefined;
 		if (element instanceof OutlineElement) {
+			const outlineElement = OutlineModel.get(element);
+			if (!outlineElement) {
+				return undefined;
+			}
+
 			// open symbol in editor
 			return editors.openEditor({
-				resource: OutlineModel.get(element).textModel.uri,
+				resource: outlineElement.textModel.uri,
 				options: { selection: Range.collapseToStart(element.symbol.selectionRange) }
 			}, SIDE_GROUP);
 
-		} else if (URI.isUri(element.resource)) {
+		} else if (element && URI.isUri(element.resource)) {
 			// open file in editor
 			return editors.openEditor({
 				resource: element.resource,

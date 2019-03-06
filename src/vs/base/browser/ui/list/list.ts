@@ -16,8 +16,8 @@ export interface IListVirtualDelegate<T> {
 export interface IListRenderer<T, TTemplateData> {
 	templateId: string;
 	renderTemplate(container: HTMLElement): TTemplateData;
-	renderElement(element: T, index: number, templateData: TTemplateData): void;
-	disposeElement?(element: T, index: number, templateData: TTemplateData): void;
+	renderElement(element: T, index: number, templateData: TTemplateData, dynamicHeightProbing?: boolean): void;
+	disposeElement?(element: T, index: number, templateData: TTemplateData, dynamicHeightProbing?: boolean): void;
 	disposeTemplate(templateData: TTemplateData): void;
 }
 
@@ -55,7 +55,7 @@ export interface IListContextMenuEvent<T> {
 	browserEvent: UIEvent;
 	element: T | undefined;
 	index: number | undefined;
-	anchor: HTMLElement | { x: number; y: number; } | undefined;
+	anchor: HTMLElement | { x: number; y: number; };
 }
 
 export interface IIdentityProvider<T> {

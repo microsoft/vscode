@@ -14,7 +14,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorOptions } from 'vs/workbench/common/editor';
-import { IOutputChannelDescriptor, IOutputChannel, IOutputService, Extensions, OUTPUT_PANEL_ID, IOutputChannelRegistry, OUTPUT_SCHEME, OUTPUT_MIME, LOG_SCHEME, LOG_MIME, CONTEXT_ACTIVE_LOG_OUTPUT, MAX_OUTPUT_LENGTH } from 'vs/workbench/contrib/output/common/output';
+import { IOutputChannelDescriptor, IOutputChannel, IOutputService, Extensions, OUTPUT_PANEL_ID, IOutputChannelRegistry, OUTPUT_SCHEME, OUTPUT_MIME, LOG_SCHEME, LOG_MIME, CONTEXT_ACTIVE_LOG_OUTPUT, MAX_OUTPUT_LENGTH, IFileOutputChannelDescriptor } from 'vs/workbench/contrib/output/common/output';
 import { OutputPanel } from 'vs/workbench/contrib/output/browser/outputPanel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -26,7 +26,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { RunOnceScheduler, ThrottledDelayer } from 'vs/base/common/async';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
-import { IFileService, FileListener } from 'vs/platform/files/common/files';
+import { IFileService } from 'vs/platform/files/common/files';
 import { IPanel } from 'vs/workbench/common/panel';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -44,7 +44,7 @@ import { isNumber } from 'vs/base/common/types';
 const OUTPUT_ACTIVE_CHANNEL_KEY = 'output.activechannel';
 
 let watchingOutputDir = false;
-let callbacks: ((eventType: string, fileName: string) => void)[] = [];
+let callbacks: ((eventType: string, fileName?: string) => void)[] = [];
 function watchOutputDirectory(outputDir: string, logService: ILogService, onChange: (eventType: string, fileName: string) => void): IDisposable {
 	callbacks.push(onChange);
 	if (!watchingOutputDir) {
@@ -65,7 +65,7 @@ function watchOutputDirectory(outputDir: string, logService: ILogService, onChan
 }
 
 interface OutputChannel extends IOutputChannel {
-	readonly file: URI;
+	readonly file: URI | null;
 	readonly onDidAppendedContent: Event<void>;
 	readonly onDispose: Event<void>;
 	loadModel(): Promise<ITextModel>;
@@ -83,14 +83,14 @@ abstract class AbstractFileOutputChannel extends Disposable implements OutputCha
 
 	private readonly mimeType: string;
 	protected modelUpdater: RunOnceScheduler;
-	protected model: ITextModel;
+	protected model: ITextModel | null;
 	readonly file: URI;
 
 	protected startOffset: number = 0;
 	protected endOffset: number = 0;
 
 	constructor(
-		readonly outputChannelDescriptor: IOutputChannelDescriptor,
+		readonly outputChannelDescriptor: IFileOutputChannelDescriptor,
 		private readonly modelUri: URI,
 		protected fileService: IFileService,
 		protected modelService: IModelService,
@@ -154,7 +154,7 @@ abstract class AbstractFileOutputChannel extends Disposable implements OutputCha
 	abstract append(message: string);
 
 	protected onModelCreated(model: ITextModel) { }
-	protected onModelWillDispose(model: ITextModel) { }
+	protected onModelWillDispose(model: ITextModel | null) { }
 	protected onUpdateModelCancelled() { }
 	protected updateModel() { }
 
@@ -176,15 +176,14 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 	private readonly rotatingFilePath: string;
 
 	constructor(
-		outputChannelDescriptor: IOutputChannelDescriptor,
-		outputDir: string,
+		outputChannelDescriptor: IFileOutputChannelDescriptor,
 		modelUri: URI,
 		@IFileService fileService: IFileService,
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
 		@ILogService logService: ILogService
 	) {
-		super({ ...outputChannelDescriptor, file: URI.file(join(outputDir, `${outputChannelDescriptor.id}.log`)) }, modelUri, fileService, modelService, modeService);
+		super(outputChannelDescriptor, modelUri, fileService, modelService, modeService);
 
 		// Use one rotating file to check for main file reset
 		this.appender = new OutputAppender(this.id, this.file.fsPath);
@@ -262,7 +261,7 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 		}
 	}
 
-	private onFileChangedInOutputDirector(eventType: string, fileName: string): void {
+	private onFileChangedInOutputDirector(eventType: string, fileName?: string): void {
 		// Check if rotating file has changed. It changes only when the main file exceeds its limit.
 		if (this.rotatingFilePath === fileName) {
 			this.resettingDelayer.trigger(() => this.resetModel());
@@ -278,19 +277,72 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 	}
 }
 
+class OutputFileListener extends Disposable {
+
+	private readonly _onDidContentChange = new Emitter<number | undefined>();
+	readonly onDidContentChange: Event<number | undefined> = this._onDidContentChange.event;
+
+	private watching: boolean = false;
+	private syncDelayer: ThrottledDelayer<void>;
+	private etag: string | undefined;
+
+	constructor(
+		private readonly file: URI,
+		private readonly fileService: IFileService
+	) {
+		super();
+		this.syncDelayer = new ThrottledDelayer<void>(500);
+	}
+
+	watch(eTag: string | undefined): void {
+		if (!this.watching) {
+			this.etag = eTag;
+			this.poll();
+			this.watching = true;
+		}
+	}
+
+	private poll(): void {
+		const loop = () => this.doWatch().then(() => this.poll());
+		this.syncDelayer.trigger(loop);
+	}
+
+	private doWatch(): Promise<void> {
+		return this.fileService.resolveFile(this.file)
+			.then(stat => {
+				if (stat.etag !== this.etag) {
+					this.etag = stat.etag;
+					this._onDidContentChange.fire(stat.size);
+				}
+			});
+	}
+
+	unwatch(): void {
+		if (this.watching) {
+			this.syncDelayer.cancel();
+			this.watching = false;
+		}
+	}
+
+	dispose(): void {
+		this.unwatch();
+		super.dispose();
+	}
+}
+
 /**
  * An output channel driven by a file and does not support appending messages.
  */
 class FileOutputChannel extends AbstractFileOutputChannel implements OutputChannel {
 
-	private readonly fileHandler: FileListener;
+	private readonly fileHandler: OutputFileListener;
 
 	private updateInProgress: boolean = false;
-	private etag: string = '';
-	private loadModelPromise: Promise<ITextModel> = Promise.resolve(undefined);
+	private etag: string | undefined = '';
+	private loadModelPromise: Promise<ITextModel> | null = null;
 
 	constructor(
-		outputChannelDescriptor: IOutputChannelDescriptor,
+		outputChannelDescriptor: IFileOutputChannelDescriptor,
 		modelUri: URI,
 		@IFileService fileService: IFileService,
 		@IModelService modelService: IModelService,
@@ -298,8 +350,8 @@ class FileOutputChannel extends AbstractFileOutputChannel implements OutputChann
 	) {
 		super(outputChannelDescriptor, modelUri, fileService, modelService, modeService);
 
-		this.fileHandler = this._register(new FileListener(this.file, this.fileService));
-		this._register(this.fileHandler.onDidContentChange(({ size }) => this.update(size)));
+		this.fileHandler = this._register(new OutputFileListener(this.file, this.fileService));
+		this._register(this.fileHandler.onDidContentChange(size => this.update(size)));
 		this._register(toDisposable(() => this.fileHandler.unwatch()));
 	}
 
@@ -314,7 +366,8 @@ class FileOutputChannel extends AbstractFileOutputChannel implements OutputChann
 	}
 
 	clear(till?: number): void {
-		this.loadModelPromise.then(() => {
+		const loadModelPromise: Promise<any> = this.loadModelPromise ? this.loadModelPromise : Promise.resolve();
+		loadModelPromise.then(() => {
 			super.clear(till);
 			this.update();
 		});
@@ -344,7 +397,7 @@ class FileOutputChannel extends AbstractFileOutputChannel implements OutputChann
 		this.fileHandler.watch(this.etag);
 	}
 
-	protected onModelWillDispose(model: ITextModel): void {
+	protected onModelWillDispose(model: ITextModel | null): void {
 		this.fileHandler.unwatch();
 	}
 
@@ -353,13 +406,15 @@ class FileOutputChannel extends AbstractFileOutputChannel implements OutputChann
 	}
 
 	update(size?: number): void {
-		if (!this.updateInProgress) {
-			this.updateInProgress = true;
-			if (isNumber(size) && this.endOffset > size) { // Reset - Content is removed
-				this.startOffset = this.endOffset = 0;
-				this.model.setValue('');
+		if (this.model) {
+			if (!this.updateInProgress) {
+				this.updateInProgress = true;
+				if (isNumber(size) && this.endOffset > size) { // Reset - Content is removed
+					this.startOffset = this.endOffset = 0;
+					this.model.setValue('');
+				}
+				this.modelUpdater.schedule();
 			}
-			this.modelUpdater.schedule();
 		}
 	}
 }
@@ -370,7 +425,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 
 	private channels: Map<string, OutputChannel> = new Map<string, OutputChannel>();
 	private activeChannelIdInStorage: string;
-	private activeChannel: IOutputChannel;
+	private activeChannel: IOutputChannel | null;
 	private readonly outputDir: string;
 
 	private readonly _onActiveOutputChannel = new Emitter<string>();
@@ -392,7 +447,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
-		this.activeChannelIdInStorage = this.storageService.get(OUTPUT_ACTIVE_CHANNEL_KEY, StorageScope.WORKSPACE, null);
+		this.activeChannelIdInStorage = this.storageService.get(OUTPUT_ACTIVE_CHANNEL_KEY, StorageScope.WORKSPACE, '');
 		this.outputDir = join(environmentService.logsPath, `output_${windowService.getCurrentWindowId()}_${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}`);
 
 		// Register as text model content provider for output
@@ -419,7 +474,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		this._register(this.storageService.onWillSaveState(() => this.saveState()));
 	}
 
-	provideTextContent(resource: URI): Promise<ITextModel> {
+	provideTextContent(resource: URI): Promise<ITextModel> | null {
 		const channel = <OutputChannel>this.getChannel(resource.path);
 		if (channel) {
 			return channel.loadModel();
@@ -447,15 +502,15 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		return promise.then(() => this._onActiveOutputChannel.fire(id));
 	}
 
-	getChannel(id: string): IOutputChannel {
-		return this.channels.get(id);
+	getChannel(id: string): IOutputChannel | null {
+		return this.channels.get(id) || null;
 	}
 
 	getChannelDescriptors(): IOutputChannelDescriptor[] {
 		return Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).getChannels();
 	}
 
-	getActiveChannel(): IOutputChannel {
+	getActiveChannel(): IOutputChannel | null {
 		return this.activeChannel;
 	}
 
@@ -469,7 +524,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		}
 	}
 
-	private onDidPanelOpen(panel: IPanel, preserveFocus: boolean): Promise<void> {
+	private onDidPanelOpen(panel: IPanel | null, preserveFocus: boolean): Promise<void> {
 		if (panel && panel.getId() === OUTPUT_PANEL_ID) {
 			this._outputPanel = <OutputPanel>this.panelService.getActivePanel();
 			if (this.activeChannel) {
@@ -506,7 +561,9 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 					this.showChannel(channel.id, true);
 				} else {
 					this.activeChannel = channel;
-					this._onActiveOutputChannel.fire(channel ? channel.id : undefined);
+					if (this.activeChannel) {
+						this._onActiveOutputChannel.fire(this.activeChannel.id);
+					}
 				}
 			}
 			Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).removeChannel(id);
@@ -528,7 +585,8 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 			return this.instantiationService.createInstance(FileOutputChannel, channelData, uri);
 		}
 		try {
-			return this.instantiationService.createInstance(OutputChannelBackedByFile, { id, label: channelData ? channelData.label : '' }, this.outputDir, uri);
+			const channelDescriptor: IFileOutputChannelDescriptor = { id, label: channelData ? channelData.label : '', log: false, file: URI.file(join(this.outputDir, `${id}.log`)) };
+			return this.instantiationService.createInstance(OutputChannelBackedByFile, channelDescriptor, uri);
 		} catch (e) {
 			// Do not crash if spdlog rotating logger cannot be loaded (workaround for https://github.com/Microsoft/vscode/issues/47883)
 			this.logService.error(e);
@@ -584,7 +642,7 @@ export class LogContentProvider {
 	) {
 	}
 
-	provideTextContent(resource: URI): Promise<ITextModel> {
+	provideTextContent(resource: URI): Promise<ITextModel> | null {
 		if (resource.scheme === LOG_SCHEME) {
 			let channel = this.getChannel(resource);
 			if (channel) {
@@ -594,7 +652,7 @@ export class LogContentProvider {
 		return null;
 	}
 
-	private getChannel(resource: URI): OutputChannel {
+	private getChannel(resource: URI): OutputChannel | undefined {
 		const channelId = resource.path;
 		let channel = this.channels.get(channelId);
 		if (!channel) {
@@ -624,9 +682,9 @@ class BufferredOutputChannel extends Disposable implements OutputChannel {
 	readonly onDispose: Event<void> = this._onDispose.event;
 
 	private modelUpdater: RunOnceScheduler;
-	private model: ITextModel;
+	private model: ITextModel | null;
 	private readonly bufferredContent: BufferedContent;
-	private lastReadId: number = undefined;
+	private lastReadId: number | undefined = undefined;
 
 	constructor(
 		protected readonly outputChannelIdentifier: IOutputChannelDescriptor,
@@ -731,7 +789,9 @@ class BufferedContent {
 		while (this.length > MAX_OUTPUT_LENGTH) {
 			this.dataIds.shift();
 			const removed = this.data.shift();
-			this.length -= removed.length;
+			if (removed) {
+				this.length -= removed.length;
+			}
 		}
 	}
 

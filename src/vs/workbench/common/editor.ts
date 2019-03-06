@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { IEditor as ICodeEditor, IEditorViewState, ScrollType, IDiffEditor } from 'vs/editor/common/editorCommon';
 import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput } from 'vs/platform/editor/common/editor';
-import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, IConstructorSignature0, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITextModel } from 'vs/editor/common/model';
@@ -175,7 +175,10 @@ export interface IEditorInputFactoryRegistry {
 	 */
 	getEditorInputFactory(editorInputId: string): IEditorInputFactory;
 
-	setInstantiationService(service: IInstantiationService): void;
+	/**
+	 * Starts the registry by providing the required services.
+	 */
+	start(accessor: ServicesAccessor): void;
 }
 
 export interface IEditorInputFactory {
@@ -530,7 +533,12 @@ export class SideBySideEditorInput extends EditorInput {
 
 	static readonly ID: string = 'workbench.editorinputs.sidebysideEditorInput';
 
-	constructor(private name: string, private description: string, private _details: EditorInput, private _master: EditorInput) {
+	constructor(
+		private readonly name: string,
+		private readonly description: string | null,
+		private readonly _details: EditorInput,
+		private readonly _master: EditorInput
+	) {
 		super();
 
 		this.registerListeners();
@@ -599,7 +607,7 @@ export class SideBySideEditorInput extends EditorInput {
 		return this.name;
 	}
 
-	getDescription(): string {
+	getDescription(): string | null {
 		return this.description;
 	}
 
@@ -678,7 +686,7 @@ export class EditorOptions implements IEditorOptions {
 	/**
 	 * Helper to create EditorOptions inline.
 	 */
-	static create(settings: IEditorOptions): EditorOptions | null {
+	static create(settings: IEditorOptions): EditorOptions {
 		const options = new EditorOptions();
 
 		options.preserveFocus = settings.preserveFocus;
@@ -752,9 +760,9 @@ export class TextEditorOptions extends EditorOptions {
 	private revealInCenterIfOutsideViewport: boolean;
 	private editorViewState: IEditorViewState | null;
 
-	static from(input?: IBaseResourceInput): TextEditorOptions | null {
+	static from(input?: IBaseResourceInput): TextEditorOptions | undefined {
 		if (!input || !input.options) {
-			return null;
+			return undefined;
 		}
 
 		return TextEditorOptions.create(input.options);
@@ -971,7 +979,7 @@ export interface IResourceOptions {
 	filter?: string | string[];
 }
 
-export function toResource(editor: IEditorInput, options?: IResourceOptions): URI | null {
+export function toResource(editor: IEditorInput | null, options?: IResourceOptions): URI | null {
 	if (!editor) {
 		return null;
 	}
@@ -1034,8 +1042,8 @@ class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
 	private editorInputFactoryConstructors: { [editorInputId: string]: IConstructorSignature0<IEditorInputFactory> } = Object.create(null);
 	private editorInputFactoryInstances: { [editorInputId: string]: IEditorInputFactory } = Object.create(null);
 
-	setInstantiationService(service: IInstantiationService): void {
-		this.instantiationService = service;
+	start(accessor: ServicesAccessor): void {
+		this.instantiationService = accessor.get(IInstantiationService);
 
 		for (let key in this.editorInputFactoryConstructors) {
 			const element = this.editorInputFactoryConstructors[key];

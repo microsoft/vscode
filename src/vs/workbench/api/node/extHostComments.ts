@@ -344,7 +344,7 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 	}
 
 	getComment(commentId: string): vscode.Comment | undefined {
-		let comments = this._comments.filter(comment => comment.commentId === commentId);
+		const comments = this._comments.filter(comment => comment.commentId === commentId);
 
 		if (comments && comments.length) {
 			return comments[0];
@@ -480,7 +480,7 @@ class ExtHostCommentControl implements vscode.CommentControl {
 	}
 
 	$onActiveCommentWidgetChange(commentThread: modes.CommentThread2, comment: modes.Comment | undefined, input: string) {
-		let extHostCommentThread = this._threads.get(commentThread.commentThreadHandle);
+		const extHostCommentThread = this._threads.get(commentThread.commentThreadHandle);
 
 		const extHostCommentWidget = new ExtHostCommentWidget(
 			this._proxy,

@@ -15,6 +15,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService, Parts, Position } from 'vs/workbench/services/part/common/partService';
 import { ActivityAction } from 'vs/workbench/browser/parts/compositeBarActions';
 import { IActivity } from 'vs/workbench/common/activity';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export class ClosePanelAction extends Action {
 
@@ -100,6 +101,7 @@ export class TogglePanelPositionAction extends Action {
 		id: string,
 		label: string,
 		@IPartService private readonly partService: IPartService,
+		@IEditorGroupsService editorGroupsService: IEditorGroupsService
 	) {
 		super(id, label, partService.getPanelPosition() === Position.RIGHT ? 'move-panel-to-bottom' : 'move-panel-to-right');
 
@@ -111,7 +113,7 @@ export class TogglePanelPositionAction extends Action {
 			this.label = positionRight ? TogglePanelPositionAction.MOVE_TO_BOTTOM_LABEL : TogglePanelPositionAction.MOVE_TO_RIGHT_LABEL;
 		};
 
-		this.toDispose.push(partService.onEditorLayout(() => setClassAndLabel()));
+		this.toDispose.push(editorGroupsService.onDidLayout(() => setClassAndLabel()));
 
 		setClassAndLabel();
 	}
@@ -143,13 +145,14 @@ export class ToggleMaximizedPanelAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IPartService private readonly partService: IPartService
+		@IPartService private readonly partService: IPartService,
+		@IEditorGroupsService editorGroupsService: IEditorGroupsService
 	) {
 		super(id, label, partService.isPanelMaximized() ? 'minimize-panel-action' : 'maximize-panel-action');
 
 		this.toDispose = [];
 
-		this.toDispose.push(partService.onEditorLayout(() => {
+		this.toDispose.push(editorGroupsService.onDidLayout(() => {
 			const maximized = this.partService.isPanelMaximized();
 			this.class = maximized ? 'minimize-panel-action' : 'maximize-panel-action';
 			this.label = maximized ? ToggleMaximizedPanelAction.RESTORE_LABEL : ToggleMaximizedPanelAction.MAXIMIZE_LABEL;
@@ -249,7 +252,7 @@ export class NextPanelViewAction extends SwitchPanelViewAction {
 		super(id, name, panelService);
 	}
 
-	public run(): Promise<any> {
+	run(): Promise<any> {
 		return super.run(1);
 	}
 }

@@ -19,10 +19,10 @@ import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { originalFSPath, dirname as resourcesDirname, isEqualOrParent, joinPath } from 'vs/base/common/resources';
-import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 
 export interface IStoredWorkspace {
 	folders: IStoredWorkspaceFolder[];
+	remoteAuthority?: string;
 }
 
 export class WorkspacesMainService extends Disposable implements IWorkspacesMainService {
@@ -72,7 +72,8 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 			return {
 				id: workspaceIdentifier.id,
 				configPath: workspaceIdentifier.configPath,
-				folders: toWorkspaceFolders(workspace.folders, resourcesDirname(path))
+				folders: toWorkspaceFolders(workspace.folders, resourcesDirname(path)),
+				remoteAuthority: workspace.remoteAuthority
 			};
 		} catch (error) {
 			this.logService.warn(error.toString());
@@ -103,8 +104,8 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 		return isEqualOrParent(path, this.environmentService.untitledWorkspacesHome);
 	}
 
-	createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[]): Promise<IWorkspaceIdentifier> {
-		const { workspace, storedWorkspace } = this.newUntitledWorkspace(folders);
+	createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[], remoteAuthority?: string): Promise<IWorkspaceIdentifier> {
+		const { workspace, storedWorkspace } = this.newUntitledWorkspace(folders, remoteAuthority);
 		const configPath = workspace.configPath.fsPath;
 
 		return mkdirp(dirname(configPath)).then(() => {
@@ -112,8 +113,8 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 		});
 	}
 
-	createUntitledWorkspaceSync(folders?: IWorkspaceFolderCreationData[]): IWorkspaceIdentifier {
-		const { workspace, storedWorkspace } = this.newUntitledWorkspace(folders);
+	createUntitledWorkspaceSync(folders?: IWorkspaceFolderCreationData[], remoteAuthority?: string): IWorkspaceIdentifier {
+		const { workspace, storedWorkspace } = this.newUntitledWorkspace(folders, remoteAuthority);
 		const configPath = workspace.configPath.fsPath;
 
 		const configPathDir = dirname(configPath);
@@ -130,7 +131,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 		return workspace;
 	}
 
-	private newUntitledWorkspace(folders: IWorkspaceFolderCreationData[] = []): { workspace: IWorkspaceIdentifier, storedWorkspace: IStoredWorkspace } {
+	private newUntitledWorkspace(folders: IWorkspaceFolderCreationData[] = [], remoteAuthority?: string): { workspace: IWorkspaceIdentifier, storedWorkspace: IStoredWorkspace } {
 		const randomId = (Date.now() + Math.round(Math.random() * 1000)).toString();
 		const untitledWorkspaceConfigFolder = joinPath(this.untitledWorkspacesHome, randomId);
 		const untitledWorkspaceConfigPath = joinPath(untitledWorkspaceConfigFolder, UNTITLED_WORKSPACE_NAME);
@@ -143,7 +144,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 
 		return {
 			workspace: this.getWorkspaceIdentifier(untitledWorkspaceConfigPath),
-			storedWorkspace: { folders: storedWorkspaceFolder }
+			storedWorkspace: { folders: storedWorkspaceFolder, remoteAuthority }
 		};
 	}
 
@@ -210,8 +211,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 				if (!resolvedWorkspace) {
 					this.doDeleteUntitledWorkspaceSync(workspace);
 				} else {
-					const remoteAuthority = resolvedWorkspace.folders.length ? getRemoteAuthority(resolvedWorkspace.folders[0].uri) : undefined;
-					untitledWorkspaces.push({ workspace, remoteAuthority });
+					untitledWorkspaces.push({ workspace, remoteAuthority: resolvedWorkspace.remoteAuthority });
 				}
 			}
 		} catch (error) {

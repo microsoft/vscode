@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import 'vs/workbench/contrib/markers/browser/markersFileDecorations';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
-import { KeybindingsRegistry, KeybindingWeight, IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { localize } from 'vs/nls';
 import { Marker, RelatedInformation } from 'vs/workbench/contrib/markers/browser/markersModel';
 import { MarkersPanel } from 'vs/workbench/contrib/markers/browser/markersPanel';
-import { MenuId, MenuRegistry, SyncActionDescriptor, ILocalizedString } from 'vs/platform/actions/common/actions';
+import { MenuId, MenuRegistry, SyncActionDescriptor, registerAction } from 'vs/platform/actions/common/actions';
 import { PanelRegistry, Extensions as PanelExtensions, PanelDescriptor } from 'vs/workbench/browser/panel';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ToggleMarkersPanelAction, ShowProblemsPanelAction } from 'vs/workbench/contrib/markers/browser/markersPanelActions';
@@ -23,9 +23,8 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } fr
 import { IMarkersWorkbenchService, MarkersWorkbenchService, ActivityUpdater } from 'vs/workbench/contrib/markers/browser/markers';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-
-import './markersFileDecorations';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { ActivePanelContext } from 'vs/workbench/common/panel';
 
 registerSingleton(IMarkersWorkbenchService, MarkersWorkbenchService, false);
 
@@ -182,7 +181,7 @@ registerAction({
 	category: localize('problems', "Problems"),
 	menu: {
 		menuId: MenuId.CommandPalette,
-		when: new RawContextKey<string>('activePanel', Constants.MARKERS_PANEL_ID)
+		when: ActivePanelContext.isEqualTo(Constants.MARKERS_PANEL_ID)
 	}
 });
 registerAction({
@@ -198,7 +197,7 @@ registerAction({
 	category: localize('problems', "Problems"),
 	menu: {
 		menuId: MenuId.CommandPalette,
-		when: new RawContextKey<string>('activePanel', Constants.MARKERS_PANEL_ID)
+		when: ActivePanelContext.isEqualTo(Constants.MARKERS_PANEL_ID)
 	}
 });
 
@@ -243,64 +242,6 @@ function focusProblemsFilter(panelService: IPanelService) {
 	const activePanel = panelService.getActivePanel();
 	if (activePanel instanceof MarkersPanel) {
 		activePanel.focusFilter();
-	}
-}
-
-interface IActionDescriptor {
-	id: string;
-	handler: ICommandHandler;
-
-	// ICommandUI
-	title?: ILocalizedString;
-	category?: string;
-	f1?: boolean;
-
-	//
-	menu?: {
-		menuId: MenuId,
-		when?: ContextKeyExpr;
-		group?: string;
-	};
-
-	//
-	keybinding?: {
-		when?: ContextKeyExpr;
-		weight?: number;
-		keys: IKeybindings;
-	};
-}
-
-function registerAction(desc: IActionDescriptor) {
-
-	const { id, handler, title, category, menu, keybinding } = desc;
-
-	// 1) register as command
-	CommandsRegistry.registerCommand(id, handler);
-
-	// 2) menus
-	let command = { id, title, category };
-	if (menu) {
-		let { menuId, when, group } = menu;
-		MenuRegistry.appendMenuItem(menuId, {
-			command,
-			when,
-			group
-		});
-	}
-
-	// 3) keybindings
-	if (keybinding) {
-		let { when, weight, keys } = keybinding;
-		KeybindingsRegistry.registerKeybindingRule({
-			id,
-			when,
-			weight,
-			primary: keys.primary,
-			secondary: keys.secondary,
-			linux: keys.linux,
-			mac: keys.mac,
-			win: keys.win
-		});
 	}
 }
 

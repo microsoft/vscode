@@ -19,6 +19,7 @@ import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
 import { SnippetSession } from './snippetSession';
+import { EditorState, CodeEditorStateFlag } from 'vs/editor/browser/core/editorState';
 
 export class SnippetController2 implements IEditorContribution {
 
@@ -113,10 +114,26 @@ export class SnippetController2 implements IEditorContribution {
 
 		this._updateState();
 
+		// we listen on model and selection changes. usually
+		// both events come in together and this is to prevent
+		// that we don't call _updateState twice.
+		let state: EditorState;
+		let dedupedUpdateState = () => {
+			if (!state || !state.validate(this._editor)) {
+				this._updateState();
+				state = new EditorState(this._editor, CodeEditorStateFlag.Selection | CodeEditorStateFlag.Value);
+			}
+		};
 		this._snippetListener = [
-			this._editor.onDidChangeModelContent(e => e.isFlush && this.cancel()),
+			this._editor.onDidChangeModelContent(e => {
+				if (e.isFlush) {
+					this.cancel();
+				} else {
+					setTimeout(dedupedUpdateState, 0);
+				}
+			}),
+			this._editor.onDidChangeCursorSelection(dedupedUpdateState),
 			this._editor.onDidChangeModel(() => this.cancel()),
-			this._editor.onDidChangeCursorSelection(() => this._updateState())
 		];
 	}
 
@@ -193,7 +210,7 @@ export class SnippetController2 implements IEditorContribution {
 		}
 	}
 
-	cancel(): void {
+	cancel(resetSelection: boolean = false): void {
 		this._inSnippet.reset();
 		this._hasPrevTabstop.reset();
 		this._hasNextTabstop.reset();
@@ -201,6 +218,12 @@ export class SnippetController2 implements IEditorContribution {
 		dispose(this._session);
 		this._session = undefined;
 		this._modelVersionId = -1;
+		if (resetSelection) {
+			// reset selection to the primary cursor when being asked
+			// for. this happens when explicitly cancelling snippet mode,
+			// e.g. when pressing ESC
+			this._editor.setSelections([this._editor.getSelection()!]);
+		}
 	}
 
 	prev(): void {
@@ -257,7 +280,7 @@ registerEditorCommand(new CommandCtor({
 registerEditorCommand(new CommandCtor({
 	id: 'leaveSnippet',
 	precondition: SnippetController2.InSnippetMode,
-	handler: ctrl => ctrl.cancel(),
+	handler: ctrl => ctrl.cancel(true),
 	kbOpts: {
 		weight: KeybindingWeight.EditorContrib + 30,
 		kbExpr: EditorContextKeys.editorTextFocus,

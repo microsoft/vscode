@@ -15,6 +15,7 @@ import { ProgressBadge, IActivityService } from 'vs/workbench/services/activity/
 import { INotificationService, Severity, INotificationHandle, INotificationActions } from 'vs/platform/notification/common/notification';
 import { Action } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class ProgressService2 implements IProgressService2 {
 
@@ -38,8 +39,7 @@ export class ProgressService2 implements IProgressService2 {
 			if (viewlet) {
 				return this._withViewletProgress(location, task);
 			}
-			console.warn(`Bad progress location: ${location}`);
-			return undefined;
+			return Promise.reject(new Error(`Bad progress location: ${location}`));
 		}
 
 		switch (location) {
@@ -54,8 +54,7 @@ export class ProgressService2 implements IProgressService2 {
 			case ProgressLocation.Extensions:
 				return this._withViewletProgress('workbench.view.extensions', task);
 			default:
-				console.warn(`Bad progress location: ${location}`);
-				return undefined;
+				return Promise.reject(new Error(`Bad progress location: ${location}`));
 		}
 	}
 
@@ -267,3 +266,5 @@ export class ProgressService2 implements IProgressService2 {
 		return promise;
 	}
 }
+
+registerSingleton(IProgressService2, ProgressService2, true);

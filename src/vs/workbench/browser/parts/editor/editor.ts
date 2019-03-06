@@ -77,7 +77,7 @@ export interface IEditorOpeningEvent extends IEditorIdentifier {
 	 * to return a promise that resolves to NULL to prevent the opening
 	 * alltogether.
 	 */
-	prevent(callback: () => Promise<IEditor>): void;
+	prevent(callback: () => undefined | Promise<IEditor | undefined>): void;
 }
 
 export interface IEditorGroupsAccessor {

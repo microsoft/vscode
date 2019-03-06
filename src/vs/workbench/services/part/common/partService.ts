@@ -21,13 +21,6 @@ export const enum Position {
 	RIGHT,
 	BOTTOM
 }
-export function PositionToString(position: Position): string {
-	switch (position) {
-		case Position.LEFT: return 'LEFT';
-		case Position.RIGHT: return 'RIGHT';
-		case Position.BOTTOM: return 'BOTTOM';
-	}
-}
 
 export interface ILayoutOptions {
 	toggleMaximizedPanel?: boolean;
@@ -50,9 +43,9 @@ export interface IPartService {
 	onTitleBarVisibilityChange: Event<void>;
 
 	/**
-	 * Emits when the editor part's layout changes.
+	 * Emits when the zen mode is enabled or disabled.
 	 */
-	onEditorLayout: Event<IDimension>;
+	onZenModeChange: Event<boolean>;
 
 	/**
 	 * Asks the part service if all parts have been fully restored. For editor part

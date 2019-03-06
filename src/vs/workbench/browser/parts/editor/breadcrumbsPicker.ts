@@ -25,9 +25,10 @@ import { ResourceLabels, IResourceLabel, DEFAULT_LABELS_CONTAINER } from 'vs/wor
 import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 import { BreadcrumbElement, FileElement } from 'vs/workbench/browser/parts/editor/breadcrumbsModel';
 import { IFileIconTheme, IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { IAsyncDataSource, ITreeRenderer, ITreeNode, ITreeFilter, TreeVisibility, ITreeSorter } from 'vs/base/browser/ui/tree/tree';
+import { IAsyncDataSource, ITreeRenderer, ITreeNode, ITreeFilter, TreeVisibility, ITreeSorter, IDataSource } from 'vs/base/browser/ui/tree/tree';
 import { OutlineVirtualDelegate, OutlineGroupRenderer, OutlineElementRenderer, OutlineItemComparator, OutlineIdentityProvider, OutlineNavigationLabelProvider, OutlineDataSource, OutlineSortOrder, OutlineItem } from 'vs/editor/contrib/documentSymbols/outlineTree';
 import { IIdentityProvider, IListVirtualDelegate, IKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/list/list';
+import { IDataTreeOptions } from 'vs/base/browser/ui/tree/dataTree';
 
 export function createBreadcrumbsPicker(instantiationService: IInstantiationService, parent: HTMLElement, element: BreadcrumbElement): BreadcrumbsPicker {
 	const ctor: IConstructorSignature1<HTMLElement, BreadcrumbsPicker> = element instanceof FileElement
@@ -87,11 +88,11 @@ export abstract class BreadcrumbsPicker {
 
 		this._arrow = document.createElement('div');
 		this._arrow.className = 'arrow';
-		this._arrow.style.borderColor = `transparent transparent ${color.toString()}`;
+		this._arrow.style.borderColor = `transparent transparent ${color ? color.toString() : ''}`;
 		this._domNode.appendChild(this._arrow);
 
 		this._treeContainer = document.createElement('div');
-		this._treeContainer.style.background = color.toString();
+		this._treeContainer.style.background = color ? color.toString() : '';
 		this._treeContainer.style.paddingTop = '2px';
 		this._treeContainer.style.boxShadow = `0px 5px 8px ${this._themeService.getTheme().getColor(widgetShadow)}`;
 		this._domNode.appendChild(this._treeContainer);
@@ -150,13 +151,13 @@ export abstract class BreadcrumbsPicker {
 		this._arrow.style.marginLeft = `${this._layoutInfo.arrowOffset}px`;
 		this._treeContainer.style.height = `${treeHeight}px`;
 		this._treeContainer.style.width = `${this._layoutInfo.width}px`;
-		this._tree.layout();
+		this._tree.layout(treeHeight, this._layoutInfo.width);
 
 	}
 
 	protected abstract _setInput(element: BreadcrumbElement): Promise<void>;
 	protected abstract _createTree(container: HTMLElement): Tree<any, any>;
-	protected abstract _getTargetFromEvent(element: any, payload: UIEvent): any | undefined;
+	protected abstract _getTargetFromEvent(element: any, payload: UIEvent | undefined): any | undefined;
 }
 
 //#region - Files
@@ -219,10 +220,10 @@ class FileDataSource implements IAsyncDataSource<IWorkspace | URI, IWorkspaceFol
 			uri = element.resource;
 		}
 		return this._fileService.resolveFile(uri).then(stat => {
-			for (let child of stat.children) {
+			for (const child of stat.children || []) {
 				this._parents.set(stat, child);
 			}
-			return stat.children;
+			return stat.children || [];
 		});
 	}
 }
@@ -329,7 +330,7 @@ class FileFilter implements ITreeFilter<IWorkspaceFolder | IFileStat> {
 			return true;
 		}
 
-		const expression = this._cachedExpressions.get(folder.uri.toString());
+		const expression = this._cachedExpressions.get(folder.uri.toString())!;
 		return !expression(element.resource.path, basename(element.resource));
 	}
 }
@@ -450,7 +451,14 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 	}
 
 	protected _createTree(container: HTMLElement) {
-		return this._instantiationService.createInstance(
+		return this._instantiationService.createInstance<
+			HTMLElement,
+			IListVirtualDelegate<OutlineItem>,
+			ITreeRenderer<any, FuzzyScore, any>[],
+			IDataSource<OutlineModel, OutlineItem>,
+			IDataTreeOptions<OutlineItem, FuzzyScore>,
+			WorkbenchDataTree<OutlineModel, OutlineItem, FuzzyScore>
+		>(
 			WorkbenchDataTree,
 			container,
 			new OutlineVirtualDelegate(),
@@ -474,7 +482,7 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 
 	protected _setInput(input: BreadcrumbElement): Promise<void> {
 		const element = input as TreeElement;
-		const model = OutlineModel.get(element);
+		const model = OutlineModel.get(element)!;
 		const tree = this._tree as WorkbenchDataTree<OutlineModel, any, FuzzyScore>;
 		tree.setInput(model);
 

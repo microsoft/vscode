@@ -12,7 +12,7 @@ export const Extensions = {
 };
 
 export interface ISchemaContributions {
-	schemas?: { [id: string]: IJSONSchema };
+	schemas: { [id: string]: IJSONSchema };
 }
 
 export interface IJSONContributionRegistry {

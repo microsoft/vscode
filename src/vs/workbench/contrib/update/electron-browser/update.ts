@@ -512,7 +512,7 @@ export class UpdateContribution implements IGlobalActivity {
 			this.storageService.store('update/updateNotificationTime', currentMillis, StorageScope.GLOBAL);
 		}
 
-		const updateNotificationMillis = this.storageService.getInteger('update/updateNotificationTime', StorageScope.GLOBAL, currentMillis);
+		const updateNotificationMillis = this.storageService.getNumber('update/updateNotificationTime', StorageScope.GLOBAL, currentMillis);
 		const diffDays = (currentMillis - updateNotificationMillis) / (1000 * 60 * 60 * 24);
 
 		return diffDays > 5;

@@ -31,7 +31,7 @@ suite('Storage Library', () => {
 
 		// Empty fallbacks
 		equal(storage.get('foo', 'bar'), 'bar');
-		equal(storage.getInteger('foo', 55), 55);
+		equal(storage.getNumber('foo', 55), 55);
 		equal(storage.getBoolean('foo', true), true);
 
 		let changes = new Set<string>();
@@ -45,7 +45,7 @@ suite('Storage Library', () => {
 		const set3Promise = storage.set('barBoolean', true);
 
 		equal(storage.get('bar'), 'foo');
-		equal(storage.getInteger('barNumber'), 55);
+		equal(storage.getNumber('barNumber'), 55);
 		equal(storage.getBoolean('barBoolean'), true);
 
 		equal(changes.size, 3);
@@ -71,7 +71,7 @@ suite('Storage Library', () => {
 		const delete3Promise = storage.delete('barBoolean');
 
 		ok(!storage.get('bar'));
-		ok(!storage.getInteger('barNumber'));
+		ok(!storage.getNumber('barNumber'));
 		ok(!storage.getBoolean('barBoolean'));
 
 		equal(changes.size, 3);

@@ -238,14 +238,14 @@ export class ExtensionsActivator {
 		if (this._alreadyActivatedEvents[activationEvent]) {
 			return NO_OP_VOID_PROMISE;
 		}
-		let activateExtensions = this._registry.getExtensionDescriptionsForActivationEvent(activationEvent);
+		const activateExtensions = this._registry.getExtensionDescriptionsForActivationEvent(activationEvent);
 		return this._activateExtensions(activateExtensions.map(e => e.identifier), reason).then(() => {
 			this._alreadyActivatedEvents[activationEvent] = true;
 		});
 	}
 
 	public activateById(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void> {
-		let desc = this._registry.getExtensionDescription(extensionId);
+		const desc = this._registry.getExtensionDescription(extensionId);
 		if (!desc) {
 			throw new Error('Extension `' + extensionId + '` is not known');
 		}
@@ -264,7 +264,7 @@ export class ExtensionsActivator {
 		}
 
 		const currentExtension = this._registry.getExtensionDescription(currentExtensionId)!;
-		let depIds = (typeof currentExtension.extensionDependencies === 'undefined' ? [] : currentExtension.extensionDependencies);
+		const depIds = (typeof currentExtension.extensionDependencies === 'undefined' ? [] : currentExtension.extensionDependencies);
 		let currentExtensionGetsGreenLight = true;
 
 		for (let j = 0, lenJ = depIds.length; j < lenJ; j++) {
@@ -330,7 +330,7 @@ export class ExtensionsActivator {
 			return Promise.resolve(undefined);
 		}
 
-		let greenMap: { [id: string]: ExtensionIdentifier; } = Object.create(null),
+		const greenMap: { [id: string]: ExtensionIdentifier; } = Object.create(null),
 			red: ExtensionIdentifier[] = [];
 
 		for (let i = 0, len = extensionIds.length; i < len; i++) {
@@ -345,7 +345,7 @@ export class ExtensionsActivator {
 			}
 		}
 
-		let green = Object.keys(greenMap).map(id => greenMap[id]);
+		const green = Object.keys(greenMap).map(id => greenMap[id]);
 
 		// console.log('greenExtensions: ', green.map(p => p.id));
 		// console.log('redExtensions: ', red.map(p => p.id));

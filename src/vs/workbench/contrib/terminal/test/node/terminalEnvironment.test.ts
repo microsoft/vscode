@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as os from 'os';
 import * as platform from 'vs/base/common/platform';
-import * as terminalEnvironment from 'vs/workbench/contrib/terminal/node/terminalEnvironment';
+import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { URI as Uri } from 'vs/base/common/uri';
 import { IStringDictionary } from 'vs/base/common/collections';
 
@@ -14,21 +13,21 @@ suite('Workbench - TerminalEnvironment', () => {
 	test('addTerminalEnvironmentKeys', () => {
 		const env = { FOO: 'bar' };
 		const locale = 'en-au';
-		terminalEnvironment.addTerminalEnvironmentKeys(env, locale, true);
+		terminalEnvironment.addTerminalEnvironmentKeys(env, '1.2.3', locale, true);
 		assert.equal(env['TERM_PROGRAM'], 'vscode');
-		assert.equal(env['TERM_PROGRAM_VERSION'].search(/^\d+\.\d+\.\d+$/), 0);
+		assert.equal(env['TERM_PROGRAM_VERSION'], '1.2.3');
 		assert.equal(env['LANG'], 'en_AU.UTF-8', 'LANG is equal to the requested locale with UTF-8');
 
 		const env2 = { FOO: 'bar' };
-		terminalEnvironment.addTerminalEnvironmentKeys(env2, undefined, true);
+		terminalEnvironment.addTerminalEnvironmentKeys(env2, '1.2.3', undefined, true);
 		assert.equal(env2['LANG'], 'en_US.UTF-8', 'LANG is equal to en_US.UTF-8 as fallback.'); // More info on issue #14586
 
 		const env3 = { LANG: 'replace' };
-		terminalEnvironment.addTerminalEnvironmentKeys(env3, undefined, true);
+		terminalEnvironment.addTerminalEnvironmentKeys(env3, '1.2.3', undefined, true);
 		assert.equal(env3['LANG'], 'en_US.UTF-8', 'LANG is set to the fallback LANG');
 
 		const env4 = { LANG: 'en_US.UTF-8' };
-		terminalEnvironment.addTerminalEnvironmentKeys(env3, undefined, true);
+		terminalEnvironment.addTerminalEnvironmentKeys(env3, '1.2.3', undefined, true);
 		assert.equal(env4['LANG'], 'en_US.UTF-8', 'LANG is equal to the parent environment\'s LANG');
 	});
 
@@ -101,42 +100,32 @@ suite('Workbench - TerminalEnvironment', () => {
 			assert.equal(Uri.file(a).fsPath, Uri.file(b).fsPath);
 		}
 
-		test('should default to os.homedir() for an empty workspace', () => {
-			assertPathsMatch(terminalEnvironment.getCwd({ executable: undefined, args: [] }, undefined, undefined), os.homedir());
+		test('should default to userHome for an empty workspace', () => {
+			assertPathsMatch(terminalEnvironment.getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, undefined), '/userHome/');
 		});
 
 		test('should use to the workspace if it exists', () => {
-			assertPathsMatch(terminalEnvironment.getCwd({ executable: undefined, args: [] }, Uri.file('/foo'), undefined), '/foo');
+			assertPathsMatch(terminalEnvironment.getCwd({ executable: undefined, args: [] }, '/userHome/', Uri.file('/foo'), undefined), '/foo');
 		});
 
 		test('should use an absolute custom cwd as is', () => {
-			assertPathsMatch(terminalEnvironment.getCwd({ executable: undefined, args: [] }, undefined, '/foo'), '/foo');
+			assertPathsMatch(terminalEnvironment.getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, '/foo'), '/foo');
 		});
 
 		test('should normalize a relative custom cwd against the workspace path', () => {
-			assertPathsMatch(terminalEnvironment.getCwd({ executable: undefined, args: [] }, Uri.file('/bar'), 'foo'), '/bar/foo');
-			assertPathsMatch(terminalEnvironment.getCwd({ executable: undefined, args: [] }, Uri.file('/bar'), './foo'), '/bar/foo');
-			assertPathsMatch(terminalEnvironment.getCwd({ executable: undefined, args: [] }, Uri.file('/bar'), '../foo'), '/foo');
+			assertPathsMatch(terminalEnvironment.getCwd({ executable: undefined, args: [] }, '/userHome/', Uri.file('/bar'), 'foo'), '/bar/foo');
+			assertPathsMatch(terminalEnvironment.getCwd({ executable: undefined, args: [] }, '/userHome/', Uri.file('/bar'), './foo'), '/bar/foo');
+			assertPathsMatch(terminalEnvironment.getCwd({ executable: undefined, args: [] }, '/userHome/', Uri.file('/bar'), '../foo'), '/foo');
 		});
 
 		test('should fall back for relative a custom cwd that doesn\'t have a workspace', () => {
-			assertPathsMatch(terminalEnvironment.getCwd({ executable: undefined, args: [] }, undefined, 'foo'), os.homedir());
-			assertPathsMatch(terminalEnvironment.getCwd({ executable: undefined, args: [] }, undefined, './foo'), os.homedir());
-			assertPathsMatch(terminalEnvironment.getCwd({ executable: undefined, args: [] }, undefined, '../foo'), os.homedir());
+			assertPathsMatch(terminalEnvironment.getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, 'foo'), '/userHome/');
+			assertPathsMatch(terminalEnvironment.getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, './foo'), '/userHome/');
+			assertPathsMatch(terminalEnvironment.getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, '../foo'), '/userHome/');
 		});
 
 		test('should ignore custom cwd when told to ignore', () => {
-			assertPathsMatch(terminalEnvironment.getCwd({ executable: undefined, args: [], ignoreConfigurationCwd: true }, Uri.file('/bar'), '/foo'), '/bar');
+			assertPathsMatch(terminalEnvironment.getCwd({ executable: undefined, args: [], ignoreConfigurationCwd: true }, '/userHome/', Uri.file('/bar'), '/foo'), '/bar');
 		});
-	});
-
-	test('preparePathForTerminal', () => {
-		if (platform.isWindows) {
-			assert.equal(terminalEnvironment.preparePathForTerminal('C:\\foo'), 'C:\\foo');
-			assert.equal(terminalEnvironment.preparePathForTerminal('C:\\foo bar'), '"C:\\foo bar"');
-			return;
-		}
-		assert.equal(terminalEnvironment.preparePathForTerminal('/a/\\foo bar"\'? ;\'??  :'), '/a/\\\\foo\\ bar\\"\\\'\\?\\ \\;\\\'\\?\\?\\ \\ \\:');
-		assert.equal(terminalEnvironment.preparePathForTerminal('/\\\'"?:;!*(){}[]'), '/\\\\\\\'\\"\\?\\:\\;\\!\\*\\(\\)\\{\\}\\[\\]');
 	});
 });

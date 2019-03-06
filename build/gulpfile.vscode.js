@@ -69,7 +69,7 @@ const vscodeResources = [
 	'out-build/vs/base/browser/ui/octiconLabel/octicons/**',
 	'out-build/vs/workbench/browser/media/*-theme.css',
 	'out-build/vs/workbench/contrib/debug/**/*.json',
-	'out-build/vs/workbench/contrib/execution/**/*.scpt',
+	'out-build/vs/workbench/contrib/externalTerminal/**/*.scpt',
 	'out-build/vs/workbench/contrib/webview/electron-browser/webview-pre.js',
 	'out-build/vs/**/markdown.css',
 	'out-build/vs/workbench/contrib/tasks/**/*.json',
