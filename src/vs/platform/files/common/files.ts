@@ -455,7 +455,7 @@ export interface IFileStat extends IBaseStat {
 }
 
 export interface IResolveFileResult {
-	stat: IFileStat;
+	stat?: IFileStat;
 	success: boolean;
 }
 
