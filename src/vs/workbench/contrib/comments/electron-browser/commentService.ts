@@ -64,7 +64,6 @@ export interface ICommentService {
 	getReactionGroup(owner: string): CommentReaction[] | undefined;
 	setActiveCommentThread(commentThread: CommentThread | null);
 	setInput(input: string);
-	setActiveCommentingRange(range: Range, commentingRangesInfo: CommentingRanges);
 }
 
 export class CommentService extends Disposable implements ICommentService {
@@ -113,11 +112,6 @@ export class CommentService extends Disposable implements ICommentService {
 
 	setInput(input: string) {
 		this._onDidChangeInput.fire(input);
-	}
-
-	setActiveCommentingRange(range: Range, commentingRangesInfo:
-		CommentingRanges) {
-		this._onDidChangeActiveCommentingRange.fire({ range: range, commentingRangesInfo: commentingRangesInfo });
 	}
 
 	setDocumentComments(resource: URI, commentInfos: ICommentInfo[]): void {
@@ -303,12 +297,14 @@ export class CommentService extends Disposable implements ICommentService {
 			}
 		}
 
-		let ret = await Promise.all(result);
+		let commentControlResult: Promise<ICommentInfo>[] = [];
+
 		for (const owner of keys(this._commentControls)) {
 			const control = this._commentControls.get(owner);
-
-			ret.push(control.getDocumentComments(resource));
+			commentControlResult.push(control.getDocumentComments(resource, CancellationToken.None));
 		}
+
+		let ret = [...await Promise.all(result), ...await Promise.all(commentControlResult)];
 
 		return ret;
 	}

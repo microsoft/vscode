@@ -780,12 +780,6 @@ declare module 'vscode' {
 		Expanded = 1
 	}
 
-	interface CommentingRanges {
-		readonly resource: Uri;
-		ranges: Range[];
-		newCommentThreadCommand: Command;
-	}
-
 	/**
 	 * A collection of comments representing a conversation at a particular range in a document.
 	 */
@@ -988,13 +982,17 @@ declare module 'vscode' {
 		 * The active (focused) comment input box.
 		 */
 		readonly inputBox?: CommentInputBox;
-
-		/**
-		 * The active range users attempt to create comments against.
-		 */
-		readonly activeCommentingRange?: Range;
 		createCommentThread(id: string, resource: Uri, range: Range): CommentThread;
-		createCommentingRanges(resource: Uri, ranges: Range[], newCommentThreadCommand: Command): CommentingRanges;
+		/**
+		 * Provide a list [ranges](#Range) which support commenting to any given resource uri.
+		 *
+		 * @param uri The uri of the resource open in a text editor.
+		 * @param callback, a handler called when users attempt to create a new comment thread, either from the gutter or command palette
+		 * @param token A cancellation token.
+		 * @return A thenable that resolves to a list of commenting ranges or null and undefined if the provider
+		 * does not want to participate or was cancelled.
+		 */
+		registerCommentingRangeProvider(provider: (uri: Uri, token: CancellationToken) => ProviderResult<Range[]>, callback: (uri: Uri, range: Range) => void);
 		dispose(): void;
 	}
 
