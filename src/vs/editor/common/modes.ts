@@ -287,7 +287,7 @@ export const enum CompletionItemKind {
 /**
  * @internal
  */
-export let completionKindToCssClass = (function () {
+export const completionKindToCssClass = (function () {
 	let data = Object.create(null);
 	data[CompletionItemKind.Method] = 'method';
 	data[CompletionItemKind.Function] = 'function';

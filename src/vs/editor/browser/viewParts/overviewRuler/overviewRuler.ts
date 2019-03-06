@@ -114,10 +114,10 @@ export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
 		const width = this._zoneManager.getCanvasWidth();
 		const height = this._zoneManager.getCanvasHeight();
 
-		let colorZones = this._zoneManager.resolveColorZones();
-		let id2Color = this._zoneManager.getId2Color();
+		const colorZones = this._zoneManager.resolveColorZones();
+		const id2Color = this._zoneManager.getId2Color();
 
-		let ctx = this._domNode.domNode.getContext('2d')!;
+		const ctx = this._domNode.domNode.getContext('2d')!;
 		ctx.clearRect(0, 0, width, height);
 		if (colorZones.length > 0) {
 			this._renderOneLane(ctx, colorZones, id2Color, width);

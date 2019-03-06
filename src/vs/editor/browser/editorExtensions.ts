@@ -136,7 +136,7 @@ export abstract class EditorCommand extends Command {
 			}
 
 			public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-				let controller = controllerGetter(editor);
+				const controller = controllerGetter(editor);
 				if (controller) {
 					this._callback(controllerGetter(editor), args);
 				}
@@ -148,7 +148,7 @@ export abstract class EditorCommand extends Command {
 		const codeEditorService = accessor.get(ICodeEditorService);
 
 		// Find the editor with text focus or active
-		let editor = codeEditorService.getFocusedCodeEditor() || codeEditorService.getActiveCodeEditor();
+		const editor = codeEditorService.getFocusedCodeEditor() || codeEditorService.getActiveCodeEditor();
 		if (!editor) {
 			// well, at least we tried...
 			return;
@@ -267,7 +267,7 @@ export function registerDefaultLanguageCommand(id: string, handler: (model: ITex
 		return accessor.get(ITextModelService).createModelReference(resource).then(reference => {
 			return new Promise((resolve, reject) => {
 				try {
-					let result = handler(reference.object.textEditorModel, Position.lift(position), args);
+					const result = handler(reference.object.textEditorModel, Position.lift(position), args);
 					resolve(result);
 				} catch (err) {
 					reject(err);
