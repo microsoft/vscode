@@ -239,6 +239,13 @@ export class MainThreadCommentController {
 	updateComments(commentThreadHandle: number, comments: modes.Comment[]) {
 		let thread = this._threads.get(commentThreadHandle);
 		thread.comments = comments;
+
+		this._commentService.updateComments(`${this.handle}`, {
+			added: [],
+			removed: [],
+			changed: [thread],
+			draftMode: modes.DraftMode.NotSupported
+		});
 	}
 
 	updateAcceptInputCommands(commentThreadHandle: number, acceptInputCommands: modes.Command[]) {
@@ -287,6 +294,15 @@ export class MainThreadCommentController {
 				} : [],
 			draftMode: modes.DraftMode.NotSupported
 		};
+	}
+
+	getAllComments(): MainThreadCommentThread[] {
+		let ret = [];
+		for (let thread of keys(this._threads)) {
+			ret.push(this._threads.get(thread));
+		}
+
+		return ret;
 	}
 
 	toJSON(): any {
@@ -348,9 +364,13 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		this._commentService.registerCommentController(String(handle), provider);
 		this._commentControllers.set(handle, provider);
 
+		const providerId = generateUuid();
+		this._handlers.set(handle, providerId);
+
 		const commentsPanelAlreadyConstructed = this._panelService.getPanels().some(panel => panel.id === COMMENTS_PANEL_ID);
 		if (!commentsPanelAlreadyConstructed) {
 			this.registerPanel(commentsPanelAlreadyConstructed);
+			this.registerOpenPanelListener(commentsPanelAlreadyConstructed);
 		}
 		this._commentService.setWorkspaceComments(String(handle), []);
 	}
@@ -464,6 +484,15 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 							}
 
 						});
+					});
+
+					keys(this._commentControllers).forEach(handle => {
+						let threads = this._commentControllers.get(handle).getAllComments();
+
+						if (threads.length) {
+							const providerId = this._handlers.get(handle);
+							this._commentService.setWorkspaceComments(providerId, threads);
+						}
 					});
 
 					if (this._openPanelListener) {

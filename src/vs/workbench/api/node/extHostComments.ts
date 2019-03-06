@@ -106,9 +106,10 @@ export class ExtHostComments implements ExtHostCommentsShape {
 			return Promise.resolve(undefined);
 		}
 
+		const document = this._documents.getDocument(URI.revive(uriComponents));
 		return asPromise(() => {
-			return commentController.commentingRangeProvider.provider(URI.revive(uriComponents), token);
-		}).then(ranges => ranges.map(extHostTypeConverter.Range.from));
+			return commentController.commentingRangeProvider.provider(document, token);
+		}).then(ranges => ranges ? ranges.map(extHostTypeConverter.Range.from) : undefined);
 	}
 
 	$createNewCommentWidgetCallback(commentControllerHandle: number, uriComponents: UriComponents, range: IRange, token: CancellationToken): void {
@@ -118,7 +119,8 @@ export class ExtHostComments implements ExtHostCommentsShape {
 			return;
 		}
 
-		commentController.commentingRangeProvider.callback(URI.revive(uriComponents), extHostTypeConverter.Range.to(range));
+		const document = this._documents.getDocument(URI.revive(uriComponents));
+		commentController.commentingRangeProvider.callback(document, extHostTypeConverter.Range.to(range));
 	}
 
 	registerWorkspaceCommentProvider(
@@ -412,8 +414,8 @@ export class ExtHostCommentInputBox implements vscode.CommentInputBox {
 
 class ExtHostCommentingRangeProvider {
 	constructor(
-		public provider: (uri: vscode.Uri, token: vscode.CancellationToken) => vscode.ProviderResult<vscode.Range[]>,
-		public callback: (uri: vscode.Uri, range: vscode.Range) => void
+		public provider: (document: vscode.TextDocument, token: vscode.CancellationToken) => vscode.ProviderResult<vscode.Range[]>,
+		public callback: (document: vscode.TextDocument, range: vscode.Range) => void
 	) {
 
 	}
@@ -464,7 +466,7 @@ class ExtHostCommentController implements vscode.CommentController {
 		return commentThread;
 	}
 
-	registerCommentingRangeProvider(provider: (uri: vscode.Uri, token: vscode.CancellationToken) => vscode.ProviderResult<vscode.Range[]>, callback: (uri: vscode.Uri, range: vscode.Range) => void) {
+	registerCommentingRangeProvider(provider: (document: vscode.TextDocument, token: vscode.CancellationToken) => vscode.ProviderResult<vscode.Range[]>, callback: (document: vscode.TextDocument, range: vscode.Range) => void) {
 		this._commentingRangeProvider = new ExtHostCommentingRangeProvider(provider, callback);
 	}
 
