@@ -31,9 +31,9 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 
 	private static INSTANCE_COUNT: number = 0;
 
-	private _instanceId: string;
-	private _proxy: ExtHostEditorsShape;
-	private _documentsAndEditors: MainThreadDocumentsAndEditors;
+	private readonly _instanceId: string;
+	private readonly _proxy: ExtHostEditorsShape;
+	private readonly _documentsAndEditors: MainThreadDocumentsAndEditors;
 	private _toDispose: IDisposable[];
 	private _textEditorsListenersMap: { [editorId: string]: IDisposable[]; };
 	private _editorPositionData: ITextEditorPositionData | null;
@@ -77,8 +77,8 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 	}
 
 	private _onTextEditorAdd(textEditor: MainThreadTextEditor): void {
-		let id = textEditor.getId();
-		let toDispose: IDisposable[] = [];
+		const id = textEditor.getId();
+		const toDispose: IDisposable[] = [];
 		toDispose.push(textEditor.onPropertiesChanged((data) => {
 			this._proxy.$acceptEditorPropertiesChanged(id, data);
 		}));
@@ -94,7 +94,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 	private _updateActiveAndVisibleTextEditors(): void {
 
 		// editor columns
-		let editorPositionData = this._getTextEditorPositionData();
+		const editorPositionData = this._getTextEditorPositionData();
 		if (!objectEquals(this._editorPositionData, editorPositionData)) {
 			this._editorPositionData = editorPositionData;
 			this._proxy.$acceptEditorPositionData(this._editorPositionData);
@@ -102,7 +102,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 	}
 
 	private _getTextEditorPositionData(): ITextEditorPositionData {
-		let result: ITextEditorPositionData = Object.create(null);
+		const result: ITextEditorPositionData = Object.create(null);
 		for (let workbenchEditor of this._editorService.visibleControls) {
 			const id = this._documentsAndEditors.findTextEditorIdFor(workbenchEditor);
 			if (id) {
@@ -137,9 +137,9 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 	}
 
 	$tryShowEditor(id: string, position?: EditorViewColumn): Promise<void> {
-		let mainThreadEditor = this._documentsAndEditors.getEditor(id);
+		const mainThreadEditor = this._documentsAndEditors.getEditor(id);
 		if (mainThreadEditor) {
-			let model = mainThreadEditor.getModel();
+			const model = mainThreadEditor.getModel();
 			return this._editorService.openEditor({
 				resource: model.uri,
 				options: { preserveFocus: false }
@@ -149,9 +149,9 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 	}
 
 	$tryHideEditor(id: string): Promise<void> {
-		let mainThreadEditor = this._documentsAndEditors.getEditor(id);
+		const mainThreadEditor = this._documentsAndEditors.getEditor(id);
 		if (mainThreadEditor) {
-			let editors = this._editorService.visibleControls;
+			const editors = this._editorService.visibleControls;
 			for (let editor of editors) {
 				if (mainThreadEditor.matches(editor)) {
 					return editor.group.closeEditor(editor.input).then(() => { return; });

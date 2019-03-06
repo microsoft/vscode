@@ -53,7 +53,7 @@ export function splitGlobAware(pattern: string, splitChar: string): string[] {
 		return [];
 	}
 
-	let segments: string[] = [];
+	const segments: string[] = [];
 
 	let inBraces = false;
 	let inBrackets = false;
@@ -102,7 +102,7 @@ function parseRegExp(pattern: string): string {
 	let regEx = '';
 
 	// Split up into segments for each slash found
-	let segments = splitGlobAware(pattern, GLOB_SPLIT);
+	const segments = splitGlobAware(pattern, GLOB_SPLIT);
 
 	// Special case where we only have globstars
 	if (segments.every(s => s === GLOBSTAR)) {
@@ -179,10 +179,10 @@ function parseRegExp(pattern: string): string {
 						continue;
 
 					case '}':
-						let choices = splitGlobAware(braceVal, ',');
+						const choices = splitGlobAware(braceVal, ',');
 
 						// Converts {foo,bar} => [foo|bar]
-						let braceRegExp = `(?:${choices.map(c => parseRegExp(c)).join('|')})`;
+						const braceRegExp = `(?:${choices.map(c => parseRegExp(c)).join('|')})`;
 
 						regEx += braceRegExp;
 

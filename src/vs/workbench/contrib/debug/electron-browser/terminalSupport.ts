@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ITerminalService, ITerminalInstance } from 'vs/workbench/contrib/terminal/common/terminal';
-import { ITerminalService as IExternalTerminalService } from 'vs/workbench/contrib/execution/common/execution';
+import { IExternalTerminalService } from 'vs/workbench/contrib/externalTerminal/common/externalTerminal';
 import { ITerminalLauncher, ITerminalSettings } from 'vs/workbench/contrib/debug/common/debug';
 import { hasChildProcesses, prepareCommand } from 'vs/workbench/contrib/debug/node/terminals';
 
@@ -17,14 +17,14 @@ export class TerminalLauncher implements ITerminalLauncher {
 
 	constructor(
 		@ITerminalService private readonly terminalService: ITerminalService,
-		@IExternalTerminalService private readonly nativeTerminalService: IExternalTerminalService
+		@IExternalTerminalService private readonly externalTerminalService: IExternalTerminalService
 	) {
 	}
 
 	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Promise<number | undefined> {
 
 		if (args.kind === 'external') {
-			return this.nativeTerminalService.runInTerminal(args.title, args.cwd, args.args, args.env || {});
+			return this.externalTerminalService.runInTerminal(args.title, args.cwd, args.args, args.env || {});
 		}
 
 		if (!this.terminalDisposedListener) {

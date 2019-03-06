@@ -23,7 +23,7 @@ import { TestFileService, TestEditorService, TestEditorGroupsService, TestEnviro
 import { ResourceTextEdit } from 'vs/editor/common/modes';
 import { BulkEditService } from 'vs/workbench/services/bulkEdit/browser/bulkEditService';
 import { NullLogService } from 'vs/platform/log/common/log';
-import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
+import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IReference, ImmortalReference } from 'vs/base/common/lifecycle';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
@@ -73,9 +73,9 @@ suite('MainThreadEditors', () => {
 		const workbenchEditorService = new TestEditorService();
 		const editorGroupService = new TestEditorGroupsService();
 		const textModelService = new class extends mock<ITextModelService>() {
-			createModelReference(resource: URI): Promise<IReference<ITextEditorModel>> {
-				const textEditorModel: ITextEditorModel = new class extends mock<ITextEditorModel>() {
-					textEditorModel = modelService.getModel(resource);
+			createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
+				const textEditorModel = new class extends mock<IResolvedTextEditorModel>() {
+					textEditorModel = modelService.getModel(resource)!;
 				};
 				textEditorModel.isReadonly = () => false;
 				return Promise.resolve(new ImmortalReference(textEditorModel));

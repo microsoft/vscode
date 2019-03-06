@@ -459,7 +459,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			excludePattern: options.exclude ? globPatternToString(options.exclude) : undefined
 		};
 
-		let isCanceled = false;
+		const isCanceled = false;
 
 		this._activeSearchCallbacks[requestId] = p => {
 			if (isCanceled) {

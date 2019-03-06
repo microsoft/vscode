@@ -75,14 +75,14 @@ namespace ProcessExecutionOptionsDTO {
 
 namespace ProcessExecutionDTO {
 	export function is(value: ShellExecutionDTO | ProcessExecutionDTO): value is ProcessExecutionDTO {
-		let candidate = value as ProcessExecutionDTO;
+		const candidate = value as ProcessExecutionDTO;
 		return candidate && !!candidate.process;
 	}
 	export function from(value: vscode.ProcessExecution): ProcessExecutionDTO {
 		if (value === undefined || value === null) {
 			return undefined;
 		}
-		let result: ProcessExecutionDTO = {
+		const result: ProcessExecutionDTO = {
 			process: value.process,
 			args: value.args
 		};
@@ -116,14 +116,14 @@ namespace ShellExecutionOptionsDTO {
 
 namespace ShellExecutionDTO {
 	export function is(value: ShellExecutionDTO | ProcessExecutionDTO): value is ShellExecutionDTO {
-		let candidate = value as ShellExecutionDTO;
+		const candidate = value as ShellExecutionDTO;
 		return candidate && (!!candidate.commandLine || !!candidate.command);
 	}
 	export function from(value: vscode.ShellExecution): ShellExecutionDTO {
 		if (value === undefined || value === null) {
 			return undefined;
 		}
-		let result: ShellExecutionDTO = {
+		const result: ShellExecutionDTO = {
 		};
 		if (value.commandLine !== undefined) {
 			result.commandLine = value.commandLine;
@@ -167,9 +167,9 @@ namespace TaskDTO {
 		if (tasks === undefined || tasks === null) {
 			return [];
 		}
-		let result: TaskDTO[] = [];
+		const result: TaskDTO[] = [];
 		for (let task of tasks) {
-			let converted = from(task, extension);
+			const converted = from(task, extension);
 			if (converted) {
 				result.push(converted);
 			}
@@ -187,7 +187,7 @@ namespace TaskDTO {
 		} else if (value.execution instanceof types.ShellExecution) {
 			execution = ShellExecutionDTO.from(value.execution);
 		}
-		let definition: TaskDefinitionDTO = TaskDefinitionDTO.from(value.definition);
+		const definition: TaskDefinitionDTO = TaskDefinitionDTO.from(value.definition);
 		let scope: number | UriComponents;
 		if (value.scope) {
 			if (typeof value.scope === 'number') {
@@ -202,8 +202,8 @@ namespace TaskDTO {
 		if (!definition || !scope) {
 			return undefined;
 		}
-		let group = (value.group as types.TaskGroup) ? (value.group as types.TaskGroup).id : undefined;
-		let result: TaskDTO = {
+		const group = (value.group as types.TaskGroup) ? (value.group as types.TaskGroup).id : undefined;
+		const result: TaskDTO = {
 			_id: (value as types.Task)._id,
 			definition,
 			name: value.name,
@@ -232,7 +232,7 @@ namespace TaskDTO {
 		} else if (ShellExecutionDTO.is(value.execution)) {
 			execution = ShellExecutionDTO.to(value.execution);
 		}
-		let definition: vscode.TaskDefinition = TaskDefinitionDTO.to(value.definition);
+		const definition: vscode.TaskDefinition = TaskDefinitionDTO.to(value.definition);
 		let scope: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder | undefined;
 		if (value.source) {
 			if (value.source.scope !== undefined) {
@@ -248,7 +248,7 @@ namespace TaskDTO {
 		if (!definition || !scope) {
 			return undefined;
 		}
-		let result = new types.Task(definition, scope, value.name, value.source.label, execution, value.problemMatchers);
+		const result = new types.Task(definition, scope, value.name, value.source.label, execution, value.problemMatchers);
 		if (value.isBackground !== undefined) {
 			result.isBackground = value.isBackground;
 		}
@@ -345,7 +345,7 @@ export class ExtHostTask implements ExtHostTaskShape {
 		if (!provider) {
 			return new types.Disposable(() => { });
 		}
-		let handle = this.nextHandle();
+		const handle = this.nextHandle();
 		this._handlers.set(handle, { provider, extension });
 		this._proxy.$registerTaskProvider(handle);
 		return new types.Disposable(() => {
@@ -360,9 +360,9 @@ export class ExtHostTask implements ExtHostTaskShape {
 
 	public fetchTasks(filter?: vscode.TaskFilter): Promise<vscode.Task[]> {
 		return this._proxy.$fetchTasks(TaskFilterDTO.from(filter)).then(async (values) => {
-			let result: vscode.Task[] = [];
+			const result: vscode.Task[] = [];
 			for (let value of values) {
-				let task = await TaskDTO.to(value, this._workspaceProvider);
+				const task = await TaskDTO.to(value, this._workspaceProvider);
 				if (task) {
 					result.push(task);
 				}
@@ -372,12 +372,12 @@ export class ExtHostTask implements ExtHostTaskShape {
 	}
 
 	public async executeTask(extension: IExtensionDescription, task: vscode.Task): Promise<vscode.TaskExecution> {
-		let tTask = (task as types.Task);
+		const tTask = (task as types.Task);
 		// We have a preserved ID. So the task didn't change.
 		if (tTask._id !== undefined) {
 			return this._proxy.$executeTask(TaskHandleDTO.from(tTask)).then(value => this.getTaskExecution(value, task));
 		} else {
-			let dto = TaskDTO.from(task, extension);
+			const dto = TaskDTO.from(task, extension);
 			if (dto === undefined) {
 				return Promise.reject(new Error('Task is not valid'));
 			}
@@ -386,7 +386,7 @@ export class ExtHostTask implements ExtHostTaskShape {
 	}
 
 	public get taskExecutions(): vscode.TaskExecution[] {
-		let result: vscode.TaskExecution[] = [];
+		const result: vscode.TaskExecution[] = [];
 		this._taskExecutions.forEach(value => result.push(value));
 		return result;
 	}
@@ -449,12 +449,12 @@ export class ExtHostTask implements ExtHostTaskShape {
 	}
 
 	public $provideTasks(handle: number, validTypes: { [key: string]: boolean; }): Thenable<TaskSetDTO> {
-		let handler = this._handlers.get(handle);
+		const handler = this._handlers.get(handle);
 		if (!handler) {
 			return Promise.reject(new Error('no handler found'));
 		}
 		return asPromise(() => handler.provider.provideTasks(CancellationToken.None)).then(value => {
-			let sanitized: vscode.Task[] = [];
+			const sanitized: vscode.Task[] = [];
 			for (let task of value) {
 				if (task.definition && validTypes[task.definition.type] === true) {
 					sanitized.push(task);
@@ -472,15 +472,15 @@ export class ExtHostTask implements ExtHostTaskShape {
 
 	public async $resolveVariables(uriComponents: UriComponents, toResolve: { process?: { name: string; cwd?: string; path?: string }, variables: string[] }): Promise<{ process?: string, variables: { [key: string]: string; } }> {
 		const configProvider = await this._configurationService.getConfigProvider();
-		let uri: URI = URI.revive(uriComponents);
-		let result = {
+		const uri: URI = URI.revive(uriComponents);
+		const result = {
 			process: undefined as string,
 			variables: Object.create(null)
 		};
-		let workspaceFolder = await this._workspaceProvider.resolveWorkspaceFolder(uri);
+		const workspaceFolder = await this._workspaceProvider.resolveWorkspaceFolder(uri);
 		const workspaceFolders = await this._workspaceProvider.getWorkspaceFolders2();
-		let resolver = new ExtHostVariableResolverService(workspaceFolders, this._editorService, configProvider);
-		let ws: IWorkspaceFolder = {
+		const resolver = new ExtHostVariableResolverService(workspaceFolders, this._editorService, configProvider);
+		const ws: IWorkspaceFolder = {
 			uri: workspaceFolder.uri,
 			name: workspaceFolder.name,
 			index: workspaceFolder.index,

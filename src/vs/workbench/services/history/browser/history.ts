@@ -420,7 +420,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.doNavigate(this.stack[this.index], !acrossEditors).finally(() => this.navigatingInStack = false);
 	}
 
-	private doNavigate(location: IStackEntry, withSelection: boolean): Promise<IBaseEditor> {
+	private doNavigate(location: IStackEntry, withSelection: boolean): Promise<IBaseEditor | null> {
 		const options: ITextEditorOptions = {
 			revealIfOpened: true // support to navigate across editor groups
 		};

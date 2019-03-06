@@ -388,9 +388,9 @@ export class WorkbenchLegacyLayout extends Disposable implements IVerticalSashLa
 		}));
 
 		this._register(this.sashXOne.onDidReset(() => {
-			let activeViewlet = this.viewletService.getActiveViewlet();
-			let optimalWidth = activeViewlet && activeViewlet.getOptimalWidth();
-			this.sidebarWidth = Math.max(optimalWidth, DEFAULT_SIDEBAR_PART_WIDTH);
+			const activeViewlet = this.viewletService.getActiveViewlet();
+			const optimalWidth = activeViewlet ? activeViewlet.getOptimalWidth() : null;
+			this.sidebarWidth = typeof optimalWidth === 'number' ? Math.max(optimalWidth, DEFAULT_SIDEBAR_PART_WIDTH) : DEFAULT_SIDEBAR_PART_WIDTH;
 			this.storageService.store(WorkbenchLegacyLayout.sashXOneWidthSettingsKey, this.sidebarWidth, StorageScope.GLOBAL);
 
 			this.partService.setSideBarHidden(false);
@@ -596,10 +596,10 @@ export class WorkbenchLegacyLayout extends Disposable implements IVerticalSashLa
 		size(activitybarContainer, null, activityBarSize.height);
 		if (sidebarPosition === Position.LEFT) {
 			this.parts.activitybar.getContainer().style.right = '';
-			position(activitybarContainer, this.titlebarHeight, null, 0, 0);
+			position(activitybarContainer, this.titlebarHeight, undefined, 0, 0);
 		} else {
 			this.parts.activitybar.getContainer().style.left = '';
-			position(activitybarContainer, this.titlebarHeight, 0, 0, null);
+			position(activitybarContainer, this.titlebarHeight, 0, 0, undefined);
 		}
 		if (isActivityBarHidden) {
 			hide(activitybarContainer);

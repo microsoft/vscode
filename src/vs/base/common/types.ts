@@ -168,7 +168,7 @@ export function create(ctor: Function, ...args: any[]): any {
 	if (isNativeClass(ctor)) {
 		return new (ctor as any)(...args);
 	} else {
-		let obj = Object.create(ctor.prototype);
+		const obj = Object.create(ctor.prototype);
 		ctor.apply(obj, args);
 		return obj;
 	}

@@ -16,7 +16,7 @@ export interface CancellationToken {
 }
 
 const shortcutEvent = Object.freeze(function (callback, context?): IDisposable {
-	let handle = setTimeout(callback.bind(context), 0);
+	const handle = setTimeout(callback.bind(context), 0);
 	return { dispose() { clearTimeout(handle); } };
 } as Event<any>);
 

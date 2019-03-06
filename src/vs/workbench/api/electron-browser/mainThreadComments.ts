@@ -26,9 +26,9 @@ import { IRange } from 'vs/editor/common/core/range';
 import { Emitter, Event } from 'vs/base/common/event';
 
 export class MainThreadDocumentCommentProvider implements modes.DocumentCommentProvider {
-	private _proxy: ExtHostCommentsShape;
-	private _handle: number;
-	private _features: CommentProviderFeatures;
+	private readonly _proxy: ExtHostCommentsShape;
+	private readonly _handle: number;
+	private readonly _features: CommentProviderFeatures;
 	get startDraftLabel(): string | undefined { return this._features.startDraftLabel; }
 	get deleteDraftLabel(): string | undefined { return this._features.deleteDraftLabel; }
 	get finishDraftLabel(): string | undefined { return this._features.finishDraftLabel; }
@@ -197,14 +197,14 @@ export class MainThreadCommentControl {
 		return this._label;
 	}
 
-	private _threads: Map<number, MainThreadCommentThread> = new Map<number, MainThreadCommentThread>();
-	private _commentingRanges: Map<number, MainThreadCommentingRanges> = new Map<number, MainThreadCommentingRanges>();
+	private readonly _threads: Map<number, MainThreadCommentThread> = new Map<number, MainThreadCommentThread>();
+	private readonly _commentingRanges: Map<number, MainThreadCommentingRanges> = new Map<number, MainThreadCommentingRanges>();
 	constructor(
-		private _proxy: ExtHostCommentsShape,
-		private _commentService: ICommentService,
-		private _handle: number,
-		private _id: string,
-		private _label: string
+		private readonly _proxy: ExtHostCommentsShape,
+		private readonly _commentService: ICommentService,
+		private readonly _handle: number,
+		private readonly _id: string,
+		private readonly _label: string
 	) { }
 
 	createCommentThread(commentThreadHandle: number, threadId: string, resource: UriComponents, range: IRange, comments: modes.Comment[], commands: modes.Command[], collapseState: modes.CommentThreadCollapsibleState): modes.CommentThread2 {
@@ -331,7 +331,7 @@ export class MainThreadCommentControl {
 export class MainThreadComments extends Disposable implements MainThreadCommentsShape {
 	private _disposables: IDisposable[];
 	private _activeCommentThreadDisposables: IDisposable[];
-	private _proxy: ExtHostCommentsShape;
+	private readonly _proxy: ExtHostCommentsShape;
 	private _documentProviders = new Map<number, IDisposable>();
 	private _workspaceProviders = new Map<number, IDisposable>();
 	private _handlers = new Map<number, string>();

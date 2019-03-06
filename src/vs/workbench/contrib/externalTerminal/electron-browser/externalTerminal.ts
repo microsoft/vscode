@@ -45,14 +45,3 @@ export function getDefaultTerminalWindows(): string {
 	}
 	return _DEFAULT_TERMINAL_WINDOWS;
 }
-
-export interface ITerminalConfiguration {
-	terminal: {
-		explorerKind: 'integrated' | 'external',
-		external: {
-			linuxExec: string,
-			osxExec: string,
-			windowsExec: string
-		}
-	};
-}

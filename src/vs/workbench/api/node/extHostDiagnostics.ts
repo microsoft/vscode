@@ -37,7 +37,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 		if (!this._isDisposed) {
 			this._onDidChangeDiagnostics.fire(keys(this._data));
 			this._proxy.$clear(this._owner);
-			this._data = undefined;
+			this._data = undefined!;
 			this._isDisposed = true;
 		}
 	}
@@ -85,7 +85,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 			for (const tuple of first) {
 				const [uri, diagnostics] = tuple;
 				if (!lastUri || uri.toString() !== lastUri.toString()) {
-					if (lastUri && this._data.get(lastUri.toString()).length === 0) {
+					if (lastUri && this._data.get(lastUri.toString())!.length === 0) {
 						this._data.delete(lastUri.toString());
 					}
 					lastUri = uri;
@@ -95,9 +95,15 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 
 				if (!diagnostics) {
 					// [Uri, undefined] means clear this
-					this._data.get(uri.toString()).length = 0;
+					const currentDiagnostics = this._data.get(uri.toString());
+					if (currentDiagnostics) {
+						currentDiagnostics.length = 0;
+					}
 				} else {
-					this._data.get(uri.toString()).push(...diagnostics);
+					const currentDiagnostics = this._data.get(uri.toString());
+					if (currentDiagnostics) {
+						currentDiagnostics.push(...diagnostics);
+					}
 				}
 			}
 		}
@@ -108,8 +114,8 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 		// compute change and send to main side
 		const entries: [URI, IMarkerData[]][] = [];
 		for (let uri of toSync) {
-			let marker: IMarkerData[] | undefined;
-			let diagnostics = this._data.get(uri.toString());
+			let marker: IMarkerData[] = [];
+			const diagnostics = this._data.get(uri.toString());
 			if (diagnostics) {
 
 				// no more than N diagnostics per file
@@ -137,7 +143,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 						endColumn: marker[marker.length - 1].endColumn
 					});
 				} else {
-					marker = diagnostics.map(converter.Diagnostic.from);
+					marker = diagnostics.map(diag => converter.Diagnostic.from(diag));
 				}
 			}
 
@@ -164,18 +170,18 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 	forEach(callback: (uri: URI, diagnostics: vscode.Diagnostic[], collection: DiagnosticCollection) => any, thisArg?: any): void {
 		this._checkDisposed();
 		this._data.forEach((value, key) => {
-			let uri = URI.parse(key);
+			const uri = URI.parse(key);
 			callback.apply(thisArg, [uri, this.get(uri), this]);
 		});
 	}
 
 	get(uri: URI): vscode.Diagnostic[] {
 		this._checkDisposed();
-		let result = this._data.get(uri.toString());
+		const result = this._data.get(uri.toString());
 		if (Array.isArray(result)) {
 			return <vscode.Diagnostic[]>Object.freeze(result.slice(0));
 		}
-		return undefined;
+		return [];
 	}
 
 	has(uri: URI): boolean {
@@ -218,8 +224,8 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 	}
 
 	static _mapper(last: (vscode.Uri | string)[]): { uris: vscode.Uri[] } {
-		let uris: vscode.Uri[] = [];
-		let map = new Set<string>();
+		const uris: vscode.Uri[] = [];
+		const map = new Set<string>();
 		for (const uri of last) {
 			if (typeof uri === 'string') {
 				if (!map.has(uri)) {
@@ -279,8 +285,8 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 		if (resource) {
 			return this._getDiagnostics(resource);
 		} else {
-			let index = new Map<string, number>();
-			let res: [vscode.Uri, vscode.Diagnostic[]][] = [];
+			const index = new Map<string, number>();
+			const res: [vscode.Uri, vscode.Diagnostic[]][] = [];
 			this._collections.forEach(collection => {
 				collection.forEach((uri, diagnostics) => {
 					let idx = index.get(uri.toString());

@@ -38,11 +38,11 @@ const SCM_VIEWLET_ID = 'workbench.view.scm';
 
 interface ICachedViewlet {
 	id: string;
-	iconUrl: UriComponents;
+	iconUrl?: UriComponents;
 	pinned: boolean;
-	order: number;
+	order?: number;
 	visible: boolean;
-	views?: { when: string }[];
+	views?: { when?: string }[];
 }
 
 export class ActivitybarPart extends Part implements ISerializableView {
@@ -161,14 +161,19 @@ export class ActivitybarPart extends Part implements ISerializableView {
 	private onDidViewletOpen(viewlet: IViewlet): void {
 
 		// Update the composite bar by adding
-		this.compositeBar.addComposite(this.viewletService.getViewlet(viewlet.getId()));
+		const foundViewlet = this.viewletService.getViewlet(viewlet.getId());
+		if (foundViewlet) {
+			this.compositeBar.addComposite(foundViewlet);
+		}
 		this.compositeBar.activateComposite(viewlet.getId());
 		const viewletDescriptor = this.viewletService.getViewlet(viewlet.getId());
-		const viewContainer = this.getViewContainer(viewletDescriptor.id);
-		if (viewContainer) {
-			const viewDescriptors = this.viewsService.getViewDescriptors(viewContainer);
-			if (viewDescriptors && viewDescriptors.activeViewDescriptors.length === 0) {
-				this.removeComposite(viewletDescriptor.id, true); // Update the composite bar by hiding
+		if (viewletDescriptor) {
+			const viewContainer = this.getViewContainer(viewletDescriptor.id);
+			if (viewContainer) {
+				const viewDescriptors = this.viewsService.getViewDescriptors(viewContainer);
+				if (viewDescriptors && viewDescriptors.activeViewDescriptors.length === 0) {
+					this.removeComposite(viewletDescriptor.id, true); // Update the composite bar by hiding
+				}
 			}
 		}
 	}
@@ -241,7 +246,7 @@ export class ActivitybarPart extends Part implements ISerializableView {
 			badgeBackground: theme.getColor(ACTIVITY_BAR_BADGE_BACKGROUND),
 			badgeForeground: theme.getColor(ACTIVITY_BAR_BADGE_FOREGROUND),
 			dragAndDropBackground: theme.getColor(ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND),
-			activeBackgroundColor: null, inactiveBackgroundColor: null, activeBorderBottomColor: null,
+			activeBackgroundColor: undefined, inactiveBackgroundColor: undefined, activeBorderBottomColor: undefined,
 		};
 	}
 
@@ -311,7 +316,7 @@ export class ActivitybarPart extends Part implements ISerializableView {
 
 	private shouldBeHidden(viewletId: string, cachedViewlet: ICachedViewlet): boolean {
 		return cachedViewlet && cachedViewlet.views && cachedViewlet.views.length
-			? cachedViewlet.views.every(({ when }) => when && !this.contextKeyService.contextMatchesRules(ContextKeyExpr.deserialize(when)))
+			? cachedViewlet.views.every(({ when }) => !!when && !this.contextKeyService.contextMatchesRules(ContextKeyExpr.deserialize(when)))
 			: viewletId === TEST_VIEW_CONTAINER_ID /* Hide Test viewlet for the first time or it had no views registered before */;
 	}
 
@@ -371,7 +376,7 @@ export class ActivitybarPart extends Part implements ISerializableView {
 		}
 
 		// Pass to super
-		const sizes = super.layout(dim1 instanceof Dimension ? dim1 : new Dimension(dim1, dim2));
+		const sizes = super.layout(dim1 instanceof Dimension ? dim1 : new Dimension(dim1, dim2!));
 
 		this.dimension = sizes[1];
 
@@ -428,7 +433,7 @@ export class ActivitybarPart extends Part implements ISerializableView {
 			const viewContainer = this.getViewContainer(compositeItem.id);
 			const viewlet = allViewlets.filter(({ id }) => id === compositeItem.id)[0];
 			if (viewlet) {
-				const views: { when: string }[] = [];
+				const views: { when: string | undefined }[] = [];
 				if (viewContainer) {
 					const viewDescriptors = this.viewsService.getViewDescriptors(viewContainer);
 					if (viewDescriptors) {
@@ -471,7 +476,7 @@ export class ActivitybarPart extends Part implements ISerializableView {
 		return result;
 	}
 
-	private _cachedViewletsValue: string;
+	private _cachedViewletsValue: string | null;
 	private get cachedViewletsValue(): string {
 		if (!this._cachedViewletsValue) {
 			this._cachedViewletsValue = this.getStoredCachedViewletsValue();
@@ -498,7 +503,7 @@ export class ActivitybarPart extends Part implements ISerializableView {
 	private getViewContainer(viewletId: string): ViewContainer | undefined {
 		// TODO: @Joao Remove this after moving SCM Viewlet to ViewContainerViewlet - https://github.com/Microsoft/vscode/issues/49054
 		if (viewletId === SCM_VIEWLET_ID) {
-			return null;
+			return undefined;
 		}
 
 		const viewContainerRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);

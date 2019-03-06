@@ -260,7 +260,9 @@ export class ConfigureLanguageBasedSettingsAction extends Action {
 			.then(pick => {
 				if (pick) {
 					const modeId = this.modeService.getModeIdForLanguageName(pick.label.toLowerCase());
-					return this.preferencesService.configureSettingsForLanguage(modeId);
+					if (typeof modeId === 'string') {
+						return this.preferencesService.configureSettingsForLanguage(modeId);
+					}
 				}
 				return undefined;
 			});

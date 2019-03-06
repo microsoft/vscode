@@ -31,7 +31,6 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { JSONEditingService } from 'vs/workbench/services/configuration/node/jsonEditingService';
-import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { createHash } from 'crypto';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
@@ -140,9 +139,65 @@ suite('WorkspaceContextService - Folder', () => {
 	test('isCurrentWorkspace() => false', () => {
 		assert.ok(!workspaceContextService.isCurrentWorkspace(URI.file(workspaceResource + 'abc')));
 	});
+
+	test('workspace is complete', () => workspaceContextService.getCompleteWorkspace());
 });
 
 suite('WorkspaceContextService - Workspace', () => {
+
+	let parentResource: string, testObject: WorkspaceService, instantiationService: TestInstantiationService;
+
+	setup(() => {
+		return setUpWorkspace(['a', 'b'])
+			.then(({ parentDir, configPath }) => {
+
+				parentResource = parentDir;
+
+				const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, path.join(parentDir, 'settings.json'));
+				const workspaceService = new WorkspaceService(environmentService);
+
+				instantiationService = <TestInstantiationService>workbenchInstantiationService();
+				instantiationService.stub(IWorkspaceContextService, workspaceService);
+				instantiationService.stub(IConfigurationService, workspaceService);
+				instantiationService.stub(IEnvironmentService, environmentService);
+
+				return workspaceService.initialize(getWorkspaceIdentifier(configPath)).then(() => {
+					workspaceService.acquireInstantiationService(instantiationService);
+					testObject = workspaceService;
+				});
+			});
+	});
+
+	teardown(() => {
+		if (testObject) {
+			(<WorkspaceService>testObject).dispose();
+		}
+		if (parentResource) {
+			return pfs.del(parentResource, os.tmpdir());
+		}
+		return undefined;
+	});
+
+	test('workspace folders', () => {
+		const actual = testObject.getWorkspace().folders;
+
+		assert.equal(actual.length, 2);
+		assert.equal(path.basename(actual[0].uri.fsPath), 'a');
+		assert.equal(path.basename(actual[1].uri.fsPath), 'b');
+	});
+
+	test('getWorkbenchState()', () => {
+		const actual = testObject.getWorkbenchState();
+
+		assert.equal(actual, WorkbenchState.WORKSPACE);
+	});
+
+
+	test('workspace is complete', () => testObject.getCompleteWorkspace());
+
+});
+
+suite('WorkspaceContextService - Workspace Editing', () => {
 
 	let parentResource: string, testObject: WorkspaceService, instantiationService: TestInstantiationService, fileChangeEvent: Emitter<FileChangesEvent> = new Emitter<FileChangesEvent>();
 
@@ -184,14 +239,6 @@ suite('WorkspaceContextService - Workspace', () => {
 			return pfs.del(parentResource, os.tmpdir());
 		}
 		return undefined;
-	});
-
-	test('workspace folders', () => {
-		const actual = testObject.getWorkspace().folders;
-
-		assert.equal(actual.length, 2);
-		assert.equal(path.basename(actual[0].uri.fsPath), 'a');
-		assert.equal(path.basename(actual[1].uri.fsPath), 'b');
 	});
 
 	test('add folders', () => {
@@ -649,7 +696,7 @@ suite('WorkspaceService - Initialization', () => {
 
 suite('WorkspaceConfigurationService - Folder', () => {
 
-	let workspaceName = `testWorkspace${uuid.generateUuid()}`, parentResource: string, workspaceDir: string, testObject: IWorkspaceConfigurationService, globalSettingsFile: string;
+	let workspaceName = `testWorkspace${uuid.generateUuid()}`, parentResource: string, workspaceDir: string, testObject: IConfigurationService, globalSettingsFile: string;
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
 	suiteSetup(() => {
@@ -935,7 +982,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 
 suite('WorkspaceConfigurationService-Multiroot', () => {
 
-	let parentResource: string, workspaceContextService: IWorkspaceContextService, environmentService: IEnvironmentService, jsonEditingServce: IJSONEditingService, testObject: IWorkspaceConfigurationService;
+	let parentResource: string, workspaceContextService: IWorkspaceContextService, environmentService: IEnvironmentService, jsonEditingServce: IJSONEditingService, testObject: IConfigurationService;
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
 	suiteSetup(() => {

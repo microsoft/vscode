@@ -292,8 +292,10 @@ export class SuggestController implements IEditorContribution {
 	}
 
 	private _alertCompletionItem({ completion: suggestion }: CompletionItem): void {
-		let msg = nls.localize('arai.alert.snippet', "Accepting '{0}' did insert the following text: {1}", suggestion.label, suggestion.insertText);
-		alert(msg);
+		if (isNonEmptyArray(suggestion.additionalTextEdits)) {
+			let msg = nls.localize('arai.alert.snippet', "Accepting '{0}' made {1} additional edits", suggestion.label, suggestion.additionalTextEdits.length);
+			alert(msg);
+		}
 	}
 
 	triggerSuggest(onlyFrom?: CompletionItemProvider[]): void {

@@ -34,15 +34,15 @@ interface INodeProcess {
 	};
 	type?: string;
 }
-declare let process: INodeProcess;
-declare let global: any;
+declare const process: INodeProcess;
+declare const global: any;
 
 interface INavigator {
 	userAgent: string;
 	language: string;
 }
-declare let navigator: INavigator;
-declare let self: any;
+declare const navigator: INavigator;
+declare const self: any;
 
 const isElectronRenderer = (typeof process !== 'undefined' && typeof process.versions !== 'undefined' && typeof process.versions.electron !== 'undefined' && process.type === 'renderer');
 

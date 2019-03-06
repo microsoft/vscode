@@ -116,7 +116,7 @@ export class FileIndexSearchEngine {
 	}
 
 	private searchInFolder(fq: IFolderQuery<URI>, onResult: (match: IInternalFileMatch) => void): Promise<IFileIndexProviderStats> {
-		let cancellation = new CancellationTokenSource();
+		const cancellation = new CancellationTokenSource();
 		return new Promise((resolve, reject) => {
 			const options = this.getSearchOptionsForFolder(fq);
 			const tree = this.initDirectoryTree();
@@ -511,10 +511,10 @@ export class FileIndexSearchManager {
 				}
 
 				// Pattern match on results
-				let results: IInternalFileMatch[] = [];
+				const results: IInternalFileMatch[] = [];
 				const normalizedSearchValueLowercase = strings.stripWildcards(searchValue).toLowerCase();
 				for (let i = 0; i < complete.results.length; i++) {
-					let entry = complete.results[i];
+					const entry = complete.results[i];
 
 					// Check if this entry is a match for the search value
 					if (!strings.fuzzyContains(entry.relativePath!, normalizedSearchValueLowercase)) {
