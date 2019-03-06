@@ -405,7 +405,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			}
 		}
 
-		let excludePatternOrDisregardExcludes: string | false = false;
+		let excludePatternOrDisregardExcludes: string | false | undefined = undefined;
 		if (exclude === null) {
 			excludePatternOrDisregardExcludes = false;
 		} else if (exclude) {
