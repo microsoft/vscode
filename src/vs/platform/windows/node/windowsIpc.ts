@@ -95,7 +95,7 @@ export class WindowsChannel implements IServerChannel {
 			case 'toggleSharedProcess': return this.service.toggleSharedProcess();
 			case 'quit': return this.service.quit();
 			case 'log': return this.service.log(arg[0], arg[1]);
-			case 'showItemInFolder': return this.service.showItemInFolder(arg);
+			case 'showItemInFolder': return this.service.showItemInFolder(URI.revive(arg));
 			case 'getActiveWindowId': return this.service.getActiveWindowId();
 			case 'openExternal': return this.service.openExternal(arg);
 			case 'startCrashReporter': return this.service.startCrashReporter(arg);
@@ -309,7 +309,7 @@ export class WindowsChannelClient implements IWindowsService {
 		return this.channel.call('log', [severity, messages]);
 	}
 
-	showItemInFolder(path: string): Promise<void> {
+	showItemInFolder(path: URI): Promise<void> {
 		return this.channel.call('showItemInFolder', path);
 	}
 

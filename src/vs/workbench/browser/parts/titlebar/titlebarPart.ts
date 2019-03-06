@@ -617,7 +617,7 @@ class ShowItemInFolderAction extends Action {
 	}
 
 	run(): Promise<void> {
-		return this.windowsService.showItemInFolder(this.path);
+		return this.windowsService.showItemInFolder(URI.file(this.path));
 	}
 }
 
