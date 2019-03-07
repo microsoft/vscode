@@ -508,7 +508,9 @@ export class CommentNode extends Disposable {
 
 		this.comment = newComment;
 
-		if (newComment.isDraft) {
+		if (newComment.label) {
+			this._isPendingLabel.innerText = newComment.label;
+		} else if (newComment.isDraft) {
 			this._isPendingLabel.innerText = 'Pending';
 		} else {
 			this._isPendingLabel.innerText = '';

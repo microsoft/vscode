@@ -101,6 +101,9 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	private readonly _onDidActiveGroupChange: Emitter<IEditorGroupView> = this._register(new Emitter<IEditorGroupView>());
 	get onDidActiveGroupChange(): Event<IEditorGroupView> { return this._onDidActiveGroupChange.event; }
 
+	private readonly _onDidActivateGroup: Emitter<IEditorGroupView> = this._register(new Emitter<IEditorGroupView>());
+	get onDidActivateGroup(): Event<IEditorGroupView> { return this._onDidActivateGroup.event; }
+
 	private readonly _onDidAddGroup: Emitter<IEditorGroupView> = this._register(new Emitter<IEditorGroupView>());
 	get onDidAddGroup(): Event<IEditorGroupView> { return this._onDidAddGroup.event; }
 
@@ -116,9 +119,6 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 
 	private readonly _onDidPreferredSizeChange: Emitter<void> = this._register(new Emitter<void>());
 	get onDidPreferredSizeChange(): Event<void> { return this._onDidPreferredSizeChange.event; }
-
-	private readonly _onDidActivateGroup: Emitter<IEditorGroupView> = this._register(new Emitter<IEditorGroupView>());
-	get onDidActivateGroup(): Event<IEditorGroupView> { return this._onDidActivateGroup.event; }
 
 	//#endregion
 

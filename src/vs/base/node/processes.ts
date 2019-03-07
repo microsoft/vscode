@@ -42,7 +42,7 @@ function getWindowsCode(status: number): TerminateResponseCode {
 export function terminateProcess(process: cp.ChildProcess, cwd?: string): TerminateResponse {
 	if (Platform.isWindows) {
 		try {
-			let options: any = {
+			const options: any = {
 				stdio: ['pipe', 'pipe', 'ignore']
 			};
 			if (cwd) {
@@ -54,8 +54,8 @@ export function terminateProcess(process: cp.ChildProcess, cwd?: string): Termin
 		}
 	} else if (Platform.isLinux || Platform.isMacintosh) {
 		try {
-			let cmd = getPathFromAmdModule(require, 'vs/base/node/terminateProcess.sh');
-			let result = cp.spawnSync(cmd, [process.pid.toString()]);
+			const cmd = getPathFromAmdModule(require, 'vs/base/node/terminateProcess.sh');
+			const result = cp.spawnSync(cmd, [process.pid.toString()]);
 			if (result.error) {
 				return { success: false, error: result.error };
 			}
@@ -113,7 +113,7 @@ export abstract class AbstractProcess<TProgressData> {
 			this.shell = arg3;
 			this.options = arg4;
 		} else {
-			let executable = <Executable>arg1;
+			const executable = <Executable>arg1;
 			this.cmd = executable.command;
 			this.shell = executable.isShellCommand;
 			this.args = executable.args.slice(0);
@@ -124,7 +124,7 @@ export abstract class AbstractProcess<TProgressData> {
 		this.terminateRequested = false;
 
 		if (this.options.env) {
-			let newEnv: IStringDictionary<string> = Object.create(null);
+			const newEnv: IStringDictionary<string> = Object.create(null);
 			Object.keys(process.env).forEach((key) => {
 				newEnv[key] = process.env[key]!;
 			});
@@ -137,7 +137,7 @@ export abstract class AbstractProcess<TProgressData> {
 
 	public getSanitizedCommand(): string {
 		let result = this.cmd.toLowerCase();
-		let index = result.lastIndexOf(path.sep);
+		const index = result.lastIndexOf(path.sep);
 		if (index !== -1) {
 			result = result.substring(index + 1);
 		}
@@ -154,7 +154,7 @@ export abstract class AbstractProcess<TProgressData> {
 		return this.useExec().then((useExec) => {
 			let cc: ValueCallback<SuccessData>;
 			let ee: ErrorCallback;
-			let result = new Promise<any>((c, e) => {
+			const result = new Promise<any>((c, e) => {
 				cc = c;
 				ee = e;
 			});
@@ -166,7 +166,7 @@ export abstract class AbstractProcess<TProgressData> {
 				}
 				this.childProcess = cp.exec(cmd, this.options, (error, stdout, stderr) => {
 					this.childProcess = null;
-					let err: any = error;
+					const err: any = error;
 					// This is tricky since executing a command shell reports error back in case the executed command return an
 					// error or the command didn't exist at all. So we can't blindly treat an error as a failed command. So we
 					// always parse the output and report success unless the job got killed.
@@ -178,11 +178,11 @@ export abstract class AbstractProcess<TProgressData> {
 				});
 			} else {
 				let childProcess: cp.ChildProcess | null = null;
-				let closeHandler = (data: any) => {
+				const closeHandler = (data: any) => {
 					this.childProcess = null;
 					this.childProcessPromise = null;
 					this.handleClose(data, cc, pp, ee);
-					let result: SuccessData = {
+					const result: SuccessData = {
 						terminated: this.terminateRequested
 					};
 					if (Types.isNumber(data)) {
@@ -191,12 +191,12 @@ export abstract class AbstractProcess<TProgressData> {
 					cc(result);
 				};
 				if (this.shell && Platform.isWindows) {
-					let options: any = Objects.deepClone(this.options);
+					const options: any = Objects.deepClone(this.options);
 					options.windowsVerbatimArguments = true;
 					options.detached = false;
 					let quotedCommand: boolean = false;
 					let quotedArg: boolean = false;
-					let commandLine: string[] = [];
+					const commandLine: string[] = [];
 					let quoted = this.ensureQuotes(this.cmd);
 					commandLine.push(quoted.value);
 					quotedCommand = quoted.quoted;
@@ -207,7 +207,7 @@ export abstract class AbstractProcess<TProgressData> {
 							quotedArg = quotedArg && quoted.quoted;
 						});
 					}
-					let args: string[] = [
+					const args: string[] = [
 						'/s',
 						'/c',
 					];
@@ -287,7 +287,7 @@ export abstract class AbstractProcess<TProgressData> {
 		}
 		return this.childProcessPromise.then((childProcess) => {
 			this.terminateRequested = true;
-			let result = terminateProcess(childProcess, this.options.cwd);
+			const result = terminateProcess(childProcess, this.options.cwd);
 			if (result.success) {
 				this.childProcess = null;
 			}
@@ -302,7 +302,7 @@ export abstract class AbstractProcess<TProgressData> {
 			if (!this.shell || !Platform.isWindows) {
 				return c(false);
 			}
-			let cmdShell = cp.spawn(getWindowsShell(), ['/s', '/c']);
+			const cmdShell = cp.spawn(getWindowsShell(), ['/s', '/c']);
 			cmdShell.on('error', (error: Error) => {
 				return c(true);
 			});
@@ -326,12 +326,12 @@ export class LineProcess extends AbstractProcess<LineData> {
 
 	protected handleExec(cc: ValueCallback<SuccessData>, pp: ProgressCallback<LineData>, error: Error, stdout: Buffer, stderr: Buffer) {
 		[stdout, stderr].forEach((buffer: Buffer, index: number) => {
-			let lineDecoder = new LineDecoder();
-			let lines = lineDecoder.write(buffer);
+			const lineDecoder = new LineDecoder();
+			const lines = lineDecoder.write(buffer);
 			lines.forEach((line) => {
 				pp({ line: line, source: index === 0 ? Source.stdout : Source.stderr });
 			});
-			let line = lineDecoder.end();
+			const line = lineDecoder.end();
 			if (line) {
 				pp({ line: line, source: index === 0 ? Source.stdout : Source.stderr });
 			}
@@ -343,11 +343,11 @@ export class LineProcess extends AbstractProcess<LineData> {
 		this.stdoutLineDecoder = new LineDecoder();
 		this.stderrLineDecoder = new LineDecoder();
 		childProcess.stdout.on('data', (data: Buffer) => {
-			let lines = this.stdoutLineDecoder.write(data);
+			const lines = this.stdoutLineDecoder.write(data);
 			lines.forEach(line => pp({ line: line, source: Source.stdout }));
 		});
 		childProcess.stderr.on('data', (data: Buffer) => {
-			let lines = this.stderrLineDecoder.write(data);
+			const lines = this.stderrLineDecoder.write(data);
 			lines.forEach(line => pp({ line: line, source: Source.stderr }));
 		});
 	}
@@ -380,7 +380,7 @@ export function createQueuedSender(childProcess: cp.ChildProcess): IQueuedSender
 			return;
 		}
 
-		let result = childProcess.send(msg, (error: Error) => {
+		const result = childProcess.send(msg, (error: Error) => {
 			if (error) {
 				console.error(error); // unlikely to happen, best we can do is log this error
 			}
@@ -412,7 +412,7 @@ export namespace win32 {
 		if (cwd === undefined) {
 			cwd = process.cwd();
 		}
-		let dir = path.dirname(command);
+		const dir = path.dirname(command);
 		if (dir !== '.') {
 			// We have a directory and the directory is relative (see above). Make the path absolute
 			// to the current working directory.

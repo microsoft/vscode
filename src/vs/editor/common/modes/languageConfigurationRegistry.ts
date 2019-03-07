@@ -175,7 +175,7 @@ export class LanguageConfigurationChangeEvent {
 
 export class LanguageConfigurationRegistryImpl {
 
-	private _entries: RichEditSupport[];
+	private readonly _entries: RichEditSupport[];
 
 	private readonly _onDidChange = new Emitter<LanguageConfigurationChangeEvent>();
 	public readonly onDidChange: Event<LanguageConfigurationChangeEvent> = this._onDidChange.event;

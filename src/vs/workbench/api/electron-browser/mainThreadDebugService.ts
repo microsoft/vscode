@@ -19,15 +19,15 @@ import { convertToVSCPaths, convertToDAPaths } from 'vs/workbench/contrib/debug/
 @extHostNamedCustomer(MainContext.MainThreadDebugService)
 export class MainThreadDebugService implements MainThreadDebugServiceShape, IDebugAdapterFactory {
 
-	private _proxy: ExtHostDebugServiceShape;
+	private readonly _proxy: ExtHostDebugServiceShape;
 	private _toDispose: IDisposable[];
 	private _breakpointEventsActive: boolean;
-	private _debugAdapters: Map<number, ExtensionHostDebugAdapter>;
+	private readonly _debugAdapters: Map<number, ExtensionHostDebugAdapter>;
 	private _debugAdaptersHandleCounter = 1;
-	private _debugConfigurationProviders: Map<number, IDebugConfigurationProvider>;
-	private _debugAdapterDescriptorFactories: Map<number, IDebugAdapterDescriptorFactory>;
-	private _debugAdapterTrackerFactories: Map<number, IDebugAdapterTrackerFactory>;
-	private _sessions: Set<DebugSessionUUID>;
+	private readonly _debugConfigurationProviders: Map<number, IDebugConfigurationProvider>;
+	private readonly _debugAdapterDescriptorFactories: Map<number, IDebugAdapterDescriptorFactory>;
+	private readonly _debugAdapterTrackerFactories: Map<number, IDebugAdapterTrackerFactory>;
+	private readonly _sessions: Set<DebugSessionUUID>;
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -343,7 +343,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
  */
 class ExtensionHostDebugAdapter extends AbstractDebugAdapter {
 
-	constructor(private _ds: MainThreadDebugService, private _handle: number, private _proxy: ExtHostDebugServiceShape, private _session: IDebugSession) {
+	constructor(private readonly _ds: MainThreadDebugService, private _handle: number, private _proxy: ExtHostDebugServiceShape, private _session: IDebugSession) {
 		super();
 	}
 

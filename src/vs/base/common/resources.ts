@@ -181,7 +181,7 @@ export function hasTrailingPathSeparator(resource: URI): boolean {
 		const fsp = originalFSPath(resource);
 		return fsp.length > extpath.getRoot(fsp).length && fsp[fsp.length - 1] === paths.sep;
 	} else {
-		let p = resource.path;
+		const p = resource.path;
 		return p.length > 1 && p.charCodeAt(p.length - 1) === CharCode.Slash; // ignore the slash at offset 0
 	}
 }

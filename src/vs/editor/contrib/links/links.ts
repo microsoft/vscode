@@ -153,14 +153,14 @@ class LinkDetector implements editorCommon.IEditorContribution {
 
 	static RECOMPUTE_TIME = 1000; // ms
 
-	private editor: ICodeEditor;
+	private readonly editor: ICodeEditor;
 	private enabled: boolean;
 	private listenersToRemove: IDisposable[];
-	private timeout: async.TimeoutTimer;
+	private readonly timeout: async.TimeoutTimer;
 	private computePromise: async.CancelablePromise<Link[]> | null;
 	private activeLinkDecorationId: string | null;
-	private openerService: IOpenerService;
-	private notificationService: INotificationService;
+	private readonly openerService: IOpenerService;
+	private readonly notificationService: INotificationService;
 	private currentOccurrences: { [decorationId: string]: LinkOccurrence; };
 
 	constructor(

@@ -14,7 +14,7 @@ import { OutlineConfigKeys, OutlineViewId } from 'vs/editor/contrib/documentSymb
 const _outlineDesc = <IViewDescriptor>{
 	id: OutlineViewId,
 	name: localize('name', "Outline"),
-	ctor: OutlinePanel,
+	ctorDescriptor: { ctor: OutlinePanel },
 	canToggleVisibility: true,
 	hideByDefault: false,
 	collapsed: true,
@@ -33,11 +33,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	'properties': {
 		[OutlineConfigKeys.icons]: {
 			'description': localize('outline.showIcons', "Render Outline Elements with Icons."),
-			'type': 'boolean',
-			'default': true
-		},
-		[OutlineConfigKeys.problemsEnabled]: {
-			'description': localize('outline.showProblem', "Show Errors & Warnings on Outline Elements."),
 			'type': 'boolean',
 			'default': true
 		},

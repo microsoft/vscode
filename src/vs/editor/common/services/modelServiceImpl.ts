@@ -91,9 +91,9 @@ const DEFAULT_EOL = (platform.isLinux || platform.isMacintosh) ? DefaultEndOfLin
 export class ModelServiceImpl extends Disposable implements IModelService {
 	public _serviceBrand: any;
 
-	private _configurationService: IConfigurationService;
-	private _configurationServiceSubscription: IDisposable;
-	private _resourcePropertiesService: ITextResourcePropertiesService;
+	private readonly _configurationService: IConfigurationService;
+	private readonly _configurationServiceSubscription: IDisposable;
+	private readonly _resourcePropertiesService: ITextResourcePropertiesService;
 
 	private readonly _onModelAdded: Emitter<ITextModel> = this._register(new Emitter<ITextModel>());
 	public readonly onModelAdded: Event<ITextModel> = this._onModelAdded.event;
@@ -111,7 +111,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 	/**
 	 * All the models known in the system.
 	 */
-	private _models: { [modelId: string]: ModelData; };
+	private readonly _models: { [modelId: string]: ModelData; };
 
 	constructor(
 		@IConfigurationService configurationService: IConfigurationService,

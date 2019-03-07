@@ -99,7 +99,7 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 		return {
 			id: OpenEditorsView.ID,
 			name: OpenEditorsView.NAME,
-			ctor: OpenEditorsView,
+			ctorDescriptor: { ctor: OpenEditorsView },
 			order: 0,
 			when: OpenEditorsVisibleCondition,
 			canToggleVisibility: true,
@@ -114,7 +114,7 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 		return {
 			id: EmptyView.ID,
 			name: EmptyView.NAME,
-			ctor: EmptyView,
+			ctorDescriptor: { ctor: EmptyView },
 			order: 1,
 			canToggleVisibility: false
 		};
@@ -124,7 +124,7 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 		return {
 			id: ExplorerView.ID,
 			name: localize('folders', "Folders"),
-			ctor: ExplorerView,
+			ctorDescriptor: { ctor: ExplorerView },
 			order: 1,
 			canToggleVisibility: false
 		};

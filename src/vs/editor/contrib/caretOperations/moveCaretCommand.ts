@@ -10,8 +10,8 @@ import { ITextModel } from 'vs/editor/common/model';
 
 export class MoveCaretCommand implements ICommand {
 
-	private _selection: Selection;
-	private _isMovingLeft: boolean;
+	private readonly _selection: Selection;
+	private readonly _isMovingLeft: boolean;
 
 	private _cutStartIndex: number;
 	private _cutEndIndex: number;

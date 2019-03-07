@@ -8,6 +8,7 @@ import { ContextView } from 'vs/base/browser/ui/contextview/contextview';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 
 export class ContextViewService extends Disposable implements IContextViewService {
 	_serviceBrand: any;
@@ -17,11 +18,15 @@ export class ContextViewService extends Disposable implements IContextViewServic
 	constructor(
 		container: HTMLElement,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@ILayoutService readonly layoutService: ILayoutService
 	) {
 		super();
 
 		this.contextView = this._register(new ContextView(container));
+		this.layout();
+
+		this._register(layoutService.onLayout(() => this.layout()));
 	}
 
 	// ContextView

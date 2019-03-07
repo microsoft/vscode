@@ -21,15 +21,15 @@ export interface WorkspaceStats {
 }
 
 function asSortedItems(map: Map<string, number>): WorkspaceStatItem[] {
-	let a: WorkspaceStatItem[] = [];
+	const a: WorkspaceStatItem[] = [];
 	map.forEach((value, index) => a.push({ name: index, count: value }));
 	return a.sort((a, b) => b.count - a.count);
 }
 
 export function collectLaunchConfigs(folder: string): Promise<WorkspaceStatItem[]> {
-	let launchConfigs = new Map<string, number>();
+	const launchConfigs = new Map<string, number>();
 
-	let launchConfig = join(folder, '.vscode', 'launch.json');
+	const launchConfig = join(folder, '.vscode', 'launch.json');
 	return new Promise((resolve, reject) => {
 		exists(launchConfig, (doesExist) => {
 			if (doesExist) {
@@ -87,8 +87,8 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 		{ 'tag': 'cmake', 'pattern': /^.+\.cmake$/i }
 	];
 
-	let fileTypes = new Map<string, number>();
-	let configFiles = new Map<string, number>();
+	const fileTypes = new Map<string, number>();
+	const configFiles = new Map<string, number>();
 
 	const MAX_FILES = 20000;
 
@@ -149,7 +149,7 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 		});
 	}
 
-	let addFileType = (fileType: string) => {
+	const addFileType = (fileType: string) => {
 		if (fileTypes.has(fileType)) {
 			fileTypes.set(fileType, fileTypes.get(fileType)! + 1);
 		}
@@ -158,7 +158,7 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 		}
 	};
 
-	let addConfigFiles = (fileName: string) => {
+	const addConfigFiles = (fileName: string) => {
 		for (const each of configFilePatterns) {
 			if (each.pattern.test(fileName)) {
 				if (configFiles.has(each.tag)) {
@@ -170,9 +170,9 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 		}
 	};
 
-	let acceptFile = (name: string) => {
+	const acceptFile = (name: string) => {
 		if (name.lastIndexOf('.') >= 0) {
-			let suffix: string | undefined = name.split('.').pop();
+			const suffix: string | undefined = name.split('.').pop();
 			if (suffix) {
 				addFileType(suffix);
 			}
@@ -180,13 +180,13 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 		addConfigFiles(name);
 	};
 
-	let token: { count: number, maxReached: boolean } = { count: 0, maxReached: false };
+	const token: { count: number, maxReached: boolean } = { count: 0, maxReached: false };
 
 	return new Promise((resolve, reject) => {
 		walk(folder, filter, token, async (files) => {
 			files.forEach(acceptFile);
 
-			let launchConfigs = await collectLaunchConfigs(folder);
+			const launchConfigs = await collectLaunchConfigs(folder);
 
 			resolve({
 				configFiles: asSortedItems(configFiles),

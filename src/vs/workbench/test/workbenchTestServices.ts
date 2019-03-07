@@ -548,6 +548,7 @@ export class TestEditorGroupsService implements EditorGroupsServiceImpl {
 	constructor(public groups: TestEditorGroup[] = []) { }
 
 	onDidActiveGroupChange: Event<IEditorGroup> = Event.None;
+	onDidActivateGroup: Event<IEditorGroup> = Event.None;
 	onDidAddGroup: Event<IEditorGroup> = Event.None;
 	onDidRemoveGroup: Event<IEditorGroup> = Event.None;
 	onDidMoveGroup: Event<IEditorGroup> = Event.None;
@@ -1240,7 +1241,7 @@ export class TestWindowsService implements IWindowsService {
 		return Promise.resolve();
 	}
 
-	addRecentlyOpened(_files: URI[]): Promise<void> {
+	addRecentlyOpened(_workspaces: URI[], _folders: URI[], _files: URI[]): Promise<void> {
 		return Promise.resolve();
 	}
 
@@ -1332,7 +1333,7 @@ export class TestWindowsService implements IWindowsService {
 		return Promise.resolve();
 	}
 
-	showItemInFolder(_path: string): Promise<void> {
+	showItemInFolder(_path: URI): Promise<void> {
 		return Promise.resolve();
 	}
 

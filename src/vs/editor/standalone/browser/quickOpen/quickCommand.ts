@@ -19,10 +19,10 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 export class EditorActionCommandEntry extends QuickOpenEntryGroup {
-	private key: string;
-	private action: IEditorAction;
-	private editor: IEditor;
-	private keyAriaLabel: string;
+	private readonly key: string;
+	private readonly action: IEditorAction;
+	private readonly editor: IEditor;
+	private readonly keyAriaLabel: string;
 
 	constructor(key: string, keyAriaLabel: string, highlights: IHighlight[], action: IEditorAction, editor: IEditor) {
 		super();

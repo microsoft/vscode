@@ -61,7 +61,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		}
 	}
 
-	private onEditorOpening(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions, group: IEditorGroup): IOpenEditorOverride {
+	private onEditorOpening(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup): IOpenEditorOverride | undefined {
 		const resource = editor.getResource();
 		if (
 			!resource ||
@@ -108,7 +108,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 	private start(): void {
 
 		this.textModelResolverService.registerTextModelContentProvider('vscode', {
-			provideTextContent: (uri: URI): Promise<ITextModel> => {
+			provideTextContent: (uri: URI): Promise<ITextModel | null> | null => {
 				if (uri.scheme !== 'vscode') {
 					return null;
 				}
@@ -123,7 +123,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		});
 	}
 
-	private getSchemaModel(uri: URI): ITextModel {
+	private getSchemaModel(uri: URI): ITextModel | null {
 		let schema = schemaRegistry.getSchemaContributions().schemas[uri.toString()];
 		if (schema) {
 			const modelContent = JSON.stringify(schema);

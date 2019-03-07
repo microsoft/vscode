@@ -236,7 +236,7 @@ export namespace MarkdownString {
 		const resUris: { [href: string]: UriComponents } = Object.create(null);
 		res.uris = resUris;
 
-		let renderer = new marked.Renderer();
+		const renderer = new marked.Renderer();
 		renderer.image = renderer.link = (href: string): string => {
 			try {
 				let uri = URI.parse(href, true);
@@ -267,7 +267,7 @@ export namespace MarkdownString {
 		}
 		data = cloneAndChange(data, value => {
 			if (value instanceof URI) {
-				let key = `__uri_${Math.random().toString(16).slice(2, 8)}`;
+				const key = `__uri_${Math.random().toString(16).slice(2, 8)}`;
 				bucket[key] = value;
 				return key;
 			} else {

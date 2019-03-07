@@ -96,7 +96,7 @@ export class HeapService implements IHeapService {
 @extHostCustomer
 export class MainThreadHeapService {
 
-	private _toDispose: IDisposable;
+	private readonly _toDispose: IDisposable;
 
 	constructor(
 		extHostContext: IExtHostContext,

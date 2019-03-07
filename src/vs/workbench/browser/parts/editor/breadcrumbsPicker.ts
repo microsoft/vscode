@@ -25,9 +25,10 @@ import { ResourceLabels, IResourceLabel, DEFAULT_LABELS_CONTAINER } from 'vs/wor
 import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 import { BreadcrumbElement, FileElement } from 'vs/workbench/browser/parts/editor/breadcrumbsModel';
 import { IFileIconTheme, IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { IAsyncDataSource, ITreeRenderer, ITreeNode, ITreeFilter, TreeVisibility, ITreeSorter } from 'vs/base/browser/ui/tree/tree';
+import { IAsyncDataSource, ITreeRenderer, ITreeNode, ITreeFilter, TreeVisibility, ITreeSorter, IDataSource } from 'vs/base/browser/ui/tree/tree';
 import { OutlineVirtualDelegate, OutlineGroupRenderer, OutlineElementRenderer, OutlineItemComparator, OutlineIdentityProvider, OutlineNavigationLabelProvider, OutlineDataSource, OutlineSortOrder, OutlineItem } from 'vs/editor/contrib/documentSymbols/outlineTree';
 import { IIdentityProvider, IListVirtualDelegate, IKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/list/list';
+import { IDataTreeOptions } from 'vs/base/browser/ui/tree/dataTree';
 
 export function createBreadcrumbsPicker(instantiationService: IInstantiationService, parent: HTMLElement, element: BreadcrumbElement): BreadcrumbsPicker {
 	const ctor: IConstructorSignature1<HTMLElement, BreadcrumbsPicker> = element instanceof FileElement
@@ -156,7 +157,7 @@ export abstract class BreadcrumbsPicker {
 
 	protected abstract _setInput(element: BreadcrumbElement): Promise<void>;
 	protected abstract _createTree(container: HTMLElement): Tree<any, any>;
-	protected abstract _getTargetFromEvent(element: any, payload: UIEvent): any | undefined;
+	protected abstract _getTargetFromEvent(element: any, payload: UIEvent | undefined): any | undefined;
 }
 
 //#region - Files
@@ -329,7 +330,7 @@ class FileFilter implements ITreeFilter<IWorkspaceFolder | IFileStat> {
 			return true;
 		}
 
-		const expression = this._cachedExpressions.get(folder.uri.toString());
+		const expression = this._cachedExpressions.get(folder.uri.toString())!;
 		return !expression(element.resource.path, basename(element.resource));
 	}
 }
@@ -450,7 +451,14 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 	}
 
 	protected _createTree(container: HTMLElement) {
-		return this._instantiationService.createInstance(
+		return this._instantiationService.createInstance<
+			HTMLElement,
+			IListVirtualDelegate<OutlineItem>,
+			ITreeRenderer<any, FuzzyScore, any>[],
+			IDataSource<OutlineModel, OutlineItem>,
+			IDataTreeOptions<OutlineItem, FuzzyScore>,
+			WorkbenchDataTree<OutlineModel, OutlineItem, FuzzyScore>
+		>(
 			WorkbenchDataTree,
 			container,
 			new OutlineVirtualDelegate(),
@@ -474,7 +482,7 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 
 	protected _setInput(input: BreadcrumbElement): Promise<void> {
 		const element = input as TreeElement;
-		const model = OutlineModel.get(element);
+		const model = OutlineModel.get(element)!;
 		const tree = this._tree as WorkbenchDataTree<OutlineModel, any, FuzzyScore>;
 		tree.setInput(model);
 

@@ -18,7 +18,7 @@ export interface ITextModelService {
 	 * Provided a resource URI, it will return a model reference
 	 * which should be disposed once not needed anymore.
 	 */
-	createModelReference(resource: URI): Promise<IReference<IActiveTextEditorModel>>;
+	createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>>;
 
 	/**
 	 * Registers a specific `scheme` content provider.
@@ -36,7 +36,7 @@ export interface ITextModelContentProvider {
 	/**
 	 * Given a resource, return the content of the resource as `ITextModel`.
 	 */
-	provideTextContent(resource: URI): Promise<ITextModel | undefined> | null;
+	provideTextContent(resource: URI): Promise<ITextModel | undefined | null> | null | undefined;
 }
 
 export interface ITextEditorModel extends IEditorModel {
@@ -49,6 +49,10 @@ export interface ITextEditorModel extends IEditorModel {
 	isReadonly(): boolean;
 }
 
-export interface IActiveTextEditorModel extends ITextEditorModel {
+export interface IResolvedTextEditorModel extends ITextEditorModel {
+
+	/**
+	 * Same as ITextEditorModel#textEditorModel, but never null.
+	 */
 	readonly textEditorModel: ITextModel;
 }

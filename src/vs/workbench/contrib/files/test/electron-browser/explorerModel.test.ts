@@ -12,7 +12,7 @@ import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { toResource } from 'vs/base/test/common/utils';
 
 function createStat(this: any, path: string, name: string, isFolder: boolean, hasChildren: boolean, size: number, mtime: number): ExplorerItem {
-	return new ExplorerItem(toResource.call(this, path), null, isFolder, false, false, name, mtime);
+	return new ExplorerItem(toResource.call(this, path), undefined, isFolder, false, false, name, mtime);
 }
 
 suite('Files - View Model', function () {
@@ -263,8 +263,8 @@ suite('Files - View Model', function () {
 		merge2.addChild(child);
 		(<any>merge2)._isDirectoryResolved = true;
 		ExplorerItem.mergeLocalWithDisk(merge2, merge1);
-		assert.strictEqual(merge1.getChild('foo.html').name, 'foo.html');
-		assert.deepEqual(merge1.getChild('foo.html').parent, merge1, 'Check parent');
+		assert.strictEqual(merge1.getChild('foo.html')!.name, 'foo.html');
+		assert.deepEqual(merge1.getChild('foo.html')!.parent, merge1, 'Check parent');
 
 		// Verify that merge does not replace existing children, but updates properties in that case
 		const existingChild = merge1.getChild('foo.html');

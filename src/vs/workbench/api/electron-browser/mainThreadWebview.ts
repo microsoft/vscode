@@ -13,7 +13,7 @@ import { editorGroupToViewColumn, EditorViewColumn, viewColumnToEditorGroup } fr
 import { WebviewEditor } from 'vs/workbench/contrib/webview/electron-browser/webviewEditor';
 import { WebviewEditorInput, RevivedWebviewEditorInput } from 'vs/workbench/contrib/webview/electron-browser/webviewEditorInput';
 import { ICreateWebViewShowOptions, IWebviewEditorService, WebviewInputOptions, WebviewReviver } from 'vs/workbench/contrib/webview/electron-browser/webviewEditorService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import * as vscode from 'vscode';
@@ -161,7 +161,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 
 	public $setHtml(handle: WebviewPanelHandle | WebviewInsetHandle, value: string): void {
 		if (typeof handle === 'number') {
-			this._webviewsElements.get(handle).contents = value;
+			this.getWebviewElement(handle).contents = value;
 		} else {
 			const webview = this.getWebview(handle);
 			webview.html = value;
@@ -170,7 +170,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 
 	public $setOptions(handle: WebviewPanelHandle | WebviewInsetHandle, options: vscode.WebviewOptions): void {
 		if (typeof handle === 'number') {
-			this._webviewsElements.get(handle).options = reviveWebviewOptions(options);
+			this.getWebviewElement(handle).options = reviveWebviewOptions(options);
 		} else {
 			const webview = this.getWebview(handle);
 			webview.setOptions(reviveWebviewOptions(options));
@@ -185,12 +185,12 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 
 		const targetGroup = this._editorGroupService.getGroup(viewColumnToEditorGroup(this._editorGroupService, showOptions.viewColumn));
 
-		this._webviewService.revealWebview(webview, targetGroup || this._editorGroupService.getGroup(webview.group), !!showOptions.preserveFocus);
+		this._webviewService.revealWebview(webview, targetGroup || this._editorGroupService.getGroup(webview.group || ACTIVE_GROUP), !!showOptions.preserveFocus);
 	}
 
 	public $postMessage(handle: WebviewPanelHandle | WebviewInsetHandle, message: any): Promise<boolean> {
 		if (typeof handle === 'number') {
-			this._webviewsElements.get(handle).sendMessage(message);
+			this.getWebviewElement(handle).sendMessage(message);
 			return Promise.resolve(true);
 
 		} else {
@@ -232,7 +232,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 				}
 			}
 
-			return this._proxy.$deserializeWebviewPanel(handle, webview.state.viewType, webview.getTitle(), state, editorGroupToViewColumn(this._editorGroupService, webview.group), webview.options)
+			return this._proxy.$deserializeWebviewPanel(handle, webview.state.viewType, webview.getTitle(), state, editorGroupToViewColumn(this._editorGroupService, webview.group || ACTIVE_GROUP), webview.options)
 				.then(undefined, error => {
 					onUnexpectedError(error);
 
@@ -288,7 +288,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 			this._proxy.$onDidChangeWebviewPanelViewState(newActiveWebview.handle, {
 				active: true,
 				visible: true,
-				position: editorGroupToViewColumn(this._editorGroupService, newActiveWebview.input.group)
+				position: editorGroupToViewColumn(this._editorGroupService, newActiveWebview.input.group || ACTIVE_GROUP)
 			});
 			return;
 		}
@@ -300,7 +300,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 				this._proxy.$onDidChangeWebviewPanelViewState(this._activeWebview, {
 					active: false,
 					visible: this._editorService.visibleControls.some(editor => !!editor.input && editor.input.matches(oldActiveWebview)),
-					position: editorGroupToViewColumn(this._editorGroupService, oldActiveWebview.group),
+					position: editorGroupToViewColumn(this._editorGroupService, oldActiveWebview.group || ACTIVE_GROUP),
 				});
 			}
 		}
@@ -310,7 +310,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 			this._proxy.$onDidChangeWebviewPanelViewState(newActiveWebview.handle, {
 				active: true,
 				visible: true,
-				position: editorGroupToViewColumn(this._editorGroupService, activeEditor.group)
+				position: editorGroupToViewColumn(this._editorGroupService, activeEditor ? activeEditor.group : ACTIVE_GROUP),
 			});
 			this._activeWebview = newActiveWebview.handle;
 		} else {
@@ -322,9 +322,9 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		this._webviews.forEach((input, handle) => {
 			for (const workbenchEditor of this._editorService.visibleControls) {
 				if (workbenchEditor.input && workbenchEditor.input.matches(input)) {
-					const editorPosition = editorGroupToViewColumn(this._editorGroupService, workbenchEditor.group);
+					const editorPosition = editorGroupToViewColumn(this._editorGroupService, workbenchEditor.group!);
 
-					input.updateGroup(workbenchEditor.group.id);
+					input.updateGroup(workbenchEditor.group!.id);
 					this._proxy.$onDidChangeWebviewPanelViewState(handle, {
 						active: handle === this._activeWebview,
 						visible: true,
@@ -350,6 +350,14 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 
 	private getWebview(handle: WebviewPanelHandle): WebviewEditorInput {
 		const webview = this._webviews.get(handle);
+		if (!webview) {
+			throw new Error('Unknown webview handle:' + handle);
+		}
+		return webview;
+	}
+
+	private getWebviewElement(handle: number): WebviewElement {
+		const webview = this._webviewsElements.get(handle);
 		if (!webview) {
 			throw new Error('Unknown webview handle:' + handle);
 		}

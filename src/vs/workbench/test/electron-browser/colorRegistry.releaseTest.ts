@@ -6,7 +6,7 @@
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IColorRegistry, Extensions, ColorContribution } from 'vs/platform/theme/common/colorRegistry';
 import { editorMarkerNavigationError } from 'vs/editor/contrib/gotoError/gotoErrorWidget';
-import { overviewRulerModifiedForeground } from 'vs/workbench/contrib/scm/electron-browser/dirtydiffDecorator';
+import { overviewRulerModifiedForeground } from 'vs/workbench/contrib/scm/browser/dirtydiffDecorator';
 import { STATUS_BAR_DEBUGGING_BACKGROUND } from 'vs/workbench/contrib/debug/browser/statusbarColorProvider';
 import { debugExceptionWidgetBackground } from 'vs/workbench/contrib/debug/browser/exceptionWidget';
 import { debugToolBarBackground } from 'vs/workbench/contrib/debug/browser/debugToolbar';

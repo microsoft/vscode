@@ -19,7 +19,7 @@ export interface IKeybindingItem {
 }
 
 export interface IKeybindings {
-	primary: number;
+	primary?: number;
 	secondary?: number[];
 	win?: {
 		primary: number;

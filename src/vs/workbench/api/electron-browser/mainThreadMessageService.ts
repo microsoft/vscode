@@ -44,7 +44,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 
 		return new Promise<number>(resolve => {
 
-			let primaryActions: MessageItemAction[] = [];
+			const primaryActions: MessageItemAction[] = [];
 
 			class MessageItemAction extends Action {
 				constructor(id: string, label: string, handle: number) {

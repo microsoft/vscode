@@ -438,6 +438,32 @@ export class ReviewZoneWidget extends ZoneWidget {
 				dom.clearNode(this._formActions);
 				this.createCommentWidgetActions2(this._formActions, model);
 			}));
+
+			this._disposables.push((this._commentThread as modes.CommentThread2).onDidChangeRange(range => {
+				// Move comment glyph widget and show position if the line has changed.
+				const lineNumber = this._commentThread.range.startLineNumber;
+				if (this._commentGlyph.getPosition().position.lineNumber !== lineNumber) {
+					this._commentGlyph.setLineNumber(lineNumber);
+				}
+
+				if (!this._isCollapsed) {
+					this.show({ lineNumber, column: 1 }, 2);
+				}
+			}));
+
+			this._disposables.push((this._commentThread as modes.CommentThread2).onDidChangeCollasibleState(state => {
+				if (state === modes.CommentThreadCollapsibleState.Expanded && this._isCollapsed) {
+					const lineNumber = this._commentThread.range.startLineNumber;
+
+					this.show({ lineNumber, column: 1 }, 2);
+					return;
+				}
+
+				if (state === modes.CommentThreadCollapsibleState.Collapsed && !this._isCollapsed) {
+					this.hide();
+					return;
+				}
+			}));
 		} else {
 			this.createCommentWidgetActions(this._formActions, model);
 		}
@@ -683,12 +709,18 @@ export class ReviewZoneWidget extends ZoneWidget {
 	}
 
 	private createThreadLabel() {
-		let label: string;
-		if (this._commentThread.comments.length) {
-			const participantsList = this._commentThread.comments.filter(arrays.uniqueFilter(comment => comment.userName)).map(comment => `@${comment.userName}`).join(', ');
-			label = nls.localize('commentThreadParticipants', "Participants: {0}", participantsList);
-		} else {
-			label = nls.localize('startThread', "Start discussion");
+		let label: string | undefined;
+		if ((this._commentThread as modes.CommentThread2).commentThreadHandle !== undefined) {
+			label = (this._commentThread as modes.CommentThread2).label;
+		}
+
+		if (label === undefined) {
+			if (this._commentThread.comments.length) {
+				const participantsList = this._commentThread.comments.filter(arrays.uniqueFilter(comment => comment.userName)).map(comment => `@${comment.userName}`).join(', ');
+				label = nls.localize('commentThreadParticipants', "Participants: {0}", participantsList);
+			} else {
+				label = nls.localize('startThread', "Start discussion");
+			}
 		}
 
 		this._headingLabel.innerHTML = strings.escape(label);

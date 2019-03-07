@@ -97,7 +97,7 @@ export class LinkedList<E> {
 			}
 			if (candidate.prev && candidate.next) {
 				// middle
-				let anchor = candidate.prev;
+				const anchor = candidate.prev;
 				anchor.next = candidate.next;
 				candidate.next.prev = anchor;
 
@@ -144,7 +144,7 @@ export class LinkedList<E> {
 	}
 
 	toArray(): E[] {
-		let result: E[] = [];
+		const result: E[] = [];
 		for (let node = this._first; node instanceof Node; node = node.next) {
 			result.push(node.element);
 		}

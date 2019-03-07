@@ -509,8 +509,8 @@ export function isValidMatch(wordSeparators: WordCharacterClassifier, text: stri
 }
 
 export class Searcher {
-	private _wordSeparators: WordCharacterClassifier | null;
-	private _searchRegex: RegExp;
+	private readonly _wordSeparators: WordCharacterClassifier | null;
+	private readonly _searchRegex: RegExp;
 	private _prevMatchStartIndex: number;
 	private _prevMatchLength: number;
 

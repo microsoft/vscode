@@ -216,7 +216,7 @@ function handleStartupDataDirError(environmentService: IEnvironmentService, erro
 	if (error.code === 'EACCES' || error.code === 'EPERM') {
 		showStartupWarningDialog(
 			localize('startupDataDirError', "Unable to write program user data."),
-			localize('startupDataDirErrorDetail', "Please make sure the directory {0} is writeable.", environmentService.userDataPath)
+			localize('startupDataDirErrorDetail', "Please make sure the directories {0} and {1} are writeable.", environmentService.userDataPath, environmentService.extensionsPath)
 		);
 	}
 }
