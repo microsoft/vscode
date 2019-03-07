@@ -253,6 +253,7 @@ export class MarkerController implements editorCommon.IEditorContribution {
 		];
 		this._widget = new MarkerNavigationWidget(this._editor, actions, this._themeService);
 		this._widgetVisible.set(true);
+		this._widget.onDidClose(() => this._cleanUp(), this, this._disposeOnClose);
 
 		this._disposeOnClose.push(this._model);
 		this._disposeOnClose.push(this._widget);
