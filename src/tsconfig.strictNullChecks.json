@@ -241,6 +241,7 @@
 		"./vs/workbench/contrib/debug/browser/exceptionWidget.ts",
 		"./vs/workbench/contrib/debug/browser/linkDetector.ts",
 		"./vs/workbench/contrib/debug/browser/baseDebugView.ts",
+		"./vs/workbench/contrib/debug/browser/debugActions.ts",
 		"./vs/workbench/contrib/debug/browser/statusbarColorProvider.ts",
 		"./vs/workbench/contrib/debug/electron-browser/rawDebugSession.ts",
 		"./vs/workbench/contrib/debug/test/common/debugSource.test.ts",

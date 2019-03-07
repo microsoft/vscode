@@ -585,11 +585,11 @@ export interface IConfigurationManager {
 	 * Returns an object containing the selected launch configuration and the selected configuration name. Both these fields can be null (no folder workspace).
 	 */
 	readonly selectedConfiguration: {
-		launch: ILaunch;
-		name: string;
+		launch: ILaunch | undefined;
+		name: string | undefined;
 	};
 
-	selectConfiguration(launch: ILaunch, name?: string, debugStarted?: boolean): void;
+	selectConfiguration(launch: ILaunch | undefined, name?: string, debugStarted?: boolean): void;
 
 	getLaunches(): ReadonlyArray<ILaunch>;
 
@@ -710,7 +710,7 @@ export interface IDebugService {
 	/**
 	 * Sets the focused stack frame and evaluates all expressions against the newly focused stack frame,
 	 */
-	focusStackFrame(focusedStackFrame: IStackFrame, thread?: IThread, session?: IDebugSession, explicit?: boolean): void;
+	focusStackFrame(focusedStackFrame: IStackFrame | undefined, thread?: IThread, session?: IDebugSession, explicit?: boolean): void;
 
 	/**
 	 * Adds new breakpoints to the model for the file specified with the uri. Notifies debug adapter of breakpoint changes.
@@ -801,7 +801,7 @@ export interface IDebugService {
 	/**
 	 * Stops the session. If the session does not exist then stops all sessions.
 	 */
-	stopSession(session: IDebugSession): Promise<any>;
+	stopSession(session: IDebugSession | undefined): Promise<any>;
 
 	/**
 	 * Makes unavailable all sources with the passed uri. Source will appear as grayed out in callstack view.
