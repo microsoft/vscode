@@ -31,8 +31,6 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { IStorageService, StorageScope, IWillSaveStateEvent, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { ContextMenuService as HTMLContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -71,17 +69,7 @@ import { IExtensionGalleryService, IExtensionManagementServerService, IExtension
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { ExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { CommandService } from 'vs/workbench/services/commands/common/commandService';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { WorkbenchModeServiceImpl } from 'vs/workbench/services/mode/common/workbenchModeService';
-import { ITextResourceConfigurationService, ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
-import { TextResourceConfigurationService } from 'vs/editor/common/services/resourceConfigurationImpl';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
-import { WorkbenchThemeService } from 'vs/workbench/services/themes/browser/workbenchThemeService';
 import { IProductService } from 'vs/platform/product/common/product';
 import { WorkbenchContextKeysHandler } from 'vs/workbench/browser/contextkeys';
 import { IDimension } from 'vs/platform/layout/browser/layoutService';
@@ -103,7 +91,6 @@ import { ExtensionManagementServerService } from 'vs/workbench/services/extensio
 import { MultiExtensionManagementService } from 'vs/workbench/services/extensionManagement/node/multiExtensionManagement';
 import { LocalizationsChannelClient } from 'vs/platform/localizations/node/localizationsIpc';
 import { ProductService } from 'vs/platform/product/node/productService';
-import { TextResourcePropertiesService } from 'vs/workbench/services/textfile/node/textResourcePropertiesService';
 
 // import@electron-browser
 import { ContextMenuService as NativeContextMenuService } from 'vs/workbench/services/contextmenu/electron-browser/contextmenuService';
@@ -382,33 +369,9 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		// Extensions
 		serviceCollection.set(IExtensionService, new SyncDescriptor(ExtensionService));
 
-		// Theming
-		serviceCollection.set(IWorkbenchThemeService, new SyncDescriptor(WorkbenchThemeService, [document.body]));
-
-		// Commands
-		serviceCollection.set(ICommandService, new SyncDescriptor(CommandService, undefined, true));
-
-		// Editor Mode
-		serviceCollection.set(IModeService, new SyncDescriptor(WorkbenchModeServiceImpl));
-
-		// Text Resource Config
-		serviceCollection.set(ITextResourceConfigurationService, new SyncDescriptor(TextResourceConfigurationService));
-
-		// Text Resource Properties
-		serviceCollection.set(ITextResourcePropertiesService, new SyncDescriptor(TextResourcePropertiesService));
-
-		// Editor Models
-		serviceCollection.set(IModelService, new SyncDescriptor(ModelServiceImpl, undefined, true));
-
-		// Untitled Editors
-		serviceCollection.set(IUntitledEditorService, new SyncDescriptor(UntitledEditorService, undefined, true));
-
 		// Localization
 		const localizationsChannel = getDelayedChannel(sharedProcess.then(c => c.getChannel('localizations')));
 		serviceCollection.set(ILocalizationsService, new SyncDescriptor(LocalizationsChannelClient, [localizationsChannel]));
-
-		// Context Keys
-		serviceCollection.set(IContextKeyService, new SyncDescriptor(ContextKeyService));
 
 		// Context view service
 		serviceCollection.set(IContextViewService, new SyncDescriptor(ContextViewService, [this.workbench], true));

@@ -54,6 +54,14 @@ import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadService } from 'vs/platform/download/node/downloadService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ClipboardService } from 'vs/platform/clipboard/electron-browser/clipboardService';
+import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { TextResourceConfigurationService } from 'vs/editor/common/services/resourceConfigurationImpl';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { AccessibilityService } from 'vs/platform/accessibility/node/accessibilityService';
 
 import 'vs/workbench/services/bulkEdit/browser/bulkEditService';
 import 'vs/workbench/services/integrity/node/integrityService';
@@ -75,13 +83,17 @@ import 'vs/workbench/services/textmodelResolver/common/textModelResolverService'
 import 'vs/workbench/services/textfile/common/textFileService';
 import 'vs/workbench/services/dialogs/electron-browser/dialogService';
 import 'vs/workbench/services/backup/node/backupFileService';
-import 'vs/platform/accessibility/node/accessibilityService';
 import 'vs/workbench/services/editor/browser/editorService';
 import 'vs/workbench/services/history/browser/history';
 import 'vs/workbench/services/files/node/remoteFileService';
 import 'vs/workbench/services/activity/browser/activityService';
 import 'vs/workbench/browser/parts/views/views';
 import 'vs/workbench/services/keybinding/electron-browser/keybindingService';
+import 'vs/workbench/services/untitled/common/untitledEditorService';
+import 'vs/workbench/services/textfile/node/textResourcePropertiesService';
+import 'vs/workbench/services/mode/common/workbenchModeService';
+import 'vs/workbench/services/commands/common/commandService';
+import 'vs/workbench/services/themes/browser/workbenchThemeService';
 
 registerSingleton(IMenuService, MenuService, true);
 registerSingleton(IListService, ListService, true);
@@ -91,6 +103,10 @@ registerSingleton(IMarkerDecorationsService, MarkerDecorationsService);
 registerSingleton(IMarkerService, MarkerService, true);
 registerSingleton(IDownloadService, DownloadService, true);
 registerSingleton(IClipboardService, ClipboardService, true);
+registerSingleton(IContextKeyService, ContextKeyService);
+registerSingleton(IModelService, ModelServiceImpl, true);
+registerSingleton(ITextResourceConfigurationService, TextResourceConfigurationService);
+registerSingleton(IAccessibilityService, AccessibilityService, true);
 
 //#endregion
 

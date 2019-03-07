@@ -11,6 +11,7 @@ import { IRemoteAgentService, IRemoteAgentEnvironment } from 'vs/workbench/servi
 import { Schemas } from 'vs/base/common/network';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IWindowService } from 'vs/platform/windows/common/windows';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class TextResourcePropertiesService implements ITextResourcePropertiesService {
 
@@ -51,5 +52,6 @@ export class TextResourcePropertiesService implements ITextResourcePropertiesSer
 		}
 		return os;
 	}
-
 }
+
+registerSingleton(ITextResourcePropertiesService, TextResourcePropertiesService, true);

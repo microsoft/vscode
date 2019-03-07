@@ -7,7 +7,6 @@ import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessi
 import { isWindows } from 'vs/base/common/platform';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IWindowService } from 'vs/platform/windows/common/windows';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class AccessibilityService implements IAccessibilityService {
 	_serviceBrand: any;
@@ -58,5 +57,3 @@ export class AccessibilityService implements IAccessibilityService {
 		return this._accessibilitySupport;
 	}
 }
-
-registerSingleton(IAccessibilityService, AccessibilityService, true);
