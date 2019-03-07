@@ -324,7 +324,7 @@ export class RemoteFileDialog {
 			let hasMatch = false;
 			for (let i = 0; i < this.filePickBox.items.length; i++) {
 				const item = <FileQuickPickItem>this.filePickBox.items[i];
-				const itemBasename = resources.basename(item.uri);
+				const itemBasename = (item.label === '..') ? item.label : resources.basename(item.uri);
 				if ((itemBasename.length >= inputBasename.length) && (itemBasename.substr(0, inputBasename.length).toLowerCase() === inputBasename.toLowerCase())) {
 					this.filePickBox.activeItems = [item];
 					this.filePickBox.value = this.filePickBox.value + itemBasename.substr(inputBasename.length);
