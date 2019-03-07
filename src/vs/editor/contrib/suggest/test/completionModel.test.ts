@@ -6,7 +6,7 @@ import * as assert from 'assert';
 import { IPosition } from 'vs/editor/common/core/position';
 import * as modes from 'vs/editor/common/modes';
 import { CompletionModel } from 'vs/editor/contrib/suggest/completionModel';
-import { CompletionItem, getSuggestionComparator } from 'vs/editor/contrib/suggest/suggest';
+import { CompletionItem, getSuggestionComparator, SnippetSortOrder } from 'vs/editor/contrib/suggest/suggest';
 import { WordDistance } from 'vs/editor/contrib/suggest/wordDistance';
 
 export function createSuggestItem(label: string, overwriteBefore: number, kind = modes.CompletionItemKind.Property, incomplete: boolean = false, position: IPosition = { lineNumber: 1, column: 1 }, sortText?: string, filterText?: string): CompletionItem {
@@ -250,7 +250,7 @@ suite('CompletionModel', function () {
 
 		const item1 = createSuggestItem('<- groups', 2, modes.CompletionItemKind.Property, false, { lineNumber: 1, column: 3 }, '00002', '  groups');
 		const item2 = createSuggestItem('source', 0, modes.CompletionItemKind.Property, false, { lineNumber: 1, column: 3 }, '00001', 'source');
-		const items = [item1, item2].sort(getSuggestionComparator('inline'));
+		const items = [item1, item2].sort(getSuggestionComparator(SnippetSortOrder.Inline));
 
 		model = new CompletionModel(items, 3, {
 			leadingLineContent: '  ',

@@ -298,7 +298,7 @@ export class SuggestController implements IEditorContribution {
 		}
 	}
 
-	triggerSuggest(onlyFrom?: CompletionItemProvider[]): void {
+	triggerSuggest(onlyFrom?: Set<CompletionItemProvider>): void {
 		if (this._editor.hasModel()) {
 			this._model.trigger({ auto: false, shy: false }, false, onlyFrom);
 			this._editor.revealLine(this._editor.getPosition().lineNumber, ScrollType.Smooth);

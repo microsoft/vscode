@@ -324,11 +324,11 @@ export const completionKindToCssClass = (function () {
 /**
  * @internal
  */
-export let completionKindFromLegacyString = (function () {
-	let data = Object.create(null);
+export let completionKindFromString = (function () {
+	let data: Record<string, CompletionItemKind> = Object.create(null);
 	data['method'] = CompletionItemKind.Method;
 	data['function'] = CompletionItemKind.Function;
-	data['constructor'] = CompletionItemKind.Constructor;
+	data['constructor'] = <any>CompletionItemKind.Constructor;
 	data['field'] = CompletionItemKind.Field;
 	data['variable'] = CompletionItemKind.Variable;
 	data['class'] = CompletionItemKind.Class;
@@ -354,7 +354,7 @@ export let completionKindFromLegacyString = (function () {
 	data['type-parameter'] = CompletionItemKind.TypeParameter;
 
 	return function (value: string) {
-		return data[value] || 'property';
+		return data[value] || CompletionItemKind.Property;
 	};
 })();
 

@@ -9,7 +9,7 @@ import * as nls from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
 import severity from 'vs/base/common/severity';
 import { Event, Emitter } from 'vs/base/common/event';
-import { CompletionItem, completionKindFromLegacyString } from 'vs/editor/common/modes';
+import { CompletionItem, completionKindFromString } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IDebugSession, IConfig, IThread, IRawModelUpdate, IDebugService, IRawStoppedDetails, State, LoadedSourceEvent, IFunctionBreakpoint, IExceptionBreakpoint, IBreakpoint, IExceptionInfo, AdapterEndEvent, IDebugger, VIEWLET_ID, IDebugConfiguration, IReplElement, IStackFrame, IExpression, IReplElementSource } from 'vs/workbench/contrib/debug/common/debug';
@@ -489,7 +489,7 @@ export class DebugSession implements IDebugSession {
 							result.push({
 								label: item.label,
 								insertText: item.text || item.label,
-								kind: completionKindFromLegacyString(item.type),
+								kind: completionKindFromString(item.type),
 								filterText: item.start && item.length && text.substr(item.start, item.length).concat(item.label),
 								range: Range.fromPositions(position.delta(0, -(item.length || overwriteBefore)), position)
 							});
