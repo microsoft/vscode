@@ -113,7 +113,6 @@ import { MultiExtensionManagementService } from 'vs/workbench/services/extension
 import { LocalizationsChannelClient } from 'vs/platform/localizations/node/localizationsIpc';
 import { ProductService } from 'vs/platform/product/node/productService';
 import { TextResourcePropertiesService } from 'vs/workbench/services/textfile/node/textResourcePropertiesService';
-import { RemoteFileService } from 'vs/workbench/services/files/node/remoteFileService';
 
 // import@electron-browser
 import { ContextMenuService as NativeContextMenuService } from 'vs/workbench/services/contextmenu/electron-browser/contextmenuService';
@@ -458,9 +457,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		this.activitybarPart = this.instantiationService.createInstance(ActivitybarPart);
 		serviceCollection.set(IActivityBarService, this.activitybarPart); // TODO@Ben use SyncDescriptor
 		serviceCollection.set(IActivityService, new SyncDescriptor(ActivityService, [this.activitybarPart, this.panelPart], true));
-
-		// File Service
-		serviceCollection.set(IFileService, new SyncDescriptor(RemoteFileService));
 
 		// Contributed services
 		const contributedServices = getServices();
