@@ -689,7 +689,7 @@ const editorConfiguration: IConfigurationNode = {
 			default: EDITOR_DEFAULTS.contribInfo.suggest.maxSuggestionsToShow,
 			minimum: 1,
 			maximum: 12,
-			description: nls.localize('suggest.maxSuggestionsToShow', "Controls how much suggestions to show in suggestions.")
+			description: nls.localize('suggest.maxSuggestionsToShow', "Controls how many suggestions to show in suggestions.")
 		},
 		'editor.selectionHighlight': {
 			'type': 'boolean',
