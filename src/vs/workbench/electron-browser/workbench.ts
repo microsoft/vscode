@@ -22,7 +22,6 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } fr
 import { IEditorInputFactoryRegistry, Extensions as EditorExtensions, IUntitledResourceInput, IResourceDiffInput } from 'vs/workbench/common/editor';
 import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
-import { StatusbarPart } from 'vs/workbench/browser/parts/statusbar/statusbarPart';
 import { IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs/workbench/browser/actions';
 import { PanelRegistry, Extensions as PanelExtensions } from 'vs/workbench/browser/panel';
 import { ViewletRegistry, Extensions as ViewletExtensions } from 'vs/workbench/browser/viewlet';
@@ -43,7 +42,6 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { LifecyclePhase, StartupKind, ILifecycleService, WillShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWindowService, IWindowConfiguration, IPath, MenuBarVisibility, getTitleBarStyle, IWindowsService } from 'vs/platform/windows/common/windows';
-import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -167,8 +165,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 	private windowsService: IWindowsService;
 
 	private parts: Map<string, Part> = new Map<string, Part>();
-
-	private statusbarPart: StatusbarPart;
 
 	constructor(
 		private container: HTMLElement,
@@ -411,10 +407,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		const localizationsChannel = getDelayedChannel(sharedProcess.then(c => c.getChannel('localizations')));
 		serviceCollection.set(ILocalizationsService, new SyncDescriptor(LocalizationsChannelClient, [localizationsChannel]));
 
-		// Status bar
-		this.statusbarPart = this.instantiationService.createInstance(StatusbarPart);
-		serviceCollection.set(IStatusbarService, this.statusbarPart); // TODO@Ben use SyncDescriptor
-
 		// Context Keys
 		serviceCollection.set(IContextKeyService, new SyncDescriptor(ContextKeyService));
 
@@ -586,7 +578,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 	private createStatusbarPart(): void {
 		const statusbarContainer = this.createPart(Parts.STATUSBAR_PART, 'contentinfo', 'statusbar');
 
-		this.statusbarPart.create(statusbarContainer);
+		this.parts.get(Parts.STATUSBAR_PART).create(statusbarContainer);
 	}
 
 	private createPart(id: string, role: string, ...classes: string[]): HTMLElement {
@@ -1147,7 +1139,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			case Parts.EDITOR_PART:
 				return this.parts.get(Parts.EDITOR_PART).getContainer();
 			case Parts.STATUSBAR_PART:
-				return this.statusbarPart.getContainer();
+				return this.parts.get(Parts.STATUSBAR_PART).getContainer();
 		}
 
 		return null;
@@ -1320,6 +1312,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		const activityBar = this.parts.get(Parts.ACTIVITYBAR_PART);
 		const panelPart = this.parts.get(Parts.PANEL_PART);
 		const sideBar = this.parts.get(Parts.SIDEBAR_PART);
+		const statusBar = this.parts.get(Parts.STATUSBAR_PART);
 
 		if (this.configurationService.getValue('workbench.useExperimentalGridLayout')) {
 
@@ -1329,7 +1322,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			this.activityBarPartView = new View(activityBar);
 			this.editorPartView = new View(editorPart);
 			this.panelPartView = new View(panelPart);
-			this.statusBarPartView = new View(this.statusbarPart);
+			this.statusBarPartView = new View(statusBar);
 
 			this.workbenchGrid = new Grid(this.editorPartView, { proportionalLayout: false });
 
@@ -1345,7 +1338,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 					editor: editorPart,
 					sidebar: sideBar,
 					panel: panelPart,
-					statusbar: this.statusbarPart,
+					statusbar: statusBar,
 				}
 			);
 		}

@@ -27,7 +27,8 @@ import { Color } from 'vs/base/common/color';
 import { addClass, EventHelper, createStyleSheet, addDisposableListener } from 'vs/base/browser/dom';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { Parts } from 'vs/workbench/services/layout/browser/layoutService';
+import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class StatusbarPart extends Part implements IStatusbarService {
 
@@ -52,9 +53,10 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IStorageService storageService: IStorageService
+		@IStorageService storageService: IStorageService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
 	) {
-		super(Parts.STATUSBAR_PART, { hasTitle: false }, themeService, storageService);
+		super(Parts.STATUSBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 
 		this.registerListeners();
 	}
@@ -371,3 +373,5 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		collector.addRule(`.monaco-workbench .part.statusbar > .statusbar-item a.status-bar-info:hover { background-color: ${statusBarProminentItemHoverBackground}; }`);
 	}
 });
+
+registerSingleton(IStatusbarService, StatusbarPart);

@@ -82,13 +82,6 @@ import 'vs/workbench/services/files/node/remoteFileService';
 import 'vs/workbench/services/activity/browser/activityService';
 import 'vs/workbench/browser/parts/views/views';
 import 'vs/workbench/services/keybinding/electron-browser/keybindingService';
-import 'vs/workbench/browser/parts/quickinput/quickInput';
-import 'vs/workbench/browser/parts/quickopen/quickOpenController';
-import 'vs/workbench/browser/parts/titlebar/titlebarPart';
-import 'vs/workbench/browser/parts/editor/editorPart';
-import 'vs/workbench/browser/parts/activitybar/activitybarPart';
-import 'vs/workbench/browser/parts/panel/panelPart';
-import 'vs/workbench/browser/parts/sidebar/sidebarPart';
 
 registerSingleton(IMenuService, MenuService, true);
 registerSingleton(IListService, ListService, true);
@@ -101,6 +94,18 @@ registerSingleton(IClipboardService, ClipboardService, true);
 
 //#endregion
 
+//#region --- workbench parts
+
+import 'vs/workbench/browser/parts/quickinput/quickInput';
+import 'vs/workbench/browser/parts/quickopen/quickOpenController';
+import 'vs/workbench/browser/parts/titlebar/titlebarPart';
+import 'vs/workbench/browser/parts/editor/editorPart';
+import 'vs/workbench/browser/parts/activitybar/activitybarPart';
+import 'vs/workbench/browser/parts/panel/panelPart';
+import 'vs/workbench/browser/parts/sidebar/sidebarPart';
+import 'vs/workbench/browser/parts/statusbar/statusbarPart';
+
+//#endregion
 
 //#region --- workbench contributions
 

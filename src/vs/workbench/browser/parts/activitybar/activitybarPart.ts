@@ -78,7 +78,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		@IViewsService private readonly viewsService: IViewsService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
-		super(Parts.ACTIVITYBAR_PART, { hasTitle: false }, themeService, storageService);
+		super(Parts.ACTIVITYBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 
 		this.cachedViewlets = this.getCachedViewlets();
 		for (const cachedViewlet of this.cachedViewlets) {
@@ -101,8 +101,6 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			colors: theme => this.getActivitybarItemColors(theme),
 			overflowActionSize: ActivitybarPart.ACTION_HEIGHT
 		}));
-
-		this.layoutService.registerPart(this);
 
 		this.registerListeners();
 		this.onDidRegisterViewlets(viewletService.getViewlets());

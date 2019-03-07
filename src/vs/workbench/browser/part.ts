@@ -11,6 +11,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IDimension } from 'vs/platform/layout/browser/layoutService';
 import { ISerializableView, Orientation } from 'vs/base/browser/ui/grid/grid';
 import { Event, Emitter } from 'vs/base/common/event';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 
 export interface IPartOptions {
 	hasTitle?: boolean;
@@ -36,9 +37,12 @@ export abstract class Part extends Component implements ISerializableView {
 		id: string,
 		private options: IPartOptions,
 		themeService: IThemeService,
-		storageService: IStorageService
+		storageService: IStorageService,
+		layoutService: IWorkbenchLayoutService
 	) {
 		super(id, themeService, storageService);
+
+		layoutService.registerPart(this);
 	}
 
 	protected onThemeChange(theme: ITheme): void {

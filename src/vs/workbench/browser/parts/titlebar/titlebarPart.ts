@@ -91,12 +91,10 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IStorageService storageService: IStorageService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
 	) {
-		super(Parts.TITLEBAR_PART, { hasTitle: false }, themeService, storageService);
+		super(Parts.TITLEBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 
 		this.properties = { isPure: true, isAdmin: false };
 		this.activeEditorListeners = [];
-
-		layoutService.registerPart(this);
 
 		this.registerListeners();
 	}

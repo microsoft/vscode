@@ -594,6 +594,12 @@ export class TestViewletService implements IViewletService {
 	public getProgressIndicator(id: string) {
 		return null!;
 	}
+
+	public hideActiveViewlet(): void { }
+
+	public getLastActiveViewletId(): string {
+		return undefined;
+	}
 }
 
 export class TestPanelService implements IPanelService {

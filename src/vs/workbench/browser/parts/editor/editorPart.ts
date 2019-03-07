@@ -143,7 +143,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		@IStorageService storageService: IStorageService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
 	) {
-		super(Parts.EDITOR_PART, { hasTitle: false }, themeService, storageService);
+		super(Parts.EDITOR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 
 		this.gridWidgetView = new GridWidgetView<IEditorGroupView>();
 
@@ -153,8 +153,6 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		this.globalMemento = this.getMemento(StorageScope.GLOBAL);
 
 		this._whenRestored = new Promise(resolve => (this.whenRestoredResolve = resolve));
-
-		layoutService.registerPart(this);
 
 		this.registerListeners();
 	}
