@@ -17,6 +17,7 @@ import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 import { URI } from 'vs/base/common/uri';
+import { readCertificates } from 'vs/workbench/services/extensions/node/certificates';
 
 interface ConnectionResult {
 	proxy: string;
@@ -30,9 +31,10 @@ export function connectProxyResolver(
 	configProvider: ExtHostConfigProvider,
 	extensionService: ExtHostExtensionService,
 	extHostLogService: ExtHostLogService,
-	mainThreadTelemetry: MainThreadTelemetryShape
+	mainThreadTelemetry: MainThreadTelemetryShape,
+	appRoot: string
 ) {
-	const resolveProxy = setupProxyResolution(extHostWorkspace, configProvider, extHostLogService, mainThreadTelemetry);
+	const resolveProxy = setupProxyResolution(extHostWorkspace, configProvider, extHostLogService, mainThreadTelemetry, appRoot);
 	const lookup = createPatchedModules(configProvider, resolveProxy);
 	return configureModuleLoading(extensionService, lookup);
 }
@@ -43,7 +45,8 @@ function setupProxyResolution(
 	extHostWorkspace: IExtHostWorkspaceProvider,
 	configProvider: ExtHostConfigProvider,
 	extHostLogService: ExtHostLogService,
-	mainThreadTelemetry: MainThreadTelemetryShape
+	mainThreadTelemetry: MainThreadTelemetryShape,
+	appRoot: string
 ) {
 	const env = process.env;
 
@@ -118,9 +121,38 @@ function setupProxyResolution(
 		results = [];
 	}
 
-	function resolveProxy(req: http.ClientRequest, opts: http.RequestOptions, url: string, callback: (proxy?: string) => void) {
+	function resolveProxy(flags: { useProxySettings: boolean, useSystemCertificates: boolean }, req: http.ClientRequest, opts: http.RequestOptions, url: string, callback: (proxy?: string) => void) {
 		if (!timeout) {
 			timeout = setTimeout(logEvent, 10 * 60 * 1000);
+		}
+
+		useSystemCertificates(flags.useSystemCertificates, opts, () => {
+			useProxySettings(flags.useProxySettings, req, opts, url, callback);
+		});
+	}
+
+	function useSystemCertificates(useSystemCertificates: boolean, opts: http.RequestOptions, callback: () => void) {
+		if (useSystemCertificates) {
+			getCertificates(extHostLogService, appRoot)
+				.then(cas => {
+					if (cas) {
+						(opts as https.RequestOptions).ca = cas;
+					}
+					callback();
+				})
+				.catch(err => {
+					extHostLogService.error('ProxyResolver#useSystemCertificates', toErrorMessage(err));
+				});
+		} else {
+			callback();
+		}
+	}
+
+	function useProxySettings(useProxySettings: boolean, req: http.ClientRequest, opts: http.RequestOptions, url: string, callback: (proxy?: string) => void) {
+
+		if (!useProxySettings) {
+			callback('DIRECT');
+			return;
 		}
 
 		const parsedUrl = nodeurl.parse(url); // Coming from Node's URL, sticking with that.
@@ -254,34 +286,42 @@ function noProxyFromEnv(envValue?: string) {
 }
 
 function createPatchedModules(configProvider: ExtHostConfigProvider, resolveProxy: ReturnType<typeof setupProxyResolution>) {
-	const setting = {
+	const proxySetting = {
 		config: configProvider.getConfiguration('http')
 			.get<string>('proxySupport') || 'off'
 	};
 	configProvider.onDidChangeConfiguration(e => {
-		setting.config = configProvider.getConfiguration('http')
+		proxySetting.config = configProvider.getConfiguration('http')
 			.get<string>('proxySupport') || 'off';
+	});
+	const certSetting = {
+		config: !!configProvider.getConfiguration('http')
+			.get<boolean>('systemCertificates')
+	};
+	configProvider.onDidChangeConfiguration(e => {
+		certSetting.config = !!configProvider.getConfiguration('http')
+			.get<string>('systemCertificates');
 	});
 
 	return {
 		http: {
-			off: assign({}, http, patches(http, resolveProxy, { config: 'off' }, true)),
-			on: assign({}, http, patches(http, resolveProxy, { config: 'on' }, true)),
-			override: assign({}, http, patches(http, resolveProxy, { config: 'override' }, true)),
-			onRequest: assign({}, http, patches(http, resolveProxy, setting, true)),
-			default: assign(http, patches(http, resolveProxy, setting, false)) // run last
+			off: assign({}, http, patches(http, resolveProxy, { config: 'off' }, certSetting, true)),
+			on: assign({}, http, patches(http, resolveProxy, { config: 'on' }, certSetting, true)),
+			override: assign({}, http, patches(http, resolveProxy, { config: 'override' }, certSetting, true)),
+			onRequest: assign({}, http, patches(http, resolveProxy, proxySetting, certSetting, true)),
+			default: assign(http, patches(http, resolveProxy, proxySetting, certSetting, false)) // run last
 		},
 		https: {
-			off: assign({}, https, patches(https, resolveProxy, { config: 'off' }, true)),
-			on: assign({}, https, patches(https, resolveProxy, { config: 'on' }, true)),
-			override: assign({}, https, patches(https, resolveProxy, { config: 'override' }, true)),
-			onRequest: assign({}, https, patches(https, resolveProxy, setting, true)),
-			default: assign(https, patches(https, resolveProxy, setting, false)) // run last
+			off: assign({}, https, patches(https, resolveProxy, { config: 'off' }, certSetting, true)),
+			on: assign({}, https, patches(https, resolveProxy, { config: 'on' }, certSetting, true)),
+			override: assign({}, https, patches(https, resolveProxy, { config: 'override' }, certSetting, true)),
+			onRequest: assign({}, https, patches(https, resolveProxy, proxySetting, certSetting, true)),
+			default: assign(https, patches(https, resolveProxy, proxySetting, certSetting, false)) // run last
 		}
 	};
 }
 
-function patches(originals: typeof http | typeof https, resolveProxy: ReturnType<typeof setupProxyResolution>, setting: { config: string; }, onRequest: boolean) {
+function patches(originals: typeof http | typeof https, resolveProxy: ReturnType<typeof setupProxyResolution>, proxySetting: { config: string }, certSetting: { config: boolean }, onRequest: boolean) {
 	return {
 		get: patch(originals.get),
 		request: patch(originals.request)
@@ -300,12 +340,15 @@ function patches(originals: typeof http | typeof https, resolveProxy: ReturnType
 			}
 			options = options || {};
 
-			const config = onRequest && ((<any>options)._vscodeProxySupport || /* LS */ (<any>options)._vscodeSystemProxy) || setting.config;
-			if (config === 'off') {
+			if (options.socketPath) {
 				return original.apply(null, arguments as unknown as any[]);
 			}
 
-			if (!options.socketPath && (config === 'override' || config === 'on' && !options.agent) && !(options.agent instanceof ProxyAgent)) {
+			const config = onRequest && ((<any>options)._vscodeProxySupport || /* LS */ (<any>options)._vscodeSystemProxy) || proxySetting.config;
+			const useProxySettings = (config === 'override' || config === 'on' && !options.agent) && !(options.agent instanceof ProxyAgent);
+			const useSystemCertificates = certSetting.config && originals === https && !(options as https.RequestOptions).ca;
+
+			if (useProxySettings || useSystemCertificates) {
 				if (url) {
 					const parsed = typeof url === 'string' ? new nodeurl.URL(url) : url;
 					const urlOptions = {
@@ -322,7 +365,7 @@ function patches(originals: typeof http | typeof https, resolveProxy: ReturnType
 					options = { ...options };
 				}
 				options.agent = new ProxyAgent({
-					resolveProxy,
+					resolveProxy: resolveProxy.bind(undefined, { useProxySettings, useSystemCertificates }),
 					defaultPort: originals === https ? 443 : 80,
 					originalAgent: options.agent
 				});
@@ -333,6 +376,18 @@ function patches(originals: typeof http | typeof https, resolveProxy: ReturnType
 		}
 		return patched;
 	}
+}
+
+let _certificates: Promise<typeof https.globalAgent.options.ca | undefined>;
+async function getCertificates(extHostLogService: ExtHostLogService, appRoot: string) {
+	if (!_certificates) {
+		_certificates = readCertificates(appRoot)
+			.catch(err => {
+				extHostLogService.error('ProxyResolver#getCertificates', toErrorMessage(err));
+				return undefined;
+			});
+	}
+	return _certificates;
 }
 
 function configureModuleLoading(extensionService: ExtHostExtensionService, lookup: ReturnType<typeof createPatchedModules>): Promise<void> {

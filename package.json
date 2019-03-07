@@ -53,6 +53,7 @@
     "vscode-sqlite3": "4.0.7",
     "vscode-textmate": "^4.0.1",
     "vscode-xterm": "3.12.0-beta5",
+    "win-ca": "2.4.1",
     "yauzl": "^2.9.1",
     "yazl": "^2.4.3"
   },
