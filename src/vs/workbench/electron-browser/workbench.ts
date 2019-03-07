@@ -47,8 +47,6 @@ import { IWindowService, IWindowConfiguration, IPath, MenuBarVisibility, getTitl
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IViewsService } from 'vs/workbench/common/views';
-import { ViewsService } from 'vs/workbench/browser/parts/views/views';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { NotificationService } from 'vs/workbench/services/notification/common/notificationService';
 import { NotificationsCenter } from 'vs/workbench/browser/parts/notifications/notificationsCenter';
@@ -444,9 +442,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		// Panel service (panel part)
 		this.panelPart = this.instantiationService.createInstance(PanelPart);
 		serviceCollection.set(IPanelService, this.panelPart); // TODO@Ben use SyncDescriptor
-
-		// Views service
-		serviceCollection.set(IViewsService, new SyncDescriptor(ViewsService));
 
 		// Contributed services
 		const contributedServices = getServices();
