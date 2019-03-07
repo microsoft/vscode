@@ -170,7 +170,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 	private parts: Map<string, Part> = new Map<string, Part>();
 
-	private sidebarPart: SidebarPart;
 	private statusbarPart: StatusbarPart;
 
 	constructor(
@@ -434,10 +433,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			serviceCollection.set(IContextMenuService, new SyncDescriptor(NativeContextMenuService));
 		}
 
-		// Viewlet service (sidebar part)
-		this.sidebarPart = this.instantiationService.createInstance(SidebarPart);
-		serviceCollection.set(IViewletService, this.sidebarPart); // TODO@Ben use SyncDescriptor
-
 		// Contributed services
 		const contributedServices = getServices();
 		for (let contributedService of contributedServices) {
@@ -578,7 +573,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 	private createSidebarPart(): void {
 		const sidebarPartContainer = this.createPart(Parts.SIDEBAR_PART, 'complementary', 'sidebar', this.state.sideBar.position === Position.LEFT ? 'left' : 'right');
 
-		this.sidebarPart.create(sidebarPartContainer);
+		this.parts.get(Parts.SIDEBAR_PART).create(sidebarPartContainer);
 	}
 
 	private createPanelPart(): void {
@@ -774,6 +769,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 	private editorService: IEditorService;
 	private editorGroupService: IEditorGroupsService;
 	private panelService: IPanelService;
+	private viewletService: IViewletService;
 
 	private readonly state = {
 		fullscreen: false,
@@ -928,6 +924,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 	private setSideBarPosition(position: Position): void {
 		const activityBar = this.parts.get(Parts.ACTIVITYBAR_PART);
+		const sideBar = this.parts.get(Parts.SIDEBAR_PART);
 		const wasHidden = this.state.sideBar.hidden;
 
 		if (this.state.sideBar.hidden) {
@@ -940,13 +937,13 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 		// Adjust CSS
 		removeClass(activityBar.getContainer(), oldPositionValue);
-		removeClass(this.sidebarPart.getContainer(), oldPositionValue);
+		removeClass(sideBar.getContainer(), oldPositionValue);
 		addClass(activityBar.getContainer(), newPositionValue);
-		addClass(this.sidebarPart.getContainer(), newPositionValue);
+		addClass(sideBar.getContainer(), newPositionValue);
 
 		// Update Styles
 		activityBar.updateStyles();
-		this.sidebarPart.updateStyles();
+		sideBar.updateStyles();
 
 		// Layout
 		if (this.workbenchGrid instanceof Grid) {
@@ -1149,7 +1146,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			case Parts.ACTIVITYBAR_PART:
 				return this.parts.get(Parts.ACTIVITYBAR_PART).getContainer();
 			case Parts.SIDEBAR_PART:
-				return this.sidebarPart.getContainer();
+				return this.parts.get(Parts.SIDEBAR_PART).getContainer();
 			case Parts.PANEL_PART:
 				return this.parts.get(Parts.PANEL_PART).getContainer();
 			case Parts.EDITOR_PART:
@@ -1323,16 +1320,17 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 	}
 
 	private createWorkbenchLayout(): void {
-		const titlePart = this.parts.get(Parts.TITLEBAR_PART);
+		const titleBar = this.parts.get(Parts.TITLEBAR_PART);
 		const editorPart = this.parts.get(Parts.EDITOR_PART);
 		const activityBar = this.parts.get(Parts.ACTIVITYBAR_PART);
 		const panelPart = this.parts.get(Parts.PANEL_PART);
+		const sideBar = this.parts.get(Parts.SIDEBAR_PART);
 
 		if (this.configurationService.getValue('workbench.useExperimentalGridLayout')) {
 
 			// Create view wrappers for all parts
-			this.titleBarPartView = new View(titlePart);
-			this.sideBarPartView = new View(this.sidebarPart);
+			this.titleBarPartView = new View(titleBar);
+			this.sideBarPartView = new View(sideBar);
 			this.activityBarPartView = new View(activityBar);
 			this.editorPartView = new View(editorPart);
 			this.panelPartView = new View(panelPart);
@@ -1347,10 +1345,10 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 				this.container,
 				this.workbench,
 				{
-					titlebar: titlePart,
+					titlebar: titleBar,
 					activitybar: activityBar,
 					editor: editorPart,
-					sidebar: this.sidebarPart,
+					sidebar: sideBar,
 					panel: panelPart,
 					statusbar: this.statusbarPart,
 				}
@@ -1557,8 +1555,8 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		}
 
 		// If sidebar becomes hidden, also hide the current active Viewlet if any
-		if (hidden && this.sidebarPart.getActiveViewlet()) {
-			this.sidebarPart.hideActiveViewlet();
+		if (hidden && this.viewletService.getActiveViewlet()) {
+			this.viewletService.hideActiveViewlet();
 
 			// Pass Focus to Editor or Panel if Sidebar is now hidden
 			const activePanel = this.panelService.getActivePanel();
@@ -1570,12 +1568,12 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		}
 
 		// If sidebar becomes visible, show last active Viewlet or default viewlet
-		else if (!hidden && !this.sidebarPart.getActiveViewlet()) {
-			const viewletToOpen = this.sidebarPart.getLastActiveViewletId();
+		else if (!hidden && !this.viewletService.getActiveViewlet()) {
+			const viewletToOpen = this.viewletService.getLastActiveViewletId();
 			if (viewletToOpen) {
-				const viewlet = this.sidebarPart.openViewlet(viewletToOpen, true);
+				const viewlet = this.viewletService.openViewlet(viewletToOpen, true);
 				if (!viewlet) {
-					this.sidebarPart.openViewlet(this.sidebarPart.getDefaultViewletId(), true);
+					this.viewletService.openViewlet(this.viewletService.getDefaultViewletId(), true);
 				}
 			}
 		}

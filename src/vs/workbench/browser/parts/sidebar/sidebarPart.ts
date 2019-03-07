@@ -31,6 +31,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { LayoutPriority } from 'vs/base/browser/ui/grid/gridview';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class SidebarPart extends CompositePart<Viewlet> implements IViewletService {
 
@@ -296,3 +297,5 @@ const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.Workbenc
 registry.registerWorkbenchAction(new SyncActionDescriptor(FocusSideBarAction, FocusSideBarAction.ID, FocusSideBarAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_0
 }), 'View: Focus into Side Bar', nls.localize('viewCategory', "View"));
+
+registerSingleton(IViewletService, SidebarPart);
