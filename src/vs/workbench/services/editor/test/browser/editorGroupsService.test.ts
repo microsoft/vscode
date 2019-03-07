@@ -86,7 +86,7 @@ suite('Editor groups service', () => {
 	function createPart(): EditorPart {
 		const instantiationService = workbenchInstantiationService();
 
-		const part = instantiationService.createInstance(EditorPart, false);
+		const part = instantiationService.createInstance(EditorPart);
 		part.create(document.createElement('div'));
 		part.layout(400, 300);
 

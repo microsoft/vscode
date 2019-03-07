@@ -421,7 +421,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		};
 	}
 
-	protected updateStyles(): void {
+	updateStyles(): void {
 		super.updateStyles();
 
 		// Forward to title label

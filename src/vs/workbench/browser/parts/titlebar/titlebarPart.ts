@@ -459,7 +459,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		this.adjustTitleMarginToCenter();
 	}
 
-	protected updateStyles(): void {
+	updateStyles(): void {
 		super.updateStyles();
 
 		// Part container

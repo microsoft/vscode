@@ -20,7 +20,6 @@ import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IEditorInputFactoryRegistry, Extensions as EditorExtensions, IUntitledResourceInput, IResourceDiffInput } from 'vs/workbench/common/editor';
-import { ActivitybarPart } from 'vs/workbench/browser/parts/activitybar/activitybarPart';
 import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
 import { StatusbarPart } from 'vs/workbench/browser/parts/statusbar/statusbarPart';
@@ -36,7 +35,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IActivityService } from 'vs/workbench/services/activity/common/activity';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -49,7 +47,6 @@ import { IWindowService, IWindowConfiguration, IPath, MenuBarVisibility, getTitl
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ActivityService } from 'vs/workbench/services/activity/browser/activityService';
 import { IViewsService } from 'vs/workbench/common/views';
 import { ViewsService } from 'vs/workbench/browser/parts/views/views';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -94,7 +91,6 @@ import { IProductService } from 'vs/platform/product/common/product';
 import { WorkbenchContextKeysHandler } from 'vs/workbench/browser/contextkeys';
 import { IDimension } from 'vs/platform/layout/browser/layoutService';
 import { Part } from 'vs/workbench/browser/part';
-import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 
 // import@node
 import { getDelayedChannel } from 'vs/base/parts/ipc/node/ipc';
@@ -176,7 +172,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 	private parts: Map<string, Part> = new Map<string, Part>();
 
-	private activitybarPart: ActivitybarPart;
 	private sidebarPart: SidebarPart;
 	private panelPart: PanelPart;
 	private statusbarPart: StatusbarPart;
@@ -453,11 +448,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		// Views service
 		serviceCollection.set(IViewsService, new SyncDescriptor(ViewsService));
 
-		// Activity service (activitybar part)
-		this.activitybarPart = this.instantiationService.createInstance(ActivitybarPart);
-		serviceCollection.set(IActivityBarService, this.activitybarPart); // TODO@Ben use SyncDescriptor
-		serviceCollection.set(IActivityService, new SyncDescriptor(ActivityService, [this.activitybarPart, this.panelPart], true));
-
 		// Contributed services
 		const contributedServices = getServices();
 		for (let contributedService of contributedServices) {
@@ -592,7 +582,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 	private createActivityBarPart(): void {
 		const activitybarPartContainer = this.createPart(Parts.ACTIVITYBAR_PART, 'navigation', 'activitybar', this.state.sideBar.position === Position.LEFT ? 'left' : 'right');
 
-		this.activitybarPart.create(activitybarPartContainer);
+		this.parts.get(Parts.ACTIVITYBAR_PART).create(activitybarPartContainer);
 	}
 
 	private createSidebarPart(): void {
@@ -946,6 +936,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 	}
 
 	private setSideBarPosition(position: Position): void {
+		const activityBar = this.parts.get(Parts.ACTIVITYBAR_PART);
 		const wasHidden = this.state.sideBar.hidden;
 
 		if (this.state.sideBar.hidden) {
@@ -957,13 +948,13 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		this.state.sideBar.position = position;
 
 		// Adjust CSS
-		removeClass(this.activitybarPart.getContainer(), oldPositionValue);
+		removeClass(activityBar.getContainer(), oldPositionValue);
 		removeClass(this.sidebarPart.getContainer(), oldPositionValue);
-		addClass(this.activitybarPart.getContainer(), newPositionValue);
+		addClass(activityBar.getContainer(), newPositionValue);
 		addClass(this.sidebarPart.getContainer(), newPositionValue);
 
 		// Update Styles
-		this.activitybarPart.updateStyles();
+		activityBar.updateStyles();
 		this.sidebarPart.updateStyles();
 
 		// Layout
@@ -1164,7 +1155,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			case Parts.TITLEBAR_PART:
 				return this.parts.get(Parts.TITLEBAR_PART).getContainer();
 			case Parts.ACTIVITYBAR_PART:
-				return this.activitybarPart.getContainer();
+				return this.parts.get(Parts.ACTIVITYBAR_PART).getContainer();
 			case Parts.SIDEBAR_PART:
 				return this.sidebarPart.getContainer();
 			case Parts.PANEL_PART:
@@ -1342,13 +1333,14 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 	private createWorkbenchLayout(): void {
 		const titlePart = this.parts.get(Parts.TITLEBAR_PART);
 		const editorPart = this.parts.get(Parts.EDITOR_PART);
+		const activityBar = this.parts.get(Parts.ACTIVITYBAR_PART);
 
 		if (this.configurationService.getValue('workbench.useExperimentalGridLayout')) {
 
 			// Create view wrappers for all parts
 			this.titleBarPartView = new View(titlePart);
 			this.sideBarPartView = new View(this.sidebarPart);
-			this.activityBarPartView = new View(this.activitybarPart);
+			this.activityBarPartView = new View(activityBar);
 			this.editorPartView = new View(editorPart);
 			this.panelPartView = new View(this.panelPart);
 			this.statusBarPartView = new View(this.statusbarPart);
@@ -1363,7 +1355,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 				this.workbench,
 				{
 					titlebar: titlePart,
-					activitybar: this.activitybarPart,
+					activitybar: activityBar,
 					editor: editorPart,
 					sidebar: this.sidebarPart,
 					panel: this.panelPart,

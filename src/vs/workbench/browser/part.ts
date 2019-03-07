@@ -49,6 +49,10 @@ export abstract class Part extends Component implements ISerializableView {
 		}
 	}
 
+	updateStyles(): void {
+		super.updateStyles();
+	}
+
 	/**
 	 * Note: Clients should not call this method, the workbench calls this
 	 * method. Calling it otherwise may result in unexpected behavior.

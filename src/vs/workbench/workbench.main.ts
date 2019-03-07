@@ -79,10 +79,12 @@ import 'vs/platform/accessibility/node/accessibilityService';
 import 'vs/workbench/services/editor/browser/editorService';
 import 'vs/workbench/services/history/browser/history';
 import 'vs/workbench/services/files/node/remoteFileService';
+import 'vs/workbench/services/activity/browser/activityService';
 import 'vs/workbench/browser/parts/quickinput/quickInput';
 import 'vs/workbench/browser/parts/quickopen/quickOpenController';
 import 'vs/workbench/browser/parts/titlebar/titlebarPart';
 import 'vs/workbench/browser/parts/editor/editorPart';
+import 'vs/workbench/browser/parts/activitybar/activitybarPart';
 
 registerSingleton(IMenuService, MenuService, true);
 registerSingleton(IListService, ListService, true);

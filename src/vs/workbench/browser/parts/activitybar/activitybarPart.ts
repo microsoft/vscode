@@ -32,6 +32,7 @@ import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/commo
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 const SCM_VIEWLET_ID = 'workbench.view.scm';
 
@@ -75,7 +76,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IViewsService private readonly viewsService: IViewsService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super(Parts.ACTIVITYBAR_PART, { hasTitle: false }, themeService, storageService);
 
@@ -100,6 +101,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			colors: theme => this.getActivitybarItemColors(theme),
 			overflowActionSize: ActivitybarPart.ACTION_HEIGHT
 		}));
+
+		this.layoutService.registerPart(this);
 
 		this.registerListeners();
 		this.onDidRegisterViewlets(viewletService.getViewlets());
@@ -502,3 +505,5 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		};
 	}
 }
+
+registerSingleton(IActivityBarService, ActivitybarPart);

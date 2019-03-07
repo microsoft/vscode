@@ -13,6 +13,8 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { Emitter } from 'vs/base/common/event';
+import { IBadge } from 'vs/workbench/services/activity/common/activity';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 let activeViewlet: Viewlet = {} as any;
 
@@ -86,6 +88,10 @@ class TestPanelService implements IPanelService {
 	public setPanelEnablement(id: string, enabled: boolean): void { }
 
 	public dispose() {
+	}
+
+	public showActivity(panelId: string, badge: IBadge, clazz?: string): IDisposable {
+		throw new Error('Method not implemented.');
 	}
 }
 

@@ -147,7 +147,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		return this.element;
 	}
 
-	protected updateStyles(): void {
+	updateStyles(): void {
 		super.updateStyles();
 
 		const container = this.getContainer();
