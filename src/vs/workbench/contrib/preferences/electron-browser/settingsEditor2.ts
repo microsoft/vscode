@@ -940,7 +940,10 @@ export class SettingsEditor2 extends BaseEditor {
 
 		// If the context view is focused, delay rendering settings
 		if (this.contextViewFocused()) {
-			this.scheduleRefresh(document.querySelector('.context-view'), key);
+			const element = document.querySelector('.context-view');
+			if (element) {
+				this.scheduleRefresh(element as HTMLElement, key);
+			}
 			return;
 		}
 
