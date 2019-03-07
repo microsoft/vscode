@@ -93,7 +93,6 @@ import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/serv
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 import { WorkbenchThemeService } from 'vs/workbench/services/themes/browser/workbenchThemeService';
 import { IProductService } from 'vs/platform/product/common/product';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { WorkbenchContextKeysHandler } from 'vs/workbench/browser/contextkeys';
 import { IDimension } from 'vs/platform/layout/browser/layoutService';
 import { Part } from 'vs/workbench/browser/part';
@@ -114,7 +113,6 @@ import { ExtensionManagementChannelClient } from 'vs/platform/extensionManagemen
 import { ExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
 import { MultiExtensionManagementService } from 'vs/workbench/services/extensionManagement/node/multiExtensionManagement';
 import { LocalizationsChannelClient } from 'vs/platform/localizations/node/localizationsIpc';
-import { AccessibilityService } from 'vs/platform/accessibility/node/accessibilityService';
 import { ProductService } from 'vs/platform/product/node/productService';
 import { TextResourcePropertiesService } from 'vs/workbench/services/textfile/node/textResourcePropertiesService';
 import { RemoteFileService } from 'vs/workbench/services/files/node/remoteFileService';
@@ -476,9 +474,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		serviceCollection.set(IEditorGroupsService, this.editorPart); // TODO@Ben use SyncDescriptor
 		this.editorService = this.instantiationService.createInstance(EditorService);
 		serviceCollection.set(IEditorService, this.editorService); // TODO@Ben use SyncDescriptor
-
-		// Accessibility
-		serviceCollection.set(IAccessibilityService, new SyncDescriptor(AccessibilityService, undefined, true));
 
 		// Contributed services
 		const contributedServices = getServices();
