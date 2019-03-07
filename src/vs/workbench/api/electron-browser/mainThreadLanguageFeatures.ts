@@ -137,9 +137,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 					if (dto) {
 						dto.forEach(obj => {
 							this._heapService.trackObject(obj);
-							if (obj.command) {
-								this._heapService.trackObject(obj.command);
-							}
+							this._heapService.trackObject(obj.command);
 						});
 					}
 					return dto;
@@ -149,9 +147,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 				return this._proxy.$resolveCodeLens(handle, model.uri, codeLens, token).then(obj => {
 					if (obj) {
 						this._heapService.trackObject(obj);
-						if (obj.command) {
-							this._heapService.trackObject(obj.command);
-						}
+						this._heapService.trackObject(obj.command);
 					}
 					return obj;
 				});
@@ -274,11 +270,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 			provideCodeActions: (model: ITextModel, rangeOrSelection: EditorRange | Selection, context: modes.CodeActionContext, token: CancellationToken): Promise<modes.CodeAction[]> => {
 				return this._proxy.$provideCodeActions(handle, model.uri, rangeOrSelection, context, token).then(dto => {
 					if (dto) {
-						dto.forEach(obj => {
-							if (obj.command) {
-								this._heapService.trackObject(obj.command);
-							}
-						});
+						dto.forEach(obj => { this._heapService.trackObject(obj.command); });
 					}
 					return MainThreadLanguageFeatures._reviveCodeActionDto(dto);
 				});
