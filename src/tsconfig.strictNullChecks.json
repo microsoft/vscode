@@ -242,6 +242,7 @@
 		"./vs/workbench/contrib/debug/browser/debugActions.ts",
 		"./vs/workbench/contrib/debug/browser/debugCommands.ts",
 		"./vs/workbench/contrib/debug/browser/debugContentProvider.ts",
+		"./vs/workbench/contrib/debug/browser/debugEditorActions.ts",
 		"./vs/workbench/contrib/debug/browser/debugStatus.ts",
 		"./vs/workbench/contrib/debug/browser/exceptionWidget.ts",
 		"./vs/workbench/contrib/debug/browser/linkDetector.ts",
