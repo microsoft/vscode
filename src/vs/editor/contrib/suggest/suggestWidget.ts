@@ -445,6 +445,8 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	private preferDocPositionTop: boolean = false;
 	private docsPositionPreviousWidgetY: number | null;
 
+	private showIcons: boolean;
+
 	constructor(
 		private readonly editor: ICodeEditor,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -465,6 +467,11 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		this.storageService = storageService;
 
 		this.element = $('.editor-widget.suggest-widget');
+
+		this.showIcons = this.editor.getConfiguration().contribInfo.suggest.showIcons;
+		if (!this.showIcons) {
+			addClass(this.element, 'no-icons');
+		}
 
 		this.messageElement = append(this.element, $('.message'));
 		this.listElement = append(this.element, $('.tree'));
@@ -488,7 +495,12 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 			this.list.onMouseDown(e => this.onListMouseDown(e)),
 			this.list.onSelectionChange(e => this.onListSelection(e)),
 			this.list.onFocusChange(e => this.onListFocus(e)),
-			this.editor.onDidChangeCursorSelection(() => this.onCursorSelectionChanged())
+			this.editor.onDidChangeCursorSelection(() => this.onCursorSelectionChanged()),
+			this.editor.onDidChangeConfiguration(e => {
+				if (e.contribInfo) {
+					this.onContribInfoConfigurationChanged();
+				}
+			})
 		];
 
 		this.suggestWidgetVisible = SuggestContext.Visible.bindTo(contextKeyService);
@@ -498,6 +510,15 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		this.setState(State.Hidden);
 
 		this.onThemeChange(themeService.getTheme());
+	}
+
+	private onContribInfoConfigurationChanged(): void {
+		const showIcons = this.editor.getConfiguration().contribInfo.suggest.showIcons;
+		if (showIcons) {
+			removeClass(this.element, 'no-icons');
+		} else {
+			addClass(this.element, 'no-icons');
+		}
 	}
 
 	private onCursorSelectionChanged(): void {
@@ -691,11 +712,6 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 				this.focusedItem = null;
 				break;
 			case State.Open:
-				if (!this.editor.getConfiguration().contribInfo.suggest.showIcons) {
-					addClass(this.element, 'no-icons');
-				} else {
-					removeClass(this.element, 'no-icons');
-				}
 				hide(this.messageElement);
 				show(this.listElement);
 				this.show();
