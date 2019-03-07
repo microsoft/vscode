@@ -842,7 +842,14 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 		const label = this.setElementAriaLabels(dataElement, SETTINGS_ENUM_TEMPLATE_ID, template);
 		template.selectBox.setAriaLabel(label);
 
-		const idx = dataElement.setting.enum!.indexOf(dataElement.value);
+		let idx = dataElement.setting.enum!.indexOf(dataElement.value);
+		if (idx === -1) {
+			idx = dataElement.setting.enum!.indexOf(dataElement.defaultValue);
+			if (idx === -1) {
+				idx = 0;
+			}
+		}
+
 		template.onChange = undefined;
 		template.selectBox.select(idx);
 		template.onChange = idx => onChange(dataElement.setting.enum![idx]);
