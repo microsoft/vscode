@@ -274,7 +274,7 @@ export default class BufferSyncSupport extends Disposable {
 	private readonly diagnosticDelayer: Delayer<any>;
 	private pendingGetErr: GetErrRequest | undefined;
 	private listening: boolean = false;
-	private synchronizer: BufferSynchronizer;
+	private readonly synchronizer: BufferSynchronizer;
 
 	constructor(
 		client: ITypeScriptServiceClient,
