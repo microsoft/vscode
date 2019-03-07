@@ -58,7 +58,7 @@ import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandler
 
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import Constants from 'vs/workbench/contrib/markers/browser/constants';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IPartService } from 'vs/workbench/services/part/browser/partService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';

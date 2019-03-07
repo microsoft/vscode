@@ -10,7 +10,7 @@ import { addClass, removeClass, isAncestor, addDisposableListener, EventType, Di
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { NotificationsList } from 'vs/workbench/browser/parts/notifications/notificationsList';
 import { Event } from 'vs/base/common/event';
-import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
+import { IPartService, Parts } from 'vs/workbench/services/part/browser/partService';
 import { Themable, NOTIFICATIONS_TOAST_BORDER } from 'vs/workbench/common/theme';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { widgetShadow } from 'vs/platform/theme/common/colorRegistry';

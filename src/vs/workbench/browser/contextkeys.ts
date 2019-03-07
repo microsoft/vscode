@@ -18,7 +18,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { EditorGroupsServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { SidebarVisibleContext, SideBarVisibleContext } from 'vs/workbench/common/viewlet';
-import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
+import { IPartService, Parts } from 'vs/workbench/services/part/browser/partService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 
 export class WorkbenchContextKeysHandler extends Disposable {

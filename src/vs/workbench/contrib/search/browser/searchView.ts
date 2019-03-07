@@ -58,7 +58,7 @@ import { getOutOfWorkspaceEditorResources } from 'vs/workbench/contrib/search/co
 import { FileMatch, FileMatchOrMatch, FolderMatch, IChangeEvent, ISearchWorkbenchService, Match, RenderableMatch, searchMatchComparer, SearchModel, SearchResult, BaseFolderMatch } from 'vs/workbench/contrib/search/common/searchModel';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IPartService } from 'vs/workbench/services/part/browser/partService';
 import { IPreferencesService, ISettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { relativePath } from 'vs/base/common/resources';

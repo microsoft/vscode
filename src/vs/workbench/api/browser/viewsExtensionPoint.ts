@@ -25,7 +25,7 @@ import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, Sh
 import { IExtensionDescription, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ViewContainerViewlet } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IPartService } from 'vs/workbench/services/part/browser/partService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IStorageService } from 'vs/platform/storage/common/storage';

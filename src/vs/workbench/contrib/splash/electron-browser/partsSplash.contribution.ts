@@ -17,7 +17,7 @@ import { getThemeTypeSelector, IThemeService } from 'vs/platform/theme/common/th
 import { DEFAULT_EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
 import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import * as themes from 'vs/workbench/common/theme';
-import { IPartService, Parts, Position } from 'vs/workbench/services/part/common/partService';
+import { IPartService, Parts, Position } from 'vs/workbench/services/part/browser/partService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';

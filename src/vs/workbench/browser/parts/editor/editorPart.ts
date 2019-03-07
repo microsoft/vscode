@@ -29,7 +29,7 @@ import { Color } from 'vs/base/common/color';
 import { CenteredViewLayout } from 'vs/base/browser/ui/centered/centeredViewLayout';
 import { IView, orthogonal, LayoutPriority } from 'vs/base/browser/ui/grid/gridview';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { Parts } from 'vs/workbench/services/part/common/partService';
+import { Parts } from 'vs/workbench/services/part/browser/partService';
 
 interface IEditorPartUIState {
 	serializedGrid: ISerializedGrid;

@@ -21,7 +21,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { ContextKeyDefinedExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IPartService } from 'vs/workbench/services/part/browser/partService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { SCMService } from 'vs/workbench/contrib/scm/common/scmService';
 

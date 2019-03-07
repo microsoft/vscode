@@ -25,7 +25,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { WebviewElement } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeInsetController } from 'vs/workbench/contrib/codeinset/electron-browser/codeInset.contribution';
-import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
+import { IPartService, Parts } from 'vs/workbench/services/part/browser/partService';
 
 @extHostNamedCustomer(MainContext.MainThreadWebviews)
 export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviver {

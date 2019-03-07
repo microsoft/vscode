@@ -24,7 +24,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { PanelView, IPanelViewOptions, IPanelOptions, Panel } from 'vs/base/browser/ui/splitview/panelview';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IPartService } from 'vs/workbench/services/part/browser/partService';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IView } from 'vs/workbench/common/views';
 import { IStorageService } from 'vs/platform/storage/common/storage';

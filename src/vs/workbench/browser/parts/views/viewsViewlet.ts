@@ -25,7 +25,7 @@ import { IWorkbenchThemeService, IFileIconTheme } from 'vs/workbench/services/th
 import { ITreeConfiguration, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
 import { Event } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IPartService } from 'vs/workbench/services/part/browser/partService';
 import { localize } from 'vs/nls';
 import { IAddedViewDescriptorRef, IViewDescriptorRef, PersistentContributableViewsModel } from 'vs/workbench/browser/parts/views/views';
 import { Registry } from 'vs/platform/registry/common/platform';

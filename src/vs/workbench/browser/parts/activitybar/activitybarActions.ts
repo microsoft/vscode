@@ -24,7 +24,7 @@ import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/wor
 import { IActivity, IGlobalActivity } from 'vs/workbench/common/activity';
 import { ACTIVITY_BAR_FOREGROUND } from 'vs/workbench/common/theme';
 import { IActivityService } from 'vs/workbench/services/activity/common/activity';
-import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
+import { IPartService, Parts } from 'vs/workbench/services/part/browser/partService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 
 export class ViewletActivityAction extends ActivityAction {

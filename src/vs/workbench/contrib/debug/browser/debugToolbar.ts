@@ -11,7 +11,7 @@ import * as arrays from 'vs/base/common/arrays';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IAction, IRunEvent } from 'vs/base/common/actions';
 import { ActionBar, ActionsOrientation, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IPartService } from 'vs/workbench/services/part/browser/partService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IDebugConfiguration, IDebugService, State } from 'vs/workbench/contrib/debug/common/debug';
 import { AbstractDebugAction, PauseAction, ContinueAction, StepBackAction, ReverseContinueAction, StopAction, DisconnectAction, StepOverAction, StepIntoAction, StepOutAction, RestartAction, FocusSessionAction } from 'vs/workbench/contrib/debug/browser/debugActions';

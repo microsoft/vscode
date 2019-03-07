@@ -12,7 +12,7 @@ import { Viewlet, ViewletRegistry, Extensions as ViewletExtensions, ViewletDescr
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IPartService, Parts, Position as SideBarPosition } from 'vs/workbench/services/part/common/partService';
+import { IPartService, Parts, Position as SideBarPosition } from 'vs/workbench/services/part/browser/partService';
 import { IViewlet, SidebarFocusContext, ActiveViewletContext } from 'vs/workbench/common/viewlet';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';

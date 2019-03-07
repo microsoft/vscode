@@ -13,7 +13,7 @@ import { IContextViewService, IContextMenuService } from 'vs/platform/contextvie
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import Messages from 'vs/workbench/contrib/markers/browser/messages';
 import Constants from 'vs/workbench/contrib/markers/browser/constants';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IPartService } from 'vs/workbench/services/part/browser/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachInputBoxStyler, attachStylerCallback, attachCheckboxStyler } from 'vs/platform/theme/common/styler';

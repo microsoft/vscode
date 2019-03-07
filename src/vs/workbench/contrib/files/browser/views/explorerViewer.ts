@@ -10,7 +10,7 @@ import { IListVirtualDelegate, ListDragOverEffect } from 'vs/base/browser/ui/lis
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IFileService, FileKind, IFileStat, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IPartService } from 'vs/workbench/services/part/browser/partService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, Disposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { KeyCode } from 'vs/base/common/keyCodes';

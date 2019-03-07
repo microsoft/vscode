@@ -8,7 +8,7 @@ import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { Dimension, show, hide, addClass } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEditorRegistry, Extensions as EditorExtensions, IEditorDescriptor } from 'vs/workbench/browser/editor';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IPartService } from 'vs/workbench/services/part/browser/partService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressService, LongRunningOperation } from 'vs/platform/progress/common/progress';

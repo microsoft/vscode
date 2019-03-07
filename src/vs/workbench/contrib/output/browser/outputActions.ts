@@ -8,7 +8,7 @@ import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IAction, Action } from 'vs/base/common/actions';
 import { IOutputService, OUTPUT_PANEL_ID, IOutputChannelRegistry, Extensions as OutputExt, IOutputChannelDescriptor, IFileOutputChannelDescriptor } from 'vs/workbench/contrib/output/common/output';
 import { SelectActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IPartService } from 'vs/workbench/services/part/browser/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';

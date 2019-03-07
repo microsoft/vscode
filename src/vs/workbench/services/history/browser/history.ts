@@ -27,7 +27,7 @@ import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorE
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
 import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IPartService } from 'vs/workbench/services/part/browser/partService';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { coalesce } from 'vs/base/common/arrays';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';

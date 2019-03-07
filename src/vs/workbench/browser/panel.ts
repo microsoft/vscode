@@ -8,7 +8,7 @@ import { IPanel } from 'vs/workbench/common/panel';
 import { Composite, CompositeDescriptor, CompositeRegistry } from 'vs/workbench/browser/composite';
 import { Action } from 'vs/base/common/actions';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
+import { IPartService, Parts } from 'vs/workbench/services/part/browser/partService';
 import { IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 import { isAncestor } from 'vs/base/browser/dom';
 

@@ -25,7 +25,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditorInput, IWorkbenchEditorConfiguration, IEditorInput } from 'vs/workbench/common/editor';
 import { Component } from 'vs/workbench/common/component';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IPartService } from 'vs/workbench/services/part/browser/partService';
 import { QuickOpenHandler, QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions, EditorQuickOpenEntry, CLOSE_ON_FOCUS_LOST_CONFIG, SEARCH_EDITOR_HISTORY, PRESERVE_INPUT_CONFIG } from 'vs/workbench/browser/quickopen';
 import * as errors from 'vs/base/common/errors';
 import { IQuickOpenService, IShowOptions } from 'vs/platform/quickOpen/common/quickOpen';

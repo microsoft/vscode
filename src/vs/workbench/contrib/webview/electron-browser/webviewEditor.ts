@@ -20,7 +20,7 @@ import { EditorOptions } from 'vs/workbench/common/editor';
 import { WebviewEditorInput } from 'vs/workbench/contrib/webview/electron-browser/webviewEditorInput';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
+import { IPartService, Parts } from 'vs/workbench/services/part/browser/partService';
 import { WebviewElement } from './webviewElement';
 
 /**  A context key that is set when the find widget in a webview is visible. */

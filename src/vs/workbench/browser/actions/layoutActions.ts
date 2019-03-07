@@ -11,7 +11,7 @@ import { Action } from 'vs/base/common/actions';
 import { SyncActionDescriptor, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { IPartService, Parts, Position } from 'vs/workbench/services/part/common/partService';
+import { IPartService, Parts, Position } from 'vs/workbench/services/part/browser/partService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IEditorGroupsService, GroupOrientation } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';

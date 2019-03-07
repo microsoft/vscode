@@ -12,7 +12,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncActionDescriptor, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/actions';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IPartService, Parts, Position } from 'vs/workbench/services/part/common/partService';
+import { IPartService, Parts, Position } from 'vs/workbench/services/part/browser/partService';
 import { ActivityAction } from 'vs/workbench/browser/parts/compositeBarActions';
 import { IActivity } from 'vs/workbench/common/activity';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';

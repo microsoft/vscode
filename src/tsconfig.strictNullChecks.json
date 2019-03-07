@@ -438,7 +438,7 @@
 		"./vs/workbench/services/mode/common/workbenchModeService.ts",
 		"./vs/workbench/services/notification/common/notificationService.ts",
 		"./vs/workbench/services/panel/common/panelService.ts",
-		"./vs/workbench/services/part/common/partService.ts",
+		"./vs/workbench/services/part/browser/partService.ts",
 		"./vs/workbench/services/preferences/common/keybindingsEditorModel.ts",
 		"./vs/workbench/services/preferences/test/common/keybindingsEditorModel.test.ts",
 		"./vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl.ts",
