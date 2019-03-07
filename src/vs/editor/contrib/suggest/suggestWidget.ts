@@ -1037,8 +1037,8 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 			height = this.unfocusedHeight;
 		} else {
 			const suggestionCount = this.list.contentHeight / this.unfocusedHeight;
-			const maxSuggestionsToShow = this.editor.getConfiguration().contribInfo.suggest.maxSuggestionsToShow;
-			height = Math.min(suggestionCount, maxSuggestionsToShow) * this.unfocusedHeight;
+			const { maxVisibileSuggestions } = this.editor.getConfiguration().contribInfo.suggest;
+			height = Math.min(suggestionCount, maxVisibileSuggestions) * this.unfocusedHeight;
 		}
 
 		this.element.style.lineHeight = `${this.unfocusedHeight}px`;
@@ -1118,7 +1118,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	// Heights
 
 	private get maxWidgetHeight(): number {
-		return this.unfocusedHeight * this.editor.getConfiguration().contribInfo.suggest.maxSuggestionsToShow;
+		return this.unfocusedHeight * this.editor.getConfiguration().contribInfo.suggest.maxVisibileSuggestions;
 	}
 
 	private get unfocusedHeight(): number {

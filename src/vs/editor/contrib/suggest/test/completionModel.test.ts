@@ -164,7 +164,7 @@ suite('CompletionModel', function () {
 				localityBonus: false,
 				shareSuggestSelections: false,
 				showIcons: true,
-				maxSuggestionsToShow: 12
+				maxVisibileSuggestions: 12
 			});
 
 		assert.equal(model.items.length, 2);
@@ -191,7 +191,7 @@ suite('CompletionModel', function () {
 				localityBonus: false,
 				shareSuggestSelections: false,
 				showIcons: true,
-				maxSuggestionsToShow: 12
+				maxVisibileSuggestions: 12
 			});
 
 		assert.equal(model.items.length, 2);
@@ -217,7 +217,7 @@ suite('CompletionModel', function () {
 				localityBonus: false,
 				shareSuggestSelections: false,
 				showIcons: true,
-				maxSuggestionsToShow: 12
+				maxVisibileSuggestions: 12
 			});
 
 		assert.equal(model.items.length, 2);
