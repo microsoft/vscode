@@ -34,6 +34,84 @@ function mode2ScriptKind(mode: string): 'TS' | 'TSX' | 'JS' | 'JSX' | undefined 
 	return undefined;
 }
 
+/**
+ * Manages synchronization of buffers with the TS server.
+ *
+ * If supported, batches together file changes. This allows the TS server to more efficiently process changes.
+ */
+class BufferSynchronizer {
+
+	private _pending: Proto.UpdateOpenRequestArgs = {};
+
+	constructor(
+		private readonly client: ITypeScriptServiceClient
+	) { }
+
+	public open(args: Proto.OpenRequestArgs) {
+		if (this.supportsBatching) {
+			if (!this._pending.openFiles) {
+				this._pending.openFiles = [];
+			}
+			this._pending.openFiles.push(args);
+		} else {
+			this.client.executeWithoutWaitingForResponse('open', args);
+		}
+	}
+
+	public close(file: string) {
+		if (this.supportsBatching) {
+			if (!this._pending.closedFiles) {
+				this._pending.closedFiles = [];
+			}
+			this._pending.closedFiles.push(file);
+		} else {
+			const args: Proto.FileRequestArgs = { file };
+			this.client.executeWithoutWaitingForResponse('close', args);
+		}
+	}
+
+	public change(filepath: string, events: vscode.TextDocumentContentChangeEvent[]) {
+		if (this.supportsBatching) {
+			if (!this._pending.changedFiles) {
+				this._pending.changedFiles = [];
+			}
+
+			this._pending.changedFiles.push({
+				fileName: filepath,
+				textChanges: events.map((change): Proto.CodeEdit => ({
+					newText: change.text,
+					start: typeConverters.Position.toLocation(change.range.start),
+					end: typeConverters.Position.toLocation(change.range.end),
+				})).reverse(), // Send the edits end-of-document to start-of-document order
+			});
+		} else {
+			for (const { range, text } of events) {
+				const args: Proto.ChangeRequestArgs = {
+					insertString: text,
+					...typeConverters.Range.toFormattingRequestArgs(filepath, range)
+				};
+				this.client.executeWithoutWaitingForResponse('change', args);
+			}
+		}
+	}
+
+	public synchronize() {
+		if (this.supportsBatching) {
+			// We've already eagerly synchronized
+			return;
+		}
+
+		if (this._pending.changedFiles || this._pending.closedFiles || this._pending.openFiles) {
+			this.client.executeWithoutWaitingForResponse('updateOpen', this._pending);
+			this._pending = {};
+		}
+	}
+
+	private get supportsBatching() {
+		return this.client.apiVersion.gte(API.v340);
+	}
+}
+
 class SyncedBuffer {
 
 	private state = BufferState.Initial;
@@ -41,7 +119,8 @@ class SyncedBuffer {
 	constructor(
 		private readonly document: vscode.TextDocument,
 		public readonly filepath: string,
-		private readonly client: ITypeScriptServiceClient
+		private readonly client: ITypeScriptServiceClient,
+		private readonly synchronizer: BufferSynchronizer,
 	) { }
 
 	public open(): void {
@@ -70,7 +149,7 @@ class SyncedBuffer {
 			}
 		}
 
-		this.client.executeWithoutWaitingForResponse('open', args);
+		this.synchronizer.open(args);
 		this.state = BufferState.Open;
 	}
 
@@ -96,10 +175,7 @@ class SyncedBuffer {
 	}
 
 	public close(): void {
-		const args: Proto.FileRequestArgs = {
-			file: this.filepath
-		};
-		this.client.executeWithoutWaitingForResponse('close', args);
+		this.synchronizer.close(this.filepath);
 		this.state = BufferState.Closed;
 	}
 
@@ -108,27 +184,7 @@ class SyncedBuffer {
 			console.error(`Unexpected buffer state: ${this.state}`);
 		}
 
-		if (this.client.apiVersion.gte(API.v340)) {
-			const args: Proto.UpdateOpenRequestArgs = {
-				changedFiles: [{
-					fileName: this.filepath,
-					textChanges: events.map((change): Proto.CodeEdit => ({
-						newText: change.text,
-						start: typeConverters.Position.toLocation(change.range.start),
-						end: typeConverters.Position.toLocation(change.range.end),
-					})).reverse(), // Send the edits end of document to start of document order
-				}],
-			};
-			this.client.executeWithoutWaitingForResponse('updateOpen', args);
-		} else {
-			for (const { range, text } of events) {
-				const args: Proto.ChangeRequestArgs = {
-					insertString: text,
-					...typeConverters.Range.toFormattingRequestArgs(this.filepath, range)
-				};
-				this.client.executeWithoutWaitingForResponse('change', args);
-			}
-		}
+		this.synchronizer.change(this.filepath, events);
 	}
 }
 
@@ -214,6 +270,7 @@ export default class BufferSyncSupport extends Disposable {
 	private readonly diagnosticDelayer: Delayer<any>;
 	private pendingGetErr: GetErrRequest | undefined;
 	private listening: boolean = false;
+	private synchronizer: BufferSynchronizer;
 
 	constructor(
 		client: ITypeScriptServiceClient,
@@ -228,6 +285,7 @@ export default class BufferSyncSupport extends Disposable {
 		const pathNormalizer = (path: vscode.Uri) => this.client.normalizedPath(path);
 		this.syncedBuffers = new SyncedBufferMap(pathNormalizer);
 		this.pendingDiagnostics = new PendingDiagnostics(pathNormalizer);
+		this.synchronizer = new BufferSynchronizer(client);
 
 		this.updateConfiguration();
 		vscode.workspace.onDidChangeConfiguration(this.updateConfiguration, this, this._disposables);
@@ -279,7 +337,7 @@ export default class BufferSyncSupport extends Disposable {
 			return;
 		}
 
-		const syncedBuffer = new SyncedBuffer(document, filepath, this.client);
+		const syncedBuffer = new SyncedBuffer(document, filepath, this.client, this.synchronizer);
 		this.syncedBuffers.set(resource, syncedBuffer);
 		syncedBuffer.open();
 		this.requestDiagnostic(syncedBuffer);
@@ -307,6 +365,10 @@ export default class BufferSyncSupport extends Disposable {
 		const result = f();
 		this.triggerDiagnostics();
 		return result;
+	}
+
+	public ensureBuffersAreSynchronized() {
+		this.synchronizer.synchronize();
 	}
 
 	private onDidCloseTextDocument(document: vscode.TextDocument): void {
