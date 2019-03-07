@@ -10,7 +10,7 @@ import { Dimension, isAncestor, toggleClass, addClass, $ } from 'vs/base/browser
 import { Event, Emitter, Relay } from 'vs/base/common/event';
 import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { GroupDirection, IAddGroupOptions, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, ICopyEditorOptions, GroupsOrder, GroupChangeKind, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { Direction, SerializableGrid, Sizing, ISerializedGrid, Orientation, GridBranchNode, isGridBranchNode, GridNode, createSerializedGrid, Grid, ISerializableView } from 'vs/base/browser/ui/grid/grid';
 import { GroupIdentifier, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { values } from 'vs/base/common/map';
@@ -81,7 +81,7 @@ class GridWidgetView<T extends IView> implements IView {
 
 export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditorGroupsAccessor, ISerializableView {
 
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<any>;
 
 	private static readonly EDITOR_PART_UI_STATE_STORAGE_KEY = 'editorpart.state';
 	private static readonly EDITOR_PART_CENTERED_VIEW_STORAGE_KEY = 'editorpart.centeredview';
@@ -958,16 +958,13 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		return this.groupViews.size === 1 && this._activeGroup.isEmpty();
 	}
 
-	layout(dimension: Dimension): Dimension[];
-	layout(width: number, height: number): void;
-	layout(dim1: Dimension | number, dim2?: number): Dimension[] | void {
-		const sizes = super.layout(dim1 instanceof Dimension ? dim1 : new Dimension(dim1, dim2));
+	layout(width: number, height: number): void {
 
-		this.doLayout(sizes[1]);
+		// Layout contents
+		const contentAreaSize = super.layoutContents(width, height).contentSize;
 
-		if (dim1 instanceof Dimension) {
-			return sizes;
-		}
+		// Layout editor container
+		this.doLayout(contentAreaSize);
 	}
 
 	private doLayout(dimension: Dimension): void {

@@ -60,8 +60,6 @@ export class ActivitybarPart extends Part implements ISerializableView {
 	private _onDidChange = this._register(new Emitter<{ width: number; height: number; }>());
 	get onDidChange(): Event<{ width: number, height: number }> { return this._onDidChange.event; }
 
-	private dimension: Dimension;
-
 	private globalActionBar: ActionBar;
 	private globalActivityIdToActions: { [globalActivityId: string]: GlobalActivityAction; } = Object.create(null);
 
@@ -364,31 +362,20 @@ export class ActivitybarPart extends Part implements ISerializableView {
 			.map(v => v.id);
 	}
 
-	layout(dimension: Dimension): Dimension[];
-	layout(width: number, height: number): void;
-	layout(dim1: Dimension | number, dim2?: number): Dimension[] | void {
+	layout(width: number, height: number): void {
 		if (!this.layoutService.isVisible(Parts.ACTIVITYBAR_PART)) {
-			if (dim1 instanceof Dimension) {
-				return [dim1];
-			}
-
 			return;
 		}
 
-		// Pass to super
-		const sizes = super.layout(dim1 instanceof Dimension ? dim1 : new Dimension(dim1, dim2!));
+		// Layout contents
+		const contentAreaSize = super.layoutContents(width, height).contentSize;
 
-		this.dimension = sizes[1];
-
-		let availableHeight = this.dimension.height;
+		// Layout composite bar
+		let availableHeight = contentAreaSize.height;
 		if (this.globalActionBar) {
 			availableHeight -= (this.globalActionBar.items.length * ActivitybarPart.ACTION_HEIGHT); // adjust height for global actions showing
 		}
-		this.compositeBar.layout(new Dimension(dim1 instanceof Dimension ? dim1.width : dim1, availableHeight));
-
-		if (dim1 instanceof Dimension) {
-			return sizes;
-		}
+		this.compositeBar.layout(new Dimension(width, availableHeight));
 	}
 
 	private onDidStorageChange(e: IWorkspaceStorageChangeEvent): void {

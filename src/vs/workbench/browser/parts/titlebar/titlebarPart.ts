@@ -28,7 +28,7 @@ import { Color } from 'vs/base/common/color';
 import { trim } from 'vs/base/common/strings';
 import { EventType, EventHelper, Dimension, isAncestor, hide, show, removeClass, addClass, append, $, addDisposableListener, runAtThisOrScheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { MenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { template, getBaseLabel } from 'vs/base/common/labels';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -58,7 +58,7 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 	private _onMenubarVisibilityChange = this._register(new Emitter<boolean>());
 	get onMenubarVisibilityChange(): Event<boolean> { return this._onMenubarVisibilityChange.event; }
 
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<any>;
 
 	private title: HTMLElement;
 	private dragRegion: HTMLElement;
@@ -588,19 +588,10 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 		}
 	}
 
-	layout(dimension: Dimension): Dimension[];
-	layout(width: number, height: number): void;
-	layout(dim1: Dimension | number, dim2?: number): Dimension[] | void {
-		if (dim1 instanceof Dimension) {
-			this.updateLayout(dim1);
+	layout(width: number, height: number): void {
+		this.updateLayout(new Dimension(width, height));
 
-			return super.layout(dim1);
-		}
-
-		const dimensions = new Dimension(dim1, dim2!);
-		this.updateLayout(dimensions);
-
-		super.layout(dimensions);
+		super.layoutContents(width, height);
 	}
 
 	toJSON(): object {

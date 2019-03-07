@@ -8,10 +8,16 @@ import { Component } from 'vs/workbench/common/component';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { Dimension, size } from 'vs/base/browser/dom';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IDimension } from 'vs/platform/layout/browser/layoutService';
 
 export interface IPartOptions {
 	hasTitle?: boolean;
 	borderWidth?: () => number;
+}
+
+export interface ILayoutContentResult {
+	titleSize: IDimension;
+	contentSize: IDimension;
 }
 
 /**
@@ -95,22 +101,18 @@ export abstract class Part extends Component {
 	/**
 	 * Layout title and content area in the given dimension.
 	 */
-	layout(dimension: Dimension): Dimension[] {
-		return this.partLayout.layout(dimension);
+	protected layoutContents(width: number, height: number): ILayoutContentResult {
+		return this.partLayout.layout(width, height);
 	}
 }
 
-export class PartLayout {
+class PartLayout {
 
 	private static readonly TITLE_HEIGHT = 35;
 
 	constructor(container: HTMLElement, private options: IPartOptions, titleArea: HTMLElement | null, private contentArea: HTMLElement | null) { }
 
-	layout(dimension: Dimension): Dimension[] {
-		const { width, height } = dimension;
-
-		// Return the applied sizes to title and content
-		const sizes: Dimension[] = [];
+	layout(width: number, height: number): ILayoutContentResult {
 
 		// Title Size: Width (Fill), Height (Variable)
 		let titleSize: Dimension;
@@ -127,14 +129,11 @@ export class PartLayout {
 			contentSize.width -= this.options.borderWidth(); // adjust for border size
 		}
 
-		sizes.push(titleSize);
-		sizes.push(contentSize);
-
 		// Content
 		if (this.contentArea) {
 			size(this.contentArea, contentSize.width, contentSize.height);
 		}
 
-		return sizes;
+		return { titleSize, contentSize };
 	}
 }

@@ -17,7 +17,7 @@ import { IStorageService, StorageScope, IWorkspaceStorageChangeEvent } from 'vs/
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { ClosePanelAction, TogglePanelPositionAction, PanelActivityAction, ToggleMaximizedPanelAction, TogglePanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
@@ -49,7 +49,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService, IS
 	private static readonly PINNED_PANELS = 'workbench.panel.pinnedPanels';
 	private static readonly MIN_COMPOSITE_BAR_WIDTH = 50;
 
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<any>;
 
 	element: HTMLElement;
 
@@ -282,18 +282,10 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService, IS
 		};
 	}
 
-	layout(dimension: Dimension): Dimension[];
-	layout(width: number, height: number): void;
-	layout(dim1: Dimension | number, dim2?: number): Dimension[] | void {
+	layout(width: number, height: number): void {
 		if (!this.layoutService.isVisible(Parts.PANEL_PART)) {
-			if (dim1 instanceof Dimension) {
-				return [dim1];
-			}
-
 			return;
 		}
-
-		const { width, height } = dim1 instanceof Dimension ? dim1 : { width: dim1, height: dim2 };
 
 		if (this.layoutService.getPanelPosition() === Position.RIGHT) {
 			this.dimension = new Dimension(width - 1, height!); // Take into account the 1px border when layouting
@@ -301,12 +293,11 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService, IS
 			this.dimension = new Dimension(width, height!);
 		}
 
-		const sizes = super.layout(this.dimension.width, this.dimension.height);
-		this.layoutCompositeBar();
+		// Layout contents
+		super.layout(this.dimension.width, this.dimension.height);
 
-		if (dim1 instanceof Dimension) {
-			return sizes;
-		}
+		// Layout composite bar
+		this.layoutCompositeBar();
 	}
 
 	private layoutCompositeBar(): void {

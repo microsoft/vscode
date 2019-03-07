@@ -631,11 +631,11 @@ export class WorkbenchLegacyLayout extends Disposable implements IVerticalSashLa
 		}
 
 		// Propagate to Part Layouts
-		this.parts.titlebar.layout(new Dimension(this.workbenchSize.width, this.titlebarHeight));
-		this.parts.editor.layout(new Dimension(editorSize.width, editorSize.height));
-		this.parts.sidebar.layout(sidebarSize);
-		this.parts.panel.layout(panelDimension);
-		this.parts.activitybar.layout(activityBarSize);
+		this.parts.titlebar.layout(this.workbenchSize.width, this.titlebarHeight);
+		this.parts.editor.layout(editorSize.width, editorSize.height);
+		this.parts.sidebar.layout(sidebarSize.width, sidebarSize.height);
+		this.parts.panel.layout(panelDimension.width, panelDimension.height);
+		this.parts.activitybar.layout(activityBarSize.width, activityBarSize.height);
 
 		// Propagate to Context View
 		this.contextViewService.layout();

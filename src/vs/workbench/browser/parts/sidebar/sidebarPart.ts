@@ -19,13 +19,13 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { SIDE_BAR_TITLE_FOREGROUND, SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND, SIDE_BAR_BORDER } from 'vs/workbench/common/theme';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { EventType, addDisposableListener, trackFocus, Dimension } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, trackFocus } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
@@ -34,7 +34,8 @@ import { ISerializableView } from 'vs/base/browser/ui/grid/grid';
 import { LayoutPriority } from 'vs/base/browser/ui/grid/gridview';
 
 export class SidebarPart extends CompositePart<Viewlet> implements ISerializableView, IViewletService {
-	_serviceBrand: any;
+
+	_serviceBrand: ServiceIdentifier<any>;
 
 	static readonly activeViewletSettingsKey = 'workbench.sidebar.activeviewletid';
 
@@ -167,22 +168,12 @@ export class SidebarPart extends CompositePart<Viewlet> implements ISerializable
 		container.style.borderLeftColor = !isPositionLeft ? borderColor : null;
 	}
 
-	layout(dimension: Dimension): Dimension[];
-	layout(width: number, height: number): void;
-	layout(dim1: Dimension | number, dim2?: number): Dimension[] | void {
+	layout(width: number, height: number): void {
 		if (!this.layoutService.isVisible(Parts.SIDEBAR_PART)) {
-			if (dim1 instanceof Dimension) {
-				return [dim1];
-			}
-
 			return;
 		}
 
-		if (dim1 instanceof Dimension) {
-			return super.layout(dim1);
-		}
-
-		super.layout(dim1, dim2!);
+		super.layout(width, height);
 	}
 
 	// Viewlet service

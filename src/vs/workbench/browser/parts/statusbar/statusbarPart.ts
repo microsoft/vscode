@@ -13,7 +13,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Part } from 'vs/workbench/browser/part';
 import { IStatusbarRegistry, Extensions, IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { StatusbarAlignment, IStatusbarService, IStatusbarEntry } from 'vs/platform/statusbar/common/statusbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -24,7 +24,7 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { isThemeColor } from 'vs/editor/common/editorCommon';
 import { Color } from 'vs/base/common/color';
-import { addClass, EventHelper, createStyleSheet, addDisposableListener, Dimension } from 'vs/base/browser/dom';
+import { addClass, EventHelper, createStyleSheet, addDisposableListener } from 'vs/base/browser/dom';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -32,7 +32,8 @@ import { ISerializableView } from 'vs/base/browser/ui/grid/grid';
 import { Parts } from 'vs/workbench/services/layout/browser/layoutService';
 
 export class StatusbarPart extends Part implements IStatusbarService, ISerializableView {
-	_serviceBrand: any;
+
+	_serviceBrand: ServiceIdentifier<any>;
 
 	private static readonly PRIORITY_PROP = 'statusbar-entry-priority';
 	private static readonly ALIGNMENT_PROP = 'statusbar-entry-alignment';
@@ -231,14 +232,8 @@ export class StatusbarPart extends Part implements IStatusbarService, ISerializa
 		return dispose;
 	}
 
-	layout(dimension: Dimension): Dimension[];
-	layout(width: number, height: number): void;
-	layout(dim1: Dimension | number, dim2?: number): Dimension[] | void {
-		if (dim1 instanceof Dimension) {
-			return super.layout(dim1);
-		} else {
-			super.layout(new Dimension(dim1, dim2!));
-		}
+	layout(width: number, height: number): void {
+		super.layoutContents(width, height);
 	}
 
 	toJSON(): object {
