@@ -33,7 +33,7 @@ const WINDOWS_FORBIDDEN_NAMES = /^(con|prn|aux|clock\$|nul|lpt[0-9]|com[0-9])$/i
 
 export class RemoteFileDialog {
 	private fallbackPickerButton;
-	private acceptButton = { iconPath: this.getDialogIcons('accept'), tooltip: nls.localize('remoteFileDialog.accept', 'Select Item') };
+	private acceptButton;
 	private currentFolder: URI;
 	private filePickBox: IQuickPick<FileQuickPickItem>;
 	private allowFileSelection: boolean;
@@ -144,6 +144,7 @@ export class RemoteFileDialog {
 				}
 			}
 		}
+		this.acceptButton = { iconPath: this.getDialogIcons('accept'), tooltip: options.title };
 
 		return new Promise<URI | undefined>((resolve) => {
 			this.filePickBox = this.quickInputService.createQuickPick<FileQuickPickItem>();
