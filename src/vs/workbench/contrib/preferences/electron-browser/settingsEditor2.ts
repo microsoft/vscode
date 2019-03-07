@@ -740,8 +740,8 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 
 		return this.configurationService.updateValue(key, value, overrides, configurationTarget)
-			.then(() => this.renderTree(key, isManualReset))
 			.then(() => {
+				this.renderTree(key, isManualReset);
 				const reportModifiedProps = {
 					key,
 					query: this.searchWidget.getValue(),
@@ -894,7 +894,8 @@ export class SettingsEditor2 extends BaseEditor {
 			if (cachedState && cachedState.searchQuery) {
 				this.triggerSearch(cachedState.searchQuery);
 			} else {
-				return this.renderTree(undefined, forceRefresh);
+				this.renderTree(undefined, forceRefresh);
+				this.refreshTOCTree();
 			}
 		} else {
 			this.settingsTreeModel = this.instantiationService.createInstance(SettingsTreeModel, this.viewState);
@@ -906,8 +907,6 @@ export class SettingsEditor2 extends BaseEditor {
 
 			this.tocTree.collapseAll();
 		}
-
-		return;
 	}
 
 	private updateElementsByKey(keys: string[]): void {
@@ -983,7 +982,6 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 
 		this.tocTreeModel.update();
-		this.refreshTOCTree();
 		return;
 	}
 
@@ -1199,6 +1197,7 @@ export class SettingsEditor2 extends BaseEditor {
 			this.tocTree.expandAll();
 
 			this.renderTree(undefined, true);
+			this.refreshTOCTree();
 			return result;
 		});
 	}
