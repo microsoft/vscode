@@ -10,7 +10,7 @@ import { domEvent } from 'vs/base/browser/event';
 import { basename } from 'vs/base/common/resources';
 import { IDisposable, dispose, combinedDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
-import { append, $, addClass, toggleClass, trackFocus, removeClass } from 'vs/base/browser/dom';
+import { append, $, addClass, toggleClass, trackFocus, removeClass, addClasses } from 'vs/base/browser/dom';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent, IListEvent, IKeyboardNavigationLabelProvider, IIdentityProvider } from 'vs/base/browser/ui/list/list';
@@ -215,7 +215,6 @@ export class MainPanel extends ViewletPanel {
 	static readonly TITLE = localize('scm providers', "Source Control Providers");
 
 	private list: List<ISCMRepository>;
-	private visibilityDisposables: IDisposable[] = [];
 
 	constructor(
 		protected viewModel: IViewModel,
@@ -232,11 +231,6 @@ export class MainPanel extends ViewletPanel {
 		this.updateBodySize();
 	}
 
-	focus(): void {
-		super.focus();
-		this.list.domFocus();
-	}
-
 	protected renderBody(container: HTMLElement): void {
 		const delegate = new ProvidersListDelegate();
 		const renderer = this.instantiationService.createInstance(ProviderRenderer);
@@ -251,25 +245,23 @@ export class MainPanel extends ViewletPanel {
 
 		this.viewModel.onDidChangeVisibleRepositories(this.updateListSelection, this, this.disposables);
 
-		this.viewModel.onDidChangeVisibility(this.onDidChangeVisibility, this, this.disposables);
-		this.onDidChangeVisibility(this.viewModel.isVisible());
+		this.viewModel.onDidSplice(({ index, deleteCount, elements }) => this.splice(index, deleteCount, elements), null, this.disposables);
+		this.splice(0, 0, this.viewModel.repositories);
 
 		this.disposables.push(this.list);
-	}
 
-	private onDidChangeVisibility(visible: boolean): void {
-		if (visible) {
-			this.viewModel.onDidSplice(({ index, deleteCount, elements }) => this.splice(index, deleteCount, elements), null, this.visibilityDisposables);
-			this.splice(0, 0, this.viewModel.repositories);
-		} else {
-			this.visibilityDisposables = dispose(this.visibilityDisposables);
-			this.splice(0, this.list.length);
-		}
+		this.updateListSelection();
 	}
 
 	private splice(index: number, deleteCount: number, repositories: ISCMRepository[] = []): void {
 		this.list.splice(index, deleteCount, repositories);
-		this.updateBodySize();
+
+		const empty = this.list.length === 0;
+		const size = Math.min(this.viewModel.repositories.length, 10) * 22;
+		this.minimumBodySize = size;
+		this.maximumBodySize = empty ? Number.POSITIVE_INFINITY : size;
+
+		toggleClass(this.element, 'empty', empty);
 	}
 
 	protected layoutBody(height: number, width: number): void {
@@ -277,9 +269,6 @@ export class MainPanel extends ViewletPanel {
 	}
 
 	private updateBodySize(): void {
-		const size = Math.min(this.viewModel.repositories.length, 10) * 22;
-		this.minimumBodySize = size;
-		this.maximumBodySize = size;
 	}
 
 	private onListContextMenu(e: IListContextMenuEvent<ISCMRepository>): void {
@@ -345,11 +334,6 @@ export class MainPanel extends ViewletPanel {
 		if (selection.length > 0) {
 			this.list.setFocus([selection[0]]);
 		}
-	}
-
-	dispose(): void {
-		this.visibilityDisposables = dispose(this.visibilityDisposables);
-		super.dispose();
 	}
 }
 
@@ -1024,12 +1008,30 @@ class RepositoryViewDescriptor implements IViewDescriptor {
 	}
 }
 
+class MainPanelDescriptor implements IViewDescriptor {
+
+	readonly id = MainPanel.ID;
+	readonly name = MainPanel.TITLE;
+	readonly ctorDescriptor: { ctor: any, arguments?: any[] };
+	readonly canToggleVisibility = true;
+	readonly hideByDefault = true;
+
+	constructor(viewModel: IViewModel) {
+		this.ctorDescriptor = { ctor: MainPanel, arguments: [viewModel] };
+	}
+}
+
 export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 
 	private static readonly STATE_KEY = 'workbench.scm.views.state';
 
+	private repositoryCount = 0;
+	private el: HTMLElement;
+	private message: HTMLElement;
 	private menus: SCMMenus;
 	private _repositories: ISCMRepository[] = [];
+
+	private mainPanelDescriptor = new MainPanelDescriptor(this);
 	private viewDescriptors: RepositoryViewDescriptor[] = [];
 
 	private _onDidSplice = new Emitter<ISpliceEvent<ISCMRepository>>();
@@ -1094,22 +1096,21 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 		this.menus = instantiationService.createInstance(SCMMenus, undefined);
 		this.menus.onDidChangeTitle(this.updateTitleArea, this, this.toDispose);
 
-		ViewsRegistry.registerViews([{
-			id: MainPanel.ID,
-			name: MainPanel.TITLE,
-			ctorDescriptor: { ctor: MainPanel, arguments: [this] },
-			canToggleVisibility: true
-		}], VIEW_CONTAINER);
+		this.message = $('.empty-message', { tabIndex: 0 }, localize('no open repo', "No source control providers registered."));
+
+		configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('scm.alwaysShowProviders')) {
+				this.onDidChangeRepositories();
+			}
+		});
 	}
 
 	create(parent: HTMLElement): void {
 		super.create(parent);
-		addClass(parent, 'scm-viewlet');
 
-		// 	this.el = parent;
-		// 	addClass(this.el, 'scm-viewlet');
-		// 	addClass(this.el, 'empty');
-		// 	append(parent, $('div.empty-message', undefined, localize('no open repo', "No source control providers registered.")));
+		this.el = parent;
+		addClasses(parent, 'scm-viewlet', 'empty');
+		append(parent, this.message);
 
 		this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.toDispose);
 		this.scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.toDispose);
@@ -1120,12 +1121,14 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 		const index = this._repositories.length;
 		this._repositories.push(repository);
 
-		const viewDescriptor = new RepositoryViewDescriptor(repository, this, this._repositories.length > 1);
+		const viewDescriptor = new RepositoryViewDescriptor(repository, this, false);
 		ViewsRegistry.registerViews([viewDescriptor], VIEW_CONTAINER);
 		this.viewDescriptors.push(viewDescriptor);
 
 		this._onDidSplice.fire({ index, deleteCount: 0, elements: [repository] });
 		this.updateTitleArea();
+
+		this.onDidChangeRepositories();
 	}
 
 	private onDidRemoveRepository(repository: ISCMRepository): void {
@@ -1142,32 +1145,53 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 
 		this._onDidSplice.fire({ index, deleteCount: 1, elements: [] });
 		this.updateTitleArea();
+
+		this.onDidChangeRepositories();
 	}
 
-	// private onDidChangeRepositories(): void {
-	// toggleClass(this.el, 'empty', this.scmService.repositories.length === 0);
+	private onDidChangeRepositories(): void {
+		const repositoryCount = this.repositories.length;
 
-	// if (this.scmService.repositories.length === 0) {
-	// 	this.el.tabIndex = 0;
-	// } else {
-	// 	this.el.removeAttribute('tabIndex');
-	// }
-	// }
+		if (this.repositoryCount === 0 && repositoryCount !== 0) {
+			ViewsRegistry.registerViews([this.mainPanelDescriptor], VIEW_CONTAINER);
+		} else if (this.repositoryCount !== 0 && repositoryCount === 0) {
+			ViewsRegistry.deregisterViews([this.mainPanelDescriptor], VIEW_CONTAINER);
+		}
+
+		const alwaysShowProviders = this.configurationService.getValue<boolean>('scm.alwaysShowProviders') || false;
+
+		if (alwaysShowProviders && repositoryCount > 0) {
+			this.viewsModel.setVisible(MainPanel.ID, true);
+		} else if (!alwaysShowProviders && repositoryCount === 1) {
+			this.viewsModel.setVisible(MainPanel.ID, false);
+		} else if (this.repositoryCount < 2 && repositoryCount >= 2) {
+			this.viewsModel.setVisible(MainPanel.ID, true);
+		} else if (this.repositoryCount >= 2 && repositoryCount === 1) {
+			this.viewsModel.setVisible(MainPanel.ID, false);
+		}
+
+		toggleClass(this.el, 'empty', repositoryCount === 0);
+		this.repositoryCount = repositoryCount;
+	}
 
 	focus(): void {
-		const repository = this.visibleRepositories[0];
+		if (this.repositoryCount) {
+			this.message.focus();
+		} else {
+			const repository = this.visibleRepositories[0];
 
-		if (repository) {
-			const panel = this.panels
-				.filter(panel => panel instanceof RepositoryPanel && panel.repository === repository)[0] as RepositoryPanel | undefined;
+			if (repository) {
+				const panel = this.panels
+					.filter(panel => panel instanceof RepositoryPanel && panel.repository === repository)[0] as RepositoryPanel | undefined;
 
-			if (panel) {
-				panel.focus();
+				if (panel) {
+					panel.focus();
+				} else {
+					super.focus();
+				}
 			} else {
 				super.focus();
 			}
-		} else {
-			super.focus();
 		}
 	}
 

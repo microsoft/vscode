@@ -71,7 +71,9 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	type: 'object',
 	properties: {
 		'scm.alwaysShowProviders': {
-			deprecationMessage: localize('alwaysShowProviders.deprecated', "This setting is deprecated. You can control the SCM Providers view just like any other view, using the context menu in the SCM view.")
+			type: 'boolean',
+			description: localize('alwaysShowProviders', "Controls whether to always show the Source Control Provider section."),
+			default: false
 		},
 		'scm.diffDecorations': {
 			type: 'string',
