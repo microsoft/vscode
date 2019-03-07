@@ -40,7 +40,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { FileKind } from 'vs/platform/files/common/files';
 
 const expandSuggestionDocsByDefault = false;
-const maxSuggestionsToShow = 12;
 
 interface ISuggestionTemplateData {
 	root: HTMLElement;
@@ -466,13 +465,13 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		this.storageService = storageService;
 
 		this.element = $('.editor-widget.suggest-widget');
-		if (!this.editor.getConfiguration().contribInfo.iconsInSuggestions) {
-			addClass(this.element, 'no-icons');
-		}
 
 		this.messageElement = append(this.element, $('.message'));
 		this.listElement = append(this.element, $('.tree'));
 		this.details = new SuggestionDetails(this.element, this, this.editor, markdownRenderer, triggerKeybindingLabel);
+
+		const applyIconStyle = () => toggleClass(this.element, 'no-icons', !this.editor.getConfiguration().contribInfo.suggest.showIcons);
+		applyIconStyle();
 
 		let renderer = instantiationService.createInstance(Renderer, this, this.editor, triggerKeybindingLabel);
 
@@ -492,7 +491,8 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 			this.list.onMouseDown(e => this.onListMouseDown(e)),
 			this.list.onSelectionChange(e => this.onListSelection(e)),
 			this.list.onFocusChange(e => this.onListFocus(e)),
-			this.editor.onDidChangeCursorSelection(() => this.onCursorSelectionChanged())
+			this.editor.onDidChangeCursorSelection(() => this.onCursorSelectionChanged()),
+			this.editor.onDidChangeConfiguration(e => e.contribInfo && applyIconStyle())
 		];
 
 		this.suggestWidgetVisible = SuggestContext.Visible.bindTo(contextKeyService);
@@ -1037,6 +1037,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 			height = this.unfocusedHeight;
 		} else {
 			const suggestionCount = this.list.contentHeight / this.unfocusedHeight;
+			const maxSuggestionsToShow = this.editor.getConfiguration().contribInfo.suggest.maxSuggestionsToShow;
 			height = Math.min(suggestionCount, maxSuggestionsToShow) * this.unfocusedHeight;
 		}
 
@@ -1117,7 +1118,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	// Heights
 
 	private get maxWidgetHeight(): number {
-		return this.unfocusedHeight * maxSuggestionsToShow;
+		return this.unfocusedHeight * this.editor.getConfiguration().contribInfo.suggest.maxSuggestionsToShow;
 	}
 
 	private get unfocusedHeight(): number {

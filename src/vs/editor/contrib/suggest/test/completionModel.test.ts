@@ -157,7 +157,15 @@ suite('CompletionModel', function () {
 		], 1, {
 				leadingLineContent: 's',
 				characterCountDelta: 0
-			}, WordDistance.None, { snippets: 'top', snippetsPreventQuickSuggestions: true, filterGraceful: true, localityBonus: false, shareSuggestSelections: false });
+			}, WordDistance.None, {
+				snippets: 'top',
+				snippetsPreventQuickSuggestions: true,
+				filterGraceful: true,
+				localityBonus: false,
+				shareSuggestSelections: false,
+				showIcons: true,
+				maxSuggestionsToShow: 12
+			});
 
 		assert.equal(model.items.length, 2);
 		const [a, b] = model.items;
@@ -176,7 +184,15 @@ suite('CompletionModel', function () {
 		], 1, {
 				leadingLineContent: 's',
 				characterCountDelta: 0
-			}, WordDistance.None, { snippets: 'bottom', snippetsPreventQuickSuggestions: true, filterGraceful: true, localityBonus: false, shareSuggestSelections: false });
+			}, WordDistance.None, {
+				snippets: 'bottom',
+				snippetsPreventQuickSuggestions: true,
+				filterGraceful: true,
+				localityBonus: false,
+				shareSuggestSelections: false,
+				showIcons: true,
+				maxSuggestionsToShow: 12
+			});
 
 		assert.equal(model.items.length, 2);
 		const [a, b] = model.items;
@@ -194,7 +210,15 @@ suite('CompletionModel', function () {
 		], 1, {
 				leadingLineContent: 's',
 				characterCountDelta: 0
-			}, WordDistance.None, { snippets: 'inline', snippetsPreventQuickSuggestions: true, filterGraceful: true, localityBonus: false, shareSuggestSelections: false });
+			}, WordDistance.None, {
+				snippets: 'inline',
+				snippetsPreventQuickSuggestions: true,
+				filterGraceful: true,
+				localityBonus: false,
+				shareSuggestSelections: false,
+				showIcons: true,
+				maxSuggestionsToShow: 12
+			});
 
 		assert.equal(model.items.length, 2);
 		const [a, b] = model.items;

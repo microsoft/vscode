@@ -679,6 +679,18 @@ const editorConfiguration: IConfigurationNode = {
 			default: true,
 			description: nls.localize('suggest.snippetsPreventQuickSuggestions', "Control whether an active snippet prevents quick suggestions.")
 		},
+		'editor.suggest.showIcons': {
+			type: 'boolean',
+			default: EDITOR_DEFAULTS.contribInfo.suggest.showIcons,
+			description: nls.localize('suggest.showIcons', "Controls whether to show or hide icons in suggestions.")
+		},
+		'editor.suggest.maxSuggestionsToShow': {
+			type: 'number',
+			default: EDITOR_DEFAULTS.contribInfo.suggest.maxSuggestionsToShow,
+			minimum: 1,
+			maximum: 12,
+			description: nls.localize('suggest.maxSuggestionsToShow', "Controls how many suggestions to show in suggestions.")
+		},
 		'editor.selectionHighlight': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.selectionHighlight,
