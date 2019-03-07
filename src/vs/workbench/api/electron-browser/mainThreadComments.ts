@@ -102,6 +102,7 @@ export class MainThreadCommentThread implements modes.CommentThread2 {
 
 	set label(label: string) {
 		this._label = label;
+		this._onDidChangeLabel.fire(this._label);
 	}
 
 	private _onDidChangeLabel = new Emitter<string>();
@@ -204,6 +205,7 @@ export class MainThreadCommentController {
 		private readonly _proxy: ExtHostCommentsShape,
 		private readonly _commentService: ICommentService,
 		private readonly _handle: number,
+		private readonly _uniqueId: string,
 		private readonly _id: string,
 		private readonly _label: string
 	) { }
@@ -222,7 +224,7 @@ export class MainThreadCommentController {
 		);
 
 		this._threads.set(commentThreadHandle, thread);
-		this._commentService.updateComments(`${this.handle}`, {
+		this._commentService.updateComments(this._uniqueId, {
 			added: [thread],
 			removed: [],
 			changed: [],
@@ -236,7 +238,7 @@ export class MainThreadCommentController {
 		let thread = this._threads.get(commentThreadHandle);
 		this._threads.delete(commentThreadHandle);
 
-		this._commentService.updateComments(`${this.handle}`, {
+		this._commentService.updateComments(this._uniqueId, {
 			added: [],
 			removed: [thread],
 			changed: [],
@@ -250,7 +252,7 @@ export class MainThreadCommentController {
 		let thread = this._threads.get(commentThreadHandle);
 		thread.comments = comments;
 
-		this._commentService.updateComments(`${this.handle}`, {
+		this._commentService.updateComments(this._uniqueId, {
 			added: [],
 			removed: [],
 			changed: [thread],
@@ -299,7 +301,7 @@ export class MainThreadCommentController {
 		let commentingRanges = await this._proxy.$provideCommentingRanges(this.handle, resource, token);
 
 		return <ICommentInfo>{
-			owner: String(this.handle),
+			owner: this._uniqueId,
 			threads: ret,
 			commentingRanges: commentingRanges ?
 				{
@@ -375,12 +377,12 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	}
 
 	$registerCommentController(handle: number, id: string, label: string): void {
-		const provider = new MainThreadCommentController(this._proxy, this._commentService, handle, id, label);
-		this._commentService.registerCommentController(String(handle), provider);
-		this._commentControllers.set(handle, provider);
-
 		const providerId = generateUuid();
 		this._handlers.set(handle, providerId);
+
+		const provider = new MainThreadCommentController(this._proxy, this._commentService, handle, providerId, id, label);
+		this._commentService.registerCommentController(String(handle), provider);
+		this._commentControllers.set(handle, provider);
 
 		const commentsPanelAlreadyConstructed = this._panelService.getPanels().some(panel => panel.id === COMMENTS_PANEL_ID);
 		if (!commentsPanelAlreadyConstructed) {
@@ -507,7 +509,6 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 								const providerId = this._handlers.get(handle);
 								this._commentService.setWorkspaceComments(providerId, commentThreads);
 							}
-
 						});
 					});
 
