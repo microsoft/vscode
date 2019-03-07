@@ -342,6 +342,7 @@
 		"./vs/workbench/contrib/scm/browser/scmMenus.ts",
 		"./vs/workbench/contrib/scm/browser/scmUtil.ts",
 		"./vs/workbench/contrib/scm/common/scm.ts",
+		"./vs/workbench/api/electron-browser/mainThreadWebview.ts",
 		"./vs/workbench/contrib/scm/common/scmService.ts",
 		"./vs/workbench/contrib/search/browser/openAnythingHandler.ts",
 		"./vs/workbench/contrib/search/browser/openFileHandler.ts",
