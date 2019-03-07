@@ -18,7 +18,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { GlobalNewUntitledFileAction } from 'vs/workbench/contrib/files/browser/fileActions';
 import { OpenFolderAction, OpenFileFolderAction, OpenFileAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { ShowAllCommandsAction } from 'vs/workbench/contrib/quickopen/browser/commandsHandler';
-import { Parts, IWorkbenchLayoutService, IDimension } from 'vs/workbench/services/layout/browser/layoutService';
+import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { StartAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { FindInFilesActionId } from 'vs/workbench/contrib/search/common/constants';
 import { QUICKOPEN_ACTION_ID } from 'vs/workbench/browser/parts/quickopen/quickopen';
@@ -27,6 +27,7 @@ import * as dom from 'vs/base/browser/dom';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { IDimension } from 'vs/platform/layout/browser/layoutService';
 
 const $ = dom.$;
 

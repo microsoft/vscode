@@ -30,11 +30,6 @@ export interface ILayoutOptions {
 	source?: Parts;
 }
 
-export interface IDimension {
-	readonly width: number;
-	readonly height: number;
-}
-
 export interface IWorkbenchLayoutService extends ILayoutService {
 	_serviceBrand: ServiceIdentifier<any>;
 

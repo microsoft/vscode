@@ -9,8 +9,8 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 export const ILayoutService = createDecorator<ILayoutService>('layoutService');
 
 export interface IDimension {
-	width: number;
-	height: number;
+	readonly width: number;
+	readonly height: number;
 }
 
 export interface ILayoutService {
