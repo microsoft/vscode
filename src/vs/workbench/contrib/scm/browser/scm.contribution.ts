@@ -38,16 +38,13 @@ class OpenSCMViewletAction extends ShowViewletAction {
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(DirtyDiffWorkbenchController, LifecyclePhase.Restored);
 
-const viewletDescriptor = new ViewletDescriptor(
+Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new ViewletDescriptor(
 	SCMViewlet,
 	VIEWLET_ID,
 	localize('source control', "Source Control"),
 	'scm',
 	2
-);
-
-Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets)
-	.registerViewlet(viewletDescriptor);
+));
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(StatusUpdater, LifecyclePhase.Restored);

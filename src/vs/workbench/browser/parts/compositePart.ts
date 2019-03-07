@@ -342,6 +342,9 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		primaryActions.push(...this.getActions());
 		secondaryActions.push(...this.getSecondaryActions());
 
+		// Update context
+		this.toolBar.context = this.actionsContextProvider();
+
 		// Return fn to set into toolbar
 		return this.toolBar.setActions(prepareActions(primaryActions), prepareActions(secondaryActions));
 	}
@@ -433,6 +436,16 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		// Check Active Composite
 		if (this.activeComposite) {
 			return this.activeComposite.getActionItem(action);
+		}
+
+		return null;
+	}
+
+	protected actionsContextProvider(): any {
+
+		// Check Active Composite
+		if (this.activeComposite) {
+			return this.activeComposite.getActionsContext();
 		}
 
 		return null;

@@ -43,7 +43,7 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 
 	private readonly visibleViewsCountFromCache: number;
 	private readonly visibleViewsStorageId: string;
-	private readonly viewsModel: PersistentContributableViewsModel;
+	protected readonly viewsModel: PersistentContributableViewsModel;
 	private viewDisposables: IDisposable[] = [];
 
 	constructor(
