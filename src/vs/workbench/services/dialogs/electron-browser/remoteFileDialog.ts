@@ -122,7 +122,7 @@ export class RemoteFileDialog {
 		let homedir: URI = options.defaultUri ? options.defaultUri : this.workspaceContextService.getWorkspace().folders[0].uri;
 		let trailing: string | undefined;
 		let stat: IFileStat | undefined;
-		let ext: string = resources.extname(options.defaultUri);
+		let ext: string = resources.extname(homedir);
 		if (options.defaultUri) {
 			try {
 				stat = await this.remoteFileService.resolveFile(options.defaultUri);
