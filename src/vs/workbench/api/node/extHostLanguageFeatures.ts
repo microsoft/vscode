@@ -741,16 +741,15 @@ class SuggestAdapter {
 			preselect: item.preselect,
 			//
 			range: typeConvert.Range.from(range),
-			insertText: this.convertInsertText(item),
-			insertTextRules: this.convertInsertTextRules(item),
+			insertText: this.getInsertText(item),
+			insertTextRules: this.getInsertTextRules(item),
 			additionalTextEdits: item.additionalTextEdits && item.additionalTextEdits.map(typeConvert.TextEdit.from),
 			command: this._commands.toInternal(item.command),
 			commitCharacters: item.commitCharacters
 		};
 	}
 
-	private convertInsertText(item: vscode.CompletionItem): string {
-		// 'insertText'-logic
+	private getInsertText(item: vscode.CompletionItem): string {
 		if (item.textEdit) {
 			return item.textEdit.newText;
 		} else if (typeof item.insertText === 'string') {
@@ -762,7 +761,7 @@ class SuggestAdapter {
 		}
 	}
 
-	private convertInsertTextRules(item: vscode.CompletionItem): modes.CompletionItemInsertTextRule {
+	private getInsertTextRules(item: vscode.CompletionItem): modes.CompletionItemInsertTextRule {
 		let rules: modes.CompletionItemInsertTextRule = 0;
 		if (item.keepWhitespace) {
 			rules |= modes.CompletionItemInsertTextRule.KeepWhitespace;
