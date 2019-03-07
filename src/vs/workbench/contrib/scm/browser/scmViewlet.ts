@@ -1072,9 +1072,6 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 		}
 	}
 
-	// private contributedViews: PersistentContributableViewsModel;
-	// private contributedViewDisposables: IDisposable[] = [];
-
 	constructor(
 		@IPartService partService: IPartService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -1216,5 +1213,11 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 		}
 
 		return new ContextAwareMenuItemActionItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
+	}
+
+	getActionsContext(): any {
+		if (this.visibleRepositories.length === 1) {
+			return this.repositories[0].provider;
+		}
 	}
 }
