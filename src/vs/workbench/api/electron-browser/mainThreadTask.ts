@@ -30,7 +30,7 @@ import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostC
 import { ExtHostContext, MainThreadTaskShape, ExtHostTaskShape, MainContext, IExtHostContext } from 'vs/workbench/api/node/extHost.protocol';
 import {
 	TaskDefinitionDTO, TaskExecutionDTO, ProcessExecutionOptionsDTO, TaskPresentationOptionsDTO,
-	ProcessExecutionDTO, ShellExecutionDTO, ShellExecutionOptionsDTO, TaskDTO, TaskSourceDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO, TaskSystemInfoDTO,
+	ProcessExecutionDTO, ShellExecutionDTO, ShellExecutionOptionsDTO, CustomExecutionDTO, TaskDTO, TaskSourceDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO, TaskSystemInfoDTO,
 	RunOptionsDTO
 } from 'vs/workbench/api/shared/tasks';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
@@ -138,7 +138,7 @@ namespace ProcessExecutionOptionsDTO {
 }
 
 namespace ProcessExecutionDTO {
-	export function is(value: ShellExecutionDTO | ProcessExecutionDTO): value is ProcessExecutionDTO {
+	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CustomExecutionDTO): value is ProcessExecutionDTO {
 		const candidate = value as ProcessExecutionDTO;
 		return candidate && !!candidate.process;
 	}
@@ -206,7 +206,7 @@ namespace ShellExecutionOptionsDTO {
 }
 
 namespace ShellExecutionDTO {
-	export function is(value: ShellExecutionDTO | ProcessExecutionDTO): value is ShellExecutionDTO {
+	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CustomExecutionDTO): value is ShellExecutionDTO {
 		const candidate = value as ShellExecutionDTO;
 		return candidate && (!!candidate.commandLine || !!candidate.command);
 	}
@@ -234,6 +234,26 @@ namespace ShellExecutionDTO {
 			result.options = ShellExecutionOptionsDTO.to(value.options);
 		}
 		return result;
+	}
+}
+
+namespace CustomExecutionDTO {
+	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CustomExecutionDTO): value is CustomExecutionDTO {
+		const candidate = value as CustomExecutionDTO;
+		return candidate && candidate.customExecution === 'customExecution';
+	}
+
+	export function from(value: CommandConfiguration): CustomExecutionDTO {
+		return {
+			customExecution: 'customExecution'
+		};
+	}
+
+	export function to(value: CustomExecutionDTO): CommandConfiguration {
+		return {
+			runtime: RuntimeType.CustomExecution,
+			presentation: undefined
+		};
 	}
 }
 
@@ -331,12 +351,15 @@ namespace TaskDTO {
 		if (typeof task.name !== 'string') {
 			return undefined;
 		}
+
 		let command: CommandConfiguration | undefined;
 		if (task.execution) {
 			if (ShellExecutionDTO.is(task.execution)) {
 				command = ShellExecutionDTO.to(task.execution);
 			} else if (ProcessExecutionDTO.is(task.execution)) {
 				command = ProcessExecutionDTO.to(task.execution);
+			} else if (CustomExecutionDTO.is(task.execution)) {
+				command = CustomExecutionDTO.to(task.execution);
 			}
 		}
 
@@ -397,7 +420,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 		this._taskService.onDidStateChange((event: TaskEvent) => {
 			const task = event.__task!;
 			if (event.kind === TaskEventKind.Start) {
-				this._proxy.$onDidStartTask(TaskExecutionDTO.from(task.getTaskExecution()));
+				this._proxy.$onDidStartTask(TaskExecutionDTO.from(task.getTaskExecution()), event.terminalId);
 			} else if (event.kind === TaskEventKind.ProcessStarted) {
 				this._proxy.$onDidStartTaskProcess(TaskProcessStartedDTO.from(task.getTaskExecution(), event.processId!));
 			} else if (event.kind === TaskEventKind.ProcessEnded) {
@@ -413,6 +436,13 @@ export class MainThreadTask implements MainThreadTaskShape {
 			value.disposable.dispose();
 		});
 		this._providers.clear();
+	}
+
+	$createTaskId(taskDTO: TaskDTO): Promise<string> {
+		return new Promise((resolve) => {
+			let task = TaskDTO.to(taskDTO, this._workspaceContextServer, true);
+			resolve(task._id);
+		});
 	}
 
 	public $registerTaskProvider(handle: number): Promise<void> {
@@ -486,6 +516,24 @@ export class MainThreadTask implements MainThreadTaskShape {
 				};
 				resolve(result);
 			}
+		});
+	}
+
+	public $customExecutionComplete(id: string, result?: number): Promise<void> {
+		return new Promise<void>((resolve, reject) => {
+			this._taskService.getActiveTasks().then((tasks) => {
+				for (let task of tasks) {
+					if (id === task._id) {
+						this._taskService.extensionCallbackTaskComplete(task, result).then((value) => {
+							resolve(undefined);
+						}, (error) => {
+							reject(error);
+						});
+						return;
+					}
+				}
+				reject(new Error('Task to mark as complete not found'));
+			});
 		});
 	}
 

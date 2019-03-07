@@ -2547,6 +2547,18 @@ declare namespace monaco.editor {
 		 * Enable using global storage for remembering suggestions.
 		 */
 		shareSuggestSelections?: boolean;
+		/**
+		 * Enable or disable icons in suggestions. Defaults to true.
+		 */
+		showIcons?: boolean;
+		/**
+		 * Max suggestions to show in suggestions. Defaults to 12.
+		 */
+		maxVisibleSuggestions?: boolean;
+		/**
+		 * Names of suggestion types to filter.
+		 */
+		filteredTypes?: Record<string, boolean>;
 	}
 
 	/**
@@ -2841,11 +2853,6 @@ declare namespace monaco.editor {
 		 * Parameter hint options.
 		 */
 		parameterHints?: IEditorParameterHintOptions;
-		/**
-		 * Render icons in suggestions box.
-		 * Defaults to true.
-		 */
-		iconsInSuggestions?: boolean;
 		/**
 		 * Options for auto closing brackets.
 		 * Defaults to language defined behavior.
@@ -3195,6 +3202,9 @@ declare namespace monaco.editor {
 		readonly snippetsPreventQuickSuggestions: boolean;
 		readonly localityBonus: boolean;
 		readonly shareSuggestSelections: boolean;
+		readonly showIcons: boolean;
+		readonly maxVisibleSuggestions: number;
+		readonly filteredTypes: Record<string, boolean>;
 	}
 
 	export interface InternalParameterHintOptions {
@@ -3269,7 +3279,6 @@ declare namespace monaco.editor {
 		};
 		readonly quickSuggestionsDelay: number;
 		readonly parameterHints: InternalParameterHintOptions;
-		readonly iconsInSuggestions: boolean;
 		readonly formatOnType: boolean;
 		readonly formatOnPaste: boolean;
 		readonly suggestOnTriggerCharacters: boolean;

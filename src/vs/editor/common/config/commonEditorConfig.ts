@@ -679,6 +679,155 @@ const editorConfiguration: IConfigurationNode = {
 			default: true,
 			description: nls.localize('suggest.snippetsPreventQuickSuggestions', "Control whether an active snippet prevents quick suggestions.")
 		},
+		'editor.suggest.showIcons': {
+			type: 'boolean',
+			default: EDITOR_DEFAULTS.contribInfo.suggest.showIcons,
+			description: nls.localize('suggest.showIcons', "Controls whether to show or hide icons in suggestions.")
+		},
+		'editor.suggest.maxVisibleSuggestions': {
+			type: 'number',
+			default: EDITOR_DEFAULTS.contribInfo.suggest.maxVisibleSuggestions,
+			minimum: 1,
+			maximum: 12,
+			description: nls.localize('suggest.maxVisibleSuggestions', "Controls how many suggestions IntelliSense will show before showing a scrollbar.")
+		},
+		'editor.suggest.filteredTypes': {
+			type: 'object',
+			default: { keyword: true },
+			markdownDescription: nls.localize('suggest.filtered', "Controls whether some suggestion types should be filtered from IntelliSense. A list of suggestion types can be found here: https://code.visualstudio.com/docs/editor/intellisense#_types-of-completions."),
+			properties: {
+				method: {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('suggest.filtered.method', "When set to `false` IntelliSense never shows `method` suggestions.")
+				},
+				function: {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('suggest.filtered.function', "When set to `false` IntelliSense never shows `function` suggestions.")
+				},
+				constructor: {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('suggest.filtered.constructor', "When set to `false` IntelliSense never shows `constructor` suggestions.")
+				},
+				field: {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('suggest.filtered.field', "When set to `false` IntelliSense never shows `field` suggestions.")
+				},
+				variable: {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('suggest.filtered.variable', "When set to `false` IntelliSense never shows `variable` suggestions.")
+				},
+				class: {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('suggest.filtered.class', "When set to `false` IntelliSense never shows `class` suggestions.")
+				},
+				struct: {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('suggest.filtered.struct', "When set to `false` IntelliSense never shows `struct` suggestions.")
+				},
+				interface: {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('suggest.filtered.interface', "When set to `false` IntelliSense never shows `interface` suggestions.")
+				},
+				module: {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('suggest.filtered.module', "When set to `false` IntelliSense never shows `module` suggestions.")
+				},
+				property: {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('suggest.filtered.property', "When set to `false` IntelliSense never shows `property` suggestions.")
+				},
+				event: {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('suggest.filtered.event', "When set to `false` IntelliSense never shows `event` suggestions.")
+				},
+				operator: {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('suggest.filtered.operator', "When set to `false` IntelliSense never shows `operator` suggestions.")
+				},
+				unit: {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('suggest.filtered.unit', "When set to `false` IntelliSense never shows `unit` suggestions.")
+				},
+				value: {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('suggest.filtered.value', "When set to `false` IntelliSense never shows `value` suggestions.")
+				},
+				constant: {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('suggest.filtered.constant', "When set to `false` IntelliSense never shows `constant` suggestions.")
+				},
+				enum: {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('suggest.filtered.enum', "When set to `false` IntelliSense never shows `enum` suggestions.")
+				},
+				enumMember: {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('suggest.filtered.enumMember', "When set to `false` IntelliSense never shows `enumMember` suggestions.")
+				},
+				keyword: {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('suggest.filtered.keyword', "When set to `false` IntelliSense never shows `keyword` suggestions.")
+				},
+				text: {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('suggest.filtered.text', "When set to `false` IntelliSense never shows `text` suggestions.")
+				},
+				color: {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('suggest.filtered.color', "When set to `false` IntelliSense never shows `color` suggestions.")
+				},
+				file: {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('suggest.filtered.file', "When set to `false` IntelliSense never shows `file` suggestions.")
+				},
+				reference: {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('suggest.filtered.reference', "When set to `false` IntelliSense never shows `reference` suggestions.")
+				},
+				customcolor: {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('suggest.filtered.customcolor', "When set to `false` IntelliSense never shows `customcolor` suggestions.")
+				},
+				folder: {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('suggest.filtered.folder', "When set to `false` IntelliSense never shows `folder` suggestions.")
+				},
+				typeParameter: {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('suggest.filtered.typeParameter', "When set to `false` IntelliSense never shows `typeParameter` suggestions.")
+				},
+				snippet: {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('suggest.filtered.snippet', "When set to `false` IntelliSense never shows `snippet` suggestions.")
+				},
+			}
+		},
 		'editor.selectionHighlight': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.selectionHighlight,

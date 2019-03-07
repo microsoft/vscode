@@ -119,7 +119,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 			// Update the keybinding with new key
 			this.applyEditsToBuffer(setProperty(model.getValue(), [userKeybindingEntryIndex, 'key'], newKey, { tabSize, insertSpaces, eol })[0], model);
 			const edits = setProperty(model.getValue(), [userKeybindingEntryIndex, 'when'], when, { tabSize, insertSpaces, eol });
-			if (edits.length > 1) {
+			if (edits.length > 0) {
 				this.applyEditsToBuffer(edits[0], model);
 			}
 		} else {

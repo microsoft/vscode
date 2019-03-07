@@ -21,6 +21,8 @@ import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/co
 import { values } from 'vs/base/common/map';
 import { IFileIconTheme, IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { toggleClass, addClass } from 'vs/base/browser/dom';
+import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 function filterViewRegisterEvent(container: ViewContainer, event: Event<{ viewContainer: ViewContainer, views: IViewDescriptor[] }>): Event<IViewDescriptor[]> {
 	return Event.chain(event)
@@ -534,7 +536,7 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 
 export class ViewsService extends Disposable implements IViewsService {
 
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<any>;
 
 	private readonly viewDescriptorCollections: Map<ViewContainer, { viewDescriptorCollection: IViewDescriptorCollection, disposable: IDisposable }>;
 	private readonly viewDisposable: Map<IViewDescriptor, IDisposable>;
@@ -683,3 +685,5 @@ export function createFileIconThemableTreeContainerScope(container: HTMLElement,
 	onDidChangeFileIconTheme(themeService.getFileIconTheme());
 	return themeService.onDidFileIconThemeChange(onDidChangeFileIconTheme);
 }
+
+registerSingleton(IViewsService, ViewsService);

@@ -151,8 +151,8 @@ const colorRegExp = /^#?([0-9A-Fa-f]{6})([0-9A-Fa-f]{2})?$/;
 export class ColorMap {
 
 	private _lastColorId: number;
-	private _id2color: Color[];
-	private _color2id: Map<string, ColorId>;
+	private readonly _id2color: Color[];
+	private readonly _color2id: Map<string, ColorId>;
 
 	constructor() {
 		this._lastColorId = 0;

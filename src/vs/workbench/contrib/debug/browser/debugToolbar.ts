@@ -11,7 +11,7 @@ import * as arrays from 'vs/base/common/arrays';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IAction, IRunEvent } from 'vs/base/common/actions';
 import { ActionBar, ActionsOrientation, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IDebugConfiguration, IDebugService, State } from 'vs/workbench/contrib/debug/common/debug';
 import { AbstractDebugAction, PauseAction, ContinueAction, StepBackAction, ReverseContinueAction, StopAction, DisconnectAction, StepOverAction, StepIntoAction, StepOutAction, RestartAction, FocusSessionAction } from 'vs/workbench/contrib/debug/browser/debugActions';
@@ -65,7 +65,7 @@ export class DebugToolbar extends Themable implements IWorkbenchContribution {
 		@INotificationService private readonly notificationService: INotificationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IDebugService private readonly debugService: IDebugService,
-		@IPartService private readonly partService: IPartService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IThemeService themeService: IThemeService,
@@ -79,7 +79,7 @@ export class DebugToolbar extends Themable implements IWorkbenchContribution {
 		super(themeService);
 
 		this.$el = dom.$('div.debug-toolbar');
-		this.$el.style.top = `${partService.getTitleBarOffset()}px`;
+		this.$el.style.top = `${layoutService.getTitleBarOffset()}px`;
 
 		this.dragArea = dom.append(this.$el, dom.$('div.drag-area'));
 
@@ -167,7 +167,7 @@ export class DebugToolbar extends Themable implements IWorkbenchContribution {
 				// Prevent default to stop editor selecting text #8524
 				mouseMoveEvent.preventDefault();
 				// Reduce x by width of drag handle to reduce jarring #16604
-				this.setCoordinates(mouseMoveEvent.posx - 14, mouseMoveEvent.posy - this.partService.getTitleBarOffset());
+				this.setCoordinates(mouseMoveEvent.posx - 14, mouseMoveEvent.posy - this.layoutService.getTitleBarOffset());
 			});
 
 			const mouseUpListener = dom.addDisposableListener(window, 'mouseup', (e: MouseEvent) => {
@@ -179,7 +179,7 @@ export class DebugToolbar extends Themable implements IWorkbenchContribution {
 			});
 		}));
 
-		this._register(this.partService.onTitleBarVisibilityChange(() => this.setYCoordinate()));
+		this._register(this.layoutService.onTitleBarVisibilityChange(() => this.setYCoordinate()));
 		this._register(browser.onDidChangeZoomLevel(() => this.setYCoordinate()));
 	}
 
@@ -210,7 +210,7 @@ export class DebugToolbar extends Themable implements IWorkbenchContribution {
 	}
 
 	private setYCoordinate(y = 0): void {
-		const titlebarOffset = this.partService.getTitleBarOffset();
+		const titlebarOffset = this.layoutService.getTitleBarOffset();
 		this.$el.style.top = `${titlebarOffset + y}px`;
 	}
 
@@ -251,7 +251,7 @@ export class DebugToolbar extends Themable implements IWorkbenchContribution {
 		}
 		if (!this.isBuilt) {
 			this.isBuilt = true;
-			this.partService.getWorkbenchElement().appendChild(this.$el);
+			this.layoutService.getWorkbenchElement().appendChild(this.$el);
 		}
 
 		this.isVisible = true;

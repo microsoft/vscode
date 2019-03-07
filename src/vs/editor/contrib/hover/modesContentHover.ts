@@ -64,13 +64,13 @@ type HoverPart = MarkdownHover | ColorHover | MarkerHover;
 
 class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 
-	private _editor: ICodeEditor;
+	private readonly _editor: ICodeEditor;
 	private _result: HoverPart[];
 	private _range: Range | null;
 
 	constructor(
 		editor: ICodeEditor,
-		private _markerDecorationsService: IMarkerDecorationsService
+		private readonly _markerDecorationsService: IMarkerDecorationsService
 	) {
 		this._editor = editor;
 		this._range = null;
@@ -202,8 +202,8 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 
 	private _messages: HoverPart[];
 	private _lastRange: Range | null;
-	private _computer: ModesContentComputer;
-	private _hoverOperation: HoverOperation<HoverPart[]>;
+	private readonly _computer: ModesContentComputer;
+	private readonly _hoverOperation: HoverOperation<HoverPart[]>;
 	private _highlightDecorations: string[];
 	private _isChangingDecorations: boolean;
 	private _shouldFocus: boolean;

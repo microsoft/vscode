@@ -133,7 +133,6 @@ export abstract class Panel implements IView {
 
 		this._expanded = !!expanded;
 		this.updateHeader();
-		this._onDidChange.fire(expanded ? this.expandedSize : undefined);
 
 		if (expanded) {
 			if (typeof this.animationTimer === 'number') {
@@ -146,6 +145,7 @@ export abstract class Panel implements IView {
 			}, 200);
 		}
 
+		this._onDidChange.fire(expanded ? this.expandedSize : undefined);
 		return true;
 	}
 

@@ -15,7 +15,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Context } from 'vs/platform/contextkey/browser/contextKeyService';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { timeout } from 'vs/base/common/async';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 
 export class ToggleDevToolsAction extends Action {
 
@@ -120,7 +120,7 @@ export class ToggleScreencastModeAction extends Action {
 		id: string,
 		label: string,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IPartService private readonly partService: IPartService
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
 		super(id, label);
 	}
@@ -132,7 +132,7 @@ export class ToggleScreencastModeAction extends Action {
 			return;
 		}
 
-		const container = this.partService.getWorkbenchElement();
+		const container = this.layoutService.getWorkbenchElement();
 
 		const mouseMarker = append(container, $('div'));
 		mouseMarker.style.position = 'absolute';

@@ -21,7 +21,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { memoize } from 'vs/base/common/decorators';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { DebugToolbar } from 'vs/workbench/contrib/debug/browser/debugToolbar';
@@ -42,7 +42,7 @@ export class DebugViewlet extends ViewContainerViewlet {
 	private debugToolbarMenu: IMenu;
 
 	constructor(
-		@IPartService partService: IPartService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IDebugService private readonly debugService: IDebugService,
@@ -59,7 +59,7 @@ export class DebugViewlet extends ViewContainerViewlet {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@INotificationService private readonly notificationService: INotificationService
 	) {
-		super(VIEWLET_ID, `${VIEWLET_ID}.state`, false, configurationService, partService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
+		super(VIEWLET_ID, `${VIEWLET_ID}.state`, false, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
 
 		this.progressRunner = null;
 

@@ -221,12 +221,16 @@ export class Settings2EditorModel extends AbstractSettingsModel implements ISett
 	) {
 		super();
 
-		configurationService.onDidChangeConfiguration(e => {
+		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.source === ConfigurationTarget.DEFAULT) {
 				this.dirty = true;
 				this._onDidChangeGroups.fire();
 			}
-		});
+		}));
+		this._register(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidSchemaChange(e => {
+			this.dirty = true;
+			this._onDidChangeGroups.fire();
+		}));
 	}
 
 	protected get filterGroups(): ISettingsGroup[] {

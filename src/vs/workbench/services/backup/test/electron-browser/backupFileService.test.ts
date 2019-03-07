@@ -275,7 +275,7 @@ suite('BackupFileService', () => {
 			const contents = 'test\nand more stuff';
 			service.backupResource(untitledFile, createTextBufferFactory(contents).create(DefaultEndOfLine.LF).createSnapshot(false)).then(() => {
 				service.resolveBackupContent(service.toBackupResource(untitledFile)).then(factory => {
-					assert.equal(contents, snapshotToString(factory.create(platform.isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).createSnapshot(true)));
+					assert.equal(contents, snapshotToString(factory!.create(platform.isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).createSnapshot(true)));
 				});
 			});
 		});
@@ -290,7 +290,7 @@ suite('BackupFileService', () => {
 
 			service.backupResource(fooFile, createTextBufferFactory(contents).create(DefaultEndOfLine.LF).createSnapshot(false)).then(() => {
 				service.resolveBackupContent(service.toBackupResource(untitledFile)).then(factory => {
-					assert.equal(contents, snapshotToString(factory.create(platform.isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).createSnapshot(true)));
+					assert.equal(contents, snapshotToString(factory!.create(platform.isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).createSnapshot(true)));
 				});
 			});
 		});

@@ -28,16 +28,16 @@ import { Color } from 'vs/base/common/color';
 import { trim } from 'vs/base/common/strings';
 import { EventType, EventHelper, Dimension, isAncestor, hide, show, removeClass, addClass, append, $, addDisposableListener, runAtThisOrScheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { MenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { template, getBaseLabel } from 'vs/base/common/labels';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ISerializableView } from 'vs/base/browser/ui/grid/grid';
-import { Parts } from 'vs/workbench/services/part/common/partService';
+import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
-export class TitlebarPart extends Part implements ITitleService, ISerializableView {
+export class TitlebarPart extends Part implements ITitleService {
 
 	private static readonly NLS_UNSUPPORTED = nls.localize('patchedWindowTitle', "[Unsupported]");
 	private static readonly NLS_USER_IS_ADMIN = isWindows ? nls.localize('userIsAdmin', "[Administrator]") : nls.localize('userIsSudo', "[Superuser]");
@@ -45,20 +45,17 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 	private static readonly TITLE_DIRTY = '\u25cf ';
 	private static readonly TITLE_SEPARATOR = isMacintosh ? ' — ' : ' - '; // macOS uses special - separator
 
-	element: HTMLElement;
-
+	//#region IView
 	readonly minimumWidth: number = 0;
 	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
 	get minimumHeight(): number { return isMacintosh ? 22 / getZoomFactor() : (30 / (this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility') === 'hidden' ? getZoomFactor() : 1)); }
 	get maximumHeight(): number { return isMacintosh ? 22 / getZoomFactor() : (30 / (this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility') === 'hidden' ? getZoomFactor() : 1)); }
 
-	private _onDidChange = this._register(new Emitter<{ width: number, height: number }>());
-	get onDidChange(): Event<{ width: number, height: number }> { return this._onDidChange.event; }
-
+	//#endregion
 	private _onMenubarVisibilityChange = this._register(new Emitter<boolean>());
 	get onMenubarVisibilityChange(): Event<boolean> { return this._onMenubarVisibilityChange.event; }
 
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<any>;
 
 	private title: HTMLElement;
 	private dragRegion: HTMLElement;
@@ -81,7 +78,6 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 	private titleUpdater: RunOnceScheduler = this._register(new RunOnceScheduler(() => this.doUpdateTitle(), 0));
 
 	constructor(
-		id: string,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IWindowService private readonly windowService: IWindowService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -92,9 +88,10 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IStorageService storageService: IStorageService
+		@IStorageService storageService: IStorageService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
 	) {
-		super(id, { hasTitle: false }, themeService, storageService);
+		super(Parts.TITLEBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 
 		this.properties = { isPure: true, isAdmin: false };
 		this.activeEditorListeners = [];
@@ -460,7 +457,7 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 		this.adjustTitleMarginToCenter();
 	}
 
-	protected updateStyles(): void {
+	updateStyles(): void {
 		super.updateStyles();
 
 		// Part container
@@ -588,19 +585,10 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 		}
 	}
 
-	layout(dimension: Dimension): Dimension[];
-	layout(width: number, height: number): void;
-	layout(dim1: Dimension | number, dim2?: number): Dimension[] | void {
-		if (dim1 instanceof Dimension) {
-			this.updateLayout(dim1);
+	layout(width: number, height: number): void {
+		this.updateLayout(new Dimension(width, height));
 
-			return super.layout(dim1);
-		}
-
-		const dimensions = new Dimension(dim1, dim2!);
-		this.updateLayout(dimensions);
-
-		super.layout(dimensions);
+		super.layoutContents(width, height);
 	}
 
 	toJSON(): object {
@@ -640,3 +628,5 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		`);
 	}
 });
+
+registerSingleton(ITitleService, TitlebarPart);

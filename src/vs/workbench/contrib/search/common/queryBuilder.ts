@@ -16,8 +16,8 @@ import { isMultilineRegexSource } from 'vs/editor/common/model/textModelSearch';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { getExcludes, ICommonQueryProps, IFileQuery, IFolderQuery, IPatternInfo, ISearchConfiguration, ITextQuery, ITextSearchPreviewOptions, pathIncludedInQuery, QueryType } from 'vs/workbench/services/search/common/search';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { getExcludes, ICommonQueryProps, IFileQuery, IFolderQuery, IPatternInfo, ISearchConfiguration, ITextQuery, ITextSearchPreviewOptions, pathIncludedInQuery, QueryType } from 'vs/workbench/services/search/common/search';
 
 /**
  * One folder to search and a glob expression that should be applied.
@@ -270,7 +270,7 @@ export class QueryBuilder {
 	}
 
 	/**
-	 * Split search paths (./ or absolute paths in the includePatterns) into absolute paths and globs applied to those paths
+	 * Split search paths (./ or ../ or absolute paths in the includePatterns) into absolute paths and globs applied to those paths
 	 */
 	private expandSearchPathPatterns(searchPaths: string[]): ISearchPathPattern[] {
 		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY || !searchPaths || !searchPaths.length) {
@@ -316,7 +316,7 @@ export class QueryBuilder {
 	}
 
 	/**
-	 * Takes a searchPath like `./a/foo` and expands it to absolute paths for all the workspaces it matches.
+	 * Takes a searchPath like `./a/foo` or `../a/foo` and expands it to absolute paths for all the workspaces it matches.
 	 */
 	private expandOneSearchPath(searchPath: string): IOneSearchPathPattern[] {
 		if (path.isAbsolute(searchPath)) {
@@ -329,6 +329,15 @@ export class QueryBuilder {
 
 		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.FOLDER) {
 			const workspaceUri = this.workspaceContextService.getWorkspace().folders[0].uri;
+
+			searchPath = normalizeSlashes(searchPath);
+			if (strings.startsWith(searchPath, '../')) {
+				const resolvedPath = path.resolve(workspaceUri.path, searchPath);
+				return [{
+					searchPath: workspaceUri.with({ path: resolvedPath })
+				}];
+			}
+
 			const cleanedPattern = normalizeGlobPattern(searchPath);
 			return [{
 				searchPath: workspaceUri,

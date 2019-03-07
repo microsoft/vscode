@@ -25,7 +25,7 @@ import { IWorkbenchThemeService, IFileIconTheme } from 'vs/workbench/services/th
 import { ITreeConfiguration, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
 import { Event } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { localize } from 'vs/nls';
 import { IAddedViewDescriptorRef, IViewDescriptorRef, PersistentContributableViewsModel } from 'vs/workbench/browser/parts/views/views';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -43,7 +43,7 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 
 	private readonly visibleViewsCountFromCache: number;
 	private readonly visibleViewsStorageId: string;
-	private readonly viewsModel: PersistentContributableViewsModel;
+	protected readonly viewsModel: PersistentContributableViewsModel;
 	private viewDisposables: IDisposable[] = [];
 
 	constructor(
@@ -51,7 +51,7 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 		viewletStateStorageId: string,
 		showHeaderInTitleWhenSingleView: boolean,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IPartService partService: IPartService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService protected storageService: IStorageService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
@@ -60,7 +60,7 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 		@IExtensionService protected extensionService: IExtensionService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService
 	) {
-		super(id, { showHeaderInTitleWhenSingleView, dnd: new DefaultPanelDndController() }, configurationService, partService, contextMenuService, telemetryService, themeService, storageService);
+		super(id, { showHeaderInTitleWhenSingleView, dnd: new DefaultPanelDndController() }, configurationService, layoutService, contextMenuService, telemetryService, themeService, storageService);
 
 		const container = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).get(id);
 		this.viewsModel = this._register(this.instantiationService.createInstance(PersistentContributableViewsModel, container, viewletStateStorageId));

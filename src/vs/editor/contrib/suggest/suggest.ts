@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { first } from 'vs/base/common/async';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { assign } from 'vs/base/common/objects';
 import { onUnexpectedExternalError, canceled, isPromiseCanceledError } from 'vs/base/common/errors';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
@@ -87,7 +86,20 @@ export class CompletionItem {
 	}
 }
 
-export type SnippetConfig = 'top' | 'bottom' | 'inline' | 'none';
+export const enum SnippetSortOrder {
+	Top, Inline, Bottom
+}
+
+export class CompletionOptions {
+
+	static readonly default = new CompletionOptions();
+
+	constructor(
+		readonly snippetSortOrder = SnippetSortOrder.Bottom,
+		readonly kindFilter = new Set<modes.CompletionItemKind>(),
+		readonly providerFilter = new Set<modes.CompletionItemProvider>(),
+	) { }
+}
 
 let _snippetSuggestSupport: modes.CompletionItemProvider;
 
@@ -104,15 +116,12 @@ export function setSnippetSuggestSupport(support: modes.CompletionItemProvider):
 export function provideSuggestionItems(
 	model: ITextModel,
 	position: Position,
-	snippetConfig: SnippetConfig = 'bottom',
-	onlyFrom?: modes.CompletionItemProvider[],
-	context?: modes.CompletionContext,
+	options: CompletionOptions = CompletionOptions.default,
+	context: modes.CompletionContext = { triggerKind: modes.CompletionTriggerKind.Invoke },
 	token: CancellationToken = CancellationToken.None
 ): Promise<CompletionItem[]> {
 
 	const allSuggestions: CompletionItem[] = [];
-	const acceptSuggestion = createSuggesionFilter(snippetConfig);
-
 	const wordUntil = model.getWordUntilPosition(position);
 	const defaultRange = new Range(position.lineNumber, wordUntil.startColumn, position.lineNumber, wordUntil.endColumn);
 
@@ -122,11 +131,9 @@ export function provideSuggestionItems(
 	const supports = modes.CompletionProviderRegistry.orderedGroups(model);
 
 	// add snippets provider unless turned off
-	if (snippetConfig !== 'none' && _snippetSuggestSupport) {
+	if (!options.kindFilter.has(modes.CompletionItemKind.Snippet) && _snippetSuggestSupport) {
 		supports.unshift([_snippetSuggestSupport]);
 	}
-
-	const suggestConext = context || { triggerKind: modes.CompletionTriggerKind.Invoke };
 
 	// add suggestions from contributed providers - providers are ordered in groups of
 	// equal score and once a group produces a result the process stops
@@ -135,17 +142,17 @@ export function provideSuggestionItems(
 		// for each support in the group ask for suggestions
 		return Promise.all(supports.map(provider => {
 
-			if (isNonEmptyArray(onlyFrom) && onlyFrom.indexOf(provider) < 0) {
+			if (options.providerFilter.size > 0 && !options.providerFilter.has(provider)) {
 				return undefined;
 			}
 
-			return Promise.resolve(provider.provideCompletionItems(model, position, suggestConext, token)).then(container => {
+			return Promise.resolve(provider.provideCompletionItems(model, position, context, token)).then(container => {
 
 				const len = allSuggestions.length;
 
 				if (container) {
 					for (let suggestion of container.suggestions || []) {
-						if (acceptSuggestion(suggestion)) {
+						if (!options.kindFilter.has(suggestion.kind)) {
 
 							// fill in default range when missing
 							if (!suggestion.range) {
@@ -172,7 +179,7 @@ export function provideSuggestionItems(
 		if (token.isCancellationRequested) {
 			return Promise.reject<any>(canceled());
 		}
-		return allSuggestions.sort(getSuggestionComparator(snippetConfig));
+		return allSuggestions.sort(getSuggestionComparator(options.snippetSortOrder));
 	});
 
 	// result.then(items => {
@@ -185,13 +192,7 @@ export function provideSuggestionItems(
 	return result;
 }
 
-function createSuggesionFilter(snippetConfig: SnippetConfig): (candidate: modes.CompletionItem) => boolean {
-	if (snippetConfig === 'none') {
-		return suggestion => suggestion.kind !== modes.CompletionItemKind.Snippet;
-	} else {
-		return () => true;
-	}
-}
+
 function defaultComparator(a: CompletionItem, b: CompletionItem): number {
 	// check with 'sortText'
 	if (a.sortTextLow && b.sortTextLow) {
@@ -233,14 +234,14 @@ function snippetDownComparator(a: CompletionItem, b: CompletionItem): number {
 	return defaultComparator(a, b);
 }
 
-export function getSuggestionComparator(snippetConfig: SnippetConfig): (a: CompletionItem, b: CompletionItem) => number {
-	if (snippetConfig === 'top') {
-		return snippetUpComparator;
-	} else if (snippetConfig === 'bottom') {
-		return snippetDownComparator;
-	} else {
-		return defaultComparator;
-	}
+interface Comparator<T> { (a: T, b: T): number; }
+const _snippetComparators = new Map<SnippetSortOrder, Comparator<CompletionItem>>();
+_snippetComparators.set(SnippetSortOrder.Top, snippetUpComparator);
+_snippetComparators.set(SnippetSortOrder.Bottom, snippetDownComparator);
+_snippetComparators.set(SnippetSortOrder.Inline, defaultComparator);
+
+export function getSuggestionComparator(snippetConfig: SnippetSortOrder): (a: CompletionItem, b: CompletionItem) => number {
+	return _snippetComparators.get(snippetConfig)!;
 }
 
 registerDefaultLanguageCommand('_executeCompletionItemProvider', (model, position, args) => {
@@ -269,11 +270,10 @@ registerDefaultLanguageCommand('_executeCompletionItemProvider', (model, positio
 });
 
 interface SuggestController extends IEditorContribution {
-	triggerSuggest(onlyFrom?: modes.CompletionItemProvider[]): void;
+	triggerSuggest(onlyFrom?: Set<modes.CompletionItemProvider>): void;
 }
 
-
-let _provider = new class implements modes.CompletionItemProvider {
+const _provider = new class implements modes.CompletionItemProvider {
 
 	onlyOnceSuggestions: modes.CompletionItem[] = [];
 
@@ -290,6 +290,6 @@ modes.CompletionProviderRegistry.register('*', _provider);
 export function showSimpleSuggestions(editor: ICodeEditor, suggestions: modes.CompletionItem[]) {
 	setTimeout(() => {
 		_provider.onlyOnceSuggestions.push(...suggestions);
-		editor.getContribution<SuggestController>('editor.contrib.suggestController').triggerSuggest([_provider]);
+		editor.getContribution<SuggestController>('editor.contrib.suggestController').triggerSuggest(new Set<modes.CompletionItemProvider>().add(_provider));
 	}, 0);
 }

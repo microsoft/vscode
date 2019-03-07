@@ -229,7 +229,8 @@ export namespace PresentationOptions {
 
 export enum RuntimeType {
 	Shell = 1,
-	Process = 2
+	Process = 2,
+	CustomExecution = 3
 }
 
 export namespace RuntimeType {
@@ -239,6 +240,8 @@ export namespace RuntimeType {
 				return RuntimeType.Shell;
 			case 'process':
 				return RuntimeType.Process;
+			case 'customExecution':
+				return RuntimeType.CustomExecution;
 			default:
 				return RuntimeType.Process;
 		}
@@ -595,7 +598,23 @@ export class CustomTask extends CommonTask {
 		} else {
 			let type: string;
 			if (this.command !== undefined) {
-				type = this.command.runtime === RuntimeType.Shell ? 'shell' : 'process';
+				switch (this.command.runtime) {
+					case RuntimeType.Shell:
+						type = 'shell';
+						break;
+
+					case RuntimeType.Process:
+						type = 'process';
+						break;
+
+					case RuntimeType.CustomExecution:
+						type = 'customExecution';
+						break;
+
+					default:
+						throw new Error('Unexpected task runtime');
+						break;
+				}
 			} else {
 				type = '$composite';
 			}
@@ -861,6 +880,7 @@ export interface TaskEvent {
 	group?: string;
 	processId?: number;
 	exitCode?: number;
+	terminalId?: number;
 	__task?: Task;
 }
 
@@ -871,12 +891,13 @@ export const enum TaskRunSource {
 }
 
 export namespace TaskEvent {
-	export function create(kind: TaskEventKind.ProcessStarted | TaskEventKind.ProcessEnded, task: Task, processIdOrExitCode: number): TaskEvent;
+	export function create(kind: TaskEventKind.ProcessStarted | TaskEventKind.ProcessEnded, task: Task, processIdOrExitCode?: number): TaskEvent;
+	export function create(kind: TaskEventKind.Start, task: Task, terminalId?: number): TaskEvent;
 	export function create(kind: TaskEventKind.DependsOnStarted | TaskEventKind.Start | TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.Terminated | TaskEventKind.End, task: Task): TaskEvent;
 	export function create(kind: TaskEventKind.Changed): TaskEvent;
-	export function create(kind: TaskEventKind, task?: Task, processIdOrExitCode?: number): TaskEvent {
+	export function create(kind: TaskEventKind, task?: Task, processIdOrExitCodeOrTerminalId?: number): TaskEvent {
 		if (task) {
-			let result = {
+			let result: TaskEvent = {
 				kind: kind,
 				taskId: task._id,
 				taskName: task.configurationProperties.name,
@@ -884,12 +905,15 @@ export namespace TaskEvent {
 				group: task.configurationProperties.group,
 				processId: undefined as number | undefined,
 				exitCode: undefined as number | undefined,
+				terminalId: undefined as number | undefined,
 				__task: task,
 			};
-			if (kind === TaskEventKind.ProcessStarted) {
-				result.processId = processIdOrExitCode;
+			if (kind === TaskEventKind.Start) {
+				result.terminalId = processIdOrExitCodeOrTerminalId;
+			} else if (kind === TaskEventKind.ProcessStarted) {
+				result.processId = processIdOrExitCodeOrTerminalId;
 			} else if (kind === TaskEventKind.ProcessEnded) {
-				result.exitCode = processIdOrExitCode;
+				result.exitCode = processIdOrExitCodeOrTerminalId;
 			}
 			return Object.freeze(result);
 		} else {

@@ -13,7 +13,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Part } from 'vs/workbench/browser/part';
 import { IStatusbarRegistry, Extensions, IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { StatusbarAlignment, IStatusbarService, IStatusbarEntry } from 'vs/platform/statusbar/common/statusbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -24,40 +24,39 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { isThemeColor } from 'vs/editor/common/editorCommon';
 import { Color } from 'vs/base/common/color';
-import { addClass, EventHelper, createStyleSheet, addDisposableListener, Dimension } from 'vs/base/browser/dom';
+import { addClass, EventHelper, createStyleSheet, addDisposableListener } from 'vs/base/browser/dom';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { Event, Emitter } from 'vs/base/common/event';
-import { ISerializableView } from 'vs/base/browser/ui/grid/grid';
-import { Parts } from 'vs/workbench/services/part/common/partService';
+import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
-export class StatusbarPart extends Part implements IStatusbarService, ISerializableView {
-	_serviceBrand: any;
+export class StatusbarPart extends Part implements IStatusbarService {
+
+	_serviceBrand: ServiceIdentifier<any>;
 
 	private static readonly PRIORITY_PROP = 'statusbar-entry-priority';
 	private static readonly ALIGNMENT_PROP = 'statusbar-entry-alignment';
 
-	element: HTMLElement;
+	//#region IView
 
 	readonly minimumWidth: number = 0;
 	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
 	readonly minimumHeight: number = 22;
 	readonly maximumHeight: number = 22;
 
-	private _onDidChange = this._register(new Emitter<{ width: number; height: number; }>());
-	get onDidChange(): Event<{ width: number, height: number }> { return this._onDidChange.event; }
+	//#endregion
 
 	private statusMsgDispose: IDisposable;
 	private styleElement: HTMLStyleElement;
 
 	constructor(
-		id: string,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IStorageService storageService: IStorageService
+		@IStorageService storageService: IStorageService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
 	) {
-		super(id, { hasTitle: false }, themeService, storageService);
+		super(Parts.STATUSBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 
 		this.registerListeners();
 	}
@@ -150,7 +149,7 @@ export class StatusbarPart extends Part implements IStatusbarService, ISerializa
 		return this.element;
 	}
 
-	protected updateStyles(): void {
+	updateStyles(): void {
 		super.updateStyles();
 
 		const container = this.getContainer();
@@ -231,14 +230,8 @@ export class StatusbarPart extends Part implements IStatusbarService, ISerializa
 		return dispose;
 	}
 
-	layout(dimension: Dimension): Dimension[];
-	layout(width: number, height: number): void;
-	layout(dim1: Dimension | number, dim2?: number): Dimension[] | void {
-		if (dim1 instanceof Dimension) {
-			return super.layout(dim1);
-		} else {
-			super.layout(new Dimension(dim1, dim2!));
-		}
+	layout(width: number, height: number): void {
+		super.layoutContents(width, height);
 	}
 
 	toJSON(): object {
@@ -380,3 +373,5 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		collector.addRule(`.monaco-workbench .part.statusbar > .statusbar-item a.status-bar-info:hover { background-color: ${statusBarProminentItemHoverBackground}; }`);
 	}
 });
+
+registerSingleton(IStatusbarService, StatusbarPart);

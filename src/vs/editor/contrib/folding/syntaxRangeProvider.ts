@@ -25,7 +25,7 @@ export class SyntaxRangeProvider implements RangeProvider {
 
 	readonly id = ID_SYNTAX_PROVIDER;
 
-	constructor(private editorModel: ITextModel, private providers: FoldingRangeProvider[], private limit = MAX_FOLDING_REGIONS) {
+	constructor(private readonly editorModel: ITextModel, private providers: FoldingRangeProvider[], private limit = MAX_FOLDING_REGIONS) {
 	}
 
 	compute(cancellationToken: CancellationToken): Promise<FoldingRegions | null> {
@@ -69,13 +69,13 @@ function collectSyntaxRanges(providers: FoldingRangeProvider[], model: ITextMode
 }
 
 export class RangesCollector {
-	private _startIndexes: number[];
-	private _endIndexes: number[];
-	private _nestingLevels: number[];
-	private _nestingLevelCounts: number[];
-	private _types: Array<string | undefined>;
+	private readonly _startIndexes: number[];
+	private readonly _endIndexes: number[];
+	private readonly _nestingLevels: number[];
+	private readonly _nestingLevelCounts: number[];
+	private readonly _types: Array<string | undefined>;
 	private _length: number;
-	private _foldingRangesLimit: number;
+	private readonly _foldingRangesLimit: number;
 
 	constructor(foldingRangesLimit: number) {
 		this._startIndexes = [];

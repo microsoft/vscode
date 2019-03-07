@@ -14,7 +14,7 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/res
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { FileChangesEvent, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FileWriteOptions, FileSystemProviderCapabilities, IContent, ICreateFileOptions, IFileStat, IFileSystemProvider, IFilesConfiguration, IResolveContentOptions, IResolveFileOptions, IResolveFileResult, IStat, IStreamContent, ITextSnapshot, IUpdateContentOptions, StringSnapshot, IWatchOptions, FileType } from 'vs/platform/files/common/files';
+import { FileChangesEvent, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FileWriteOptions, FileSystemProviderCapabilities, IContent, ICreateFileOptions, IFileStat, IFileSystemProvider, IFilesConfiguration, IResolveContentOptions, IResolveFileOptions, IResolveFileResult, IStat, IStreamContent, ITextSnapshot, IUpdateContentOptions, StringSnapshot, IWatchOptions, FileType, IFileService } from 'vs/platform/files/common/files';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -22,6 +22,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
 import { createReadableOfProvider, createReadableOfSnapshot, createWritableOfProvider } from 'vs/workbench/services/files/node/streams';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 class TypeOnlyStat implements IStat {
 
@@ -549,13 +550,13 @@ export class RemoteFileService extends FileService {
 		}
 	}
 
-	private async _doMoveWithInScheme(source: URI, target: URI, overwrite: boolean = false): Promise<IFileStat> {
+	private _doMoveWithInScheme(source: URI, target: URI, overwrite: boolean = false): Promise<IFileStat> {
 
-		if (overwrite) {
-			await this.del(target, { recursive: true }).catch(_err => { /*ignore*/ });
-		}
+		const prepare = overwrite
+			? Promise.resolve(this.del(target, { recursive: true }).catch(_err => { /*ignore*/ }))
+			: Promise.resolve();
 
-		return this._withProvider(source).then(RemoteFileService._throwIfFileSystemIsReadonly).then(provider => {
+		return prepare.then(() => this._withProvider(source)).then(RemoteFileService._throwIfFileSystemIsReadonly).then(provider => {
 			return RemoteFileService._mkdirp(provider, resources.dirname(target)).then(() => {
 				return provider.rename(source, target, { overwrite }).then(() => {
 					return this.resolveFile(target);
@@ -589,7 +590,7 @@ export class RemoteFileService extends FileService {
 			return super.copyFile(source, target, overwrite);
 		}
 
-		return this._withProvider(target).then(RemoteFileService._throwIfFileSystemIsReadonly).then(async provider => {
+		return this._withProvider(target).then(RemoteFileService._throwIfFileSystemIsReadonly).then(provider => {
 
 			if (source.scheme === target.scheme && (provider.capabilities & FileSystemProviderCapabilities.FileFolderCopy)) {
 				// good: provider supports copy withing scheme
@@ -607,36 +608,37 @@ export class RemoteFileService extends FileService {
 				});
 			}
 
-			if (overwrite) {
-				await this.del(target, { recursive: true }).catch(_err => { /*ignore*/ });
-			}
+			const prepare = overwrite
+				? Promise.resolve(this.del(target, { recursive: true }).catch(_err => { /*ignore*/ }))
+				: Promise.resolve();
 
 			// todo@ben, can only copy text files
 			// https://github.com/Microsoft/vscode/issues/41543
-			return this.resolveContent(source, { acceptTextOnly: true }).then(content => {
-				return this._withProvider(target).then(provider => {
-					return this._writeFile(
-						provider, target,
-						new StringSnapshot(content.value),
-						content.encoding,
-						{ create: true, overwrite: !!overwrite }
-					).then(fileStat => {
-						this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.COPY, fileStat));
-						return fileStat;
+			return prepare.then(() => {
+				return this.resolveContent(source, { acceptTextOnly: true }).then(content => {
+					return this._withProvider(target).then(provider => {
+						return this._writeFile(
+							provider, target,
+							new StringSnapshot(content.value),
+							content.encoding,
+							{ create: true, overwrite: !!overwrite }
+						).then(fileStat => {
+							this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.COPY, fileStat));
+							return fileStat;
+						});
+					}, err => {
+						const result = this._tryParseFileOperationResult(err);
+						if (result === FileOperationResult.FILE_MOVE_CONFLICT) {
+							throw new FileOperationError(localize('fileMoveConflict', "Unable to move/copy. File already exists at destination."), result);
+						} else if (err instanceof Error && err.name === 'ENOPRO') {
+							// file scheme
+							return super.updateContent(target, content.value, { encoding: content.encoding });
+						} else {
+							return Promise.reject(err);
+						}
 					});
-				}, err => {
-					const result = this._tryParseFileOperationResult(err);
-					if (result === FileOperationResult.FILE_MOVE_CONFLICT) {
-						throw new FileOperationError(localize('fileMoveConflict', "Unable to move/copy. File already exists at destination."), result);
-					} else if (err instanceof Error && err.name === 'ENOPRO') {
-						// file scheme
-						return super.updateContent(target, content.value, { encoding: content.encoding });
-					} else {
-						return Promise.reject(err);
-					}
 				});
 			});
-
 		});
 	}
 
@@ -675,3 +677,5 @@ export class RemoteFileService extends FileService {
 		}
 	}
 }
+
+registerSingleton(IFileService, RemoteFileService);

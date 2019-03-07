@@ -26,9 +26,9 @@ export class CodeActionOracle {
 	private readonly _autoTriggerTimer = new TimeoutTimer();
 
 	constructor(
-		private _editor: ICodeEditor,
+		private readonly _editor: ICodeEditor,
 		private readonly _markerService: IMarkerService,
-		private _signalChange: (newState: CodeActionsState.State) => void,
+		private readonly _signalChange: (newState: CodeActionsState.State) => void,
 		private readonly _delay: number = 250,
 		private readonly _progressService?: IProgressService,
 	) {

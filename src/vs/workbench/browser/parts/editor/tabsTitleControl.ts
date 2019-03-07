@@ -6,7 +6,7 @@
 import 'vs/css!./media/tabstitlecontrol';
 import { isMacintosh } from 'vs/base/common/platform';
 import { shorten } from 'vs/base/common/labels';
-import { toResource, GroupIdentifier, IEditorInput, Verbosity, EditorCommandsContextActionRunner } from 'vs/workbench/common/editor';
+import { toResource, GroupIdentifier, IEditorInput, Verbosity, EditorCommandsContextActionRunner, IEditorPartOptions } from 'vs/workbench/common/editor';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -35,7 +35,7 @@ import { MergeGroupMode, IMergeGroupOptions } from 'vs/workbench/services/editor
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { addClass, addDisposableListener, hasClass, EventType, EventHelper, removeClass, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
-import { IEditorGroupsAccessor, IEditorPartOptions, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsAccessor, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { CloseOneEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { BreadcrumbsControl } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';

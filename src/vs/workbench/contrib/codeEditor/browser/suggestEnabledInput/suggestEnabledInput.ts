@@ -294,7 +294,6 @@ function getSuggestEnabledInputOptions(ariaLabel?: string): IEditorOptions {
 		ariaLabel: ariaLabel || '',
 
 		snippetSuggestions: 'none',
-		suggest: { filterGraceful: false },
-		iconsInSuggestions: false
+		suggest: { filterGraceful: false, showIcons: false }
 	};
 }

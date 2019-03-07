@@ -29,7 +29,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 class MarkerModel {
 
-	private _editor: ICodeEditor;
+	private readonly _editor: ICodeEditor;
 	private _markers: IMarker[];
 	private _nextIdx: number;
 	private _toUnbind: IDisposable[];
@@ -202,10 +202,10 @@ export class MarkerController implements editorCommon.IEditorContribution {
 		return editor.getContribution<MarkerController>(MarkerController.ID);
 	}
 
-	private _editor: ICodeEditor;
+	private readonly _editor: ICodeEditor;
 	private _model: MarkerModel | null;
 	private _widget: MarkerNavigationWidget | null;
-	private _widgetVisible: IContextKey<boolean>;
+	private readonly _widgetVisible: IContextKey<boolean>;
 	private _disposeOnClose: IDisposable[] = [];
 
 	constructor(
@@ -253,6 +253,7 @@ export class MarkerController implements editorCommon.IEditorContribution {
 		];
 		this._widget = new MarkerNavigationWidget(this._editor, actions, this._themeService);
 		this._widgetVisible.set(true);
+		this._widget.onDidClose(() => this._cleanUp(), this, this._disposeOnClose);
 
 		this._disposeOnClose.push(this._model);
 		this._disposeOnClose.push(this._widget);
@@ -337,9 +338,9 @@ export class MarkerController implements editorCommon.IEditorContribution {
 
 class MarkerNavigationAction extends EditorAction {
 
-	private _isNext: boolean;
+	private readonly _isNext: boolean;
 
-	private _multiFile: boolean;
+	private readonly _multiFile: boolean;
 
 	constructor(next: boolean, multiFile: boolean, opts: IActionOptions) {
 		super(opts);

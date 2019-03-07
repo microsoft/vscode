@@ -47,7 +47,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 	allowEditorOverflow = true;
 
 	constructor(
-		private editor: ICodeEditor,
+		private readonly editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IOpenerService openerService: IOpenerService,
 		@IModeService modeService: IModeService,

@@ -31,7 +31,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 	private static readonly ID = 'editor.contrib.gotodefinitionwithmouse';
 	static MAX_SOURCE_PREVIEW_LINES = 8;
 
-	private editor: ICodeEditor;
+	private readonly editor: ICodeEditor;
 	private toUnhook: IDisposable[];
 	private decorations: string[];
 	private currentWordUnderMouse: IWordAtPosition | null;

@@ -25,9 +25,9 @@ interface ParseResult {
 }
 
 export class GotoLineEntry extends QuickOpenEntry {
-	private parseResult: ParseResult;
-	private decorator: IDecorator;
-	private editor: editorCommon.IEditor;
+	private readonly parseResult: ParseResult;
+	private readonly decorator: IDecorator;
+	private readonly editor: editorCommon.IEditor;
 
 	constructor(line: string, editor: editorCommon.IEditor, decorator: IDecorator) {
 		super();

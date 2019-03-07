@@ -34,7 +34,6 @@ export interface ISearchService {
  */
 export const enum SearchProviderType {
 	file,
-	fileIndex,
 	text
 }
 
@@ -195,10 +194,10 @@ export interface ITextSearchStats {
 
 export interface IFileSearchStats {
 	fromCache: boolean;
-	detailStats: ISearchEngineStats | ICachedSearchStats | IFileSearchProviderStats | IFileIndexProviderStats;
+	detailStats: ISearchEngineStats | ICachedSearchStats | IFileSearchProviderStats;
 
 	resultCount: number;
-	type: 'fileIndexProvider' | 'fileSearchProvider' | 'searchProcess';
+	type: 'fileSearchProvider' | 'searchProcess';
 	sortingTime?: number;
 }
 
@@ -220,14 +219,6 @@ export interface ISearchEngineStats {
 export interface IFileSearchProviderStats {
 	providerTime: number;
 	postProcessTime: number;
-}
-
-export interface IFileIndexProviderStats {
-	providerTime: number;
-	providerResultCount: number;
-	fileWalkTime: number;
-	directoriesWalked: number;
-	filesWalked: number;
 }
 
 export class FileMatch implements IFileMatch {

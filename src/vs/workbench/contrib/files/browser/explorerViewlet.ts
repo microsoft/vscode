@@ -25,7 +25,7 @@ import { ViewsRegistry, IViewDescriptor } from 'vs/workbench/common/views';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { DelegatingEditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -148,7 +148,7 @@ export class ExplorerViewlet extends ViewContainerViewlet {
 	private viewletVisibleContextKey: IContextKey<boolean>;
 
 	constructor(
-		@IPartService partService: IPartService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 		@IStorageService protected storageService: IStorageService,
@@ -161,7 +161,7 @@ export class ExplorerViewlet extends ViewContainerViewlet {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IExtensionService extensionService: IExtensionService
 	) {
-		super(VIEWLET_ID, ExplorerViewlet.EXPLORER_VIEWS_STATE, true, configurationService, partService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
+		super(VIEWLET_ID, ExplorerViewlet.EXPLORER_VIEWS_STATE, true, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
 
 		this.viewletVisibleContextKey = ExplorerViewletVisibleContext.bindTo(contextKeyService);
 

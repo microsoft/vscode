@@ -28,7 +28,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 
 abstract class AbstractCopyLinesAction extends EditorAction {
 
-	private down: boolean;
+	private readonly down: boolean;
 
 	constructor(down: boolean, opts: IActionOptions) {
 		super(opts);
@@ -100,7 +100,7 @@ class CopyLinesDownAction extends AbstractCopyLinesAction {
 
 abstract class AbstractMoveLinesAction extends EditorAction {
 
-	private down: boolean;
+	private readonly down: boolean;
 
 	constructor(down: boolean, opts: IActionOptions) {
 		super(opts);
@@ -170,7 +170,7 @@ class MoveLinesDownAction extends AbstractMoveLinesAction {
 }
 
 export abstract class AbstractSortLinesAction extends EditorAction {
-	private descending: boolean;
+	private readonly descending: boolean;
 
 	constructor(descending: boolean, opts: IActionOptions) {
 		super(opts);

@@ -287,7 +287,7 @@ export const enum CompletionItemKind {
 /**
  * @internal
  */
-export let completionKindToCssClass = (function () {
+export const completionKindToCssClass = (function () {
 	let data = Object.create(null);
 	data[CompletionItemKind.Method] = 'method';
 	data[CompletionItemKind.Function] = 'function';
@@ -324,11 +324,14 @@ export let completionKindToCssClass = (function () {
 /**
  * @internal
  */
-export let completionKindFromLegacyString = (function () {
-	let data = Object.create(null);
+export let completionKindFromString: {
+	(value: string): CompletionItemKind;
+	(value: string, strict: true): CompletionItemKind | undefined;
+} = (function () {
+	let data: Record<string, CompletionItemKind> = Object.create(null);
 	data['method'] = CompletionItemKind.Method;
 	data['function'] = CompletionItemKind.Function;
-	data['constructor'] = CompletionItemKind.Constructor;
+	data['constructor'] = <any>CompletionItemKind.Constructor;
 	data['field'] = CompletionItemKind.Field;
 	data['variable'] = CompletionItemKind.Variable;
 	data['class'] = CompletionItemKind.Class;
@@ -343,6 +346,7 @@ export let completionKindFromLegacyString = (function () {
 	data['constant'] = CompletionItemKind.Constant;
 	data['enum'] = CompletionItemKind.Enum;
 	data['enum-member'] = CompletionItemKind.EnumMember;
+	data['enumMember'] = CompletionItemKind.EnumMember;
 	data['keyword'] = CompletionItemKind.Keyword;
 	data['snippet'] = CompletionItemKind.Snippet;
 	data['text'] = CompletionItemKind.Text;
@@ -352,9 +356,14 @@ export let completionKindFromLegacyString = (function () {
 	data['customcolor'] = CompletionItemKind.Customcolor;
 	data['folder'] = CompletionItemKind.Folder;
 	data['type-parameter'] = CompletionItemKind.TypeParameter;
+	data['typeParameter'] = CompletionItemKind.TypeParameter;
 
-	return function (value: string) {
-		return data[value] || 'property';
+	return function (value: string, strict?: true) {
+		let res = data[value];
+		if (typeof res === 'undefined' && !strict) {
+			res = CompletionItemKind.Property;
+		}
+		return res;
 	};
 })();
 
@@ -1253,13 +1262,19 @@ export interface CommentThread2 {
 	threadId: string;
 	resource: string;
 	range: IRange;
+	label: string;
 	comments: Comment[];
 	onDidChangeComments: Event<Comment[]>;
 	collapsibleState?: CommentThreadCollapsibleState;
 	input: CommentInput;
 	onDidChangeInput: Event<CommentInput>;
-	acceptInputCommands: Command[];
-	onDidChangeAcceptInputCommands: Event<Command[]>;
+	acceptInputCommand?: Command;
+	additionalCommands: Command[];
+	onDidChangeAcceptInputCommand: Event<Command>;
+	onDidChangeAdditionalCommands: Event<Command[]>;
+	onDidChangeRange: Event<IRange>;
+	onDidChangeLabel: Event<string>;
+	onDidChangeCollasibleState: Event<CommentThreadCollapsibleState>;
 }
 
 /**
@@ -1269,7 +1284,8 @@ export interface CommentThread2 {
 export interface CommentingRanges {
 	readonly resource: URI;
 	ranges: IRange[];
-	newCommentThreadCommand: Command;
+	newCommentThreadCommand?: Command;
+	newCommentThreadCallback?: (uri: UriComponents, range: IRange) => void;
 }
 
 /**
@@ -1319,6 +1335,7 @@ export interface Comment {
 	readonly deleteCommand?: Command;
 	readonly isDraft?: boolean;
 	readonly commentReactions?: CommentReaction[];
+	readonly label?: string;
 }
 
 /**

@@ -16,9 +16,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { EditorGroupsServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { SidebarVisibleContext, SideBarVisibleContext } from 'vs/workbench/common/viewlet';
-import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
+import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 
 export class WorkbenchContextKeysHandler extends Disposable {
@@ -49,8 +48,8 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWindowService private windowService: IWindowService,
 		@IEditorService private editorService: IEditorService,
-		@IEditorGroupsService private editorGroupService: EditorGroupsServiceImpl,
-		@IPartService private partService: IPartService,
+		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
+		@IWorkbenchLayoutService private layoutService: IWorkbenchLayoutService,
 		@IViewletService private viewletService: IViewletService
 	) {
 		super();
@@ -78,7 +77,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 			}
 		}));
 
-		this._register(this.partService.onZenModeChange(enabled => this.inZenModeContext.set(enabled)));
+		this._register(this.layoutService.onZenModeChange(enabled => this.inZenModeContext.set(enabled)));
 
 		this._register(this.viewletService.onDidViewletClose(() => this.updateSideBarContextKeys()));
 		this._register(this.viewletService.onDidViewletOpen(() => this.updateSideBarContextKeys()));
@@ -206,7 +205,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 	}
 
 	private updateSideBarContextKeys(): void {
-		this.sideBarVisibleContext.set(this.partService.isVisible(Parts.SIDEBAR_PART));
-		this.sidebarVisibleContext.set(this.partService.isVisible(Parts.SIDEBAR_PART));
+		this.sideBarVisibleContext.set(this.layoutService.isVisible(Parts.SIDEBAR_PART));
+		this.sidebarVisibleContext.set(this.layoutService.isVisible(Parts.SIDEBAR_PART));
 	}
 }

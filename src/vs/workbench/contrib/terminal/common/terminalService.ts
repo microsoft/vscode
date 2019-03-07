@@ -8,7 +8,6 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalConfigHelper, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, TERMINAL_PANEL_ID, ITerminalTab, ITerminalProcessExtHostProxy, ITerminalProcessExtHostRequest, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { URI } from 'vs/base/common/uri';
@@ -66,7 +65,6 @@ export abstract class TerminalService implements ITerminalService {
 	constructor(
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IPanelService protected readonly _panelService: IPanelService,
-		@IPartService private readonly _partService: IPartService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IStorageService protected readonly _storageService: IStorageService,
 		@INotificationService protected readonly _notificationService: INotificationService,
@@ -370,12 +368,7 @@ export abstract class TerminalService implements ITerminalService {
 		});
 	}
 
-	public hidePanel(): void {
-		const panel = this._panelService.getActivePanel();
-		if (panel && panel.getId() === TERMINAL_PANEL_ID) {
-			this._partService.setPanelHidden(true);
-		}
-	}
+	public abstract hidePanel(): void;
 
 	public abstract focusFindWidget(): Promise<void>;
 	public abstract hideFindWidget(): void;

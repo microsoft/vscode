@@ -13,7 +13,7 @@ import { Composite, CompositeDescriptor, CompositeRegistry } from 'vs/workbench/
 import { IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 import { ToggleSidebarVisibilityAction, ToggleSidebarPositionAction } from 'vs/workbench/browser/actions/layoutActions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
+import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { URI } from 'vs/base/common/uri';
@@ -26,7 +26,7 @@ export abstract class Viewlet extends Composite implements IViewlet {
 
 	constructor(id: string,
 		protected configurationService: IConfigurationService,
-		private partService: IPartService,
+		private layoutService: IWorkbenchLayoutService,
 		telemetryService: ITelemetryService,
 		themeService: IThemeService,
 		storageService: IStorageService
@@ -39,13 +39,13 @@ export abstract class Viewlet extends Composite implements IViewlet {
 	}
 
 	getContextMenuActions(): IAction[] {
-		const toggleSidebarPositionAction = new ToggleSidebarPositionAction(ToggleSidebarPositionAction.ID, ToggleSidebarPositionAction.getLabel(this.partService), this.partService, this.configurationService);
+		const toggleSidebarPositionAction = new ToggleSidebarPositionAction(ToggleSidebarPositionAction.ID, ToggleSidebarPositionAction.getLabel(this.layoutService), this.layoutService, this.configurationService);
 		return [toggleSidebarPositionAction,
 			<IAction>{
 				id: ToggleSidebarVisibilityAction.ID,
 				label: nls.localize('compositePart.hideSideBarLabel', "Hide Side Bar"),
 				enabled: true,
-				run: () => this.partService.setSideBarHidden(true)
+				run: () => this.layoutService.setSideBarHidden(true)
 			}];
 	}
 }
@@ -138,7 +138,7 @@ export class ShowViewletAction extends Action {
 		viewletId: string,
 		@IViewletService protected viewletService: IViewletService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
-		@IPartService private readonly partService: IPartService
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
 		super(id, name);
 
@@ -169,7 +169,7 @@ export class ShowViewletAction extends Action {
 		const activeViewlet = this.viewletService.getActiveViewlet();
 		const activeElement = document.activeElement;
 
-		return !!(activeViewlet && activeElement && DOM.isAncestor(activeElement, this.partService.getContainer(Parts.SIDEBAR_PART)));
+		return !!(activeViewlet && activeElement && DOM.isAncestor(activeElement, this.layoutService.getContainer(Parts.SIDEBAR_PART)));
 	}
 }
 

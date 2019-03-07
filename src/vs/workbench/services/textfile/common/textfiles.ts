@@ -240,7 +240,7 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	updatePreferredEncoding(encoding: string): void;
 
-	save(options?: ISaveOptions): Promise<void> | undefined;
+	save(options?: ISaveOptions): Promise<void>;
 
 	load(options?: ILoadOptions): Promise<ITextFileEditorModel>;
 

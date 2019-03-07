@@ -659,12 +659,19 @@ suite('QueryBuilder', () => {
 						}]
 					}
 				],
-				// TODO @ rob
 				// [
 				// 	'../',
 				// 	{
 				// 		searchPaths: [{
-				// 			searchPath: getUri('foo/')
+				// 			searchPath: getUri('/foo')
+				// 		}]
+				// 	}
+				// ],
+				// [
+				// 	'..\\bar',
+				// 	{
+				// 		searchPaths: [{
+				// 			searchPath: getUri('/foo/bar')
 				// 		}]
 				// 	}
 				// ]

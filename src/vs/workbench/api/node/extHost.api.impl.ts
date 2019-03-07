@@ -119,7 +119,7 @@ export function createApiFactory(
 	const extHostSCM = rpcProtocol.set(ExtHostContext.ExtHostSCM, new ExtHostSCM(rpcProtocol, extHostCommands, extHostLogService));
 	const extHostComment = rpcProtocol.set(ExtHostContext.ExtHostComments, new ExtHostComments(rpcProtocol, extHostCommands, extHostDocuments));
 	const extHostSearch = rpcProtocol.set(ExtHostContext.ExtHostSearch, new ExtHostSearch(rpcProtocol, schemeTransformer, extHostLogService));
-	const extHostTask = rpcProtocol.set(ExtHostContext.ExtHostTask, new ExtHostTask(rpcProtocol, extHostWorkspace, extHostDocumentsAndEditors, extHostConfiguration));
+	const extHostTask = rpcProtocol.set(ExtHostContext.ExtHostTask, new ExtHostTask(rpcProtocol, extHostWorkspace, extHostDocumentsAndEditors, extHostConfiguration, extHostTerminalService));
 	const extHostWindow = rpcProtocol.set(ExtHostContext.ExtHostWindow, new ExtHostWindow(rpcProtocol));
 	rpcProtocol.set(ExtHostContext.ExtHostExtensionService, extensionService);
 	const extHostProgress = rpcProtocol.set(ExtHostContext.ExtHostProgress, new ExtHostProgress(rpcProtocol.getProxy(MainContext.MainThreadProgress)));
@@ -527,7 +527,7 @@ export function createApiFactory(
 			onDidChangeWorkspaceFolders: function (listener, thisArgs?, disposables?) {
 				return extHostWorkspace.onDidChangeWorkspace(listener, thisArgs, disposables);
 			},
-			asRelativePath: (pathOrUri, includeWorkspace) => {
+			asRelativePath: (pathOrUri, includeWorkspace?) => {
 				return extHostWorkspace.getRelativePath(pathOrUri, includeWorkspace);
 			},
 			findFiles: (include, exclude, maxResults?, token?) => {
@@ -624,9 +624,6 @@ export function createApiFactory(
 			registerTextSearchProvider: proposedApiFunction(extension, (scheme, provider) => {
 				return extHostSearch.registerTextSearchProvider(scheme, provider);
 			}),
-			registerFileIndexProvider: proposedApiFunction(extension, (scheme, provider) => {
-				return extHostSearch.registerFileIndexProvider(scheme, provider);
-			}),
 			registerDocumentCommentProvider: proposedApiFunction(extension, (provider: vscode.DocumentCommentProvider) => {
 				return extHostComment.registerDocumentCommentProvider(extension.identifier, provider);
 			}),
@@ -658,8 +655,8 @@ export function createApiFactory(
 		};
 
 		const comment: typeof vscode.comment = {
-			createCommentControl(id: string, label: string) {
-				return extHostComment.createCommentControl(extension, id, label);
+			createCommentController(id: string, label: string) {
+				return extHostComment.createCommentController(extension, id, label);
 			}
 		};
 
@@ -780,6 +777,7 @@ export function createApiFactory(
 			DocumentSymbol: extHostTypes.DocumentSymbol,
 			EndOfLine: extHostTypes.EndOfLine,
 			EventEmitter: Emitter,
+			CustomExecution: extHostTypes.CustomExecution,
 			FileChangeType: extHostTypes.FileChangeType,
 			FileSystemError: extHostTypes.FileSystemError,
 			FileType: files.FileType,

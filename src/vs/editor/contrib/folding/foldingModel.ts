@@ -21,8 +21,8 @@ export interface FoldingModelChangeEvent {
 export type CollapseMemento = ILineRange[];
 
 export class FoldingModel {
-	private _textModel: ITextModel;
-	private _decorationProvider: IDecorationProvider;
+	private readonly _textModel: ITextModel;
+	private readonly _decorationProvider: IDecorationProvider;
 
 	private _regions: FoldingRegions;
 	private _editorDecorationIds: string[];

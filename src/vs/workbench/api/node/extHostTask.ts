@@ -19,14 +19,19 @@ import * as types from 'vs/workbench/api/node/extHostTypes';
 import { ExtHostWorkspace, IExtHostWorkspaceProvider } from 'vs/workbench/api/node/extHostWorkspace';
 import * as vscode from 'vscode';
 import {
-	TaskDefinitionDTO, TaskExecutionDTO, TaskPresentationOptionsDTO, ProcessExecutionOptionsDTO, ProcessExecutionDTO,
-	ShellExecutionOptionsDTO, ShellExecutionDTO, TaskDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO, TaskSystemInfoDTO, TaskSetDTO
+	TaskDefinitionDTO, TaskExecutionDTO, TaskPresentationOptionsDTO,
+	ProcessExecutionOptionsDTO, ProcessExecutionDTO,
+	ShellExecutionOptionsDTO, ShellExecutionDTO,
+	CustomExecutionDTO,
+	TaskDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO, TaskSystemInfoDTO, TaskSetDTO
 } from '../shared/tasks';
 import { ExtHostVariableResolverService } from 'vs/workbench/api/node/extHostDebugService';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
+import { ExtHostTerminalService, ExtHostTerminal } from 'vs/workbench/api/node/extHostTerminalService';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 namespace TaskDefinitionDTO {
 	export function from(value: vscode.TaskDefinition): TaskDefinitionDTO {
@@ -74,7 +79,7 @@ namespace ProcessExecutionOptionsDTO {
 }
 
 namespace ProcessExecutionDTO {
-	export function is(value: ShellExecutionDTO | ProcessExecutionDTO): value is ProcessExecutionDTO {
+	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CustomExecutionDTO): value is ProcessExecutionDTO {
 		const candidate = value as ProcessExecutionDTO;
 		return candidate && !!candidate.process;
 	}
@@ -115,7 +120,7 @@ namespace ShellExecutionOptionsDTO {
 }
 
 namespace ShellExecutionDTO {
-	export function is(value: ShellExecutionDTO | ProcessExecutionDTO): value is ShellExecutionDTO {
+	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CustomExecutionDTO): value is ShellExecutionDTO {
 		const candidate = value as ShellExecutionDTO;
 		return candidate && (!!candidate.commandLine || !!candidate.command);
 	}
@@ -145,6 +150,19 @@ namespace ShellExecutionDTO {
 		} else {
 			return new types.ShellExecution(value.command, value.args ? value.args : [], value.options);
 		}
+	}
+}
+
+namespace CustomExecutionDTO {
+	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CustomExecutionDTO): value is CustomExecutionDTO {
+		let candidate = value as CustomExecutionDTO;
+		return candidate && candidate.customExecution === 'customExecution';
+	}
+
+	export function from(value: vscode.CustomExecution): CustomExecutionDTO {
+		return {
+			customExecution: 'customExecution'
+		};
 	}
 }
 
@@ -181,11 +199,13 @@ namespace TaskDTO {
 		if (value === undefined || value === null) {
 			return undefined;
 		}
-		let execution: ShellExecutionDTO | ProcessExecutionDTO | undefined;
+		let execution: ShellExecutionDTO | ProcessExecutionDTO | CustomExecutionDTO | undefined;
 		if (value.execution instanceof types.ProcessExecution) {
 			execution = ProcessExecutionDTO.from(value.execution);
 		} else if (value.execution instanceof types.ShellExecution) {
 			execution = ShellExecutionDTO.from(value.execution);
+		} else if ((<vscode.Task2>value).execution2 && (<vscode.Task2>value).execution2 instanceof types.CustomExecution) {
+			execution = CustomExecutionDTO.from(<types.CustomExecution>(<vscode.Task2>value).execution2);
 		}
 		const definition: TaskDefinitionDTO = TaskDefinitionDTO.from(value.definition);
 		let scope: number | UriComponents;
@@ -315,15 +335,121 @@ interface HandlerData {
 	extension: IExtensionDescription;
 }
 
+class CustomExecutionData implements IDisposable {
+	private static waitForDimensionsTimeoutInMs: number = 5000;
+	private _cancellationSource?: CancellationTokenSource;
+	private readonly _onTaskExecutionComplete: Emitter<CustomExecutionData> = new Emitter<CustomExecutionData>();
+	private readonly _disposables: IDisposable[] = [];
+	private terminal?: vscode.Terminal;
+	private terminalId?: number;
+	public result: number | undefined;
+
+	constructor(
+		private readonly customExecution: vscode.CustomExecution,
+		private readonly terminalService: ExtHostTerminalService) {
+	}
+
+	public dispose(): void {
+		dispose(this._disposables);
+	}
+
+	public get onTaskExecutionComplete(): Event<CustomExecutionData> {
+		return this._onTaskExecutionComplete.event;
+	}
+
+	private onDidCloseTerminal(terminal: vscode.Terminal): void {
+		if (this.terminal === terminal) {
+			this._cancellationSource.cancel();
+		}
+	}
+
+	private onDidOpenTerminal(terminal: vscode.Terminal): void {
+		if (!(terminal instanceof ExtHostTerminal)) {
+			throw new Error('How could this not be a extension host terminal?');
+		}
+
+		if (this.terminalId && terminal._id === this.terminalId) {
+			this.startCallback(this.terminalId);
+		}
+	}
+
+	public async startCallback(terminalId: number): Promise<void> {
+		this.terminalId = terminalId;
+
+		// If we have already started the extension task callback, then
+		// do not start it again.
+		// It is completely valid for multiple terminals to be opened
+		// before the one for our task.
+		if (this._cancellationSource) {
+			return undefined;
+		}
+
+		const callbackTerminals: vscode.Terminal[] = this.terminalService.terminals.filter((terminal) => terminal._id === terminalId);
+
+		if (!callbackTerminals || callbackTerminals.length === 0) {
+			this._disposables.push(this.terminalService.onDidOpenTerminal(this.onDidOpenTerminal.bind(this)));
+			return;
+		}
+
+		if (callbackTerminals.length !== 1) {
+			throw new Error(`Expected to only have one terminal at this point`);
+		}
+
+		this.terminal = callbackTerminals[0];
+		const terminalRenderer: vscode.TerminalRenderer = await this.terminalService.resolveTerminalRenderer(terminalId);
+
+		// If we don't have the maximum dimensions yet, then we need to wait for them (but not indefinitely).
+		// Custom executions will expect the dimensions to be set properly before they are launched.
+		// BUT, due to the API contract VSCode has for terminals and dimensions, they are still responsible for
+		// handling cases where they are not set.
+		if (!terminalRenderer.maximumDimensions) {
+			const dimensionTimeout: Promise<void> = new Promise((resolve) => {
+				setTimeout(() => {
+					resolve();
+				}, CustomExecutionData.waitForDimensionsTimeoutInMs);
+			});
+
+			let dimensionsRegistration: IDisposable | undefined;
+			const dimensionsPromise: Promise<void> = new Promise((resolve) => {
+				dimensionsRegistration = terminalRenderer.onDidChangeMaximumDimensions((newDimensions) => {
+					resolve();
+				});
+			});
+
+			await Promise.race([dimensionTimeout, dimensionsPromise]);
+			if (dimensionsRegistration) {
+				dimensionsRegistration.dispose();
+			}
+		}
+
+		this._cancellationSource = new CancellationTokenSource();
+		this._disposables.push(this._cancellationSource);
+
+		this._disposables.push(this.terminalService.onDidCloseTerminal(this.onDidCloseTerminal.bind(this)));
+
+		// Regardless of how the task completes, we are done with this custom execution task.
+		this.customExecution.callback(terminalRenderer, this._cancellationSource.token).then(
+			(success) => {
+				this.result = success;
+				this._onTaskExecutionComplete.fire(this);
+			}, (rejected) => {
+				this._onTaskExecutionComplete.fire(this);
+			});
+	}
+}
+
 export class ExtHostTask implements ExtHostTaskShape {
 
 	private _proxy: MainThreadTaskShape;
 	private _workspaceProvider: IExtHostWorkspaceProvider;
 	private _editorService: ExtHostDocumentsAndEditors;
 	private _configurationService: ExtHostConfiguration;
+	private _terminalService: ExtHostTerminalService;
 	private _handleCounter: number;
 	private _handlers: Map<number, HandlerData>;
 	private _taskExecutions: Map<string, TaskExecutionImpl>;
+	private _providedCustomExecutions: Map<string, CustomExecutionData>;
+	private _activeCustomExecutions: Map<string, CustomExecutionData>;
 
 	private readonly _onDidExecuteTask: Emitter<vscode.TaskStartEvent> = new Emitter<vscode.TaskStartEvent>();
 	private readonly _onDidTerminateTask: Emitter<vscode.TaskEndEvent> = new Emitter<vscode.TaskEndEvent>();
@@ -331,14 +457,22 @@ export class ExtHostTask implements ExtHostTaskShape {
 	private readonly _onDidTaskProcessStarted: Emitter<vscode.TaskProcessStartEvent> = new Emitter<vscode.TaskProcessStartEvent>();
 	private readonly _onDidTaskProcessEnded: Emitter<vscode.TaskProcessEndEvent> = new Emitter<vscode.TaskProcessEndEvent>();
 
-	constructor(mainContext: IMainContext, workspaceService: ExtHostWorkspace, editorService: ExtHostDocumentsAndEditors, configurationService: ExtHostConfiguration) {
+	constructor(
+		mainContext: IMainContext,
+		workspaceService: ExtHostWorkspace,
+		editorService: ExtHostDocumentsAndEditors,
+		configurationService: ExtHostConfiguration,
+		extHostTerminalService: ExtHostTerminalService) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadTask);
 		this._workspaceProvider = workspaceService;
 		this._editorService = editorService;
 		this._configurationService = configurationService;
+		this._terminalService = extHostTerminalService;
 		this._handleCounter = 0;
 		this._handlers = new Map<number, HandlerData>();
 		this._taskExecutions = new Map<string, TaskExecutionImpl>();
+		this._providedCustomExecutions = new Map<string, CustomExecutionData>();
+		this._activeCustomExecutions = new Map<string, CustomExecutionData>();
 	}
 
 	public registerTaskProvider(extension: IExtensionDescription, provider: vscode.TaskProvider): vscode.Disposable {
@@ -402,7 +536,26 @@ export class ExtHostTask implements ExtHostTaskShape {
 		return this._onDidExecuteTask.event;
 	}
 
-	public async $onDidStartTask(execution: TaskExecutionDTO): Promise<void> {
+	public async $onDidStartTask(execution: TaskExecutionDTO, terminalId: number): Promise<void> {
+		// Once a terminal is spun up for the custom execution task this event will be fired.
+		// At that point, we need to actually start the callback, but
+		// only if it hasn't already begun.
+		const extensionCallback: CustomExecutionData | undefined = this._providedCustomExecutions.get(execution.id);
+		if (extensionCallback) {
+			if (this._activeCustomExecutions.get(execution.id) !== undefined) {
+				throw new Error('We should not be trying to start the same custom task executions twice.');
+			}
+
+			this._activeCustomExecutions.set(execution.id, extensionCallback);
+
+			const taskExecutionComplete: IDisposable = extensionCallback.onTaskExecutionComplete(() => {
+				this.customExecutionComplete(execution);
+				taskExecutionComplete.dispose();
+			});
+
+			extensionCallback.startCallback(terminalId);
+		}
+
 		this._onDidExecuteTask.fire({
 			execution: await this.getTaskExecution(execution)
 		});
@@ -415,6 +568,7 @@ export class ExtHostTask implements ExtHostTaskShape {
 	public async $OnDidEndTask(execution: TaskExecutionDTO): Promise<void> {
 		const _execution = await this.getTaskExecution(execution);
 		this._taskExecutions.delete(execution.id);
+		this.customExecutionComplete(execution);
 		this._onDidTerminateTask.fire({
 			execution: _execution
 		});
@@ -453,20 +607,56 @@ export class ExtHostTask implements ExtHostTaskShape {
 		if (!handler) {
 			return Promise.reject(new Error('no handler found'));
 		}
-		return asPromise(() => handler.provider.provideTasks(CancellationToken.None)).then(value => {
-			const sanitized: vscode.Task[] = [];
+
+		// For custom execution tasks, we need to store the execution objects locally
+		// since we obviously cannot send callback functions through the proxy.
+		// So, clear out any existing ones.
+		this._providedCustomExecutions.clear();
+
+		// Set up a list of task ID promises that we can wait on
+		// before returning the provided tasks. The ensures that
+		// our task IDs are calculated for any custom execution tasks.
+		// Knowing this ID ahead of time is needed because when a task
+		// start event is fired this is when the custom execution is called.
+		// The task start event is also the first time we see the ID from the main
+		// thread, which is too late for us because we need to save an map
+		// from an ID to the custom execution function. (Kind of a cart before the horse problem).
+		const taskIdPromises: Promise<void>[] = [];
+		const fetchPromise = asPromise(() => handler.provider.provideTasks(CancellationToken.None)).then(value => {
+			const taskDTOs: TaskDTO[] = [];
 			for (let task of value) {
-				if (task.definition && validTypes[task.definition.type] === true) {
-					sanitized.push(task);
-				} else {
-					sanitized.push(task);
+				if (!task.definition || !validTypes[task.definition.type]) {
 					console.warn(`The task [${task.source}, ${task.name}] uses an undefined task type. The task will be ignored in the future.`);
 				}
+
+				const taskDTO: TaskDTO = TaskDTO.from(task, handler.extension);
+				taskDTOs.push(taskDTO);
+
+				if (CustomExecutionDTO.is(taskDTO.execution)) {
+					taskIdPromises.push(new Promise((resolve) => {
+						// The ID is calculated on the main thread task side, so, let's call into it here.
+						// We need the task id's pre-computed for custom task executions because when OnDidStartTask
+						// is invoked, we have to be able to map it back to our data.
+						this._proxy.$createTaskId(taskDTO).then((taskId) => {
+							this._providedCustomExecutions.set(taskId, new CustomExecutionData(<vscode.CustomExecution>(<vscode.Task2>task).execution2, this._terminalService));
+							resolve();
+						});
+					}));
+				}
 			}
+
 			return {
-				tasks: TaskDTO.fromMany(sanitized, handler.extension),
+				tasks: taskDTOs,
 				extension: handler.extension
 			};
+		});
+
+		return new Promise((resolve) => {
+			fetchPromise.then((result) => {
+				Promise.all(taskIdPromises).then(() => {
+					resolve(result);
+				});
+			});
 		});
 	}
 
@@ -524,5 +714,14 @@ export class ExtHostTask implements ExtHostTaskShape {
 		result = new TaskExecutionImpl(this, execution.id, task ? task : await TaskDTO.to(execution.task, this._workspaceProvider));
 		this._taskExecutions.set(execution.id, result);
 		return result;
+	}
+
+	private customExecutionComplete(execution: TaskExecutionDTO): void {
+		const extensionCallback: CustomExecutionData | undefined = this._activeCustomExecutions.get(execution.id);
+		if (extensionCallback) {
+			this._activeCustomExecutions.delete(execution.id);
+			this._proxy.$customExecutionComplete(execution.id, extensionCallback.result);
+			extensionCallback.dispose();
+		}
 	}
 }

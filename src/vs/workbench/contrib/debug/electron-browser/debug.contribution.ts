@@ -26,7 +26,7 @@ import {
 	IDebugService, VIEWLET_ID, REPL_ID, CONTEXT_IN_DEBUG_MODE, INTERNAL_CONSOLE_OPTIONS_SCHEMA,
 	CONTEXT_DEBUG_STATE, VARIABLES_VIEW_ID, CALLSTACK_VIEW_ID, WATCH_VIEW_ID, BREAKPOINTS_VIEW_ID, VIEW_CONTAINER, LOADED_SCRIPTS_VIEW_ID, CONTEXT_LOADED_SCRIPTS_SUPPORTED
 } from 'vs/workbench/contrib/debug/common/debug';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { DebugEditorModelManager } from 'vs/workbench/contrib/debug/browser/debugEditorModelManager';
 import {
@@ -64,9 +64,9 @@ class OpenDebugViewletAction extends ShowViewletAction {
 		label: string,
 		@IViewletService viewletService: IViewletService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IPartService partService: IPartService
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
 	) {
-		super(id, label, VIEWLET_ID, viewletService, editorGroupService, partService);
+		super(id, label, VIEWLET_ID, viewletService, editorGroupService, layoutService);
 	}
 }
 
@@ -78,9 +78,9 @@ class OpenDebugPanelAction extends TogglePanelAction {
 		id: string,
 		label: string,
 		@IPanelService panelService: IPanelService,
-		@IPartService partService: IPartService
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
 	) {
-		super(id, label, REPL_ID, panelService, partService);
+		super(id, label, REPL_ID, panelService, layoutService);
 	}
 }
 

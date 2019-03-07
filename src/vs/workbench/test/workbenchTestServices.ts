@@ -11,13 +11,13 @@ import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { ConfirmResult, IEditorInputWithOptions, CloseDirection, IEditorIdentifier, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorInput, IEditor, IEditorCloseEvent } from 'vs/workbench/common/editor';
-import { IEditorOpeningEvent, EditorServiceImpl, IEditorGroupView, EditorGroupsServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
+import { ConfirmResult, IEditorInputWithOptions, CloseDirection, IEditorIdentifier, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorInput, IEditor, IEditorCloseEvent, IEditorPartOptions } from 'vs/workbench/common/editor';
+import { IEditorOpeningEvent, EditorServiceImpl, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { Event, Emitter } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IPartService, Parts, Position as PartPosition, IDimension } from 'vs/workbench/services/part/common/partService';
+import { IWorkbenchLayoutService, Parts, Position as PartPosition } from 'vs/workbench/services/layout/browser/layoutService';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IEditorOptions, IResourceInput } from 'vs/platform/editor/common/editor';
@@ -71,12 +71,16 @@ import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { timeout } from 'vs/base/common/async';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
+import { ViewletDescriptor, Viewlet } from 'vs/workbench/browser/viewlet';
 import { IViewlet } from 'vs/workbench/common/viewlet';
-import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
+import { IDimension } from 'vs/platform/layout/browser/layoutService';
+import { Part } from 'vs/workbench/browser/part';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { IPanel } from 'vs/workbench/common/panel';
+import { IBadge } from 'vs/workbench/services/activity/common/activity';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined);
@@ -284,7 +288,7 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(ITextResourceConfigurationService, new TestTextResourceConfigurationService(configService));
 	instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
 	instantiationService.stub(IStorageService, new TestStorageService());
-	instantiationService.stub(IPartService, new TestPartService());
+	instantiationService.stub(IWorkbenchLayoutService, new TestLayoutService());
 	instantiationService.stub(IModeService, instantiationService.createInstance(ModeServiceImpl));
 	instantiationService.stub(IHistoryService, new TestHistoryService());
 	instantiationService.stub(ITextResourcePropertiesService, new TestTextResourcePropertiesService(configService));
@@ -440,11 +444,14 @@ export class TestFileDialogService implements IFileDialogService {
 	}
 }
 
-export class TestPartService implements IPartService {
+export class TestLayoutService implements IWorkbenchLayoutService {
 
 	public _serviceBrand: any;
 
+	dimension: IDimension = { width: 800, height: 600 };
+
 	onZenModeChange: Event<boolean> = Event.None;
+	onLayout = Event.None;
 
 	private _onTitleBarVisibilityChange = new Emitter<void>();
 	private _onMenubarVisibilityChange = new Emitter<Dimension>();
@@ -538,16 +545,111 @@ export class TestPartService implements IPartService {
 
 
 	public resizePart(_part: Parts, _sizeChange: number): void { }
+
+	public registerPart(part: Part): void { }
+}
+
+let activeViewlet: Viewlet = {} as any;
+
+export class TestViewletService implements IViewletService {
+	public _serviceBrand: any;
+
+	onDidViewletRegisterEmitter = new Emitter<ViewletDescriptor>();
+	onDidViewletDeregisterEmitter = new Emitter<ViewletDescriptor>();
+	onDidViewletOpenEmitter = new Emitter<IViewlet>();
+	onDidViewletCloseEmitter = new Emitter<IViewlet>();
+
+	onDidViewletRegister = this.onDidViewletRegisterEmitter.event;
+	onDidViewletDeregister = this.onDidViewletDeregisterEmitter.event;
+	onDidViewletOpen = this.onDidViewletOpenEmitter.event;
+	onDidViewletClose = this.onDidViewletCloseEmitter.event;
+
+	public openViewlet(id: string, focus?: boolean): Promise<IViewlet> {
+		return Promise.resolve(null!);
+	}
+
+	public getViewlets(): ViewletDescriptor[] {
+		return [];
+	}
+
+	public getAllViewlets(): ViewletDescriptor[] {
+		return [];
+	}
+
+	public getActiveViewlet(): IViewlet {
+		return activeViewlet;
+	}
+
+	public dispose() {
+	}
+
+	public getDefaultViewletId(): string {
+		return 'workbench.view.explorer';
+	}
+
+	public getViewlet(id: string): ViewletDescriptor | undefined {
+		return undefined;
+	}
+
+	public getProgressIndicator(id: string) {
+		return null!;
+	}
+
+	public hideActiveViewlet(): void { }
+
+	public getLastActiveViewletId(): string {
+		return undefined;
+	}
+}
+
+export class TestPanelService implements IPanelService {
+	public _serviceBrand: any;
+
+	onDidPanelOpen = new Emitter<{ panel: IPanel, focus: boolean }>().event;
+	onDidPanelClose = new Emitter<IPanel>().event;
+
+	public openPanel(id: string, focus?: boolean): IPanel {
+		return null!;
+	}
+
+	public getPanels(): any[] {
+		return [];
+	}
+
+	public getPinnedPanels(): any[] {
+		return [];
+	}
+
+	public getActivePanel(): IViewlet {
+		return activeViewlet;
+	}
+
+	public setPanelEnablement(id: string, enabled: boolean): void { }
+
+	public dispose() {
+	}
+
+	public showActivity(panelId: string, badge: IBadge, clazz?: string): IDisposable {
+		throw new Error('Method not implemented.');
+	}
+
+	public hideActivePanel(): void { }
+
+	public getLastActivePanelId(): string {
+		return undefined;
+	}
 }
 
 export class TestStorageService extends InMemoryStorageService { }
 
-export class TestEditorGroupsService implements EditorGroupsServiceImpl {
+export class TestEditorGroupsService implements IEditorGroupsService {
+
 	_serviceBrand: ServiceIdentifier<any>;
 
 	constructor(public groups: TestEditorGroup[] = []) { }
 
 	onDidActiveGroupChange: Event<IEditorGroup> = Event.None;
+	onDidActivateGroup: Event<IEditorGroup> = Event.None;
 	onDidAddGroup: Event<IEditorGroup> = Event.None;
 	onDidRemoveGroup: Event<IEditorGroup> = Event.None;
 	onDidMoveGroup: Event<IEditorGroup> = Event.None;
@@ -618,6 +720,17 @@ export class TestEditorGroupsService implements EditorGroupsServiceImpl {
 
 	copyGroup(_group: number | IEditorGroup, _location: number | IEditorGroup, _direction: GroupDirection): IEditorGroup {
 		throw new Error('not implemented');
+	}
+
+	centerLayout(active: boolean): void { }
+
+	isLayoutCentered(): boolean {
+		return false;
+	}
+
+	partOptions: IEditorPartOptions;
+	enforcePartOptions(options: IEditorPartOptions): IDisposable {
+		return Disposable.None;
 	}
 }
 
@@ -1445,28 +1558,4 @@ export class TestHashService implements IHashService {
 	createSHA1(content: string): string {
 		return content;
 	}
-}
-
-export class TestViewletService implements IViewletService {
-
-	_serviceBrand: ServiceIdentifier<any>;
-
-	readonly onDidViewletRegister: Event<ViewletDescriptor> = new Emitter<ViewletDescriptor>().event;
-	readonly onDidViewletDeregister: Event<ViewletDescriptor> = new Emitter<ViewletDescriptor>().event;
-	onDidViewletOpen: Event<IViewlet> = new Emitter<IViewlet>().event;
-	onDidViewletClose: Event<IViewlet> = new Emitter<IViewlet>().event;
-
-	openViewlet(_id: string, _focus?: boolean): Promise<IViewlet | null> { return Promise.resolve(null); }
-
-	getActiveViewlet(): IViewlet | null { return null; }
-
-	getDefaultViewletId(): string { return ''; }
-
-	getViewlet(_id: string): ViewletDescriptor | undefined { return undefined; }
-
-	getAllViewlets(): ViewletDescriptor[] { return []; }
-
-	getViewlets(): ViewletDescriptor[] { return []; }
-
-	getProgressIndicator(_id: string): IProgressService | null { return null; }
 }

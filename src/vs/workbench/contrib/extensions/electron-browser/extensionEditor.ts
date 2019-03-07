@@ -34,7 +34,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
-import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
+import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -197,7 +197,7 @@ export class ExtensionEditor extends BaseEditor {
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IOpenerService private readonly openerService: IOpenerService,
-		@IPartService private readonly partService: IPartService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IExtensionTipsService private readonly extensionTipsService: IExtensionTipsService,
 		@IStorageService storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
@@ -532,7 +532,7 @@ export class ExtensionEditor extends BaseEditor {
 			.then(removeEmbeddedSVGs)
 			.then(body => {
 				const wbeviewElement = this.instantiationService.createInstance(WebviewElement,
-					this.partService.getContainer(Parts.EDITOR_PART),
+					this.layoutService.getContainer(Parts.EDITOR_PART),
 					{
 						enableFindWidget: true,
 					},

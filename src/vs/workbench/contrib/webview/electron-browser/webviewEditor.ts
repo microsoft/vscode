@@ -20,7 +20,7 @@ import { EditorOptions } from 'vs/workbench/common/editor';
 import { WebviewEditorInput } from 'vs/workbench/contrib/webview/electron-browser/webviewEditorInput';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
+import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { WebviewElement } from './webviewElement';
 
 /**  A context key that is set when the find widget in a webview is visible. */
@@ -50,7 +50,7 @@ export class WebviewEditor extends BaseEditor {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IContextKeyService private _contextKeyService: IContextKeyService,
-		@IPartService private readonly _partService: IPartService,
+		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IEditorService private readonly _editorService: IEditorService,
@@ -279,7 +279,7 @@ export class WebviewEditor extends BaseEditor {
 			}
 
 			this._webview = this._instantiationService.createInstance(WebviewElement,
-				this._partService.getContainer(Parts.EDITOR_PART),
+				this._layoutService.getContainer(Parts.EDITOR_PART),
 				{
 					allowSvgs: true,
 					extensionLocation: input.extensionLocation,
