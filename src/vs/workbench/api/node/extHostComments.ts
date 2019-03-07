@@ -330,16 +330,28 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 		this._comments = newComments;
 	}
 
-	private _acceptInputCommands: vscode.Command[] = [];
-	get acceptInputCommands(): vscode.Command[] {
-		return this._acceptInputCommands;
+	private _acceptInputCommand: vscode.Command;
+	get acceptInputCommand(): vscode.Command {
+		return this._acceptInputCommand;
 	}
 
-	set acceptInputCommands(replyCommands: vscode.Command[]) {
-		this._acceptInputCommands = replyCommands;
+	set acceptInputCommand(acceptInputCommand: vscode.Command) {
+		this._acceptInputCommand = acceptInputCommand;
 
-		const internals = replyCommands.map(this._commandsConverter.toInternal.bind(this._commandsConverter));
-		this._proxy.$updateCommentThreadCommands(this._commentControlHandle, this.handle, internals);
+		const internal = this._commandsConverter.toInternal(acceptInputCommand);
+		this._proxy.$updateCommentThreadAcceptInputCommand(this._commentControlHandle, this.handle, internal);
+	}
+
+	private _additionalCommands: vscode.Command[] = [];
+	get additionalCommands(): vscode.Command[] {
+		return this._additionalCommands;
+	}
+
+	set additionalCommands(additionalCommands: vscode.Command[]) {
+		this._additionalCommands = additionalCommands;
+
+		const internals = additionalCommands.map(this._commandsConverter.toInternal.bind(this._commandsConverter));
+		this._proxy.$updateCommentThreadAdditionalCommands(this._commentControlHandle, this.handle, internals);
 	}
 
 	private _collapseState?: vscode.CommentThreadCollapsibleState;
@@ -368,7 +380,8 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 			this._resource,
 			extHostTypeConverter.Range.from(this._range),
 			this._comments.map(comment => { return convertToModeComment(comment, this._commandsConverter); }),
-			this._acceptInputCommands ? this._acceptInputCommands.map(this._commandsConverter.toInternal.bind(this._commandsConverter)) : [],
+			this._acceptInputCommand ? this._commandsConverter.toInternal(this._acceptInputCommand) : undefined,
+			this._additionalCommands ? this._additionalCommands.map(this._commandsConverter.toInternal.bind(this._commandsConverter)) : [],
 			this._collapseState
 		);
 	}

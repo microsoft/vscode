@@ -417,7 +417,12 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		if ((this._commentThread as modes.CommentThread2).commentThreadHandle !== undefined) {
 			this.createCommentWidgetActions2(this._formActions, model);
 
-			this._disposables.push((this._commentThread as modes.CommentThread2).onDidChangeAcceptInputCommands(_ => {
+			this._disposables.push((this._commentThread as modes.CommentThread2).onDidChangeAcceptInputCommand(_ => {
+				dom.clearNode(this._formActions);
+				this.createCommentWidgetActions2(this._formActions, model);
+			}));
+
+			this._disposables.push((this._commentThread as modes.CommentThread2).onDidChangeAdditionalCommands(_ => {
 				dom.clearNode(this._formActions);
 				this.createCommentWidgetActions2(this._formActions, model);
 			}));
@@ -583,7 +588,11 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	private createCommentWidgetActions2(container: HTMLElement, model: ITextModel) {
 		let commentThread = this._commentThread as modes.CommentThread2;
 
-		commentThread.acceptInputCommands.reverse().forEach(command => {
+		[commentThread.acceptInputCommand, ...commentThread.additionalCommands.reverse()].forEach(command => {
+			if (!command) {
+				return;
+			}
+
 			const button = new Button(container);
 			this._disposables.push(attachButtonStyler(button, this.themeService));
 
@@ -638,7 +647,24 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	async submitComment(): Promise<void> {
 		const activeComment = this.getActiveComment();
 		if (activeComment instanceof ReviewZoneWidget) {
-			this.createComment();
+			if ((this._commentThread as modes.CommentThread2).commentThreadHandle) {
+				let commentThread = this._commentThread as modes.CommentThread2;
+
+				if (commentThread.acceptInputCommand) {
+					commentThread.input = {
+						uri: this._commentEditor.getModel().uri,
+						value: this._commentEditor.getValue()
+					};
+					this.commentService.setActiveCommentThread(this._commentThread);
+					let commandId = commentThread.acceptInputCommand.id;
+					let args = commentThread.acceptInputCommand.arguments || [];
+
+					await this.commandService.executeCommand(commandId, ...args);
+					return;
+				}
+			} else {
+				this.createComment();
+			}
 		}
 
 		if (activeComment instanceof CommentNode) {

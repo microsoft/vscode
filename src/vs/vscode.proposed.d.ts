@@ -771,7 +771,18 @@ declare module 'vscode' {
 		 * The ordered comments of the thread.
 		 */
 		comments: Comment[];
-		acceptInputCommands?: Command[];
+
+		/**
+		 * `acceptInputCommand` is the default action rendered on Comment Widget, which is always placed rightmost.
+		 * It will be executed when users submit the comment from keyboard shortcut.
+		 * This action is disabled when the comment editor is empty.
+		 */
+		acceptInputCommand?: Command;
+
+		/**
+		 * `additionalCommands` are the secondary actions rendered on Comment Widget.
+		 */
+		additionalCommands?: Command[];
 
 		/**
 		 * Whether the thread should be collapsed or expanded when opening the document. Defaults to Collapsed.
