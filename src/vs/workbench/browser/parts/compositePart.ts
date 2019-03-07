@@ -95,6 +95,8 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		this.activeComposite = null;
 		this.instantiatedCompositeItems = new Map<string, CompositeItem>();
 		this.lastActiveCompositeId = storageService.get(activeCompositeSettingsKey, StorageScope.WORKSPACE, this.defaultCompositeId);
+
+		this.layoutService.registerPart(this);
 	}
 
 	protected openComposite(id: string, focus?: boolean): Composite | undefined {

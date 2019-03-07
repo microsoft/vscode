@@ -171,7 +171,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 	private parts: Map<string, Part> = new Map<string, Part>();
 
 	private sidebarPart: SidebarPart;
-	private panelPart: PanelPart;
 	private statusbarPart: StatusbarPart;
 
 	constructor(
@@ -439,10 +438,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		this.sidebarPart = this.instantiationService.createInstance(SidebarPart);
 		serviceCollection.set(IViewletService, this.sidebarPart); // TODO@Ben use SyncDescriptor
 
-		// Panel service (panel part)
-		this.panelPart = this.instantiationService.createInstance(PanelPart);
-		serviceCollection.set(IPanelService, this.panelPart); // TODO@Ben use SyncDescriptor
-
 		// Contributed services
 		const contributedServices = getServices();
 		for (let contributedService of contributedServices) {
@@ -589,7 +584,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 	private createPanelPart(): void {
 		const panelPartContainer = this.createPart(Parts.PANEL_PART, 'complementary', 'panel', this.state.panel.position === Position.BOTTOM ? 'bottom' : 'right');
 
-		this.panelPart.create(panelPartContainer);
+		this.parts.get(Parts.PANEL_PART).create(panelPartContainer);
 	}
 
 	private createEditorPart(): void {
@@ -778,6 +773,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 	private windowService: IWindowService;
 	private editorService: IEditorService;
 	private editorGroupService: IEditorGroupsService;
+	private panelService: IPanelService;
 
 	private readonly state = {
 		fullscreen: false,
@@ -981,6 +977,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		this.windowService = accessor.get(IWindowService);
 		this.editorService = accessor.get(IEditorService);
 		this.editorGroupService = accessor.get(IEditorGroupsService);
+		this.panelService = accessor.get(IPanelService);
 
 		// Fullscreen
 		this.state.fullscreen = isFullscreen();
@@ -1154,7 +1151,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			case Parts.SIDEBAR_PART:
 				return this.sidebarPart.getContainer();
 			case Parts.PANEL_PART:
-				return this.panelPart.getContainer();
+				return this.parts.get(Parts.PANEL_PART).getContainer();
 			case Parts.EDITOR_PART:
 				return this.parts.get(Parts.EDITOR_PART).getContainer();
 			case Parts.STATUSBAR_PART:
@@ -1329,6 +1326,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		const titlePart = this.parts.get(Parts.TITLEBAR_PART);
 		const editorPart = this.parts.get(Parts.EDITOR_PART);
 		const activityBar = this.parts.get(Parts.ACTIVITYBAR_PART);
+		const panelPart = this.parts.get(Parts.PANEL_PART);
 
 		if (this.configurationService.getValue('workbench.useExperimentalGridLayout')) {
 
@@ -1337,7 +1335,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			this.sideBarPartView = new View(this.sidebarPart);
 			this.activityBarPartView = new View(activityBar);
 			this.editorPartView = new View(editorPart);
-			this.panelPartView = new View(this.panelPart);
+			this.panelPartView = new View(panelPart);
 			this.statusBarPartView = new View(this.statusbarPart);
 
 			this.workbenchGrid = new Grid(this.editorPartView, { proportionalLayout: false });
@@ -1353,7 +1351,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 					activitybar: activityBar,
 					editor: editorPart,
 					sidebar: this.sidebarPart,
-					panel: this.panelPart,
+					panel: panelPart,
 					statusbar: this.statusbarPart,
 				}
 			);
@@ -1563,7 +1561,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			this.sidebarPart.hideActiveViewlet();
 
 			// Pass Focus to Editor or Panel if Sidebar is now hidden
-			const activePanel = this.panelPart.getActivePanel();
+			const activePanel = this.panelService.getActivePanel();
 			if (this.hasFocus(Parts.PANEL_PART) && activePanel) {
 				activePanel.focus();
 			} else {
@@ -1611,17 +1609,17 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		}
 
 		// If panel part becomes hidden, also hide the current active panel if any
-		if (hidden && this.panelPart.getActivePanel()) {
-			this.panelPart.hideActivePanel();
+		if (hidden && this.panelService.getActivePanel()) {
+			this.panelService.hideActivePanel();
 			this.editorGroupService.activeGroup.focus(); // Pass focus to editor group if panel part is now hidden
 		}
 
 		// If panel part becomes visible, show last active panel or default panel
-		else if (!hidden && !this.panelPart.getActivePanel()) {
-			const panelToOpen = this.panelPart.getLastActivePanelId();
+		else if (!hidden && !this.panelService.getActivePanel()) {
+			const panelToOpen = this.panelService.getLastActivePanelId();
 			if (panelToOpen) {
 				const focus = !skipLayout;
-				this.panelPart.openPanel(panelToOpen, focus);
+				this.panelService.openPanel(panelToOpen, focus);
 			}
 		}
 
@@ -1658,7 +1656,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 	isPanelMaximized(): boolean {
 		if (this.workbenchGrid instanceof Grid) {
 			try {
-				return this.workbenchGrid.getViewSize2(this.panelPartView).height === this.panelPart.maximumHeight;
+				return this.workbenchGrid.getViewSize2(this.panelPartView).height === this.parts.get(Parts.PANEL_PART).maximumHeight;
 			} catch (e) {
 				return false;
 			}
@@ -1696,6 +1694,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 	}
 
 	setPanelPosition(position: Position): void {
+		const panelPart = this.parts.get(Parts.PANEL_PART);
 		const wasHidden = this.state.panel.hidden;
 
 		if (this.state.panel.hidden) {
@@ -1719,11 +1718,11 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		this.storageService.store(Storage.PANEL_POSITION, positionToString(this.state.panel.position), StorageScope.WORKSPACE);
 
 		// Adjust CSS
-		removeClass(this.panelPart.getContainer(), oldPositionValue);
-		addClass(this.panelPart.getContainer(), newPositionValue);
+		removeClass(panelPart.getContainer(), oldPositionValue);
+		addClass(panelPart.getContainer(), newPositionValue);
 
 		// Update Styles
-		this.panelPart.updateStyles();
+		panelPart.updateStyles();
 
 		// Layout
 		if (this.workbenchGrid instanceof Grid) {

@@ -71,14 +71,16 @@ import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { timeout } from 'vs/base/common/async';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
+import { ViewletDescriptor, Viewlet } from 'vs/workbench/browser/viewlet';
 import { IViewlet } from 'vs/workbench/common/viewlet';
-import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { IDimension } from 'vs/platform/layout/browser/layoutService';
 import { Part } from 'vs/workbench/browser/part';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { IPanel } from 'vs/workbench/common/panel';
+import { IBadge } from 'vs/workbench/services/activity/common/activity';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined);
@@ -545,6 +547,91 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	public resizePart(_part: Parts, _sizeChange: number): void { }
 
 	public registerPart(part: Part): void { }
+}
+
+let activeViewlet: Viewlet = {} as any;
+
+export class TestViewletService implements IViewletService {
+	public _serviceBrand: any;
+
+	onDidViewletRegisterEmitter = new Emitter<ViewletDescriptor>();
+	onDidViewletDeregisterEmitter = new Emitter<ViewletDescriptor>();
+	onDidViewletOpenEmitter = new Emitter<IViewlet>();
+	onDidViewletCloseEmitter = new Emitter<IViewlet>();
+
+	onDidViewletRegister = this.onDidViewletRegisterEmitter.event;
+	onDidViewletDeregister = this.onDidViewletDeregisterEmitter.event;
+	onDidViewletOpen = this.onDidViewletOpenEmitter.event;
+	onDidViewletClose = this.onDidViewletCloseEmitter.event;
+
+	public openViewlet(id: string, focus?: boolean): Promise<IViewlet> {
+		return Promise.resolve(null!);
+	}
+
+	public getViewlets(): ViewletDescriptor[] {
+		return [];
+	}
+
+	public getAllViewlets(): ViewletDescriptor[] {
+		return [];
+	}
+
+	public getActiveViewlet(): IViewlet {
+		return activeViewlet;
+	}
+
+	public dispose() {
+	}
+
+	public getDefaultViewletId(): string {
+		return 'workbench.view.explorer';
+	}
+
+	public getViewlet(id: string): ViewletDescriptor | undefined {
+		return undefined;
+	}
+
+	public getProgressIndicator(id: string) {
+		return null!;
+	}
+}
+
+export class TestPanelService implements IPanelService {
+	public _serviceBrand: any;
+
+	onDidPanelOpen = new Emitter<{ panel: IPanel, focus: boolean }>().event;
+	onDidPanelClose = new Emitter<IPanel>().event;
+
+	public openPanel(id: string, focus?: boolean): IPanel {
+		return null!;
+	}
+
+	public getPanels(): any[] {
+		return [];
+	}
+
+	public getPinnedPanels(): any[] {
+		return [];
+	}
+
+	public getActivePanel(): IViewlet {
+		return activeViewlet;
+	}
+
+	public setPanelEnablement(id: string, enabled: boolean): void { }
+
+	public dispose() {
+	}
+
+	public showActivity(panelId: string, badge: IBadge, clazz?: string): IDisposable {
+		throw new Error('Method not implemented.');
+	}
+
+	public hideActivePanel(): void { }
+
+	public getLastActivePanelId(): string {
+		return undefined;
+	}
 }
 
 export class TestStorageService extends InMemoryStorageService { }
@@ -1465,28 +1552,4 @@ export class TestHashService implements IHashService {
 	createSHA1(content: string): string {
 		return content;
 	}
-}
-
-export class TestViewletService implements IViewletService {
-
-	_serviceBrand: ServiceIdentifier<any>;
-
-	readonly onDidViewletRegister: Event<ViewletDescriptor> = new Emitter<ViewletDescriptor>().event;
-	readonly onDidViewletDeregister: Event<ViewletDescriptor> = new Emitter<ViewletDescriptor>().event;
-	onDidViewletOpen: Event<IViewlet> = new Emitter<IViewlet>().event;
-	onDidViewletClose: Event<IViewlet> = new Emitter<IViewlet>().event;
-
-	openViewlet(_id: string, _focus?: boolean): Promise<IViewlet | null> { return Promise.resolve(null); }
-
-	getActiveViewlet(): IViewlet | null { return null; }
-
-	getDefaultViewletId(): string { return ''; }
-
-	getViewlet(_id: string): ViewletDescriptor | undefined { return undefined; }
-
-	getAllViewlets(): ViewletDescriptor[] { return []; }
-
-	getViewlets(): ViewletDescriptor[] { return []; }
-
-	getProgressIndicator(_id: string): IProgressService | null { return null; }
 }

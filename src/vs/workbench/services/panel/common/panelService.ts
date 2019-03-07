@@ -48,4 +48,14 @@ export interface IPanelService {
 	 * Show an activity in a panel.
 	 */
 	showActivity(panelId: string, badge: IBadge, clazz?: string): IDisposable;
+
+	/**
+	 * Hide the currently active panel.
+	 */
+	hideActivePanel(): void;
+
+	/**
+	 * Get the last active panel ID.
+	 */
+	getLastActivePanelId(): string;
 }

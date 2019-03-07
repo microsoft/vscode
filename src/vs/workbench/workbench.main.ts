@@ -86,6 +86,7 @@ import 'vs/workbench/browser/parts/quickopen/quickOpenController';
 import 'vs/workbench/browser/parts/titlebar/titlebarPart';
 import 'vs/workbench/browser/parts/editor/editorPart';
 import 'vs/workbench/browser/parts/activitybar/activitybarPart';
+import 'vs/workbench/browser/parts/panel/panelPart';
 
 registerSingleton(IMenuService, MenuService, true);
 registerSingleton(IListService, ListService, true);

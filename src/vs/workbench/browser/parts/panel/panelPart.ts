@@ -33,6 +33,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { LayoutPriority } from 'vs/base/browser/ui/grid/gridview';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 interface ICachedPanel {
 	id: string;
@@ -502,3 +503,5 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		`);
 	}
 });
+
+registerSingleton(IPanelService, PanelPart);
