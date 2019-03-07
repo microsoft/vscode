@@ -2554,7 +2554,7 @@ declare namespace monaco.editor {
 		/**
 		 * Max suggestions to show in suggestions. Defaults to 12.
 		 */
-		maxSuggestionsToShow?: boolean;
+		maxVisibileSuggestions?: boolean;
 	}
 
 	/**

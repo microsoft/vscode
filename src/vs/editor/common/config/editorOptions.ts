@@ -210,7 +210,7 @@ export interface ISuggestOptions {
 	/**
 	 * Max suggestions to show in suggestions. Defaults to 12.
 	 */
-	maxSuggestionsToShow?: boolean;
+	maxVisibileSuggestions?: boolean;
 }
 
 /**
@@ -1913,7 +1913,7 @@ export class EditorOptionsValidator {
 			localityBonus: _boolean(suggestOpts.localityBonus, defaults.localityBonus),
 			shareSuggestSelections: _boolean(suggestOpts.shareSuggestSelections, defaults.shareSuggestSelections),
 			showIcons: _boolean(suggestOpts.showIcons, defaults.showIcons),
-			maxVisibileSuggestions: _clampedInt(suggestOpts.maxSuggestionsToShow, defaults.maxVisibileSuggestions, 1, 12)
+			maxVisibileSuggestions: _clampedInt(suggestOpts.maxVisibileSuggestions, defaults.maxVisibileSuggestions, 1, 12)
 		};
 	}
 
