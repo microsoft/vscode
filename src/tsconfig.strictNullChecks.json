@@ -247,6 +247,7 @@
 		"./vs/workbench/contrib/debug/browser/debugQuickOpen.ts",
 		"./vs/workbench/contrib/debug/browser/debugToolbar.ts",
 		"./vs/workbench/contrib/debug/browser/debugStatus.ts",
+		"./vs/workbench/contrib/debug/browser/debugViewlet.ts",
 		"./vs/workbench/contrib/debug/browser/exceptionWidget.ts",
 		"./vs/workbench/contrib/debug/browser/linkDetector.ts",
 		"./vs/workbench/contrib/debug/browser/statusbarColorProvider.ts",
