@@ -40,7 +40,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { FileKind } from 'vs/platform/files/common/files';
 
 const expandSuggestionDocsByDefault = false;
-const maxSuggestionsToShow = 12;
 
 interface ISuggestionTemplateData {
 	root: HTMLElement;
@@ -466,9 +465,6 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		this.storageService = storageService;
 
 		this.element = $('.editor-widget.suggest-widget');
-		if (!this.editor.getConfiguration().contribInfo.iconsInSuggestions) {
-			addClass(this.element, 'no-icons');
-		}
 
 		this.messageElement = append(this.element, $('.message'));
 		this.listElement = append(this.element, $('.tree'));
@@ -695,6 +691,11 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 				this.focusedItem = null;
 				break;
 			case State.Open:
+				if (!this.editor.getConfiguration().contribInfo.suggest.showIcons) {
+					addClass(this.element, 'no-icons');
+				} else {
+					removeClass(this.element, 'no-icons');
+				}
 				hide(this.messageElement);
 				show(this.listElement);
 				this.show();
@@ -1037,6 +1038,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 			height = this.unfocusedHeight;
 		} else {
 			const suggestionCount = this.list.contentHeight / this.unfocusedHeight;
+			const maxSuggestionsToShow = this.editor.getConfiguration().contribInfo.suggest.maxSuggestionsToShow;
 			height = Math.min(suggestionCount, maxSuggestionsToShow) * this.unfocusedHeight;
 		}
 
@@ -1117,7 +1119,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	// Heights
 
 	private get maxWidgetHeight(): number {
-		return this.unfocusedHeight * maxSuggestionsToShow;
+		return this.unfocusedHeight * this.editor.getConfiguration().contribInfo.suggest.maxSuggestionsToShow;
 	}
 
 	private get unfocusedHeight(): number {
