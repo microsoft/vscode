@@ -199,11 +199,18 @@ export interface ISuggestOptions {
 	 * Favours words that appear close to the cursor.
 	 */
 	localityBonus?: boolean;
-
 	/**
 	 * Enable using global storage for remembering suggestions.
 	 */
 	shareSuggestSelections?: boolean;
+	/**
+	 * Enable or disable icons in suggestions. Defaults to true.
+	 */
+	showIcons?: boolean;
+	/**
+	 * Max suggestions to show in suggestions. Defaults to 12.
+	 */
+	maxSuggestionsToShow?: boolean;
 }
 
 /**
@@ -506,11 +513,6 @@ export interface IEditorOptions {
 	 * Parameter hint options.
 	 */
 	parameterHints?: IEditorParameterHintOptions;
-	/**
-	 * Render icons in suggestions box.
-	 * Defaults to true.
-	 */
-	iconsInSuggestions?: boolean;
 	/**
 	 * Options for auto closing brackets.
 	 * Defaults to language defined behavior.
@@ -923,6 +925,8 @@ export interface InternalSuggestOptions {
 	readonly snippetsPreventQuickSuggestions: boolean;
 	readonly localityBonus: boolean;
 	readonly shareSuggestSelections: boolean;
+	readonly showIcons: boolean;
+	readonly maxSuggestionsToShow: number;
 }
 
 export interface InternalParameterHintOptions {
@@ -993,7 +997,6 @@ export interface EditorContribOptions {
 	readonly quickSuggestions: boolean | { other: boolean, comments: boolean, strings: boolean };
 	readonly quickSuggestionsDelay: number;
 	readonly parameterHints: InternalParameterHintOptions;
-	readonly iconsInSuggestions: boolean;
 	readonly formatOnType: boolean;
 	readonly formatOnPaste: boolean;
 	readonly suggestOnTriggerCharacters: boolean;
@@ -1374,7 +1377,9 @@ export class InternalEditorOptions {
 				&& a.snippets === b.snippets
 				&& a.snippetsPreventQuickSuggestions === b.snippetsPreventQuickSuggestions
 				&& a.localityBonus === b.localityBonus
-				&& a.shareSuggestSelections === b.shareSuggestSelections;
+				&& a.shareSuggestSelections === b.shareSuggestSelections
+				&& a.showIcons === b.showIcons
+				&& a.maxSuggestionsToShow === b.maxSuggestionsToShow;
 		}
 	}
 
@@ -1407,7 +1412,6 @@ export class InternalEditorOptions {
 			&& InternalEditorOptions._equalsQuickSuggestions(a.quickSuggestions, b.quickSuggestions)
 			&& a.quickSuggestionsDelay === b.quickSuggestionsDelay
 			&& this._equalsParameterHintOptions(a.parameterHints, b.parameterHints)
-			&& a.iconsInSuggestions === b.iconsInSuggestions
 			&& a.formatOnType === b.formatOnType
 			&& a.formatOnPaste === b.formatOnPaste
 			&& a.suggestOnTriggerCharacters === b.suggestOnTriggerCharacters
@@ -1907,7 +1911,9 @@ export class EditorOptionsValidator {
 			snippets: _stringSet<'top' | 'bottom' | 'inline' | 'none'>(opts.snippetSuggestions, defaults.snippets, ['top', 'bottom', 'inline', 'none']),
 			snippetsPreventQuickSuggestions: _boolean(suggestOpts.snippetsPreventQuickSuggestions, defaults.filterGraceful),
 			localityBonus: _boolean(suggestOpts.localityBonus, defaults.localityBonus),
-			shareSuggestSelections: _boolean(suggestOpts.shareSuggestSelections, defaults.shareSuggestSelections)
+			shareSuggestSelections: _boolean(suggestOpts.shareSuggestSelections, defaults.shareSuggestSelections),
+			showIcons: _boolean(suggestOpts.showIcons, defaults.showIcons),
+			maxSuggestionsToShow: _clampedInt(suggestOpts.maxSuggestionsToShow, defaults.maxSuggestionsToShow, 1, 12)
 		};
 	}
 
@@ -2052,7 +2058,6 @@ export class EditorOptionsValidator {
 			quickSuggestions: quickSuggestions,
 			quickSuggestionsDelay: _clampedInt(opts.quickSuggestionsDelay, defaults.quickSuggestionsDelay, Constants.MIN_SAFE_SMALL_INTEGER, Constants.MAX_SAFE_SMALL_INTEGER),
 			parameterHints: this._sanitizeParameterHintOpts(opts.parameterHints, defaults.parameterHints),
-			iconsInSuggestions: _boolean(opts.iconsInSuggestions, defaults.iconsInSuggestions),
 			formatOnType: _boolean(opts.formatOnType, defaults.formatOnType),
 			formatOnPaste: _boolean(opts.formatOnPaste, defaults.formatOnPaste),
 			suggestOnTriggerCharacters: _boolean(opts.suggestOnTriggerCharacters, defaults.suggestOnTriggerCharacters),
@@ -2166,7 +2171,6 @@ export class InternalEditorOptionsFactory {
 				quickSuggestions: opts.contribInfo.quickSuggestions,
 				quickSuggestionsDelay: opts.contribInfo.quickSuggestionsDelay,
 				parameterHints: opts.contribInfo.parameterHints,
-				iconsInSuggestions: opts.contribInfo.iconsInSuggestions,
 				formatOnType: opts.contribInfo.formatOnType,
 				formatOnPaste: opts.contribInfo.formatOnPaste,
 				suggestOnTriggerCharacters: opts.contribInfo.suggestOnTriggerCharacters,
@@ -2651,7 +2655,6 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 			enabled: true,
 			cycle: false
 		},
-		iconsInSuggestions: true,
 		formatOnType: false,
 		formatOnPaste: false,
 		suggestOnTriggerCharacters: true,
@@ -2667,7 +2670,9 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 			snippets: 'inline',
 			snippetsPreventQuickSuggestions: true,
 			localityBonus: false,
-			shareSuggestSelections: false
+			shareSuggestSelections: false,
+			showIcons: true,
+			maxSuggestionsToShow: 12
 		},
 		selectionHighlight: true,
 		occurrencesHighlight: true,
