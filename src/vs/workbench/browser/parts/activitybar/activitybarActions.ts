@@ -23,7 +23,7 @@ import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { IActivity, IGlobalActivity } from 'vs/workbench/common/activity';
 import { ACTIVITY_BAR_FOREGROUND } from 'vs/workbench/common/theme';
-import { IActivityService } from 'vs/workbench/services/activity/common/activity';
+import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 
@@ -197,13 +197,13 @@ class SwitchSideBarViewAction extends Action {
 		id: string,
 		name: string,
 		@IViewletService private readonly viewletService: IViewletService,
-		@IActivityService private readonly activityService: IActivityService
+		@IActivityBarService private readonly activityBarService: IActivityBarService
 	) {
 		super(id, name);
 	}
 
 	run(offset: number): Promise<any> {
-		const pinnedViewletIds = this.activityService.getPinnedViewletIds();
+		const pinnedViewletIds = this.activityBarService.getPinnedViewletIds();
 
 		const activeViewlet = this.viewletService.getActiveViewlet();
 		if (!activeViewlet) {
@@ -229,9 +229,9 @@ export class PreviousSideBarViewAction extends SwitchSideBarViewAction {
 		id: string,
 		name: string,
 		@IViewletService viewletService: IViewletService,
-		@IActivityService activityService: IActivityService
+		@IActivityBarService activityBarService: IActivityBarService
 	) {
-		super(id, name, viewletService, activityService);
+		super(id, name, viewletService, activityBarService);
 	}
 
 	run(): Promise<any> {
@@ -248,9 +248,9 @@ export class NextSideBarViewAction extends SwitchSideBarViewAction {
 		id: string,
 		name: string,
 		@IViewletService viewletService: IViewletService,
-		@IActivityService activityService: IActivityService
+		@IActivityBarService activityBarService: IActivityBarService
 	) {
-		super(id, name, viewletService, activityService);
+		super(id, name, viewletService, activityBarService);
 	}
 
 	run(): Promise<any> {

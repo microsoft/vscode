@@ -97,6 +97,7 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { WorkbenchContextKeysHandler } from 'vs/workbench/browser/contextkeys';
 import { IDimension } from 'vs/platform/layout/browser/layoutService';
 import { Part } from 'vs/workbench/browser/part';
+import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 
 // import@node
 import { getDelayedChannel } from 'vs/base/parts/ipc/node/ipc';
@@ -463,6 +464,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 		// Activity service (activitybar part)
 		this.activitybarPart = this.instantiationService.createInstance(ActivitybarPart);
+		serviceCollection.set(IActivityBarService, this.activitybarPart); // TODO@Ben use SyncDescriptor
 		serviceCollection.set(IActivityService, new SyncDescriptor(ActivityService, [this.activitybarPart, this.panelPart], true));
 
 		// File Service

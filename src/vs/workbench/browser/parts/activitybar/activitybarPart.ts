@@ -14,7 +14,7 @@ import { GlobalActivityActionItem, GlobalActivityAction, ViewletActivityAction, 
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { IWorkbenchLayoutService, Parts, Position as SideBarPosition } from 'vs/workbench/services/layout/browser/layoutService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ToggleActivityBarVisibilityAction } from 'vs/workbench/browser/actions/layoutActions';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
@@ -31,6 +31,7 @@ import { IViewsService, IViewContainersRegistry, Extensions as ViewContainerExte
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { isUndefinedOrNull } from 'vs/base/common/types';
+import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 
 const SCM_VIEWLET_ID = 'workbench.view.scm';
 
@@ -43,7 +44,9 @@ interface ICachedViewlet {
 	views?: { when?: string }[];
 }
 
-export class ActivitybarPart extends Part {
+export class ActivitybarPart extends Part implements IActivityBarService {
+
+	_serviceBrand: ServiceIdentifier<any>;
 
 	private static readonly ACTION_HEIGHT = 50;
 	private static readonly PINNED_VIEWLETS = 'workbench.activity.pinnedViewlets';
