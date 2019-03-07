@@ -588,24 +588,42 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	private createCommentWidgetActions2(container: HTMLElement, model: ITextModel) {
 		let commentThread = this._commentThread as modes.CommentThread2;
 
-		[commentThread.acceptInputCommand, ...commentThread.additionalCommands.reverse()].forEach(command => {
-			if (!command) {
-				return;
-			}
-
+		if (commentThread.acceptInputCommand) {
 			const button = new Button(container);
 			this._disposables.push(attachButtonStyler(button, this.themeService));
 
-			button.label = command.title;
-			let commandId = command.id;
-			let args = command.arguments || [];
+			button.label = commentThread.acceptInputCommand.title;
 			this._disposables.push(button.onDidClick(async () => {
 				commentThread.input = {
 					uri: this._commentEditor.getModel().uri,
 					value: this._commentEditor.getValue()
 				};
 				this.commentService.setActiveCommentThread(this._commentThread);
-				await this.commandService.executeCommand(commandId, ...args);
+				await this.commandService.executeCommand(commentThread.acceptInputCommand.id, ...(commentThread.acceptInputCommand.arguments || []));
+			}));
+
+			button.enabled = model.getValueLength() > 0;
+			this._disposables.push(this._commentEditor.onDidChangeModelContent(_ => {
+				if (this._commentEditor.getValue()) {
+					button.enabled = true;
+				} else {
+					button.enabled = false;
+				}
+			}));
+		}
+
+		commentThread.additionalCommands.reverse().forEach(command => {
+			const button = new Button(container);
+			this._disposables.push(attachButtonStyler(button, this.themeService));
+
+			button.label = command.title;
+			this._disposables.push(button.onDidClick(async () => {
+				commentThread.input = {
+					uri: this._commentEditor.getModel().uri,
+					value: this._commentEditor.getValue()
+				};
+				this.commentService.setActiveCommentThread(this._commentThread);
+				await this.commandService.executeCommand(command.id, ...(command.arguments || []));
 			}));
 		});
 	}
