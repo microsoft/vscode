@@ -25,7 +25,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { WebviewElement } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeInsetController } from 'vs/workbench/contrib/codeinset/electron-browser/codeInset.contribution';
-import { IPartService, Parts } from 'vs/workbench/services/part/browser/partService';
+import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 
 @extHostNamedCustomer(MainContext.MainThreadWebviews)
 export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviver {
@@ -56,7 +56,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
-		@IPartService private readonly _partService: IPartService,
+		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 	) {
 		this._proxy = context.getProxy(ExtHostContext.ExtHostWebviews);
 		_editorService.onDidActiveEditorChange(this.onActiveEditorChanged, this, this._toDispose);
@@ -114,7 +114,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		// 4) continue to forward messages to the webview
 		const webview = this._instantiationService.createInstance(
 			WebviewElement,
-			this._partService.getContainer(Parts.EDITOR_PART),
+			this._layoutService.getContainer(Parts.EDITOR_PART),
 			{
 				useSameOriginForRoot: true,
 				extensionLocation: URI.revive(extensionLocation),

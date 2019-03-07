@@ -9,7 +9,7 @@ import { ITerminalService, TERMINAL_PANEL_ID, ITerminalInstance, IShellLaunchCon
 import { TerminalService as CommonTerminalService } from 'vs/workbench/contrib/terminal/common/terminalService';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IPartService } from 'vs/workbench/services/part/browser/partService';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { TerminalPanel } from 'vs/workbench/contrib/terminal/browser/terminalPanel';
@@ -29,7 +29,7 @@ export abstract class TerminalService extends CommonTerminalService implements I
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IPanelService panelService: IPanelService,
-		@IPartService private _partService: IPartService,
+		@IWorkbenchLayoutService private _layoutService: IWorkbenchLayoutService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IStorageService storageService: IStorageService,
 		@INotificationService notificationService: INotificationService,
@@ -176,7 +176,7 @@ export abstract class TerminalService extends CommonTerminalService implements I
 	public hidePanel(): void {
 		const panel = this._panelService.getActivePanel();
 		if (panel && panel.getId() === TERMINAL_PANEL_ID) {
-			this._partService.setPanelHidden(true);
+			this._layoutService.setPanelHidden(true);
 		}
 	}
 }

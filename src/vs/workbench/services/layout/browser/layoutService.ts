@@ -3,9 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { ServiceIdentifier, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { MenuBarVisibility } from 'vs/platform/windows/common/windows';
+import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
+
+export const IWorkbenchLayoutService = createDecorator<IWorkbenchLayoutService>('layoutService');
 
 export const enum Parts {
 	ACTIVITYBAR_PART,
@@ -32,9 +35,7 @@ export interface IDimension {
 	readonly height: number;
 }
 
-export const IPartService = createDecorator<IPartService>('partService');
-
-export interface IPartService {
+export interface IWorkbenchLayoutService extends ILayoutService {
 	_serviceBrand: ServiceIdentifier<any>;
 
 	/**

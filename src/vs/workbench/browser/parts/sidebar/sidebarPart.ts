@@ -12,7 +12,7 @@ import { Viewlet, ViewletRegistry, Extensions as ViewletExtensions, ViewletDescr
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IPartService, Parts, Position as SideBarPosition } from 'vs/workbench/services/part/browser/partService';
+import { IWorkbenchLayoutService, Parts, Position as SideBarPosition } from 'vs/workbench/services/layout/browser/layoutService';
 import { IViewlet, SidebarFocusContext, ActiveViewletContext } from 'vs/workbench/common/viewlet';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -69,7 +69,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements ISerializable
 		@IStorageService storageService: IStorageService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IPartService partService: IPartService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
@@ -81,7 +81,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements ISerializable
 			storageService,
 			telemetryService,
 			contextMenuService,
-			partService,
+			layoutService,
 			keybindingService,
 			instantiationService,
 			themeService,
@@ -158,7 +158,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements ISerializable
 		container.style.color = this.getColor(SIDE_BAR_FOREGROUND);
 
 		const borderColor = this.getColor(SIDE_BAR_BORDER) || this.getColor(contrastBorder);
-		const isPositionLeft = this.partService.getSideBarPosition() === SideBarPosition.LEFT;
+		const isPositionLeft = this.layoutService.getSideBarPosition() === SideBarPosition.LEFT;
 		container.style.borderRightWidth = borderColor && isPositionLeft ? '1px' : null;
 		container.style.borderRightStyle = borderColor && isPositionLeft ? 'solid' : null;
 		container.style.borderRightColor = isPositionLeft ? borderColor : null;
@@ -170,7 +170,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements ISerializable
 	layout(dimension: Dimension): Dimension[];
 	layout(width: number, height: number): void;
 	layout(dim1: Dimension | number, dim2?: number): Dimension[] | void {
-		if (!this.partService.isVisible(Parts.SIDEBAR_PART)) {
+		if (!this.layoutService.isVisible(Parts.SIDEBAR_PART)) {
 			if (dim1 instanceof Dimension) {
 				return [dim1];
 			}
@@ -233,10 +233,10 @@ export class SidebarPart extends CompositePart<Viewlet> implements ISerializable
 		}
 
 		// First check if sidebar is hidden and show if so
-		if (!this.partService.isVisible(Parts.SIDEBAR_PART)) {
+		if (!this.layoutService.isVisible(Parts.SIDEBAR_PART)) {
 			try {
 				this.blockOpeningViewlet = true;
-				this.partService.setSideBarHidden(false);
+				this.layoutService.setSideBarHidden(false);
 			} finally {
 				this.blockOpeningViewlet = false;
 			}
@@ -246,7 +246,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements ISerializable
 	}
 
 	protected getTitleAreaDropDownAnchorAlignment(): AnchorAlignment {
-		return this.partService.getSideBarPosition() === SideBarPosition.LEFT ? AnchorAlignment.LEFT : AnchorAlignment.RIGHT;
+		return this.layoutService.getSideBarPosition() === SideBarPosition.LEFT ? AnchorAlignment.LEFT : AnchorAlignment.RIGHT;
 	}
 
 	private onTitleAreaContextMenu(event: StandardMouseEvent): void {
@@ -281,7 +281,7 @@ class FocusSideBarAction extends Action {
 		id: string,
 		label: string,
 		@IViewletService private readonly viewletService: IViewletService,
-		@IPartService private readonly partService: IPartService
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
 		super(id, label);
 	}
@@ -289,8 +289,8 @@ class FocusSideBarAction extends Action {
 	run(): Promise<any> {
 
 		// Show side bar
-		if (!this.partService.isVisible(Parts.SIDEBAR_PART)) {
-			return Promise.resolve(this.partService.setSideBarHidden(false));
+		if (!this.layoutService.isVisible(Parts.SIDEBAR_PART)) {
+			return Promise.resolve(this.layoutService.setSideBarHidden(false));
 		}
 
 		// Focus into active viewlet

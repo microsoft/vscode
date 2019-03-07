@@ -13,7 +13,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IDebugService, State, IDebugSession, IThread, IEnablement, IBreakpoint, IStackFrame, REPL_ID }
 	from 'vs/workbench/contrib/debug/common/debug';
 import { Variable, Expression, Thread, Breakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
-import { IPartService } from 'vs/workbench/services/part/browser/partService';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
@@ -690,10 +690,10 @@ export class ToggleReplAction extends TogglePanelAction {
 	private toDispose: lifecycle.IDisposable[];
 
 	constructor(id: string, label: string,
-		@IPartService partService: IPartService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IPanelService panelService: IPanelService
 	) {
-		super(id, label, REPL_ID, panelService, partService, 'debug-action toggle-repl');
+		super(id, label, REPL_ID, panelService, layoutService, 'debug-action toggle-repl');
 		this.toDispose = [];
 		this.registerListeners();
 	}

@@ -14,7 +14,7 @@ import { Part } from 'vs/workbench/browser/part';
 import { GlobalActivityActionItem, GlobalActivityAction, ViewletActivityAction, ToggleViewletAction, PlaceHolderToggleCompositePinnedAction, PlaceHolderViewletActivityAction } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
-import { IPartService, Parts, Position as SideBarPosition } from 'vs/workbench/services/part/browser/partService';
+import { IWorkbenchLayoutService, Parts, Position as SideBarPosition } from 'vs/workbench/services/layout/browser/layoutService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ToggleActivityBarVisibilityAction } from 'vs/workbench/browser/actions/layoutActions';
@@ -73,7 +73,7 @@ export class ActivitybarPart extends Part implements ISerializableView {
 		id: string,
 		@IViewletService private readonly viewletService: IViewletService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IPartService private readonly partService: IPartService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
@@ -98,7 +98,7 @@ export class ActivitybarPart extends Part implements ISerializableView {
 			getOnCompositeClickAction: (compositeId: string) => this.instantiationService.createInstance(ToggleViewletAction, this.viewletService.getViewlet(compositeId)),
 			getContextMenuActions: () => [this.instantiationService.createInstance(ToggleActivityBarVisibilityAction, ToggleActivityBarVisibilityAction.ID, nls.localize('hideActivitBar', "Hide Activity Bar"))],
 			getDefaultCompositeId: () => this.viewletService.getDefaultViewletId(),
-			hidePart: () => this.partService.setSideBarHidden(true),
+			hidePart: () => this.layoutService.setSideBarHidden(true),
 			compositeSize: 50,
 			colors: theme => this.getActivitybarItemColors(theme),
 			overflowActionSize: ActivitybarPart.ACTION_HEIGHT
@@ -229,7 +229,7 @@ export class ActivitybarPart extends Part implements ISerializableView {
 		container.style.backgroundColor = background;
 
 		const borderColor = this.getColor(ACTIVITY_BAR_BORDER) || this.getColor(contrastBorder);
-		const isPositionLeft = this.partService.getSideBarPosition() === SideBarPosition.LEFT;
+		const isPositionLeft = this.layoutService.getSideBarPosition() === SideBarPosition.LEFT;
 		container.style.boxSizing = borderColor && isPositionLeft ? 'border-box' : null;
 		container.style.borderRightWidth = borderColor && isPositionLeft ? '1px' : null;
 		container.style.borderRightStyle = borderColor && isPositionLeft ? 'solid' : null;
@@ -367,7 +367,7 @@ export class ActivitybarPart extends Part implements ISerializableView {
 	layout(dimension: Dimension): Dimension[];
 	layout(width: number, height: number): void;
 	layout(dim1: Dimension | number, dim2?: number): Dimension[] | void {
-		if (!this.partService.isVisible(Parts.ACTIVITYBAR_PART)) {
+		if (!this.layoutService.isVisible(Parts.ACTIVITYBAR_PART)) {
 			if (dim1 instanceof Dimension) {
 				return [dim1];
 			}

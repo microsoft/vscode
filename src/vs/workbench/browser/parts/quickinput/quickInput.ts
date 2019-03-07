@@ -6,7 +6,7 @@
 import 'vs/css!./quickInput';
 import { Component } from 'vs/workbench/common/component';
 import { IQuickInputService, IQuickPickItem, IPickOptions, IInputOptions, IQuickNavigateConfiguration, IQuickPick, IQuickInput, IQuickInputButton, IInputBox, IQuickPickItemButtonEvent, QuickPickInput, IQuickPickSeparator, IKeyMods } from 'vs/platform/quickinput/common/quickInput';
-import { IPartService } from 'vs/workbench/services/part/browser/partService';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import * as dom from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -44,7 +44,6 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 
 const $ = dom.$;
 
@@ -840,7 +839,6 @@ export class QuickInputService extends Component implements IQuickInputService {
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IPartService private readonly partService: IPartService,
 		@IQuickOpenService private readonly quickOpenService: IQuickOpenService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
@@ -848,7 +846,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
-		@ILayoutService private readonly layoutService: ILayoutService
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
 		super(QuickInputService.ID, themeService, storageService);
 		this.inQuickOpenContext = InQuickOpenContextKey.bindTo(contextKeyService);
@@ -906,7 +904,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 	}
 
 	private registerKeyModsListeners() {
-		const workbench = this.partService.getWorkbenchElement();
+		const workbench = this.layoutService.getWorkbenchElement();
 		this._register(dom.addDisposableListener(workbench, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
 			switch (event.keyCode) {
@@ -938,7 +936,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 			return;
 		}
 
-		const workbench = this.partService.getWorkbenchElement();
+		const workbench = this.layoutService.getWorkbenchElement();
 		const container = dom.append(workbench, $('.quick-input-widget.show-file-icons'));
 		container.tabIndex = -1;
 		container.style.display = 'none';
@@ -1408,7 +1406,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 
 	private updateLayout() {
 		if (this.ui) {
-			const titlebarOffset = this.partService.getTitleBarOffset();
+			const titlebarOffset = this.layoutService.getTitleBarOffset();
 			this.ui.container.style.top = `${titlebarOffset}px`;
 
 			const style = this.ui.container.style;

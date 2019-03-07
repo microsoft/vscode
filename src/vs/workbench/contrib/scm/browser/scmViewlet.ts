@@ -43,7 +43,7 @@ import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IPartService } from 'vs/workbench/services/part/browser/partService';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IViewDescriptorRef, PersistentContributableViewsModel, IAddedViewDescriptorRef } from 'vs/workbench/browser/parts/views/views';
 import { IViewDescriptor, IViewsViewlet, IView } from 'vs/workbench/common/views';
 import { IPanelDndController, Panel } from 'vs/base/browser/ui/splitview/panelview';
@@ -1069,12 +1069,11 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 	private contributedViewDisposables: IDisposable[] = [];
 
 	constructor(
-		@IPartService partService: IPartService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ISCMService protected scmService: ISCMService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IContextViewService protected contextViewService: IContextViewService,
-		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService protected keybindingService: IKeybindingService,
 		@INotificationService protected notificationService: INotificationService,
 		@IContextMenuService protected contextMenuService: IContextMenuService,
@@ -1083,7 +1082,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 		@IStorageService storageService: IStorageService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(VIEWLET_ID, { showHeaderInTitleWhenSingleView: true, dnd: new SCMPanelDndController() }, configurationService, partService, contextMenuService, telemetryService, themeService, storageService);
+		super(VIEWLET_ID, { showHeaderInTitleWhenSingleView: true, dnd: new SCMPanelDndController() }, configurationService, layoutService, contextMenuService, telemetryService, themeService, storageService);
 
 		this.menus = instantiationService.createInstance(SCMMenus, undefined);
 		this.menus.onDidChangeTitle(this.updateTitleArea, this, this.disposables);

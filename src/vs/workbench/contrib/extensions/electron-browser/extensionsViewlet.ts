@@ -44,7 +44,7 @@ import { getMaliciousExtensionsSet } from 'vs/platform/extensionManagement/commo
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IWindowService } from 'vs/platform/windows/common/windows';
-import { IPartService } from 'vs/workbench/services/part/browser/partService';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IAddedViewDescriptorRef } from 'vs/workbench/browser/parts/views/views';
 import { ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { Query } from 'vs/workbench/contrib/extensions/common/extensionQuery';
@@ -280,7 +280,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 	private searchViewletState: object;
 
 	constructor(
-		@IPartService partService: IPartService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IProgressService2 private readonly progressService: IProgressService2,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -296,7 +296,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IExtensionService extensionService: IExtensionService
 	) {
-		super(VIEWLET_ID, `${VIEWLET_ID}.state`, true, configurationService, partService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
+		super(VIEWLET_ID, `${VIEWLET_ID}.state`, true, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
 
 		this.searchDelayer = new ThrottledDelayer(500);
 		this.nonEmptyWorkspaceContextKey = NonEmptyWorkspaceContext.bindTo(contextKeyService);

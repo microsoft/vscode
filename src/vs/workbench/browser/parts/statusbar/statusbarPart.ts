@@ -29,7 +29,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ISerializableView } from 'vs/base/browser/ui/grid/grid';
-import { Parts } from 'vs/workbench/services/part/browser/partService';
+import { Parts } from 'vs/workbench/services/layout/browser/layoutService';
 
 export class StatusbarPart extends Part implements IStatusbarService, ISerializableView {
 	_serviceBrand: any;
