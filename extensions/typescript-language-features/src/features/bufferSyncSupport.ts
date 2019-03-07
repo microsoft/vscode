@@ -95,8 +95,12 @@ class BufferSynchronizer {
 		}
 	}
 
-	public synchronize() {
-		if (this.supportsBatching) {
+	public beforeCommand(command: string) {
+		if (command === 'updateOpen') {
+			return;
+		}
+
+		if (!this.supportsBatching) {
 			// We've already eagerly synchronized
 			return;
 		}
@@ -367,8 +371,8 @@ export default class BufferSyncSupport extends Disposable {
 		return result;
 	}
 
-	public ensureBuffersAreSynchronized() {
-		this.synchronizer.synchronize();
+	public beforeCommand(command: string): void {
+		this.synchronizer.beforeCommand(command);
 	}
 
 	private onDidCloseTextDocument(document: vscode.TextDocument): void {
