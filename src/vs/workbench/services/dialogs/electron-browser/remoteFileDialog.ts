@@ -13,7 +13,7 @@ import { URI } from 'vs/base/common/uri';
 import { isWindows } from 'vs/base/common/platform';
 import { ISaveDialogOptions, IOpenDialogOptions, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
-import { IWindowService, IURIToOpen } from 'vs/platform/windows/common/windows';
+import { IWindowService, IURIToOpen, FileFilter } from 'vs/platform/windows/common/windows';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -36,6 +36,7 @@ export class RemoteFileDialog {
 	private acceptButton;
 	private currentFolder: URI;
 	private filePickBox: IQuickPick<FileQuickPickItem>;
+	private filters: FileFilter[] | undefined;
 	private allowFileSelection: boolean;
 	private allowFolderSelection: boolean;
 	private remoteAuthority: string | undefined;
@@ -119,6 +120,7 @@ export class RemoteFileDialog {
 	private async pickResource(options: IOpenDialogOptions, isSave: boolean = false): Promise<URI | undefined> {
 		this.allowFolderSelection = !!options.canSelectFolders;
 		this.allowFileSelection = !!options.canSelectFiles;
+		this.filters = options.filters;
 		let homedir: URI = options.defaultUri ? options.defaultUri : this.workspaceContextService.getWorkspace().folders[0].uri;
 		let trailing: string | undefined;
 		let stat: IFileStat | undefined;
@@ -490,19 +492,34 @@ export class RemoteFileDialog {
 		return sorted;
 	}
 
-	private async createItem(filename: string, parent: URI): Promise<FileQuickPickItem | null> {
+	private filterFile(file: URI): boolean {
+		if (this.filters) {
+			const ext = resources.extname(file);
+			for (let i = 0; i < this.filters.length; i++) {
+				for (let j = 0; j < this.filters[i].extensions.length; j++) {
+					if (ext === ('.' + this.filters[i].extensions[j])) {
+						return true;
+					}
+				}
+			}
+			return false;
+		}
+		return true;
+	}
+
+	private async createItem(filename: string, parent: URI): Promise<FileQuickPickItem | undefined> {
 		let fullPath = resources.joinPath(parent, filename);
 		try {
 			const stat = await this.remoteFileService.resolveFile(fullPath);
 			if (stat.isDirectory) {
 				filename = this.basenameWithTrailingSlash(fullPath);
 				return { label: filename, uri: fullPath, isFolder: true, iconClasses: getIconClasses(this.modelService, this.modeService, fullPath || undefined, FileKind.FOLDER) };
-			} else if (!stat.isDirectory && this.allowFileSelection) {
+			} else if (!stat.isDirectory && this.allowFileSelection && this.filterFile(fullPath)) {
 				return { label: filename, uri: fullPath, isFolder: false, iconClasses: getIconClasses(this.modelService, this.modeService, fullPath || undefined) };
 			}
-			return null;
+			return undefined;
 		} catch (e) {
-			return null;
+			return undefined;
 		}
 	}
 
