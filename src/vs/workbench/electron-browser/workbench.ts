@@ -169,9 +169,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 	private restored: boolean;
 	private disposed: boolean;
 
-	private editorService: EditorService;
-	private editorGroupService: IEditorGroupsService;
-
 	private instantiationService: IInstantiationService;
 	private contextService: IWorkspaceContextService;
 	private storageService: IStorageService;
@@ -185,7 +182,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 	private activitybarPart: ActivitybarPart;
 	private sidebarPart: SidebarPart;
 	private panelPart: PanelPart;
-	private editorPart: EditorPart;
 	private statusbarPart: StatusbarPart;
 
 	constructor(
@@ -321,7 +317,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		this.layout();
 
 		// Restore
-		return this.restoreWorkbench();
+		return this.instantiationService.invokeFunction(accessor => this.restoreWorkbench(accessor));
 	}
 
 	private createWorkbenchContainer(): void {
@@ -469,11 +465,8 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		serviceCollection.set(IFileService, new SyncDescriptor(RemoteFileService));
 
 		// Editor and Group services
-		this.editorPart = this.instantiationService.createInstance(EditorPart, !this.hasInitialFilesToOpen());
-		this.editorGroupService = this.editorPart;
-		serviceCollection.set(IEditorGroupsService, this.editorPart); // TODO@Ben use SyncDescriptor
-		this.editorService = this.instantiationService.createInstance(EditorService);
-		serviceCollection.set(IEditorService, this.editorService); // TODO@Ben use SyncDescriptor
+		serviceCollection.set(IEditorGroupsService, new SyncDescriptor(EditorPart, [!this.hasInitialFilesToOpen()]));
+		serviceCollection.set(IEditorService, new SyncDescriptor(EditorService));
 
 		// Contributed services
 		const contributedServices = getServices();
@@ -627,7 +620,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 	private createEditorPart(): void {
 		const editorContainer = this.createPart(Parts.EDITOR_PART, 'main', 'editor');
 
-		this.editorPart.create(editorContainer);
+		this.parts.get(Parts.EDITOR_PART).create(editorContainer);
 	}
 
 	private createStatusbarPart(): void {
@@ -676,12 +669,18 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		registerNotificationCommands(notificationsCenter, notificationsToasts);
 	}
 
-	private restoreWorkbench(): Promise<void> {
+	private restoreWorkbench(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const editorGroupService = accessor.get(IEditorGroupsService);
+		const viewletService = accessor.get(IViewletService);
+		const panelService = accessor.get(IPanelService);
+		const logService = accessor.get(ILogService);
+
 		const restorePromises: Promise<any>[] = [];
 
 		// Restore editors
 		mark('willRestoreEditors');
-		restorePromises.push(this.editorPart.whenRestored.then(() => {
+		restorePromises.push(editorGroupService.whenRestored.then(() => {
 
 			function openEditors(editors: IResourceEditor[], editorService: IEditorService) {
 				if (editors.length) {
@@ -692,19 +691,19 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			}
 
 			if (Array.isArray(this.state.editor.editorsToOpen)) {
-				return openEditors(this.state.editor.editorsToOpen, this.editorService);
+				return openEditors(this.state.editor.editorsToOpen, editorService);
 			}
 
-			return this.state.editor.editorsToOpen.then(editors => openEditors(editors, this.editorService));
+			return this.state.editor.editorsToOpen.then(editors => openEditors(editors, editorService));
 		}).then(() => mark('didRestoreEditors')));
 
 		// Restore Sidebar
 		if (this.state.sideBar.viewletToRestore) {
 			mark('willRestoreViewlet');
-			restorePromises.push(this.sidebarPart.openViewlet(this.state.sideBar.viewletToRestore)
+			restorePromises.push(viewletService.openViewlet(this.state.sideBar.viewletToRestore)
 				.then(viewlet => {
 					if (!viewlet) {
-						return this.sidebarPart.openViewlet(this.sidebarPart.getDefaultViewletId()); // fallback to default viewlet as needed
+						return viewletService.openViewlet(viewletService.getDefaultViewletId()); // fallback to default viewlet as needed
 					}
 
 					return viewlet;
@@ -715,7 +714,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		// Restore Panel
 		if (this.state.panel.panelToRestore) {
 			mark('willRestorePanel');
-			this.panelPart.openPanel(this.state.panel.panelToRestore);
+			panelService.openPanel(this.state.panel.panelToRestore);
 			mark('didRestorePanel');
 		}
 
@@ -730,7 +729,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		}
 
 		// Emit a warning after 10s if restore does not complete
-		const restoreTimeoutHandle = setTimeout(() => this.logService.warn('Workbench did not finish loading in 10 seconds, that might be a problem that should be reported.'), 10000);
+		const restoreTimeoutHandle = setTimeout(() => logService.warn('Workbench did not finish loading in 10 seconds, that might be a problem that should be reported.'), 10000);
 
 		let error: Error;
 		return Promise.all(restorePromises)
@@ -802,6 +801,8 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 	private statusBarPartView: View;
 
 	private windowService: IWindowService;
+	private editorService: IEditorService;
+	private editorGroupService: IEditorGroupsService;
 
 	private readonly state = {
 		fullscreen: false,
@@ -1002,6 +1003,8 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		const environmentService = accessor.get(IEnvironmentService);
 
 		this.windowService = accessor.get(IWindowService);
+		this.editorService = accessor.get(IEditorService);
+		this.editorGroupService = accessor.get(IEditorGroupsService);
 
 		// Fullscreen
 		this.state.fullscreen = isFullscreen();
@@ -1177,7 +1180,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			case Parts.PANEL_PART:
 				return this.panelPart.getContainer();
 			case Parts.EDITOR_PART:
-				return this.editorPart.getContainer();
+				return this.parts.get(Parts.EDITOR_PART).getContainer();
 			case Parts.STATUSBAR_PART:
 				return this.statusbarPart.getContainer();
 		}
@@ -1281,8 +1284,8 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 				this.state.zenMode.transitionDisposeables.push(this.editorService.onDidVisibleEditorsChange(() => setLineNumbers('off')));
 			}
 
-			if (config.hideTabs && this.editorPart.partOptions.showTabs) {
-				this.state.zenMode.transitionDisposeables.push(this.editorPart.enforcePartOptions({ showTabs: false }));
+			if (config.hideTabs && this.editorGroupService.partOptions.showTabs) {
+				this.state.zenMode.transitionDisposeables.push(this.editorGroupService.enforcePartOptions({ showTabs: false }));
 			}
 
 			if (config.centerLayout) {
@@ -1348,6 +1351,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 	private createWorkbenchLayout(): void {
 		const titlePart = this.parts.get(Parts.TITLEBAR_PART);
+		const editorPart = this.parts.get(Parts.EDITOR_PART);
 
 		if (this.configurationService.getValue('workbench.useExperimentalGridLayout')) {
 
@@ -1355,7 +1359,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			this.titleBarPartView = new View(titlePart);
 			this.sideBarPartView = new View(this.sidebarPart);
 			this.activityBarPartView = new View(this.activitybarPart);
-			this.editorPartView = new View(this.editorPart);
+			this.editorPartView = new View(editorPart);
 			this.panelPartView = new View(this.panelPart);
 			this.statusBarPartView = new View(this.statusbarPart);
 
@@ -1370,7 +1374,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 				{
 					titlebar: titlePart,
 					activitybar: this.activitybarPart,
-					editor: this.editorPart,
+					editor: editorPart,
 					sidebar: this.sidebarPart,
 					panel: this.panelPart,
 					statusbar: this.statusbarPart,
@@ -1503,13 +1507,13 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		this.storageService.store(Storage.CENTERED_LAYOUT_ENABLED, active, StorageScope.WORKSPACE);
 
 		let smartActive = active;
-		if (this.editorPart.groups.length > 1 && this.configurationService.getValue('workbench.editor.centeredLayoutAutoResize')) {
+		if (this.editorGroupService.groups.length > 1 && this.configurationService.getValue('workbench.editor.centeredLayoutAutoResize')) {
 			smartActive = false; // Respect the auto resize setting - do not go into centered layout if there is more than 1 group.
 		}
 
 		// Enter Centered Editor Layout
-		if (this.editorPart.isLayoutCentered() !== smartActive) {
-			this.editorPart.centerLayout(smartActive);
+		if (this.editorGroupService.isLayoutCentered() !== smartActive) {
+			this.editorGroupService.centerLayout(smartActive);
 
 			if (!skipLayout) {
 				this.layout();

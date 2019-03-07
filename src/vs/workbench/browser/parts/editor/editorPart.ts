@@ -9,14 +9,14 @@ import { Part } from 'vs/workbench/browser/part';
 import { Dimension, isAncestor, toggleClass, addClass, $ } from 'vs/base/browser/dom';
 import { Event, Emitter, Relay } from 'vs/base/common/event';
 import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { GroupDirection, IAddGroupOptions, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, ICopyEditorOptions, GroupsOrder, GroupChangeKind, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { GroupDirection, IAddGroupOptions, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, ICopyEditorOptions, GroupsOrder, GroupChangeKind, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { Direction, SerializableGrid, Sizing, ISerializedGrid, Orientation, GridBranchNode, isGridBranchNode, GridNode, createSerializedGrid, Grid } from 'vs/base/browser/ui/grid/grid';
-import { GroupIdentifier, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
+import { GroupIdentifier, IWorkbenchEditorConfiguration, IEditorPartOptions } from 'vs/workbench/common/editor';
 import { values } from 'vs/base/common/map';
 import { EDITOR_GROUP_BORDER, EDITOR_PANE_BACKGROUND } from 'vs/workbench/common/theme';
 import { distinct } from 'vs/base/common/arrays';
-import { IEditorGroupsAccessor, IEditorGroupView, IEditorPartOptions, getEditorPartOptions, impactsEditorPartOptions, IEditorPartOptionsChangeEvent, EditorGroupsServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsAccessor, IEditorGroupView, getEditorPartOptions, impactsEditorPartOptions, IEditorPartOptionsChangeEvent } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorGroupView } from 'vs/workbench/browser/parts/editor/editorGroupView';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
@@ -29,7 +29,7 @@ import { Color } from 'vs/base/common/color';
 import { CenteredViewLayout } from 'vs/base/browser/ui/centered/centeredViewLayout';
 import { IView, orthogonal, LayoutPriority } from 'vs/base/browser/ui/grid/gridview';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { Parts } from 'vs/workbench/services/layout/browser/layoutService';
+import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 
 interface IEditorPartUIState {
 	serializedGrid: ISerializedGrid;
@@ -79,7 +79,7 @@ class GridWidgetView<T extends IView> implements IView {
 	}
 }
 
-export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditorGroupsAccessor {
+export class EditorPart extends Part implements IEditorGroupsService, IEditorGroupsAccessor {
 
 	_serviceBrand: ServiceIdentifier<any>;
 
@@ -140,7 +140,8 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IStorageService storageService: IStorageService
+		@IStorageService storageService: IStorageService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
 	) {
 		super(Parts.EDITOR_PART, { hasTitle: false }, themeService, storageService);
 
@@ -152,6 +153,8 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		this.globalMemento = this.getMemento(StorageScope.GLOBAL);
 
 		this._whenRestored = new Promise(resolve => (this.whenRestoredResolve = resolve));
+
+		layoutService.registerPart(this);
 
 		this.registerListeners();
 	}

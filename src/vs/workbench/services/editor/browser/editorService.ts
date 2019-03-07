@@ -24,7 +24,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { coalesce } from 'vs/base/common/arrays';
 import { isCodeEditor, isDiffEditor, ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { IEditorGroupView, IEditorOpeningEvent, EditorGroupsServiceImpl, EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupView, IEditorOpeningEvent, EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { ILabelService } from 'vs/platform/label/common/label';
 
 type ICachedEditorInput = ResourceEditorInput | IFileEditorInput | DataUriEditorInput;
@@ -58,7 +58,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	private lastActiveGroupId: GroupIdentifier;
 
 	constructor(
-		@IEditorGroupsService private readonly editorGroupService: EditorGroupsServiceImpl,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -605,7 +605,7 @@ export class DelegatingEditorService extends EditorService {
 	private editorOpenHandler: IEditorOpenHandler;
 
 	constructor(
-		@IEditorGroupsService editorGroupService: EditorGroupsServiceImpl,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILabelService labelService: ILabelService,

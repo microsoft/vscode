@@ -11,12 +11,9 @@ import { append, $, hide } from 'vs/base/browser/dom';
 import { TestStorageService } from 'vs/workbench/test/workbenchTestServices';
 import { StorageScope } from 'vs/platform/storage/common/storage';
 import { Orientation } from 'vs/base/browser/ui/grid/grid';
-import { Event } from 'vs/base/common/event';
 
 class SimplePart extends Part {
-	onDidChange = Event.None;
 
-	element: HTMLElement;
 	minimumWidth: number;
 	maximumWidth: number;
 	minimumHeight: number;

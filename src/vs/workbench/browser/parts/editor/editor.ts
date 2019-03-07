@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { GroupIdentifier, IWorkbenchEditorConfiguration, IWorkbenchEditorPartConfiguration, EditorOptions, TextEditorOptions, IEditorInput, IEditorIdentifier, IEditorCloseEvent, IEditor } from 'vs/workbench/common/editor';
+import { GroupIdentifier, IWorkbenchEditorConfiguration, EditorOptions, TextEditorOptions, IEditorInput, IEditorIdentifier, IEditorCloseEvent, IEditor, IEditorPartOptions } from 'vs/workbench/common/editor';
 import { EditorGroup } from 'vs/workbench/common/editor/editorGroup';
-import { IEditorGroup, GroupDirection, IAddGroupOptions, IMergeGroupOptions, GroupsOrder, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, GroupDirection, IAddGroupOptions, IMergeGroupOptions, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Dimension } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
@@ -20,10 +20,6 @@ export const EDITOR_TITLE_HEIGHT = 35;
 
 export const DEFAULT_EDITOR_MIN_DIMENSIONS = new Dimension(220, 70);
 export const DEFAULT_EDITOR_MAX_DIMENSIONS = new Dimension(Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY);
-
-export interface IEditorPartOptions extends IWorkbenchEditorPartConfiguration {
-	iconTheme?: string;
-}
 
 export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	showTabs: true,
@@ -145,16 +141,4 @@ export interface EditorServiceImpl extends IEditorService {
 	 * Emitted when an editor failed to open.
 	 */
 	readonly onDidOpenEditorFail: Event<IEditorIdentifier>;
-}
-
-/**
- * A sub-interface of IEditorGroupsService to hide some workbench-core specific
- * methods from clients.
- */
-export interface EditorGroupsServiceImpl extends IEditorGroupsService {
-
-	/**
-	 * A promise that resolves when groups have been restored.
-	 */
-	readonly whenRestored: Promise<void>;
 }

@@ -16,7 +16,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { EditorGroupsServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { SidebarVisibleContext, SideBarVisibleContext } from 'vs/workbench/common/viewlet';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -49,7 +48,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWindowService private windowService: IWindowService,
 		@IEditorService private editorService: IEditorService,
-		@IEditorGroupsService private editorGroupService: EditorGroupsServiceImpl,
+		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
 		@IWorkbenchLayoutService private layoutService: IWorkbenchLayoutService,
 		@IViewletService private viewletService: IViewletService
 	) {
