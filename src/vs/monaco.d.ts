@@ -3199,7 +3199,7 @@ declare namespace monaco.editor {
 		readonly localityBonus: boolean;
 		readonly shareSuggestSelections: boolean;
 		readonly showIcons: boolean;
-		readonly maxSuggestionsToShow: number;
+		readonly maxVisibileSuggestions: number;
 	}
 
 	export interface InternalParameterHintOptions {

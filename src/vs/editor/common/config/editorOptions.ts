@@ -926,7 +926,7 @@ export interface InternalSuggestOptions {
 	readonly localityBonus: boolean;
 	readonly shareSuggestSelections: boolean;
 	readonly showIcons: boolean;
-	readonly maxSuggestionsToShow: number;
+	readonly maxVisibileSuggestions: number;
 }
 
 export interface InternalParameterHintOptions {
@@ -1379,7 +1379,7 @@ export class InternalEditorOptions {
 				&& a.localityBonus === b.localityBonus
 				&& a.shareSuggestSelections === b.shareSuggestSelections
 				&& a.showIcons === b.showIcons
-				&& a.maxSuggestionsToShow === b.maxSuggestionsToShow;
+				&& a.maxVisibileSuggestions === b.maxVisibileSuggestions;
 		}
 	}
 
@@ -1913,7 +1913,7 @@ export class EditorOptionsValidator {
 			localityBonus: _boolean(suggestOpts.localityBonus, defaults.localityBonus),
 			shareSuggestSelections: _boolean(suggestOpts.shareSuggestSelections, defaults.shareSuggestSelections),
 			showIcons: _boolean(suggestOpts.showIcons, defaults.showIcons),
-			maxSuggestionsToShow: _clampedInt(suggestOpts.maxSuggestionsToShow, defaults.maxSuggestionsToShow, 1, 12)
+			maxVisibileSuggestions: _clampedInt(suggestOpts.maxSuggestionsToShow, defaults.maxVisibileSuggestions, 1, 12)
 		};
 	}
 
@@ -2672,7 +2672,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 			localityBonus: false,
 			shareSuggestSelections: false,
 			showIcons: true,
-			maxSuggestionsToShow: 12
+			maxVisibileSuggestions: 12
 		},
 		selectionHighlight: true,
 		occurrencesHighlight: true,
