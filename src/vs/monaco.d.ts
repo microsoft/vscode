@@ -2554,7 +2554,7 @@ declare namespace monaco.editor {
 		/**
 		 * Max suggestions to show in suggestions. Defaults to 12.
 		 */
-		maxVisibileSuggestions?: boolean;
+		maxVisibleSuggestions?: boolean;
 		/**
 		 * Names of suggestion types to filter.
 		 */
@@ -3203,7 +3203,7 @@ declare namespace monaco.editor {
 		readonly localityBonus: boolean;
 		readonly shareSuggestSelections: boolean;
 		readonly showIcons: boolean;
-		readonly maxVisibileSuggestions: number;
+		readonly maxVisibleSuggestions: number;
 		readonly filteredTypes: Record<string, boolean>;
 	}
 

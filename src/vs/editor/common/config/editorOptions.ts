@@ -211,7 +211,7 @@ export interface ISuggestOptions {
 	/**
 	 * Max suggestions to show in suggestions. Defaults to 12.
 	 */
-	maxVisibileSuggestions?: boolean;
+	maxVisibleSuggestions?: boolean;
 	/**
 	 * Names of suggestion types to filter.
 	 */
@@ -931,7 +931,7 @@ export interface InternalSuggestOptions {
 	readonly localityBonus: boolean;
 	readonly shareSuggestSelections: boolean;
 	readonly showIcons: boolean;
-	readonly maxVisibileSuggestions: number;
+	readonly maxVisibleSuggestions: number;
 	readonly filteredTypes: Record<string, boolean>;
 }
 
@@ -1385,7 +1385,7 @@ export class InternalEditorOptions {
 				&& a.localityBonus === b.localityBonus
 				&& a.shareSuggestSelections === b.shareSuggestSelections
 				&& a.showIcons === b.showIcons
-				&& a.maxVisibileSuggestions === b.maxVisibileSuggestions;
+				&& a.maxVisibleSuggestions === b.maxVisibleSuggestions;
 		}
 	}
 
@@ -1919,7 +1919,7 @@ export class EditorOptionsValidator {
 			localityBonus: _boolean(suggestOpts.localityBonus, defaults.localityBonus),
 			shareSuggestSelections: _boolean(suggestOpts.shareSuggestSelections, defaults.shareSuggestSelections),
 			showIcons: _boolean(suggestOpts.showIcons, defaults.showIcons),
-			maxVisibileSuggestions: _clampedInt(suggestOpts.maxVisibileSuggestions, defaults.maxVisibileSuggestions, 1, 12),
+			maxVisibleSuggestions: _clampedInt(suggestOpts.maxVisibleSuggestions, defaults.maxVisibleSuggestions, 1, 12),
 			filteredTypes: isObject(suggestOpts.filteredTypes) ? suggestOpts.filteredTypes : Object.create(null)
 		};
 	}
@@ -2679,7 +2679,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 			localityBonus: false,
 			shareSuggestSelections: false,
 			showIcons: true,
-			maxVisibileSuggestions: 12,
+			maxVisibleSuggestions: 12,
 			filteredTypes: Object.create(null)
 		},
 		selectionHighlight: true,

@@ -164,7 +164,7 @@ suite('CompletionModel', function () {
 				localityBonus: false,
 				shareSuggestSelections: false,
 				showIcons: true,
-				maxVisibileSuggestions: 12,
+				maxVisibleSuggestions: 12,
 				filteredTypes: Object.create(null)
 			});
 
@@ -192,7 +192,7 @@ suite('CompletionModel', function () {
 				localityBonus: false,
 				shareSuggestSelections: false,
 				showIcons: true,
-				maxVisibileSuggestions: 12,
+				maxVisibleSuggestions: 12,
 				filteredTypes: Object.create(null)
 			});
 
@@ -219,7 +219,7 @@ suite('CompletionModel', function () {
 				localityBonus: false,
 				shareSuggestSelections: false,
 				showIcons: true,
-				maxVisibileSuggestions: 12,
+				maxVisibleSuggestions: 12,
 				filteredTypes: Object.create(null)
 			});
 

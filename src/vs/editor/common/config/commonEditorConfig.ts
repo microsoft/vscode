@@ -684,12 +684,12 @@ const editorConfiguration: IConfigurationNode = {
 			default: EDITOR_DEFAULTS.contribInfo.suggest.showIcons,
 			description: nls.localize('suggest.showIcons', "Controls whether to show or hide icons in suggestions.")
 		},
-		'editor.suggest.maxVisibileSuggestions': {
+		'editor.suggest.maxVisibleSuggestions': {
 			type: 'number',
-			default: EDITOR_DEFAULTS.contribInfo.suggest.maxVisibileSuggestions,
+			default: EDITOR_DEFAULTS.contribInfo.suggest.maxVisibleSuggestions,
 			minimum: 1,
 			maximum: 12,
-			description: nls.localize('suggest.maxVisibileSuggestions', "Controls how many suggestions IntelliSense will show before showing a scrollbar.")
+			description: nls.localize('suggest.maxVisibleSuggestions', "Controls how many suggestions IntelliSense will show before showing a scrollbar.")
 		},
 		'editor.suggest.filteredTypes': {
 			type: 'object',
