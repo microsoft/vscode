@@ -19,10 +19,11 @@ import { Schemas } from 'vs/base/common/network';
 import * as resources from 'vs/base/common/resources';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { RemoteFileDialog } from 'vs/workbench/services/dialogs/electron-browser/remoteFileDialog';
-import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
+import { WORKSPACE_EXTENSION, hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 interface IMassagedMessageBoxOptions {
 
@@ -168,6 +169,7 @@ export class FileDialogService implements IFileDialogService {
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ILabelService private readonly labelService: ILabelService
 	) { }
 
 	defaultFilePath(schemeFilter = this.getSchemeFilterForWindow()): URI | undefined {
@@ -361,10 +363,21 @@ export class FileDialogService implements IFileDialogService {
 	private pickRemoteResourceAndOpen(options: IOpenDialogOptions, forceNewWindow: boolean, forceOpenWorkspaceAsFile: boolean) {
 		return this.pickRemoteResource(options).then(urisToOpen => {
 			if (urisToOpen) {
+				urisToOpen.forEach(u => u.label = this.getOpenLabel(u, forceOpenWorkspaceAsFile));
 				return this.windowService.openWindow(urisToOpen, { forceNewWindow, forceOpenWorkspaceAsFile });
 			}
 			return undefined;
 		});
+	}
+
+	private getOpenLabel(u: IURIToOpen, forceOpenWorkspaceAsFile: boolean): string {
+		if (u.typeHint === 'folder') {
+			return this.labelService.getWorkspaceLabel(u.uri);
+		} else if (!forceOpenWorkspaceAsFile && hasWorkspaceFileExtension(u.uri.path)) {
+			return this.labelService.getWorkspaceLabel({ id: '', configPath: u.uri });
+		} else {
+			return this.labelService.getUriLabel(u.uri);
+		}
 	}
 
 	private pickRemoteResource(options: IOpenDialogOptions): Promise<IURIToOpen[] | undefined> {

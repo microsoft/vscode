@@ -37,6 +37,9 @@ export class WorkspacesChannel implements IServerChannel {
 				const w: IWorkspaceIdentifier = arg;
 				return this.service.deleteUntitledWorkspace({ id: w.id, configPath: URI.revive(w.configPath) });
 			}
+			case 'getWorkspaceIdentifier': {
+				return this.service.getWorkspaceIdentifier(URI.revive(arg));
+			}
 		}
 
 		throw new Error(`Call not found: ${command}`);
@@ -55,5 +58,9 @@ export class WorkspacesChannelClient implements IWorkspacesService {
 
 	deleteUntitledWorkspace(workspaceIdentifier: IWorkspaceIdentifier): Promise<void> {
 		return this.channel.call('deleteUntitledWorkspace', workspaceIdentifier);
+	}
+
+	getWorkspaceIdentifier(configPath: URI): Promise<IWorkspaceIdentifier> {
+		return this.channel.call('getWorkspaceIdentifier', configPath);
 	}
 }

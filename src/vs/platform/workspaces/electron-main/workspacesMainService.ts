@@ -68,7 +68,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 	private doResolveWorkspace(path: URI, contents: string): IResolvedWorkspace | null {
 		try {
 			const workspace = this.doParseStoredWorkspace(path, contents);
-			const workspaceIdentifier = this.getWorkspaceIdentifier(path);
+			const workspaceIdentifier = getWorkspaceIdentifier(path);
 			return {
 				id: workspaceIdentifier.id,
 				configPath: workspaceIdentifier.configPath,
@@ -143,25 +143,13 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 		}
 
 		return {
-			workspace: this.getWorkspaceIdentifier(untitledWorkspaceConfigPath),
+			workspace: getWorkspaceIdentifier(untitledWorkspaceConfigPath),
 			storedWorkspace: { folders: storedWorkspaceFolder, remoteAuthority }
 		};
 	}
 
-	getWorkspaceId(configPath: URI): string {
-		let workspaceConfigPath = configPath.scheme === Schemas.file ? originalFSPath(configPath) : configPath.toString();
-		if (!isLinux) {
-			workspaceConfigPath = workspaceConfigPath.toLowerCase(); // sanitize for platform file system
-		}
-
-		return createHash('md5').update(workspaceConfigPath).digest('hex');
-	}
-
-	getWorkspaceIdentifier(configPath: URI): IWorkspaceIdentifier {
-		return {
-			configPath,
-			id: this.getWorkspaceId(configPath)
-		};
+	getWorkspaceIdentifier(configPath: URI): Promise<IWorkspaceIdentifier> {
+		return Promise.resolve(getWorkspaceIdentifier(configPath));
 	}
 
 	isUntitledWorkspace(workspace: IWorkspaceIdentifier): boolean {
@@ -206,7 +194,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 		try {
 			const untitledWorkspacePaths = readdirSync(this.untitledWorkspacesHome.fsPath).map(folder => joinPath(this.untitledWorkspacesHome, folder, UNTITLED_WORKSPACE_NAME));
 			for (const untitledWorkspacePath of untitledWorkspacePaths) {
-				const workspace = this.getWorkspaceIdentifier(untitledWorkspacePath);
+				const workspace = getWorkspaceIdentifier(untitledWorkspacePath);
 				const resolvedWorkspace = this.resolveLocalWorkspaceSync(untitledWorkspacePath);
 				if (!resolvedWorkspace) {
 					this.doDeleteUntitledWorkspaceSync(workspace);
@@ -221,4 +209,20 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 		}
 		return untitledWorkspaces;
 	}
+}
+
+function getWorkspaceId(configPath: URI): string {
+	let workspaceConfigPath = configPath.scheme === Schemas.file ? originalFSPath(configPath) : configPath.toString();
+	if (!isLinux) {
+		workspaceConfigPath = workspaceConfigPath.toLowerCase(); // sanitize for platform file system
+	}
+
+	return createHash('md5').update(workspaceConfigPath).digest('hex');
+}
+
+export function getWorkspaceIdentifier(configPath: URI): IWorkspaceIdentifier {
+	return {
+		configPath,
+		id: getWorkspaceId(configPath)
+	};
 }

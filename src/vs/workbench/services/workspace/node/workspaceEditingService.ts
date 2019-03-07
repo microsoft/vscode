@@ -30,6 +30,7 @@ import { IFileDialogService, IDialogService } from 'vs/platform/dialogs/common/d
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 export class WorkspaceEditingService implements IWorkspaceEditingService {
 
@@ -51,7 +52,8 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IDialogService private readonly dialogService: IDialogService,
-		@ILifecycleService readonly lifecycleService: ILifecycleService
+		@ILifecycleService readonly lifecycleService: ILifecycleService,
+		@ILabelService readonly labelService: ILabelService
 	) {
 
 		lifecycleService.onBeforeShutdown(async e => {
@@ -116,9 +118,12 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 						return this.pickNewWorkspacePath().then(newWorkspacePath => {
 							if (newWorkspacePath) {
 								return this.saveWorkspaceAs(workspaceIdentifier, newWorkspacePath).then(_ => {
-									this.windowsService.addRecentlyOpened([newWorkspacePath], [], []);
-									this.workspaceService.deleteUntitledWorkspace(workspaceIdentifier);
-									return false;
+									return this.workspaceService.getWorkspaceIdentifier(newWorkspacePath).then(newWorkspaceIdentifier => {
+										const label = this.labelService.getWorkspaceLabel(newWorkspaceIdentifier);
+										this.windowsService.addRecentlyOpened([{ label, workspace: newWorkspaceIdentifier }]);
+										this.workspaceService.deleteUntitledWorkspace(workspaceIdentifier);
+										return false;
+									});
 								}, () => false);
 							}
 							return true; // keep veto if no target was provided

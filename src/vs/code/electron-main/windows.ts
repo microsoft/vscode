@@ -24,9 +24,9 @@ import { Event as CommonEvent, Emitter } from 'vs/base/common/event';
 import product from 'vs/platform/product/node/product';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWindowsMainService, IOpenConfiguration, IWindowsCountChangedEvent, ICodeWindow, IWindowState as ISingleWindowState, WindowMode } from 'vs/platform/windows/electron-main/windows';
-import { IHistoryMainService } from 'vs/platform/history/common/history';
+import { IHistoryMainService, IRecent } from 'vs/platform/history/common/history';
 import { IProcessEnvironment, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { IWorkspacesMainService, IWorkspaceIdentifier, WORKSPACE_FILTER, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspacesMainService, IWorkspaceIdentifier, WORKSPACE_FILTER, isSingleFolderWorkspaceIdentifier, hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
@@ -37,6 +37,7 @@ import { exists } from 'vs/base/node/pfs';
 import { getComparisonKey, isEqual, normalizePath, basename as resourcesBasename, originalFSPath, hasTrailingPathSeparator, removeTrailingPathSeparator } from 'vs/base/common/resources';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 import { restoreWindowsState, WindowsStateStorageData, getWindowsStateStoreData } from 'vs/code/electron-main/windowsStateStorage';
+import { getWorkspaceIdentifier } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 
 const enum WindowError {
 	UNRESPONSIVE = 1,
@@ -114,6 +115,9 @@ interface IPathToOpen extends IPath {
 
 	// indicator to create the file path in the Code instance
 	createFilePath?: boolean;
+
+	// optional label for the recent history
+	label?: string;
 }
 
 function isFolderPathToOpen(path: IPathToOpen): path is IFolderPathToOpen {
@@ -130,6 +134,9 @@ interface IFolderPathToOpen {
 
 	// the remote authority for the Code instance to open. Undefined if not remote.
 	remoteAuthority?: string;
+
+	// optional label for the recent history
+	label?: string;
 }
 
 function isWorkspacePathToOpen(path: IPathToOpen): path is IWorkspacePathToOpen {
@@ -146,6 +153,9 @@ interface IWorkspacePathToOpen {
 
 	// the remote authority for the Code instance to open. Undefined if not remote.
 	remoteAuthority?: string;
+
+	// optional label for the recent history
+	label?: string;
 }
 
 export class WindowsManager implements IWindowsMainService {
@@ -479,23 +489,18 @@ export class WindowsManager implements IWindowsMainService {
 
 		// Remember in recent document list (unless this opens for extension development)
 		// Also do not add paths when files are opened for diffing, only if opened individually
-		if (!usedWindows.some(w => w.isExtensionDevelopmentHost) && !openConfig.diffMode) {
-			const recentlyOpenedWorkspaces: Array<IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier> = [];
-			const recentlyOpenedFiles: URI[] = [];
-
-			pathsToOpen.forEach(win => {
-				if (win.workspace) {
-					recentlyOpenedWorkspaces.push(win.workspace);
-				} else if (win.folderUri) {
-					recentlyOpenedWorkspaces.push(win.folderUri);
-				} else if (win.fileUri) {
-					recentlyOpenedFiles.push(win.fileUri);
+		if (!usedWindows.some(w => w.isExtensionDevelopmentHost) && !openConfig.diffMode && !this.environmentService.skipAddToRecentlyOpened) {
+			const recents: IRecent[] = [];
+			for (let pathToOpen of pathsToOpen) {
+				if (pathToOpen.workspace) {
+					recents.push({ label: pathToOpen.label, workspace: pathToOpen.workspace });
+				} else if (pathToOpen.folderUri) {
+					recents.push({ label: pathToOpen.label, folderUri: pathToOpen.folderUri });
+				} else if (pathToOpen.fileUri) {
+					recents.push({ label: pathToOpen.label, fileUri: pathToOpen.fileUri });
 				}
-			});
-
-			if (!this.environmentService.skipAddToRecentlyOpened) {
-				this.historyMainService.addRecentlyOpened(recentlyOpenedWorkspaces, recentlyOpenedFiles);
 			}
+			this.historyMainService.addRecentlyOpened(recents);
 		}
 
 		// If we got started with --wait from the CLI, we need to signal to the outside when the window
@@ -844,6 +849,7 @@ export class WindowsManager implements IWindowsMainService {
 
 			const path = this.parseUri(pathToOpen.uri, pathToOpen.typeHint, parseOptions);
 			if (path) {
+				path.label = pathToOpen.label;
 				pathsToOpen.push(path);
 			} else {
 
@@ -1031,7 +1037,7 @@ export class WindowsManager implements IWindowsMainService {
 			}
 			if (hasWorkspaceFileExtension(uri.path) && !options.forceOpenWorkspaceAsFile) {
 				return {
-					workspace: this.workspacesMainService.getWorkspaceIdentifier(uri),
+					workspace: getWorkspaceIdentifier(uri),
 					remoteAuthority
 				};
 			}
@@ -1098,9 +1104,8 @@ export class WindowsManager implements IWindowsMainService {
 				}
 			}
 		} catch (error) {
-			this.historyMainService.removeFromRecentlyOpened([candidate]); // since file does not seem to exist anymore, remove from recent
-
 			const fileUri = URI.file(candidate);
+			this.historyMainService.removeFromRecentlyOpened([fileUri]); // since file does not seem to exist anymore, remove from recent
 			if (options && options.ignoreFileNotFound) {
 				return { fileUri, createFilePath: true, remoteAuthority }; // assume this is a file that does not yet exist
 			}
@@ -1513,7 +1518,7 @@ export class WindowsManager implements IWindowsMainService {
 	private doEnterWorkspace(win: ICodeWindow, result: IEnterWorkspaceResult): IEnterWorkspaceResult {
 
 		// Mark as recently opened
-		this.historyMainService.addRecentlyOpened([result.workspace], []);
+		this.historyMainService.addRecentlyOpened([{ workspace: result.workspace }]);
 
 		// Trigger Eevent to indicate load of workspace into window
 		this._onWindowReady.fire(win);
@@ -1968,7 +1973,7 @@ class WorkspacesManager {
 			if (!isValid) {
 				return null; // return early if the workspace is not valid
 			}
-			const workspaceIdentifier = this.workspacesMainService.getWorkspaceIdentifier(path);
+			const workspaceIdentifier = getWorkspaceIdentifier(path);
 			return this.doOpenWorkspace(window, workspaceIdentifier);
 		});
 
@@ -1984,7 +1989,7 @@ class WorkspacesManager {
 		}
 
 		// Prevent overwriting a workspace that is currently opened in another window
-		if (findWindowOnWorkspace(this.windowsMainService.getWindows(), this.workspacesMainService.getWorkspaceIdentifier(path))) {
+		if (findWindowOnWorkspace(this.windowsMainService.getWindows(), getWorkspaceIdentifier(path))) {
 			const options: Electron.MessageBoxOptions = {
 				title: product.nameLong,
 				type: 'info',

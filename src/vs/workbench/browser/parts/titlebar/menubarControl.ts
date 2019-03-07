@@ -17,8 +17,7 @@ import { isMacintosh, isLinux } from 'vs/base/common/platform';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IRecentlyOpened } from 'vs/platform/history/common/history';
-import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IRecentlyOpened, isRecentFolder, IRecent, isRecentWorkspace } from 'vs/platform/history/common/history';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { MENUBAR_SELECTION_FOREGROUND, MENUBAR_SELECTION_BACKGROUND, MENUBAR_SELECTION_BORDER, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 import { URI } from 'vs/base/common/uri';
@@ -348,26 +347,26 @@ export class MenubarControl extends Disposable {
 		return label;
 	}
 
-	private createOpenRecentMenuAction(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI, isFile: boolean): IAction & { uri: URI } {
+	private createOpenRecentMenuAction(recent: IRecent, isFile: boolean): IAction & { uri: URI } {
 
 		let label: string;
 		let uri: URI;
 		let commandId: string;
 		let typeHint: URIType | undefined;
 
-		if (isSingleFolderWorkspaceIdentifier(workspace) && !isFile) {
-			label = this.labelService.getWorkspaceLabel(workspace, { verbose: true });
-			uri = workspace;
+		if (isRecentFolder(recent)) {
+			uri = recent.folderUri;
+			label = recent.label || this.labelService.getWorkspaceLabel(uri, { verbose: true });
 			commandId = 'openRecentFolder';
 			typeHint = 'folder';
-		} else if (isWorkspaceIdentifier(workspace)) {
-			label = this.labelService.getWorkspaceLabel(workspace, { verbose: true });
-			uri = workspace.configPath;
+		} else if (isRecentWorkspace(recent)) {
+			uri = recent.workspace.configPath;
+			label = recent.label || this.labelService.getWorkspaceLabel(recent.workspace, { verbose: true });
 			commandId = 'openRecentWorkspace';
 			typeHint = 'file';
 		} else {
-			uri = workspace;
-			label = this.labelService.getUriLabel(uri);
+			uri = recent.fileUri;
+			label = recent.label || this.labelService.getUriLabel(uri);
 			commandId = 'openRecentFile';
 			typeHint = 'file';
 		}
@@ -377,7 +376,7 @@ export class MenubarControl extends Disposable {
 		const ret: IAction = new Action(commandId, label, undefined, undefined, (event) => {
 			const openInNewWindow = event && ((!isMacintosh && (event.ctrlKey || event.shiftKey)) || (isMacintosh && (event.metaKey || event.altKey)));
 
-			return this.windowService.openWindow([{ uri, typeHint }], {
+			return this.windowService.openWindow([{ uri, typeHint, label }], {
 				forceNewWindow: openInNewWindow,
 				forceOpenWorkspaceAsFile: isFile
 			});

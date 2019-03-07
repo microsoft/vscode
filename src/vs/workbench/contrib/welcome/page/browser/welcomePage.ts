@@ -28,12 +28,11 @@ import { IExtensionEnablementService, IExtensionManagementService, IExtensionGal
 import { used } from 'vs/workbench/contrib/welcome/page/browser/vs_code_welcome_page';
 import { ILifecycleService, StartupKind } from 'vs/platform/lifecycle/common/lifecycle';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { tildify, getBaseLabel } from 'vs/base/common/labels';
+import { tildify } from 'vs/base/common/labels';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { registerColor, focusBorder, textLinkForeground, textLinkActiveForeground, foreground, descriptionForeground, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
 import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
-import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IEditorInputFactory, EditorInput } from 'vs/workbench/common/editor';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { TimeoutTimer } from 'vs/base/common/async';
@@ -42,6 +41,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { joinPath } from 'vs/base/common/resources';
+import { IRecentlyOpened, isRecentWorkspace, IRecentWorkspace, IRecentFolder, isRecentFolder } from 'vs/platform/history/common/history';
 
 used();
 
@@ -289,7 +289,7 @@ class WelcomePage {
 		return this.editorService.openEditor(this.editorInput, { pinned: false });
 	}
 
-	private onReady(container: HTMLElement, recentlyOpened: Promise<{ files: URI[]; workspaces: Array<IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier>; }>, installedExtensions: Promise<IExtensionStatus[]>): void {
+	private onReady(container: HTMLElement, recentlyOpened: Promise<IRecentlyOpened>, installedExtensions: Promise<IExtensionStatus[]>): void {
 		const enabled = isWelcomePageEnabled(this.configurationService, this.contextService);
 		const showOnStartup = <HTMLInputElement>container.querySelector('#showOnStartup');
 		if (enabled) {
@@ -301,7 +301,7 @@ class WelcomePage {
 
 		recentlyOpened.then(({ workspaces }) => {
 			// Filter out the current workspace
-			workspaces = workspaces.filter(workspace => !this.contextService.isCurrentWorkspace(workspace));
+			workspaces = workspaces.filter(recent => !this.contextService.isCurrentWorkspace(isRecentWorkspace(recent) ? recent.workspace : recent.folderUri));
 			if (!workspaces.length) {
 				const recent = container.querySelector('.welcomePage') as HTMLElement;
 				recent.classList.add('emptyRecent');
@@ -339,22 +339,18 @@ class WelcomePage {
 		}));
 	}
 
-	private createListEntries(workspaces: (URI | IWorkspaceIdentifier)[]) {
-		return workspaces.map(workspace => {
+	private createListEntries(recents: (IRecentWorkspace | IRecentFolder)[]) {
+		return recents.map(recent => {
 			let label: string;
 			let resource: URI;
 			let typeHint: URIType | undefined;
-			if (isSingleFolderWorkspaceIdentifier(workspace)) {
-				resource = workspace;
-				label = this.labelService.getWorkspaceLabel(workspace);
+			if (isRecentFolder(recent)) {
+				resource = recent.folderUri;
+				label = recent.label || this.labelService.getWorkspaceLabel(recent.folderUri);
 				typeHint = 'folder';
-			} else if (isWorkspaceIdentifier(workspace)) {
-				label = this.labelService.getWorkspaceLabel(workspace);
-				resource = workspace.configPath;
-				typeHint = 'file';
 			} else {
-				label = getBaseLabel(workspace);
-				resource = URI.file(workspace);
+				label = recent.label || this.labelService.getWorkspaceLabel(recent.workspace);
+				resource = recent.workspace.configPath;
 				typeHint = 'file';
 			}
 
@@ -392,7 +388,7 @@ class WelcomePage {
 					id: 'openRecentFolder',
 					from: telemetryFrom
 				});
-				this.windowService.openWindow([{ uri: resource, typeHint }], { forceNewWindow: e.ctrlKey || e.metaKey });
+				this.windowService.openWindow([{ uri: resource, typeHint, label }], { forceNewWindow: e.ctrlKey || e.metaKey });
 				e.preventDefault();
 				e.stopPropagation();
 			});

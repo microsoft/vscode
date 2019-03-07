@@ -15,7 +15,6 @@ import * as browser from 'vs/base/browser/browser';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { webFrame } from 'electron';
 import { getBaseLabel } from 'vs/base/common/labels';
-import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { FileKind } from 'vs/platform/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { dirname } from 'vs/base/common/resources';
@@ -27,6 +26,7 @@ import product from 'vs/platform/product/node/product';
 import { ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IRecentFolder, IRecentFile, IRecentWorkspace, IRecent, isRecentFolder, isRecentWorkspace } from 'vs/platform/history/common/history';
 
 export class CloseCurrentWindowAction extends Action {
 
@@ -337,24 +337,28 @@ export abstract class BaseOpenRecentAction extends Action {
 			.then(({ workspaces, files }) => this.openRecent(workspaces, files));
 	}
 
-	private openRecent(recentWorkspaces: Array<IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier>, recentFiles: URI[]): void {
+	private openRecent(recentWorkspaces: Array<IRecentWorkspace | IRecentFolder>, recentFiles: IRecentFile[]): void {
 
-		const toPick = (workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI, fileKind: FileKind, labelService: ILabelService, buttons: IQuickInputButton[] | undefined) => {
-			let resource: URI;
-			let label: string;
-			let description: string;
-			if (isSingleFolderWorkspaceIdentifier(workspace) && fileKind !== FileKind.FILE) {
-				resource = workspace;
-				label = labelService.getWorkspaceLabel(workspace);
-				description = labelService.getUriLabel(dirname(resource)!);
-			} else if (isWorkspaceIdentifier(workspace)) {
-				resource = workspace.configPath;
-				label = labelService.getWorkspaceLabel(workspace);
-				description = labelService.getUriLabel(dirname(resource)!);
+		const toPick = (recent: IRecent, labelService: ILabelService, buttons: IQuickInputButton[] | undefined) => {
+			let resource: URI | undefined;
+			let label: string | undefined;
+			let description: string | undefined;
+			let fileKind: FileKind | undefined;
+			if (isRecentFolder(recent)) {
+				resource = recent.folderUri;
+				label = recent.label || labelService.getWorkspaceLabel(recent.folderUri);
+				description = labelService.getUriLabel(dirname(resource));
+				fileKind = FileKind.FOLDER;
+			} else if (isRecentWorkspace(recent)) {
+				resource = recent.workspace.configPath;
+				label = recent.label || labelService.getWorkspaceLabel(recent.workspace);
+				description = labelService.getUriLabel(dirname(resource));
+				fileKind = FileKind.ROOT_FOLDER;
 			} else {
-				resource = workspace;
-				label = getBaseLabel(workspace);
-				description = labelService.getUriLabel(dirname(resource)!);
+				resource = recent.fileUri;
+				label = recent.label || getBaseLabel(recent.fileUri);
+				description = labelService.getUriLabel(dirname(resource));
+				fileKind = FileKind.FILE;
 			}
 
 			return {
@@ -362,22 +366,22 @@ export abstract class BaseOpenRecentAction extends Action {
 				label,
 				description,
 				buttons,
-				workspace,
 				resource,
 				fileKind,
 			};
 		};
 
-		const runPick = (uri: URI, isFile: boolean, keyMods: IKeyMods) => {
+		const runPick = (uri: URI, isFile: boolean, keyMods: IKeyMods, label: string) => {
 			const forceNewWindow = keyMods.ctrlCmd;
-			return this.windowService.openWindow([{ uri, typeHint: isFile ? 'file' : 'folder' }], { forceNewWindow, forceOpenWorkspaceAsFile: isFile });
+			return this.windowService.openWindow([{ uri, typeHint: isFile ? 'file' : 'folder', label }], { forceNewWindow, forceOpenWorkspaceAsFile: isFile });
 		};
 
-		const workspacePicks = recentWorkspaces.map(workspace => toPick(workspace, isSingleFolderWorkspaceIdentifier(workspace) ? FileKind.FOLDER : FileKind.ROOT_FOLDER, this.labelService, !this.isQuickNavigate() ? [this.removeFromRecentlyOpened] : undefined));
-		const filePicks = recentFiles.map(p => toPick(p, FileKind.FILE, this.labelService, !this.isQuickNavigate() ? [this.removeFromRecentlyOpened] : undefined));
+		const workspacePicks = recentWorkspaces.map(workspace => toPick(workspace, this.labelService, !this.isQuickNavigate() ? [this.removeFromRecentlyOpened] : undefined));
+		const filePicks = recentFiles.map(p => toPick(p, this.labelService, !this.isQuickNavigate() ? [this.removeFromRecentlyOpened] : undefined));
 
 		// focus second entry if the first recent workspace is the current workspace
-		let autoFocusSecondEntry: boolean = recentWorkspaces[0] && this.contextService.isCurrentWorkspace(recentWorkspaces[0]);
+		const firstEntry = recentWorkspaces[0];
+		let autoFocusSecondEntry: boolean = firstEntry && this.contextService.isCurrentWorkspace(isRecentWorkspace(firstEntry) ? firstEntry.workspace : firstEntry.folderUri);
 
 		let keyMods: IKeyMods;
 		const workspaceSeparator: IQuickPickSeparator = { type: 'separator', label: nls.localize('workspaces', "workspaces") };
@@ -391,14 +395,13 @@ export abstract class BaseOpenRecentAction extends Action {
 			onKeyMods: mods => keyMods = mods,
 			quickNavigate: this.isQuickNavigate() ? { keybindings: this.keybindingService.lookupKeybindings(this.id) } : undefined,
 			onDidTriggerItemButton: context => {
-				this.windowsService.removeFromRecentlyOpened([context.item.workspace]).then(() => context.removeItem());
+				this.windowsService.removeFromRecentlyOpened([context.item.resource]).then(() => context.removeItem());
 			}
-		})
-			.then((pick): Promise<void> | void => {
-				if (pick) {
-					return runPick(pick.resource, pick.fileKind === FileKind.FILE, keyMods);
-				}
-			});
+		}).then((pick): Promise<void> | void => {
+			if (pick) {
+				return runPick(pick.resource, pick.fileKind === FileKind.FILE, keyMods, pick.label);
+			}
+		});
 	}
 }
 
