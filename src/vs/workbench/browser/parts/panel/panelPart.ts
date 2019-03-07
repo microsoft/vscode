@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/panelpart';
 import { IAction } from 'vs/base/common/actions';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IPanel, ActivePanelContext, PanelFocusContext } from 'vs/workbench/common/panel';
@@ -50,17 +50,17 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 	_serviceBrand: ServiceIdentifier<any>;
 
-	element: HTMLElement;
+	//#region IView
 
 	readonly minimumWidth: number = 300;
 	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
 	readonly minimumHeight: number = 77;
 	readonly maximumHeight: number = Number.POSITIVE_INFINITY;
+
 	readonly snapSize: number = 50;
 	readonly priority: LayoutPriority = LayoutPriority.Low;
 
-	private _onDidChange = this._register(new Emitter<{ width: number; height: number; }>());
-	get onDidChange(): Event<{ width: number, height: number }> { return this._onDidChange.event; }
+	//#endregion
 
 	get onDidPanelOpen(): Event<{ panel: IPanel, focus: boolean }> { return Event.map(this.onDidCompositeOpen.event, compositeOpen => ({ panel: compositeOpen.composite, focus: compositeOpen.focus })); }
 	get onDidPanelClose(): Event<IPanel> { return this.onDidCompositeClose.event; }
@@ -75,7 +75,6 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	private dimension: Dimension;
 
 	constructor(
-		id: string,
 		@INotificationService notificationService: INotificationService,
 		@IStorageService storageService: IStorageService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -102,7 +101,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			'panel',
 			'panel',
 			undefined,
-			id,
+			Parts.PANEL_PART,
 			{ hasTitle: true }
 		);
 

@@ -86,13 +86,6 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	private static readonly EDITOR_PART_UI_STATE_STORAGE_KEY = 'editorpart.state';
 	private static readonly EDITOR_PART_CENTERED_VIEW_STORAGE_KEY = 'editorpart.centeredview';
 
-	element: HTMLElement;
-
-	private _onDidChange = this._register(new Emitter<{ width: number; height: number; }>());
-	get onDidChange(): Event<{ width: number, height: number }> { return this._onDidChange.event; }
-
-	readonly priority: LayoutPriority = LayoutPriority.High;
-
 	//#region Events
 
 	private readonly _onDidLayout: Emitter<Dimension> = this._register(new Emitter<Dimension>());
@@ -143,14 +136,13 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	private whenRestoredResolve: () => void;
 
 	constructor(
-		id: string,
 		private restorePreviousState: boolean,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService
 	) {
-		super(id, { hasTitle: false }, themeService, storageService);
+		super(Parts.EDITOR_PART, { hasTitle: false }, themeService, storageService);
 
 		this.gridWidgetView = new GridWidgetView<IEditorGroupView>();
 
@@ -752,6 +744,8 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	//#endregion
 
 	//#region Part
+
+	readonly priority: LayoutPriority = LayoutPriority.High;
 
 	get minimumWidth(): number { return this.centeredLayoutWidget.minimumWidth; }
 	get maximumWidth(): number { return this.centeredLayoutWidget.maximumWidth; }

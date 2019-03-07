@@ -10,7 +10,7 @@ import { Dimension, size } from 'vs/base/browser/dom';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IDimension } from 'vs/platform/layout/browser/layoutService';
 import { ISerializableView, Orientation } from 'vs/base/browser/ui/grid/grid';
-import { Event } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 
 export interface IPartOptions {
 	hasTitle?: boolean;
@@ -109,9 +109,11 @@ export abstract class Part extends Component implements ISerializableView {
 
 	//#region ISerializableView
 
-	abstract onDidChange: Event<IDimension>;
+	private _onDidChange = this._register(new Emitter<{ width: number; height: number; }>());
+	get onDidChange(): Event<{ width: number, height: number }> { return this._onDidChange.event; }
 
-	abstract element: HTMLElement;
+	element: HTMLElement;
+
 	abstract minimumWidth: number;
 	abstract maximumWidth: number;
 	abstract minimumHeight: number;

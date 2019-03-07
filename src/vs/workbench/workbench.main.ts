@@ -78,6 +78,7 @@ import 'vs/workbench/services/backup/node/backupFileService';
 import 'vs/workbench/services/history/browser/history';
 import 'vs/workbench/browser/parts/quickinput/quickInput';
 import 'vs/workbench/browser/parts/quickopen/quickOpenController';
+import 'vs/workbench/browser/parts/titlebar/titlebarPart';
 
 registerSingleton(IMenuService, MenuService, true);
 registerSingleton(IListService, ListService, true);

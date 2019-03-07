@@ -27,7 +27,6 @@ import { Color } from 'vs/base/common/color';
 import { addClass, EventHelper, createStyleSheet, addDisposableListener } from 'vs/base/browser/dom';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { Event, Emitter } from 'vs/base/common/event';
 import { Parts } from 'vs/workbench/services/layout/browser/layoutService';
 
 export class StatusbarPart extends Part implements IStatusbarService {
@@ -37,27 +36,25 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	private static readonly PRIORITY_PROP = 'statusbar-entry-priority';
 	private static readonly ALIGNMENT_PROP = 'statusbar-entry-alignment';
 
-	element: HTMLElement;
+	//#region IView
 
 	readonly minimumWidth: number = 0;
 	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
 	readonly minimumHeight: number = 22;
 	readonly maximumHeight: number = 22;
 
-	private _onDidChange = this._register(new Emitter<{ width: number; height: number; }>());
-	get onDidChange(): Event<{ width: number, height: number }> { return this._onDidChange.event; }
+	//#endregion
 
 	private statusMsgDispose: IDisposable;
 	private styleElement: HTMLStyleElement;
 
 	constructor(
-		id: string,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IStorageService storageService: IStorageService
 	) {
-		super(id, { hasTitle: false }, themeService, storageService);
+		super(Parts.STATUSBAR_PART, { hasTitle: false }, themeService, storageService);
 
 		this.registerListeners();
 	}

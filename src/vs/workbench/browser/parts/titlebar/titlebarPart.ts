@@ -33,8 +33,9 @@ import { template, getBaseLabel } from 'vs/base/common/labels';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { Parts } from 'vs/workbench/services/layout/browser/layoutService';
+import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -44,16 +45,13 @@ export class TitlebarPart extends Part implements ITitleService {
 	private static readonly TITLE_DIRTY = '\u25cf ';
 	private static readonly TITLE_SEPARATOR = isMacintosh ? ' — ' : ' - '; // macOS uses special - separator
 
-	element: HTMLElement;
-
+	//#region IView
 	readonly minimumWidth: number = 0;
 	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
 	get minimumHeight(): number { return isMacintosh ? 22 / getZoomFactor() : (30 / (this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility') === 'hidden' ? getZoomFactor() : 1)); }
 	get maximumHeight(): number { return isMacintosh ? 22 / getZoomFactor() : (30 / (this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility') === 'hidden' ? getZoomFactor() : 1)); }
 
-	private _onDidChange = this._register(new Emitter<{ width: number, height: number }>());
-	get onDidChange(): Event<{ width: number, height: number }> { return this._onDidChange.event; }
-
+	//#endregion
 	private _onMenubarVisibilityChange = this._register(new Emitter<boolean>());
 	get onMenubarVisibilityChange(): Event<boolean> { return this._onMenubarVisibilityChange.event; }
 
@@ -80,7 +78,6 @@ export class TitlebarPart extends Part implements ITitleService {
 	private titleUpdater: RunOnceScheduler = this._register(new RunOnceScheduler(() => this.doUpdateTitle(), 0));
 
 	constructor(
-		id: string,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IWindowService private readonly windowService: IWindowService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -91,12 +88,15 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IStorageService storageService: IStorageService
+		@IStorageService storageService: IStorageService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
 	) {
-		super(id, { hasTitle: false }, themeService, storageService);
+		super(Parts.TITLEBAR_PART, { hasTitle: false }, themeService, storageService);
 
 		this.properties = { isPure: true, isAdmin: false };
 		this.activeEditorListeners = [];
+
+		layoutService.registerPart(this);
 
 		this.registerListeners();
 	}
@@ -630,3 +630,5 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		`);
 	}
 });
+
+registerSingleton(ITitleService, TitlebarPart);

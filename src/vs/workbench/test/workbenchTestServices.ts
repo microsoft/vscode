@@ -78,6 +78,7 @@ import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/com
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { IDimension } from 'vs/platform/layout/browser/layoutService';
+import { Part } from 'vs/workbench/browser/part';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined);
@@ -542,6 +543,8 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 
 
 	public resizePart(_part: Parts, _sizeChange: number): void { }
+
+	public registerPart(part: Part): void { }
 }
 
 export class TestStorageService extends InMemoryStorageService { }

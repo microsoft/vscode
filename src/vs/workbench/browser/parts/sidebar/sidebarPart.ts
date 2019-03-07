@@ -38,17 +38,17 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 
 	static readonly activeViewletSettingsKey = 'workbench.sidebar.activeviewletid';
 
-	element: HTMLElement;
+	//#region IView
 
 	readonly minimumWidth: number = 170;
 	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
 	readonly minimumHeight: number = 0;
 	readonly maximumHeight: number = Number.POSITIVE_INFINITY;
+
 	readonly snapSize: number = 50;
 	readonly priority: LayoutPriority = LayoutPriority.Low;
 
-	private _onDidChange = this._register(new Emitter<{ width: number; height: number; }>());
-	get onDidChange(): Event<{ width: number, height: number }> { return this._onDidChange.event; }
+	//#endregion
 
 	get onDidViewletRegister(): Event<ViewletDescriptor> { return <Event<ViewletDescriptor>>this.viewletRegistry.onDidRegister; }
 
@@ -64,7 +64,6 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 	private blockOpeningViewlet: boolean;
 
 	constructor(
-		id: string,
 		@INotificationService notificationService: INotificationService,
 		@IStorageService storageService: IStorageService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -91,7 +90,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 			'sideBar',
 			'viewlet',
 			SIDE_BAR_TITLE_FOREGROUND,
-			id,
+			Parts.SIDEBAR_PART,
 			{ hasTitle: true, borderWidth: () => (this.getColor(SIDE_BAR_BORDER) || this.getColor(contrastBorder)) ? 1 : 0 }
 		);
 

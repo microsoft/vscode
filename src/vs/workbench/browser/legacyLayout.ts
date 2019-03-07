@@ -14,13 +14,8 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { memoize } from 'vs/base/common/decorators';
 import { Dimension, getClientArea, size, position, hide, show } from 'vs/base/browser/dom';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
-import { TitlebarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
-import { ActivitybarPart } from 'vs/workbench/browser/parts/activitybar/activitybarPart';
-import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
-import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
-import { StatusbarPart } from 'vs/workbench/browser/parts/statusbar/statusbarPart';
 import { getZoomFactor } from 'vs/base/browser/browser';
+import { Part } from 'vs/workbench/browser/part';
 
 const TITLE_BAR_HEIGHT = isMacintosh ? 22 : 30;
 const STATUS_BAR_HEIGHT = 22;
@@ -67,12 +62,12 @@ export class WorkbenchLegacyLayout extends Disposable implements IVerticalSashLa
 		private parent: HTMLElement,
 		private workbenchContainer: HTMLElement,
 		private parts: {
-			titlebar: TitlebarPart,
-			activitybar: ActivitybarPart,
-			editor: EditorPart,
-			sidebar: SidebarPart,
-			panel: PanelPart,
-			statusbar: StatusbarPart
+			titlebar: Part,
+			activitybar: Part,
+			editor: Part,
+			sidebar: Part,
+			panel: Part,
+			statusbar: Part
 		},
 		@IStorageService private readonly storageService: IStorageService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
@@ -106,7 +101,7 @@ export class WorkbenchLegacyLayout extends Disposable implements IVerticalSashLa
 
 	private registerListeners(): void {
 		this._register(this.themeService.onThemeChange(_ => this.layout()));
-		this._register(this.parts.editor.onDidSizeConstraintsChange(() => this.onDidEditorSizeConstraintsChange()));
+		this._register((this.parts.editor as any).onDidSizeConstraintsChange(() => this.onDidEditorSizeConstraintsChange()));
 
 		this.registerSashListeners();
 	}
@@ -631,11 +626,11 @@ export class WorkbenchLegacyLayout extends Disposable implements IVerticalSashLa
 		}
 
 		// Propagate to Part Layouts
-		this.parts.titlebar.layout(this.workbenchSize.width, this.titlebarHeight);
-		this.parts.editor.layout(editorSize.width, editorSize.height);
-		this.parts.sidebar.layout(sidebarSize.width, sidebarSize.height);
-		this.parts.panel.layout(panelDimension.width, panelDimension.height);
-		this.parts.activitybar.layout(activityBarSize.width, activityBarSize.height);
+		this.parts.titlebar.layout(this.workbenchSize.width, this.titlebarHeight, -1);
+		this.parts.editor.layout(editorSize.width, editorSize.height, -1);
+		this.parts.sidebar.layout(sidebarSize.width, sidebarSize.height, -1);
+		this.parts.panel.layout(panelDimension.width, panelDimension.height, -1);
+		this.parts.activitybar.layout(activityBarSize.width, activityBarSize.height, -1);
 
 		// Propagate to Context View
 		this.contextViewService.layout();

@@ -24,7 +24,6 @@ import { ActivitybarPart } from 'vs/workbench/browser/parts/activitybar/activity
 import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
 import { StatusbarPart } from 'vs/workbench/browser/parts/statusbar/statusbarPart';
-import { TitlebarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs/workbench/browser/actions';
 import { PanelRegistry, Extensions as PanelExtensions } from 'vs/workbench/browser/panel';
@@ -43,7 +42,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { LifecyclePhase, StartupKind, ILifecycleService, WillShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
@@ -97,6 +96,7 @@ import { IProductService } from 'vs/platform/product/common/product';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { WorkbenchContextKeysHandler } from 'vs/workbench/browser/contextkeys';
 import { IDimension } from 'vs/platform/layout/browser/layoutService';
+import { Part } from 'vs/workbench/browser/part';
 
 // import@node
 import { getDelayedChannel } from 'vs/base/parts/ipc/node/ipc';
@@ -128,15 +128,6 @@ import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browse
 import { ExtensionService } from 'vs/workbench/services/extensions/electron-browser/extensionService';
 import { RequestService } from 'vs/platform/request/electron-browser/requestService';
 
-enum Identifiers {
-	TITLEBAR_PART = 'workbench.parts.titlebar',
-	ACTIVITYBAR_PART = 'workbench.parts.activitybar',
-	SIDEBAR_PART = 'workbench.parts.sidebar',
-	PANEL_PART = 'workbench.parts.panel',
-	EDITOR_PART = 'workbench.parts.editor',
-	STATUSBAR_PART = 'workbench.parts.statusbar'
-}
-
 enum Settings {
 	MENUBAR_VISIBLE = 'window.menuBarVisibility',
 	ACTIVITYBAR_VISIBLE = 'workbench.activityBar.visible',
@@ -163,7 +154,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 	//#region workbench
 
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<any>;
 
 	private readonly _onShutdown = this._register(new Emitter<void>());
 	get onShutdown(): Event<void> { return this._onShutdown.event; }
@@ -190,7 +181,8 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 	private logService: ILogService;
 	private windowsService: IWindowsService;
 
-	private titlebarPart: TitlebarPart;
+	private parts: Map<string, Part> = new Map<string, Part>();
+
 	private activitybarPart: ActivitybarPart;
 	private sidebarPart: SidebarPart;
 	private panelPart: PanelPart;
@@ -439,7 +431,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		serviceCollection.set(ILocalizationsService, new SyncDescriptor(LocalizationsChannelClient, [localizationsChannel]));
 
 		// Status bar
-		this.statusbarPart = this.instantiationService.createInstance(StatusbarPart, Identifiers.STATUSBAR_PART);
+		this.statusbarPart = this.instantiationService.createInstance(StatusbarPart);
 		serviceCollection.set(IStatusbarService, this.statusbarPart); // TODO@Ben use SyncDescriptor
 
 		// Context Keys
@@ -459,25 +451,25 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		}
 
 		// Viewlet service (sidebar part)
-		this.sidebarPart = this.instantiationService.createInstance(SidebarPart, Identifiers.SIDEBAR_PART);
+		this.sidebarPart = this.instantiationService.createInstance(SidebarPart);
 		serviceCollection.set(IViewletService, this.sidebarPart); // TODO@Ben use SyncDescriptor
 
 		// Panel service (panel part)
-		this.panelPart = this.instantiationService.createInstance(PanelPart, Identifiers.PANEL_PART);
+		this.panelPart = this.instantiationService.createInstance(PanelPart);
 		serviceCollection.set(IPanelService, this.panelPart); // TODO@Ben use SyncDescriptor
 
 		// Views service
 		serviceCollection.set(IViewsService, new SyncDescriptor(ViewsService));
 
 		// Activity service (activitybar part)
-		this.activitybarPart = this.instantiationService.createInstance(ActivitybarPart, Identifiers.ACTIVITYBAR_PART);
+		this.activitybarPart = this.instantiationService.createInstance(ActivitybarPart);
 		serviceCollection.set(IActivityService, new SyncDescriptor(ActivityService, [this.activitybarPart, this.panelPart], true));
 
 		// File Service
 		serviceCollection.set(IFileService, new SyncDescriptor(RemoteFileService));
 
 		// Editor and Group services
-		this.editorPart = this.instantiationService.createInstance(EditorPart, Identifiers.EDITOR_PART, !this.hasInitialFilesToOpen());
+		this.editorPart = this.instantiationService.createInstance(EditorPart, !this.hasInitialFilesToOpen());
 		this.editorGroupService = this.editorPart;
 		serviceCollection.set(IEditorGroupsService, this.editorPart); // TODO@Ben use SyncDescriptor
 		this.editorService = this.instantiationService.createInstance(EditorService);
@@ -485,10 +477,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 		// Accessibility
 		serviceCollection.set(IAccessibilityService, new SyncDescriptor(AccessibilityService, undefined, true));
-
-		// Title bar
-		this.titlebarPart = this.instantiationService.createInstance(TitlebarPart, Identifiers.TITLEBAR_PART);
-		serviceCollection.set(ITitleService, this.titlebarPart); // TODO@Ben use SyncDescriptor
 
 		// Contributed services
 		const contributedServices = getServices();
@@ -616,37 +604,37 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 	}
 
 	private createTitlebarPart(): void {
-		const titlebarContainer = this.createPart(Identifiers.TITLEBAR_PART, 'contentinfo', 'titlebar');
+		const titlebarContainer = this.createPart(Parts.TITLEBAR_PART, 'contentinfo', 'titlebar');
 
-		this.titlebarPart.create(titlebarContainer);
+		this.parts.get(Parts.TITLEBAR_PART).create(titlebarContainer);
 	}
 
 	private createActivityBarPart(): void {
-		const activitybarPartContainer = this.createPart(Identifiers.ACTIVITYBAR_PART, 'navigation', 'activitybar', this.state.sideBar.position === Position.LEFT ? 'left' : 'right');
+		const activitybarPartContainer = this.createPart(Parts.ACTIVITYBAR_PART, 'navigation', 'activitybar', this.state.sideBar.position === Position.LEFT ? 'left' : 'right');
 
 		this.activitybarPart.create(activitybarPartContainer);
 	}
 
 	private createSidebarPart(): void {
-		const sidebarPartContainer = this.createPart(Identifiers.SIDEBAR_PART, 'complementary', 'sidebar', this.state.sideBar.position === Position.LEFT ? 'left' : 'right');
+		const sidebarPartContainer = this.createPart(Parts.SIDEBAR_PART, 'complementary', 'sidebar', this.state.sideBar.position === Position.LEFT ? 'left' : 'right');
 
 		this.sidebarPart.create(sidebarPartContainer);
 	}
 
 	private createPanelPart(): void {
-		const panelPartContainer = this.createPart(Identifiers.PANEL_PART, 'complementary', 'panel', this.state.panel.position === Position.BOTTOM ? 'bottom' : 'right');
+		const panelPartContainer = this.createPart(Parts.PANEL_PART, 'complementary', 'panel', this.state.panel.position === Position.BOTTOM ? 'bottom' : 'right');
 
 		this.panelPart.create(panelPartContainer);
 	}
 
 	private createEditorPart(): void {
-		const editorContainer = this.createPart(Identifiers.EDITOR_PART, 'main', 'editor');
+		const editorContainer = this.createPart(Parts.EDITOR_PART, 'main', 'editor');
 
 		this.editorPart.create(editorContainer);
 	}
 
 	private createStatusbarPart(): void {
-		const statusbarContainer = this.createPart(Identifiers.STATUSBAR_PART, 'contentinfo', 'statusbar');
+		const statusbarContainer = this.createPart(Parts.STATUSBAR_PART, 'contentinfo', 'statusbar');
 
 		this.statusbarPart.create(statusbarContainer);
 	}
@@ -793,7 +781,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 	//#endregion
 
-	//#region IPartService
+	//#region ILayoutService
 
 	private readonly _onTitleBarVisibilityChange: Emitter<void> = this._register(new Emitter<void>());
 	get onTitleBarVisibilityChange(): Event<void> { return this._onTitleBarVisibilityChange.event; }
@@ -866,6 +854,10 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			transitionDisposeables: [] as IDisposable[]
 		}
 	};
+
+	registerPart(part: Part): void {
+		this.parts.set(part.getId(), part);
+	}
 
 	private registerLayoutListeners(accessor: ServicesAccessor): void {
 		const storageService = accessor.get(IStorageService);
@@ -1180,7 +1172,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 	getContainer(part: Parts): HTMLElement | null {
 		switch (part) {
 			case Parts.TITLEBAR_PART:
-				return this.titlebarPart.getContainer();
+				return this.parts.get(Parts.TITLEBAR_PART).getContainer();
 			case Parts.ACTIVITYBAR_PART:
 				return this.activitybarPart.getContainer();
 			case Parts.SIDEBAR_PART:
@@ -1231,7 +1223,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		let offset = 0;
 		if (this.isVisible(Parts.TITLEBAR_PART)) {
 			if (this.workbenchGrid instanceof Grid) {
-				offset = this.titlebarPart.maximumHeight;
+				offset = this.parts.get(Parts.TITLEBAR_PART).maximumHeight;
 			} else {
 				offset = this.workbenchGrid.partLayoutInfo.titlebar.height;
 
@@ -1358,10 +1350,12 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 	}
 
 	private createWorkbenchLayout(): void {
+		const titlePart = this.parts.get(Parts.TITLEBAR_PART);
+
 		if (this.configurationService.getValue('workbench.useExperimentalGridLayout')) {
 
 			// Create view wrappers for all parts
-			this.titleBarPartView = new View(this.titlebarPart);
+			this.titleBarPartView = new View(titlePart);
 			this.sideBarPartView = new View(this.sidebarPart);
 			this.activityBarPartView = new View(this.activitybarPart);
 			this.editorPartView = new View(this.editorPart);
@@ -1377,7 +1371,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 				this.container,
 				this.workbench,
 				{
-					titlebar: this.titlebarPart,
+					titlebar: titlePart,
 					activitybar: this.activitybarPart,
 					editor: this.editorPart,
 					sidebar: this.sidebarPart,
