@@ -520,6 +520,18 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 								this.ui.list.domFocus();
 							}
 							break;
+						case KeyCode.Tab:
+							// If there are no active items, tabbing shows an odd border around the entire list.
+							if (!this.activeItems || (this.activeItems.length === 0) && (this.items && (this.items.length > 0))) {
+								for (let i = 0; i < this.items.length; i++) {
+									const item = this.items[i];
+									if (item as T) {
+										this.activeItems = [<T>item];
+										break;
+									}
+								}
+							}
+							break;
 					}
 				}),
 				this.ui.onDidAccept(() => {
