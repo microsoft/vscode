@@ -9,6 +9,8 @@ import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { Dimension, size } from 'vs/base/browser/dom';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IDimension } from 'vs/platform/layout/browser/layoutService';
+import { ISerializableView, Orientation } from 'vs/base/browser/ui/grid/grid';
+import { Event } from 'vs/base/common/event';
 
 export interface IPartOptions {
 	hasTitle?: boolean;
@@ -24,7 +26,7 @@ export interface ILayoutContentResult {
  * Parts are layed out in the workbench and have their own layout that
  * arranges an optional title and mandatory content area to show content.
  */
-export abstract class Part extends Component {
+export abstract class Part extends Component implements ISerializableView {
 	private parent: HTMLElement;
 	private titleArea: HTMLElement | null;
 	private contentArea: HTMLElement | null;
@@ -104,6 +106,21 @@ export abstract class Part extends Component {
 	protected layoutContents(width: number, height: number): ILayoutContentResult {
 		return this.partLayout.layout(width, height);
 	}
+
+	//#region ISerializableView
+
+	abstract onDidChange: Event<IDimension>;
+
+	abstract element: HTMLElement;
+	abstract minimumWidth: number;
+	abstract maximumWidth: number;
+	abstract minimumHeight: number;
+	abstract maximumHeight: number;
+
+	abstract layout(width: number, height: number, orientation: Orientation): void;
+	abstract toJSON(): object;
+
+	//#endregion
 }
 
 class PartLayout {

@@ -30,10 +30,9 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ISerializableView } from 'vs/base/browser/ui/grid/grid';
 import { LayoutPriority } from 'vs/base/browser/ui/grid/gridview';
 
-export class SidebarPart extends CompositePart<Viewlet> implements ISerializableView, IViewletService {
+export class SidebarPart extends CompositePart<Viewlet> implements IViewletService {
 
 	_serviceBrand: ServiceIdentifier<any>;
 

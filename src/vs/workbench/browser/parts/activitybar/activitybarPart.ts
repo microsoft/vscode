@@ -32,7 +32,6 @@ import { IViewsService, IViewContainersRegistry, Extensions as ViewContainerExte
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { isUndefinedOrNull } from 'vs/base/common/types';
-import { ISerializableView } from 'vs/base/browser/ui/grid/grid';
 
 const SCM_VIEWLET_ID = 'workbench.view.scm';
 
@@ -45,7 +44,7 @@ interface ICachedViewlet {
 	views?: { when?: string }[];
 }
 
-export class ActivitybarPart extends Part implements ISerializableView {
+export class ActivitybarPart extends Part {
 
 	private static readonly ACTION_HEIGHT = 50;
 	private static readonly PINNED_VIEWLETS = 'workbench.activity.pinnedViewlets';

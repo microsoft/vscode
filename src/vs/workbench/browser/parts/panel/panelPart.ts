@@ -32,7 +32,6 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { ISerializableView } from 'vs/base/browser/ui/grid/grid';
 import { LayoutPriority } from 'vs/base/browser/ui/grid/gridview';
 
 interface ICachedPanel {
@@ -42,7 +41,7 @@ interface ICachedPanel {
 	visible: boolean;
 }
 
-export class PanelPart extends CompositePart<Panel> implements IPanelService, ISerializableView {
+export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 	static readonly activePanelSettingsKey = 'workbench.panelpart.activepanelid';
 
