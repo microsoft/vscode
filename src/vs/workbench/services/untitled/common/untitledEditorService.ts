@@ -96,7 +96,7 @@ export interface IUntitledEditorService {
 	/**
 	 * Suggests a filename for the given untitled resource if it is known.
 	 */
-	suggestFileName(resource: URI): string | undefined;
+	suggestFileName(resource: URI): string;
 
 	/**
 	 * Get the configured encoding for the given untitled resource if any.
@@ -266,10 +266,10 @@ export class UntitledEditorService extends Disposable implements IUntitledEditor
 		return this.mapResourceToAssociatedFilePath.has(resource);
 	}
 
-	suggestFileName(resource: URI): string | undefined {
+	suggestFileName(resource: URI): string {
 		const input = this.get(resource);
 
-		return input ? input.suggestFileName() : undefined;
+		return input ? input.suggestFileName() : 'untitled';
 	}
 
 	getEncoding(resource: URI): string | undefined {

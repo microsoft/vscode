@@ -796,7 +796,7 @@ export class TextFileService extends Disposable implements ITextFileService {
 	}
 
 	private suggestFileName(untitledResource: URI): URI {
-		const untitledFileName = this.untitledEditorService.suggestFileName(untitledResource) || 'untitled';
+		const untitledFileName = this.untitledEditorService.suggestFileName(untitledResource);
 		const remoteAuthority = this.windowService.getConfiguration().remoteAuthority;
 		const schemeFilter = remoteAuthority ? REMOTE_HOST_SCHEME : Schemas.file;
 
