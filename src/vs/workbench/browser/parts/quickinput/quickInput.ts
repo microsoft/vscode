@@ -682,11 +682,11 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 				this.selectedItemsToConfirm = null;
 			}
 		}
-		if (this.validationMessage && this.ui.message.textContent !== this.validationMessage) {
+		if (this.validationMessage) {
 			this.ui.message.textContent = this.validationMessage;
 			this.ui.inputBox.showDecoration(Severity.Error);
 		} else {
-			this.ui.message.textContent = undefined;
+			this.ui.message.textContent = null;
 			this.ui.inputBox.showDecoration(Severity.Ignore);
 		}
 		this.ui.list.matchOnDescription = this.matchOnDescription;
