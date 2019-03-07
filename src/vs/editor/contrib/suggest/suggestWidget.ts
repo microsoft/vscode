@@ -445,8 +445,6 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	private preferDocPositionTop: boolean = false;
 	private docsPositionPreviousWidgetY: number | null;
 
-	private showIcons: boolean;
-
 	constructor(
 		private readonly editor: ICodeEditor,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -467,9 +465,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		this.storageService = storageService;
 
 		this.element = $('.editor-widget.suggest-widget');
-
-		this.showIcons = this.editor.getConfiguration().contribInfo.suggest.showIcons;
-		if (!this.showIcons) {
+		if (!this.editor.getConfiguration().contribInfo.suggest.showIcons) {
 			addClass(this.element, 'no-icons');
 		}
 
