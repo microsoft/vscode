@@ -767,6 +767,7 @@ export class RepositoryPanel extends ViewletPanel {
 		super(options, keybindingService, contextMenuService, configurationService);
 
 		this.menus = instantiationService.createInstance(SCMMenus, this.repository.provider);
+		this.disposables.push(this.menus);
 		this.menus.onDidChangeTitle(this._onDidChangeTitleArea.fire, this._onDidChangeTitleArea, this.disposables);
 
 		this.contextKeyService = contextKeyService.createScoped(this.element);
