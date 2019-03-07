@@ -748,17 +748,14 @@ export class TerminalInstance implements ITerminalInstance {
 		this._disposables = lifecycle.dispose(this._disposables);
 	}
 
-	public rendererExit(result: number): void {
-		// The use of this API is for cases where there is no backing process
-		// behind a terminal instance (such as when executing an custom execution task).
-		// There is no associated string, error text, etc, as the consumer of the renderer
-		// can simply output  the text to the renderer themselves.
-		// All this code does is handle the "wait on exit" condition.
+	public rendererExit(exitCode: number): void {
+		// The use of this API is for cases where there is no backing process behind a terminal
+		// instance (eg. a custom execution task).
 		if (!this.shellLaunchConfig.isRendererOnly) {
 			throw new Error('rendererExit is only expected to be called on a renderer only terminal');
 		}
 
-		return this._onProcessOrExtensionCallbackExit(result);
+		return this._onProcessExit(exitCode);
 	}
 
 	public forceRedraw(): void {
@@ -883,7 +880,7 @@ export class TerminalInstance implements ITerminalInstance {
 	protected _createProcess(): void {
 		this._processManager = this._terminalInstanceService.createTerminalProcessManager(this._id, this._configHelper);
 		this._processManager.onProcessReady(() => this._onProcessIdReady.fire(this));
-		this._processManager.onProcessExit(exitCode => this._onProcessOrExtensionCallbackExit(exitCode));
+		this._processManager.onProcessExit(exitCode => this._onProcessExit(exitCode));
 		this._processManager.onProcessData(data => this._onData.fire(data));
 
 		if (this._shellLaunchConfig.name) {
@@ -921,10 +918,12 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	/**
-	 * Called when either a process tied to a terminal has exited or when a custom execution has completed.
-	 * @param exitCode The exit code can be undefined if the terminal was exited through user action or if a custom execution callback did not provide a exit code when it finished.
+	 * Called when either a process tied to a terminal has exited or when a terminal renderer
+	 * simulates a process exiting (eg. custom execution task).
+	 * @param exitCode The exit code of the process, this is undefined when the terminal was exited
+	 * through user action.
 	 */
-	private _onProcessOrExtensionCallbackExit(exitCode?: number): void {
+	private _onProcessExit(exitCode?: number): void {
 		this._logService.debug(`Terminal process exit (id: ${this.id}) with code ${exitCode}`);
 
 		// Prevent dispose functions being triggered multiple times
@@ -939,9 +938,7 @@ export class TerminalInstance implements ITerminalInstance {
 			exitCodeMessage = nls.localize('terminal.integrated.exitedWithCode', 'The terminal process terminated with exit code: {0}', exitCode);
 		}
 
-		if (this._processManager) {
-			this._logService.debug(`Terminal process exit (id: ${this.id}) state ${this._processManager.processState}`);
-		}
+		this._logService.debug(`Terminal process exit (id: ${this.id})${this._processManager ? ' state ' + this._processManager.processState : ''}`);
 
 		// Only trigger wait on exit when the exit was *not* triggered by the
 		// user (via the `workbench.action.terminal.kill` command).
@@ -1050,11 +1047,8 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 
 		if (this._processManager) {
-			// NOTE: The "!" operator should not be required here. But, the strict-null check
-			// tasks is giving a false positive of.
-			// src/vs/workbench/contrib/terminal/browser/terminalInstance.ts(1040,25): error TS2339: Property 'onProcessData' does not exist on type 'never'.
-			// This is because the strict-null check isn't good enough to know that the "this._createProcess" call above will
-			// reset this._processManager.
+			// The "!" operator is required here because _processManager is set to undefiend earlier
+			// and TS does not know that createProcess sets it.
 			this._processManager!.onProcessData(data => this._onProcessData(data));
 		}
 	}

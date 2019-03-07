@@ -442,9 +442,10 @@ export interface ITerminalInstance {
 	/**
 	 * Indicates that a consumer of a renderer only terminal is finished with it.
 	 *
-	 * @param result - Result code from a from a task process or custom execution. Zero indicates success, non-zero indicates failure.
+	 * @param exitCode The exit code of the terminal. Zero indicates success, non-zero indicates
+	 * failure.
 	 */
-	rendererExit(result: number): void;
+	rendererExit(exitCode: number): void;
 
 	/**
 	 * Forces the terminal to redraw its viewport.
