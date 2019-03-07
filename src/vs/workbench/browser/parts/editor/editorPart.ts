@@ -16,7 +16,7 @@ import { GroupIdentifier, IWorkbenchEditorConfiguration, IEditorPartOptions } fr
 import { values } from 'vs/base/common/map';
 import { EDITOR_GROUP_BORDER, EDITOR_PANE_BACKGROUND } from 'vs/workbench/common/theme';
 import { distinct } from 'vs/base/common/arrays';
-import { IEditorGroupsAccessor, IEditorGroupView, getEditorPartOptions, impactsEditorPartOptions, IEditorPartOptionsChangeEvent } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsAccessor, IEditorGroupView, getEditorPartOptions, impactsEditorPartOptions, IEditorPartOptionsChangeEvent, IEditorPartCreationOptions } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorGroupView } from 'vs/workbench/browser/parts/editor/editorGroupView';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
@@ -30,6 +30,7 @@ import { CenteredViewLayout } from 'vs/base/browser/ui/centered/centeredViewLayo
 import { IView, orthogonal, LayoutPriority } from 'vs/base/browser/ui/grid/gridview';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 interface IEditorPartUIState {
 	serializedGrid: ISerializedGrid;
@@ -136,7 +137,6 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	private whenRestoredResolve: () => void;
 
 	constructor(
-		private restorePreviousState: boolean,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -784,7 +784,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		this.centeredLayoutWidget.styles(separatorBorderStyle);
 	}
 
-	createContentArea(parent: HTMLElement): HTMLElement {
+	createContentArea(parent: HTMLElement, options?: IEditorPartCreationOptions): HTMLElement {
 
 		// Container
 		this.element = parent;
@@ -793,7 +793,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		parent.appendChild(this.container);
 
 		// Grid control with center layout
-		this.doCreateGridControl();
+		this.doCreateGridControl(options);
 
 		this.centeredLayoutWidget = this._register(new CenteredViewLayout(this.container, this.gridWidgetView, this.globalMemento[EditorPart.EDITOR_PART_CENTERED_VIEW_STORAGE_KEY]));
 
@@ -812,10 +812,10 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		return this.centeredLayoutWidget.isActive();
 	}
 
-	private doCreateGridControl(): void {
+	private doCreateGridControl(options?: IEditorPartCreationOptions): void {
 
 		// Grid Widget (with previous UI state)
-		if (this.restorePreviousState) {
+		if (!options || options.restorePreviousState) {
 			this.doCreateGridControlWithPreviousState();
 		}
 
@@ -1024,3 +1024,5 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		};
 	}
 }
+
+registerSingleton(IEditorGroupsService, EditorPart);

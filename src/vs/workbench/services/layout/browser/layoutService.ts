@@ -32,17 +32,18 @@ export interface ILayoutOptions {
 }
 
 export interface IWorkbenchLayoutService extends ILayoutService {
+
 	_serviceBrand: ServiceIdentifier<any>;
 
 	/**
 	 * Emits when the visibility of the title bar changes.
 	 */
-	onTitleBarVisibilityChange: Event<void>;
+	readonly onTitleBarVisibilityChange: Event<void>;
 
 	/**
 	 * Emits when the zen mode is enabled or disabled.
 	 */
-	onZenModeChange: Event<boolean>;
+	readonly onZenModeChange: Event<boolean>;
 
 	/**
 	 * Asks the part service if all parts have been fully restored. For editor part

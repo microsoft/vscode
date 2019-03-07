@@ -55,10 +55,10 @@ export abstract class Part extends Component implements ISerializableView {
 	 *
 	 * Called to create title and content area of the part.
 	 */
-	create(parent: HTMLElement): void {
+	create(parent: HTMLElement, options?: object): void {
 		this.parent = parent;
-		this.titleArea = this.createTitleArea(parent);
-		this.contentArea = this.createContentArea(parent);
+		this.titleArea = this.createTitleArea(parent, options);
+		this.contentArea = this.createContentArea(parent, options);
 
 		this.partLayout = new PartLayout(this.parent, this.options, this.titleArea, this.contentArea);
 
@@ -75,7 +75,7 @@ export abstract class Part extends Component implements ISerializableView {
 	/**
 	 * Subclasses override to provide a title area implementation.
 	 */
-	protected createTitleArea(parent: HTMLElement): HTMLElement | null {
+	protected createTitleArea(parent: HTMLElement, options?: object): HTMLElement | null {
 		return null;
 	}
 
@@ -89,7 +89,7 @@ export abstract class Part extends Component implements ISerializableView {
 	/**
 	 * Subclasses override to provide a content area implementation.
 	 */
-	protected createContentArea(parent: HTMLElement): HTMLElement | null {
+	protected createContentArea(parent: HTMLElement, options?: object): HTMLElement | null {
 		return null;
 	}
 

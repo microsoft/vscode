@@ -24,7 +24,6 @@ import { ActivitybarPart } from 'vs/workbench/browser/parts/activitybar/activity
 import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
 import { StatusbarPart } from 'vs/workbench/browser/parts/statusbar/statusbarPart';
-import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs/workbench/browser/actions';
 import { PanelRegistry, Extensions as PanelExtensions } from 'vs/workbench/browser/panel';
 import { ViewletRegistry, Extensions as ViewletExtensions } from 'vs/workbench/browser/viewlet';
@@ -62,7 +61,6 @@ import { registerNotificationCommands } from 'vs/workbench/browser/parts/notific
 import { NotificationsToasts } from 'vs/workbench/browser/parts/notifications/notificationsToasts';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { Sizing, Direction, Grid, View } from 'vs/base/browser/ui/grid/grid';
@@ -464,10 +462,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		// File Service
 		serviceCollection.set(IFileService, new SyncDescriptor(RemoteFileService));
 
-		// Editor and Group services
-		serviceCollection.set(IEditorGroupsService, new SyncDescriptor(EditorPart, [!this.hasInitialFilesToOpen()]));
-		serviceCollection.set(IEditorService, new SyncDescriptor(EditorService));
-
 		// Contributed services
 		const contributedServices = getServices();
 		for (let contributedService of contributedServices) {
@@ -620,7 +614,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 	private createEditorPart(): void {
 		const editorContainer = this.createPart(Parts.EDITOR_PART, 'main', 'editor');
 
-		this.parts.get(Parts.EDITOR_PART).create(editorContainer);
+		this.parts.get(Parts.EDITOR_PART).create(editorContainer, { restorePreviousState: !this.hasInitialFilesToOpen() });
 	}
 
 	private createStatusbarPart(): void {
