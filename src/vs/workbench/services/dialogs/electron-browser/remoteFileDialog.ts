@@ -204,6 +204,8 @@ export class RemoteFileDialog {
 						isResolved = true;
 						this.filePickBox.hide();
 						resolve(resolveValue);
+					} else {
+						isAcceptHandled = false;
 					}
 				});
 			});
@@ -213,6 +215,7 @@ export class RemoteFileDialog {
 
 			this.filePickBox.onDidChangeValue(async value => {
 				if (value !== this.userValue) {
+					this.filePickBox.validationMessage = undefined;
 					const trimmedPickBoxValue = ((this.filePickBox.value.length > 1) && this.endsWithSlash(this.filePickBox.value)) ? this.filePickBox.value.substr(0, this.filePickBox.value.length - 1) : this.filePickBox.value;
 					const valueUri = this.remoteUriFrom(trimmedPickBoxValue);
 					if (!resources.isEqual(this.currentFolder, valueUri, true)) {
@@ -259,7 +262,7 @@ export class RemoteFileDialog {
 		if (this.filePickBox.activeItems.length === 0) {
 			if (!this.requiresTrailing && resources.isEqual(this.currentFolder, inputUri, true)) {
 				resolveValue = inputUri;
-			} else if (this.requiresTrailing && statDirname && statDirname.isDirectory) {
+			} else if (statDirname && statDirname.isDirectory) {
 				resolveValue = inputUri;
 			} else if (stat && stat.isDirectory) {
 				navigateValue = inputUri;
@@ -349,26 +352,33 @@ export class RemoteFileDialog {
 		if (this.requiresTrailing) { // save
 			if (stat && stat.isDirectory) {
 				// Can't do this
+				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateFolder', 'The folder already exists. Please use a new file name.');
 				return Promise.resolve(false);
 			} else if (stat) {
 				// This is replacing a file. Not supported yet.
+				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateExisting', 'The file already exists. Please use a new file name.');
 				return Promise.resolve(false);
 			} else if (!this.isValidBaseName(resources.basename(uri))) {
 				// Filename not allowed
+				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateBadFilename', 'Please enter a valid file name.');
 				return Promise.resolve(false);
 			} else if (!statDirname || !statDirname.isDirectory) {
 				// Folder to save in doesn't exist
+				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateNonexistentDir', 'Please enter a path that exists.');
 				return Promise.resolve(false);
 			}
 		} else { // open
 			if (!stat) {
 				// File or folder doesn't exist
+				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateNonexistentDir', 'Please enter a path that exists.');
 				return Promise.resolve(false);
 			} else if (stat.isDirectory && !this.allowFolderSelection) {
 				// Folder selected when folder selection not permitted
+				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateFileOnly', 'Please select a file.');
 				return Promise.resolve(false);
 			} else if (!stat.isDirectory && !this.allowFileSelection) {
 				// File selected when file selection not permitted
+				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateFolderOnly', 'Please select a folder.');
 				return Promise.resolve(false);
 			}
 		}

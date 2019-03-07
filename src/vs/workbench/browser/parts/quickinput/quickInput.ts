@@ -330,6 +330,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	private onDidTriggerItemButtonEmitter = new Emitter<IQuickPickItemButtonEvent<T>>();
 	private _valueSelection: Readonly<[number, number]>;
 	private valueSelectionUpdated = true;
+	private _validationMessage: string;
 
 	quickNavigate: IQuickNavigateConfiguration;
 
@@ -450,6 +451,15 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	set valueSelection(valueSelection: Readonly<[number, number]>) {
 		this._valueSelection = valueSelection;
 		this.valueSelectionUpdated = true;
+		this.update();
+	}
+
+	get validationMessage() {
+		return this._validationMessage;
+	}
+
+	set validationMessage(validationMessage: string) {
+		this._validationMessage = validationMessage;
 		this.update();
 	}
 
@@ -672,12 +682,19 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 				this.selectedItemsToConfirm = null;
 			}
 		}
+		if (this.validationMessage) {
+			this.ui.message.textContent = this.validationMessage;
+			this.ui.inputBox.showDecoration(Severity.Error);
+		} else {
+			this.ui.message.textContent = null;
+			this.ui.inputBox.showDecoration(Severity.Ignore);
+		}
 		this.ui.list.matchOnDescription = this.matchOnDescription;
 		this.ui.list.matchOnDetail = this.matchOnDetail;
 		this.ui.list.matchOnLabel = this.matchOnLabel;
 		this.ui.setComboboxAccessibility(true);
 		this.ui.inputBox.setAttribute('aria-label', QuickPick.INPUT_BOX_ARIA_LABEL);
-		this.ui.setVisibilities(this.canSelectMany ? { title: !!this.title || !!this.step, checkAll: true, inputBox: true, visibleCount: true, count: true, ok: true, list: true } : { title: !!this.title || !!this.step, inputBox: true, visibleCount: true, list: true });
+		this.ui.setVisibilities(this.canSelectMany ? { title: !!this.title || !!this.step, checkAll: true, inputBox: true, visibleCount: true, count: true, ok: true, list: true, message: !!this.validationMessage } : { title: !!this.title || !!this.step, inputBox: true, visibleCount: true, list: true, message: !!this.validationMessage });
 	}
 }
 
