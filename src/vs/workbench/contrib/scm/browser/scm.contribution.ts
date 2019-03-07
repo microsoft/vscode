@@ -14,7 +14,7 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { StatusUpdater, StatusBarController } from './scmActivity';
-import { SCMViewlet, MainPanel } from 'vs/workbench/contrib/scm/browser/scmViewlet';
+import { SCMViewlet } from 'vs/workbench/contrib/scm/browser/scmViewlet';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -24,7 +24,6 @@ import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/co
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { SCMService } from 'vs/workbench/contrib/scm/common/scmService';
-import { ViewsRegistry, IViewContainersRegistry, Extensions as ViewContainerExtensions } from 'vs/workbench/common/views';
 
 class OpenSCMViewletAction extends ShowViewletAction {
 
@@ -46,8 +45,6 @@ Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new Vie
 	'scm',
 	2
 ));
-
-// ViewsRegistry.registerViews([{ id: MainPanel.ID, name: MainPanel.TITLE, ctor: MainPanel, order: 10, weight: 40, canToggleVisibility: true }], VIEW_CONTAINER);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(StatusUpdater, LifecyclePhase.Restored);
@@ -74,9 +71,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	type: 'object',
 	properties: {
 		'scm.alwaysShowProviders': {
-			type: 'boolean',
-			description: localize('alwaysShowProviders', "Controls whether to always show the Source Control Provider section."),
-			default: false
+			deprecationMessage: localize('alwaysShowProviders.deprecated', "This setting is deprecated. You can control the SCM Providers view just like any other view, using the context menu in the SCM view.")
 		},
 		'scm.diffDecorations': {
 			type: 'string',
