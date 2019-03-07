@@ -40,10 +40,6 @@ export class MainThreadSearch implements MainThreadSearchShape {
 		this._searchProvider.set(handle, new RemoteSearchProvider(this._searchService, SearchProviderType.file, scheme, handle, this._proxy));
 	}
 
-	$registerFileIndexProvider(handle: number, scheme: string): void {
-		this._searchProvider.set(handle, new RemoteSearchProvider(this._searchService, SearchProviderType.fileIndex, scheme, handle, this._proxy));
-	}
-
 	$unregisterProvider(handle: number): void {
 		dispose(this._searchProvider.get(handle));
 		this._searchProvider.delete(handle);

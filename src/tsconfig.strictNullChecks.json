@@ -103,7 +103,6 @@
 		"./vs/workbench/api/node/extHostProgress.ts",
 		"./vs/workbench/api/node/extHostQuickOpen.ts",
 		"./vs/workbench/api/node/extHostSCM.ts",
-		"./vs/workbench/api/node/extHostSearch.fileIndex.ts",
 		"./vs/workbench/api/node/extHostSearch.ts",
 		"./vs/workbench/api/node/extHostStorage.ts",
 		"./vs/workbench/api/node/extHostTextEditor.ts",
