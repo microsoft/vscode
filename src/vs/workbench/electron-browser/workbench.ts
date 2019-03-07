@@ -65,10 +65,8 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { combinedAppender, LogAppender, NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IExtensionGalleryService, IExtensionManagementServerService, IExtensionManagementService, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionGalleryService, IExtensionManagementServerService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { ExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 import { IProductService } from 'vs/platform/product/common/product';
 import { WorkbenchContextKeysHandler } from 'vs/workbench/browser/contextkeys';
@@ -98,7 +96,6 @@ import { LifecycleService } from 'vs/platform/lifecycle/electron-browser/lifecyc
 import { WindowService } from 'vs/platform/windows/electron-browser/windowService';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-browser/remoteAuthorityResolverService';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
-import { ExtensionService } from 'vs/workbench/services/extensions/electron-browser/extensionService';
 import { RequestService } from 'vs/platform/request/electron-browser/requestService';
 
 enum Settings {
@@ -362,12 +359,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		const extensionManagementChannelClient = new ExtensionManagementChannelClient(extensionManagementChannel);
 		serviceCollection.set(IExtensionManagementServerService, new SyncDescriptor(ExtensionManagementServerService, [extensionManagementChannelClient]));
 		serviceCollection.set(IExtensionManagementService, new SyncDescriptor(MultiExtensionManagementService));
-
-		// Extension Enablement
-		serviceCollection.set(IExtensionEnablementService, new SyncDescriptor(ExtensionEnablementService, undefined, true));
-
-		// Extensions
-		serviceCollection.set(IExtensionService, new SyncDescriptor(ExtensionService));
 
 		// Localization
 		const localizationsChannel = getDelayedChannel(sharedProcess.then(c => c.getChannel('localizations')));
