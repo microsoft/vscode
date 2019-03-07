@@ -30,7 +30,6 @@ import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppen
 import { IWindowsService, ActiveWindowManager } from 'vs/platform/windows/common/windows';
 import { WindowsChannelClient } from 'vs/platform/windows/node/windowsIpc';
 import { ipcRenderer } from 'electron';
-import { createSharedProcessContributions } from 'vs/code/electron-browser/sharedProcess/contrib/contributions';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/node/logIpc';
@@ -39,10 +38,14 @@ import { ILocalizationsService } from 'vs/platform/localizations/common/localiza
 import { LocalizationsChannel } from 'vs/platform/localizations/node/localizationsIpc';
 import { DialogChannelClient } from 'vs/platform/dialogs/node/dialogIpc';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { DownloadService } from 'vs/platform/download/node/downloadService';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { StaticRouter } from 'vs/base/parts/ipc/node/ipc';
+import { NodeCachedDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/nodeCachedDataCleaner';
+import { LanguagePackCachedDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/languagePackCachedDataCleaner';
+import { StorageDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/storageDataCleaner';
+import { LogsDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/logsDataCleaner';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;
@@ -135,14 +138,21 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 			const channel = new ExtensionManagementChannel(extensionManagementService, () => null);
 			server.registerChannel('extensions', channel);
 
-			// clean up deprecated extensions
-			(extensionManagementService as ExtensionManagementService).removeDeprecatedExtensions();
-
 			const localizationsService = accessor.get(ILocalizationsService);
 			const localizationsChannel = new LocalizationsChannel(localizationsService);
 			server.registerChannel('localizations', localizationsChannel);
 
-			createSharedProcessContributions(instantiationService2);
+			disposables.push(combinedDisposable([
+				// clean up deprecated extensions
+				toDisposable(() => (extensionManagementService as ExtensionManagementService).removeDeprecatedExtensions()),
+				// update localizations cache
+				toDisposable(() => (localizationsService as LocalizationsService).update()),
+				// other cache clean ups
+				instantiationService2.createInstance(NodeCachedDataCleaner),
+				instantiationService2.createInstance(LanguagePackCachedDataCleaner),
+				instantiationService2.createInstance(StorageDataCleaner),
+				instantiationService2.createInstance(LogsDataCleaner)
+			]));
 			disposables.push(extensionManagementService as ExtensionManagementService);
 		});
 	});
