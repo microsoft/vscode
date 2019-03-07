@@ -109,7 +109,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		this.colorThemeStore = new ColorThemeStore(extensionService, ColorThemeData.createLoadedEmptyTheme(DEFAULT_THEME_ID, DEFAULT_THEME_SETTING_VALUE));
 		this.onFileIconThemeChange = new Emitter<IFileIconTheme>();
 		this.iconThemeStore = new FileIconThemeStore(extensionService);
-		this.onColorThemeChange = new Emitter<IColorTheme>();
+		this.onColorThemeChange = new Emitter<IColorTheme>({ leakWarningThreshold: 400 });
 
 		this.currentIconTheme = FileIconThemeData.createUnloadedTheme('');
 
