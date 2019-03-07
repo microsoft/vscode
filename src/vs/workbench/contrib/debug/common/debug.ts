@@ -356,30 +356,30 @@ export interface IExceptionInfo {
 
 export interface IViewModel extends ITreeElement {
 	/**
-	 * Returns the focused debug session or null if no session is stopped.
+	 * Returns the focused debug session or undefined if no session is stopped.
 	 */
-	readonly focusedSession: IDebugSession;
+	readonly focusedSession: IDebugSession | undefined;
 
 	/**
-	 * Returns the focused thread or null if no thread is stopped.
+	 * Returns the focused thread or undefined if no thread is stopped.
 	 */
-	readonly focusedThread: IThread;
+	readonly focusedThread: IThread | undefined;
 
 	/**
-	 * Returns the focused stack frame or null if there are no stack frames.
+	 * Returns the focused stack frame or undefined if there are no stack frames.
 	 */
-	readonly focusedStackFrame: IStackFrame;
+	readonly focusedStackFrame: IStackFrame | undefined;
 
-	getSelectedExpression(): IExpression;
-	getSelectedFunctionBreakpoint(): IFunctionBreakpoint;
-	setSelectedExpression(expression: IExpression): void;
-	setSelectedFunctionBreakpoint(functionBreakpoint: IFunctionBreakpoint): void;
+	getSelectedExpression(): IExpression | undefined;
+	getSelectedFunctionBreakpoint(): IFunctionBreakpoint | undefined;
+	setSelectedExpression(expression: IExpression | undefined): void;
+	setSelectedFunctionBreakpoint(functionBreakpoint: IFunctionBreakpoint | undefined): void;
 
 	isMultiSessionView(): boolean;
 
 	onDidFocusSession: Event<IDebugSession | undefined>;
-	onDidFocusStackFrame: Event<{ stackFrame: IStackFrame, explicit: boolean }>;
-	onDidSelectExpression: Event<IExpression>;
+	onDidFocusStackFrame: Event<{ stackFrame: IStackFrame | undefined, explicit: boolean }>;
+	onDidSelectExpression: Event<IExpression | undefined>;
 }
 
 export interface IEvaluate {
