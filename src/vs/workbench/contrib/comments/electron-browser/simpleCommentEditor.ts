@@ -7,7 +7,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { EditorAction, EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 
@@ -20,11 +20,22 @@ import { TabCompletionController } from 'vs/workbench/contrib/snippets/browser/t
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
+
+export const ctxCommentEditorFocused = new RawContextKey<boolean>('commentEditorFocused', false);
+
 
 export class SimpleCommentEditor extends CodeEditorWidget {
+	private _parentEditor: ICodeEditor;
+	private _parentThread: ICommentThreadWidget;
+	private _commentEditorFocused: IContextKey<boolean>;
+
 	constructor(
 		domElement: HTMLElement,
 		options: IEditorOptions,
+		parentEditor: ICodeEditor,
+		parentThread: ICommentThreadWidget,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ICommandService commandService: ICommandService,
@@ -44,6 +55,21 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 		};
 
 		super(domElement, options, codeEditorWidgetOptions, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService, accessibilityService);
+
+		this._commentEditorFocused = ctxCommentEditorFocused.bindTo(this._contextKeyService);
+		this._parentEditor = parentEditor;
+		this._parentThread = parentThread;
+
+		this._register(this.onDidFocusEditorWidget(_ => this._commentEditorFocused.set(true)));
+		this._register(this.onDidBlurEditorWidget(_ => this._commentEditorFocused.reset()));
+	}
+
+	getParentEditor(): ICodeEditor {
+		return this._parentEditor;
+	}
+
+	getParentThread(): ICommentThreadWidget {
+		return this._parentThread;
 	}
 
 	protected _getActions(): EditorAction[] {
