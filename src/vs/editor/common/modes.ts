@@ -324,7 +324,10 @@ export const completionKindToCssClass = (function () {
 /**
  * @internal
  */
-export let completionKindFromString = (function () {
+export let completionKindFromString: {
+	(value: string): CompletionItemKind;
+	(value: string, strict: true): CompletionItemKind | undefined;
+} = (function () {
 	let data: Record<string, CompletionItemKind> = Object.create(null);
 	data['method'] = CompletionItemKind.Method;
 	data['function'] = CompletionItemKind.Function;
@@ -343,6 +346,7 @@ export let completionKindFromString = (function () {
 	data['constant'] = CompletionItemKind.Constant;
 	data['enum'] = CompletionItemKind.Enum;
 	data['enum-member'] = CompletionItemKind.EnumMember;
+	data['enumMember'] = CompletionItemKind.EnumMember;
 	data['keyword'] = CompletionItemKind.Keyword;
 	data['snippet'] = CompletionItemKind.Snippet;
 	data['text'] = CompletionItemKind.Text;
@@ -352,9 +356,14 @@ export let completionKindFromString = (function () {
 	data['customcolor'] = CompletionItemKind.Customcolor;
 	data['folder'] = CompletionItemKind.Folder;
 	data['type-parameter'] = CompletionItemKind.TypeParameter;
+	data['typeParameter'] = CompletionItemKind.TypeParameter;
 
-	return function (value: string) {
-		return data[value] || CompletionItemKind.Property;
+	return function (value: string, strict?: true) {
+		let res = data[value];
+		if (typeof res === 'undefined' && !strict) {
+			res = CompletionItemKind.Property;
+		}
+		return res;
 	};
 })();
 

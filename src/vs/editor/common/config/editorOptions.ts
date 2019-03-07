@@ -12,6 +12,7 @@ import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { Constants } from 'vs/editor/common/core/uint';
 import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/model/wordHelper';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import { isObject } from 'vs/base/common/types';
 
 /**
  * Configuration options for editor scrollbars
@@ -211,6 +212,10 @@ export interface ISuggestOptions {
 	 * Max suggestions to show in suggestions. Defaults to 12.
 	 */
 	maxVisibileSuggestions?: boolean;
+	/**
+	 * Names of suggestion types to filter.
+	 */
+	filteredTypes?: Record<string, boolean>;
 }
 
 /**
@@ -927,6 +932,7 @@ export interface InternalSuggestOptions {
 	readonly shareSuggestSelections: boolean;
 	readonly showIcons: boolean;
 	readonly maxVisibileSuggestions: number;
+	readonly filteredTypes: Record<string, boolean>;
 }
 
 export interface InternalParameterHintOptions {
@@ -1913,7 +1919,8 @@ export class EditorOptionsValidator {
 			localityBonus: _boolean(suggestOpts.localityBonus, defaults.localityBonus),
 			shareSuggestSelections: _boolean(suggestOpts.shareSuggestSelections, defaults.shareSuggestSelections),
 			showIcons: _boolean(suggestOpts.showIcons, defaults.showIcons),
-			maxVisibileSuggestions: _clampedInt(suggestOpts.maxVisibileSuggestions, defaults.maxVisibileSuggestions, 1, 12)
+			maxVisibileSuggestions: _clampedInt(suggestOpts.maxVisibileSuggestions, defaults.maxVisibileSuggestions, 1, 12),
+			filteredTypes: isObject(suggestOpts.filteredTypes) ? suggestOpts.filteredTypes : Object.create(null)
 		};
 	}
 
@@ -2672,7 +2679,8 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 			localityBonus: false,
 			shareSuggestSelections: false,
 			showIcons: true,
-			maxVisibileSuggestions: 12
+			maxVisibileSuggestions: 12,
+			filteredTypes: Object.create(null)
 		},
 		selectionHighlight: true,
 		occurrencesHighlight: true,

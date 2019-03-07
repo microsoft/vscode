@@ -13,7 +13,7 @@ import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/comm
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel, IWordAtPosition } from 'vs/editor/common/model';
-import { CompletionItemProvider, StandardTokenType, CompletionContext, CompletionProviderRegistry, CompletionTriggerKind, CompletionItemKind } from 'vs/editor/common/modes';
+import { CompletionItemProvider, StandardTokenType, CompletionContext, CompletionProviderRegistry, CompletionTriggerKind, CompletionItemKind, completionKindFromString } from 'vs/editor/common/modes';
 import { CompletionModel } from './completionModel';
 import { CompletionItem, getSuggestionComparator, provideSuggestionItems, getSnippetSuggestSupport, SnippetSortOrder, CompletionOptions } from './suggest';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
@@ -379,9 +379,10 @@ export class SuggestModel implements IDisposable {
 		this._requestToken = new CancellationTokenSource();
 
 		// kind filter and snippet sort rules
+		const { contribInfo } = this._editor.getConfiguration();
 		let itemKindFilter = new Set<CompletionItemKind>();
 		let snippetSortOrder = SnippetSortOrder.Inline;
-		switch (this._editor.getConfiguration().contribInfo.suggest.snippets) {
+		switch (contribInfo.suggest.snippets) {
 			case 'top':
 				snippetSortOrder = SnippetSortOrder.Top;
 				break;
@@ -395,6 +396,14 @@ export class SuggestModel implements IDisposable {
 			case 'none':
 				itemKindFilter.add(CompletionItemKind.Snippet);
 				break;
+		}
+
+		// kind filter
+		for (const key in contribInfo.suggest.filteredTypes) {
+			const kind = completionKindFromString(key, true);
+			if (typeof kind !== 'undefined' && contribInfo.suggest.filteredTypes[key] === false) {
+				itemKindFilter.add(kind);
+			}
 		}
 
 		let wordDistance = WordDistance.create(this._editorWorker, this._editor);

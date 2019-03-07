@@ -164,7 +164,8 @@ suite('CompletionModel', function () {
 				localityBonus: false,
 				shareSuggestSelections: false,
 				showIcons: true,
-				maxVisibileSuggestions: 12
+				maxVisibileSuggestions: 12,
+				filteredTypes: Object.create(null)
 			});
 
 		assert.equal(model.items.length, 2);
@@ -191,7 +192,8 @@ suite('CompletionModel', function () {
 				localityBonus: false,
 				shareSuggestSelections: false,
 				showIcons: true,
-				maxVisibileSuggestions: 12
+				maxVisibileSuggestions: 12,
+				filteredTypes: Object.create(null)
 			});
 
 		assert.equal(model.items.length, 2);
@@ -217,7 +219,8 @@ suite('CompletionModel', function () {
 				localityBonus: false,
 				shareSuggestSelections: false,
 				showIcons: true,
-				maxVisibileSuggestions: 12
+				maxVisibileSuggestions: 12,
+				filteredTypes: Object.create(null)
 			});
 
 		assert.equal(model.items.length, 2);
