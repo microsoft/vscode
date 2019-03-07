@@ -33,7 +33,6 @@ import { IStorageService, StorageScope, IWillSaveStateEvent, WillSaveStateReason
 import { ContextMenuService as HTMLContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -110,7 +109,6 @@ import { TextResourcePropertiesService } from 'vs/workbench/services/textfile/no
 
 // import@electron-browser
 import { ContextMenuService as NativeContextMenuService } from 'vs/workbench/services/contextmenu/electron-browser/contextmenuService';
-import { WorkbenchKeybindingService } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import { LifecycleService } from 'vs/platform/lifecycle/electron-browser/lifecycleService';
 import { WindowService } from 'vs/platform/windows/electron-browser/windowService';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-browser/remoteAuthorityResolverService';
@@ -419,9 +417,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 		// Context Keys
 		serviceCollection.set(IContextKeyService, new SyncDescriptor(ContextKeyService));
-
-		// Keybindings
-		serviceCollection.set(IKeybindingService, new SyncDescriptor(WorkbenchKeybindingService, [window]));
 
 		// Context view service
 		serviceCollection.set(IContextViewService, new SyncDescriptor(ContextViewService, [this.workbench], true));
