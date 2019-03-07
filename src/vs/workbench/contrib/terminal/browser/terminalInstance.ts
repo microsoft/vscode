@@ -32,7 +32,7 @@ import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/term
 import { TerminalLinkHandler } from 'vs/workbench/contrib/terminal/browser/terminalLinkHandler';
 import { TerminalCommandTracker } from 'vs/workbench/contrib/terminal/browser/terminalCommandTracker';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { ISearchOptions, Terminal as XTermTerminal, IDisposable } from 'vscode-xterm';
+import { ISearchOptions, Terminal as XTermTerminal } from 'vscode-xterm';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 
@@ -155,7 +155,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private static _idCounter = 1;
 
 	private _processManager: ITerminalProcessManager | undefined;
-	private _pressAnyKeyToCloseListener: IDisposable | undefined;
+	private _pressAnyKeyToCloseListener: lifecycle.IDisposable | undefined;
 
 	private _id: number;
 	private _isExiting: boolean;
