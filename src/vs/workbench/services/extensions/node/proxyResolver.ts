@@ -5,7 +5,9 @@
 
 import * as http from 'http';
 import * as https from 'https';
+import * as tls from 'tls';
 import * as nodeurl from 'url';
+import * as os from 'os';
 
 import { assign } from 'vs/base/common/objects';
 import { endsWith } from 'vs/base/common/strings';
@@ -118,9 +120,21 @@ function setupProxyResolution(
 		results = [];
 	}
 
-	function resolveProxy(req: http.ClientRequest, opts: http.RequestOptions, url: string, callback: (proxy?: string) => void) {
+	function resolveProxy(flags: { useProxySettings: boolean, useSystemCertificates: boolean }, req: http.ClientRequest, opts: http.RequestOptions, url: string, callback: (proxy?: string) => void) {
 		if (!timeout) {
 			timeout = setTimeout(logEvent, 10 * 60 * 1000);
+		}
+
+		useSystemCertificates(extHostLogService, flags.useSystemCertificates, opts, () => {
+			useProxySettings(flags.useProxySettings, req, opts, url, callback);
+		});
+	}
+
+	function useProxySettings(useProxySettings: boolean, req: http.ClientRequest, opts: http.RequestOptions, url: string, callback: (proxy?: string) => void) {
+
+		if (!useProxySettings) {
+			callback('DIRECT');
+			return;
 		}
 
 		const parsedUrl = nodeurl.parse(url); // Coming from Node's URL, sticking with that.
@@ -254,34 +268,43 @@ function noProxyFromEnv(envValue?: string) {
 }
 
 function createPatchedModules(configProvider: ExtHostConfigProvider, resolveProxy: ReturnType<typeof setupProxyResolution>) {
-	const setting = {
+	const proxySetting = {
 		config: configProvider.getConfiguration('http')
 			.get<string>('proxySupport') || 'off'
 	};
 	configProvider.onDidChangeConfiguration(e => {
-		setting.config = configProvider.getConfiguration('http')
+		proxySetting.config = configProvider.getConfiguration('http')
 			.get<string>('proxySupport') || 'off';
+	});
+	const certSetting = {
+		config: !!configProvider.getConfiguration('http')
+			.get<boolean>('systemCertificates')
+	};
+	configProvider.onDidChangeConfiguration(e => {
+		certSetting.config = !!configProvider.getConfiguration('http')
+			.get<string>('systemCertificates');
 	});
 
 	return {
 		http: {
-			off: assign({}, http, patches(http, resolveProxy, { config: 'off' }, true)),
-			on: assign({}, http, patches(http, resolveProxy, { config: 'on' }, true)),
-			override: assign({}, http, patches(http, resolveProxy, { config: 'override' }, true)),
-			onRequest: assign({}, http, patches(http, resolveProxy, setting, true)),
-			default: assign(http, patches(http, resolveProxy, setting, false)) // run last
+			off: assign({}, http, patches(http, resolveProxy, { config: 'off' }, certSetting, true)),
+			on: assign({}, http, patches(http, resolveProxy, { config: 'on' }, certSetting, true)),
+			override: assign({}, http, patches(http, resolveProxy, { config: 'override' }, certSetting, true)),
+			onRequest: assign({}, http, patches(http, resolveProxy, proxySetting, certSetting, true)),
+			default: assign(http, patches(http, resolveProxy, proxySetting, certSetting, false)) // run last
 		},
 		https: {
-			off: assign({}, https, patches(https, resolveProxy, { config: 'off' }, true)),
-			on: assign({}, https, patches(https, resolveProxy, { config: 'on' }, true)),
-			override: assign({}, https, patches(https, resolveProxy, { config: 'override' }, true)),
-			onRequest: assign({}, https, patches(https, resolveProxy, setting, true)),
-			default: assign(https, patches(https, resolveProxy, setting, false)) // run last
-		}
+			off: assign({}, https, patches(https, resolveProxy, { config: 'off' }, certSetting, true)),
+			on: assign({}, https, patches(https, resolveProxy, { config: 'on' }, certSetting, true)),
+			override: assign({}, https, patches(https, resolveProxy, { config: 'override' }, certSetting, true)),
+			onRequest: assign({}, https, patches(https, resolveProxy, proxySetting, certSetting, true)),
+			default: assign(https, patches(https, resolveProxy, proxySetting, certSetting, false)) // run last
+		},
+		tls: assign(tls, tlsPatches(tls))
 	};
 }
 
-function patches(originals: typeof http | typeof https, resolveProxy: ReturnType<typeof setupProxyResolution>, setting: { config: string; }, onRequest: boolean) {
+function patches(originals: typeof http | typeof https, resolveProxy: ReturnType<typeof setupProxyResolution>, proxySetting: { config: string }, certSetting: { config: boolean }, onRequest: boolean) {
 	return {
 		get: patch(originals.get),
 		request: patch(originals.request)
@@ -300,12 +323,15 @@ function patches(originals: typeof http | typeof https, resolveProxy: ReturnType
 			}
 			options = options || {};
 
-			const config = onRequest && ((<any>options)._vscodeProxySupport || /* LS */ (<any>options)._vscodeSystemProxy) || setting.config;
-			if (config === 'off') {
+			if (options.socketPath) {
 				return original.apply(null, arguments as unknown as any[]);
 			}
 
-			if (!options.socketPath && (config === 'override' || config === 'on' && !options.agent) && !(options.agent instanceof ProxyAgent)) {
+			const config = onRequest && ((<any>options)._vscodeProxySupport || /* LS */ (<any>options)._vscodeSystemProxy) || proxySetting.config;
+			const useProxySettings = (config === 'override' || config === 'on' && !options.agent) && !(options.agent instanceof ProxyAgent);
+			const useSystemCertificates = certSetting.config && originals === https && !(options as https.RequestOptions).ca;
+
+			if (useProxySettings || useSystemCertificates) {
 				if (url) {
 					const parsed = typeof url === 'string' ? new nodeurl.URL(url) : url;
 					const urlOptions = {
@@ -322,7 +348,7 @@ function patches(originals: typeof http | typeof https, resolveProxy: ReturnType
 					options = { ...options };
 				}
 				options.agent = new ProxyAgent({
-					resolveProxy,
+					resolveProxy: resolveProxy.bind(undefined, { useProxySettings, useSystemCertificates }),
 					defaultPort: originals === https ? 443 : 80,
 					originalAgent: options.agent
 				});
@@ -335,12 +361,35 @@ function patches(originals: typeof http | typeof https, resolveProxy: ReturnType
 	}
 }
 
+function tlsPatches(originals: typeof tls) {
+	return {
+		createSecureContext: patch(originals.createSecureContext)
+	};
+
+	function patch(original: typeof tls.createSecureContext): typeof tls.createSecureContext {
+		return function (details: tls.SecureContextOptions): ReturnType<typeof tls.createSecureContext> {
+			const context = original.apply(null, arguments as unknown as any[]);
+			const cas = (details as any)._vscodeAdditionalCAs;
+			if (cas) {
+				for (const ca of cas) {
+					context.context.addCACert(ca);
+				}
+			}
+			return context;
+		};
+	}
+}
+
 function configureModuleLoading(extensionService: ExtHostExtensionService, lookup: ReturnType<typeof createPatchedModules>): Promise<void> {
 	return extensionService.getExtensionPathIndex()
 		.then(extensionPaths => {
 			const node_module = <any>require.__$__nodeRequire('module');
 			const original = node_module._load;
 			node_module._load = function load(request: string, parent: any, isMain: any) {
+				if (request === 'tls') {
+					return lookup.tls;
+				}
+
 				if (request !== 'http' && request !== 'https') {
 					return original.apply(this, arguments);
 				}
@@ -353,4 +402,65 @@ function configureModuleLoading(extensionService: ExtHostExtensionService, looku
 				return modules.default;
 			};
 		});
+}
+
+function useSystemCertificates(extHostLogService: ExtHostLogService, useSystemCertificates: boolean, opts: http.RequestOptions, callback: () => void) {
+	if (useSystemCertificates) {
+		getCertificates(extHostLogService)
+			.then(cas => {
+				if (cas) {
+					(opts as any)._vscodeAdditionalCAs = cas;
+				}
+				callback();
+			})
+			.catch(err => {
+				extHostLogService.error('ProxyResolver#useSystemCertificates', toErrorMessage(err));
+			});
+	} else {
+		callback();
+	}
+}
+
+let _certificates: Promise<typeof https.globalAgent.options.ca | undefined>;
+async function getCertificates(extHostLogService: ExtHostLogService) {
+	if (!_certificates) {
+		_certificates = readCertificates()
+			.catch(err => {
+				extHostLogService.error('ProxyResolver#getCertificates', toErrorMessage(err));
+				return undefined;
+			});
+	}
+	return _certificates;
+}
+
+async function readCertificates() {
+	if (process.platform === 'win32') {
+		const winCA = require.__$__nodeRequire<any>('win-ca-lib');
+
+		let ders = [];
+		const store = winCA();
+		try {
+			let der;
+			while (der = store.next()) {
+				ders.push(der);
+			}
+		} finally {
+			store.done();
+		}
+
+		const seen = {};
+		return ders.map(derToPem)
+			.filter(pem => !seen[pem] && (seen[pem] = true));
+	}
+	return undefined;
+}
+
+function derToPem(blob) {
+	const lines = ['-----BEGIN CERTIFICATE-----'];
+	const der = blob.toString('base64');
+	for (let i = 0; i < der.length; i += 64) {
+		lines.push(der.substr(i, 64));
+	}
+	lines.push('-----END CERTIFICATE-----', '');
+	return lines.join(os.EOL);
 }
