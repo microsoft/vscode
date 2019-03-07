@@ -393,6 +393,10 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			this._disposables.push((this._commentThread as modes.CommentThread2).onDidChangeComments(_ => {
 				this.update(this._commentThread);
 			}));
+
+			this._disposables.push((this._commentThread as modes.CommentThread2).onDidChangeLabel(_ => {
+				this.createThreadLabel();
+			}));
 		}
 
 		this.setCommentEditorDecorations();
