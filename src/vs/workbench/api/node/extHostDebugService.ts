@@ -794,19 +794,23 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 			if (typeof dto === 'string') {
 				return this._debugSessions.get(dto);
 			} else {
-				const folder = await this.getFolder(dto.folderUri);
-				const debugSession = new ExtHostDebugSession(this._debugServiceProxy, dto.id, dto.type, dto.name, folder, dto.configuration);
-				this._debugSessions.set(debugSession.id, debugSession);
-				return debugSession;
+				let ds = this._debugSessions.get(dto.id);
+				if (!ds) {
+					const folder = await this.getFolder(dto.folderUri);
+					ds = new ExtHostDebugSession(this._debugServiceProxy, dto.id, dto.type, dto.name, folder, dto.configuration);
+					this._debugSessions.set(ds.id, ds);
+					this._debugServiceProxy.$sessionCached(ds.id);
+				}
+				return ds;
 			}
 		}
 		return undefined;
 	}
 
-	private async getFolder(_folderUri: UriComponents | undefined): Promise<vscode.WorkspaceFolder | undefined> {
+	private getFolder(_folderUri: UriComponents | undefined): Promise<vscode.WorkspaceFolder | undefined> {
 		if (_folderUri) {
 			const folderURI = URI.revive(_folderUri);
-			return await this._workspaceService.resolveWorkspaceFolder(folderURI);
+			return this._workspaceService.resolveWorkspaceFolder(folderURI);
 		}
 		return undefined;
 	}
