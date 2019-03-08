@@ -69,6 +69,8 @@ import { ContextViewService } from 'vs/platform/contextview/browser/contextViewS
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 import { IRequestService } from 'vs/platform/request/node/request';
 import { RequestService } from 'vs/platform/request/electron-browser/requestService';
+import { LifecycleService } from 'vs/platform/lifecycle/electron-browser/lifecycleService';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 
 import 'vs/workbench/services/bulkEdit/browser/bulkEditService';
 import 'vs/workbench/services/integrity/node/integrityService';
@@ -121,6 +123,7 @@ registerSingleton(IExtensionEnablementService, ExtensionEnablementService, true)
 registerSingleton(IContextViewService, ContextViewService, true);
 registerSingleton(IExtensionGalleryService, ExtensionGalleryService, true);
 registerSingleton(IRequestService, RequestService, true);
+registerSingleton(ILifecycleService, LifecycleService);
 
 //#endregion
 

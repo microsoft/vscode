@@ -85,7 +85,6 @@ import { LocalizationsChannelClient } from 'vs/platform/localizations/node/local
 import { ProductService } from 'vs/platform/product/node/productService';
 
 // import@electron-browser
-import { LifecycleService } from 'vs/platform/lifecycle/electron-browser/lifecycleService';
 import { WindowService } from 'vs/platform/windows/electron-browser/windowService';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-browser/remoteAuthorityResolverService';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
@@ -332,9 +331,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		}
 
 		serviceCollection.set(ITelemetryService, telemetryService); // TODO@Ben use SyncDescriptor
-
-		// Lifecycle
-		serviceCollection.set(ILifecycleService, new SyncDescriptor(LifecycleService));
 
 		// Remote Resolver
 		serviceCollection.set(IRemoteAuthorityResolverService, new SyncDescriptor(RemoteAuthorityResolverService, undefined, true));
