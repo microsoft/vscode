@@ -42,7 +42,7 @@ function prepareDebPackage(arch) {
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
 			.pipe(replace('@@NAME_SHORT@@', product.nameShort))
 			.pipe(replace('@@NAME@@', product.applicationName))
-			.pipe(replace('@@ICON@@', product.iconName))
+			.pipe(replace('@@ICON@@', product.linuxIconName))
 			.pipe(replace('@@URLPROTOCOL@@', product.urlProtocol));
 
 		const appdata = gulp.src('resources/linux/code.appdata.xml', { base: '.' })
@@ -52,7 +52,7 @@ function prepareDebPackage(arch) {
 			.pipe(rename('usr/share/appdata/' + product.applicationName + '.appdata.xml'));
 
 		const icon = gulp.src('resources/linux/code.png', { base: '.' })
-			.pipe(rename('usr/share/pixmaps/' + product.applicationName + '.png'));
+			.pipe(rename('usr/share/pixmaps/' + product.linuxIconName + '.png'));
 
 		// const bash_completion = gulp.src('resources/completions/bash/code')
 		// 	.pipe(rename('usr/share/bash-completion/completions/code'));
@@ -132,7 +132,7 @@ function prepareRpmPackage(arch) {
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
 			.pipe(replace('@@NAME_SHORT@@', product.nameShort))
 			.pipe(replace('@@NAME@@', product.applicationName))
-			.pipe(replace('@@ICON@@', product.iconName))
+			.pipe(replace('@@ICON@@', product.linuxIconName))
 			.pipe(replace('@@URLPROTOCOL@@', product.urlProtocol));
 
 		const appdata = gulp.src('resources/linux/code.appdata.xml', { base: '.' })
@@ -142,7 +142,7 @@ function prepareRpmPackage(arch) {
 			.pipe(rename('usr/share/appdata/' + product.applicationName + '.appdata.xml'));
 
 		const icon = gulp.src('resources/linux/code.png', { base: '.' })
-			.pipe(rename('BUILD/usr/share/pixmaps/' + product.applicationName + '.png'));
+			.pipe(rename('BUILD/usr/share/pixmaps/' + product.linuxIconName + '.png'));
 
 		// const bash_completion = gulp.src('resources/completions/bash/code')
 		// 	.pipe(rename('BUILD/usr/share/bash-completion/completions/code'));
@@ -202,11 +202,11 @@ function prepareSnapPackage(arch) {
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
 			.pipe(replace('@@NAME_SHORT@@', product.nameShort))
 			.pipe(replace('@@NAME@@', product.applicationName))
-			.pipe(replace('@@ICON@@', `/usr/share/pixmaps/${product.iconName}.png`))
+			.pipe(replace('@@ICON@@', `/usr/share/pixmaps/${product.linuxIconName}.png`))
 			.pipe(rename(`usr/share/applications/${product.applicationName}.desktop`));
 
 		const icon = gulp.src('resources/linux/code.png', { base: '.' })
-			.pipe(rename(`usr/share/pixmaps/${product.applicationName}.png`));
+			.pipe(rename(`usr/share/pixmaps/${product.linuxIconName}.png`));
 
 		const code = gulp.src(binaryDir + '/**/*', { base: binaryDir })
 			.pipe(rename(function (p) { p.dirname = `usr/share/${product.applicationName}/${p.dirname}`; }));
