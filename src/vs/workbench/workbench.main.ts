@@ -62,8 +62,13 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/res
 import { TextResourceConfigurationService } from 'vs/editor/common/services/resourceConfigurationImpl';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { AccessibilityService } from 'vs/platform/accessibility/node/accessibilityService';
-import { IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionEnablementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
+import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
+import { IRequestService } from 'vs/platform/request/node/request';
+import { RequestService } from 'vs/platform/request/electron-browser/requestService';
 
 import 'vs/workbench/services/bulkEdit/browser/bulkEditService';
 import 'vs/workbench/services/integrity/node/integrityService';
@@ -98,9 +103,7 @@ import 'vs/workbench/services/commands/common/commandService';
 import 'vs/workbench/services/themes/browser/workbenchThemeService';
 import 'vs/workbench/services/extensions/electron-browser/extensionService';
 import 'vs/workbench/services/contextmenu/electron-browser/contextmenuService';
-import 'vs/platform/contextview/browser/contextViewService';
 import 'vs/workbench/services/extensionManagement/node/multiExtensionManagement';
-import 'vs/platform/extensionManagement/node/extensionGalleryService';
 
 registerSingleton(IMenuService, MenuService, true);
 registerSingleton(IListService, ListService, true);
@@ -115,6 +118,9 @@ registerSingleton(IModelService, ModelServiceImpl, true);
 registerSingleton(ITextResourceConfigurationService, TextResourceConfigurationService);
 registerSingleton(IAccessibilityService, AccessibilityService, true);
 registerSingleton(IExtensionEnablementService, ExtensionEnablementService, true);
+registerSingleton(IContextViewService, ContextViewService, true);
+registerSingleton(IExtensionGalleryService, ExtensionGalleryService, true);
+registerSingleton(IRequestService, RequestService, true);
 
 //#endregion
 

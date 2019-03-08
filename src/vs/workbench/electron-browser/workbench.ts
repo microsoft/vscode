@@ -76,7 +76,6 @@ import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
 import { DialogChannel } from 'vs/platform/dialogs/node/dialogIpc';
 import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
 import { resolveWorkbenchCommonProperties } from 'vs/platform/telemetry/node/workbenchCommonProperties';
-import { IRequestService } from 'vs/platform/request/node/request';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/node/remoteAgentService';
 import { DownloadServiceChannel } from 'vs/platform/download/node/downloadIpc';
 import { LogLevelSetterChannel } from 'vs/platform/log/node/logIpc';
@@ -90,7 +89,6 @@ import { LifecycleService } from 'vs/platform/lifecycle/electron-browser/lifecyc
 import { WindowService } from 'vs/platform/windows/electron-browser/windowService';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-browser/remoteAuthorityResolverService';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
-import { RequestService } from 'vs/platform/request/electron-browser/requestService';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 
@@ -337,9 +335,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 		// Lifecycle
 		serviceCollection.set(ILifecycleService, new SyncDescriptor(LifecycleService));
-
-		// Request Service
-		serviceCollection.set(IRequestService, new SyncDescriptor(RequestService, undefined, true));
 
 		// Remote Resolver
 		serviceCollection.set(IRemoteAuthorityResolverService, new SyncDescriptor(RemoteAuthorityResolverService, undefined, true));
