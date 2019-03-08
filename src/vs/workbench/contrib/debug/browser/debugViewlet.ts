@@ -61,8 +61,6 @@ export class DebugViewlet extends ViewContainerViewlet {
 	) {
 		super(VIEWLET_ID, `${VIEWLET_ID}.state`, false, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
 
-		this.progressRunner = null;
-
 		this._register(this.debugService.onDidChangeState(state => this.onDebugServiceStateChange(state)));
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateTitleArea()));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -130,7 +128,7 @@ export class DebugViewlet extends ViewContainerViewlet {
 		return [this.selectAndStartAction, this.configureAction, this.toggleReplAction];
 	}
 
-	getActionItem(action: IAction): IActionItem {
+	getActionItem(action: IAction): IActionItem | null {
 		if (action.id === StartAction.ID) {
 			this.startDebugActionItem = this.instantiationService.createInstance(StartDebugActionItem, null, action);
 			return this.startDebugActionItem;
@@ -159,8 +157,6 @@ export class DebugViewlet extends ViewContainerViewlet {
 
 		if (state === State.Initializing) {
 			this.progressRunner = this.progressService.show(true);
-		} else {
-			this.progressRunner = null;
 		}
 
 		if (this.configurationService.getValue<IDebugConfiguration>('debug').toolBarLocation === 'docked') {

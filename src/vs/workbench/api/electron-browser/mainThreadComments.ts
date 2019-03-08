@@ -332,6 +332,11 @@ export class MainThreadCommentController {
 		};
 	}
 
+	async getCommentingRanges(resource: URI, token): Promise<IRange[]> {
+		let commentingRanges = await this._proxy.$provideCommentingRanges(this.handle, resource, token);
+		return commentingRanges || [];
+	}
+
 	getAllComments(): MainThreadCommentThread[] {
 		let ret = [];
 		for (let thread of keys(this._threads)) {

@@ -67,7 +67,7 @@ export interface IViewContainersRegistry {
 }
 
 export class ViewContainer {
-	protected constructor(readonly id: string, readonly extensionId: ExtensionIdentifier) { }
+	protected constructor(readonly id: string, readonly hideIfEmpty: boolean, readonly extensionId?: ExtensionIdentifier) { }
 }
 
 class ViewContainersRegistryImpl implements IViewContainersRegistry {
@@ -84,15 +84,16 @@ class ViewContainersRegistryImpl implements IViewContainersRegistry {
 		return values(this.viewContainers);
 	}
 
-	registerViewContainer(id: string, extensionId: ExtensionIdentifier): ViewContainer {
+	registerViewContainer(id: string, extensionId?: ExtensionIdentifier): ViewContainer {
 		const existing = this.viewContainers.get(id);
 		if (existing) {
 			return existing;
 		}
+		const hideIfEmpty = id === TEST_VIEW_CONTAINER_ID || !!extensionId;
 
 		const viewContainer = new class extends ViewContainer {
 			constructor() {
-				super(id, extensionId);
+				super(id, hideIfEmpty, extensionId);
 			}
 		};
 		this.viewContainers.set(id, viewContainer);

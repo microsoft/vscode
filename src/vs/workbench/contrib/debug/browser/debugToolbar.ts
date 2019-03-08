@@ -184,8 +184,11 @@ export class DebugToolbar extends Themable implements IWorkbenchContribution {
 	}
 
 	private storePosition(): void {
-		const position = parseFloat(dom.getComputedStyle(this.$el).left) / window.innerWidth;
-		this.storageService.store(DEBUG_TOOLBAR_POSITION_KEY, position, StorageScope.GLOBAL);
+		const left = dom.getComputedStyle(this.$el).left;
+		if (left) {
+			const position = parseFloat(left) / window.innerWidth;
+			this.storageService.store(DEBUG_TOOLBAR_POSITION_KEY, position, StorageScope.GLOBAL);
+		}
 	}
 
 	protected updateStyles(): void {
@@ -304,7 +307,7 @@ export class DebugToolbar extends Themable implements IWorkbenchContribution {
 			}
 
 			return true;
-		}).sort((first, second) => first.weight - second.weight);
+		}).sort((first, second) => (first.weight || 0) - (second.weight || 0));
 
 		fillInActionBarActions(menu, undefined, actions, () => false);
 		if (debugService.getViewModel().isMultiSessionView()) {

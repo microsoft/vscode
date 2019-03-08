@@ -24,6 +24,8 @@ import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { ISharedProcessService } from 'vs/platform/sharedProcess/node/sharedProcessService';
+import { DialogChannel } from 'vs/platform/dialogs/node/dialogIpc';
 
 interface IMassagedMessageBoxOptions {
 
@@ -46,8 +48,11 @@ export class DialogService implements IDialogService {
 
 	constructor(
 		@IWindowService private readonly windowService: IWindowService,
-		@ILogService private readonly logService: ILogService
-	) { }
+		@ILogService private readonly logService: ILogService,
+		@ISharedProcessService sharedProcessService: ISharedProcessService
+	) {
+		sharedProcessService.registerChannel('dialog', new DialogChannel(this));
+	}
 
 	confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
 		this.logService.trace('DialogService#confirm', confirmation.message);

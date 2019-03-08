@@ -29,18 +29,15 @@ import { getServices } from 'vs/platform/instantiation/common/extensions';
 import { Position, Parts, IWorkbenchLayoutService, ILayoutOptions } from 'vs/workbench/services/layout/browser/layoutService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IStorageService, StorageScope, IWillSaveStateEvent, WillSaveStateReason } from 'vs/platform/storage/common/storage';
-import { ContextMenuService as HTMLContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { IInstantiationService, ServicesAccessor, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { LifecyclePhase, StartupKind, ILifecycleService, WillShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
-import { IWindowService, IWindowConfiguration, IPath, MenuBarVisibility, getTitleBarStyle, IWindowsService } from 'vs/platform/windows/common/windows';
-import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IWindowService, IPath, MenuBarVisibility, getTitleBarStyle } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { NotificationService } from 'vs/workbench/services/notification/common/notificationService';
@@ -51,52 +48,23 @@ import { registerNotificationCommands } from 'vs/workbench/browser/parts/notific
 import { NotificationsToasts } from 'vs/workbench/browser/parts/notifications/notificationsToasts';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { Sizing, Direction, Grid, View } from 'vs/base/browser/ui/grid/grid';
 import { WorkbenchLegacyLayout } from 'vs/workbench/browser/legacyLayout';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { setARIAContainer } from 'vs/base/browser/ui/aria/aria';
 import { restoreFontInfo, readFontInfo, saveFontInfo } from 'vs/editor/browser/config/configuration';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { ILogService } from 'vs/platform/log/common/log';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { LabelService } from 'vs/workbench/services/label/common/labelService';
-import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { combinedAppender, LogAppender, NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IExtensionGalleryService, IExtensionManagementServerService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
-import { IProductService } from 'vs/platform/product/common/product';
 import { WorkbenchContextKeysHandler } from 'vs/workbench/browser/contextkeys';
 import { IDimension } from 'vs/platform/layout/browser/layoutService';
 import { Part } from 'vs/workbench/browser/part';
+import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
+import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 
-// import@node
-import { getDelayedChannel } from 'vs/base/parts/ipc/node/ipc';
-import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
-import { DialogChannel } from 'vs/platform/dialogs/node/dialogIpc';
-import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
-import { resolveWorkbenchCommonProperties } from 'vs/platform/telemetry/node/workbenchCommonProperties';
-import { IRequestService } from 'vs/platform/request/node/request';
-import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/node/remoteAgentService';
-import { DownloadServiceChannel } from 'vs/platform/download/node/downloadIpc';
-import { LogLevelSetterChannel } from 'vs/platform/log/node/logIpc';
-import { ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/node/extensionManagementIpc';
-import { ExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
-import { MultiExtensionManagementService } from 'vs/workbench/services/extensionManagement/node/multiExtensionManagement';
-import { LocalizationsChannelClient } from 'vs/platform/localizations/node/localizationsIpc';
-import { ProductService } from 'vs/platform/product/node/productService';
-
-// import@electron-browser
-import { ContextMenuService as NativeContextMenuService } from 'vs/workbench/services/contextmenu/electron-browser/contextmenuService';
-import { LifecycleService } from 'vs/platform/lifecycle/electron-browser/lifecycleService';
-import { WindowService } from 'vs/platform/windows/electron-browser/windowService';
-import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-browser/remoteAuthorityResolverService';
-import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
-import { RequestService } from 'vs/platform/request/electron-browser/requestService';
+export interface IWorkbenchOptions {
+	hasInitialFilesToOpen: boolean;
+}
 
 enum Settings {
 	MENUBAR_VISIBLE = 'window.menuBarVisibility',
@@ -146,21 +114,19 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 	private configurationService: IConfigurationService;
 	private environmentService: IEnvironmentService;
 	private logService: ILogService;
-	private windowsService: IWindowsService;
 
 	private parts: Map<string, Part> = new Map<string, Part>();
 
 	constructor(
-		private container: HTMLElement,
-		private configuration: IWindowConfiguration,
+		private parent: HTMLElement,
+		private options: IWorkbenchOptions,
 		private serviceCollection: ServiceCollection,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IStorageService storageService: IStorageService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@ILogService logService: ILogService,
-		@IWindowsService windowsService: IWindowsService
+		@ILogService logService: ILogService
 	) {
 		super();
 
@@ -170,7 +136,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		this.configurationService = configurationService;
 		this.environmentService = environmentService;
 		this.logService = logService;
-		this.windowsService = windowsService;
 
 		this.registerErrorHandler();
 	}
@@ -229,9 +194,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 	}
 
 	private doStartup(): Promise<void> {
-
-		// Logging
-		this.logService.trace('workbench configuration', JSON.stringify(this.configuration));
 
 		// Configure emitter leak warning threshold
 		setGlobalLeakWarningThreshold(175);
@@ -297,101 +259,23 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 	private initServices(serviceCollection: ServiceCollection): void {
 
-		// Parts
-		serviceCollection.set(IWorkbenchLayoutService, this); // TODO@Ben use SyncDescriptor
+		// Layout Service
+		serviceCollection.set(IWorkbenchLayoutService, this);
 
-		// Labels
-		serviceCollection.set(ILabelService, new SyncDescriptor(LabelService, undefined, true));
-
-		// Notifications
-		serviceCollection.set(INotificationService, new SyncDescriptor(NotificationService, undefined, true));
-
-		// Window
-		serviceCollection.set(IWindowService, new SyncDescriptor(WindowService, [this.configuration]));
-
-		// Product
-		const productService = new ProductService();
-		serviceCollection.set(IProductService, productService); // TODO@Ben use SyncDescriptor
-
-		// Shared Process
-		const sharedProcess = this.windowsService.whenSharedProcessReady()
-			.then(() => connectNet(this.environmentService.sharedIPCHandle, `window:${this.configuration.windowId}`))
-			.then(client => {
-				client.registerChannel('dialog', this.instantiationService.createInstance(DialogChannel));
-
-				return client;
-			});
-
-		// Telemetry
-		let telemetryService: ITelemetryService;
-		if (!this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!productService.enableTelemetry) {
-			const channel = getDelayedChannel(sharedProcess.then(c => c.getChannel('telemetryAppender')));
-			const config: ITelemetryServiceConfig = {
-				appender: combinedAppender(new TelemetryAppenderClient(channel), new LogAppender(this.logService)),
-				commonProperties: resolveWorkbenchCommonProperties(this.storageService, productService.commit, productService.version, this.configuration.machineId, this.environmentService.installSourcePath),
-				piiPaths: [this.environmentService.appRoot, this.environmentService.extensionsPath]
-			};
-
-			telemetryService = this._register(this.instantiationService.createInstance(TelemetryService, config));
-		} else {
-			telemetryService = NullTelemetryService;
-		}
-
-		serviceCollection.set(ITelemetryService, telemetryService); // TODO@Ben use SyncDescriptor
-
-		// Lifecycle
-		serviceCollection.set(ILifecycleService, new SyncDescriptor(LifecycleService));
-
-		// Request Service
-		serviceCollection.set(IRequestService, new SyncDescriptor(RequestService, undefined, true));
-
-		// Extension Gallery
-		serviceCollection.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService, undefined, true));
-
-		// Remote Resolver
-		serviceCollection.set(IRemoteAuthorityResolverService, new SyncDescriptor(RemoteAuthorityResolverService, undefined, true));
-
-		// Remote Agent
-		serviceCollection.set(IRemoteAgentService, new SyncDescriptor(RemoteAgentService, [this.configuration]));
-
-		// Extensions Management
-		const extensionManagementChannel = getDelayedChannel(sharedProcess.then(c => c.getChannel('extensions')));
-		const extensionManagementChannelClient = new ExtensionManagementChannelClient(extensionManagementChannel);
-		serviceCollection.set(IExtensionManagementServerService, new SyncDescriptor(ExtensionManagementServerService, [extensionManagementChannelClient]));
-		serviceCollection.set(IExtensionManagementService, new SyncDescriptor(MultiExtensionManagementService));
-
-		// Localization
-		const localizationsChannel = getDelayedChannel(sharedProcess.then(c => c.getChannel('localizations')));
-		serviceCollection.set(ILocalizationsService, new SyncDescriptor(LocalizationsChannelClient, [localizationsChannel]));
-
-		// Context view service
-		serviceCollection.set(IContextViewService, new SyncDescriptor(ContextViewService, [this.workbench], true));
-
-		// Use themable context menus when custom titlebar is enabled to match custom menubar
-		if (!isMacintosh && getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
-			serviceCollection.set(IContextMenuService, new SyncDescriptor(HTMLContextMenuService, [null]));
-		} else {
-			serviceCollection.set(IContextMenuService, new SyncDescriptor(NativeContextMenuService));
-		}
-
-		// Contributed services
+		// All Contributed Services
 		const contributedServices = getServices();
 		for (let contributedService of contributedServices) {
 			serviceCollection.set(contributedService.id, contributedService.descriptor);
 		}
 
-		// TODO@Alex TODO@Sandeep this should move somewhere else
+		// Wrap up
 		this.instantiationService.invokeFunction(accessor => {
-			const remoteAgentConnection = accessor.get(IRemoteAgentService).getConnection();
-			if (remoteAgentConnection) {
-				remoteAgentConnection.registerChannel('dialog', this.instantiationService.createInstance(DialogChannel));
-				remoteAgentConnection.registerChannel('download', new DownloadServiceChannel());
-				remoteAgentConnection.registerChannel('loglevel', new LogLevelSetterChannel(this.logService));
-			}
-		});
 
-		// TODO@Sandeep TODO@Martin debt around cyclic dependencies
-		this.instantiationService.invokeFunction(accessor => {
+			// Signal to lifecycle that services are set
+			const lifecycleService = accessor.get(ILifecycleService);
+			lifecycleService.phase = LifecyclePhase.Ready;
+
+			// TODO@Sandeep TODO@Martin debt around cyclic dependencies
 			const fileService = accessor.get(IFileService);
 			const instantiationService = accessor.get(IInstantiationService);
 			const configurationService = accessor.get(IConfigurationService) as any;
@@ -417,13 +301,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).start(accessor);
 			Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).start(accessor);
 		});
-	}
-
-	private hasInitialFilesToOpen(): boolean {
-		return !!(
-			(this.configuration.filesToCreate && this.configuration.filesToCreate.length > 0) ||
-			(this.configuration.filesToOpen && this.configuration.filesToOpen.length > 0) ||
-			(this.configuration.filesToDiff && this.configuration.filesToDiff.length > 0));
 	}
 
 	private registerListeners(accessor: ServicesAccessor): void {
@@ -496,7 +373,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		this.instantiationService.invokeFunction(accessor => this.createNotificationsHandlers(accessor));
 
 		// Add Workbench to DOM
-		this.container.appendChild(this.workbench);
+		this.parent.appendChild(this.workbench);
 	}
 
 	private createTitlebarPart(): void {
@@ -526,7 +403,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 	private createEditorPart(): void {
 		const editorContainer = this.createPart(Parts.EDITOR_PART, 'main', 'editor');
 
-		this.parts.get(Parts.EDITOR_PART).create(editorContainer, { restorePreviousState: !this.hasInitialFilesToOpen() });
+		this.parts.get(Parts.EDITOR_PART).create(editorContainer, { restorePreviousState: !this.options.hasInitialFilesToOpen });
 	}
 
 	private createStatusbarPart(): void {
@@ -696,6 +573,8 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 	private _dimension: IDimension;
 	get dimension(): IDimension { return this._dimension; }
+
+	get container(): HTMLElement { return this.workbench; }
 
 	private workbenchGrid: Grid<View> | WorkbenchLegacyLayout;
 
@@ -913,9 +792,15 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		const environmentService = accessor.get(IEnvironmentService);
 
 		this.windowService = accessor.get(IWindowService);
+
+		// Ensure all part services are created (TODO@ben revisit this requirement)
 		this.editorService = accessor.get(IEditorService);
 		this.editorGroupService = accessor.get(IEditorGroupsService);
 		this.panelService = accessor.get(IPanelService);
+		this.viewletService = accessor.get(IViewletService);
+		accessor.get(IStatusbarService);
+		accessor.get(ITitleService);
+		accessor.get(IActivityBarService);
 
 		// Fullscreen
 		this.state.fullscreen = isFullscreen();
@@ -994,7 +879,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		const backupFileService = accessor.get(IBackupFileService);
 
 		// Files to open, diff or create
-		if (this.hasInitialFilesToOpen()) {
+		if (this.options.hasInitialFilesToOpen) {
 
 			// Files to diff is exclusive
 			const filesToDiff = this.toInputs(configuration.filesToDiff, false);
@@ -1284,7 +1169,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		} else {
 			this.workbenchGrid = this.instantiationService.createInstance(
 				WorkbenchLegacyLayout,
-				this.container,
+				this.parent,
 				this.workbench,
 				{
 					titlebar: titleBar,
@@ -1300,7 +1185,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 	layout(options?: ILayoutOptions): void {
 		if (!this.disposed) {
-			this._dimension = getClientArea(this.container);
+			this._dimension = getClientArea(this.parent);
 
 			if (this.workbenchGrid instanceof Grid) {
 				position(this.workbench, 0, 0, 0, 0, 'relative');
@@ -1616,7 +1501,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			// Layout
 			if (!skipLayout) {
 				if (this.workbenchGrid instanceof Grid) {
-					const dimensions = getClientArea(this.container);
+					const dimensions = getClientArea(this.parent);
 					this.workbenchGrid.layout(dimensions.width, dimensions.height);
 				} else {
 					this.workbenchGrid.layout();

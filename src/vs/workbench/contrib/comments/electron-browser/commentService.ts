@@ -8,7 +8,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import { keys } from 'vs/base/common/map';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { assign } from 'vs/base/common/objects';
@@ -53,6 +53,7 @@ export interface ICommentService {
 	editComment(owner: string, resource: URI, comment: Comment, text: string): Promise<void>;
 	deleteComment(owner: string, resource: URI, comment: Comment): Promise<boolean>;
 	getComments(resource: URI): Promise<(ICommentInfo | null)[]>;
+	getCommentingRanges(resource: URI): Promise<IRange[]>;
 	startDraft(owner: string, resource: URI): void;
 	deleteDraft(owner: string, resource: URI): void;
 	finishDraft(owner: string, resource: URI): void;
@@ -307,5 +308,17 @@ export class CommentService extends Disposable implements ICommentService {
 		let ret = [...await Promise.all(result), ...await Promise.all(commentControlResult)];
 
 		return ret;
+	}
+
+	async getCommentingRanges(resource: URI): Promise<IRange[]> {
+		let commentControlResult: Promise<IRange[]>[] = [];
+
+		for (const owner of keys(this._commentControls)) {
+			const control = this._commentControls.get(owner);
+			commentControlResult.push(control.getCommentingRanges(resource, CancellationToken.None));
+		}
+
+		let ret = await Promise.all(commentControlResult);
+		return ret.reduce((prev, curr) => { prev.push(...curr); return prev; }, []);
 	}
 }

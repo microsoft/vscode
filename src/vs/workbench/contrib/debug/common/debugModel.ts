@@ -247,7 +247,7 @@ export class Expression extends ExpressionContainer implements IExpression {
 export class Variable extends ExpressionContainer implements IExpression {
 
 	// Used to show the error message coming from the adapter when setting the value #7807
-	public errorMessage: string;
+	public errorMessage: string | undefined;
 
 	constructor(
 		session: IDebugSession | undefined,

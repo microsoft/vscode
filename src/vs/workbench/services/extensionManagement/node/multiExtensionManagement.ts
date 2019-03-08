@@ -20,6 +20,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { localize } from 'vs/nls';
 import { isUIExtension } from 'vs/platform/extensions/node/extensionsUtil';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class MultiExtensionManagementService extends Disposable implements IExtensionManagementService {
 
@@ -219,3 +220,5 @@ export class MultiExtensionManagementService extends Disposable implements IExte
 		return remoteEnv.syncExtensions;
 	}
 }
+
+registerSingleton(IExtensionManagementService, MultiExtensionManagementService);

@@ -293,6 +293,8 @@ export class MarkersFilterActionItem extends BaseActionItem {
 export class QuickFixAction extends Action {
 
 	public static readonly ID: string = 'workbench.actions.problems.quickfix';
+	private static readonly CLASS: string = 'markers-panel-action-quickfix';
+	private static readonly AUTO_FIX_CLASS: string = QuickFixAction.CLASS + ' autofixable';
 
 	private disposables: IDisposable[] = [];
 
@@ -308,11 +310,14 @@ export class QuickFixAction extends Action {
 		this.enabled = this._quickFixes.length > 0;
 	}
 
+	autoFixable(autofixable: boolean) {
+		this.class = autofixable ? QuickFixAction.AUTO_FIX_CLASS : QuickFixAction.CLASS;
+	}
 
 	constructor(
 		readonly marker: Marker,
 	) {
-		super(QuickFixAction.ID, Messages.MARKERS_PANEL_ACTION_TOOLTIP_QUICKFIX, 'markers-panel-action-quickfix', false);
+		super(QuickFixAction.ID, Messages.MARKERS_PANEL_ACTION_TOOLTIP_QUICKFIX, QuickFixAction.CLASS, false);
 	}
 
 	run(): Promise<void> {

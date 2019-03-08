@@ -86,7 +86,7 @@ export class VariablesView extends ViewletPanel {
 
 		this.tree.setInput(this.debugService.getViewModel()).then(null, onUnexpectedError);
 
-		CONTEXT_VARIABLES_FOCUSED.bindTo(this.contextKeyService.createScoped(treeContainer));
+		CONTEXT_VARIABLES_FOCUSED.bindTo(this.tree.contextKeyService);
 
 		const collapseAction = new CollapseAction(this.tree, true, 'explorer-action collapse-explorer');
 		this.toolbar.setActions([collapseAction])();
@@ -129,14 +129,15 @@ export class VariablesView extends ViewletPanel {
 
 	private onMouseDblClick(e: ITreeMouseEvent<IExpression | IScope>): void {
 		const session = this.debugService.getViewModel().focusedSession;
-		if (e.element instanceof Variable && session.capabilities.supportsSetVariable) {
+		if (session && e.element instanceof Variable && session.capabilities.supportsSetVariable) {
 			this.debugService.getViewModel().setSelectedExpression(e.element);
 		}
 	}
 
 	private onContextMenu(e: ITreeContextMenuEvent<IExpression | IScope>): void {
 		const element = e.element;
-		if (element instanceof Variable && !!element.value) {
+		const anchor = e.anchor;
+		if (element instanceof Variable && !!element.value && anchor) {
 			const actions: IAction[] = [];
 			const variable = element as Variable;
 			actions.push(new SetValueAction(SetValueAction.ID, SetValueAction.LABEL, variable, this.debugService, this.keybindingService));
@@ -146,7 +147,7 @@ export class VariablesView extends ViewletPanel {
 			actions.push(new AddToWatchExpressionsAction(AddToWatchExpressionsAction.ID, AddToWatchExpressionsAction.LABEL, variable, this.debugService, this.keybindingService));
 
 			this.contextMenuService.showContextMenu({
-				getAnchor: () => e.anchor,
+				getAnchor: () => anchor,
 				getActions: () => actions,
 				getActionsContext: () => element
 			});
@@ -193,11 +194,8 @@ class VariablesDelegate implements IListVirtualDelegate<IExpression | IScope> {
 		if (element instanceof Scope) {
 			return ScopesRenderer.ID;
 		}
-		if (element instanceof Variable) {
-			return VariablesRenderer.ID;
-		}
 
-		return null;
+		return VariablesRenderer.ID;
 	}
 }
 
@@ -246,7 +244,7 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 				validation: () => variable.errorMessage ? ({ content: variable.errorMessage }) : null
 			},
 			onFinish: (value: string, success: boolean) => {
-				variable.errorMessage = null;
+				variable.errorMessage = undefined;
 				if (success && variable.value !== value) {
 					variable.setVariable(value)
 						// Need to force watch expressions and variables to update since a variable change can have an effect on both
@@ -258,7 +256,7 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 }
 
 class VariablesAccessibilityProvider implements IAccessibilityProvider<IExpression | IScope> {
-	getAriaLabel(element: IExpression | IScope): string {
+	getAriaLabel(element: IExpression | IScope): string | null {
 		if (element instanceof Scope) {
 			return nls.localize('variableScopeAriaLabel', "Scope {0}, variables, debug", element.name);
 		}

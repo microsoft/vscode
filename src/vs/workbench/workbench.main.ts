@@ -62,8 +62,22 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/res
 import { TextResourceConfigurationService } from 'vs/editor/common/services/resourceConfigurationImpl';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { AccessibilityService } from 'vs/platform/accessibility/node/accessibilityService';
-import { IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionEnablementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
+import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
+import { IRequestService } from 'vs/platform/request/node/request';
+import { RequestService } from 'vs/platform/request/electron-browser/requestService';
+import { LifecycleService } from 'vs/platform/lifecycle/electron-browser/lifecycleService';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
+import { LocalizationsChannelClient } from 'vs/platform/localizations/node/localizationsIpc';
+import { ISharedProcessService, SharedProcessService } from 'vs/platform/sharedProcess/node/sharedProcessService';
+import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-browser/remoteAuthorityResolverService';
+import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { TelemetryService } from 'vs/platform/telemetry/node/telemetryService';
 
 import 'vs/workbench/services/bulkEdit/browser/bulkEditService';
 import 'vs/workbench/services/integrity/node/integrityService';
@@ -97,6 +111,12 @@ import 'vs/workbench/services/mode/common/workbenchModeService';
 import 'vs/workbench/services/commands/common/commandService';
 import 'vs/workbench/services/themes/browser/workbenchThemeService';
 import 'vs/workbench/services/extensions/electron-browser/extensionService';
+import 'vs/workbench/services/contextmenu/electron-browser/contextmenuService';
+import 'vs/workbench/services/extensionManagement/node/multiExtensionManagement';
+import 'vs/workbench/services/label/common/labelService';
+import 'vs/workbench/services/extensions/node/extensionManagementServerService';
+import 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
+import 'vs/workbench/services/notification/common/notificationService';
 
 registerSingleton(IMenuService, MenuService, true);
 registerSingleton(IListService, ListService, true);
@@ -111,6 +131,15 @@ registerSingleton(IModelService, ModelServiceImpl, true);
 registerSingleton(ITextResourceConfigurationService, TextResourceConfigurationService);
 registerSingleton(IAccessibilityService, AccessibilityService, true);
 registerSingleton(IExtensionEnablementService, ExtensionEnablementService, true);
+registerSingleton(IContextViewService, ContextViewService, true);
+registerSingleton(IExtensionGalleryService, ExtensionGalleryService, true);
+registerSingleton(IRequestService, RequestService, true);
+registerSingleton(ILifecycleService, LifecycleService);
+registerSingleton(ILocalizationsService, LocalizationsChannelClient);
+registerSingleton(ISharedProcessService, SharedProcessService, true);
+registerSingleton(IRemoteAuthorityResolverService, RemoteAuthorityResolverService, true);
+registerSingleton(ITelemetryService, TelemetryService);
+registerSingleton(IProductService, ProductService, true);
 
 //#endregion
 
@@ -268,5 +297,7 @@ import 'vs/workbench/contrib/codeinset/electron-browser/codeInset.contribution';
 
 // Issues
 import 'vs/workbench/contrib/issue/electron-browser/issue.contribution';
+import { IProductService } from 'vs/platform/product/common/product';
+import { ProductService } from 'vs/platform/product/node/productService';
 
 //#endregion

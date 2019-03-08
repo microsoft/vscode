@@ -686,4 +686,10 @@ export class SimpleLayoutService implements ILayoutService {
 
 		return this._dimension;
 	}
+
+	get container(): HTMLElement {
+		return this._container;
+	}
+
+	constructor(private _container: HTMLElement) { }
 }

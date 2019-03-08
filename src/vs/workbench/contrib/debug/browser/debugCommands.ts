@@ -92,11 +92,10 @@ export function registerCommands(): void {
 			const debugService = accessor.get(IDebugService);
 			const focused = listService.lastFocusedList;
 
-			// Tree only
-			if (focused && !(focused instanceof List)) {
-				const element = focused.getFocus();
-				if (element instanceof Expression) {
-					debugService.getViewModel().setSelectedExpression(element);
+			if (focused) {
+				const elements = focused.getFocus();
+				if (Array.isArray(elements) && elements[0] instanceof Expression) {
+					debugService.getViewModel().setSelectedExpression(elements[0]);
 				}
 			}
 		}
@@ -113,11 +112,10 @@ export function registerCommands(): void {
 			const debugService = accessor.get(IDebugService);
 			const focused = listService.lastFocusedList;
 
-			// Tree only
-			if (focused && !(focused instanceof List)) {
-				const element = focused.getFocus();
-				if (element instanceof Variable) {
-					debugService.getViewModel().setSelectedExpression(element);
+			if (focused) {
+				const elements = focused.getFocus();
+				if (Array.isArray(elements) && elements[0] instanceof Variable) {
+					debugService.getViewModel().setSelectedExpression(elements[0]);
 				}
 			}
 		}
@@ -134,11 +132,10 @@ export function registerCommands(): void {
 			const debugService = accessor.get(IDebugService);
 			const focused = listService.lastFocusedList;
 
-			// Tree only
-			if (focused && !(focused instanceof List)) {
-				const element = focused.getFocus();
-				if (element instanceof Expression) {
-					debugService.removeWatchExpressions(element.getId());
+			if (focused) {
+				const elements = focused.getFocus();
+				if (Array.isArray(elements) && elements[0] instanceof Expression) {
+					debugService.removeWatchExpressions(elements[0].getId());
 				}
 			}
 		}
@@ -155,7 +152,6 @@ export function registerCommands(): void {
 			const debugService = accessor.get(IDebugService);
 			const list = listService.lastFocusedList;
 
-			// Tree only
 			if (list instanceof List) {
 				const focused = list.getFocusedElements();
 				const element = focused.length ? focused[0] : undefined;

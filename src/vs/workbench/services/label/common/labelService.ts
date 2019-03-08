@@ -21,6 +21,7 @@ import { ILabelService, ResourceLabelFormatter, ResourceLabelFormatting } from '
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { match } from 'vs/base/common/glob';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 const resourceLabelFormattersExtPoint = ExtensionsRegistry.registerExtensionPoint<ResourceLabelFormatter[]>({
 	extensionPoint: 'resourceLabelFormatters',
@@ -257,3 +258,5 @@ export class LabelService implements ILabelService {
 		return suffix ? `${label} (${suffix})` : label;
 	}
 }
+
+registerSingleton(ILabelService, LabelService, true);
