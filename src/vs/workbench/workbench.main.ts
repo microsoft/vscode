@@ -138,6 +138,7 @@ registerSingleton(ILocalizationsService, LocalizationsChannelClient);
 registerSingleton(ISharedProcessService, SharedProcessService, true);
 registerSingleton(IRemoteAuthorityResolverService, RemoteAuthorityResolverService, true);
 registerSingleton(ITelemetryService, TelemetryService);
+registerSingleton(IProductService, ProductService, true);
 
 //#endregion
 
@@ -295,5 +296,7 @@ import 'vs/workbench/contrib/codeinset/electron-browser/codeInset.contribution';
 
 // Issues
 import 'vs/workbench/contrib/issue/electron-browser/issue.contribution';
+import { IProductService } from 'vs/platform/product/common/product';
+import { ProductService } from 'vs/platform/product/node/productService';
 
 //#endregion

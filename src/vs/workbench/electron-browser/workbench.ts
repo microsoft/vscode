@@ -57,23 +57,21 @@ import { restoreFontInfo, readFontInfo, saveFontInfo } from 'vs/editor/browser/c
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { ILogService } from 'vs/platform/log/common/log';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { IProductService } from 'vs/platform/product/common/product';
 import { WorkbenchContextKeysHandler } from 'vs/workbench/browser/contextkeys';
 import { IDimension } from 'vs/platform/layout/browser/layoutService';
 import { Part } from 'vs/workbench/browser/part';
+import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
+import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 
 // import@node
 import { DialogChannel } from 'vs/platform/dialogs/node/dialogIpc';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/node/remoteAgentService';
 import { DownloadServiceChannel } from 'vs/platform/download/node/downloadIpc';
 import { LogLevelSetterChannel } from 'vs/platform/log/node/logIpc';
-import { ProductService } from 'vs/platform/product/node/productService';
 import { ISharedProcessService } from 'vs/platform/sharedProcess/node/sharedProcessService';
 
 // import@electron-browser
 import { WindowService } from 'vs/platform/windows/electron-browser/windowService';
-import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
-import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 
 enum Settings {
 	MENUBAR_VISIBLE = 'window.menuBarVisibility',
@@ -279,10 +277,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 		// Window
 		serviceCollection.set(IWindowService, new SyncDescriptor(WindowService, [this.configuration]));
-
-		// Product
-		const productService = new ProductService();
-		serviceCollection.set(IProductService, productService); // TODO@Ben use SyncDescriptor
 
 		// Contributed services
 		const contributedServices = getServices();
