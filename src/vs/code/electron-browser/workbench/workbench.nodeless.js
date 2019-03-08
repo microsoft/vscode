@@ -26,9 +26,9 @@
 
 		// @ts-ignore
 		require([
-			'vs/workbench/nodeless/workbench.main',
-			'vs/nls!vs/workbench/nodeless/workbench.main',
-			'vs/css!vs/workbench/nodeless/workbench.main'
+			'vs/workbench/nodeless/workbench.nodeless.main',
+			'vs/nls!vs/workbench/nodeless/workbench.nodeless.main',
+			'vs/css!vs/workbench/nodeless/workbench.nodeless.main'
 		], function () {
 
 			// @ts-ignore
