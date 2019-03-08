@@ -42,6 +42,7 @@ function mode2ScriptKind(mode: string): 'TS' | 'TSX' | 'JS' | 'JSX' | undefined 
 class BufferSynchronizer {
 
 	private _pending: Proto.UpdateOpenRequestArgs = {};
+	private _pendingFiles = new Set<string>();
 
 	constructor(
 		private readonly client: ITypeScriptServiceClient
@@ -49,43 +50,50 @@ class BufferSynchronizer {
 
 	public open(args: Proto.OpenRequestArgs) {
 		if (this.supportsBatching) {
-			if (!this._pending.openFiles) {
-				this._pending.openFiles = [];
-			}
-			this._pending.openFiles.push(args);
+			this.updatePending(args.file, pending => {
+				if (!pending.openFiles) {
+					pending.openFiles = [];
+				}
+				pending.openFiles.push(args);
+			});
 		} else {
 			this.client.executeWithoutWaitingForResponse('open', args);
 		}
 	}
 
-	public close(file: string) {
+	public close(filepath: string) {
 		if (this.supportsBatching) {
-			if (!this._pending.closedFiles) {
-				this._pending.closedFiles = [];
-			}
-			this._pending.closedFiles.push(file);
+			this.updatePending(filepath, pending => {
+				if (!pending.closedFiles) {
+					pending.closedFiles = [];
+				}
+				pending.closedFiles.push(filepath);
+			});
 		} else {
-			const args: Proto.FileRequestArgs = { file };
+			const args: Proto.FileRequestArgs = { file: filepath };
 			this.client.executeWithoutWaitingForResponse('close', args);
 		}
 	}
 
 	public change(filepath: string, events: vscode.TextDocumentContentChangeEvent[]) {
-		if (this.supportsBatching) {
-			if (!events.length) {
-				return;
-			}
-			if (!this._pending.changedFiles) {
-				this._pending.changedFiles = [];
-			}
+		if (!events.length) {
+			return;
+		}
 
-			this._pending.changedFiles.push({
-				fileName: filepath,
-				textChanges: events.map((change): Proto.CodeEdit => ({
-					newText: change.text,
-					start: typeConverters.Position.toLocation(change.range.start),
-					end: typeConverters.Position.toLocation(change.range.end),
-				})).reverse(), // Send the edits end-of-document to start-of-document order
+		if (this.supportsBatching) {
+			this.updatePending(filepath, pending => {
+				if (!pending.changedFiles) {
+					pending.changedFiles = [];
+				}
+
+				pending.changedFiles.push({
+					fileName: filepath,
+					textChanges: events.map((change): Proto.CodeEdit => ({
+						newText: change.text,
+						start: typeConverters.Position.toLocation(change.range.start),
+						end: typeConverters.Position.toLocation(change.range.end),
+					})).reverse(), // Send the edits end-of-document to start-of-document order
+				});
 			});
 		} else {
 			for (const { range, text } of events) {
@@ -103,6 +111,10 @@ class BufferSynchronizer {
 			return;
 		}
 
+		this.flush();
+	}
+
+	private flush() {
 		if (!this.supportsBatching) {
 			// We've already eagerly synchronized
 			return;
@@ -111,11 +123,23 @@ class BufferSynchronizer {
 		if (this._pending.changedFiles || this._pending.closedFiles || this._pending.openFiles) {
 			this.client.executeWithoutWaitingForResponse('updateOpen', this._pending);
 			this._pending = {};
+			this._pendingFiles.clear();
 		}
 	}
 
-	private get supportsBatching() {
+	private get supportsBatching(): boolean {
 		return this.client.apiVersion.gte(API.v340) && vscode.workspace.getConfiguration('typescript', null).get<boolean>('useBatchedBufferSync', true);
+	}
+
+	private updatePending(filepath: string, f: (pending: Proto.UpdateOpenRequestArgs) => void): void {
+		if (this.supportsBatching && this._pendingFiles.has(filepath)) {
+			this.flush();
+			this._pendingFiles.clear();
+			f(this._pending);
+			this._pendingFiles.add(filepath);
+		} else {
+			f(this._pending);
+		}
 	}
 }
 
