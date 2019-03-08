@@ -349,7 +349,7 @@ export class Git {
 		await mkdirp(parentPath);
 
 		try {
-			await this.exec(parentPath, ['clone', url, folderPath], { cancellationToken });
+			await this.exec(parentPath, ['clone', url.includes(' ') ? encodeURI(url) : url, folderPath], { cancellationToken });
 		} catch (err) {
 			if (err.stderr) {
 				err.stderr = err.stderr.replace(/^Cloning.+$/m, '').trim();
