@@ -14,10 +14,8 @@ import { isMacintosh } from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { webFrame } from 'electron';
-import { getBaseLabel } from 'vs/base/common/labels';
 import { FileKind } from 'vs/platform/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { dirname } from 'vs/base/common/resources';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IQuickInputService, IQuickPickItem, IQuickInputButton, IQuickPickSeparator, IKeyMods } from 'vs/platform/quickinput/common/quickInput';
@@ -27,6 +25,7 @@ import { ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IRecentFolder, IRecentFile, IRecentWorkspace, IRecent, isRecentFolder, isRecentWorkspace } from 'vs/platform/history/common/history';
+import { splitName } from 'vs/base/common/labels';
 
 export class CloseCurrentWindowAction extends Action {
 
@@ -341,39 +340,35 @@ export abstract class BaseOpenRecentAction extends Action {
 
 		const toPick = (recent: IRecent, labelService: ILabelService, buttons: IQuickInputButton[] | undefined) => {
 			let resource: URI | undefined;
-			let label: string | undefined;
-			let description: string | undefined;
+			let fullLabel: string | undefined;
 			let fileKind: FileKind | undefined;
 			if (isRecentFolder(recent)) {
 				resource = recent.folderUri;
-				label = recent.label || labelService.getWorkspaceLabel(recent.folderUri);
-				description = labelService.getUriLabel(dirname(resource));
+				fullLabel = recent.label || labelService.getWorkspaceLabel(recent.folderUri, { verbose: true });
 				fileKind = FileKind.FOLDER;
 			} else if (isRecentWorkspace(recent)) {
 				resource = recent.workspace.configPath;
-				label = recent.label || labelService.getWorkspaceLabel(recent.workspace);
-				description = labelService.getUriLabel(dirname(resource));
+				fullLabel = recent.label || labelService.getWorkspaceLabel(recent.workspace, { verbose: true });
 				fileKind = FileKind.ROOT_FOLDER;
 			} else {
 				resource = recent.fileUri;
-				label = recent.label || getBaseLabel(recent.fileUri);
-				description = labelService.getUriLabel(dirname(resource));
+				fullLabel = recent.label || labelService.getUriLabel(recent.fileUri);
 				fileKind = FileKind.FILE;
 			}
-
+			const { name, parentPath } = splitName(fullLabel);
 			return {
 				iconClasses: getIconClasses(this.modelService, this.modeService, resource, fileKind),
-				label,
-				description,
+				label: name,
+				description: parentPath,
 				buttons,
 				resource,
 				fileKind,
 			};
 		};
 
-		const runPick = (uri: URI, isFile: boolean, keyMods: IKeyMods, label: string) => {
+		const runPick = (uri: URI, isFile: boolean, keyMods: IKeyMods) => {
 			const forceNewWindow = keyMods.ctrlCmd;
-			return this.windowService.openWindow([{ uri, typeHint: isFile ? 'file' : 'folder', label }], { forceNewWindow, forceOpenWorkspaceAsFile: isFile });
+			return this.windowService.openWindow([{ uri, typeHint: isFile ? 'file' : 'folder' }], { forceNewWindow, forceOpenWorkspaceAsFile: isFile });
 		};
 
 		const workspacePicks = recentWorkspaces.map(workspace => toPick(workspace, this.labelService, !this.isQuickNavigate() ? [this.removeFromRecentlyOpened] : undefined));
@@ -399,7 +394,7 @@ export abstract class BaseOpenRecentAction extends Action {
 			}
 		}).then((pick): Promise<void> | void => {
 			if (pick) {
-				return runPick(pick.resource, pick.fileKind === FileKind.FILE, keyMods, pick.label);
+				return runPick(pick.resource, pick.fileKind === FileKind.FILE, keyMods);
 			}
 		});
 	}

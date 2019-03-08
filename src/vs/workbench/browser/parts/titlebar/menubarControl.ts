@@ -371,9 +371,7 @@ export class MenubarControl extends Disposable {
 			typeHint = 'file';
 		}
 
-		label = unmnemonicLabel(label);
-
-		const ret: IAction = new Action(commandId, label, undefined, undefined, (event) => {
+		const ret: IAction = new Action(commandId, unmnemonicLabel(label), undefined, undefined, (event) => {
 			const openInNewWindow = event && ((!isMacintosh && (event.ctrlKey || event.shiftKey)) || (isMacintosh && (event.metaKey || event.altKey)));
 
 			return this.windowService.openWindow([{ uri, typeHint, label }], {

@@ -119,7 +119,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 							if (newWorkspacePath) {
 								return this.saveWorkspaceAs(workspaceIdentifier, newWorkspacePath).then(_ => {
 									return this.workspaceService.getWorkspaceIdentifier(newWorkspacePath).then(newWorkspaceIdentifier => {
-										const label = this.labelService.getWorkspaceLabel(newWorkspaceIdentifier);
+										const label = this.labelService.getWorkspaceLabel(newWorkspaceIdentifier, { verbose: true });
 										this.windowsService.addRecentlyOpened([{ label, workspace: newWorkspaceIdentifier }]);
 										this.workspaceService.deleteUntitledWorkspace(workspaceIdentifier);
 										return false;

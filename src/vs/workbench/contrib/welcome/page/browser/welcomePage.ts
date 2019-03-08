@@ -6,7 +6,6 @@
 import 'vs/css!./welcomePage';
 import { URI } from 'vs/base/common/uri';
 import * as strings from 'vs/base/common/strings';
-import * as path from 'vs/base/common/path';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import * as arrays from 'vs/base/common/arrays';
 import { WalkThroughInput } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughInput';
@@ -20,7 +19,6 @@ import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configur
 import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Schemas } from 'vs/base/common/network';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { getInstalledExtensions, IExtensionStatus, onExtensionChanged, isKeymapExtension } from 'vs/workbench/contrib/extensions/common/extensionsUtils';
@@ -28,7 +26,7 @@ import { IExtensionEnablementService, IExtensionManagementService, IExtensionGal
 import { used } from 'vs/workbench/contrib/welcome/page/browser/vs_code_welcome_page';
 import { ILifecycleService, StartupKind } from 'vs/platform/lifecycle/common/lifecycle';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { tildify } from 'vs/base/common/labels';
+import { splitName } from 'vs/base/common/labels';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { registerColor, focusBorder, textLinkForeground, textLinkActiveForeground, foreground, descriptionForeground, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
@@ -256,7 +254,6 @@ class WelcomePage {
 		@IWindowService private readonly windowService: IWindowService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@ILabelService private readonly labelService: ILabelService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService,
@@ -341,41 +338,27 @@ class WelcomePage {
 
 	private createListEntries(recents: (IRecentWorkspace | IRecentFolder)[]) {
 		return recents.map(recent => {
-			let label: string;
+			let fullPath: string;
 			let resource: URI;
 			let typeHint: URIType | undefined;
 			if (isRecentFolder(recent)) {
 				resource = recent.folderUri;
-				label = recent.label || this.labelService.getWorkspaceLabel(recent.folderUri);
+				fullPath = recent.label || this.labelService.getWorkspaceLabel(recent.folderUri, { verbose: true });
 				typeHint = 'folder';
 			} else {
-				label = recent.label || this.labelService.getWorkspaceLabel(recent.workspace);
+				fullPath = recent.label || this.labelService.getWorkspaceLabel(recent.workspace, { verbose: true });
 				resource = recent.workspace.configPath;
 				typeHint = 'file';
 			}
 
+			const { name, parentPath } = splitName(fullPath);
+
 			const li = document.createElement('li');
-
 			const a = document.createElement('a');
-			let name = label;
-			let parentFolderPath: string | undefined;
-
-			if (resource.scheme === Schemas.file) {
-				let parentFolder = path.dirname(resource.fsPath);
-				if (!name && parentFolder) {
-					const tmp = name;
-					name = parentFolder;
-					parentFolder = tmp;
-				}
-				parentFolderPath = tildify(parentFolder, this.environmentService.userHome);
-			} else {
-				parentFolderPath = this.labelService.getUriLabel(resource);
-			}
-
 
 			a.innerText = name;
-			a.title = label;
-			a.setAttribute('aria-label', localize('welcomePage.openFolderWithPath', "Open folder {0} with path {1}", name, parentFolderPath));
+			a.title = fullPath;
+			a.setAttribute('aria-label', localize('welcomePage.openFolderWithPath', "Open folder {0} with path {1}", name, parentPath));
 			a.href = 'javascript:void(0)';
 			a.addEventListener('click', e => {
 				/* __GDPR__
@@ -388,7 +371,7 @@ class WelcomePage {
 					id: 'openRecentFolder',
 					from: telemetryFrom
 				});
-				this.windowService.openWindow([{ uri: resource, typeHint, label }], { forceNewWindow: e.ctrlKey || e.metaKey });
+				this.windowService.openWindow([{ uri: resource, typeHint }], { forceNewWindow: e.ctrlKey || e.metaKey });
 				e.preventDefault();
 				e.stopPropagation();
 			});
@@ -397,8 +380,8 @@ class WelcomePage {
 			const span = document.createElement('span');
 			span.classList.add('path');
 			span.classList.add('detail');
-			span.innerText = parentFolderPath;
-			span.title = label;
+			span.innerText = parentPath;
+			span.title = fullPath;
 			li.appendChild(span);
 
 			return li;

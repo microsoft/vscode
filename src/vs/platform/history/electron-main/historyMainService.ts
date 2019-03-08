@@ -13,7 +13,7 @@ import { IPath } from 'vs/platform/windows/common/windows';
 import { Event as CommonEvent, Emitter } from 'vs/base/common/event';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import { IWorkspaceIdentifier, IWorkspacesMainService, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { IHistoryMainService, IRecentlyOpened, isRecentWorkspace, isRecentFolder, IRecent, isRecentFile } from 'vs/platform/history/common/history';
+import { IHistoryMainService, IRecentlyOpened, isRecentWorkspace, isRecentFolder, IRecent, isRecentFile, IRecentFolder, IRecentWorkspace, IRecentFile } from 'vs/platform/history/common/history';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { isEqual as areResourcesEqual, dirname, originalFSPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
@@ -51,15 +51,15 @@ export class HistoryMainService implements IHistoryMainService {
 
 		for (let curr of newlyAdded) {
 			if (isRecentWorkspace(curr)) {
-				if (!this.workspacesMainService.isUntitledWorkspace(curr.workspace) && indexOfWorkspace(mru.workspaces, curr.workspace) >= 0) {
+				if (!this.workspacesMainService.isUntitledWorkspace(curr.workspace) && indexOfWorkspace(mru.workspaces, curr.workspace) === -1) {
 					mru.workspaces.unshift(curr);
 				}
 			} else if (isRecentFolder(curr)) {
-				if (indexOfFolder(mru.workspaces, curr.folderUri) >= 0) {
+				if (indexOfFolder(mru.workspaces, curr.folderUri) === -1) {
 					mru.workspaces.unshift(curr);
 				}
 			} else {
-				if (indexOfFile(mru.files, curr.fileUri) >= 0) {
+				if (indexOfFile(mru.files, curr.fileUri) === -1) {
 					mru.files.unshift(curr);
 					// Add to recent documents (Windows only, macOS later)
 					if (isWindows && curr.fileUri.scheme === Schemas.file) {
@@ -150,28 +150,45 @@ export class HistoryMainService implements IHistoryMainService {
 
 	getRecentlyOpened(currentWorkspace?: IWorkspaceIdentifier, currentFolder?: ISingleFolderWorkspaceIdentifier, currentFiles?: IPath[]): IRecentlyOpened {
 
-		// Get from storage
-		let { workspaces, files } = this.getRecentlyOpenedFromStorage();
+		const workspaces: Array<IRecentFolder | IRecentWorkspace> = [];
+		const files: IRecentFile[] = [];
 
 		// Add current workspace to beginning if set
-		if (currentWorkspace && !this.workspacesMainService.isUntitledWorkspace(currentWorkspace) && !workspaces.some(w => isRecentWorkspace(w) && w.workspace.id === currentWorkspace.id)) {
-			workspaces.unshift({ workspace: currentWorkspace });
+		if (currentWorkspace && !this.workspacesMainService.isUntitledWorkspace(currentWorkspace)) {
+			workspaces.push({ workspace: currentWorkspace });
 		}
-
-		if (currentFolder && !workspaces.some(w => isRecentFolder(w) && areResourcesEqual(w.folderUri, currentFolder))) {
-			workspaces.unshift({ folderUri: currentFolder });
+		if (currentFolder) {
+			workspaces.push({ folderUri: currentFolder });
 		}
 
 		// Add currently files to open to the beginning if any
 		if (currentFiles) {
 			for (let currentFile of currentFiles) {
 				const fileUri = currentFile.fileUri;
-				if (fileUri && !files.some(f => areResourcesEqual(f.fileUri, fileUri))) {
-					files.unshift({ fileUri });
+				if (fileUri && indexOfFile(files, fileUri) === -1) {
+					files.push({ fileUri });
 				}
 			}
 		}
 
+		// Get from storage
+		let recents = this.getRecentlyOpenedFromStorage();
+		for (let recent of recents.workspaces) {
+			let index = isRecentFolder(recent) ? indexOfFolder(workspaces, recent.folderUri) : indexOfWorkspace(workspaces, recent.workspace);
+			if (index >= 0) {
+				workspaces[index].label = workspaces[index].label || recent.label;
+			} else {
+				workspaces.push(recent);
+			}
+		}
+		for (let recent of recents.files) {
+			let index = indexOfFile(files, recent.fileUri);
+			if (index >= 0) {
+				files[index].label = files[index].label || recent.label;
+			} else {
+				files.push(recent);
+			}
+		}
 		return { workspaces, files };
 	}
 
@@ -280,14 +297,14 @@ function location(recent: IRecent): URI {
 	return recent.workspace.configPath;
 }
 
-function indexOfWorkspace(arr: Array<IRecent>, workspace: IWorkspaceIdentifier): number {
+function indexOfWorkspace(arr: IRecent[], workspace: IWorkspaceIdentifier): number {
 	return arrays.firstIndex(arr, w => isRecentWorkspace(w) && w.workspace.id === workspace.id);
 }
 
-function indexOfFolder(arr: Array<IRecent>, folderURI: ISingleFolderWorkspaceIdentifier): number {
+function indexOfFolder(arr: IRecent[], folderURI: ISingleFolderWorkspaceIdentifier): number {
 	return arrays.firstIndex(arr, f => isRecentFolder(f) && areResourcesEqual(f.folderUri, folderURI));
 }
 
-function indexOfFile(arr: Array<IRecent>, fileURI: URI): number {
-	return arrays.firstIndex(arr, f => isRecentFile(f) && areResourcesEqual(f.fileUri, fileURI));
+function indexOfFile(arr: IRecentFile[], fileURI: URI): number {
+	return arrays.firstIndex(arr, f => areResourcesEqual(f.fileUri, fileURI));
 }
