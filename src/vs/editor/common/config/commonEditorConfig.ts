@@ -459,6 +459,11 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.viewInfo.scrollbar.fastScrollSensitivity,
 			'markdownDescription': nls.localize('fastScrollSensitivity', "Scrolling speed mulitiplier when pressing `Alt`.")
 		},
+		'editor.scrollPredominantAxisOnly': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.viewInfo.scrollbar.scrollPredominantAxisOnly,
+			'description': nls.localize('scrollPredominantAxisOnly', "Scroll only along the predominant axis when scrolling both vertically and horizontally at the same time. Prevents horizontal drift when scrolling vertically on a trackpad.")
+		},
 		'editor.multiCursorModifier': {
 			'type': 'string',
 			'enum': ['ctrlCmd', 'alt'],

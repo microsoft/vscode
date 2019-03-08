@@ -486,6 +486,11 @@ export interface IEditorOptions {
 	 */
 	fastScrollSensitivity?: number;
 	/**
+	 * Enable that the editor scrolls only the predominant axis. Prevents horizontal drift when scrolling vertically on a trackpad.
+	 * Defaults to true.
+	 */
+	scrollPredominantAxisOnly?: boolean;
+	/**
 	 * The modifier to be used to add multiple cursors with the mouse.
 	 * Defaults to 'alt'
 	 */
@@ -898,6 +903,7 @@ export interface InternalEditorScrollbarOptions {
 	readonly verticalSliderSize: number;
 	readonly mouseWheelScrollSensitivity: number;
 	readonly fastScrollSensitivity: number;
+	readonly scrollPredominantAxisOnly: boolean;
 }
 
 export interface InternalEditorMinimapOptions {
@@ -1321,6 +1327,7 @@ export class InternalEditorOptions {
 			&& a.verticalSliderSize === b.verticalSliderSize
 			&& a.mouseWheelScrollSensitivity === b.mouseWheelScrollSensitivity
 			&& a.fastScrollSensitivity === b.fastScrollSensitivity
+			&& a.scrollPredominantAxisOnly === b.scrollPredominantAxisOnly
 		);
 	}
 
@@ -1826,7 +1833,7 @@ export class EditorOptionsValidator {
 		};
 	}
 
-	private static _sanitizeScrollbarOpts(opts: IEditorScrollbarOptions | undefined, defaults: InternalEditorScrollbarOptions, mouseWheelScrollSensitivity: number, fastScrollSensitivity: number): InternalEditorScrollbarOptions {
+	private static _sanitizeScrollbarOpts(opts: IEditorScrollbarOptions | undefined, defaults: InternalEditorScrollbarOptions, mouseWheelScrollSensitivity: number, fastScrollSensitivity: number, scrollPredominantAxisOnly: boolean): InternalEditorScrollbarOptions {
 		if (typeof opts !== 'object') {
 			return defaults;
 		}
@@ -1851,6 +1858,7 @@ export class EditorOptionsValidator {
 			handleMouseWheel: _boolean(opts.handleMouseWheel, defaults.handleMouseWheel),
 			mouseWheelScrollSensitivity: mouseWheelScrollSensitivity,
 			fastScrollSensitivity: fastScrollSensitivity,
+			scrollPredominantAxisOnly: scrollPredominantAxisOnly,
 		};
 	}
 
@@ -2006,7 +2014,8 @@ export class EditorOptionsValidator {
 		if (fastScrollSensitivity <= 0) {
 			fastScrollSensitivity = defaults.scrollbar.fastScrollSensitivity;
 		}
-		const scrollbar = this._sanitizeScrollbarOpts(opts.scrollbar, defaults.scrollbar, mouseWheelScrollSensitivity, fastScrollSensitivity);
+		let scrollPredominantAxisOnly = _boolean(opts.scrollPredominantAxisOnly, defaults.scrollbar.scrollPredominantAxisOnly);
+		const scrollbar = this._sanitizeScrollbarOpts(opts.scrollbar, defaults.scrollbar, mouseWheelScrollSensitivity, fastScrollSensitivity, scrollPredominantAxisOnly);
 		const minimap = this._sanitizeMinimapOpts(opts.minimap, defaults.minimap);
 
 		return {
@@ -2636,6 +2645,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 			handleMouseWheel: true,
 			mouseWheelScrollSensitivity: 1,
 			fastScrollSensitivity: 5,
+			scrollPredominantAxisOnly: true,
 		},
 		minimap: {
 			enabled: true,
