@@ -37,7 +37,7 @@ import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { IInstantiationService, ServicesAccessor, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { LifecyclePhase, StartupKind, ILifecycleService, WillShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
-import { IWindowService, IWindowConfiguration, IPath, MenuBarVisibility, getTitleBarStyle } from 'vs/platform/windows/common/windows';
+import { IWindowService, IPath, MenuBarVisibility, getTitleBarStyle } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { NotificationService } from 'vs/workbench/services/notification/common/notificationService';
@@ -61,6 +61,10 @@ import { IDimension } from 'vs/platform/layout/browser/layoutService';
 import { Part } from 'vs/workbench/browser/part';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
+
+export interface IWorkbenchOptions {
+	hasInitialFilesToOpen: boolean;
+}
 
 enum Settings {
 	MENUBAR_VISIBLE = 'window.menuBarVisibility',
@@ -115,7 +119,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 	constructor(
 		private parent: HTMLElement,
-		private configuration: IWindowConfiguration,
+		private options: IWorkbenchOptions,
 		private serviceCollection: ServiceCollection,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
@@ -190,9 +194,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 	}
 
 	private doStartup(): Promise<void> {
-
-		// Logging
-		this.logService.trace('workbench configuration', JSON.stringify(this.configuration));
 
 		// Configure emitter leak warning threshold
 		setGlobalLeakWarningThreshold(175);
@@ -302,13 +303,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		});
 	}
 
-	private hasInitialFilesToOpen(): boolean {
-		return !!(
-			(this.configuration.filesToCreate && this.configuration.filesToCreate.length > 0) ||
-			(this.configuration.filesToOpen && this.configuration.filesToOpen.length > 0) ||
-			(this.configuration.filesToDiff && this.configuration.filesToDiff.length > 0));
-	}
-
 	private registerListeners(accessor: ServicesAccessor): void {
 		const lifecycleService = accessor.get(ILifecycleService);
 		const storageService = accessor.get(IStorageService);
@@ -409,7 +403,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 	private createEditorPart(): void {
 		const editorContainer = this.createPart(Parts.EDITOR_PART, 'main', 'editor');
 
-		this.parts.get(Parts.EDITOR_PART).create(editorContainer, { restorePreviousState: !this.hasInitialFilesToOpen() });
+		this.parts.get(Parts.EDITOR_PART).create(editorContainer, { restorePreviousState: !this.options.hasInitialFilesToOpen });
 	}
 
 	private createStatusbarPart(): void {
@@ -885,7 +879,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		const backupFileService = accessor.get(IBackupFileService);
 
 		// Files to open, diff or create
-		if (this.hasInitialFilesToOpen()) {
+		if (this.options.hasInitialFilesToOpen) {
 
 			// Files to diff is exclusive
 			const filesToDiff = this.toInputs(configuration.filesToDiff, false);
