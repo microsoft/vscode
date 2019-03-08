@@ -72,6 +72,9 @@ class BufferSynchronizer {
 
 	public change(filepath: string, events: vscode.TextDocumentContentChangeEvent[]) {
 		if (this.supportsBatching) {
+			if (!events.length) {
+				return;
+			}
 			if (!this._pending.changedFiles) {
 				this._pending.changedFiles = [];
 			}
