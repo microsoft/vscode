@@ -85,8 +85,4 @@ export class LinuxUpdateService extends AbstractUpdateService {
 
 		this.setState(State.Idle(UpdateType.Archive));
 	}
-
-	protected doQuitAndInstall(): void {
-		this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
-	}
 }
