@@ -745,7 +745,7 @@ declare module 'vscode' {
 	/**
 	 * A collection of comments representing a conversation at a particular range in a document.
 	 */
-	interface CommentThread {
+	export interface CommentThread {
 		/**
 		 * A unique identifier of the comment thread.
 		 */
