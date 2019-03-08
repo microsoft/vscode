@@ -474,7 +474,7 @@ function readWindowsCaCertificates() {
 	return {
 		certs,
 		append: true
-	}
+	};
 }
 
 async function readMacCaCertificates() {
@@ -485,7 +485,7 @@ async function readMacCaCertificates() {
 	return {
 		certs,
 		append: true
-	}
+	};
 }
 
 async function readLinuxCaCertificates() {
@@ -496,7 +496,7 @@ async function readLinuxCaCertificates() {
 	return {
 		certs,
 		append: false
-	}
+	};
 }
 
 function derToPem(blob) {
