@@ -27,7 +27,7 @@ interface IDebugEditorModelData {
 	toDispose: lifecycle.IDisposable[];
 	breakpointDecorations: IBreakpointDecoration[];
 	currentStackDecorations: string[];
-	topStackFrameRange: Range;
+	topStackFrameRange: Range | undefined;
 }
 
 export class DebugEditorModelManager implements IWorkbenchContribution {
@@ -93,8 +93,9 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 
 	private onModelRemoved(model: ITextModel): void {
 		const modelUriStr = model.uri.toString();
-		if (this.modelDataMap.has(modelUriStr)) {
-			lifecycle.dispose(this.modelDataMap.get(modelUriStr).toDispose);
+		const data = this.modelDataMap.get(modelUriStr);
+		if (data) {
+			lifecycle.dispose(data.toDispose);
 			this.modelDataMap.delete(modelUriStr);
 		}
 	}
@@ -132,8 +133,8 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 				range: columnUntilEOLRange
 			});
 
-			if (this.modelDataMap.has(modelUriStr)) {
-				const modelData = this.modelDataMap.get(modelUriStr);
+			const modelData = this.modelDataMap.get(modelUriStr);
+			if (modelData) {
 				if (modelData.topStackFrameRange && modelData.topStackFrameRange.startLineNumber === stackFrame.range.startLineNumber && modelData.topStackFrameRange.startColumn !== stackFrame.range.startColumn) {
 					result.push({
 						options: DebugEditorModelManager.TOP_STACK_FRAME_INLINE_DECORATION,
@@ -160,7 +161,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 	// breakpoints management. Represent data coming from the debug service and also send data back.
 	private onModelDecorationsChanged(modelUrlStr: string): void {
 		const modelData = this.modelDataMap.get(modelUrlStr);
-		if (modelData.breakpointDecorations.length === 0 || this.ignoreDecorationsChangedEvent) {
+		if (!modelData || modelData.breakpointDecorations.length === 0 || this.ignoreDecorationsChangedEvent) {
 			// I have no decorations
 			return;
 		}
@@ -205,16 +206,18 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 		const breakpointsMap = new Map<string, IBreakpoint[]>();
 		this.debugService.getModel().getBreakpoints().forEach(bp => {
 			const uriStr = bp.uri.toString();
-			if (breakpointsMap.has(uriStr)) {
-				breakpointsMap.get(uriStr).push(bp);
+			const breakpoints = breakpointsMap.get(uriStr);
+			if (breakpoints) {
+				breakpoints.push(bp);
 			} else {
 				breakpointsMap.set(uriStr, [bp]);
 			}
 		});
 
 		breakpointsMap.forEach((bps, uri) => {
-			if (this.modelDataMap.has(uri)) {
-				this.updateBreakpoints(this.modelDataMap.get(uri), breakpointsMap.get(uri));
+			const data = this.modelDataMap.get(uri);
+			if (data) {
+				this.updateBreakpoints(data, breakpointsMap.get(uri)!);
 			}
 		});
 		this.modelDataMap.forEach((modelData, uri) => {
@@ -226,16 +229,17 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 
 	private updateBreakpoints(modelData: IDebugEditorModelData, newBreakpoints: IBreakpoint[]): void {
 		const desiredDecorations = this.createBreakpointDecorations(modelData.model, newBreakpoints);
-		let breakpointDecorationIds: string[] | undefined;
 		try {
 			this.ignoreDecorationsChangedEvent = true;
-			breakpointDecorationIds = modelData.model.deltaDecorations(modelData.breakpointDecorations.map(bpd => bpd.decorationId), desiredDecorations);
+			const breakpointDecorationIds = modelData.model.deltaDecorations(modelData.breakpointDecorations.map(bpd => bpd.decorationId), desiredDecorations);
+			modelData.breakpointDecorations = breakpointDecorationIds.map((decorationId, index) => ({
+				decorationId,
+				modelId: newBreakpoints[index].getId(),
+				range: desiredDecorations[index].range
+			}));
 		} finally {
 			this.ignoreDecorationsChangedEvent = false;
 		}
-
-		modelData.breakpointDecorations = breakpointDecorationIds.map((decorationId, index) =>
-			({ decorationId, modelId: newBreakpoints[index].getId(), range: desiredDecorations[index].range }));
 	}
 
 	private createBreakpointDecorations(model: ITextModel, breakpoints: ReadonlyArray<IBreakpoint>): { range: Range; options: IModelDecorationOptions; }[] {

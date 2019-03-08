@@ -19,7 +19,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 export class OpenRawDefaultSettingsAction extends Action {
 
 	static readonly ID = 'workbench.action.openRawDefaultSettings';
-	static readonly LABEL = nls.localize('openRawDefaultSettings', "Open Raw Default Settings");
+	static readonly LABEL = nls.localize('openRawDefaultSettings', "Open Default Settings (JSON)");
 
 	constructor(
 		id: string,
@@ -260,7 +260,9 @@ export class ConfigureLanguageBasedSettingsAction extends Action {
 			.then(pick => {
 				if (pick) {
 					const modeId = this.modeService.getModeIdForLanguageName(pick.label.toLowerCase());
-					return this.preferencesService.configureSettingsForLanguage(modeId);
+					if (typeof modeId === 'string') {
+						return this.preferencesService.configureSettingsForLanguage(modeId);
+					}
 				}
 				return undefined;
 			});

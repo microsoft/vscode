@@ -49,7 +49,7 @@ export class ExtractError extends Error {
 }
 
 function modeFromEntry(entry: Entry) {
-	let attr = entry.externalFileAttributes >> 16 || 33188;
+	const attr = entry.externalFileAttributes >> 16 || 33188;
 
 	return [448 /* S_IRWXU */, 56 /* S_IRWXG */, 7 /* S_IRWXO */]
 		.map(mask => attr & mask)

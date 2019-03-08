@@ -146,7 +146,7 @@ class WordBasedCompletionItemProvider implements modes.CompletionItemProvider {
 
 class WorkerManager extends Disposable {
 
-	private _modelService: IModelService;
+	private readonly _modelService: IModelService;
 	private _editorWorkerClient: EditorWorkerClient | null;
 	private _lastWorkerUsedTime: number;
 
@@ -211,8 +211,8 @@ class WorkerManager extends Disposable {
 
 class EditorModelManager extends Disposable {
 
-	private _proxy: EditorSimpleWorkerImpl;
-	private _modelService: IModelService;
+	private readonly _proxy: EditorSimpleWorkerImpl;
+	private readonly _modelService: IModelService;
 	private _syncedModels: { [modelUrl: string]: IDisposable[]; } = Object.create(null);
 	private _syncedModelsLastUsedTime: { [modelUrl: string]: number; } = Object.create(null);
 
@@ -312,8 +312,8 @@ interface IWorkerClient<T> {
 }
 
 class SynchronousWorkerClient<T extends IDisposable> implements IWorkerClient<T> {
-	private _instance: T;
-	private _proxyObj: Promise<T>;
+	private readonly _instance: T;
+	private readonly _proxyObj: Promise<T>;
 
 	constructor(instance: T) {
 		this._instance = instance;
@@ -331,9 +331,9 @@ class SynchronousWorkerClient<T extends IDisposable> implements IWorkerClient<T>
 
 export class EditorWorkerClient extends Disposable {
 
-	private _modelService: IModelService;
+	private readonly _modelService: IModelService;
 	private _worker: IWorkerClient<EditorSimpleWorkerImpl> | null;
-	private _workerFactory: DefaultWorkerFactory;
+	private readonly _workerFactory: DefaultWorkerFactory;
 	private _modelManager: EditorModelManager | null;
 
 	constructor(modelService: IModelService, label: string | undefined) {

@@ -17,6 +17,9 @@ import * as git from './git';
 import * as VinylFile from 'vinyl';
 import { ThroughStream } from 'through';
 import * as sm from 'source-map';
+import { IDownloadOptions, downloadInExternalProcess, IDownloadRequestOptions } from '../download/download';
+
+const REPO_ROOT = path.join(__dirname, '../../');
 
 export interface ICancellationToken {
 	isCancellationRequested(): boolean;
@@ -279,4 +282,39 @@ export function versionStringToNumber(versionStr: string) {
 	}
 
 	return parseInt(match[1], 10) * 1e4 + parseInt(match[2], 10) * 1e2 + parseInt(match[3], 10);
+}
+
+export function download(requestOptions: IDownloadRequestOptions): NodeJS.ReadWriteStream {
+	const result = es.through();
+	const filename = path.join(REPO_ROOT, `.build/tmp-${Date.now()}-${path.posix.basename(requestOptions.path)}`);
+	const opts: IDownloadOptions = {
+		requestOptions: requestOptions,
+		destinationPath: filename
+	};
+	downloadInExternalProcess(opts).then(() => {
+		fs.stat(filename, (err, stat) => {
+			if (err) {
+				result.emit('error', err);
+				return;
+			}
+			fs.readFile(filename, (err, data) => {
+				if (err) {
+					result.emit('error', err);
+					return;
+				}
+				fs.unlink(filename, () => {
+					result.emit('data', new VinylFile({
+						path: path.normalize(requestOptions.path),
+						stat: stat,
+						base: path.normalize(requestOptions.path),
+						contents: data
+					}));
+					result.emit('end');
+				});
+			});
+		});
+	}, (err) => {
+		result.emit('error', err);
+	});
+	return result;
 }

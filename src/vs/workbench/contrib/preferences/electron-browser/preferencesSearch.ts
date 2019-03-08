@@ -26,7 +26,7 @@ import { nullRange } from 'vs/workbench/services/preferences/common/preferencesM
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface IEndpointDetails {
-	urlBase: string;
+	urlBase?: string;
 	key?: string;
 }
 
@@ -77,14 +77,14 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 		}
 	}
 
-	getRemoteSearchProvider(filter: string, newExtensionsOnly = false): ISearchProvider {
+	getRemoteSearchProvider(filter: string, newExtensionsOnly = false): ISearchProvider | undefined {
 		const opts: IRemoteSearchProviderOptions = {
 			filter,
 			newExtensionsOnly,
 			endpoint: this._endpoint
 		};
 
-		return this.remoteSearchAllowed && this.instantiationService.createInstance(RemoteSearchProvider, opts, this._installedExtensions);
+		return this.remoteSearchAllowed ? this.instantiationService.createInstance(RemoteSearchProvider, opts, this._installedExtensions) : undefined;
 	}
 
 	getLocalSearchProvider(filter: string): LocalSearchProvider {
@@ -165,7 +165,7 @@ class RemoteSearchProvider implements ISearchProvider {
 	private static readonly MAX_REQUESTS = 10;
 	private static readonly NEW_EXTENSIONS_MIN_SCORE = 1;
 
-	private _remoteSearchP: Promise<IFilterMetadata>;
+	private _remoteSearchP: Promise<IFilterMetadata | null>;
 
 	constructor(private options: IRemoteSearchProviderOptions, private installedExtensions: Promise<ILocalExtension[]>,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
@@ -177,8 +177,8 @@ class RemoteSearchProvider implements ISearchProvider {
 			Promise.resolve(null);
 	}
 
-	searchModel(preferencesModel: ISettingsEditorModel, token?: CancellationToken): Promise<ISearchResult> {
-		return this._remoteSearchP.then(remoteResult => {
+	searchModel(preferencesModel: ISettingsEditorModel, token?: CancellationToken): Promise<ISearchResult | null> {
+		return this._remoteSearchP.then<ISearchResult | null>((remoteResult) => {
 			if (!remoteResult) {
 				return null;
 			}
@@ -278,7 +278,7 @@ class RemoteSearchProvider implements ISearchProvider {
 			headers,
 			timeout: 5000
 		}, CancellationToken.None).then(context => {
-			if (context.res.statusCode >= 300) {
+			if (typeof context.res.statusCode === 'number' && context.res.statusCode >= 300) {
 				throw new Error(`${JSON.stringify(details)} returned status code: ${context.res.statusCode}`);
 			}
 

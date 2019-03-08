@@ -445,6 +445,15 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	get firstVisibleIndex(): number {
 		const range = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
+		const firstElTop = this.rangeMap.positionAt(range.start);
+		const nextElTop = this.rangeMap.positionAt(range.start + 1);
+		if (nextElTop !== -1) {
+			const firstElMidpoint = (nextElTop - firstElTop) / 2 + firstElTop;
+			if (firstElMidpoint < this.scrollTop) {
+				return range.start + 1;
+			}
+		}
+
 		return range.start;
 	}
 

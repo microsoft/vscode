@@ -39,14 +39,16 @@ class ToggleBreakpointAction extends EditorAction {
 		const debugService = accessor.get(IDebugService);
 
 		const position = editor.getPosition();
-		const modelUri = editor.getModel().uri;
-		const bps = debugService.getModel().getBreakpoints({ lineNumber: position.lineNumber, uri: modelUri });
+		if (editor.hasModel() && position) {
+			const modelUri = editor.getModel().uri;
+			const bps = debugService.getModel().getBreakpoints({ lineNumber: position.lineNumber, uri: modelUri });
 
-		if (bps.length) {
-			return Promise.all(bps.map(bp => debugService.removeBreakpoints(bp.getId())));
-		}
-		if (debugService.getConfigurationManager().canSetBreakpointsIn(editor.getModel())) {
-			return debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber }], 'debugEditorActions.toggleBreakpointAction');
+			if (bps.length) {
+				return Promise.all(bps.map(bp => debugService.removeBreakpoints(bp.getId())));
+			}
+			if (debugService.getConfigurationManager().canSetBreakpointsIn(editor.getModel())) {
+				return debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber }], 'debugEditorActions.toggleBreakpointAction');
+			}
 		}
 
 		return Promise.resolve();
@@ -68,9 +70,9 @@ class ConditionalBreakpointAction extends EditorAction {
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const debugService = accessor.get(IDebugService);
 
-		const { lineNumber, column } = editor.getPosition();
-		if (debugService.getConfigurationManager().canSetBreakpointsIn(editor.getModel())) {
-			editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).showBreakpointWidget(lineNumber, column);
+		const position = editor.getPosition();
+		if (position && editor.hasModel() && debugService.getConfigurationManager().canSetBreakpointsIn(editor.getModel())) {
+			editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).showBreakpointWidget(position.lineNumber, position.column);
 		}
 	}
 }
@@ -90,9 +92,9 @@ class LogPointAction extends EditorAction {
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const debugService = accessor.get(IDebugService);
 
-		const { lineNumber, column } = editor.getPosition();
-		if (debugService.getConfigurationManager().canSetBreakpointsIn(editor.getModel())) {
-			editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).showBreakpointWidget(lineNumber, column, BreakpointWidgetContext.LOG_MESSAGE);
+		const position = editor.getPosition();
+		if (position && editor.hasModel() && debugService.getConfigurationManager().canSetBreakpointsIn(editor.getModel())) {
+			editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).showBreakpointWidget(position.lineNumber, position.column, BreakpointWidgetContext.LOG_MESSAGE);
 		}
 	}
 }
@@ -134,13 +136,17 @@ class RunToCursorAction extends EditorAction {
 		});
 
 		const position = editor.getPosition();
+		if (!editor.hasModel() || !position) {
+			return Promise.resolve();
+		}
+
 		const uri = editor.getModel().uri;
 		const bpExists = !!(debugService.getModel().getBreakpoints({ column: position.column, lineNumber: position.lineNumber, uri }).length);
 		return (bpExists ? Promise.resolve(null) : <Promise<any>>debugService.addBreakpoints(uri, [{ lineNumber: position.lineNumber, column: position.column }], 'debugEditorActions.runToCursorAction')).then((breakpoints) => {
 			if (breakpoints && breakpoints.length) {
 				breakpointToRemove = breakpoints[0];
 			}
-			debugService.getViewModel().focusedThread.continue();
+			debugService.getViewModel().focusedThread!.continue();
 		});
 	}
 }
@@ -163,11 +169,14 @@ class SelectionToReplAction extends EditorAction {
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const debugService = accessor.get(IDebugService);
 		const panelService = accessor.get(IPanelService);
-
-		const text = editor.getModel().getValueInRange(editor.getSelection());
 		const viewModel = debugService.getViewModel();
 		const session = viewModel.focusedSession;
-		return session.addReplExpression(viewModel.focusedStackFrame, text)
+		if (!editor.hasModel() || !session) {
+			return Promise.resolve();
+		}
+
+		const text = editor.getModel().getValueInRange(editor.getSelection());
+		return session.addReplExpression(viewModel.focusedStackFrame!, text)
 			.then(() => panelService.openPanel(REPL_ID, true))
 			.then(_ => undefined);
 	}
@@ -191,6 +200,9 @@ class SelectionToWatchExpressionsAction extends EditorAction {
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const debugService = accessor.get(IDebugService);
 		const viewletService = accessor.get(IViewletService);
+		if (!editor.hasModel()) {
+			return Promise.resolve();
+		}
 
 		const text = editor.getModel().getValueInRange(editor.getSelection());
 		return viewletService.openViewlet(VIEWLET_ID).then(() => debugService.addWatchExpression(text));
@@ -215,6 +227,9 @@ class ShowDebugHoverAction extends EditorAction {
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const position = editor.getPosition();
+		if (!position || !editor.hasModel()) {
+			return Promise.resolve();
+		}
 		const word = editor.getModel().getWordAtPosition(position);
 		if (!word) {
 			return Promise.resolve();
@@ -233,32 +248,34 @@ class GoToBreakpointAction extends EditorAction {
 	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): Promise<any> {
 		const debugService = accessor.get(IDebugService);
 		const editorService = accessor.get(IEditorService);
-		const currentUri = editor.getModel().uri;
-		const currentLine = editor.getPosition().lineNumber;
-		//Breakpoints returned from `getBreakpoints` are already sorted.
-		const allEnabledBreakpoints = debugService.getModel().getBreakpoints({ enabledOnly: true });
+		if (editor.hasModel()) {
+			const currentUri = editor.getModel().uri;
+			const currentLine = editor.getPosition().lineNumber;
+			//Breakpoints returned from `getBreakpoints` are already sorted.
+			const allEnabledBreakpoints = debugService.getModel().getBreakpoints({ enabledOnly: true });
 
-		//Try to find breakpoint in current file
-		let moveBreakpoint =
-			this.isNext
-				? allEnabledBreakpoints.filter(bp => bp.uri.toString() === currentUri.toString() && bp.lineNumber > currentLine).shift()
-				: allEnabledBreakpoints.filter(bp => bp.uri.toString() === currentUri.toString() && bp.lineNumber < currentLine).pop();
-
-		//Try to find breakpoints in following files
-		if (!moveBreakpoint) {
-			moveBreakpoint =
+			//Try to find breakpoint in current file
+			let moveBreakpoint =
 				this.isNext
-					? allEnabledBreakpoints.filter(bp => bp.uri.toString() > currentUri.toString()).shift()
-					: allEnabledBreakpoints.filter(bp => bp.uri.toString() < currentUri.toString()).pop();
-		}
+					? allEnabledBreakpoints.filter(bp => bp.uri.toString() === currentUri.toString() && bp.lineNumber > currentLine).shift()
+					: allEnabledBreakpoints.filter(bp => bp.uri.toString() === currentUri.toString() && bp.lineNumber < currentLine).pop();
 
-		//Move to first or last possible breakpoint
-		if (!moveBreakpoint && allEnabledBreakpoints.length) {
-			moveBreakpoint = this.isNext ? allEnabledBreakpoints[0] : allEnabledBreakpoints[allEnabledBreakpoints.length - 1];
-		}
+			//Try to find breakpoints in following files
+			if (!moveBreakpoint) {
+				moveBreakpoint =
+					this.isNext
+						? allEnabledBreakpoints.filter(bp => bp.uri.toString() > currentUri.toString()).shift()
+						: allEnabledBreakpoints.filter(bp => bp.uri.toString() < currentUri.toString()).pop();
+			}
 
-		if (moveBreakpoint) {
-			return openBreakpointSource(moveBreakpoint, false, true, debugService, editorService);
+			//Move to first or last possible breakpoint
+			if (!moveBreakpoint && allEnabledBreakpoints.length) {
+				moveBreakpoint = this.isNext ? allEnabledBreakpoints[0] : allEnabledBreakpoints[allEnabledBreakpoints.length - 1];
+			}
+
+			if (moveBreakpoint) {
+				return openBreakpointSource(moveBreakpoint, false, true, debugService, editorService);
+			}
 		}
 
 		return Promise.resolve(null);

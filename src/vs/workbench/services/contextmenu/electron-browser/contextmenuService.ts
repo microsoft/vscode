@@ -6,7 +6,7 @@
 import { IAction, IActionRunner, ActionRunner } from 'vs/base/common/actions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import * as dom from 'vs/base/browser/dom';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { webFrame } from 'electron';
@@ -18,8 +18,50 @@ import { once } from 'vs/base/common/functional';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IContextMenuItem } from 'vs/base/parts/contextmenu/common/contextmenu';
 import { popup } from 'vs/base/parts/contextmenu/electron-browser/contextmenu';
+import { getTitleBarStyle } from 'vs/platform/windows/common/windows';
+import { isMacintosh } from 'vs/base/common/platform';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ContextMenuService as HTMLContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class ContextMenuService extends Disposable implements IContextMenuService {
+
+	_serviceBrand: any;
+
+	get onDidContextMenu(): Event<void> { return this.impl.onDidContextMenu; }
+
+	private impl: IContextMenuService;
+
+	constructor(
+		@INotificationService notificationService: INotificationService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@IContextViewService contextViewService: IContextViewService,
+		@IThemeService themeService: IThemeService
+	) {
+		super();
+
+		// Custom context menu: Linux/Windows if custom title is enabled
+		if (!isMacintosh && getTitleBarStyle(configurationService, environmentService) === 'custom') {
+			this.impl = new HTMLContextMenuService(null, telemetryService, notificationService, contextViewService, keybindingService, themeService);
+		}
+
+		// Native context menu: otherwise
+		else {
+			this.impl = new NativeContextMenuService(notificationService, telemetryService, keybindingService);
+		}
+	}
+
+	showContextMenu(delegate: IContextMenuDelegate): void {
+		this.impl.showContextMenu(delegate);
+	}
+}
+
+class NativeContextMenuService extends Disposable implements IContextMenuService {
 
 	_serviceBrand: any;
 
@@ -145,3 +187,5 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
 		res.then(undefined, e => this.notificationService.error(e));
 	}
 }
+
+registerSingleton(IContextMenuService, ContextMenuService, true);

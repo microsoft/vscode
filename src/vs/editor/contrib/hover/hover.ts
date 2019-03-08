@@ -35,7 +35,7 @@ export class ModesHoverController implements IEditorContribution {
 	private static readonly ID = 'editor.contrib.hover';
 
 	private _toUnhook: IDisposable[];
-	private _didChangeConfigurationHandler: IDisposable;
+	private readonly _didChangeConfigurationHandler: IDisposable;
 
 	private _contentWidget: ModesContentHoverWidget;
 	private _glyphWidget: ModesGlyphHoverWidget;

@@ -65,10 +65,10 @@ class DocumentSymbolAdapter {
 			}
 			return res;
 		});
-		let res: modes.DocumentSymbol[] = [];
-		let parentStack: modes.DocumentSymbol[] = [];
+		const res: modes.DocumentSymbol[] = [];
+		const parentStack: modes.DocumentSymbol[] = [];
 		for (const info of infos) {
-			let element = <modes.DocumentSymbol>{
+			const element = <modes.DocumentSymbol>{
 				name: info.name || '!!MISSING: name!!',
 				kind: typeConvert.SymbolKind.from(info.kind),
 				containerName: info.containerName,
@@ -83,7 +83,7 @@ class DocumentSymbolAdapter {
 					res.push(element);
 					break;
 				}
-				let parent = parentStack[parentStack.length - 1];
+				const parent = parentStack[parentStack.length - 1];
 				if (EditorRange.containsRange(parent.range, element.range) && !EditorRange.equalsRange(parent.range, element.range)) {
 					parent.children.push(element);
 					parentStack.push(element);
@@ -111,7 +111,7 @@ class CodeLensAdapter {
 		const doc = this._documents.getDocument(resource);
 
 		return asPromise(() => this._provider.provideCodeLenses(doc, token)).then(lenses => {
-			let result: CodeLensDto[] = [];
+			const result: CodeLensDto[] = [];
 			if (isNonEmptyArray(lenses)) {
 				for (const lens of lenses) {
 					const id = this._heapService.keep(lens);
@@ -206,7 +206,7 @@ class DefinitionAdapter {
 
 	provideDefinition(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.LocationLink[]> {
 		const doc = this._documents.getDocument(resource);
-		let pos = typeConvert.Position.to(position);
+		const pos = typeConvert.Position.to(position);
 		return asPromise(() => this._provider.provideDefinition(doc, pos, token)).then(convertToLocationLinks);
 	}
 }
@@ -220,7 +220,7 @@ class DeclarationAdapter {
 
 	provideDeclaration(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.LocationLink[]> {
 		const doc = this._documents.getDocument(resource);
-		let pos = typeConvert.Position.to(position);
+		const pos = typeConvert.Position.to(position);
 		return asPromise(() => this._provider.provideDeclaration(doc, pos, token)).then(convertToLocationLinks);
 	}
 }
@@ -234,7 +234,7 @@ class ImplementationAdapter {
 
 	provideImplementation(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.LocationLink[]> {
 		const doc = this._documents.getDocument(resource);
-		let pos = typeConvert.Position.to(position);
+		const pos = typeConvert.Position.to(position);
 		return asPromise(() => this._provider.provideImplementation(doc, pos, token)).then(convertToLocationLinks);
 	}
 }
@@ -263,7 +263,7 @@ class HoverAdapter {
 	public provideHover(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.Hover | undefined> {
 
 		const doc = this._documents.getDocument(resource);
-		let pos = typeConvert.Position.to(position);
+		const pos = typeConvert.Position.to(position);
 
 		return asPromise(() => this._provider.provideHover(doc, pos, token)).then(value => {
 			if (!value || isFalsyOrEmpty(value.contents)) {
@@ -291,7 +291,7 @@ class DocumentHighlightAdapter {
 	provideDocumentHighlights(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.DocumentHighlight[] | undefined> {
 
 		const doc = this._documents.getDocument(resource);
-		let pos = typeConvert.Position.to(position);
+		const pos = typeConvert.Position.to(position);
 
 		return asPromise(() => this._provider.provideDocumentHighlights(doc, pos, token)).then(value => {
 			if (Array.isArray(value)) {
@@ -311,7 +311,7 @@ class ReferenceAdapter {
 
 	provideReferences(resource: URI, position: IPosition, context: modes.ReferenceContext, token: CancellationToken): Promise<modes.Location[] | undefined> {
 		const doc = this._documents.getDocument(resource);
-		let pos = typeConvert.Position.to(position);
+		const pos = typeConvert.Position.to(position);
 
 		return asPromise(() => this._provider.provideReferences(doc, pos, context, token)).then(value => {
 			if (Array.isArray(value)) {
@@ -546,7 +546,7 @@ class RenameAdapter {
 	provideRenameEdits(resource: URI, position: IPosition, newName: string, token: CancellationToken): Promise<WorkspaceEditDto | undefined> {
 
 		const doc = this._documents.getDocument(resource);
-		let pos = typeConvert.Position.to(position);
+		const pos = typeConvert.Position.to(position);
 
 		return asPromise(() => this._provider.provideRenameEdits(doc, pos, newName, token)).then(value => {
 			if (!value) {
@@ -554,7 +554,7 @@ class RenameAdapter {
 			}
 			return typeConvert.WorkspaceEdit.from(value);
 		}, err => {
-			let rejectReason = RenameAdapter._asMessage(err);
+			const rejectReason = RenameAdapter._asMessage(err);
 			if (rejectReason) {
 				return <WorkspaceEditDto>{ rejectReason, edits: undefined! };
 			} else {
@@ -570,7 +570,7 @@ class RenameAdapter {
 		}
 
 		const doc = this._documents.getDocument(resource);
-		let pos = typeConvert.Position.to(position);
+		const pos = typeConvert.Position.to(position);
 
 		return asPromise(() => this._provider.prepareRename!(doc, pos, token)).then(rangeOrLocation => {
 
@@ -594,7 +594,7 @@ class RenameAdapter {
 			}
 			return { range: typeConvert.Range.from(range), text };
 		}, err => {
-			let rejectReason = RenameAdapter._asMessage(err);
+			const rejectReason = RenameAdapter._asMessage(err);
 			if (rejectReason) {
 				return <modes.RenameLocation & modes.Rejection>{ rejectReason, range: undefined!, text: undefined! };
 			} else {
@@ -832,8 +832,8 @@ class LinkProviderAdapter {
 			}
 			const result: LinkDto[] = [];
 			for (const link of links) {
-				let data = typeConvert.DocumentLink.from(link);
-				let id = this._heapService.keep(link);
+				const data = typeConvert.DocumentLink.from(link);
+				const id = this._heapService.keep(link);
 				result.push(ObjectIdentifier.mixin(data, id));
 			}
 			return result;
@@ -936,7 +936,7 @@ class SelectionRangeAdapter {
 				return [];
 			}
 
-			let allResults: modes.SelectionRange[][] = [];
+			const allResults: modes.SelectionRange[][] = [];
 			for (let i = 0; i < positions.length; i++) {
 				const oneResult: modes.SelectionRange[] = [];
 				allResults.push(oneResult);
@@ -1065,7 +1065,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 				t1 = Date.now();
 				this._logService.trace(`[${data.extension.identifier.value}] INVOKE provider '${(ctor as any).name}'`);
 			}
-			let p = callback(data.adapter, data.extension);
+			const p = callback(data.adapter, data.extension);
 			const extension = data.extension;
 			if (extension) {
 				Promise.resolve(p).then(
@@ -1081,7 +1081,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return Promise.reject(new Error('no adapter found'));
 	}
 
-	private _addNewAdapter(adapter: Adapter, extension: IExtensionDescription): number {
+	private _addNewAdapter(adapter: Adapter, extension: IExtensionDescription | undefined): number {
 		const handle = this._nextHandle();
 		this._adapter.set(handle, new AdapterData(adapter, extension));
 		return handle;
@@ -1358,7 +1358,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	// --- links
 
-	registerDocumentLinkProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentLinkProvider): vscode.Disposable {
+	registerDocumentLinkProvider(extension: IExtensionDescription | undefined, selector: vscode.DocumentSelector, provider: vscode.DocumentLinkProvider): vscode.Disposable {
 		const handle = this._addNewAdapter(new LinkProviderAdapter(this._documents, this._heapService, provider), extension);
 		this._proxy.$registerDocumentLinkProvider(handle, this._transformDocumentSelector(selector));
 		return this._createDisposable(handle);

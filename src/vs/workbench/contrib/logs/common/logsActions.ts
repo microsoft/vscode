@@ -10,6 +10,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { ILogService, LogLevel, DEFAULT_LOG_LEVEL } from 'vs/platform/log/common/log';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { URI } from 'vs/base/common/uri';
 
 export class OpenLogsFolderAction extends Action {
 
@@ -24,7 +25,7 @@ export class OpenLogsFolderAction extends Action {
 	}
 
 	run(): Promise<void> {
-		return this.windowsService.showItemInFolder(join(this.environmentService.logsPath, 'main.log'));
+		return this.windowsService.showItemInFolder(URI.file(join(this.environmentService.logsPath, 'main.log')));
 	}
 }
 

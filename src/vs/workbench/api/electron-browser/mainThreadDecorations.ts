@@ -21,7 +21,7 @@ class DecorationRequestsQueue {
 	private _timer: any;
 
 	constructor(
-		private _proxy: ExtHostDecorationsShape
+		private readonly _proxy: ExtHostDecorationsShape
 	) {
 		//
 	}

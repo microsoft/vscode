@@ -51,7 +51,7 @@ import product from 'vs/platform/product/node/product';
 import { IQuickPickItem, IQuickInputService, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { clipboard } from 'electron';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { coalesce } from 'vs/base/common/arrays';
 import { IWorkbenchThemeService, COLOR_THEME_SETTING, ICON_THEME_SETTING, IFileIconTheme, IColorTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
@@ -1276,9 +1276,9 @@ export class OpenExtensionsViewletAction extends ShowViewletAction {
 		label: string,
 		@IViewletService viewletService: IViewletService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IPartService partService: IPartService
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
 	) {
-		super(id, label, VIEWLET_ID, viewletService, editorGroupService, partService);
+		super(id, label, VIEWLET_ID, viewletService, editorGroupService, layoutService);
 	}
 }
 
@@ -2529,11 +2529,11 @@ export class OpenExtensionsFolderAction extends Action {
 		const extensionsHome = URI.file(this.environmentService.extensionsPath);
 
 		return Promise.resolve(this.fileService.resolveFile(extensionsHome)).then(file => {
-			let itemToShow: string;
+			let itemToShow: URI;
 			if (file.children && file.children.length > 0) {
-				itemToShow = file.children[0].resource.fsPath;
+				itemToShow = file.children[0].resource;
 			} else {
-				itemToShow = extensionsHome.fsPath;
+				itemToShow = extensionsHome;
 			}
 
 			return this.windowsService.showItemInFolder(itemToShow);

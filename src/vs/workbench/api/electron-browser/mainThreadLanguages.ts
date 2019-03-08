@@ -29,7 +29,7 @@ export class MainThreadLanguages implements MainThreadLanguagesShape {
 
 	$changeLanguage(resource: UriComponents, languageId: string): Promise<void> {
 		const uri = URI.revive(resource);
-		let model = this._modelService.getModel(uri);
+		const model = this._modelService.getModel(uri);
 		if (!model) {
 			return Promise.reject(new Error('Invalid uri'));
 		}

@@ -197,10 +197,6 @@ export class OneSnippet {
 			let ranges: Range[] | undefined;
 
 			for (const placeholder of placeholdersWithEqualIndex) {
-				if (placeholder.isFinalTabstop) {
-					// ignore those
-					break;
-				}
 
 				if (!ranges) {
 					ranges = [];
@@ -571,6 +567,12 @@ export class SnippetSession {
 			if (allPossibleSelections.size === 0) {
 				// return false if we couldn't associate a selection to
 				// this (the first) snippet
+				return false;
+			}
+
+			if (allPossibleSelections.has(0)) {
+				// selection overlaps with a final tab stop which means
+				// we done
 				return false;
 			}
 

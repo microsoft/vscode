@@ -162,7 +162,7 @@ export class ResourcesDropHandler {
 	) {
 	}
 
-	handleDrop(event: DragEvent, resolveTargetGroup: () => IEditorGroup | undefined, afterDrop: (targetGroup: IEditorGroup) => void, targetIndex?: number): void {
+	handleDrop(event: DragEvent, resolveTargetGroup: () => IEditorGroup | undefined, afterDrop: (targetGroup: IEditorGroup | undefined) => void, targetIndex?: number): void {
 		const untitledOrFileResources = extractResources(event).filter(r => this.fileService.canHandleResource(r.resource) || r.resource.scheme === Schemas.untitled);
 		if (!untitledOrFileResources.length) {
 			return;
@@ -180,7 +180,7 @@ export class ResourcesDropHandler {
 				// Add external ones to recently open list unless dropped resource is a workspace
 				const filesToAddToHistory = untitledOrFileResources.filter(d => d.isExternal && d.resource.scheme === Schemas.file).map(d => d.resource);
 				if (filesToAddToHistory.length) {
-					this.windowsService.addRecentlyOpened(filesToAddToHistory);
+					this.windowsService.addRecentlyOpened([], [], filesToAddToHistory);
 				}
 
 				const editors: IResourceEditor[] = untitledOrFileResources.map(untitledOrFileResource => ({
@@ -235,10 +235,10 @@ export class ResourcesDropHandler {
 		}
 
 		// Resolve the contents of the dropped dirty resource from source
-		return this.backupFileService.resolveBackupContent(droppedDirtyEditor.backupResource).then(content => {
+		return this.backupFileService.resolveBackupContent(droppedDirtyEditor.backupResource!).then(content => {
 
 			// Set the contents of to the resource to the target
-			return this.backupFileService.backupResource(droppedDirtyEditor.resource, content.create(this.getDefaultEOL()).createSnapshot(true));
+			return this.backupFileService.backupResource(droppedDirtyEditor.resource, content!.create(this.getDefaultEOL()).createSnapshot(true));
 		}).then(() => false, () => false /* ignore any error */);
 	}
 

@@ -70,9 +70,11 @@ export function registerCommands(): void {
 				const model = widget.getModel();
 				if (model) {
 					const position = widget.getPosition();
-					const bps = debugService.getModel().getBreakpoints({ uri: model.uri, lineNumber: position.lineNumber });
-					if (bps.length) {
-						debugService.enableOrDisableBreakpoints(!bps[0].enabled, bps[0]);
+					if (position) {
+						const bps = debugService.getModel().getBreakpoints({ uri: model.uri, lineNumber: position.lineNumber });
+						if (bps.length) {
+							debugService.enableOrDisableBreakpoints(!bps[0].enabled, bps[0]);
+						}
 					}
 				}
 			}
@@ -90,11 +92,10 @@ export function registerCommands(): void {
 			const debugService = accessor.get(IDebugService);
 			const focused = listService.lastFocusedList;
 
-			// Tree only
-			if (!(focused instanceof List)) {
-				const element = focused.getFocus();
-				if (element instanceof Expression) {
-					debugService.getViewModel().setSelectedExpression(element);
+			if (focused) {
+				const elements = focused.getFocus();
+				if (Array.isArray(elements) && elements[0] instanceof Expression) {
+					debugService.getViewModel().setSelectedExpression(elements[0]);
 				}
 			}
 		}
@@ -111,11 +112,10 @@ export function registerCommands(): void {
 			const debugService = accessor.get(IDebugService);
 			const focused = listService.lastFocusedList;
 
-			// Tree only
-			if (!(focused instanceof List)) {
-				const element = focused.getFocus();
-				if (element instanceof Variable) {
-					debugService.getViewModel().setSelectedExpression(element);
+			if (focused) {
+				const elements = focused.getFocus();
+				if (Array.isArray(elements) && elements[0] instanceof Variable) {
+					debugService.getViewModel().setSelectedExpression(elements[0]);
 				}
 			}
 		}
@@ -132,11 +132,10 @@ export function registerCommands(): void {
 			const debugService = accessor.get(IDebugService);
 			const focused = listService.lastFocusedList;
 
-			// Tree only
-			if (!(focused instanceof List)) {
-				const element = focused.getFocus();
-				if (element instanceof Expression) {
-					debugService.removeWatchExpressions(element.getId());
+			if (focused) {
+				const elements = focused.getFocus();
+				if (Array.isArray(elements) && elements[0] instanceof Expression) {
+					debugService.removeWatchExpressions(elements[0].getId());
 				}
 			}
 		}
@@ -153,7 +152,6 @@ export function registerCommands(): void {
 			const debugService = accessor.get(IDebugService);
 			const list = listService.lastFocusedList;
 
-			// Tree only
 			if (list instanceof List) {
 				const focused = list.getFocusedElements();
 				const element = focused.length ? focused[0] : undefined;
@@ -195,7 +193,7 @@ export function registerCommands(): void {
 			}
 			const launch = manager.getLaunches().filter(l => l.uri.toString() === launchUri).pop() || manager.selectedConfiguration.launch;
 
-			return launch.openConfigFile(false, false).then(({ editor, created }) => {
+			return launch!.openConfigFile(false, false).then(({ editor, created }) => {
 				if (editor && !created) {
 					const codeEditor = <ICodeEditor>editor.getControl();
 					if (codeEditor) {
@@ -214,6 +212,10 @@ export function registerCommands(): void {
 		const widget = editorService.activeTextEditorWidget;
 		if (isCodeEditor(widget)) {
 			const position = widget.getPosition();
+			if (!position || !widget.hasModel()) {
+				return undefined;
+			}
+
 			const modelUri = widget.getModel().uri;
 			const bp = debugService.getModel().getBreakpoints({ lineNumber: position.lineNumber, uri: modelUri })
 				.filter(bp => (bp.column === position.column || !bp.column && position.column <= 1)).pop();

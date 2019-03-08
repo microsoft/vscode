@@ -68,7 +68,7 @@ export class ExtensionsListView extends ViewletPanel {
 	private extensionsList: HTMLElement;
 	private badge: CountBadge;
 	protected badgeContainer: HTMLElement;
-	private list: WorkbenchPagedList<IExtension>;
+	private list: WorkbenchPagedList<IExtension> | null;
 
 	constructor(
 		private options: IViewletViewOptions,
@@ -133,7 +133,9 @@ export class ExtensionsListView extends ViewletPanel {
 
 	protected layoutBody(height: number, width: number): void {
 		this.extensionsList.style.height = height + 'px';
-		this.list.layout(height, width);
+		if (this.list) {
+			this.list.layout(height, width);
+		}
 	}
 
 	async show(query: string): Promise<IPagedModel<IExtension>> {
@@ -168,7 +170,7 @@ export class ExtensionsListView extends ViewletPanel {
 	}
 
 	count(): number {
-		return this.list.length;
+		return this.list ? this.list.length : 0;
 	}
 
 	protected showEmptyModel(): Promise<IPagedModel<IExtension>> {
@@ -728,6 +730,10 @@ export class ExtensionsListView extends ViewletPanel {
 
 	focus(): void {
 		super.focus();
+		if (!this.list) {
+			return;
+		}
+
 		if (!(this.list.getFocus().length || this.list.getSelection().length)) {
 			this.list.focusNext();
 		}

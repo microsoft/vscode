@@ -36,8 +36,8 @@ export class LanguagesRegistry extends Disposable {
 	private readonly _warnOnOverwrite: boolean;
 
 	private _nextLanguageId2: number;
-	private _languageIdToLanguage: string[];
-	private _languageToLanguageId: { [id: string]: number; };
+	private readonly _languageIdToLanguage: string[];
+	private readonly _languageToLanguageId: { [id: string]: number; };
 
 	private _languages: { [id: string]: IResolvedLanguage; };
 	private _mimeTypesMap: { [mimeType: string]: LanguageIdentifier; };
