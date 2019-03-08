@@ -58,8 +58,6 @@ import { restoreFontInfo, readFontInfo, saveFontInfo } from 'vs/editor/browser/c
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { ILogService } from 'vs/platform/log/common/log';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { combinedAppender, LogAppender, NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IExtensionManagementServerService } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -292,9 +290,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 		// Parts
 		serviceCollection.set(IWorkbenchLayoutService, this); // TODO@Ben use SyncDescriptor
-
-		// Labels
-		serviceCollection.set(ILabelService, new SyncDescriptor(LabelService, undefined, true));
 
 		// Notifications
 		serviceCollection.set(INotificationService, new SyncDescriptor(NotificationService, undefined, true));

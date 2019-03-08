@@ -106,6 +106,7 @@ import 'vs/workbench/services/themes/browser/workbenchThemeService';
 import 'vs/workbench/services/extensions/electron-browser/extensionService';
 import 'vs/workbench/services/contextmenu/electron-browser/contextmenuService';
 import 'vs/workbench/services/extensionManagement/node/multiExtensionManagement';
+import 'vs/workbench/services/label/common/labelService';
 
 registerSingleton(IMenuService, MenuService, true);
 registerSingleton(IListService, ListService, true);
