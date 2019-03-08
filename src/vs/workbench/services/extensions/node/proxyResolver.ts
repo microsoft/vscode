@@ -8,6 +8,7 @@ import * as https from 'https';
 import * as tls from 'tls';
 import * as nodeurl from 'url';
 import * as os from 'os';
+import * as fs from 'fs';
 import * as cp from 'child_process';
 
 import { assign } from 'vs/base/common/objects';
@@ -371,10 +372,10 @@ function tlsPatches(originals: typeof tls) {
 	function patch(original: typeof tls.createSecureContext): typeof tls.createSecureContext {
 		return function (details: tls.SecureContextOptions): ReturnType<typeof tls.createSecureContext> {
 			const context = original.apply(null, arguments as unknown as any[]);
-			const cas = (details as any)._vscodeAdditionalCAs;
-			if (cas) {
-				for (const ca of cas) {
-					context.context.addCACert(ca);
+			const certs = (details as any)._vscodeAdditionalCaCerts;
+			if (certs) {
+				for (const cert of certs) {
+					context.context.addCACert(cert);
 				}
 			}
 			return context;
@@ -408,10 +409,14 @@ function configureModuleLoading(extensionService: ExtHostExtensionService, looku
 
 function useSystemCertificates(extHostLogService: ExtHostLogService, useSystemCertificates: boolean, opts: http.RequestOptions, callback: () => void) {
 	if (useSystemCertificates) {
-		getCertificates(extHostLogService)
-			.then(cas => {
-				if (cas) {
-					(opts as any)._vscodeAdditionalCAs = cas;
+		getCaCertificates(extHostLogService)
+			.then(caCertificates => {
+				if (caCertificates) {
+					if (caCertificates.append) {
+						(opts as any)._vscodeAdditionalCaCerts = caCertificates.certs;
+					} else {
+						(opts as https.RequestOptions).ca = caCertificates.certs;
+					}
 				}
 				callback();
 			})
@@ -423,29 +428,33 @@ function useSystemCertificates(extHostLogService: ExtHostLogService, useSystemCe
 	}
 }
 
-let _certificates: Promise<string[]>;
-async function getCertificates(extHostLogService: ExtHostLogService) {
-	if (!_certificates) {
-		_certificates = readCertificates()
+let _caCertificates: ReturnType<typeof readCaCertificates> | Promise<undefined>;
+async function getCaCertificates(extHostLogService: ExtHostLogService) {
+	if (!_caCertificates) {
+		_caCertificates = readCaCertificates()
+			.then(res => res && res.certs.length ? res : undefined)
 			.catch(err => {
 				extHostLogService.error('ProxyResolver#getCertificates', toErrorMessage(err));
 				return undefined;
 			});
 	}
-	return _certificates;
+	return _caCertificates;
 }
 
-async function readCertificates(): Promise<string[]> {
+async function readCaCertificates() {
 	if (process.platform === 'win32') {
-		return readWindowsCertificates();
+		return readWindowsCaCertificates();
 	}
 	if (process.platform === 'darwin') {
-		return readMacCertificates();
+		return readMacCaCertificates();
+	}
+	if (process.platform === 'linux') {
+		return readLinuxCaCertificates();
 	}
 	return undefined;
 }
 
-function readWindowsCertificates() {
+function readWindowsCaCertificates() {
 	const winCA = require.__$__nodeRequire<any>('win-ca-lib');
 
 	let ders = [];
@@ -460,15 +469,34 @@ function readWindowsCertificates() {
 	}
 
 	const seen = {};
-	return ders.map(derToPem)
+	const certs = ders.map(derToPem)
 		.filter(pem => !seen[pem] && (seen[pem] = true));
+	return {
+		certs,
+		append: true
+	}
 }
 
-async function readMacCertificates() {
+async function readMacCaCertificates() {
 	const stdout = (await promisify(cp.execFile)('/usr/bin/security', ['find-certificate', '-a', '-p'], { encoding: 'utf8' })).stdout;
 	const seen = {};
-	return stdout.split(/(?=-----BEGIN CERTIFICATE-----)/g)
+	const certs = stdout.split(/(?=-----BEGIN CERTIFICATE-----)/g)
 		.filter(pem => !!pem.length && !seen[pem] && (seen[pem] = true));
+	return {
+		certs,
+		append: true
+	}
+}
+
+async function readLinuxCaCertificates() {
+	const content = await promisify(fs.readFile)('/etc/ssl/certs/ca-certificates.crt', { encoding: 'utf8' });
+	const seen = {};
+	const certs = content.split(/(?=-----BEGIN CERTIFICATE-----)/g)
+		.filter(pem => !!pem.length && !seen[pem] && (seen[pem] = true));
+	return {
+		certs,
+		append: false
+	}
 }
 
 function derToPem(blob) {

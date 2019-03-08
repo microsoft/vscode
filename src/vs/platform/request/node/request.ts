@@ -62,7 +62,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 			'http.systemCertificates': {
 				type: 'boolean',
 				default: true,
-				description: localize('systemCertificates', "Controls whether CA certificates should be loaded from the OS overriding Node.js' built-in CA certificates. Currently only supported on Windows.")
+				description: localize('systemCertificates', "Controls whether CA certificates should be loaded from the OS.")
 			}
 		}
 	});
