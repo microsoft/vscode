@@ -307,16 +307,8 @@ export class ExplorerView extends ViewletPanel {
 		ExplorerFocusedContext.bindTo(this.tree.contextKeyService);
 
 		// Update resource context based on focused element
-		this.disposables.push(this.tree.onDidChangeFocus(e => {
-			const stat = e.elements && e.elements.length ? e.elements[0] : undefined;
-			const isSingleFolder = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER;
-			const resource = stat ? stat.resource : isSingleFolder ? this.contextService.getWorkspace().folders[0].uri : undefined;
-			this.resourceContext.set(resource);
-			this.folderContext.set((isSingleFolder && !stat) || !!stat && stat.isDirectory);
-			this.readonlyContext.set(!!stat && stat.isReadonly);
-			this.rootContext.set(!stat || (stat && stat.isRoot));
-		}));
-
+		this.disposables.push(this.tree.onDidChangeFocus(e => this.onFocusChanged(e.elements)));
+		this.onFocusChanged([]);
 		const explorerNavigator = new TreeResourceNavigator2(this.tree);
 		this.disposables.push(explorerNavigator);
 		// Open when selecting via keyboard
@@ -411,6 +403,16 @@ export class ExplorerView extends ViewletPanel {
 				? selection.map((fs: ExplorerItem) => fs.resource)
 				: stat instanceof ExplorerItem ? [stat.resource] : []
 		});
+	}
+
+	private onFocusChanged(elements: ExplorerItem[]): void {
+		const stat = elements && elements.length ? elements[0] : undefined;
+		const isSingleFolder = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER;
+		const resource = stat ? stat.resource : isSingleFolder ? this.contextService.getWorkspace().folders[0].uri : undefined;
+		this.resourceContext.set(resource);
+		this.folderContext.set((isSingleFolder && !stat) || !!stat && stat.isDirectory);
+		this.readonlyContext.set(!!stat && stat.isReadonly);
+		this.rootContext.set(!stat || (stat && stat.isRoot));
 	}
 
 	// General methods
