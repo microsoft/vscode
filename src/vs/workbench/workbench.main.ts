@@ -97,6 +97,7 @@ import 'vs/workbench/services/mode/common/workbenchModeService';
 import 'vs/workbench/services/commands/common/commandService';
 import 'vs/workbench/services/themes/browser/workbenchThemeService';
 import 'vs/workbench/services/extensions/electron-browser/extensionService';
+import 'vs/workbench/services/contextmenu/electron-browser/contextmenuService';
 
 registerSingleton(IMenuService, MenuService, true);
 registerSingleton(IListService, ListService, true);

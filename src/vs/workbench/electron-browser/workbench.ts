@@ -29,7 +29,6 @@ import { getServices } from 'vs/platform/instantiation/common/extensions';
 import { Position, Parts, IWorkbenchLayoutService, ILayoutOptions } from 'vs/workbench/services/layout/browser/layoutService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IStorageService, StorageScope, IWillSaveStateEvent, WillSaveStateReason } from 'vs/platform/storage/common/storage';
-import { ContextMenuService as HTMLContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -40,7 +39,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { LifecyclePhase, StartupKind, ILifecycleService, WillShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWindowService, IWindowConfiguration, IPath, MenuBarVisibility, getTitleBarStyle, IWindowsService } from 'vs/platform/windows/common/windows';
-import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { NotificationService } from 'vs/workbench/services/notification/common/notificationService';
@@ -91,7 +90,6 @@ import { LocalizationsChannelClient } from 'vs/platform/localizations/node/local
 import { ProductService } from 'vs/platform/product/node/productService';
 
 // import@electron-browser
-import { ContextMenuService as NativeContextMenuService } from 'vs/workbench/services/contextmenu/electron-browser/contextmenuService';
 import { LifecycleService } from 'vs/platform/lifecycle/electron-browser/lifecycleService';
 import { WindowService } from 'vs/platform/windows/electron-browser/windowService';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-browser/remoteAuthorityResolverService';
@@ -368,13 +366,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 		// Context view service
 		serviceCollection.set(IContextViewService, new SyncDescriptor(ContextViewService, [this.workbench], true));
-
-		// Use themable context menus when custom titlebar is enabled to match custom menubar
-		if (!isMacintosh && getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
-			serviceCollection.set(IContextMenuService, new SyncDescriptor(HTMLContextMenuService, [null]));
-		} else {
-			serviceCollection.set(IContextMenuService, new SyncDescriptor(NativeContextMenuService));
-		}
 
 		// Contributed services
 		const contributedServices = getServices();
