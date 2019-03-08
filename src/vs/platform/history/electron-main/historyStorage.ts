@@ -7,9 +7,9 @@ import { IRecentlyOpened, isRecentFolder } from 'vs/platform/history/common/hist
 
 interface ISerializedRecentlyOpened {
 	workspaces3: Array<ISerializedWorkspace | string>; // workspace or URI.toString() // added in 1.32
-	workspaceLabels: Array<string | null>; // added in 1.33
+	workspaceLabels?: Array<string | null>; // added in 1.33
 	files2: string[]; // files as URI.toString() // added in 1.32
-	fileLabels: Array<string | null>; // added in 1.33
+	fileLabels?: Array<string | null>; // added in 1.33
 }
 
 interface ILegacySerializedRecentlyOpened {

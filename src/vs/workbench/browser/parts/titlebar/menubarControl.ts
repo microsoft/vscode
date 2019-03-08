@@ -374,7 +374,7 @@ export class MenubarControl extends Disposable {
 		const ret: IAction = new Action(commandId, unmnemonicLabel(label), undefined, undefined, (event) => {
 			const openInNewWindow = event && ((!isMacintosh && (event.ctrlKey || event.shiftKey)) || (isMacintosh && (event.metaKey || event.altKey)));
 
-			return this.windowService.openWindow([{ uri, typeHint, label }], {
+			return this.windowService.openWindow([{ uri, typeHint }], {
 				forceNewWindow: openInNewWindow,
 				forceOpenWorkspaceAsFile: isFile
 			});
