@@ -49,6 +49,8 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { isEqualOrParent } from 'vs/base/common/resources';
+import { values } from 'vs/base/common/map';
+import { first } from 'vs/base/common/arrays';
 
 export class ExplorerView extends ViewletPanel {
 	static readonly ID: string = 'workbench.explorer.fileView';
@@ -507,34 +509,26 @@ export class ExplorerView extends ViewletPanel {
 		return toResource(input, { supportSideBySide: true });
 	}
 
-	private onSelectResource(resource: URI, reveal = this.autoReveal): void {
+	private async onSelectResource(resource: URI, reveal = this.autoReveal): Promise<void> {
 		if (!resource || !this.isBodyVisible()) {
 			return;
 		}
 
 		// Expand all stats in the parent chain
-		const root = this.explorerService.roots.filter(r => isEqualOrParent(resource, r.resource)).pop();
-		if (root) {
-			const traverse = async (item: ExplorerItem) => {
-				if (item.resource.toString() === resource.toString()) {
-					if (reveal) {
-						this.tree.reveal(item, 0.5);
-					}
+		let item = this.explorerService.roots.filter(i => isEqualOrParent(resource, i.resource))[0];
 
-					this.tree.setFocus([item]);
-					this.tree.setSelection([item]);
-				} else {
-					await this.tree.expand(item);
-					let found = false;
-					item.children.forEach(async child => {
-						if (!found && isEqualOrParent(resource, child.resource)) {
-							found = true;
-							await traverse(child);
-						}
-					});
-				}
-			};
-			traverse(root);
+		while (item && item.resource.toString() !== resource.toString()) {
+			await this.tree.expand(item);
+			item = first(values(item.children), i => isEqualOrParent(resource, i.resource));
+		}
+
+		if (item) {
+			if (reveal) {
+				this.tree.reveal(item, 0.5);
+			}
+
+			this.tree.setFocus([item]);
+			this.tree.setSelection([item]);
 		}
 	}
 
