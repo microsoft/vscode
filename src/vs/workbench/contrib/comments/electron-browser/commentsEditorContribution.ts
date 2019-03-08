@@ -28,13 +28,14 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IModelDecorationOptions } from 'vs/editor/common/model';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
+import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/common/async';
 import { overviewRulerCommentingRangeForeground } from 'vs/workbench/contrib/comments/electron-browser/commentGlyphWidget';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { STATUS_BAR_ITEM_HOVER_BACKGROUND, STATUS_BAR_ITEM_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ctxCommentEditorFocused, SimpleCommentEditor } from 'vs/workbench/contrib/comments/electron-browser/simpleCommentEditor';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 export const ctxCommentThreadVisible = new RawContextKey<boolean>('commentThreadVisible', false);
 
@@ -167,7 +168,8 @@ export class ReviewController implements IEditorContribution {
 	private mouseDownInfo: { lineNumber: number } | null = null;
 	private _commentingRangeSpaceReserved = false;
 	private _computePromise: CancelablePromise<ICommentInfo[]> | null;
-
+	private _computeCommentingRangePromise: CancelablePromise<ICommentInfo[]> | null;
+	private _computeCommentingRangeScheduler: Delayer<ICommentInfo[]> | null;
 	private _pendingCommentCache: { [key: number]: { [key: string]: string } };
 	private _pendingNewCommentCache: { [key: string]: { lineNumber: number, replyCommand: modes.Command, ownerId: string, extensionId: string, pendingComment: string, draftMode: modes.DraftMode } };
 
@@ -233,6 +235,31 @@ export class ReviewController implements IEditorContribution {
 			this.setComments(commentInfos.filter(commentInfo => commentInfo !== null));
 			this._computePromise = null;
 		}, error => console.log(error));
+	}
+
+	private beginComputeCommentingRanges() {
+		if (this._computeCommentingRangeScheduler) {
+			if (this._computeCommentingRangePromise) {
+				this._computeCommentingRangePromise.cancel();
+				this._computeCommentingRangePromise = null;
+			}
+
+			this._computeCommentingRangeScheduler.trigger(() => {
+				const editorURI = this.editor && this.editor.getModel() && this.editor.getModel().uri;
+
+				if (editorURI) {
+					return this.commentService.getComments(editorURI);
+				}
+
+				return Promise.resolve([]);
+			}).then(commentInfos => {
+				let meaningfulCommentInfos = commentInfos.filter(commentInfo => commentInfo !== null);
+				this._commentingRangeDecorator.update(this.editor, meaningfulCommentInfos);
+			}, (err) => {
+				onUnexpectedError(err);
+				return null;
+			});
+		}
 	}
 
 	public static get(editor: ICodeEditor): ReviewController {
@@ -355,7 +382,18 @@ export class ReviewController implements IEditorContribution {
 
 		this.localToDispose.push(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
 		this.localToDispose.push(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
-		this.localToDispose.push(this.editor.onDidChangeModelContent(() => {
+
+		this._computeCommentingRangeScheduler = new Delayer<ICommentInfo[]>(200);
+		this.localToDispose.push({
+			dispose: () => {
+				if (this._computeCommentingRangeScheduler) {
+					this._computeCommentingRangeScheduler.cancel();
+				}
+				this._computeCommentingRangeScheduler = null;
+			}
+		});
+		this.localToDispose.push(this.editor.onDidChangeModelContent(async () => {
+			this.beginComputeCommentingRanges();
 		}));
 		this.localToDispose.push(this.commentService.onDidUpdateCommentThreads(e => {
 			const editorURI = this.editor && this.editor.getModel() && this.editor.getModel().uri;
