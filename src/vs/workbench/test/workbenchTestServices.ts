@@ -81,6 +81,7 @@ import { Part } from 'vs/workbench/browser/part';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPanel } from 'vs/workbench/common/panel';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
+import { ISharedProcessService } from 'vs/platform/sharedProcess/node/sharedProcessService';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined);
@@ -1560,4 +1561,15 @@ export class TestHashService implements IHashService {
 	createSHA1(content: string): string {
 		return content;
 	}
+}
+
+export class TestSharedProcessService implements ISharedProcessService {
+
+	_serviceBrand: ServiceIdentifier<any>;
+
+	getChannel(channelName: string): any {
+		return undefined;
+	}
+
+	registerChannel(channelName: string, channel: any): void { }
 }

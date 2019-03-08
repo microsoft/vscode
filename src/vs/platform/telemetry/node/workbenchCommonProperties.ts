@@ -11,7 +11,7 @@ export const currentSessionDateStorageKey = 'telemetry.currentSessionDate';
 export const firstSessionDateStorageKey = 'telemetry.firstSessionDate';
 export const lastSessionDateStorageKey = 'telemetry.lastSessionDate';
 
-export function resolveWorkbenchCommonProperties(storageService: IStorageService, commit: string, version: string, machineId: string, installSourcePath: string): Promise<{ [name: string]: string | undefined }> {
+export function resolveWorkbenchCommonProperties(storageService: IStorageService, commit: string | undefined, version: string | undefined, machineId: string, installSourcePath: string): Promise<{ [name: string]: string | undefined }> {
 	return resolveCommonProperties(commit, version, machineId, installSourcePath).then(result => {
 		const instanceId = storageService.get(instanceStorageKey, StorageScope.GLOBAL)!;
 		const firstSessionDate = storageService.get(firstSessionDateStorageKey, StorageScope.GLOBAL)!;

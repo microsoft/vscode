@@ -71,6 +71,13 @@ import { IRequestService } from 'vs/platform/request/node/request';
 import { RequestService } from 'vs/platform/request/electron-browser/requestService';
 import { LifecycleService } from 'vs/platform/lifecycle/electron-browser/lifecycleService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
+import { LocalizationsChannelClient } from 'vs/platform/localizations/node/localizationsIpc';
+import { ISharedProcessService, SharedProcessService } from 'vs/platform/sharedProcess/node/sharedProcessService';
+import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-browser/remoteAuthorityResolverService';
+import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { TelemetryService } from 'vs/platform/telemetry/node/telemetryService';
 
 import 'vs/workbench/services/bulkEdit/browser/bulkEditService';
 import 'vs/workbench/services/integrity/node/integrityService';
@@ -107,6 +114,8 @@ import 'vs/workbench/services/extensions/electron-browser/extensionService';
 import 'vs/workbench/services/contextmenu/electron-browser/contextmenuService';
 import 'vs/workbench/services/extensionManagement/node/multiExtensionManagement';
 import 'vs/workbench/services/label/common/labelService';
+import 'vs/workbench/services/extensions/node/extensionManagementServerService';
+import 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 
 registerSingleton(IMenuService, MenuService, true);
 registerSingleton(IListService, ListService, true);
@@ -125,6 +134,10 @@ registerSingleton(IContextViewService, ContextViewService, true);
 registerSingleton(IExtensionGalleryService, ExtensionGalleryService, true);
 registerSingleton(IRequestService, RequestService, true);
 registerSingleton(ILifecycleService, LifecycleService);
+registerSingleton(ILocalizationsService, LocalizationsChannelClient);
+registerSingleton(ISharedProcessService, SharedProcessService, true);
+registerSingleton(IRemoteAuthorityResolverService, RemoteAuthorityResolverService, true);
+registerSingleton(ITelemetryService, TelemetryService);
 
 //#endregion
 

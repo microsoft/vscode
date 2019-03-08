@@ -38,7 +38,7 @@ import { IInstantiationService, ServicesAccessor, ServiceIdentifier } from 'vs/p
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { LifecyclePhase, StartupKind, ILifecycleService, WillShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
-import { IWindowService, IWindowConfiguration, IPath, MenuBarVisibility, getTitleBarStyle, IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowService, IWindowConfiguration, IPath, MenuBarVisibility, getTitleBarStyle } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { NotificationService } from 'vs/workbench/services/notification/common/notificationService';
@@ -52,40 +52,26 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { Sizing, Direction, Grid, View } from 'vs/base/browser/ui/grid/grid';
 import { WorkbenchLegacyLayout } from 'vs/workbench/browser/legacyLayout';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { setARIAContainer } from 'vs/base/browser/ui/aria/aria';
 import { restoreFontInfo, readFontInfo, saveFontInfo } from 'vs/editor/browser/config/configuration';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { ILogService } from 'vs/platform/log/common/log';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { combinedAppender, LogAppender, NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IExtensionManagementServerService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 import { IProductService } from 'vs/platform/product/common/product';
 import { WorkbenchContextKeysHandler } from 'vs/workbench/browser/contextkeys';
 import { IDimension } from 'vs/platform/layout/browser/layoutService';
 import { Part } from 'vs/workbench/browser/part';
 
 // import@node
-import { getDelayedChannel } from 'vs/base/parts/ipc/node/ipc';
-import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
 import { DialogChannel } from 'vs/platform/dialogs/node/dialogIpc';
-import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
-import { resolveWorkbenchCommonProperties } from 'vs/platform/telemetry/node/workbenchCommonProperties';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/node/remoteAgentService';
 import { DownloadServiceChannel } from 'vs/platform/download/node/downloadIpc';
 import { LogLevelSetterChannel } from 'vs/platform/log/node/logIpc';
-import { ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/node/extensionManagementIpc';
-import { ExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
-import { LocalizationsChannelClient } from 'vs/platform/localizations/node/localizationsIpc';
 import { ProductService } from 'vs/platform/product/node/productService';
+import { ISharedProcessService } from 'vs/platform/sharedProcess/node/sharedProcessService';
 
 // import@electron-browser
 import { WindowService } from 'vs/platform/windows/electron-browser/windowService';
-import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-browser/remoteAuthorityResolverService';
-import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 
@@ -137,7 +123,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 	private configurationService: IConfigurationService;
 	private environmentService: IEnvironmentService;
 	private logService: ILogService;
-	private windowsService: IWindowsService;
 
 	private parts: Map<string, Part> = new Map<string, Part>();
 
@@ -150,8 +135,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		@IStorageService storageService: IStorageService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@ILogService logService: ILogService,
-		@IWindowsService windowsService: IWindowsService
+		@ILogService logService: ILogService
 	) {
 		super();
 
@@ -161,7 +145,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		this.configurationService = configurationService;
 		this.environmentService = environmentService;
 		this.logService = logService;
-		this.windowsService = windowsService;
 
 		this.registerErrorHandler();
 	}
@@ -301,52 +284,18 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		const productService = new ProductService();
 		serviceCollection.set(IProductService, productService); // TODO@Ben use SyncDescriptor
 
-		// Shared Process
-		const sharedProcess = this.windowsService.whenSharedProcessReady()
-			.then(() => connectNet(this.environmentService.sharedIPCHandle, `window:${this.configuration.windowId}`))
-			.then(client => {
-				client.registerChannel('dialog', this.instantiationService.createInstance(DialogChannel));
-
-				return client;
-			});
-
-		// Telemetry
-		let telemetryService: ITelemetryService;
-		if (!this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!productService.enableTelemetry) {
-			const channel = getDelayedChannel(sharedProcess.then(c => c.getChannel('telemetryAppender')));
-			const config: ITelemetryServiceConfig = {
-				appender: combinedAppender(new TelemetryAppenderClient(channel), new LogAppender(this.logService)),
-				commonProperties: resolveWorkbenchCommonProperties(this.storageService, productService.commit, productService.version, this.configuration.machineId, this.environmentService.installSourcePath),
-				piiPaths: [this.environmentService.appRoot, this.environmentService.extensionsPath]
-			};
-
-			telemetryService = this._register(this.instantiationService.createInstance(TelemetryService, config));
-		} else {
-			telemetryService = NullTelemetryService;
-		}
-
-		serviceCollection.set(ITelemetryService, telemetryService); // TODO@Ben use SyncDescriptor
-
-		// Remote Resolver
-		serviceCollection.set(IRemoteAuthorityResolverService, new SyncDescriptor(RemoteAuthorityResolverService, undefined, true));
-
-		// Remote Agent
-		serviceCollection.set(IRemoteAgentService, new SyncDescriptor(RemoteAgentService, [this.configuration]));
-
-		// Extensions Management
-		const extensionManagementChannel = getDelayedChannel(sharedProcess.then(c => c.getChannel('extensions')));
-		const extensionManagementChannelClient = new ExtensionManagementChannelClient(extensionManagementChannel);
-		serviceCollection.set(IExtensionManagementServerService, new SyncDescriptor(ExtensionManagementServerService, [extensionManagementChannelClient]));
-
-		// Localization
-		const localizationsChannel = getDelayedChannel(sharedProcess.then(c => c.getChannel('localizations')));
-		serviceCollection.set(ILocalizationsService, new SyncDescriptor(LocalizationsChannelClient, [localizationsChannel]));
-
 		// Contributed services
 		const contributedServices = getServices();
 		for (let contributedService of contributedServices) {
 			serviceCollection.set(contributedService.id, contributedService.descriptor);
 		}
+
+		// TODO@Steven this should move somewhere else
+		this.instantiationService.invokeFunction(accessor => {
+			const sharedProcessService = accessor.get(ISharedProcessService);
+
+			sharedProcessService.registerChannel('dialog', this.instantiationService.createInstance(DialogChannel));
+		});
 
 		// TODO@Alex TODO@Sandeep this should move somewhere else
 		this.instantiationService.invokeFunction(accessor => {

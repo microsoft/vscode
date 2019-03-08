@@ -10,10 +10,11 @@ import { Client } from 'vs/base/parts/ipc/node/ipc.net';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { connectRemoteAgentManagement, RemoteAgentConnectionContext } from 'vs/platform/remote/node/remoteAgentConnection';
-import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 import { RemoteExtensionEnvironmentChannelClient } from 'vs/workbench/services/remote/node/remoteAgentEnvironmentChannel';
 import { IRemoteAgentConnection, IRemoteAgentEnvironment, IRemoteAgentService } from 'vs/workbench/services/remote/node/remoteAgentService';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class RemoteAgentService implements IRemoteAgentService {
 
@@ -22,13 +23,14 @@ export class RemoteAgentService implements IRemoteAgentService {
 	private readonly _connection: IRemoteAgentConnection | null = null;
 
 	constructor(
-		window: IWindowConfiguration,
+		@IWindowService windowService: IWindowService,
 		@INotificationService notificationService: INotificationService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService
 	) {
-		if (window.remoteAuthority) {
-			this._connection = new RemoteAgentConnection(window.remoteAuthority, notificationService, environmentService, remoteAuthorityResolverService);
+		const { remoteAuthority } = windowService.getConfiguration();
+		if (remoteAuthority) {
+			this._connection = new RemoteAgentConnection(remoteAuthority, notificationService, environmentService, remoteAuthorityResolverService);
 		}
 	}
 
@@ -83,3 +85,5 @@ class RemoteAgentConnection extends Disposable implements IRemoteAgentConnection
 		return this._connection;
 	}
 }
+
+registerSingleton(IRemoteAgentService, RemoteAgentService);
