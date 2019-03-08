@@ -81,20 +81,32 @@ export function restoreRecentlyOpened(data: RecentlyOpenedStorageData | undefine
 }
 
 export function toStoreData(recents: IRecentlyOpened): RecentlyOpenedStorageData {
-	const serialized: ISerializedRecentlyOpened = { workspaces3: [], files2: [], workspaceLabels: [], fileLabels: [] };
+	const serialized: ISerializedRecentlyOpened = { workspaces3: [], files2: [] };
 
+	let hasLabel = false;
+	const workspaceLabels: (string | null)[] = [];
 	for (const recent of recents.workspaces) {
 		if (isRecentFolder(recent)) {
 			serialized.workspaces3.push(recent.folderUri.toString());
 		} else {
 			serialized.workspaces3.push({ id: recent.workspace.id, configURIPath: recent.workspace.configPath.toString() });
 		}
-		serialized.workspaceLabels.push(recent.label || null);
+		workspaceLabels.push(recent.label || null);
+		hasLabel = hasLabel || !!recent.label;
+	}
+	if (hasLabel) {
+		serialized.workspaceLabels = workspaceLabels;
 	}
 
+	hasLabel = false;
+	const fileLabels: (string | null)[] = [];
 	for (const recent of recents.files) {
 		serialized.files2.push(recent.fileUri.toString());
-		serialized.fileLabels.push(recent.label || null);
+		fileLabels.push(recent.label || null);
+		hasLabel = hasLabel || !!recent.label;
+	}
+	if (hasLabel) {
+		serialized.fileLabels = fileLabels;
 	}
 
 	return serialized;

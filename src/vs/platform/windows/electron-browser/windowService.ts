@@ -100,7 +100,7 @@ export class WindowService extends Disposable implements IWindowService {
 
 	openWindow(uris: IURIToOpen[], options?: IOpenSettings): Promise<void> {
 		if (!!this.configuration.remoteAuthority) {
-			uris.forEach(u => u.label = u.label || this.getRecentLabel(u, options && options.forceOpenWorkspaceAsFile));
+			uris.forEach(u => u.label = u.label || this.getRecentLabel(u, !!(options && options.forceOpenWorkspaceAsFile)));
 		}
 		return this.windowsService.openWindow(this.windowId, uris, options);
 	}
