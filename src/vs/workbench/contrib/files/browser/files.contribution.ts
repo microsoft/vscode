@@ -34,7 +34,7 @@ import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExplorerService } from 'vs/workbench/contrib/files/common/explorerService';
 
@@ -48,9 +48,9 @@ export class OpenExplorerViewletAction extends ShowViewletAction {
 		label: string,
 		@IViewletService viewletService: IViewletService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IPartService partService: IPartService
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
 	) {
-		super(id, label, VIEWLET_ID, viewletService, editorGroupService, partService);
+		super(id, label, VIEWLET_ID, viewletService, editorGroupService, layoutService);
 	}
 }
 

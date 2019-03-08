@@ -22,10 +22,10 @@ import { ServicesAccessor, EditorCommand, registerEditorCommand } from 'vs/edito
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { URI as uri } from 'vs/base/common/uri';
-import { CompletionProviderRegistry, CompletionList, CompletionContext } from 'vs/editor/common/modes';
+import { CompletionProviderRegistry, CompletionList, CompletionContext, CompletionItemKind } from 'vs/editor/common/modes';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ITextModel } from 'vs/editor/common/model';
-import { provideSuggestionItems } from 'vs/editor/contrib/suggest/suggest';
+import { provideSuggestionItems, CompletionOptions } from 'vs/editor/contrib/suggest/suggest';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { transparent, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -232,7 +232,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 			provideCompletionItems: (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken): Promise<CompletionList> => {
 				let suggestionsPromise: Promise<CompletionList>;
 				if (this.context === Context.CONDITION || this.context === Context.LOG_MESSAGE && this.isCurlyBracketOpen()) {
-					suggestionsPromise = provideSuggestionItems(this.editor.getModel(), new Position(this.lineNumber, 1), 'none', undefined, _context, token).then(suggestions => {
+					suggestionsPromise = provideSuggestionItems(this.editor.getModel(), new Position(this.lineNumber, 1), new CompletionOptions(undefined, new Set<CompletionItemKind>().add(CompletionItemKind.Snippet)), _context, token).then(suggestions => {
 
 						let overwriteBefore = 0;
 						if (this.context === Context.CONDITION) {

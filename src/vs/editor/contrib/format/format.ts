@@ -106,13 +106,15 @@ export function getDocumentFormattingEdits(
 		"formatterInfo" : {
 			"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			"language" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+			"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"extensions" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		}
 	 */
 	telemetryService.publicLog('formatterInfo', {
 		type: 'document',
 		language: model.getLanguageIdentifier().language,
 		count: docFormattingProviders.length,
+		extensions: docFormattingProviders.map(p => p.extensionId ? ExtensionIdentifier.toKey(p.extensionId) : 'unknown')
 	});
 
 	if (docFormattingProviders.length > 0) {
@@ -144,13 +146,15 @@ export function getOnTypeFormattingEdits(
 		"formatterInfo" : {
 			"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			"language" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+			"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"extensions" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		}
 	 */
 	telemetryService.publicLog('formatterInfo', {
 		type: 'ontype',
 		language: model.getLanguageIdentifier().language,
 		count: providers.length,
+		extensions: providers.map(p => p.extensionId ? ExtensionIdentifier.toKey(p.extensionId) : 'unknown')
 	});
 
 	if (providers.length === 0) {

@@ -476,8 +476,8 @@ CommandsRegistry.registerCommand(OpenFolderSettingsAction.ID, serviceAccessor =>
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: OpenFolderSettingsAction.ID,
-		title: { value: `${category}: ${OpenFolderSettingsAction.LABEL}`, original: 'Preferences: Open Folder Settings' },
-		category: nls.localize('preferencesCategory', "Prefernces")
+		title: { value: OpenFolderSettingsAction.LABEL, original: 'Preferences: Open Folder Settings' },
+		category: nls.localize('preferencesCategory', "Preferences")
 	},
 	when: WorkbenchStateContext.isEqualTo('workspace')
 });
@@ -488,8 +488,8 @@ CommandsRegistry.registerCommand(OpenWorkspaceSettingsAction.ID, serviceAccessor
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: OpenWorkspaceSettingsAction.ID,
-		title: { value: `${category}: ${OpenWorkspaceSettingsAction.LABEL}`, original: 'Preferences: Open Workspace Settings' },
-		category: nls.localize('preferencesCategory', "Prefernces")
+		title: { value: OpenWorkspaceSettingsAction.LABEL, original: 'Preferences: Open Workspace Settings' },
+		category: nls.localize('preferencesCategory', "Preferences")
 	},
 	when: WorkbenchStateContext.notEqualsTo('empty')
 });

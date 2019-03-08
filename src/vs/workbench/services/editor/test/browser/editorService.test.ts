@@ -76,7 +76,7 @@ suite('Editor service', () => {
 	test('basics', function () {
 		const partInstantiator = workbenchInstantiationService();
 
-		const part = partInstantiator.createInstance(EditorPart, 'id', false);
+		const part = partInstantiator.createInstance(EditorPart);
 		part.create(document.createElement('div'));
 		part.layout(400, 300);
 
@@ -149,7 +149,7 @@ suite('Editor service', () => {
 	test('openEditors() / replaceEditors()', function () {
 		const partInstantiator = workbenchInstantiationService();
 
-		const part = partInstantiator.createInstance(EditorPart, 'id', false);
+		const part = partInstantiator.createInstance(EditorPart);
 		part.create(document.createElement('div'));
 		part.layout(400, 300);
 
@@ -290,7 +290,7 @@ suite('Editor service', () => {
 	test('close editor does not dispose when editor opened in other group', function () {
 		const partInstantiator = workbenchInstantiationService();
 
-		const part = partInstantiator.createInstance(EditorPart, 'id', false);
+		const part = partInstantiator.createInstance(EditorPart);
 		part.create(document.createElement('div'));
 		part.layout(400, 300);
 
@@ -329,7 +329,7 @@ suite('Editor service', () => {
 	test('open to the side', function () {
 		const partInstantiator = workbenchInstantiationService();
 
-		const part = partInstantiator.createInstance(EditorPart, 'id', false);
+		const part = partInstantiator.createInstance(EditorPart);
 		part.create(document.createElement('div'));
 		part.layout(400, 300);
 
@@ -363,7 +363,7 @@ suite('Editor service', () => {
 	test('active editor change / visible editor change events', async function () {
 		const partInstantiator = workbenchInstantiationService();
 
-		const part = partInstantiator.createInstance(EditorPart, 'id', false);
+		const part = partInstantiator.createInstance(EditorPart);
 		part.create(document.createElement('div'));
 		part.layout(400, 300);
 
@@ -573,7 +573,7 @@ suite('Editor service', () => {
 	test('openEditor returns NULL when opening fails or is inactive', async function () {
 		const partInstantiator = workbenchInstantiationService();
 
-		const part = partInstantiator.createInstance(EditorPart, 'id', false);
+		const part = partInstantiator.createInstance(EditorPart);
 		part.create(document.createElement('div'));
 		part.layout(400, 300);
 

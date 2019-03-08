@@ -6,7 +6,7 @@
 import { ITextModel, ITextBufferFactory } from 'vs/editor/common/model';
 import { EditorModel } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
-import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
+import { ITextEditorModel, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IModeService, ILanguageSelection } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -59,7 +59,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		});
 	}
 
-	get textEditorModel(): ITextModel {
+	get textEditorModel(): ITextModel | null {
 		return this.textEditorModelHandle ? this.modelService.getModel(this.textEditorModelHandle) : null;
 	}
 
@@ -68,7 +68,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 	/**
 	 * Creates the text editor model with the provided value, modeId (can be comma separated for multiple values) and optional resource URL.
 	 */
-	protected createTextEditorModel(value: ITextBufferFactory, resource?: URI, modeId?: string): EditorModel {
+	protected createTextEditorModel(value: ITextBufferFactory, resource: URI, modeId?: string): EditorModel {
 		const firstLineText = this.getFirstLineText(value);
 		const languageSelection = this.getOrCreateMode(this.modeService, modeId, firstLineText);
 
@@ -111,7 +111,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 	 *
 	 * @param firstLineText optional first line of the text buffer to set the mode on. This can be used to guess a mode from content.
 	 */
-	protected getOrCreateMode(modeService: IModeService, modeId: string, firstLineText?: string): ILanguageSelection {
+	protected getOrCreateMode(modeService: IModeService, modeId: string | undefined, firstLineText?: string): ILanguageSelection {
 		return modeService.create(modeId);
 	}
 
@@ -135,7 +135,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		return null;
 	}
 
-	isResolved(): boolean {
+	isResolved(): this is IResolvedTextEditorModel {
 		return !!this.textEditorModelHandle;
 	}
 

@@ -77,7 +77,7 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 
 	public ensureDocumentData(uri: URI): Promise<ExtHostDocumentData> {
 
-		let cached = this._documentsAndEditors.getDocument(uri);
+		const cached = this._documentsAndEditors.getDocument(uri);
 		if (cached) {
 			return Promise.resolve(cached);
 		}
@@ -103,8 +103,10 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 
 	public $acceptModelModeChanged(uriComponents: UriComponents, oldModeId: string, newModeId: string): void {
 		const uri = URI.revive(uriComponents);
-		let data = this._documentsAndEditors.getDocument(uri);
-
+		const data = this._documentsAndEditors.getDocument(uri);
+		if (!data) {
+			throw new Error('unknown document');
+		}
 		// Treat a mode change as a remove + add
 
 		this._onDidRemoveDocument.fire(data.document);
@@ -114,14 +116,20 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 
 	public $acceptModelSaved(uriComponents: UriComponents): void {
 		const uri = URI.revive(uriComponents);
-		let data = this._documentsAndEditors.getDocument(uri);
+		const data = this._documentsAndEditors.getDocument(uri);
+		if (!data) {
+			throw new Error('unknown document');
+		}
 		this.$acceptDirtyStateChanged(uriComponents, false);
 		this._onDidSaveDocument.fire(data.document);
 	}
 
 	public $acceptDirtyStateChanged(uriComponents: UriComponents, isDirty: boolean): void {
 		const uri = URI.revive(uriComponents);
-		let data = this._documentsAndEditors.getDocument(uri);
+		const data = this._documentsAndEditors.getDocument(uri);
+		if (!data) {
+			throw new Error('unknown document');
+		}
 		data._acceptIsDirty(isDirty);
 		this._onDidChangeDocument.fire({
 			document: data.document,
@@ -131,7 +139,10 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 
 	public $acceptModelChanged(uriComponents: UriComponents, events: IModelChangedEvent, isDirty: boolean): void {
 		const uri = URI.revive(uriComponents);
-		let data = this._documentsAndEditors.getDocument(uri);
+		const data = this._documentsAndEditors.getDocument(uri);
+		if (!data) {
+			throw new Error('unknown document');
+		}
 		data._acceptIsDirty(isDirty);
 		data.onEvents(events);
 		this._onDidChangeDocument.fire({

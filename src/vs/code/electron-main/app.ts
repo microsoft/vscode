@@ -91,8 +91,8 @@ export class CodeApplication extends Disposable {
 	private sharedProcessClient: Promise<Client>;
 
 	constructor(
-		private mainIpcServer: Server,
-		private userEnv: IProcessEnvironment,
+		private readonly mainIpcServer: Server,
+		private readonly userEnv: IProcessEnvironment,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
@@ -648,9 +648,9 @@ export class CodeApplication extends Disposable {
 		const isBuilt = this.environmentService.isBuilt;
 
 		class ActiveConnection {
-			private _authority: string;
-			private _client: Promise<Client<RemoteAgentConnectionContext>>;
-			private _disposeRunner: RunOnceScheduler;
+			private readonly _authority: string;
+			private readonly _client: Promise<Client<RemoteAgentConnectionContext>>;
+			private readonly _disposeRunner: RunOnceScheduler;
 
 			constructor(authority: string, host: string, port: number) {
 				this._authority = authority;
@@ -707,7 +707,7 @@ export class CodeApplication extends Disposable {
 			if (connectionPool.has(uri.authority)) {
 				activeConnection = connectionPool.get(uri.authority);
 			} else {
-				let resolvedAuthority = resolveAuthority(uri.authority);
+				const resolvedAuthority = resolveAuthority(uri.authority);
 				if (!resolvedAuthority) {
 					callback(undefined);
 					return;

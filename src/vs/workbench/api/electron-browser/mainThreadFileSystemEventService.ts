@@ -57,7 +57,7 @@ export class MainThreadFileSystemEventService {
 		}, undefined, this._listener);
 
 		textfileService.onWillMove(e => {
-			let promise = proxy.$onWillRename(e.oldResource, e.newResource);
+			const promise = proxy.$onWillRename(e.oldResource, e.newResource);
 			e.waitUntil(promise);
 		}, undefined, this._listener);
 	}

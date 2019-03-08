@@ -26,7 +26,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IExtensionService, IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { TestContextService, TestWindowService } from 'vs/workbench/test/workbenchTestServices';
+import { TestContextService, TestWindowService, TestSharedProcessService } from 'vs/workbench/test/workbenchTestServices';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IWindowService } from 'vs/platform/windows/common/windows';
@@ -37,6 +37,7 @@ import { ExtensionManagementServerService } from 'vs/workbench/services/extensio
 import { IRemoteAgentService } from 'vs/workbench/services/remote/node/remoteAgentService';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import { ExtensionIdentifier, IExtensionContributions, ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { ISharedProcessService } from 'vs/platform/sharedProcess/node/sharedProcessService';
 
 suite('ExtensionsActions Test', () => {
 
@@ -63,7 +64,7 @@ suite('ExtensionsActions Test', () => {
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 
 		instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
-
+		instantiationService.stub(ISharedProcessService, TestSharedProcessService);
 
 		instantiationService.stub(IExtensionManagementService, ExtensionManagementService);
 		instantiationService.stub(IExtensionManagementService, 'onInstallExtension', installEvent.event);
@@ -84,7 +85,7 @@ suite('ExtensionsActions Test', () => {
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', []);
 		instantiationService.stubPromise(IExtensionManagementService, 'getExtensionsReport', []);
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage());
-		instantiationService.stub(IExtensionService, <IExtensionService>{ getExtensions: () => Promise.resolve([]), onDidChangeExtensions: new Emitter<void>().event, canAddExtension: (extension: IExtensionDescription) => false, canRemoveExtension: (extension: IExtensionDescription) => false });
+		instantiationService.stub(IExtensionService, <Partial<IExtensionService>>{ getExtensions: () => Promise.resolve([]), onDidChangeExtensions: new Emitter<void>().event, canAddExtension: (extension: IExtensionDescription) => false, canRemoveExtension: (extension: IExtensionDescription) => false });
 		await (<TestExtensionEnablementService>instantiationService.get(IExtensionEnablementService)).reset();
 
 		instantiationService.set(IExtensionsWorkbenchService, instantiationService.createInstance(ExtensionsWorkbenchService));

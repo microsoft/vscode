@@ -192,8 +192,17 @@
 	margin-right: 0px;
 }
 
+.markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix.autofixable {
+	background: url('lightbulb-autofix.svg') center center no-repeat;
+}
+
 .vs-dark .markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix {
 	background: url('lightbulb-dark.svg') center/80% no-repeat;
+}
+
+.vs-dark .markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix.autofixable,
+.hc-black .markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix.autofixable {
+	background: url('lightbulb-autofix-dark.svg') center center no-repeat;
 }
 
 .markers-panel .monaco-tl-contents .actions .monaco-action-bar {

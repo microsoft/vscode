@@ -105,7 +105,7 @@ export class ExtHostDocumentData extends MirrorTextModel {
 	}
 
 	private _getTextInRange(_range: vscode.Range): string {
-		let range = this._validateRange(_range);
+		const range = this._validateRange(_range);
 
 		if (range.isEmpty) {
 			return '';
@@ -115,7 +115,7 @@ export class ExtHostDocumentData extends MirrorTextModel {
 			return this._lines[range.start.line].substring(range.start.character, range.end.character);
 		}
 
-		let lineEnding = this._eol,
+		const lineEnding = this._eol,
 			startLineIndex = range.start.line,
 			endLineIndex = range.end.line,
 			resultLines: string[] = [];
@@ -178,9 +178,9 @@ export class ExtHostDocumentData extends MirrorTextModel {
 		offset = Math.max(0, offset);
 
 		this._ensureLineStarts();
-		let out = this._lineStarts!.getIndexOf(offset);
+		const out = this._lineStarts!.getIndexOf(offset);
 
-		let lineLength = this._lines[out.index].length;
+		const lineLength = this._lines[out.index].length;
 
 		// Ensure we return a valid position
 		return new Position(out.index, Math.min(out.remainder, lineLength));
@@ -193,8 +193,8 @@ export class ExtHostDocumentData extends MirrorTextModel {
 			throw new Error('Invalid argument');
 		}
 
-		let start = this._validatePosition(range.start);
-		let end = this._validatePosition(range.end);
+		const start = this._validatePosition(range.start);
+		const end = this._validatePosition(range.end);
 
 		if (start === range.start && end === range.end) {
 			return range;
@@ -221,7 +221,7 @@ export class ExtHostDocumentData extends MirrorTextModel {
 			hasChanged = true;
 		}
 		else {
-			let maxCharacter = this._lines[line].length;
+			const maxCharacter = this._lines[line].length;
 			if (character < 0) {
 				character = 0;
 				hasChanged = true;
@@ -239,7 +239,7 @@ export class ExtHostDocumentData extends MirrorTextModel {
 	}
 
 	private _getWordRangeAtPosition(_position: vscode.Position, regexp?: RegExp): vscode.Range | undefined {
-		let position = this._validatePosition(_position);
+		const position = this._validatePosition(_position);
 
 		if (!regexp) {
 			// use default when custom-regexp isn't provided
@@ -251,7 +251,7 @@ export class ExtHostDocumentData extends MirrorTextModel {
 			regexp = getWordDefinitionFor(this._languageId);
 		}
 
-		let wordAtText = getWordAtText(
+		const wordAtText = getWordAtText(
 			position.character + 1,
 			ensureValidWordDefinition(regexp),
 			this._lines[position.line],

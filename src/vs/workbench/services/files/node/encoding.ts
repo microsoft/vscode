@@ -49,7 +49,7 @@ export class ResourceEncodings extends Disposable implements IResourceEncodings 
 		}));
 	}
 
-	getReadEncoding(resource: uri, options: IResolveContentOptions, detected: encoding.IDetectedEncodingResult): string {
+	getReadEncoding(resource: uri, options: IResolveContentOptions | undefined, detected: encoding.IDetectedEncodingResult): string {
 		let preferredEncoding: string | undefined;
 
 		// Encoding passed in as option

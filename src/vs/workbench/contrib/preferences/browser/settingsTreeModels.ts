@@ -24,7 +24,7 @@ export interface ISettingsEditorViewState {
 
 export abstract class SettingsTreeElement {
 	id: string;
-	parent: SettingsTreeGroupElement;
+	parent?: SettingsTreeGroupElement;
 
 	/**
 	 * Index assigned in display order, used for paging.
@@ -130,7 +130,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	}
 
 	private initLabel(): void {
-		const displayKeyFormat = settingKeyToDisplayFormat(this.setting.key, this.parent.id);
+		const displayKeyFormat = settingKeyToDisplayFormat(this.setting.key, this.parent!.id);
 		this._displayLabel = displayKeyFormat.label;
 		this._displayCategory = displayKeyFormat.category;
 	}
@@ -161,7 +161,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			}
 
 			if (this.setting.tags) {
-				this.setting.tags.forEach(tag => this.tags.add(tag));
+				this.setting.tags.forEach(tag => this.tags!.add(tag));
 			}
 		}
 
@@ -207,7 +207,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		if (this.tags) {
 			let hasFilteredTag = true;
 			tagFilters.forEach(tag => {
-				hasFilteredTag = hasFilteredTag && this.tags.has(tag);
+				hasFilteredTag = hasFilteredTag && this.tags!.has(tag);
 			});
 			return hasFilteredTag;
 		} else {
@@ -261,12 +261,12 @@ export class SettingsTreeModel {
 		}
 	}
 
-	getElementById(id: string): SettingsTreeElement {
-		return this._treeElementsById.get(id);
+	getElementById(id: string): SettingsTreeElement | null {
+		return this._treeElementsById.get(id) || null;
 	}
 
-	getElementsByName(name: string): SettingsTreeSettingElement[] {
-		return this._treeElementsBySettingName.get(name);
+	getElementsByName(name: string): SettingsTreeSettingElement[] | null {
+		return this._treeElementsBySettingName.get(name) || null;
 	}
 
 	updateElementsByName(name: string): void {
@@ -274,7 +274,7 @@ export class SettingsTreeModel {
 			return;
 		}
 
-		this._treeElementsBySettingName.get(name).forEach(element => {
+		this._treeElementsBySettingName.get(name)!.forEach(element => {
 			const inspectResult = inspectSetting(element.setting.key, this._viewState.settingsTarget, this._configurationService);
 			element.update(inspectResult);
 		});
@@ -428,7 +428,7 @@ export const enum SearchResultIdx {
 
 export class SearchResultModel extends SettingsTreeModel {
 	private rawSearchResults: ISearchResult[];
-	private cachedUniqueSearchResults: ISearchResult[];
+	private cachedUniqueSearchResults: ISearchResult[] | undefined;
 	private newExtensionSearchResults: ISearchResult;
 
 	readonly id = 'searchResultModel';
@@ -473,8 +473,8 @@ export class SearchResultModel extends SettingsTreeModel {
 		return this.rawSearchResults;
 	}
 
-	setResult(order: SearchResultIdx, result: ISearchResult): void {
-		this.cachedUniqueSearchResults = null;
+	setResult(order: SearchResultIdx, result: ISearchResult | null): void {
+		this.cachedUniqueSearchResults = undefined;
 		this.rawSearchResults = this.rawSearchResults || [];
 		if (!result) {
 			delete this.rawSearchResults[order];

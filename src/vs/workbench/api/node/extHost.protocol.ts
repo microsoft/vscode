@@ -119,16 +119,16 @@ export interface CommentProviderFeatures {
 }
 
 export interface MainThreadCommentsShape extends IDisposable {
-	$registerCommentControl(handle: number, id: string, label: string): void;
-	$createCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, range: IRange, comments: modes.Comment[], commands: modes.Command[], collapseState: modes.CommentThreadCollapsibleState): modes.CommentThread2 | undefined;
+	$registerCommentController(handle: number, id: string, label: string): void;
+	$createCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, range: IRange, comments: modes.Comment[], acceptInputCommand: modes.Command, additionalCommands: modes.Command[], collapseState: modes.CommentThreadCollapsibleState): modes.CommentThread2 | undefined;
 	$deleteCommentThread(handle: number, commentThreadHandle: number): void;
 	$updateComments(handle: number, commentThreadHandle: number, comments: modes.Comment[]): void;
-	$createCommentingRanges(handle: number, commentingRangesHandle: number, resource: UriComponents, ranges: IRange[], commands: modes.Command): void;
-	$deleteCommentingRanges(handle: number, commentingRangesHandle: number): void;
-	$updateCommentingRanges(handle: number, commentingRangesHandle: number, newRanges: IRange[]): void;
-	$updateCommentingRangesCommands(handle: number, commentingRangesHandle: number, command: modes.Command): void;
-	$setInputValue(handle: number, commentThreadHandle: number, input: string): void;
-	$updateCommentThreadCommands(handle: number, commentThreadHandle: number, acceptInputCommands: modes.Command[]): void;
+	$setInputValue(handle: number, input: string): void;
+	$updateCommentThreadAcceptInputCommand(handle: number, commentThreadHandle: number, acceptInputCommand: modes.Command): void;
+	$updateCommentThreadAdditionalCommands(handle: number, commentThreadHandle: number, additionalCommands: modes.Command[]): void;
+	$updateCommentThreadCollapsibleState(handle: number, commentThreadHandle: number, collapseState: modes.CommentThreadCollapsibleState): void;
+	$updateCommentThreadRange(handle: number, commentThreadHandle: number, range: IRange): void;
+	$updateCommentThreadLabel(handle: number, commentThreadHandle: number, label: string): void;
 	$registerDocumentCommentProvider(handle: number, features: CommentProviderFeatures): void;
 	$unregisterDocumentCommentProvider(handle: number): void;
 	$registerWorkspaceCommentProvider(handle: number, extensionId: ExtensionIdentifier): void;
@@ -142,7 +142,7 @@ export interface MainThreadConfigurationShape extends IDisposable {
 }
 
 export interface MainThreadDiagnosticsShape extends IDisposable {
-	$changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]): void;
+	$changeMany(owner: string, entries: [UriComponents, IMarkerData[] | undefined][]): void;
 	$clear(owner: string): void;
 }
 
@@ -224,7 +224,7 @@ export interface ITextDocumentShowOptions {
 }
 
 export interface MainThreadTextEditorsShape extends IDisposable {
-	$tryShowTextDocument(resource: UriComponents, options: ITextDocumentShowOptions): Promise<string>;
+	$tryShowTextDocument(resource: UriComponents, options: ITextDocumentShowOptions): Promise<string | undefined>;
 	$registerTextEditorDecorationType(key: string, options: editorCommon.IDecorationRenderOptions): void;
 	$removeTextEditorDecorationType(key: string): void;
 	$tryShowEditor(id: string, position: EditorViewColumn): Promise<void>;
@@ -368,7 +368,7 @@ export interface MainThreadProgressShape extends IDisposable {
 }
 
 export interface MainThreadTerminalServiceShape extends IDisposable {
-	$createTerminal(name?: string, shellPath?: string, shellArgs?: string[], cwd?: string | URI, env?: { [key: string]: string }, waitOnExit?: boolean, strictEnv?: boolean): Promise<{ id: number, name: string }>;
+	$createTerminal(name?: string, shellPath?: string, shellArgs?: string[], cwd?: string | UriComponents, env?: { [key: string]: string }, waitOnExit?: boolean, strictEnv?: boolean): Promise<{ id: number, name: string }>;
 	$createTerminalRenderer(name: string): Promise<number>;
 	$dispose(terminalId: number): void;
 	$hide(terminalId: number): void;
@@ -460,7 +460,7 @@ export interface MainThreadQuickOpenShape extends IDisposable {
 	$show(instance: number, options: IPickOptions<TransferQuickPickItems>, token: CancellationToken): Promise<number | number[] | undefined>;
 	$setItems(instance: number, items: TransferQuickPickItems[]): Promise<void>;
 	$setError(instance: number, error: Error): Promise<void>;
-	$input(options: vscode.InputBoxOptions, validateInput: boolean, token: CancellationToken): Promise<string>;
+	$input(options: vscode.InputBoxOptions | undefined, validateInput: boolean, token: CancellationToken): Promise<string>;
 	$createOrUpdate(params: TransferQuickInput): Promise<void>;
 	$dispose(id: number): Promise<void>;
 }
@@ -527,7 +527,7 @@ export interface ExtHostUrlsShape {
 }
 
 export interface MainThreadWorkspaceShape extends IDisposable {
-	$startFileSearch(includePattern: string | undefined, includeFolder: URI | undefined, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Promise<UriComponents[] | undefined>;
+	$startFileSearch(includePattern: string | undefined, includeFolder: UriComponents | undefined, excludePatternOrDisregardExcludes: string | false | undefined, maxResults: number, token: CancellationToken): Promise<UriComponents[] | undefined>;
 	$startTextSearch(query: IPatternInfo, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<vscode.TextSearchComplete>;
 	$checkExists(includes: string[], token: CancellationToken): Promise<boolean>;
 	$saveAll(includeUntitled?: boolean): Promise<boolean>;
@@ -551,7 +551,6 @@ export interface MainThreadFileSystemShape extends IDisposable {
 export interface MainThreadSearchShape extends IDisposable {
 	$registerFileSearchProvider(handle: number, scheme: string): void;
 	$registerTextSearchProvider(handle: number, scheme: string): void;
-	$registerFileIndexProvider(handle: number, scheme: string): void;
 	$unregisterProvider(handle: number): void;
 	$handleFileMatch(handle: number, session: number, data: UriComponents[]): void;
 	$handleTextMatch(handle: number, session: number, data: IRawFileMatch2[]): void;
@@ -559,12 +558,14 @@ export interface MainThreadSearchShape extends IDisposable {
 }
 
 export interface MainThreadTaskShape extends IDisposable {
+	$createTaskId(task: TaskDTO): Promise<string>;
 	$registerTaskProvider(handle: number): Promise<void>;
 	$unregisterTaskProvider(handle: number): Promise<void>;
 	$fetchTasks(filter?: TaskFilterDTO): Promise<TaskDTO[]>;
 	$executeTask(task: TaskHandleDTO | TaskDTO): Promise<TaskExecutionDTO>;
 	$terminateTask(id: string): Promise<void>;
 	$registerTaskSystem(scheme: string, info: TaskSystemInfoDTO): void;
+	$customExecutionComplete(id: string, result?: number): Promise<void>;
 }
 
 export interface MainThreadExtensionServiceShape extends IDisposable {
@@ -582,7 +583,7 @@ export interface SCMProviderFeatures {
 	count?: number;
 	commitTemplate?: string;
 	acceptInputCommand?: modes.Command;
-	statusBarCommands?: modes.Command[];
+	statusBarCommands?: CommandDto[];
 }
 
 export interface SCMGroupFeatures {
@@ -860,9 +861,9 @@ export interface WorkspaceSymbolsDto extends IdObject {
 }
 
 export interface ResourceFileEditDto {
-	oldUri: UriComponents;
-	newUri: UriComponents;
-	options: IFileOperationOptions;
+	oldUri?: UriComponents;
+	newUri?: UriComponents;
+	options?: IFileOperationOptions;
 }
 
 export interface ResourceTextEditDto {
@@ -965,7 +966,7 @@ export interface ShellLaunchConfigDto {
 	name?: string;
 	executable?: string;
 	args?: string[] | string;
-	cwd?: string | URI;
+	cwd?: string | UriComponents;
 	env?: { [key: string]: string | null };
 }
 
@@ -978,7 +979,7 @@ export interface ExtHostTerminalServiceShape {
 	$acceptTerminalRendererInput(id: number, data: string): void;
 	$acceptTerminalTitleChange(id: number, name: string): void;
 	$acceptTerminalDimensions(id: number, cols: number, rows: number): void;
-	$createProcess(id: number, shellLaunchConfig: ShellLaunchConfigDto, activeWorkspaceRootUri: URI, cols: number, rows: number): void;
+	$createProcess(id: number, shellLaunchConfig: ShellLaunchConfigDto, activeWorkspaceRootUri: UriComponents, cols: number, rows: number): void;
 	$acceptProcessInput(id: number, data: string): void;
 	$acceptProcessResize(id: number, cols: number, rows: number): void;
 	$acceptProcessShutdown(id: number, immediate: boolean): void;
@@ -996,7 +997,7 @@ export interface ExtHostSCMShape {
 
 export interface ExtHostTaskShape {
 	$provideTasks(handle: number, validTypes: { [key: string]: boolean; }): Thenable<TaskSetDTO>;
-	$onDidStartTask(execution: TaskExecutionDTO): void;
+	$onDidStartTask(execution: TaskExecutionDTO, terminalId: number): void;
 	$onDidStartTaskProcess(value: TaskProcessStartedDTO): void;
 	$onDidEndTaskProcess(value: TaskProcessEndedDTO): void;
 	$OnDidEndTask(execution: TaskExecutionDTO): void;
@@ -1104,8 +1105,9 @@ export interface ExtHostProgressShape {
 export interface ExtHostCommentsShape {
 	$provideDocumentComments(handle: number, document: UriComponents): Promise<modes.CommentInfo>;
 	$createNewCommentThread(handle: number, document: UriComponents, range: IRange, text: string): Promise<modes.CommentThread>;
-	$onActiveCommentWidgetChange(commentControlhandle: number, commentThread: modes.CommentThread2, comment: modes.Comment | undefined, input: string): Promise<number | undefined>;
-	$onActiveCommentingRangeChange(commentControlhandle: number, range: IRange): void;
+	$onCommentWidgetInputChange(commentControllerHandle: number, input: string): Promise<number | undefined>;
+	$provideCommentingRanges(commentControllerHandle: number, uriComponents: UriComponents, token: CancellationToken): Promise<IRange[] | undefined>;
+	$createNewCommentWidgetCallback(commentControllerHandle: number, uriComponents: UriComponents, range: IRange, token: CancellationToken): void;
 	$replyToCommentThread(handle: number, document: UriComponents, range: IRange, commentThread: modes.CommentThread, text: string): Promise<modes.CommentThread>;
 	$editComment(handle: number, document: UriComponents, comment: modes.Comment, text: string): Promise<void>;
 	$deleteComment(handle: number, document: UriComponents, comment: modes.Comment): Promise<void>;

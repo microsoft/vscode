@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import * as gracefulFs from 'graceful-fs';
 import { createHash } from 'crypto';
 import { importEntries, mark } from 'vs/base/common/performance';
-import { Workbench } from 'vs/workbench/electron-browser/workbench';
+import { Workbench, IWorkbenchOptions } from 'vs/workbench/browser/workbench';
 import { ElectronWindow } from 'vs/workbench/electron-browser/window';
 import { setZoomLevel, setZoomFactor, setFullscreen } from 'vs/base/browser/browser';
 import { domContentLoaded, addDisposableListener, EventType, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
@@ -20,7 +20,8 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { stat } from 'vs/base/node/pfs';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
-import { IWindowConfiguration, IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowConfiguration, IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
+import { WindowService } from 'vs/platform/windows/electron-browser/windowService';
 import { WindowsChannelClient } from 'vs/platform/windows/node/windowsIpc';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Client as ElectronIPCClient } from 'vs/base/parts/ipc/electron-browser/ipc.electron-browser';
@@ -101,6 +102,13 @@ class CodeRendererMain extends Disposable {
 		});
 	}
 
+	private hasInitialFilesToOpen(): boolean {
+		return !!(
+			(this.configuration.filesToCreate && this.configuration.filesToCreate.length > 0) ||
+			(this.configuration.filesToOpen && this.configuration.filesToOpen.length > 0) ||
+			(this.configuration.filesToDiff && this.configuration.filesToDiff.length > 0));
+	}
+
 	open(): Promise<void> {
 		const electronMainClient = this._register(new ElectronIPCClient(`window:${this.configuration.windowId}`));
 
@@ -115,7 +123,7 @@ class CodeRendererMain extends Disposable {
 				this.workbench = instantiationService.createInstance(
 					Workbench,
 					document.body,
-					this.configuration,
+					{ hasInitialFilesToOpen: this.hasInitialFilesToOpen() } as IWorkbenchOptions,
 					services
 				);
 
@@ -141,6 +149,9 @@ class CodeRendererMain extends Disposable {
 				if (this.configuration['export-default-configuration']) {
 					instantiationService.createInstance(DefaultConfigurationExportHelper);
 				}
+
+				// Logging
+				instantiationService.invokeFunction(accessor => accessor.get(ILogService).trace('workbench configuration', JSON.stringify(this.configuration)));
 			});
 		});
 	}
@@ -169,6 +180,9 @@ class CodeRendererMain extends Disposable {
 		// Windows Service
 		const windowsChannel = electronMainClient.getChannel('windows');
 		serviceCollection.set(IWindowsService, new WindowsChannelClient(windowsChannel));
+
+		// Window
+		serviceCollection.set(IWindowService, new SyncDescriptor(WindowService, [this.configuration]));
 
 		// Update Service
 		const updateChannel = electronMainClient.getChannel('update');

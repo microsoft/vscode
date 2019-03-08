@@ -59,7 +59,7 @@ export class WindowsChannel implements IServerChannel {
 			case 'enterWorkspace': return this.service.enterWorkspace(arg[0], URI.revive(arg[1]));
 			case 'toggleFullScreen': return this.service.toggleFullScreen(arg);
 			case 'setRepresentedFilename': return this.service.setRepresentedFilename(arg[0], arg[1]);
-			case 'addRecentlyOpened': return this.service.addRecentlyOpened(arg.map(URI.revive));
+			case 'addRecentlyOpened': return this.service.addRecentlyOpened(arg[0].map(URI.revive), arg[1].map(URI.revive), arg[2].map(URI.revive));
 			case 'removeFromRecentlyOpened': {
 				let paths: Array<IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | string> = arg;
 				if (Array.isArray(paths)) {
@@ -95,7 +95,7 @@ export class WindowsChannel implements IServerChannel {
 			case 'toggleSharedProcess': return this.service.toggleSharedProcess();
 			case 'quit': return this.service.quit();
 			case 'log': return this.service.log(arg[0], arg[1]);
-			case 'showItemInFolder': return this.service.showItemInFolder(arg);
+			case 'showItemInFolder': return this.service.showItemInFolder(URI.revive(arg));
 			case 'getActiveWindowId': return this.service.getActiveWindowId();
 			case 'openExternal': return this.service.openExternal(arg);
 			case 'startCrashReporter': return this.service.startCrashReporter(arg);
@@ -178,8 +178,8 @@ export class WindowsChannelClient implements IWindowsService {
 		return this.channel.call('setRepresentedFilename', [windowId, fileName]);
 	}
 
-	addRecentlyOpened(files: URI[]): Promise<void> {
-		return this.channel.call('addRecentlyOpened', files);
+	addRecentlyOpened(workspaces: URI[], folders: URI[], files: URI[]): Promise<void> {
+		return this.channel.call('addRecentlyOpened', [workspaces, folders, files]);
 	}
 
 	removeFromRecentlyOpened(paths: Array<IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI>): Promise<void> {
@@ -309,7 +309,7 @@ export class WindowsChannelClient implements IWindowsService {
 		return this.channel.call('log', [severity, messages]);
 	}
 
-	showItemInFolder(path: string): Promise<void> {
+	showItemInFolder(path: URI): Promise<void> {
 		return this.channel.call('showItemInFolder', path);
 	}
 

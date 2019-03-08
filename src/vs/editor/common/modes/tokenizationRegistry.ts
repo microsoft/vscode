@@ -10,8 +10,8 @@ import { ColorId, ITokenizationRegistry, ITokenizationSupport, ITokenizationSupp
 
 export class TokenizationRegistryImpl implements ITokenizationRegistry {
 
-	private _map: { [language: string]: ITokenizationSupport };
-	private _promises: { [language: string]: Thenable<void> };
+	private readonly _map: { [language: string]: ITokenizationSupport };
+	private readonly _promises: { [language: string]: Thenable<void> };
 
 	private readonly _onDidChange = new Emitter<ITokenizationSupportChangedEvent>();
 	public readonly onDidChange: Event<ITokenizationSupportChangedEvent> = this._onDidChange.event;

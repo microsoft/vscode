@@ -42,11 +42,11 @@ export class QuickFixController implements IEditorContribution {
 		return editor.getContribution<QuickFixController>(QuickFixController.ID);
 	}
 
-	private _editor: ICodeEditor;
-	private _model: CodeActionModel;
-	private _codeActionContextMenu: CodeActionContextMenu;
-	private _lightBulbWidget: LightBulbWidget;
-	private _disposables: IDisposable[] = [];
+	private readonly _editor: ICodeEditor;
+	private readonly _model: CodeActionModel;
+	private readonly _codeActionContextMenu: CodeActionContextMenu;
+	private readonly _lightBulbWidget: LightBulbWidget;
+	private readonly _disposables: IDisposable[] = [];
 
 	private _activeRequest: CancelablePromise<CodeAction[]> | undefined;
 

@@ -5,11 +5,12 @@
 
 import { Event } from 'vs/base/common/event';
 import { createDecorator, ServiceIdentifier, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorInput, IEditor, GroupIdentifier, IEditorInputWithOptions, CloseDirection } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditor, GroupIdentifier, IEditorInputWithOptions, CloseDirection, IEditorPartOptions } from 'vs/workbench/common/editor';
 import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IActiveEditor } from 'vs/workbench/services/editor/common/editorService';
 import { IDimension } from 'vs/editor/common/editorCommon';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export const IEditorGroupsService = createDecorator<IEditorGroupsService>('editorGroupsService');
 
@@ -166,6 +167,11 @@ export interface IEditorGroupsService {
 	readonly onDidMoveGroup: Event<IEditorGroup>;
 
 	/**
+	 * An event for when a group gets activated.
+	 */
+	readonly onDidActivateGroup: Event<IEditorGroup>;
+
+	/**
 	 * An event for when the group container is layed out.
 	 */
 	readonly onDidLayout: Event<IDimension>;
@@ -190,6 +196,11 @@ export interface IEditorGroupsService {
 	 * The current layout orientation of the root group.
 	 */
 	readonly orientation: GroupOrientation;
+
+	/**
+	 * A promise that resolves when groups have been restored.
+	 */
+	readonly whenRestored: Promise<void>;
 
 	/**
 	 * Get all groups that are currently visible in the editor area optionally
@@ -227,6 +238,16 @@ export interface IEditorGroupsService {
 	 * Applies the provided layout by either moving existing groups or creating new groups.
 	 */
 	applyLayout(layout: EditorGroupLayout): void;
+
+	/**
+	 * Enable or disable centered editor layout.
+	 */
+	centerLayout(active: boolean): void;
+
+	/**
+	 * Find out if the editor layout is currently centered.
+	 */
+	isLayoutCentered(): boolean;
 
 	/**
 	 * Sets the orientation of the root group to be either vertical or horizontal.
@@ -296,6 +317,16 @@ export interface IEditorGroupsService {
 	 * @param direction the direction of where to split to
 	 */
 	copyGroup(group: IEditorGroup | GroupIdentifier, location: IEditorGroup | GroupIdentifier, direction: GroupDirection): IEditorGroup;
+
+	/**
+	 * Access the options of the editor part.
+	 */
+	readonly partOptions: IEditorPartOptions;
+
+	/**
+	 * Enforce editor part options temporarily.
+	 */
+	enforcePartOptions(options: IEditorPartOptions): IDisposable;
 }
 
 export const enum GroupChangeKind {

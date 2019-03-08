@@ -48,6 +48,8 @@
 	"command.pushToForce": "Push to... (Force)",
 	"command.pushWithTags": "Push With Tags",
 	"command.pushWithTagsForce": "Push With Tags (Force)",
+	"command.addRemote": "Add Remote",
+	"command.removeRemote": "Remove Remote",
 	"command.sync": "Sync",
 	"command.syncRebase": "Sync (Rebase)",
 	"command.publish": "Publish Branch",

@@ -33,9 +33,9 @@ export class CodeInsetController implements editorCommon.IEditorContribution {
 	private _localToDispose: IDisposable[];
 	private _insetWidgets: CodeInsetWidget[];
 	private _pendingWebviews = new Map<string, (element: WebviewElement) => any>();
-	private _currentFindCodeInsetSymbolsPromise: CancelablePromise<ICodeInsetData[]>;
+	private _currentFindCodeInsetSymbolsPromise: CancelablePromise<ICodeInsetData[]> | null;
 	private _modelChangeCounter: number;
-	private _currentResolveCodeInsetSymbolsPromise: CancelablePromise<any>;
+	private _currentResolveCodeInsetSymbolsPromise: CancelablePromise<any> | null;
 	private _detectVisibleInsets: RunOnceScheduler;
 
 	constructor(
@@ -71,8 +71,9 @@ export class CodeInsetController implements editorCommon.IEditorContribution {
 	}
 
 	acceptWebview(symbolId: string, webviewElement: WebviewElement): boolean {
-		if (this._pendingWebviews.has(symbolId)) {
-			this._pendingWebviews.get(symbolId)(webviewElement);
+		const pendingWebview = this._pendingWebviews.get(symbolId);
+		if (pendingWebview) {
+			pendingWebview(webviewElement);
 			this._pendingWebviews.delete(symbolId);
 			return true;
 		}
@@ -193,7 +194,7 @@ export class CodeInsetController implements editorCommon.IEditorContribution {
 		scheduler.schedule();
 	}
 
-	private _disposeAllInsets(decChangeAccessor: IModelDecorationsChangeAccessor, viewZoneChangeAccessor: editorBrowser.IViewZoneChangeAccessor): void {
+	private _disposeAllInsets(decChangeAccessor: IModelDecorationsChangeAccessor | null, viewZoneChangeAccessor: editorBrowser.IViewZoneChangeAccessor | null): void {
 		let helper = new CodeInsetHelper();
 		this._insetWidgets.forEach((Inset) => Inset.dispose(helper, viewZoneChangeAccessor));
 		if (decChangeAccessor) {
@@ -203,7 +204,7 @@ export class CodeInsetController implements editorCommon.IEditorContribution {
 	}
 
 	private _renderCodeInsetSymbols(symbols: ICodeInsetData[]): void {
-		if (!this._editor.getModel()) {
+		if (!this._editor.hasModel()) {
 			return;
 		}
 

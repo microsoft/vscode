@@ -24,8 +24,8 @@ export class BoundModelReferenceCollection {
 	private _length = 0;
 
 	constructor(
-		private _maxAge: number = 1000 * 60 * 3,
-		private _maxLength: number = 1024 * 1024 * 80
+		private readonly _maxAge: number = 1000 * 60 * 3,
+		private readonly _maxLength: number = 1024 * 1024 * 80
 	) {
 		//
 	}
@@ -35,11 +35,11 @@ export class BoundModelReferenceCollection {
 	}
 
 	add(ref: IReference<ITextEditorModel>): void {
-		let length = ref.object.textEditorModel.getValueLength();
+		const length = ref.object.textEditorModel.getValueLength();
 		let handle: any;
 		let entry: { length: number, dispose(): void };
 		const dispose = () => {
-			let idx = this._data.indexOf(entry);
+			const idx = this._data.indexOf(entry);
 			if (idx >= 0) {
 				this._length -= length;
 				ref.dispose();
@@ -64,16 +64,16 @@ export class BoundModelReferenceCollection {
 
 export class MainThreadDocuments implements MainThreadDocumentsShape {
 
-	private _modelService: IModelService;
-	private _textModelResolverService: ITextModelService;
-	private _textFileService: ITextFileService;
-	private _fileService: IFileService;
-	private _untitledEditorService: IUntitledEditorService;
+	private readonly _modelService: IModelService;
+	private readonly _textModelResolverService: ITextModelService;
+	private readonly _textFileService: ITextFileService;
+	private readonly _fileService: IFileService;
+	private readonly _untitledEditorService: IUntitledEditorService;
 
 	private _toDispose: IDisposable[];
 	private _modelToDisposeMap: { [modelUrl: string]: IDisposable; };
-	private _proxy: ExtHostDocumentsShape;
-	private _modelIsSynced: { [modelId: string]: boolean; };
+	private readonly _proxy: ExtHostDocumentsShape;
+	private readonly _modelIsSynced: { [modelId: string]: boolean; };
 	private _modelReferenceCollection = new BoundModelReferenceCollection();
 
 	constructor(
@@ -139,7 +139,7 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 			// don't synchronize too large models
 			return;
 		}
-		let modelUrl = model.uri;
+		const modelUrl = model.uri;
 		this._modelIsSynced[modelUrl.toString()] = true;
 		this._modelToDisposeMap[modelUrl.toString()] = model.onDidChangeContent((e) => {
 			this._proxy.$acceptModelChanged(modelUrl, e, this._textFileService.isDirty(modelUrl));
@@ -148,7 +148,7 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 
 	private _onModelModeChanged(event: { model: ITextModel; oldModeId: string; }): void {
 		let { model, oldModeId } = event;
-		let modelUrl = model.uri;
+		const modelUrl = model.uri;
 		if (!this._modelIsSynced[modelUrl.toString()]) {
 			return;
 		}
@@ -156,7 +156,7 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 	}
 
 	private _onModelRemoved(modelUrl: URI): void {
-		let strModelUrl = modelUrl.toString();
+		const strModelUrl = modelUrl.toString();
 		if (!this._modelIsSynced[strModelUrl]) {
 			return;
 		}
@@ -214,7 +214,7 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 	}
 
 	private _handleUntitledScheme(uri: URI): Promise<boolean> {
-		let asFileUri = uri.with({ scheme: Schemas.file });
+		const asFileUri = uri.with({ scheme: Schemas.file });
 		return this._fileService.resolveFile(asFileUri).then(stats => {
 			// don't create a new file ontop of an existing file
 			return Promise.reject(new Error('file already exists on disk'));

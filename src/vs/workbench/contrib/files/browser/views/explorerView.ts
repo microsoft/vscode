@@ -15,7 +15,7 @@ import { toResource } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import * as DOM from 'vs/base/browser/dom';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { ExplorerDecorationsProvider } from 'vs/workbench/contrib/files/browser/views/explorerDecorationsProvider';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
@@ -75,7 +75,7 @@ export class ExplorerView extends ViewletPanel {
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IPartService private readonly partService: IPartService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -176,13 +176,13 @@ export class ExplorerView extends ViewletPanel {
 			if (isEditing) {
 				await this.tree.expand(e.parent);
 			} else {
-				DOM.removeClass(this.tree.getHTMLElement(), 'highlight');
+				DOM.removeClass(treeContainer, 'highlight');
 			}
 
 			await this.refresh(e.parent);
 
 			if (isEditing) {
-				DOM.addClass(this.tree.getHTMLElement(), 'highlight');
+				DOM.addClass(treeContainer, 'highlight');
 				this.tree.reveal(e);
 			} else {
 				this.tree.domFocus();
@@ -307,16 +307,8 @@ export class ExplorerView extends ViewletPanel {
 		ExplorerFocusedContext.bindTo(this.tree.contextKeyService);
 
 		// Update resource context based on focused element
-		this.disposables.push(this.tree.onDidChangeFocus(e => {
-			const stat = e.elements && e.elements.length ? e.elements[0] : undefined;
-			const isSingleFolder = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER;
-			const resource = stat ? stat.resource : isSingleFolder ? this.contextService.getWorkspace().folders[0].uri : undefined;
-			this.resourceContext.set(resource);
-			this.folderContext.set((isSingleFolder && !stat) || !!stat && stat.isDirectory);
-			this.readonlyContext.set(!!stat && stat.isReadonly);
-			this.rootContext.set(!stat || (stat && stat.isRoot));
-		}));
-
+		this.disposables.push(this.tree.onDidChangeFocus(e => this.onFocusChanged(e.elements)));
+		this.onFocusChanged([]);
 		const explorerNavigator = new TreeResourceNavigator2(this.tree);
 		this.disposables.push(explorerNavigator);
 		// Open when selecting via keyboard
@@ -413,6 +405,16 @@ export class ExplorerView extends ViewletPanel {
 		});
 	}
 
+	private onFocusChanged(elements: ExplorerItem[]): void {
+		const stat = elements && elements.length ? elements[0] : undefined;
+		const isSingleFolder = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER;
+		const resource = stat ? stat.resource : isSingleFolder ? this.contextService.getWorkspace().folders[0].uri : undefined;
+		this.resourceContext.set(resource);
+		this.folderContext.set((isSingleFolder && !stat) || !!stat && stat.isDirectory);
+		this.readonlyContext.set(!!stat && stat.isReadonly);
+		this.rootContext.set(!stat || (stat && stat.isRoot));
+	}
+
 	// General methods
 
 	/**
@@ -489,7 +491,7 @@ export class ExplorerView extends ViewletPanel {
 			}
 		});
 
-		this.progressService.showWhile(promise, this.partService.isRestored() ? 800 : 1200 /* less ugly initial startup */);
+		this.progressService.showWhile(promise, this.layoutService.isRestored() ? 800 : 1200 /* less ugly initial startup */);
 		return promise;
 	}
 

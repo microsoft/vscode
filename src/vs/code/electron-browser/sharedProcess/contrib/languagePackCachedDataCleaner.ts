@@ -57,15 +57,15 @@ export class LanguagePackCachedDataCleaner {
 				? 1000 * 60 * 60 * 24 * 7 // roughly 1 week
 				: 1000 * 60 * 60 * 24 * 30 * 3; // roughly 3 months
 			try {
-				let installed: IStringDictionary<boolean> = Object.create(null);
+				const installed: IStringDictionary<boolean> = Object.create(null);
 				const metaData: LanguagePackFile = JSON.parse(await pfs.readFile(path.join(this._environmentService.userDataPath, 'languagepacks.json'), 'utf8'));
 				for (let locale of Object.keys(metaData)) {
-					let entry = metaData[locale];
+					const entry = metaData[locale];
 					installed[`${entry.hash}.${locale}`] = true;
 				}
 				// Cleanup entries for language packs that aren't installed anymore
 				const cacheDir = path.join(this._environmentService.userDataPath, 'clp');
-				let exists = await pfs.exists(cacheDir);
+				const exists = await pfs.exists(cacheDir);
 				if (!exists) {
 					return;
 				}

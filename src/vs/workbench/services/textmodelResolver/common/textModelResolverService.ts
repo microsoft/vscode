@@ -12,7 +12,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
 import { ITextFileService, LoadReason } from 'vs/workbench/services/textfile/common/textfiles';
 import * as network from 'vs/base/common/network';
-import { ITextModelService, ITextModelContentProvider, ITextEditorModel } from 'vs/editor/common/services/resolverService';
+import { ITextModelService, ITextModelContentProvider, ITextEditorModel, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -104,7 +104,7 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 	private resolveTextModelContent(key: string): Promise<ITextModel> {
 		const resource = URI.parse(key);
 		const providers = this.providers[resource.scheme] || [];
-		const factories = providers.map(p => () => Promise.resolve(p.provideTextContent(resource)));
+		const factories = providers.map(p => () => Promise.resolve<ITextModel | undefined | null>(p.provideTextContent(resource)));
 
 		return first(factories).then(model => {
 			if (!model) {
@@ -130,15 +130,15 @@ export class TextModelResolverService implements ITextModelService {
 		this.resourceModelCollection = instantiationService.createInstance(ResourceModelCollection);
 	}
 
-	createModelReference(resource: URI): Promise<IReference<ITextEditorModel>> {
+	createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
 		return this._createModelReference(resource);
 	}
 
-	private _createModelReference(resource: URI): Promise<IReference<ITextEditorModel>> {
+	private _createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
 
 		// Untitled Schema: go through cached input
 		if (resource.scheme === network.Schemas.untitled) {
-			return this.untitledEditorService.loadOrCreate({ resource }).then(model => new ImmortalReference(model));
+			return this.untitledEditorService.loadOrCreate({ resource }).then(model => new ImmortalReference(model as IResolvedTextEditorModel));
 		}
 
 		// InMemory Schema: go through model service cache
@@ -149,7 +149,7 @@ export class TextModelResolverService implements ITextModelService {
 				return Promise.reject(new Error('Cant resolve inmemory resource'));
 			}
 
-			return Promise.resolve(new ImmortalReference(this.instantiationService.createInstance(ResourceEditorModel, resource)));
+			return Promise.resolve(new ImmortalReference(this.instantiationService.createInstance(ResourceEditorModel, resource) as IResolvedTextEditorModel));
 		}
 
 		const ref = this.resourceModelCollection.acquire(resource.toString());

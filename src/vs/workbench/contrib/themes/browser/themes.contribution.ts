@@ -15,11 +15,10 @@ import { VIEWLET_ID, IExtensionsViewlet } from 'vs/workbench/contrib/extensions/
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { Delayer } from 'vs/base/common/async';
-import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IColorRegistry, Extensions as ColorRegistryExtensions } from 'vs/platform/theme/common/colorRegistry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Color } from 'vs/base/common/color';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { LIGHT, DARK, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
 import { colorThemeSchemaId } from 'vs/workbench/services/themes/common/colorThemeSchema';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -37,7 +36,7 @@ export class SelectColorThemeAction extends Action {
 		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@IViewletService private readonly viewletService: IViewletService,
-		@IWorkspaceConfigurationService private readonly configurationService: IWorkspaceConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(id, label);
 	}
@@ -98,7 +97,7 @@ class SelectIconThemeAction extends Action {
 		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@IViewletService private readonly viewletService: IViewletService,
-		@IWorkspaceConfigurationService private readonly configurationService: IWorkspaceConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService
 
 	) {
 		super(id, label);

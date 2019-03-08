@@ -18,7 +18,7 @@ interface IThrottledGestureEvent {
 }
 
 function gestureChangeEventMerger(lastEvent: IThrottledGestureEvent, currentEvent: MSGestureEvent): IThrottledGestureEvent {
-	let r = {
+	const r = {
 		translationY: currentEvent.translationY,
 		translationX: currentEvent.translationX
 	};
@@ -48,13 +48,13 @@ class MsPointerHandler extends MouseHandler implements IDisposable {
 		this._installGestureHandlerTimeout = window.setTimeout(() => {
 			this._installGestureHandlerTimeout = -1;
 			if ((<any>window).MSGesture) {
-				let touchGesture = new MSGesture();
-				let penGesture = new MSGesture();
+				const touchGesture = new MSGesture();
+				const penGesture = new MSGesture();
 				touchGesture.target = this.viewHelper.linesContentDomNode;
 				penGesture.target = this.viewHelper.linesContentDomNode;
 				this.viewHelper.linesContentDomNode.addEventListener('MSPointerDown', (e: MSPointerEvent) => {
 					// Circumvent IE11 breaking change in e.pointerType & TypeScript's stale definitions
-					let pointerType = <any>e.pointerType;
+					const pointerType = <any>e.pointerType;
 					if (pointerType === ((<any>e).MSPOINTER_TYPE_MOUSE || 'mouse')) {
 						this._lastPointerType = 'mouse';
 						return;
@@ -80,8 +80,8 @@ class MsPointerHandler extends MouseHandler implements IDisposable {
 	}
 
 	private _onCaptureGestureTap(rawEvent: MSGestureEvent): void {
-		let e = new EditorMouseEvent(<MouseEvent><any>rawEvent, this.viewHelper.viewDomNode);
-		let t = this._createMouseTarget(e, false);
+		const e = new EditorMouseEvent(<MouseEvent><any>rawEvent, this.viewHelper.viewDomNode);
+		const t = this._createMouseTarget(e, false);
 		if (t.position) {
 			this.viewController.moveTo(t.position);
 		}
@@ -127,12 +127,12 @@ class StandardPointerHandler extends MouseHandler implements IDisposable {
 
 			// TODO@Alex: replace the usage of MSGesture here with something that works across all browsers
 			if ((<any>window).MSGesture) {
-				let touchGesture = new MSGesture();
-				let penGesture = new MSGesture();
+				const touchGesture = new MSGesture();
+				const penGesture = new MSGesture();
 				touchGesture.target = this.viewHelper.linesContentDomNode;
 				penGesture.target = this.viewHelper.linesContentDomNode;
 				this.viewHelper.linesContentDomNode.addEventListener('pointerdown', (e: MSPointerEvent) => {
-					let pointerType = <any>e.pointerType;
+					const pointerType = <any>e.pointerType;
 					if (pointerType === 'mouse') {
 						this._lastPointerType = 'mouse';
 						return;
@@ -158,8 +158,8 @@ class StandardPointerHandler extends MouseHandler implements IDisposable {
 	}
 
 	private _onCaptureGestureTap(rawEvent: MSGestureEvent): void {
-		let e = new EditorMouseEvent(<MouseEvent><any>rawEvent, this.viewHelper.viewDomNode);
-		let t = this._createMouseTarget(e, false);
+		const e = new EditorMouseEvent(<MouseEvent><any>rawEvent, this.viewHelper.viewDomNode);
+		const t = this._createMouseTarget(e, false);
 		if (t.position) {
 			this.viewController.moveTo(t.position);
 		}
@@ -207,7 +207,7 @@ class TouchHandler extends MouseHandler {
 
 		this.viewHelper.focusTextArea();
 
-		let target = this._createMouseTarget(new EditorMouseEvent(event, this.viewHelper.viewDomNode), false);
+		const target = this._createMouseTarget(new EditorMouseEvent(event, this.viewHelper.viewDomNode), false);
 
 		if (target.position) {
 			this.viewController.moveTo(target.position);
@@ -220,7 +220,7 @@ class TouchHandler extends MouseHandler {
 }
 
 export class PointerHandler implements IDisposable {
-	private handler: MouseHandler;
+	private readonly handler: MouseHandler;
 
 	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper) {
 		if (window.navigator.msPointerEnabled) {

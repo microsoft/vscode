@@ -54,6 +54,30 @@ import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadService } from 'vs/platform/download/node/downloadService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ClipboardService } from 'vs/platform/clipboard/electron-browser/clipboardService';
+import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { TextResourceConfigurationService } from 'vs/editor/common/services/resourceConfigurationImpl';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { AccessibilityService } from 'vs/platform/accessibility/node/accessibilityService';
+import { IExtensionEnablementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
+import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
+import { IRequestService } from 'vs/platform/request/node/request';
+import { RequestService } from 'vs/platform/request/electron-browser/requestService';
+import { LifecycleService } from 'vs/platform/lifecycle/electron-browser/lifecycleService';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
+import { LocalizationsChannelClient } from 'vs/platform/localizations/node/localizationsIpc';
+import { ISharedProcessService, SharedProcessService } from 'vs/platform/sharedProcess/node/sharedProcessService';
+import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-browser/remoteAuthorityResolverService';
+import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { TelemetryService } from 'vs/platform/telemetry/node/telemetryService';
 
 import 'vs/workbench/services/bulkEdit/browser/bulkEditService';
 import 'vs/workbench/services/integrity/node/integrityService';
@@ -69,10 +93,30 @@ import 'vs/workbench/services/progress/browser/progressService2';
 import 'vs/workbench/services/editor/browser/codeEditorService';
 import 'vs/workbench/services/broadcast/electron-browser/broadcastService';
 import 'vs/workbench/services/preferences/browser/preferencesService';
+import 'vs/workbench/services/output/node/outputChannelModelService';
 import 'vs/workbench/services/configuration/node/jsonEditingService';
 import 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import 'vs/workbench/services/textfile/common/textFileService';
 import 'vs/workbench/services/dialogs/electron-browser/dialogService';
+import 'vs/workbench/services/backup/node/backupFileService';
+import 'vs/workbench/services/editor/browser/editorService';
+import 'vs/workbench/services/history/browser/history';
+import 'vs/workbench/services/files/node/remoteFileService';
+import 'vs/workbench/services/activity/browser/activityService';
+import 'vs/workbench/browser/parts/views/views';
+import 'vs/workbench/services/keybinding/electron-browser/keybindingService';
+import 'vs/workbench/services/untitled/common/untitledEditorService';
+import 'vs/workbench/services/textfile/node/textResourcePropertiesService';
+import 'vs/workbench/services/mode/common/workbenchModeService';
+import 'vs/workbench/services/commands/common/commandService';
+import 'vs/workbench/services/themes/browser/workbenchThemeService';
+import 'vs/workbench/services/extensions/electron-browser/extensionService';
+import 'vs/workbench/services/contextmenu/electron-browser/contextmenuService';
+import 'vs/workbench/services/extensionManagement/node/multiExtensionManagement';
+import 'vs/workbench/services/label/common/labelService';
+import 'vs/workbench/services/extensions/node/extensionManagementServerService';
+import 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
+import 'vs/workbench/services/notification/common/notificationService';
 
 registerSingleton(IMenuService, MenuService, true);
 registerSingleton(IListService, ListService, true);
@@ -82,11 +126,40 @@ registerSingleton(IMarkerDecorationsService, MarkerDecorationsService);
 registerSingleton(IMarkerService, MarkerService, true);
 registerSingleton(IDownloadService, DownloadService, true);
 registerSingleton(IClipboardService, ClipboardService, true);
+registerSingleton(IContextKeyService, ContextKeyService);
+registerSingleton(IModelService, ModelServiceImpl, true);
+registerSingleton(ITextResourceConfigurationService, TextResourceConfigurationService);
+registerSingleton(IAccessibilityService, AccessibilityService, true);
+registerSingleton(IExtensionEnablementService, ExtensionEnablementService, true);
+registerSingleton(IContextViewService, ContextViewService, true);
+registerSingleton(IExtensionGalleryService, ExtensionGalleryService, true);
+registerSingleton(IRequestService, RequestService, true);
+registerSingleton(ILifecycleService, LifecycleService);
+registerSingleton(ILocalizationsService, LocalizationsChannelClient);
+registerSingleton(ISharedProcessService, SharedProcessService, true);
+registerSingleton(IRemoteAuthorityResolverService, RemoteAuthorityResolverService, true);
+registerSingleton(ITelemetryService, TelemetryService);
+registerSingleton(IProductService, ProductService, true);
 
 //#endregion
 
+//#region --- workbench parts
+
+import 'vs/workbench/browser/parts/quickinput/quickInput';
+import 'vs/workbench/browser/parts/quickopen/quickOpenController';
+import 'vs/workbench/browser/parts/titlebar/titlebarPart';
+import 'vs/workbench/browser/parts/editor/editorPart';
+import 'vs/workbench/browser/parts/activitybar/activitybarPart';
+import 'vs/workbench/browser/parts/panel/panelPart';
+import 'vs/workbench/browser/parts/sidebar/sidebarPart';
+import 'vs/workbench/browser/parts/statusbar/statusbarPart';
+
+//#endregion
 
 //#region --- workbench contributions
+
+// Telemetry
+import 'vs/workbench/contrib/telemetry/browser/telemetry.contribution';
 
 // Localizations
 import 'vs/workbench/contrib/localizations/browser/localizations.contribution';
@@ -121,8 +194,8 @@ import 'vs/workbench/contrib/search/browser/searchView';
 import 'vs/workbench/contrib/search/browser/openAnythingHandler';
 
 // SCM
-import 'vs/workbench/contrib/scm/electron-browser/scm.contribution';
-import 'vs/workbench/contrib/scm/electron-browser/scmViewlet';
+import 'vs/workbench/contrib/scm/browser/scm.contribution';
+import 'vs/workbench/contrib/scm/browser/scmViewlet';
 
 // Debug
 import 'vs/workbench/contrib/debug/electron-browser/debug.contribution';
@@ -148,13 +221,14 @@ import 'vs/workbench/contrib/extensions/browser/extensionsQuickOpen';
 import 'vs/workbench/contrib/extensions/electron-browser/extensionsViewlet';
 
 // Output Panel
-import 'vs/workbench/contrib/output/electron-browser/output.contribution';
+import 'vs/workbench/contrib/output/browser/output.contribution';
 import 'vs/workbench/contrib/output/browser/outputPanel';
 
 // Terminal
+import 'vs/workbench/contrib/terminal/browser/terminal.contribution';
 import 'vs/workbench/contrib/terminal/electron-browser/terminal.contribution';
 import 'vs/workbench/contrib/terminal/browser/terminalQuickOpen';
-import 'vs/workbench/contrib/terminal/electron-browser/terminalPanel';
+import 'vs/workbench/contrib/terminal/browser/terminalPanel';
 
 // Relauncher
 import 'vs/workbench/contrib/relauncher/electron-browser/relauncher.contribution';
@@ -171,7 +245,7 @@ import 'vs/workbench/contrib/codeEditor/browser/codeEditor.contribution';
 import 'vs/workbench/contrib/codeEditor/electron-browser/codeEditor.contribution';
 
 // Execution
-import 'vs/workbench/contrib/execution/electron-browser/execution.contribution';
+import 'vs/workbench/contrib/externalTerminal/electron-browser/externalTerminal.contribution';
 
 // Snippets
 import 'vs/workbench/contrib/snippets/browser/snippets.contribution';
@@ -223,5 +297,7 @@ import 'vs/workbench/contrib/codeinset/electron-browser/codeInset.contribution';
 
 // Issues
 import 'vs/workbench/contrib/issue/electron-browser/issue.contribution';
+import { IProductService } from 'vs/platform/product/common/product';
+import { ProductService } from 'vs/platform/product/node/productService';
 
 //#endregion

@@ -14,6 +14,7 @@ import { ResourceMap } from 'vs/base/common/map';
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
 import { Schemas } from 'vs/base/common/network';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export const IUntitledEditorService = createDecorator<IUntitledEditorService>('untitledEditorService');
 
@@ -277,3 +278,5 @@ export class UntitledEditorService extends Disposable implements IUntitledEditor
 		return input ? input.getEncoding() : undefined;
 	}
 }
+
+registerSingleton(IUntitledEditorService, UntitledEditorService, true);

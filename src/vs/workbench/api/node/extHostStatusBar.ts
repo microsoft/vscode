@@ -139,7 +139,7 @@ class StatusBarMessage {
 		this._update();
 
 		return new Disposable(() => {
-			let idx = this._messages.indexOf(data);
+			const idx = this._messages.indexOf(data);
 			if (idx >= 0) {
 				this._messages.splice(idx, 1);
 				this._update();
@@ -173,7 +173,7 @@ export class ExtHostStatusBar {
 
 	setStatusBarMessage(text: string, timeoutOrThenable?: number | Thenable<any>): Disposable {
 
-		let d = this._statusMessage.setMessage(text);
+		const d = this._statusMessage.setMessage(text);
 		let handle: any;
 
 		if (typeof timeoutOrThenable === 'number') {

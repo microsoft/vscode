@@ -310,65 +310,67 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 		super();
 	}
 
-	startSession(): Promise<void> {
+	async startSession(): Promise<void> {
 
-		return new Promise<void>((resolve, reject) => {
+		const command = this.adapterExecutable.command;
+		const args = this.adapterExecutable.args;
+		const options = this.adapterExecutable.options || {};
 
-			// verify executables
-			if (this.adapterExecutable.command) {
-				if (path.isAbsolute(this.adapterExecutable.command)) {
-					if (!fs.existsSync(this.adapterExecutable.command)) {
-						reject(new Error(nls.localize('debugAdapterBinNotFound', "Debug adapter executable '{0}' does not exist.", this.adapterExecutable.command)));
+		try {
+			// verify executables asynchronously
+			if (command) {
+				if (path.isAbsolute(command)) {
+					const ok = await new Promise<boolean>(resolve => fs.exists(command, resolve));
+					if (!ok) {
+						throw new Error(nls.localize('debugAdapterBinNotFound', "Debug adapter executable '{0}' does not exist.", command));
 					}
 				} else {
 					// relative path
-					if (this.adapterExecutable.command.indexOf('/') < 0 && this.adapterExecutable.command.indexOf('\\') < 0) {
+					if (command.indexOf('/') < 0 && command.indexOf('\\') < 0) {
 						// no separators: command looks like a runtime name like 'node' or 'mono'
 						// TODO: check that the runtime is available on PATH
 					}
 				}
 			} else {
-				reject(new Error(nls.localize({ key: 'debugAdapterCannotDetermineExecutable', comment: ['Adapter executable file not found'] },
-					"Cannot determine executable for debug adapter '{0}'.", this.debugType)));
+				throw new Error(nls.localize({ key: 'debugAdapterCannotDetermineExecutable', comment: ['Adapter executable file not found'] },
+					"Cannot determine executable for debug adapter '{0}'.", this.debugType));
 			}
 
 			let env = objects.mixin({}, process.env);
-			if (this.adapterExecutable.options && this.adapterExecutable.options.env) {
-				env = objects.mixin(env, this.adapterExecutable.options.env);
+			if (options.env) {
+				env = objects.mixin(env, options.env);
 			}
 			delete env.VSCODE_PREVENT_FOREIGN_INSPECT;
 
-			if (this.adapterExecutable.command === 'node') {
-				if (Array.isArray(this.adapterExecutable.args) && this.adapterExecutable.args.length > 0) {
+			if (command === 'node') {
+				if (Array.isArray(args) && args.length > 0) {
 					const isElectron = !!process.env['ELECTRON_RUN_AS_NODE'] || !!process.versions['electron'];
-					const options: cp.ForkOptions = {
+					const forkOptions: cp.ForkOptions = {
 						env: env,
 						execArgv: isElectron ? ['-e', 'delete process.env.ELECTRON_RUN_AS_NODE;require(process.argv[1])'] : [],
 						silent: true
 					};
-					if (this.adapterExecutable.options && this.adapterExecutable.options.cwd) {
-						options.cwd = this.adapterExecutable.options.cwd;
+					if (options.cwd) {
+						forkOptions.cwd = options.cwd;
 					}
-					const child = cp.fork(this.adapterExecutable.args[0], this.adapterExecutable.args.slice(1), options);
+					const child = cp.fork(args[0], args.slice(1), forkOptions);
 					if (!child.pid) {
-						reject(new Error(nls.localize('unableToLaunchDebugAdapter', "Unable to launch debug adapter from '{0}'.", this.adapterExecutable.args[0])));
+						throw new Error(nls.localize('unableToLaunchDebugAdapter', "Unable to launch debug adapter from '{0}'.", args[0]));
 					}
 					this.serverProcess = child;
-					resolve();
 				} else {
-					reject(new Error(nls.localize('unableToLaunchDebugAdapterNoArgs', "Unable to launch debug adapter.")));
+					throw new Error(nls.localize('unableToLaunchDebugAdapterNoArgs', "Unable to launch debug adapter."));
 				}
 			} else {
-				const options: cp.SpawnOptions = {
+				const spawnOptions: cp.SpawnOptions = {
 					env: env
 				};
-				if (this.adapterExecutable.options && this.adapterExecutable.options.cwd) {
-					options.cwd = this.adapterExecutable.options.cwd;
+				if (options.cwd) {
+					spawnOptions.cwd = options.cwd;
 				}
-				this.serverProcess = cp.spawn(this.adapterExecutable.command, this.adapterExecutable.args, options);
-				resolve();
+				this.serverProcess = cp.spawn(command, args, spawnOptions);
 			}
-		}).then(_ => {
+
 			this.serverProcess.on('error', err => {
 				this._onError.fire(err);
 			});
@@ -401,10 +403,12 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 				});
 			}
 
+			// finally connect to the DA
 			this.connect(this.serverProcess.stdout, this.serverProcess.stdin);
-		}, (err: Error) => {
+
+		} catch (err) {
 			this._onError.fire(err);
-		});
+		}
 	}
 
 	stopSession(): Promise<void> {
@@ -435,32 +439,34 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 		}
 	}
 
-	private static extract(contribution: IDebuggerContribution, extensionFolderPath: string): IDebuggerContribution | undefined {
-		if (!contribution) {
+	private static extract(platformContribution: IPlatformSpecificAdapterContribution, extensionFolderPath: string): IDebuggerContribution | undefined {
+		if (!platformContribution) {
 			return undefined;
 		}
 
 		const result: IDebuggerContribution = Object.create(null);
-		if (contribution.runtime) {
-			if (contribution.runtime.indexOf('./') === 0) {	// TODO
-				result.runtime = path.join(extensionFolderPath, contribution.runtime);
+		if (platformContribution.runtime) {
+			if (platformContribution.runtime.indexOf('./') === 0) {	// TODO
+				result.runtime = path.join(extensionFolderPath, platformContribution.runtime);
 			} else {
-				result.runtime = contribution.runtime;
+				result.runtime = platformContribution.runtime;
 			}
 		}
-		if (contribution.runtimeArgs) {
-			result.runtimeArgs = contribution.runtimeArgs;
+		if (platformContribution.runtimeArgs) {
+			result.runtimeArgs = platformContribution.runtimeArgs;
 		}
-		if (contribution.program) {
-			if (!path.isAbsolute(contribution.program)) {
-				result.program = path.join(extensionFolderPath, contribution.program);
+		if (platformContribution.program) {
+			if (!path.isAbsolute(platformContribution.program)) {
+				result.program = path.join(extensionFolderPath, platformContribution.program);
 			} else {
-				result.program = contribution.program;
+				result.program = platformContribution.program;
 			}
 		}
-		if (contribution.args) {
-			result.args = contribution.args;
+		if (platformContribution.args) {
+			result.args = platformContribution.args;
 		}
+
+		const contribution = platformContribution as IDebuggerContribution;
 
 		if (contribution.win) {
 			result.win = ExecutableDebugAdapter.extract(contribution.win, extensionFolderPath);
@@ -490,7 +496,7 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 				const debuggers = <IDebuggerContribution[]>ed.contributes['debuggers'];
 				if (debuggers && debuggers.length > 0) {
 					debuggers.filter(dbg => typeof dbg.type === 'string' && strings.equalsIgnoreCase(dbg.type, debugType)).forEach(dbg => {
-						// extract relevant attributes and make then absolute where needed
+						// extract relevant attributes and make them absolute where needed
 						const extractedDbg = ExecutableDebugAdapter.extract(dbg, ed.extensionLocation.fsPath);
 
 						// merge
