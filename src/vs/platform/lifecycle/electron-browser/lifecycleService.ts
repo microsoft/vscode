@@ -4,50 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { ILifecycleService, BeforeShutdownEvent, ShutdownReason, StartupKind, LifecyclePhase, handleVetos, LifecyclePhaseToString, WillShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
+import { ShutdownReason, StartupKind, handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ipcRenderer as ipc } from 'electron';
-import { Event, Emitter } from 'vs/base/common/event';
 import { IWindowService } from 'vs/platform/windows/common/windows';
-import { mark } from 'vs/base/common/performance';
-import { Barrier } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { Disposable } from 'vs/base/common/lifecycle';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { AbstractLifecycleService } from 'vs/platform/lifecycle/common/lifecycleService';
 
-export class LifecycleService extends Disposable implements ILifecycleService {
+export class LifecycleService extends AbstractLifecycleService {
 
 	private static readonly LAST_SHUTDOWN_REASON_KEY = 'lifecyle.lastShutdownReason';
 
 	_serviceBrand: any;
-
-	private readonly _onBeforeShutdown = this._register(new Emitter<BeforeShutdownEvent>());
-	get onBeforeShutdown(): Event<BeforeShutdownEvent> { return this._onBeforeShutdown.event; }
-
-	private readonly _onWillShutdown = this._register(new Emitter<WillShutdownEvent>());
-	get onWillShutdown(): Event<WillShutdownEvent> { return this._onWillShutdown.event; }
-
-	private readonly _onShutdown = this._register(new Emitter<void>());
-	get onShutdown(): Event<void> { return this._onShutdown.event; }
-
-	private readonly _startupKind: StartupKind;
-	get startupKind(): StartupKind { return this._startupKind; }
-
-	private _phase: LifecyclePhase = LifecyclePhase.Starting;
-	get phase(): LifecyclePhase { return this._phase; }
-
-	private phaseWhen = new Map<LifecyclePhase, Barrier>();
 
 	private shutdownReason: ShutdownReason;
 
 	constructor(
 		@INotificationService private readonly notificationService: INotificationService,
 		@IWindowService private readonly windowService: IWindowService,
-		@IStorageService private readonly storageService: IStorageService,
-		@ILogService private readonly logService: ILogService
+		@IStorageService readonly storageService: IStorageService,
+		@ILogService readonly logService: ILogService
 	) {
-		super();
+		super(logService);
 
 		this._startupKind = this.resolveStartupKind();
 
@@ -147,40 +127,5 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 			this.notificationService.error(toErrorMessage(err));
 			onUnexpectedError(err);
 		});
-	}
-
-	set phase(value: LifecyclePhase) {
-		if (value < this.phase) {
-			throw new Error('Lifecycle cannot go backwards');
-		}
-
-		if (this._phase === value) {
-			return;
-		}
-
-		this.logService.trace(`lifecycle: phase changed (value: ${value})`);
-
-		this._phase = value;
-		mark(`LifecyclePhase/${LifecyclePhaseToString(value)}`);
-
-		const barrier = this.phaseWhen.get(this._phase);
-		if (barrier) {
-			barrier.open();
-			this.phaseWhen.delete(this._phase);
-		}
-	}
-
-	when(phase: LifecyclePhase): Promise<any> {
-		if (phase <= this._phase) {
-			return Promise.resolve();
-		}
-
-		let barrier = this.phaseWhen.get(phase);
-		if (!barrier) {
-			barrier = new Barrier();
-			this.phaseWhen.set(phase, barrier);
-		}
-
-		return barrier.wait();
 	}
 }
