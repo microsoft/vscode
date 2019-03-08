@@ -517,8 +517,8 @@ export class DebugSession implements IDebugSession {
 
 	clearThreads(removeThreads: boolean, reference: number | undefined = undefined): void {
 		if (reference !== undefined && reference !== null) {
-			if (this.threads.has(reference)) {
-				const thread = this.threads.get(reference);
+			const thread = this.threads.get(reference);
+			if (thread) {
 				thread.clearCallStack();
 				thread.stoppedDetails = undefined;
 				thread.stopped = false;
