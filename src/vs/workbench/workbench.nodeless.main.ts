@@ -12,7 +12,7 @@ import 'vs/editor/editor.all';
 // import 'vs/workbench/electron-browser/main.contribution';
 import 'vs/workbench/browser/workbench.contribution';
 
-import 'vs/workbench/nodeless/browser/main';
+import 'vs/workbench/browser/nodeless.main';
 
 //#endregion
 
@@ -81,7 +81,7 @@ import { ContextViewService } from 'vs/platform/contextview/browser/contextViewS
 // import { IProductService } from 'vs/platform/product/common/product';
 // import { ProductService } from 'vs/platform/product/node/productService';
 
-import 'vs/workbench/nodeless/browser/simpleServices';
+import 'vs/workbench/browser/nodeless.services';
 
 import 'vs/workbench/services/bulkEdit/browser/bulkEditService';
 // import 'vs/workbench/services/integrity/node/integrityService';

@@ -18,7 +18,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { SimpleConfigurationService, SimpleEnvironmentService, SimpleWindowsService, SimpleWindowService, SimpleUpdateService, SimpleURLService, SimpleMenubarService, SimpleLogService, SimpleWorkspaceService, SimpleStorageService, SimpleWorkspacesService } from 'vs/workbench/nodeless/browser/simpleServices';
+import { SimpleConfigurationService, SimpleEnvironmentService, SimpleWindowsService, SimpleWindowService, SimpleUpdateService, SimpleURLService, SimpleMenubarService, SimpleLogService, SimpleWorkspaceService, SimpleStorageService, SimpleWorkspacesService } from 'vs/workbench/browser/nodeless.services';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { Workbench, IWorkbenchOptions } from 'vs/workbench/browser/workbench';
 
