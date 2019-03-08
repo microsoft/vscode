@@ -100,6 +100,7 @@ import 'vs/workbench/services/extensions/electron-browser/extensionService';
 import 'vs/workbench/services/contextmenu/electron-browser/contextmenuService';
 import 'vs/platform/contextview/browser/contextViewService';
 import 'vs/workbench/services/extensionManagement/node/multiExtensionManagement';
+import 'vs/platform/extensionManagement/node/extensionGalleryService';
 
 registerSingleton(IMenuService, MenuService, true);
 registerSingleton(IListService, ListService, true);

@@ -62,7 +62,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { combinedAppender, LogAppender, NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IExtensionGalleryService, IExtensionManagementServerService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementServerService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 import { IProductService } from 'vs/platform/product/common/product';
@@ -77,7 +77,6 @@ import { DialogChannel } from 'vs/platform/dialogs/node/dialogIpc';
 import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
 import { resolveWorkbenchCommonProperties } from 'vs/platform/telemetry/node/workbenchCommonProperties';
 import { IRequestService } from 'vs/platform/request/node/request';
-import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/node/remoteAgentService';
 import { DownloadServiceChannel } from 'vs/platform/download/node/downloadIpc';
 import { LogLevelSetterChannel } from 'vs/platform/log/node/logIpc';
@@ -341,9 +340,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 		// Request Service
 		serviceCollection.set(IRequestService, new SyncDescriptor(RequestService, undefined, true));
-
-		// Extension Gallery
-		serviceCollection.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService, undefined, true));
 
 		// Remote Resolver
 		serviceCollection.set(IRemoteAuthorityResolverService, new SyncDescriptor(RemoteAuthorityResolverService, undefined, true));

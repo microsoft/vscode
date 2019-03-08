@@ -25,6 +25,7 @@ import { values } from 'vs/base/common/map';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 interface IRawGalleryExtensionFile {
 	assetType: string;
@@ -855,3 +856,5 @@ export function resolveMarketplaceHeaders(environmentService: IEnvironmentServic
 			};
 		});
 }
+
+registerSingleton(IExtensionGalleryService, ExtensionGalleryService, true);
