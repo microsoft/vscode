@@ -13,12 +13,11 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 
 export class SimpleKeybindingService extends StandaloneKeybindingService {
 	constructor(
-		domNode: any,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService commandService: ICommandService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotificationService notificationService: INotificationService,
 	) {
-		super(contextKeyService, commandService, telemetryService, notificationService, domNode);
+		super(contextKeyService, commandService, telemetryService, notificationService, window.document.body);
 	}
 }

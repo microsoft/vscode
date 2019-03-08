@@ -12,7 +12,7 @@ import 'vs/editor/editor.all';
 // import 'vs/workbench/electron-browser/main.contribution';
 import 'vs/workbench/browser/workbench.contribution';
 
-// import 'vs/workbench/electron-browser/main';
+import 'vs/workbench/nodeless/browser/main';
 
 //#endregion
 
