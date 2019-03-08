@@ -8,6 +8,7 @@ import * as https from 'https';
 import * as nodeurl from 'url';
 
 import { assign } from 'vs/base/common/objects';
+import { endsWith } from 'vs/base/common/strings';
 import { IExtHostWorkspaceProvider } from 'vs/workbench/api/node/extHostWorkspace';
 import { ExtHostConfigProvider } from 'vs/workbench/api/node/extHostConfiguration';
 import { ProxyAgent } from 'vscode-proxy-agent';
@@ -44,14 +45,17 @@ function setupProxyResolution(
 	extHostLogService: ExtHostLogService,
 	mainThreadTelemetry: MainThreadTelemetryShape
 ) {
+	const env = process.env;
+
 	let settingsProxy = proxyFromConfigURL(configProvider.getConfiguration('http')
 		.get<string>('proxy'));
 	configProvider.onDidChangeConfiguration(e => {
 		settingsProxy = proxyFromConfigURL(configProvider.getConfiguration('http')
 			.get<string>('proxy'));
 	});
-	const env = process.env;
 	let envProxy = proxyFromConfigURL(env.https_proxy || env.HTTPS_PROXY || env.http_proxy || env.HTTP_PROXY); // Not standardized.
+
+	let envNoProxy = noProxyFromEnv(env.no_proxy || env.NO_PROXY); // Not standardized.
 
 	let cacheRolls = 0;
 	let oldCache = new Map<string, string>();
@@ -90,6 +94,7 @@ function setupProxyResolution(
 	let envCount = 0;
 	let settingsCount = 0;
 	let localhostCount = 0;
+	let envNoProxyCount = 0;
 	let results: ConnectionResult[] = [];
 	function logEvent() {
 		timeout = undefined;
@@ -104,11 +109,12 @@ function setupProxyResolution(
 				"envCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 				"settingsCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 				"localhostCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+				"envNoProxyCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 				"results": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 			}
 		*/
-		mainThreadTelemetry.$publicLog('resolveProxy', { count, duration, errorCount, cacheCount, cacheSize: cache.size, cacheRolls, envCount, settingsCount, localhostCount, results });
-		count = duration = errorCount = cacheCount = envCount = settingsCount = localhostCount = 0;
+		mainThreadTelemetry.$publicLog('resolveProxy', { count, duration, errorCount, cacheCount, cacheSize: cache.size, cacheRolls, envCount, settingsCount, localhostCount, envNoProxyCount, results });
+		count = duration = errorCount = cacheCount = envCount = settingsCount = localhostCount = envNoProxyCount = 0;
 		results = [];
 	}
 
@@ -124,6 +130,13 @@ function setupProxyResolution(
 			localhostCount++;
 			callback('DIRECT');
 			extHostLogService.trace('ProxyResolver#resolveProxy localhost', url, 'DIRECT');
+			return;
+		}
+
+		if (envNoProxy(hostname, String(parsedUrl.port || (<any>opts.agent).defaultPort))) {
+			envNoProxyCount++;
+			callback('DIRECT');
+			extHostLogService.trace('ProxyResolver#resolveProxy envNoProxy', url, 'DIRECT');
 			return;
 		}
 
@@ -212,6 +225,32 @@ function proxyFromConfigURL(configURL: string | undefined) {
 		return 'SOCKS ' + proxy;
 	}
 	return undefined;
+}
+
+function noProxyFromEnv(envValue?: string) {
+	const value = (envValue || '')
+		.trim()
+		.toLowerCase();
+
+	if (value === '*') {
+		return () => true;
+	}
+
+	const filters = value
+		.split(',')
+		.map(s => s.trim().split(':', 2))
+		.map(([name, port]) => ({ name, port }))
+		.filter(filter => !!filter.name)
+		.map(({ name, port }) => {
+			const domain = name[0] === '.' ? name : `.${name}`;
+			return { domain, port };
+		});
+	if (!filters.length) {
+		return () => false;
+	}
+	return (hostname: string, port: string) => filters.some(({ domain, port: filterPort }) => {
+		return endsWith(`.${hostname.toLowerCase()}`, domain) && (!filterPort || port === filterPort);
+	});
 }
 
 function createPatchedModules(configProvider: ExtHostConfigProvider, resolveProxy: ReturnType<typeof setupProxyResolution>) {

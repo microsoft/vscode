@@ -6,11 +6,13 @@
 import { localize } from 'vs/nls';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import { IExtensionManagementServer, IExtensionManagementServerService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementServer, IExtensionManagementServerService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/node/extensionManagementIpc';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/node/remoteAgentService';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { IChannel } from 'vs/base/parts/ipc/node/ipc';
+import { ISharedProcessService } from 'vs/platform/sharedProcess/node/sharedProcessService';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 const localExtensionManagementServerAuthority: string = 'vscode-local';
 
@@ -22,9 +24,11 @@ export class ExtensionManagementServerService implements IExtensionManagementSer
 	readonly remoteExtensionManagementServer: IExtensionManagementServer | null = null;
 
 	constructor(
-		localExtensionManagementService: IExtensionManagementService,
+		@ISharedProcessService sharedProcessService: ISharedProcessService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService
 	) {
+		const localExtensionManagementService = new ExtensionManagementChannelClient(sharedProcessService.getChannel('extensions'));
+
 		this.localExtensionManagementServer = { extensionManagementService: localExtensionManagementService, authority: localExtensionManagementServerAuthority, label: localize('local', "Local") };
 		const remoteAgentConnection = remoteAgentService.getConnection();
 		if (remoteAgentConnection) {
@@ -43,3 +47,5 @@ export class ExtensionManagementServerService implements IExtensionManagementSer
 		return null;
 	}
 }
+
+registerSingleton(IExtensionManagementServerService, ExtensionManagementServerService);

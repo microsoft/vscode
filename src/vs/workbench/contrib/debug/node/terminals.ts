@@ -33,7 +33,7 @@ export function getDefaultTerminalLinuxReady(): Promise<string> {
 	if (!_DEFAULT_TERMINAL_LINUX_READY) {
 		_DEFAULT_TERMINAL_LINUX_READY = new Promise<string>(c => {
 			if (env.isLinux) {
-				Promise.all([pfs.exists('/etc/debian_version'), process.lazyEnv]).then(([isDebian]) => {
+				Promise.all<any>([pfs.exists('/etc/debian_version'), process.lazyEnv]).then(([isDebian]) => {
 					if (isDebian) {
 						c('x-terminal-emulator');
 					} else if (process.env.DESKTOP_SESSION === 'gnome' || process.env.DESKTOP_SESSION === 'gnome-classic') {
@@ -67,19 +67,18 @@ export function getDefaultTerminalWindows(): string {
 }
 
 abstract class TerminalLauncher implements ITerminalLauncher {
-	public runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Promise<number | undefined> {
-		return this.runInTerminal0(args.title, args.cwd, args.args, args.env || {}, config);
+	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Promise<number | undefined> {
+		return this.runInTerminal0(args.title!, args.cwd, args.args, args.env || {}, config);
 	}
-	runInTerminal0(title: string, dir: string, args: string[], envVars: env.IProcessEnvironment, config): Promise<number | undefined> {
-		return undefined;
-	}
+
+	abstract runInTerminal0(title: string, dir: string, args: string[], envVars: env.IProcessEnvironment | {}, config): Promise<number | undefined>;
 }
 
 class WinTerminalService extends TerminalLauncher {
 
 	private static readonly CMD = 'cmd.exe';
 
-	public runInTerminal0(title: string, dir: string, args: string[], envVars: env.IProcessEnvironment, configuration: ITerminalSettings): Promise<number | undefined> {
+	runInTerminal0(title: string, dir: string, args: string[], envVars: env.IProcessEnvironment, configuration: ITerminalSettings): Promise<number | undefined> {
 
 		const exec = configuration.external.windowsExec || getDefaultTerminalWindows();
 
@@ -117,7 +116,7 @@ class MacTerminalService extends TerminalLauncher {
 	private static readonly DEFAULT_TERMINAL_OSX = 'Terminal.app';
 	private static readonly OSASCRIPT = '/usr/bin/osascript';	// osascript is the AppleScript interpreter on OS X
 
-	public runInTerminal0(title: string, dir: string, args: string[], envVars: env.IProcessEnvironment, configuration: ITerminalSettings): Promise<number | undefined> {
+	runInTerminal0(title: string, dir: string, args: string[], envVars: env.IProcessEnvironment, configuration: ITerminalSettings): Promise<number | undefined> {
 
 		const terminalApp = configuration.external.osxExec || MacTerminalService.DEFAULT_TERMINAL_OSX;
 
@@ -184,7 +183,7 @@ class LinuxTerminalService extends TerminalLauncher {
 
 	private static readonly WAIT_MESSAGE = nls.localize('press.any.key', "Press any key to continue...");
 
-	public runInTerminal0(title: string, dir: string, args: string[], envVars: env.IProcessEnvironment, configuration: ITerminalSettings): Promise<number | undefined> {
+	runInTerminal0(title: string, dir: string, args: string[], envVars: env.IProcessEnvironment, configuration: ITerminalSettings): Promise<number | undefined> {
 
 		const terminalConfig = configuration.external;
 		const execThenable: Promise<string> = terminalConfig.linuxExec ? Promise.resolve(terminalConfig.linuxExec) : getDefaultTerminalLinuxReady();
@@ -348,7 +347,7 @@ export function prepareCommand(args: DebugProtocol.RunInTerminalRequestArguments
 				}
 			}
 			if (args.args && args.args.length > 0) {
-				const cmd = quote(args.args.shift());
+				const cmd = quote(args.args.shift()!);
 				command += (cmd[0] === '\'') ? `& ${cmd} ` : `${cmd} `;
 				for (let a of args.args) {
 					command += `${quote(a)} `;

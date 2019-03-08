@@ -80,13 +80,18 @@ export class CodeInsetWidget {
 		});
 	}
 
-	public dispose(helper: CodeInsetHelper, viewZoneChangeAccessor: editorBrowser.IViewZoneChangeAccessor): void {
+	public dispose(helper: CodeInsetHelper, viewZoneChangeAccessor: editorBrowser.IViewZoneChangeAccessor | null): void {
 		while (this._decorationIds.length) {
-			helper.removeDecoration(this._decorationIds.pop());
+			const decoration = this._decorationIds.pop();
+			if (decoration) {
+				helper.removeDecoration(decoration);
+			}
 		}
 		if (viewZoneChangeAccessor) {
-			viewZoneChangeAccessor.removeZone(this._viewZoneId);
-			this._viewZone = undefined;
+			if (typeof this._viewZoneId !== 'undefined') {
+				viewZoneChangeAccessor.removeZone(this._viewZoneId);
+			}
+			this._viewZone = undefined!;
 		}
 		if (this._webview) {
 			this._webview.dispose();
@@ -94,8 +99,8 @@ export class CodeInsetWidget {
 	}
 
 	public isValid(): boolean {
-		return this._decorationIds.some((id, i) => {
-			const range = this._editor.getModel().getDecorationRange(id);
+		return this._editor.hasModel() && this._decorationIds.some((id, i) => {
+			const range = this._editor.getModel()!.getDecorationRange(id);
 			const symbol = this._data[i].symbol;
 			return !!range && Range.isEmpty(symbol.range) === range.isEmpty();
 		});
@@ -103,7 +108,10 @@ export class CodeInsetWidget {
 
 	public updateCodeInsetSymbols(data: ICodeInsetData[], helper: CodeInsetHelper): void {
 		while (this._decorationIds.length) {
-			helper.removeDecoration(this._decorationIds.pop());
+			const decoration = this._decorationIds.pop();
+			if (decoration) {
+				helper.removeDecoration(decoration);
+			}
 		}
 		this._data = data;
 		this._decorationIds = new Array<string>(this._data.length);
@@ -127,9 +135,11 @@ export class CodeInsetWidget {
 	}
 
 	public getLineNumber(): number {
-		const range = this._editor.getModel().getDecorationRange(this._decorationIds[0]);
-		if (range) {
-			return range.startLineNumber;
+		if (this._editor.hasModel()) {
+			const range = this._editor.getModel().getDecorationRange(this._decorationIds[0]);
+			if (range) {
+				return range.startLineNumber;
+			}
 		}
 		return -1;
 	}
@@ -152,7 +162,9 @@ export class CodeInsetWidget {
 					const margin = e.payload.height > 0 ? 5 : 0;
 					this._viewZone.heightInPx = e.payload.height + margin;
 					this._editor.changeViewZones(accessor => {
-						accessor.layoutZone(this._viewZoneId);
+						if (this._viewZoneId) {
+							accessor.layoutZone(this._viewZoneId);
+						}
 					});
 				}
 			});
@@ -169,8 +181,12 @@ export class CodeInsetWidget {
 	public reposition(viewZoneChangeAccessor: editorBrowser.IViewZoneChangeAccessor): void {
 		if (this.isValid() && this._editor.hasModel()) {
 			const range = this._editor.getModel().getDecorationRange(this._decorationIds[0]);
-			this._viewZone.afterLineNumber = range.endLineNumber;
-			viewZoneChangeAccessor.layoutZone(this._viewZoneId);
+			if (range) {
+				this._viewZone.afterLineNumber = range.endLineNumber;
+			}
+			if (this._viewZoneId) {
+				viewZoneChangeAccessor.layoutZone(this._viewZoneId);
+			}
 		}
 	}
 }

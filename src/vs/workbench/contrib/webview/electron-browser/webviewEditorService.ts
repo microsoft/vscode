@@ -12,6 +12,7 @@ import * as vscode from 'vscode';
 import { WebviewEditorInput, RevivedWebviewEditorInput } from './webviewEditorInput';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
 import { equals } from 'vs/base/common/arrays';
+import { values } from 'vs/base/common/map';
 
 export const IWebviewEditorService = createDecorator<IWebviewEditorService>('webviewEditorService');
 
@@ -169,7 +170,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 	canRevive(
 		webview: WebviewEditorInput
 	): boolean {
-		for (const reviver of this._revivers) {
+		for (const reviver of values(this._revivers)) {
 			if (reviver.canRevive(webview)) {
 				return true;
 			}
@@ -180,7 +181,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 	private async tryRevive(
 		webview: WebviewEditorInput
 	): Promise<boolean> {
-		for (const reviver of this._revivers) {
+		for (const reviver of values(this._revivers)) {
 			if (reviver.canRevive(webview)) {
 				await reviver.reviveWebview(webview);
 				return true;

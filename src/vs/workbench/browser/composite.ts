@@ -174,6 +174,13 @@ export abstract class Composite extends Component implements IComposite {
 	}
 
 	/**
+	 * Provide a context to be passed to the toolbar.
+	 */
+	getActionsContext(): any {
+		return null;
+	}
+
+	/**
 	 * Returns the instance of IActionRunner to use with this composite for the
 	 * composite tool bar.
 	 */

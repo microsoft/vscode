@@ -82,7 +82,7 @@ export class TextFileEditor extends BaseTextEditor {
 	}
 
 	private updateRestoreViewStateConfiguration(): void {
-		this.restoreViewState = this.configurationService.getValue(null, 'workbench.editor.restoreViewState');
+		this.restoreViewState = this.configurationService.getValue(undefined, 'workbench.editor.restoreViewState');
 	}
 
 	getTitle(): string {
@@ -198,7 +198,7 @@ export class TextFileEditor extends BaseTextEditor {
 				}
 
 				if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_EXCEED_MEMORY_LIMIT) {
-					const memoryLimit = Math.max(MIN_MAX_MEMORY_SIZE_MB, +this.configurationService.getValue<number>(null, 'files.maxMemoryForLargeFilesMB') || FALLBACK_MAX_MEMORY_SIZE_MB);
+					const memoryLimit = Math.max(MIN_MAX_MEMORY_SIZE_MB, +this.configurationService.getValue<number>(undefined, 'files.maxMemoryForLargeFilesMB') || FALLBACK_MAX_MEMORY_SIZE_MB);
 
 					return Promise.reject(createErrorWithActions(toErrorMessage(error), {
 						actions: [
@@ -228,6 +228,9 @@ export class TextFileEditor extends BaseTextEditor {
 	}
 
 	private openAsFolder(input: FileEditorInput): void {
+		if (!this.group) {
+			return;
+		}
 
 		// Since we cannot open a folder, we have to restore the previous input if any and close the editor
 		this.group.closeEditor(this.input).then(() => {

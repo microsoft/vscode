@@ -13,7 +13,7 @@ import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { ITextResourceConfigurationService, ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
-import { SimpleBulkEditService, SimpleConfigurationService, SimpleDialogService, SimpleNotificationService, SimpleProgressService, SimpleResourceConfigurationService, SimpleResourcePropertiesService, SimpleUriLabelService, SimpleWorkspaceContextService, StandaloneCommandService, StandaloneKeybindingService, StandaloneTelemetryService } from 'vs/editor/standalone/browser/simpleServices';
+import { SimpleBulkEditService, SimpleConfigurationService, SimpleDialogService, SimpleNotificationService, SimpleProgressService, SimpleResourceConfigurationService, SimpleResourcePropertiesService, SimpleUriLabelService, SimpleWorkspaceContextService, StandaloneCommandService, StandaloneKeybindingService, StandaloneTelemetryService, SimpleLayoutService } from 'vs/editor/standalone/browser/simpleServices';
 import { StandaloneCodeEditorServiceImpl } from 'vs/editor/standalone/browser/standaloneCodeServiceImpl';
 import { StandaloneThemeServiceImpl } from 'vs/editor/standalone/browser/standaloneThemeServiceImpl';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
@@ -47,6 +47,7 @@ import { MarkerDecorationsService } from 'vs/editor/common/services/markerDecora
 import { ISuggestMemoryService, SuggestMemoryService } from 'vs/editor/contrib/suggest/suggestMemory';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { BrowserAccessibilityService } from 'vs/platform/accessibility/browser/accessibilityService';
+import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 
 export interface IEditorOverrideServices {
 	[index: string]: any;
@@ -57,8 +58,8 @@ export module StaticServices {
 	const _serviceCollection = new ServiceCollection();
 
 	export class LazyStaticService<T> {
-		private _serviceId: ServiceIdentifier<T>;
-		private _factory: (overrides?: IEditorOverrideServices) => T;
+		private readonly _serviceId: ServiceIdentifier<T>;
+		private readonly _factory: (overrides?: IEditorOverrideServices) => T;
 		private _value: T | null;
 
 		public get id() { return this._serviceId; }
@@ -162,8 +163,8 @@ export module StaticServices {
 
 export class DynamicStandaloneServices extends Disposable {
 
-	private _serviceCollection: ServiceCollection;
-	private _instantiationService: IInstantiationService;
+	private readonly _serviceCollection: ServiceCollection;
+	private readonly _instantiationService: IInstantiationService;
 
 	constructor(domElement: HTMLElement, overrides: IEditorOverrideServices) {
 		super();
@@ -197,9 +198,11 @@ export class DynamicStandaloneServices extends Disposable {
 
 		let keybindingService = ensure(IKeybindingService, () => this._register(new StandaloneKeybindingService(contextKeyService, commandService, telemetryService, notificationService, domElement)));
 
-		let contextViewService = ensure(IContextViewService, () => this._register(new ContextViewService(domElement, telemetryService, new NullLogService())));
+		let layoutService = ensure(ILayoutService, () => new SimpleLayoutService(domElement));
 
-		ensure(IContextMenuService, () => this._register(new ContextMenuService(domElement, telemetryService, notificationService, contextViewService, keybindingService, themeService)));
+		let contextViewService = ensure(IContextViewService, () => this._register(new ContextViewService(layoutService)));
+
+		ensure(IContextMenuService, () => this._register(new ContextMenuService(layoutService, telemetryService, notificationService, contextViewService, keybindingService, themeService)));
 
 		ensure(IMenuService, () => new MenuService(commandService));
 

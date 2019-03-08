@@ -16,7 +16,7 @@ import { URI } from 'vs/base/common/uri';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { List } from 'vs/base/browser/ui/list/listWidget';
-import { distinct } from 'vs/base/common/arrays';
+import { distinct, coalesce } from 'vs/base/common/arrays';
 import { IEditorGroupsService, IEditorGroup, GroupDirection, GroupLocation, GroupsOrder, preferredSideBySideGroupDirection, EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
@@ -52,9 +52,9 @@ export const NAVIGATE_IN_ACTIVE_GROUP_PREFIX = 'edt active ';
 export const OPEN_EDITOR_AT_INDEX_COMMAND_ID = 'workbench.action.openEditorAtIndex';
 
 export interface ActiveEditorMoveArguments {
-	to?: 'first' | 'last' | 'left' | 'right' | 'up' | 'down' | 'center' | 'position' | 'previous' | 'next';
-	by?: 'tab' | 'group';
-	value?: number;
+	to: 'first' | 'last' | 'left' | 'right' | 'up' | 'down' | 'center' | 'position' | 'previous' | 'next';
+	by: 'tab' | 'group';
+	value: number;
 }
 
 const isActiveEditorMoveArg = function (arg: ActiveEditorMoveArguments): boolean {
@@ -357,7 +357,7 @@ function registerOpenEditorAtIndexCommands(): void {
 			case 9: return KeyCode.KEY_9;
 		}
 
-		return undefined;
+		throw new Error('invalid index');
 	}
 }
 
@@ -409,7 +409,7 @@ function registerFocusEditorGroupAtIndexCommands(): void {
 			case 7: return 'workbench.action.focusEighthEditorGroup';
 		}
 
-		return undefined;
+		throw new Error('Invalid index');
 	}
 
 	function toKeyCode(index: number): KeyCode {
@@ -423,7 +423,7 @@ function registerFocusEditorGroupAtIndexCommands(): void {
 			case 7: return KeyCode.KEY_8;
 		}
 
-		return undefined;
+		throw new Error('Invalid index');
 	}
 }
 
@@ -528,9 +528,9 @@ function registerCloseEditorCommands() {
 
 			return Promise.all(groupIds.map(groupId => {
 				const group = editorGroupService.getGroup(groupId);
-				const editors = contexts
+				const editors = coalesce(contexts
 					.filter(context => context.groupId === groupId)
-					.map(context => typeof context.editorIndex === 'number' ? group.getEditor(context.editorIndex) : group.activeEditor);
+					.map(context => typeof context.editorIndex === 'number' ? group.getEditor(context.editorIndex) : group.activeEditor));
 
 				return group.closeEditors(editors);
 			}));
@@ -675,7 +675,7 @@ function getCommandsContext(resourceOrContext: URI | IEditorCommandsContext, con
 	return undefined;
 }
 
-function resolveCommandsContext(editorGroupService: IEditorGroupsService, context?: IEditorCommandsContext): { group: IEditorGroup, editor: IEditorInput, control: IEditor } {
+function resolveCommandsContext(editorGroupService: IEditorGroupsService, context?: IEditorCommandsContext): { group: IEditorGroup, editor?: IEditorInput, control?: IEditor } {
 
 	// Resolve from context
 	let group = context && typeof context.groupId === 'number' ? editorGroupService.getGroup(context.groupId) : undefined;
@@ -689,7 +689,7 @@ function resolveCommandsContext(editorGroupService: IEditorGroupsService, contex
 		control = group.activeControl;
 	}
 
-	return { group, editor, control };
+	return { group, editor: editor || undefined, control: control || undefined };
 }
 
 export function getMultiSelectedEditorContexts(editorContext: IEditorCommandsContext | undefined, listService: IListService, editorGroupService: IEditorGroupsService): IEditorCommandsContext[] {

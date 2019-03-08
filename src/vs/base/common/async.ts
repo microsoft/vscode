@@ -52,7 +52,7 @@ export function createCancelablePromise<T>(callback: (token: CancellationToken) 
 
 export function asPromise<T>(callback: () => T | Thenable<T>): Promise<T> {
 	return new Promise<T>((resolve, reject) => {
-		let item = callback();
+		const item = callback();
 		if (isThenable<T>(item)) {
 			item.then(resolve, reject);
 		} else {
@@ -688,12 +688,12 @@ declare function cancelIdleCallback(handle: number): void;
 
 (function () {
 	if (typeof requestIdleCallback !== 'function' || typeof cancelIdleCallback !== 'function') {
-		let dummyIdle: IdleDeadline = Object.freeze({
+		const dummyIdle: IdleDeadline = Object.freeze({
 			didTimeout: true,
 			timeRemaining() { return 15; }
 		});
 		runWhenIdle = (runner) => {
-			let handle = setTimeout(() => runner(dummyIdle));
+			const handle = setTimeout(() => runner(dummyIdle));
 			let disposed = false;
 			return {
 				dispose() {
@@ -707,7 +707,7 @@ declare function cancelIdleCallback(handle: number): void;
 		};
 	} else {
 		runWhenIdle = (runner, timeout?) => {
-			let handle: number = requestIdleCallback(runner, typeof timeout === 'number' ? { timeout } : undefined);
+			const handle: number = requestIdleCallback(runner, typeof timeout === 'number' ? { timeout } : undefined);
 			let disposed = false;
 			return {
 				dispose() {

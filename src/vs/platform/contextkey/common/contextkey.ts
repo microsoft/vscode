@@ -16,6 +16,14 @@ export const enum ContextKeyExprType {
 	Regex = 6
 }
 
+export interface IContextKeyExprMapper {
+	mapDefined(key: string): ContextKeyDefinedExpr;
+	mapNot(key: string): ContextKeyNotExpr;
+	mapEquals(key: string, value: any): ContextKeyEqualsExpr;
+	mapNotEquals(key: string, value: any): ContextKeyNotEqualsExpr;
+	mapRegex(key: string, regexp: RegExp | null): ContextKeyRegexExpr;
+}
+
 export abstract class ContextKeyExpr {
 
 	public static has(key: string): ContextKeyExpr {
@@ -138,6 +146,7 @@ export abstract class ContextKeyExpr {
 	public abstract normalize(): ContextKeyExpr | null;
 	public abstract serialize(): string;
 	public abstract keys(): string[];
+	public abstract map(mapFnc: IContextKeyExprMapper): ContextKeyExpr;
 }
 
 function cmp(a: ContextKeyExpr, b: ContextKeyExpr): number {
@@ -202,10 +211,14 @@ export class ContextKeyDefinedExpr implements ContextKeyExpr {
 	public keys(): string[] {
 		return [this.key];
 	}
+
+	public map(mapFnc: IContextKeyExprMapper): ContextKeyExpr {
+		return mapFnc.mapDefined(this.key);
+	}
 }
 
 export class ContextKeyEqualsExpr implements ContextKeyExpr {
-	constructor(private key: string, private value: any) {
+	constructor(private readonly key: string, private readonly value: any) {
 	}
 
 	public getType(): ContextKeyExprType {
@@ -262,6 +275,10 @@ export class ContextKeyEqualsExpr implements ContextKeyExpr {
 
 	public keys(): string[] {
 		return [this.key];
+	}
+
+	public map(mapFnc: IContextKeyExprMapper): ContextKeyExpr {
+		return mapFnc.mapEquals(this.key, this.value);
 	}
 }
 
@@ -324,6 +341,10 @@ export class ContextKeyNotEqualsExpr implements ContextKeyExpr {
 	public keys(): string[] {
 		return [this.key];
 	}
+
+	public map(mapFnc: IContextKeyExprMapper): ContextKeyExpr {
+		return mapFnc.mapNotEquals(this.key, this.value);
+	}
 }
 
 export class ContextKeyNotExpr implements ContextKeyExpr {
@@ -365,6 +386,10 @@ export class ContextKeyNotExpr implements ContextKeyExpr {
 
 	public keys(): string[] {
 		return [this.key];
+	}
+
+	public map(mapFnc: IContextKeyExprMapper): ContextKeyExpr {
+		return mapFnc.mapNot(this.key);
 	}
 }
 
@@ -423,6 +448,10 @@ export class ContextKeyRegexExpr implements ContextKeyExpr {
 
 	public keys(): string[] {
 		return [this.key];
+	}
+
+	public map(mapFnc: IContextKeyExprMapper): ContextKeyExpr {
+		return mapFnc.mapRegex(this.key, this.regexp);
 	}
 }
 
@@ -522,6 +551,10 @@ export class ContextKeyAndExpr implements ContextKeyExpr {
 			result.push(...expr.keys());
 		}
 		return result;
+	}
+
+	public map(mapFnc: IContextKeyExprMapper): ContextKeyExpr {
+		return new ContextKeyAndExpr(this.expr.map(expr => expr.map(mapFnc)));
 	}
 }
 

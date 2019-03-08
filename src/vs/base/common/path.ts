@@ -231,7 +231,7 @@ export const win32: IPath = {
 				continue;
 			}
 
-			let len = path.length;
+			const len = path.length;
 			let rootEnd = 0;
 			let device = '';
 			let isAbsolute = false;
@@ -503,7 +503,7 @@ export const win32: IPath = {
 		let joined;
 		let firstPart;
 		for (let i = 0; i < paths.length; ++i) {
-			let arg = paths[i];
+			const arg = paths[i];
 			validateString(arg, 'path');
 			if (arg.length > 0) {
 				if (joined === undefined) {
@@ -582,8 +582,8 @@ export const win32: IPath = {
 			return '';
 		}
 
-		let fromOrig = win32.resolve(from);
-		let toOrig = win32.resolve(to);
+		const fromOrig = win32.resolve(from);
+		const toOrig = win32.resolve(to);
 
 		if (fromOrig === toOrig) {
 			return '';
@@ -610,7 +610,7 @@ export const win32: IPath = {
 				break;
 			}
 		}
-		let fromLen = (fromEnd - fromStart);
+		const fromLen = (fromEnd - fromStart);
 
 		// Trim any leading backslashes
 		let toStart = 0;
@@ -626,10 +626,10 @@ export const win32: IPath = {
 				break;
 			}
 		}
-		let toLen = (toEnd - toStart);
+		const toLen = (toEnd - toStart);
 
 		// Compare paths to find the longest common path from root
-		let length = (fromLen < toLen ? fromLen : toLen);
+		const length = (fromLen < toLen ? fromLen : toLen);
 		let lastCommonSep = -1;
 		let i = 0;
 		for (; i <= length; ++i) {
@@ -658,8 +658,8 @@ export const win32: IPath = {
 				}
 				break;
 			}
-			let fromCode = from.charCodeAt(fromStart + i);
-			let toCode = to.charCodeAt(toStart + i);
+			const fromCode = from.charCodeAt(fromStart + i);
+			const toCode = to.charCodeAt(toStart + i);
 			if (fromCode !== toCode) {
 				break;
 			}
@@ -1015,12 +1015,12 @@ export const win32: IPath = {
 	parse(path) {
 		validateString(path, 'path');
 
-		let ret = { root: '', dir: '', base: '', ext: '', name: '' };
+		const ret = { root: '', dir: '', base: '', ext: '', name: '' };
 		if (path.length === 0) {
 			return ret;
 		}
 
-		let len = path.length;
+		const len = path.length;
 		let rootEnd = 0;
 		let code = path.charCodeAt(0);
 
@@ -1268,7 +1268,7 @@ export const posix: IPath = {
 		}
 		let joined;
 		for (let i = 0; i < paths.length; ++i) {
-			let arg = arguments[i];
+			const arg = arguments[i];
 			validateString(arg, 'path');
 			if (arg.length > 0) {
 				if (joined === undefined) {
@@ -1307,8 +1307,8 @@ export const posix: IPath = {
 				break;
 			}
 		}
-		let fromEnd = from.length;
-		let fromLen = (fromEnd - fromStart);
+		const fromEnd = from.length;
+		const fromLen = (fromEnd - fromStart);
 
 		// Trim any leading backslashes
 		let toStart = 1;
@@ -1317,11 +1317,11 @@ export const posix: IPath = {
 				break;
 			}
 		}
-		let toEnd = to.length;
-		let toLen = (toEnd - toStart);
+		const toEnd = to.length;
+		const toLen = (toEnd - toStart);
 
 		// Compare paths to find the longest common path from root
-		let length = (fromLen < toLen ? fromLen : toLen);
+		const length = (fromLen < toLen ? fromLen : toLen);
 		let lastCommonSep = -1;
 		let i = 0;
 		for (; i <= length; ++i) {
@@ -1349,8 +1349,8 @@ export const posix: IPath = {
 				}
 				break;
 			}
-			let fromCode = from.charCodeAt(fromStart + i);
-			let toCode = to.charCodeAt(toStart + i);
+			const fromCode = from.charCodeAt(fromStart + i);
+			const toCode = to.charCodeAt(toStart + i);
 			if (fromCode !== toCode) {
 				break;
 			}
@@ -1568,11 +1568,11 @@ export const posix: IPath = {
 	parse(path: string): ParsedPath {
 		validateString(path, 'path');
 
-		let ret = { root: '', dir: '', base: '', ext: '', name: '' };
+		const ret = { root: '', dir: '', base: '', ext: '', name: '' };
 		if (path.length === 0) {
 			return ret;
 		}
-		let isAbsolute = path.charCodeAt(0) === CHAR_FORWARD_SLASH;
+		const isAbsolute = path.charCodeAt(0) === CHAR_FORWARD_SLASH;
 		let start;
 		if (isAbsolute) {
 			ret.root = '/';

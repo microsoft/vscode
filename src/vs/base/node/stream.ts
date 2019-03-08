@@ -92,7 +92,7 @@ export function readToMatchingString(file: string, matchingString: string, chunk
 				});
 			}
 
-			let buffer = Buffer.allocUnsafe(maximumBytesToRead);
+			const buffer = Buffer.allocUnsafe(maximumBytesToRead);
 			let offset = 0;
 
 			function readChunk(): void {

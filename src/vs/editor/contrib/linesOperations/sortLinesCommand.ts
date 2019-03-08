@@ -11,9 +11,9 @@ import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/mod
 
 export class SortLinesCommand implements editorCommon.ICommand {
 
-	private selection: Selection;
+	private readonly selection: Selection;
 	private selectionId: string;
-	private descending: boolean;
+	private readonly descending: boolean;
 
 	constructor(selection: Selection, descending: boolean) {
 		this.selection = selection;

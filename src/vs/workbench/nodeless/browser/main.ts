@@ -7,7 +7,7 @@ import { mark } from 'vs/base/common/performance';
 import { domContentLoaded, addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IUpdateService } from 'vs/platform/update/common/update';
 import { IURLService } from 'vs/platform/url/common/url';
@@ -26,13 +26,11 @@ import { SimpleWorkspacesService } from 'vs/workbench/nodeless/services/simpleWo
 import { SimpleEnvironmentService } from 'vs/workbench/nodeless/services/simpleEnvironmentService';
 import { SimpleWorkspaceService } from 'vs/workbench/nodeless/services/simpleWorkspaceService';
 import { SimpleConfigurationService } from 'vs/workbench/nodeless/services/simpleConfigurationService';
-import { SimpleWindowConfiguration } from 'vs/workbench/nodeless/services/simpleWindowService';
+import { SimpleWindowService } from 'vs/workbench/nodeless/services/simpleWindowService';
 import { SimpleLogService } from 'vs/workbench/nodeless/services/simpleLogService';
 import { SimpleStorageService } from 'vs/workbench/nodeless/services/simpleStorageService';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-
-// tslint:disable-next-line: layering
-import { Workbench } from 'vs/workbench/electron-browser/workbench';
+import { Workbench, IWorkbenchOptions } from 'vs/workbench/browser/workbench';
 
 class CodeRendererMain extends Disposable {
 
@@ -50,7 +48,7 @@ class CodeRendererMain extends Disposable {
 			this.workbench = instantiationService.createInstance(
 				Workbench,
 				document.body,
-				new SimpleWindowConfiguration(),
+				{ hasInitialFilesToOpen: false } as IWorkbenchOptions,
 				services
 			);
 
@@ -69,6 +67,7 @@ class CodeRendererMain extends Disposable {
 		const serviceCollection = new ServiceCollection();
 
 		serviceCollection.set(IWindowsService, new SyncDescriptor(SimpleWindowsService));
+		serviceCollection.set(IWindowService, new SyncDescriptor(SimpleWindowService));
 		serviceCollection.set(IUpdateService, new SyncDescriptor(SimpleUpdateService));
 		serviceCollection.set(IURLService, new SyncDescriptor(SimpleURLService));
 		serviceCollection.set(IMenubarService, new SyncDescriptor(SimpleMenubarService));

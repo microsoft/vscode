@@ -10,8 +10,8 @@ import * as assert from 'assert';
  * array to the callback (callback). The resulting errors and results are evaluated by calling the provided callback function.
  */
 export function parallel<T, E>(list: T[], fn: (item: T, callback: (err: Error | null, result: E | null) => void) => void, callback: (err: Array<Error | null> | null, result: E[]) => void): void {
-	let results = new Array(list.length);
-	let errors = new Array<Error | null>(list.length);
+	const results = new Array(list.length);
+	const errors = new Array<Error | null>(list.length);
 	let didErrorOccur = false;
 	let doneCount = 0;
 
@@ -68,9 +68,9 @@ export function loop<E>(param: any, fn: (item: any, callback: (error: Error | nu
 
 	// Expect the param to be an array and loop over it
 	else {
-		let results: E[] = [];
+		const results: E[] = [];
 
-		let looper: (i: number) => void = function (i: number): void {
+		const looper: (i: number) => void = function (i: number): void {
 
 			// Still work to do
 			if (i < param.length) {
@@ -126,11 +126,11 @@ function Sequence(sequences: { (...param: any[]): void; }[]): void {
 	});
 
 	// Execute in Loop
-	let errorHandler = sequences.splice(0, 1)[0]; //Remove error handler
+	const errorHandler = sequences.splice(0, 1)[0]; //Remove error handler
 	let sequenceResult: any = null;
 
 	loop(sequences, (sequence, clb) => {
-		let sequenceFunction = function (error: any, result: any): void {
+		const sequenceFunction = function (error: any, result: any): void {
 
 			// A method might only send a boolean value as return value (e.g. fs.exists), support this case gracefully
 			if (error === true || error === false) {

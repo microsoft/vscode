@@ -17,7 +17,7 @@ import { getThemeTypeSelector, IThemeService } from 'vs/platform/theme/common/th
 import { DEFAULT_EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
 import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import * as themes from 'vs/workbench/common/theme';
-import { IPartService, Parts, Position } from 'vs/workbench/services/part/common/partService';
+import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
@@ -36,7 +36,7 @@ class PartsSplash {
 
 	constructor(
 		@IThemeService private readonly _themeService: IThemeService,
-		@IPartService private readonly _partService: IPartService,
+		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@IFileService private readonly _fileService: IFileService,
 		@IEnvironmentService private readonly _envService: IEnvironmentService,
 		@IBroadcastService private readonly _broadcastService: IBroadcastService,
@@ -71,12 +71,12 @@ class PartsSplash {
 			statusBarNoFolderBackground: this._getThemeColor(themes.STATUS_BAR_NO_FOLDER_BACKGROUND),
 		};
 		const layoutInfo = !this._shouldSaveLayoutInfo() ? undefined : {
-			sideBarSide: this._partService.getSideBarPosition() === Position.RIGHT ? 'right' : 'left',
+			sideBarSide: this._layoutService.getSideBarPosition() === Position.RIGHT ? 'right' : 'left',
 			editorPartMinWidth: DEFAULT_EDITOR_MIN_DIMENSIONS.width,
-			titleBarHeight: getTotalHeight(this._partService.getContainer(Parts.TITLEBAR_PART)!),
-			activityBarWidth: getTotalWidth(this._partService.getContainer(Parts.ACTIVITYBAR_PART)!),
-			sideBarWidth: getTotalWidth(this._partService.getContainer(Parts.SIDEBAR_PART)!),
-			statusBarHeight: getTotalHeight(this._partService.getContainer(Parts.STATUSBAR_PART)!),
+			titleBarHeight: getTotalHeight(this._layoutService.getContainer(Parts.TITLEBAR_PART)!),
+			activityBarWidth: getTotalWidth(this._layoutService.getContainer(Parts.ACTIVITYBAR_PART)!),
+			sideBarWidth: getTotalWidth(this._layoutService.getContainer(Parts.SIDEBAR_PART)!),
+			statusBarHeight: getTotalHeight(this._layoutService.getContainer(Parts.STATUSBAR_PART)!),
 		};
 		this._fileService.updateContent(
 			URI.file(join(this._envService.userDataPath, 'rapid_render.json')),

@@ -39,6 +39,10 @@ export class SimpleWorkspaceEditingService implements IWorkspaceEditingService {
 	copyWorkspaceSettings(toWorkspace: IWorkspaceIdentifier): Promise<void> {
 		return Promise.resolve(undefined);
 	}
+
+	pickNewWorkspacePath(): Promise<URI> {
+		return Promise.resolve(undefined);
+	}
 }
 
 registerSingleton(IWorkspaceEditingService, SimpleWorkspaceEditingService, true);

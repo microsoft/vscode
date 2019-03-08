@@ -29,7 +29,7 @@ class Coordinate {
 
 export class ViewContentWidgets extends ViewPart {
 
-	private _viewDomNode: FastDomNode<HTMLElement>;
+	private readonly _viewDomNode: FastDomNode<HTMLElement>;
 	private _widgets: { [key: string]: Widget; };
 
 	public domNode: FastDomNode<HTMLElement>;
@@ -59,7 +59,7 @@ export class ViewContentWidgets extends ViewPart {
 	// --- begin event handlers
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		let keys = Object.keys(this._widgets);
+		const keys = Object.keys(this._widgets);
 		for (const widgetId of keys) {
 			this._widgets[widgetId].onConfigurationChanged(e);
 		}
@@ -73,7 +73,7 @@ export class ViewContentWidgets extends ViewPart {
 		return true;
 	}
 	public onLineMappingChanged(e: viewEvents.ViewLineMappingChangedEvent): boolean {
-		let keys = Object.keys(this._widgets);
+		const keys = Object.keys(this._widgets);
 		for (const widgetId of keys) {
 			this._widgets[widgetId].onLineMappingChanged(e);
 		}
@@ -139,21 +139,21 @@ export class ViewContentWidgets extends ViewPart {
 	}
 
 	public onBeforeRender(viewportData: ViewportData): void {
-		let keys = Object.keys(this._widgets);
+		const keys = Object.keys(this._widgets);
 		for (const widgetId of keys) {
 			this._widgets[widgetId].onBeforeRender(viewportData);
 		}
 	}
 
 	public prepareRender(ctx: RenderingContext): void {
-		let keys = Object.keys(this._widgets);
+		const keys = Object.keys(this._widgets);
 		for (const widgetId of keys) {
 			this._widgets[widgetId].prepareRender(ctx);
 		}
 	}
 
 	public render(ctx: RestrictedRenderingContext): void {
-		let keys = Object.keys(this._widgets);
+		const keys = Object.keys(this._widgets);
 		for (const widgetId of keys) {
 			this._widgets[widgetId].render(ctx);
 		}
@@ -180,7 +180,7 @@ class Widget {
 	public readonly allowEditorOverflow: boolean;
 	public readonly suppressMouseDown: boolean;
 
-	private _fixedOverflowWidgets: boolean;
+	private readonly _fixedOverflowWidgets: boolean;
 	private _contentWidth: number;
 	private _contentLeft: number;
 	private _lineHeight: number;
@@ -280,17 +280,17 @@ class Widget {
 		// Our visible box is split horizontally by the current line => 2 boxes
 
 		// a) the box above the line
-		let aboveLineTop = topLeft.top;
-		let heightAboveLine = aboveLineTop;
+		const aboveLineTop = topLeft.top;
+		const heightAboveLine = aboveLineTop;
 
 		// b) the box under the line
-		let underLineTop = bottomLeft.top + this._lineHeight;
-		let heightUnderLine = ctx.viewportHeight - underLineTop;
+		const underLineTop = bottomLeft.top + this._lineHeight;
+		const heightUnderLine = ctx.viewportHeight - underLineTop;
 
-		let aboveTop = aboveLineTop - height;
-		let fitsAbove = (heightAboveLine >= height);
-		let belowTop = underLineTop;
-		let fitsBelow = (heightUnderLine >= height);
+		const aboveTop = aboveLineTop - height;
+		const fitsAbove = (heightAboveLine >= height);
+		const belowTop = underLineTop;
+		const fitsBelow = (heightUnderLine >= height);
 
 		// And its left
 		let actualAboveLeft = topLeft.left;
@@ -320,8 +320,8 @@ class Widget {
 	}
 
 	private _layoutBoxInPage(topLeft: Coordinate, bottomLeft: Coordinate, width: number, height: number, ctx: RenderingContext): IBoxLayoutResult | null {
-		let aboveLeft0 = topLeft.left - ctx.scrollLeft;
-		let belowLeft0 = bottomLeft.left - ctx.scrollLeft;
+		const aboveLeft0 = topLeft.left - ctx.scrollLeft;
+		const belowLeft0 = bottomLeft.left - ctx.scrollLeft;
 
 		if (aboveLeft0 < 0 || aboveLeft0 > this._contentWidth) {
 			// Don't render if position is scrolled outside viewport
@@ -333,39 +333,39 @@ class Widget {
 		let aboveLeft = aboveLeft0 + this._contentLeft;
 		let belowLeft = belowLeft0 + this._contentLeft;
 
-		let domNodePosition = dom.getDomNodePagePosition(this._viewDomNode.domNode);
-		let absoluteAboveTop = domNodePosition.top + aboveTop - dom.StandardWindow.scrollY;
-		let absoluteBelowTop = domNodePosition.top + belowTop - dom.StandardWindow.scrollY;
+		const domNodePosition = dom.getDomNodePagePosition(this._viewDomNode.domNode);
+		const absoluteAboveTop = domNodePosition.top + aboveTop - dom.StandardWindow.scrollY;
+		const absoluteBelowTop = domNodePosition.top + belowTop - dom.StandardWindow.scrollY;
 		let absoluteAboveLeft = domNodePosition.left + aboveLeft - dom.StandardWindow.scrollX;
 		let absoluteBelowLeft = domNodePosition.left + belowLeft - dom.StandardWindow.scrollX;
 
-		let INNER_WIDTH = window.innerWidth || document.documentElement!.clientWidth || document.body.clientWidth;
-		let INNER_HEIGHT = window.innerHeight || document.documentElement!.clientHeight || document.body.clientHeight;
+		const INNER_WIDTH = window.innerWidth || document.documentElement!.clientWidth || document.body.clientWidth;
+		const INNER_HEIGHT = window.innerHeight || document.documentElement!.clientHeight || document.body.clientHeight;
 
 		// Leave some clearance to the bottom
-		let TOP_PADDING = 22;
-		let BOTTOM_PADDING = 22;
+		const TOP_PADDING = 22;
+		const BOTTOM_PADDING = 22;
 
-		let fitsAbove = (absoluteAboveTop >= TOP_PADDING),
+		const fitsAbove = (absoluteAboveTop >= TOP_PADDING),
 			fitsBelow = (absoluteBelowTop + height <= INNER_HEIGHT - BOTTOM_PADDING);
 
 		if (absoluteAboveLeft + width + 20 > INNER_WIDTH) {
-			let delta = absoluteAboveLeft - (INNER_WIDTH - width - 20);
+			const delta = absoluteAboveLeft - (INNER_WIDTH - width - 20);
 			absoluteAboveLeft -= delta;
 			aboveLeft -= delta;
 		}
 		if (absoluteBelowLeft + width + 20 > INNER_WIDTH) {
-			let delta = absoluteBelowLeft - (INNER_WIDTH - width - 20);
+			const delta = absoluteBelowLeft - (INNER_WIDTH - width - 20);
 			absoluteBelowLeft -= delta;
 			belowLeft -= delta;
 		}
 		if (absoluteAboveLeft < 0) {
-			let delta = absoluteAboveLeft;
+			const delta = absoluteAboveLeft;
 			absoluteAboveLeft -= delta;
 			aboveLeft -= delta;
 		}
 		if (absoluteBelowLeft < 0) {
-			let delta = absoluteBelowLeft;
+			const delta = absoluteBelowLeft;
 			absoluteBelowLeft -= delta;
 			belowLeft -= delta;
 		}

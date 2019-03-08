@@ -10,7 +10,7 @@ import { IEditorInput, EditorInput, IEditorIdentifier, ConfirmResult, IEditorCom
 import { QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { EditorQuickOpenEntry, EditorQuickOpenEntryGroup, IEditorQuickOpenEntry, QuickOpenAction } from 'vs/workbench/browser/quickopen';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -882,14 +882,14 @@ export class ResetGroupSizesAction extends Action {
 export class MaximizeGroupAction extends Action {
 
 	static readonly ID = 'workbench.action.maximizeEditor';
-	static readonly LABEL = nls.localize('maximizeEditor', "Maximize Editor Group and Hide Sidebar");
+	static readonly LABEL = nls.localize('maximizeEditor', "Maximize Editor Group and Hide Side Bar");
 
 	constructor(
 		id: string,
 		label: string,
 		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
-		@IPartService private readonly partService: IPartService
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
 		super(id, label);
 	}
@@ -897,7 +897,7 @@ export class MaximizeGroupAction extends Action {
 	run(): Promise<any> {
 		if (this.editorService.activeEditor) {
 			this.editorGroupService.arrangeGroups(GroupsArrangement.MINIMIZE_OTHERS);
-			this.partService.setSideBarHidden(true);
+			this.layoutService.setSideBarHidden(true);
 		}
 
 		return Promise.resolve(false);
@@ -952,7 +952,7 @@ export class OpenNextEditor extends BaseNavigateEditorAction {
 		// Navigate in active group if possible
 		const activeGroup = this.editorGroupService.activeGroup;
 		const activeGroupEditors = activeGroup.getEditors(EditorsOrder.SEQUENTIAL);
-		const activeEditorIndex = activeGroupEditors.indexOf(activeGroup.activeEditor);
+		const activeEditorIndex = activeGroup.activeEditor ? activeGroupEditors.indexOf(activeGroup.activeEditor) : -1;
 		if (activeEditorIndex + 1 < activeGroupEditors.length) {
 			return { editor: activeGroupEditors[activeEditorIndex + 1], groupId: activeGroup.id };
 		}
@@ -987,7 +987,7 @@ export class OpenPreviousEditor extends BaseNavigateEditorAction {
 		// Navigate in active group if possible
 		const activeGroup = this.editorGroupService.activeGroup;
 		const activeGroupEditors = activeGroup.getEditors(EditorsOrder.SEQUENTIAL);
-		const activeEditorIndex = activeGroupEditors.indexOf(activeGroup.activeEditor);
+		const activeEditorIndex = activeGroup.activeEditor ? activeGroupEditors.indexOf(activeGroup.activeEditor) : -1;
 		if (activeEditorIndex > 0) {
 			return { editor: activeGroupEditors[activeEditorIndex - 1], groupId: activeGroup.id };
 		}
@@ -1020,7 +1020,7 @@ export class OpenNextEditorInGroup extends BaseNavigateEditorAction {
 	protected navigate(): IEditorIdentifier {
 		const group = this.editorGroupService.activeGroup;
 		const editors = group.getEditors(EditorsOrder.SEQUENTIAL);
-		const index = editors.indexOf(group.activeEditor);
+		const index = group.activeEditor ? editors.indexOf(group.activeEditor) : -1;
 
 		return { editor: index + 1 < editors.length ? editors[index + 1] : editors[0], groupId: group.id };
 	}
@@ -1043,7 +1043,7 @@ export class OpenPreviousEditorInGroup extends BaseNavigateEditorAction {
 	protected navigate(): IEditorIdentifier {
 		const group = this.editorGroupService.activeGroup;
 		const editors = group.getEditors(EditorsOrder.SEQUENTIAL);
-		const index = editors.indexOf(group.activeEditor);
+		const index = group.activeEditor ? editors.indexOf(group.activeEditor) : -1;
 
 		return { editor: index > 0 ? editors[index - 1] : editors[editors.length - 1], groupId: group.id };
 	}

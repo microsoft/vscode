@@ -21,8 +21,8 @@ export class QuickOpenEditorWidget implements IOverlayWidget {
 
 	private static readonly ID = 'editor.contrib.quickOpenEditorWidget';
 
-	private codeEditor: ICodeEditor;
-	private themeService: IThemeService;
+	private readonly codeEditor: ICodeEditor;
+	private readonly themeService: IThemeService;
 	private visible: boolean;
 	private quickOpenWidget: QuickOpenWidget;
 	private domNode: HTMLElement;

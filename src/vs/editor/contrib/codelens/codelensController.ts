@@ -33,7 +33,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 	private _detectVisibleLenses: RunOnceScheduler;
 
 	constructor(
-		private _editor: editorBrowser.ICodeEditor,
+		private readonly _editor: editorBrowser.ICodeEditor,
 		@ICommandService private readonly _commandService: ICommandService,
 		@INotificationService private readonly _notificationService: INotificationService
 	) {

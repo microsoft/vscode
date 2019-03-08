@@ -27,8 +27,8 @@ class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 	get onDidChange(): Event<void> { return this._onDidChange.event; }
 
 	constructor(
-		private sourceControlHandle: number,
-		private handle: number,
+		private readonly sourceControlHandle: number,
+		private readonly handle: number,
 		public provider: ISCMProvider,
 		public features: SCMGroupFeatures,
 		public label: string,
@@ -62,10 +62,10 @@ class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 class MainThreadSCMResource implements ISCMResource {
 
 	constructor(
-		private proxy: ExtHostSCMShape,
-		private sourceControlHandle: number,
-		private groupHandle: number,
-		private handle: number,
+		private readonly proxy: ExtHostSCMShape,
+		private readonly sourceControlHandle: number,
+		private readonly groupHandle: number,
+		private readonly handle: number,
 		public sourceUri: URI,
 		public resourceGroup: ISCMResourceGroup,
 		public decorations: ISCMResourceDecorations
@@ -92,7 +92,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 	get id(): string { return this._id; }
 
 	readonly groups = new Sequence<MainThreadSCMResourceGroup>();
-	private _groupsByHandle: { [handle: number]: MainThreadSCMResourceGroup; } = Object.create(null);
+	private readonly _groupsByHandle: { [handle: number]: MainThreadSCMResourceGroup; } = Object.create(null);
 
 	// get groups(): ISequence<ISCMResourceGroup> {
 	// 	return {
@@ -129,11 +129,11 @@ class MainThreadSCMProvider implements ISCMProvider {
 	get onDidChange(): Event<void> { return this._onDidChange.event; }
 
 	constructor(
-		private proxy: ExtHostSCMShape,
-		private _handle: number,
-		private _contextValue: string,
-		private _label: string,
-		private _rootUri: URI | undefined,
+		private readonly proxy: ExtHostSCMShape,
+		private readonly _handle: number,
+		private readonly _contextValue: string,
+		private readonly _label: string,
+		private readonly _rootUri: URI | undefined,
 		@ISCMService scmService: ISCMService
 	) { }
 
@@ -265,7 +265,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 @extHostNamedCustomer(MainContext.MainThreadSCM)
 export class MainThreadSCM implements MainThreadSCMShape {
 
-	private _proxy: ExtHostSCMShape;
+	private readonly _proxy: ExtHostSCMShape;
 	private _repositories: { [handle: number]: ISCMRepository; } = Object.create(null);
 	private _inputDisposables: { [handle: number]: IDisposable; } = Object.create(null);
 	private _disposables: IDisposable[] = [];

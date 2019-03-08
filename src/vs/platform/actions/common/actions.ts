@@ -281,13 +281,13 @@ export class SyncActionDescriptor {
 	private _descriptor: SyncDescriptor0<Action>;
 
 	private _id: string;
-	private _label: string;
+	private _label?: string;
 	private _keybindings: IKeybindings | undefined;
 	private _keybindingContext: ContextKeyExpr | undefined;
 	private _keybindingWeight: number | undefined;
 
 	constructor(ctor: IConstructorSignature2<string, string, Action>,
-		id: string, label: string, keybindings?: IKeybindings, keybindingContext?: ContextKeyExpr, keybindingWeight?: number
+		id: string, label: string | undefined, keybindings?: IKeybindings, keybindingContext?: ContextKeyExpr, keybindingWeight?: number
 	) {
 		this._id = id;
 		this._label = label;
@@ -305,7 +305,7 @@ export class SyncActionDescriptor {
 		return this._id;
 	}
 
-	public get label(): string {
+	public get label(): string | undefined {
 		return this._label;
 	}
 

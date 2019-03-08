@@ -133,7 +133,7 @@ export class CallStackView extends ViewletPanel {
 							return e.getLabel();
 						}
 						if (e instanceof Thread) {
-							return e.name;
+							return `${e.name} ${e.stateLabel}`;
 						}
 						if (e instanceof StackFrame || typeof e === 'string') {
 							return e;
@@ -410,13 +410,7 @@ class ThreadsRenderer implements ITreeRenderer<IThread, FuzzyScore, IThreadTempl
 		const thread = element.element;
 		data.thread.title = nls.localize('thread', "Thread");
 		data.label.set(thread.name, createMatches(element.filterData));
-
-		if (thread.stopped) {
-			data.stateLabel.textContent = thread.stoppedDetails.description ||
-				thread.stoppedDetails.reason ? nls.localize({ key: 'pausedOn', comment: ['indicates reason for program being paused'] }, "Paused on {0}", thread.stoppedDetails.reason) : nls.localize('paused', "Paused");
-		} else {
-			data.stateLabel.textContent = nls.localize({ key: 'running', comment: ['indicates state'] }, "Running");
-		}
+		data.stateLabel.textContent = thread.stateLabel;
 	}
 
 	disposeTemplate(templateData: IThreadTemplateData): void {

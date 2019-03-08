@@ -162,7 +162,7 @@ export class SimpleWindowsService implements IWindowsService {
 		return Promise.resolve();
 	}
 
-	showItemInFolder(_path: string): Promise<void> {
+	showItemInFolder(_path: URI): Promise<void> {
 		return Promise.resolve();
 	}
 

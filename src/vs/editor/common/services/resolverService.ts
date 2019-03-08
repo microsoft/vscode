@@ -36,7 +36,7 @@ export interface ITextModelContentProvider {
 	/**
 	 * Given a resource, return the content of the resource as `ITextModel`.
 	 */
-	provideTextContent(resource: URI): Promise<ITextModel | undefined> | null;
+	provideTextContent(resource: URI): Promise<ITextModel | undefined | null> | null | undefined;
 }
 
 export interface ITextEditorModel extends IEditorModel {

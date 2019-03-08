@@ -12,4 +12,8 @@ export class SimpleWorkspacesService implements IWorkspacesService {
 	createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[]): Promise<IWorkspaceIdentifier> {
 		return Promise.resolve(undefined);
 	}
+
+	deleteUntitledWorkspace(workspace: IWorkspaceIdentifier): Promise<void> {
+		return Promise.resolve(undefined);
+	}
 }

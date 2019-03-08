@@ -152,7 +152,7 @@ export namespace Event {
 
 					clearTimeout(handle);
 					handle = setTimeout(() => {
-						let _output = output;
+						const _output = output;
 						output = undefined;
 						handle = undefined;
 						if (!leading || numDebouncedCalls > 1) {
@@ -190,7 +190,7 @@ export namespace Event {
 		let cache: T;
 
 		return filter(event, value => {
-			let shouldEmit = firstCall || value !== cache;
+			const shouldEmit = firstCall || value !== cache;
 			firstCall = false;
 			cache = value;
 			return shouldEmit;
@@ -389,7 +389,7 @@ export interface EmitterOptions {
 
 let _globalLeakWarningThreshold = -1;
 export function setGlobalLeakWarningThreshold(n: number): IDisposable {
-	let oldValue = _globalLeakWarningThreshold;
+	const oldValue = _globalLeakWarningThreshold;
 	_globalLeakWarningThreshold = n;
 	return {
 		dispose() {
@@ -428,8 +428,8 @@ class LeakageMonitor {
 		if (!this._stacks) {
 			this._stacks = new Map();
 		}
-		let stack = new Error().stack!.split('\n').slice(3).join('\n');
-		let count = (this._stacks.get(stack) || 0);
+		const stack = new Error().stack!.split('\n').slice(3).join('\n');
+		const count = (this._stacks.get(stack) || 0);
 		this._stacks.set(stack, count + 1);
 		this._warnCountdown -= 1;
 
@@ -453,7 +453,7 @@ class LeakageMonitor {
 		}
 
 		return () => {
-			let count = (this._stacks!.get(stack) || 0);
+			const count = (this._stacks!.get(stack) || 0);
 			this._stacks!.set(stack, count - 1);
 		};
 	}
@@ -627,7 +627,7 @@ export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
 		}
 
 		for (let iter = this._listeners.iterator(), e = iter.next(); !e.done; e = iter.next()) {
-			let thenables: Promise<void>[] = [];
+			const thenables: Promise<void>[] = [];
 			this._asyncDeliveryQueue.push([e.value, eventFn(thenables, typeof e.value === 'function' ? e.value : e.value[0]), thenables]);
 		}
 

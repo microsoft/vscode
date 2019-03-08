@@ -32,7 +32,7 @@ import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
 import { getWorkspaceSymbols } from 'vs/workbench/contrib/search/common/search';
 import { rename } from 'vs/editor/contrib/rename/rename';
 import { provideSignatureHelp } from 'vs/editor/contrib/parameterHints/provideSignatureHelp';
-import { provideSuggestionItems } from 'vs/editor/contrib/suggest/suggest';
+import { provideSuggestionItems, CompletionOptions } from 'vs/editor/contrib/suggest/suggest';
 import { getDocumentFormattingEdits, getDocumentRangeFormattingEdits, getOnTypeFormattingEdits, FormatMode } from 'vs/editor/contrib/format/format';
 import { getLinks } from 'vs/editor/contrib/links/getLinks';
 import { MainContext, ExtHostContext } from 'vs/workbench/api/node/extHost.protocol';
@@ -828,7 +828,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}, []));
 
 		await rpcProtocol.sync();
-		const value = await provideSuggestionItems(model, new EditorPosition(1, 1), 'none');
+		const value = await provideSuggestionItems(model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<modes.CompletionItemKind>().add(modes.CompletionItemKind.Snippet)));
 		assert.equal(value.length, 1);
 		assert.equal(value[0].completion.insertText, 'testing2');
 	});
@@ -848,7 +848,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}, []));
 
 		await rpcProtocol.sync();
-		const value = await provideSuggestionItems(model, new EditorPosition(1, 1), 'none');
+		const value = await provideSuggestionItems(model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<modes.CompletionItemKind>().add(modes.CompletionItemKind.Snippet)));
 		assert.equal(value.length, 1);
 		assert.equal(value[0].completion.insertText, 'weak-selector');
 	});
@@ -868,7 +868,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}, []));
 
 		await rpcProtocol.sync();
-		const value = await provideSuggestionItems(model, new EditorPosition(1, 1), 'none');
+		const value = await provideSuggestionItems(model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<modes.CompletionItemKind>().add(modes.CompletionItemKind.Snippet)));
 		assert.equal(value.length, 2);
 		assert.equal(value[0].completion.insertText, 'strong-1'); // sort by label
 		assert.equal(value[1].completion.insertText, 'strong-2');
@@ -890,7 +890,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 
 		await rpcProtocol.sync();
-		const value = await provideSuggestionItems(model, new EditorPosition(1, 1), 'none');
+		const value = await provideSuggestionItems(model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<modes.CompletionItemKind>().add(modes.CompletionItemKind.Snippet)));
 		assert.equal(value[0].container.incomplete, undefined);
 	});
 
@@ -903,7 +903,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}, []));
 
 		await rpcProtocol.sync();
-		provideSuggestionItems(model, new EditorPosition(1, 1), 'none').then(value => {
+		provideSuggestionItems(model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<modes.CompletionItemKind>().add(modes.CompletionItemKind.Snippet))).then(value => {
 			assert.equal(value[0].container.incomplete, true);
 		});
 	});

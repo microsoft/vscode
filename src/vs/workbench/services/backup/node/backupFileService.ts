@@ -155,7 +155,7 @@ export class BackupFileService implements IBackupFileService {
 		return this.impl.getWorkspaceFileBackups();
 	}
 
-	resolveBackupContent(backup: Uri): Promise<ITextBufferFactory> {
+	resolveBackupContent(backup: Uri): Promise<ITextBufferFactory | undefined> {
 		return this.impl.resolveBackupContent(backup);
 	}
 
@@ -357,7 +357,7 @@ export class InMemoryBackupFileService implements IBackupFileService {
  * Exported only for testing
  */
 export function hashPath(resource: Uri): string {
-	const str = resource.scheme === Schemas.file ? resource.fsPath : resource.toString();
+	const str = resource.scheme === Schemas.file || resource.scheme === Schemas.untitled ? resource.fsPath : resource.toString();
 	return crypto.createHash('md5').update(str).digest('hex');
 }
 

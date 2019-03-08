@@ -39,7 +39,7 @@ export class CLIServer {
 			console.error('Could not start open from terminal server.');
 		}
 
-		return this.ipcHandlePath;
+		return this._ipcHandlePath;
 	}
 	private collectURIToOpen(strs: string[], typeHint: URIType, result: IURIToOpen[]): void {
 		if (Array.isArray(strs)) {

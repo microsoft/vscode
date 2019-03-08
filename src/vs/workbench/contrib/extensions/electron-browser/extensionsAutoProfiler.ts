@@ -49,7 +49,7 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 
 		if (event.isResponsive && this._session.has(target)) {
 			// stop profiling when responsive again
-			this._session.get(target).cancel();
+			this._session.get(target)!.cancel();
 
 		} else if (!event.isResponsive && !this._session.has(target)) {
 			// start profiling if not yet profiling

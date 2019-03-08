@@ -5,19 +5,19 @@
 
 import 'vs/css!./media/panelpart';
 import { IAction } from 'vs/base/common/actions';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IPanel, ActivePanelContext, PanelFocusContext } from 'vs/workbench/common/panel';
 import { CompositePart, ICompositeTitleLabel } from 'vs/workbench/browser/parts/compositePart';
 import { Panel, PanelRegistry, Extensions as PanelExtensions, PanelDescriptor } from 'vs/workbench/browser/panel';
 import { IPanelService, IPanelIdentifier } from 'vs/workbench/services/panel/common/panelService';
-import { IPartService, Parts, Position } from 'vs/workbench/services/part/common/partService';
+import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { IStorageService, StorageScope, IWorkspaceStorageChangeEvent } from 'vs/platform/storage/common/storage';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { ClosePanelAction, TogglePanelPositionAction, PanelActivityAction, ToggleMaximizedPanelAction, TogglePanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
@@ -32,8 +32,8 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { ISerializableView } from 'vs/base/browser/ui/grid/grid';
 import { LayoutPriority } from 'vs/base/browser/ui/grid/gridview';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 interface ICachedPanel {
 	id: string;
@@ -42,26 +42,26 @@ interface ICachedPanel {
 	visible: boolean;
 }
 
-export class PanelPart extends CompositePart<Panel> implements IPanelService, ISerializableView {
+export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 	static readonly activePanelSettingsKey = 'workbench.panelpart.activepanelid';
 
 	private static readonly PINNED_PANELS = 'workbench.panel.pinnedPanels';
 	private static readonly MIN_COMPOSITE_BAR_WIDTH = 50;
 
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<any>;
 
-	element: HTMLElement;
+	//#region IView
 
 	readonly minimumWidth: number = 300;
 	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
 	readonly minimumHeight: number = 77;
 	readonly maximumHeight: number = Number.POSITIVE_INFINITY;
+
 	readonly snapSize: number = 50;
 	readonly priority: LayoutPriority = LayoutPriority.Low;
 
-	private _onDidChange = this._register(new Emitter<{ width: number; height: number; }>());
-	get onDidChange(): Event<{ width: number, height: number }> { return this._onDidChange.event; }
+	//#endregion
 
 	get onDidPanelOpen(): Event<{ panel: IPanel, focus: boolean }> { return Event.map(this.onDidCompositeOpen.event, compositeOpen => ({ panel: compositeOpen.composite, focus: compositeOpen.focus })); }
 	get onDidPanelClose(): Event<IPanel> { return this.onDidCompositeClose.event; }
@@ -76,12 +76,11 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService, IS
 	private dimension: Dimension;
 
 	constructor(
-		id: string,
 		@INotificationService notificationService: INotificationService,
 		@IStorageService storageService: IStorageService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IPartService partService: IPartService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
@@ -93,7 +92,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService, IS
 			storageService,
 			telemetryService,
 			contextMenuService,
-			partService,
+			layoutService,
 			keybindingService,
 			instantiationService,
 			themeService,
@@ -103,7 +102,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService, IS
 			'panel',
 			'panel',
 			undefined,
-			id,
+			Parts.PANEL_PART,
 			{ hasTitle: true }
 		);
 
@@ -119,7 +118,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService, IS
 				this.instantiationService.createInstance(TogglePanelAction, TogglePanelAction.ID, localize('hidePanel', "Hide Panel"))
 			],
 			getDefaultCompositeId: () => Registry.as<PanelRegistry>(PanelExtensions.Panels).getDefaultPanelId(),
-			hidePart: () => this.partService.setPanelHidden(true),
+			hidePart: () => this.layoutService.setPanelHidden(true),
 			compositeSize: 0,
 			overflowActionSize: 44,
 			colors: theme => ({
@@ -214,10 +213,10 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService, IS
 		}
 
 		// First check if panel is hidden and show if so
-		if (!this.partService.isVisible(Parts.PANEL_PART)) {
+		if (!this.layoutService.isVisible(Parts.PANEL_PART)) {
 			try {
 				this.blockOpeningPanel = true;
-				this.partService.setPanelHidden(false);
+				this.layoutService.setPanelHidden(false);
 			} finally {
 				this.blockOpeningPanel = false;
 			}
@@ -282,31 +281,22 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService, IS
 		};
 	}
 
-	layout(dimension: Dimension): Dimension[];
-	layout(width: number, height: number): void;
-	layout(dim1: Dimension | number, dim2?: number): Dimension[] | void {
-		if (!this.partService.isVisible(Parts.PANEL_PART)) {
-			if (dim1 instanceof Dimension) {
-				return [dim1];
-			}
-
+	layout(width: number, height: number): void {
+		if (!this.layoutService.isVisible(Parts.PANEL_PART)) {
 			return;
 		}
 
-		const { width, height } = dim1 instanceof Dimension ? dim1 : { width: dim1, height: dim2 };
-
-		if (this.partService.getPanelPosition() === Position.RIGHT) {
+		if (this.layoutService.getPanelPosition() === Position.RIGHT) {
 			this.dimension = new Dimension(width - 1, height!); // Take into account the 1px border when layouting
 		} else {
 			this.dimension = new Dimension(width, height!);
 		}
 
-		const sizes = super.layout(this.dimension.width, this.dimension.height);
-		this.layoutCompositeBar();
+		// Layout contents
+		super.layout(this.dimension.width, this.dimension.height);
 
-		if (dim1 instanceof Dimension) {
-			return sizes;
-		}
+		// Layout composite bar
+		this.layoutCompositeBar();
 	}
 
 	private layoutCompositeBar(): void {
@@ -513,3 +503,5 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		`);
 	}
 });
+
+registerSingleton(IPanelService, PanelPart);

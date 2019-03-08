@@ -110,7 +110,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 	private onFileOperation(e: FileOperationEvent): void {
 
 		// Handle moves specially when file is opened
-		if (e.operation === FileOperation.MOVE) {
+		if (e.operation === FileOperation.MOVE && e.target) {
 			this.handleMovedFileInOpenedEditors(e.resource, e.target.resource);
 		}
 
@@ -300,8 +300,8 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 		//
 		// Note: we also consider the added event because it could be that a file was added
 		// and updated right after.
-		distinct([...e.getUpdated(), ...e.getAdded()]
-			.map(u => this.textFileService.models.get(u.resource))
+		distinct(coalesce([...e.getUpdated(), ...e.getAdded()]
+			.map(u => this.textFileService.models.get(u.resource)))
 			.filter(model => model && !model.isDirty()), m => m.getResource().toString())
 			.forEach(model => this.queueModelLoad(model));
 	}
