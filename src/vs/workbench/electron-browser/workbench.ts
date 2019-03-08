@@ -97,6 +97,8 @@ import { WindowService } from 'vs/platform/windows/electron-browser/windowServic
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-browser/remoteAuthorityResolverService';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import { RequestService } from 'vs/platform/request/electron-browser/requestService';
+import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
+import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 
 enum Settings {
 	MENUBAR_VISIBLE = 'window.menuBarVisibility',
@@ -913,10 +915,15 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		const environmentService = accessor.get(IEnvironmentService);
 
 		this.windowService = accessor.get(IWindowService);
+
+		// Ensure all part services are created (TODO@ben revisit this requirement)
 		this.editorService = accessor.get(IEditorService);
 		this.editorGroupService = accessor.get(IEditorGroupsService);
 		this.panelService = accessor.get(IPanelService);
 		this.viewletService = accessor.get(IViewletService);
+		accessor.get(IStatusbarService);
+		accessor.get(ITitleService);
+		accessor.get(IActivityBarService);
 
 		// Fullscreen
 		this.state.fullscreen = isFullscreen();
