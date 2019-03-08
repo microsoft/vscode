@@ -272,9 +272,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		// Parts
 		serviceCollection.set(IWorkbenchLayoutService, this); // TODO@Ben use SyncDescriptor
 
-		// Notifications
-		serviceCollection.set(INotificationService, new SyncDescriptor(NotificationService, undefined, true));
-
 		// Window
 		serviceCollection.set(IWindowService, new SyncDescriptor(WindowService, [this.configuration]));
 

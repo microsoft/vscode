@@ -116,6 +116,7 @@ import 'vs/workbench/services/extensionManagement/node/multiExtensionManagement'
 import 'vs/workbench/services/label/common/labelService';
 import 'vs/workbench/services/extensions/node/extensionManagementServerService';
 import 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
+import 'vs/workbench/services/notification/common/notificationService';
 
 registerSingleton(IMenuService, MenuService, true);
 registerSingleton(IListService, ListService, true);
