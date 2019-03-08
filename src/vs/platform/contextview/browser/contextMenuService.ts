@@ -12,6 +12,7 @@ import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 
 export class ContextMenuService extends Disposable implements IContextMenuService {
 	_serviceBrand: any;
@@ -22,7 +23,7 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
 	private contextMenuHandler: ContextMenuHandler;
 
 	constructor(
-		container: HTMLElement | null,
+		@ILayoutService layoutService: ILayoutService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotificationService notificationService: INotificationService,
 		@IContextViewService contextViewService: IContextViewService,
@@ -31,7 +32,7 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
 	) {
 		super();
 
-		this.contextMenuHandler = this._register(new ContextMenuHandler(container, contextViewService, telemetryService, notificationService, keybindingService, themeService));
+		this.contextMenuHandler = this._register(new ContextMenuHandler(layoutService.container, contextViewService, telemetryService, notificationService, keybindingService, themeService));
 	}
 
 	dispose(): void {

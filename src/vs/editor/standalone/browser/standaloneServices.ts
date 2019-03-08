@@ -201,7 +201,7 @@ export class DynamicStandaloneServices extends Disposable {
 
 		let contextViewService = ensure(IContextViewService, () => this._register(new ContextViewService(layoutService)));
 
-		ensure(IContextMenuService, () => this._register(new ContextMenuService(domElement, telemetryService, notificationService, contextViewService, keybindingService, themeService)));
+		ensure(IContextMenuService, () => this._register(new ContextMenuService(layoutService, telemetryService, notificationService, contextViewService, keybindingService, themeService)));
 
 		ensure(IMenuService, () => new MenuService(commandService));
 
