@@ -86,7 +86,7 @@ export class VariablesView extends ViewletPanel {
 
 		this.tree.setInput(this.debugService.getViewModel()).then(null, onUnexpectedError);
 
-		CONTEXT_VARIABLES_FOCUSED.bindTo(this.contextKeyService.createScoped(treeContainer));
+		CONTEXT_VARIABLES_FOCUSED.bindTo(this.tree.contextKeyService);
 
 		const collapseAction = new CollapseAction(this.tree, true, 'explorer-action collapse-explorer');
 		this.toolbar.setActions([collapseAction])();

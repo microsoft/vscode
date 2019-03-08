@@ -63,7 +63,6 @@ export class WatchExpressionsView extends ViewletPanel {
 	renderBody(container: HTMLElement): void {
 		dom.addClass(container, 'debug-watch');
 		const treeContainer = renderViewTree(container);
-		CONTEXT_WATCH_EXPRESSIONS_FOCUSED.bindTo(this.contextKeyService.createScoped(treeContainer));
 
 		const expressionsRenderer = this.instantiationService.createInstance(WatchExpressionsRenderer);
 		this.tree = new WorkbenchAsyncDataTree(treeContainer, new WatchExpressionsDelegate(), [expressionsRenderer, this.instantiationService.createInstance(VariablesRenderer)],
@@ -76,6 +75,7 @@ export class WatchExpressionsView extends ViewletPanel {
 			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
 
 		this.tree.setInput(this.debugService).then(undefined, onUnexpectedError);
+		CONTEXT_WATCH_EXPRESSIONS_FOCUSED.bindTo(this.tree.contextKeyService);
 
 		const addWatchExpressionAction = new AddWatchExpressionAction(AddWatchExpressionAction.ID, AddWatchExpressionAction.LABEL, this.debugService, this.keybindingService);
 		const collapseAction = new CollapseAction(this.tree, true, 'explorer-action collapse-explorer');
