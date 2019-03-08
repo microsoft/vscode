@@ -1809,12 +1809,7 @@ export class CommandCenter {
 
 		const sanitize = (name: string) => {
 			name = name.trim();
-
-			if (!name) {
-				return name;
-			}
-
-			return name.replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$|\[|\]$/g, '-');
+			return name && name.replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$|\[|\]$/g, '-');
 		};
 
 		const resultName = await window.showInputBox({
@@ -1836,17 +1831,15 @@ export class CommandCenter {
 		}
 
 		if (remotes.find(r => r.name === name)) {
-			window.showErrorMessage(localize('remote already exists', 'Remote by name \"{0}\" already exists.', name));
+			window.showErrorMessage(localize('remote already exists', "Remote '{0}' already exists.", name));
 			return;
 		}
 
-		const resultUrl = await window.showInputBox({
+		const url = await window.showInputBox({
 			placeHolder: localize('remote url', "Remote URL"),
 			prompt: localize('provide remote URL', "Enter URL for remote \"{0}\"", name),
 			ignoreFocusOut: true
 		});
-
-		const url = sanitize(resultUrl || '');
 
 		if (!url) {
 			return;
