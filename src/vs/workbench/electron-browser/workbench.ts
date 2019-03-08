@@ -916,6 +916,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		this.editorService = accessor.get(IEditorService);
 		this.editorGroupService = accessor.get(IEditorGroupsService);
 		this.panelService = accessor.get(IPanelService);
+		this.viewletService = accessor.get(IViewletService);
 
 		// Fullscreen
 		this.state.fullscreen = isFullscreen();
