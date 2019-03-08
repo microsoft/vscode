@@ -20,7 +20,8 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { stat } from 'vs/base/node/pfs';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
-import { IWindowConfiguration, IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowConfiguration, IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
+import { WindowService } from 'vs/platform/windows/electron-browser/windowService';
 import { WindowsChannelClient } from 'vs/platform/windows/node/windowsIpc';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Client as ElectronIPCClient } from 'vs/base/parts/ipc/electron-browser/ipc.electron-browser';
@@ -169,6 +170,9 @@ class CodeRendererMain extends Disposable {
 		// Windows Service
 		const windowsChannel = electronMainClient.getChannel('windows');
 		serviceCollection.set(IWindowsService, new WindowsChannelClient(windowsChannel));
+
+		// Window
+		serviceCollection.set(IWindowService, new SyncDescriptor(WindowService, [this.configuration]));
 
 		// Update Service
 		const updateChannel = electronMainClient.getChannel('update');

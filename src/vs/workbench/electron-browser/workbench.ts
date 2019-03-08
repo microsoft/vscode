@@ -35,7 +35,6 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { IInstantiationService, ServicesAccessor, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { LifecyclePhase, StartupKind, ILifecycleService, WillShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWindowService, IWindowConfiguration, IPath, MenuBarVisibility, getTitleBarStyle } from 'vs/platform/windows/common/windows';
@@ -62,16 +61,6 @@ import { IDimension } from 'vs/platform/layout/browser/layoutService';
 import { Part } from 'vs/workbench/browser/part';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
-
-// import@node
-import { DialogChannel } from 'vs/platform/dialogs/node/dialogIpc';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/node/remoteAgentService';
-import { DownloadServiceChannel } from 'vs/platform/download/node/downloadIpc';
-import { LogLevelSetterChannel } from 'vs/platform/log/node/logIpc';
-import { ISharedProcessService } from 'vs/platform/sharedProcess/node/sharedProcessService';
-
-// import@electron-browser
-import { WindowService } from 'vs/platform/windows/electron-browser/windowService';
 
 enum Settings {
 	MENUBAR_VISIBLE = 'window.menuBarVisibility',
@@ -269,37 +258,23 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 	private initServices(serviceCollection: ServiceCollection): void {
 
-		// Parts
-		serviceCollection.set(IWorkbenchLayoutService, this); // TODO@Ben use SyncDescriptor
+		// Layout Service
+		serviceCollection.set(IWorkbenchLayoutService, this);
 
-		// Window
-		serviceCollection.set(IWindowService, new SyncDescriptor(WindowService, [this.configuration]));
-
-		// Contributed services
+		// All Contributed Services
 		const contributedServices = getServices();
 		for (let contributedService of contributedServices) {
 			serviceCollection.set(contributedService.id, contributedService.descriptor);
 		}
 
-		// TODO@Steven this should move somewhere else
+		// Wrap up
 		this.instantiationService.invokeFunction(accessor => {
-			const sharedProcessService = accessor.get(ISharedProcessService);
 
-			sharedProcessService.registerChannel('dialog', this.instantiationService.createInstance(DialogChannel));
-		});
+			// Signal to lifecycle that services are set
+			const lifecycleService = accessor.get(ILifecycleService);
+			lifecycleService.phase = LifecyclePhase.Ready;
 
-		// TODO@Alex TODO@Sandeep this should move somewhere else
-		this.instantiationService.invokeFunction(accessor => {
-			const remoteAgentConnection = accessor.get(IRemoteAgentService).getConnection();
-			if (remoteAgentConnection) {
-				remoteAgentConnection.registerChannel('dialog', this.instantiationService.createInstance(DialogChannel));
-				remoteAgentConnection.registerChannel('download', new DownloadServiceChannel());
-				remoteAgentConnection.registerChannel('loglevel', new LogLevelSetterChannel(this.logService));
-			}
-		});
-
-		// TODO@Sandeep TODO@Martin debt around cyclic dependencies
-		this.instantiationService.invokeFunction(accessor => {
+			// TODO@Sandeep TODO@Martin debt around cyclic dependencies
 			const fileService = accessor.get(IFileService);
 			const instantiationService = accessor.get(IInstantiationService);
 			const configurationService = accessor.get(IConfigurationService) as any;

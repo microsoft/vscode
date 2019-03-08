@@ -15,6 +15,12 @@ import { RemoteExtensionEnvironmentChannelClient } from 'vs/workbench/services/r
 import { IRemoteAgentConnection, IRemoteAgentEnvironment, IRemoteAgentService } from 'vs/workbench/services/remote/node/remoteAgentService';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { DialogChannel } from 'vs/platform/dialogs/node/dialogIpc';
+import { DownloadServiceChannel } from 'vs/platform/download/node/downloadIpc';
+import { LogLevelSetterChannel } from 'vs/platform/log/node/logIpc';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class RemoteAgentService implements IRemoteAgentService {
 
@@ -26,11 +32,20 @@ export class RemoteAgentService implements IRemoteAgentService {
 		@IWindowService windowService: IWindowService,
 		@INotificationService notificationService: INotificationService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService
+		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
+		@ILifecycleService lifecycleService: ILifecycleService,
+		@ILogService logService: ILogService,
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		const { remoteAuthority } = windowService.getConfiguration();
 		if (remoteAuthority) {
-			this._connection = new RemoteAgentConnection(remoteAuthority, notificationService, environmentService, remoteAuthorityResolverService);
+			const connection = this._connection = new RemoteAgentConnection(remoteAuthority, notificationService, environmentService, remoteAuthorityResolverService);
+
+			lifecycleService.when(LifecyclePhase.Ready).then(() => {
+				connection.registerChannel('dialog', instantiationService.createInstance(DialogChannel));
+				connection.registerChannel('download', new DownloadServiceChannel());
+				connection.registerChannel('loglevel', new LogLevelSetterChannel(logService));
+			});
 		}
 	}
 
