@@ -15,7 +15,7 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel } from 'vs/editor/common/model';
-import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
+import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -207,7 +207,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 	}
 
 
-	private resolveModelReference(): Promise<IReference<ITextEditorModel>> {
+	private resolveModelReference(): Promise<IReference<IResolvedTextEditorModel>> {
 		return this.fileService.existsFile(this.resource)
 			.then(exists => {
 				const EOL = this.configurationService.getValue('files', { overrideIdentifier: 'json' })['eol'];
@@ -216,7 +216,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 			});
 	}
 
-	private resolveAndValidate(): Promise<IReference<ITextEditorModel>> {
+	private resolveAndValidate(): Promise<IReference<IResolvedTextEditorModel>> {
 
 		// Target cannot be dirty if not writing into buffer
 		if (this.textFileService.isDirty(this.resource)) {
