@@ -321,10 +321,10 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		return folders[0].uri.fsPath;
 	}
 
-	getRelativePath(pathOrUri: string | vscode.Uri, includeWorkspace?: boolean): string | undefined {
+	getRelativePath(pathOrUri: string | vscode.Uri, includeWorkspace?: boolean): string {
 
 		let resource: URI | undefined;
-		let path: string | undefined;
+		let path: string = '';
 		if (typeof pathOrUri === 'string') {
 			resource = URI.file(pathOrUri);
 			path = pathOrUri;
@@ -354,7 +354,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		if (includeWorkspace && folder.name) {
 			result = `${folder.name}/${result}`;
 		}
-		return result;
+		return result!;
 	}
 
 	private trySetWorkspaceFolders(folders: vscode.WorkspaceFolder[]): void {
@@ -405,7 +405,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			}
 		}
 
-		let excludePatternOrDisregardExcludes: string | false = false;
+		let excludePatternOrDisregardExcludes: string | false | undefined = undefined;
 		if (exclude === null) {
 			excludePatternOrDisregardExcludes = false;
 		} else if (exclude) {
@@ -459,7 +459,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			excludePattern: options.exclude ? globPatternToString(options.exclude) : undefined
 		};
 
-		let isCanceled = false;
+		const isCanceled = false;
 
 		this._activeSearchCallbacks[requestId] = p => {
 			if (isCanceled) {

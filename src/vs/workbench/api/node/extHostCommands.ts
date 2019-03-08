@@ -22,7 +22,7 @@ import { URI } from 'vs/base/common/uri';
 interface CommandHandler {
 	callback: Function;
 	thisArg: any;
-	description: ICommandHandlerDescription;
+	description?: ICommandHandlerDescription;
 }
 
 export interface ArgumentProcessor {
@@ -154,7 +154,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		}
 
 		try {
-			let result = callback.apply(thisArg, args);
+			const result = callback.apply(thisArg, args);
 			return Promise.resolve(result);
 		} catch (err) {
 			this._logService.error(err, id);

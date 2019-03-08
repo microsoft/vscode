@@ -6,9 +6,9 @@
 import 'vs/css!./quickInput';
 import { Component } from 'vs/workbench/common/component';
 import { IQuickInputService, IQuickPickItem, IPickOptions, IInputOptions, IQuickNavigateConfiguration, IQuickPick, IQuickInput, IQuickInputButton, IInputBox, IQuickPickItemButtonEvent, QuickPickInput, IQuickPickSeparator, IKeyMods } from 'vs/platform/quickinput/common/quickInput';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import * as dom from 'vs/base/browser/dom';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { contrastBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND } from 'vs/workbench/common/theme';
@@ -43,6 +43,7 @@ import { getIconClass } from 'vs/workbench/browser/parts/quickinput/quickInputUt
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 const $ = dom.$;
 
@@ -329,6 +330,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	private onDidTriggerItemButtonEmitter = new Emitter<IQuickPickItemButtonEvent<T>>();
 	private _valueSelection: Readonly<[number, number]>;
 	private valueSelectionUpdated = true;
+	private _validationMessage: string;
 
 	quickNavigate: IQuickNavigateConfiguration;
 
@@ -449,6 +451,15 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	set valueSelection(valueSelection: Readonly<[number, number]>) {
 		this._valueSelection = valueSelection;
 		this.valueSelectionUpdated = true;
+		this.update();
+	}
+
+	get validationMessage() {
+		return this._validationMessage;
+	}
+
+	set validationMessage(validationMessage: string) {
+		this._validationMessage = validationMessage;
 		this.update();
 	}
 
@@ -671,12 +682,19 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 				this.selectedItemsToConfirm = null;
 			}
 		}
+		if (this.validationMessage) {
+			this.ui.message.textContent = this.validationMessage;
+			this.ui.inputBox.showDecoration(Severity.Error);
+		} else {
+			this.ui.message.textContent = null;
+			this.ui.inputBox.showDecoration(Severity.Ignore);
+		}
 		this.ui.list.matchOnDescription = this.matchOnDescription;
 		this.ui.list.matchOnDetail = this.matchOnDetail;
 		this.ui.list.matchOnLabel = this.matchOnLabel;
 		this.ui.setComboboxAccessibility(true);
 		this.ui.inputBox.setAttribute('aria-label', QuickPick.INPUT_BOX_ARIA_LABEL);
-		this.ui.setVisibilities(this.canSelectMany ? { title: !!this.title || !!this.step, checkAll: true, inputBox: true, visibleCount: true, count: true, ok: true, list: true } : { title: !!this.title || !!this.step, inputBox: true, visibleCount: true, list: true });
+		this.ui.setVisibilities(this.canSelectMany ? { title: !!this.title || !!this.step, checkAll: true, inputBox: true, visibleCount: true, count: true, ok: true, list: true, message: !!this.validationMessage } : { title: !!this.title || !!this.step, inputBox: true, visibleCount: true, list: true, message: !!this.validationMessage });
 	}
 }
 
@@ -810,13 +828,12 @@ class InputBox extends QuickInput implements IInputBox {
 
 export class QuickInputService extends Component implements IQuickInputService {
 
-	public _serviceBrand: any;
+	public _serviceBrand: ServiceIdentifier<any>;
 
 	private static readonly ID = 'workbench.component.quickinput';
 	private static readonly MAX_WIDTH = 600; // Max total width of quick open widget
 
 	private idPrefix = 'quickInput_'; // Constant since there is still only one.
-	private layoutDimensions: dom.Dimension;
 	private titleBar: HTMLElement;
 	private filterContainer: HTMLElement;
 	private visibleCountContainer: HTMLElement;
@@ -839,19 +856,20 @@ export class QuickInputService extends Component implements IQuickInputService {
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IPartService private readonly partService: IPartService,
 		@IQuickOpenService private readonly quickOpenService: IQuickOpenService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
 		super(QuickInputService.ID, themeService, storageService);
 		this.inQuickOpenContext = InQuickOpenContextKey.bindTo(contextKeyService);
 		this._register(this.quickOpenService.onShow(() => this.inQuickOpen('quickOpen', true)));
 		this._register(this.quickOpenService.onHide(() => this.inQuickOpen('quickOpen', false)));
+		this._register(this.layoutService.onLayout(dimension => this.layout(dimension)));
 		this.registerKeyModsListeners();
 	}
 
@@ -903,7 +921,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 	}
 
 	private registerKeyModsListeners() {
-		const workbench = this.partService.getWorkbenchElement();
+		const workbench = this.layoutService.getWorkbenchElement();
 		this._register(dom.addDisposableListener(workbench, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
 			switch (event.keyCode) {
@@ -935,7 +953,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 			return;
 		}
 
-		const workbench = this.partService.getWorkbenchElement();
+		const workbench = this.layoutService.getWorkbenchElement();
 		const container = dom.append(workbench, $('.quick-input-widget.show-file-icons'));
 		container.tabIndex = -1;
 		container.style.display = 'none';
@@ -1400,17 +1418,16 @@ export class QuickInputService extends Component implements IQuickInputService {
 	}
 
 	layout(dimension: dom.Dimension): void {
-		this.layoutDimensions = dimension;
 		this.updateLayout();
 	}
 
 	private updateLayout() {
-		if (this.layoutDimensions && this.ui) {
-			const titlebarOffset = this.partService.getTitleBarOffset();
+		if (this.ui) {
+			const titlebarOffset = this.layoutService.getTitleBarOffset();
 			this.ui.container.style.top = `${titlebarOffset}px`;
 
 			const style = this.ui.container.style;
-			const width = Math.min(this.layoutDimensions.width * 0.62 /* golden cut */, QuickInputService.MAX_WIDTH);
+			const width = Math.min(this.layoutService.dimension.width * 0.62 /* golden cut */, QuickInputService.MAX_WIDTH);
 			style.width = width + 'px';
 			style.marginLeft = '-' + (width / 2) + 'px';
 
@@ -1467,3 +1484,5 @@ export class BackAction extends Action {
 		return Promise.resolve();
 	}
 }
+
+registerSingleton(IQuickInputService, QuickInputService, true);

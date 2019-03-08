@@ -117,7 +117,7 @@ export interface IWindowsService {
 	enterWorkspace(windowId: number, path: URI): Promise<IEnterWorkspaceResult | undefined>;
 	toggleFullScreen(windowId: number): Promise<void>;
 	setRepresentedFilename(windowId: number, fileName: string): Promise<void>;
-	addRecentlyOpened(files: URI[]): Promise<void>;
+	addRecentlyOpened(workspaces: URI[], folders: URI[], files: URI[]): Promise<void>;
 	removeFromRecentlyOpened(paths: Array<IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | string>): Promise<void>;
 	clearRecentlyOpened(): Promise<void>;
 	getRecentlyOpened(windowId: number): Promise<IRecentlyOpened>;
@@ -155,7 +155,7 @@ export interface IWindowsService {
 	getWindows(): Promise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]>;
 	getWindowCount(): Promise<number>;
 	log(severity: string, ...messages: string[]): Promise<void>;
-	showItemInFolder(path: string): Promise<void>;
+	showItemInFolder(path: URI): Promise<void>;
 	getActiveWindowId(): Promise<number | undefined>;
 
 	// This needs to be handled from browser process to prevent

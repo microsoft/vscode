@@ -283,7 +283,7 @@ class MainThreadDocumentAndEditorStateComputer {
 	}
 
 	private _getActiveEditorFromPanel(): IEditor | undefined {
-		let panel = this._panelService.getActivePanel();
+		const panel = this._panelService.getActivePanel();
 		if (panel instanceof BaseTextEditor && isCodeEditor(panel.getControl())) {
 			return panel.getControl();
 		} else {
@@ -304,8 +304,8 @@ class MainThreadDocumentAndEditorStateComputer {
 export class MainThreadDocumentsAndEditors {
 
 	private _toDispose: IDisposable[];
-	private _proxy: ExtHostDocumentsAndEditorsShape;
-	private _stateComputer: MainThreadDocumentAndEditorStateComputer;
+	private readonly _proxy: ExtHostDocumentsAndEditorsShape;
+	private readonly _stateComputer: MainThreadDocumentAndEditorStateComputer;
 	private _textEditors = <{ [id: string]: MainThreadTextEditor }>Object.create(null);
 
 	private _onTextEditorAdd = new Emitter<MainThreadTextEditor[]>();
@@ -362,8 +362,8 @@ export class MainThreadDocumentsAndEditors {
 	private _onDelta(delta: DocumentAndEditorStateDelta): void {
 
 		let removedDocuments: URI[];
-		let removedEditors: string[] = [];
-		let addedEditors: MainThreadTextEditor[] = [];
+		const removedEditors: string[] = [];
+		const addedEditors: MainThreadTextEditor[] = [];
 
 		// removed models
 		removedDocuments = delta.removedDocuments.map(m => m.uri);
@@ -387,7 +387,7 @@ export class MainThreadDocumentsAndEditors {
 			}
 		}
 
-		let extHostDelta: IDocumentsAndEditorsDelta = Object.create(null);
+		const extHostDelta: IDocumentsAndEditorsDelta = Object.create(null);
 		let empty = true;
 		if (delta.newActiveEditor !== undefined) {
 			empty = false;

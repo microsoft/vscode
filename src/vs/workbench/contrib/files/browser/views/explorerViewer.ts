@@ -10,7 +10,7 @@ import { IListVirtualDelegate, ListDragOverEffect } from 'vs/base/browser/ui/lis
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IFileService, FileKind, IFileStat, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, Disposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -65,7 +65,7 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 	constructor(
 		@IProgressService private progressService: IProgressService,
 		@INotificationService private notificationService: INotificationService,
-		@IPartService private partService: IPartService,
+		@IWorkbenchLayoutService private layoutService: IWorkbenchLayoutService,
 		@IFileService private fileService: IFileService
 	) { }
 
@@ -87,7 +87,7 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 			return []; // we could not resolve any children because of an error
 		});
 
-		this.progressService.showWhile(promise, this.partService.isRestored() ? 800 : 3200 /* less ugly initial startup */);
+		this.progressService.showWhile(promise, this.layoutService.isRestored() ? 800 : 3200 /* less ugly initial startup */);
 		return promise;
 	}
 }

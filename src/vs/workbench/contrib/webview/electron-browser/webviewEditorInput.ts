@@ -8,7 +8,7 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { EditorInput, EditorModel, GroupIdentifier, IEditorInput } from 'vs/workbench/common/editor';
-import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
+import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import * as vscode from 'vscode';
 import { WebviewEvents, WebviewInputOptions } from './webviewEditorService';
 import { WebviewElement } from './webviewElement';
@@ -75,7 +75,7 @@ export class WebviewEditorInput extends EditorInput {
 		state: any,
 		events: WebviewEvents,
 		extensionLocation: URI | undefined,
-		@IPartService private readonly _partService: IPartService,
+		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 	) {
 		super();
 
@@ -221,7 +221,7 @@ export class WebviewEditorInput extends EditorInput {
 		if (!this._container) {
 			this._container = document.createElement('div');
 			this._container.id = `webview-${this._id}`;
-			const part = this._partService.getContainer(Parts.EDITOR_PART);
+			const part = this._layoutService.getContainer(Parts.EDITOR_PART);
 			if (part) {
 				part.appendChild(this._container);
 			}
@@ -317,7 +317,7 @@ export class RevivedWebviewEditorInput extends WebviewEditorInput {
 		events: WebviewEvents,
 		extensionLocation: URI | undefined,
 		public readonly reviver: (input: WebviewEditorInput) => Promise<void>,
-		@IPartService partService: IPartService,
+		@IWorkbenchLayoutService partService: IWorkbenchLayoutService,
 	) {
 		super(viewType, id, name, options, state, events, extensionLocation, partService);
 	}

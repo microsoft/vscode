@@ -32,7 +32,7 @@ export function getRoot(path: string, sep: string = posix.sep): string {
 		return '';
 	}
 
-	let len = path.length;
+	const len = path.length;
 	const firstLetter = path.charCodeAt(0);
 	if (isPathSeparator(firstLetter)) {
 		if (isPathSeparator(path.charCodeAt(1))) {
@@ -40,7 +40,7 @@ export function getRoot(path: string, sep: string = posix.sep): string {
 			//               ^^^^^^^^^^^^^^^^^^^
 			if (!isPathSeparator(path.charCodeAt(2))) {
 				let pos = 3;
-				let start = pos;
+				const start = pos;
 				for (; pos < len; pos++) {
 					if (isPathSeparator(path.charCodeAt(pos))) {
 						break;
@@ -121,7 +121,7 @@ export function isUNC(path: string): boolean {
 		return false;
 	}
 	let pos = 2;
-	let start = pos;
+	const start = pos;
 	for (; pos < path.length; pos++) {
 		code = path.charCodeAt(pos);
 		if (code === CharCode.Backslash) {

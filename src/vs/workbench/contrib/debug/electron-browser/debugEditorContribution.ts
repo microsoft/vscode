@@ -641,8 +641,9 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 		// Compute unique set of names on each line
 		nameValueMap.forEach((value, name) => {
-			if (wordToPositionsMap.has(name)) {
-				for (let position of wordToPositionsMap.get(name)) {
+			const positions = wordToPositionsMap.get(name);
+			if (positions) {
+				for (let position of positions) {
 					if (range.containsPosition(position)) {
 						if (!lineToNamesMap.has(position.lineNumber)) {
 							lineToNamesMap.set(position.lineNumber, []);

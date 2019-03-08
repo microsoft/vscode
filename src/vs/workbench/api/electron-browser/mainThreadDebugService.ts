@@ -19,15 +19,15 @@ import { convertToVSCPaths, convertToDAPaths } from 'vs/workbench/contrib/debug/
 @extHostNamedCustomer(MainContext.MainThreadDebugService)
 export class MainThreadDebugService implements MainThreadDebugServiceShape, IDebugAdapterFactory {
 
-	private _proxy: ExtHostDebugServiceShape;
+	private readonly _proxy: ExtHostDebugServiceShape;
 	private _toDispose: IDisposable[];
 	private _breakpointEventsActive: boolean;
-	private _debugAdapters: Map<number, ExtensionHostDebugAdapter>;
+	private readonly _debugAdapters: Map<number, ExtensionHostDebugAdapter>;
 	private _debugAdaptersHandleCounter = 1;
-	private _debugConfigurationProviders: Map<number, IDebugConfigurationProvider>;
-	private _debugAdapterDescriptorFactories: Map<number, IDebugAdapterDescriptorFactory>;
-	private _debugAdapterTrackerFactories: Map<number, IDebugAdapterTrackerFactory>;
-	private _sessions: Set<DebugSessionUUID>;
+	private readonly _debugConfigurationProviders: Map<number, IDebugConfigurationProvider>;
+	private readonly _debugAdapterDescriptorFactories: Map<number, IDebugAdapterDescriptorFactory>;
+	private readonly _debugAdapterTrackerFactories: Map<number, IDebugAdapterTrackerFactory>;
+	private readonly _sessions: Set<DebugSessionUUID>;
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -285,6 +285,12 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 
 	// dto helpers
 
+	public $sessionCached(sessionID: string) {
+		// remember that the EH has cached the session and we do not have to send it again
+		this._sessions.add(sessionID);
+	}
+
+
 	getSessionDto(session: undefined): undefined;
 	getSessionDto(session: IDebugSession): IDebugSessionDto;
 	getSessionDto(session: IDebugSession | undefined): IDebugSessionDto | undefined;
@@ -294,7 +300,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 			if (this._sessions.has(sessionID)) {
 				return sessionID;
 			} else {
-				this._sessions.add(sessionID);
+				// this._sessions.add(sessionID); 	// #69534: see $sessionCached above
 				return {
 					id: sessionID,
 					type: session.configuration.type,
@@ -343,7 +349,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
  */
 class ExtensionHostDebugAdapter extends AbstractDebugAdapter {
 
-	constructor(private _ds: MainThreadDebugService, private _handle: number, private _proxy: ExtHostDebugServiceShape, private _session: IDebugSession) {
+	constructor(private readonly _ds: MainThreadDebugService, private _handle: number, private _proxy: ExtHostDebugServiceShape, private _session: IDebugSession) {
 		super();
 	}
 

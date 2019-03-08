@@ -32,8 +32,8 @@ import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, fillResourceData
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 import { BreadcrumbsControl, IBreadcrumbsControlOptions } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
-import { EDITOR_TITLE_HEIGHT, IEditorGroupsAccessor, IEditorGroupView, IEditorPartOptions } from 'vs/workbench/browser/parts/editor/editor';
-import { EditorCommandsContextActionRunner, IEditorCommandsContext, IEditorInput, toResource } from 'vs/workbench/common/editor';
+import { EDITOR_TITLE_HEIGHT, IEditorGroupsAccessor, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
+import { EditorCommandsContextActionRunner, IEditorCommandsContext, IEditorInput, toResource, IEditorPartOptions } from 'vs/workbench/common/editor';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { Themable } from 'vs/workbench/common/theme';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -264,12 +264,14 @@ export abstract class TitleControl extends Themable {
 			}
 
 			// Drag Image
-			let label = this.group.activeEditor.getName();
-			if (this.accessor.partOptions.showTabs && this.group.count > 1) {
-				label = localize('draggedEditorGroup', "{0} (+{1})", label, this.group.count - 1);
-			}
+			if (this.group.activeEditor) {
+				let label = this.group.activeEditor.getName();
+				if (this.accessor.partOptions.showTabs && this.group.count > 1) {
+					label = localize('draggedEditorGroup', "{0} (+{1})", label, this.group.count - 1);
+				}
 
-			applyDragImage(e, label, 'monaco-editor-group-drag-image');
+				applyDragImage(e, label, 'monaco-editor-group-drag-image');
+			}
 		}));
 
 		// Drag end
@@ -304,7 +306,7 @@ export abstract class TitleControl extends Themable {
 			onHide: () => {
 
 				// restore previous context
-				this.resourceContext.set(currentContext);
+				this.resourceContext.set(currentContext || null);
 
 				// restore focus to active group
 				this.accessor.activeGroup.focus();
@@ -355,7 +357,8 @@ export abstract class TitleControl extends Themable {
 	}
 
 	dispose(): void {
-		this.breadcrumbsControl = dispose(this.breadcrumbsControl);
+		dispose(this.breadcrumbsControl);
+		this.breadcrumbsControl = undefined;
 		this.editorToolBarMenuDisposables = dispose(this.editorToolBarMenuDisposables);
 
 		super.dispose();

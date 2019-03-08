@@ -65,14 +65,24 @@ export class BackupModelTracker extends Disposable implements IWorkbenchContribu
 			// Do not backup when auto save after delay is configured
 			if (!this.configuredAutoSaveAfterDelay) {
 				const model = this.textFileService.models.get(event.resource);
-				this.backupFileService.backupResource(model.getResource(), model.createSnapshot(), model.getVersionId());
+				if (model) {
+					const snapshot = model.createSnapshot();
+					if (snapshot) {
+						this.backupFileService.backupResource(model.getResource(), snapshot, model.getVersionId());
+					}
+				}
 			}
 		}
 	}
 
 	private onUntitledModelChanged(resource: Uri): void {
 		if (this.untitledEditorService.isDirty(resource)) {
-			this.untitledEditorService.loadOrCreate({ resource }).then(model => this.backupFileService.backupResource(resource, model.createSnapshot(), model.getVersionId()));
+			this.untitledEditorService.loadOrCreate({ resource }).then(model => {
+				const snapshot = model.createSnapshot();
+				if (snapshot) {
+					this.backupFileService.backupResource(resource, snapshot, model.getVersionId());
+				}
+			});
 		} else {
 			this.discardBackup(resource);
 		}

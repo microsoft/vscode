@@ -32,7 +32,7 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 
 	private static readonly ID = 'editor.contrib.dragAndDrop';
 
-	private _editor: ICodeEditor;
+	private readonly _editor: ICodeEditor;
 	private _toUnhook: IDisposable[];
 	private _dragSelection: Selection | null;
 	private _dndDecorationIds: string[];

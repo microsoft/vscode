@@ -31,6 +31,7 @@ import * as resources from 'vs/base/common/resources';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { textmateColorsSchemaId, registerColorThemeSchemas, textmateColorSettingsSchemaId } from 'vs/workbench/services/themes/common/colorThemeSchema';
 import { workbenchColorsSchemaId } from 'vs/platform/theme/common/colorRegistry';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 // implementation
 
@@ -95,7 +96,6 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	}
 
 	constructor(
-		container: HTMLElement,
 		@IExtensionService extensionService: IExtensionService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -105,11 +105,11 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
 
-		this.container = container;
+		this.container = document.body;
 		this.colorThemeStore = new ColorThemeStore(extensionService, ColorThemeData.createLoadedEmptyTheme(DEFAULT_THEME_ID, DEFAULT_THEME_SETTING_VALUE));
 		this.onFileIconThemeChange = new Emitter<IFileIconTheme>();
 		this.iconThemeStore = new FileIconThemeStore(extensionService);
-		this.onColorThemeChange = new Emitter<IColorTheme>();
+		this.onColorThemeChange = new Emitter<IColorTheme>({ leakWarningThreshold: 400 });
 
 		this.currentIconTheme = FileIconThemeData.createUnloadedTheme('');
 
@@ -708,3 +708,4 @@ const tokenColorCustomizationConfiguration: IConfigurationNode = {
 };
 configurationRegistry.registerConfiguration(tokenColorCustomizationConfiguration);
 
+registerSingleton(IWorkbenchThemeService, WorkbenchThemeService);

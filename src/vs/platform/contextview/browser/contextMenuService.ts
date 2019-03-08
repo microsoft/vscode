@@ -22,7 +22,7 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
 	private contextMenuHandler: ContextMenuHandler;
 
 	constructor(
-		container: HTMLElement,
+		container: HTMLElement | null,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotificationService notificationService: INotificationService,
 		@IContextViewService contextViewService: IContextViewService,

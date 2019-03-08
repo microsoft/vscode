@@ -4769,7 +4769,7 @@ declare module 'vscode' {
 		readonly onDidAcceptInput: Event<string>;
 
 		/**
-		 * An event which fires when the [maximum dimensions](#TerminalRenderer.maimumDimensions) of
+		 * An event which fires when the [maximum dimensions](#TerminalRenderer.maximumDimensions) of
 		 * the terminal renderer change.
 		 */
 		readonly onDidChangeMaximumDimensions: Event<TerminalDimensions>;

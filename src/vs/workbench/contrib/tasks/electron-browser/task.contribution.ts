@@ -58,7 +58,7 @@ import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandler
 
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import Constants from 'vs/workbench/contrib/markers/browser/constants';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -119,7 +119,7 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 		@IPanelService private readonly panelService: IPanelService,
 		@IMarkerService private readonly markerService: IMarkerService,
 		@ITaskService private readonly taskService: ITaskService,
-		@IPartService private readonly partService: IPartService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IThemeService themeService: IThemeService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
 	) {
@@ -204,7 +204,7 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 		callOnDispose.push(Dom.addDisposableListener(label, 'click', (e: MouseEvent) => {
 			const panel = this.panelService.getActivePanel();
 			if (panel && panel.getId() === Constants.MARKERS_PANEL_ID) {
-				this.partService.setPanelHidden(true);
+				this.layoutService.setPanelHidden(true);
 			} else {
 				this.panelService.openPanel(Constants.MARKERS_PANEL_ID, true);
 			}
@@ -716,6 +716,13 @@ class TaskService extends Disposable implements ITaskService {
 
 	public registerTaskSystem(key: string, info: TaskSystemInfo): void {
 		this._taskSystemInfos.set(key, info);
+	}
+
+	public extensionCallbackTaskComplete(task: Task, result: number): Promise<void> {
+		if (!this._taskSystem) {
+			return Promise.resolve();
+		}
+		return this._taskSystem.customExecutionComplete(task, result);
 	}
 
 	public getTask(folder: IWorkspaceFolder | string, identifier: string | TaskIdentifier, compareId: boolean = false): Promise<Task | undefined> {

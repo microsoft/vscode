@@ -46,7 +46,7 @@ export class ReplModel {
 				// remove potential empty lines between different repl types
 				this.replElements.pop();
 			} else if (previousElement instanceof SimpleReplElement && sev === previousElement.severity && toAdd.length && toAdd[0].sourceData === previousElement.sourceData) {
-				previousElement.value += toAdd.shift().value;
+				previousElement.value += toAdd.shift()!.value;
 			}
 			this.addReplElements(toAdd);
 		} else {

@@ -48,12 +48,12 @@ export const enum Type {
 
 export class LineCommentCommand implements editorCommon.ICommand {
 
-	private _selection: Selection;
+	private readonly _selection: Selection;
 	private _selectionId: string;
 	private _deltaColumn: number;
 	private _moveEndPositionDown: boolean;
-	private _tabSize: number;
-	private _type: Type;
+	private readonly _tabSize: number;
+	private readonly _type: Type;
 
 	constructor(selection: Selection, tabSize: number, type: Type) {
 		this._selection = selection;

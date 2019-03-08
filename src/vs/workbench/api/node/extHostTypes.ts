@@ -66,7 +66,7 @@ export class Position {
 		}
 		let result = positions[0];
 		for (let i = 1; i < positions.length; i++) {
-			let p = positions[i];
+			const p = positions[i];
 			if (p.isBefore(result!)) {
 				result = p;
 			}
@@ -80,7 +80,7 @@ export class Position {
 		}
 		let result = positions[0];
 		for (let i = 1; i < positions.length; i++) {
-			let p = positions[i];
+			const p = positions[i];
 			if (p.isAfter(result!)) {
 				result = p;
 			}
@@ -303,8 +303,8 @@ export class Range {
 	}
 
 	intersection(other: Range): Range | undefined {
-		let start = Position.Max(other.start, this._start);
-		let end = Position.Min(other.end, this._end);
+		const start = Position.Max(other.start, this._start);
+		const end = Position.Min(other.end, this._end);
 		if (start.isAfter(end)) {
 			// this happens when there is no overlap:
 			// |-----|
@@ -320,8 +320,8 @@ export class Range {
 		} else if (other.contains(this)) {
 			return other;
 		}
-		let start = Position.Min(other.start, this._start);
-		let end = Position.Max(other.end, this.end);
+		const start = Position.Min(other.start, this._start);
+		const end = Position.Max(other.end, this.end);
 		return new Range(start, end);
 	}
 
@@ -480,7 +480,7 @@ export class TextEdit {
 	}
 
 	static setEndOfLine(eol: EndOfLine): TextEdit {
-		let ret = new TextEdit(new Range(new Position(0, 0), new Position(0, 0)), '');
+		const ret = new TextEdit(new Range(new Position(0, 0), new Position(0, 0)), '');
 		ret.newEol = eol;
 		return ret;
 	}
@@ -616,7 +616,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	}
 
 	get(uri: URI): TextEdit[] {
-		let res: TextEdit[] = [];
+		const res: TextEdit[] = [];
 		for (let candidate of this._edits) {
 			if (candidate._type === 2 && candidate.uri.toString() === uri.toString()) {
 				res.push(candidate.edit);
@@ -626,7 +626,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	}
 
 	entries(): [URI, TextEdit[]][] {
-		let textEdits = new Map<string, [URI, TextEdit[]]>();
+		const textEdits = new Map<string, [URI, TextEdit[]]>();
 		for (let candidate of this._edits) {
 			if (candidate._type === 2) {
 				let textEdit = textEdits.get(candidate.uri.toString());
@@ -641,7 +641,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	}
 
 	_allEntries(): ([URI, TextEdit[]] | [URI?, URI?, IFileOperationOptions?])[] {
-		let res: ([URI, TextEdit[]] | [URI?, URI?, IFileOperationOptions?])[] = [];
+		const res: ([URI, TextEdit[]] | [URI?, URI?, IFileOperationOptions?])[] = [];
 		for (let edit of this._edits) {
 			if (edit._type === 1) {
 				res.push([edit.from, edit.to, edit.options]);
@@ -1708,9 +1708,33 @@ export enum TaskScope {
 	Workspace = 2
 }
 
-@es5ClassCompat
-export class Task implements vscode.Task {
+export class CustomExecution implements vscode.CustomExecution {
+	private _callback: (args: vscode.TerminalRenderer, cancellationToken: vscode.CancellationToken) => Thenable<number>;
 
+	constructor(callback: (args: vscode.TerminalRenderer, cancellationToken: vscode.CancellationToken) => Thenable<number>) {
+		this._callback = callback;
+	}
+
+	public computeId(): string {
+		const hash = crypto.createHash('md5');
+		hash.update('customExecution');
+		hash.update(generateUuid());
+		return hash.digest('hex');
+	}
+
+	public set callback(value: (args: vscode.TerminalRenderer, cancellationToken: vscode.CancellationToken) => Thenable<number>) {
+		this._callback = value;
+	}
+
+	public get callback(): (args: vscode.TerminalRenderer, cancellationToken: vscode.CancellationToken) => Thenable<number> {
+		return this._callback;
+	}
+}
+
+@es5ClassCompat
+export class Task implements vscode.Task2 {
+
+	private static ExtensionCallbackType: string = 'customExecution';
 	private static ProcessType: string = 'process';
 	private static ShellType: string = 'shell';
 	private static EmptyType: string = '$empty';
@@ -1720,7 +1744,7 @@ export class Task implements vscode.Task {
 	private _definition: vscode.TaskDefinition;
 	private _scope: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder | undefined;
 	private _name: string;
-	private _execution: ProcessExecution | ShellExecution | undefined;
+	private _execution: ProcessExecution | ShellExecution | CustomExecution | undefined;
 	private _problemMatchers: string[];
 	private _hasDefinedMatchers: boolean;
 	private _isBackground: boolean;
@@ -1729,8 +1753,8 @@ export class Task implements vscode.Task {
 	private _presentationOptions: vscode.TaskPresentationOptions;
 	private _runOptions: vscode.RunOptions;
 
-	constructor(definition: vscode.TaskDefinition, name: string, source: string, execution?: ProcessExecution | ShellExecution, problemMatchers?: string | string[]);
-	constructor(definition: vscode.TaskDefinition, scope: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder, name: string, source: string, execution?: ProcessExecution | ShellExecution, problemMatchers?: string | string[]);
+	constructor(definition: vscode.TaskDefinition, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution, problemMatchers?: string | string[]);
+	constructor(definition: vscode.TaskDefinition, scope: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution, problemMatchers?: string | string[]);
 	constructor(definition: vscode.TaskDefinition, arg2: string | (vscode.TaskScope.Global | vscode.TaskScope.Workspace) | vscode.WorkspaceFolder, arg3: any, arg4?: any, arg5?: any, arg6?: any) {
 		this.definition = definition;
 		let problemMatchers: string | string[];
@@ -1795,6 +1819,11 @@ export class Task implements vscode.Task {
 				type: Task.ShellType,
 				id: this._execution.computeId()
 			};
+		} else if (this._execution instanceof CustomExecution) {
+			this._definition = {
+				type: Task.ExtensionCallbackType,
+				id: this._execution.computeId()
+			};
 		} else {
 			this._definition = {
 				type: Task.EmptyType,
@@ -1837,17 +1866,25 @@ export class Task implements vscode.Task {
 	}
 
 	get execution(): ProcessExecution | ShellExecution | undefined {
-		return this._execution;
+		return (this._execution instanceof CustomExecution) ? undefined : this._execution;
 	}
 
 	set execution(value: ProcessExecution | ShellExecution | undefined) {
+		this.execution2 = value;
+	}
+
+	get execution2(): ProcessExecution | ShellExecution | CustomExecution | undefined {
+		return this._execution;
+	}
+
+	set execution2(value: ProcessExecution | ShellExecution | CustomExecution | undefined) {
 		if (value === null) {
 			value = undefined;
 		}
 		this.clear();
 		this._execution = value;
-		let type = this._definition.type;
-		if (Task.EmptyType === type || Task.ProcessType === type || Task.ShellType === type) {
+		const type = this._definition.type;
+		if (Task.EmptyType === type || Task.ProcessType === type || Task.ShellType === type || Task.ExtensionCallbackType === type) {
 			this.computeDefinitionBasedOnExecution();
 		}
 	}

@@ -10,7 +10,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { ITerminalService, ITerminalConfigHelper } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalService as BrowserTerminalService } from 'vs/workbench/contrib/terminal/browser/terminalService';
@@ -34,7 +34,7 @@ export class TerminalService extends BrowserTerminalService implements ITerminal
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IPanelService panelService: IPanelService,
-		@IPartService partService: IPartService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IStorageService storageService: IStorageService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -46,7 +46,7 @@ export class TerminalService extends BrowserTerminalService implements ITerminal
 		@IWindowService windowService: IWindowService,
 		@IFileService fileService: IFileService
 	) {
-		super(contextKeyService, panelService, partService, lifecycleService, storageService, notificationService, dialogService, instantiationService, windowService, extensionService, fileService);
+		super(contextKeyService, panelService, layoutService, lifecycleService, storageService, notificationService, dialogService, instantiationService, windowService, extensionService, fileService);
 
 		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper, linuxDistro);
 		ipc.on('vscode:openFiles', (_event: any, request: IOpenFileRequest) => {

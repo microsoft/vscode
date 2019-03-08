@@ -321,6 +321,16 @@
         "category": "Git"
       },
       {
+        "command": "git.addRemote",
+        "title": "%command.addRemote%",
+        "category": "Git"
+      },
+      {
+        "command": "git.removeRemote",
+        "title": "%command.removeRemote%",
+        "category": "Git"
+      },
+      {
         "command": "git.sync",
         "title": "%command.sync%",
         "category": "Git"
@@ -569,6 +579,14 @@
         {
           "command": "git.pushWithTagsForce",
           "when": "config.git.enabled && config.git.allowForcePush && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.addRemote",
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.removeRemote",
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.sync",

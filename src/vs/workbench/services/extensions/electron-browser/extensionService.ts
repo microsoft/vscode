@@ -31,6 +31,7 @@ import { CachedExtensionScanner, Logger } from 'vs/workbench/services/extensions
 import { ExtensionHostProcessManager } from 'vs/workbench/services/extensions/electron-browser/extensionHostProcessManager';
 import { ExtensionIdentifier, IExtension, ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { Schemas } from 'vs/base/common/network';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 const hasOwnProperty = Object.hasOwnProperty;
 const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
@@ -843,3 +844,5 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		this._onDidChangeExtensionsStatus.fire([extensionId]);
 	}
 }
+
+registerSingleton(IExtensionService, ExtensionService);
