@@ -34,7 +34,7 @@ export class ExplorerService implements IExplorerService {
 	private _onDidChangeRoots = new Emitter<void>();
 	private _onDidChangeItem = new Emitter<ExplorerItem | undefined>();
 	private _onDidChangeEditable = new Emitter<ExplorerItem>();
-	private _onDidSelectItem = new Emitter<{ item?: ExplorerItem, reveal?: boolean }>();
+	private _onDidSelectResource = new Emitter<{ resource?: URI, reveal?: boolean }>();
 	private _onDidCopyItems = new Emitter<{ items: ExplorerItem[], cut: boolean, previouslyCutItems: ExplorerItem[] | undefined }>();
 	private disposables: IDisposable[] = [];
 	private editable: { stat: ExplorerItem, data: IEditableData } | undefined;
@@ -68,8 +68,8 @@ export class ExplorerService implements IExplorerService {
 		return this._onDidChangeEditable.event;
 	}
 
-	get onDidSelectItem(): Event<{ item?: ExplorerItem, reveal?: boolean }> {
-		return this._onDidSelectItem.event;
+	get onDidSelectResource(): Event<{ resource?: URI, reveal?: boolean }> {
+		return this._onDidSelectResource.event;
 	}
 
 	get onDidCopyItems(): Event<{ items: ExplorerItem[], cut: boolean, previouslyCutItems: ExplorerItem[] | undefined }> {
@@ -142,7 +142,7 @@ export class ExplorerService implements IExplorerService {
 	select(resource: URI, reveal?: boolean): Promise<void> {
 		const fileStat = this.findClosest(resource);
 		if (fileStat) {
-			this._onDidSelectItem.fire({ item: fileStat, reveal });
+			this._onDidSelectResource.fire({ resource: fileStat.resource, reveal });
 			return Promise.resolve(undefined);
 		}
 
@@ -161,7 +161,7 @@ export class ExplorerService implements IExplorerService {
 			this._onDidChangeItem.fire(item ? item.parent : undefined);
 
 			// Select and Reveal
-			this._onDidSelectItem.fire({ item: item || undefined, reveal });
+			this._onDidSelectResource.fire({ resource: item ? item.resource : undefined, reveal });
 		}, () => {
 			root.isError = true;
 			this._onDidChangeItem.fire(root);

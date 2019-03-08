@@ -6,7 +6,6 @@
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import * as perf from 'vs/base/common/performance';
-import { sequence } from 'vs/base/common/async';
 import { Action, IAction } from 'vs/base/common/actions';
 import { memoize } from 'vs/base/common/decorators';
 import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, IExplorerService, ExplorerResourceCut } from 'vs/workbench/contrib/files/common/files';
@@ -49,6 +48,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { isMacintosh } from 'vs/base/common/platform';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { isEqualOrParent } from 'vs/base/common/resources';
 
 export class ExplorerView extends ViewletPanel {
 	static readonly ID: string = 'workbench.explorer.fileView';
@@ -188,7 +188,7 @@ export class ExplorerView extends ViewletPanel {
 				this.tree.domFocus();
 			}
 		}));
-		this.disposables.push(this.explorerService.onDidSelectItem(e => this.onSelectItem(e.item, e.reveal)));
+		this.disposables.push(this.explorerService.onDidSelectResource(e => this.onSelectResource(e.resource, e.reveal)));
 		this.disposables.push(this.explorerService.onDidCopyItems(e => this.onCopyItems(e.items, e.cut, e.previouslyCutItems)));
 
 		// Update configuration
@@ -507,27 +507,35 @@ export class ExplorerView extends ViewletPanel {
 		return toResource(input, { supportSideBySide: true });
 	}
 
-	private onSelectItem(fileStat: ExplorerItem, reveal = this.autoReveal): Promise<void> {
-		if (!fileStat || !this.isBodyVisible() || this.tree.getInput() === fileStat) {
-			return Promise.resolve(undefined);
+	private onSelectResource(resource: URI, reveal = this.autoReveal): void {
+		if (!resource || !this.isBodyVisible()) {
+			return;
 		}
 
 		// Expand all stats in the parent chain
-		const toExpand: ExplorerItem[] = [];
-		let parent = fileStat.parent;
-		while (parent) {
-			toExpand.push(parent);
-			parent = parent.parent;
+		const root = this.explorerService.roots.filter(r => isEqualOrParent(resource, r.resource)).pop();
+		if (root) {
+			const traverse = async (item: ExplorerItem) => {
+				if (item.resource.toString() === resource.toString()) {
+					if (reveal) {
+						this.tree.reveal(item, 0.5);
+					}
+
+					this.tree.setFocus([item]);
+					this.tree.setSelection([item]);
+				} else {
+					await this.tree.expand(item);
+					let found = false;
+					item.children.forEach(async child => {
+						if (!found && isEqualOrParent(resource, child.resource)) {
+							found = true;
+							await traverse(child);
+						}
+					});
+				}
+			};
+			traverse(root);
 		}
-
-		return sequence(toExpand.reverse().map(s => () => this.tree.expand(s))).then(() => {
-			if (reveal) {
-				this.tree.reveal(fileStat, 0.5);
-			}
-
-			this.tree.setFocus([fileStat]);
-			this.tree.setSelection([fileStat]);
-		});
 	}
 
 	private onCopyItems(stats: ExplorerItem[], cut: boolean, previousCut: ExplorerItem[]): void {
