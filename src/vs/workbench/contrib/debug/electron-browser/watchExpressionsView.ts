@@ -141,6 +141,10 @@ export class WatchExpressionsView extends ViewletPanel {
 
 	private onContextMenu(e: ITreeContextMenuEvent<IExpression>): void {
 		const element = e.element;
+		const anchor = e.anchor;
+		if (!anchor) {
+			return;
+		}
 		const actions: IAction[] = [];
 
 		if (element instanceof Expression) {
@@ -167,7 +171,7 @@ export class WatchExpressionsView extends ViewletPanel {
 		}
 
 		this.contextMenuService.showContextMenu({
-			getAnchor: () => e.anchor,
+			getAnchor: () => anchor,
 			getActions: () => actions,
 			getActionsContext: () => element
 		});
@@ -184,11 +188,9 @@ class WatchExpressionsDelegate implements IListVirtualDelegate<IExpression> {
 		if (element instanceof Expression) {
 			return WatchExpressionsRenderer.ID;
 		}
-		if (element instanceof Variable) {
-			return VariablesRenderer.ID;
-		}
 
-		return undefined;
+		// Variable
+		return VariablesRenderer.ID;
 	}
 }
 
@@ -198,7 +200,7 @@ function isDebugService(element: any): element is IDebugService {
 
 class WatchExpressionsDataSource implements IAsyncDataSource<IDebugService, IExpression> {
 
-	hasChildren(element: IExpression | null): boolean {
+	hasChildren(element: IExpression | IDebugService): boolean {
 		return isDebugService(element) || element.hasChildren;
 	}
 
@@ -208,7 +210,7 @@ class WatchExpressionsDataSource implements IAsyncDataSource<IDebugService, IExp
 			const watchExpressions = debugService.getModel().getWatchExpressions();
 			const viewModel = debugService.getViewModel();
 			return Promise.all(watchExpressions.map(we => !!we.name
-				? we.evaluate(viewModel.focusedSession, viewModel.focusedStackFrame, 'watch').then(() => we)
+				? we.evaluate(viewModel.focusedSession!, viewModel.focusedStackFrame!, 'watch').then(() => we)
 				: Promise.resolve(we)));
 		}
 
@@ -258,11 +260,9 @@ class WatchExpressionsAccessibilityProvider implements IAccessibilityProvider<IE
 		if (element instanceof Expression) {
 			return nls.localize('watchExpressionAriaLabel', "{0} value {1}, watch, debug", (<Expression>element).name, (<Expression>element).value);
 		}
-		if (element instanceof Variable) {
-			return nls.localize('watchVariableAriaLabel', "{0} value {1}, watch, debug", (<Variable>element).name, (<Variable>element).value);
-		}
 
-		return null;
+		// Variable
+		return nls.localize('watchVariableAriaLabel', "{0} value {1}, watch, debug", (<Variable>element).name, (<Variable>element).value);
 	}
 }
 
