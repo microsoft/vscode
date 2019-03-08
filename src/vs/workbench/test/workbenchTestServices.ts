@@ -450,6 +450,8 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 
 	dimension: IDimension = { width: 800, height: 600 };
 
+	container: HTMLElement = window.document.body;
+
 	onZenModeChange: Event<boolean> = Event.None;
 	onLayout = Event.None;
 

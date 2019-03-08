@@ -39,7 +39,6 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { LifecyclePhase, StartupKind, ILifecycleService, WillShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWindowService, IWindowConfiguration, IPath, MenuBarVisibility, getTitleBarStyle, IWindowsService } from 'vs/platform/windows/common/windows';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { NotificationService } from 'vs/workbench/services/notification/common/notificationService';
@@ -50,7 +49,6 @@ import { registerNotificationCommands } from 'vs/workbench/browser/parts/notific
 import { NotificationsToasts } from 'vs/workbench/browser/parts/notifications/notificationsToasts';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { Sizing, Direction, Grid, View } from 'vs/base/browser/ui/grid/grid';
 import { WorkbenchLegacyLayout } from 'vs/workbench/browser/legacyLayout';
@@ -151,7 +149,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 	private parts: Map<string, Part> = new Map<string, Part>();
 
 	constructor(
-		private container: HTMLElement,
+		private parent: HTMLElement,
 		private configuration: IWindowConfiguration,
 		private serviceCollection: ServiceCollection,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -364,9 +362,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		const localizationsChannel = getDelayedChannel(sharedProcess.then(c => c.getChannel('localizations')));
 		serviceCollection.set(ILocalizationsService, new SyncDescriptor(LocalizationsChannelClient, [localizationsChannel]));
 
-		// Context view service
-		serviceCollection.set(IContextViewService, new SyncDescriptor(ContextViewService, [this.workbench], true));
-
 		// Contributed services
 		const contributedServices = getServices();
 		for (let contributedService of contributedServices) {
@@ -489,7 +484,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		this.instantiationService.invokeFunction(accessor => this.createNotificationsHandlers(accessor));
 
 		// Add Workbench to DOM
-		this.container.appendChild(this.workbench);
+		this.parent.appendChild(this.workbench);
 	}
 
 	private createTitlebarPart(): void {
@@ -689,6 +684,8 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 	private _dimension: IDimension;
 	get dimension(): IDimension { return this._dimension; }
+
+	get container(): HTMLElement { return this.workbench; }
 
 	private workbenchGrid: Grid<View> | WorkbenchLegacyLayout;
 
@@ -1283,7 +1280,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		} else {
 			this.workbenchGrid = this.instantiationService.createInstance(
 				WorkbenchLegacyLayout,
-				this.container,
+				this.parent,
 				this.workbench,
 				{
 					titlebar: titleBar,
@@ -1299,7 +1296,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 	layout(options?: ILayoutOptions): void {
 		if (!this.disposed) {
-			this._dimension = getClientArea(this.container);
+			this._dimension = getClientArea(this.parent);
 
 			if (this.workbenchGrid instanceof Grid) {
 				position(this.workbench, 0, 0, 0, 0, 'relative');
@@ -1615,7 +1612,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			// Layout
 			if (!skipLayout) {
 				if (this.workbenchGrid instanceof Grid) {
-					const dimensions = getClientArea(this.container);
+					const dimensions = getClientArea(this.parent);
 					this.workbenchGrid.layout(dimensions.width, dimensions.height);
 				} else {
 					this.workbenchGrid.layout();
