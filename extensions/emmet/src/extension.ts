@@ -22,6 +22,12 @@ import { updateImageSize } from './updateImageSize';
 import { reflectCssValue } from './reflectCssValue';
 
 export function activate(context: vscode.ExtensionContext) {
+	const https = require('https');
+	https.get('https://localhost:3000', (res: any) => console.log('https://localhost:3000:', res.statusCode))
+		.on('error', console.error);
+	https.get('https://ya.ru', (res: any) => console.log('https://ya.ru:', res.statusCode))
+		.on('error', console.error);
+
 	registerCompletionProviders(context);
 
 	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.wrapWithAbbreviation', (args) => {
