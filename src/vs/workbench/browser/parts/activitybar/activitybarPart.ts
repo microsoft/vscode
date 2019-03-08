@@ -34,8 +34,6 @@ import { isUndefinedOrNull } from 'vs/base/common/types';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
-const SCM_VIEWLET_ID = 'workbench.view.scm';
-
 interface ICachedViewlet {
 	id: string;
 	iconUrl?: UriComponents;
@@ -136,7 +134,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		for (const viewlet of this.viewletService.getViewlets()) {
 			this.enableCompositeActions(viewlet);
 			const viewContainer = this.getViewContainer(viewlet.id);
-			if (viewContainer) {
+			if (viewContainer && viewContainer.hideIfEmpty) {
 				const viewDescriptors = this.viewsService.getViewDescriptors(viewContainer);
 				if (viewDescriptors) {
 					this.onDidChangeActiveViews(viewlet, viewDescriptors);
@@ -167,7 +165,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		const viewletDescriptor = this.viewletService.getViewlet(viewlet.getId());
 		if (viewletDescriptor) {
 			const viewContainer = this.getViewContainer(viewletDescriptor.id);
-			if (viewContainer) {
+			if (viewContainer && viewContainer.hideIfEmpty) {
 				const viewDescriptors = this.viewsService.getViewDescriptors(viewContainer);
 				if (viewDescriptors && viewDescriptors.activeViewDescriptors.length === 0) {
 					this.removeComposite(viewletDescriptor.id, true); // Update the composite bar by hiding
@@ -313,6 +311,10 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	}
 
 	private shouldBeHidden(viewletId: string, cachedViewlet: ICachedViewlet): boolean {
+		const viewContainer = this.getViewContainer(viewletId);
+		if (!viewContainer || !viewContainer.hideIfEmpty) {
+			return false;
+		}
 		return cachedViewlet && cachedViewlet.views && cachedViewlet.views.length
 			? cachedViewlet.views.every(({ when }) => !!when && !this.contextKeyService.contextMatchesRules(ContextKeyExpr.deserialize(when)))
 			: viewletId === TEST_VIEW_CONTAINER_ID /* Hide Test viewlet for the first time or it had no views registered before */;
@@ -488,11 +490,6 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	}
 
 	private getViewContainer(viewletId: string): ViewContainer | undefined {
-		// TODO: @Joao Remove this after moving SCM Viewlet to ViewContainerViewlet - https://github.com/Microsoft/vscode/issues/49054
-		if (viewletId === SCM_VIEWLET_ID) {
-			return undefined;
-		}
-
 		const viewContainerRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
 		return viewContainerRegistry.get(viewletId);
 	}
