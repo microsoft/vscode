@@ -188,9 +188,13 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		const listeningTerminalIds = Object.keys(this._terminalDataEventListeners);
 		listeningTerminalIds.forEach(id => this._terminalDataEventListeners[id].dispose());
 		this._terminalDataEventListeners = {};
-		this._terminalDataEventInstanceCreatedListener.dispose();
+		if (this._terminalDataEventInstanceCreatedListener) {
+			this._terminalDataEventInstanceCreatedListener.dispose();
+		}
 		this._terminalDataEventInstanceCreatedListener = undefined;
-		this._terminalDataEventInstanceDisposedListener.dispose();
+		if (this._terminalDataEventInstanceDisposedListener) {
+			this._terminalDataEventInstanceDisposedListener.dispose();
+		}
 		this._terminalDataEventInstanceDisposedListener = undefined;
 	}
 
