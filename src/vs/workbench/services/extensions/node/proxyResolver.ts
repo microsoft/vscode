@@ -8,6 +8,7 @@ import * as https from 'https';
 import * as tls from 'tls';
 import * as nodeurl from 'url';
 import * as os from 'os';
+import * as cp from 'child_process';
 
 import { assign } from 'vs/base/common/objects';
 import { endsWith } from 'vs/base/common/strings';
@@ -19,6 +20,7 @@ import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 import { URI } from 'vs/base/common/uri';
+import { promisify } from 'util';
 
 interface ConnectionResult {
 	proxy: string;
@@ -421,7 +423,7 @@ function useSystemCertificates(extHostLogService: ExtHostLogService, useSystemCe
 	}
 }
 
-let _certificates: Promise<typeof https.globalAgent.options.ca | undefined>;
+let _certificates: Promise<string[]>;
 async function getCertificates(extHostLogService: ExtHostLogService) {
 	if (!_certificates) {
 		_certificates = readCertificates()
@@ -433,26 +435,40 @@ async function getCertificates(extHostLogService: ExtHostLogService) {
 	return _certificates;
 }
 
-async function readCertificates() {
+async function readCertificates(): Promise<string[]> {
 	if (process.platform === 'win32') {
-		const winCA = require.__$__nodeRequire<any>('win-ca-lib');
-
-		let ders = [];
-		const store = winCA();
-		try {
-			let der;
-			while (der = store.next()) {
-				ders.push(der);
-			}
-		} finally {
-			store.done();
-		}
-
-		const seen = {};
-		return ders.map(derToPem)
-			.filter(pem => !seen[pem] && (seen[pem] = true));
+		return readWindowsCertificates();
+	}
+	if (process.platform === 'darwin') {
+		return readMacCertificates();
 	}
 	return undefined;
+}
+
+function readWindowsCertificates() {
+	const winCA = require.__$__nodeRequire<any>('win-ca-lib');
+
+	let ders = [];
+	const store = winCA();
+	try {
+		let der;
+		while (der = store.next()) {
+			ders.push(der);
+		}
+	} finally {
+		store.done();
+	}
+
+	const seen = {};
+	return ders.map(derToPem)
+		.filter(pem => !seen[pem] && (seen[pem] = true));
+}
+
+async function readMacCertificates() {
+	const stdout = (await promisify(cp.execFile)('/usr/bin/security', ['find-certificate', '-a', '-p'], { encoding: 'utf8' })).stdout;
+	const seen = {};
+	return stdout.split(/(?=-----BEGIN CERTIFICATE-----)/g)
+		.filter(pem => !!pem.length && !seen[pem] && (seen[pem] = true));
 }
 
 function derToPem(blob) {
