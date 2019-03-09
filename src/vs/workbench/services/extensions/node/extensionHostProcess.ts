@@ -11,7 +11,7 @@ import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
 import { Protocol } from 'vs/base/parts/ipc/node/ipc.net';
 import product from 'vs/platform/product/node/product';
 import { IInitData } from 'vs/workbench/api/node/extHost.protocol';
-import { MessageType, createMessageOfType, isMessageOfType } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
+import { MessageType, createMessageOfType, isMessageOfType } from 'vs/workbench/services/extensions/node/extensionHostProtocol';
 import { exit, ExtensionHostMain } from 'vs/workbench/services/extensions/node/extensionHostMain';
 
 // With Electron 2.x and node.js 8.x the "natives" module

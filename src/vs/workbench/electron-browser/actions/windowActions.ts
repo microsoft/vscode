@@ -10,7 +10,6 @@ import { Action } from 'vs/base/common/actions';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import * as nls from 'vs/nls';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { isMacintosh } from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -27,6 +26,7 @@ import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import product from 'vs/platform/product/node/product';
 import { ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class CloseCurrentWindowAction extends Action {
 
@@ -82,7 +82,7 @@ export abstract class BaseZoomAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkspaceConfigurationService private readonly configurationService: IWorkspaceConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(id, label);
 	}
@@ -111,7 +111,7 @@ export class ZoomInAction extends BaseZoomAction {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkspaceConfigurationService configurationService: IWorkspaceConfigurationService
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super(id, label, configurationService);
 	}
@@ -131,7 +131,7 @@ export class ZoomOutAction extends BaseZoomAction {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkspaceConfigurationService configurationService: IWorkspaceConfigurationService
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super(id, label, configurationService);
 	}
@@ -151,7 +151,7 @@ export class ZoomResetAction extends BaseZoomAction {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkspaceConfigurationService configurationService: IWorkspaceConfigurationService
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super(id, label, configurationService);
 	}

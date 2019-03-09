@@ -22,7 +22,7 @@ const $ = DOM.$;
 export interface IMenuBarOptions {
 	enableMnemonics?: boolean;
 	visibility?: string;
-	getKeybinding?: (action: IAction) => ResolvedKeybinding;
+	getKeybinding?: (action: IAction) => ResolvedKeybinding | undefined;
 	alwaysOnMnemonics?: boolean;
 }
 
@@ -952,6 +952,16 @@ class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 
 		this._subscriptions.push(domEvent(document.body, 'mousedown', true)(e => {
 			this._keyStatus.lastKeyPressed = undefined;
+		}));
+
+		this._subscriptions.push(domEvent(document.body, 'mouseup', true)(e => {
+			this._keyStatus.lastKeyPressed = undefined;
+		}));
+
+		this._subscriptions.push(domEvent(document.body, 'mousemove', true)(e => {
+			if (e.buttons) {
+				this._keyStatus.lastKeyPressed = undefined;
+			}
 		}));
 
 		this._subscriptions.push(domEvent(window, 'blur')(e => {

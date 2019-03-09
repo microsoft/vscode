@@ -13,9 +13,15 @@ import * as languageModeIds from '../utils/languageModeIds';
 import { ResourceMap } from '../utils/resourceMap';
 import * as typeConverters from '../utils/typeConverters';
 
-enum BufferKind {
+const enum BufferKind {
 	TypeScript = 1,
 	JavaScript = 2,
+}
+
+const enum BufferState {
+	Initial = 1,
+	Open = 2,
+	Closed = 2,
 }
 
 function mode2ScriptKind(mode: string): 'TS' | 'TSX' | 'JS' | 'JSX' | undefined {
@@ -29,6 +35,8 @@ function mode2ScriptKind(mode: string): 'TS' | 'TSX' | 'JS' | 'JSX' | undefined 
 }
 
 class SyncedBuffer {
+
+	private state = BufferState.Initial;
 
 	constructor(
 		private readonly document: vscode.TextDocument,
@@ -63,6 +71,7 @@ class SyncedBuffer {
 		}
 
 		this.client.executeWithoutWaitingForResponse('open', args);
+		this.state = BufferState.Open;
 	}
 
 	public get resource(): vscode.Uri {
@@ -91,15 +100,34 @@ class SyncedBuffer {
 			file: this.filepath
 		};
 		this.client.executeWithoutWaitingForResponse('close', args);
+		this.state = BufferState.Closed;
 	}
 
 	public onContentChanged(events: vscode.TextDocumentContentChangeEvent[]): void {
-		for (const { range, text } of events) {
-			const args: Proto.ChangeRequestArgs = {
-				insertString: text,
-				...typeConverters.Range.toFormattingRequestArgs(this.filepath, range)
+		if (this.state !== BufferState.Open) {
+			console.error(`Unexpected buffer state: ${this.state}`);
+		}
+
+		if (this.client.apiVersion.gte(API.v340)) {
+			const args: Proto.UpdateOpenRequestArgs = {
+				changedFiles: [{
+					fileName: this.filepath,
+					textChanges: events.map((change): Proto.CodeEdit => ({
+						newText: change.text,
+						start: typeConverters.Position.toLocation(change.range.start),
+						end: typeConverters.Position.toLocation(change.range.end),
+					})).reverse(), // Send the edits end of document to start of document order
+				}],
 			};
-			this.client.executeWithoutWaitingForResponse('change', args);
+			this.client.executeWithoutWaitingForResponse('updateOpen', args);
+		} else {
+			for (const { range, text } of events) {
+				const args: Proto.ChangeRequestArgs = {
+					insertString: text,
+					...typeConverters.Range.toFormattingRequestArgs(this.filepath, range)
+				};
+				this.client.executeWithoutWaitingForResponse('change', args);
+			}
 		}
 	}
 }

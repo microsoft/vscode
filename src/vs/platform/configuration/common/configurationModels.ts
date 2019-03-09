@@ -485,7 +485,7 @@ export class Configuration {
 		};
 	}
 
-	allKeys(workspace: Workspace): string[] {
+	allKeys(workspace: Workspace | undefined): string[] {
 		let keys = this.keys(workspace);
 		let all = [...keys.default];
 		const addKeys = (keys) => {

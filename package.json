@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.32.0",
-  "distro": "d7aadf23b016949c24a43083a0b3deecb8aa81fa",
+  "version": "1.33.0",
+  "distro": "533c92fa5e71d449c33c99a6d7c0fbc9a12ea537",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -28,7 +28,7 @@
   },
   "dependencies": {
     "applicationinsights": "1.0.8",
-    "gc-signals": "^0.0.1",
+    "gc-signals": "^0.0.2",
     "getmac": "1.4.1",
     "graceful-fs": "4.1.11",
     "http-proxy-agent": "^2.1.0",
@@ -52,7 +52,7 @@
     "vscode-ripgrep": "^1.2.5",
     "vscode-sqlite3": "4.0.7",
     "vscode-textmate": "^4.0.1",
-    "vscode-xterm": "3.12.0-beta5",
+    "vscode-xterm": "3.13.0-beta1",
     "yauzl": "^2.9.1",
     "yazl": "^2.4.3"
   },
@@ -97,7 +97,7 @@
     "gulp-rename": "^1.2.0",
     "gulp-replace": "^0.5.4",
     "gulp-shell": "^0.6.5",
-    "gulp-tsb": "2.0.6",
+    "gulp-tsb": "2.0.7",
     "gulp-tslint": "^8.1.3",
     "gulp-uglify": "^3.0.0",
     "gulp-vinyl-zip": "^2.1.2",
@@ -146,6 +146,7 @@
   },
   "optionalDependencies": {
     "vscode-windows-registry": "1.0.1",
+    "win-ca-lib": "https://github.com/chrmarti/win-ca/releases/download/v2.4.1-lib-test/win-ca-lib-2.4.1.tgz",
     "windows-foreground-love": "0.1.0",
     "windows-mutex": "0.2.1",
     "windows-process-tree": "0.2.3"

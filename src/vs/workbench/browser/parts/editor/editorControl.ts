@@ -8,7 +8,7 @@ import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { Dimension, show, hide, addClass } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEditorRegistry, Extensions as EditorExtensions, IEditorDescriptor } from 'vs/workbench/browser/editor';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressService, LongRunningOperation } from 'vs/platform/progress/common/progress';
@@ -44,7 +44,7 @@ export class EditorControl extends Disposable {
 	constructor(
 		private parent: HTMLElement,
 		private groupView: IEditorGroupView,
-		@IPartService private readonly partService: IPartService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IProgressService progressService: IProgressService
 	) {
@@ -171,7 +171,7 @@ export class EditorControl extends Disposable {
 
 		// Show progress while setting input after a certain timeout. If the workbench is opening
 		// be more relaxed about progress showing by increasing the delay a little bit to reduce flicker.
-		const operation = this.editorOperation.start(this.partService.isRestored() ? 800 : 3200);
+		const operation = this.editorOperation.start(this.layoutService.isRestored() ? 800 : 3200);
 
 		// Call into editor control
 		const editorWillChange = !inputMatches;

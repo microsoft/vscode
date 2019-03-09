@@ -22,7 +22,7 @@ import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/commo
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
-import { IKeybindingEvent, IKeyboardEvent, IUserFriendlyKeybinding, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindingEvent, IKeyboardEvent, IUserFriendlyKeybinding, KeybindingSource, IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 import { IKeybindingItem, IKeybindingRule2, KeybindingWeight, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
@@ -40,6 +40,7 @@ import { IWindowsKeyboardMapping, WindowsKeyboardMapper, windowsKeyboardMappingE
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { MenuRegistry } from 'vs/platform/actions/common/actions';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class KeyboardMapperFactory {
 	public static readonly INSTANCE = new KeyboardMapperFactory();
@@ -269,7 +270,6 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	private userKeybindings: ConfigWatcher<IUserFriendlyKeybinding[]>;
 
 	constructor(
-		windowElement: Window,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService commandService: ICommandService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -326,7 +326,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			keybindings: event.config
 		})));
 
-		this._register(dom.addDisposableListener(windowElement, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+		this._register(dom.addDisposableListener(window, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			let keyEvent = new StandardKeyboardEvent(e);
 			let shouldPreventDefault = this._dispatch(keyEvent, keyEvent.target);
 			if (shouldPreventDefault) {
@@ -712,3 +712,5 @@ const keyboardConfiguration: IConfigurationNode = {
 };
 
 configurationRegistry.registerConfiguration(keyboardConfiguration);
+
+registerSingleton(IKeybindingService, WorkbenchKeybindingService);

@@ -6,88 +6,11 @@
 import * as assert from 'assert';
 import { IAction, IActionItem } from 'vs/base/common/actions';
 import { IEditorControl } from 'vs/workbench/common/editor';
-import { Viewlet, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
-import { IPanel } from 'vs/workbench/common/panel';
 import { ScopedProgressService, ScopedService } from 'vs/workbench/services/progress/browser/progressService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewlet } from 'vs/workbench/common/viewlet';
-import { Emitter } from 'vs/base/common/event';
-
-let activeViewlet: Viewlet = {} as any;
-
-class TestViewletService implements IViewletService {
-	public _serviceBrand: any;
-
-	onDidViewletRegisterEmitter = new Emitter<ViewletDescriptor>();
-	onDidViewletDeregisterEmitter = new Emitter<ViewletDescriptor>();
-	onDidViewletOpenEmitter = new Emitter<IViewlet>();
-	onDidViewletCloseEmitter = new Emitter<IViewlet>();
-
-	onDidViewletRegister = this.onDidViewletRegisterEmitter.event;
-	onDidViewletDeregister = this.onDidViewletDeregisterEmitter.event;
-	onDidViewletOpen = this.onDidViewletOpenEmitter.event;
-	onDidViewletClose = this.onDidViewletCloseEmitter.event;
-
-	public openViewlet(id: string, focus?: boolean): Promise<IViewlet> {
-		return Promise.resolve(null!);
-	}
-
-	public getViewlets(): ViewletDescriptor[] {
-		return [];
-	}
-
-	public getAllViewlets(): ViewletDescriptor[] {
-		return [];
-	}
-
-	public getActiveViewlet(): IViewlet {
-		return activeViewlet;
-	}
-
-	public dispose() {
-	}
-
-	public getDefaultViewletId(): string {
-		return 'workbench.view.explorer';
-	}
-
-	public getViewlet(id: string): ViewletDescriptor | undefined {
-		return undefined;
-	}
-
-	public getProgressIndicator(id: string) {
-		return null!;
-	}
-}
-
-class TestPanelService implements IPanelService {
-	public _serviceBrand: any;
-
-	onDidPanelOpen = new Emitter<{ panel: IPanel, focus: boolean }>().event;
-	onDidPanelClose = new Emitter<IPanel>().event;
-
-	public openPanel(id: string, focus?: boolean): IPanel {
-		return null!;
-	}
-
-	public getPanels(): any[] {
-		return [];
-	}
-
-	public getPinnedPanels(): any[] {
-		return [];
-	}
-
-	public getActivePanel(): IViewlet {
-		return activeViewlet;
-	}
-
-	public setPanelEnablement(id: string, enabled: boolean): void { }
-
-	public dispose() {
-	}
-}
+import { TestViewletService, TestPanelService } from 'vs/workbench/test/workbenchTestServices';
 
 class TestViewlet implements IViewlet {
 

@@ -15,7 +15,7 @@ import { toResource } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import * as DOM from 'vs/base/browser/dom';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { ExplorerDecorationsProvider } from 'vs/workbench/contrib/files/browser/views/explorerDecorationsProvider';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
@@ -46,6 +46,9 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IAsyncDataTreeViewState } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { isMacintosh } from 'vs/base/common/platform';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 
 export class ExplorerView extends ViewletPanel {
 	static readonly ID: string = 'workbench.explorer.fileView';
@@ -61,7 +64,6 @@ export class ExplorerView extends ViewletPanel {
 
 	// Refresh is needed on the initial explorer open
 	private shouldRefresh = true;
-	private setTreeInputPromise = Promise.resolve(undefined);
 	private dragHandler: DelayedDragHandler;
 	private decorationProvider: ExplorerDecorationsProvider;
 	private autoReveal = false;
@@ -73,7 +75,7 @@ export class ExplorerView extends ViewletPanel {
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IPartService private readonly partService: IPartService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -166,7 +168,7 @@ export class ExplorerView extends ViewletPanel {
 			this.refresh();
 		}));
 
-		this.disposables.push(this.explorerService.onDidChangeRoots(() => this.setTreeInputPromise = this.setTreeInput()));
+		this.disposables.push(this.explorerService.onDidChangeRoots(() => this.setTreeInput()));
 		this.disposables.push(this.explorerService.onDidChangeItem(e => this.refresh(e)));
 		this.disposables.push(this.explorerService.onDidChangeEditable(async e => {
 			const isEditing = !!this.explorerService.getEditableData(e);
@@ -174,13 +176,13 @@ export class ExplorerView extends ViewletPanel {
 			if (isEditing) {
 				await this.tree.expand(e.parent);
 			} else {
-				DOM.removeClass(this.tree.getHTMLElement(), 'highlight');
+				DOM.removeClass(treeContainer, 'highlight');
 			}
 
 			await this.refresh(e.parent);
 
 			if (isEditing) {
-				DOM.addClass(this.tree.getHTMLElement(), 'highlight');
+				DOM.addClass(treeContainer, 'highlight');
 				this.tree.reveal(e);
 			} else {
 				this.tree.domFocus();
@@ -206,8 +208,7 @@ export class ExplorerView extends ViewletPanel {
 				// If a refresh was requested and we are now visible, run it
 				if (this.shouldRefresh) {
 					this.shouldRefresh = false;
-					this.setTreeInputPromise = this.setTreeInput();
-					await this.setTreeInputPromise;
+					await this.setTreeInput();
 				}
 				// Find resource to focus from active editor input if set
 				this.selectActiveFile(false, true);
@@ -231,22 +232,21 @@ export class ExplorerView extends ViewletPanel {
 	}
 
 	focus(): void {
-		this.setTreeInputPromise.then(() => {
-			this.tree.domFocus();
-			const focused = this.tree.getFocus();
-			if (focused.length === 1) {
-				if (this.autoReveal) {
-					this.tree.reveal(focused[0], 0.5);
-				}
+		this.tree.domFocus();
 
-				const activeFile = this.getActiveFile();
-				if (!activeFile && !focused[0].isDirectory) {
-					// Open the focused element in the editor if there is currently no file opened #67708
-					this.editorService.openEditor({ resource: focused[0].resource, options: { preserveFocus: true, revealIfVisible: true } })
-						.then(undefined, onUnexpectedError);
-				}
+		const focused = this.tree.getFocus();
+		if (focused.length === 1) {
+			if (this.autoReveal) {
+				this.tree.reveal(focused[0], 0.5);
 			}
-		});
+
+			const activeFile = this.getActiveFile();
+			if (!activeFile && !focused[0].isDirectory) {
+				// Open the focused element in the editor if there is currently no file opened #67708
+				this.editorService.openEditor({ resource: focused[0].resource, options: { preserveFocus: true, revealIfVisible: true } })
+					.then(undefined, onUnexpectedError);
+			}
+		}
 	}
 
 	private selectActiveFile(deselect?: boolean, reveal = this.autoReveal): void {
@@ -307,16 +307,8 @@ export class ExplorerView extends ViewletPanel {
 		ExplorerFocusedContext.bindTo(this.tree.contextKeyService);
 
 		// Update resource context based on focused element
-		this.disposables.push(this.tree.onDidChangeFocus(e => {
-			const stat = e.elements && e.elements.length ? e.elements[0] : undefined;
-			const isSingleFolder = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER;
-			const resource = stat ? stat.resource : isSingleFolder ? this.contextService.getWorkspace().folders[0].uri : undefined;
-			this.resourceContext.set(resource);
-			this.folderContext.set((isSingleFolder && !stat) || !!stat && stat.isDirectory);
-			this.readonlyContext.set(!!stat && stat.isReadonly);
-			this.rootContext.set(!stat || (stat && stat.isRoot));
-		}));
-
+		this.disposables.push(this.tree.onDidChangeFocus(e => this.onFocusChanged(e.elements)));
+		this.onFocusChanged([]);
 		const explorerNavigator = new TreeResourceNavigator2(this.tree);
 		this.disposables.push(explorerNavigator);
 		// Open when selecting via keyboard
@@ -327,14 +319,9 @@ export class ExplorerView extends ViewletPanel {
 			const shiftDown = e.browserEvent instanceof KeyboardEvent && e.browserEvent.shiftKey;
 			if (selection.length === 1 && !shiftDown) {
 				// Do not react if user is clicking on explorer items which are input placeholders
-				if (!selection[0].name) {
+				if (!selection[0].name || selection[0].isDirectory) {
 					// Do not react if user is clicking on explorer items which are input placeholders
-					return;
-				}
-				if (selection[0].isDirectory) {
-					if (e.browserEvent instanceof KeyboardEvent) {
-						this.tree.toggleCollapsed(selection[0]);
-					}
+					// Do not react if clicking on directories
 					return;
 				}
 
@@ -350,6 +337,17 @@ export class ExplorerView extends ViewletPanel {
 		}));
 
 		this.disposables.push(this.tree.onContextMenu(e => this.onContextMenu(e)));
+		this.disposables.push(this.tree.onKeyDown(e => {
+			const event = new StandardKeyboardEvent(e);
+			const toggleCollapsed = isMacintosh ? (event.keyCode === KeyCode.DownArrow && event.metaKey) : event.keyCode === KeyCode.Enter;
+			if (toggleCollapsed) {
+				const focus = this.tree.getFocus();
+				if (focus.length === 1 && focus[0].isDirectory) {
+					this.tree.toggleCollapsed(focus[0]);
+				}
+			}
+		}));
+
 
 		// save view state on shutdown
 		this.storageService.onWillSaveState(() => {
@@ -405,6 +403,16 @@ export class ExplorerView extends ViewletPanel {
 				? selection.map((fs: ExplorerItem) => fs.resource)
 				: stat instanceof ExplorerItem ? [stat.resource] : []
 		});
+	}
+
+	private onFocusChanged(elements: ExplorerItem[]): void {
+		const stat = elements && elements.length ? elements[0] : undefined;
+		const isSingleFolder = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER;
+		const resource = stat ? stat.resource : isSingleFolder ? this.contextService.getWorkspace().folders[0].uri : undefined;
+		this.resourceContext.set(resource);
+		this.folderContext.set((isSingleFolder && !stat) || !!stat && stat.isDirectory);
+		this.readonlyContext.set(!!stat && stat.isReadonly);
+		this.rootContext.set(!stat || (stat && stat.isRoot));
 	}
 
 	// General methods
@@ -483,11 +491,11 @@ export class ExplorerView extends ViewletPanel {
 			}
 		});
 
-		this.progressService.showWhile(promise, this.partService.isRestored() ? 800 : 1200 /* less ugly initial startup */);
+		this.progressService.showWhile(promise, this.layoutService.isRestored() ? 800 : 1200 /* less ugly initial startup */);
 		return promise;
 	}
 
-	private getActiveFile(): URI {
+	private getActiveFile(): URI | undefined {
 		const input = this.editorService.activeEditor;
 
 		// ignore diff editor inputs (helps to get out of diffing when returning to explorer)

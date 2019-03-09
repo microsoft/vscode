@@ -9,7 +9,7 @@ import { basename } from 'vs/base/common/resources';
 import { Action } from 'vs/base/common/actions';
 import { URI } from 'vs/base/common/uri';
 import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
-import { ITextFileService, ISaveErrorHandler, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, ISaveErrorHandler, ITextFileEditorModel, IResolvedTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -314,11 +314,14 @@ export const acceptLocalChangesCommand = (accessor: ServicesAccessor, resource: 
 	const modelService = accessor.get(IModelService);
 
 	const control = editorService.activeControl;
+	if (!control) {
+		return;
+	}
 	const editor = control.input;
 	const group = control.group;
 
 	resolverService.createModelReference(resource).then(reference => {
-		const model = reference.object as ITextFileEditorModel;
+		const model = reference.object as IResolvedTextFileEditorModel;
 		const localModelSnapshot = model.createSnapshot();
 
 		clearPendingResolveSaveConflictMessages(); // hide any previously shown message about how to use these actions
@@ -350,6 +353,9 @@ export const revertLocalChangesCommand = (accessor: ServicesAccessor, resource: 
 	const resolverService = accessor.get(ITextModelService);
 
 	const control = editorService.activeControl;
+	if (!control) {
+		return;
+	}
 	const editor = control.input;
 	const group = control.group;
 

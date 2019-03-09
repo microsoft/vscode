@@ -69,7 +69,7 @@ const vscodeResources = [
 	'out-build/vs/base/browser/ui/octiconLabel/octicons/**',
 	'out-build/vs/workbench/browser/media/*-theme.css',
 	'out-build/vs/workbench/contrib/debug/**/*.json',
-	'out-build/vs/workbench/contrib/execution/**/*.scpt',
+	'out-build/vs/workbench/contrib/externalTerminal/**/*.scpt',
 	'out-build/vs/workbench/contrib/webview/electron-browser/webview-pre.js',
 	'out-build/vs/**/markdown.css',
 	'out-build/vs/workbench/contrib/tasks/**/*.json',
@@ -339,6 +339,8 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			.pipe(util.cleanNodeModule('node-pty', ['binding.gyp', 'build/**', 'src/**', 'tools/**'], ['build/Release/*.exe', 'build/Release/*.dll', 'build/Release/*.node']))
 			.pipe(util.cleanNodeModule('vscode-nsfw', ['binding.gyp', 'build/**', 'src/**', 'openpa/**', 'includes/**'], ['build/Release/*.node', '**/*.a']))
 			.pipe(util.cleanNodeModule('vsda', ['binding.gyp', 'README.md', 'build/**', '*.bat', '*.sh', '*.cpp', '*.h'], ['build/Release/vsda.node']))
+			.pipe(util.cleanNodeModule('win-ca-lib', ['**/*'], ['package.json', '**/*.node']))
+			.pipe(util.cleanNodeModule('node-addon-api', ['**/*']))
 			.pipe(createAsar(path.join(process.cwd(), 'node_modules'), ['**/*.node', '**/vscode-ripgrep/bin/*', '**/node-pty/build/Release/*'], 'app/node_modules.asar'));
 
 		let all = es.merge(

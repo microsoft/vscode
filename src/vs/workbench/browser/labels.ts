@@ -386,7 +386,7 @@ class ResourceLabelWidget extends IconLabel {
 		}
 
 		if (this.label) {
-			const configuredLangId = this.label.resource ? getConfiguredLangId(this.modelService, this.label.resource) : null;
+			const configuredLangId = this.label.resource ? getConfiguredLangId(this.modelService, this.modeService, this.label.resource) : null;
 			if (this.lastKnownConfiguredLangId !== configuredLangId) {
 				clearIconCache = true;
 				this.lastKnownConfiguredLangId = configuredLangId || undefined;

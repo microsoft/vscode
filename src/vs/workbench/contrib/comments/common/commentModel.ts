@@ -41,7 +41,7 @@ export class ResourceWithCommentThreads {
 	constructor(resource: URI, commentThreads: CommentThread[]) {
 		this.id = resource.toString();
 		this.resource = resource;
-		this.commentThreads = commentThreads.map(thread => ResourceWithCommentThreads.createCommentNode(resource, thread));
+		this.commentThreads = commentThreads.filter(thread => thread.comments.length).map(thread => ResourceWithCommentThreads.createCommentNode(resource, thread));
 	}
 
 	public static createCommentNode(resource: URI, commentThread: CommentThread): CommentNode {
@@ -72,10 +72,7 @@ export class CommentsModel {
 	public updateCommentThreads(event: ICommentThreadChangedEvent): boolean {
 		const { owner, removed, changed, added } = event;
 
-		const threadsForOwner = this.commentThreadsMap.get(owner);
-		if (!threadsForOwner) {
-			return false;
-		}
+		let threadsForOwner = this.commentThreadsMap.get(owner) || [];
 
 		removed.forEach(thread => {
 			// Find resource that has the comment thread
@@ -99,14 +96,20 @@ export class CommentsModel {
 
 			// Find comment node on resource that is that thread and replace it
 			const index = firstIndex(matchingResourceData.commentThreads, (commentThread) => commentThread.threadId === thread.threadId);
-			matchingResourceData.commentThreads[index] = ResourceWithCommentThreads.createCommentNode(URI.parse(matchingResourceData.id), thread);
+			if (index >= 0) {
+				matchingResourceData.commentThreads[index] = ResourceWithCommentThreads.createCommentNode(URI.parse(matchingResourceData.id), thread);
+			} else {
+				matchingResourceData.commentThreads.push(ResourceWithCommentThreads.createCommentNode(URI.parse(matchingResourceData.id), thread));
+			}
 		});
 
 		added.forEach(thread => {
 			const existingResource = threadsForOwner.filter(resourceWithThreads => resourceWithThreads.resource.toString() === thread.resource);
 			if (existingResource.length) {
 				const resource = existingResource[0];
-				resource.commentThreads.push(ResourceWithCommentThreads.createCommentNode(resource.resource, thread));
+				if (thread.comments.length) {
+					resource.commentThreads.push(ResourceWithCommentThreads.createCommentNode(resource.resource, thread));
+				}
 			} else {
 				threadsForOwner.push(new ResourceWithCommentThreads(URI.parse(thread.resource), [thread]));
 			}

@@ -38,10 +38,10 @@ export interface TaskFilter {
 }
 
 interface WorkspaceTaskResult {
-	set: TaskSet;
+	set: TaskSet | undefined;
 	configurations: {
 		byIdentifier: IStringDictionary<ConfiguringTask>;
-	};
+	} | undefined;
 	hasErrors: boolean;
 }
 
@@ -82,4 +82,6 @@ export interface ITaskService {
 	registerTaskProvider(taskProvider: ITaskProvider): IDisposable;
 
 	registerTaskSystem(scheme: string, taskSystemInfo: TaskSystemInfo): void;
+
+	extensionCallbackTaskComplete(task: Task, result: number | undefined): Promise<void>;
 }

@@ -102,8 +102,8 @@ export class DecorationSegment {
 
 class Stack {
 	public count: number;
-	private stopOffsets: number[];
-	private classNames: string[];
+	private readonly stopOffsets: number[];
+	private readonly classNames: string[];
 
 	constructor() {
 		this.stopOffsets = [];

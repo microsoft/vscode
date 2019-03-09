@@ -89,7 +89,7 @@ function _generateMarkdown(description: string | ICommandHandlerDescription): st
 	if (typeof description === 'string') {
 		return description;
 	} else {
-		let parts = [description.description];
+		const parts = [description.description];
 		parts.push('\n\n');
 		if (description.args) {
 			for (let arg of description.args) {

@@ -15,7 +15,7 @@ export class IPadShowKeyboard implements IEditorContribution {
 
 	private static readonly ID = 'editor.contrib.iPadShowKeyboard';
 
-	private editor: ICodeEditor;
+	private readonly editor: ICodeEditor;
 	private widget: ShowKeyboardWidget | null;
 	private toDispose: IDisposable[];
 
@@ -60,9 +60,9 @@ class ShowKeyboardWidget implements IOverlayWidget {
 
 	private static readonly ID = 'editor.contrib.ShowKeyboardWidget';
 
-	private editor: ICodeEditor;
+	private readonly editor: ICodeEditor;
 
-	private _domNode: HTMLElement;
+	private readonly _domNode: HTMLElement;
 	private _toDispose: IDisposable[];
 
 	constructor(editor: ICodeEditor) {

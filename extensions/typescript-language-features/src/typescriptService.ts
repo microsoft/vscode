@@ -110,6 +110,7 @@ export interface ITypeScriptServiceClient {
 	executeWithoutWaitingForResponse(command: 'open', args: Proto.OpenRequestArgs): void;
 	executeWithoutWaitingForResponse(command: 'close', args: Proto.FileRequestArgs): void;
 	executeWithoutWaitingForResponse(command: 'change', args: Proto.ChangeRequestArgs): void;
+	executeWithoutWaitingForResponse(command: 'updateOpen', args: Proto.UpdateOpenRequestArgs): void;
 	executeWithoutWaitingForResponse(command: 'compilerOptionsForInferredProjects', args: Proto.SetCompilerOptionsForInferredProjectsArgs): void;
 	executeWithoutWaitingForResponse(command: 'reloadProjects', args: null): void;
 

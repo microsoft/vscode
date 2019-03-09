@@ -15,9 +15,10 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { IIdentifiedSingleEditOperation, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { Choice, Placeholder, SnippetParser, Text, TextmateSnippet } from './snippetParser';
-import { ClipboardBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, SelectionBasedVariableResolver, TimeBasedVariableResolver, CommentBasedVariableResolver } from './snippetVariables';
+import { ClipboardBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, SelectionBasedVariableResolver, TimeBasedVariableResolver, CommentBasedVariableResolver, WorkspaceBasedVariableResolver } from './snippetVariables';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import * as colors from 'vs/platform/theme/common/colorRegistry';
 
@@ -196,10 +197,6 @@ export class OneSnippet {
 			let ranges: Range[] | undefined;
 
 			for (const placeholder of placeholdersWithEqualIndex) {
-				if (placeholder.isFinalTabstop) {
-					// ignore those
-					break;
-				}
 
 				if (!ranges) {
 					ranges = [];
@@ -354,6 +351,7 @@ export class SnippetSession {
 
 		const modelBasedVariableResolver = new ModelBasedVariableResolver(model);
 		const clipboardService = editor.invokeWithinContext(accessor => accessor.get(IClipboardService, optional));
+		const workspaceService = editor.invokeWithinContext(accessor => accessor.get(IWorkspaceContextService, optional));
 
 		let delta = 0;
 
@@ -409,7 +407,8 @@ export class SnippetSession {
 				new ClipboardBasedVariableResolver(clipboardService, idx, indexedSelections.length),
 				new SelectionBasedVariableResolver(model, selection),
 				new CommentBasedVariableResolver(model),
-				new TimeBasedVariableResolver
+				new TimeBasedVariableResolver,
+				new WorkspaceBasedVariableResolver(workspaceService),
 			]));
 
 			const offset = model.getOffsetAt(start) + delta;
@@ -568,6 +567,12 @@ export class SnippetSession {
 			if (allPossibleSelections.size === 0) {
 				// return false if we couldn't associate a selection to
 				// this (the first) snippet
+				return false;
+			}
+
+			if (allPossibleSelections.has(0)) {
+				// selection overlaps with a final tab stop which means
+				// we done
 				return false;
 			}
 

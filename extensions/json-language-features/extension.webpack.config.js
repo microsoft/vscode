@@ -9,6 +9,7 @@
 
 const withDefaults = require('../shared.webpack.config');
 const path = require('path');
+var webpack = require('webpack');
 
 module.exports = withDefaults({
 	context: path.join(__dirname, 'client'),
@@ -18,5 +19,9 @@ module.exports = withDefaults({
 	output: {
 		filename: 'jsonMain.js',
 		path: path.join(__dirname, 'client', 'dist')
-	}
+	},
+	plugins: [
+		new webpack.IgnorePlugin(/vertx/) // request-light dependendeny
+	]
+
 });

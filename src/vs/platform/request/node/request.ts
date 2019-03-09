@@ -58,6 +58,11 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 				],
 				default: 'override',
 				description: localize('proxySupport', "Use the proxy support for extensions.")
+			},
+			'http.systemCertificates': {
+				type: 'boolean',
+				default: true,
+				description: localize('systemCertificates', "Controls whether CA certificates should be loaded from the OS.")
 			}
 		}
 	});

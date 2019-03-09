@@ -26,7 +26,6 @@ import { BaseBinaryResourceEditor } from 'vs/workbench/browser/parts/editor/bina
 import { BinaryResourceDiffEditor } from 'vs/workbench/browser/parts/editor/binaryDiffEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
-import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { SUPPORTED_ENCODINGS, IFileService, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModeService, ILanguageSelection } from 'vs/editor/common/services/modeService';
@@ -40,7 +39,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { IConfigurationChangedEvent, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { deepClone } from 'vs/base/common/objects';
 import { ICodeEditor, isCodeEditor, isDiffEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Schemas } from 'vs/base/common/network';
@@ -293,7 +292,7 @@ export class EditorStatus implements IStatusbarItem {
 		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService,
 		@IModeService private readonly modeService: IModeService,
 		@ITextFileService private readonly textFileService: ITextFileService,
-		@IWorkspaceConfigurationService private readonly configurationService: IWorkspaceConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
@@ -845,7 +844,7 @@ export class ChangeModeAction extends Action {
 		@IModeService private readonly modeService: IModeService,
 		@IModelService private readonly modelService: IModelService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IWorkspaceConfigurationService private readonly configurationService: IWorkspaceConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,

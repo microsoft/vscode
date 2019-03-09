@@ -236,7 +236,7 @@ export namespace MarkdownString {
 		const resUris: { [href: string]: UriComponents } = Object.create(null);
 		res.uris = resUris;
 
-		let renderer = new marked.Renderer();
+		const renderer = new marked.Renderer();
 		renderer.image = renderer.link = (href: string): string => {
 			try {
 				let uri = URI.parse(href, true);
@@ -267,7 +267,7 @@ export namespace MarkdownString {
 		}
 		data = cloneAndChange(data, value => {
 			if (value instanceof URI) {
-				let key = `__uri_${Math.random().toString(16).slice(2, 8)}`;
+				const key = `__uri_${Math.random().toString(16).slice(2, 8)}`;
 				bucket[key] = value;
 				return key;
 			} else {
@@ -457,7 +457,7 @@ export namespace WorkspaceEdit {
 			const [uri, uriOrEdits] = entry;
 			if (Array.isArray(uriOrEdits)) {
 				// text edits
-				const doc = documents && uri ? documents.getDocument(uri.toString()) : undefined;
+				const doc = documents && uri ? documents.getDocument(uri) : undefined;
 				result.edits.push(<ResourceTextEditDto>{ resource: uri, modelVersionId: doc && doc.version, edits: uriOrEdits.map(TextEdit.from) });
 			} else {
 				// resource edits

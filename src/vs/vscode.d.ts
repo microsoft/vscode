@@ -1235,11 +1235,16 @@ declare module 'vscode' {
 		 * Create an URI from a string, e.g. `http://www.msft.com/some/path`,
 		 * `file:///usr/home`, or `scheme:with/path`.
 		 *
+		 * *Note* that for a while uris without a `scheme` were accepted. That is not correct
+		 * as all uris should have a scheme. To avoid breakage of existing code the optional
+		 * `strict`-argument has been added. We *strongly* advise to use it, e.g. `Uri.parse('my:uri', true)`
+		 *
 		 * @see [Uri.toString](#Uri.toString)
 		 * @param value The string value of an Uri.
+		 * @param strict Throw an error when `value` is empty or when no `scheme` can be parsed.
 		 * @return A new Uri instance.
 		 */
-		static parse(value: string): Uri;
+		static parse(value: string, strict?: boolean): Uri;
 
 		/**
 		 * Create an URI from a file system path. The [scheme](#Uri.scheme)
@@ -3701,7 +3706,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A line based folding range. To be valid, start and end line must a zero or larger and smaller than the number of lines in the document.
+	 * A line based folding range. To be valid, start and end line must be bigger than zero and smaller than the number of lines in the document.
 	 * Invalid ranges will be ignored.
 	 */
 	export class FoldingRange {

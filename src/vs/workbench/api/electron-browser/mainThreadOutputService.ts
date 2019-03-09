@@ -5,7 +5,7 @@
 
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IOutputService, IOutputChannel, OUTPUT_PANEL_ID, Extensions, IOutputChannelRegistry } from 'vs/workbench/contrib/output/common/output';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { MainThreadOutputServiceShape, MainContext, IExtHostContext, ExtHostOutputServiceShape, ExtHostContext } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
@@ -18,20 +18,20 @@ export class MainThreadOutputService extends Disposable implements MainThreadOut
 
 	private static _idPool = 1;
 
-	private _proxy: ExtHostOutputServiceShape;
+	private readonly _proxy: ExtHostOutputServiceShape;
 	private readonly _outputService: IOutputService;
-	private readonly _partService: IPartService;
+	private readonly _layoutService: IWorkbenchLayoutService;
 	private readonly _panelService: IPanelService;
 
 	constructor(
 		extHostContext: IExtHostContext,
 		@IOutputService outputService: IOutputService,
-		@IPartService partService: IPartService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IPanelService panelService: IPanelService
 	) {
 		super();
 		this._outputService = outputService;
-		this._partService = partService;
+		this._layoutService = layoutService;
 		this._panelService = panelService;
 
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostOutputService);
@@ -86,8 +86,11 @@ export class MainThreadOutputService extends Disposable implements MainThreadOut
 
 	public $close(channelId: string): Promise<void> | undefined {
 		const panel = this._panelService.getActivePanel();
-		if (panel && panel.getId() === OUTPUT_PANEL_ID && channelId === this._outputService.getActiveChannel().id) {
-			this._partService.setPanelHidden(true);
+		if (panel && panel.getId() === OUTPUT_PANEL_ID) {
+			const activeChannel = this._outputService.getActiveChannel();
+			if (activeChannel && channelId === activeChannel.id) {
+				this._layoutService.setPanelHidden(true);
+			}
 		}
 
 		return undefined;
@@ -101,7 +104,7 @@ export class MainThreadOutputService extends Disposable implements MainThreadOut
 		return undefined;
 	}
 
-	private _getChannel(channelId: string): IOutputChannel {
+	private _getChannel(channelId: string): IOutputChannel | null {
 		return this._outputService.getChannel(channelId);
 	}
 }

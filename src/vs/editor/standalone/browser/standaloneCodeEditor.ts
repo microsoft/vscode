@@ -153,7 +153,7 @@ function createAriaDomNode() {
  */
 export class StandaloneCodeEditor extends CodeEditorWidget implements IStandaloneCodeEditor {
 
-	private _standaloneKeybindingService: StandaloneKeybindingService;
+	private readonly _standaloneKeybindingService: StandaloneKeybindingService;
 
 	constructor(
 		domElement: HTMLElement,
@@ -280,7 +280,7 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 
 export class StandaloneEditor extends StandaloneCodeEditor implements IStandaloneCodeEditor {
 
-	private _contextViewService: ContextViewService;
+	private readonly _contextViewService: ContextViewService;
 	private readonly _configurationService: IConfigurationService;
 	private _ownsModel: boolean;
 
@@ -358,7 +358,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 
 export class StandaloneDiffEditor extends DiffEditorWidget implements IStandaloneDiffEditor {
 
-	private _contextViewService: ContextViewService;
+	private readonly _contextViewService: ContextViewService;
 	private readonly _configurationService: IConfigurationService;
 
 	constructor(

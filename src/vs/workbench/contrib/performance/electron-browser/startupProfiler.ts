@@ -16,6 +16,7 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { PerfviewInput } from 'vs/workbench/contrib/performance/electron-browser/perfviewEditor';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { URI } from 'vs/base/common/uri';
 
 export class StartupProfiler implements IWorkbenchContribution {
 
@@ -78,7 +79,7 @@ export class StartupProfiler implements IWorkbenchContribution {
 			}).then(res => {
 				if (res.confirmed) {
 					Promise.all<any>([
-						this._windowsService.showItemInFolder(join(dir, files[0])),
+						this._windowsService.showItemInFolder(URI.file(join(dir, files[0]))),
 						this._createPerfIssue(files)
 					]).then(() => {
 						// keep window stable until restart is selected
@@ -87,7 +88,7 @@ export class StartupProfiler implements IWorkbenchContribution {
 							message: localize('prof.thanks', "Thanks for helping us."),
 							detail: localize('prof.detail.restart', "A final restart is required to continue to use '{0}'. Again, thank you for your contribution.", this._environmentService.appNameLong),
 							primaryButton: localize('prof.restart', "Restart"),
-							secondaryButton: null
+							secondaryButton: undefined
 						}).then(() => {
 							// now we are ready to restart
 							this._windowsService.relaunch({ removeArgs });

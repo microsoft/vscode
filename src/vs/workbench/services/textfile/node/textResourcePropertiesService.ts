@@ -11,6 +11,7 @@ import { IRemoteAgentService, IRemoteAgentEnvironment } from 'vs/workbench/servi
 import { Schemas } from 'vs/base/common/network';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IWindowService } from 'vs/platform/windows/common/windows';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class TextResourcePropertiesService implements ITextResourcePropertiesService {
 
@@ -45,11 +46,12 @@ export class TextResourcePropertiesService implements ITextResourcePropertiesSer
 		if (remoteAuthority) {
 			if (resource.scheme !== Schemas.file) {
 				const osCacheKey = `resource.authority.os.${remoteAuthority}`;
-				os = this.remoteEnvironment ? this.remoteEnvironment.os : /* Get it from cache */ this.storageService.getInteger(osCacheKey, StorageScope.WORKSPACE, OS);
+				os = this.remoteEnvironment ? this.remoteEnvironment.os : /* Get it from cache */ this.storageService.getNumber(osCacheKey, StorageScope.WORKSPACE, OS);
 				this.storageService.store(osCacheKey, os, StorageScope.WORKSPACE);
 			}
 		}
 		return os;
 	}
-
 }
+
+registerSingleton(ITextResourcePropertiesService, TextResourcePropertiesService, true);

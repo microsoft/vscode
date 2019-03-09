@@ -76,7 +76,7 @@ class AlternativeKeyEmitter extends Emitter<boolean> {
 	}
 }
 
-export function fillInContextMenuActions(menu: IMenu, options: IMenuActionOptions, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, contextMenuService: IContextMenuService, isPrimaryGroup?: (group: string) => boolean): void {
+export function fillInContextMenuActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, contextMenuService: IContextMenuService, isPrimaryGroup?: (group: string) => boolean): void {
 	const groups = menu.getActions(options);
 	const getAlternativeActions = AlternativeKeyEmitter.getInstance(contextMenuService).isPressed;
 

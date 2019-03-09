@@ -31,8 +31,8 @@ class InspectTokensController extends Disposable implements IEditorContribution 
 		return editor.getContribution<InspectTokensController>(InspectTokensController.ID);
 	}
 
-	private _editor: ICodeEditor;
-	private _modeService: IModeService;
+	private readonly _editor: ICodeEditor;
+	private readonly _modeService: IModeService;
 	private _widget: InspectTokensWidget | null;
 
 	constructor(
@@ -162,11 +162,11 @@ class InspectTokensWidget extends Disposable implements IContentWidget {
 	// Editor.IContentWidget.allowEditorOverflow
 	public allowEditorOverflow = true;
 
-	private _editor: IActiveCodeEditor;
-	private _modeService: IModeService;
-	private _tokenizationSupport: ITokenizationSupport;
-	private _model: ITextModel;
-	private _domNode: HTMLElement;
+	private readonly _editor: IActiveCodeEditor;
+	private readonly _modeService: IModeService;
+	private readonly _tokenizationSupport: ITokenizationSupport;
+	private readonly _model: ITextModel;
+	private readonly _domNode: HTMLElement;
 
 	constructor(
 		editor: IActiveCodeEditor,

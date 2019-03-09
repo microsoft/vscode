@@ -112,7 +112,7 @@ export interface IExpression extends IReplElement, IExpressionContainer {
 export interface IDebugger {
 	createDebugAdapter(session: IDebugSession, outputService: IOutputService): Promise<IDebugAdapter>;
 	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): Promise<number | undefined>;
-	getCustomTelemetryService(): Promise<TelemetryService>;
+	getCustomTelemetryService(): Promise<TelemetryService | undefined>;
 }
 
 export const enum State {
@@ -152,7 +152,7 @@ export interface IDebugSession extends ITreeElement {
 	getLabel(): string;
 
 	getSourceForUri(modelUri: uri): Source;
-	getSource(raw: DebugProtocol.Source): Source;
+	getSource(raw?: DebugProtocol.Source): Source;
 
 	setConfiguration(configuration: { resolved: IConfig, unresolved: IConfig }): void;
 	rawUpdate(data: IRawModelUpdate): void;
@@ -199,7 +199,7 @@ export interface IDebugSession extends ITreeElement {
 	stackTrace(threadId: number, startFrame: number, levels: number): Promise<DebugProtocol.StackTraceResponse>;
 	exceptionInfo(threadId: number): Promise<IExceptionInfo>;
 	scopes(frameId: number): Promise<DebugProtocol.ScopesResponse>;
-	variables(variablesReference: number, filter: 'indexed' | 'named', start: number, count: number): Promise<DebugProtocol.VariablesResponse>;
+	variables(variablesReference: number | undefined, filter: 'indexed' | 'named' | undefined, start: number | undefined, count: number | undefined): Promise<DebugProtocol.VariablesResponse>;
 	evaluate(expression: string, frameId?: number, context?: string): Promise<DebugProtocol.EvaluateResponse>;
 	customRequest(request: string, args: any): Promise<DebugProtocol.Response>;
 
@@ -214,7 +214,7 @@ export interface IDebugSession extends ITreeElement {
 	terminateThreads(threadIds: number[]): Promise<void>;
 
 	completions(frameId: number, text: string, position: Position, overwriteBefore: number): Promise<CompletionItem[]>;
-	setVariable(variablesReference: number, name: string, value: string): Promise<DebugProtocol.SetVariableResponse>;
+	setVariable(variablesReference: number | undefined, name: string, value: string): Promise<DebugProtocol.SetVariableResponse>;
 	loadSource(resource: uri): Promise<DebugProtocol.SourceResponse>;
 	getLoadedSources(): Promise<Source[]>;
 }
@@ -245,6 +245,8 @@ export interface IThread extends ITreeElement {
 	 * Information about the exception if an 'exception' stopped event raised and DA supports the 'exceptionInfo' request, otherwise null.
 	 */
 	readonly exceptionInfo: Promise<IExceptionInfo | null>;
+
+	readonly stateLabel: string;
 
 	/**
 	 * Gets the callstack if it has already been received from the debug
@@ -282,7 +284,7 @@ export interface IScope extends IExpressionContainer {
 export interface IStackFrame extends ITreeElement {
 	readonly thread: IThread;
 	readonly name: string;
-	readonly presentationHint: string;
+	readonly presentationHint: string | undefined;
 	readonly frameId: number;
 	readonly range: IRange;
 	readonly source: Source;
@@ -317,9 +319,9 @@ export interface IBreakpointUpdateData {
 }
 
 export interface IBaseBreakpoint extends IEnablement {
-	readonly condition: string;
-	readonly hitCondition: string;
-	readonly logMessage: string;
+	readonly condition?: string;
+	readonly hitCondition?: string;
+	readonly logMessage?: string;
 	readonly verified: boolean;
 	readonly idFromAdapter: number | undefined;
 }
@@ -328,7 +330,7 @@ export interface IBreakpoint extends IBaseBreakpoint {
 	readonly uri: uri;
 	readonly lineNumber: number;
 	readonly endLineNumber?: number;
-	readonly column: number;
+	readonly column?: number;
 	readonly endColumn?: number;
 	readonly message?: string;
 	readonly adapterData: any;
@@ -354,30 +356,30 @@ export interface IExceptionInfo {
 
 export interface IViewModel extends ITreeElement {
 	/**
-	 * Returns the focused debug session or null if no session is stopped.
+	 * Returns the focused debug session or undefined if no session is stopped.
 	 */
-	readonly focusedSession: IDebugSession;
+	readonly focusedSession: IDebugSession | undefined;
 
 	/**
-	 * Returns the focused thread or null if no thread is stopped.
+	 * Returns the focused thread or undefined if no thread is stopped.
 	 */
-	readonly focusedThread: IThread;
+	readonly focusedThread: IThread | undefined;
 
 	/**
-	 * Returns the focused stack frame or null if there are no stack frames.
+	 * Returns the focused stack frame or undefined if there are no stack frames.
 	 */
-	readonly focusedStackFrame: IStackFrame;
+	readonly focusedStackFrame: IStackFrame | undefined;
 
-	getSelectedExpression(): IExpression;
-	getSelectedFunctionBreakpoint(): IFunctionBreakpoint;
-	setSelectedExpression(expression: IExpression): void;
-	setSelectedFunctionBreakpoint(functionBreakpoint: IFunctionBreakpoint): void;
+	getSelectedExpression(): IExpression | undefined;
+	getSelectedFunctionBreakpoint(): IFunctionBreakpoint | undefined;
+	setSelectedExpression(expression: IExpression | undefined): void;
+	setSelectedFunctionBreakpoint(functionBreakpoint: IFunctionBreakpoint | undefined): void;
 
 	isMultiSessionView(): boolean;
 
 	onDidFocusSession: Event<IDebugSession | undefined>;
-	onDidFocusStackFrame: Event<{ stackFrame: IStackFrame, explicit: boolean }>;
-	onDidSelectExpression: Event<IExpression>;
+	onDidFocusStackFrame: Event<{ stackFrame: IStackFrame | undefined, explicit: boolean }>;
+	onDidSelectExpression: Event<IExpression | undefined>;
 }
 
 export interface IEvaluate {
@@ -392,7 +394,7 @@ export interface IDebugModel extends ITreeElement {
 	getExceptionBreakpoints(): ReadonlyArray<IExceptionBreakpoint>;
 	getWatchExpressions(): ReadonlyArray<IExpression & IEvaluate>;
 
-	onDidChangeBreakpoints: Event<IBreakpointsChangeEvent>;
+	onDidChangeBreakpoints: Event<IBreakpointsChangeEvent | undefined>;
 	onDidChangeCallStack: Event<void>;
 	onDidChangeWatchExpressions: Event<IExpression | undefined>;
 }
@@ -514,7 +516,7 @@ export interface IPlatformSpecificAdapterContribution {
 }
 
 export interface IDebuggerContribution extends IPlatformSpecificAdapterContribution {
-	type?: string;
+	type: string;
 	label?: string;
 	// debug adapter executable
 	adapterExecutableCommand?: string;
@@ -583,11 +585,11 @@ export interface IConfigurationManager {
 	 * Returns an object containing the selected launch configuration and the selected configuration name. Both these fields can be null (no folder workspace).
 	 */
 	readonly selectedConfiguration: {
-		launch: ILaunch;
-		name: string;
+		launch: ILaunch | undefined;
+		name: string | undefined;
 	};
 
-	selectConfiguration(launch: ILaunch, name?: string, debugStarted?: boolean): void;
+	selectConfiguration(launch: ILaunch | undefined, name?: string, debugStarted?: boolean): void;
 
 	getLaunches(): ReadonlyArray<ILaunch>;
 
@@ -708,7 +710,7 @@ export interface IDebugService {
 	/**
 	 * Sets the focused stack frame and evaluates all expressions against the newly focused stack frame,
 	 */
-	focusStackFrame(focusedStackFrame: IStackFrame, thread?: IThread, session?: IDebugSession, explicit?: boolean): void;
+	focusStackFrame(focusedStackFrame: IStackFrame | undefined, thread?: IThread, session?: IDebugSession, explicit?: boolean): void;
 
 	/**
 	 * Adds new breakpoints to the model for the file specified with the uri. Notifies debug adapter of breakpoint changes.
@@ -799,7 +801,7 @@ export interface IDebugService {
 	/**
 	 * Stops the session. If the session does not exist then stops all sessions.
 	 */
-	stopSession(session: IDebugSession): Promise<any>;
+	stopSession(session: IDebugSession | undefined): Promise<any>;
 
 	/**
 	 * Makes unavailable all sources with the passed uri. Source will appear as grayed out in callstack view.
@@ -826,7 +828,7 @@ export const enum BreakpointWidgetContext {
 
 export interface IDebugEditorContribution extends IEditorContribution {
 	showHover(range: Range, focus: boolean): Promise<void>;
-	showBreakpointWidget(lineNumber: number, column: number, context?: BreakpointWidgetContext): void;
+	showBreakpointWidget(lineNumber: number, column: number | undefined, context?: BreakpointWidgetContext): void;
 	closeBreakpointWidget(): void;
 	addLaunchConfiguration(): Promise<any>;
 }

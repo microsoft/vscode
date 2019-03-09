@@ -69,14 +69,14 @@ const RESEARCH_DELAY = 240;
 
 export class FindModelBoundToEditorModel {
 
-	private _editor: IActiveCodeEditor;
-	private _state: FindReplaceState;
+	private readonly _editor: IActiveCodeEditor;
+	private readonly _state: FindReplaceState;
 	private _toDispose: IDisposable[];
-	private _decorations: FindDecorations;
+	private readonly _decorations: FindDecorations;
 	private _ignoreModelContentChanged: boolean;
-	private _startSearchingTimer: TimeoutTimer;
+	private readonly _startSearchingTimer: TimeoutTimer;
 
-	private _updateDecorationsScheduler: RunOnceScheduler;
+	private readonly _updateDecorationsScheduler: RunOnceScheduler;
 	private _isDisposed: boolean;
 
 	constructor(editor: IActiveCodeEditor, state: FindReplaceState) {

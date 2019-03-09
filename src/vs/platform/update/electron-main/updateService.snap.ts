@@ -190,7 +190,7 @@ export class SnapUpdateService extends AbstractUpdateService2 {
 		this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
 
 		// Allow 3 seconds for VS Code to close
-		spawn('sleep 3 && $SNAP_NAME', {
+		spawn('sleep 3 && ' + path.basename(process.argv[0]), {
 			shell: true,
 			detached: true,
 			stdio: 'ignore',

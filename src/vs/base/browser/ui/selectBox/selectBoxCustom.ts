@@ -419,6 +419,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 	// ContextView dropdown methods
 
 	private showSelectDropDown() {
+		this.selectionDetailsPane.innerText = '';
 
 		if (!this.contextViewProvider || this._isVisible) {
 			return;
@@ -568,7 +569,8 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 
 			this.selectDropDownContainer.style.width = selectOptimalWidth;
 
-			// Get initial list height and determine space ab1you knowove and below
+			// Get initial list height and determine space above and below
+			this.selectList.getHTMLElement().style.height = '';
 			this.selectList.layout();
 			let listHeight = this.selectList.contentHeight;
 
@@ -667,6 +669,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 			if (this._hasDetails) {
 				// Leave the selectDropDownContainer to size itself according to children (list + details) - #57447
 				this.selectList.getHTMLElement().style.height = (listHeight + verticalPadding) + 'px';
+				this.selectDropDownContainer.style.height = '';
 			} else {
 				this.selectDropDownContainer.style.height = (listHeight + verticalPadding) + 'px';
 			}

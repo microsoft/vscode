@@ -1422,6 +1422,8 @@ export class TreeView extends HeightMap {
 	}
 
 	private onDragOver(e: DragEvent): boolean {
+		e.preventDefault(); // needed so that the drop event fires (https://stackoverflow.com/questions/21339924/drop-event-not-firing-in-chrome)
+
 		let event = new Mouse.DragMouseEvent(e);
 
 		let viewItem = this.getItemAround(event.target);
