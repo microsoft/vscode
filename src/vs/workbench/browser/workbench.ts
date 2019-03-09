@@ -61,6 +61,7 @@ import { Part } from 'vs/workbench/browser/part';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 import { coalesce } from 'vs/base/common/arrays';
+import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 
 export interface IWorkbenchOptions {
 	hasInitialFilesToOpen: boolean;
@@ -107,20 +108,17 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 	private restored: boolean;
 
-	private instantiationService: IInstantiationService;
 	private configurationService: IConfigurationService;
 
 	constructor(
 		private parent: HTMLElement,
 		private options: IWorkbenchOptions,
 		private serviceCollection: ServiceCollection,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@ILogService logService: ILogService
+		configurationService: IConfigurationService,
+		logService: ILogService
 	) {
 		super();
 
-		this.instantiationService = instantiationService;
 		this.configurationService = configurationService;
 
 		this.registerErrorHandler(logService);
@@ -169,9 +167,55 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		logService.error(errorMsg);
 	}
 
-	startup(): void {
+	startup(): IInstantiationService {
 		try {
-			this.doStartup().then(undefined, error => onUnexpectedError(error));
+
+			// Configure emitter leak warning threshold
+			setGlobalLeakWarningThreshold(175);
+
+			// Setup Intl for comparers
+			setFileNameComparer(new IdleValue(() => {
+				const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+				return {
+					collator: collator,
+					collatorIsNumeric: collator.resolvedOptions().numeric
+				};
+			}));
+
+			// ARIA
+			setARIAContainer(document.body);
+
+			// Services
+			const instantiationService = this.initServices(this.serviceCollection);
+
+			instantiationService.invokeFunction(accessor => {
+
+				// Layout
+				this.initLayout(accessor);
+
+				// Registries
+				this.initRegistries(accessor);
+
+				// Context Keys
+				this._register(instantiationService.createInstance(WorkbenchContextKeysHandler));
+
+				// Register Listeners
+				this.registerListeners(accessor.get(ILifecycleService), accessor.get(IStorageService), accessor.get(IConfigurationService));
+
+				// Render Workbench
+				this.renderWorkbench(instantiationService, accessor.get(INotificationService) as NotificationService, accessor.get(IStorageService), accessor.get(IConfigurationService));
+
+				// Workbench Layout
+				this.createWorkbenchLayout(instantiationService);
+
+				// Layout
+				this.layout();
+
+				// Restore
+				this.restoreWorkbench(accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IViewletService), accessor.get(IPanelService), accessor.get(ILogService), accessor.get(ILifecycleService)).then(undefined, error => onUnexpectedError(error));
+			});
+
+			return instantiationService;
 		} catch (error) {
 			onUnexpectedError(error);
 
@@ -179,55 +223,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		}
 	}
 
-	private doStartup(): Promise<void> {
-
-		// Configure emitter leak warning threshold
-		setGlobalLeakWarningThreshold(175);
-
-		// Setup Intl for comparers
-		setFileNameComparer(new IdleValue(() => {
-			const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
-			return {
-				collator: collator,
-				collatorIsNumeric: collator.resolvedOptions().numeric
-			};
-		}));
-
-		// ARIA
-		setARIAContainer(document.body);
-
-		// Services
-		this.initServices(this.serviceCollection);
-
-		return this.instantiationService.invokeFunction(accessor => {
-
-			// Layout
-			this.initLayout(accessor);
-
-			// Registries
-			this.initRegistries(accessor);
-
-			// Context Keys
-			this._register(this.instantiationService.createInstance(WorkbenchContextKeysHandler));
-
-			// Register Listeners
-			this.registerListeners(accessor.get(ILifecycleService), accessor.get(IStorageService), accessor.get(IConfigurationService));
-
-			// Render Workbench
-			this.renderWorkbench(accessor.get(INotificationService) as NotificationService, accessor.get(IStorageService), accessor.get(IConfigurationService));
-
-			// Workbench Layout
-			this.createWorkbenchLayout();
-
-			// Layout
-			this.layout();
-
-			// Restore
-			return this.restoreWorkbench(accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IViewletService), accessor.get(IPanelService), accessor.get(ILogService), accessor.get(ILifecycleService));
-		});
-	}
-
-	private initServices(serviceCollection: ServiceCollection): void {
+	private initServices(serviceCollection: ServiceCollection): IInstantiationService {
 
 		// Layout Service
 		serviceCollection.set(IWorkbenchLayoutService, this);
@@ -238,8 +234,10 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			serviceCollection.set(contributedService.id, contributedService.descriptor);
 		}
 
+		const instantationServie = new InstantiationService(serviceCollection, true);
+
 		// Wrap up
-		this.instantiationService.invokeFunction(accessor => {
+		instantationServie.invokeFunction(accessor => {
 			const lifecycleService = accessor.get(ILifecycleService);
 
 			// TODO@Ben TODO@Sandeep TODO@Martin debt around cyclic dependencies
@@ -263,6 +261,8 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			// Signal to lifecycle that services are set
 			lifecycleService.phase = LifecyclePhase.Ready;
 		});
+
+		return instantationServie;
 	}
 
 	private initRegistries(accessor: ServicesAccessor): void {
@@ -310,7 +310,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		}
 	}
 
-	private renderWorkbench(notificationService: NotificationService, storageService: IStorageService, configurationService: IConfigurationService): void {
+	private renderWorkbench(instantiationService: IInstantiationService, notificationService: NotificationService, storageService: IStorageService, configurationService: IConfigurationService): void {
 
 		// State specific classes
 		const platformClass = isWindows ? 'windows' : isLinux ? 'linux' : 'mac';
@@ -347,7 +347,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		});
 
 		// Notification Handlers
-		this.createNotificationsHandlers(notificationService);
+		this.createNotificationsHandlers(instantiationService, notificationService);
 
 		// Add Workbench to DOM
 		this.parent.appendChild(this.workbench);
@@ -368,13 +368,13 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		return part;
 	}
 
-	private createNotificationsHandlers(notificationService: NotificationService): void {
+	private createNotificationsHandlers(instantiationService: IInstantiationService, notificationService: NotificationService): void {
 
 		// Instantiate Notification components
-		const notificationsCenter = this._register(this.instantiationService.createInstance(NotificationsCenter, this.workbench, notificationService.model));
-		const notificationsToasts = this._register(this.instantiationService.createInstance(NotificationsToasts, this.workbench, notificationService.model));
-		this._register(this.instantiationService.createInstance(NotificationsAlerts, notificationService.model));
-		const notificationsStatus = this.instantiationService.createInstance(NotificationsStatus, notificationService.model);
+		const notificationsCenter = this._register(instantiationService.createInstance(NotificationsCenter, this.workbench, notificationService.model));
+		const notificationsToasts = this._register(instantiationService.createInstance(NotificationsToasts, this.workbench, notificationService.model));
+		this._register(instantiationService.createInstance(NotificationsAlerts, notificationService.model));
+		const notificationsStatus = instantiationService.createInstance(NotificationsStatus, notificationService.model);
 
 		// Visibility
 		this._register(notificationsCenter.onDidChangeVisibility(() => {
@@ -510,7 +510,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 	private titleService: ITitleService;
 	private viewletService: IViewletService;
 	private contextService: IWorkspaceContextService;
-	private lifecycleService: ILifecycleService;
 	private backupFileService: IBackupFileService;
 
 	private readonly state = {
@@ -566,7 +565,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 		// Services
 		this.environmentService = accessor.get(IEnvironmentService);
-		this.lifecycleService = accessor.get(ILifecycleService);
 		this.windowService = accessor.get(IWindowService);
 		this.contextService = accessor.get(IWorkspaceContextService);
 		this.storageService = accessor.get(IStorageService);
@@ -584,7 +582,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		this.registerLayoutListeners();
 
 		// State
-		this.initLayoutState();
+		this.initLayoutState(accessor.get(ILifecycleService));
 	}
 
 	private registerLayoutListeners(): void {
@@ -721,7 +719,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		}
 	}
 
-	private initLayoutState(): void {
+	private initLayoutState(lifecycleService: ILifecycleService): void {
 
 		// Fullscreen
 		this.state.fullscreen = isFullscreen();
@@ -743,7 +741,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 			// Only restore last viewlet if window was reloaded or we are in development mode
 			let viewletToRestore: string;
-			if (!this.environmentService.isBuilt || this.lifecycleService.startupKind === StartupKind.ReloadedWindow) {
+			if (!this.environmentService.isBuilt || lifecycleService.startupKind === StartupKind.ReloadedWindow) {
 				viewletToRestore = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE, this.viewletService.getDefaultViewletId());
 			} else {
 				viewletToRestore = this.viewletService.getDefaultViewletId();
@@ -1065,7 +1063,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		}
 	}
 
-	private createWorkbenchLayout(): void {
+	private createWorkbenchLayout(instantiationService: IInstantiationService): void {
 		const titleBar = this.parts.get(Parts.TITLEBAR_PART);
 		const editorPart = this.parts.get(Parts.EDITOR_PART);
 		const activityBar = this.parts.get(Parts.ACTIVITYBAR_PART);
@@ -1087,7 +1085,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 			this.workbench.prepend(this.workbenchGrid.element);
 		} else {
-			this.workbenchGrid = this.instantiationService.createInstance(
+			this.workbenchGrid = instantiationService.createInstance(
 				WorkbenchLegacyLayout,
 				this.parent,
 				this.workbench,

@@ -19,7 +19,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { SimpleConfigurationService, SimpleEnvironmentService, SimpleWindowsService, SimpleWindowService, SimpleUpdateService, SimpleURLService, SimpleMenubarService, SimpleLogService, SimpleWorkspaceService, SimpleStorageService, SimpleWorkspacesService } from 'vs/workbench/browser/nodeless.simpleservices';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { Workbench, IWorkbenchOptions } from 'vs/workbench/browser/workbench';
 
 class CodeRendererMain extends Disposable {
@@ -32,14 +31,13 @@ class CodeRendererMain extends Disposable {
 		return domContentLoaded().then(() => {
 			mark('willStartWorkbench');
 
-			const instantiationService = new InstantiationService(services, true);
-
 			// Create Workbench
-			this.workbench = instantiationService.createInstance(
-				Workbench,
+			this.workbench = new Workbench(
 				document.body,
 				{ hasInitialFilesToOpen: false } as IWorkbenchOptions,
-				services
+				services.serviceCollection,
+				services.configurationService,
+				services.logService
 			);
 
 			// Layout
@@ -53,7 +51,7 @@ class CodeRendererMain extends Disposable {
 		});
 	}
 
-	private initServices(): ServiceCollection {
+	private initServices(): { serviceCollection: ServiceCollection, configurationService: IConfigurationService, logService: ILogService } {
 		const serviceCollection = new ServiceCollection();
 
 		serviceCollection.set(IWindowsService, new SyncDescriptor(SimpleWindowsService));
@@ -63,12 +61,16 @@ class CodeRendererMain extends Disposable {
 		serviceCollection.set(IMenubarService, new SyncDescriptor(SimpleMenubarService));
 		serviceCollection.set(IWorkspacesService, new SyncDescriptor(SimpleWorkspacesService));
 		serviceCollection.set(IEnvironmentService, new SyncDescriptor(SimpleEnvironmentService));
-		serviceCollection.set(ILogService, new SyncDescriptor(SimpleLogService));
 		serviceCollection.set(IWorkspaceContextService, new SyncDescriptor(SimpleWorkspaceService));
 		serviceCollection.set(IStorageService, new SyncDescriptor(SimpleStorageService));
-		serviceCollection.set(IConfigurationService, new SyncDescriptor(SimpleConfigurationService));
 
-		return serviceCollection;
+		const logService = new SimpleLogService();
+		serviceCollection.set(ILogService, logService);
+
+		const configurationService = new SimpleConfigurationService();
+		serviceCollection.set(IConfigurationService, configurationService);
+
+		return { serviceCollection, configurationService, logService };
 	}
 }
 

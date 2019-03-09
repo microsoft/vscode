@@ -48,7 +48,6 @@ import { GlobalStorageDatabaseChannelClient } from 'vs/platform/storage/node/sto
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { registerWindowDriver } from 'vs/platform/driver/electron-browser/driver';
 
@@ -117,14 +116,13 @@ class CodeRendererMain extends Disposable {
 			return domContentLoaded().then(() => {
 				mark('willStartWorkbench');
 
-				const instantiationService = new InstantiationService(services, true);
-
 				// Create Workbench
-				this.workbench = instantiationService.createInstance(
-					Workbench,
+				this.workbench = new Workbench(
 					document.body,
 					{ hasInitialFilesToOpen: this.hasInitialFilesToOpen() } as IWorkbenchOptions,
-					services
+					services.serviceCollection,
+					services.configurationService,
+					services.logService
 				);
 
 				// Layout
@@ -132,10 +130,10 @@ class CodeRendererMain extends Disposable {
 
 				// Workbench Lifecycle
 				this._register(this.workbench.onShutdown(() => this.dispose()));
-				this._register(this.workbench.onWillShutdown(event => event.join((services.get(IStorageService) as StorageService).close())));
+				this._register(this.workbench.onWillShutdown(event => event.join(services.storageService.close())));
 
 				// Startup
-				this.workbench.startup();
+				const instantiationService = this.workbench.startup();
 
 				// Window
 				this._register(instantiationService.createInstance(ElectronWindow));
@@ -174,7 +172,7 @@ class CodeRendererMain extends Disposable {
 		}
 	}
 
-	private initServices(electronMainClient: ElectronIPCClient): Promise<ServiceCollection> {
+	private initServices(electronMainClient: ElectronIPCClient): Promise<{ serviceCollection: ServiceCollection, logService: ILogService, configurationService: IConfigurationService, storageService: StorageService }> {
 		const serviceCollection = new ServiceCollection();
 
 		// Windows Service
@@ -233,7 +231,7 @@ class CodeRendererMain extends Disposable {
 				serviceCollection.set(IConfigurationService, services[0]);
 				serviceCollection.set(IStorageService, services[1]);
 
-				return serviceCollection;
+				return { serviceCollection, logService, configurationService: services[0], storageService: services[1] };
 			});
 		});
 	}
