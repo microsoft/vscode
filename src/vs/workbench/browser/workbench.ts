@@ -220,32 +220,33 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		// Services
 		this.initServices(this.serviceCollection);
 
-		// Registries
-		this.startRegistries();
+		return this.instantiationService.invokeFunction(accessor => {
 
-		// Context Keys
-		this._register(this.instantiationService.createInstance(WorkbenchContextKeysHandler));
+			// Registries
+			this.startRegistries(accessor);
 
-		// Register Listeners
-		this.instantiationService.invokeFunction(accessor => {
-			this.registerListeners(accessor);
+			// Context Keys
+			this._register(this.instantiationService.createInstance(WorkbenchContextKeysHandler));
+
+			// Register Listeners
+			this.registerListeners(accessor.get(ILifecycleService), accessor.get(IStorageService), accessor.get(IConfigurationService));
 			this.registerLayoutListeners(accessor);
+
+			// Layout State
+			this.initLayoutState(accessor);
+
+			// Render Workbench
+			this.renderWorkbench(accessor.get(INotificationService) as NotificationService);
+
+			// Workbench Layout
+			this.createWorkbenchLayout();
+
+			// Layout
+			this.layout();
+
+			// Restore
+			return this.restoreWorkbench(accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IViewletService), accessor.get(IPanelService), accessor.get(ILogService), accessor.get(ILifecycleService));
 		});
-
-		// Layout State
-		this.instantiationService.invokeFunction(accessor => this.initLayoutState(accessor));
-
-		// Render Workbench
-		this.renderWorkbench();
-
-		// Workbench Layout
-		this.createWorkbenchLayout();
-
-		// Layout
-		this.layout();
-
-		// Restore
-		return this.instantiationService.invokeFunction(accessor => this.restoreWorkbench(accessor));
 	}
 
 	private createWorkbenchContainer(): void {
@@ -270,10 +271,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 		// Wrap up
 		this.instantiationService.invokeFunction(accessor => {
-
-			// Signal to lifecycle that services are set
 			const lifecycleService = accessor.get(ILifecycleService);
-			lifecycleService.phase = LifecyclePhase.Ready;
 
 			// TODO@Ben TODO@Sandeep TODO@Martin debt around cyclic dependencies
 			const fileService = accessor.get(IFileService);
@@ -292,21 +290,23 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			if (typeof themeService.acquireFileService === 'function') {
 				themeService.acquireFileService(fileService);
 			}
+
+			// Signal to lifecycle that services are set
+			lifecycleService.phase = LifecyclePhase.Ready;
 		});
 	}
 
-	private startRegistries(): void {
-		this.instantiationService.invokeFunction(accessor => {
-			Registry.as<IActionBarRegistry>(ActionBarExtensions.Actionbar).start(accessor);
-			Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).start(accessor);
-			Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).start(accessor);
-		});
+	private startRegistries(accessor: ServicesAccessor): void {
+		Registry.as<IActionBarRegistry>(ActionBarExtensions.Actionbar).start(accessor);
+		Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).start(accessor);
+		Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).start(accessor);
 	}
 
-	private registerListeners(accessor: ServicesAccessor): void {
-		const lifecycleService = accessor.get(ILifecycleService);
-		const storageService = accessor.get(IStorageService);
-		const configurationService = accessor.get(IConfigurationService);
+	private registerListeners(
+		lifecycleService: ILifecycleService,
+		storageService: IStorageService,
+		configurationService: IConfigurationService
+	): void {
 
 		// Lifecycle
 		this._register(lifecycleService.onWillShutdown(event => this._onWillShutdown.fire(event)));
@@ -341,7 +341,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		}
 	}
 
-	private renderWorkbench(): void {
+	private renderWorkbench(notificationService: NotificationService): void {
 		if (this.state.sideBar.hidden) {
 			addClass(this.workbench, 'nosidebar');
 		}
@@ -370,7 +370,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		this.createStatusbarPart();
 
 		// Notification Handlers
-		this.instantiationService.invokeFunction(accessor => this.createNotificationsHandlers(accessor));
+		this.createNotificationsHandlers(notificationService);
 
 		// Add Workbench to DOM
 		this.parent.appendChild(this.workbench);
@@ -427,8 +427,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		return part;
 	}
 
-	private createNotificationsHandlers(accessor: ServicesAccessor): void {
-		const notificationService = accessor.get(INotificationService) as NotificationService;
+	private createNotificationsHandlers(notificationService: NotificationService): void {
 
 		// Instantiate Notification components
 		const notificationsCenter = this._register(this.instantiationService.createInstance(NotificationsCenter, this.workbench, notificationService.model));
@@ -452,13 +451,14 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		registerNotificationCommands(notificationsCenter, notificationsToasts);
 	}
 
-	private restoreWorkbench(accessor: ServicesAccessor): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const editorGroupService = accessor.get(IEditorGroupsService);
-		const viewletService = accessor.get(IViewletService);
-		const panelService = accessor.get(IPanelService);
-		const logService = accessor.get(ILogService);
-
+	private restoreWorkbench(
+		editorService: IEditorService,
+		editorGroupService: IEditorGroupsService,
+		viewletService: IViewletService,
+		panelService: IPanelService,
+		logService: ILogService,
+		lifecycleService: ILifecycleService
+	): Promise<void> {
 		const restorePromises: Promise<any>[] = [];
 
 		// Restore editors
@@ -518,13 +518,11 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		return Promise.all(restorePromises)
 			.then(() => clearTimeout(restoreTimeoutHandle))
 			.catch(err => error = err)
-			.finally(() => this.instantiationService.invokeFunction(accessor => this.whenRestored(accessor, error)));
+			.finally(() => this.whenRestored(lifecycleService, error));
 
 	}
 
-	private whenRestored(accessor: ServicesAccessor, error?: Error): void {
-		const lifecycleService = accessor.get(ILifecycleService);
-
+	private whenRestored(lifecycleService: ILifecycleService, error?: Error): void {
 		this.restored = true;
 
 		// Set lifecycle phase to `Restored`
