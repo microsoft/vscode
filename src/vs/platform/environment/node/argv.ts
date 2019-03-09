@@ -91,7 +91,8 @@ export const options: Option[] = [
 	{ id: 'force', type: 'boolean' },
 	{ id: 'trace-category-filter', type: 'string' },
 	{ id: 'trace-options', type: 'string' },
-	{ id: 'prof-code-loading', type: 'boolean' }
+	{ id: 'prof-code-loading', type: 'boolean' },
+	{ id: 'nodeless', type: 'boolean' } // TODO@ben revisit electron5 nodeless support
 ];
 
 export function parseArgs(args: string[], isOptionSupported = (_: Option) => true): ParsedArgs {
