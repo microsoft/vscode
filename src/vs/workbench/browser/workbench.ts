@@ -108,30 +108,25 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 	private restored: boolean;
 
 	private instantiationService: IInstantiationService;
-	private storageService: IStorageService;
 	private configurationService: IConfigurationService;
-	private logService: ILogService;
 
 	constructor(
 		private parent: HTMLElement,
 		private options: IWorkbenchOptions,
 		private serviceCollection: ServiceCollection,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IStorageService storageService: IStorageService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ILogService logService: ILogService
 	) {
 		super();
 
 		this.instantiationService = instantiationService;
-		this.storageService = storageService;
 		this.configurationService = configurationService;
-		this.logService = logService;
 
-		this.registerErrorHandler();
+		this.registerErrorHandler(logService);
 	}
 
-	private registerErrorHandler(): void {
+	private registerErrorHandler(logService: ILogService): void {
 
 		// Listen on unhandled rejection events
 		window.addEventListener('unhandledrejection', (event: PromiseRejectionEvent) => {
@@ -144,7 +139,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		});
 
 		// Install handler for unexpected errors
-		setUnexpectedErrorHandler(error => this.handleUnexpectedError(error));
+		setUnexpectedErrorHandler(error => this.handleUnexpectedError(error, logService));
 
 		// Inform user about loading issues from the loader
 		(<any>self).require.config({
@@ -156,7 +151,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		});
 	}
 
-	private handleUnexpectedError(error: any): void {
+	private handleUnexpectedError(error: any, logService: ILogService): void {
 		const errorMsg = toErrorMessage(error, true);
 		if (!errorMsg) {
 			return;
@@ -171,7 +166,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		this.previousErrorValue = errorMsg;
 
 		// Log it
-		this.logService.error(errorMsg);
+		logService.error(errorMsg);
 	}
 
 	startup(): void {
@@ -201,10 +196,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		// ARIA
 		setARIAContainer(document.body);
 
-		// Warm up font cache information before building up too many dom elements
-		restoreFontInfo(this.storageService);
-		readFontInfo(BareFontInfo.createFromRawSettings(this.configurationService.getValue('editor'), getZoomLevel()));
-
 		// Services
 		this.initServices(this.serviceCollection);
 
@@ -223,7 +214,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			this.registerListeners(accessor.get(ILifecycleService), accessor.get(IStorageService), accessor.get(IConfigurationService));
 
 			// Render Workbench
-			this.renderWorkbench(accessor.get(INotificationService) as NotificationService);
+			this.renderWorkbench(accessor.get(INotificationService) as NotificationService, accessor.get(IStorageService), accessor.get(IConfigurationService));
 
 			// Workbench Layout
 			this.createWorkbenchLayout();
@@ -319,7 +310,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		}
 	}
 
-	private renderWorkbench(notificationService: NotificationService): void {
+	private renderWorkbench(notificationService: NotificationService, storageService: IStorageService, configurationService: IConfigurationService): void {
 
 		// State specific classes
 		const platformClass = isWindows ? 'windows' : isLinux ? 'linux' : 'mac';
@@ -337,6 +328,10 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 		// Apply font aliasing
 		this.setFontAliasing();
+
+		// Warm up font cache information before building up too many dom elements
+		restoreFontInfo(storageService);
+		readFontInfo(BareFontInfo.createFromRawSettings(configurationService.getValue('editor'), getZoomLevel()));
 
 		// Create Parts
 		[
@@ -507,6 +502,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 	private statusBarPartView: View;
 
 	private environmentService: IEnvironmentService;
+	private storageService: IStorageService;
 	private windowService: IWindowService;
 	private editorService: IEditorService;
 	private editorGroupService: IEditorGroupsService;
@@ -573,6 +569,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		this.lifecycleService = accessor.get(ILifecycleService);
 		this.windowService = accessor.get(IWindowService);
 		this.contextService = accessor.get(IWorkspaceContextService);
+		this.storageService = accessor.get(IStorageService);
 
 		// Parts
 		this.editorService = accessor.get(IEditorService);
