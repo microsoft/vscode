@@ -237,8 +237,7 @@ import 'vs/workbench/contrib/relauncher/electron-browser/relauncher.contribution
 import 'vs/workbench/contrib/tasks/electron-browser/task.contribution';
 
 // Emmet
-import 'vs/workbench/contrib/emmet/browser/emmet.browser.contribution';
-import 'vs/workbench/contrib/emmet/electron-browser/emmet.contribution';
+import 'vs/workbench/contrib/emmet/browser/emmet.contribution';
 
 // CodeEditor Contributions
 import 'vs/workbench/contrib/codeEditor/browser/codeEditor.contribution';
