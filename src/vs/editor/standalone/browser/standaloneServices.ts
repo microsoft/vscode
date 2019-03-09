@@ -46,7 +46,7 @@ import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDeco
 import { MarkerDecorationsService } from 'vs/editor/common/services/markerDecorationsServiceImpl';
 import { ISuggestMemoryService, SuggestMemoryService } from 'vs/editor/contrib/suggest/suggestMemory';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { BrowserAccessibilityService } from 'vs/platform/accessibility/browser/accessibilityService';
+import { BrowserAccessibilityService } from 'vs/platform/accessibility/common/accessibilityService';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 
 export interface IEditorOverrideServices {

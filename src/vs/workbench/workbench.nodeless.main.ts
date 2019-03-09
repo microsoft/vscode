@@ -86,7 +86,7 @@ import 'vs/workbench/browser/nodeless.simpleservices';
 import 'vs/workbench/services/bulkEdit/browser/bulkEditService';
 // import 'vs/workbench/services/integrity/node/integrityService';
 import 'vs/workbench/services/keybinding/common/keybindingEditing';
-import 'vs/workbench/services/hash/browser/hashService';
+import 'vs/workbench/services/hash/common/hashService';
 // import 'vs/workbench/services/textMate/electron-browser/textMateService';
 import 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
 // import 'vs/workbench/services/workspace/node/workspaceEditingService';
@@ -147,7 +147,7 @@ registerSingleton(IContextViewService, ContextViewService, true);
 
 import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { BrowserAccessibilityService } from 'vs/platform/accessibility/browser/accessibilityService';
+import { BrowserAccessibilityService } from 'vs/platform/accessibility/common/accessibilityService';
 import { IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
 registerSingleton(IContextMenuService, ContextMenuService);
