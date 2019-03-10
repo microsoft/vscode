@@ -562,6 +562,8 @@ export class SimpleMenubarService implements IMenubarService {
 	}
 }
 
+registerSingleton(IMenubarService, SimpleMenubarService);
+
 //#endregion
 
 //#region Multi Extension Management
@@ -1216,6 +1218,8 @@ export class SimpleUpdateService implements IUpdateService {
 	}
 }
 
+registerSingleton(IUpdateService, SimpleUpdateService);
+
 //#endregion
 
 //#region URL
@@ -1231,6 +1235,8 @@ export class SimpleURLService implements IURLService {
 		return Disposable.None;
 	}
 }
+
+registerSingleton(IURLService, SimpleURLService);
 
 //#endregion
 
@@ -1637,6 +1643,8 @@ export class SimpleWindowsService implements IWindowsService {
 	}
 }
 
+registerSingleton(IWindowsService, SimpleWindowsService);
+
 //#endregion
 
 //#region Workspace Editing
@@ -1757,5 +1765,7 @@ export class SimpleWorkspacesService implements IWorkspacesService {
 		return Promise.resolve(undefined);
 	}
 }
+
+registerSingleton(IWorkspacesService, SimpleWorkspacesService);
 
 //#endregion

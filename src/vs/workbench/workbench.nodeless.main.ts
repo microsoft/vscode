@@ -60,11 +60,12 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { TextResourceConfigurationService } from 'vs/editor/common/services/resourceConfigurationImpl';
-// import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-// import { AccessibilityService } from 'vs/platform/accessibility/node/accessibilityService';
-// import { IExtensionEnablementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
-// import { ExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { BrowserAccessibilityService } from 'vs/platform/accessibility/common/accessibilityService';
+import { IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
 // import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 // import { IRequestService } from 'vs/platform/request/node/request';
@@ -80,6 +81,18 @@ import { ContextViewService } from 'vs/platform/contextview/browser/contextViewS
 // import { TelemetryService } from 'vs/platform/telemetry/node/telemetryService';
 // import { IProductService } from 'vs/platform/product/common/product';
 // import { ProductService } from 'vs/platform/product/node/productService';
+// import { IWindowsService } from 'vs/platform/windows/common/windows';
+// import { WindowsService } from 'vs/platform/windows/electron-browser/windowsService';
+// import { IUpdateService } from 'vs/platform/update/common/update';
+// import { UpdateService } from 'vs/platform/update/electron-browser/updateService';
+// import { IIssueService } from 'vs/platform/issue/common/issue';
+// import { IssueService } from 'vs/platform/issue/electron-browser/issueService';
+// import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+// import { WorkspacesService } from 'vs/platform/workspaces/electron-browser/workspacesService';
+// import { IMenubarService } from 'vs/platform/menubar/common/menubar';
+// import { MenubarService } from 'vs/platform/menubar/electron-browser/menubarService';
+// import { IURLService } from 'vs/platform/url/common/url';
+// import { RelayURLService } from 'vs/platform/url/electron-browser/urlService';
 
 import 'vs/workbench/browser/nodeless.simpleservices';
 
@@ -144,12 +157,13 @@ registerSingleton(IContextViewService, ContextViewService, true);
 // registerSingleton(IRemoteAuthorityResolverService, RemoteAuthorityResolverService, true);
 // registerSingleton(ITelemetryService, TelemetryService);
 // registerSingleton(IProductService, ProductService, true);
+// registerSingleton(IWindowsService, WindowsService);
+// registerSingleton(IUpdateService, UpdateService);
+// registerSingleton(IIssueService, IssueService);
+// registerSingleton(IWorkspacesService, WorkspacesService);
+// registerSingleton(IMenubarService, MenubarService);
+// registerSingleton(IURLService, RelayURLService);
 
-import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { BrowserAccessibilityService } from 'vs/platform/accessibility/common/accessibilityService';
-import { IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
 registerSingleton(IContextMenuService, ContextMenuService);
 
 //#endregion
