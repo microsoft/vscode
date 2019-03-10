@@ -90,6 +90,8 @@ import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { WorkspacesService } from 'vs/platform/workspaces/electron-browser/workspacesService';
 import { IMenubarService } from 'vs/platform/menubar/common/menubar';
 import { MenubarService } from 'vs/platform/menubar/electron-browser/menubarService';
+import { IURLService } from 'vs/platform/url/common/url';
+import { RelayURLService } from 'vs/platform/url/electron-browser/urlService';
 
 import 'vs/workbench/services/bulkEdit/browser/bulkEditService';
 import 'vs/workbench/services/integrity/node/integrityService';
@@ -157,6 +159,7 @@ registerSingleton(IUpdateService, UpdateService);
 registerSingleton(IIssueService, IssueService);
 registerSingleton(IWorkspacesService, WorkspacesService);
 registerSingleton(IMenubarService, MenubarService);
+registerSingleton(IURLService, RelayURLService);
 
 //#endregion
 

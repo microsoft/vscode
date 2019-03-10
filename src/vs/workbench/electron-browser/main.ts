@@ -24,14 +24,11 @@ import { IWindowConfiguration, IWindowService } from 'vs/platform/windows/common
 import { WindowService } from 'vs/platform/windows/electron-browser/windowService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { webFrame } from 'electron';
-import { URLHandlerChannel, URLServiceChannelClient } from 'vs/platform/url/node/urlIpc';
-import { IURLService } from 'vs/platform/url/common/url';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, IMultiFolderWorkspaceInitializationPayload, IEmptyWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload, reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { ConsoleLogService, MultiplexLogService, ILogService } from 'vs/platform/log/common/log';
 import { StorageService } from 'vs/platform/storage/node/storageService';
 import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/node/logIpc';
-import { RelayURLService } from 'vs/platform/url/common/urlService';
 import { Schemas } from 'vs/base/common/network';
 import { sanitizeFilePath } from 'vs/base/node/extfs';
 import { basename } from 'vs/base/common/path';
@@ -163,16 +160,6 @@ class CodeRendererMain extends Disposable {
 
 		// Window
 		serviceCollection.set(IWindowService, new SyncDescriptor(WindowService, [this.configuration]));
-
-		// URL Service
-		const urlChannel = mainProcessService.getChannel('url');
-		const mainUrlService = new URLServiceChannelClient(urlChannel);
-		const urlService = new RelayURLService(mainUrlService);
-		serviceCollection.set(IURLService, urlService);
-
-		// URLHandler Service
-		const urlHandlerChannel = new URLHandlerChannel(urlService);
-		mainProcessService.registerChannel('urlHandler', urlHandlerChannel);
 
 		// Environment
 		const environmentService = new EnvironmentService(this.configuration, this.configuration.execPath);
