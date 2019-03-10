@@ -45,7 +45,7 @@ import { coalesce } from 'vs/base/common/arrays';
 import { Schemas } from 'vs/base/common/network';
 import { editorMatchesToTextSearchResults, addContextToEditorMatches } from 'vs/workbench/services/search/common/searchHelpers';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { InMemoryStorageService } from 'vs/platform/storage/common/storage';
+import { InMemoryStorageService, IStorageService } from 'vs/platform/storage/common/storage';
 import { ITextMateService, IGrammar as ITextMategrammar } from 'vs/workbench/services/textMate/common/textMateService';
 import { LanguageId } from 'vs/editor/common/modes';
 import { IUpdateService, State } from 'vs/platform/update/common/update';
@@ -59,6 +59,7 @@ import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common
 import { IWorkspaceContextService, Workspace, toWorkspaceFolders, IWorkspaceFolder, WorkbenchState, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export const workspaceResource = URI.file(isWindows ? 'C:\\simpleWorkspace' : '/simpleWorkspace');
 
@@ -191,6 +192,8 @@ registerSingleton(IClipboardService, SimpleClipboardService, true);
 
 export class SimpleConfigurationService extends StandaloneEditorConfigurationService { }
 
+registerSingleton(IConfigurationService, SimpleConfigurationService);
+
 //#endregion
 
 //#region Dialog
@@ -267,6 +270,8 @@ export class SimpleEnvironmentService implements IEnvironmentService {
 	driverHandle?: string;
 	driverVerbose: boolean;
 }
+
+registerSingleton(IEnvironmentService, SimpleEnvironmentService);
 
 //#endregion
 
@@ -1136,6 +1141,8 @@ registerSingleton(ISearchService, SimpleSearchService, true);
 
 export class SimpleStorageService extends InMemoryStorageService { }
 
+registerSingleton(IStorageService, SimpleStorageService);
+
 //#endregion
 
 //#region Telemetry
@@ -1418,6 +1425,8 @@ export class SimpleWindowService implements IWindowService {
 		return Promise.resolve(undefined);
 	}
 }
+
+registerSingleton(IWindowService, SimpleWindowService);
 
 //#endregion
 
@@ -1748,6 +1757,8 @@ export class SimpleWorkspaceService implements IWorkspaceContextService {
 		return isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && isEqual(this.workspace.folders[0].uri, workspaceIdentifier);
 	}
 }
+
+registerSingleton(IWorkspaceContextService, SimpleWorkspaceService);
 
 //#endregion
 

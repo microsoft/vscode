@@ -97,12 +97,7 @@ class CodeRendererMain extends Disposable {
 				mark('willStartWorkbench');
 
 				// Create Workbench
-				this.workbench = new Workbench(
-					document.body,
-					services.serviceCollection,
-					services.configurationService,
-					services.logService
-				);
+				this.workbench = new Workbench(document.body, services.serviceCollection, services.logService);
 
 				// Layout
 				this._register(addDisposableListener(window, EventType.RESIZE, e => this.onWindowResize(e, true)));
@@ -128,7 +123,7 @@ class CodeRendererMain extends Disposable {
 				}
 
 				// Logging
-				instantiationService.invokeFunction(accessor => accessor.get(ILogService).trace('workbench configuration', JSON.stringify(this.configuration)));
+				services.logService.trace('workbench configuration', JSON.stringify(this.configuration));
 			});
 		});
 	}
@@ -151,7 +146,7 @@ class CodeRendererMain extends Disposable {
 		}
 	}
 
-	private initServices(): Promise<{ serviceCollection: ServiceCollection, logService: ILogService, configurationService: IConfigurationService, storageService: StorageService }> {
+	private initServices(): Promise<{ serviceCollection: ServiceCollection, logService: ILogService, storageService: StorageService }> {
 		const serviceCollection = new ServiceCollection();
 
 		// Main Process
@@ -169,24 +164,26 @@ class CodeRendererMain extends Disposable {
 		const logService = this._register(this.createLogService(mainProcessService, environmentService));
 		serviceCollection.set(ILogService, logService);
 
-		// Resolve a workspace payload that we can get the workspace ID from
-		return this.resolveWorkspaceInitializationPayload(environmentService).then(payload => {
+		return this.resolveWorkspaceInitializationPayload(environmentService).then(payload => Promise.all([
+			this.createWorkspaceService(payload, environmentService, logService).then(service => {
 
-			return Promise.all([
+				// Workspace
+				serviceCollection.set(IWorkspaceContextService, service);
 
-				// Create and initialize workspace/configuration service
-				this.createWorkspaceService(payload, environmentService, logService),
+				// Configuration
+				serviceCollection.set(IConfigurationService, service);
 
-				// Create and initialize storage service
-				this.createStorageService(payload, environmentService, logService, mainProcessService)
-			]).then(services => {
-				serviceCollection.set(IWorkspaceContextService, services[0]);
-				serviceCollection.set(IConfigurationService, services[0]);
-				serviceCollection.set(IStorageService, services[1]);
+				return service;
+			}),
 
-				return { serviceCollection, logService, configurationService: services[0], storageService: services[1] };
-			});
-		});
+			this.createStorageService(payload, environmentService, logService, mainProcessService).then(service => {
+
+				// Storage
+				serviceCollection.set(IStorageService, service);
+
+				return service;
+			})
+		]).then(services => ({ serviceCollection, logService, storageService: services[1] })));
 	}
 
 	private resolveWorkspaceInitializationPayload(environmentService: EnvironmentService): Promise<IWorkspaceInitializationPayload> {

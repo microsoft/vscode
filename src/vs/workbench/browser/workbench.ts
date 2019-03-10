@@ -101,17 +101,12 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 	private workbench: HTMLElement = document.createElement('div');
 
-	private configurationService: IConfigurationService;
-
 	constructor(
 		private parent: HTMLElement,
 		private serviceCollection: ServiceCollection,
-		configurationService: IConfigurationService,
 		logService: ILogService
 	) {
 		super();
-
-		this.configurationService = configurationService;
 
 		this.registerErrorHandler(logService);
 	}
@@ -224,6 +219,11 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		// Layout Service
 		serviceCollection.set(IWorkbenchLayoutService, this);
 
+		//
+		// NOTE: DO NOT ADD ANY OTHER SERVICE INTO THE COLLECTION HERE.
+		// INSTEAD, CONTRIBUTE IT VIA WORKBENCH.MAIN.TS
+		//
+
 		// All Contributed Services
 		const contributedServices = getServices();
 		for (let contributedService of contributedServices) {
@@ -284,12 +284,12 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		this._register(storageService.onWillSaveState(() => saveFontInfo(storageService)));
 
 		// Configuration changes
-		this._register(configurationService.onDidChangeConfiguration(() => this.setFontAliasing()));
+		this._register(configurationService.onDidChangeConfiguration(() => this.setFontAliasing(configurationService)));
 	}
 
 	private fontAliasing: 'default' | 'antialiased' | 'none' | 'auto';
-	private setFontAliasing() {
-		const aliasing = this.configurationService.getValue<'default' | 'antialiased' | 'none' | 'auto'>(Settings.FONT_ALIASING);
+	private setFontAliasing(configurationService: IConfigurationService) {
+		const aliasing = configurationService.getValue<'default' | 'antialiased' | 'none' | 'auto'>(Settings.FONT_ALIASING);
 		if (this.fontAliasing === aliasing) {
 			return;
 		}
@@ -323,7 +323,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		addClasses(document.body, platformClass); // used by our fonts
 
 		// Apply font aliasing
-		this.setFontAliasing();
+		this.setFontAliasing(configurationService);
 
 		// Warm up font cache information before building up too many dom elements
 		restoreFontInfo(storageService);
@@ -339,6 +339,14 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			{ id: Parts.STATUSBAR_PART, role: 'contentinfo', classes: ['statusbar'] }
 		].forEach(({ id, role, classes, options }) => {
 			const partContainer = this.createPart(id, role, classes);
+
+			if (!configurationService.getValue('workbench.useExperimentalGridLayout')) {
+				// TODO@Ben cleanup once moved to grid
+				// Insert all workbench parts at the beginning. Issue #52531
+				// This is primarily for the title bar to allow overriding -webkit-app-region
+				this.workbench.insertBefore(partContainer, this.workbench.lastChild);
+			}
+
 			this.parts.get(id).create(partContainer, options);
 		});
 
@@ -354,12 +362,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		addClasses(part, 'part', ...classes);
 		part.id = id;
 		part.setAttribute('role', role);
-
-		if (!this.configurationService.getValue('workbench.useExperimentalGridLayout')) { // TODO@Ben cleanup once moved to grid
-			// Insert all workbench parts at the beginning. Issue #52531
-			// This is primarily for the title bar to allow overriding -webkit-app-region
-			this.workbench.insertBefore(part, this.workbench.lastChild);
-		}
 
 		return part;
 	}
@@ -495,6 +497,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 	private statusBarPartView: View;
 
 	private environmentService: IEnvironmentService;
+	private configurationService: IConfigurationService;
 	private lifecycleService: ILifecycleService;
 	private storageService: IStorageService;
 	private windowService: IWindowService;
@@ -560,6 +563,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 		// Services
 		this.environmentService = accessor.get(IEnvironmentService);
+		this.configurationService = accessor.get(IConfigurationService);
 		this.lifecycleService = accessor.get(ILifecycleService);
 		this.windowService = accessor.get(IWindowService);
 		this.contextService = accessor.get(IWorkspaceContextService);
