@@ -8,7 +8,7 @@ import { IChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
 import { Client } from 'vs/base/parts/ipc/electron-browser/ipc.electron-browser';
 import { Disposable } from 'vs/base/common/lifecycle';
 
-export const IMainProcessService = createDecorator<IMainProcessService>('MainProcessService');
+export const IMainProcessService = createDecorator<IMainProcessService>('mainProcessService');
 
 export interface IMainProcessService {
 
