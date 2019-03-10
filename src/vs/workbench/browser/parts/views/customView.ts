@@ -163,9 +163,9 @@ class TitleMenus implements IDisposable {
 class Root implements ITreeItem {
 	label = { label: 'root' };
 	handle = '0';
-	parentHandle = null;
+	parentHandle: string | null = null;
 	collapsibleState = TreeItemCollapsibleState.Expanded;
-	children = undefined;
+	children: ITreeItem[] | undefined = undefined;
 }
 
 const noDataProviderMessage = localize('no-dataprovider', "There is no data provider registered that can provide view data.");

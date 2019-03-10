@@ -399,7 +399,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 
 		// Window (Un)Maximize
-		this._win.on('maximize', e => {
+		this._win.on('maximize', (e: Event) => {
 			if (this.currentConfig) {
 				this.currentConfig.maximized = true;
 			}
@@ -407,7 +407,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			app.emit('browser-window-maximize', e, this._win);
 		});
 
-		this._win.on('unmaximize', e => {
+		this._win.on('unmaximize', (e: Event) => {
 			if (this.currentConfig) {
 				this.currentConfig.maximized = false;
 			}

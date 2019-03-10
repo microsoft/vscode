@@ -322,7 +322,7 @@ export interface ITreeView extends IDisposable {
 
 	layout(height: number): void;
 
-	show(container: HTMLElement);
+	show(container: HTMLElement): void;
 
 	getOptimalWidth(): number;
 

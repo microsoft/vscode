@@ -128,7 +128,7 @@ class CodeRendererMain extends Disposable {
 		});
 	}
 
-	private onWindowResize(e: any, retry: boolean): void {
+	private onWindowResize(e: Event, retry: boolean): void {
 		if (e.target === window) {
 			if (window.document && window.document.body && window.document.body.clientWidth === 0) {
 				// TODO@Ben this is an electron issue on macOS when simple fullscreen is enabled

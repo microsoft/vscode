@@ -120,7 +120,7 @@ class ViewDescriptorCollection extends Disposable implements IViewDescriptorColl
 		this.onViewsRegistered(ViewsRegistry.getViews(container));
 	}
 
-	private onViewsRegistered(viewDescriptors: IViewDescriptor[]): any {
+	private onViewsRegistered(viewDescriptors: IViewDescriptor[]): void {
 		const added: IViewDescriptor[] = [];
 
 		for (const viewDescriptor of viewDescriptors) {
@@ -147,7 +147,7 @@ class ViewDescriptorCollection extends Disposable implements IViewDescriptorColl
 		}
 	}
 
-	private onViewsDeregistered(viewDescriptors: IViewDescriptor[]): any {
+	private onViewsDeregistered(viewDescriptors: IViewDescriptor[]): void {
 		const removed: IViewDescriptor[] = [];
 
 		for (const viewDescriptor of viewDescriptors) {
@@ -176,7 +176,7 @@ class ViewDescriptorCollection extends Disposable implements IViewDescriptorColl
 		}
 	}
 
-	private onContextChanged(event: IContextKeyChangeEvent): any {
+	private onContextChanged(event: IContextKeyChangeEvent): void {
 		const removed: IViewDescriptor[] = [];
 		const added: IViewDescriptor[] = [];
 
