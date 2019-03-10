@@ -57,8 +57,6 @@ const TextInputActions: IAction[] = [
 
 export class ElectronWindow extends Disposable {
 
-	private static readonly closeWhenEmptyConfigurationKey = 'window.closeWhenEmpty';
-
 	private touchBarMenu?: IMenu;
 	private touchBarUpdater: RunOnceScheduler;
 	private touchBarDisposables: IDisposable[];
@@ -156,9 +154,7 @@ export class ElectronWindow extends Disposable {
 		// Error reporting from main
 		ipc.on('vscode:reportError', (event: any, error: string) => {
 			if (error) {
-				const errorParsed = JSON.parse(error);
-				errorParsed.mainProcess = true;
-				errors.onUnexpectedError(errorParsed);
+				errors.onUnexpectedError(JSON.parse(error));
 			}
 		});
 
@@ -247,7 +243,7 @@ export class ElectronWindow extends Disposable {
 		// or setting is disabled. Also enabled when running with --wait from the command line.
 		const visibleEditors = this.editorService.visibleControls;
 		if (visibleEditors.length === 0 && this.contextService.getWorkbenchState() === WorkbenchState.EMPTY && !this.environmentService.isExtensionDevelopment) {
-			const closeWhenEmpty = this.configurationService.getValue<boolean>(ElectronWindow.closeWhenEmptyConfigurationKey);
+			const closeWhenEmpty = this.configurationService.getValue<boolean>('window.closeWhenEmpty');
 			if (closeWhenEmpty || this.environmentService.args.wait) {
 				this.closeEmptyWindowScheduler.schedule();
 			}
