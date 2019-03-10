@@ -488,15 +488,29 @@ async function readMacCaCertificates() {
 	};
 }
 
+const linuxCaCertificatePaths = [
+	'/etc/ssl/certs/ca-certificates.crt',
+	'/etc/ssl/certs/ca-bundle.crt',
+];
+
 async function readLinuxCaCertificates() {
-	const content = await promisify(fs.readFile)('/etc/ssl/certs/ca-certificates.crt', { encoding: 'utf8' });
-	const seen = {};
-	const certs = content.split(/(?=-----BEGIN CERTIFICATE-----)/g)
-		.filter(pem => !!pem.length && !seen[pem] && (seen[pem] = true));
-	return {
-		certs,
-		append: false
-	};
+	for (const certPath of linuxCaCertificatePaths) {
+		try {
+			const content = await promisify(fs.readFile)(certPath, { encoding: 'utf8' });
+			const seen = {};
+			const certs = content.split(/(?=-----BEGIN CERTIFICATE-----)/g)
+				.filter(pem => !!pem.length && !seen[pem] && (seen[pem] = true));
+			return {
+				certs,
+				append: false
+			};
+		} catch (err) {
+			if (err.code !== 'ENOENT') {
+				throw err;
+			}
+		}
+	}
+	return undefined;
 }
 
 function derToPem(blob) {

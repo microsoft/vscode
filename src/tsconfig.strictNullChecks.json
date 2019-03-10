@@ -461,6 +461,7 @@
 		"./vs/workbench/services/search/node/ripgrepSearchProvider.ts",
 		"./vs/workbench/services/search/node/ripgrepSearchUtils.ts",
 		"./vs/workbench/services/search/node/ripgrepTextSearchEngine.ts",
+		"./vs/workbench/services/search/common/search.ts",
 		"./vs/workbench/services/search/node/searchApp.ts",
 		"./vs/workbench/services/search/node/searchIpc.ts",
 		"./vs/workbench/services/search/node/textSearchAdapter.ts",
