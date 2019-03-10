@@ -979,6 +979,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// of the group directly prevents ugly flickering from happening
 		this.touchBarGroups.forEach((touchBarGroup, index) => {
 			const commands = groups[index];
+			// Clear the segments first to prevent icon or label remaining
+			touchBarGroup.segments = [];
 			touchBarGroup.segments = this.createTouchBarGroupSegments(commands);
 		});
 	}
