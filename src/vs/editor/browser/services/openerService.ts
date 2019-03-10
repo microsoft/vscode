@@ -11,6 +11,7 @@ import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { equalsIgnoreCase } from 'vs/base/common/strings';
 
 export class OpenerService implements IOpenerService {
 
@@ -30,13 +31,14 @@ export class OpenerService implements IOpenerService {
 		if (!scheme) {
 			// no scheme ?!?
 			return Promise.resolve(false);
+		}
 
-		} else if (scheme === Schemas.http || scheme === Schemas.https || scheme === Schemas.mailto) {
+		if (equalsIgnoreCase(scheme, Schemas.http) || equalsIgnoreCase(scheme, Schemas.https) || equalsIgnoreCase(scheme, Schemas.mailto)) {
 			// open http or default mail application
 			dom.windowOpenNoOpener(resource.toString(true));
 			return Promise.resolve(true);
 
-		} else if (scheme === Schemas.command) {
+		} else if (equalsIgnoreCase(scheme, Schemas.command)) {
 			// run command or bail out if command isn't known
 			if (!CommandsRegistry.getCommand(path)) {
 				return Promise.reject(`command '${path}' NOT known`);
