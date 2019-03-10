@@ -5940,6 +5940,11 @@ node-abi@^2.2.0:
   dependencies:
     semver "^5.4.1"
 
+node-addon-api@^1.3.0:
+  version "1.6.2"
+  resolved "https://registry.yarnpkg.com/node-addon-api/-/node-addon-api-1.6.2.tgz#d8aad9781a5cfc4132cc2fecdbdd982534265217"
+  integrity sha512-479Bjw9nTE5DdBSZZWprFryHGjUaQC31y1wHo19We/k0BZlrmhqQitWoUL0cD8+scljCbIUL+E58oRDEakdGGA==
+
 node-libs-browser@^2.0.0:
   version "2.1.0"
   resolved "https://registry.yarnpkg.com/node-libs-browser/-/node-libs-browser-2.1.0.tgz#5f94263d404f6e44767d726901fff05478d600df"
@@ -9449,10 +9454,10 @@ vscode-windows-registry@1.0.1:
   dependencies:
     nan "^2.12.1"
 
-vscode-xterm@3.12.0-beta5:
-  version "3.12.0-beta5"
-  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.12.0-beta5.tgz#cc1ab88fd564c2ddc36269f7e2b5c9740243a409"
-  integrity sha512-/UiL1pPm5MKllLyUlKwD5TAOAO8PObWAKQ0Hg3Z3tkF2zkNnR+fT0u+J/J6yWFtOoZ27Cj6QhFEfoiH6WSoXVQ==
+vscode-xterm@3.13.0-beta1:
+  version "3.13.0-beta1"
+  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.13.0-beta1.tgz#c1f4d90fe201f7e3afe7e7e0835f0b093a09afd5"
+  integrity sha512-NxWVk+q5cbHpbLFME+RfQ2RmJdR95lxjnhZEkXgHPOkmblzoHxRsZY9yF85Zfl5oNaiLMre9OwuhkHAZBQX8vg==
 
 vso-node-api@6.1.2-preview:
   version "6.1.2-preview"
@@ -9584,6 +9589,12 @@ wide-align@^1.1.0:
   integrity sha512-QGkOQc8XL6Bt5PwnsExKBPuMKBxnGxWWW3fU55Xt4feHozMUhdUMaBCk290qpm/wG5u/RSKzwdAC4i51YigihA==
   dependencies:
     string-width "^1.0.2 || 2"
+
+"win-ca-lib@https://github.com/chrmarti/win-ca/releases/download/v2.4.1-lib-test/win-ca-lib-2.4.1.tgz":
+  version "2.4.1"
+  resolved "https://github.com/chrmarti/win-ca/releases/download/v2.4.1-lib-test/win-ca-lib-2.4.1.tgz#92415b2c45d08b72217011db8050f8c957e208c4"
+  dependencies:
+    node-addon-api "^1.3.0"
 
 window-size@0.1.0:
   version "0.1.0"

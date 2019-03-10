@@ -577,10 +577,6 @@ export class TerminalInstance implements ITerminalInstance {
 
 			if (this._processManager) {
 				this._widgetManager = new TerminalWidgetManager(this._wrapperElement);
-				// HACK: This can be removed once this is fixed upstream xtermjs/xterm.js#1908
-				this._disposables.push(dom.addDisposableListener(this._xterm.element, 'mouseleave', () => {
-					this._widgetManager.closeMessage();
-				}));
 				this._linkHandler.setWidgetManager(this._widgetManager);
 			}
 

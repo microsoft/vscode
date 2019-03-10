@@ -85,7 +85,7 @@ export class CLIServer {
 			if (!forceReuseWindow && urisToOpen.some(o => o.typeHint === 'folder' || (o.typeHint === 'file' && hasWorkspaceFileExtension(o.uri.path)))) {
 				forceNewWindow = true;
 			}
-			this._commands.executeCommand('_files.windowOpen', { urisToOpen, forceNewWindow, diffMode, addMode, forceReuseWindow });
+			this._commands.executeCommand('_files.windowOpen', urisToOpen, { forceNewWindow, diffMode, addMode, forceReuseWindow });
 		}
 		res.writeHead(200);
 		res.end();

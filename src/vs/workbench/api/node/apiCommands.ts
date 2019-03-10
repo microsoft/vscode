@@ -11,7 +11,7 @@ import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { EditorViewColumn } from 'vs/workbench/api/shared/editor';
 import { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IOpenSettings } from 'vs/platform/windows/common/windows';
 import { IDownloadService } from 'vs/platform/download/common/download';
 
 // -----------------------------------------------------------------
@@ -31,32 +31,39 @@ function adjustHandler(handler: (executor: ICommandsExecutor, ...args: any[]) =>
 	};
 }
 
+interface IOpenFolderAPICommandOptions {
+	forceNewWindow?: boolean;
+	noRecentEntry?: boolean;
+}
+
 export class OpenFolderAPICommand {
 	public static ID = 'vscode.openFolder';
-	public static execute(executor: ICommandsExecutor, uri?: URI, forceNewWindow?: ConstrainBoolean): Promise<any> {
+	public static execute(executor: ICommandsExecutor, uri?: URI, forceNewWindow?: boolean): Promise<any>;
+	public static execute(executor: ICommandsExecutor, uri?: URI, options?: IOpenFolderAPICommandOptions): Promise<any>;
+	public static execute(executor: ICommandsExecutor, uri?: URI, arg: boolean | IOpenFolderAPICommandOptions = {}): Promise<any> {
+		if (typeof arg === 'boolean') {
+			arg = { forceNewWindow: arg };
+		}
 		if (!uri) {
-			return executor.executeCommand('_files.pickFolderAndOpen', forceNewWindow);
+			return executor.executeCommand('_files.pickFolderAndOpen', arg.forceNewWindow);
+		}
+		const options: IOpenSettings = { forceNewWindow: arg.forceNewWindow };
+		if (arg.noRecentEntry) {
+			options.args = { _: [], 'skip-add-to-recently-opened': true };
 		}
 		uri = URI.revive(uri);
-		return executor.executeCommand('_files.windowOpen', { urisToOpen: [{ uri }], forceNewWindow });
+		return executor.executeCommand('_files.windowOpen', [{ uri }], options);
 	}
 }
 CommandsRegistry.registerCommand({
 	id: OpenFolderAPICommand.ID,
 	handler: adjustHandler(OpenFolderAPICommand.execute),
 	description: {
-		description: `Open a folder`,
-		args: [{
-			name: 'uri',
-			schema: {
-				'type': 'string'
-			}
-		}, {
-			name: 'forceNewWindow',
-			schema: {
-				'type': 'boolean'
-			}
-		}]
+		description: 'Open a folder or workspace in the current window or new window depending on the newWindow argument. Note that opening in the same window will shutdown the current extension host process and start a new one on the given folder/workspace unless the newWindow parameter is set to true.',
+		args: [
+			{ name: 'uri', description: '(optional) Uri of the folder or workspace file to open. If not provided, a native dialog will ask the user for the folder', constraint: (value: any) => value === undefined || value instanceof URI },
+			{ name: 'options', description: '(optional) Options. Object with the following properties: `forceNewWindow `: Whether to open the folder/workspace in a new window or the same. Defaults to opening in the same window. `noRecentEntry`: Wheter the opened URI will appear in the \'Open Recent\' list. Defaults to true. Note, for backward compatibility, options can also be of type boolean, representing the `forceNewWindow` setting.', constraint: (value: any) => value === undefined || typeof value === 'object' || typeof value === 'boolean' }
+		]
 	}
 });
 
