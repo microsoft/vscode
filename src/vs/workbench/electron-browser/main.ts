@@ -38,7 +38,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { registerWindowDriver } from 'vs/platform/driver/electron-browser/driver';
-import { IMainProcessService, MainProcessService } from 'vs/platform/mainProcess/electron-browser/mainProcessService';
+import { IMainProcessService, MainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
 
 class CodeRendererMain extends Disposable {
 

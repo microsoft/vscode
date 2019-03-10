@@ -28,7 +28,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
 import { WindowsService } from 'vs/platform/windows/electron-browser/windowsService';
-import { MainProcessService, IMainProcessService } from 'vs/platform/mainProcess/electron-browser/mainProcessService';
+import { MainProcessService, IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IssueReporterModel } from 'vs/code/electron-browser/issue/issueReporterModel';
 import { IssueReporterData, IssueReporterStyles, IssueType, ISettingsSearchIssueReporterData, IssueReporterFeatures, IssueReporterExtensionData } from 'vs/platform/issue/common/issue';

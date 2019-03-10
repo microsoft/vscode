@@ -6,7 +6,7 @@
 import { IChannel } from 'vs/base/parts/ipc/node/ipc';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IUpdateService, State } from 'vs/platform/update/common/update';
-import { IMainProcessService } from 'vs/platform/mainProcess/electron-browser/mainProcessService';
+import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 export class UpdateService implements IUpdateService {

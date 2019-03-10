@@ -5,7 +5,7 @@
 
 import { IChannel } from 'vs/base/parts/ipc/node/ipc';
 import { IMenubarService, IMenubarData } from 'vs/platform/menubar/common/menubar';
-import { IMainProcessService } from 'vs/platform/mainProcess/electron-browser/mainProcessService';
+import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 export class MenubarService implements IMenubarService {

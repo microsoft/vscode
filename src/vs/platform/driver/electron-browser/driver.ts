@@ -6,7 +6,7 @@
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IWindowDriver, IElement, WindowDriverChannel, WindowDriverRegistryChannelClient } from 'vs/platform/driver/node/driver';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IMainProcessService } from 'vs/platform/mainProcess/electron-browser/mainProcessService';
+import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
 import { getTopLeftOffset, getClientArea } from 'vs/base/browser/dom';
 import * as electron from 'electron';
 import { IWindowService } from 'vs/platform/windows/common/windows';

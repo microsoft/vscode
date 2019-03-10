@@ -33,11 +33,11 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { URLService } from 'vs/platform/url/common/urlService';
 import { URI } from 'vs/base/common/uri';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
+import { ExtensionManagementServerService } from 'vs/workbench/services/extensions/electron-browser/extensionManagementServerService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/node/remoteAgentService';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import { ExtensionIdentifier, IExtensionContributions, ExtensionType } from 'vs/platform/extensions/common/extensions';
-import { ISharedProcessService } from 'vs/platform/sharedProcess/node/sharedProcessService';
+import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 
 suite('ExtensionsActions Test', () => {
 

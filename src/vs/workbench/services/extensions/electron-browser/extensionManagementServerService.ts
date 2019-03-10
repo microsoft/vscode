@@ -11,7 +11,7 @@ import { ExtensionManagementChannelClient } from 'vs/platform/extensionManagemen
 import { IRemoteAgentService } from 'vs/workbench/services/remote/node/remoteAgentService';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { IChannel } from 'vs/base/parts/ipc/node/ipc';
-import { ISharedProcessService } from 'vs/platform/sharedProcess/node/sharedProcessService';
+import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 const localExtensionManagementServerAuthority: string = 'vscode-local';
