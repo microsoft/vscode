@@ -102,8 +102,8 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 	private workbench: HTMLElement = document.createElement('div');
 
 	constructor(
-		private parent: HTMLElement,
-		private serviceCollection: ServiceCollection,
+		private readonly parent: HTMLElement,
+		private readonly serviceCollection: ServiceCollection,
 		logService: ILogService
 	) {
 		super();

@@ -20,14 +20,11 @@ export class ResourceEditorInput extends EditorInput {
 	static readonly ID: string = 'workbench.editors.resourceEditorInput';
 
 	private modelReference: Promise<IReference<ITextEditorModel>> | null;
-	private resource: URI;
-	private name: string;
-	private description: string | null;
 
 	constructor(
-		name: string,
-		description: string | null,
-		resource: URI,
+		private name: string,
+		private description: string | null,
+		private readonly resource: URI,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@IHashService private readonly hashService: IHashService
 	) {

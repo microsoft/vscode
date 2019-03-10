@@ -48,7 +48,7 @@ export class NotificationHandle implements INotificationHandle {
 	private readonly _onDidClose: Emitter<void> = new Emitter();
 	get onDidClose(): Event<void> { return this._onDidClose.event; }
 
-	constructor(private item: INotificationViewItem, private closeItem: (item: INotificationViewItem) => void) {
+	constructor(private readonly item: INotificationViewItem, private readonly closeItem: (item: INotificationViewItem) => void) {
 		this.registerListeners();
 	}
 
@@ -88,7 +88,7 @@ export class NotificationsModel extends Disposable implements INotificationsMode
 	private readonly _onDidNotificationChange: Emitter<INotificationChangeEvent> = this._register(new Emitter<INotificationChangeEvent>());
 	get onDidNotificationChange(): Event<INotificationChangeEvent> { return this._onDidNotificationChange.event; }
 
-	private _notifications: INotificationViewItem[] = [];
+	private readonly _notifications: INotificationViewItem[] = [];
 
 	get notifications(): INotificationViewItem[] {
 		return this._notifications;
@@ -235,7 +235,7 @@ export interface INotificationViewItemProgress extends INotificationProgress {
 }
 
 export class NotificationViewItemProgress extends Disposable implements INotificationViewItemProgress {
-	private _state: INotificationViewItemProgressState;
+	private readonly _state: INotificationViewItemProgressState;
 
 	private readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
 	get onDidChange(): Event<void> { return this._onDidChange.event; }
@@ -580,10 +580,10 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 
 export class ChoiceAction extends Action {
 
-	private _onDidRun = new Emitter<void>();
+	private readonly _onDidRun = new Emitter<void>();
 	get onDidRun(): Event<void> { return this._onDidRun.event; }
 
-	private _keepOpen: boolean;
+	private readonly _keepOpen: boolean;
 
 	constructor(id: string, choice: IPromptChoice) {
 		super(id, choice.label, undefined, true, () => {

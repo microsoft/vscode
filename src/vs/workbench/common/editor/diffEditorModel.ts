@@ -11,8 +11,8 @@ import { IEditorModel } from 'vs/platform/editor/common/editor';
  * and the modified version.
  */
 export class DiffEditorModel extends EditorModel {
-	protected _originalModel: IEditorModel | null;
-	protected _modifiedModel: IEditorModel | null;
+	protected readonly _originalModel: IEditorModel | null;
+	protected readonly _modifiedModel: IEditorModel | null;
 
 	constructor(originalModel: IEditorModel | null, modifiedModel: IEditorModel | null) {
 		super();
