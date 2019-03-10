@@ -22,7 +22,7 @@ import 'vs/workbench/electron-browser/main';
 import 'vs/workbench/browser/actions/layoutActions';
 import 'vs/workbench/browser/actions/listCommands';
 import 'vs/workbench/browser/actions/navigationActions';
-import 'vs/workbench/browser/parts/quickopen/quickopenActions';
+import 'vs/workbench/browser/parts/quickopen/quickOpenActions';
 import 'vs/workbench/browser/parts/quickinput/quickInputActions';
 
 //#endregion
