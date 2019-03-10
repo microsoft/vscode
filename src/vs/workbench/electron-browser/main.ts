@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import * as gracefulFs from 'graceful-fs';
 import { createHash } from 'crypto';
 import { importEntries, mark } from 'vs/base/common/performance';
-import { Workbench, IWorkbenchOptions } from 'vs/workbench/browser/workbench';
+import { Workbench } from 'vs/workbench/browser/workbench';
 import { ElectronWindow } from 'vs/workbench/electron-browser/window';
 import { setZoomLevel, setZoomFactor, setFullscreen } from 'vs/base/browser/browser';
 import { domContentLoaded, addDisposableListener, EventType, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
@@ -101,13 +101,6 @@ class CodeRendererMain extends Disposable {
 		});
 	}
 
-	private hasInitialFilesToOpen(): boolean {
-		return !!(
-			(this.configuration.filesToCreate && this.configuration.filesToCreate.length > 0) ||
-			(this.configuration.filesToOpen && this.configuration.filesToOpen.length > 0) ||
-			(this.configuration.filesToDiff && this.configuration.filesToDiff.length > 0));
-	}
-
 	open(): Promise<void> {
 		const electronMainClient = this._register(new ElectronIPCClient(`window:${this.configuration.windowId}`));
 
@@ -119,7 +112,6 @@ class CodeRendererMain extends Disposable {
 				// Create Workbench
 				this.workbench = new Workbench(
 					document.body,
-					{ hasInitialFilesToOpen: this.hasInitialFilesToOpen() } as IWorkbenchOptions,
 					services.serviceCollection,
 					services.configurationService,
 					services.logService

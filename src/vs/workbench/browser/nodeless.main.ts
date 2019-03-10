@@ -19,7 +19,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { SimpleConfigurationService, SimpleEnvironmentService, SimpleWindowsService, SimpleWindowService, SimpleUpdateService, SimpleURLService, SimpleMenubarService, SimpleLogService, SimpleWorkspaceService, SimpleStorageService, SimpleWorkspacesService } from 'vs/workbench/browser/nodeless.simpleservices';
-import { Workbench, IWorkbenchOptions } from 'vs/workbench/browser/workbench';
+import { Workbench } from 'vs/workbench/browser/workbench';
 
 class CodeRendererMain extends Disposable {
 
@@ -34,7 +34,6 @@ class CodeRendererMain extends Disposable {
 			// Create Workbench
 			this.workbench = new Workbench(
 				document.body,
-				{ hasInitialFilesToOpen: false } as IWorkbenchOptions,
 				services.serviceCollection,
 				services.configurationService,
 				services.logService

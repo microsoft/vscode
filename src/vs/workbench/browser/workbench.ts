@@ -91,8 +91,6 @@ enum Storage {
 
 export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
-	//#region workbench
-
 	_serviceBrand: ServiceIdentifier<any>;
 
 	private readonly _onShutdown = this._register(new Emitter<void>());
@@ -101,18 +99,12 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 	private readonly _onWillShutdown = this._register(new Emitter<WillShutdownEvent>());
 	get onWillShutdown(): Event<WillShutdownEvent> { return this._onWillShutdown.event; }
 
-	private previousErrorValue: string;
-	private previousErrorTime = 0;
-
 	private workbench: HTMLElement = document.createElement('div');
-
-	private restored: boolean;
 
 	private configurationService: IConfigurationService;
 
 	constructor(
 		private parent: HTMLElement,
-		private options: IWorkbenchOptions,
 		private serviceCollection: ServiceCollection,
 		configurationService: IConfigurationService,
 		logService: ILogService
@@ -149,22 +141,23 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		});
 	}
 
+	private previousUnexpectedError: { message: string, time: number } = { message: undefined, time: 0 };
 	private handleUnexpectedError(error: any, logService: ILogService): void {
-		const errorMsg = toErrorMessage(error, true);
-		if (!errorMsg) {
+		const message = toErrorMessage(error, true);
+		if (!message) {
 			return;
 		}
 
 		const now = Date.now();
-		if (errorMsg === this.previousErrorValue && now - this.previousErrorTime <= 1000) {
+		if (message === this.previousUnexpectedError.message && now - this.previousUnexpectedError.time <= 1000) {
 			return; // Return if error message identical to previous and shorter than 1 second
 		}
 
-		this.previousErrorTime = now;
-		this.previousErrorValue = errorMsg;
+		this.previousUnexpectedError.time = now;
+		this.previousUnexpectedError.message = message;
 
 		// Log it
-		logService.error(errorMsg);
+		logService.error(message);
 	}
 
 	startup(): IInstantiationService {
@@ -189,6 +182,9 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			const instantiationService = this.initServices(this.serviceCollection);
 
 			instantiationService.invokeFunction(accessor => {
+				const lifecycleService = accessor.get(ILifecycleService);
+				const storageService = accessor.get(IStorageService);
+				const configurationService = accessor.get(IConfigurationService);
 
 				// Layout
 				this.initLayout(accessor);
@@ -200,10 +196,10 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 				this._register(instantiationService.createInstance(WorkbenchContextKeysHandler));
 
 				// Register Listeners
-				this.registerListeners(accessor.get(ILifecycleService), accessor.get(IStorageService), accessor.get(IConfigurationService));
+				this.registerListeners(lifecycleService, storageService, configurationService);
 
 				// Render Workbench
-				this.renderWorkbench(instantiationService, accessor.get(INotificationService) as NotificationService, accessor.get(IStorageService), accessor.get(IConfigurationService));
+				this.renderWorkbench(instantiationService, accessor.get(INotificationService) as NotificationService, storageService, configurationService);
 
 				// Workbench Layout
 				this.createWorkbenchLayout(instantiationService);
@@ -212,7 +208,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 				this.layout();
 
 				// Restore
-				this.restoreWorkbench(accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IViewletService), accessor.get(IPanelService), accessor.get(ILogService), accessor.get(ILifecycleService)).then(undefined, error => onUnexpectedError(error));
+				this.restoreWorkbench(accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IViewletService), accessor.get(IPanelService), accessor.get(ILogService), lifecycleService).then(undefined, error => onUnexpectedError(error));
 			});
 
 			return instantiationService;
@@ -339,7 +335,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			{ id: Parts.ACTIVITYBAR_PART, role: 'navigation', classes: ['activitybar', this.state.sideBar.position === Position.LEFT ? 'left' : 'right'] },
 			{ id: Parts.SIDEBAR_PART, role: 'complementary', classes: ['sidebar', this.state.sideBar.position === Position.LEFT ? 'left' : 'right'] },
 			{ id: Parts.PANEL_PART, role: 'complementary', classes: ['panel', this.state.panel.position === Position.BOTTOM ? 'bottom' : 'right'] },
-			{ id: Parts.EDITOR_PART, role: 'main', classes: ['editor'], options: { restorePreviousState: !this.options.hasInitialFilesToOpen } },
+			{ id: Parts.EDITOR_PART, role: 'main', classes: ['editor'], options: { restorePreviousState: this.state.editor.restoreEditors } },
 			{ id: Parts.STATUSBAR_PART, role: 'contentinfo', classes: ['statusbar'] }
 		].forEach(({ id, role, classes, options }) => {
 			const partContainer = this.createPart(id, role, classes);
@@ -359,7 +355,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		part.id = id;
 		part.setAttribute('role', role);
 
-		if (!this.configurationService.getValue('workbench.useExperimentalGridLayout')) {
+		if (!this.configurationService.getValue('workbench.useExperimentalGridLayout')) { // TODO@Ben cleanup once moved to grid
 			// Insert all workbench parts at the beginning. Issue #52531
 			// This is primarily for the title bar to allow overriding -webkit-app-region
 			this.workbench.insertBefore(part, this.workbench.lastChild);
@@ -453,7 +449,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			.then(() => clearTimeout(restoreTimeoutHandle))
 			.catch(error => onUnexpectedError(error))
 			.finally(() => {
-				this.restored = true;
 
 				// Set lifecycle phase to `Restored`
 				lifecycleService.phase = LifecyclePhase.Restored;
@@ -469,8 +464,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 				mark('didStartWorkbench');
 			});
 	}
-
-	//#endregion
 
 	//#region ILayoutService
 
@@ -502,6 +495,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 	private statusBarPartView: View;
 
 	private environmentService: IEnvironmentService;
+	private lifecycleService: ILifecycleService;
 	private storageService: IStorageService;
 	private windowService: IWindowService;
 	private editorService: IEditorService;
@@ -535,6 +529,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			hidden: false,
 			centered: false,
 			restoreCentered: false,
+			restoreEditors: false,
 			editorsToOpen: undefined as Promise<IResourceEditor[]> | IResourceEditor[]
 		},
 
@@ -565,6 +560,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 		// Services
 		this.environmentService = accessor.get(IEnvironmentService);
+		this.lifecycleService = accessor.get(ILifecycleService);
 		this.windowService = accessor.get(IWindowService);
 		this.contextService = accessor.get(IWorkspaceContextService);
 		this.storageService = accessor.get(IStorageService);
@@ -791,9 +787,13 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 	private resolveEditorsToOpen(): Promise<IResourceEditor[]> | IResourceEditor[] {
 		const configuration = this.windowService.getConfiguration();
+		const hasInitialFilesToOpen = this.hasInitialFilesToOpen();
+
+		// Only restore editors if we are not instructed to open files initially
+		this.state.editor.restoreEditors = !hasInitialFilesToOpen;
 
 		// Files to open, diff or create
-		if (this.options.hasInitialFilesToOpen) {
+		if (hasInitialFilesToOpen) {
 
 			// Files to diff is exclusive
 			const filesToDiff = this.toInputs(configuration.filesToDiff, false);
@@ -830,6 +830,15 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		}
 
 		return [];
+	}
+
+	private hasInitialFilesToOpen(): boolean {
+		const configuration = this.windowService.getConfiguration();
+
+		return !!(
+			(configuration.filesToCreate && configuration.filesToCreate.length > 0) ||
+			(configuration.filesToOpen && configuration.filesToOpen.length > 0) ||
+			(configuration.filesToDiff && configuration.filesToDiff.length > 0));
 	}
 
 	private toInputs(paths: IPath[] | undefined, isNew: boolean): Array<IResourceInput | IUntitledResourceInput> {
@@ -869,7 +878,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 	}
 
 	isRestored(): boolean {
-		return this.restored;
+		return this.lifecycleService.phase >= LifecyclePhase.Restored;
 	}
 
 	hasFocus(part: Parts): boolean {
