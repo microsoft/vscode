@@ -88,8 +88,7 @@ export function activate(context: ExtensionContext) {
 						return rawResult.map(rawSelectionRanges => {
 							return rawSelectionRanges.map(selectionRange => {
 								return {
-									range: client.protocol2CodeConverter.asRange(selectionRange.range),
-									kind: selectionRange.kind
+									range: client.protocol2CodeConverter.asRange(selectionRange.range)
 								};
 							});
 						});
