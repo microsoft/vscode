@@ -172,7 +172,7 @@ export class FileDialogService implements IFileDialogService {
 		@IHistoryService private readonly historyService: IHistoryService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) { }
 
 	defaultFilePath(schemeFilter = this.getSchemeFilterForWindow()): URI | undefined {

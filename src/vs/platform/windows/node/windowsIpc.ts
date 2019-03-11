@@ -6,8 +6,9 @@
 import { Event } from 'vs/base/common/event';
 import { IServerChannel } from 'vs/base/parts/ipc/node/ipc';
 import { IWindowsService, IURIToOpen } from 'vs/platform/windows/common/windows';
-import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { URI } from 'vs/base/common/uri';
+import { IRecent, isRecentFile, isRecentFolder } from 'vs/platform/history/common/history';
 
 export class WindowsChannel implements IServerChannel {
 
@@ -56,14 +57,17 @@ export class WindowsChannel implements IServerChannel {
 			case 'enterWorkspace': return this.service.enterWorkspace(arg[0], URI.revive(arg[1]));
 			case 'toggleFullScreen': return this.service.toggleFullScreen(arg);
 			case 'setRepresentedFilename': return this.service.setRepresentedFilename(arg[0], arg[1]);
-			case 'addRecentlyOpened': return this.service.addRecentlyOpened(arg[0].map(URI.revive), arg[1].map(URI.revive), arg[2].map(URI.revive));
-			case 'removeFromRecentlyOpened': {
-				let paths: Array<IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | string> = arg;
-				if (Array.isArray(paths)) {
-					paths = paths.map(path => isChanneledWorkspaceIdentifier(path) ? reviveWorkspaceIdentifier(path) : typeof path === 'string' ? path : URI.revive(path));
+			case 'addRecentlyOpened': return this.service.addRecentlyOpened(arg.map((recent: IRecent) => {
+				if (isRecentFile(recent)) {
+					recent.fileUri = URI.revive(recent.fileUri);
+				} else if (isRecentFolder(recent)) {
+					recent.folderUri = URI.revive(recent.folderUri);
+				} else {
+					recent.workspace = reviveWorkspaceIdentifier(recent.workspace);
 				}
-				return this.service.removeFromRecentlyOpened(paths);
-			}
+				return recent;
+			}));
+			case 'removeFromRecentlyOpened': return this.service.removeFromRecentlyOpened(arg.map(URI.revive));
 			case 'clearRecentlyOpened': return this.service.clearRecentlyOpened();
 			case 'newWindowTab': return this.service.newWindowTab();
 			case 'showPreviousWindowTab': return this.service.showPreviousWindowTab();
@@ -82,7 +86,7 @@ export class WindowsChannel implements IServerChannel {
 			case 'minimizeWindow': return this.service.minimizeWindow(arg);
 			case 'onWindowTitleDoubleClick': return this.service.onWindowTitleDoubleClick(arg);
 			case 'setDocumentEdited': return this.service.setDocumentEdited(arg[0], arg[1]);
-			case 'openWindow': return this.service.openWindow(arg[0], arg[1] ? (<IURIToOpen[]>arg[1]).map(r => ({ uri: URI.revive(r.uri), typeHint: r.typeHint })) : arg[1], arg[2]);
+			case 'openWindow': return this.service.openWindow(arg[0], arg[1] ? (<IURIToOpen[]>arg[1]).map(r => { r.uri = URI.revive(r.uri); return r; }) : arg[1], arg[2]);
 			case 'openNewWindow': return this.service.openNewWindow(arg);
 			case 'showWindow': return this.service.showWindow(arg);
 			case 'getWindows': return this.service.getWindows();
@@ -102,8 +106,4 @@ export class WindowsChannel implements IServerChannel {
 
 		throw new Error(`Call not found: ${command}`);
 	}
-}
-
-function isChanneledWorkspaceIdentifier(obj: any): obj is IWorkspaceIdentifier {
-	return obj && obj['configPath'];
 }

@@ -53,7 +53,7 @@ import { IWindowConfiguration, IPath, IPathsToWaitFor, IWindowService, INativeOp
 import { IProcessEnvironment, isWindows } from 'vs/base/common/platform';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceFolderCreationData, isSingleFolderWorkspaceIdentifier, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { ExportData } from 'vs/base/common/performance';
-import { IRecentlyOpened } from 'vs/platform/history/common/history';
+import { IRecentlyOpened, IRecent } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { IWorkspaceContextService, Workspace, toWorkspaceFolders, IWorkspaceFolder, WorkbenchState, IWorkspace } from 'vs/platform/workspace/common/workspace';
@@ -1492,7 +1492,7 @@ export class SimpleWindowsService implements IWindowsService {
 		return Promise.resolve();
 	}
 
-	addRecentlyOpened(_files: URI[]): Promise<void> {
+	addRecentlyOpened(recents: IRecent[]): Promise<void> {
 		return Promise.resolve();
 	}
 
@@ -1773,6 +1773,10 @@ export class SimpleWorkspacesService implements IWorkspacesService {
 	}
 
 	deleteUntitledWorkspace(workspace: IWorkspaceIdentifier): Promise<void> {
+		return Promise.resolve(undefined);
+	}
+
+	getWorkspaceIdentifier(workspacePath: URI): Promise<IWorkspaceIdentifier> {
 		return Promise.resolve(undefined);
 	}
 }

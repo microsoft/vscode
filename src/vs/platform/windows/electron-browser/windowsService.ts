@@ -7,7 +7,7 @@ import { Event } from 'vs/base/common/event';
 import { IChannel } from 'vs/base/parts/ipc/node/ipc';
 import { IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, CrashReporterStartOptions, IMessageBoxResult, MessageBoxOptions, SaveDialogOptions, OpenDialogOptions, IDevToolsOptions, INewWindowOptions, IURIToOpen } from 'vs/platform/windows/common/windows';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { IRecentlyOpened } from 'vs/platform/history/common/history';
+import { IRecentlyOpened, IRecent, isRecentWorkspace } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { URI } from 'vs/base/common/uri';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
@@ -76,7 +76,8 @@ export class WindowsService implements IWindowsService {
 
 	enterWorkspace(windowId: number, path: URI): Promise<IEnterWorkspaceResult> {
 		return this.channel.call('enterWorkspace', [windowId, path]).then((result: IEnterWorkspaceResult) => {
-			return { backupPath: result.backupPath, workspace: reviveWorkspaceIdentifier(result.workspace) };
+			result.workspace = reviveWorkspaceIdentifier(result.workspace);
+			return result;
 		});
 	}
 
@@ -88,11 +89,11 @@ export class WindowsService implements IWindowsService {
 		return this.channel.call('setRepresentedFilename', [windowId, fileName]);
 	}
 
-	addRecentlyOpened(workspaces: URI[], folders: URI[], files: URI[]): Promise<void> {
-		return this.channel.call('addRecentlyOpened', [workspaces, folders, files]);
+	addRecentlyOpened(recent: IRecent[]): Promise<void> {
+		return this.channel.call('addRecentlyOpened', recent);
 	}
 
-	removeFromRecentlyOpened(paths: Array<IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI>): Promise<void> {
+	removeFromRecentlyOpened(paths: Array<URI>): Promise<void> {
 		return this.channel.call('removeFromRecentlyOpened', paths);
 	}
 
@@ -103,8 +104,8 @@ export class WindowsService implements IWindowsService {
 	getRecentlyOpened(windowId: number): Promise<IRecentlyOpened> {
 		return this.channel.call('getRecentlyOpened', windowId)
 			.then((recentlyOpened: IRecentlyOpened) => {
-				recentlyOpened.workspaces = recentlyOpened.workspaces.map(workspace => isChanneledWorkspaceIdentifier(workspace) ? reviveWorkspaceIdentifier(workspace) : URI.revive(workspace));
-				recentlyOpened.files = recentlyOpened.files.map(URI.revive);
+				recentlyOpened.workspaces.forEach(recent => isRecentWorkspace(recent) ? recent.workspace = reviveWorkspaceIdentifier(recent.workspace) : recent.folderUri = URI.revive(recent.folderUri));
+				recentlyOpened.files.forEach(recent => recent.fileUri = URI.revive(recent.fileUri));
 				return recentlyOpened;
 			});
 	}
@@ -246,8 +247,4 @@ export class WindowsService implements IWindowsService {
 	resolveProxy(windowId: number, url: string): Promise<string | undefined> {
 		return Promise.resolve(this.channel.call('resolveProxy', [windowId, url]));
 	}
-}
-
-function isChanneledWorkspaceIdentifier(obj: any): obj is IWorkspaceIdentifier {
-	return obj && obj['configPath'];
 }
