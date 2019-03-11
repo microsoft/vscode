@@ -218,6 +218,13 @@ export interface ISuggestOptions {
 	filteredTypes?: Record<string, boolean>;
 }
 
+export interface IGotoLocationOptions {
+	/**
+	 * Control how goto-command work when having multiple results.
+	 */
+	many?: 'peek' | 'revealAndPeek' | 'reveal';
+}
+
 /**
  * Configuration map for codeActionsOnSave
  */
@@ -504,6 +511,10 @@ export interface IEditorOptions {
 	 * Suggest options.
 	 */
 	suggest?: ISuggestOptions;
+	/**
+	 *
+	 */
+	gotoLocation?: IGotoLocationOptions;
 	/**
 	 * Enable quick suggestions (shadow suggestions)
 	 * Defaults to true.
@@ -924,6 +935,10 @@ export interface InternalEditorHoverOptions {
 	readonly sticky: boolean;
 }
 
+export interface InternalGoToLocationOptions {
+	readonly many: 'peek' | 'revealAndPeek' | 'reveal';
+}
+
 export interface InternalSuggestOptions {
 	readonly filterGraceful: boolean;
 	readonly snippets: 'top' | 'bottom' | 'inline' | 'none';
@@ -1014,6 +1029,7 @@ export interface EditorContribOptions {
 	readonly suggestLineHeight: number;
 	readonly tabCompletion: 'on' | 'off' | 'onlySnippets';
 	readonly suggest: InternalSuggestOptions;
+	readonly gotoLocation: InternalGoToLocationOptions;
 	readonly selectionHighlight: boolean;
 	readonly occurrencesHighlight: boolean;
 	readonly codeLens: boolean;
@@ -1389,6 +1405,16 @@ export class InternalEditorOptions {
 		}
 	}
 
+	private static _equalsGotoLocationOptions(a: InternalGoToLocationOptions | undefined, b: InternalGoToLocationOptions | undefined): boolean {
+		if (a === b) {
+			return true;
+		} else if (!a || !b) {
+			return false;
+		} else {
+			return a.many === b.many;
+		}
+	}
+
 	/**
 	 * @internal
 	 */
@@ -1429,6 +1455,7 @@ export class InternalEditorOptions {
 			&& a.suggestLineHeight === b.suggestLineHeight
 			&& a.tabCompletion === b.tabCompletion
 			&& this._equalsSuggestOptions(a.suggest, b.suggest)
+			&& InternalEditorOptions._equalsGotoLocationOptions(a.gotoLocation, b.gotoLocation)
 			&& a.selectionHighlight === b.selectionHighlight
 			&& a.occurrencesHighlight === b.occurrencesHighlight
 			&& a.codeLens === b.codeLens
@@ -1924,6 +1951,13 @@ export class EditorOptionsValidator {
 		};
 	}
 
+	private static _santizeGotoLocationOpts(opts: IEditorOptions, defaults: InternalGoToLocationOptions): InternalGoToLocationOptions {
+		const gotoOpts = opts.gotoLocation || {};
+		return {
+			many: _stringSet<'peek' | 'revealAndPeek' | 'reveal'>(gotoOpts.many, defaults.many, ['peek', 'revealAndPeek', 'reveal'])
+		};
+	}
+
 	private static _sanitizeTabCompletionOpts(opts: boolean | 'on' | 'off' | 'onlySnippets' | undefined, defaults: 'on' | 'off' | 'onlySnippets'): 'on' | 'off' | 'onlySnippets' {
 		if (opts === false) {
 			return 'off';
@@ -2076,6 +2110,7 @@ export class EditorOptionsValidator {
 			suggestLineHeight: _clampedInt(opts.suggestLineHeight, defaults.suggestLineHeight, 0, 1000),
 			tabCompletion: this._sanitizeTabCompletionOpts(opts.tabCompletion, defaults.tabCompletion),
 			suggest: this._sanitizeSuggestOpts(opts, defaults.suggest),
+			gotoLocation: this._santizeGotoLocationOpts(opts, defaults.gotoLocation),
 			selectionHighlight: _boolean(opts.selectionHighlight, defaults.selectionHighlight),
 			occurrencesHighlight: _boolean(opts.occurrencesHighlight, defaults.occurrencesHighlight),
 			codeLens: _boolean(opts.codeLens, defaults.codeLens),
@@ -2189,6 +2224,7 @@ export class InternalEditorOptionsFactory {
 				suggestLineHeight: opts.contribInfo.suggestLineHeight,
 				tabCompletion: opts.contribInfo.tabCompletion,
 				suggest: opts.contribInfo.suggest,
+				gotoLocation: opts.contribInfo.gotoLocation,
 				selectionHighlight: (accessibilityIsOn ? false : opts.contribInfo.selectionHighlight), // DISABLED WHEN SCREEN READER IS ATTACHED
 				occurrencesHighlight: (accessibilityIsOn ? false : opts.contribInfo.occurrencesHighlight), // DISABLED WHEN SCREEN READER IS ATTACHED
 				codeLens: (accessibilityIsOn ? false : opts.contribInfo.codeLens), // DISABLED WHEN SCREEN READER IS ATTACHED
@@ -2681,6 +2717,9 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 			showIcons: true,
 			maxVisibleSuggestions: 12,
 			filteredTypes: Object.create(null)
+		},
+		gotoLocation: {
+			many: 'peek'
 		},
 		selectionHighlight: true,
 		occurrencesHighlight: true,

@@ -2561,6 +2561,13 @@ declare namespace monaco.editor {
 		filteredTypes?: Record<string, boolean>;
 	}
 
+	export interface IGotoLocationOptions {
+		/**
+		 * Control how goto-commands work when having multiple results.
+		 */
+		many?: 'peek' | 'revealAndPeek' | 'reveal';
+	}
+
 	/**
 	 * Configuration map for codeActionsOnSave
 	 */
@@ -2835,6 +2842,10 @@ declare namespace monaco.editor {
 		 * Suggest options.
 		 */
 		suggest?: ISuggestOptions;
+		/**
+		 *
+		 */
+		gotoLocation?: IGotoLocationOptions;
 		/**
 		 * Enable quick suggestions (shadow suggestions)
 		 * Defaults to true.
@@ -3196,6 +3207,10 @@ declare namespace monaco.editor {
 		readonly sticky: boolean;
 	}
 
+	export interface InternalGoToLocationOptions {
+		readonly many: 'peek' | 'revealAndPeek' | 'reveal';
+	}
+
 	export interface InternalSuggestOptions {
 		readonly filterGraceful: boolean;
 		readonly snippets: 'top' | 'bottom' | 'inline' | 'none';
@@ -3290,6 +3305,7 @@ declare namespace monaco.editor {
 		readonly suggestLineHeight: number;
 		readonly tabCompletion: 'on' | 'off' | 'onlySnippets';
 		readonly suggest: InternalSuggestOptions;
+		readonly gotoLocation: InternalGoToLocationOptions;
 		readonly selectionHighlight: boolean;
 		readonly occurrencesHighlight: boolean;
 		readonly codeLens: boolean;
