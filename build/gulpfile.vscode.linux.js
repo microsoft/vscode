@@ -156,6 +156,7 @@ function prepareRpmPackage(arch) {
 		const spec = gulp.src('resources/linux/rpm/code.spec.template', { base: '.' })
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
+			.pipe(replace('@@ICON@@', product.linuxIconName))
 			.pipe(replace('@@VERSION@@', packageJson.version))
 			.pipe(replace('@@RELEASE@@', linuxPackageRevision))
 			.pipe(replace('@@ARCHITECTURE@@', rpmArch))
