@@ -199,8 +199,10 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	}
 
 	defineWhenExpression(keybindingEntry: IKeybindingItemEntry): void {
-		this.selectEntry(keybindingEntry);
-		this._onDefineWhenExpression.fire(keybindingEntry);
+		if (keybindingEntry.keybindingItem.keybinding) {
+			this.selectEntry(keybindingEntry);
+			this._onDefineWhenExpression.fire(keybindingEntry);
+		}
 	}
 
 	updateKeybinding(keybindingEntry: IKeybindingItemEntry, key: string, when: string | undefined): Promise<any> {
@@ -658,7 +660,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	private createDefineWhenExpressionAction(keybindingItemEntry: IKeybindingItemEntry): IAction {
 		return <IAction>{
 			label: localize('editWhen', "Change When Expression"),
-			enabled: true,
+			enabled: !!keybindingItemEntry.keybindingItem.keybinding,
 			id: KEYBINDINGS_EDITOR_COMMAND_DEFINE_WHEN,
 			run: () => this.defineWhenExpression(keybindingItemEntry)
 		};
