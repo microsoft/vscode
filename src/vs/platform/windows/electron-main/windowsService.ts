@@ -420,7 +420,7 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 
 		// Catch file URLs
 		if (uri.authority === Schemas.file && !!uri.path) {
-			this.openFileForURI({ uri });
+			this.openFileForURI({ uri: URI.file(uri.fsPath) }); // using fsPath on a non-file URI...
 			return true;
 		}
 
