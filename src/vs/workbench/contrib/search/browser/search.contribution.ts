@@ -84,7 +84,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
 	handler: (accessor, args: any) => {
 		const searchView = getSearchView(accessor.get(IViewletService), accessor.get(IPanelService));
-		searchView.focusPreviousInputBox();
+		if (searchView) {
+			searchView.focusPreviousInputBox();
+		}
 	}
 });
 
@@ -98,8 +100,10 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	},
 	handler: (accessor, args: any) => {
 		const searchView = getSearchView(accessor.get(IViewletService), accessor.get(IPanelService));
-		const tree: WorkbenchObjectTree<RenderableMatch> = searchView.getControl();
-		searchView.open(<FileMatchOrMatch>tree.getFocus()[0], false, true, true);
+		if (searchView) {
+			const tree: WorkbenchObjectTree<RenderableMatch> = searchView.getControl();
+			searchView.open(<FileMatchOrMatch>tree.getFocus()[0], false, true, true);
+		}
 	}
 });
 
@@ -110,7 +114,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyCode.Escape,
 	handler: (accessor, args: any) => {
 		const searchView = getSearchView(accessor.get(IViewletService), accessor.get(IPanelService));
-		searchView.cancelSearch();
+		if (searchView) {
+			searchView.cancelSearch();
+		}
 	}
 });
 
@@ -124,8 +130,10 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	},
 	handler: (accessor, args: any) => {
 		const searchView = getSearchView(accessor.get(IViewletService), accessor.get(IPanelService));
-		const tree: WorkbenchObjectTree<RenderableMatch> = searchView.getControl();
-		accessor.get(IInstantiationService).createInstance(RemoveAction, tree, tree.getFocus()[0]).run();
+		if (searchView) {
+			const tree: WorkbenchObjectTree<RenderableMatch> = searchView.getControl();
+			accessor.get(IInstantiationService).createInstance(RemoveAction, tree, tree.getFocus()[0]).run();
+		}
 	}
 });
 
@@ -136,8 +144,10 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.KEY_1,
 	handler: (accessor, args: any) => {
 		const searchView = getSearchView(accessor.get(IViewletService), accessor.get(IPanelService));
-		const tree: WorkbenchObjectTree<RenderableMatch> = searchView.getControl();
-		accessor.get(IInstantiationService).createInstance(ReplaceAction, tree, tree.getFocus()[0], searchView).run();
+		if (searchView) {
+			const tree: WorkbenchObjectTree<RenderableMatch> = searchView.getControl();
+			accessor.get(IInstantiationService).createInstance(ReplaceAction, tree, tree.getFocus()[0], searchView).run();
+		}
 	}
 });
 
@@ -149,8 +159,10 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter],
 	handler: (accessor, args: any) => {
 		const searchView = getSearchView(accessor.get(IViewletService), accessor.get(IPanelService));
-		const tree: WorkbenchObjectTree<RenderableMatch> = searchView.getControl();
-		accessor.get(IInstantiationService).createInstance(ReplaceAllAction, searchView, tree.getFocus()[0]).run();
+		if (searchView) {
+			const tree: WorkbenchObjectTree<RenderableMatch> = searchView.getControl();
+			accessor.get(IInstantiationService).createInstance(ReplaceAllAction, searchView, tree.getFocus()[0]).run();
+		}
 	}
 });
 
@@ -162,8 +174,10 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter],
 	handler: (accessor, args: any) => {
 		const searchView = getSearchView(accessor.get(IViewletService), accessor.get(IPanelService));
-		const tree: WorkbenchObjectTree<RenderableMatch> = searchView.getControl();
-		accessor.get(IInstantiationService).createInstance(ReplaceAllInFolderAction, tree, tree.getFocus()[0]).run();
+		if (searchView) {
+			const tree: WorkbenchObjectTree<RenderableMatch> = searchView.getControl();
+			accessor.get(IInstantiationService).createInstance(ReplaceAllInFolderAction, tree, tree.getFocus()[0]).run();
+		}
 	}
 });
 
