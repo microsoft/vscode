@@ -21,7 +21,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ViewsRegistry, IViewDescriptor } from 'vs/workbench/common/views';
+import { IViewsRegistry, IViewDescriptor, Extensions } from 'vs/workbench/common/views';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -33,6 +33,7 @@ import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorInput } from 'vs/workbench/common/editor';
 import { ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { KeyChord, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 export class ExplorerViewletViewsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -56,7 +57,8 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 	}
 
 	private registerViews(): void {
-		const viewDescriptors = ViewsRegistry.getViews(VIEW_CONTAINER);
+		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
+		const viewDescriptors = viewsRegistry.getViews(VIEW_CONTAINER);
 
 		let viewDescriptorsToRegister: IViewDescriptor[] = [];
 		let viewDescriptorsToDeregister: IViewDescriptor[] = [];
@@ -88,10 +90,10 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 		}
 
 		if (viewDescriptorsToRegister.length) {
-			ViewsRegistry.registerViews(viewDescriptorsToRegister, VIEW_CONTAINER);
+			viewsRegistry.registerViews(viewDescriptorsToRegister, VIEW_CONTAINER);
 		}
 		if (viewDescriptorsToDeregister.length) {
-			ViewsRegistry.deregisterViews(viewDescriptorsToDeregister, VIEW_CONTAINER);
+			viewsRegistry.deregisterViews(viewDescriptorsToDeregister, VIEW_CONTAINER);
 		}
 	}
 

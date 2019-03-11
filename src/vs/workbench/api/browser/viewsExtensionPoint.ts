@@ -8,7 +8,7 @@ import { forEach } from 'vs/base/common/collections';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import * as resources from 'vs/base/common/resources';
 import { ExtensionMessageCollector, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { ViewContainer, ViewsRegistry, ITreeViewDescriptor, IViewContainersRegistry, Extensions as ViewContainerExtensions, TEST_VIEW_CONTAINER_ID, IViewDescriptor } from 'vs/workbench/common/views';
+import { ViewContainer, IViewsRegistry, ITreeViewDescriptor, IViewContainersRegistry, Extensions as ViewContainerExtensions, TEST_VIEW_CONTAINER_ID, IViewDescriptor } from 'vs/workbench/common/views';
 import { CustomTreeViewPanel, CustomTreeView } from 'vs/workbench/browser/parts/views/customView';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { coalesce, } from 'vs/base/common/arrays';
@@ -158,11 +158,13 @@ const TEST_VIEW_CONTAINER_ORDER = 6;
 class ViewsExtensionHandler implements IWorkbenchContribution {
 
 	private viewContainersRegistry: IViewContainersRegistry;
+	private viewsRegistry: IViewsRegistry;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		this.viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
+		this.viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
 		this.handleAndRegisterCustomViewContainers();
 		this.handleAndRegisterCustomViews();
 	}
@@ -202,9 +204,9 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 		for (const viewContainer of viewContainersRegistry.all) {
 			if (viewContainer.extensionId && removedExtensions.has(ExtensionIdentifier.toKey(viewContainer.extensionId))) {
 				// move only those views that do not belong to the removed extension
-				const views = ViewsRegistry.getViews(viewContainer).filter((view: ICustomViewDescriptor) => !removedExtensions.has(ExtensionIdentifier.toKey(view.extensionId)));
+				const views = this.viewsRegistry.getViews(viewContainer).filter((view: ICustomViewDescriptor) => !removedExtensions.has(ExtensionIdentifier.toKey(view.extensionId)));
 				if (views.length) {
-					ViewsRegistry.moveViews(views, this.getDefaultViewContainer());
+					this.viewsRegistry.moveViews(views, this.getDefaultViewContainer());
 				}
 				this.deregisterCustomViewContainer(viewContainer);
 			}
@@ -259,11 +261,11 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 				const viewsToMove: IViewDescriptor[] = [];
 				for (const existingViewContainer of existingViewContainers) {
 					if (viewContainer !== existingViewContainer) {
-						viewsToMove.push(...ViewsRegistry.getViews(existingViewContainer).filter((view: ICustomViewDescriptor) => view.originalContainerId === descriptor.id));
+						viewsToMove.push(...this.viewsRegistry.getViews(existingViewContainer).filter((view: ICustomViewDescriptor) => view.originalContainerId === descriptor.id));
 					}
 				}
 				if (viewsToMove.length) {
-					ViewsRegistry.moveViews(viewsToMove, viewContainer);
+					this.viewsRegistry.moveViews(viewsToMove, viewContainer);
 				}
 			}
 		});
@@ -361,7 +363,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 					collector.warn(localize('ViewContainerDoesnotExist', "View container '{0}' does not exist and all views registered to it will be added to 'Explorer'.", entry.key));
 				}
 				const container = viewContainer || this.getDefaultViewContainer();
-				const registeredViews = ViewsRegistry.getViews(container);
+				const registeredViews = this.viewsRegistry.getViews(container);
 				const viewIds: string[] = [];
 				const viewDescriptors = coalesce(entry.value.map((item, index) => {
 					// validate
@@ -390,7 +392,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 					viewIds.push(viewDescriptor.id);
 					return viewDescriptor;
 				}));
-				ViewsRegistry.registerViews(viewDescriptors, container);
+				this.viewsRegistry.registerViews(viewDescriptors, container);
 			});
 		}
 	}
@@ -402,9 +404,9 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 	private removeViews(extensions: IExtensionPointUser<ViewExtensionPointType>[]): void {
 		const removedExtensions: Set<string> = extensions.reduce((result, e) => { result.add(ExtensionIdentifier.toKey(e.description.identifier)); return result; }, new Set<string>());
 		for (const viewContainer of this.viewContainersRegistry.all) {
-			const removedViews = ViewsRegistry.getViews(viewContainer).filter((v: ICustomViewDescriptor) => v.extensionId && removedExtensions.has(ExtensionIdentifier.toKey(v.extensionId)));
+			const removedViews = this.viewsRegistry.getViews(viewContainer).filter((v: ICustomViewDescriptor) => v.extensionId && removedExtensions.has(ExtensionIdentifier.toKey(v.extensionId)));
 			if (removedViews.length) {
-				ViewsRegistry.deregisterViews(removedViews, viewContainer);
+				this.viewsRegistry.deregisterViews(removedViews, viewContainer);
 			}
 		}
 	}

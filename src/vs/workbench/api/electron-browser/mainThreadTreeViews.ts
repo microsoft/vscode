@@ -5,12 +5,13 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ExtHostContext, MainThreadTreeViewsShape, ExtHostTreeViewsShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
-import { ITreeViewDataProvider, ITreeItem, IViewsService, ITreeView, ViewsRegistry, ITreeViewDescriptor, IRevealOptions } from 'vs/workbench/common/views';
+import { ITreeViewDataProvider, ITreeItem, IViewsService, ITreeView, IViewsRegistry, ITreeViewDescriptor, IRevealOptions, Extensions } from 'vs/workbench/common/views';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { distinct } from 'vs/base/common/arrays';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { isUndefinedOrNull, isNumber } from 'vs/base/common/types';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 @extHostNamedCustomer(MainContext.MainThreadTreeViews)
 export class MainThreadTreeViews extends Disposable implements MainThreadTreeViewsShape {
@@ -113,7 +114,7 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 	}
 
 	private getTreeView(treeViewId: string): ITreeView | null {
-		const viewDescriptor: ITreeViewDescriptor = <ITreeViewDescriptor>ViewsRegistry.getView(treeViewId);
+		const viewDescriptor: ITreeViewDescriptor = <ITreeViewDescriptor>Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).getView(treeViewId);
 		return viewDescriptor ? viewDescriptor.treeView : null;
 	}
 

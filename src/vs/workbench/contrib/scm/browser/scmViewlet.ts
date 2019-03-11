@@ -47,7 +47,8 @@ import * as platform from 'vs/base/common/platform';
 import { ViewContainerViewlet } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ViewsRegistry, IViewDescriptor } from 'vs/workbench/common/views';
+import { IViewsRegistry, IViewDescriptor, Extensions } from 'vs/workbench/common/views';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 export interface ISpliceEvent<T> {
 	index: number;
@@ -1121,7 +1122,7 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 		this._repositories.push(repository);
 
 		const viewDescriptor = new RepositoryViewDescriptor(repository, this, false);
-		ViewsRegistry.registerViews([viewDescriptor], VIEW_CONTAINER);
+		Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).registerViews([viewDescriptor], VIEW_CONTAINER);
 		this.viewDescriptors.push(viewDescriptor);
 
 		this._onDidSplice.fire({ index, deleteCount: 0, elements: [repository] });
@@ -1137,7 +1138,7 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 			return;
 		}
 
-		ViewsRegistry.deregisterViews([this.viewDescriptors[index]], VIEW_CONTAINER);
+		Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).deregisterViews([this.viewDescriptors[index]], VIEW_CONTAINER);
 
 		this._repositories.splice(index, 1);
 		this.viewDescriptors.splice(index, 1);
@@ -1151,10 +1152,11 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 	private onDidChangeRepositories(): void {
 		const repositoryCount = this.repositories.length;
 
+		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 		if (this.repositoryCount === 0 && repositoryCount !== 0) {
-			ViewsRegistry.registerViews([this.mainPanelDescriptor], VIEW_CONTAINER);
+			viewsRegistry.registerViews([this.mainPanelDescriptor], VIEW_CONTAINER);
 		} else if (this.repositoryCount !== 0 && repositoryCount === 0) {
-			ViewsRegistry.deregisterViews([this.mainPanelDescriptor], VIEW_CONTAINER);
+			viewsRegistry.deregisterViews([this.mainPanelDescriptor], VIEW_CONTAINER);
 		}
 
 		const alwaysShowProviders = this.configurationService.getValue<boolean>('scm.alwaysShowProviders') || false;

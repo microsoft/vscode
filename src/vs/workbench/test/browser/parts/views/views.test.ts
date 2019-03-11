@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { ContributableViewsModel, ViewsService } from 'vs/workbench/browser/parts/views/views';
-import { ViewsRegistry, IViewDescriptor, IViewContainersRegistry, Extensions as ViewContainerExtensions, IViewsService } from 'vs/workbench/common/views';
+import { IViewsRegistry, IViewDescriptor, IViewContainersRegistry, Extensions as ViewContainerExtensions, IViewsService } from 'vs/workbench/common/views';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { move } from 'vs/base/common/arrays';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -15,6 +15,7 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 
 const container = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer('test');
+const ViewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
 
 class ViewDescriptorSequence {
 

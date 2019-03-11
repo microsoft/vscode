@@ -24,6 +24,7 @@ export const TEST_VIEW_CONTAINER_ID = 'workbench.view.extension.test';
 
 export namespace Extensions {
 	export const ViewContainersRegistry = 'workbench.registry.view.containers';
+	export const ViewsRegistry = 'workbench.registry.view';
 }
 
 export interface IViewContainersRegistry {
@@ -166,7 +167,7 @@ export interface IViewsRegistry {
 	getViewContainer(id: string): ViewContainer | null;
 }
 
-export const ViewsRegistry: IViewsRegistry = new class implements IViewsRegistry {
+class ViewsRegistry implements IViewsRegistry {
 
 	private readonly _onViewsRegistered: Emitter<{ views: IViewDescriptor[], viewContainer: ViewContainer }> = new Emitter<{ views: IViewDescriptor[], viewContainer: ViewContainer }>();
 	readonly onViewsRegistered: Event<{ views: IViewDescriptor[], viewContainer: ViewContainer }> = this._onViewsRegistered.event;
@@ -267,7 +268,9 @@ export const ViewsRegistry: IViewsRegistry = new class implements IViewsRegistry
 		}
 		return viewsToDeregister;
 	}
-};
+}
+
+Registry.add(Extensions.ViewsRegistry, new ViewsRegistry());
 
 export interface IView {
 
