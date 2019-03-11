@@ -144,29 +144,29 @@ interface StateDelta {
 }
 
 class State {
-	private _selectionStatus: string;
-	get selectionStatus(): string { return this._selectionStatus; }
+	private _selectionStatus: string | null;
+	get selectionStatus(): string | null { return this._selectionStatus; }
 
-	private _mode: string;
-	get mode(): string { return this._mode; }
+	private _mode: string | null;
+	get mode(): string | null { return this._mode; }
 
-	private _encoding: string;
-	get encoding(): string { return this._encoding; }
+	private _encoding: string | null;
+	get encoding(): string | null { return this._encoding; }
 
-	private _EOL: string;
-	get EOL(): string { return this._EOL; }
+	private _EOL: string | null;
+	get EOL(): string | null { return this._EOL; }
 
-	private _indentation: string;
-	get indentation(): string { return this._indentation; }
+	private _indentation: string | null;
+	get indentation(): string | null { return this._indentation; }
 
-	private _tabFocusMode: boolean;
-	get tabFocusMode(): boolean { return this._tabFocusMode; }
+	private _tabFocusMode: boolean | null;
+	get tabFocusMode(): boolean | null { return this._tabFocusMode; }
 
-	private _screenReaderMode: boolean;
-	get screenReaderMode(): boolean { return this._screenReaderMode; }
+	private _screenReaderMode: boolean | null;
+	get screenReaderMode(): boolean | null { return this._screenReaderMode; }
 
-	private _metadata: string;
-	get metadata(): string { return this._metadata; }
+	private _metadata: string | null;
+	get metadata(): string | null { return this._metadata; }
 
 	constructor() {
 		this._selectionStatus = null;
