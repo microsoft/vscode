@@ -1342,7 +1342,7 @@ namespace ConfiguringTask {
 		}
 		let configElement: Tasks.TaskSourceConfigElement = {
 			workspaceFolder: context.workspaceFolder,
-			file: '.vscode\\tasks.json',
+			file: '.vscode/tasks.json',
 			index,
 			element: external
 		};
@@ -1406,7 +1406,7 @@ namespace CustomTask {
 
 		let result: Tasks.CustomTask = new Tasks.CustomTask(
 			context.uuidMap.getUUID(taskName),
-			Objects.assign({} as Tasks.WorkspaceTaskSource, source, { config: { index, element: external, file: '.vscode\\tasks.json', workspaceFolder: context.workspaceFolder } }),
+			Objects.assign({} as Tasks.WorkspaceTaskSource, source, { config: { index, element: external, file: '.vscode/tasks.json', workspaceFolder: context.workspaceFolder } }),
 			taskName,
 			Tasks.CUSTOMIZED_TASK_TYPE,
 			undefined,
