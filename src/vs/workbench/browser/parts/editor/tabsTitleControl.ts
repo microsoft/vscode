@@ -700,8 +700,8 @@ export class TabsTitleControl extends TitleControl {
 		const labels = this.group.editors.map(editor => ({
 			editor,
 			name: editor.getName()!,
-			description: editor.getDescription(verbosity) || undefined,
-			title: editor.getTitle(Verbosity.LONG) || undefined
+			description: editor.getDescription(verbosity)!,
+			title: editor.getTitle(Verbosity.LONG)!
 		}));
 
 		// Shorten labels as needed
@@ -753,7 +753,7 @@ export class TabsTitleControl extends TitleControl {
 			if (useLongDescriptions) {
 				mapDescriptionToDuplicates.clear();
 				duplicateTitles.forEach(label => {
-					label.description = label.editor.getDescription(Verbosity.LONG) || undefined;
+					label.description = label.editor.getDescription(Verbosity.LONG)!;
 					getOrSet(mapDescriptionToDuplicates, label.description, []).push(label);
 				});
 			}
