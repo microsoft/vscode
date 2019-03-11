@@ -192,8 +192,15 @@ export function getAllPropertyNames(obj: object): string[] {
 }
 
 /**
- * Converts null undefined, passes all other values through.
+ * Converts null to undefined, passes all other values through.
  */
 export function withNullAsUndefined<T>(x: T | null): T | undefined {
 	return x === null ? undefined : x;
+}
+
+/**
+ * Converts undefined to null, passes all other values through.
+ */
+export function withUndefinedAsNull<T>(x: T | undefined): T | null {
+	return typeof x === 'undefined' ? null : x;
 }
