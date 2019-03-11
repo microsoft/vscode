@@ -601,7 +601,7 @@ export class TestViewletService implements IViewletService {
 	public hideActiveViewlet(): void { }
 
 	public getLastActiveViewletId(): string {
-		return undefined;
+		return undefined!;
 	}
 }
 
@@ -639,7 +639,7 @@ export class TestPanelService implements IPanelService {
 	public hideActivePanel(): void { }
 
 	public getLastActivePanelId(): string {
-		return undefined;
+		return undefined!;
 	}
 }
 
@@ -847,7 +847,7 @@ export class TestEditorService implements EditorServiceImpl {
 	activeTextEditorWidget: any;
 	activeEditor: IEditorInput;
 	editors: ReadonlyArray<IEditorInput> = [];
-	visibleControls: ReadonlyArray<IEditor> = [];
+	visibleControls: ReadonlyArray<IVisibleEditor> = [];
 	visibleTextEditorWidgets = [];
 	visibleEditors: ReadonlyArray<IEditorInput> = [];
 

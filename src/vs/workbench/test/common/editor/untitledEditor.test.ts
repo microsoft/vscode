@@ -18,7 +18,7 @@ import { snapshotToString } from 'vs/platform/files/common/files';
 import { timeout } from 'vs/base/common/async';
 
 export class TestUntitledEditorService extends UntitledEditorService {
-	get(resource: URI): UntitledEditorInput { return super.get(resource); }
+	get(resource: URI) { return super.get(resource); }
 	getAll(resources?: URI[]): UntitledEditorInput[] { return super.getAll(resources); }
 }
 
