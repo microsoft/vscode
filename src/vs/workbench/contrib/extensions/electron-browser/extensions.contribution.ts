@@ -266,23 +266,23 @@ CommandsRegistry.registerCommand('extension.open', (accessor: ServicesAccessor, 
 });
 
 CommandsRegistry.registerCommand(DebugExtensionHostAction.ID, (accessor: ServicesAccessor) => {
-	const instantationService = accessor.get(IInstantiationService);
-	instantationService.createInstance(DebugExtensionHostAction).run();
+	const instantiationService = accessor.get(IInstantiationService);
+	instantiationService.createInstance(DebugExtensionHostAction).run();
 });
 
 CommandsRegistry.registerCommand(StartExtensionHostProfileAction.ID, (accessor: ServicesAccessor) => {
-	const instantationService = accessor.get(IInstantiationService);
-	instantationService.createInstance(StartExtensionHostProfileAction, StartExtensionHostProfileAction.ID, StartExtensionHostProfileAction.LABEL).run();
+	const instantiationService = accessor.get(IInstantiationService);
+	instantiationService.createInstance(StartExtensionHostProfileAction, StartExtensionHostProfileAction.ID, StartExtensionHostProfileAction.LABEL).run();
 });
 
 CommandsRegistry.registerCommand(StopExtensionHostProfileAction.ID, (accessor: ServicesAccessor) => {
-	const instantationService = accessor.get(IInstantiationService);
-	instantationService.createInstance(StopExtensionHostProfileAction, StopExtensionHostProfileAction.ID, StopExtensionHostProfileAction.LABEL).run();
+	const instantiationService = accessor.get(IInstantiationService);
+	instantiationService.createInstance(StopExtensionHostProfileAction, StopExtensionHostProfileAction.ID, StopExtensionHostProfileAction.LABEL).run();
 });
 
 CommandsRegistry.registerCommand(SaveExtensionHostProfileAction.ID, (accessor: ServicesAccessor) => {
-	const instantationService = accessor.get(IInstantiationService);
-	instantationService.createInstance(SaveExtensionHostProfileAction, SaveExtensionHostProfileAction.ID, SaveExtensionHostProfileAction.LABEL).run();
+	const instantiationService = accessor.get(IInstantiationService);
+	instantiationService.createInstance(SaveExtensionHostProfileAction, SaveExtensionHostProfileAction.ID, SaveExtensionHostProfileAction.LABEL).run();
 });
 
 // File menu registration

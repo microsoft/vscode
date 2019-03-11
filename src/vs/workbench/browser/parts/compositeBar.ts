@@ -265,7 +265,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		}
 	}
 
-	getAction(compositeId): ActivityAction {
+	getAction(compositeId: string): ActivityAction {
 		const item = this.model.findItem(compositeId);
 		return item && item.activityAction;
 	}

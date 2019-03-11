@@ -75,18 +75,15 @@ export class PanelRegistry extends CompositeRegistry<Panel> {
  */
 export abstract class TogglePanelAction extends Action {
 
-	private panelId: string;
-
 	constructor(
 		id: string,
 		label: string,
-		panelId: string,
+		private readonly panelId: string,
 		protected panelService: IPanelService,
 		private layoutService: IWorkbenchLayoutService,
 		cssClass?: string
 	) {
 		super(id, label, cssClass);
-		this.panelId = panelId;
 	}
 
 	run(): Promise<any> {

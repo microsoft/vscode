@@ -537,13 +537,13 @@ export class MenubarControl extends Disposable {
 			const menu = this.topLevelMenus[title];
 			if (firstTime && menu) {
 				this._register(menu.onDidChange(() => {
-					const actions = [];
+					const actions: IAction[] = [];
 					updateActions(menu, actions);
 					this.menubar.updateMenu({ actions: actions, label: mnemonicMenuLabel(this.topLevelTitles[title]) });
 				}));
 			}
 
-			const actions = [];
+			const actions: IAction[] = [];
 			if (menu) {
 				updateActions(menu, actions);
 			}

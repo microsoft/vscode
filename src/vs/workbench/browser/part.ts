@@ -68,7 +68,7 @@ export abstract class Part extends Component implements ISerializableView {
 		this.titleArea = this.createTitleArea(parent, options);
 		this.contentArea = this.createContentArea(parent, options);
 
-		this.partLayout = new PartLayout(this.parent, this.options, this.titleArea, this.contentArea);
+		this.partLayout = new PartLayout(this.options, this.contentArea);
 
 		this.updateStyles();
 	}
@@ -137,7 +137,7 @@ class PartLayout {
 
 	private static readonly TITLE_HEIGHT = 35;
 
-	constructor(container: HTMLElement, private options: IPartOptions, titleArea: HTMLElement | null, private contentArea: HTMLElement | null) { }
+	constructor(private options: IPartOptions, private contentArea: HTMLElement | null) { }
 
 	layout(width: number, height: number): ILayoutContentResult {
 

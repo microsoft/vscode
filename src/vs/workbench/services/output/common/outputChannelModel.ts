@@ -115,7 +115,7 @@ export abstract class AbstractFileOutputChannelModel extends Disposable implemen
 	}
 
 	abstract loadModel(): Promise<ITextModel>;
-	abstract append(message: string);
+	abstract append(message: string): void;
 
 	protected onModelCreated(model: ITextModel) { }
 	protected onModelWillDispose(model: ITextModel | null) { }

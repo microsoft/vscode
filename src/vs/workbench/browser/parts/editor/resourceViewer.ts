@@ -236,7 +236,7 @@ export class ZoomStatusbarItem extends Themable implements IStatusbarItem {
 
 	static instance: ZoomStatusbarItem;
 
-	showTimeout: any;
+	private showTimeout: any;
 
 	private statusBarItem: HTMLElement;
 	private onSelectScale?: (scale: Scale) => void;
