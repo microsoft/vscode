@@ -289,8 +289,8 @@ export class TerminalLinkHandler {
 		}
 
 		// Ensure the file exists on disk, so an editor can be opened after clicking it
-		return this._fileService.existsFile(URI.file(linkUrl)).then(isFile => {
-			if (!isFile) {
+		return this._fileService.resolveFile(URI.file(linkUrl)).then(stat => {
+			if (stat.isDirectory) {
 				return null;
 			}
 			return preprocessedLink;
