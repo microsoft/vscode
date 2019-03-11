@@ -691,7 +691,7 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		// Handle empty to restore
-		const allEmptyToRestore = arrays.distinct(emptyToRestore, info => info.backupFolder); // prevent duplicates
+		const allEmptyToRestore = arrays.distinct(emptyToRestore, info => info.backupFolder || ''); // prevent duplicates
 		if (allEmptyToRestore.length > 0) {
 			allEmptyToRestore.forEach(emptyWindowBackupInfo => {
 				const remoteAuthority = emptyWindowBackupInfo.remoteAuthority;
