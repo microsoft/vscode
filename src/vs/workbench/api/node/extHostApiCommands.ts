@@ -437,7 +437,7 @@ export class ExtHostApiCommands {
 		const args = {
 			resource
 		};
-		return this._commands.executeCommand<modes.DocumentSymbol[]>('_executeDocumentSymbolProvider', args).then(value => {
+		return this._commands.executeCommand<modes.DocumentSymbol[]>('_executeDocumentSymbolProvider', args).then((value): vscode.SymbolInformation[] | undefined => {
 			if (isFalsyOrEmpty(value)) {
 				return undefined;
 			}
@@ -446,13 +446,13 @@ export class ExtHostApiCommands {
 					const res = new MergedInfo(
 						symbol.name,
 						typeConverters.SymbolKind.to(symbol.kind),
-						symbol.containerName,
+						symbol.containerName || '',
 						new types.Location(resource, typeConverters.Range.to(symbol.range))
 					);
 					res.detail = symbol.detail;
 					res.range = res.location.range;
 					res.selectionRange = typeConverters.Range.to(symbol.selectionRange);
-					res.children = symbol.children && symbol.children.map(MergedInfo.to);
+					res.children = symbol.children ? symbol.children.map(MergedInfo.to) : [];
 					return res;
 				}
 
@@ -460,6 +460,7 @@ export class ExtHostApiCommands {
 				range: vscode.Range;
 				selectionRange: vscode.Range;
 				children: vscode.DocumentSymbol[];
+				containerName: string;
 			}
 			return value.map(MergedInfo.to);
 		});
@@ -474,6 +475,9 @@ export class ExtHostApiCommands {
 		return this._commands.executeCommand<CustomCodeAction[]>('_executeCodeActionProvider', args)
 			.then(tryMapWith(codeAction => {
 				if (codeAction._isSynthetic) {
+					if (!codeAction.command) {
+						throw new Error('Synthetic code actions must have a command');
+					}
 					return this._commands.converter.fromInternal(codeAction.command);
 				} else {
 					const ret = new types.CodeAction(
@@ -497,7 +501,7 @@ export class ExtHostApiCommands {
 			.then(tryMapWith(item => {
 				return new types.CodeLens(
 					typeConverters.Range.to(item.range),
-					this._commands.converter.fromInternal(item.command));
+					item.command ? this._commands.converter.fromInternal(item.command) : undefined);
 			}));
 
 	}

@@ -241,11 +241,7 @@ export class CommandsConverter {
 		return result;
 	}
 
-	fromInternal(command: modes.Command | undefined): vscode.Command | undefined {
-
-		if (!command) {
-			return undefined;
-		}
+	fromInternal(command: modes.Command): vscode.Command {
 
 		const id = ObjectIdentifier.of(command);
 		if (typeof id === 'number') {
