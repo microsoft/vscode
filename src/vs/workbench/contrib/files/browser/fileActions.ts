@@ -1065,7 +1065,7 @@ function getContext(listWidget: ListWidget): IExplorerContext {
 // TODO@isidor these commands are calling into actions due to the complex inheritance action structure.
 // It should be the other way around, that actions call into commands.
 function openExplorerAndRunAction(accessor: ServicesAccessor, constructor: IConstructorSignature1<() => ExplorerItem, Action>): Promise<any> {
-	const instantationService = accessor.get(IInstantiationService);
+	const instantiationService = accessor.get(IInstantiationService);
 	const listService = accessor.get(IListService);
 	const viewletService = accessor.get(IViewletService);
 	const activeViewlet = viewletService.getActiveViewlet();
@@ -1079,7 +1079,7 @@ function openExplorerAndRunAction(accessor: ServicesAccessor, constructor: ICons
 		if (explorerView && explorerView.isBodyVisible() && listService.lastFocusedList) {
 			explorerView.focus();
 			const { stat } = getContext(listService.lastFocusedList);
-			const action = instantationService.createInstance(constructor, () => stat);
+			const action = instantiationService.createInstance(constructor, () => stat);
 
 			return action.run();
 		}
@@ -1126,7 +1126,7 @@ export const renameHandler = (accessor: ServicesAccessor) => {
 };
 
 export const moveFileToTrashHandler = (accessor: ServicesAccessor) => {
-	const instantationService = accessor.get(IInstantiationService);
+	const instantiationService = accessor.get(IInstantiationService);
 	const listService = accessor.get(IListService);
 	if (!listService.lastFocusedList) {
 		return Promise.resolve();
@@ -1134,12 +1134,12 @@ export const moveFileToTrashHandler = (accessor: ServicesAccessor) => {
 	const explorerContext = getContext(listService.lastFocusedList);
 	const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
 
-	const moveFileToTrashAction = instantationService.createInstance(BaseDeleteFileAction, stats, true);
+	const moveFileToTrashAction = instantiationService.createInstance(BaseDeleteFileAction, stats, true);
 	return moveFileToTrashAction.run();
 };
 
 export const deleteFileHandler = (accessor: ServicesAccessor) => {
-	const instantationService = accessor.get(IInstantiationService);
+	const instantiationService = accessor.get(IInstantiationService);
 	const listService = accessor.get(IListService);
 	if (!listService.lastFocusedList) {
 		return Promise.resolve();
@@ -1147,7 +1147,7 @@ export const deleteFileHandler = (accessor: ServicesAccessor) => {
 	const explorerContext = getContext(listService.lastFocusedList);
 	const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
 
-	const deleteFileAction = instantationService.createInstance(BaseDeleteFileAction, stats, false);
+	const deleteFileAction = instantiationService.createInstance(BaseDeleteFileAction, stats, false);
 	return deleteFileAction.run();
 };
 
@@ -1176,7 +1176,7 @@ export const cutFileHandler = (accessor: ServicesAccessor) => {
 };
 
 export const pasteFileHandler = (accessor: ServicesAccessor) => {
-	const instantationService = accessor.get(IInstantiationService);
+	const instantiationService = accessor.get(IInstantiationService);
 	const listService = accessor.get(IListService);
 	const clipboardService = accessor.get(IClipboardService);
 	if (!listService.lastFocusedList) {
@@ -1185,7 +1185,7 @@ export const pasteFileHandler = (accessor: ServicesAccessor) => {
 	const explorerContext = getContext(listService.lastFocusedList);
 
 	return sequence(resources.distinctParents(clipboardService.readResources(), r => r).map(toCopy => {
-		const pasteFileAction = instantationService.createInstance(PasteFileAction, explorerContext.stat);
+		const pasteFileAction = instantiationService.createInstance(PasteFileAction, explorerContext.stat);
 		return () => pasteFileAction.run(toCopy);
 	}));
 };

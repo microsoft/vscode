@@ -14,9 +14,9 @@ import { IURITransformer } from 'vs/base/common/uriIpc';
 import { tmpdir } from 'os';
 import { generateUuid } from 'vs/base/common/uuid';
 
-export type UploadResponse = Buffer | string | undefined;
+type UploadResponse = Buffer | string | undefined;
 
-export function upload(uri: URI): Event<UploadResponse> {
+function upload(uri: URI): Event<UploadResponse> {
 	const stream = new Emitter<UploadResponse>();
 	const readstream = fs.createReadStream(uri.fsPath);
 	readstream.on('data', data => stream.fire(data));

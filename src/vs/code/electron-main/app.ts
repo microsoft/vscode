@@ -556,7 +556,7 @@ export class CodeApplication extends Disposable {
 			});
 		}
 
-		// Register the multiple URL handker
+		// Register the multiple URL handler
 		urlService.registerHandler(multiplexURLHandler);
 
 		// Watch Electron URLs and forward them to the UrlService

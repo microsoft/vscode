@@ -36,11 +36,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDebugService);
 		this._toDispose = [];
 		this._toDispose.push(debugService.onDidNewSession(session => {
-			if (session) {
-				this._proxy.$acceptDebugSessionStarted(this.getSessionDto(session));
-			} else {
-				console.error('undefined session received in onDidNewSession');
-			}
+			this._proxy.$acceptDebugSessionStarted(this.getSessionDto(session));
 		}));
 		// Need to start listening early to new session events because a custom event can come while a session is initialising
 		this._toDispose.push(debugService.onWillNewSession(session => {

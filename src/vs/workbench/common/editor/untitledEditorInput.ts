@@ -26,7 +26,6 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 
 	static readonly ID: string = 'workbench.editors.untitledEditorInput';
 
-	private _hasAssociatedFilePath: boolean;
 	private cachedModel: UntitledEditorModel;
 	private modelResolve?: Promise<UntitledEditorModel & IResolvedTextEditorModel>;
 
@@ -37,10 +36,10 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 	get onDidModelChangeEncoding(): Event<void> { return this._onDidModelChangeEncoding.event; }
 
 	constructor(
-		private resource: URI,
-		hasAssociatedFilePath: boolean,
-		private modeId: string,
-		private initialValue: string,
+		private readonly resource: URI,
+		private readonly _hasAssociatedFilePath: boolean,
+		private readonly modeId: string,
+		private readonly initialValue: string,
 		private preferredEncoding: string,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITextFileService private readonly textFileService: ITextFileService,
@@ -48,8 +47,6 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		@ILabelService private readonly labelService: ILabelService
 	) {
 		super();
-
-		this._hasAssociatedFilePath = hasAssociatedFilePath;
 	}
 
 	get hasAssociatedFilePath(): boolean {

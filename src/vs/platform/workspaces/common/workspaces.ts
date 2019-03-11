@@ -106,8 +106,6 @@ export interface IWorkspacesMainService extends IWorkspacesService {
 	deleteUntitledWorkspaceSync(workspace: IWorkspaceIdentifier): void;
 
 	getUntitledWorkspacesSync(): IUntitledWorkspaceInfo[];
-
-	getWorkspaceIdentifier(workspacePath: URI): IWorkspaceIdentifier;
 }
 
 export interface IWorkspacesService {
@@ -116,6 +114,8 @@ export interface IWorkspacesService {
 	createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[], remoteAuthority?: string): Promise<IWorkspaceIdentifier>;
 
 	deleteUntitledWorkspace(workspace: IWorkspaceIdentifier): Promise<void>;
+
+	getWorkspaceIdentifier(workspacePath: URI): Promise<IWorkspaceIdentifier>;
 }
 
 export function isSingleFolderWorkspaceIdentifier(obj: any): obj is ISingleFolderWorkspaceIdentifier {

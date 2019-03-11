@@ -28,7 +28,7 @@ import { TelemetryAppenderChannel } from 'vs/platform/telemetry/node/telemetryIp
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
 import { IWindowsService, ActiveWindowManager } from 'vs/platform/windows/common/windows';
-import { WindowsChannelClient } from 'vs/platform/windows/node/windowsIpc';
+import { WindowsService } from 'vs/platform/windows/electron-browser/windowsService';
 import { ipcRenderer } from 'electron';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
@@ -41,11 +41,13 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IDisposable, dispose, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { DownloadService } from 'vs/platform/download/node/downloadService';
 import { IDownloadService } from 'vs/platform/download/common/download';
-import { StaticRouter } from 'vs/base/parts/ipc/node/ipc';
+import { StaticRouter, IServerChannel, IChannel } from 'vs/base/parts/ipc/node/ipc';
 import { NodeCachedDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/nodeCachedDataCleaner';
 import { LanguagePackCachedDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/languagePackCachedDataCleaner';
 import { StorageDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/storageDataCleaner';
 import { LogsDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/logsDataCleaner';
+import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
+import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;
@@ -62,6 +64,20 @@ interface ISharedProcessInitData {
 }
 
 const eventPrefix = 'monacoworkbench';
+
+class MainProcessService implements IMainProcessService {
+	constructor(private server: Server, private mainRouter: StaticRouter) { }
+
+	_serviceBrand: ServiceIdentifier<any>;
+
+	getChannel(channelName: string): IChannel {
+		return this.server.getChannel(channelName, this.mainRouter);
+	}
+
+	registerChannel(channelName: string, channel: IServerChannel<string>): void {
+		this.server.registerChannel(channelName, channel);
+	}
+}
 
 function main(server: Server, initData: ISharedProcessInitData, configuration: ISharedProcessConfiguration): void {
 	const services = new ServiceCollection();
@@ -89,8 +105,10 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 	services.set(IDownloadService, new SyncDescriptor(DownloadService));
 
-	const windowsChannel = server.getChannel('windows', mainRouter);
-	const windowsService = new WindowsChannelClient(windowsChannel);
+	const mainProcessService = new MainProcessService(server, mainRouter);
+	services.set(IMainProcessService, mainProcessService);
+
+	const windowsService = new WindowsService(mainProcessService);
 	services.set(IWindowsService, windowsService);
 
 	const activeWindowManager = new ActiveWindowManager(windowsService);

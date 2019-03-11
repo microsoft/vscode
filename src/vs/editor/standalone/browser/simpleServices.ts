@@ -42,7 +42,6 @@ import { IProgressRunner, IProgressService } from 'vs/platform/progress/common/p
 import { ITelemetryInfo, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkbenchState, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { ILayoutService, IDimension } from 'vs/platform/layout/browser/layoutService';
 
 export class SimpleModel implements IResolvedTextEditorModel {
@@ -215,31 +214,6 @@ export class SimpleNotificationService implements INotificationService {
 
 	public prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions): INotificationHandle {
 		return SimpleNotificationService.NO_OP;
-	}
-}
-
-export class BrowserAccessibilityService implements IAccessibilityService {
-	_serviceBrand: any;
-
-	private _accessibilitySupport = AccessibilitySupport.Unknown;
-	private readonly _onDidChangeAccessibilitySupport = new Emitter<void>();
-	readonly onDidChangeAccessibilitySupport: Event<void> = this._onDidChangeAccessibilitySupport.event;
-
-	alwaysUnderlineAccessKeys(): Promise<boolean> {
-		return Promise.resolve(false);
-	}
-
-	setAccessibilitySupport(accessibilitySupport: AccessibilitySupport): void {
-		if (this._accessibilitySupport === accessibilitySupport) {
-			return;
-		}
-
-		this._accessibilitySupport = accessibilitySupport;
-		this._onDidChangeAccessibilitySupport.fire();
-	}
-
-	getAccessibilitySupport(): AccessibilitySupport {
-		return this._accessibilitySupport;
 	}
 }
 

@@ -96,7 +96,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			getDefaultCompositeId: () => this.viewletService.getDefaultViewletId(),
 			hidePart: () => this.layoutService.setSideBarHidden(true),
 			compositeSize: 50,
-			colors: theme => this.getActivitybarItemColors(theme),
+			colors: (theme: ITheme) => this.getActivitybarItemColors(theme),
 			overflowActionSize: ActivitybarPart.ACTION_HEIGHT
 		}));
 
@@ -254,7 +254,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			.map(a => new GlobalActivityAction(a));
 
 		this.globalActionBar = this._register(new ActionBar(container, {
-			actionItemProvider: a => this.instantiationService.createInstance(GlobalActivityActionItem, a, theme => this.getActivitybarItemColors(theme)),
+			actionItemProvider: a => this.instantiationService.createInstance(GlobalActivityActionItem, a, (theme: ITheme) => this.getActivitybarItemColors(theme)),
 			orientation: ActionsOrientation.VERTICAL,
 			ariaLabel: nls.localize('globalActions', "Global Actions"),
 			animated: false

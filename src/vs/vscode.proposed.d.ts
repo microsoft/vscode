@@ -84,36 +84,9 @@ declare module 'vscode' {
 
 	//#region Joh - selection range provider
 
-	export class SelectionRangeKind {
-
-		/**
-		 * Empty Kind.
-		 */
-		static readonly Empty: SelectionRangeKind;
-
-		/**
-		 * The statement kind, its value is `statement`, possible extensions can be
-		 * `statement.if` etc
-		 */
-		static readonly Statement: SelectionRangeKind;
-
-		/**
-		 * The declaration kind, its value is `declaration`, possible extensions can be
-		 * `declaration.function`, `declaration.class` etc.
-		 */
-		static readonly Declaration: SelectionRangeKind;
-
-		readonly value: string;
-
-		private constructor(value: string);
-
-		append(value: string): SelectionRangeKind;
-	}
-
 	export class SelectionRange {
-		kind: SelectionRangeKind;
 		range: Range;
-		constructor(range: Range, kind: SelectionRangeKind);
+		constructor(range: Range);
 	}
 
 	export interface SelectionRangeProvider {

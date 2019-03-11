@@ -1095,34 +1095,12 @@ CodeActionKind.SourceOrganizeImports = CodeActionKind.Source.append('organizeImp
 CodeActionKind.SourceFixAll = CodeActionKind.Source.append('fixAll');
 
 @es5ClassCompat
-export class SelectionRangeKind {
-
-	private static readonly _sep = '.';
-
-	static readonly Empty = new SelectionRangeKind('');
-	static readonly Statement = SelectionRangeKind.Empty.append('statement');
-	static readonly Declaration = SelectionRangeKind.Empty.append('declaration');
-
-	readonly value: string;
-
-	constructor(value: string) {
-		this.value = value;
-	}
-
-	append(value: string): SelectionRangeKind {
-		return new SelectionRangeKind(this.value ? this.value + SelectionRangeKind._sep + value : value);
-	}
-}
-
-@es5ClassCompat
 export class SelectionRange {
 
-	kind: SelectionRangeKind;
 	range: Range;
 
-	constructor(range: Range, kind: SelectionRangeKind, ) {
+	constructor(range: Range) {
 		this.range = range;
-		this.kind = kind;
 	}
 }
 

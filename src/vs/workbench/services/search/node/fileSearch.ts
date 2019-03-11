@@ -21,8 +21,7 @@ import * as types from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import * as extfs from 'vs/base/node/extfs';
 import * as flow from 'vs/base/node/flow';
-import { IFileQuery, IFolderQuery, IProgress, ISearchEngineStats } from 'vs/workbench/services/search/common/search';
-import { IRawFileMatch, ISearchEngine, ISearchEngineSuccess } from 'vs/workbench/services/search/node/search';
+import { IFileQuery, IFolderQuery, IProgress, ISearchEngineStats, IRawFileMatch, ISearchEngine, ISearchEngineSuccess } from 'vs/workbench/services/search/common/search';
 import { spawnRipgrepCmd } from './ripgrepFileSearch';
 
 interface IDirectoryEntry {

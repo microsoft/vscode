@@ -239,7 +239,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_E),
 	handler: (accessor, args: any) => {
 		const control = accessor.get(IEditorService).activeControl as IKeybindingsEditor;
-		if (control && control instanceof KeybindingsEditor) {
+		if (control && control instanceof KeybindingsEditor && control.activeKeybindingEntry.keybindingItem.keybinding) {
 			control.defineWhenExpression(control.activeKeybindingEntry);
 		}
 	}

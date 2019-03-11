@@ -28,6 +28,7 @@ import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/co
 import { Disposable } from 'vs/base/common/lifecycle';
 import { addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IRecentFile } from 'vs/platform/history/common/history';
 
 export interface IDraggedResource {
 	resource: URI;
@@ -178,9 +179,9 @@ export class ResourcesDropHandler {
 				}
 
 				// Add external ones to recently open list unless dropped resource is a workspace
-				const filesToAddToHistory = untitledOrFileResources.filter(d => d.isExternal && d.resource.scheme === Schemas.file).map(d => d.resource);
-				if (filesToAddToHistory.length) {
-					this.windowsService.addRecentlyOpened([], [], filesToAddToHistory);
+				const recents: IRecentFile[] = untitledOrFileResources.filter(d => d.isExternal && d.resource.scheme === Schemas.file).map(d => ({ fileUri: d.resource }));
+				if (recents.length) {
+					this.windowsService.addRecentlyOpened(recents);
 				}
 
 				const editors: IResourceEditor[] = untitledOrFileResources.map(untitledOrFileResource => ({

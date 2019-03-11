@@ -8,7 +8,7 @@ import * as resources from 'vs/base/common/resources';
 import * as objects from 'vs/base/common/objects';
 import { RemoteFileService } from 'vs/workbench/services/files/node/remoteFileService';
 import { IFileService, IFileStat, FileKind } from 'vs/platform/files/common/files';
-import { IQuickInputService, IQuickPickItem, IQuickPick } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickPickItem, IQuickPick, IQuickInputButton } from 'vs/platform/quickinput/common/quickInput';
 import { URI } from 'vs/base/common/uri';
 import { isWindows } from 'vs/base/common/platform';
 import { ISaveDialogOptions, IOpenDialogOptions, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -32,8 +32,8 @@ const INVALID_FILE_CHARS = isWindows ? /[\\/:\*\?"<>\|]/g : /[\\/]/g;
 const WINDOWS_FORBIDDEN_NAMES = /^(con|prn|aux|clock\$|nul|lpt[0-9]|com[0-9])$/i;
 
 export class RemoteFileDialog {
-	private fallbackPickerButton;
-	private acceptButton;
+	private fallbackPickerButton: IQuickInputButton;
+	private acceptButton: IQuickInputButton;
 	private currentFolder: URI;
 	private filePickBox: IQuickPick<FileQuickPickItem>;
 	private filters: FileFilter[] | undefined;

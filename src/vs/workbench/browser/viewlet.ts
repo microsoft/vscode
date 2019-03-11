@@ -130,19 +130,17 @@ Registry.add(Extensions.Viewlets, new ViewletRegistry());
  * A reusable action to show a viewlet with a specific id.
  */
 export class ShowViewletAction extends Action {
-	private viewletId: string;
 
 	constructor(
 		id: string,
 		name: string,
-		viewletId: string,
+		private readonly viewletId: string,
 		@IViewletService protected viewletService: IViewletService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
 		super(id, name);
 
-		this.viewletId = viewletId;
 		this.enabled = !!this.viewletService && !!this.editorGroupService;
 	}
 
