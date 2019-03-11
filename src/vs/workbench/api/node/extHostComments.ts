@@ -108,19 +108,19 @@ export class ExtHostComments implements ExtHostCommentsShape {
 
 		const document = this._documents.getDocument(URI.revive(uriComponents));
 		return asPromise(() => {
-			return commentController.commentingRangeProvider.provider(document, token);
+			return commentController.commentingRangeProvider.provideCommentingRange(document, token);
 		}).then(ranges => ranges ? ranges.map(extHostTypeConverter.Range.from) : undefined);
 	}
 
 	$createNewCommentWidgetCallback(commentControllerHandle: number, uriComponents: UriComponents, range: IRange, token: CancellationToken): void {
 		const commentController = this._commentControllers.get(commentControllerHandle);
 
-		if (!commentController || !commentController.commentingRangeProvider) {
+		if (!commentController || !commentController.emptyCommentThreadFactory) {
 			return;
 		}
 
 		const document = this._documents.getDocument(URI.revive(uriComponents));
-		commentController.commentingRangeProvider.callback(document, extHostTypeConverter.Range.to(range));
+		commentController.emptyCommentThreadFactory.createEmptyCommentThread(document, extHostTypeConverter.Range.to(range));
 	}
 
 	registerWorkspaceCommentProvider(
@@ -435,16 +435,6 @@ export class ExtHostCommentInputBox implements vscode.CommentInputBox {
 		this._value = input;
 	}
 }
-
-class ExtHostCommentingRangeProvider {
-	constructor(
-		public provider: (document: vscode.TextDocument, token: vscode.CancellationToken) => vscode.ProviderResult<vscode.Range[]>,
-		public callback: (document: vscode.TextDocument, range: vscode.Range) => void
-	) {
-
-	}
-}
-
 class ExtHostCommentController implements vscode.CommentController {
 	get id(): string {
 		return this._id;
@@ -462,16 +452,8 @@ class ExtHostCommentController implements vscode.CommentController {
 	}
 
 	private _threads: Map<number, ExtHostCommentThread> = new Map<number, ExtHostCommentThread>();
-
-	private _commentingRangeProvider: ExtHostCommentingRangeProvider | undefined = undefined;
-
-	get commentingRangeProvider(): ExtHostCommentingRangeProvider | undefined {
-		return this._commentingRangeProvider;
-	}
-
-	set commentingRangeProvider(commentingRangeProvider: ExtHostCommentingRangeProvider | undefined) {
-		this._commentingRangeProvider = commentingRangeProvider;
-	}
+	commentingRangeProvider?: vscode.CommentingRangeProvider;
+	emptyCommentThreadFactory: vscode.EmptyCommentThreadFactory;
 
 	constructor(
 		_extension: IExtensionDescription,
@@ -488,10 +470,6 @@ class ExtHostCommentController implements vscode.CommentController {
 		const commentThread = new ExtHostCommentThread(this._proxy, this._commandsConverter, this.handle, id, resource, range);
 		this._threads.set(commentThread.handle, commentThread);
 		return commentThread;
-	}
-
-	registerCommentingRangeProvider(provider: (document: vscode.TextDocument, token: vscode.CancellationToken) => vscode.ProviderResult<vscode.Range[]>, callback: (document: vscode.TextDocument, range: vscode.Range) => void) {
-		this._commentingRangeProvider = new ExtHostCommentingRangeProvider(provider, callback);
 	}
 
 	$onCommentWidgetInputChange(input: string) {
