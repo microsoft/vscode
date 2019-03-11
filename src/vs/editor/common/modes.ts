@@ -324,11 +324,14 @@ export const completionKindToCssClass = (function () {
 /**
  * @internal
  */
-export let completionKindFromLegacyString = (function () {
-	let data = Object.create(null);
+export let completionKindFromString: {
+	(value: string): CompletionItemKind;
+	(value: string, strict: true): CompletionItemKind | undefined;
+} = (function () {
+	let data: Record<string, CompletionItemKind> = Object.create(null);
 	data['method'] = CompletionItemKind.Method;
 	data['function'] = CompletionItemKind.Function;
-	data['constructor'] = CompletionItemKind.Constructor;
+	data['constructor'] = <any>CompletionItemKind.Constructor;
 	data['field'] = CompletionItemKind.Field;
 	data['variable'] = CompletionItemKind.Variable;
 	data['class'] = CompletionItemKind.Class;
@@ -343,6 +346,7 @@ export let completionKindFromLegacyString = (function () {
 	data['constant'] = CompletionItemKind.Constant;
 	data['enum'] = CompletionItemKind.Enum;
 	data['enum-member'] = CompletionItemKind.EnumMember;
+	data['enumMember'] = CompletionItemKind.EnumMember;
 	data['keyword'] = CompletionItemKind.Keyword;
 	data['snippet'] = CompletionItemKind.Snippet;
 	data['text'] = CompletionItemKind.Text;
@@ -352,9 +356,14 @@ export let completionKindFromLegacyString = (function () {
 	data['customcolor'] = CompletionItemKind.Customcolor;
 	data['folder'] = CompletionItemKind.Folder;
 	data['type-parameter'] = CompletionItemKind.TypeParameter;
+	data['typeParameter'] = CompletionItemKind.TypeParameter;
 
-	return function (value: string) {
-		return data[value] || 'property';
+	return function (value: string, strict?: true) {
+		let res = data[value];
+		if (typeof res === 'undefined' && !strict) {
+			res = CompletionItemKind.Property;
+		}
+		return res;
 	};
 })();
 
@@ -1259,8 +1268,10 @@ export interface CommentThread2 {
 	collapsibleState?: CommentThreadCollapsibleState;
 	input: CommentInput;
 	onDidChangeInput: Event<CommentInput>;
-	acceptInputCommands: Command[];
-	onDidChangeAcceptInputCommands: Event<Command[]>;
+	acceptInputCommand?: Command;
+	additionalCommands: Command[];
+	onDidChangeAcceptInputCommand: Event<Command>;
+	onDidChangeAdditionalCommands: Event<Command[]>;
 	onDidChangeRange: Event<IRange>;
 	onDidChangeLabel: Event<string>;
 	onDidChangeCollasibleState: Event<CommentThreadCollapsibleState>;

@@ -745,7 +745,7 @@ declare module 'vscode' {
 	/**
 	 * A collection of comments representing a conversation at a particular range in a document.
 	 */
-	interface CommentThread {
+	export interface CommentThread {
 		/**
 		 * A unique identifier of the comment thread.
 		 */
@@ -771,7 +771,18 @@ declare module 'vscode' {
 		 * The ordered comments of the thread.
 		 */
 		comments: Comment[];
-		acceptInputCommands?: Command[];
+
+		/**
+		 * `acceptInputCommand` is the default action rendered on Comment Widget, which is always placed rightmost.
+		 * It will be executed when users submit the comment from keyboard shortcut.
+		 * This action is disabled when the comment editor is empty.
+		 */
+		acceptInputCommand?: Command;
+
+		/**
+		 * `additionalCommands` are the secondary actions rendered on Comment Widget.
+		 */
+		additionalCommands?: Command[];
 
 		/**
 		 * Whether the thread should be collapsed or expanded when opening the document. Defaults to Collapsed.
@@ -1132,7 +1143,7 @@ declare module 'vscode' {
 		readonly onDidAcceptInput: Event<string>;
 
 		/**
-		 * An event which fires when the [maximum dimensions](#TerminalRenderer.maimumDimensions) of
+		 * An event which fires when the [maximum dimensions](#TerminalRenderer.maximumDimensions) of
 		 * the terminal renderer change.
 		 */
 		readonly onDidChangeMaximumDimensions: Event<TerminalDimensions>;
@@ -1226,6 +1237,48 @@ declare module 'vscode' {
 		constructor(label: TreeItemLabel, collapsibleState?: TreeItemCollapsibleState);
 	}
 	//#endregion
+
+	/**
+	 * Class used to execute an extension callback as a task.
+	 */
+	export class CustomExecution {
+		/**
+		 * @param callback The callback that will be called when the extension callback task is executed.
+		 */
+		constructor(callback: (terminalRenderer: TerminalRenderer, cancellationToken: CancellationToken, thisArg?: any) => Thenable<number>);
+
+		/**
+		 * The callback used to execute the task.
+		 * @param terminalRenderer Used by the task to render output and receive input.
+		 * @param cancellationToken Cancellation used to signal a cancel request to the executing task.
+		 * @returns The callback should return '0' for success and a non-zero value for failure.
+		 */
+		callback: (terminalRenderer: TerminalRenderer, cancellationToken: CancellationToken, thisArg?: any) => Thenable<number>;
+	}
+
+	/**
+	 * A task to execute
+	 */
+	export class Task2 extends Task {
+		/**
+		 * Creates a new task.
+		 *
+		 * @param definition The task definition as defined in the taskDefinitions extension point.
+		 * @param scope Specifies the task's scope. It is either a global or a workspace task or a task for a specific workspace folder.
+		 * @param name The task's name. Is presented in the user interface.
+		 * @param source The task's source (e.g. 'gulp', 'npm', ...). Is presented in the user interface.
+		 * @param execution The process or shell execution.
+		 * @param problemMatchers the names of problem matchers to use, like '$tsc'
+		 *  or '$eslint'. Problem matchers can be contributed by an extension using
+		 *  the `problemMatchers` extension point.
+		 */
+		constructor(taskDefinition: TaskDefinition, scope: WorkspaceFolder | TaskScope.Global | TaskScope.Workspace, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution, problemMatchers?: string | string[]);
+
+		/**
+		 * The task's execution engine
+		 */
+		execution2?: ProcessExecution | ShellExecution | CustomExecution;
+	}
 
 	//#region Tasks
 	export interface TaskPresentationOptions {

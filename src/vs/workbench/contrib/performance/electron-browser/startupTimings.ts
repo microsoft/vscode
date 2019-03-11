@@ -115,8 +115,12 @@ export class StartupTimings implements IWorkbenchContribution {
 
 	private _reportPerfTicks(): void {
 		const entries = getEntries();
-		//todo@joh proper data declare
-		this._telemetryService.publicLog('startupRawTimers', entries);
+		/* __GDPR__
+			"startupRawTimers" : {
+				"marks": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+			}
+		*/
+		this._telemetryService.publicLog('startupRawTimers', { marks: entries });
 	}
 }
 

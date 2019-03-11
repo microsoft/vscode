@@ -28,7 +28,7 @@ export class ContextMenuHandler {
 	private block: HTMLElement | null;
 
 	constructor(
-		element: HTMLElement,
+		element: HTMLElement | null,
 		private contextViewService: IContextViewService,
 		private telemetryService: ITelemetryService,
 		private notificationService: INotificationService,

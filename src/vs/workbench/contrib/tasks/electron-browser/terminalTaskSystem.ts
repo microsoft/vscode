@@ -269,6 +269,18 @@ export class TerminalTaskSystem implements ITaskSystem {
 		return Object.keys(this.activeTasks).map(key => this.activeTasks[key].task);
 	}
 
+	public customExecutionComplete(task: Task, result: number): Promise<void> {
+		let activeTerminal = this.activeTasks[task.getMapKey()];
+		if (!activeTerminal) {
+			return Promise.reject(new Error('Expected to have a terminal for an custom execution task'));
+		}
+
+		return new Promise<void>((resolve) => {
+			activeTerminal.terminal.rendererExit(result);
+			resolve();
+		});
+	}
+
 	public terminate(task: Task): Promise<TaskTerminateResponse> {
 		let activeTerminal = this.activeTasks[task.getMapKey()];
 		if (!activeTerminal) {
@@ -276,6 +288,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}
 		return new Promise<TaskTerminateResponse>((resolve, reject) => {
 			let terminal = activeTerminal.terminal;
+
 			const onExit = terminal.onExit(() => {
 				let task = activeTerminal.task;
 				try {
@@ -519,13 +532,15 @@ export class TerminalTaskSystem implements ITaskSystem {
 				let processStartedSignaled = false;
 				terminal.processReady.then(() => {
 					if (!processStartedSignaled) {
-						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal!.processId!));
+						if (task.command.runtime !== RuntimeType.CustomExecution) {
+							this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal!.processId!));
+						}
 						processStartedSignaled = true;
 					}
 				}, (_error) => {
 					// The process never got ready. Need to think how to handle this.
 				});
-				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task));
+				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task, terminal.id));
 				const registeredLinkMatchers = this.registerLinkMatchers(terminal, problemMatchers);
 				const onData = terminal.onLineData((line) => {
 					watchingProblemMatcher.processLine(line);
@@ -567,7 +582,11 @@ export class TerminalTaskSystem implements ITaskSystem {
 						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal!.processId!));
 						processStartedSignaled = true;
 					}
-					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessEnded, task, exitCode));
+
+					if (task.command.runtime !== RuntimeType.CustomExecution) {
+						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessEnded, task, exitCode));
+					}
+
 					for (let i = 0; i < eventCounter; i++) {
 						let event = TaskEvent.create(TaskEventKind.Inactive, task);
 						this._onDidStateChange.fire(event);
@@ -589,13 +608,15 @@ export class TerminalTaskSystem implements ITaskSystem {
 				let processStartedSignaled = false;
 				terminal.processReady.then(() => {
 					if (!processStartedSignaled) {
-						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal!.processId!));
+						if (task.command.runtime !== RuntimeType.CustomExecution) {
+							this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal!.processId!));
+						}
 						processStartedSignaled = true;
 					}
 				}, (_error) => {
 					// The process never got ready. Need to think how to handle this.
 				});
-				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task));
+				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task, terminal.id));
 				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Active, task));
 				let problemMatchers = this.resolveMatchers(resolver, task.configurationProperties.problemMatchers);
 				let startStopProblemMatcher = new StartStopProblemCollector(problemMatchers, this.markerService, this.modelService);
@@ -637,7 +658,9 @@ export class TerminalTaskSystem implements ITaskSystem {
 						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal.processId!));
 						processStartedSignaled = true;
 					}
-					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessEnded, task, exitCode));
+					if (task.command.runtime !== RuntimeType.CustomExecution) {
+						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessEnded, task, exitCode));
+					}
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Inactive, task));
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.End, task));
 					resolve({ exitCode });
@@ -700,11 +723,16 @@ export class TerminalTaskSystem implements ITaskSystem {
 		});
 	}
 
+	private createTerminalName(task: CustomTask | ContributedTask): string {
+		const needsFolderQualification = this.currentTask.workspaceFolder && this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE;
+		return nls.localize('TerminalTaskSystem.terminalName', 'Task - {0}', needsFolderQualification ? task.getQualifiedLabel() : task.configurationProperties.name);
+	}
+
 	private createShellLaunchConfig(task: CustomTask | ContributedTask, variableResolver: VariableResolver, platform: Platform.Platform, options: CommandOptions, command: CommandString, args: CommandString[], waitOnExit: boolean | string): IShellLaunchConfig | undefined {
 		let shellLaunchConfig: IShellLaunchConfig;
 		let isShellCommand = task.command.runtime === RuntimeType.Shell;
 		let needsFolderQualification = this.currentTask.workspaceFolder && this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE;
-		let terminalName = nls.localize('TerminalTaskSystem.terminalName', 'Task - {0}', needsFolderQualification ? task.getQualifiedLabel() : task.configurationProperties.name);
+		let terminalName = this.createTerminalName(task);
 		let originalCommand = task.command.name;
 		if (isShellCommand) {
 			shellLaunchConfig = { name: terminalName, executable: undefined, args: undefined, waitOnExit };
@@ -786,7 +814,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 				}
 			}
 		} else {
-			let commandExecutable = CommandString.value(command);
+			let commandExecutable = task.command.runtime !== RuntimeType.CustomExecution ? CommandString.value(command) : undefined;
 			let executable = !isShellCommand
 				? this.resolveVariable(variableResolver, '${' + TerminalTaskSystem.ProcessVarName + '}')
 				: commandExecutable;
@@ -837,9 +865,8 @@ export class TerminalTaskSystem implements ITaskSystem {
 	private createTerminal(task: CustomTask | ContributedTask, resolver: VariableResolver): [ITerminalInstance | undefined, string | undefined, TaskError | undefined] {
 		let platform = resolver.taskSystemInfo ? resolver.taskSystemInfo.platform : Platform.platform;
 		let options = this.resolveOptions(resolver, task.command.options);
+
 		let waitOnExit: boolean | string = false;
-		let { command, args } = this.resolveCommandAndArgs(resolver, task.command);
-		let commandExecutable = CommandString.value(command);
 		const presentationOptions = task.command.presentation;
 		if (!presentationOptions) {
 			throw new Error('Task presentation options should not be undefined here.');
@@ -854,10 +881,29 @@ export class TerminalTaskSystem implements ITaskSystem {
 				waitOnExit = true;
 			}
 		}
-		this.currentTask.shellLaunchConfig = this.isRerun ? this.lastTask.getVerifiedTask().shellLaunchConfig : this.createShellLaunchConfig(task, resolver, platform, options, command, args, waitOnExit);
-		if (this.currentTask.shellLaunchConfig === undefined) {
-			return [undefined, undefined, new TaskError(Severity.Error, nls.localize('TerminalTaskSystem', 'Can\'t execute a shell command on an UNC drive using cmd.exe.'), TaskErrors.UnknownError)];
+
+		let commandExecutable: string | undefined;
+		let command: CommandString | undefined;
+		let args: CommandString[] | undefined;
+
+		if (task.command.runtime === RuntimeType.CustomExecution) {
+			this.currentTask.shellLaunchConfig = {
+				isRendererOnly: true,
+				waitOnExit,
+				name: this.createTerminalName(task)
+			};
+		} else {
+			let resolvedResult: { command: CommandString, args: CommandString[] } = this.resolveCommandAndArgs(resolver, task.command);
+			command = resolvedResult.command;
+			args = resolvedResult.args;
+			commandExecutable = CommandString.value(command);
+
+			this.currentTask.shellLaunchConfig = this.isRerun ? this.lastTask.getVerifiedTask().shellLaunchConfig : this.createShellLaunchConfig(task, resolver, platform, options, command, args, waitOnExit);
+			if (this.currentTask.shellLaunchConfig === undefined) {
+				return [undefined, undefined, new TaskError(Severity.Error, nls.localize('TerminalTaskSystem', 'Can\'t execute a shell command on an UNC drive using cmd.exe.'), TaskErrors.UnknownError)];
+			}
 		}
+
 		let prefersSameTerminal = presentationOptions.panel === PanelKind.Dedicated;
 		let allowsSharedTerminal = presentationOptions.panel === PanelKind.Shared;
 		let group = presentationOptions.group;
@@ -890,7 +936,12 @@ export class TerminalTaskSystem implements ITaskSystem {
 			}
 		}
 		if (terminalToReuse) {
+			if (!this.currentTask.shellLaunchConfig) {
+				throw new Error('Task shell launch configuration should not be undefined here.');
+			}
+
 			terminalToReuse.terminal.reuseTerminal(this.currentTask.shellLaunchConfig);
+
 			if (task.command.presentation && task.command.presentation.clear) {
 				terminalToReuse.terminal.clear();
 			}
@@ -1053,6 +1104,12 @@ export class TerminalTaskSystem implements ITaskSystem {
 	}
 
 	private collectCommandVariables(variables: Set<string>, command: CommandConfiguration, task: CustomTask | ContributedTask): void {
+		// The custom execution should have everything it needs already as it provided
+		// the callback.
+		if (command.runtime === RuntimeType.CustomExecution) {
+			return;
+		}
+
 		if (command.name === undefined) {
 			throw new Error('Command name should never be undefined here.');
 		}

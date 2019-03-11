@@ -1803,6 +1803,72 @@ export class CommandCenter {
 		await this._push(repository, { pushType: PushType.PushTo, forcePush: true });
 	}
 
+	@command('git.addRemote', { repository: true })
+	async addRemote(repository: Repository): Promise<void> {
+		const remotes = repository.remotes;
+
+		const sanitize = (name: string) => {
+			name = name.trim();
+			return name && name.replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$|\[|\]$/g, '-');
+		};
+
+		const resultName = await window.showInputBox({
+			placeHolder: localize('remote name', "Remote name"),
+			prompt: localize('provide remote name', "Please provide a remote name"),
+			ignoreFocusOut: true,
+			validateInput: (name: string) => {
+				if (sanitize(name)) {
+					return null;
+				}
+				return localize('remote name format invalid', "Remote name format invalid");
+			}
+		});
+
+		const name = sanitize(resultName || '');
+
+		if (!name) {
+			return;
+		}
+
+		if (remotes.find(r => r.name === name)) {
+			window.showErrorMessage(localize('remote already exists', "Remote '{0}' already exists.", name));
+			return;
+		}
+
+		const url = await window.showInputBox({
+			placeHolder: localize('remote url', "Remote URL"),
+			prompt: localize('provide remote URL', "Enter URL for remote \"{0}\"", name),
+			ignoreFocusOut: true
+		});
+
+		if (!url) {
+			return;
+		}
+
+		await repository.addRemote(name, url);
+	}
+
+	@command('git.removeRemote', { repository: true })
+	async removeRemote(repository: Repository): Promise<void> {
+		const remotes = repository.remotes;
+
+		if (remotes.length === 0) {
+			window.showErrorMessage(localize('no remotes added', "Your repository has no remotes."));
+			return;
+		}
+
+		const picks = remotes.map(r => r.name);
+		const placeHolder = localize('remove remote', "Pick a remote to remove");
+
+		const remoteName = await window.showQuickPick(picks, { placeHolder });
+
+		if (!remoteName) {
+			return;
+		}
+
+		await repository.removeRemote(remoteName);
+	}
+
 	private async _sync(repository: Repository, rebase: boolean): Promise<void> {
 		const HEAD = repository.HEAD;
 

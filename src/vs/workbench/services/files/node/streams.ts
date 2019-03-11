@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Readable, Writable } from 'stream';
+import { Readable, Writable, WritableOptions } from 'stream';
 import { UTF8 } from 'vs/base/node/encoding';
 import { URI } from 'vs/base/common/uri';
 import { IFileSystemProvider, ITextSnapshot, FileSystemProviderCapabilities, FileWriteOptions } from 'vs/platform/files/common/files';
@@ -22,7 +22,7 @@ export function createWritableOfProvider(provider: IFileSystemProvider, resource
 function createSimpleWritable(provider: IFileSystemProvider, resource: URI, opts: FileWriteOptions): Writable {
 	return new class extends Writable {
 		_chunks: Buffer[] = [];
-		constructor(opts?) {
+		constructor(opts?: WritableOptions) {
 			super(opts);
 		}
 		_write(chunk: Buffer, encoding: string, callback: Function) {
@@ -44,10 +44,10 @@ function createWritable(provider: IFileSystemProvider, resource: URI, opts: File
 	return new class extends Writable {
 		_fd: number;
 		_pos: number = 0;
-		constructor(opts?) {
+		constructor(opts?: WritableOptions) {
 			super(opts);
 		}
-		async _write(chunk: Buffer, encoding, callback: Function) {
+		async _write(chunk: Buffer, encoding: string, callback: Function) {
 			try {
 				if (typeof this._fd !== 'number') {
 					this._fd = await provider.open!(resource, { create: true });

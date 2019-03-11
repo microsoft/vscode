@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { computeSHA1Hash } from 'vs/base/common/hash';
 
 export const IHashService = createDecorator<IHashService>('hashService');
 
@@ -15,3 +17,14 @@ export interface IHashService {
 	 */
 	createSHA1(content: string): string;
 }
+
+export class HashService implements IHashService {
+
+	_serviceBrand: any;
+
+	createSHA1(content: string): string {
+		return computeSHA1Hash(content);
+	}
+}
+
+registerSingleton(IHashService, HashService, true);

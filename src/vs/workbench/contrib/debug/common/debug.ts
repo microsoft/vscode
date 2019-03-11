@@ -356,30 +356,30 @@ export interface IExceptionInfo {
 
 export interface IViewModel extends ITreeElement {
 	/**
-	 * Returns the focused debug session or null if no session is stopped.
+	 * Returns the focused debug session or undefined if no session is stopped.
 	 */
-	readonly focusedSession: IDebugSession;
+	readonly focusedSession: IDebugSession | undefined;
 
 	/**
-	 * Returns the focused thread or null if no thread is stopped.
+	 * Returns the focused thread or undefined if no thread is stopped.
 	 */
-	readonly focusedThread: IThread;
+	readonly focusedThread: IThread | undefined;
 
 	/**
-	 * Returns the focused stack frame or null if there are no stack frames.
+	 * Returns the focused stack frame or undefined if there are no stack frames.
 	 */
-	readonly focusedStackFrame: IStackFrame;
+	readonly focusedStackFrame: IStackFrame | undefined;
 
-	getSelectedExpression(): IExpression;
-	getSelectedFunctionBreakpoint(): IFunctionBreakpoint;
-	setSelectedExpression(expression: IExpression): void;
-	setSelectedFunctionBreakpoint(functionBreakpoint: IFunctionBreakpoint): void;
+	getSelectedExpression(): IExpression | undefined;
+	getSelectedFunctionBreakpoint(): IFunctionBreakpoint | undefined;
+	setSelectedExpression(expression: IExpression | undefined): void;
+	setSelectedFunctionBreakpoint(functionBreakpoint: IFunctionBreakpoint | undefined): void;
 
 	isMultiSessionView(): boolean;
 
 	onDidFocusSession: Event<IDebugSession | undefined>;
-	onDidFocusStackFrame: Event<{ stackFrame: IStackFrame, explicit: boolean }>;
-	onDidSelectExpression: Event<IExpression>;
+	onDidFocusStackFrame: Event<{ stackFrame: IStackFrame | undefined, explicit: boolean }>;
+	onDidSelectExpression: Event<IExpression | undefined>;
 }
 
 export interface IEvaluate {
@@ -585,11 +585,11 @@ export interface IConfigurationManager {
 	 * Returns an object containing the selected launch configuration and the selected configuration name. Both these fields can be null (no folder workspace).
 	 */
 	readonly selectedConfiguration: {
-		launch: ILaunch;
-		name: string;
+		launch: ILaunch | undefined;
+		name: string | undefined;
 	};
 
-	selectConfiguration(launch: ILaunch, name?: string, debugStarted?: boolean): void;
+	selectConfiguration(launch: ILaunch | undefined, name?: string, debugStarted?: boolean): void;
 
 	getLaunches(): ReadonlyArray<ILaunch>;
 
@@ -710,7 +710,7 @@ export interface IDebugService {
 	/**
 	 * Sets the focused stack frame and evaluates all expressions against the newly focused stack frame,
 	 */
-	focusStackFrame(focusedStackFrame: IStackFrame, thread?: IThread, session?: IDebugSession, explicit?: boolean): void;
+	focusStackFrame(focusedStackFrame: IStackFrame | undefined, thread?: IThread, session?: IDebugSession, explicit?: boolean): void;
 
 	/**
 	 * Adds new breakpoints to the model for the file specified with the uri. Notifies debug adapter of breakpoint changes.
@@ -801,7 +801,7 @@ export interface IDebugService {
 	/**
 	 * Stops the session. If the session does not exist then stops all sessions.
 	 */
-	stopSession(session: IDebugSession): Promise<any>;
+	stopSession(session: IDebugSession | undefined): Promise<any>;
 
 	/**
 	 * Makes unavailable all sources with the passed uri. Source will appear as grayed out in callstack view.
@@ -828,7 +828,7 @@ export const enum BreakpointWidgetContext {
 
 export interface IDebugEditorContribution extends IEditorContribution {
 	showHover(range: Range, focus: boolean): Promise<void>;
-	showBreakpointWidget(lineNumber: number, column: number, context?: BreakpointWidgetContext): void;
+	showBreakpointWidget(lineNumber: number, column: number | undefined, context?: BreakpointWidgetContext): void;
 	closeBreakpointWidget(): void;
 	addLaunchConfiguration(): Promise<any>;
 }

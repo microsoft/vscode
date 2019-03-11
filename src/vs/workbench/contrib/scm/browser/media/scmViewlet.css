@@ -13,6 +13,8 @@
 }
 
 .scm-viewlet .empty-message {
+	box-sizing: border-box;
+	height: 100%;
 	padding: 10px 22px 0 22px;
 }
 

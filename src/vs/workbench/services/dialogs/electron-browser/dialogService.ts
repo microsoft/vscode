@@ -23,6 +23,8 @@ import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
+import { DialogChannel } from 'vs/platform/dialogs/node/dialogIpc';
 
 interface IMassagedMessageBoxOptions {
 
@@ -45,8 +47,11 @@ export class DialogService implements IDialogService {
 
 	constructor(
 		@IWindowService private readonly windowService: IWindowService,
-		@ILogService private readonly logService: ILogService
-	) { }
+		@ILogService private readonly logService: ILogService,
+		@ISharedProcessService sharedProcessService: ISharedProcessService
+	) {
+		sharedProcessService.registerChannel('dialog', new DialogChannel(this));
+	}
 
 	confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
 		this.logService.trace('DialogService#confirm', confirmation.message);
@@ -167,7 +172,7 @@ export class FileDialogService implements IFileDialogService {
 		@IHistoryService private readonly historyService: IHistoryService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) { }
 
 	defaultFilePath(schemeFilter = this.getSchemeFilterForWindow()): URI | undefined {

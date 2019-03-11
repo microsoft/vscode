@@ -9,8 +9,8 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 export const ILayoutService = createDecorator<ILayoutService>('layoutService');
 
 export interface IDimension {
-	width: number;
-	height: number;
+	readonly width: number;
+	readonly height: number;
 }
 
 export interface ILayoutService {
@@ -21,6 +21,11 @@ export interface ILayoutService {
 	 * The dimensions of the container.
 	 */
 	readonly dimension: IDimension;
+
+	/**
+	 * Container of the application.
+	 */
+	readonly container: HTMLElement;
 
 	/**
 	 * An event that is emitted when the container is layed out. The

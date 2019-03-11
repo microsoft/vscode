@@ -10,7 +10,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ITreeViewDataProvider } from 'vs/workbench/common/views';
 import { localize } from 'vs/nls';
 import { IViewlet } from 'vs/workbench/common/viewlet';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { values, keys } from 'vs/base/common/map';
@@ -67,7 +67,7 @@ export interface IViewContainersRegistry {
 }
 
 export class ViewContainer {
-	protected constructor(readonly id: string, readonly extensionId: ExtensionIdentifier) { }
+	protected constructor(readonly id: string, readonly hideIfEmpty: boolean, readonly extensionId?: ExtensionIdentifier) { }
 }
 
 class ViewContainersRegistryImpl implements IViewContainersRegistry {
@@ -84,15 +84,16 @@ class ViewContainersRegistryImpl implements IViewContainersRegistry {
 		return values(this.viewContainers);
 	}
 
-	registerViewContainer(id: string, extensionId: ExtensionIdentifier): ViewContainer {
+	registerViewContainer(id: string, extensionId?: ExtensionIdentifier): ViewContainer {
 		const existing = this.viewContainers.get(id);
 		if (existing) {
 			return existing;
 		}
+		const hideIfEmpty = id === TEST_VIEW_CONTAINER_ID || !!extensionId;
 
 		const viewContainer = new class extends ViewContainer {
 			constructor() {
-				super(id, extensionId);
+				super(id, hideIfEmpty, extensionId);
 			}
 		};
 		this.viewContainers.set(id, viewContainer);
@@ -284,7 +285,7 @@ export interface IViewsViewlet extends IViewlet {
 export const IViewsService = createDecorator<IViewsService>('viewsService');
 
 export interface IViewsService {
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<any>;
 
 	openView(id: string, focus?: boolean): Promise<IView | null>;
 
@@ -321,7 +322,7 @@ export interface ITreeView extends IDisposable {
 
 	layout(height: number): void;
 
-	show(container: HTMLElement);
+	show(container: HTMLElement): void;
 
 	getOptimalWidth(): number;
 

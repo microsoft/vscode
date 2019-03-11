@@ -22,7 +22,7 @@ import * as browser from 'vs/base/browser/browser';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
-import { ipcRenderer as ipc, webFrame, crashReporter } from 'electron';
+import { ipcRenderer as ipc, webFrame, crashReporter, Event } from 'electron';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { IMenuService, MenuId, IMenu, MenuItemAction, ICommandAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -56,8 +56,6 @@ const TextInputActions: IAction[] = [
 ];
 
 export class ElectronWindow extends Disposable {
-
-	private static readonly closeWhenEmptyConfigurationKey = 'window.closeWhenEmpty';
 
 	private touchBarMenu?: IMenu;
 	private touchBarUpdater: RunOnceScheduler;
@@ -116,7 +114,7 @@ export class ElectronWindow extends Disposable {
 		});
 
 		// Support runAction event
-		ipc.on('vscode:runAction', (event: any, request: IRunActionInWindowRequest) => {
+		ipc.on('vscode:runAction', (event: Event, request: IRunActionInWindowRequest) => {
 			const args: any[] = request.args || [];
 
 			// If we run an action from the touchbar, we fill in the currently active resource
@@ -147,29 +145,27 @@ export class ElectronWindow extends Disposable {
 		});
 
 		// Support runKeybinding event
-		ipc.on('vscode:runKeybinding', (event: any, request: IRunKeybindingInWindowRequest) => {
+		ipc.on('vscode:runKeybinding', (event: Event, request: IRunKeybindingInWindowRequest) => {
 			if (document.activeElement) {
 				this.keybindingService.dispatchByUserSettingsLabel(request.userSettingsLabel, document.activeElement);
 			}
 		});
 
 		// Error reporting from main
-		ipc.on('vscode:reportError', (event: any, error: string) => {
+		ipc.on('vscode:reportError', (event: Event, error: string) => {
 			if (error) {
-				const errorParsed = JSON.parse(error);
-				errorParsed.mainProcess = true;
-				errors.onUnexpectedError(errorParsed);
+				errors.onUnexpectedError(JSON.parse(error));
 			}
 		});
 
 		// Support openFiles event for existing and new files
-		ipc.on('vscode:openFiles', (event: any, request: IOpenFileRequest) => this.onOpenFiles(request));
+		ipc.on('vscode:openFiles', (event: Event, request: IOpenFileRequest) => this.onOpenFiles(request));
 
 		// Support addFolders event if we have a workspace opened
-		ipc.on('vscode:addFolders', (event: any, request: IAddFoldersRequest) => this.onAddFoldersRequest(request));
+		ipc.on('vscode:addFolders', (event: Event, request: IAddFoldersRequest) => this.onAddFoldersRequest(request));
 
 		// Message support
-		ipc.on('vscode:showInfoMessage', (event: any, message: string) => {
+		ipc.on('vscode:showInfoMessage', (event: Event, message: string) => {
 			this.notificationService.info(message);
 		});
 
@@ -211,7 +207,7 @@ export class ElectronWindow extends Disposable {
 		});
 
 		// keyboard layout changed event
-		ipc.on('vscode:accessibilitySupportChanged', (event: any, accessibilitySupportEnabled: boolean) => {
+		ipc.on('vscode:accessibilitySupportChanged', (event: Event, accessibilitySupportEnabled: boolean) => {
 			this.accessibilityService.setAccessibilitySupport(accessibilitySupportEnabled ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled);
 		});
 
@@ -247,7 +243,7 @@ export class ElectronWindow extends Disposable {
 		// or setting is disabled. Also enabled when running with --wait from the command line.
 		const visibleEditors = this.editorService.visibleControls;
 		if (visibleEditors.length === 0 && this.contextService.getWorkbenchState() === WorkbenchState.EMPTY && !this.environmentService.isExtensionDevelopment) {
-			const closeWhenEmpty = this.configurationService.getValue<boolean>(ElectronWindow.closeWhenEmptyConfigurationKey);
+			const closeWhenEmpty = this.configurationService.getValue<boolean>('window.closeWhenEmpty');
 			if (closeWhenEmpty || this.environmentService.args.wait) {
 				this.closeEmptyWindowScheduler.schedule();
 			}
@@ -316,7 +312,7 @@ export class ElectronWindow extends Disposable {
 
 		// Handle window.open() calls
 		const $this = this;
-		(<any>window).open = function (url: string, target: string, features: string, replace: boolean): any {
+		window.open = function (url: string, target: string, features: string, replace: boolean): Window | null {
 			$this.windowsService.openExternal(url);
 
 			return null;

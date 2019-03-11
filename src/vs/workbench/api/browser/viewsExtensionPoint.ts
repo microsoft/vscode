@@ -25,7 +25,7 @@ import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, Sh
 import { IExtensionDescription, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ViewContainerViewlet } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -281,7 +281,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 			class CustomViewlet extends ViewContainerViewlet {
 				constructor(
 					@IConfigurationService configurationService: IConfigurationService,
-					@IPartService partService: IPartService,
+					@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 					@ITelemetryService telemetryService: ITelemetryService,
 					@IWorkspaceContextService contextService: IWorkspaceContextService,
 					@IStorageService storageService: IStorageService,
@@ -291,7 +291,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 					@IContextMenuService contextMenuService: IContextMenuService,
 					@IExtensionService extensionService: IExtensionService
 				) {
-					super(id, `${id}.state`, true, configurationService, partService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
+					super(id, `${id}.state`, true, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
 				}
 			}
 			const viewletDescriptor = new ViewletDescriptor(
@@ -311,9 +311,9 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 					id: string, label: string,
 					@IViewletService viewletService: IViewletService,
 					@IEditorGroupsService editorGroupService: IEditorGroupsService,
-					@IPartService partService: IPartService
+					@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
 				) {
-					super(id, label, id, viewletService, editorGroupService, partService);
+					super(id, label, id, viewletService, editorGroupService, layoutService);
 				}
 			}
 			const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);

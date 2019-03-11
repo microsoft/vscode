@@ -950,12 +950,12 @@ export type GroupIdentifier = number;
 
 export interface IWorkbenchEditorConfiguration {
 	workbench: {
-		editor: IWorkbenchEditorPartConfiguration,
+		editor: IEditorPartConfiguration,
 		iconTheme: string;
 	};
 }
 
-export interface IWorkbenchEditorPartConfiguration {
+interface IEditorPartConfiguration {
 	showTabs?: boolean;
 	highlightModifiedTabs?: boolean;
 	tabCloseButton?: 'left' | 'right' | 'off';
@@ -972,6 +972,10 @@ export interface IWorkbenchEditorPartConfiguration {
 	swipeToNavigate?: boolean;
 	labelFormat?: 'default' | 'short' | 'medium' | 'long';
 	restoreViewState?: boolean;
+}
+
+export interface IEditorPartOptions extends IEditorPartConfiguration {
+	iconTheme?: string;
 }
 
 export interface IResourceOptions {
@@ -1040,7 +1044,7 @@ class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
 	private instantiationService: IInstantiationService;
 	private fileInputFactory: IFileInputFactory;
 	private editorInputFactoryConstructors: { [editorInputId: string]: IConstructorSignature0<IEditorInputFactory> } = Object.create(null);
-	private editorInputFactoryInstances: { [editorInputId: string]: IEditorInputFactory } = Object.create(null);
+	private readonly editorInputFactoryInstances: { [editorInputId: string]: IEditorInputFactory } = Object.create(null);
 
 	start(accessor: ServicesAccessor): void {
 		this.instantiationService = accessor.get(IInstantiationService);
@@ -1050,7 +1054,7 @@ class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
 			this.createEditorInputFactory(key, element);
 		}
 
-		this.editorInputFactoryConstructors = {};
+		this.editorInputFactoryConstructors = Object.create(null);
 	}
 
 	private createEditorInputFactory(editorInputId: string, ctor: IConstructorSignature0<IEditorInputFactory>): void {

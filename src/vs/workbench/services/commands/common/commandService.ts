@@ -9,6 +9,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class CommandService extends Disposable implements ICommandService {
 
@@ -67,3 +68,5 @@ export class CommandService extends Disposable implements ICommandService {
 		}
 	}
 }
+
+registerSingleton(ICommandService, CommandService, true);

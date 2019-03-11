@@ -13,15 +13,13 @@ import { DataUri } from 'vs/base/common/resources';
  * An editor model that just represents a resource that can be loaded.
  */
 export class BinaryEditorModel extends EditorModel {
-	private name: string;
-	private resource: URI;
 	private size: number;
-	private etag?: string;
-	private mime: string;
+	private etag: string | undefined;
+	private readonly mime: string;
 
 	constructor(
-		resource: URI,
-		name: string,
+		private readonly resource: URI,
+		private readonly name: string,
 		@IFileService private readonly fileService: IFileService
 	) {
 		super();

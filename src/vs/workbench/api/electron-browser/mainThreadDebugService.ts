@@ -285,6 +285,12 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 
 	// dto helpers
 
+	public $sessionCached(sessionID: string) {
+		// remember that the EH has cached the session and we do not have to send it again
+		this._sessions.add(sessionID);
+	}
+
+
 	getSessionDto(session: undefined): undefined;
 	getSessionDto(session: IDebugSession): IDebugSessionDto;
 	getSessionDto(session: IDebugSession | undefined): IDebugSessionDto | undefined;
@@ -294,7 +300,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 			if (this._sessions.has(sessionID)) {
 				return sessionID;
 			} else {
-				this._sessions.add(sessionID);
+				// this._sessions.add(sessionID); 	// #69534: see $sessionCached above
 				return {
 					id: sessionID,
 					type: session.configuration.type,

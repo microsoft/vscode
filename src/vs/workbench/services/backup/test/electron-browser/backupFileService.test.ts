@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import * as platform from 'vs/base/common/platform';
+import * as crypto from 'crypto';
 import * as os from 'os';
 import * as fs from 'fs';
 import * as path from 'vs/base/common/path';
@@ -81,6 +82,31 @@ suite('BackupFileService', () => {
 
 	teardown(() => {
 		return pfs.del(backupHome, os.tmpdir());
+	});
+
+	suite('hashPath', () => {
+		test('should correctly hash the path for untitled scheme URIs', () => {
+			const uri = Uri.from({
+				scheme: 'untitled',
+				path: 'Untitled-1'
+			});
+			const actual = hashPath(uri);
+			// If these hashes change people will lose their backed up files!
+			assert.equal(actual, '13264068d108c6901b3592ea654fcd57');
+			assert.equal(actual, crypto.createHash('md5').update(uri.fsPath).digest('hex'));
+		});
+
+		test('should correctly hash the path for file scheme URIs', () => {
+			const uri = Uri.file('/foo');
+			const actual = hashPath(uri);
+			// If these hashes change people will lose their backed up files!
+			if (platform.isWindows) {
+				assert.equal(actual, 'dec1a583f52468a020bd120c3f01d812');
+			} else {
+				assert.equal(actual, '1effb2475fcfba4f9e8b8a1dbc8f3caf');
+			}
+			assert.equal(actual, crypto.createHash('md5').update(uri.fsPath).digest('hex'));
+		});
 	});
 
 	suite('getBackupResource', () => {
