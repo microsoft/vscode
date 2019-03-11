@@ -275,7 +275,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 
 		if (!viewContainer) {
 
-			viewContainer = this.viewContainersRegistry.registerViewContainer(id, extensionId);
+			viewContainer = this.viewContainersRegistry.registerViewContainer(id, true, extensionId);
 
 			// Register as viewlet
 			class CustomViewlet extends ViewContainerViewlet {

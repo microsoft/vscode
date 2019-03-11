@@ -50,7 +50,7 @@ export interface IViewContainersRegistry {
 	 *
 	 * @returns the registered ViewContainer.
 	 */
-	registerViewContainer(id: string, extensionId?: ExtensionIdentifier): ViewContainer;
+	registerViewContainer(id: string, hideIfEmpty?: boolean, extensionId?: ExtensionIdentifier): ViewContainer;
 
 	/**
 	 * Deregisters the given view container
@@ -84,12 +84,11 @@ class ViewContainersRegistryImpl implements IViewContainersRegistry {
 		return values(this.viewContainers);
 	}
 
-	registerViewContainer(id: string, extensionId?: ExtensionIdentifier): ViewContainer {
+	registerViewContainer(id: string, hideIfEmpty?: boolean, extensionId?: ExtensionIdentifier): ViewContainer {
 		const existing = this.viewContainers.get(id);
 		if (existing) {
 			return existing;
 		}
-		const hideIfEmpty = id === TEST_VIEW_CONTAINER_ID || !!extensionId;
 
 		const viewContainer = new class extends ViewContainer {
 			constructor() {
