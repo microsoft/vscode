@@ -1128,7 +1128,7 @@ export class ChangeEOLAction extends Action {
 		return this.quickInputService.pick(EOLOptions, { placeHolder: nls.localize('pickEndOfLine', "Select End of Line Sequence"), activeItem: EOLOptions[selectedIndex] }).then(eol => {
 			if (eol) {
 				const activeCodeEditor = getCodeEditor(this.editorService.activeTextEditorWidget);
-				if (activeCodeEditor && isWritableCodeEditor(activeCodeEditor)) {
+				if (activeCodeEditor && activeCodeEditor.hasModel() && isWritableCodeEditor(activeCodeEditor)) {
 					const textModel = activeCodeEditor.getModel();
 					textModel.pushEOL(eol.eol);
 				}
