@@ -72,13 +72,15 @@ export async function getDocumentRangeFormattingEdits(
 		"formatterInfo" : {
 			"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			"language" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+			"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"extensions" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		}
 	 */
 	telemetryService.publicLog('formatterInfo', {
 		type: 'range',
 		language: model.getLanguageIdentifier().language,
 		count: providers.length,
+		extensions: providers.map(p => p.extensionId ? ExtensionIdentifier.toKey(p.extensionId) : 'unknown')
 	});
 
 	invokeFormatterCallback(providers, model, mode | FormatKind.Range);
