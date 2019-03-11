@@ -132,7 +132,9 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 	private registerListeners(): void {
 		this._register(this.debugService.getViewModel().onDidFocusSession(session => {
-			sessionsToIgnore.delete(session);
+			if (session) {
+				sessionsToIgnore.delete(session);
+			}
 			this.selectSession();
 		}));
 		this._register(this.debugService.onWillNewSession(() => {
@@ -222,13 +224,14 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	}
 
 	selectSession(session?: IDebugSession): void {
+		const treeInput = this.tree.getInput();
 		if (!session) {
 			const focusedSession = this.debugService.getViewModel().focusedSession;
 			// If there is a focusedSession focus on that one, otherwise just show any other not ignored session
 			if (focusedSession) {
 				session = focusedSession;
-			} else if (!this.tree.getInput() || sessionsToIgnore.has(this.tree.getInput())) {
-				session = first(this.debugService.getModel().getSessions(true), s => !sessionsToIgnore.has(s));
+			} else if (!treeInput || sessionsToIgnore.has(treeInput)) {
+				session = first(this.debugService.getModel().getSessions(true), s => !sessionsToIgnore.has(s)) || undefined;
 			}
 		}
 		if (session) {
@@ -236,10 +239,10 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 				this.replElementsChangeListener.dispose();
 			}
 			this.replElementsChangeListener = session.onDidChangeReplElements(() => {
-				this.refreshReplElements(session.getReplElements().length === 0);
+				this.refreshReplElements(session!.getReplElements().length === 0);
 			});
 
-			if (this.tree && this.tree.getInput() !== session) {
+			if (this.tree && treeInput !== session) {
 				this.tree.setInput(session).then(() => revealLastElement(this.tree)).then(undefined, errors.onUnexpectedError);
 			}
 		}
@@ -310,12 +313,12 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		this.replInput.focus();
 	}
 
-	getActionItem(action: IAction): IActionItem {
+	getActionItem(action: IAction): IActionItem | null {
 		if (action.id === SelectReplAction.ID) {
 			return this.instantiationService.createInstance(SelectReplActionItem, this.selectReplAction);
 		}
 
-		return undefined;
+		return null;
 	}
 
 	getActions(): IAction[] {
@@ -412,17 +415,20 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 				const focusedSession = this.debugService.getViewModel().focusedSession;
 				if (focusedSession && focusedSession.capabilities.supportsCompletionsRequest) {
 
-					const word = this.replInput.getModel().getWordAtPosition(position);
-					const overwriteBefore = word ? word.word.length : 0;
-					const text = this.replInput.getModel().getLineContent(position.lineNumber);
-					const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
-					const frameId = focusedStackFrame ? focusedStackFrame.frameId : undefined;
+					const model = this.replInput.getModel();
+					if (model) {
+						const word = model.getWordAtPosition(position);
+						const overwriteBefore = word ? word.word.length : 0;
+						const text = model.getLineContent(position.lineNumber);
+						const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
+						const frameId = focusedStackFrame ? focusedStackFrame.frameId : undefined;
 
-					return focusedSession.completions(frameId, text, position, overwriteBefore).then(suggestions => {
-						return { suggestions };
-					}, err => {
-						return { suggestions: [] };
-					});
+						return focusedSession.completions(frameId, text, position, overwriteBefore).then(suggestions => {
+							return { suggestions };
+						}, err => {
+							return { suggestions: [] };
+						});
+					}
 				}
 				return Promise.resolve({ suggestions: [] });
 			}
@@ -436,7 +442,8 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			this.layout(this.dimension);
 		}));
 		this._register(this.replInput.onDidChangeModelContent(() => {
-			this.historyNavigationEnablement.set(this.replInput.getModel().getValue() === '');
+			const model = this.replInput.getModel();
+			this.historyNavigationEnablement.set(!!model && model.getValue() === '');
 		}));
 		// We add the input decoration only when the focus is in the input #61126
 		this._register(this.replInput.onDidFocusEditorText(() => this.updateInputDecoration()));
@@ -458,7 +465,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		actions.push(this.clearReplAction);
 
 		this.contextMenuService.showContextMenu({
-			getAnchor: () => e.anchor,
+			getAnchor: () => e.anchor!,
 			getActions: () => actions,
 			getActionsContext: () => e.element
 		});
@@ -483,6 +490,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 		const decorations: IDecorationOptions[] = [];
 		if (this.isReadonly && this.replInput.hasTextFocus() && !this.replInput.getValue()) {
+			const transparentForeground = transparent(editorForeground, 0.4)(this.themeService.getTheme());
 			decorations.push({
 				range: {
 					startLineNumber: 0,
@@ -493,7 +501,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 				renderOptions: {
 					after: {
 						contentText: nls.localize('startDebugFirst', "Please start a debug session to evaluate expressions"),
-						color: transparent(editorForeground, 0.4)(this.themeService.getTheme()).toString()
+						color: transparentForeground ? transparentForeground.toString() : undefined
 					}
 				}
 			});
@@ -536,7 +544,7 @@ interface ISimpleReplElementTemplateData {
 	container: HTMLElement;
 	value: HTMLElement;
 	source: HTMLElement;
-	getReplElementSource(): IReplElementSource;
+	getReplElementSource(): IReplElementSource | undefined;
 	toDispose: IDisposable[];
 }
 
@@ -724,11 +732,8 @@ class ReplDelegate implements IListVirtualDelegate<IReplElement> {
 			// Variable with no name is a top level variable which should be rendered like a repl element #17404
 			return ReplSimpleElementsRenderer.ID;
 		}
-		if (element instanceof RawObjectReplElement) {
-			return ReplRawObjectsRenderer.ID;
-		}
 
-		return undefined;
+		return ReplRawObjectsRenderer.ID;
 	}
 
 	hasDynamicHeight?(element: IReplElement): boolean {
@@ -777,7 +782,7 @@ class ReplAccessibilityProvider implements IAccessibilityProvider<IReplElement> 
 			return nls.localize('replRawObjectAriaLabel', "Repl variable {0} has value {1}, read eval print loop, debug", element.name, element.value);
 		}
 
-		return null;
+		return '';
 	}
 }
 

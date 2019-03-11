@@ -164,7 +164,7 @@ export interface IDebugSession extends ITreeElement {
 	getReplElements(): IReplElement[];
 
 	removeReplExpressions(): void;
-	addReplExpression(stackFrame: IStackFrame, name: string): Promise<void>;
+	addReplExpression(stackFrame: IStackFrame | undefined, name: string): Promise<void>;
 	appendToRepl(data: string | IExpression, severity: severity, source?: IReplElementSource): void;
 	logToRepl(sev: severity, args: any[], frame?: { uri: uri, line: number, column: number });
 
@@ -213,7 +213,7 @@ export interface IDebugSession extends ITreeElement {
 	pause(threadId: number): Promise<void>;
 	terminateThreads(threadIds: number[]): Promise<void>;
 
-	completions(frameId: number, text: string, position: Position, overwriteBefore: number): Promise<CompletionItem[]>;
+	completions(frameId: number | undefined, text: string, position: Position, overwriteBefore: number): Promise<CompletionItem[]>;
 	setVariable(variablesReference: number | undefined, name: string, value: string): Promise<DebugProtocol.SetVariableResponse>;
 	loadSource(resource: uri): Promise<DebugProtocol.SourceResponse>;
 	getLoadedSources(): Promise<Source[]>;

@@ -473,7 +473,7 @@ export class DebugSession implements IDebugSession {
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
-	completions(frameId: number, text: string, position: Position, overwriteBefore: number): Promise<CompletionItem[]> {
+	completions(frameId: number | undefined, text: string, position: Position, overwriteBefore: number): Promise<CompletionItem[]> {
 		if (this.raw) {
 			return this.raw.completions({
 				frameId,
@@ -820,7 +820,7 @@ export class DebugSession implements IDebugSession {
 		this._onDidChangeREPLElements.fire();
 	}
 
-	addReplExpression(stackFrame: IStackFrame, name: string): Promise<void> {
+	addReplExpression(stackFrame: IStackFrame | undefined, name: string): Promise<void> {
 		const viewModel = this.debugService.getViewModel();
 		return this.repl.addReplExpression(stackFrame, name)
 			.then(() => this._onDidChangeREPLElements.fire())
