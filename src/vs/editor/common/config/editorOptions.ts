@@ -109,6 +109,11 @@ export type EditorAutoClosingStrategy = 'always' | 'languageDefined' | 'beforeWh
 export type EditorAutoSurroundStrategy = 'languageDefined' | 'quotes' | 'brackets' | 'never';
 
 /**
+ * Type for objects where length property is used
+ */
+export type EditorLengthObjectType<T = {[params: string]: any}> = T & { length: number };
+
+/**
  * Configuration options for editor minimap
  */
 export interface IEditorMinimapOptions {
@@ -1389,7 +1394,7 @@ export class InternalEditorOptions {
 	/**
 	 * @internal
 	 */
-	private static _equalsSuggestOptions(a: InternalSuggestOptions, b: InternalSuggestOptions): any {
+	private static _equalsSuggestOptions(a: InternalSuggestOptions, b: InternalSuggestOptions): boolean {
 		if (a === b) {
 			return true;
 		} else if (!a || !b) {

@@ -138,7 +138,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		return editorOptions.InternalEditorOptionsFactory.createInternalEditorOptions(env, opts);
 	}
 
-	private static _primitiveArrayEquals(a: any[], b: any[]): boolean {
+	private static _primitiveArrayEquals(a: editorOptions.EditorLengthObjectType[], b: editorOptions.EditorLengthObjectType[]): boolean {
 		if (a.length !== b.length) {
 			return false;
 		}
