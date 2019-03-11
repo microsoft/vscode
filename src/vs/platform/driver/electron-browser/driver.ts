@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, toDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IWindowDriver, IElement, WindowDriverChannel, WindowDriverRegistryChannelClient } from 'vs/platform/driver/node/driver';
-import { IPCClient } from 'vs/base/parts/ipc/node/ipc';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
 import { getTopLeftOffset, getClientArea } from 'vs/base/browser/dom';
 import * as electron from 'electron';
 import { IWindowService } from 'vs/platform/windows/common/windows';
@@ -214,25 +214,24 @@ class WindowDriver implements IWindowDriver {
 	}
 }
 
-export async function registerWindowDriver(
-	client: IPCClient,
-	windowId: number,
-	instantiationService: IInstantiationService
-): Promise<IDisposable> {
+export async function registerWindowDriver(accessor: ServicesAccessor): Promise<IDisposable> {
+	const instantiationService = accessor.get(IInstantiationService);
+	const mainProcessService = accessor.get(IMainProcessService);
+	const windowService = accessor.get(IWindowService);
+
 	const windowDriver = instantiationService.createInstance(WindowDriver);
 	const windowDriverChannel = new WindowDriverChannel(windowDriver);
-	client.registerChannel('windowDriver', windowDriverChannel);
+	mainProcessService.registerChannel('windowDriver', windowDriverChannel);
 
-	const windowDriverRegistryChannel = client.getChannel('windowDriverRegistry');
+	const windowDriverRegistryChannel = mainProcessService.getChannel('windowDriverRegistry');
 	const windowDriverRegistry = new WindowDriverRegistryChannelClient(windowDriverRegistryChannel);
 
-	await windowDriverRegistry.registerWindowDriver(windowId);
+	await windowDriverRegistry.registerWindowDriver(windowService.getCurrentWindowId());
 	// const options = await windowDriverRegistry.registerWindowDriver(windowId);
 
 	// if (options.verbose) {
 	// 	windowDriver.openDevTools();
 	// }
 
-	const disposable = toDisposable(() => windowDriverRegistry.reloadWindowDriver(windowId));
-	return combinedDisposable([disposable, client]);
+	return toDisposable(() => windowDriverRegistry.reloadWindowDriver(windowService.getCurrentWindowId()));
 }

@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
-import { IWorkspacesService, IWorkspaceIdentifier, IWorkspaceFolderCreationData, IWorkspacesMainService, reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IServerChannel } from 'vs/base/parts/ipc/node/ipc';
+import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 
@@ -43,24 +43,5 @@ export class WorkspacesChannel implements IServerChannel {
 		}
 
 		throw new Error(`Call not found: ${command}`);
-	}
-}
-
-export class WorkspacesChannelClient implements IWorkspacesService {
-
-	_serviceBrand: any;
-
-	constructor(private channel: IChannel) { }
-
-	createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[], remoteAuthority?: string): Promise<IWorkspaceIdentifier> {
-		return this.channel.call('createUntitledWorkspace', [folders, remoteAuthority]).then(reviveWorkspaceIdentifier);
-	}
-
-	deleteUntitledWorkspace(workspaceIdentifier: IWorkspaceIdentifier): Promise<void> {
-		return this.channel.call('deleteUntitledWorkspace', workspaceIdentifier);
-	}
-
-	getWorkspaceIdentifier(configPath: URI): Promise<IWorkspaceIdentifier> {
-		return this.channel.call('getWorkspaceIdentifier', configPath);
 	}
 }

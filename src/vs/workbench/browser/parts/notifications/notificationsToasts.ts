@@ -79,6 +79,9 @@ export class NotificationsToasts extends Themable {
 
 	private registerListeners(): void {
 
+		// Layout
+		this._register(this.layoutService.onLayout(dimension => this.layout(dimension)));
+
 		// Delay some tasks until after we can show notifications
 		this.onCanShowNotifications().then(() => {
 

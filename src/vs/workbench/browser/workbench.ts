@@ -24,7 +24,6 @@ import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
 import { IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs/workbench/browser/actions';
 import { PanelRegistry, Extensions as PanelExtensions } from 'vs/workbench/browser/panel';
-import { ViewletRegistry, Extensions as ViewletExtensions } from 'vs/workbench/browser/viewlet';
 import { getServices } from 'vs/platform/instantiation/common/extensions';
 import { Position, Parts, IWorkbenchLayoutService, ILayoutOptions } from 'vs/workbench/services/layout/browser/layoutService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -61,6 +60,8 @@ import { IDimension } from 'vs/platform/layout/browser/layoutService';
 import { Part } from 'vs/workbench/browser/part';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
+import { coalesce } from 'vs/base/common/arrays';
+import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 
 export interface IWorkbenchOptions {
 	hasInitialFilesToOpen: boolean;
@@ -90,8 +91,6 @@ enum Storage {
 
 export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
-	//#region workbench
-
 	_serviceBrand: ServiceIdentifier<any>;
 
 	private readonly _onShutdown = this._register(new Emitter<void>());
@@ -100,47 +99,19 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 	private readonly _onWillShutdown = this._register(new Emitter<WillShutdownEvent>());
 	get onWillShutdown(): Event<WillShutdownEvent> { return this._onWillShutdown.event; }
 
-	private previousErrorValue: string;
-	private previousErrorTime = 0;
-
-	private workbench: HTMLElement;
-
-	private restored: boolean;
-	private disposed: boolean;
-
-	private instantiationService: IInstantiationService;
-	private contextService: IWorkspaceContextService;
-	private storageService: IStorageService;
-	private configurationService: IConfigurationService;
-	private environmentService: IEnvironmentService;
-	private logService: ILogService;
-
-	private parts: Map<string, Part> = new Map<string, Part>();
+	private workbench: HTMLElement = document.createElement('div');
 
 	constructor(
-		private parent: HTMLElement,
-		private options: IWorkbenchOptions,
-		private serviceCollection: ServiceCollection,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IStorageService storageService: IStorageService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@ILogService logService: ILogService
+		private readonly parent: HTMLElement,
+		private readonly serviceCollection: ServiceCollection,
+		logService: ILogService
 	) {
 		super();
 
-		this.instantiationService = instantiationService;
-		this.contextService = contextService;
-		this.storageService = storageService;
-		this.configurationService = configurationService;
-		this.environmentService = environmentService;
-		this.logService = logService;
-
-		this.registerErrorHandler();
+		this.registerErrorHandler(logService);
 	}
 
-	private registerErrorHandler(): void {
+	private registerErrorHandler(logService: ILogService): void {
 
 		// Listen on unhandled rejection events
 		window.addEventListener('unhandledrejection', (event: PromiseRejectionEvent) => {
@@ -153,7 +124,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		});
 
 		// Install handler for unexpected errors
-		setUnexpectedErrorHandler(error => this.handleUnexpectedError(error));
+		setUnexpectedErrorHandler(error => this.handleUnexpectedError(error, logService));
 
 		// Inform user about loading issues from the loader
 		(<any>self).require.config({
@@ -165,102 +136,93 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		});
 	}
 
-	private handleUnexpectedError(error: any): void {
-		const errorMsg = toErrorMessage(error, true);
-		if (!errorMsg) {
+	private previousUnexpectedError: { message: string, time: number } = { message: undefined, time: 0 };
+	private handleUnexpectedError(error: any, logService: ILogService): void {
+		const message = toErrorMessage(error, true);
+		if (!message) {
 			return;
 		}
 
 		const now = Date.now();
-		if (errorMsg === this.previousErrorValue && now - this.previousErrorTime <= 1000) {
+		if (message === this.previousUnexpectedError.message && now - this.previousUnexpectedError.time <= 1000) {
 			return; // Return if error message identical to previous and shorter than 1 second
 		}
 
-		this.previousErrorTime = now;
-		this.previousErrorValue = errorMsg;
+		this.previousUnexpectedError.time = now;
+		this.previousUnexpectedError.message = message;
 
 		// Log it
-		this.logService.error(errorMsg);
+		logService.error(message);
 	}
 
-	startup(): void {
+	startup(): IInstantiationService {
 		try {
-			this.doStartup().then(undefined, error => this.logService.error(toErrorMessage(error, true)));
+
+			// Configure emitter leak warning threshold
+			setGlobalLeakWarningThreshold(175);
+
+			// Setup Intl for comparers
+			setFileNameComparer(new IdleValue(() => {
+				const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+				return {
+					collator: collator,
+					collatorIsNumeric: collator.resolvedOptions().numeric
+				};
+			}));
+
+			// ARIA
+			setARIAContainer(document.body);
+
+			// Services
+			const instantiationService = this.initServices(this.serviceCollection);
+
+			instantiationService.invokeFunction(accessor => {
+				const lifecycleService = accessor.get(ILifecycleService);
+				const storageService = accessor.get(IStorageService);
+				const configurationService = accessor.get(IConfigurationService);
+
+				// Layout
+				this.initLayout(accessor);
+
+				// Registries
+				this.initRegistries(accessor);
+
+				// Context Keys
+				this._register(instantiationService.createInstance(WorkbenchContextKeysHandler));
+
+				// Register Listeners
+				this.registerListeners(lifecycleService, storageService, configurationService);
+
+				// Render Workbench
+				this.renderWorkbench(instantiationService, accessor.get(INotificationService) as NotificationService, storageService, configurationService);
+
+				// Workbench Layout
+				this.createWorkbenchLayout(instantiationService);
+
+				// Layout
+				this.layout();
+
+				// Restore
+				this.restoreWorkbench(accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IViewletService), accessor.get(IPanelService), accessor.get(ILogService), lifecycleService).then(undefined, error => onUnexpectedError(error));
+			});
+
+			return instantiationService;
 		} catch (error) {
-			this.logService.error(toErrorMessage(error, true));
+			onUnexpectedError(error);
 
 			throw error; // rethrow because this is a critical issue we cannot handle properly here
 		}
 	}
 
-	private doStartup(): Promise<void> {
-
-		// Configure emitter leak warning threshold
-		setGlobalLeakWarningThreshold(175);
-
-		// Setup Intl for comparers
-		setFileNameComparer(new IdleValue(() => {
-			const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
-			return {
-				collator: collator,
-				collatorIsNumeric: collator.resolvedOptions().numeric
-			};
-		}));
-
-		// ARIA
-		setARIAContainer(document.body);
-
-		// Warm up font cache information before building up too many dom elements
-		restoreFontInfo(this.storageService);
-		readFontInfo(BareFontInfo.createFromRawSettings(this.configurationService.getValue('editor'), getZoomLevel()));
-
-		// Create Workbench Container
-		this.createWorkbenchContainer();
-
-		// Services
-		this.initServices(this.serviceCollection);
-
-		// Registries
-		this.startRegistries();
-
-		// Context Keys
-		this._register(this.instantiationService.createInstance(WorkbenchContextKeysHandler));
-
-		// Register Listeners
-		this.instantiationService.invokeFunction(accessor => {
-			this.registerListeners(accessor);
-			this.registerLayoutListeners(accessor);
-		});
-
-		// Layout State
-		this.instantiationService.invokeFunction(accessor => this.initLayoutState(accessor));
-
-		// Render Workbench
-		this.renderWorkbench();
-
-		// Workbench Layout
-		this.createWorkbenchLayout();
-
-		// Layout
-		this.layout();
-
-		// Restore
-		return this.instantiationService.invokeFunction(accessor => this.restoreWorkbench(accessor));
-	}
-
-	private createWorkbenchContainer(): void {
-		this.workbench = document.createElement('div');
-
-		const platformClass = isWindows ? 'windows' : isLinux ? 'linux' : 'mac';
-
-		addClasses(this.workbench, 'monaco-workbench', platformClass);
-		addClasses(document.body, platformClass); // used by our fonts
-	}
-
-	private initServices(serviceCollection: ServiceCollection): void {
+	private initServices(serviceCollection: ServiceCollection): IInstantiationService {
 
 		// Layout Service
 		serviceCollection.set(IWorkbenchLayoutService, this);
+
+		//
+		// NOTE: DO NOT ADD ANY OTHER SERVICE INTO THE COLLECTION HERE.
+		// INSTEAD, CONTRIBUTE IT VIA WORKBENCH.MAIN.TS
+		//
 
 		// All Contributed Services
 		const contributedServices = getServices();
@@ -268,14 +230,13 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			serviceCollection.set(contributedService.id, contributedService.descriptor);
 		}
 
+		const instantationServie = new InstantiationService(serviceCollection, true);
+
 		// Wrap up
-		this.instantiationService.invokeFunction(accessor => {
-
-			// Signal to lifecycle that services are set
+		instantationServie.invokeFunction(accessor => {
 			const lifecycleService = accessor.get(ILifecycleService);
-			lifecycleService.phase = LifecyclePhase.Ready;
 
-			// TODO@Sandeep TODO@Martin debt around cyclic dependencies
+			// TODO@Ben TODO@Sandeep TODO@Martin debt around cyclic dependencies
 			const fileService = accessor.get(IFileService);
 			const instantiationService = accessor.get(IInstantiationService);
 			const configurationService = accessor.get(IConfigurationService) as any;
@@ -292,21 +253,25 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			if (typeof themeService.acquireFileService === 'function') {
 				themeService.acquireFileService(fileService);
 			}
+
+			// Signal to lifecycle that services are set
+			lifecycleService.phase = LifecyclePhase.Ready;
 		});
+
+		return instantationServie;
 	}
 
-	private startRegistries(): void {
-		this.instantiationService.invokeFunction(accessor => {
-			Registry.as<IActionBarRegistry>(ActionBarExtensions.Actionbar).start(accessor);
-			Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).start(accessor);
-			Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).start(accessor);
-		});
+	private initRegistries(accessor: ServicesAccessor): void {
+		Registry.as<IActionBarRegistry>(ActionBarExtensions.Actionbar).start(accessor);
+		Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).start(accessor);
+		Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).start(accessor);
 	}
 
-	private registerListeners(accessor: ServicesAccessor): void {
-		const lifecycleService = accessor.get(ILifecycleService);
-		const storageService = accessor.get(IStorageService);
-		const configurationService = accessor.get(IConfigurationService);
+	private registerListeners(
+		lifecycleService: ILifecycleService,
+		storageService: IStorageService,
+		configurationService: IConfigurationService
+	): void {
 
 		// Lifecycle
 		this._register(lifecycleService.onWillShutdown(event => this._onWillShutdown.fire(event)));
@@ -316,15 +281,15 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		}));
 
 		// Storage
-		this._register(storageService.onWillSaveState(e => this.saveState(e)));
+		this._register(storageService.onWillSaveState(() => saveFontInfo(storageService)));
 
 		// Configuration changes
-		this._register(configurationService.onDidChangeConfiguration(() => this.setFontAliasing()));
+		this._register(configurationService.onDidChangeConfiguration(() => this.setFontAliasing(configurationService)));
 	}
 
 	private fontAliasing: 'default' | 'antialiased' | 'none' | 'auto';
-	private setFontAliasing() {
-		const aliasing = this.configurationService.getValue<'default' | 'antialiased' | 'none' | 'auto'>(Settings.FONT_ALIASING);
+	private setFontAliasing(configurationService: IConfigurationService) {
+		const aliasing = configurationService.getValue<'default' | 'antialiased' | 'none' | 'auto'>(Settings.FONT_ALIASING);
 		if (this.fontAliasing === aliasing) {
 			return;
 		}
@@ -341,100 +306,73 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		}
 	}
 
-	private renderWorkbench(): void {
-		if (this.state.sideBar.hidden) {
-			addClass(this.workbench, 'nosidebar');
-		}
+	private renderWorkbench(instantiationService: IInstantiationService, notificationService: NotificationService, storageService: IStorageService, configurationService: IConfigurationService): void {
 
-		if (this.state.panel.hidden) {
-			addClass(this.workbench, 'nopanel');
-		}
+		// State specific classes
+		const platformClass = isWindows ? 'windows' : isLinux ? 'linux' : 'mac';
+		const workbenchClasses = coalesce([
+			'monaco-workbench',
+			platformClass,
+			this.state.sideBar.hidden ? 'nosidebar' : undefined,
+			this.state.panel.hidden ? 'nopanel' : undefined,
+			this.state.statusBar.hidden ? 'nostatusbar' : undefined,
+			this.state.fullscreen ? 'fullscreen' : undefined
+		]);
 
-		if (this.state.statusBar.hidden) {
-			addClass(this.workbench, 'nostatusbar');
-		}
-
-		if (this.state.fullscreen) {
-			addClass(this.workbench, 'fullscreen');
-		}
+		addClasses(this.workbench, ...workbenchClasses);
+		addClasses(document.body, platformClass); // used by our fonts
 
 		// Apply font aliasing
-		this.setFontAliasing();
+		this.setFontAliasing(configurationService);
+
+		// Warm up font cache information before building up too many dom elements
+		restoreFontInfo(storageService);
+		readFontInfo(BareFontInfo.createFromRawSettings(configurationService.getValue('editor'), getZoomLevel()));
 
 		// Create Parts
-		this.createTitlebarPart();
-		this.createActivityBarPart();
-		this.createSidebarPart();
-		this.createEditorPart();
-		this.createPanelPart();
-		this.createStatusbarPart();
+		[
+			{ id: Parts.TITLEBAR_PART, role: 'contentinfo', classes: ['titlebar'] },
+			{ id: Parts.ACTIVITYBAR_PART, role: 'navigation', classes: ['activitybar', this.state.sideBar.position === Position.LEFT ? 'left' : 'right'] },
+			{ id: Parts.SIDEBAR_PART, role: 'complementary', classes: ['sidebar', this.state.sideBar.position === Position.LEFT ? 'left' : 'right'] },
+			{ id: Parts.PANEL_PART, role: 'complementary', classes: ['panel', this.state.panel.position === Position.BOTTOM ? 'bottom' : 'right'] },
+			{ id: Parts.EDITOR_PART, role: 'main', classes: ['editor'], options: { restorePreviousState: this.state.editor.restoreEditors } },
+			{ id: Parts.STATUSBAR_PART, role: 'contentinfo', classes: ['statusbar'] }
+		].forEach(({ id, role, classes, options }) => {
+			const partContainer = this.createPart(id, role, classes);
+
+			if (!configurationService.getValue('workbench.useExperimentalGridLayout')) {
+				// TODO@Ben cleanup once moved to grid
+				// Insert all workbench parts at the beginning. Issue #52531
+				// This is primarily for the title bar to allow overriding -webkit-app-region
+				this.workbench.insertBefore(partContainer, this.workbench.lastChild);
+			}
+
+			this.parts.get(id).create(partContainer, options);
+		});
 
 		// Notification Handlers
-		this.instantiationService.invokeFunction(accessor => this.createNotificationsHandlers(accessor));
+		this.createNotificationsHandlers(instantiationService, notificationService);
 
 		// Add Workbench to DOM
 		this.parent.appendChild(this.workbench);
 	}
 
-	private createTitlebarPart(): void {
-		const titlebarContainer = this.createPart(Parts.TITLEBAR_PART, 'contentinfo', 'titlebar');
-
-		this.parts.get(Parts.TITLEBAR_PART).create(titlebarContainer);
-	}
-
-	private createActivityBarPart(): void {
-		const activitybarPartContainer = this.createPart(Parts.ACTIVITYBAR_PART, 'navigation', 'activitybar', this.state.sideBar.position === Position.LEFT ? 'left' : 'right');
-
-		this.parts.get(Parts.ACTIVITYBAR_PART).create(activitybarPartContainer);
-	}
-
-	private createSidebarPart(): void {
-		const sidebarPartContainer = this.createPart(Parts.SIDEBAR_PART, 'complementary', 'sidebar', this.state.sideBar.position === Position.LEFT ? 'left' : 'right');
-
-		this.parts.get(Parts.SIDEBAR_PART).create(sidebarPartContainer);
-	}
-
-	private createPanelPart(): void {
-		const panelPartContainer = this.createPart(Parts.PANEL_PART, 'complementary', 'panel', this.state.panel.position === Position.BOTTOM ? 'bottom' : 'right');
-
-		this.parts.get(Parts.PANEL_PART).create(panelPartContainer);
-	}
-
-	private createEditorPart(): void {
-		const editorContainer = this.createPart(Parts.EDITOR_PART, 'main', 'editor');
-
-		this.parts.get(Parts.EDITOR_PART).create(editorContainer, { restorePreviousState: !this.options.hasInitialFilesToOpen });
-	}
-
-	private createStatusbarPart(): void {
-		const statusbarContainer = this.createPart(Parts.STATUSBAR_PART, 'contentinfo', 'statusbar');
-
-		this.parts.get(Parts.STATUSBAR_PART).create(statusbarContainer);
-	}
-
-	private createPart(id: string, role: string, ...classes: string[]): HTMLElement {
+	private createPart(id: string, role: string, classes: string[]): HTMLElement {
 		const part = document.createElement('div');
 		addClasses(part, 'part', ...classes);
 		part.id = id;
 		part.setAttribute('role', role);
 
-		if (!this.configurationService.getValue('workbench.useExperimentalGridLayout')) {
-			// Insert all workbench parts at the beginning. Issue #52531
-			// This is primarily for the title bar to allow overriding -webkit-app-region
-			this.workbench.insertBefore(part, this.workbench.lastChild);
-		}
-
 		return part;
 	}
 
-	private createNotificationsHandlers(accessor: ServicesAccessor): void {
-		const notificationService = accessor.get(INotificationService) as NotificationService;
+	private createNotificationsHandlers(instantiationService: IInstantiationService, notificationService: NotificationService): void {
 
 		// Instantiate Notification components
-		const notificationsCenter = this._register(this.instantiationService.createInstance(NotificationsCenter, this.workbench, notificationService.model));
-		const notificationsToasts = this._register(this.instantiationService.createInstance(NotificationsToasts, this.workbench, notificationService.model));
-		this._register(this.instantiationService.createInstance(NotificationsAlerts, notificationService.model));
-		const notificationsStatus = this.instantiationService.createInstance(NotificationsStatus, notificationService.model);
+		const notificationsCenter = this._register(instantiationService.createInstance(NotificationsCenter, this.workbench, notificationService.model));
+		const notificationsToasts = this._register(instantiationService.createInstance(NotificationsToasts, this.workbench, notificationService.model));
+		this._register(instantiationService.createInstance(NotificationsAlerts, notificationService.model));
+		const notificationsStatus = instantiationService.createInstance(NotificationsStatus, notificationService.model);
 
 		// Visibility
 		this._register(notificationsCenter.onDidChangeVisibility(() => {
@@ -442,23 +380,18 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			notificationsToasts.update(notificationsCenter.isVisible);
 		}));
 
-		// Layout
-		this._register(this.onLayout(dimension => {
-			notificationsCenter.layout(dimension);
-			notificationsToasts.layout(dimension);
-		}));
-
 		// Register Commands
 		registerNotificationCommands(notificationsCenter, notificationsToasts);
 	}
 
-	private restoreWorkbench(accessor: ServicesAccessor): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const editorGroupService = accessor.get(IEditorGroupsService);
-		const viewletService = accessor.get(IViewletService);
-		const panelService = accessor.get(IPanelService);
-		const logService = accessor.get(ILogService);
-
+	private restoreWorkbench(
+		editorService: IEditorService,
+		editorGroupService: IEditorGroupsService,
+		viewletService: IViewletService,
+		panelService: IPanelService,
+		logService: ILogService,
+		lifecycleService: ILifecycleService
+	): Promise<void> {
 		const restorePromises: Promise<any>[] = [];
 
 		// Restore editors
@@ -514,51 +447,25 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		// Emit a warning after 10s if restore does not complete
 		const restoreTimeoutHandle = setTimeout(() => logService.warn('Workbench did not finish loading in 10 seconds, that might be a problem that should be reported.'), 10000);
 
-		let error: Error;
 		return Promise.all(restorePromises)
 			.then(() => clearTimeout(restoreTimeoutHandle))
-			.catch(err => error = err)
-			.finally(() => this.instantiationService.invokeFunction(accessor => this.whenRestored(accessor, error)));
+			.catch(error => onUnexpectedError(error))
+			.finally(() => {
 
+				// Set lifecycle phase to `Restored`
+				lifecycleService.phase = LifecyclePhase.Restored;
+
+				// Set lifecycle phase to `Eventually` after a short delay and when idle (min 2.5sec, max 5sec)
+				setTimeout(() => {
+					this._register(runWhenIdle(() => {
+						lifecycleService.phase = LifecyclePhase.Eventually;
+					}, 2500));
+				}, 2500);
+
+				// Telemetry: startup metrics
+				mark('didStartWorkbench');
+			});
 	}
-
-	private whenRestored(accessor: ServicesAccessor, error?: Error): void {
-		const lifecycleService = accessor.get(ILifecycleService);
-
-		this.restored = true;
-
-		// Set lifecycle phase to `Restored`
-		lifecycleService.phase = LifecyclePhase.Restored;
-
-		// Set lifecycle phase to `Eventually` after a short delay and when
-		// idle (min 2.5sec, max 5sec)
-		setTimeout(() => {
-			this._register(runWhenIdle(() => {
-				lifecycleService.phase = LifecyclePhase.Eventually;
-			}, 2500));
-		}, 2500);
-
-		if (error) {
-			onUnexpectedError(error);
-		}
-
-		// Telemetry: startup metrics
-		mark('didStartWorkbench');
-	}
-
-	private saveState(e: IWillSaveStateEvent): void {
-
-		// Font info
-		saveFontInfo(this.storageService);
-	}
-
-	dispose(): void {
-		super.dispose();
-
-		this.disposed = true;
-	}
-
-	//#endregion
 
 	//#region ILayoutService
 
@@ -576,7 +483,11 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 	get container(): HTMLElement { return this.workbench; }
 
+	private parts: Map<string, Part> = new Map<string, Part>();
+
 	private workbenchGrid: Grid<View> | WorkbenchLegacyLayout;
+
+	private disposed: boolean;
 
 	private titleBarPartView: View;
 	private activityBarPartView: View;
@@ -585,11 +496,18 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 	private editorPartView: View;
 	private statusBarPartView: View;
 
+	private environmentService: IEnvironmentService;
+	private configurationService: IConfigurationService;
+	private lifecycleService: ILifecycleService;
+	private storageService: IStorageService;
 	private windowService: IWindowService;
 	private editorService: IEditorService;
 	private editorGroupService: IEditorGroupsService;
 	private panelService: IPanelService;
+	private titleService: ITitleService;
 	private viewletService: IViewletService;
+	private contextService: IWorkspaceContextService;
+	private backupFileService: IBackupFileService;
 
 	private readonly state = {
 		fullscreen: false,
@@ -614,6 +532,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			hidden: false,
 			centered: false,
 			restoreCentered: false,
+			restoreEditors: false,
 			editorsToOpen: undefined as Promise<IResourceEditor[]> | IResourceEditor[]
 		},
 
@@ -640,41 +559,57 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		}
 	};
 
-	registerPart(part: Part): void {
-		this.parts.set(part.getId(), part);
+	private initLayout(accessor: ServicesAccessor) {
+
+		// Services
+		this.environmentService = accessor.get(IEnvironmentService);
+		this.configurationService = accessor.get(IConfigurationService);
+		this.lifecycleService = accessor.get(ILifecycleService);
+		this.windowService = accessor.get(IWindowService);
+		this.contextService = accessor.get(IWorkspaceContextService);
+		this.storageService = accessor.get(IStorageService);
+
+		// Parts
+		this.editorService = accessor.get(IEditorService);
+		this.editorGroupService = accessor.get(IEditorGroupsService);
+		this.panelService = accessor.get(IPanelService);
+		this.viewletService = accessor.get(IViewletService);
+		this.titleService = accessor.get(ITitleService);
+		accessor.get(IStatusbarService); // not used, but called to ensure instantiated
+		accessor.get(IActivityBarService); // not used, but called to ensure instantiated
+
+		// Listeners
+		this.registerLayoutListeners();
+
+		// State
+		this.initLayoutState(accessor.get(ILifecycleService));
 	}
 
-	private registerLayoutListeners(accessor: ServicesAccessor): void {
-		const storageService = accessor.get(IStorageService);
-		const editorService = accessor.get(IEditorService);
-		const configurationService = accessor.get(IConfigurationService);
-		const editorGroupService = accessor.get(IEditorGroupsService);
-		const titleService = accessor.get(ITitleService);
-		const environmentService = accessor.get(IEnvironmentService);
+	private registerLayoutListeners(): void {
 
 		// Storage
-		this._register(storageService.onWillSaveState(e => this.saveLayoutState(e)));
+		this._register(this.storageService.onWillSaveState(e => this.saveLayoutState(e)));
 
 		// Restore editor if hidden and it changes
-		this._register(editorService.onDidVisibleEditorsChange(() => this.setEditorHidden(false)));
-		this._register(editorGroupService.onDidActivateGroup(() => this.setEditorHidden(false)));
+		this._register(this.editorService.onDidVisibleEditorsChange(() => this.setEditorHidden(false)));
+		this._register(this.editorGroupService.onDidActivateGroup(() => this.setEditorHidden(false)));
 
 		// Configuration changes
-		this._register(configurationService.onDidChangeConfiguration(() => this.doUpdateLayoutConfiguration()));
+		this._register(this.configurationService.onDidChangeConfiguration(() => this.doUpdateLayoutConfiguration()));
 
 		// Fullscreen changes
 		this._register(onDidChangeFullscreen(() => this.onFullscreenChanged()));
 
 		// Group changes
-		this._register(editorGroupService.onDidAddGroup(() => this.centerEditorLayout(this.state.editor.centered)));
-		this._register(editorGroupService.onDidRemoveGroup(() => this.centerEditorLayout(this.state.editor.centered)));
+		this._register(this.editorGroupService.onDidAddGroup(() => this.centerEditorLayout(this.state.editor.centered)));
+		this._register(this.editorGroupService.onDidRemoveGroup(() => this.centerEditorLayout(this.state.editor.centered)));
 
 		// Prevent workbench from scrolling #55456
 		this._register(addDisposableListener(this.workbench, EventType.SCROLL, () => this.workbench.scrollTop = 0));
 
 		// Menubar visibility changes
-		if ((isWindows || isLinux) && getTitleBarStyle(configurationService, environmentService) === 'custom') {
-			this._register(titleService.onMenubarVisibilityChange(visible => this.onMenubarToggled(visible)));
+		if ((isWindows || isLinux) && getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
+			this._register(this.titleService.onMenubarVisibilityChange(visible => this.onMenubarToggled(visible)));
 		}
 	}
 
@@ -784,49 +719,32 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		}
 	}
 
-	private initLayoutState(accessor: ServicesAccessor): void {
-		const configurationService = accessor.get(IConfigurationService);
-		const storageService = accessor.get(IStorageService);
-		const lifecycleService = accessor.get(ILifecycleService);
-		const contextService = accessor.get(IWorkspaceContextService);
-		const environmentService = accessor.get(IEnvironmentService);
-
-		this.windowService = accessor.get(IWindowService);
-
-		// Ensure all part services are created (TODO@ben revisit this requirement)
-		this.editorService = accessor.get(IEditorService);
-		this.editorGroupService = accessor.get(IEditorGroupsService);
-		this.panelService = accessor.get(IPanelService);
-		this.viewletService = accessor.get(IViewletService);
-		accessor.get(IStatusbarService);
-		accessor.get(ITitleService);
-		accessor.get(IActivityBarService);
+	private initLayoutState(lifecycleService: ILifecycleService): void {
 
 		// Fullscreen
 		this.state.fullscreen = isFullscreen();
 
 		// Menubar visibility
-		this.state.menuBar.visibility = configurationService.getValue<MenuBarVisibility>(Settings.MENUBAR_VISIBLE);
+		this.state.menuBar.visibility = this.configurationService.getValue<MenuBarVisibility>(Settings.MENUBAR_VISIBLE);
 
 		// Activity bar visibility
-		this.state.activityBar.hidden = !configurationService.getValue<string>(Settings.ACTIVITYBAR_VISIBLE);
+		this.state.activityBar.hidden = !this.configurationService.getValue<string>(Settings.ACTIVITYBAR_VISIBLE);
 
 		// Sidebar visibility
-		this.state.sideBar.hidden = storageService.getBoolean(Storage.SIDEBAR_HIDDEN, StorageScope.WORKSPACE, contextService.getWorkbenchState() === WorkbenchState.EMPTY);
+		this.state.sideBar.hidden = this.storageService.getBoolean(Storage.SIDEBAR_HIDDEN, StorageScope.WORKSPACE, this.contextService.getWorkbenchState() === WorkbenchState.EMPTY);
 
 		// Sidebar position
-		this.state.sideBar.position = (configurationService.getValue<string>(Settings.SIDEBAR_POSITION) === 'right') ? Position.RIGHT : Position.LEFT;
+		this.state.sideBar.position = (this.configurationService.getValue<string>(Settings.SIDEBAR_POSITION) === 'right') ? Position.RIGHT : Position.LEFT;
 
 		// Sidebar viewlet
 		if (!this.state.sideBar.hidden) {
-			const viewletRegistry = Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets);
 
 			// Only restore last viewlet if window was reloaded or we are in development mode
 			let viewletToRestore: string;
-			if (!environmentService.isBuilt || lifecycleService.startupKind === StartupKind.ReloadedWindow) {
-				viewletToRestore = storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE, viewletRegistry.getDefaultViewletId());
+			if (!this.environmentService.isBuilt || lifecycleService.startupKind === StartupKind.ReloadedWindow) {
+				viewletToRestore = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE, this.viewletService.getDefaultViewletId());
 			} else {
-				viewletToRestore = viewletRegistry.getDefaultViewletId();
+				viewletToRestore = this.viewletService.getDefaultViewletId();
 			}
 
 			if (viewletToRestore) {
@@ -837,13 +755,13 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		}
 
 		// Editor centered layout
-		this.state.editor.restoreCentered = storageService.getBoolean(Storage.CENTERED_LAYOUT_ENABLED, StorageScope.WORKSPACE, false);
+		this.state.editor.restoreCentered = this.storageService.getBoolean(Storage.CENTERED_LAYOUT_ENABLED, StorageScope.WORKSPACE, false);
 
 		// Editors to open
-		this.state.editor.editorsToOpen = this.resolveEditorsToOpen(accessor);
+		this.state.editor.editorsToOpen = this.resolveEditorsToOpen();
 
 		// Panel visibility
-		this.state.panel.hidden = storageService.getBoolean(Storage.PANEL_HIDDEN, StorageScope.WORKSPACE, true);
+		this.state.panel.hidden = this.storageService.getBoolean(Storage.PANEL_HIDDEN, StorageScope.WORKSPACE, true);
 
 		// Panel position
 		this.updatePanelPosition();
@@ -852,7 +770,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		if (!this.state.panel.hidden) {
 			const panelRegistry = Registry.as<PanelRegistry>(PanelExtensions.Panels);
 
-			let panelToRestore = storageService.get(PanelPart.activePanelSettingsKey, StorageScope.WORKSPACE, panelRegistry.getDefaultPanelId());
+			let panelToRestore = this.storageService.get(PanelPart.activePanelSettingsKey, StorageScope.WORKSPACE, panelRegistry.getDefaultPanelId());
 			if (!panelRegistry.hasPanel(panelToRestore)) {
 				panelToRestore = panelRegistry.getDefaultPanelId(); // fallback to default if panel is unknown
 			}
@@ -865,21 +783,21 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		}
 
 		// Statusbar visibility
-		this.state.statusBar.hidden = !configurationService.getValue<string>(Settings.STATUSBAR_VISIBLE);
+		this.state.statusBar.hidden = !this.configurationService.getValue<string>(Settings.STATUSBAR_VISIBLE);
 
 		// Zen mode enablement
-		this.state.zenMode.restore = storageService.getBoolean(Storage.ZEN_MODE_ENABLED, StorageScope.WORKSPACE, false) && configurationService.getValue(Settings.ZEN_MODE_RESTORE);
+		this.state.zenMode.restore = this.storageService.getBoolean(Storage.ZEN_MODE_ENABLED, StorageScope.WORKSPACE, false) && this.configurationService.getValue(Settings.ZEN_MODE_RESTORE);
 	}
 
-	private resolveEditorsToOpen(accessor: ServicesAccessor): Promise<IResourceEditor[]> | IResourceEditor[] {
-		const configuration = accessor.get(IWindowService).getConfiguration();
-		const configurationService = accessor.get(IConfigurationService);
-		const contextService = accessor.get(IWorkspaceContextService);
-		const editorGroupService = accessor.get(IEditorGroupsService);
-		const backupFileService = accessor.get(IBackupFileService);
+	private resolveEditorsToOpen(): Promise<IResourceEditor[]> | IResourceEditor[] {
+		const configuration = this.windowService.getConfiguration();
+		const hasInitialFilesToOpen = this.hasInitialFilesToOpen();
+
+		// Only restore editors if we are not instructed to open files initially
+		this.state.editor.restoreEditors = !hasInitialFilesToOpen;
 
 		// Files to open, diff or create
-		if (this.options.hasInitialFilesToOpen) {
+		if (hasInitialFilesToOpen) {
 
 			// Files to diff is exclusive
 			const filesToDiff = this.toInputs(configuration.filesToDiff, false);
@@ -900,13 +818,13 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		}
 
 		// Empty workbench
-		else if (contextService.getWorkbenchState() === WorkbenchState.EMPTY && configurationService.inspect('workbench.startupEditor').value === 'newUntitledFile') {
-			const isEmpty = editorGroupService.count === 1 && editorGroupService.activeGroup.count === 0;
+		else if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY && this.configurationService.inspect('workbench.startupEditor').value === 'newUntitledFile') {
+			const isEmpty = this.editorGroupService.count === 1 && this.editorGroupService.activeGroup.count === 0;
 			if (!isEmpty) {
 				return []; // do not open any empty untitled file if we restored editors from previous session
 			}
 
-			return backupFileService.hasBackups().then(hasBackups => {
+			return this.backupFileService.hasBackups().then(hasBackups => {
 				if (hasBackups) {
 					return []; // do not open any empty untitled file if we have backups to restore
 				}
@@ -916,6 +834,15 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		}
 
 		return [];
+	}
+
+	private hasInitialFilesToOpen(): boolean {
+		const configuration = this.windowService.getConfiguration();
+
+		return !!(
+			(configuration.filesToCreate && configuration.filesToCreate.length > 0) ||
+			(configuration.filesToOpen && configuration.filesToOpen.length > 0) ||
+			(configuration.filesToDiff && configuration.filesToDiff.length > 0));
 	}
 
 	private toInputs(paths: IPath[] | undefined, isNew: boolean): Array<IResourceInput | IUntitledResourceInput> {
@@ -950,8 +877,12 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		this.state.panel.position = (panelPosition === 'right') ? Position.RIGHT : Position.BOTTOM;
 	}
 
+	registerPart(part: Part): void {
+		this.parts.set(part.getId(), part);
+	}
+
 	isRestored(): boolean {
-		return this.restored;
+		return this.lifecycleService.phase >= LifecyclePhase.Restored;
 	}
 
 	hasFocus(part: Parts): boolean {
@@ -1145,7 +1076,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		}
 	}
 
-	private createWorkbenchLayout(): void {
+	private createWorkbenchLayout(instantiationService: IInstantiationService): void {
 		const titleBar = this.parts.get(Parts.TITLEBAR_PART);
 		const editorPart = this.parts.get(Parts.EDITOR_PART);
 		const activityBar = this.parts.get(Parts.ACTIVITYBAR_PART);
@@ -1167,7 +1098,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 			this.workbench.prepend(this.workbenchGrid.element);
 		} else {
-			this.workbenchGrid = this.instantiationService.createInstance(
+			this.workbenchGrid = instantiationService.createInstance(
 				WorkbenchLegacyLayout,
 				this.parent,
 				this.workbench,
@@ -1588,6 +1519,12 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 				this.toggleZenMode(true); // We will not restore zen mode, need to clear all zen mode state changes
 			}
 		}
+	}
+
+	dispose(): void {
+		super.dispose();
+
+		this.disposed = true;
 	}
 
 	//#endregion

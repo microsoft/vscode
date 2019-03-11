@@ -22,7 +22,7 @@ import 'vs/workbench/electron-browser/main';
 import 'vs/workbench/browser/actions/layoutActions';
 import 'vs/workbench/browser/actions/listCommands';
 import 'vs/workbench/browser/actions/navigationActions';
-import 'vs/workbench/browser/parts/quickopen/quickopenActions';
+import 'vs/workbench/browser/parts/quickopen/quickOpenActions';
 import 'vs/workbench/browser/parts/quickinput/quickInputActions';
 
 //#endregion
@@ -72,12 +72,26 @@ import { RequestService } from 'vs/platform/request/electron-browser/requestServ
 import { LifecycleService } from 'vs/platform/lifecycle/electron-browser/lifecycleService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
-import { LocalizationsChannelClient } from 'vs/platform/localizations/node/localizationsIpc';
-import { ISharedProcessService, SharedProcessService } from 'vs/platform/sharedProcess/node/sharedProcessService';
+import { LocalizationsService } from 'vs/platform/localizations/electron-browser/localizationsService';
+import { ISharedProcessService, SharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-browser/remoteAuthorityResolverService';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { TelemetryService } from 'vs/platform/telemetry/node/telemetryService';
+import { TelemetryService } from 'vs/platform/telemetry/electron-browser/telemetryService';
+import { IProductService } from 'vs/platform/product/common/product';
+import { ProductService } from 'vs/platform/product/node/productService';
+import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { WindowsService } from 'vs/platform/windows/electron-browser/windowsService';
+import { IUpdateService } from 'vs/platform/update/common/update';
+import { UpdateService } from 'vs/platform/update/electron-browser/updateService';
+import { IIssueService } from 'vs/platform/issue/common/issue';
+import { IssueService } from 'vs/platform/issue/electron-browser/issueService';
+import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { WorkspacesService } from 'vs/platform/workspaces/electron-browser/workspacesService';
+import { IMenubarService } from 'vs/platform/menubar/common/menubar';
+import { MenubarService } from 'vs/platform/menubar/electron-browser/menubarService';
+import { IURLService } from 'vs/platform/url/common/url';
+import { RelayURLService } from 'vs/platform/url/electron-browser/urlService';
 
 import 'vs/workbench/services/bulkEdit/browser/bulkEditService';
 import 'vs/workbench/services/integrity/node/integrityService';
@@ -114,7 +128,7 @@ import 'vs/workbench/services/extensions/electron-browser/extensionService';
 import 'vs/workbench/services/contextmenu/electron-browser/contextmenuService';
 import 'vs/workbench/services/extensionManagement/node/multiExtensionManagement';
 import 'vs/workbench/services/label/common/labelService';
-import 'vs/workbench/services/extensions/node/extensionManagementServerService';
+import 'vs/workbench/services/extensions/electron-browser/extensionManagementServerService';
 import 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import 'vs/workbench/services/notification/common/notificationService';
 
@@ -135,11 +149,17 @@ registerSingleton(IContextViewService, ContextViewService, true);
 registerSingleton(IExtensionGalleryService, ExtensionGalleryService, true);
 registerSingleton(IRequestService, RequestService, true);
 registerSingleton(ILifecycleService, LifecycleService);
-registerSingleton(ILocalizationsService, LocalizationsChannelClient);
+registerSingleton(ILocalizationsService, LocalizationsService);
 registerSingleton(ISharedProcessService, SharedProcessService, true);
 registerSingleton(IRemoteAuthorityResolverService, RemoteAuthorityResolverService, true);
 registerSingleton(ITelemetryService, TelemetryService);
 registerSingleton(IProductService, ProductService, true);
+registerSingleton(IWindowsService, WindowsService);
+registerSingleton(IUpdateService, UpdateService);
+registerSingleton(IIssueService, IssueService);
+registerSingleton(IWorkspacesService, WorkspacesService);
+registerSingleton(IMenubarService, MenubarService);
+registerSingleton(IURLService, RelayURLService);
 
 //#endregion
 
@@ -296,7 +316,5 @@ import 'vs/workbench/contrib/codeinset/electron-browser/codeInset.contribution';
 
 // Issues
 import 'vs/workbench/contrib/issue/electron-browser/issue.contribution';
-import { IProductService } from 'vs/platform/product/common/product';
-import { ProductService } from 'vs/platform/product/node/productService';
 
 //#endregion
