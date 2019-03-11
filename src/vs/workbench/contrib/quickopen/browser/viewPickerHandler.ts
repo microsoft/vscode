@@ -147,7 +147,11 @@ export class ViewPickerHandler extends QuickOpenHandler {
 
 		// Viewlets
 		const viewlets = this.viewletService.getViewlets();
-		viewlets.forEach((viewlet, index) => viewEntries.push(new ViewEntry(viewlet.name, nls.localize('views', "Side Bar"), () => this.viewletService.openViewlet(viewlet.id, true))));
+		viewlets.forEach((viewlet, index) => {
+			if (this.hasToShowViewlet(viewlet)) {
+				viewEntries.push(new ViewEntry(viewlet.name, nls.localize('views', "Side Bar"), () => this.viewletService.openViewlet(viewlet.id, true)));
+			}
+		});
 
 		// Panels
 		const panels = this.panelService.getPanels();
@@ -187,6 +191,15 @@ export class ViewPickerHandler extends QuickOpenHandler {
 		});
 
 		return viewEntries;
+	}
+
+	private hasToShowViewlet(viewlet: ViewletDescriptor): boolean {
+		const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).get(viewlet.id);
+		if (viewContainer && viewContainer.hideIfEmpty) {
+			const viewsCollection = this.viewsService.getViewDescriptors(viewContainer);
+			return !!viewsCollection && viewsCollection.activeViewDescriptors.length > 0;
+		}
+		return true;
 	}
 
 	getAutoFocus(searchValue: string, context: { model: IModel<QuickOpenEntry>, quickNavigateConfiguration?: IQuickNavigateConfiguration }): IAutoFocus {
