@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
+import { exists } from 'vs/base/node/pfs';
 import * as cp from 'child_process';
 import * as stream from 'stream';
 import * as nls from 'vs/nls';
@@ -320,8 +320,8 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 			// verify executables asynchronously
 			if (command) {
 				if (path.isAbsolute(command)) {
-					const ok = await new Promise<boolean>(resolve => fs.exists(command, resolve));
-					if (!ok) {
+					const commandExists = await exists(command);
+					if (!commandExists) {
 						throw new Error(nls.localize('debugAdapterBinNotFound', "Debug adapter executable '{0}' does not exist.", command));
 					}
 				} else {
