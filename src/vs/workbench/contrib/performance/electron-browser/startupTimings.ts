@@ -114,13 +114,16 @@ export class StartupTimings implements IWorkbenchContribution {
 	}
 
 	private _reportPerfTicks(): void {
-		const entries = getEntries();
+		const entries: Record<string, number> = Object.create(null);
+		for (const entry of getEntries()) {
+			entries[entry.name] = entry.timestamp;
+		}
 		/* __GDPR__
 			"startupRawTimers" : {
-				"marks": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+				"entries": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 			}
 		*/
-		this._telemetryService.publicLog('startupRawTimers', { marks: entries });
+		this._telemetryService.publicLog('startupRawTimers', { entries });
 	}
 }
 
