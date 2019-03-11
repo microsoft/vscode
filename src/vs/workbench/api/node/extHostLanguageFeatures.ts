@@ -71,6 +71,7 @@ class DocumentSymbolAdapter {
 			const element = <modes.DocumentSymbol>{
 				name: info.name || '!!MISSING: name!!',
 				kind: typeConvert.SymbolKind.from(info.kind),
+				detail: undefined!, // Strict null override — avoid changing behavior
 				containerName: info.containerName,
 				range: typeConvert.Range.from(info.location.range),
 				selectionRange: typeConvert.Range.from(info.location.range),
@@ -85,7 +86,9 @@ class DocumentSymbolAdapter {
 				}
 				const parent = parentStack[parentStack.length - 1];
 				if (EditorRange.containsRange(parent.range, element.range) && !EditorRange.equalsRange(parent.range, element.range)) {
-					parent.children.push(element);
+					if (parent.children) {
+						parent.children.push(element);
+					}
 					parentStack.push(element);
 					break;
 				}
@@ -750,7 +753,7 @@ class SuggestAdapter {
 
 		} else if (item.insertText instanceof SnippetString) {
 			result.insertText = item.insertText.value;
-			result.insertTextRules |= modes.CompletionItemInsertTextRule.InsertAsSnippet;
+			result.insertTextRules! |= modes.CompletionItemInsertTextRule.InsertAsSnippet;
 
 		} else {
 			result.insertText = item.label;
@@ -1053,7 +1056,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return ExtHostLanguageFeatures._handlePool++;
 	}
 
-	private _withAdapter<A, R>(handle: number, ctor: { new(...args: any[]): A }, callback: (adapter: A, extenson: IExtensionDescription) => Promise<R>): Promise<R> {
+	private _withAdapter<A, R>(handle: number, ctor: { new(...args: any[]): A }, callback: (adapter: A, extension: IExtensionDescription | undefined) => Promise<R>): Promise<R> {
 		const data = this._adapter.get(handle);
 		if (!data) {
 			return Promise.reject(new Error('no adapter found'));
@@ -1156,7 +1159,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		const webviewHandle = Math.random();
 		const webview = new ExtHostWebview(webviewHandle, this._webviewProxy, { enableScripts: true });
 		return this._withAdapter(handle, CodeInsetAdapter, async (adapter, extension) => {
-			await this._webviewProxy.$createWebviewCodeInset(webviewHandle, symbol.id, { enableCommandUris: true, enableScripts: true }, extension.extensionLocation);
+			await this._webviewProxy.$createWebviewCodeInset(webviewHandle, symbol.id, { enableCommandUris: true, enableScripts: true }, extension ? extension.extensionLocation : undefined);
 			return adapter.resolveCodeInset(symbol, webview, token);
 		});
 	}
