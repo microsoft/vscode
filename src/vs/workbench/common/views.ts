@@ -92,7 +92,7 @@ class ViewContainersRegistryImpl implements IViewContainersRegistry {
 
 		const viewContainer = new class extends ViewContainer {
 			constructor() {
-				super(id, hideIfEmpty, extensionId);
+				super(id, !!hideIfEmpty, extensionId);
 			}
 		};
 		this.viewContainers.set(id, viewContainer);
