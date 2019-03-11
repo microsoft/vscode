@@ -168,8 +168,8 @@ const group: IJSONSchema = {
 	enumDescriptions: [
 		nls.localize('JsonSchema.tasks.group.defaultBuild', 'Marks the task as the default build task.'),
 		nls.localize('JsonSchema.tasks.group.defaultTest', 'Marks the task as the default test task.'),
-		nls.localize('JsonSchema.tasks.group.build', 'Marks the task as a build task accesible through the \'Run Build Task\' command.'),
-		nls.localize('JsonSchema.tasks.group.test', 'Marks the task as a test task accesible through the \'Run Test Task\' command.'),
+		nls.localize('JsonSchema.tasks.group.build', 'Marks the task as a build task accessible through the \'Run Build Task\' command.'),
+		nls.localize('JsonSchema.tasks.group.test', 'Marks the task as a test task accessible through the \'Run Test Task\' command.'),
 		nls.localize('JsonSchema.tasks.group.none', 'Assigns the task to no group')
 	],
 	description: nls.localize('JsonSchema.tasks.group', 'Defines to which execution group this task belongs to. It supports "build" to add it to the build group and "test" to add it to the test group.')
