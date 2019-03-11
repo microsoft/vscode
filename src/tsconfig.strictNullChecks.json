@@ -257,6 +257,7 @@
 		"./vs/workbench/contrib/debug/electron-browser/rawDebugSession.ts",
 		"./vs/workbench/contrib/debug/electron-browser/variablesView.ts",
 		"./vs/workbench/contrib/debug/electron-browser/watchExpressionsView.ts",
+		"./vs/workbench/contrib/debug/electron-browser/debugHover.ts",
 		"./vs/workbench/contrib/debug/test/common/debugSource.test.ts",
 		"./vs/workbench/contrib/debug/test/common/debugUtils.test.ts",
 		"./vs/workbench/contrib/debug/test/common/mockDebug.ts",

@@ -46,7 +46,7 @@ export class DebugHoverWidget implements IContentWidget {
 	private _isVisible: boolean;
 	private domNode: HTMLElement;
 	private tree: AsyncDataTree<IExpression, IExpression, any>;
-	private showAtPosition: Position;
+	private showAtPosition: Position | null;
 	private highlightDecorations: string[];
 	private complexValueContainer: HTMLElement;
 	private complexValueTitle: HTMLElement;
@@ -145,15 +145,19 @@ export class DebugHoverWidget implements IContentWidget {
 		const pos = range.getStartPosition();
 
 		const session = this.debugService.getViewModel().focusedSession;
+		if (!this.editor.hasModel()) {
+			return Promise.resolve(this.hide());
+		}
+
 		const lineContent = this.editor.getModel().getLineContent(pos.lineNumber);
 		const { start, end } = getExactExpressionStartAndEnd(lineContent, range.startColumn, range.endColumn);
 		// use regex to extract the sub-expression #9821
 		const matchingExpression = lineContent.substring(start - 1, end);
-		if (!matchingExpression) {
+		if (!matchingExpression || !session) {
 			return Promise.resolve(this.hide());
 		}
 
-		let promise: Promise<IExpression>;
+		let promise: Promise<IExpression | undefined>;
 		if (session.capabilities.supportsEvaluateForHovers) {
 			const result = new Expression(matchingExpression);
 			promise = result.evaluate(session, this.debugService.getViewModel().focusedStackFrame, 'hover').then(() => result);
@@ -200,13 +204,13 @@ export class DebugHoverWidget implements IContentWidget {
 		});
 	}
 
-	private findExpressionInStackFrame(namesToFind: string[]): Promise<IExpression> {
-		return this.debugService.getViewModel().focusedStackFrame.getScopes()
+	private findExpressionInStackFrame(namesToFind: string[]): Promise<IExpression | undefined> {
+		return this.debugService.getViewModel().focusedStackFrame!.getScopes()
 			.then(scopes => scopes.filter(s => !s.expensive))
 			.then(scopes => Promise.all(scopes.map(scope => this.doFindExpression(scope, namesToFind))))
 			.then(coalesce)
 			// only show if all expressions found have the same value
-			.then(expressions => (expressions.length > 0 && expressions.every(e => e.value === expressions[0].value)) ? expressions[0] : null);
+			.then(expressions => (expressions.length > 0 && expressions.every(e => e.value === expressions[0].value)) ? expressions[0] : undefined);
 	}
 
 	private doShow(position: Position, expression: IExpression, focus: boolean, forceValueHover = false): Promise<void> {
@@ -270,7 +274,7 @@ export class DebugHoverWidget implements IContentWidget {
 		this.editor.focus();
 	}
 
-	getPosition(): IContentWidgetPosition {
+	getPosition(): IContentWidgetPosition | null {
 		return this._isVisible ? {
 			position: this.showAtPosition,
 			preference: [
