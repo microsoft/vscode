@@ -570,8 +570,8 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 	private getCodeActions(marker: IMarker): CancelablePromise<Action[]> {
 		return createCancelablePromise(async cancellationToken => {
 			const codeActions = await getCodeActions(this._editor.getModel()!, new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn), { type: 'manual', filter: { kind: CodeActionKind.QuickFix } }, cancellationToken);
-			if (codeActions.length) {
-				return codeActions.map(codeAction => new Action(
+			if (codeActions.actions.length) {
+				return codeActions.actions.map(codeAction => new Action(
 					codeAction.command ? codeAction.command.id : codeAction.title,
 					codeAction.title,
 					undefined,

@@ -11,11 +11,11 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { CodeAction, CodeActionProviderRegistry } from 'vs/editor/common/modes';
+import { CodeActionProviderRegistry } from 'vs/editor/common/modes';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IProgressService } from 'vs/platform/progress/common/progress';
-import { getCodeActions } from './codeAction';
+import { getCodeActions, CodeActionSet } from './codeAction';
 import { CodeActionTrigger } from './codeActionTrigger';
 
 export const SUPPORTED_CODE_ACTIONS = new RawContextKey<string>('supportedCodeAction', '');
@@ -112,7 +112,7 @@ export class CodeActionOracle {
 		return selection ? selection : undefined;
 	}
 
-	private _createEventAndSignalChange(trigger: CodeActionTrigger, selection: Selection | undefined): Promise<CodeAction[] | undefined> {
+	private _createEventAndSignalChange(trigger: CodeActionTrigger, selection: Selection | undefined): Promise<CodeActionSet | undefined> {
 		if (!selection) {
 			// cancel
 			this._signalChange(CodeActionsState.Empty);
@@ -160,7 +160,7 @@ export namespace CodeActionsState {
 			public readonly trigger: CodeActionTrigger,
 			public readonly rangeOrSelection: Range | Selection,
 			public readonly position: Position,
-			public readonly actions: CancelablePromise<CodeAction[]>,
+			public readonly actions: CancelablePromise<CodeActionSet>,
 		) { }
 	}
 
@@ -231,7 +231,7 @@ export class CodeActionModel {
 		}
 	}
 
-	public trigger(trigger: CodeActionTrigger): Promise<CodeAction[] | undefined> {
+	public trigger(trigger: CodeActionTrigger): Promise<CodeActionSet | undefined> {
 		if (this._codeActionOracle) {
 			return this._codeActionOracle.trigger(trigger);
 		}
