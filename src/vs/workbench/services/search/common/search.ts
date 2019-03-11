@@ -15,8 +15,16 @@ import { IFilesConfiguration } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { Event } from 'vs/base/common/event';
+import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions } from 'vs/workbench/common/views';
+import { Registry } from 'vs/platform/registry/common/platform';
 
+export const VIEWLET_ID = 'workbench.view.search';
+export const PANEL_ID = 'workbench.view.search';
 export const VIEW_ID = 'workbench.view.search';
+/**
+ * Search viewlet container.
+ */
+export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(VIEWLET_ID, true);
 
 export const ISearchService = createDecorator<ISearchService>('searchService');
 
