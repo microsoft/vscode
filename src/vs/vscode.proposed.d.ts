@@ -937,7 +937,7 @@ declare module 'vscode' {
 	}
 
 	export interface CommentingRangeProvider {
-		provideCommentingRange(document: TextDocument, token: CancellationToken): ProviderResult<Range[]>;
+		provideCommentingRanges(document: TextDocument, token: CancellationToken): ProviderResult<Range[]>;
 	}
 
 	export interface EmptyCommentThreadFactory {

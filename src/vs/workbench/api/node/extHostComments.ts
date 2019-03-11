@@ -108,7 +108,7 @@ export class ExtHostComments implements ExtHostCommentsShape {
 
 		const document = this._documents.getDocument(URI.revive(uriComponents));
 		return asPromise(() => {
-			return commentController.commentingRangeProvider.provideCommentingRange(document, token);
+			return commentController.commentingRangeProvider.provideCommentingRanges(document, token);
 		}).then(ranges => ranges ? ranges.map(extHostTypeConverter.Range.from) : undefined);
 	}
 
