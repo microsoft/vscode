@@ -748,32 +748,18 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			return [];
 		}
 
-		let nodeChildren: Map<string, IAsyncDataTreeNode<TInput, T>> | undefined;
+		const nodeChildren = new Map<T, IAsyncDataTreeNode<TInput, T>>();
 
-		if (this.identityProvider) {
-			nodeChildren = new Map();
-
-			for (const child of node.children) {
-				nodeChildren.set(child.id!, child);
-			}
+		for (const child of node.children) {
+			nodeChildren.set(child.element as T, child);
 		}
 
 		let childrenToRefresh: IAsyncDataTreeNode<TInput, T>[] = [];
 
 		const children = childrenElements.map<IAsyncDataTreeNode<TInput, T>>(element => {
-			if (!this.identityProvider) {
-				return createAsyncDataTreeNode({
-					element,
-					parent: node,
-					hasChildren: !!this.dataSource.hasChildren(element),
-				});
-			}
-
-			const id = this.identityProvider.getId(element).toString();
-			const asyncDataTreeNode = nodeChildren!.get(id);
+			const asyncDataTreeNode = nodeChildren.get(element);
 
 			if (asyncDataTreeNode) {
-				asyncDataTreeNode.element = element;
 				asyncDataTreeNode.stale = asyncDataTreeNode.stale || recursive;
 				asyncDataTreeNode.hasChildren = !!this.dataSource.hasChildren(element);
 
@@ -784,6 +770,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 				return asyncDataTreeNode;
 			}
 
+			const id = this.identityProvider && this.identityProvider.getId(element).toString();
 			const childAsyncDataTreeNode = createAsyncDataTreeNode({
 				element,
 				parent: node,
@@ -791,16 +778,18 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 				hasChildren: !!this.dataSource.hasChildren(element)
 			});
 
-			if (viewStateContext && viewStateContext.viewState.focus && viewStateContext.viewState.focus.indexOf(id) > -1) {
-				viewStateContext.focus.push(childAsyncDataTreeNode);
-			}
+			if (id) {
+				if (viewStateContext && viewStateContext.viewState.focus && viewStateContext.viewState.focus.indexOf(id) > -1) {
+					viewStateContext.focus.push(childAsyncDataTreeNode);
+				}
 
-			if (viewStateContext && viewStateContext.viewState.selection && viewStateContext.viewState.selection.indexOf(id) > -1) {
-				viewStateContext.selection.push(childAsyncDataTreeNode);
-			}
+				if (viewStateContext && viewStateContext.viewState.selection && viewStateContext.viewState.selection.indexOf(id) > -1) {
+					viewStateContext.selection.push(childAsyncDataTreeNode);
+				}
 
-			if (viewStateContext && viewStateContext.viewState.expanded && viewStateContext.viewState.expanded.indexOf(id) > -1) {
-				childrenToRefresh.push(childAsyncDataTreeNode);
+				if (viewStateContext && viewStateContext.viewState.expanded && viewStateContext.viewState.expanded.indexOf(id) > -1) {
+					childrenToRefresh.push(childAsyncDataTreeNode);
+				}
 			}
 
 			return childAsyncDataTreeNode;
@@ -832,6 +821,8 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 		const children = node.children.map(c => asTreeElement(c, viewStateContext));
 		this.tree.setChildren(node === this.root ? null : node, children, onDidCreateNode, onDidDeleteNode);
+
+		console.log(this.nodes.size);
 
 		this._onDidRender.fire();
 	}
