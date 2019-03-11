@@ -10,7 +10,7 @@ import { SelectBox, ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selec
 import * as lifecycle from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import { Position, IPosition } from 'vs/editor/common/core/position';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/zoneWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IDebugService, IBreakpoint, BreakpointWidgetContext as Context, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, DEBUG_SCHEME, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, CONTEXT_IN_BREAKPOINT_WIDGET } from 'vs/workbench/contrib/debug/common/debug';
@@ -47,12 +47,12 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 	public _serviceBrand: any;
 
 	private selectContainer: HTMLElement;
-	private input: CodeEditorWidget;
+	private input: IActiveCodeEditor;
 	private toDispose: lifecycle.IDisposable[];
 	private conditionInput = '';
 	private hitCountInput = '';
 	private logMessageInput = '';
-	private breakpoint?: IBreakpoint;
+	private breakpoint: IBreakpoint | undefined;
 
 	constructor(editor: ICodeEditor, private lineNumber: number, private context: Context,
 		@IContextViewService private readonly contextViewService: IContextViewService,
@@ -66,9 +66,12 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		super(editor, { showFrame: true, showArrow: false, frameWidth: 1 });
 
 		this.toDispose = [];
-		const uri = this.editor.getModel().uri;
-		const breakpoints = this.debugService.getModel().getBreakpoints({ lineNumber: this.lineNumber, uri });
-		this.breakpoint = breakpoints.length ? breakpoints[0] : undefined;
+		const model = this.editor.getModel();
+		if (model) {
+			const uri = model.uri;
+			const breakpoints = this.debugService.getModel().getBreakpoints({ lineNumber: this.lineNumber, uri });
+			this.breakpoint = breakpoints.length ? breakpoints[0] : undefined;
+		}
 
 		if (this.context === undefined) {
 			if (this.breakpoint && !this.breakpoint.condition && !this.breakpoint.hitCondition && this.breakpoint.logMessage) {
@@ -138,7 +141,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 
 	protected _fillContainer(container: HTMLElement): void {
 		this.setCssClass('breakpoint-widget');
-		const selectBox = new SelectBox(<ISelectOptionItem[]>[{ text: nls.localize('expression', "Expression") }, { text: nls.localize('hitCount', "Hit Count") }, { text: nls.localize('logMessage', "Log Message") }], this.context, this.contextViewService, null, { ariaLabel: nls.localize('breakpointType', 'Breakpoint Type') });
+		const selectBox = new SelectBox(<ISelectOptionItem[]>[{ text: nls.localize('expression', "Expression") }, { text: nls.localize('hitCount', "Hit Count") }, { text: nls.localize('logMessage', "Log Message") }], this.context, this.contextViewService, undefined, { ariaLabel: nls.localize('breakpointType', 'Breakpoint Type') });
 		this.toDispose.push(attachSelectBoxStyler(selectBox, this.themeService));
 		this.selectContainer = $('.breakpoint-select-container');
 		selectBox.render(dom.append(container, this.selectContainer));
@@ -189,13 +192,16 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 					}
 				}, false);
 			} else {
-				this.debugService.addBreakpoints(this.editor.getModel().uri, [{
-					lineNumber: this.lineNumber,
-					enabled: true,
-					condition,
-					hitCondition,
-					logMessage
-				}], `breakpointWidget`);
+				const model = this.editor.getModel();
+				if (model) {
+					this.debugService.addBreakpoints(model.uri, [{
+						lineNumber: this.lineNumber,
+						enabled: true,
+						condition,
+						hitCondition,
+						logMessage
+					}], `breakpointWidget`);
+				}
 			}
 		}
 
@@ -215,7 +221,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 
 		const options = getSimpleEditorOptions();
 		const codeEditorWidgetOptions = getSimpleCodeEditorWidgetOptions();
-		this.input = scopedInstatiationService.createInstance(CodeEditorWidget, container, options, codeEditorWidgetOptions);
+		this.input = <IActiveCodeEditor>scopedInstatiationService.createInstance(CodeEditorWidget, container, options, codeEditorWidgetOptions);
 		CONTEXT_IN_BREAKPOINT_WIDGET.bindTo(scopedContextKeyService).set(true);
 		const model = this.modelService.createModel('', null, uri.parse(`${DEBUG_SCHEME}:${this.editor.getId()}:breakpointinput`), true);
 		this.input.setModel(model);
@@ -231,8 +237,9 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		this.toDispose.push(CompletionProviderRegistry.register({ scheme: DEBUG_SCHEME, hasAccessToAllModels: true }, {
 			provideCompletionItems: (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken): Promise<CompletionList> => {
 				let suggestionsPromise: Promise<CompletionList>;
-				if (this.context === Context.CONDITION || this.context === Context.LOG_MESSAGE && this.isCurlyBracketOpen()) {
-					suggestionsPromise = provideSuggestionItems(this.editor.getModel(), new Position(this.lineNumber, 1), new CompletionOptions(undefined, new Set<CompletionItemKind>().add(CompletionItemKind.Snippet)), _context, token).then(suggestions => {
+				const underlyingModel = this.editor.getModel();
+				if (underlyingModel && (this.context === Context.CONDITION || this.context === Context.LOG_MESSAGE && this.isCurlyBracketOpen())) {
+					suggestionsPromise = provideSuggestionItems(underlyingModel, new Position(this.lineNumber, 1), new CompletionOptions(undefined, new Set<CompletionItemKind>().add(CompletionItemKind.Snippet)), _context, token).then(suggestions => {
 
 						let overwriteBefore = 0;
 						if (this.context === Context.CONDITION) {
@@ -262,6 +269,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 	}
 
 	private createDecorations(): IDecorationOptions[] {
+		const transparentForeground = transparent(editorForeground, 0.4)(this.themeService.getTheme());
 		return [{
 			range: {
 				startLineNumber: 0,
@@ -272,7 +280,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 			renderOptions: {
 				after: {
 					contentText: this.placeholder,
-					color: transparent(editorForeground, 0.4)(this.themeService.getTheme()).toString()
+					color: transparentForeground ? transparentForeground.toString() : undefined
 				}
 			}
 		}];
@@ -280,13 +288,16 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 
 	private isCurlyBracketOpen(): boolean {
 		const value = this.input.getModel().getValue();
-		for (let i = this.input.getPosition().column - 2; i >= 0; i--) {
-			if (value[i] === '{') {
-				return true;
-			}
+		const position = this.input.getPosition();
+		if (position) {
+			for (let i = position.column - 2; i >= 0; i--) {
+				if (value[i] === '{') {
+					return true;
+				}
 
-			if (value[i] === '}') {
-				return false;
+				if (value[i] === '}') {
+					return false;
+				}
 			}
 		}
 
