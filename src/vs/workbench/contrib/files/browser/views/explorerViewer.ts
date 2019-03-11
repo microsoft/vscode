@@ -753,7 +753,8 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 		for (let index = 0; index < folders.length; index++) {
 			const data = {
-				uri: folders[index].uri
+				uri: folders[index].uri,
+				name: folders[index].name
 			};
 			if (target instanceof ExplorerItem && folders[index].uri.toString() === target.resource.toString()) {
 				targetIndex = index;
