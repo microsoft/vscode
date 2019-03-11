@@ -15,6 +15,7 @@ import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorMo
 import { Schemas } from 'vs/base/common/network';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { basename } from 'vs/base/common/resources';
 
 export const IUntitledEditorService = createDecorator<IUntitledEditorService>('untitledEditorService');
 
@@ -269,7 +270,7 @@ export class UntitledEditorService extends Disposable implements IUntitledEditor
 	suggestFileName(resource: URI): string {
 		const input = this.get(resource);
 
-		return input ? input.suggestFileName() : 'untitled';
+		return input ? input.suggestFileName() : basename(resource);
 	}
 
 	getEncoding(resource: URI): string | undefined {
