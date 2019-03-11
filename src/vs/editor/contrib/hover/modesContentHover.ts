@@ -40,6 +40,7 @@ import { applyCodeAction, QuickFixAction } from 'vs/editor/contrib/codeAction/co
 import { Action } from 'vs/base/common/actions';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 const $ = dom.$;
 
@@ -190,7 +191,7 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 
 	private _getLoadingMessage(): HoverPart {
 		return {
-			range: this._range || undefined,
+			range: withNullAsUndefined(this._range),
 			contents: [new MarkdownString().appendText(nls.localize('modesContentHover.loading', "Loading..."))]
 		};
 	}

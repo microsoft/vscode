@@ -14,6 +14,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ParsedExpression, IExpression, parse } from 'vs/base/common/glob';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 export class ResourceContextKey extends Disposable implements IContextKey<URI> {
 
@@ -82,7 +83,7 @@ export class ResourceContextKey extends Disposable implements IContextKey<URI> {
 	}
 
 	get(): URI | undefined {
-		return this._resourceKey.get() || undefined;
+		return withNullAsUndefined(this._resourceKey.get());
 	}
 
 	private static _uriEquals(a: URI | undefined | null, b: URI | undefined | null): boolean {

@@ -27,6 +27,7 @@ import { isCodeEditor, isDiffEditor, ICodeEditor, IDiffEditor } from 'vs/editor/
 import { IEditorGroupView, IEditorOpeningEvent, EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 type ICachedEditorInput = ResourceEditorInput | IFileEditorInput | DataUriEditorInput;
 
@@ -183,7 +184,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	get activeEditor(): IEditorInput | undefined {
 		const activeGroup = this.editorGroupService.activeGroup;
 
-		return activeGroup ? activeGroup.activeEditor || undefined : undefined;
+		return activeGroup ? withNullAsUndefined(activeGroup.activeEditor) : undefined;
 	}
 
 	get visibleControls(): IEditor[] {
