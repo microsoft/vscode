@@ -720,14 +720,7 @@ class SuggestAdapter {
 			return undefined;
 		}
 
-		// 'overwrite[Before|After]'-logic
-		const range = this.getRange(item, defaultRange);
-		if (!range.isSingleLine || range.start.line !== position.line) {
-			console.warn('INVALID text edit -> must be single line and on the same line');
-			return undefined;
-		}
-
-		return {
+		const result: SuggestionDto = {
 			//
 			_id,
 			_parentId,
@@ -740,46 +733,46 @@ class SuggestAdapter {
 			sortText: item.sortText,
 			preselect: item.preselect,
 			//
-			range: typeConvert.Range.from(range),
-			insertText: this.getInsertText(item),
-			insertTextRules: this.getInsertTextRules(item),
+			range: undefined!, // populated below
+			insertText: undefined!, // populated below
+			insertTextRules: item.keepWhitespace ? modes.CompletionItemInsertTextRule.KeepWhitespace : 0,
 			additionalTextEdits: item.additionalTextEdits && item.additionalTextEdits.map(typeConvert.TextEdit.from),
 			command: this._commands.toInternal(item.command),
 			commitCharacters: item.commitCharacters
 		};
-	}
 
-	private getInsertText(item: vscode.CompletionItem): string {
+		// 'insertText'-logic
 		if (item.textEdit) {
-			return item.textEdit.newText;
+			result.insertText = item.textEdit.newText;
+
 		} else if (typeof item.insertText === 'string') {
-			return item.insertText;
+			result.insertText = item.insertText;
+
 		} else if (item.insertText instanceof SnippetString) {
-			return item.insertText.value;
+			result.insertText = item.insertText.value;
+			result.insertTextRules |= modes.CompletionItemInsertTextRule.InsertAsSnippet;
+
 		} else {
-			return item.label;
+			result.insertText = item.label;
 		}
-	}
 
-	private getInsertTextRules(item: vscode.CompletionItem): modes.CompletionItemInsertTextRule {
-		let rules: modes.CompletionItemInsertTextRule = 0;
-		if (item.keepWhitespace) {
-			rules |= modes.CompletionItemInsertTextRule.KeepWhitespace;
-		}
-		if (item.insertText instanceof SnippetString) {
-			rules |= modes.CompletionItemInsertTextRule.InsertAsSnippet;
-		}
-		return rules;
-	}
-
-	private getRange(item: vscode.CompletionItem, defaultRange: vscode.Range) {
+		// 'overwrite[Before|After]'-logic
+		let range: vscode.Range;
 		if (item.textEdit) {
-			return item.textEdit.range;
+			range = item.textEdit.range;
 		} else if (item.range) {
-			return item.range;
+			range = item.range;
 		} else {
-			return defaultRange;
+			range = defaultRange;
 		}
+		result.range = typeConvert.Range.from(range);
+
+		if (!range.isSingleLine || range.start.line !== position.line) {
+			console.warn('INVALID text edit -> must be single line and on the same line');
+			return undefined;
+		}
+
+		return result;
 	}
 }
 
