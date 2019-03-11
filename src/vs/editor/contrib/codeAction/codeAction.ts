@@ -16,9 +16,26 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { CodeActionKind, CodeActionTrigger, filtersAction, mayIncludeActionsOfKind, CodeActionFilter } from './codeActionTrigger';
 
 export class CodeActionSet {
-	public constructor(
-		public readonly actions: ReadonlyArray<CodeAction>
-	) { }
+
+	private static codeActionsComparator(a: CodeAction, b: CodeAction): number {
+		if (isNonEmptyArray(a.diagnostics)) {
+			if (isNonEmptyArray(b.diagnostics)) {
+				return a.diagnostics[0].message.localeCompare(b.diagnostics[0].message);
+			} else {
+				return -1;
+			}
+		} else if (isNonEmptyArray(b.diagnostics)) {
+			return 1;
+		} else {
+			return 0;	// both have no diagnostics
+		}
+	}
+
+	public readonly actions: ReadonlyArray<CodeAction>;
+
+	public constructor(actions: CodeAction[]) {
+		this.actions = mergeSort(actions, CodeActionSet.codeActionsComparator);
+	}
 
 	public get hasAutoFix() {
 		return this.actions.some(fix => !!fix.kind && CodeActionKind.QuickFix.contains(new CodeActionKind(fix.kind)) && !!fix.isPreferred);
@@ -56,7 +73,6 @@ export function getCodeActions(
 
 	return Promise.all(promises)
 		.then(flatten)
-		.then(allCodeActions => mergeSort(allCodeActions, codeActionsComparator))
 		.then(actions => new CodeActionSet(actions));
 }
 
@@ -73,20 +89,6 @@ function getCodeActionProviders(
 			}
 			return provider.providedCodeActionKinds.some(kind => mayIncludeActionsOfKind(filter, new CodeActionKind(kind)));
 		});
-}
-
-function codeActionsComparator(a: CodeAction, b: CodeAction): number {
-	if (isNonEmptyArray(a.diagnostics)) {
-		if (isNonEmptyArray(b.diagnostics)) {
-			return a.diagnostics[0].message.localeCompare(b.diagnostics[0].message);
-		} else {
-			return -1;
-		}
-	} else if (isNonEmptyArray(b.diagnostics)) {
-		return 1;
-	} else {
-		return 0;	// both have no diagnostics
-	}
 }
 
 registerLanguageCommand('_executeCodeActionProvider', function (accessor, args): Promise<ReadonlyArray<CodeAction>> {

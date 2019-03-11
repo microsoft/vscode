@@ -101,7 +101,7 @@ export interface IResult {
 }
 
 export interface IAutoSaveConfiguration {
-	autoSaveDelay: number;
+	autoSaveDelay?: number;
 	autoSaveFocusChange: boolean;
 	autoSaveApplicationChange: boolean;
 }
@@ -257,6 +257,8 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 export interface IResolvedTextFileEditorModel extends ITextFileEditorModel {
 	readonly textEditorModel: ITextModel;
+
+	createSnapshot(): ITextSnapshot;
 }
 
 
@@ -317,9 +319,9 @@ export interface ITextFileService extends IDisposable {
 	 * @param resource the resource to save as.
 	 * @param targetResource the optional target to save to.
 	 * @param options optional save options
-	 * @return true if the file was saved.
+	 * @return Path of the saved resource.
 	 */
-	saveAs(resource: URI, targetResource?: URI, options?: ISaveOptions): Promise<URI>;
+	saveAs(resource: URI, targetResource?: URI, options?: ISaveOptions): Promise<URI | undefined>;
 
 	/**
 	 * Saves the set of resources and returns a promise with the operation result.
