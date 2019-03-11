@@ -347,7 +347,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 				this.workbench.insertBefore(partContainer, this.workbench.lastChild);
 			}
 
-			this.parts.get(id).create(partContainer, options);
+			this.getPart(id).create(partContainer, options);
 		});
 
 		// Notification Handlers
@@ -678,8 +678,8 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 	}
 
 	private setSideBarPosition(position: Position): void {
-		const activityBar = this.parts.get(Parts.ACTIVITYBAR_PART);
-		const sideBar = this.parts.get(Parts.SIDEBAR_PART);
+		const activityBar = this.getPart(Parts.ACTIVITYBAR_PART);
+		const sideBar = this.getPart(Parts.SIDEBAR_PART);
 		const wasHidden = this.state.sideBar.hidden;
 
 		if (this.state.sideBar.hidden) {
@@ -899,17 +899,17 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 	getContainer(part: Parts): HTMLElement | null {
 		switch (part) {
 			case Parts.TITLEBAR_PART:
-				return this.parts.get(Parts.TITLEBAR_PART).getContainer();
+				return this.getPart(Parts.TITLEBAR_PART).getContainer();
 			case Parts.ACTIVITYBAR_PART:
-				return this.parts.get(Parts.ACTIVITYBAR_PART).getContainer();
+				return this.getPart(Parts.ACTIVITYBAR_PART).getContainer();
 			case Parts.SIDEBAR_PART:
-				return this.parts.get(Parts.SIDEBAR_PART).getContainer();
+				return this.getPart(Parts.SIDEBAR_PART).getContainer();
 			case Parts.PANEL_PART:
-				return this.parts.get(Parts.PANEL_PART).getContainer();
+				return this.getPart(Parts.PANEL_PART).getContainer();
 			case Parts.EDITOR_PART:
-				return this.parts.get(Parts.EDITOR_PART).getContainer();
+				return this.getPart(Parts.EDITOR_PART).getContainer();
 			case Parts.STATUSBAR_PART:
-				return this.parts.get(Parts.STATUSBAR_PART).getContainer();
+				return this.getPart(Parts.STATUSBAR_PART).getContainer();
 		}
 
 		return null;
@@ -950,7 +950,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		let offset = 0;
 		if (this.isVisible(Parts.TITLEBAR_PART)) {
 			if (this.workbenchGrid instanceof Grid) {
-				offset = this.parts.get(Parts.TITLEBAR_PART).maximumHeight;
+				offset = this.getPart(Parts.TITLEBAR_PART).maximumHeight;
 			} else {
 				offset = this.workbenchGrid.partLayoutInfo.titlebar.height;
 
@@ -1077,12 +1077,12 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 	}
 
 	private createWorkbenchLayout(instantiationService: IInstantiationService): void {
-		const titleBar = this.parts.get(Parts.TITLEBAR_PART);
-		const editorPart = this.parts.get(Parts.EDITOR_PART);
-		const activityBar = this.parts.get(Parts.ACTIVITYBAR_PART);
-		const panelPart = this.parts.get(Parts.PANEL_PART);
-		const sideBar = this.parts.get(Parts.SIDEBAR_PART);
-		const statusBar = this.parts.get(Parts.STATUSBAR_PART);
+		const titleBar = this.getPart(Parts.TITLEBAR_PART);
+		const editorPart = this.getPart(Parts.EDITOR_PART);
+		const activityBar = this.getPart(Parts.ACTIVITYBAR_PART);
+		const panelPart = this.getPart(Parts.PANEL_PART);
+		const sideBar = this.getPart(Parts.SIDEBAR_PART);
+		const statusBar = this.getPart(Parts.STATUSBAR_PART);
 
 		if (this.configurationService.getValue('workbench.useExperimentalGridLayout')) {
 
@@ -1412,7 +1412,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 	isPanelMaximized(): boolean {
 		if (this.workbenchGrid instanceof Grid) {
 			try {
-				return this.workbenchGrid.getViewSize2(this.panelPartView).height === this.parts.get(Parts.PANEL_PART).maximumHeight;
+				return this.workbenchGrid.getViewSize2(this.panelPartView).height === this.getPart(Parts.PANEL_PART).maximumHeight;
 			} catch (e) {
 				return false;
 			}
@@ -1450,7 +1450,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 	}
 
 	setPanelPosition(position: Position): void {
-		const panelPart = this.parts.get(Parts.PANEL_PART);
+		const panelPart = this.getPart(Parts.PANEL_PART);
 		const wasHidden = this.state.panel.hidden;
 
 		if (this.state.panel.hidden) {
@@ -1519,6 +1519,14 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 				this.toggleZenMode(true); // We will not restore zen mode, need to clear all zen mode state changes
 			}
 		}
+	}
+
+	private getPart(key: Parts): Part {
+		const part = this.parts.get(key);
+		if (!part) {
+			throw new Error('unknown part');
+		}
+		return part;
 	}
 
 	dispose(): void {
