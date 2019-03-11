@@ -48,7 +48,7 @@ export class CallStackView extends ViewletPanel {
 	private ignoreFocusStackFrameEvent: boolean;
 	private callStackItemType: IContextKey<string>;
 	private dataSource: CallStackDataSource;
-	private tree: WorkbenchAsyncDataTree<IDebugModel, CallStackItem, FuzzyScore>;
+	private tree: WorkbenchAsyncDataTree<string | IStackFrame | IThread | IDebugSession | ThreadAndSessionIds | IDebugModel | IStackFrame[], CallStackItem, FuzzyScore>;
 	private contributedContextMenu: IMenu;
 
 	constructor(

@@ -369,7 +369,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		this.createReplInput(this.container);
 
 		this.replDelegate = new ReplDelegate(this.configurationService);
-		this.tree = new WorkbenchAsyncDataTree(treeContainer, this.replDelegate, [
+		this.tree = new WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>(treeContainer, this.replDelegate, [
 			this.instantiationService.createInstance(VariablesRenderer),
 			this.instantiationService.createInstance(ReplSimpleElementsRenderer),
 			new ReplExpressionsRenderer(),

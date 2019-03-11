@@ -39,7 +39,7 @@ export class VariablesView extends ViewletPanel {
 
 	private onFocusStackFrameScheduler: RunOnceScheduler;
 	private needsRefresh: boolean;
-	private tree: WorkbenchAsyncDataTree<IViewModel, IExpression | IScope, FuzzyScore>;
+	private tree: WorkbenchAsyncDataTree<IViewModel | IExpression | IScope, IExpression | IScope, FuzzyScore>;
 
 	constructor(
 		options: IViewletViewOptions,
