@@ -2563,7 +2563,7 @@ declare namespace monaco.editor {
 
 	export interface IGotoLocationOptions {
 		/**
-		 * Control how goto-commands work when having multiple results.
+		 * Control how goto-command work when having multiple results.
 		 */
 		many?: 'peek' | 'revealAndPeek' | 'reveal';
 	}
