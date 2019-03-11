@@ -187,7 +187,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		return activeGroup ? withNullAsUndefined(activeGroup.activeEditor) : undefined;
 	}
 
-	get visibleControls(): IEditor[] {
+	get visibleControls(): IVisibleEditor[] {
 		return coalesce(this.editorGroupService.groups.map(group => group.activeControl));
 	}
 
