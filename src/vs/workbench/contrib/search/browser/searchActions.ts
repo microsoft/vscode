@@ -74,17 +74,24 @@ function doAppendKeyBindingLabel(label: string, keyBinding: ResolvedKeybinding):
 
 export const toggleCaseSensitiveCommand = (accessor: ServicesAccessor) => {
 	const searchView = getSearchView(accessor.get(IViewletService), accessor.get(IPanelService));
-	searchView.toggleCaseSensitive();
+	if (searchView) {
+		searchView.toggleCaseSensitive();
+	}
 };
 
 export const toggleWholeWordCommand = (accessor: ServicesAccessor) => {
 	const searchView = getSearchView(accessor.get(IViewletService), accessor.get(IPanelService));
-	searchView.toggleWholeWords();
+	if (searchView) {
+
+		searchView.toggleWholeWords();
+	}
 };
 
 export const toggleRegexCommand = (accessor: ServicesAccessor) => {
 	const searchView = getSearchView(accessor.get(IViewletService), accessor.get(IPanelService));
-	searchView.toggleRegex();
+	if (searchView) {
+		searchView.toggleRegex();
+	}
 };
 
 export class FocusNextInputAction extends Action {
@@ -100,7 +107,9 @@ export class FocusNextInputAction extends Action {
 
 	run(): Promise<any> {
 		const searchView = getSearchView(this.viewletService, this.panelService);
-		searchView.focusNextInputBox();
+		if (searchView) {
+			searchView.focusNextInputBox();
+		}
 		return Promise.resolve(null);
 	}
 }
@@ -118,7 +127,9 @@ export class FocusPreviousInputAction extends Action {
 
 	run(): Promise<any> {
 		const searchView = getSearchView(this.viewletService, this.panelService);
-		searchView.focusPreviousInputBox();
+		if (searchView) {
+			searchView.focusPreviousInputBox();
+		}
 		return Promise.resolve(null);
 	}
 }
@@ -208,8 +219,10 @@ export class CloseReplaceAction extends Action {
 
 	run(): Promise<any> {
 		const searchView = getSearchView(this.viewletService, this.panelService);
-		searchView.searchAndReplaceWidget.toggleReplace(false);
-		searchView.searchAndReplaceWidget.focus();
+		if (searchView) {
+			searchView.searchAndReplaceWidget.toggleReplace(false);
+			searchView.searchAndReplaceWidget.focus();
+		}
 		return Promise.resolve(null);
 	}
 }
