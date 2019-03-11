@@ -43,7 +43,7 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { isErrorWithActions, IErrorWithActions } from 'vs/base/common/errorsWithActions';
-import { IActiveEditor } from 'vs/workbench/services/editor/common/editorService';
+import { IVisibleEditor } from 'vs/workbench/services/editor/common/editorService';
 import { withNullAsUndefined } from 'vs/base/common/types';
 
 export class EditorGroupView extends Themable implements IEditorGroupView {
@@ -657,7 +657,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this._group.count;
 	}
 
-	get activeControl(): IActiveEditor | undefined {
+	get activeControl(): IVisibleEditor | undefined {
 		return this.editorControl ? withNullAsUndefined(this.editorControl.activeControl) : undefined;
 	}
 

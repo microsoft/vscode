@@ -19,7 +19,7 @@ import { basename } from 'vs/base/common/resources';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { localize } from 'vs/nls';
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IResourceEditor, ACTIVE_GROUP_TYPE, SIDE_GROUP_TYPE, SIDE_GROUP, IResourceEditorReplacement, IOpenEditorOverrideHandler, IActiveEditor, IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IResourceEditor, ACTIVE_GROUP_TYPE, SIDE_GROUP_TYPE, SIDE_GROUP, IResourceEditorReplacement, IOpenEditorOverrideHandler, IVisibleEditor, IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { coalesce } from 'vs/base/common/arrays';
@@ -154,7 +154,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 	}
 
-	get activeControl(): IActiveEditor | undefined {
+	get activeControl(): IVisibleEditor | undefined {
 		const activeGroup = this.editorGroupService.activeGroup;
 
 		return activeGroup ? activeGroup.activeControl : undefined;
