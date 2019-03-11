@@ -40,6 +40,7 @@ import { CloseOneEditorAction } from 'vs/workbench/browser/parts/editor/editorAc
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { BreadcrumbsControl } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
 import { IFileService } from 'vs/platform/files/common/files';
+import { nullToUndefined } from 'vs/base/common/types';
 
 interface IEditorInputLabel {
 	name: string;
@@ -716,8 +717,8 @@ export class TabsTitleControl extends TitleControl {
 		const labels = this.group.editors.map(editor => ({
 			editor,
 			name: editor.getName()!,
-			description: editor.getDescription(verbosity) || undefined,
-			title: editor.getTitle(Verbosity.LONG) || undefined
+			description: nullToUndefined(editor.getDescription(verbosity)),
+			title: nullToUndefined(editor.getTitle(Verbosity.LONG))
 		}));
 
 		// Shorten labels as needed
@@ -769,7 +770,7 @@ export class TabsTitleControl extends TitleControl {
 			if (useLongDescriptions) {
 				mapDescriptionToDuplicates.clear();
 				duplicateTitles.forEach(label => {
-					label.description = label.editor.getDescription(Verbosity.LONG) || undefined;
+					label.description = nullToUndefined(label.editor.getDescription(Verbosity.LONG));
 					getOrSet(mapDescriptionToDuplicates, label.description, []).push(label);
 				});
 			}
