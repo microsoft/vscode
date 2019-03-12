@@ -27,9 +27,11 @@ import { BaseFolderMatch, FileMatch, FileMatchOrMatch, FolderMatch, Match, Rende
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { ISearchConfiguration, VIEW_ID } from 'vs/workbench/services/search/common/search';
+import { ISearchConfiguration, VIEWLET_ID, PANEL_ID } from 'vs/workbench/services/search/common/search';
 import { ISearchHistoryService } from 'vs/workbench/contrib/search/common/searchHistoryService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { SearchViewlet } from 'vs/workbench/contrib/search/browser/searchViewlet';
+import { SearchPanel } from 'vs/workbench/contrib/search/browser/searchPanel';
 
 export function isSearchViewFocused(viewletService: IViewletService, panelService: IPanelService): boolean {
 	const searchView = getSearchView(viewletService, panelService);
@@ -51,22 +53,22 @@ export function appendKeyBindingLabel(label: string, inputKeyBinding: number | R
 }
 
 export function openSearchView(viewletService: IViewletService, panelService: IPanelService, focus?: boolean): Promise<SearchView> {
-	if (viewletService.getViewlets().filter(v => v.id === VIEW_ID).length) {
-		return viewletService.openViewlet(VIEW_ID, focus).then(viewlet => <SearchView>viewlet);
+	if (viewletService.getViewlets().filter(v => v.id === VIEWLET_ID).length) {
+		return viewletService.openViewlet(VIEWLET_ID, focus).then(viewlet => (viewlet as SearchViewlet).getSearchView());
 	}
 
-	return Promise.resolve(panelService.openPanel(VIEW_ID, focus) as SearchView);
+	return Promise.resolve((panelService.openPanel(PANEL_ID, focus) as SearchPanel).getSearchView());
 }
 
 export function getSearchView(viewletService: IViewletService, panelService: IPanelService): SearchView | null {
 	const activeViewlet = viewletService.getActiveViewlet();
-	if (activeViewlet && activeViewlet.getId() === VIEW_ID) {
-		return <SearchView>activeViewlet;
+	if (activeViewlet && activeViewlet.getId() === VIEWLET_ID) {
+		return (activeViewlet as SearchViewlet).getSearchView();
 	}
 
 	const activePanel = panelService.getActivePanel();
-	if (activePanel && activePanel.getId() === VIEW_ID) {
-		return <SearchView>activePanel;
+	if (activePanel && activePanel.getId() === PANEL_ID) {
+		return (activePanel as SearchPanel).getSearchView();
 	}
 
 	return null;
