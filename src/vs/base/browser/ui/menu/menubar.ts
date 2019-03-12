@@ -151,7 +151,12 @@ export class MenuBar extends Disposable {
 		this._register(DOM.addDisposableListener(this.container, DOM.EventType.FOCUS_OUT, (e) => {
 			let event = e as FocusEvent;
 
-			if (!event.relatedTarget || !this.container.contains(event.relatedTarget as HTMLElement)) {
+			// We are losing focus and there is no related target, e.g. webview case
+			if (!event.relatedTarget) {
+				this.setUnfocusedState();
+			}
+			// We are losing focus and there is a target, reset focusToReturn value as not to redirect
+			else if (event.relatedTarget && !this.container.contains(event.relatedTarget as HTMLElement)) {
 				this.focusToReturn = undefined;
 				this.setUnfocusedState();
 			}
