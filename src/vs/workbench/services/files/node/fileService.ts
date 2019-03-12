@@ -22,7 +22,7 @@ import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
 import { IDisposable, toDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import * as pfs from 'vs/base/node/pfs';
-import * as encoding from 'vs/base/node/encoding';
+import { detectEncodingFromBuffer, decodeStream, detectEncodingByBOM, UTF8 } from 'vs/base/node/encoding';
 import * as flow from 'vs/base/node/flow';
 import { FileWatcher as UnixWatcherService } from 'vs/workbench/services/files/node/watcher/unix/watcherService';
 import { FileWatcher as WindowsWatcherService } from 'vs/workbench/services/files/node/watcher/win32/watcherService';
@@ -510,7 +510,7 @@ export class FileService extends Disposable implements IFileService {
 						} else {
 							// when receiving the first chunk of data we need to create the
 							// decoding stream which is then used to drive the string stream.
-							Promise.resolve(encoding.detectEncodingFromBuffer(
+							Promise.resolve(detectEncodingFromBuffer(
 								{ buffer: chunkBuffer, bytesRead },
 								(options && options.autoGuessEncoding) || this.textResourceConfigurationService.getValue(resource, 'files.autoGuessEncoding')
 							)).then(detected => {
@@ -524,7 +524,7 @@ export class FileService extends Disposable implements IFileService {
 
 								} else {
 									result.encoding = this._encoding.getReadEncoding(resource, options, detected);
-									result.stream = decoder = encoding.decodeStream(result.encoding);
+									result.stream = decoder = decodeStream(result.encoding);
 									resolve(result as IContentData);
 									handleChunk(bytesRead);
 								}
@@ -564,20 +564,20 @@ export class FileService extends Disposable implements IFileService {
 
 			// 2.) create parents as needed
 			return createParentsPromise.then(() => {
-				const encodingToWrite = this._encoding.getWriteEncoding(resource, options.encoding);
+				const { encoding, hasBOM } = this._encoding.getWriteEncoding(resource, options.encoding);
 				let addBomPromise: Promise<boolean> = Promise.resolve(false);
 
-				// UTF_16 BE and LE as well as UTF_8 with BOM always have a BOM
-				if (encodingToWrite === encoding.UTF16be || encodingToWrite === encoding.UTF16le || encodingToWrite === encoding.UTF8_with_bom) {
-					addBomPromise = Promise.resolve(true);
+				// Some encodings come with a BOM automatically
+				if (hasBOM) {
+					addBomPromise = Promise.resolve(hasBOM);
 				}
 
 				// Existing UTF-8 file: check for options regarding BOM
-				else if (exists && encodingToWrite === encoding.UTF8) {
+				else if (exists && encoding === UTF8) {
 					if (options.overwriteEncoding) {
 						addBomPromise = Promise.resolve(false); // if we are to overwrite the encoding, we do not preserve it if found
 					} else {
-						addBomPromise = encoding.detectEncodingByBOM(absolutePath).then(enc => enc === encoding.UTF8); // otherwise preserve it if found
+						addBomPromise = detectEncodingByBOM(absolutePath).then(enc => enc === UTF8); // otherwise preserve it if found
 					}
 				}
 
@@ -586,7 +586,7 @@ export class FileService extends Disposable implements IFileService {
 
 					// 4.) set contents and resolve
 					if (!exists || !isWindows) {
-						return this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encodingToWrite);
+						return this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encoding);
 					}
 
 					// On Windows and if the file exists, we use a different strategy of saving the file
@@ -599,7 +599,7 @@ export class FileService extends Disposable implements IFileService {
 						return pfs.truncate(absolutePath, 0).then(() => {
 
 							// 5.) set contents (with r+ mode) and resolve
-							return this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encodingToWrite, { flag: 'r+' }).then(undefined, error => {
+							return this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encoding, { flag: 'r+' }).then(undefined, error => {
 								if (this.environmentService.verbose) {
 									console.error(`Truncate succeeded, but save failed (${error}), retrying after 100ms`);
 								}
@@ -608,7 +608,7 @@ export class FileService extends Disposable implements IFileService {
 								// In that case, the file is now entirely empty and the contents are gone. This can happen if an external file watcher is
 								// installed that reacts on the truncate and keeps the file busy right after. Our workaround is to retry to save after a
 								// short timeout, assuming that the file is free to write then.
-								return timeout(100).then(() => this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encodingToWrite, { flag: 'r+' }));
+								return timeout(100).then(() => this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encoding, { flag: 'r+' }));
 							});
 						}, error => {
 							if (this.environmentService.verbose) {
@@ -617,7 +617,7 @@ export class FileService extends Disposable implements IFileService {
 
 							// we heard from users that fs.truncate() fails (https://github.com/Microsoft/vscode/issues/59561)
 							// in that case we simply save the file without truncating first (same as macOS and Linux)
-							return this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encodingToWrite);
+							return this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encoding);
 						});
 					}
 				});
@@ -636,9 +636,10 @@ export class FileService extends Disposable implements IFileService {
 	}
 
 	private doSetContentsAndResolve(resource: uri, absolutePath: string, value: string | ITextSnapshot, addBOM: boolean, encodingToWrite: string, options?: { mode?: number; flag?: string; }): Promise<IFileStat> {
+
 		// Configure encoding related options as needed
 		const writeFileOptions: extfs.IWriteFileOptions = options ? options : Object.create(null);
-		if (addBOM || encodingToWrite !== encoding.UTF8) {
+		if (addBOM || encodingToWrite !== UTF8) {
 			writeFileOptions.encoding = {
 				charset: encodingToWrite,
 				addBOM
@@ -667,7 +668,7 @@ export class FileService extends Disposable implements IFileService {
 		return this.checkFileBeforeWriting(absolutePath, options, options.overwriteReadonly /* ignore readonly if we overwrite readonly, this is handled via sudo later */).then(exists => {
 			const writeOptions: IUpdateContentOptions = objects.assign(Object.create(null), options);
 			writeOptions.writeElevated = false;
-			writeOptions.encoding = this._encoding.getWriteEncoding(resource, options.encoding);
+			writeOptions.encoding = this._encoding.getWriteEncoding(resource, options.encoding).encoding;
 
 			// 2.) write to a temporary file to be able to copy over later
 			const tmpPath = paths.join(os.tmpdir(), `code-elevated-${Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 6)}`);
