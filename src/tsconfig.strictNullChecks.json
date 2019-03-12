@@ -113,6 +113,7 @@
 		"./vs/workbench/api/node/extHostQuickOpen.ts",
 		"./vs/workbench/api/node/extHostSCM.ts",
 		"./vs/workbench/api/node/extHostSearch.ts",
+		"./vs/workbench/api/node/extHostStatusBar.ts",
 		"./vs/workbench/api/node/extHostStorage.ts",
 		"./vs/workbench/api/node/extHostTextEditor.ts",
 		"./vs/workbench/api/node/extHostTextEditors.ts",
