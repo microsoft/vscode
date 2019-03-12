@@ -250,7 +250,7 @@ export interface IThread extends ITreeElement {
 
 	/**
 	 * Gets the callstack if it has already been received from the debug
-	 * adapter, otherwise it returns null.
+	 * adapter.
 	 */
 	getCallStack(): ReadonlyArray<IStackFrame>;
 
@@ -618,7 +618,7 @@ export interface IConfigurationManager {
 	getDebugAdapterDescriptor(session: IDebugSession): Promise<IAdapterDescriptor | undefined>;
 
 	registerDebugAdapterFactory(debugTypes: string[], debugAdapterFactory: IDebugAdapterFactory): IDisposable;
-	createDebugAdapter(session: IDebugSession): IDebugAdapter;
+	createDebugAdapter(session: IDebugSession): IDebugAdapter | undefined;
 
 	substituteVariables(debugType: string, folder: IWorkspaceFolder, config: IConfig): Promise<IConfig>;
 	runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Promise<number | undefined>;
@@ -637,9 +637,9 @@ export interface ILaunch {
 	readonly name: string;
 
 	/**
-	 * Workspace of the launch. Can be null.
+	 * Workspace of the launch. Can be undefined.
 	 */
-	readonly workspace: IWorkspaceFolder;
+	readonly workspace: IWorkspaceFolder | undefined;
 
 	/**
 	 * Should this launch be shown in the debug dropdown.
@@ -648,15 +648,15 @@ export interface ILaunch {
 
 	/**
 	 * Returns a configuration with the specified name.
-	 * Returns null if there is no configuration with the specified name.
+	 * Returns undefined if there is no configuration with the specified name.
 	 */
-	getConfiguration(name: string): IConfig;
+	getConfiguration(name: string): IConfig | undefined;
 
 	/**
 	 * Returns a compound with the specified name.
-	 * Returns null if there is no compound with the specified name.
+	 * Returns undefined if there is no compound with the specified name.
 	 */
-	getCompound(name: string): ICompound;
+	getCompound(name: string): ICompound | undefined;
 
 	/**
 	 * Returns the names of all configurations and compounds.
@@ -667,7 +667,7 @@ export interface ILaunch {
 	/**
 	 * Opens the launch.json file. Creates if it does not exist.
 	 */
-	openConfigFile(sideBySide: boolean, preserveFocus: boolean, type?: string): Promise<{ editor: IEditor, created: boolean }>;
+	openConfigFile(sideBySide: boolean, preserveFocus: boolean, type?: string): Promise<{ editor: IEditor | null, created: boolean }>;
 }
 
 // Debug service interfaces
