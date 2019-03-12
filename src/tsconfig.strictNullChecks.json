@@ -170,6 +170,7 @@
 		"./vs/workbench/contrib/debug/browser/debugViewlet.ts",
 		"./vs/workbench/contrib/debug/browser/exceptionWidget.ts",
 		"./vs/workbench/contrib/debug/browser/linkDetector.ts",
+		"./vs/workbench/contrib/debug/browser/loadedScriptsView.ts",
 		"./vs/workbench/contrib/debug/browser/statusbarColorProvider.ts",
 		"./vs/workbench/contrib/debug/electron-browser/breakpointWidget.ts",
 		"./vs/workbench/contrib/debug/electron-browser/debugEditorContribution.ts",
