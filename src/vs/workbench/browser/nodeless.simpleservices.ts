@@ -259,7 +259,7 @@ export class SimpleEnvironmentService implements IEnvironmentService {
 	wait: boolean;
 	status: boolean;
 	log?: string;
-	logsPath: string;
+	logsPath: string = '/nodeless/logs';
 	verbose: boolean;
 	skipGettingStarted: boolean;
 	skipReleaseNotes: boolean;
