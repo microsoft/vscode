@@ -33,6 +33,7 @@ import { IViewlet } from 'vs/workbench/common/viewlet';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { Schemas } from 'vs/base/common/network';
 
 interface ICachedViewlet {
 	id: string;
@@ -278,7 +279,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			} else {
 				const cachedComposite = this.cachedViewlets.filter(c => c.id === compositeId)[0];
 				compositeActions = {
-					activityAction: this.instantiationService.createInstance(PlaceHolderViewletActivityAction, compositeId, cachedComposite ? URI.revive(cachedComposite.iconUrl) : undefined),
+					activityAction: this.instantiationService.createInstance(PlaceHolderViewletActivityAction, compositeId, cachedComposite && cachedComposite.iconUrl ? URI.revive(cachedComposite.iconUrl) : undefined),
 					pinnedAction: new PlaceHolderToggleCompositePinnedAction(compositeId, this.compositeBar)
 				};
 			}
@@ -431,7 +432,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 						}
 					}
 				}
-				state.push({ id: compositeItem.id, iconUrl: viewlet.iconUrl, views, pinned: compositeItem && compositeItem.pinned, order: compositeItem ? compositeItem.order : undefined, visible: compositeItem && compositeItem.visible });
+				state.push({ id: compositeItem.id, iconUrl: viewlet.iconUrl && viewlet.iconUrl.scheme === Schemas.file ? viewlet.iconUrl : undefined, views, pinned: compositeItem && compositeItem.pinned, order: compositeItem ? compositeItem.order : undefined, visible: compositeItem && compositeItem.visible });
 			}
 		}
 
