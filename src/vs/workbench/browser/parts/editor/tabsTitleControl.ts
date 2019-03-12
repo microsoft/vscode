@@ -1091,14 +1091,17 @@ export class TabsTitleControl extends TitleControl {
 			const draggedEditor = this.editorTransfer.getData(DraggedEditorIdentifier.prototype)![0].identifier;
 			const sourceGroup = this.accessor.getGroup(draggedEditor.groupId);
 
-			// Move editor to target position and index
-			if (this.isMoveOperation(e, draggedEditor.groupId)) {
-				sourceGroup.moveEditor(draggedEditor.editor, this.group, { index: targetIndex });
-			}
+			if (sourceGroup) {
 
-			// Copy editor to target position and index
-			else {
-				sourceGroup.copyEditor(draggedEditor.editor, this.group, { index: targetIndex });
+				// Move editor to target position and index
+				if (this.isMoveOperation(e, draggedEditor.groupId)) {
+					sourceGroup.moveEditor(draggedEditor.editor, this.group, { index: targetIndex });
+				}
+
+				// Copy editor to target position and index
+				else {
+					sourceGroup.copyEditor(draggedEditor.editor, this.group, { index: targetIndex });
+				}
 			}
 
 			this.group.focus();
@@ -1109,12 +1112,14 @@ export class TabsTitleControl extends TitleControl {
 		else if (this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype)) {
 			const sourceGroup = this.accessor.getGroup(this.groupTransfer.getData(DraggedEditorGroupIdentifier.prototype)![0].identifier);
 
-			const mergeGroupOptions: IMergeGroupOptions = { index: targetIndex };
-			if (!this.isMoveOperation(e, sourceGroup.id)) {
-				mergeGroupOptions.mode = MergeGroupMode.COPY_EDITORS;
-			}
+			if (sourceGroup) {
+				const mergeGroupOptions: IMergeGroupOptions = { index: targetIndex };
+				if (!this.isMoveOperation(e, sourceGroup.id)) {
+					mergeGroupOptions.mode = MergeGroupMode.COPY_EDITORS;
+				}
 
-			this.accessor.mergeGroup(sourceGroup, this.group, mergeGroupOptions);
+				this.accessor.mergeGroup(sourceGroup, this.group, mergeGroupOptions);
+			}
 
 			this.group.focus();
 			this.groupTransfer.clearData(DraggedEditorGroupIdentifier.prototype);

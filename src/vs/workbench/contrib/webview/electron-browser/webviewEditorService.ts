@@ -120,7 +120,10 @@ export class WebviewEditorService implements IWebviewEditorService {
 		if (webview.group === group.id) {
 			this._editorService.openEditor(webview, { preserveFocus }, webview.group);
 		} else {
-			this._editorGroupService.getGroup(webview.group!).moveEditor(webview, group, { preserveFocus });
+			const groupView = this._editorGroupService.getGroup(webview.group!);
+			if (groupView) {
+				groupView.moveEditor(webview, group, { preserveFocus });
+			}
 		}
 	}
 

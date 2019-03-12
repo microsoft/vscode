@@ -212,7 +212,7 @@ export interface IEditorGroupsService {
 	/**
 	 * Allows to convert a group identifier to a group.
 	 */
-	getGroup(identifier: GroupIdentifier): IEditorGroup;
+	getGroup(identifier: GroupIdentifier): IEditorGroup | undefined;
 
 	/**
 	 * Set a group as active. An active group is the default location for new editors to open.

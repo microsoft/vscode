@@ -158,6 +158,7 @@
 		"./vs/workbench/browser/parts/editor/editorControl.ts",
 		"./vs/workbench/browser/parts/editor/editorDropTarget.ts",
 		"./vs/workbench/browser/parts/editor/editorGroupView.ts",
+		"./vs/workbench/browser/parts/editor/editorPart.ts",
 		"./vs/workbench/browser/parts/editor/editorPicker.ts",
 		"./vs/workbench/browser/parts/editor/editorStatus.ts",
 		"./vs/workbench/browser/parts/editor/editorWidgets.ts",
