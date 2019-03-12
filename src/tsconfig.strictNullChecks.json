@@ -320,6 +320,7 @@
 		"./vs/workbench/services/dialogs/electron-browser/dialogService.ts",
 		"./vs/workbench/services/dialogs/electron-browser/remoteFileDialog.ts",
 		"./vs/workbench/services/editor/browser/codeEditorService.ts",
+		"./vs/workbench/services/editor/browser/editorService.ts",
 		"./vs/workbench/services/editor/common/editorGroupsService.ts",
 		"./vs/workbench/services/editor/common/editorService.ts",
 		"./vs/workbench/services/extensionManagement/node/multiExtensionManagement.ts",

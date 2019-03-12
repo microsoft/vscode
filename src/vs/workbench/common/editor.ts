@@ -142,7 +142,7 @@ export interface IEditorControl extends ICompositeControl { }
 
 export interface IFileInputFactory {
 
-	createFileInput(resource: URI, encoding: string, instantiationService: IInstantiationService): IFileEditorInput;
+	createFileInput(resource: URI, encoding: string | undefined, instantiationService: IInstantiationService): IFileEditorInput;
 
 	isFileInput(obj: any): obj is IFileEditorInput;
 }

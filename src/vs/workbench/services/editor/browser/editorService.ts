@@ -27,7 +27,7 @@ import { isCodeEditor, isDiffEditor, ICodeEditor, IDiffEditor } from 'vs/editor/
 import { IEditorGroupView, IEditorOpeningEvent, EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { withNullAsUndefined } from 'vs/base/common/types';
+import { withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
 
 type ICachedEditorInput = ResourceEditorInput | IFileEditorInput | DataUriEditorInput;
 
@@ -148,7 +148,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		for (const handler of this.openEditorHandlers) {
 			const result = handler(event.editor, event.options, group);
 			if (result && result.override) {
-				event.prevent((() => result.override));
+				event.prevent((() => result.override!.then(editor => withNullAsUndefined(editor))));
 				break;
 			}
 		}
@@ -359,12 +359,12 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 
 		// Open in targets
-		const result: Promise<IEditor>[] = [];
+		const result: Promise<IEditor | null>[] = [];
 		mapGroupToEditors.forEach((editorsWithOptions, group) => {
 			result.push(group.openEditors(editorsWithOptions));
 		});
 
-		return Promise.all(result);
+		return Promise.all(result).then(editors => coalesce(editors));
 	}
 
 	//#endregion
@@ -393,7 +393,10 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		let groups: IEditorGroup[] = [];
 		if (typeof group === 'number') {
-			groups.push(this.editorGroupService.getGroup(group));
+			const groupView = this.editorGroupService.getGroup(group);
+			if (groupView) {
+				groups.push(groupView);
+			}
 		} else if (group) {
 			groups.push(group);
 		} else {
@@ -455,7 +458,11 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		});
 
 		const targetGroup = typeof group === 'number' ? this.editorGroupService.getGroup(group) : group;
-		return targetGroup.replaceEditors(typedEditors);
+		if (targetGroup) {
+			return targetGroup.replaceEditors(typedEditors);
+		}
+
+		return Promise.resolve();
 	}
 
 	//#endregion
@@ -480,7 +487,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#region createInput()
 
-	createInput(input: IEditorInputWithOptions | IEditorInput | IResourceEditor): EditorInput | null {
+	createInput(input: IEditorInputWithOptions | IEditorInput | IResourceEditor): EditorInput {
 
 		// Typed Editor Input Support (EditorInput)
 		if (input instanceof EditorInput) {
@@ -498,9 +505,10 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		if (resourceSideBySideInput.masterResource && resourceSideBySideInput.detailResource) {
 			const masterInput = this.createInput({ resource: resourceSideBySideInput.masterResource, forceFile: resourceSideBySideInput.forceFile });
 			const detailInput = this.createInput({ resource: resourceSideBySideInput.detailResource, forceFile: resourceSideBySideInput.forceFile });
+			const label = resourceSideBySideInput.label || masterInput.getName() || localize('sideBySideLabels', "{0} - {1}", this.toDiffLabel(masterInput), this.toDiffLabel(detailInput));
 
 			return new SideBySideEditorInput(
-				resourceSideBySideInput.label || masterInput.getName(),
+				label,
 				typeof resourceSideBySideInput.description === 'string' ? resourceSideBySideInput.description : masterInput.getDescription(),
 				detailInput,
 				masterInput
@@ -514,7 +522,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			const rightInput = this.createInput({ resource: resourceDiffInput.rightResource, forceFile: resourceDiffInput.forceFile });
 			const label = resourceDiffInput.label || localize('compareLabels', "{0} ↔ {1}", this.toDiffLabel(leftInput), this.toDiffLabel(rightInput));
 
-			return new DiffEditorInput(label, resourceDiffInput.description, leftInput, rightInput);
+			return new DiffEditorInput(label, withUndefinedAsNull(resourceDiffInput.description), leftInput, rightInput);
 		}
 
 		// Untitled file support
@@ -539,17 +547,24 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			return this.createOrGet(resourceInput.resource, this.instantiationService, label, resourceInput.description, resourceInput.encoding, resourceInput.forceFile) as EditorInput;
 		}
 
-		return null;
+		throw new Error('Unknown input type');
 	}
 
-	private createOrGet(resource: URI, instantiationService: IInstantiationService, label: string, description: string, encoding?: string, forceFile?: boolean): ICachedEditorInput {
+	private createOrGet(resource: URI, instantiationService: IInstantiationService, label: string | undefined, description: string | undefined, encoding: string | undefined, forceFile: boolean | undefined): ICachedEditorInput {
 		if (EditorService.CACHE.has(resource)) {
-			const input = EditorService.CACHE.get(resource);
+			const input = EditorService.CACHE.get(resource)!;
 			if (input instanceof ResourceEditorInput) {
-				input.setName(label);
-				input.setDescription(description);
+				if (label) {
+					input.setName(label);
+				}
+
+				if (description) {
+					input.setDescription(description);
+				}
 			} else if (!(input instanceof DataUriEditorInput)) {
-				input.setPreferredEncoding(encoding);
+				if (encoding) {
+					input.setPreferredEncoding(encoding);
+				}
 			}
 
 			return input;
@@ -582,9 +597,12 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	private toDiffLabel(input: EditorInput): string | null {
 		const res = input.getResource();
+		if (!res) {
+			return null;
+		}
 
 		// Do not try to extract any paths from simple untitled editors
-		if (res && res.scheme === Schemas.untitled && !this.untitledEditorService.hasAssociatedFilePath(res)) {
+		if (res.scheme === Schemas.untitled && !this.untitledEditorService.hasAssociatedFilePath(res)) {
 			return input.getName();
 		}
 
