@@ -223,7 +223,7 @@ export class RemoteFileDialog {
 					const trimmedPickBoxValue = ((this.filePickBox.value.length > 1) && this.endsWithSlash(this.filePickBox.value)) ? this.filePickBox.value.substr(0, this.filePickBox.value.length - 1) : this.filePickBox.value;
 					const valueUri = this.remoteUriFrom(trimmedPickBoxValue);
 					if (!resources.isEqual(this.currentFolder, valueUri, true)) {
-						await this.tryUpdateItems(value, valueUri);
+						await this.tryUpdateItems(value, this.remoteUriFrom(this.filePickBox.value));
 					}
 					this.setActiveItems(value);
 					this.userValue = value;
