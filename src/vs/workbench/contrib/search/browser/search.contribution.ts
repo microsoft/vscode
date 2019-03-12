@@ -56,7 +56,7 @@ import { ViewletDescriptor, ViewletRegistry, Extensions as ViewletExtensions } f
 import { ISearchHistoryService, SearchHistoryService } from 'vs/workbench/contrib/search/common/searchHistoryService';
 import { SearchViewlet } from 'vs/workbench/contrib/search/browser/searchViewlet';
 import { SearchPanel } from 'vs/workbench/contrib/search/browser/searchPanel';
-import { ViewsRegistry } from 'vs/workbench/common/views';
+import { IViewsRegistry, Extensions as ViewExtensions } from 'vs/workbench/common/views';
 import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService, true);
@@ -484,10 +484,11 @@ class RegisterSearchViewContribution implements IWorkbenchContribution {
 		@IPanelService panelService: IPanelService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
+		const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
 		const updateSearchViewLocation = (open: boolean) => {
 			const config = configurationService.getValue<ISearchConfiguration>();
 			if (config.search.location === 'panel') {
-				ViewsRegistry.deregisterViews(ViewsRegistry.getViews(VIEW_CONTAINER), VIEW_CONTAINER);
+				viewsRegistry.deregisterViews(viewsRegistry.getViews(VIEW_CONTAINER), VIEW_CONTAINER);
 				Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(new PanelDescriptor(
 					SearchPanel,
 					PANEL_ID,
@@ -500,7 +501,7 @@ class RegisterSearchViewContribution implements IWorkbenchContribution {
 				}
 			} else {
 				Registry.as<PanelRegistry>(PanelExtensions.Panels).deregisterPanel(PANEL_ID);
-				ViewsRegistry.registerViews([{ id: VIEW_ID, name: nls.localize('search', "Search"), ctorDescriptor: { ctor: SearchView }, canToggleVisibility: false }], VIEW_CONTAINER);
+				viewsRegistry.registerViews([{ id: VIEW_ID, name: nls.localize('search', "Search"), ctorDescriptor: { ctor: SearchView }, canToggleVisibility: false }], VIEW_CONTAINER);
 				if (open) {
 					viewletService.openViewlet(VIEWLET_ID);
 				}
