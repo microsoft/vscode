@@ -1185,7 +1185,7 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 	}
 
 	focus(): void {
-		if (this.repositoryCount) {
+		if (this.repositoryCount === 0) {
 			this.message.focus();
 		} else {
 			const repository = this.visibleRepositories[0];
