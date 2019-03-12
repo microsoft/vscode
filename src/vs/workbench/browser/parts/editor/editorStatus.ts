@@ -725,7 +725,7 @@ export class EditorStatus implements IStatusbarItem {
 
 			// Compute the visible column for one selection. This will properly handle tabs and their configured widths
 			if (info.selections.length === 1) {
-				const visibleColumn = editorWidget.getVisibleColumnFromPosition(editorWidget.getPosition());
+				const visibleColumn = editorWidget.getVisibleColumnFromPosition(editorWidget.getPosition()!);
 
 				let selectionClone = info.selections[0].clone(); // do not modify the original position we got from the editor
 				selectionClone = new Selection(
@@ -947,7 +947,9 @@ export class ChangeModeAction extends Action {
 
 			// User decided to permanently configure associations, return right after
 			if (pick === configureModeAssociations) {
-				this.configureFileAssociation(resource);
+				if (resource) {
+					this.configureFileAssociation(resource);
+				}
 				return;
 			}
 
@@ -979,17 +981,24 @@ export class ChangeModeAction extends Action {
 			}
 
 			// Find mode
-			let languageSelection: ILanguageSelection;
+			let languageSelection: ILanguageSelection | undefined;
 			if (pick === autoDetectMode) {
-				languageSelection = this.modeService.createByFilepathOrFirstLine(toResource(activeEditor, { supportSideBySide: true }).fsPath, textModel.getLineContent(1));
+				if (textModel) {
+					const resource = toResource(activeEditor, { supportSideBySide: true });
+					if (resource) {
+						languageSelection = this.modeService.createByFilepathOrFirstLine(resource.fsPath, textModel.getLineContent(1));
+					}
+				}
 			} else {
 				languageSelection = this.modeService.createByLanguageName(pick.label);
 			}
 
 			// Change mode
-			models.forEach(textModel => {
-				this.modelService.setMode(textModel, languageSelection);
-			});
+			if (typeof languageSelection !== 'undefined') {
+				for (const textModel of models) {
+					this.modelService.setMode(textModel, languageSelection);
+				}
+			}
 		});
 	}
 
@@ -1158,11 +1167,11 @@ export class ChangeEncodingAction extends Action {
 			return this.quickInputService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
 		}
 
-		let activeControl = this.editorService.activeControl;
+		const activeControl = this.editorService.activeControl;
 		if (!activeControl) {
 			return this.quickInputService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
 		}
-		let encodingSupport: IEncodingSupport | null = toEditorWithEncodingSupport(activeControl.input);
+		const encodingSupport: IEncodingSupport | null = toEditorWithEncodingSupport(activeControl.input);
 		if (!encodingSupport) {
 			return this.quickInputService.pick([{ label: nls.localize('noFileEditor', "No file active at this time") }]);
 		}
@@ -1191,7 +1200,7 @@ export class ChangeEncodingAction extends Action {
 				return undefined;
 			}
 
-			const resource = toResource(activeControl.input, { supportSideBySide: true });
+			const resource = toResource(activeControl!.input, { supportSideBySide: true });
 
 			return timeout(50 /* quick open is sensitive to being opened so soon after another */)
 				.then(() => {
@@ -1204,7 +1213,7 @@ export class ChangeEncodingAction extends Action {
 				.then((guessedEncoding: string) => {
 					const isReopenWithEncoding = (action === reopenWithEncodingPick);
 
-					const configuredEncoding = this.textResourceConfigurationService.getValue(resource, 'files.encoding');
+					const configuredEncoding = this.textResourceConfigurationService.getValue(types.withNullAsUndefined(resource), 'files.encoding');
 
 					let directMatchIndex: number | undefined;
 					let aliasMatchIndex: number | undefined;
@@ -1249,12 +1258,16 @@ export class ChangeEncodingAction extends Action {
 						placeHolder: isReopenWithEncoding ? nls.localize('pickEncodingForReopen', "Select File Encoding to Reopen File") : nls.localize('pickEncodingForSave', "Select File Encoding to Save with"),
 						activeItem: items[typeof directMatchIndex === 'number' ? directMatchIndex : typeof aliasMatchIndex === 'number' ? aliasMatchIndex : -1]
 					}).then(encoding => {
-						if (encoding) {
-							activeControl = this.editorService.activeControl;
-							encodingSupport = toEditorWithEncodingSupport(activeControl.input);
-							if (encodingSupport && encodingSupport.getEncoding() !== encoding.id) {
-								encodingSupport.setEncoding(encoding.id, isReopenWithEncoding ? EncodingMode.Decode : EncodingMode.Encode); // Set new encoding
-							}
+						if (!encoding) {
+							return;
+						}
+						const activeControl = this.editorService.activeControl;
+						if (!activeControl) {
+							return;
+						}
+						const encodingSupport = toEditorWithEncodingSupport(activeControl.input);
+						if (typeof encoding.id !== 'undefined' && encodingSupport && encodingSupport.getEncoding() !== encoding.id) {
+							encodingSupport.setEncoding(encoding.id, isReopenWithEncoding ? EncodingMode.Decode : EncodingMode.Encode); // Set new encoding
 						}
 					});
 				});
