@@ -508,6 +508,7 @@
 		"./vs/workbench/test/browser/actionRegistry.test.ts",
 		"./vs/workbench/test/browser/quickopen.test.ts",
 		"./vs/workbench/test/browser/viewlet.test.ts",
+		// "./vs/workbench/test/browser/parts/editor/breadcrumbModel.test.ts",
 		"./vs/workbench/test/common/editor/editorInput.test.ts",
 		"./vs/workbench/test/common/editor/editorOptions.test.ts",
 		"./vs/workbench/test/common/notifications.test.ts",
@@ -532,6 +533,7 @@
 		"./vs/workbench/test/electron-browser/api/mainThreadDiagnostics.test.ts",
 		"./vs/workbench/test/electron-browser/api/mainThreadDocumentContentProviders.test.ts",
 		"./vs/workbench/test/electron-browser/api/mainThreadDocuments.test.ts",
+		// "./vs/workbench/test/electron-browser/api/mainThreadSaveParticipant.test.ts",
 		"./vs/workbench/test/electron-browser/api/mock.ts",
 		"./vs/workbench/test/electron-browser/api/testRPCProtocol.ts",
 		"./vs/workbench/test/electron-browser/colorRegistry.releaseTest.ts"
