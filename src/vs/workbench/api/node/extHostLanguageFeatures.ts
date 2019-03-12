@@ -944,14 +944,19 @@ class SelectionRangeAdapter {
 				const oneResult: modes.SelectionRange[] = [];
 				allResults.push(oneResult);
 
-				const oneProviderRanges = allProviderRanges[i];
 				let last: vscode.Position | vscode.Range = positions[i];
-				for (const selectionRange of oneProviderRanges) {
+				let selectionRange = allProviderRanges[i];
+
+				while (true) {
 					if (!selectionRange.range.contains(last)) {
 						throw new Error('INVALID selection range, must contain the previous range');
 					}
 					oneResult.push(typeConvert.SelectionRange.from(selectionRange));
+					if (!selectionRange.parent) {
+						break;
+					}
 					last = selectionRange.range;
+					selectionRange = selectionRange.parent;
 				}
 			}
 			return allResults;

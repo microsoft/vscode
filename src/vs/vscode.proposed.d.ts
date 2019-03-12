@@ -86,7 +86,8 @@ declare module 'vscode' {
 
 	export class SelectionRange {
 		range: Range;
-		constructor(range: Range);
+		parent?: SelectionRange;
+		constructor(range: Range, parent?: SelectionRange);
 	}
 
 	export interface SelectionRangeProvider {
@@ -97,7 +98,7 @@ declare module 'vscode' {
 		 *
 		 * todo@joh
 		 */
-		provideSelectionRanges(document: TextDocument, positions: Position[], token: CancellationToken): ProviderResult<SelectionRange[][]>;
+		provideSelectionRanges(document: TextDocument, positions: Position[], token: CancellationToken): ProviderResult<SelectionRange[]>;
 	}
 
 	export namespace languages {

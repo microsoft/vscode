@@ -214,16 +214,17 @@ export function activate(context: ExtensionContext) {
 
 		documentSelector.forEach(selector => {
 			toDispose.push(languages.registerSelectionRangeProvider(selector, {
-				async provideSelectionRanges(document: TextDocument, positions: Position[]): Promise<SelectionRange[][]> {
+				async provideSelectionRanges(document: TextDocument, positions: Position[]): Promise<SelectionRange[]> {
 					const textDocument = client.code2ProtocolConverter.asTextDocumentIdentifier(document);
 					const rawResult = await client.sendRequest<SelectionRange[][]>('$/textDocument/selectionRanges', { textDocument, positions: positions.map(client.code2ProtocolConverter.asPosition) });
 					if (Array.isArray(rawResult)) {
 						return rawResult.map(rawSelectionRanges => {
-							return rawSelectionRanges.map(selectionRange => {
+							return rawSelectionRanges.reduceRight((parent: SelectionRange | undefined, selectionRange: SelectionRange) => {
 								return {
 									range: client.protocol2CodeConverter.asRange(selectionRange.range),
+									parent,
 								};
-							});
+							}, undefined)!;
 						});
 					}
 					return [];

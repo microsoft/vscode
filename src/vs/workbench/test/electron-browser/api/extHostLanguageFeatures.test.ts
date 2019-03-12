@@ -1104,10 +1104,9 @@ suite('ExtHostLanguageFeatures', function () {
 	test('Selection Ranges, data conversion', async () => {
 		disposables.push(extHost.registerSelectionRangeProvider(defaultExtension, defaultSelector, new class implements vscode.SelectionRangeProvider {
 			provideSelectionRanges() {
-				return [[
-					new types.SelectionRange(new types.Range(0, 10, 0, 18)),
-					new types.SelectionRange(new types.Range(0, 2, 0, 20))
-				]];
+				return [
+					new types.SelectionRange(new types.Range(0, 10, 0, 18), new types.SelectionRange(new types.Range(0, 2, 0, 20))),
+				];
 			}
 		}));
 
@@ -1116,6 +1115,23 @@ suite('ExtHostLanguageFeatures', function () {
 		provideSelectionRanges(model, [new Position(1, 17)], CancellationToken.None).then(ranges => {
 			assert.equal(ranges.length, 1);
 			assert.ok(ranges[0].length >= 2);
+		});
+	});
+
+	test('Selection Ranges, bad data', async () => {
+		disposables.push(extHost.registerSelectionRangeProvider(defaultExtension, defaultSelector, new class implements vscode.SelectionRangeProvider {
+			provideSelectionRanges() {
+				return [
+					new types.SelectionRange(new types.Range(0, 10, 0, 18),
+						new types.SelectionRange(new types.Range(0, 11, 0, 18))),
+				];
+			}
+		}));
+
+		await rpcProtocol.sync();
+
+		provideSelectionRanges(model, [new Position(1, 17)], CancellationToken.None).then(ranges => {
+			assert.equal(ranges.length, 0);
 		});
 	});
 });

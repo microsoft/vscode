@@ -1098,9 +1098,11 @@ CodeActionKind.SourceFixAll = CodeActionKind.Source.append('fixAll');
 export class SelectionRange {
 
 	range: Range;
+	parent?: SelectionRange;
 
-	constructor(range: Range) {
+	constructor(range: Range, parent?: SelectionRange) {
 		this.range = range;
+		this.parent = parent;
 	}
 }
 

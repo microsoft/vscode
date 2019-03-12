@@ -799,10 +799,9 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		disposables.push(extHost.registerSelectionRangeProvider(nullExtensionDescription, defaultSelector, <vscode.SelectionRangeProvider>{
 			provideSelectionRanges() {
-				return [[
-					new types.SelectionRange(new types.Range(0, 10, 0, 18)),
-					new types.SelectionRange(new types.Range(0, 2, 0, 20))
-				]];
+				return [
+					new types.SelectionRange(new types.Range(0, 10, 0, 18), new types.SelectionRange(new types.Range(0, 2, 0, 20))),
+				];
 			}
 		}));
 
