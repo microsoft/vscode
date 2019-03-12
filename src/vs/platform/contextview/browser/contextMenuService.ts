@@ -32,7 +32,7 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
 	) {
 		super();
 
-		this.contextMenuHandler = this._register(new ContextMenuHandler(layoutService.container, contextViewService, telemetryService, notificationService, keybindingService, themeService));
+		this.contextMenuHandler = this._register(new ContextMenuHandler(layoutService, contextViewService, telemetryService, notificationService, keybindingService, themeService));
 	}
 
 	dispose(): void {

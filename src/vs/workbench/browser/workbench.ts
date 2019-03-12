@@ -483,6 +483,8 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 	get container(): HTMLElement { return this.workbench; }
 
+	get hasWorkbench(): boolean { return true; }
+
 	private parts: Map<string, Part> = new Map<string, Part>();
 
 	private workbenchGrid: Grid<View> | WorkbenchLegacyLayout;
