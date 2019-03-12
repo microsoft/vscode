@@ -638,9 +638,11 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 				// Check for name collisions
 				const targetNames = new Set<string>();
-				targetStat.children.forEach((child) => {
-					targetNames.add(isLinux ? child.name : child.name.toLowerCase());
-				});
+				if (targetStat.children) {
+					targetStat.children.forEach((child) => {
+						targetNames.add(isLinux ? child.name : child.name.toLowerCase());
+					});
+				}
 
 				let overwritePromise: Promise<IConfirmationResult> = Promise.resolve({ confirmed: true });
 				if (resources.some(resource => {
