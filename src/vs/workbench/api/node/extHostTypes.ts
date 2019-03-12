@@ -1103,6 +1103,10 @@ export class SelectionRange {
 	constructor(range: Range, parent?: SelectionRange) {
 		this.range = range;
 		this.parent = parent;
+
+		if (parent && !parent.range.contains(this.range)) {
+			throw new Error('Invalid argument: parent must contain this range');
+		}
 	}
 }
 

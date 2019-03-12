@@ -1119,19 +1119,15 @@ suite('ExtHostLanguageFeatures', function () {
 	});
 
 	test('Selection Ranges, bad data', async () => {
-		disposables.push(extHost.registerSelectionRangeProvider(defaultExtension, defaultSelector, new class implements vscode.SelectionRangeProvider {
-			provideSelectionRanges() {
-				return [
-					new types.SelectionRange(new types.Range(0, 10, 0, 18),
-						new types.SelectionRange(new types.Range(0, 11, 0, 18))),
-				];
-			}
-		}));
 
-		await rpcProtocol.sync();
+		try {
+			let _a = new types.SelectionRange(new types.Range(0, 10, 0, 18),
+				new types.SelectionRange(new types.Range(0, 11, 0, 18))
+			);
+			assert.ok(false, String(_a));
+		} catch (err) {
+			assert.ok(true);
+		}
 
-		provideSelectionRanges(model, [new Position(1, 17)], CancellationToken.None).then(ranges => {
-			assert.equal(ranges.length, 0);
-		});
 	});
 });
