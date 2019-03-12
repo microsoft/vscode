@@ -24,7 +24,7 @@ the hover shown on a script or using the command `Run Selected Npm Script`.
 
 ### Others
 
-The extension fetches data from https://registry.npmjs/org and https://registry.bower.io to provide auto-completion and information on hover features on npm dependencies.
+The extension fetches data from https://registry.npmjs.org and https://registry.bower.io to provide auto-completion and information on hover features on npm dependencies.
 
 ## Settings
 
