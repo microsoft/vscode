@@ -1330,7 +1330,7 @@ export interface Comment {
 	readonly userIconPath?: string;
 	readonly canEdit?: boolean;
 	readonly canDelete?: boolean;
-	readonly command?: Command;
+	readonly selectCommand?: Command;
 	readonly editCommand?: Command;
 	readonly deleteCommand?: Command;
 	readonly isDraft?: boolean;

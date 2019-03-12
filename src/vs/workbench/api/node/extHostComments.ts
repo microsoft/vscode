@@ -588,6 +588,7 @@ function convertToModeComment(vscodeComment: vscode.Comment, commandsConverter: 
 		userName: vscodeComment.userName,
 		userIconPath: iconPath,
 		isDraft: vscodeComment.isDraft,
+		selectCommand: vscodeComment.selectCommand ? commandsConverter.toInternal(vscodeComment.selectCommand) : undefined,
 		editCommand: vscodeComment.editCommand ? commandsConverter.toInternal(vscodeComment.editCommand) : undefined,
 		deleteCommand: vscodeComment.editCommand ? commandsConverter.toInternal(vscodeComment.deleteCommand) : undefined,
 		label: vscodeComment.label
@@ -607,6 +608,7 @@ function convertToComment(provider: vscode.DocumentCommentProvider | vscode.Work
 		canEdit: canEdit,
 		canDelete: canDelete,
 		command: vscodeComment.command ? commandsConverter.toInternal(vscodeComment.command) : undefined,
+		selectCommand: vscodeComment.selectCommand ? commandsConverter.toInternal(vscodeComment.command) : undefined,
 		isDraft: vscodeComment.isDraft,
 		commentReactions: vscodeComment.commentReactions ? vscodeComment.commentReactions.map(reaction => convertToReaction(provider, reaction)) : undefined
 	};

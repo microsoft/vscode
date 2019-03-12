@@ -862,9 +862,15 @@ declare module 'vscode' {
 		canDelete?: boolean;
 
 		/**
+		 * @deprecated
 		 * The command to be executed if the comment is selected in the Comments Panel
 		 */
 		command?: Command;
+
+		/**
+		 * The command to be executed if the comment is selected in the Comments Panel
+		 */
+		selectCommand?: Command;
 
 		editCommand?: Command;
 		deleteCommand?: Command;
