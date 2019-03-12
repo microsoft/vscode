@@ -328,8 +328,10 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 	}
 
 	set range(range: vscode.Range) {
-		this._range = range;
-		this._proxy.$updateCommentThreadRange(this._commentControlHandle, this.handle, extHostTypeConverter.Range.from(this._range));
+		if (range.isEqual(this._range)) {
+			this._range = range;
+			this._proxy.$updateCommentThreadRange(this._commentControlHandle, this.handle, extHostTypeConverter.Range.from(this._range));
+		}
 	}
 
 	get range(): vscode.Range {
