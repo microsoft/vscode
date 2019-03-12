@@ -36,7 +36,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 
 export class DebugSession implements IDebugSession {
 	private id: string;
-	private raw: RawDebugSession;
+	private raw: RawDebugSession | undefined;
 	private initialized = false;
 
 	private sources = new Map<string, Source>();
@@ -156,11 +156,11 @@ export class DebugSession implements IDebugSession {
 
 				this.raw = new RawDebugSession(debugAdapter, dbgr, this.telemetryService, customTelemetryService, this.environmentService);
 
-				return this.raw.start().then(() => {
+				return this.raw!.start().then(() => {
 
 					this.registerListeners();
 
-					return this.raw.initialize({
+					return this.raw!.initialize({
 						clientID: 'vscode',
 						clientName: product.nameLong,
 						adapterID: this.configuration.type,
@@ -174,7 +174,7 @@ export class DebugSession implements IDebugSession {
 					}).then(() => {
 						this.initialized = true;
 						this._onDidChangeState.fire();
-						this.model.setExceptionBreakpoints(this.raw.capabilities.exceptionBreakpointFilters);
+						this.model.setExceptionBreakpoints(this.raw!.capabilities.exceptionBreakpointFilters || []);
 					});
 				});
 			});
@@ -259,7 +259,9 @@ export class DebugSession implements IDebugSession {
 			rawSource.adapterData = breakpointsToSend[0].adapterData;
 		}
 		// Normalize all drive letters going out from vscode to debug adapters so we are consistent with our resolving #43959
-		rawSource.path = normalizeDriveLetter(rawSource.path);
+		if (rawSource.path) {
+			rawSource.path = normalizeDriveLetter(rawSource.path);
+		}
 
 		return this.raw.setBreakpoints({
 			source: rawSource,
@@ -322,7 +324,7 @@ export class DebugSession implements IDebugSession {
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
-	exceptionInfo(threadId: number): Promise<IExceptionInfo> {
+	exceptionInfo(threadId: number): Promise<IExceptionInfo | undefined> {
 		if (this.raw) {
 			return this.raw.exceptionInfo({ threadId }).then(response => {
 				if (response) {
@@ -333,7 +335,7 @@ export class DebugSession implements IDebugSession {
 						details: response.body.details
 					};
 				}
-				return null;
+				return undefined;
 			});
 		}
 		return Promise.reject(new Error('no debug adapter'));
@@ -346,11 +348,11 @@ export class DebugSession implements IDebugSession {
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
-	variables(variablesReference: number, filter: 'indexed' | 'named', start: number, count: number): Promise<DebugProtocol.VariablesResponse | undefined> {
+	variables(variablesReference: number, filter: 'indexed' | 'named' | undefined, start: number | undefined, count: number | undefined): Promise<DebugProtocol.VariablesResponse> {
 		if (this.raw) {
 			return this.raw.variables({ variablesReference, filter, start, count });
 		}
-		return Promise.resolve(undefined);
+		return Promise.reject(new Error('no debug adapter'));
 	}
 
 	evaluate(expression: string, frameId: number, context?: string): Promise<DebugProtocol.EvaluateResponse> {
@@ -455,7 +457,7 @@ export class DebugSession implements IDebugSession {
 			};
 		}
 
-		return this.raw.source({ sourceReference: rawSource.sourceReference, source: rawSource });
+		return this.raw.source({ sourceReference: rawSource.sourceReference || 0, source: rawSource });
 	}
 
 	getLoadedSources(): Promise<Source[]> {
@@ -489,8 +491,8 @@ export class DebugSession implements IDebugSession {
 							result.push({
 								label: item.label,
 								insertText: item.text || item.label,
-								kind: completionKindFromString(item.type),
-								filterText: item.start && item.length && text.substr(item.start, item.length).concat(item.label),
+								kind: completionKindFromString(item.type || 'property'),
+								filterText: (item.start && item.length) ? text.substr(item.start, item.length).concat(item.label) : undefined,
 								range: Range.fromPositions(position.delta(0, -(item.length || overwriteBefore)), position)
 							});
 						}
@@ -505,7 +507,7 @@ export class DebugSession implements IDebugSession {
 
 	//---- threads
 
-	getThread(threadId: number): Thread {
+	getThread(threadId: number): Thread | undefined {
 		return this.threads.get(threadId);
 	}
 
@@ -548,7 +550,10 @@ export class DebugSession implements IDebugSession {
 			this.threads.set(data.threadId, new Thread(this, data.thread.name, data.thread.id));
 		} else if (data.thread && data.thread.name) {
 			// Just the thread name got updated #18244
-			this.threads.get(data.threadId).name = data.thread.name;
+			const thread = this.threads.get(data.threadId);
+			if (thread) {
+				thread.name = data.thread.name;
+			}
 		}
 
 		if (data.stoppedDetails) {
@@ -560,12 +565,14 @@ export class DebugSession implements IDebugSession {
 					thread.stopped = true;
 					thread.clearCallStack();
 				});
-			} else if (this.threads.has(data.threadId)) {
-				// One thread is stopped, only update that thread.
+			} else {
 				const thread = this.threads.get(data.threadId);
-				thread.stoppedDetails = data.stoppedDetails;
-				thread.clearCallStack();
-				thread.stopped = true;
+				if (thread) {
+					// One thread is stopped, only update that thread.
+					thread.stoppedDetails = data.stoppedDetails;
+					thread.clearCallStack();
+					thread.stopped = true;
+				}
 			}
 		}
 	}
@@ -588,6 +595,10 @@ export class DebugSession implements IDebugSession {
 	//---- private
 
 	private registerListeners(): void {
+		if (!this.raw) {
+			return;
+		}
+
 		this.rawListeners.push(this.raw.onDidInitialize(() => {
 			aria.status(nls.localize('debuggingStarted', "Debugging started."));
 			const sendConfigurationDone = () => {
@@ -613,7 +624,7 @@ export class DebugSession implements IDebugSession {
 
 		this.rawListeners.push(this.raw.onDidStop(event => {
 			this.fetchThreads(event.body).then(() => {
-				const thread = this.getThread(event.body.threadId);
+				const thread = typeof event.body.threadId === 'number' ? this.getThread(event.body.threadId) : undefined;
 				if (thread) {
 					// Call fetch call stack twice, the first only return the top stack frame.
 					// Second retrieves the rest of the call stack. For performance reasons #25605
@@ -662,7 +673,7 @@ export class DebugSession implements IDebugSession {
 			aria.status(nls.localize('debuggingStopped', "Debugging stopped."));
 			if (event.body && event.body.restart) {
 				this.debugService.restartSession(this, event.body.restart).then(undefined, onUnexpectedError);
-			} else {
+			} else if (this.raw) {
 				this.raw.disconnect();
 			}
 		}));
@@ -675,7 +686,7 @@ export class DebugSession implements IDebugSession {
 
 		let outpuPromises: Promise<void>[] = [];
 		this.rawListeners.push(this.raw.onDidOutput(event => {
-			if (!event.body) {
+			if (!event.body || !this.raw) {
 				return;
 			}
 
@@ -693,7 +704,7 @@ export class DebugSession implements IDebugSession {
 
 			// Make sure to append output in the correct order by properly waiting on preivous promises #33822
 			const waitFor = outpuPromises.slice();
-			const source = event.body.source ? {
+			const source = event.body.source && event.body.line ? {
 				lineNumber: event.body.line,
 				column: event.body.column ? event.body.column : 1,
 				source: this.getSource(event.body.source)
@@ -703,7 +714,7 @@ export class DebugSession implements IDebugSession {
 				outpuPromises.push(container.getChildren().then(children => {
 					return Promise.all(waitFor).then(() => children.forEach(child => {
 						// Since we can not display multiple trees in a row, we are displaying these variables one after the other (ignoring their names)
-						child.name = null;
+						(<any>child).name = null;
 						this.appendToRepl(child, outputSeverity, source);
 					}));
 				}));
@@ -718,7 +729,7 @@ export class DebugSession implements IDebugSession {
 			const breakpoint = this.model.getBreakpoints().filter(bp => bp.idFromAdapter === id).pop();
 			const functionBreakpoint = this.model.getFunctionBreakpoints().filter(bp => bp.idFromAdapter === id).pop();
 
-			if (event.body.reason === 'new' && event.body.breakpoint.source) {
+			if (event.body.reason === 'new' && event.body.breakpoint.source && event.body.breakpoint.line) {
 				const source = this.getSource(event.body.breakpoint.source);
 				const bps = this.model.addBreakpoints(source.uri, [{
 					column: event.body.breakpoint.column,
@@ -770,7 +781,6 @@ export class DebugSession implements IDebugSession {
 
 	shutdown(): void {
 		dispose(this.rawListeners);
-		this.fetchThreadsScheduler = undefined;
 		if (this.raw) {
 			this.raw.disconnect();
 		}
@@ -781,7 +791,7 @@ export class DebugSession implements IDebugSession {
 
 	//---- sources
 
-	getSourceForUri(uri: URI): Source {
+	getSourceForUri(uri: URI): Source | undefined {
 		return this.sources.get(this.getUriKey(uri));
 	}
 

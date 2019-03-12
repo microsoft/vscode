@@ -175,6 +175,7 @@
 		"./vs/workbench/contrib/debug/electron-browser/breakpointWidget.ts",
 		"./vs/workbench/contrib/debug/electron-browser/debugEditorContribution.ts",
 		"./vs/workbench/contrib/debug/electron-browser/debugHover.ts",
+		"./vs/workbench/contrib/debug/electron-browser/debugSession.ts",
 		"./vs/workbench/contrib/debug/electron-browser/electronDebugActions.ts",
 		"./vs/workbench/contrib/debug/electron-browser/rawDebugSession.ts",
 		"./vs/workbench/contrib/debug/electron-browser/repl.ts",

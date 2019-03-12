@@ -71,7 +71,7 @@ export interface IRawModelUpdate {
 }
 
 export interface IRawStoppedDetails {
-	reason: string;
+	reason?: string;
 	description?: string;
 	threadId?: number;
 	text?: string;
@@ -151,13 +151,13 @@ export interface IDebugSession extends ITreeElement {
 
 	getLabel(): string;
 
-	getSourceForUri(modelUri: uri): Source;
+	getSourceForUri(modelUri: uri): Source | undefined;
 	getSource(raw?: DebugProtocol.Source): Source;
 
 	setConfiguration(configuration: { resolved: IConfig, unresolved: IConfig }): void;
 	rawUpdate(data: IRawModelUpdate): void;
 
-	getThread(threadId: number): IThread;
+	getThread(threadId: number): IThread | undefined;
 	getAllThreads(): IThread[];
 	clearThreads(removeThreads: boolean, reference?: number): void;
 
@@ -197,9 +197,9 @@ export interface IDebugSession extends ITreeElement {
 	sendExceptionBreakpoints(exbpts: IExceptionBreakpoint[]): Promise<void>;
 
 	stackTrace(threadId: number, startFrame: number, levels: number): Promise<DebugProtocol.StackTraceResponse>;
-	exceptionInfo(threadId: number): Promise<IExceptionInfo>;
+	exceptionInfo(threadId: number): Promise<IExceptionInfo | undefined>;
 	scopes(frameId: number): Promise<DebugProtocol.ScopesResponse>;
-	variables(variablesReference: number | undefined, filter: 'indexed' | 'named' | undefined, start: number | undefined, count: number | undefined): Promise<DebugProtocol.VariablesResponse>;
+	variables(variablesReference: number, filter: 'indexed' | 'named' | undefined, start: number | undefined, count: number | undefined): Promise<DebugProtocol.VariablesResponse>;
 	evaluate(expression: string, frameId?: number, context?: string): Promise<DebugProtocol.EvaluateResponse>;
 	customRequest(request: string, args: any): Promise<DebugProtocol.Response>;
 
@@ -237,14 +237,14 @@ export interface IThread extends ITreeElement {
 	readonly name: string;
 
 	/**
-	 * Information about the current thread stop event. Null if thread is not stopped.
+	 * Information about the current thread stop event. Undefined if thread is not stopped.
 	 */
-	readonly stoppedDetails: IRawStoppedDetails;
+	readonly stoppedDetails: IRawStoppedDetails | undefined;
 
 	/**
-	 * Information about the exception if an 'exception' stopped event raised and DA supports the 'exceptionInfo' request, otherwise null.
+	 * Information about the exception if an 'exception' stopped event raised and DA supports the 'exceptionInfo' request, otherwise undefined.
 	 */
-	readonly exceptionInfo: Promise<IExceptionInfo | null>;
+	readonly exceptionInfo: Promise<IExceptionInfo | undefined>;
 
 	readonly stateLabel: string;
 
