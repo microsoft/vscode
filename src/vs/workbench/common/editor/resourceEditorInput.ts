@@ -22,7 +22,7 @@ export class ResourceEditorInput extends EditorInput {
 	private modelReference: Promise<IReference<ITextEditorModel>> | null;
 
 	constructor(
-		private name: string,
+		private name: string | null,
 		private description: string | null,
 		private readonly resource: URI,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
@@ -43,11 +43,11 @@ export class ResourceEditorInput extends EditorInput {
 		return ResourceEditorInput.ID;
 	}
 
-	getName(): string {
+	getName(): string | null {
 		return this.name;
 	}
 
-	setName(name: string): void {
+	setName(name: string | null): void {
 		if (this.name !== name) {
 			this.name = name;
 			this._onDidChangeLabel.fire();
@@ -58,7 +58,7 @@ export class ResourceEditorInput extends EditorInput {
 		return this.description;
 	}
 
-	setDescription(description: string): void {
+	setDescription(description: string | null): void {
 		if (this.description !== description) {
 			this.description = description;
 			this._onDidChangeLabel.fire();

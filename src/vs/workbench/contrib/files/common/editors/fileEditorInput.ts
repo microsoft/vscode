@@ -98,8 +98,10 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		}
 	}
 
-	setPreferredEncoding(encoding: string): void {
-		this.preferredEncoding = encoding;
+	setPreferredEncoding(encoding: string | undefined): void {
+		if (typeof encoding !== 'undefined') {
+			this.preferredEncoding = encoding;
+		}
 
 		if (encoding) {
 			this.forceOpenAsText = true; // encoding is a good hint to open the file as text

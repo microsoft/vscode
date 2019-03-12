@@ -142,7 +142,7 @@ export interface IEditorControl extends ICompositeControl { }
 
 export interface IFileInputFactory {
 
-	createFileInput(resource: URI, encoding: string, instantiationService: IInstantiationService): IFileEditorInput;
+	createFileInput(resource: URI, encoding: string | undefined, instantiationService: IInstantiationService): IFileEditorInput;
 
 	isFileInput(obj: any): obj is IFileEditorInput;
 }
@@ -516,9 +516,9 @@ export interface IFileEditorInput extends IEditorInput, IEncodingSupport {
 	getResource(): URI;
 
 	/**
-	 * Sets the preferred encodingt to use for this input.
+	 * Sets the preferred encoding to use for this input.
 	 */
-	setPreferredEncoding(encoding: string): void;
+	setPreferredEncoding(encoding: string | undefined): void;
 
 	/**
 	 * Forces this file input to open as binary instead of text.
@@ -534,7 +534,7 @@ export class SideBySideEditorInput extends EditorInput {
 	static readonly ID: string = 'workbench.editorinputs.sidebysideEditorInput';
 
 	constructor(
-		private readonly name: string,
+		private readonly name: string | null,
 		private readonly description: string | null,
 		private readonly _details: EditorInput,
 		private readonly _master: EditorInput
@@ -603,7 +603,7 @@ export class SideBySideEditorInput extends EditorInput {
 		return SideBySideEditorInput.ID;
 	}
 
-	getName(): string {
+	getName(): string | null {
 		return this.name;
 	}
 
