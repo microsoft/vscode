@@ -45,7 +45,7 @@ let onTerminate = function () {
 
 function createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 
-	const pipeName = process.env.VSCODE_IPC_HOOK_EXTHOST;
+	const pipeName = process.env.VSCODE_IPC_HOOK_EXTHOST!;
 
 	return new Promise<IMessagePassingProtocol>((resolve, reject) => {
 

@@ -15,12 +15,39 @@ import { CodeAction, CodeActionContext, CodeActionProviderRegistry, CodeActionTr
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { CodeActionKind, CodeActionTrigger, filtersAction, mayIncludeActionsOfKind, CodeActionFilter } from './codeActionTrigger';
 
+export class CodeActionSet {
+
+	private static codeActionsComparator(a: CodeAction, b: CodeAction): number {
+		if (isNonEmptyArray(a.diagnostics)) {
+			if (isNonEmptyArray(b.diagnostics)) {
+				return a.diagnostics[0].message.localeCompare(b.diagnostics[0].message);
+			} else {
+				return -1;
+			}
+		} else if (isNonEmptyArray(b.diagnostics)) {
+			return 1;
+		} else {
+			return 0;	// both have no diagnostics
+		}
+	}
+
+	public readonly actions: ReadonlyArray<CodeAction>;
+
+	public constructor(actions: CodeAction[]) {
+		this.actions = mergeSort(actions, CodeActionSet.codeActionsComparator);
+	}
+
+	public get hasAutoFix() {
+		return this.actions.some(fix => !!fix.kind && CodeActionKind.QuickFix.contains(new CodeActionKind(fix.kind)) && !!fix.isPreferred);
+	}
+}
+
 export function getCodeActions(
 	model: ITextModel,
 	rangeOrSelection: Range | Selection,
 	trigger: CodeActionTrigger,
 	token: CancellationToken
-): Promise<CodeAction[]> {
+): Promise<CodeActionSet> {
 	const filter = trigger.filter || {};
 
 	const codeActionContext: CodeActionContext = {
@@ -46,7 +73,7 @@ export function getCodeActions(
 
 	return Promise.all(promises)
 		.then(flatten)
-		.then(allCodeActions => mergeSort(allCodeActions, codeActionsComparator));
+		.then(actions => new CodeActionSet(actions));
 }
 
 function getCodeActionProviders(
@@ -64,21 +91,7 @@ function getCodeActionProviders(
 		});
 }
 
-function codeActionsComparator(a: CodeAction, b: CodeAction): number {
-	if (isNonEmptyArray(a.diagnostics)) {
-		if (isNonEmptyArray(b.diagnostics)) {
-			return a.diagnostics[0].message.localeCompare(b.diagnostics[0].message);
-		} else {
-			return -1;
-		}
-	} else if (isNonEmptyArray(b.diagnostics)) {
-		return 1;
-	} else {
-		return 0;	// both have no diagnostics
-	}
-}
-
-registerLanguageCommand('_executeCodeActionProvider', function (accessor, args) {
+registerLanguageCommand('_executeCodeActionProvider', function (accessor, args): Promise<ReadonlyArray<CodeAction>> {
 	const { resource, range, kind } = args;
 	if (!(resource instanceof URI) || !Range.isIRange(range)) {
 		throw illegalArgument();
@@ -93,5 +106,5 @@ registerLanguageCommand('_executeCodeActionProvider', function (accessor, args) 
 		model,
 		model.validateRange(range),
 		{ type: 'manual', filter: { includeSourceActions: true, kind: kind && kind.value ? new CodeActionKind(kind.value) : undefined } },
-		CancellationToken.None);
+		CancellationToken.None).then(actions => actions.actions);
 });

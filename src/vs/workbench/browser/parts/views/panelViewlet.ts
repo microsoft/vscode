@@ -28,6 +28,7 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IView } from 'vs/workbench/common/views';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 export interface IPanelColors extends IColorMapping {
 	dropBackground?: ColorIdentifier;
@@ -127,7 +128,7 @@ export abstract class ViewletPanel extends Panel implements IView {
 			orientation: ActionsOrientation.HORIZONTAL,
 			actionItemProvider: action => this.getActionItem(action),
 			ariaLabel: nls.localize('viewToolbarAriaLabel', "{0} actions", this.title),
-			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id) || undefined,
+			getKeyBinding: action => withNullAsUndefined(this.keybindingService.lookupKeybinding(action.id)),
 			actionRunner: this.actionRunner
 		});
 

@@ -647,7 +647,7 @@ export function createApiFactory(
 		// namespace: scm
 		const scm: typeof vscode.scm = {
 			get inputBox() {
-				return extHostSCM.getLastInputBox(extension);
+				return extHostSCM.getLastInputBox(extension)!; // Strict null override - Deprecated api
 			},
 			createSourceControl(id: string, label: string, rootUri?: vscode.Uri) {
 				return extHostSCM.createSourceControl(extension, id, label, rootUri);
@@ -859,7 +859,7 @@ class Extension<T> implements vscode.Extension<T> {
 
 	get exports(): T {
 		if (this.packageJSON.api === 'none') {
-			return undefined;
+			return undefined!; // Strict nulloverride - Public api
 		}
 		return <T>this._extensionService.getExtensionExports(this._identifier);
 	}

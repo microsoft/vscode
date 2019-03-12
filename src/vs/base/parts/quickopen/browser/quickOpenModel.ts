@@ -471,13 +471,13 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 			// Label
 			const options: IIconLabelValueOptions = entry.getLabelOptions() || Object.create(null);
 			options.matches = labelHighlights || [];
-			options.title = entry.getTooltip() || undefined;
-			options.descriptionTitle = entry.getDescriptionTooltip() || entry.getDescription() || undefined; // tooltip over description because it could overflow
+			options.title = types.withNullAsUndefined(entry.getTooltip());
+			options.descriptionTitle = entry.getDescriptionTooltip() || types.withNullAsUndefined(entry.getDescription()); // tooltip over description because it could overflow
 			options.descriptionMatches = descriptionHighlights || [];
-			data.label.setLabel(entry.getLabel() || undefined, entry.getDescription() || undefined, options);
+			data.label.setLabel(types.withNullAsUndefined(entry.getLabel()), types.withNullAsUndefined(entry.getDescription()), options);
 
 			// Meta
-			data.detail.set(entry.getDetail() || undefined, detailHighlights);
+			data.detail.set(types.withNullAsUndefined(entry.getDetail()), detailHighlights);
 
 			// Keybinding
 			data.keybinding.set(entry.getKeybinding()!);

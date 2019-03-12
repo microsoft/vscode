@@ -88,7 +88,7 @@ interface ISerializedPreferencesEditorInput {
 // Register Preferences Editor Input Factory
 class PreferencesEditorInputFactory implements IEditorInputFactory {
 
-	serialize(editorInput: EditorInput): string {
+	serialize(editorInput: EditorInput): string | null {
 		const input = <PreferencesEditorInput>editorInput;
 
 		if (input.details && input.master) {
@@ -116,7 +116,7 @@ class PreferencesEditorInputFactory implements IEditorInputFactory {
 		return null;
 	}
 
-	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
+	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput | null {
 		const deserialized: ISerializedPreferencesEditorInput = JSON.parse(serializedEditorInput);
 
 		const registry = Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories);
@@ -555,7 +555,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 
 abstract class SettingsCommand extends Command {
 
-	protected getPreferencesEditor(accessor: ServicesAccessor): PreferencesEditor | SettingsEditor2 {
+	protected getPreferencesEditor(accessor: ServicesAccessor): PreferencesEditor | SettingsEditor2 | null {
 		const activeControl = accessor.get(IEditorService).activeControl;
 		if (activeControl instanceof PreferencesEditor || activeControl instanceof SettingsEditor2) {
 			return activeControl;
@@ -603,7 +603,7 @@ class FocusSettingsFileEditorCommand extends SettingsCommand {
 		const preferencesEditor = this.getPreferencesEditor(accessor);
 		if (preferencesEditor instanceof PreferencesEditor) {
 			preferencesEditor.focusSettingsFileEditor();
-		} else {
+		} else if (preferencesEditor) {
 			preferencesEditor.focusSettings();
 		}
 	}

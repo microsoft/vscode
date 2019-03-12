@@ -440,7 +440,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.keybindingsListContainer = DOM.append(parent, $('.keybindings-list-container'));
 		this.keybindingsList = this._register(this.instantiationService.createInstance(WorkbenchList, this.keybindingsListContainer, new Delegate(), [new KeybindingItemRenderer(this, this.instantiationService)],
 			{
-				identityProvider: { getId: e => e.id },
+				identityProvider: { getId: (e: IListEntry) => e.id },
 				ariaLabel: localize('keybindingsLabel', "Keybindings"),
 				setRowLineHeight: false,
 				horizontalScrolling: false

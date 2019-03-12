@@ -39,7 +39,7 @@ export interface IOpenEditorOverride {
 	override?: Promise<IEditor | null | undefined>;
 }
 
-export interface IActiveEditor extends IEditor {
+export interface IVisibleEditor extends IEditor {
 	input: IEditorInput;
 	group: IEditorGroup;
 }
@@ -74,7 +74,7 @@ export interface IEditorService {
 	 *
 	 * @see `IEditorService.activeEditor`
 	 */
-	readonly activeControl: IActiveEditor | undefined;
+	readonly activeControl: IVisibleEditor | undefined;
 
 	/**
 	 * The currently active text editor widget or `undefined` if there is currently no active
@@ -93,7 +93,7 @@ export interface IEditorService {
 	/**
 	 * All editor controls that are currently visible across all editor groups.
 	 */
-	readonly visibleControls: ReadonlyArray<IEditor>;
+	readonly visibleControls: ReadonlyArray<IVisibleEditor>;
 
 	/**
 	 * All text editor widgets that are currently visible across all editor groups. A text editor

@@ -39,12 +39,16 @@ export function isSearchViewFocused(viewletService: IViewletService, panelServic
 	return !!(searchView && activeElement && DOM.isAncestor(activeElement, searchView.getContainer()));
 }
 
-export function appendKeyBindingLabel(label: string, keyBinding: number | ResolvedKeybinding, keyBindingService2: IKeybindingService): string {
-	if (typeof keyBinding === 'number') {
-		const resolvedKeybindings = keyBindingService2.resolveKeybinding(createKeybinding(keyBinding, OS));
-		return doAppendKeyBindingLabel(label, resolvedKeybindings.length > 0 ? resolvedKeybindings[0] : null);
+export function appendKeyBindingLabel(label: string, inputKeyBinding: number | ResolvedKeybinding | undefined, keyBindingService2: IKeybindingService): string {
+	if (typeof inputKeyBinding === 'number') {
+		const keybinding = createKeybinding(inputKeyBinding, OS);
+		if (keybinding) {
+			const resolvedKeybindings = keyBindingService2.resolveKeybinding(keybinding);
+			return doAppendKeyBindingLabel(label, resolvedKeybindings.length > 0 ? resolvedKeybindings[0] : undefined);
+		}
+		return doAppendKeyBindingLabel(label, undefined);
 	} else {
-		return doAppendKeyBindingLabel(label, keyBinding);
+		return doAppendKeyBindingLabel(label, inputKeyBinding);
 	}
 }
 
@@ -70,23 +74,30 @@ export function getSearchView(viewletService: IViewletService, panelService: IPa
 	return null;
 }
 
-function doAppendKeyBindingLabel(label: string, keyBinding: ResolvedKeybinding): string {
+function doAppendKeyBindingLabel(label: string, keyBinding: ResolvedKeybinding | undefined): string {
 	return keyBinding ? label + ' (' + keyBinding.getLabel() + ')' : label;
 }
 
 export const toggleCaseSensitiveCommand = (accessor: ServicesAccessor) => {
 	const searchView = getSearchView(accessor.get(IViewletService), accessor.get(IPanelService));
-	searchView.toggleCaseSensitive();
+	if (searchView) {
+		searchView.toggleCaseSensitive();
+	}
 };
 
 export const toggleWholeWordCommand = (accessor: ServicesAccessor) => {
 	const searchView = getSearchView(accessor.get(IViewletService), accessor.get(IPanelService));
-	searchView.toggleWholeWords();
+	if (searchView) {
+
+		searchView.toggleWholeWords();
+	}
 };
 
 export const toggleRegexCommand = (accessor: ServicesAccessor) => {
 	const searchView = getSearchView(accessor.get(IViewletService), accessor.get(IPanelService));
-	searchView.toggleRegex();
+	if (searchView) {
+		searchView.toggleRegex();
+	}
 };
 
 export class FocusNextInputAction extends Action {
@@ -102,7 +113,9 @@ export class FocusNextInputAction extends Action {
 
 	run(): Promise<any> {
 		const searchView = getSearchView(this.viewletService, this.panelService);
-		searchView.focusNextInputBox();
+		if (searchView) {
+			searchView.focusNextInputBox();
+		}
 		return Promise.resolve(null);
 	}
 }
@@ -120,7 +133,9 @@ export class FocusPreviousInputAction extends Action {
 
 	run(): Promise<any> {
 		const searchView = getSearchView(this.viewletService, this.panelService);
-		searchView.focusPreviousInputBox();
+		if (searchView) {
+			searchView.focusPreviousInputBox();
+		}
 		return Promise.resolve(null);
 	}
 }
@@ -210,8 +225,10 @@ export class CloseReplaceAction extends Action {
 
 	run(): Promise<any> {
 		const searchView = getSearchView(this.viewletService, this.panelService);
-		searchView.searchAndReplaceWidget.toggleReplace(false);
-		searchView.searchAndReplaceWidget.focus();
+		if (searchView) {
+			searchView.searchAndReplaceWidget.toggleReplace(false);
+			searchView.searchAndReplaceWidget.focus();
+		}
 		return Promise.resolve(null);
 	}
 }
@@ -221,7 +238,7 @@ export class RefreshAction extends Action {
 	static readonly ID: string = 'search.action.refreshSearchResults';
 	static LABEL: string = nls.localize('RefreshAction.label', "Refresh");
 
-	private searchView: SearchView;
+	private searchView: SearchView | null;
 
 	constructor(id: string, label: string,
 		@IViewletService private readonly viewletService: IViewletService,
@@ -232,7 +249,7 @@ export class RefreshAction extends Action {
 	}
 
 	get enabled(): boolean {
-		return this.searchView && this.searchView.isSearchSubmitted();
+		return !!this.searchView && this.searchView.isSearchSubmitted();
 	}
 
 	update(): void {
@@ -245,7 +262,7 @@ export class RefreshAction extends Action {
 			searchView.onQueryChanged();
 		}
 
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 
@@ -576,7 +593,7 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 	private getElementToFocusAfterReplace(): Match {
 		const navigator: INavigator<any> = this.viewer.navigate();
 		let fileMatched = false;
-		let elementToFocus = null;
+		let elementToFocus: any = null;
 		do {
 			elementToFocus = navigator.current();
 			if (elementToFocus instanceof Match) {
@@ -600,7 +617,7 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 		return elementToFocus;
 	}
 
-	private async getElementToShowReplacePreview(elementToFocus: FileMatchOrMatch): Promise<Match> {
+	private async getElementToShowReplacePreview(elementToFocus: FileMatchOrMatch): Promise<Match | null> {
 		if (this.hasSameParent(elementToFocus)) {
 			return <Match>elementToFocus;
 		}
@@ -675,7 +692,7 @@ function fileMatchToString(fileMatch: FileMatch, maxMatches: number): { text: st
 	};
 }
 
-function folderMatchToString(folderMatch: FolderMatch, maxMatches: number): { text: string, count: number } {
+function folderMatchToString(folderMatch: FolderMatch | BaseFolderMatch, maxMatches: number): { text: string, count: number } {
 	const fileResults: string[] = [];
 	let numMatches = 0;
 
@@ -711,7 +728,7 @@ export const copyMatchCommand: ICommandHandler = (accessor, match: RenderableMat
 	}
 };
 
-function allFolderMatchesToString(folderMatches: FolderMatch[], maxMatches: number): string {
+function allFolderMatchesToString(folderMatches: Array<FolderMatch | BaseFolderMatch>, maxMatches: number): string {
 	const folderResults: string[] = [];
 	let numMatches = 0;
 	folderMatches = folderMatches.sort(searchMatchComparer);
@@ -732,10 +749,12 @@ export const copyAllCommand: ICommandHandler = accessor => {
 	const clipboardService = accessor.get(IClipboardService);
 
 	const searchView = getSearchView(viewletService, panelService);
-	const root = searchView.searchResult;
+	if (searchView) {
+		const root = searchView.searchResult;
 
-	const text = allFolderMatchesToString(root.folderMatches(), maxClipboardMatches);
-	clipboardService.writeText(text);
+		const text = allFolderMatchesToString(root.folderMatches(), maxClipboardMatches);
+		clipboardService.writeText(text);
+	}
 };
 
 export const clearHistoryCommand: ICommandHandler = accessor => {

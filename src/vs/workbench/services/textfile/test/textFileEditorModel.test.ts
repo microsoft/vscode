@@ -48,7 +48,7 @@ suite('Files - TextFileEditorModel', () => {
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8');
 
 		return model.load().then(() => {
-			model.textEditorModel.setValue('bar');
+			model.textEditorModel!.setValue('bar');
 			assert.ok(getLastModifiedTime(model) <= Date.now());
 
 			return model.save().then(() => {
@@ -90,7 +90,7 @@ suite('Files - TextFileEditorModel', () => {
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8');
 
 		return model.load().then(() => {
-			model.textEditorModel.dispose();
+			model.textEditorModel!.dispose();
 
 			assert.ok(model.isDisposed());
 		});
@@ -117,7 +117,7 @@ suite('Files - TextFileEditorModel', () => {
 		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8');
 
 		return model.load().then(() => {
-			model.textEditorModel.setValue('foo');
+			model.textEditorModel!.setValue('foo');
 
 			assert.ok(model.isDirty());
 			assert.ok(model.hasState(ModelState.DIRTY));
@@ -141,13 +141,13 @@ suite('Files - TextFileEditorModel', () => {
 		});
 
 		return model.load().then(() => {
-			model.textEditorModel.setValue('foo');
+			model.textEditorModel!.setValue('foo');
 
 			assert.ok(model.isDirty());
 
 			return model.revert().then(() => {
 				assert.ok(!model.isDirty());
-				assert.equal(model.textEditorModel.getValue(), 'Hello Html');
+				assert.equal(model.textEditorModel!.getValue(), 'Hello Html');
 				assert.equal(eventCounter, 1);
 
 				model.dispose();
@@ -167,13 +167,13 @@ suite('Files - TextFileEditorModel', () => {
 		});
 
 		return model.load().then(() => {
-			model.textEditorModel.setValue('foo');
+			model.textEditorModel!.setValue('foo');
 
 			assert.ok(model.isDirty());
 
 			return model.revert(true /* soft revert */).then(() => {
 				assert.ok(!model.isDirty());
-				assert.equal(model.textEditorModel.getValue(), 'foo');
+				assert.equal(model.textEditorModel!.getValue(), 'foo');
 				assert.equal(eventCounter, 1);
 
 				model.dispose();
@@ -186,7 +186,7 @@ suite('Files - TextFileEditorModel', () => {
 		return model.load().then(() => {
 			accessor.fileService.setContent('Hello Change');
 			return model.load().then(() => {
-				model.textEditorModel.undo();
+				model.textEditorModel!.undo();
 
 				assert.ok(model.isDirty());
 			});
@@ -227,7 +227,7 @@ suite('Files - TextFileEditorModel', () => {
 
 		return input1.resolve().then((model1: TextFileEditorModel) => {
 			return input2.resolve().then((model2: TextFileEditorModel) => {
-				model1.textEditorModel.setValue('foo');
+				model1.textEditorModel!.setValue('foo');
 
 				const m1Mtime = model1.getStat().mtime;
 				const m2Mtime = model2.getStat().mtime;
@@ -238,7 +238,7 @@ suite('Files - TextFileEditorModel', () => {
 				assert.ok(accessor.textFileService.isDirty(toResource.call(this, '/path/index_async2.txt')));
 				assert.ok(!accessor.textFileService.isDirty(toResource.call(this, '/path/index_async.txt')));
 
-				model2.textEditorModel.setValue('foo');
+				model2.textEditorModel!.setValue('foo');
 				assert.ok(accessor.textFileService.isDirty(toResource.call(this, '/path/index_async.txt')));
 
 				return timeout(10).then(() => {
@@ -281,7 +281,7 @@ suite('Files - TextFileEditorModel', () => {
 		});
 
 		return model.load().then(() => {
-			model.textEditorModel.setValue('foo');
+			model.textEditorModel!.setValue('foo');
 
 			return model.save().then(() => {
 				model.dispose();
@@ -302,7 +302,7 @@ suite('Files - TextFileEditorModel', () => {
 		});
 
 		return model.load().then(() => {
-			model.textEditorModel.setValue('foo');
+			model.textEditorModel!.setValue('foo');
 
 			const now = Date.now();
 			return model.save().then(() => {
@@ -322,7 +322,7 @@ suite('Files - TextFileEditorModel', () => {
 		});
 
 		return model.load().then(() => {
-			model.textEditorModel.setValue('foo');
+			model.textEditorModel!.setValue('foo');
 			return model.save().then(() => {
 				model.dispose();
 			});

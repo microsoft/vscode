@@ -344,14 +344,14 @@ class CodeActionOnSaveParticipant implements ISaveParticipant {
 		for (const codeActionKind of codeActionsOnSave) {
 			const actionsToRun = await this.getActionsToRun(model, codeActionKind, token);
 			try {
-				await this.applyCodeActions(actionsToRun);
+				await this.applyCodeActions(actionsToRun.actions);
 			} catch {
 				// Failure to apply a code action should not block other on save actions
 			}
 		}
 	}
 
-	private async applyCodeActions(actionsToRun: CodeAction[]) {
+	private async applyCodeActions(actionsToRun: ReadonlyArray<CodeAction>) {
 		for (const action of actionsToRun) {
 			await applyCodeAction(action, this._bulkEditService, this._commandService);
 		}

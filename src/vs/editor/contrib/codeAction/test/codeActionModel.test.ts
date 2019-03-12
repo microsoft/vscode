@@ -51,9 +51,9 @@ suite('CodeAction', () => {
 			assert.equal(e.trigger.type, 'auto');
 			assert.ok(e.actions);
 
-			e.actions!.then(fixes => {
+			e.actions.then(fixes => {
 				oracle.dispose();
-				assert.equal(fixes.length, 1);
+				assert.equal(fixes.actions.length, 1);
 				done();
 			}, done);
 		});
@@ -88,9 +88,9 @@ suite('CodeAction', () => {
 			const oracle = new CodeActionOracle(editor, markerService, (e: CodeActionsState.Triggered) => {
 				assert.equal(e.trigger.type, 'auto');
 				assert.ok(e.actions);
-				e.actions!.then(fixes => {
+				e.actions.then(fixes => {
 					oracle.dispose();
-					assert.equal(fixes.length, 1);
+					assert.equal(fixes.actions.length, 1);
 					resolve(undefined);
 				}, reject);
 			});

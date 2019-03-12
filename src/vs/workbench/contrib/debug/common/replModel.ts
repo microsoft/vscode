@@ -23,7 +23,7 @@ export class ReplModel {
 		return this.replElements;
 	}
 
-	addReplExpression(stackFrame: IStackFrame, name: string): Promise<void> {
+	addReplExpression(stackFrame: IStackFrame | undefined, name: string): Promise<void> {
 		const expression = new Expression(name);
 		this.addReplElements([expression]);
 		return expression.evaluate(this.session, stackFrame, 'repl');

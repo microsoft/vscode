@@ -401,7 +401,7 @@ export class ConfigurationManager implements IConfigurationManager {
 	}
 
 	public canSetBreakpointsIn(model: ITextModel): boolean {
-		const modeId = model ? model.getLanguageIdentifier().language : null;
+		const modeId = model.getLanguageIdentifier().language;
 		if (!modeId || modeId === 'jsonc' || modeId === 'log') {
 			// do not allow breakpoints in our settings files and output
 			return false;
