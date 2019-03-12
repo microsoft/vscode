@@ -41,6 +41,7 @@ export interface IWebviewEditorService {
 		state: any,
 		options: WebviewInputOptions,
 		extensionLocation: URI | undefined,
+		group: number | undefined
 	): WebviewEditorInput;
 
 	revealWebview(
@@ -134,7 +135,8 @@ export class WebviewEditorService implements IWebviewEditorService {
 		iconPath: { light: URI, dark: URI } | undefined,
 		state: any,
 		options: WebviewInputOptions,
-		extensionLocation: URI
+		extensionLocation: URI,
+		group: number | undefined,
 	): WebviewEditorInput {
 		const webviewInput = this._instantiationService.createInstance(RevivedWebviewEditorInput, viewType, id, title, options, state, {}, extensionLocation, async (webview: WebviewEditorInput): Promise<void> => {
 			const didRevive = await this.tryRevive(webview);
@@ -149,6 +151,9 @@ export class WebviewEditorService implements IWebviewEditorService {
 			return promise;
 		});
 		webviewInput.iconPath = iconPath;
+		if (typeof group === 'number') {
+			webviewInput.updateGroup(group);
+		}
 		return webviewInput;
 	}
 

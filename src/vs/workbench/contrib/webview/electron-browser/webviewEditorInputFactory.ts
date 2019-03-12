@@ -22,6 +22,7 @@ interface SerializedWebview {
 	readonly extensionLocation: string | UriComponents | undefined;
 	readonly state: any;
 	readonly iconPath: SerializedIconPath | undefined;
+	readonly group?: number;
 }
 
 export class WebviewEditorInputFactory implements IEditorInputFactory {
@@ -53,6 +54,7 @@ export class WebviewEditorInputFactory implements IEditorInputFactory {
 			extensionLocation: input.extensionLocation,
 			state: input.state,
 			iconPath: input.iconPath ? { light: input.iconPath.light, dark: input.iconPath.dark, } : undefined,
+			group: input.group
 		};
 
 		try {
@@ -69,7 +71,7 @@ export class WebviewEditorInputFactory implements IEditorInputFactory {
 		const data: SerializedWebview = JSON.parse(serializedEditorInput);
 		const extensionLocation = reviveUri(data.extensionLocation);
 		const iconPath = reviveIconPath(data.iconPath);
-		return this._webviewService.reviveWebview(data.viewType, data.id, data.title, iconPath, data.state, data.options, extensionLocation);
+		return this._webviewService.reviveWebview(data.viewType, data.id, data.title, iconPath, data.state, data.options, extensionLocation, data.group);
 	}
 }
 function reviveIconPath(data: SerializedIconPath | undefined) {
