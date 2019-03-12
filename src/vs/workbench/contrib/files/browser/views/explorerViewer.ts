@@ -660,7 +660,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 				return overwritePromise.then(res => {
 					if (!res.confirmed) {
-						return undefined;
+						return [];
 					}
 
 					// Run add in sequence
@@ -673,7 +673,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 							// if the target exists and is dirty, make sure to revert it. otherwise the dirty contents
 							// of the target file would replace the contents of the added file. since we already
 							// confirmed the overwrite before, this is OK.
-							let revertPromise: Promise<ITextFileOperationResult> = Promise.resolve(null);
+							let revertPromise: Promise<ITextFileOperationResult | null> = Promise.resolve(null);
 							if (this.textFileService.isDirty(targetFile)) {
 								revertPromise = this.textFileService.revertAll([targetFile], { soft: true });
 							}
