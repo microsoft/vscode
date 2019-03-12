@@ -11,7 +11,7 @@ import { asPromise } from 'vs/base/common/async';
 import * as nls from 'vs/nls';
 import {
 	MainContext, MainThreadDebugServiceShape, ExtHostDebugServiceShape, DebugSessionUUID,
-	IMainContext, IBreakpointsDeltaDto, ISourceMultiBreakpointDto, IFunctionBreakpointDto, IDebugSessionDto
+	IMainContext, IBreakpointsDeltaDto, ISourceMultiBreakpointDto, IFunctionBreakpointDto, IDebugSessionDto, IRunInTerminalResultDto
 } from 'vs/workbench/api/node/extHost.protocol';
 import * as vscode from 'vscode';
 import { Disposable, Position, Location, SourceBreakpoint, FunctionBreakpoint, DebugAdapterServer, DebugAdapterExecutable } from 'vs/workbench/api/node/extHostTypes';
@@ -25,7 +25,7 @@ import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
 import { ExtHostConfiguration, ExtHostConfigProvider } from './extHostConfiguration';
 import { convertToVSCPaths, convertToDAPaths, isDebuggerMainContribution } from 'vs/workbench/contrib/debug/common/debugUtils';
-import { ExtHostTerminalService } from 'vs/workbench/api/node/extHostTerminalService';
+import { ExtHostTerminalService, ExtHostTerminal } from 'vs/workbench/api/node/extHostTerminalService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -316,7 +316,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 	// RPC methods (ExtHostDebugServiceShape)
 
-	public $runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Promise<number | undefined> {
+	public $runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Promise<IRunInTerminalResultDto> {
 
 		if (args.kind === 'integrated') {
 
@@ -329,7 +329,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 				});
 			}
 
-			return new Promise(resolve => {
+			return new Promise<boolean>(resolve => {
 				if (this._integratedTerminalInstance) {
 					this._integratedTerminalInstance.processId.then(pid => {
 						resolve(hasChildProcesses(pid));
@@ -352,7 +352,10 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 					const command = prepareCommand(args, config);
 					this._integratedTerminalInstance.sendText(command, true);
 
-					return shellProcessId;
+					return {
+						shellProcessId: shellProcessId,
+						terminalId: this._integratedTerminalInstance['_id']
+					};
 				});
 			});
 
@@ -360,7 +363,12 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 			const terminalLauncher = getTerminalLauncher();
 			if (terminalLauncher) {
-				return terminalLauncher.runInTerminal(args, config);
+				return terminalLauncher.runInTerminal(args, config).then(x => {
+					return {
+						shellProcessId: x.shellProcessId,
+						terminalId: null
+					};
+				});
 			}
 		}
 		return undefined;
@@ -795,7 +803,14 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 				return this._debugSessions.get(dto);
 			} else {
 				const folder = await this.getFolder(dto.folderUri);
-				const debugSession = new ExtHostDebugSession(this._debugServiceProxy, dto.id, dto.type, dto.name, folder, dto.configuration);
+
+				let terminal: ExtHostTerminal = null;
+
+				if (typeof dto.id === 'number') {
+					terminal = await this._terminalService._getTerminalByIdEventually(dto.id);
+				}
+
+				const debugSession = new ExtHostDebugSession(this._debugServiceProxy, dto.id, dto.type, dto.name, folder, dto.configuration, terminal);
 				this._debugSessions.set(debugSession.id, debugSession);
 				return debugSession;
 			}
@@ -820,7 +835,9 @@ export class ExtHostDebugSession implements vscode.DebugSession {
 		private _type: string,
 		private _name: string,
 		private _workspaceFolder: vscode.WorkspaceFolder | undefined,
-		private _configuration: vscode.DebugConfiguration) {
+		private _configuration: vscode.DebugConfiguration,
+		private _terminal: vscode.Terminal
+	) {
 	}
 
 	public get id(): string {
@@ -841,6 +858,10 @@ export class ExtHostDebugSession implements vscode.DebugSession {
 
 	public get configuration(): vscode.DebugConfiguration {
 		return this._configuration;
+	}
+
+	public get terminal(): vscode.Terminal {
+		return this._terminal;
 	}
 
 	public customRequest(command: string, args: any): Promise<any> {

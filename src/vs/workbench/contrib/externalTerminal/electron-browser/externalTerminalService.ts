@@ -13,6 +13,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { getDefaultTerminalWindows, getDefaultTerminalLinuxReady, DEFAULT_TERMINAL_OSX } from 'vs/workbench/contrib/externalTerminal/electron-browser/externalTerminal';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { IRunInTerminalResult } from 'vs/workbench/contrib/debug/common/debug';
 
 const TERMINAL_TITLE = nls.localize('console.title', "VS Code Console");
 
@@ -37,13 +38,13 @@ export class WindowsExternalTerminalService implements IExternalTerminalService 
 		this.spawnTerminal(cp, configuration, processes.getWindowsShell(), cwd);
 	}
 
-	public runInTerminal(title: string, dir: string, args: string[], envVars: IProcessEnvironment): Promise<number | undefined> {
+	public runInTerminal(title: string, dir: string, args: string[], envVars: IProcessEnvironment): Promise<IRunInTerminalResult> {
 
 		const configuration = this._configurationService.getValue<IExternalTerminalConfiguration>();
 		const terminalConfig = configuration.terminal.external;
 		const exec = terminalConfig.windowsExec || getDefaultTerminalWindows();
 
-		return new Promise<number | undefined>((c, e) => {
+		return new Promise<IRunInTerminalResult>((c, e) => {
 
 			const title = `"${dir} - ${TERMINAL_TITLE}"`;
 			const command = `""${args.join('" "')}" & pause"`; // use '|' to only pause on non-zero exit code
@@ -67,7 +68,7 @@ export class WindowsExternalTerminalService implements IExternalTerminalService 
 			const cmd = cp.spawn(WindowsExternalTerminalService.CMD, cmdArgs, options);
 			cmd.on('error', e);
 
-			c(undefined);
+			c({});
 		});
 	}
 
@@ -128,13 +129,13 @@ export class MacExternalTerminalService implements IExternalTerminalService {
 		this.spawnTerminal(cp, configuration, cwd);
 	}
 
-	public runInTerminal(title: string, dir: string, args: string[], envVars: IProcessEnvironment): Promise<number | undefined> {
+	public runInTerminal(title: string, dir: string, args: string[], envVars: IProcessEnvironment): Promise<IRunInTerminalResult> {
 
 		const configuration = this._configurationService.getValue<IExternalTerminalConfiguration>();
 		const terminalConfig = configuration.terminal.external;
 		const terminalApp = terminalConfig.osxExec || DEFAULT_TERMINAL_OSX;
 
-		return new Promise<number | undefined>((c, e) => {
+		return new Promise<IRunInTerminalResult>((c, e) => {
 
 			if (terminalApp === DEFAULT_TERMINAL_OSX || terminalApp === 'iTerm.app') {
 
@@ -176,7 +177,7 @@ export class MacExternalTerminalService implements IExternalTerminalService {
 				});
 				osa.on('exit', (code: number) => {
 					if (code === 0) {	// OK
-						c(undefined);
+						c({});
 					} else {
 						if (stderr) {
 							const lines = stderr.split('\n', 1);
@@ -220,13 +221,13 @@ export class LinuxExternalTerminalService implements IExternalTerminalService {
 		this.spawnTerminal(cp, configuration, cwd);
 	}
 
-	public runInTerminal(title: string, dir: string, args: string[], envVars: IProcessEnvironment): Promise<number | undefined> {
+	public runInTerminal(title: string, dir: string, args: string[], envVars: IProcessEnvironment): Promise<IRunInTerminalResult> {
 
 		const configuration = this._configurationService.getValue<IExternalTerminalConfiguration>();
 		const terminalConfig = configuration.terminal.external;
 		const execPromise = terminalConfig.linuxExec ? Promise.resolve(terminalConfig.linuxExec) : getDefaultTerminalLinuxReady();
 
-		return new Promise<number | undefined>((c, e) => {
+		return new Promise<IRunInTerminalResult>((c, e) => {
 
 			let termArgs: string[] = [];
 			//termArgs.push('--title');
@@ -262,7 +263,7 @@ export class LinuxExternalTerminalService implements IExternalTerminalService {
 				});
 				cmd.on('exit', (code: number) => {
 					if (code === 0) {	// OK
-						c(undefined);
+						c({});
 					} else {
 						if (stderr) {
 							const lines = stderr.split('\n', 1);

@@ -14,6 +14,7 @@ import { IDebugAdapter, IConfig, AdapterEndEvent, IDebugger } from 'vs/workbench
 import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
 import * as cp from 'child_process';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ITerminalInstance } from 'vs/workbench/contrib/terminal/common/terminal';
 
 /**
  * This interface represents a single command line argument split into a "prefix" and a "path" half.
@@ -38,6 +39,7 @@ export class RawDebugSession {
 	private allThreadsContinued: boolean;
 	private _readyForBreakpoints: boolean;
 	private _capabilities: DebugProtocol.Capabilities;
+	private _terminal: ITerminalInstance | undefined;
 
 	// shutdown
 	private debugAdapterStopped: boolean;
@@ -156,6 +158,10 @@ export class RawDebugSession {
 		});
 
 		this.debugAdapter.onRequest(request => this.dispatchRequest(request, dbgr));
+	}
+
+	public getTerminal(): ITerminalInstance | undefined {
+		return this._terminal;
 	}
 
 	public get onDidExitAdapter(): Event<AdapterEndEvent> {
@@ -513,11 +519,14 @@ export class RawDebugSession {
 				});
 				break;
 			case 'runInTerminal':
-				dbgr.runInTerminal(request.arguments as DebugProtocol.RunInTerminalRequestArguments).then(shellProcessId => {
+				dbgr.runInTerminal(request.arguments as DebugProtocol.RunInTerminalRequestArguments).then(result => {
 					const resp = response as DebugProtocol.RunInTerminalResponse;
 					resp.body = {};
-					if (typeof shellProcessId === 'number') {
-						resp.body.shellProcessId = shellProcessId;
+					if (result) {
+						this._terminal = result.terminal;
+						if (typeof result.shellProcessId === 'number') {
+							resp.body.shellProcessId = result.shellProcessId;
+						}
 					}
 					safeSendResponse(resp);
 				}, err => {

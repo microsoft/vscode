@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ITerminalService, ITerminalInstance } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IExternalTerminalService } from 'vs/workbench/contrib/externalTerminal/common/externalTerminal';
-import { ITerminalLauncher, ITerminalSettings } from 'vs/workbench/contrib/debug/common/debug';
+import { ITerminalLauncher, ITerminalSettings, IRunInTerminalResult } from 'vs/workbench/contrib/debug/common/debug';
 import { hasChildProcesses, prepareCommand } from 'vs/workbench/contrib/debug/node/terminals';
 
 export class TerminalLauncher implements ITerminalLauncher {
@@ -21,7 +21,7 @@ export class TerminalLauncher implements ITerminalLauncher {
 	) {
 	}
 
-	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Promise<number | undefined> {
+	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Promise<IRunInTerminalResult> {
 
 		if (args.kind === 'external') {
 			return this.externalTerminalService.runInTerminal(args.title, args.cwd, args.args, args.env || {});
@@ -44,7 +44,7 @@ export class TerminalLauncher implements ITerminalLauncher {
 		this.terminalService.setActiveInstance(t);
 		this.terminalService.showPanel(true);
 
-		return new Promise<number | undefined>((resolve, error) => {
+		return new Promise<number>((resolve, error) => {
 
 			if (typeof t.processId === 'number') {
 				// no need to wait
@@ -67,7 +67,7 @@ export class TerminalLauncher implements ITerminalLauncher {
 			const command = prepareCommand(args, config);
 			t.sendText(command, true);
 
-			return shellProcessId;
+			return { shellProcessId: shellProcessId };
 		});
 	}
 }

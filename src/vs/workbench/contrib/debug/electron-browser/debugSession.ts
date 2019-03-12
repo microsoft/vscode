@@ -33,6 +33,7 @@ import { ReplModel } from 'vs/workbench/contrib/debug/common/replModel';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { ITerminalInstance } from 'vs/workbench/contrib/terminal/common/terminal';
 
 export class DebugSession implements IDebugSession {
 	private id: string;
@@ -69,6 +70,11 @@ export class DebugSession implements IDebugSession {
 	) {
 		this.id = generateUuid();
 		this.repl = new ReplModel(this);
+	}
+
+
+	get terminal(): ITerminalInstance | undefined {
+		return this.raw ? this.raw.getTerminal() : undefined;
 	}
 
 	getId(): string {

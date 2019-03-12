@@ -512,7 +512,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 
 	}
 
-	private _getTerminalByIdEventually(id: number, retries: number = 5): Promise<ExtHostTerminal> {
+	public _getTerminalByIdEventually(id: number, retries: number = 5): Promise<ExtHostTerminal> {
 		if (!this._getTerminalPromises[id]) {
 			this._getTerminalPromises[id] = this._createGetTerminalPromise(id, retries);
 		} else {

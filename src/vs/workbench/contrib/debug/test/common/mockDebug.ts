@@ -123,6 +123,9 @@ export class MockDebugService implements IDebugService {
 }
 
 export class MockSession implements IDebugSession {
+
+	terminal: import('../../../terminal/common/terminal').ITerminalInstance;
+
 	getReplElements(): IReplElement[] {
 		return [];
 	}

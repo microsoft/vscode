@@ -25,6 +25,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { TaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { IOutputService } from 'vs/workbench/contrib/output/common/output';
+import { ITerminalInstance } from 'vs/workbench/contrib/terminal/common/terminal';
 
 export const VIEWLET_ID = 'workbench.view.debug';
 export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(VIEWLET_ID);
@@ -111,7 +112,7 @@ export interface IExpression extends IReplElement, IExpressionContainer {
 
 export interface IDebugger {
 	createDebugAdapter(session: IDebugSession, outputService: IOutputService): Promise<IDebugAdapter>;
-	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): Promise<number | undefined>;
+	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): Promise<IRunInTerminalResult>;
 	getCustomTelemetryService(): Promise<TelemetryService>;
 }
 
@@ -148,6 +149,7 @@ export interface IDebugSession extends ITreeElement {
 	readonly unresolvedConfiguration: IConfig;
 	readonly state: State;
 	readonly root: IWorkspaceFolder;
+	readonly terminal: ITerminalInstance | undefined;
 
 	getLabel(): string;
 
@@ -483,6 +485,11 @@ export interface IDebugAdapterFactory extends ITerminalLauncher {
 	substituteVariables(folder: IWorkspaceFolder, config: IConfig): Promise<IConfig>;
 }
 
+export interface IRunInTerminalResult {
+	shellProcessId?: number;
+	terminal?: ITerminalInstance;
+}
+
 export interface IDebugAdapterExecutableOptions {
 	cwd?: string;
 	env?: { [key: string]: string };
@@ -557,7 +564,7 @@ export interface IDebugAdapterTrackerFactory {
 }
 
 export interface ITerminalLauncher {
-	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Promise<number | undefined>;
+	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Promise<IRunInTerminalResult>;
 }
 
 export interface ITerminalSettings {
@@ -621,7 +628,7 @@ export interface IConfigurationManager {
 	createDebugAdapter(session: IDebugSession): IDebugAdapter;
 
 	substituteVariables(debugType: string, folder: IWorkspaceFolder, config: IConfig): Promise<IConfig>;
-	runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Promise<number | undefined>;
+	runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Promise<IRunInTerminalResult>;
 }
 
 export interface ILaunch {

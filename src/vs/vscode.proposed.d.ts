@@ -624,6 +624,14 @@ declare module 'vscode' {
 
 	//#region André: debug
 
+	export interface DebugSession {
+
+		/**
+		 * the integrated terminal where the debug target was started from.
+		 */
+		readonly terminal: Terminal | undefined;
+	}
+
 	// deprecated
 
 	export interface DebugConfigurationProvider {
