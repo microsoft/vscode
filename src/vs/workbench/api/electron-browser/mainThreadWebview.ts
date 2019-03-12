@@ -116,7 +116,6 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 			WebviewElement,
 			this._layoutService.getContainer(Parts.EDITOR_PART),
 			{
-				useSameOriginForRoot: true,
 				extensionLocation: URI.revive(extensionLocation),
 				enableFindWidget: false,
 			},
