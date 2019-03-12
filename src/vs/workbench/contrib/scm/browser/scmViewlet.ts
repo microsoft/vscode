@@ -229,7 +229,6 @@ export class MainPanel extends ViewletPanel {
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService);
-		this.updateBodySize();
 	}
 
 	protected renderBody(container: HTMLElement): void {
@@ -251,6 +250,12 @@ export class MainPanel extends ViewletPanel {
 
 		this.disposables.push(this.list);
 
+		this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('scm.providers.visible')) {
+				this.updateBodySize();
+			}
+		}, this.disposables);
+
 		this.updateListSelection();
 	}
 
@@ -258,11 +263,9 @@ export class MainPanel extends ViewletPanel {
 		this.list.splice(index, deleteCount, repositories);
 
 		const empty = this.list.length === 0;
-		const size = Math.min(this.viewModel.repositories.length, 10) * 22;
-		this.minimumBodySize = size;
-		this.maximumBodySize = empty ? Number.POSITIVE_INFINITY : size;
-
 		toggleClass(this.element, 'empty', empty);
+
+		this.updateBodySize();
 	}
 
 	protected layoutBody(height: number, width: number): void {
@@ -270,6 +273,12 @@ export class MainPanel extends ViewletPanel {
 	}
 
 	private updateBodySize(): void {
+		const visibleCount = this.configurationService.getValue<number>('scm.providers.visible');
+		const empty = this.list.length === 0;
+		const size = Math.min(this.viewModel.repositories.length, visibleCount) * 22;
+
+		this.minimumBodySize = visibleCount === 0 ? 22 : size;
+		this.maximumBodySize = visibleCount === 0 ? Number.POSITIVE_INFINITY : empty ? Number.POSITIVE_INFINITY : size;
 	}
 
 	private onListContextMenu(e: IListContextMenuEvent<ISCMRepository>): void {
@@ -1102,7 +1111,7 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 			if (e.affectsConfiguration('scm.alwaysShowProviders')) {
 				this.onDidChangeRepositories();
 			}
-		});
+		}, this.toDispose);
 	}
 
 	create(parent: HTMLElement): void {
