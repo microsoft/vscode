@@ -70,7 +70,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		return da;
 	}
 
-	substituteVariables(folder: IWorkspaceFolder, config: IConfig): Promise<IConfig> {
+	substituteVariables(folder: IWorkspaceFolder | undefined, config: IConfig): Promise<IConfig> {
 		return Promise.resolve(this._proxy.$substituteVariables(folder ? folder.uri : undefined, config));
 	}
 

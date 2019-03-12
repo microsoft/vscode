@@ -145,7 +145,7 @@ export interface LoadedSourceEvent {
 export interface IDebugSession extends ITreeElement {
 
 	readonly configuration: IConfig;
-	readonly unresolvedConfiguration: IConfig;
+	readonly unresolvedConfiguration: IConfig | undefined;
 	readonly state: State;
 	readonly root: IWorkspaceFolder;
 
@@ -154,7 +154,7 @@ export interface IDebugSession extends ITreeElement {
 	getSourceForUri(modelUri: uri): Source | undefined;
 	getSource(raw?: DebugProtocol.Source): Source;
 
-	setConfiguration(configuration: { resolved: IConfig, unresolved: IConfig }): void;
+	setConfiguration(configuration: { resolved: IConfig, unresolved: IConfig | undefined }): void;
 	rawUpdate(data: IRawModelUpdate): void;
 
 	getThread(threadId: number): IThread | undefined;
@@ -480,7 +480,7 @@ export interface IDebugAdapter extends IDisposable {
 
 export interface IDebugAdapterFactory extends ITerminalLauncher {
 	createDebugAdapter(session: IDebugSession): IDebugAdapter;
-	substituteVariables(folder: IWorkspaceFolder, config: IConfig): Promise<IConfig>;
+	substituteVariables(folder: IWorkspaceFolder | undefined, config: IConfig): Promise<IConfig>;
 }
 
 export interface IDebugAdapterExecutableOptions {
@@ -620,7 +620,7 @@ export interface IConfigurationManager {
 	registerDebugAdapterFactory(debugTypes: string[], debugAdapterFactory: IDebugAdapterFactory): IDisposable;
 	createDebugAdapter(session: IDebugSession): IDebugAdapter | undefined;
 
-	substituteVariables(debugType: string, folder: IWorkspaceFolder, config: IConfig): Promise<IConfig>;
+	substituteVariables(debugType: string, folder: IWorkspaceFolder | undefined, config: IConfig): Promise<IConfig>;
 	runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Promise<number | undefined>;
 }
 

@@ -54,7 +54,7 @@ export class DebugSession implements IDebugSession {
 	private readonly _onDidChangeREPLElements = new Emitter<void>();
 
 	constructor(
-		private _configuration: { resolved: IConfig, unresolved: IConfig },
+		private _configuration: { resolved: IConfig, unresolved: IConfig | undefined },
 		public root: IWorkspaceFolder,
 		private model: DebugModel,
 		@IDebugService private readonly debugService: IDebugService,
@@ -79,11 +79,11 @@ export class DebugSession implements IDebugSession {
 		return this._configuration.resolved;
 	}
 
-	get unresolvedConfiguration(): IConfig {
+	get unresolvedConfiguration(): IConfig | undefined {
 		return this._configuration.unresolved;
 	}
 
-	setConfiguration(configuration: { resolved: IConfig, unresolved: IConfig }) {
+	setConfiguration(configuration: { resolved: IConfig, unresolved: IConfig | undefined }) {
 		this._configuration = configuration;
 	}
 

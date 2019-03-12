@@ -171,7 +171,7 @@ export class Debugger implements IDebugger {
 		});
 	}
 
-	substituteVariables(folder: IWorkspaceFolder, config: IConfig): Promise<IConfig> {
+	substituteVariables(folder: IWorkspaceFolder | undefined, config: IConfig): Promise<IConfig> {
 		if (this.inExtHost()) {
 			return this.configurationManager.substituteVariables(this.type, folder, config).then(config => {
 				return this.configurationResolverService.resolveWithInteractionReplace(folder, config, 'launch', this.variables);

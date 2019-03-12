@@ -544,7 +544,7 @@ export class Enablement implements IEnablement {
 export class BaseBreakpoint extends Enablement implements IBaseBreakpoint {
 
 	private sessionData = new Map<string, DebugProtocol.Breakpoint>();
-	private sessionId: string;
+	private sessionId: string | undefined;
 
 	constructor(
 		enabled: boolean,
@@ -559,15 +559,15 @@ export class BaseBreakpoint extends Enablement implements IBaseBreakpoint {
 		}
 	}
 
-	protected getSessionData() {
-		return this.sessionData.get(this.sessionId);
+	protected getSessionData(): DebugProtocol.Breakpoint | undefined {
+		return this.sessionId ? this.sessionData.get(this.sessionId) : undefined;
 	}
 
 	setSessionData(sessionId: string, data: DebugProtocol.Breakpoint): void {
 		this.sessionData.set(sessionId, data);
 	}
 
-	setSessionId(sessionId: string): void {
+	setSessionId(sessionId: string | undefined): void {
 		this.sessionId = sessionId;
 	}
 
@@ -754,7 +754,7 @@ export class DebugModel implements IDebugModel {
 	private sessions: IDebugSession[];
 	private toDispose: lifecycle.IDisposable[];
 	private schedulers = new Map<string, RunOnceScheduler>();
-	private breakpointsSessionId: string;
+	private breakpointsSessionId: string | undefined;
 	private readonly _onDidChangeBreakpoints: Emitter<IBreakpointsChangeEvent | undefined>;
 	private readonly _onDidChangeCallStack: Emitter<void>;
 	private readonly _onDidChangeWatchExpressions: Emitter<IExpression | undefined>;
@@ -966,7 +966,7 @@ export class DebugModel implements IDebugModel {
 		});
 	}
 
-	setBreakpointsSessionId(sessionId: string): void {
+	setBreakpointsSessionId(sessionId: string | undefined): void {
 		this.breakpointsSessionId = sessionId;
 		this.breakpoints.forEach(bp => bp.setSessionId(sessionId));
 		this.functionBreakpoints.forEach(fbp => fbp.setSessionId(sessionId));
@@ -1025,7 +1025,7 @@ export class DebugModel implements IDebugModel {
 		this._onDidChangeBreakpoints.fire({ changed: changed });
 	}
 
-	addFunctionBreakpoint(functionName: string, id: string): IFunctionBreakpoint {
+	addFunctionBreakpoint(functionName: string, id?: string): IFunctionBreakpoint {
 		const newFunctionBreakpoint = new FunctionBreakpoint(functionName, true, undefined, undefined, undefined, id);
 		this.functionBreakpoints.push(newFunctionBreakpoint);
 		this._onDidChangeBreakpoints.fire({ added: [newFunctionBreakpoint] });

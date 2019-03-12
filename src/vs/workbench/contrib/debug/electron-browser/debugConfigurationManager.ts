@@ -104,7 +104,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		return undefined;
 	}
 
-	substituteVariables(debugType: string, folder: IWorkspaceFolder, config: IConfig): Promise<IConfig> {
+	substituteVariables(debugType: string, folder: IWorkspaceFolder | undefined, config: IConfig): Promise<IConfig> {
 		let dap = this.debugAdapterFactories.get(debugType);
 		if (dap) {
 			return dap.substituteVariables(folder, config);
