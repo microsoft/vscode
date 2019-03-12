@@ -259,7 +259,7 @@ class FileOutputChannelModel extends AbstractFileOutputChannelModel implements I
 	}
 
 	protected getByteLength(str: string): number {
-		if (typeof Buffer !== undefined) {
+		if (typeof Buffer !== 'undefined') {
 			return Buffer.from(str).byteLength;
 		}
 		return toUint8ArrayBuffer(str).byteLength;

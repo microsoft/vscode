@@ -5,7 +5,7 @@
 
 export function toUint8ArrayBuffer(str: string): ArrayBuffer {
 
-	if (typeof TextEncoder !== undefined) {
+	if (typeof TextEncoder !== 'undefined') {
 		return new TextEncoder().encode(str).buffer;
 	}
 
