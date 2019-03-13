@@ -465,7 +465,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		actions.push(this.clearReplAction);
 
 		this.contextMenuService.showContextMenu({
-			getAnchor: () => e.anchor!,
+			getAnchor: () => e.anchor,
 			getActions: () => actions,
 			getActionsContext: () => e.element
 		});

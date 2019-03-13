@@ -156,7 +156,7 @@ export class CallStackView extends ViewletPanel {
 				return;
 			}
 
-			const focusStackFrame = (stackFrame: IStackFrame, thread: IThread, session: IDebugSession) => {
+			const focusStackFrame = (stackFrame: IStackFrame | undefined, thread: IThread | undefined, session: IDebugSession) => {
 				this.ignoreFocusStackFrameEvent = true;
 				try {
 					this.debugService.focusStackFrame(stackFrame, thread, session, true);
@@ -309,7 +309,7 @@ export class CallStackView extends ViewletPanel {
 		});
 	}
 
-	private getContextForContributedActions(element: CallStackItem): string | number {
+	private getContextForContributedActions(element: CallStackItem | null): string | number | undefined {
 		if (element instanceof StackFrame) {
 			if (element.source.inMemory) {
 				return element.source.raw.path || element.source.reference;
@@ -563,11 +563,9 @@ class CallStackDelegate implements IListVirtualDelegate<CallStackItem> {
 		if (element instanceof ThreadAndSessionIds) {
 			return LoadMoreRenderer.ID;
 		}
-		if (element instanceof Array) {
-			return ShowMoreRenderer.ID;
-		}
 
-		return undefined;
+		// element instanceof Array
+		return ShowMoreRenderer.ID;
 	}
 }
 
@@ -606,18 +604,21 @@ class CallStackDataSource implements IAsyncDataSource<IDebugModel, CallStackItem
 		}
 	}
 
-	private getThreadChildren(thread: Thread): Promise<Array<IStackFrame | string | ThreadAndSessionIds>> {
+	private getThreadChildren(thread: Thread): Promise<CallStackItem[]> {
 		return this.getThreadCallstack(thread).then(children => {
 			// Check if some stack frames should be hidden under a parent element since they are deemphasized
-			const result = [];
+			const result: CallStackItem[] = [];
 			children.forEach((child, index) => {
 				if (child instanceof StackFrame && child.source && isDeemphasized(child)) {
 					// Check if the user clicked to show the deemphasized source
 					if (this.deemphasizedStackFramesToShow.indexOf(child) === -1) {
-						if (result.length && result[result.length - 1] instanceof Array) {
-							// Collect all the stackframes that will be "collapsed"
-							result[result.length - 1].push(child);
-							return;
+						if (result.length) {
+							const last = result[result.length - 1];
+							if (last instanceof Array) {
+								// Collect all the stackframes that will be "collapsed"
+								last.push(child);
+								return;
+							}
 						}
 
 						const nextChild = index < children.length - 1 ? children[index + 1] : undefined;
@@ -644,7 +645,7 @@ class CallStackDataSource implements IAsyncDataSource<IDebugModel, CallStackItem
 		}
 
 		return callStackPromise.then(() => {
-			if (callStack.length === 1 && thread.session.capabilities.supportsDelayedStackTraceLoading && thread.stoppedDetails && thread.stoppedDetails.totalFrames > 1) {
+			if (callStack.length === 1 && thread.session.capabilities.supportsDelayedStackTraceLoading && thread.stoppedDetails && thread.stoppedDetails.totalFrames && thread.stoppedDetails.totalFrames > 1) {
 				// To reduce flashing of the call stack view simply append the stale call stack
 				// once we have the correct data the tree will refresh and we will no longer display it.
 				callStack = callStack.concat(thread.getStaleCallStack().slice(1));
@@ -653,7 +654,7 @@ class CallStackDataSource implements IAsyncDataSource<IDebugModel, CallStackItem
 			if (thread.stoppedDetails && thread.stoppedDetails.framesErrorMessage) {
 				callStack = callStack.concat([thread.stoppedDetails.framesErrorMessage]);
 			}
-			if (thread.stoppedDetails && thread.stoppedDetails.totalFrames > callStack.length && callStack.length > 1) {
+			if (thread.stoppedDetails && thread.stoppedDetails.totalFrames && thread.stoppedDetails.totalFrames > callStack.length && callStack.length > 1) {
 				callStack = callStack.concat([new ThreadAndSessionIds(thread.session.getId(), thread.threadId)]);
 			}
 
@@ -676,13 +677,11 @@ class CallStackAccessibilityProvider implements IAccessibilityProvider<CallStack
 		if (typeof element === 'string') {
 			return element;
 		}
-		if (element instanceof ThreadAndSessionIds) {
-			return nls.localize('loadMoreStackFrames', "Load More Stack Frames");
-		}
 		if (element instanceof Array) {
 			return nls.localize('showMoreStackFrames', "Show {0} More Stack Frames", element.length);
 		}
 
-		return null;
+		// element instanceof ThreadAndSessionIds
+		return nls.localize('loadMoreStackFrames', "Load More Stack Frames");
 	}
 }

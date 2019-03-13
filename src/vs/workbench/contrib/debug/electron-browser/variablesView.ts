@@ -136,8 +136,7 @@ export class VariablesView extends ViewletPanel {
 
 	private onContextMenu(e: ITreeContextMenuEvent<IExpression | IScope>): void {
 		const element = e.element;
-		const anchor = e.anchor;
-		if (element instanceof Variable && !!element.value && anchor) {
+		if (element instanceof Variable && !!element.value) {
 			const actions: IAction[] = [];
 			const variable = element as Variable;
 			actions.push(new SetValueAction(SetValueAction.ID, SetValueAction.LABEL, variable, this.debugService, this.keybindingService));
@@ -147,7 +146,7 @@ export class VariablesView extends ViewletPanel {
 			actions.push(new AddToWatchExpressionsAction(AddToWatchExpressionsAction.ID, AddToWatchExpressionsAction.LABEL, variable, this.debugService, this.keybindingService));
 
 			this.contextMenuService.showContextMenu({
-				getAnchor: () => anchor,
+				getAnchor: () => e.anchor,
 				getActions: () => actions,
 				getActionsContext: () => element
 			});
