@@ -95,7 +95,7 @@ export class ParameterHintsModel extends Disposable {
 
 	trigger(context: TriggerContext, delay?: number): void {
 		const model = this.editor.getModel();
-		if (model === null || !modes.SignatureHelpProviderRegistry.has(model)) {
+		if (!model || !modes.SignatureHelpProviderRegistry.has(model)) {
 			return;
 		}
 
