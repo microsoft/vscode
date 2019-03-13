@@ -808,27 +808,27 @@ suite('FileService', () => {
 		}, 100);
 	});
 
-	test('watchFileChanges - support atomic save', function (done) {
-		const toWatch = uri.file(path.join(testDir, 'index.html'));
+	// test('watchFileChanges - support atomic save', function (done) {
+	// 	const toWatch = uri.file(path.join(testDir, 'index.html'));
 
-		service.watchFileChanges(toWatch);
+	// 	service.watchFileChanges(toWatch);
 
-		service.onFileChanges((e: FileChangesEvent) => {
-			assert.ok(e);
+	// 	service.onFileChanges((e: FileChangesEvent) => {
+	// 		assert.ok(e);
 
-			service.unwatchFileChanges(toWatch);
-			done();
-		});
+	// 		service.unwatchFileChanges(toWatch);
+	// 		done();
+	// 	});
 
-		setTimeout(() => {
-			// Simulate atomic save by deleting the file, creating it under different name
-			// and then replacing the previously deleted file with those contents
-			const renamed = `${toWatch.fsPath}.bak`;
-			fs.unlinkSync(toWatch.fsPath);
-			fs.writeFileSync(renamed, 'Changes');
-			fs.renameSync(renamed, toWatch.fsPath);
-		}, 100);
-	});
+	// 	setTimeout(() => {
+	// 		// Simulate atomic save by deleting the file, creating it under different name
+	// 		// and then replacing the previously deleted file with those contents
+	// 		const renamed = `${toWatch.fsPath}.bak`;
+	// 		fs.unlinkSync(toWatch.fsPath);
+	// 		fs.writeFileSync(renamed, 'Changes');
+	// 		fs.renameSync(renamed, toWatch.fsPath);
+	// 	}, 100);
+	// });
 
 	test('options - encoding override (parent)', function () {
 
