@@ -85,7 +85,7 @@ export class CommentService extends Disposable implements ICommentService {
 	private readonly _onDidUpdateCommentThreads: Emitter<ICommentThreadChangedEvent> = this._register(new Emitter<ICommentThreadChangedEvent>());
 	readonly onDidUpdateCommentThreads: Event<ICommentThreadChangedEvent> = this._onDidUpdateCommentThreads.event;
 
-	private readonly _onDidChangeActiveCommentThread: Emitter<CommentThread> = this._register(new Emitter<CommentThread>());
+	private readonly _onDidChangeActiveCommentThread = this._register(new Emitter<CommentThread | null>());
 	readonly onDidChangeActiveCommentThread: Event<CommentThread | null> = this._onDidChangeActiveCommentThread.event;
 
 	private readonly _onDidChangeInput: Emitter<string> = this._register(new Emitter<string>());
@@ -300,10 +300,9 @@ export class CommentService extends Disposable implements ICommentService {
 
 		let commentControlResult: Promise<ICommentInfo>[] = [];
 
-		for (const owner of keys(this._commentControls)) {
-			const control = this._commentControls.get(owner);
+		this._commentControls.forEach(control => {
 			commentControlResult.push(control.getDocumentComments(resource, CancellationToken.None));
-		}
+		});
 
 		let ret = [...await Promise.all(result), ...await Promise.all(commentControlResult)];
 
@@ -313,10 +312,9 @@ export class CommentService extends Disposable implements ICommentService {
 	async getCommentingRanges(resource: URI): Promise<IRange[]> {
 		let commentControlResult: Promise<IRange[]>[] = [];
 
-		for (const owner of keys(this._commentControls)) {
-			const control = this._commentControls.get(owner);
+		this._commentControls.forEach(control => {
 			commentControlResult.push(control.getCommentingRanges(resource, CancellationToken.None));
-		}
+		});
 
 		let ret = await Promise.all(commentControlResult);
 		return ret.reduce((prev, curr) => { prev.push(...curr); return prev; }, []);

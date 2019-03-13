@@ -1258,8 +1258,8 @@ export interface CommentInput {
  */
 export interface CommentThread2 {
 	commentThreadHandle: number;
-	extensionId: string;
-	threadId: string;
+	extensionId?: string;
+	threadId: string | null;
 	resource: string;
 	range: IRange;
 	label: string;
@@ -1292,7 +1292,7 @@ export interface CommentingRanges {
  * @internal
  */
 export interface CommentThread {
-	extensionId: string;
+	extensionId?: string;
 	threadId: string;
 	resource: string;
 	range: IRange;
@@ -1367,7 +1367,7 @@ export interface CommentThreadChangedEvent {
  * @internal
  */
 export interface DocumentCommentProvider {
-	provideDocumentComments(resource: URI, token: CancellationToken): Promise<CommentInfo>;
+	provideDocumentComments(resource: URI, token: CancellationToken): Promise<CommentInfo | null>;
 	createNewCommentThread(resource: URI, range: Range, text: string, token: CancellationToken): Promise<CommentThread | null>;
 	replyToCommentThread(resource: URI, range: Range, thread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread | null>;
 	editComment(resource: URI, comment: Comment, text: string, token: CancellationToken): Promise<void>;

@@ -683,8 +683,8 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		return result;
 	}
 
-	async provideDocumentComments(resource: URI): Promise<modes.CommentInfo[]> {
-		const result: modes.CommentInfo[] = [];
+	async provideDocumentComments(resource: URI): Promise<Array<modes.CommentInfo | null>> {
+		const result: Array<modes.CommentInfo | null> = [];
 		for (const handle of keys(this._documentProviders)) {
 			result.push(await this._proxy.$provideDocumentComments(handle, resource));
 		}
