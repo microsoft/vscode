@@ -651,8 +651,7 @@ function convertToComment(provider: vscode.DocumentCommentProvider | vscode.Work
 		userIconPath: iconPath,
 		canEdit: canEdit,
 		canDelete: canDelete,
-		command: vscodeComment.command ? commandsConverter.toInternal(vscodeComment.command) : undefined,
-		selectCommand: vscodeComment.selectCommand ? commandsConverter.toInternal(vscodeComment.command) : undefined,
+		selectCommand: vscodeComment.command ? commandsConverter.toInternal(vscodeComment.command) : undefined,
 		isDraft: vscodeComment.isDraft,
 		commentReactions: vscodeComment.commentReactions ? vscodeComment.commentReactions.map(reaction => convertToReaction(provider, reaction)) : undefined
 	};
