@@ -26,7 +26,13 @@ namespace ParameterHintState {
 	}
 
 	export const Default = new class { readonly type = Type.Default; };
-	export const Pending = new class { readonly type = Type.Pending; };
+
+	export class Pending {
+		readonly type = Type.Pending;
+		constructor(
+			readonly request: CancelablePromise<any>
+		) { }
+	}
 
 	export class Active {
 		readonly type = Type.Active;
@@ -35,7 +41,7 @@ namespace ParameterHintState {
 		) { }
 	}
 
-	export type State = typeof Default | typeof Pending | Active;
+	export type State = typeof Default | Pending | Active;
 }
 
 export class ParameterHintsModel extends Disposable {
@@ -47,12 +53,11 @@ export class ParameterHintsModel extends Disposable {
 
 	private readonly editor: ICodeEditor;
 	private enabled: boolean;
-	private state: ParameterHintState.State = ParameterHintState.Default;
+	private _state: ParameterHintState.State = ParameterHintState.Default;
 	private triggerChars = new CharacterSet();
 	private retriggerChars = new CharacterSet();
 
 	private readonly throttledDelayer: Delayer<boolean>;
-	private provideSignatureHelpRequest?: CancelablePromise<any>;
 	private triggerId = 0;
 
 	constructor(
@@ -78,18 +83,22 @@ export class ParameterHintsModel extends Disposable {
 		this.onModelChanged();
 	}
 
+	private get state() { return this._state; }
+	private set state(value: ParameterHintState.State) {
+		if (this._state.type === ParameterHintState.Type.Pending) {
+			this._state.request.cancel();
+		}
+		this._state = value;
+	}
+
 	cancel(silent: boolean = false): void {
+
 		this.state = ParameterHintState.Default;
 
 		this.throttledDelayer.cancel();
 
 		if (!silent) {
 			this._onChangedHints.fire(undefined);
-		}
-
-		if (this.provideSignatureHelpRequest) {
-			this.provideSignatureHelpRequest.cancel();
-			this.provideSignatureHelpRequest = undefined;
 		}
 	}
 
@@ -166,12 +175,10 @@ export class ParameterHintsModel extends Disposable {
 		const model = this.editor.getModel();
 		const position = this.editor.getPosition();
 
-		this.state = ParameterHintState.Pending;
+		this.state = new ParameterHintState.Pending(createCancelablePromise(token =>
+			provideSignatureHelp(model, position, triggerContext, token)));
 
-		this.provideSignatureHelpRequest = createCancelablePromise(token =>
-			provideSignatureHelp(model, position, triggerContext, token));
-
-		return this.provideSignatureHelpRequest.then(result => {
+		return this.state.request.then(result => {
 			// Check that we are still resolving the correct signature help
 			if (triggerId !== this.triggerId) {
 				return false;
