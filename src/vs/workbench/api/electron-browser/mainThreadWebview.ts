@@ -218,9 +218,10 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		if (this._revivers.has(viewType)) {
 			throw new Error(`Reviver for ${viewType} already registered`);
 		}
+
 		this._revivers.set(viewType, this._webviewService.registerReviver({
 			canRevive: (webview) => {
-				return !webview.isDisposed() && webview.state && webview.state.viewType === viewType;
+				return webview.state && webview.state.viewType === viewType;
 			},
 			reviveWebview: async (webview): Promise<void> => {
 				const viewType = webview.state.viewType;
@@ -237,7 +238,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 				}
 
 				try {
-					await this._proxy.$deserializeWebviewPanel(handle, webview.state.viewType, webview.getTitle(), state, editorGroupToViewColumn(this._editorGroupService, webview.group || ACTIVE_GROUP), webview.options);
+					await this._proxy.$deserializeWebviewPanel(handle, viewType, webview.getTitle(), state, editorGroupToViewColumn(this._editorGroupService, webview.group || ACTIVE_GROUP), webview.options);
 				} catch (error) {
 					onUnexpectedError(error);
 					webview.html = MainThreadWebviews.getDeserializationFailedContents(viewType);
