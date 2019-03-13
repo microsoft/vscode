@@ -1378,4 +1378,15 @@ declare module 'vscode' {
 		group?: string;
 	}
 	//#endregion
+
+	//#region Webview Port mapping— mjbvz
+	export interface WebviewPortMapping {
+		readonly from: number;
+		readonly to: number;
+	}
+
+	export interface WebviewOptions {
+		readonly portMapping?: ReadonlyArray<WebviewPortMapping>;
+	}
+	//#endregion
 }

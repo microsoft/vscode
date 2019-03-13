@@ -25,6 +25,11 @@ export interface WebviewPortMapping {
 	readonly to: number;
 }
 
+export interface WebviewPortMapping {
+	readonly from: number;
+	readonly to: number;
+}
+
 export interface WebviewOptions {
 	readonly allowSvgs?: boolean;
 	readonly extensionLocation?: URI;
@@ -58,7 +63,7 @@ class WebviewSession extends Disposable {
 	private readonly _onHeadersReceivedDelegates: Array<OnHeadersReceivedDelegate> = [];
 
 	public constructor(
-		webview: Electron.WebviewTag
+		webview: Electron.WebviewTag,
 	) {
 		super();
 
@@ -350,6 +355,7 @@ export class WebviewElement extends Disposable {
 			session,
 			() => (this._contentOptions.portMappings || [{ from: 3000, to: 4000 }])
 		));
+
 
 		if (!this._options.allowSvgs) {
 			const svgBlocker = this._register(new SvgBlocker(session, this._contentOptions));

@@ -245,6 +245,7 @@ export class WebviewEditor extends BaseEditor {
 		webview.update(input.html, {
 			allowScripts: input.options.enableScripts,
 			localResourceRoots: input.options.localResourceRoots || this.getDefaultLocalResourceRoots(),
+			portMappings: input.options.portMapping,
 		}, !!input.options.retainContextWhenHidden);
 
 		if (this._webviewContent) {

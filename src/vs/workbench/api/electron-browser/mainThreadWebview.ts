@@ -391,7 +391,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 function reviveWebviewOptions(options: WebviewInputOptions): WebviewInputOptions {
 	return {
 		...options,
-		localResourceRoots: Array.isArray(options.localResourceRoots) ? options.localResourceRoots.map(URI.revive) : undefined
+		localResourceRoots: Array.isArray(options.localResourceRoots) ? options.localResourceRoots.map(URI.revive) : undefined,
 	};
 }
 
