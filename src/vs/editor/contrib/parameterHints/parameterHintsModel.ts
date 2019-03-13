@@ -186,7 +186,9 @@ export class ParameterHintsModel extends Disposable {
 				return true;
 			}
 		}).catch(error => {
-			this.state = ParameterHintState.Default;
+			if (triggerId === this.triggerId) {
+				this.state = ParameterHintState.Default;
+			}
 			onUnexpectedError(error);
 			return false;
 		});
