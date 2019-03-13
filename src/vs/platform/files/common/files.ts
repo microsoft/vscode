@@ -17,7 +17,12 @@ import { isUndefinedOrNull } from 'vs/base/common/types';
 export const IFileService = createDecorator<IFileService>('fileService');
 
 export interface IResourceEncodings {
-	getWriteEncoding(resource: URI, preferredEncoding?: string): string;
+	getWriteEncoding(resource: URI, preferredEncoding?: string): IResourceEncoding;
+}
+
+export interface IResourceEncoding {
+	encoding: string;
+	hasBOM: boolean;
 }
 
 export interface IFileService {

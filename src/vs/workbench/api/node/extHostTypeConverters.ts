@@ -854,27 +854,17 @@ export namespace Color {
 	}
 }
 
-export namespace SelectionRangeKind {
-
-	export function from(kind: vscode.SelectionRangeKind): string {
-		return kind.value;
-	}
-
-	export function to(value: string): vscode.SelectionRangeKind {
-		return new types.SelectionRangeKind(value);
-	}
-}
 
 export namespace SelectionRange {
 	export function from(obj: vscode.SelectionRange): modes.SelectionRange {
 		return {
-			kind: SelectionRangeKind.from(obj.kind),
+			kind: '',
 			range: Range.from(obj.range)
 		};
 	}
 
 	export function to(obj: modes.SelectionRange): vscode.SelectionRange {
-		return new types.SelectionRange(Range.to(obj.range), SelectionRangeKind.to(obj.kind));
+		return new types.SelectionRange(Range.to(obj.range));
 	}
 }
 
@@ -970,7 +960,10 @@ export namespace TextEditorOptions {
 
 export namespace GlobPattern {
 
-	export function from(pattern: vscode.GlobPattern): string | types.RelativePattern {
+	export function from(pattern: vscode.GlobPattern): string | types.RelativePattern;
+	export function from(pattern: undefined | null): undefined | null;
+	export function from(pattern: vscode.GlobPattern | undefined | null): string | types.RelativePattern | undefined | null;
+	export function from(pattern: vscode.GlobPattern | undefined | null): string | types.RelativePattern | undefined | null {
 		if (pattern instanceof types.RelativePattern) {
 			return pattern;
 		}

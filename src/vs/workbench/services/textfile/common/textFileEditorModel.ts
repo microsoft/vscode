@@ -272,7 +272,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 					mtime: Date.now(),
 					etag: undefined,
 					value: createTextBufferFactory(''), /* will be filled later from backup */
-					encoding: this.fileService.encoding.getWriteEncoding(this.resource, this.preferredEncoding),
+					encoding: this.fileService.encoding.getWriteEncoding(this.resource, this.preferredEncoding).encoding,
 					isReadonly: false
 				};
 

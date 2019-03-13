@@ -33,7 +33,6 @@ import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch
 import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
 import { IEditorGroupsAccessor, IEditorGroupView, IEditorPartOptionsChangeEvent, getActiveTextEditorOptions, IEditorOpeningEvent } from 'vs/workbench/browser/parts/editor/editor';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { join } from 'vs/base/common/path';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ActionRunner, IAction, Action } from 'vs/base/common/actions';
@@ -44,8 +43,8 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { isErrorWithActions, IErrorWithActions } from 'vs/base/common/errorsWithActions';
-import { URI } from 'vs/base/common/uri';
-import { IActiveEditor } from 'vs/workbench/services/editor/common/editorService';
+import { IVisibleEditor } from 'vs/workbench/services/editor/common/editorService';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 export class EditorGroupView extends Themable implements IEditorGroupView {
 
@@ -658,8 +657,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this._group.count;
 	}
 
-	get activeControl(): IActiveEditor | undefined {
-		return this.editorControl ? this.editorControl.activeControl || undefined : undefined;
+	get activeControl(): IVisibleEditor | undefined {
+		return this.editorControl ? withNullAsUndefined(this.editorControl.activeControl) : undefined;
 	}
 
 	get activeEditor(): EditorInput | null {
@@ -1466,10 +1465,10 @@ export interface EditorReplacement {
 registerThemingParticipant((theme, collector, environment) => {
 
 	// Letterpress
-	const letterpress = `resources/letterpress${theme.type === 'dark' ? '-dark' : theme.type === 'hc' ? '-hc' : ''}.svg`;
+	const letterpress = `./media/letterpress${theme.type === 'dark' ? '-dark' : theme.type === 'hc' ? '-hc' : ''}.svg`;
 	collector.addRule(`
 		.monaco-workbench .part.editor > .content .editor-group-container.empty .editor-group-letterpress {
-			background-image: url('${URI.file(join(environment.appRoot, letterpress)).toString()}')
+			background-image: url('${require.toUrl(letterpress)}')
 		}
 	`);
 

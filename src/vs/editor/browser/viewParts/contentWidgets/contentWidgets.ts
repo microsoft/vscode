@@ -14,6 +14,7 @@ import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/v
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
+import { withUndefinedAsNull } from 'vs/base/common/types';
 
 class Coordinate {
 	_coordinateBrand: void;
@@ -242,8 +243,8 @@ class Widget {
 	}
 
 	private _setPosition(position: IPosition | null | undefined, range: IRange | null | undefined): void {
-		this._position = position || null;
-		this._range = range || null;
+		this._position = withUndefinedAsNull(position);
+		this._range = withUndefinedAsNull(range);
 		this._viewPosition = null;
 		this._viewRange = null;
 

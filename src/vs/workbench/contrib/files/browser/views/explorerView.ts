@@ -49,6 +49,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { isMacintosh } from 'vs/base/common/platform';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 export class ExplorerView extends ViewletPanel {
 	static readonly ID: string = 'workbench.explorer.fileView';
@@ -258,7 +259,7 @@ export class ExplorerView extends ViewletPanel {
 					// No action needed, active file is already focused
 					return;
 				}
-				this.explorerService.select(this.getActiveFile(), reveal);
+				this.explorerService.select(activeFile, reveal);
 			} else if (deselect) {
 				this.tree.setSelection([]);
 				this.tree.setFocus([]);
@@ -408,7 +409,7 @@ export class ExplorerView extends ViewletPanel {
 	private onFocusChanged(elements: ExplorerItem[]): void {
 		const stat = elements && elements.length ? elements[0] : undefined;
 		const isSingleFolder = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER;
-		const resource = stat ? stat.resource : isSingleFolder ? this.contextService.getWorkspace().folders[0].uri : undefined;
+		const resource = stat ? stat.resource : isSingleFolder ? this.contextService.getWorkspace().folders[0].uri : null;
 		this.resourceContext.set(resource);
 		this.folderContext.set((isSingleFolder && !stat) || !!stat && stat.isDirectory);
 		this.readonlyContext.set(!!stat && stat.isReadonly);
@@ -504,7 +505,7 @@ export class ExplorerView extends ViewletPanel {
 		}
 
 		// check for files
-		return toResource(input, { supportSideBySide: true });
+		return withNullAsUndefined(toResource(input, { supportSideBySide: true }));
 	}
 
 	private onSelectItem(fileStat: ExplorerItem, reveal = this.autoReveal): Promise<void> {

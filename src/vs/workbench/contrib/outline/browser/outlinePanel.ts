@@ -46,6 +46,7 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { basename } from 'vs/base/common/resources';
 import { IDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
+import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 
 class RequestState {
 
@@ -574,11 +575,14 @@ export class OutlinePanel extends ViewletPanel {
 			if (model !== textModel) {
 				return;
 			}
-			const marker = this._markerDecorationService.getLiveMarkers(textModel).map(([range, marker]) => {
-				return { ...range, severity: marker.severity } as IOutlineMarker;
-			});
-			if (marker.length > 0 || !ignoreEmpty) {
-				newModel.updateMarker(marker);
+			const markers: IOutlineMarker[] = [];
+			for (const [range, marker] of this._markerDecorationService.getLiveMarkers(textModel)) {
+				if (marker.severity === MarkerSeverity.Error || marker.severity === MarkerSeverity.Warning) {
+					markers.push({ ...range, severity: marker.severity });
+				}
+			}
+			if (markers.length > 0 || !ignoreEmpty) {
+				newModel.updateMarker(markers);
 				this._tree.updateChildren();
 			}
 		};

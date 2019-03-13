@@ -50,7 +50,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 		return this.recursiveResolve(root ? root.uri : undefined, value);
 	}
 
-	public resolveAnyBase(workspaceFolder: IWorkspaceFolder, config: any, commandValueMapping?: IStringDictionary<string>, resolvedVariables?: Map<string, string>): any {
+	public resolveAnyBase(workspaceFolder: IWorkspaceFolder | undefined, config: any, commandValueMapping?: IStringDictionary<string>, resolvedVariables?: Map<string, string>): any {
 
 		const result = objects.deepClone(config) as any;
 
@@ -72,11 +72,11 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 		return this.recursiveResolve(workspaceFolder ? workspaceFolder.uri : undefined, result, commandValueMapping, resolvedVariables);
 	}
 
-	public resolveAny(workspaceFolder: IWorkspaceFolder, config: any, commandValueMapping?: IStringDictionary<string>): any {
+	public resolveAny(workspaceFolder: IWorkspaceFolder | undefined, config: any, commandValueMapping?: IStringDictionary<string>): any {
 		return this.resolveAnyBase(workspaceFolder, config, commandValueMapping);
 	}
 
-	public resolveAnyMap(workspaceFolder: IWorkspaceFolder, config: any, commandValueMapping?: IStringDictionary<string>): { newConfig: any, resolvedVariables: Map<string, string> } {
+	public resolveAnyMap(workspaceFolder: IWorkspaceFolder | undefined, config: any, commandValueMapping?: IStringDictionary<string>): { newConfig: any, resolvedVariables: Map<string, string> } {
 		const resolvedVariables = new Map<string, string>();
 		const newConfig = this.resolveAnyBase(workspaceFolder, config, commandValueMapping, resolvedVariables);
 		return { newConfig, resolvedVariables };

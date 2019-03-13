@@ -43,6 +43,7 @@ export class RemoteFileDialog {
 	private requiresTrailing: boolean;
 	private userValue: string;
 	private scheme: string = REMOTE_HOST_SCHEME;
+	private shouldOverwriteFile: boolean = false;
 
 	constructor(
 		@IFileService private readonly remoteFileService: RemoteFileService,
@@ -218,10 +219,11 @@ export class RemoteFileDialog {
 			this.filePickBox.onDidChangeValue(async value => {
 				if (value !== this.userValue) {
 					this.filePickBox.validationMessage = undefined;
+					this.shouldOverwriteFile = false;
 					const trimmedPickBoxValue = ((this.filePickBox.value.length > 1) && this.endsWithSlash(this.filePickBox.value)) ? this.filePickBox.value.substr(0, this.filePickBox.value.length - 1) : this.filePickBox.value;
 					const valueUri = this.remoteUriFrom(trimmedPickBoxValue);
 					if (!resources.isEqual(this.currentFolder, valueUri, true)) {
-						await this.tryUpdateItems(value, valueUri);
+						await this.tryUpdateItems(value, this.remoteUriFrom(this.filePickBox.value));
 					}
 					this.setActiveItems(value);
 					this.userValue = value;
@@ -356,9 +358,10 @@ export class RemoteFileDialog {
 				// Can't do this
 				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateFolder', 'The folder already exists. Please use a new file name.');
 				return Promise.resolve(false);
-			} else if (stat) {
-				// This is replacing a file. Not supported yet.
-				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateExisting', 'The file already exists. Please use a new file name.');
+			} else if (stat && !this.shouldOverwriteFile) {
+				// Replacing a file.
+				this.shouldOverwriteFile = true;
+				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateExisting', '{0} already exists. Are you sure you want to overwrite it?', resources.basename(uri));
 				return Promise.resolve(false);
 			} else if (!this.isValidBaseName(resources.basename(uri))) {
 				// Filename not allowed

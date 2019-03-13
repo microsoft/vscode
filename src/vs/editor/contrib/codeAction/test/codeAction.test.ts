@@ -116,7 +116,7 @@ suite('CodeAction', () => {
 			testData.tsLint.abc
 		];
 
-		const actions = await getCodeActions(model, new Range(1, 1, 2, 1), { type: 'manual' }, CancellationToken.None);
+		const { actions } = await getCodeActions(model, new Range(1, 1, 2, 1), { type: 'manual' }, CancellationToken.None);
 		assert.equal(actions.length, 6);
 		assert.deepEqual(actions, expected);
 	});
@@ -135,20 +135,20 @@ suite('CodeAction', () => {
 		disposables.push(CodeActionProviderRegistry.register('fooLang', provider));
 
 		{
-			const actions = await getCodeActions(model, new Range(1, 1, 2, 1), { type: 'auto', filter: { kind: new CodeActionKind('a') } }, CancellationToken.None);
+			const { actions } = await getCodeActions(model, new Range(1, 1, 2, 1), { type: 'auto', filter: { kind: new CodeActionKind('a') } }, CancellationToken.None);
 			assert.equal(actions.length, 2);
 			assert.strictEqual(actions[0].title, 'a');
 			assert.strictEqual(actions[1].title, 'a.b');
 		}
 
 		{
-			const actions = await getCodeActions(model, new Range(1, 1, 2, 1), { type: 'auto', filter: { kind: new CodeActionKind('a.b') } }, CancellationToken.None);
+			const { actions } = await getCodeActions(model, new Range(1, 1, 2, 1), { type: 'auto', filter: { kind: new CodeActionKind('a.b') } }, CancellationToken.None);
 			assert.equal(actions.length, 1);
 			assert.strictEqual(actions[0].title, 'a.b');
 		}
 
 		{
-			const actions = await getCodeActions(model, new Range(1, 1, 2, 1), { type: 'auto', filter: { kind: new CodeActionKind('a.b.c') } }, CancellationToken.None);
+			const { actions } = await getCodeActions(model, new Range(1, 1, 2, 1), { type: 'auto', filter: { kind: new CodeActionKind('a.b.c') } }, CancellationToken.None);
 			assert.equal(actions.length, 0);
 		}
 	});
@@ -164,7 +164,7 @@ suite('CodeAction', () => {
 
 		disposables.push(CodeActionProviderRegistry.register('fooLang', provider));
 
-		const actions = await getCodeActions(model, new Range(1, 1, 2, 1), { type: 'auto', filter: { kind: new CodeActionKind('a') } }, CancellationToken.None);
+		const { actions } = await getCodeActions(model, new Range(1, 1, 2, 1), { type: 'auto', filter: { kind: new CodeActionKind('a') } }, CancellationToken.None);
 		assert.equal(actions.length, 1);
 		assert.strictEqual(actions[0].title, 'a');
 	});
@@ -182,13 +182,13 @@ suite('CodeAction', () => {
 		disposables.push(CodeActionProviderRegistry.register('fooLang', provider));
 
 		{
-			const actions = await getCodeActions(model, new Range(1, 1, 2, 1), { type: 'auto' }, CancellationToken.None);
+			const { actions } = await getCodeActions(model, new Range(1, 1, 2, 1), { type: 'auto' }, CancellationToken.None);
 			assert.equal(actions.length, 1);
 			assert.strictEqual(actions[0].title, 'b');
 		}
 
 		{
-			const actions = await getCodeActions(model, new Range(1, 1, 2, 1), { type: 'auto', filter: { kind: CodeActionKind.Source, includeSourceActions: true } }, CancellationToken.None);
+			const { actions } = await getCodeActions(model, new Range(1, 1, 2, 1), { type: 'auto', filter: { kind: CodeActionKind.Source, includeSourceActions: true } }, CancellationToken.None);
 			assert.equal(actions.length, 1);
 			assert.strictEqual(actions[0].title, 'a');
 		}
@@ -207,7 +207,7 @@ suite('CodeAction', () => {
 
 		disposables.push(CodeActionProviderRegistry.register('fooLang', provider));
 
-		const actions = await getCodeActions(model, new Range(1, 1, 2, 1), {
+		const { actions } = await getCodeActions(model, new Range(1, 1, 2, 1), {
 			type: 'auto',
 			filter: {
 				kind: CodeActionKind.QuickFix

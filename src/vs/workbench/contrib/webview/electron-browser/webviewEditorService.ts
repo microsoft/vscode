@@ -41,6 +41,7 @@ export interface IWebviewEditorService {
 		state: any,
 		options: WebviewInputOptions,
 		extensionLocation: URI | undefined,
+		group: number | undefined
 	): WebviewEditorInput;
 
 	revealWebview(
@@ -53,7 +54,7 @@ export interface IWebviewEditorService {
 		reviver: WebviewReviver
 	): IDisposable;
 
-	canRevive(
+	shouldPersist(
 		input: WebviewEditorInput
 	): boolean;
 }
@@ -91,7 +92,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 	_serviceBrand: any;
 
 	private readonly _revivers = new Set<WebviewReviver>();
-	private _awaitingRevival: { input: WebviewEditorInput, resolve: (x: any) => void }[] = [];
+	private _awaitingRevival: Array<{ input: WebviewEditorInput, resolve: () => void }> = [];
 
 	constructor(
 		@IEditorService private readonly _editorService: IEditorService,
@@ -120,7 +121,10 @@ export class WebviewEditorService implements IWebviewEditorService {
 		if (webview.group === group.id) {
 			this._editorService.openEditor(webview, { preserveFocus }, webview.group);
 		} else {
-			this._editorGroupService.getGroup(webview.group!).moveEditor(webview, group, { preserveFocus });
+			const groupView = this._editorGroupService.getGroup(webview.group!);
+			if (groupView) {
+				groupView.moveEditor(webview, group, { preserveFocus });
+			}
 		}
 	}
 
@@ -131,7 +135,8 @@ export class WebviewEditorService implements IWebviewEditorService {
 		iconPath: { light: URI, dark: URI } | undefined,
 		state: any,
 		options: WebviewInputOptions,
-		extensionLocation: URI
+		extensionLocation: URI,
+		group: number | undefined,
 	): WebviewEditorInput {
 		const webviewInput = this._instantiationService.createInstance(RevivedWebviewEditorInput, viewType, id, title, options, state, {}, extensionLocation, async (webview: WebviewEditorInput): Promise<void> => {
 			const didRevive = await this.tryRevive(webview);
@@ -146,6 +151,9 @@ export class WebviewEditorService implements IWebviewEditorService {
 			return promise;
 		});
 		webviewInput.iconPath = iconPath;
+		if (typeof group === 'number') {
+			webviewInput.updateGroup(group);
+		}
 		return webviewInput;
 	}
 
@@ -159,7 +167,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 		this._awaitingRevival = this._awaitingRevival.filter(x => !reviver.canRevive(x.input));
 
 		for (const input of toRevive) {
-			reviver.reviveWebview(input.input).then(() => input.resolve(undefined));
+			reviver.reviveWebview(input.input).then(() => input.resolve());
 		}
 
 		return toDisposable(() => {
@@ -167,15 +175,19 @@ export class WebviewEditorService implements IWebviewEditorService {
 		});
 	}
 
-	canRevive(
+	shouldPersist(
 		webview: WebviewEditorInput
 	): boolean {
-		for (const reviver of values(this._revivers)) {
-			if (reviver.canRevive(webview)) {
-				return true;
-			}
+		// Has no state, don't persist
+		if (!webview.state) {
+			return false;
 		}
-		return false;
+
+		if (values(this._revivers).some(reviver => reviver.canRevive(webview))) {
+			return true;
+		}
+
+		return !(webview instanceof RevivedWebviewEditorInput);
 	}
 
 	private async tryRevive(

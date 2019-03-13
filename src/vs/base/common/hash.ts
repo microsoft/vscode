@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isString } from 'vs/base/common/types';
+import { toUint8ArrayBuffer } from 'vs/base/common/uint';
 
 /**
  * Return a hash value for an object.
@@ -76,7 +77,7 @@ export class Hasher {
 //#region SHA1
 
 export function computeSHA1Hash(value: string): string {
-	const data = encodeToArrayBuffer(value);
+	const data = toUint8ArrayBuffer(value);
 	const hash = new SHA1();
 
 	if (data.byteLength) {
@@ -137,7 +138,7 @@ class SHA1 {
 		let data: Uint8Array;
 
 		if (isString(arg)) {
-			data = new Uint8Array(encodeToArrayBuffer(<string>arg));
+			data = new Uint8Array(toUint8ArrayBuffer(<string>arg));
 		} else if (arg instanceof ArrayBuffer) {
 			data = new Uint8Array(arg);
 		} else if (arg instanceof DataView) {
@@ -299,101 +300,6 @@ function multiply64(a: number, b: number): number[] {
 	c2 = c2 & 0xFFFF;
 
 	return [(c3 << 16 | c2) >>> 0, (c1 << 16 | c0) >>> 0];
-}
-
-function encodeToArrayBuffer(str: string): ArrayBuffer {
-	let i: number, len: number, length = 0, charCode = 0, trailCharCode = 0, codepoint = 0;
-
-	// First pass, for the size
-	for (i = 0, len = str.length; i < len; i++) {
-		charCode = str.charCodeAt(i);
-
-		// Surrogate pair
-		if (charCode >= 0xD800 && charCode < 0xDC00) {
-			trailCharCode = str.charCodeAt(++i);
-
-			if (!(trailCharCode >= 0xDC00 && trailCharCode < 0xE000)) {
-				throw new Error('Invalid char code');
-			}
-
-			// Code point can be obtained by subtracting 0xD800 and 0xDC00 from both char codes respectively
-			// and joining the 10 least significant bits from each, finally adding 0x10000.
-			codepoint = ((((charCode - 0xD800) & 0x3FF) << 10) | ((trailCharCode - 0xDC00) & 0x3FF)) + 0x10000;
-
-		} else {
-			codepoint = charCode;
-		}
-
-		length += byteSizeInUTF8(codepoint);
-	}
-
-	let result = new ArrayBuffer(length);
-	let view = new Uint8Array(result);
-	let pos = 0;
-
-	// Second pass, for the data
-	for (i = 0, len = str.length; i < len; i++) {
-		charCode = str.charCodeAt(i);
-
-		if (charCode >= 0xD800 && charCode < 0xDC00) {
-			trailCharCode = str.charCodeAt(++i);
-			codepoint = ((((charCode - 0xD800) & 0x3FF) << 10) | ((trailCharCode - 0xDC00) & 0x3FF)) + 0x10000;
-		} else {
-			codepoint = charCode;
-		}
-
-		pos += writeUTF8(codepoint, view, pos);
-	}
-
-	return result;
-}
-
-function byteSizeInUTF8(codePoint: number): number {
-	codePoint = codePoint >>> 0;
-
-	if (codePoint < 0x80) {
-		return 1;
-	} else if (codePoint < 0x800) {
-		return 2;
-	} else if (codePoint < 0x10000) {
-		return 3;
-	} else if (codePoint < 0x200000) {
-		return 4;
-	} else if (codePoint < 0x4000000) {
-		return 5;
-	} else if (codePoint < 0x80000000) {
-		return 6;
-	} else {
-		throw new Error('Code point 0x' + toHexString(codePoint) + ' not encodable in UTF8.');
-	}
-}
-
-function writeUTF8(codePoint: number, buffer: Uint8Array, pos: number): number {
-
-	// How many bits needed for codePoint
-	let byteSize = byteSizeInUTF8(codePoint);
-
-	// 0xxxxxxx
-	if (byteSize === 1) {
-		buffer[pos] = codePoint;
-		return 1;
-	}
-
-	// 110xxxxx 10xxxxxx
-	// 1110xxxx 10xxxxxx 10xxxxxx
-	// 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
-	// 111110xx 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx
-	// 1111110x 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx
-
-	// first byte
-	buffer[pos] = ((0xFC << (6 - byteSize)) | (codePoint >>> (6 * (byteSize - 1)))) & 0xFF;
-
-	// successive bytes
-	for (let i = 1; i < byteSize; i++) {
-		buffer[pos + i] = (0x80 | (0x3F & (codePoint >>> (6 * (byteSize - i - 1))))) & 0xFF;
-	}
-
-	return byteSize;
 }
 
 function copy(dest: Uint8Array, destIndex: number, src: Uint8Array, srcIndex: number, count: number): number {

@@ -35,7 +35,7 @@ export interface IPanelService {
 	getActivePanel(): IPanel | null;
 
 	/**
-	 * * Returns all built-in panels following the default order (Problems - Output - Debug Console - Terminal)
+	 * Returns all built-in panels following the default order (Problems - Output - Debug Console - Terminal)
 	 */
 	getPanels(): IPanelIdentifier[];
 

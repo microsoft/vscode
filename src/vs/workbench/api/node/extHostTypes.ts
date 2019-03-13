@@ -486,7 +486,7 @@ export class TextEdit {
 	}
 
 	protected _range: Range;
-	protected _newText: string;
+	protected _newText: string | null;
 	protected _newEol: EndOfLine;
 
 	get range(): Range {
@@ -522,9 +522,9 @@ export class TextEdit {
 		this._newEol = value;
 	}
 
-	constructor(range: Range, newText: string) {
+	constructor(range: Range, newText: string | null) {
 		this.range = range;
-		this.newText = newText;
+		this._newText = newText;
 	}
 
 	toJSON(): any {
@@ -1095,34 +1095,18 @@ CodeActionKind.SourceOrganizeImports = CodeActionKind.Source.append('organizeImp
 CodeActionKind.SourceFixAll = CodeActionKind.Source.append('fixAll');
 
 @es5ClassCompat
-export class SelectionRangeKind {
-
-	private static readonly _sep = '.';
-
-	static readonly Empty = new SelectionRangeKind('');
-	static readonly Statement = SelectionRangeKind.Empty.append('statement');
-	static readonly Declaration = SelectionRangeKind.Empty.append('declaration');
-
-	readonly value: string;
-
-	constructor(value: string) {
-		this.value = value;
-	}
-
-	append(value: string): SelectionRangeKind {
-		return new SelectionRangeKind(this.value ? this.value + SelectionRangeKind._sep + value : value);
-	}
-}
-
-@es5ClassCompat
 export class SelectionRange {
 
-	kind: SelectionRangeKind;
 	range: Range;
+	parent?: SelectionRange;
 
-	constructor(range: Range, kind: SelectionRangeKind, ) {
+	constructor(range: Range, parent?: SelectionRange) {
 		this.range = range;
-		this.kind = kind;
+		this.parent = parent;
+
+		if (parent && !parent.range.contains(this.range)) {
+			throw new Error('Invalid argument: parent must contain this range');
+		}
 	}
 }
 

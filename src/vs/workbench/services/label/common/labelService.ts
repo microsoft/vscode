@@ -255,7 +255,7 @@ export class LabelService implements ILabelService {
 
 		const formatting = this.findFormatting(uri);
 		const suffix = formatting && (typeof formatting.workspaceSuffix === 'string') ? formatting.workspaceSuffix : uri.scheme;
-		return suffix ? `${label} (${suffix})` : label;
+		return suffix ? `${label} [${suffix}]` : label;
 	}
 }
 

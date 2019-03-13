@@ -513,7 +513,8 @@ class PasteFileAction extends BaseErrorReportingAction {
 					this.explorerService.setToCopy([], false);
 				}
 				if (!stat.isDirectory) {
-					return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true, preserveFocus: true } });
+					return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true, preserveFocus: true } })
+						.then(types.withNullAsUndefined);
 				}
 
 				return undefined;

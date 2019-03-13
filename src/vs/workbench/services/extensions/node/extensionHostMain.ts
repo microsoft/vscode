@@ -56,7 +56,7 @@ export class ExtensionHostMain {
 
 	constructor(protocol: IMessagePassingProtocol, initData: IInitData) {
 		this._isTerminating = false;
-		const uriTransformer: IURITransformer = null;
+		const uriTransformer: IURITransformer | null = null;
 		const rpcProtocol = new RPCProtocol(protocol, null, uriTransformer);
 
 		// ensure URIs are transformed and revived
@@ -117,7 +117,7 @@ export class ExtensionHostMain {
 
 	private _patchPatchedConsole(mainThreadConsole: MainThreadConsoleShape): void {
 		// The console is already patched to use `process.send()`
-		const nativeProcessSend = process.send;
+		const nativeProcessSend = process.send!;
 		process.send = (...args: any[]) => {
 			if (args.length === 0 || !args[0] || args[0].type !== '__$console') {
 				return nativeProcessSend.apply(process, args);

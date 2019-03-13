@@ -181,10 +181,6 @@ function isNativeClass(thing): boolean {
 		&& !thing.hasOwnProperty('arguments');
 }
 
-/**
- *
- *
- */
 export function getAllPropertyNames(obj: object): string[] {
 	let res: string[] = [];
 	let proto = Object.getPrototypeOf(obj);
@@ -193,4 +189,18 @@ export function getAllPropertyNames(obj: object): string[] {
 		proto = Object.getPrototypeOf(proto);
 	}
 	return res;
+}
+
+/**
+ * Converts null to undefined, passes all other values through.
+ */
+export function withNullAsUndefined<T>(x: T | null): T | undefined {
+	return x === null ? undefined : x;
+}
+
+/**
+ * Converts undefined to null, passes all other values through.
+ */
+export function withUndefinedAsNull<T>(x: T | undefined): T | null {
+	return typeof x === 'undefined' ? null : x;
 }

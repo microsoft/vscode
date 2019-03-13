@@ -45,7 +45,7 @@ class BaseTreeItem {
 	private _children: { [key: string]: BaseTreeItem; };
 	private _source: Source;
 
-	constructor(private _parent: BaseTreeItem, private _label: string) {
+	constructor(private _parent: BaseTreeItem | undefined, private _label: string) {
 		this._children = {};
 		this._showedMoreThanOne = false;
 	}
@@ -54,7 +54,7 @@ class BaseTreeItem {
 		return Object.keys(this._children).length === 0;
 	}
 
-	getSession(): IDebugSession {
+	getSession(): IDebugSession | undefined {
 		if (this._parent) {
 			return this._parent.getSession();
 		}
@@ -66,10 +66,12 @@ class BaseTreeItem {
 		this._children = {};
 		if (source.raw && source.raw.sources) {
 			for (const src of source.raw.sources) {
-				const s = new BaseTreeItem(this, src.name);
-				this._children[src.path] = s;
-				const ss = session.getSource(src);
-				s.setSource(session, ss);
+				if (src.name && src.path) {
+					const s = new BaseTreeItem(this, src.name);
+					this._children[src.path] = s;
+					const ss = session.getSource(src);
+					s.setSource(session, ss);
+				}
 			}
 		}
 	}
@@ -111,7 +113,7 @@ class BaseTreeItem {
 	}
 
 	// skips intermediate single-child nodes
-	getParent(): BaseTreeItem {
+	getParent(): BaseTreeItem | undefined {
 		if (this._parent) {
 			if (this._parent.isSkipped()) {
 				return this._parent.getParent();
@@ -161,7 +163,7 @@ class BaseTreeItem {
 	}
 
 	// skips intermediate single-child nodes
-	getHoverLabel(): string {
+	getHoverLabel(): string | undefined {
 		if (this._source && this._parent && this._parent._source) {
 			return this._source.raw.path || this._source.raw.name;
 		}
@@ -192,7 +194,7 @@ class BaseTreeItem {
 		return 0;
 	}
 
-	private oneChild(): BaseTreeItem {
+	private oneChild(): BaseTreeItem | undefined {
 		if (SMART && !this._source && !this._showedMoreThanOne && !(this instanceof RootFolderTreeItem) && !(this instanceof SessionTreeItem)) {
 			const keys = Object.keys(this._children);
 			if (keys.length === 1) {
@@ -251,7 +253,7 @@ class SessionTreeItem extends BaseTreeItem {
 		return this._session;
 	}
 
-	getHoverLabel(): string {
+	getHoverLabel(): string | undefined {
 		return undefined;
 	}
 
@@ -300,10 +302,13 @@ class SessionTreeItem extends BaseTreeItem {
 
 	addPath(source: Source): void {
 
-		let folder: IWorkspaceFolder;
+		let folder: IWorkspaceFolder | null;
 		let url: string;
 
 		let path = source.raw.path;
+		if (!path) {
+			return;
+		}
 
 		const match = SessionTreeItem.URL_REGEXP.exec(path);
 		if (match && match.length === 3) {
@@ -323,7 +328,7 @@ class SessionTreeItem extends BaseTreeItem {
 						path = posix.sep + path;
 					} else {
 						// don't show root folder
-						folder = undefined;
+						folder = null;
 					}
 				} else {
 					// on unix try to tildify absolute paths
@@ -338,7 +343,8 @@ class SessionTreeItem extends BaseTreeItem {
 		let leaf: BaseTreeItem = this;
 		path.split(/[\/\\]/).forEach((segment, i) => {
 			if (i === 0 && folder) {
-				leaf = leaf.createIfNeeded(folder.name, parent => new RootFolderTreeItem(parent, folder));
+				const f = folder;
+				leaf = leaf.createIfNeeded(folder.name, parent => new RootFolderTreeItem(parent, f));
 			} else if (i === 0 && url) {
 				leaf = leaf.createIfNeeded(url, parent => new BaseTreeItem(parent, url));
 			} else {
@@ -347,14 +353,18 @@ class SessionTreeItem extends BaseTreeItem {
 		});
 
 		leaf.setSource(this._session, source);
-		this._map.set(source.raw.path, leaf);
+		if (source.raw.path) {
+			this._map.set(source.raw.path, leaf);
+		}
 	}
 
 	removePath(source: Source): boolean {
-		const leaf = this._map.get(source.raw.path);
-		if (leaf) {
-			leaf.removeFromParent();
-			return true;
+		if (source.raw.path) {
+			const leaf = this._map.get(source.raw.path);
+			if (leaf) {
+				leaf.removeFromParent();
+				return true;
+			}
 		}
 		return false;
 	}
@@ -519,10 +529,7 @@ class LoadedScriptsDelegate implements IListVirtualDelegate<LoadedScriptsItem> {
 	}
 
 	getTemplateId(element: LoadedScriptsItem): string {
-		if (element instanceof BaseTreeItem) {
-			return LoadedScriptsRenderer.ID;
-		}
-		return undefined;
+		return LoadedScriptsRenderer.ID;
 	}
 }
 
@@ -611,15 +618,11 @@ class LoadedSciptsAccessibilityProvider implements IAccessibilityProvider<Loaded
 			return nls.localize('loadedScriptsSessionAriaLabel', "Session {0}, loaded script, debug", element.getLabel());
 		}
 
-		if (element instanceof BaseTreeItem) {
-			if (element.hasChildren()) {
-				return nls.localize('loadedScriptsFolderAriaLabel', "Folder {0}, loaded script, debug", element.getLabel());
-			} else {
-				return nls.localize('loadedScriptsSourceAriaLabel', "{0}, loaded script, debug", element.getLabel());
-			}
+		if (element.hasChildren()) {
+			return nls.localize('loadedScriptsFolderAriaLabel', "Folder {0}, loaded script, debug", element.getLabel());
+		} else {
+			return nls.localize('loadedScriptsSourceAriaLabel', "{0}, loaded script, debug", element.getLabel());
 		}
-
-		return null;
 	}
 }
 

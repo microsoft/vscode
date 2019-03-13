@@ -34,6 +34,7 @@ function adjustHandler(handler: (executor: ICommandsExecutor, ...args: any[]) =>
 interface IOpenFolderAPICommandOptions {
 	forceNewWindow?: boolean;
 	noRecentEntry?: boolean;
+	recentEntryLabel?: string;
 }
 
 export class OpenFolderAPICommand {
@@ -52,7 +53,7 @@ export class OpenFolderAPICommand {
 			options.args = { _: [], 'skip-add-to-recently-opened': true };
 		}
 		uri = URI.revive(uri);
-		return executor.executeCommand('_files.windowOpen', [{ uri }], options);
+		return executor.executeCommand('_files.windowOpen', [{ uri, label: arg.recentEntryLabel }], options);
 	}
 }
 CommandsRegistry.registerCommand({
@@ -62,7 +63,7 @@ CommandsRegistry.registerCommand({
 		description: 'Open a folder or workspace in the current window or new window depending on the newWindow argument. Note that opening in the same window will shutdown the current extension host process and start a new one on the given folder/workspace unless the newWindow parameter is set to true.',
 		args: [
 			{ name: 'uri', description: '(optional) Uri of the folder or workspace file to open. If not provided, a native dialog will ask the user for the folder', constraint: (value: any) => value === undefined || value instanceof URI },
-			{ name: 'options', description: '(optional) Options. Object with the following properties: `forceNewWindow `: Whether to open the folder/workspace in a new window or the same. Defaults to opening in the same window. `noRecentEntry`: Wheter the opened URI will appear in the \'Open Recent\' list. Defaults to true. Note, for backward compatibility, options can also be of type boolean, representing the `forceNewWindow` setting.', constraint: (value: any) => value === undefined || typeof value === 'object' || typeof value === 'boolean' }
+			{ name: 'options', description: '(optional) Options. Object with the following properties: `forceNewWindow `: Whether to open the folder/workspace in a new window or the same. Defaults to opening in the same window. `noRecentEntry`: Wheter the opened URI will appear in the \'Open Recent\' list. Defaults to true. `recentEntryLabel`: The label used for \'Open Recent\' list. Note, for backward compatibility, options can also be of type boolean, representing the `forceNewWindow` setting.', constraint: (value: any) => value === undefined || typeof value === 'object' || typeof value === 'boolean' }
 		]
 	}
 });

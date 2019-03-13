@@ -36,7 +36,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 	 */
 	constructor(
 		private resource: URI,
-		preferredEncoding: string,
+		preferredEncoding: string | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
@@ -45,7 +45,9 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 	) {
 		super();
 
-		this.setPreferredEncoding(preferredEncoding);
+		if (preferredEncoding) {
+			this.setPreferredEncoding(preferredEncoding);
+		}
 
 		this.registerListeners();
 	}
@@ -100,10 +102,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 	setPreferredEncoding(encoding: string): void {
 		this.preferredEncoding = encoding;
-
-		if (encoding) {
-			this.forceOpenAsText = true; // encoding is a good hint to open the file as text
-		}
+		this.forceOpenAsText = true; // encoding is a good hint to open the file as text
 	}
 
 	setForceOpenAsText(): void {

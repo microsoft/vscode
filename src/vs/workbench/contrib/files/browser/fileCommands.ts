@@ -84,9 +84,9 @@ export const openWindowCommand = (accessor: ServicesAccessor, urisToOpen: IURITo
 };
 
 function save(
-	resource: URI,
+	resource: URI | null,
 	isSaveAs: boolean,
-	options: ISaveOptions,
+	options: ISaveOptions | undefined,
 	editorService: IEditorService,
 	fileService: IFileService,
 	untitledEditorService: IUntitledEditorService,
@@ -126,14 +126,14 @@ function save(
 			}
 
 			// Special case: an untitled file with associated path gets saved directly unless "saveAs" is true
-			let savePromise: Promise<URI | null>;
+			let savePromise: Promise<URI | undefined>;
 			if (!isSaveAs && resource.scheme === Schemas.untitled && untitledEditorService.hasAssociatedFilePath(resource)) {
 				savePromise = textFileService.save(resource, options).then((result) => {
 					if (result) {
 						return resource.with({ scheme: Schemas.file });
 					}
 
-					return null;
+					return undefined;
 				});
 			}
 
@@ -307,7 +307,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
-let globalResourceToCompare: URI;
+let globalResourceToCompare: URI | null;
 let resourceSelectedForCompareContext: IContextKey<boolean>;
 CommandsRegistry.registerCommand({
 	id: SELECT_FOR_COMPARE_COMMAND_ID,
@@ -384,7 +384,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: (accessor: ServicesAccessor) => {
 		const editorService = accessor.get(IEditorService);
 		const activeInput = editorService.activeEditor;
-		const resources = activeInput && activeInput.getResource() ? [activeInput.getResource()] : [];
+		const resource = activeInput ? activeInput.getResource() : null;
+		const resources = resource ? [resource] : [];
 		revealResourcesInOS(resources, accessor.get(IWindowsService), accessor.get(INotificationService), accessor.get(IWorkspaceContextService));
 	}
 });
@@ -437,7 +438,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: (accessor) => {
 		const editorService = accessor.get(IEditorService);
 		const activeInput = editorService.activeEditor;
-		const resources = activeInput && activeInput.getResource() ? [activeInput.getResource()] : [];
+		const resource = activeInput ? activeInput.getResource() : null;
+		const resources = resource ? [resource] : [];
 		resourcesToClipboard(resources, false, accessor.get(IClipboardService), accessor.get(INotificationService), accessor.get(ILabelService));
 	}
 });
@@ -451,8 +453,7 @@ CommandsRegistry.registerCommand({
 		const uri = getResourceForCommand(resource, accessor.get(IListService), accessor.get(IEditorService));
 
 		viewletService.openViewlet(VIEWLET_ID, false).then((viewlet: ExplorerViewlet) => {
-			const isInsideWorkspace = contextService.isInsideWorkspace(uri);
-			if (isInsideWorkspace) {
+			if (uri && contextService.isInsideWorkspace(uri)) {
 				const explorerView = viewlet.getExplorerView();
 				if (explorerView) {
 					explorerView.setExpanded(true);
@@ -476,7 +477,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_S,
 	handler: (accessor, resourceOrObject: URI | object | { from: string }) => {
 		const editorService = accessor.get(IEditorService);
-		let resource: URI | undefined = undefined;
+		let resource: URI | null = null;
 		if (resourceOrObject && 'from' in resourceOrObject && resourceOrObject.from === 'menu') {
 			resource = toResource(editorService.activeEditor);
 		} else {

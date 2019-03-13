@@ -40,6 +40,7 @@ import { CloseOneEditorAction } from 'vs/workbench/browser/parts/editor/editorAc
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { BreadcrumbsControl } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
 import { IFileService } from 'vs/platform/files/common/files';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 interface IEditorInputLabel {
 	name: string;
@@ -716,8 +717,8 @@ export class TabsTitleControl extends TitleControl {
 		const labels = this.group.editors.map(editor => ({
 			editor,
 			name: editor.getName()!,
-			description: editor.getDescription(verbosity) || undefined,
-			title: editor.getTitle(Verbosity.LONG) || undefined
+			description: withNullAsUndefined(editor.getDescription(verbosity)),
+			title: withNullAsUndefined(editor.getTitle(Verbosity.LONG))
 		}));
 
 		// Shorten labels as needed
@@ -769,7 +770,7 @@ export class TabsTitleControl extends TitleControl {
 			if (useLongDescriptions) {
 				mapDescriptionToDuplicates.clear();
 				duplicateTitles.forEach(label => {
-					label.description = label.editor.getDescription(Verbosity.LONG) || undefined;
+					label.description = withNullAsUndefined(label.editor.getDescription(Verbosity.LONG));
 					getOrSet(mapDescriptionToDuplicates, label.description, []).push(label);
 				});
 			}
@@ -1090,14 +1091,17 @@ export class TabsTitleControl extends TitleControl {
 			const draggedEditor = this.editorTransfer.getData(DraggedEditorIdentifier.prototype)![0].identifier;
 			const sourceGroup = this.accessor.getGroup(draggedEditor.groupId);
 
-			// Move editor to target position and index
-			if (this.isMoveOperation(e, draggedEditor.groupId)) {
-				sourceGroup.moveEditor(draggedEditor.editor, this.group, { index: targetIndex });
-			}
+			if (sourceGroup) {
 
-			// Copy editor to target position and index
-			else {
-				sourceGroup.copyEditor(draggedEditor.editor, this.group, { index: targetIndex });
+				// Move editor to target position and index
+				if (this.isMoveOperation(e, draggedEditor.groupId)) {
+					sourceGroup.moveEditor(draggedEditor.editor, this.group, { index: targetIndex });
+				}
+
+				// Copy editor to target position and index
+				else {
+					sourceGroup.copyEditor(draggedEditor.editor, this.group, { index: targetIndex });
+				}
 			}
 
 			this.group.focus();
@@ -1108,12 +1112,14 @@ export class TabsTitleControl extends TitleControl {
 		else if (this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype)) {
 			const sourceGroup = this.accessor.getGroup(this.groupTransfer.getData(DraggedEditorGroupIdentifier.prototype)![0].identifier);
 
-			const mergeGroupOptions: IMergeGroupOptions = { index: targetIndex };
-			if (!this.isMoveOperation(e, sourceGroup.id)) {
-				mergeGroupOptions.mode = MergeGroupMode.COPY_EDITORS;
-			}
+			if (sourceGroup) {
+				const mergeGroupOptions: IMergeGroupOptions = { index: targetIndex };
+				if (!this.isMoveOperation(e, sourceGroup.id)) {
+					mergeGroupOptions.mode = MergeGroupMode.COPY_EDITORS;
+				}
 
-			this.accessor.mergeGroup(sourceGroup, this.group, mergeGroupOptions);
+				this.accessor.mergeGroup(sourceGroup, this.group, mergeGroupOptions);
+			}
 
 			this.group.focus();
 			this.groupTransfer.clearData(DraggedEditorGroupIdentifier.prototype);

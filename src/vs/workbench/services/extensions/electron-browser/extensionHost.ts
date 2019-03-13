@@ -35,6 +35,7 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { IInitData } from 'vs/workbench/api/node/extHost.protocol';
 import { MessageType, createMessageOfType, isMessageOfType } from 'vs/workbench/services/extensions/node/extensionHostProtocol';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 export interface IExtensionHostStarter {
 	readonly onCrashed: Event<[number, string]>;
@@ -434,7 +435,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 						globalStorageHome: URI.file(this._environmentService.globalStorageHome)
 					},
 					workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? undefined : {
-						configuration: workspace.configuration || undefined,
+						configuration: withNullAsUndefined(workspace.configuration),
 						id: workspace.id,
 						name: this._labelService.getWorkspaceLabel(workspace)
 					},

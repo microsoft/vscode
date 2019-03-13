@@ -5,7 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { ITextSnapshot, IFileStat, IContent, IFileService, IResourceEncodings, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IStreamContent, IUpdateContentOptions, snapshotToString, ICreateFileOptions } from 'vs/platform/files/common/files';
+import { ITextSnapshot, IFileStat, IContent, IFileService, IResourceEncodings, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IStreamContent, IUpdateContentOptions, snapshotToString, ICreateFileOptions, IResourceEncoding } from 'vs/platform/files/common/files';
 import { ITextBufferFactory } from 'vs/editor/common/model';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { keys, ResourceMap } from 'vs/base/common/map';
@@ -164,10 +164,12 @@ export class SimpleClipboardService implements IClipboardService {
 	writeText(text: string, type?: string): void { }
 
 	readText(type?: string): string {
+		// @ts-ignore
 		return undefined;
 	}
 
 	readFindText(): string {
+		// @ts-ignore
 		return undefined;
 	}
 
@@ -211,6 +213,7 @@ export class SimpleDownloadService implements IDownloadService {
 	_serviceBrand: any;
 
 	download(uri: URI, to?: string, cancellationToken?: CancellationToken): Promise<string> {
+		// @ts-ignore
 		return Promise.resolve(undefined);
 	}
 }
@@ -256,7 +259,7 @@ export class SimpleEnvironmentService implements IEnvironmentService {
 	wait: boolean;
 	status: boolean;
 	log?: string;
-	logsPath: string;
+	logsPath: string = '/nodeless/logs';
 	verbose: boolean;
 	skipGettingStarted: boolean;
 	skipReleaseNotes: boolean;
@@ -286,10 +289,12 @@ export class SimpleExtensionGalleryService implements IExtensionGalleryService {
 	}
 
 	query(options?: IQueryOptions): Promise<IPager<IGalleryExtension>> {
+		// @ts-ignore
 		return Promise.resolve(undefined);
 	}
 
 	download(extension: IGalleryExtension, operation: InstallOperation): Promise<string> {
+		// @ts-ignore
 		return Promise.resolve(undefined);
 	}
 
@@ -298,33 +303,41 @@ export class SimpleExtensionGalleryService implements IExtensionGalleryService {
 	}
 
 	getReadme(extension: IGalleryExtension, token: CancellationToken): Promise<string> {
+		// @ts-ignore
 		return Promise.resolve(undefined);
 	}
 
 	getManifest(extension: IGalleryExtension, token: CancellationToken): Promise<IExtensionManifest> {
+		// @ts-ignore
 		return Promise.resolve(undefined);
 	}
 
 	getChangelog(extension: IGalleryExtension, token: CancellationToken): Promise<string> {
+		// @ts-ignore
 		return Promise.resolve(undefined);
 	}
 
 	getCoreTranslation(extension: IGalleryExtension, languageId: string): Promise<ITranslation> {
+		// @ts-ignore
 		return Promise.resolve(undefined);
 	}
 
 	getAllVersions(extension: IGalleryExtension, compatible: boolean): Promise<IGalleryExtensionVersion[]> {
+		// @ts-ignore
 		return Promise.resolve(undefined);
 	}
 
 	loadAllDependencies(dependencies: IExtensionIdentifier[], token: CancellationToken): Promise<IGalleryExtension[]> {
+		// @ts-ignore
 		return Promise.resolve(undefined);
 	}
 
 	getExtensionsReport(): Promise<IReportedExtension[]> {
+		// @ts-ignore
 		return Promise.resolve(undefined);
 	}
 
+	// @ts-ignore
 	getCompatibleExtension(extension: IGalleryExtension): Promise<IGalleryExtension>;
 	getCompatibleExtension(id: IExtensionIdentifier, version?: string): Promise<IGalleryExtension>;
 	getCompatibleExtension(id: any, version?: any) {
@@ -348,14 +361,17 @@ export class SimpleExtensionManagementService implements IExtensionManagementSer
 	onDidUninstallExtension = Event.None;
 
 	zip(extension: ILocalExtension): Promise<URI> {
+		// @ts-ignore
 		return Promise.resolve(undefined);
 	}
 
 	unzip(zipLocation: URI, type: ExtensionType): Promise<IExtensionIdentifier> {
+		// @ts-ignore
 		return Promise.resolve(undefined);
 	}
 
 	install(vsix: URI): Promise<IExtensionIdentifier> {
+		// @ts-ignore
 		return Promise.resolve(undefined);
 	}
 
@@ -372,14 +388,17 @@ export class SimpleExtensionManagementService implements IExtensionManagementSer
 	}
 
 	getInstalled(type?: ExtensionType): Promise<ILocalExtension[]> {
+		// @ts-ignore
 		return Promise.resolve(undefined);
 	}
 
 	getExtensionsReport(): Promise<IReportedExtension[]> {
+		// @ts-ignore
 		return Promise.resolve(undefined);
 	}
 
 	updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension> {
+		// @ts-ignore
 		return Promise.resolve(undefined);
 	}
 }
@@ -542,6 +561,7 @@ export class SimpleLifecycleService extends AbstractLifecycleService {
 			reason: ShutdownReason.QUIT
 		});
 
+		// @ts-ignore
 		return null;
 	}
 }
@@ -583,14 +603,17 @@ export class SimpleMultiExtensionsManagementService implements IExtensionManagem
 	onDidUninstallExtension = Event.None;
 
 	zip(extension: ILocalExtension): Promise<URI> {
+		// @ts-ignore
 		return Promise.resolve(undefined);
 	}
 
 	unzip(zipLocation: URI, type: ExtensionType): Promise<IExtensionIdentifier> {
+		// @ts-ignore
 		return Promise.resolve(undefined);
 	}
 
 	install(vsix: URI): Promise<IExtensionIdentifier> {
+		// @ts-ignore
 		return Promise.resolve(undefined);
 	}
 
@@ -607,14 +630,17 @@ export class SimpleMultiExtensionsManagementService implements IExtensionManagem
 	}
 
 	getInstalled(type?: ExtensionType): Promise<ILocalExtension[]> {
+		// @ts-ignore
 		return Promise.resolve(undefined);
 	}
 
 	getExtensionsReport(): Promise<IReportedExtension[]> {
+		// @ts-ignore
 		return Promise.resolve(undefined);
 	}
 
 	updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension> {
+		// @ts-ignore
 		return Promise.resolve(undefined);
 	}
 }
@@ -652,6 +678,7 @@ export class SimpleRemoteAgentService implements IRemoteAgentService {
 	_serviceBrand: any;
 
 	getConnection(): object {
+		// @ts-ignore
 		return undefined;
 	}
 }
@@ -667,6 +694,7 @@ export class SimpleRemoteAuthorityResolverService implements IRemoteAuthorityRes
 	_serviceBrand: any;
 
 	resolveAuthority(authority: string): Promise<ResolvedAuthority> {
+		// @ts-ignore
 		return Promise.resolve(undefined);
 	}
 
@@ -696,6 +724,7 @@ export class SimpleRemoteFileService implements IFileService {
 	readonly onDidChangeFileSystemProviderRegistrations = Event.None;
 
 	resolveFile(resource: URI, options?: IResolveFileOptions): Promise<IFileStat> {
+		// @ts-ignore
 		return Promise.resolve(fileMap.get(resource));
 	}
 
@@ -708,16 +737,19 @@ export class SimpleRemoteFileService implements IFileService {
 	}
 
 	resolveContent(resource: URI, _options?: IResolveContentOptions): Promise<IContent> {
+		// @ts-ignore
 		return Promise.resolve(contentMap.get(resource));
 	}
 
 	resolveStreamContent(resource: URI, _options?: IResolveContentOptions): Promise<IStreamContent> {
 		return Promise.resolve(contentMap.get(resource)).then(content => {
 			return {
+				// @ts-ignore
 				resource: content.resource,
 				value: {
 					on: (event: string, callback: Function): void => {
 						if (event === 'data') {
+							// @ts-ignore
 							callback(content.value);
 						}
 
@@ -726,21 +758,28 @@ export class SimpleRemoteFileService implements IFileService {
 						}
 					}
 				},
+				// @ts-ignore
 				etag: content.etag,
+				// @ts-ignore
 				encoding: content.encoding,
+				// @ts-ignore
 				mtime: content.mtime,
+				// @ts-ignore
 				name: content.name
 			};
 		});
 	}
 
 	updateContent(resource: URI, value: string | ITextSnapshot, _options?: IUpdateContentOptions): Promise<IFileStat> {
+		// @ts-ignore
 		return Promise.resolve(fileMap.get(resource)).then(file => {
 			const content = contentMap.get(resource);
 
 			if (typeof value === 'string') {
+				// @ts-ignore
 				content.value = value;
 			} else {
+				// @ts-ignore
 				content.value = snapshotToString(value);
 			}
 
@@ -770,7 +809,7 @@ export class SimpleRemoteFileService implements IFileService {
 
 	unwatchFileChanges(_resource: URI): void { }
 
-	getWriteEncoding(_resource: URI): string { return 'utf8'; }
+	getWriteEncoding(_resource: URI): IResourceEncoding { return { encoding: 'utf8', hasBOM: false }; }
 
 	dispose(): void { }
 }
@@ -786,6 +825,7 @@ function initFakeFileSystem(): void {
 			name
 		};
 
+		// @ts-ignore
 		parent.children.push(file);
 
 		fileMap.set(file.resource, file);
@@ -810,6 +850,7 @@ function initFakeFileSystem(): void {
 			children: []
 		};
 
+		// @ts-ignore
 		parent.children.push(folder);
 
 		fileMap.set(folder.resource, folder);
@@ -1055,10 +1096,12 @@ export class SimpleSearchService implements ISearchService {
 			coalesce(localResults.values()).forEach(onProgress);
 		}
 
+		// @ts-ignore
 		return Promise.resolve(undefined);
 	}
 
 	fileSearch(query: IFileQueryProps<URI>, token?: CancellationToken): Promise<ISearchComplete> {
+		// @ts-ignore
 		return Promise.resolve(undefined);
 	}
 
@@ -1105,6 +1148,7 @@ export class SimpleSearchService implements ISearchService {
 				}
 
 				// Use editor API to find matches
+				// @ts-ignore
 				const matches = model.findMatches(query.contentPattern.pattern, false, query.contentPattern.isRegExp, query.contentPattern.isCaseSensitive, query.contentPattern.isWordMatch ? query.contentPattern.wordSeparators : null, false, query.maxResults);
 				if (matches.length) {
 					const fileMatch = new FileMatch(resource);
@@ -1113,6 +1157,7 @@ export class SimpleSearchService implements ISearchService {
 					const textSearchResults = editorMatchesToTextSearchResults(matches, model, query.previewOptions);
 					fileMatch.results = addContextToEditorMatches(textSearchResults, model, query);
 				} else {
+					// @ts-ignore
 					localResults.set(resource, null);
 				}
 			});
@@ -1179,6 +1224,7 @@ export class SimpleTextMateService implements ITextMateService {
 	readonly onDidEncounterLanguage: Event<LanguageId> = Event.None;
 
 	createGrammar(modeId: string): Promise<ITextMategrammar> {
+		// @ts-ignore
 		return Promise.resolve(undefined);
 	}
 }
@@ -1691,6 +1737,7 @@ export class SimpleWorkspaceEditingService implements IWorkspaceEditingService {
 	}
 
 	pickNewWorkspacePath(): Promise<URI> {
+		// @ts-ignore
 		return Promise.resolve(undefined);
 	}
 }
@@ -1769,6 +1816,7 @@ export class SimpleWorkspacesService implements IWorkspacesService {
 	_serviceBrand: any;
 
 	createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[]): Promise<IWorkspaceIdentifier> {
+		// @ts-ignore
 		return Promise.resolve(undefined);
 	}
 
@@ -1777,6 +1825,7 @@ export class SimpleWorkspacesService implements IWorkspacesService {
 	}
 
 	getWorkspaceIdentifier(workspacePath: URI): Promise<IWorkspaceIdentifier> {
+		// @ts-ignore
 		return Promise.resolve(undefined);
 	}
 }

@@ -226,7 +226,7 @@ export class SplitView extends Disposable {
 		// Add sash
 		if (this.viewItems.length > 1) {
 			const orientation = this.orientation === Orientation.VERTICAL ? Orientation.HORIZONTAL : Orientation.VERTICAL;
-			const layoutProvider = this.orientation === Orientation.VERTICAL ? { getHorizontalSashTop: sash => this.getSashPosition(sash) } : { getVerticalSashLeft: sash => this.getSashPosition(sash) };
+			const layoutProvider = this.orientation === Orientation.VERTICAL ? { getHorizontalSashTop: (sash: Sash) => this.getSashPosition(sash) } : { getVerticalSashLeft: (sash: Sash) => this.getSashPosition(sash) };
 			const sash = new Sash(this.sashContainer, layoutProvider, {
 				orientation,
 				orthogonalStartSash: this.orthogonalStartSash,

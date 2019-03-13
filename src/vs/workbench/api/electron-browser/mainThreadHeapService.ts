@@ -21,7 +21,7 @@ export interface IHeapService {
 	/**
 	 * Track gc-collection for the given object
 	 */
-	trackObject(obj: ObjectIdentifier): void;
+	trackObject(obj: ObjectIdentifier | undefined): void;
 }
 
 export class HeapService implements IHeapService {

@@ -39,7 +39,7 @@ import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService } from 'vs/platform/history/common/history';
-import { isUndefinedOrNull } from 'vs/base/common/types';
+import { isUndefinedOrNull, withUndefinedAsNull } from 'vs/base/common/types';
 import { KeyboardLayoutMonitor } from 'vs/code/electron-main/keyboard';
 import { URI } from 'vs/base/common/uri';
 import { WorkspacesChannel } from 'vs/platform/workspaces/node/workspacesIpc';
@@ -686,7 +686,7 @@ export class CodeApplication extends Disposable {
 			this.logService.info('Resolving authority', authority);
 			if (authority.indexOf('+') >= 0) {
 				if (resolvedAuthorities.has(authority)) {
-					return resolvedAuthorities.get(authority) || null;
+					return withUndefinedAsNull(resolvedAuthorities.get(authority));
 				}
 				this.logService.info('Didnot find resolved authority for', authority);
 				return null;

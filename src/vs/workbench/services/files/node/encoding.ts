@@ -6,7 +6,7 @@
 import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 import * as encoding from 'vs/base/node/encoding';
 import { URI as uri } from 'vs/base/common/uri';
-import { IResolveContentOptions, isParent, IResourceEncodings } from 'vs/platform/files/common/files';
+import { IResolveContentOptions, isParent, IResourceEncodings, IResourceEncoding } from 'vs/platform/files/common/files';
 import { isLinux } from 'vs/base/common/platform';
 import { extname } from 'vs/base/common/path';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
@@ -78,8 +78,13 @@ export class ResourceEncodings extends Disposable implements IResourceEncodings 
 		return this.getEncodingForResource(resource, preferredEncoding);
 	}
 
-	getWriteEncoding(resource: uri, preferredEncoding?: string): string {
-		return this.getEncodingForResource(resource, preferredEncoding);
+	getWriteEncoding(resource: uri, preferredEncoding?: string): IResourceEncoding {
+		const resourceEncoding = this.getEncodingForResource(resource, preferredEncoding);
+
+		return {
+			encoding: resourceEncoding,
+			hasBOM: resourceEncoding === encoding.UTF16be || resourceEncoding === encoding.UTF16le || resourceEncoding === encoding.UTF8_with_bom // enforce BOM for certain encodings
+		};
 	}
 
 	private getEncodingForResource(resource: uri, preferredEncoding?: string): string {

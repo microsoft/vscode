@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/views';
 import { Disposable, IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IViewsService, ViewsRegistry, IViewsViewlet, ViewContainer, IViewDescriptor, IViewContainersRegistry, Extensions as ViewContainerExtensions, IView, IViewDescriptorCollection } from 'vs/workbench/common/views';
+import { IViewsService, IViewsViewlet, ViewContainer, IViewDescriptor, IViewContainersRegistry, Extensions as ViewExtensions, IView, IViewDescriptorCollection, IViewsRegistry } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -98,10 +98,11 @@ class ViewDescriptorCollection extends Disposable implements IViewDescriptorColl
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
-		const onRelevantViewsRegistered = filterViewRegisterEvent(container, ViewsRegistry.onViewsRegistered);
+		const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
+		const onRelevantViewsRegistered = filterViewRegisterEvent(container, viewsRegistry.onViewsRegistered);
 		this._register(onRelevantViewsRegistered(this.onViewsRegistered, this));
 
-		const onRelevantViewsMoved = filterViewMoveEvent(container, ViewsRegistry.onDidChangeContainer);
+		const onRelevantViewsMoved = filterViewMoveEvent(container, viewsRegistry.onDidChangeContainer);
 		this._register(onRelevantViewsMoved(({ added, removed }) => {
 			if (isNonEmptyArray(added)) {
 				this.onViewsRegistered(added);
@@ -111,13 +112,13 @@ class ViewDescriptorCollection extends Disposable implements IViewDescriptorColl
 			}
 		}));
 
-		const onRelevantViewsDeregistered = filterViewRegisterEvent(container, ViewsRegistry.onViewsDeregistered);
+		const onRelevantViewsDeregistered = filterViewRegisterEvent(container, viewsRegistry.onViewsDeregistered);
 		this._register(onRelevantViewsDeregistered(this.onViewsDeregistered, this));
 
 		const onRelevantContextChange = Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(this.contextKeys));
 		this._register(onRelevantContextChange(this.onContextChanged, this));
 
-		this.onViewsRegistered(ViewsRegistry.getViews(container));
+		this.onViewsRegistered(viewsRegistry.getViews(container));
 	}
 
 	private onViewsRegistered(viewDescriptors: IViewDescriptor[]): void {
@@ -552,14 +553,15 @@ export class ViewsService extends Disposable implements IViewsService {
 		this.viewDisposable = new Map<IViewDescriptor, IDisposable>();
 		this.activeViewContextKeys = new Map<string, IContextKey<boolean>>();
 
-		const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
+		const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
+		const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
 		viewContainersRegistry.all.forEach(viewContainer => {
-			this.onDidRegisterViews(viewContainer, ViewsRegistry.getViews(viewContainer));
+			this.onDidRegisterViews(viewContainer, viewsRegistry.getViews(viewContainer));
 			this.onDidRegisterViewContainer(viewContainer);
 		});
-		this._register(ViewsRegistry.onViewsRegistered(({ views, viewContainer }) => this.onDidRegisterViews(viewContainer, views)));
-		this._register(ViewsRegistry.onViewsDeregistered(({ views }) => this.onDidDeregisterViews(views)));
-		this._register(ViewsRegistry.onDidChangeContainer(({ views, to }) => { this.onDidDeregisterViews(views); this.onDidRegisterViews(to, views); }));
+		this._register(viewsRegistry.onViewsRegistered(({ views, viewContainer }) => this.onDidRegisterViews(viewContainer, views)));
+		this._register(viewsRegistry.onViewsDeregistered(({ views }) => this.onDidDeregisterViews(views)));
+		this._register(viewsRegistry.onDidChangeContainer(({ views, to }) => { this.onDidDeregisterViews(views); this.onDidRegisterViews(to, views); }));
 		this._register(toDisposable(() => {
 			this.viewDisposable.forEach(disposable => disposable.dispose());
 			this.viewDisposable.clear();
@@ -578,7 +580,7 @@ export class ViewsService extends Disposable implements IViewsService {
 	}
 
 	openView(id: string, focus: boolean): Promise<IView | null> {
-		const viewContainer = ViewsRegistry.getViewContainer(id);
+		const viewContainer = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).getViewContainer(id);
 		if (viewContainer) {
 			const viewletDescriptor = this.viewletService.getViewlet(viewContainer.id);
 			if (viewletDescriptor) {

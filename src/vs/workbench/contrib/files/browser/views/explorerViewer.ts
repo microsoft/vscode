@@ -215,7 +215,7 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, FuzzyScore, IF
 		});
 
 		let ignoreDisposeAndBlur = true;
-		setTimeout(() => ignoreDisposeAndBlur = false, 0);
+		setTimeout(() => ignoreDisposeAndBlur = false, 100);
 		const blurDisposable = DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, () => {
 			if (!ignoreDisposeAndBlur) {
 				done(inputBox.isInputValid());
@@ -638,9 +638,11 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 				// Check for name collisions
 				const targetNames = new Set<string>();
-				targetStat.children.forEach((child) => {
-					targetNames.add(isLinux ? child.name : child.name.toLowerCase());
-				});
+				if (targetStat.children) {
+					targetStat.children.forEach((child) => {
+						targetNames.add(isLinux ? child.name : child.name.toLowerCase());
+					});
+				}
 
 				let overwritePromise: Promise<IConfirmationResult> = Promise.resolve({ confirmed: true });
 				if (resources.some(resource => {
@@ -658,7 +660,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 				return overwritePromise.then(res => {
 					if (!res.confirmed) {
-						return undefined;
+						return [];
 					}
 
 					// Run add in sequence
@@ -671,7 +673,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 							// if the target exists and is dirty, make sure to revert it. otherwise the dirty contents
 							// of the target file would replace the contents of the added file. since we already
 							// confirmed the overwrite before, this is OK.
-							let revertPromise: Promise<ITextFileOperationResult> = Promise.resolve(null);
+							let revertPromise: Promise<ITextFileOperationResult | null> = Promise.resolve(null);
 							if (this.textFileService.isDirty(targetFile)) {
 								revertPromise = this.textFileService.revertAll([targetFile], { soft: true });
 							}
@@ -753,7 +755,8 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 		for (let index = 0; index < folders.length; index++) {
 			const data = {
-				uri: folders[index].uri
+				uri: folders[index].uri,
+				name: folders[index].name
 			};
 			if (target instanceof ExplorerItem && folders[index].uri.toString() === target.resource.toString()) {
 				targetIndex = index;

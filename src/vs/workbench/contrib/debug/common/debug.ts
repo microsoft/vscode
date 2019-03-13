@@ -71,7 +71,7 @@ export interface IRawModelUpdate {
 }
 
 export interface IRawStoppedDetails {
-	reason: string;
+	reason?: string;
 	description?: string;
 	threadId?: number;
 	text?: string;
@@ -145,26 +145,26 @@ export interface LoadedSourceEvent {
 export interface IDebugSession extends ITreeElement {
 
 	readonly configuration: IConfig;
-	readonly unresolvedConfiguration: IConfig;
+	readonly unresolvedConfiguration: IConfig | undefined;
 	readonly state: State;
 	readonly root: IWorkspaceFolder;
 
 	getLabel(): string;
 
-	getSourceForUri(modelUri: uri): Source;
+	getSourceForUri(modelUri: uri): Source | undefined;
 	getSource(raw?: DebugProtocol.Source): Source;
 
-	setConfiguration(configuration: { resolved: IConfig, unresolved: IConfig }): void;
+	setConfiguration(configuration: { resolved: IConfig, unresolved: IConfig | undefined }): void;
 	rawUpdate(data: IRawModelUpdate): void;
 
-	getThread(threadId: number): IThread;
+	getThread(threadId: number): IThread | undefined;
 	getAllThreads(): IThread[];
 	clearThreads(removeThreads: boolean, reference?: number): void;
 
 	getReplElements(): IReplElement[];
 
 	removeReplExpressions(): void;
-	addReplExpression(stackFrame: IStackFrame, name: string): Promise<void>;
+	addReplExpression(stackFrame: IStackFrame | undefined, name: string): Promise<void>;
 	appendToRepl(data: string | IExpression, severity: severity, source?: IReplElementSource): void;
 	logToRepl(sev: severity, args: any[], frame?: { uri: uri, line: number, column: number });
 
@@ -197,9 +197,9 @@ export interface IDebugSession extends ITreeElement {
 	sendExceptionBreakpoints(exbpts: IExceptionBreakpoint[]): Promise<void>;
 
 	stackTrace(threadId: number, startFrame: number, levels: number): Promise<DebugProtocol.StackTraceResponse>;
-	exceptionInfo(threadId: number): Promise<IExceptionInfo>;
+	exceptionInfo(threadId: number): Promise<IExceptionInfo | undefined>;
 	scopes(frameId: number): Promise<DebugProtocol.ScopesResponse>;
-	variables(variablesReference: number | undefined, filter: 'indexed' | 'named' | undefined, start: number | undefined, count: number | undefined): Promise<DebugProtocol.VariablesResponse>;
+	variables(variablesReference: number, filter: 'indexed' | 'named' | undefined, start: number | undefined, count: number | undefined): Promise<DebugProtocol.VariablesResponse>;
 	evaluate(expression: string, frameId?: number, context?: string): Promise<DebugProtocol.EvaluateResponse>;
 	customRequest(request: string, args: any): Promise<DebugProtocol.Response>;
 
@@ -213,7 +213,7 @@ export interface IDebugSession extends ITreeElement {
 	pause(threadId: number): Promise<void>;
 	terminateThreads(threadIds: number[]): Promise<void>;
 
-	completions(frameId: number, text: string, position: Position, overwriteBefore: number): Promise<CompletionItem[]>;
+	completions(frameId: number | undefined, text: string, position: Position, overwriteBefore: number): Promise<CompletionItem[]>;
 	setVariable(variablesReference: number | undefined, name: string, value: string): Promise<DebugProtocol.SetVariableResponse>;
 	loadSource(resource: uri): Promise<DebugProtocol.SourceResponse>;
 	getLoadedSources(): Promise<Source[]>;
@@ -237,20 +237,20 @@ export interface IThread extends ITreeElement {
 	readonly name: string;
 
 	/**
-	 * Information about the current thread stop event. Null if thread is not stopped.
+	 * Information about the current thread stop event. Undefined if thread is not stopped.
 	 */
-	readonly stoppedDetails: IRawStoppedDetails;
+	readonly stoppedDetails: IRawStoppedDetails | undefined;
 
 	/**
-	 * Information about the exception if an 'exception' stopped event raised and DA supports the 'exceptionInfo' request, otherwise null.
+	 * Information about the exception if an 'exception' stopped event raised and DA supports the 'exceptionInfo' request, otherwise undefined.
 	 */
-	readonly exceptionInfo: Promise<IExceptionInfo | null>;
+	readonly exceptionInfo: Promise<IExceptionInfo | undefined>;
 
 	readonly stateLabel: string;
 
 	/**
 	 * Gets the callstack if it has already been received from the debug
-	 * adapter, otherwise it returns null.
+	 * adapter.
 	 */
 	getCallStack(): ReadonlyArray<IStackFrame>;
 
@@ -480,7 +480,7 @@ export interface IDebugAdapter extends IDisposable {
 
 export interface IDebugAdapterFactory extends ITerminalLauncher {
 	createDebugAdapter(session: IDebugSession): IDebugAdapter;
-	substituteVariables(folder: IWorkspaceFolder, config: IConfig): Promise<IConfig>;
+	substituteVariables(folder: IWorkspaceFolder | undefined, config: IConfig): Promise<IConfig>;
 }
 
 export interface IDebugAdapterExecutableOptions {
@@ -618,9 +618,9 @@ export interface IConfigurationManager {
 	getDebugAdapterDescriptor(session: IDebugSession): Promise<IAdapterDescriptor | undefined>;
 
 	registerDebugAdapterFactory(debugTypes: string[], debugAdapterFactory: IDebugAdapterFactory): IDisposable;
-	createDebugAdapter(session: IDebugSession): IDebugAdapter;
+	createDebugAdapter(session: IDebugSession): IDebugAdapter | undefined;
 
-	substituteVariables(debugType: string, folder: IWorkspaceFolder, config: IConfig): Promise<IConfig>;
+	substituteVariables(debugType: string, folder: IWorkspaceFolder | undefined, config: IConfig): Promise<IConfig>;
 	runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Promise<number | undefined>;
 }
 
@@ -637,9 +637,9 @@ export interface ILaunch {
 	readonly name: string;
 
 	/**
-	 * Workspace of the launch. Can be null.
+	 * Workspace of the launch. Can be undefined.
 	 */
-	readonly workspace: IWorkspaceFolder;
+	readonly workspace: IWorkspaceFolder | undefined;
 
 	/**
 	 * Should this launch be shown in the debug dropdown.
@@ -648,15 +648,15 @@ export interface ILaunch {
 
 	/**
 	 * Returns a configuration with the specified name.
-	 * Returns null if there is no configuration with the specified name.
+	 * Returns undefined if there is no configuration with the specified name.
 	 */
-	getConfiguration(name: string): IConfig;
+	getConfiguration(name: string): IConfig | undefined;
 
 	/**
 	 * Returns a compound with the specified name.
-	 * Returns null if there is no compound with the specified name.
+	 * Returns undefined if there is no compound with the specified name.
 	 */
-	getCompound(name: string): ICompound;
+	getCompound(name: string): ICompound | undefined;
 
 	/**
 	 * Returns the names of all configurations and compounds.
@@ -667,7 +667,7 @@ export interface ILaunch {
 	/**
 	 * Opens the launch.json file. Creates if it does not exist.
 	 */
-	openConfigFile(sideBySide: boolean, preserveFocus: boolean, type?: string): Promise<{ editor: IEditor, created: boolean }>;
+	openConfigFile(sideBySide: boolean, preserveFocus: boolean, type?: string): Promise<{ editor: IEditor | null, created: boolean }>;
 }
 
 // Debug service interfaces

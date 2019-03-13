@@ -665,5 +665,9 @@ export class SimpleLayoutService implements ILayoutService {
 		return this._container;
 	}
 
+	get hasWorkbench(): boolean {
+		return false;
+	}
+
 	constructor(private _container: HTMLElement) { }
 }
