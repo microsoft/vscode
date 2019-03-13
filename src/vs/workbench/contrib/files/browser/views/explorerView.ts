@@ -319,9 +319,8 @@ export class ExplorerView extends ViewletPanel {
 			// Check if the item was previously also selected, if yes the user is simply expanding / collapsing current selection #66589.
 			const shiftDown = e.browserEvent instanceof KeyboardEvent && e.browserEvent.shiftKey;
 			if (selection.length === 1 && !shiftDown) {
-				// Do not react if user is clicking on explorer items which are input placeholders
-				if (!selection[0].name || selection[0].isDirectory) {
-					// Do not react if user is clicking on explorer items which are input placeholders
+				if (selection[0].isDirectory || this.explorerService.isEditable(undefined)) {
+					// Do not react if user is clicking on explorer items while some are being edited #70276
 					// Do not react if clicking on directories
 					return;
 				}

@@ -135,8 +135,8 @@ export class ExplorerService implements IExplorerService {
 		return this.editable && this.editable.stat === stat ? this.editable.data : undefined;
 	}
 
-	isEditable(stat: ExplorerItem): boolean {
-		return !!this.editable && this.editable.stat === stat;
+	isEditable(stat: ExplorerItem | undefined): boolean {
+		return !!this.editable && (this.editable.stat === stat || !stat);
 	}
 
 	select(resource: URI, reveal?: boolean): Promise<void> {
