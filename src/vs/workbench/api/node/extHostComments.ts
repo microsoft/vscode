@@ -364,7 +364,7 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 	set range(range: vscode.Range) {
 		if (range.isEqual(this._range)) {
 			this._range = range;
-			this._proxy.$updateCommentThreadRange(this._commentControlHandle, this.handle, extHostTypeConverter.Range.from(this._range));
+			this._proxy.$updateCommentThreadRange(this._commentController.handle, this.handle, extHostTypeConverter.Range.from(this._range));
 		}
 	}
 
@@ -380,7 +380,7 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 
 	set label(label: string) {
 		this._label = label;
-		this._proxy.$updateCommentThreadLabel(this._commentControlHandle, this.handle, this._label);
+		this._proxy.$updateCommentThreadLabel(this._commentController.handle, this.handle, this._label);
 	}
 
 	private _comments: vscode.Comment[] = [];
@@ -390,7 +390,7 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 	}
 
 	set comments(newComments: vscode.Comment[]) {
-		this._proxy.$updateComments(this._commentControlHandle, this.handle, newComments.map(cmt => { return convertToModeComment(cmt, this._commandsConverter); }));
+		this._proxy.$updateComments(this._commentController.handle, this.handle, newComments.map(cmt => { return convertToModeComment(this._commentController, cmt, this._commandsConverter); }));
 		this._comments = newComments;
 	}
 
@@ -403,7 +403,7 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 		this._acceptInputCommand = acceptInputCommand;
 
 		const internal = this._commandsConverter.toInternal(acceptInputCommand);
-		this._proxy.$updateCommentThreadAcceptInputCommand(this._commentControlHandle, this.handle, internal);
+		this._proxy.$updateCommentThreadAcceptInputCommand(this._commentController.handle, this.handle, internal);
 	}
 
 	private _additionalCommands: vscode.Command[] = [];
@@ -415,7 +415,7 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 		this._additionalCommands = additionalCommands;
 
 		const internals = additionalCommands.map(x => this._commandsConverter.toInternal(x));
-		this._proxy.$updateCommentThreadAdditionalCommands(this._commentControlHandle, this.handle, internals);
+		this._proxy.$updateCommentThreadAdditionalCommands(this._commentController.handle, this.handle, internals);
 	}
 
 	private _collapseState?: vscode.CommentThreadCollapsibleState;
@@ -426,24 +426,24 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 
 	set collapsibleState(newState: vscode.CommentThreadCollapsibleState) {
 		this._collapseState = newState;
-		this._proxy.$updateCommentThreadCollapsibleState(this._commentControlHandle, this.handle, convertToCollapsibleState(newState));
+		this._proxy.$updateCommentThreadCollapsibleState(this._commentController.handle, this.handle, convertToCollapsibleState(newState));
 	}
 
 	constructor(
 		private _proxy: MainThreadCommentsShape,
 		private readonly _commandsConverter: CommandsConverter,
-		private _commentControlHandle: number,
+		private _commentController: ExtHostCommentController,
 		private _threadId: string,
 		private _resource: vscode.Uri,
 		private _range: vscode.Range
 	) {
 		this._proxy.$createCommentThread(
-			this._commentControlHandle,
+			this._commentController.handle,
 			this.handle,
 			this._threadId,
 			this._resource,
 			extHostTypeConverter.Range.from(this._range),
-			this._comments.map(comment => { return convertToModeComment(comment, this._commandsConverter); }),
+			this._comments.map(comment => { return convertToModeComment(this._commentController, comment, this._commandsConverter); }),
 			this._acceptInputCommand ? this._commandsConverter.toInternal(this._acceptInputCommand) : undefined,
 			this._additionalCommands ? this._additionalCommands.map(x => this._commandsConverter.toInternal(x)) : [],
 			this._collapseState!
@@ -462,7 +462,7 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 
 	dispose() {
 		this._proxy.$deleteCommentThread(
-			this._commentControlHandle,
+			this._commentController.handle,
 			this.handle
 		);
 	}
@@ -545,7 +545,7 @@ class ExtHostCommentController implements vscode.CommentController {
 	}
 
 	createCommentThread(id: string, resource: vscode.Uri, range: vscode.Range): vscode.CommentThread {
-		const commentThread = new ExtHostCommentThread(this._proxy, this._commandsConverter, this.handle, id, resource, range);
+		const commentThread = new ExtHostCommentThread(this._proxy, this._commandsConverter, this, id, resource, range);
 		this._threads.set(commentThread.handle, commentThread);
 		return commentThread;
 	}
@@ -627,7 +627,7 @@ function convertFromComment(comment: modes.Comment): vscode.Comment {
 	};
 }
 
-function convertToModeComment(vscodeComment: vscode.Comment, commandsConverter: CommandsConverter): modes.Comment {
+function convertToModeComment(commentController: ExtHostCommentController, vscodeComment: vscode.Comment, commandsConverter: CommandsConverter): modes.Comment {
 	const iconPath = vscodeComment.userIconPath ? vscodeComment.userIconPath.toString() : vscodeComment.gravatar;
 
 	return {
@@ -640,7 +640,7 @@ function convertToModeComment(vscodeComment: vscode.Comment, commandsConverter: 
 		editCommand: vscodeComment.editCommand ? commandsConverter.toInternal(vscodeComment.editCommand) : undefined,
 		deleteCommand: vscodeComment.editCommand ? commandsConverter.toInternal(vscodeComment.deleteCommand) : undefined,
 		label: vscodeComment.label,
-		commentReactions: vscodeComment.commentReactions ? vscodeComment.commentReactions.map(reaction => convertToReaction2(undefined, reaction)) : undefined
+		commentReactions: vscodeComment.commentReactions ? vscodeComment.commentReactions.map(reaction => convertToReaction2(commentController.reactionProvider, reaction)) : undefined
 	};
 }
 
@@ -681,7 +681,7 @@ function convertToReaction2(provider: vscode.CommentReactionProvider | undefined
 		iconPath: reaction.iconPath ? extHostTypeConverter.pathOrURIToURI(reaction.iconPath) : undefined,
 		count: reaction.count,
 		hasReacted: reaction.hasReacted,
-		canEdit: true//!!provider.toggleReaction
+		canEdit: provider !== undefined ? !!provider.toggleReaction : false
 	};
 }
 
