@@ -63,10 +63,11 @@ export class RemoteFileDialog {
 
 	public async showOpenDialog(options: IOpenDialogOptions = {}): Promise<IURIToOpen[] | undefined> {
 		this.scheme = this.getScheme(options.defaultUri, options.availableFileSystems);
-		this.options = this.getOptions(options);
-		if (!this.options) {
+		const newOptions = this.getOptions(options);
+		if (!newOptions) {
 			return Promise.resolve(undefined);
 		}
+		this.options = newOptions;
 
 		const openFileString = nls.localize('remoteFileDialog.localFileFallback', '(Open Local File)');
 		const openFolderString = nls.localize('remoteFileDialog.localFolderFallback', '(Open Local Folder)');
@@ -87,10 +88,11 @@ export class RemoteFileDialog {
 	public showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
 		this.scheme = this.getScheme(options.defaultUri, options.availableFileSystems);
 		this.requiresTrailing = true;
-		this.options = this.getOptions(options);
-		if (!this.options) {
+		const newOptions = this.getOptions(options);
+		if (!newOptions) {
 			return Promise.resolve(undefined);
 		}
+		this.options = newOptions;
 		this.options.canSelectFolders = true;
 		this.options.canSelectFiles = true;
 		this.fallbackListItem = this.getFallbackFileSystem(nls.localize('remoteFileDialog.localSaveFallback', '(Save Local File)'));
