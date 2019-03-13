@@ -88,11 +88,28 @@ export function areWebviewInputOptionsEqual(a: WebviewInputOptions, b: WebviewIn
 		&& (a.localResourceRoots === b.localResourceRoots || (Array.isArray(a.localResourceRoots) && Array.isArray(b.localResourceRoots) && equals(a.localResourceRoots, b.localResourceRoots, (a, b) => a.toString() === b.toString())));
 }
 
+class RevivalPool {
+	private _awaitingRevival: Array<{ input: WebviewEditorInput, resolve: () => void }> = [];
+
+	public add(input: WebviewEditorInput, resolve: () => void) {
+		this._awaitingRevival.push({ input, resolve });
+	}
+
+	public reviveFor(reviver: WebviewReviver) {
+		const toRevive = this._awaitingRevival.filter(x => reviver.canRevive(x.input));
+		this._awaitingRevival = this._awaitingRevival.filter(x => !reviver.canRevive(x.input));
+
+		for (const { input, resolve } of toRevive) {
+			reviver.reviveWebview(input).then(resolve);
+		}
+	}
+}
+
 export class WebviewEditorService implements IWebviewEditorService {
 	_serviceBrand: any;
 
 	private readonly _revivers = new Set<WebviewReviver>();
-	private _awaitingRevival: Array<{ input: WebviewEditorInput, resolve: () => void }> = [];
+	private readonly _revivalPool = new RevivalPool();
 
 	constructor(
 		@IEditorService private readonly _editorService: IEditorService,
@@ -144,10 +161,10 @@ export class WebviewEditorService implements IWebviewEditorService {
 				return Promise.resolve(undefined);
 			}
 
-			// A reviver may not be registered yet. Put into queue and resolve promise when we can revive
+			// A reviver may not be registered yet. Put into pool and resolve promise when we can revive
 			let resolve: () => void;
 			const promise = new Promise<void>(r => { resolve = r; });
-			this._awaitingRevival.push({ input: webview, resolve: resolve! });
+			this._revivalPool.add(webview, resolve!);
 			return promise;
 		});
 		webviewInput.iconPath = iconPath;
@@ -161,14 +178,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 		reviver: WebviewReviver
 	): IDisposable {
 		this._revivers.add(reviver);
-
-		// Resolve any pending views
-		const toRevive = this._awaitingRevival.filter(x => reviver.canRevive(x.input));
-		this._awaitingRevival = this._awaitingRevival.filter(x => !reviver.canRevive(x.input));
-
-		for (const input of toRevive) {
-			reviver.reviveWebview(input.input).then(() => input.resolve());
-		}
+		this._revivalPool.reviveFor(reviver);
 
 		return toDisposable(() => {
 			this._revivers.delete(reviver);
