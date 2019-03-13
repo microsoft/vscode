@@ -1327,7 +1327,7 @@ export interface Comment {
 	readonly commentId: string;
 	readonly body: IMarkdownString;
 	readonly userName: string;
-	readonly userIconPath: string;
+	readonly userIconPath?: string;
 	readonly canEdit?: boolean;
 	readonly canDelete?: boolean;
 	readonly command?: Command;

@@ -211,6 +211,9 @@ export class CommandsConverter {
 		this._commands.registerCommand(true, this._delegatingCommandId, this._executeConvertedCommand, this);
 	}
 
+	toInternal(command: vscode.Command): CommandDto;
+	toInternal(command: undefined): undefined;
+	toInternal(command: vscode.Command | undefined): CommandDto | undefined;
 	toInternal(command: vscode.Command | undefined): CommandDto | undefined {
 
 		if (!command) {
