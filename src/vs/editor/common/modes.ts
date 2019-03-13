@@ -1259,14 +1259,14 @@ export interface CommentInput {
 export interface CommentThread2 {
 	commentThreadHandle: number;
 	extensionId?: string;
-	threadId: string | null;
+	threadId: string;
 	resource: string;
 	range: IRange;
 	label: string;
 	comments: Comment[];
 	onDidChangeComments: Event<Comment[]>;
 	collapsibleState?: CommentThreadCollapsibleState;
-	input: CommentInput | undefined;
+	input: CommentInput;
 	onDidChangeInput: Event<CommentInput | undefined>;
 	acceptInputCommand?: Command;
 	additionalCommands: Command[];
