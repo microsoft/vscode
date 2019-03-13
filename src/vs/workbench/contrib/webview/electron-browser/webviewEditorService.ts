@@ -92,7 +92,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 	_serviceBrand: any;
 
 	private readonly _revivers = new Set<WebviewReviver>();
-	private _awaitingRevival: { input: WebviewEditorInput, resolve: () => void }[] = [];
+	private _awaitingRevival: Array<{ input: WebviewEditorInput, resolve: () => void }> = [];
 
 	constructor(
 		@IEditorService private readonly _editorService: IEditorService,
