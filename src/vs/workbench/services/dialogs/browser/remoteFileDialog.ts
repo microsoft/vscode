@@ -352,7 +352,6 @@ export class RemoteFileDialog {
 	}
 
 	private setActiveItems(value: string) {
-		// Only try to do an auto complete if there is no selection in the input box
 		if (!this.userValue || (value !== this.userValue.substring(0, value.length))) {
 			const inputBasename = resources.basename(this.remoteUriFrom(value));
 			let hasMatch = false;
