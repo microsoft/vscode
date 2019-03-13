@@ -971,7 +971,7 @@ interface IEditorPartConfiguration {
 	closeEmptyGroups?: boolean;
 	revealIfOpen?: boolean;
 	swipeToNavigate?: boolean;
-	labelFormat?: 'default' | 'short' | 'medium' | 'long';
+	labelFormat?: 'default' | 'short' | 'medium' | 'long' | 'directory';
 	restoreViewState?: boolean;
 }
 

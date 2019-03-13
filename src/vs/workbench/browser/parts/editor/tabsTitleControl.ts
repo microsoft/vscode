@@ -711,7 +711,7 @@ export class TabsTitleControl extends TitleControl {
 
 	private computeTabLabels(): void {
 		const { labelFormat } = this.accessor.partOptions;
-		const { verbosity, shortenDuplicates } = this.getLabelConfigFlags(labelFormat);
+		const { verbosity, shortenDuplicates, swapNameAndDescription } = this.getLabelConfigFlags(labelFormat);
 
 		// Build labels and descriptions for each editor
 		const labels = this.group.editors.map(editor => ({
@@ -724,6 +724,14 @@ export class TabsTitleControl extends TitleControl {
 		// Shorten labels as needed
 		if (shortenDuplicates) {
 			this.shortenTabLabels(labels);
+		}
+
+		if (swapNameAndDescription) {
+			labels.forEach(label => {
+				const labelName = label.name;
+				label.name = label.description;
+				label.description = labelName;
+			});
 		}
 
 		this.tabLabels = labels;
@@ -801,13 +809,15 @@ export class TabsTitleControl extends TitleControl {
 	private getLabelConfigFlags(value: string | undefined) {
 		switch (value) {
 			case 'short':
-				return { verbosity: Verbosity.SHORT, shortenDuplicates: false };
+				return { verbosity: Verbosity.SHORT, shortenDuplicates: false, swapNameAndDescription: false };
 			case 'medium':
-				return { verbosity: Verbosity.MEDIUM, shortenDuplicates: false };
+				return { verbosity: Verbosity.MEDIUM, shortenDuplicates: false, swapNameAndDescription: false };
 			case 'long':
-				return { verbosity: Verbosity.LONG, shortenDuplicates: false };
+				return { verbosity: Verbosity.LONG, shortenDuplicates: false, swapNameAndDescription: false };
+			case 'directory':
+				return { verbosity: Verbosity.SHORT, shortenDuplicates: false, swapNameAndDescription: true };
 			default:
-				return { verbosity: Verbosity.MEDIUM, shortenDuplicates: true };
+				return { verbosity: Verbosity.MEDIUM, shortenDuplicates: true, swapNameAndDescription: false };
 		}
 	}
 
