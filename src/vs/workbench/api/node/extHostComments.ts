@@ -112,6 +112,37 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		}).then(ranges => ranges ? ranges.map(x => extHostTypeConverter.Range.from(x)) : undefined);
 	}
 
+	$provideReactionGroup(commentControllerHandle: number): Promise<modes.CommentReaction[] | undefined> {
+		const commentController = this._commentControllers.get(commentControllerHandle);
+
+		if (!commentController || !commentController.reactionProvider) {
+			return Promise.resolve(undefined);
+		}
+
+		return asPromise(() => {
+			return commentController.reactionProvider.availableReactions;
+		}).then(reactions => reactions.map(reaction => convertToReaction2(commentController.reactionProvider, reaction)));
+	}
+
+	$toggleReaction(commentControllerHandle: number, threadHandle: number, uri: UriComponents, comment: modes.Comment, reaction: modes.CommentReaction): Promise<void> {
+		const document = this._documents.getDocument(URI.revive(uri));
+		const commentController = this._commentControllers.get(commentControllerHandle);
+
+		if (!commentController || !commentController.reactionProvider || !commentController.reactionProvider.toggleReaction) {
+			return Promise.resolve(undefined);
+		}
+
+		return asPromise(() => {
+			const commentThread = commentController.getCommentThread(threadHandle);
+			if (commentThread) {
+				const vscodeComment = commentThread.getComment(comment.commentId);
+				return commentController.reactionProvider.toggleReaction(document, vscodeComment, convertFromReaction(reaction));
+			}
+
+			return Promise.resolve(undefined);
+		});
+	}
+
 	$createNewCommentWidgetCallback(commentControllerHandle: number, uriComponents: UriComponents, range: IRange, token: CancellationToken): void {
 		const commentController = this._commentControllers.get(commentControllerHandle);
 
@@ -485,6 +516,18 @@ class ExtHostCommentController implements vscode.CommentController {
 	commentingRangeProvider?: vscode.CommentingRangeProvider;
 	emptyCommentThreadFactory: vscode.EmptyCommentThreadFactory;
 
+
+	private _commentReactionProvider?: vscode.CommentReactionProvider;
+
+	get reactionProvider() {
+		return this._commentReactionProvider;
+	}
+
+	set reactionProvider(provider: vscode.CommentReactionProvider) {
+		this._commentReactionProvider = provider;
+		this._proxy.$updateCommentControllerFeatures(this.handle, { reactionGroup: provider.availableReactions.map(reaction => convertToReaction2(provider, reaction)) });
+	}
+
 	constructor(
 		_extension: IExtensionDescription,
 		private _handle: number,
@@ -591,7 +634,8 @@ function convertToModeComment(vscodeComment: vscode.Comment, commandsConverter: 
 		selectCommand: vscodeComment.selectCommand ? commandsConverter.toInternal(vscodeComment.selectCommand) : undefined,
 		editCommand: vscodeComment.editCommand ? commandsConverter.toInternal(vscodeComment.editCommand) : undefined,
 		deleteCommand: vscodeComment.editCommand ? commandsConverter.toInternal(vscodeComment.deleteCommand) : undefined,
-		label: vscodeComment.label
+		label: vscodeComment.label,
+		commentReactions: vscodeComment.commentReactions ? vscodeComment.commentReactions.map(reaction => convertToReaction2(undefined, reaction)) : undefined
 	};
 }
 
@@ -624,6 +668,16 @@ function convertToReaction(provider: vscode.DocumentCommentProvider | vscode.Wor
 		count: reaction.count,
 		hasReacted: reaction.hasReacted,
 		canEdit: (reaction.hasReacted && providerCanDeleteReaction) || (!reaction.hasReacted && providerCanAddReaction)
+	};
+}
+
+function convertToReaction2(provider: vscode.CommentReactionProvider | undefined, reaction: vscode.CommentReaction): modes.CommentReaction {
+	return {
+		label: reaction.label,
+		iconPath: reaction.iconPath ? extHostTypeConverter.pathOrURIToURI(reaction.iconPath) : undefined,
+		count: reaction.count,
+		hasReacted: reaction.hasReacted,
+		canEdit: true//!!provider.toggleReaction
 	};
 }
 

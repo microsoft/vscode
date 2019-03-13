@@ -212,16 +212,33 @@ export class MainThreadCommentController {
 		return this._label;
 	}
 
+	private _reactions: modes.CommentReaction[] | undefined;
+
+	get reactions() {
+		return this._reactions;
+	}
+
+	set reactions(reactions: modes.CommentReaction[] | undefined) {
+		this._reactions = reactions;
+	}
+
 	private readonly _threads: Map<number, MainThreadCommentThread> = new Map<number, MainThreadCommentThread>();
 	public activeCommentThread?: MainThreadCommentThread;
+
+
 	constructor(
 		private readonly _proxy: ExtHostCommentsShape,
 		private readonly _commentService: ICommentService,
 		private readonly _handle: number,
 		private readonly _uniqueId: string,
 		private readonly _id: string,
-		private readonly _label: string
+		private readonly _label: string,
+		private _features: CommentProviderFeatures
 	) { }
+
+	updateFeatures(features: CommentProviderFeatures) {
+		this._features = features;
+	}
 
 	createCommentThread(commentThreadHandle: number, threadId: string, resource: UriComponents, range: IRange, comments: modes.Comment[], acceptInputCommand: modes.Command | undefined, additionalCommands: modes.Command[], collapseState: modes.CommentThreadCollapsibleState): modes.CommentThread2 {
 		let thread = new MainThreadCommentThread(
@@ -347,6 +364,14 @@ export class MainThreadCommentController {
 		return commentingRanges || [];
 	}
 
+	getReactionGroup(): modes.CommentReaction[] | undefined {
+		return this._features.reactionGroup;
+	}
+
+	async toggleReaction(uri, thread: modes.CommentThread2, comment: modes.Comment, reaction: modes.CommentReaction, token): Promise<void> {
+		return this._proxy.$toggleReaction(this._handle, thread.commentThreadHandle, uri, comment, reaction);
+	}
+
 	getAllComments(): MainThreadCommentThread[] {
 		let ret: MainThreadCommentThread[] = [];
 		for (let thread of keys(this._threads)) {
@@ -414,8 +439,8 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		const providerId = generateUuid();
 		this._handlers.set(handle, providerId);
 
-		const provider = new MainThreadCommentController(this._proxy, this._commentService, handle, providerId, id, label);
-		this._commentService.registerCommentController(String(handle), provider);
+		const provider = new MainThreadCommentController(this._proxy, this._commentService, handle, providerId, id, label, {});
+		this._commentService.registerCommentController(providerId, provider);
 		this._commentControllers.set(handle, provider);
 
 		const commentsPanelAlreadyConstructed = this._panelService.getPanels().some(panel => panel.id === COMMENTS_PANEL_ID);
@@ -424,6 +449,16 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 			this.registerOpenPanelListener(commentsPanelAlreadyConstructed);
 		}
 		this._commentService.setWorkspaceComments(String(handle), []);
+	}
+
+	$updateCommentControllerFeatures(handle: number, features: CommentProviderFeatures): void {
+		let provider = this._commentControllers.get(handle);
+
+		if (!provider) {
+			return undefined;
+		}
+
+		provider.updateFeatures(features);
 	}
 
 	$createCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, range: IRange, comments: modes.Comment[], acceptInputCommand: modes.Command | undefined, additionalCommands: modes.Command[], collapseState: modes.CommentThreadCollapsibleState): modes.CommentThread2 | undefined {

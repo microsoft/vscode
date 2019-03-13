@@ -133,8 +133,14 @@ export class CommentNode extends Disposable {
 
 		let reactionGroup = this.commentService.getReactionGroup(this.owner);
 		if (reactionGroup && reactionGroup.length) {
-			let toggleReactionAction = this.createReactionPicker();
-			actions.push(toggleReactionAction);
+			let commentThread = this.commentThread as modes.CommentThread2;
+			if (commentThread.commentThreadHandle) {
+				let toggleReactionAction = this.createReactionPicker2();
+				actions.push(toggleReactionAction);
+			} else {
+				let toggleReactionAction = this.createReactionPicker();
+				actions.push(toggleReactionAction);
+			}
 		}
 
 		if (this.comment.canEdit || this.comment.editCommand) {
@@ -192,6 +198,52 @@ export class CommentNode extends Disposable {
 			let item = new ActionItem({}, action, options);
 			return item;
 		}
+	}
+
+	private createReactionPicker2(): ToggleReactionsAction {
+		let toggleReactionActionItem: DropdownMenuActionItem;
+		let toggleReactionAction = this._register(new ToggleReactionsAction(() => {
+			if (toggleReactionActionItem) {
+				toggleReactionActionItem.show();
+			}
+		}, nls.localize('commentToggleReaction', "Toggle Reaction")));
+
+		let reactionMenuActions: Action[] = [];
+		let reactionGroup = this.commentService.getReactionGroup(this.owner);
+		if (reactionGroup && reactionGroup.length) {
+			reactionMenuActions = reactionGroup.map((reaction) => {
+				return new Action(`reaction.command.${reaction.label}`, `${reaction.label}`, '', true, async () => {
+					try {
+						await this.commentService.toggleReaction(this.owner, this.resource, this.commentThread as modes.CommentThread2, this.comment, reaction);
+					} catch (e) {
+						const error = e.message
+							? nls.localize('commentToggleReactionError', "Toggling the comment reaction failed: {0}.", e.message)
+							: nls.localize('commentToggleReactionDefaultError', "Toggling the comment reaction failed");
+						this.notificationService.error(error);
+					}
+				});
+			});
+		}
+
+		toggleReactionAction.menuActions = reactionMenuActions;
+
+		toggleReactionActionItem = new DropdownMenuActionItem(
+			toggleReactionAction,
+			(<ToggleReactionsAction>toggleReactionAction).menuActions,
+			this.contextMenuService,
+			action => {
+				if (action.id === ToggleReactionsAction.ID) {
+					return toggleReactionActionItem;
+				}
+				return this.actionItemProvider(action as Action);
+			},
+			this.actionRunner,
+			undefined,
+			'toolbar-toggle-pickReactions',
+			() => { return AnchorAlignment.RIGHT; }
+		);
+
+		return toggleReactionAction;
 	}
 
 	private createReactionPicker(): ToggleReactionsAction {
@@ -266,10 +318,15 @@ export class CommentNode extends Disposable {
 		this.comment.commentReactions!.map(reaction => {
 			let action = new ReactionAction(`reaction.${reaction.label}`, `${reaction.label}`, reaction.hasReacted && reaction.canEdit ? 'active' : '', reaction.canEdit, async () => {
 				try {
-					if (reaction.hasReacted) {
-						await this.commentService.deleteReaction(this.owner, this.resource, this.comment, reaction);
+					let commentThread = this.commentThread as modes.CommentThread2;
+					if (commentThread.commentThreadHandle) {
+						await this.commentService.toggleReaction(this.owner, this.resource, this.commentThread as modes.CommentThread2, this.comment, reaction);
 					} else {
-						await this.commentService.addReaction(this.owner, this.resource, this.comment, reaction);
+						if (reaction.hasReacted) {
+							await this.commentService.deleteReaction(this.owner, this.resource, this.comment, reaction);
+						} else {
+							await this.commentService.addReaction(this.owner, this.resource, this.comment, reaction);
+						}
 					}
 				} catch (e) {
 					let error: string;
@@ -294,8 +351,14 @@ export class CommentNode extends Disposable {
 
 		let reactionGroup = this.commentService.getReactionGroup(this.owner);
 		if (reactionGroup && reactionGroup.length) {
-			let toggleReactionAction = this.createReactionPicker();
-			this._reactionsActionBar.push(toggleReactionAction, { label: false, icon: true });
+			let commentThread = this.commentThread as modes.CommentThread2;
+			if (commentThread.commentThreadHandle) {
+				let toggleReactionAction = this.createReactionPicker2();
+				this._reactionsActionBar.push(toggleReactionAction, { label: false, icon: true });
+			} else {
+				let toggleReactionAction = this.createReactionPicker();
+				this._reactionsActionBar.push(toggleReactionAction, { label: false, icon: true });
+			}
 		}
 	}
 

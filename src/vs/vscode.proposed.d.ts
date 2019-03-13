@@ -809,7 +809,7 @@ declare module 'vscode' {
 	/**
 	 * A comment is displayed within the editor or the Comments Panel, depending on how it is provided.
 	 */
-	interface Comment {
+	export interface Comment {
 		/**
 		 * The id of the comment
 		 */
@@ -983,6 +983,11 @@ declare module 'vscode' {
 		provideCommentingRanges(document: TextDocument, token: CancellationToken): ProviderResult<Range[]>;
 	}
 
+	export interface CommentReactionProvider {
+		availableReactions: CommentReaction[];
+		toggleReaction?(document: TextDocument, comment: Comment, reaction: CommentReaction): Promise<void>;
+	}
+
 	export interface EmptyCommentThreadFactory {
 		/**
 		 * The method `createEmptyCommentThread` is called when users attempt to create new comment thread from the gutter or command palette.
@@ -1018,6 +1023,11 @@ declare module 'vscode' {
 		 * Optional new comment thread factory.
 		 */
 		emptyCommentThreadFactory: EmptyCommentThreadFactory;
+
+		/**
+		 * Optional reaction provider
+		 */
+		reactionProvider?: CommentReactionProvider;
 
 		/**
 		 * Dispose this comment controller.
