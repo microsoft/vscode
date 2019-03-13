@@ -518,14 +518,14 @@ suite('FileService', () => {
 			{ resource: uri.file(testDir), options: { resolveTo: [uri.file(path.join(testDir, 'deep'))] } },
 			{ resource: uri.file(path.join(testDir, 'deep')) }
 		]).then(res => {
-			const r1 = res[0].stat;
+			const r1 = res[0].stat!;
 
 			assert.equal(r1.children!.length, 8);
 
 			const deep = utils.getByName(r1, 'deep')!;
 			assert.equal(deep.children!.length, 4);
 
-			const r2 = res[1].stat;
+			const r2 = res[1].stat!;
 			assert.equal(r2.children!.length, 4);
 			assert.equal(r2.name, 'deep');
 		});

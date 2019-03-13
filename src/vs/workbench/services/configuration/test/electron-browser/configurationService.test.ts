@@ -346,11 +346,11 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 					done();
 				});
 				const workspace = { folders: [{ path: folders[0].uri.fsPath }, { path: folders[1].uri.fsPath }] };
-				instantiationService.get(IFileService).updateContent(testObject.getWorkspace().configuration, JSON.stringify(workspace, null, '\t'))
+				instantiationService.get(IFileService).updateContent(testObject.getWorkspace().configuration!, JSON.stringify(workspace, null, '\t'))
 					.then(() => {
 						fileChangeEvent.fire(new FileChangesEvent([
 							{
-								resource: testObject.getWorkspace().configuration,
+								resource: testObject.getWorkspace().configuration!,
 								type: FileChangeType.UPDATED
 							}
 						]));
