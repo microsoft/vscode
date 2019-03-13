@@ -2,33 +2,33 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { Disposable } from 'vs/base/common/lifecycle';
 import * as map from 'vs/base/common/map';
 import { URI, UriComponents } from 'vs/base/common/uri';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { localize } from 'vs/nls';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ExtHostContext, ExtHostWebviewsShape, IExtHostContext, MainContext, MainThreadWebviewsShape, WebviewPanelHandle, WebviewPanelShowOptions, WebviewInsetHandle } from 'vs/workbench/api/node/extHost.protocol';
-import { editorGroupToViewColumn, EditorViewColumn, viewColumnToEditorGroup } from 'vs/workbench/api/shared/editor';
-import { WebviewEditor } from 'vs/workbench/contrib/webview/electron-browser/webviewEditor';
-import { WebviewEditorInput, RevivedWebviewEditorInput } from 'vs/workbench/contrib/webview/electron-browser/webviewEditorInput';
-import { ICreateWebViewShowOptions, IWebviewEditorService, WebviewInputOptions, WebviewReviver } from 'vs/workbench/contrib/webview/electron-browser/webviewEditorService';
-import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import * as vscode from 'vscode';
-import { extHostNamedCustomer } from './extHostCustomers';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { WebviewElement } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ExtHostContext, ExtHostWebviewsShape, IExtHostContext, MainContext, MainThreadWebviewsShape, WebviewInsetHandle, WebviewPanelHandle, WebviewPanelShowOptions } from 'vs/workbench/api/node/extHost.protocol';
+import { editorGroupToViewColumn, EditorViewColumn, viewColumnToEditorGroup } from 'vs/workbench/api/shared/editor';
 import { CodeInsetController } from 'vs/workbench/contrib/codeinset/electron-browser/codeInset.contribution';
+import { WebviewEditor } from 'vs/workbench/contrib/webview/electron-browser/webviewEditor';
+import { RevivedWebviewEditorInput, WebviewEditorInput } from 'vs/workbench/contrib/webview/electron-browser/webviewEditorInput';
+import { ICreateWebViewShowOptions, IWebviewEditorService, WebviewInputOptions, WebviewReviver } from 'vs/workbench/contrib/webview/electron-browser/webviewEditorService';
+import { WebviewElement } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { ACTIVE_GROUP, IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
+import * as vscode from 'vscode';
+import { extHostNamedCustomer } from './extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadWebviews)
-export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviver {
+export class MainThreadWebviews extends Disposable implements MainThreadWebviewsShape, WebviewReviver {
 
 	private static readonly viewType = 'mainThreadWebview';
 
@@ -36,7 +36,6 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 
 	private static revivalPool = 0;
 
-	private _toDispose: IDisposable[] = [];
 
 	private readonly _proxy: ExtHostWebviewsShape;
 	private readonly _webviews = new Map<WebviewPanelHandle, WebviewEditorInput>();
@@ -58,6 +57,8 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 	) {
+		super();
+
 		this._proxy = context.getProxy(ExtHostContext.ExtHostWebviews);
 		_editorService.onDidActiveEditorChange(this.onActiveEditorChanged, this, this._toDispose);
 		_editorService.onDidVisibleEditorsChange(this.onVisibleEditorsChanged, this, this._toDispose);
@@ -67,10 +68,6 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		lifecycleService.onBeforeShutdown(e => {
 			e.veto(this._onBeforeShutdown());
 		}, this, this._toDispose);
-	}
-
-	public dispose(): void {
-		this._toDispose = dispose(this._toDispose);
 	}
 
 	public $createWebviewPanel(
