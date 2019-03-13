@@ -334,8 +334,8 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			{ id: Parts.TITLEBAR_PART, role: 'contentinfo', classes: ['titlebar'] },
 			{ id: Parts.ACTIVITYBAR_PART, role: 'navigation', classes: ['activitybar', this.state.sideBar.position === Position.LEFT ? 'left' : 'right'] },
 			{ id: Parts.SIDEBAR_PART, role: 'complementary', classes: ['sidebar', this.state.sideBar.position === Position.LEFT ? 'left' : 'right'] },
-			{ id: Parts.PANEL_PART, role: 'complementary', classes: ['panel', this.state.panel.position === Position.BOTTOM ? 'bottom' : 'right'] },
 			{ id: Parts.EDITOR_PART, role: 'main', classes: ['editor'], options: { restorePreviousState: this.state.editor.restoreEditors } },
+			{ id: Parts.PANEL_PART, role: 'complementary', classes: ['panel', this.state.panel.position === Position.BOTTOM ? 'bottom' : 'right'] },
 			{ id: Parts.STATUSBAR_PART, role: 'contentinfo', classes: ['statusbar'] }
 		].forEach(({ id, role, classes, options }) => {
 			const partContainer = this.createPart(id, role, classes);
