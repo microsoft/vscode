@@ -1203,7 +1203,7 @@ export interface Command {
  * @internal
  */
 export interface CommentInfo {
-	extensionId: string;
+	extensionId?: string;
 	threads: CommentThread[];
 	commentingRanges?: (IRange[] | CommentingRanges);
 	reply?: Command;
@@ -1266,8 +1266,8 @@ export interface CommentThread2 {
 	comments: Comment[];
 	onDidChangeComments: Event<Comment[]>;
 	collapsibleState?: CommentThreadCollapsibleState;
-	input: CommentInput;
-	onDidChangeInput: Event<CommentInput>;
+	input: CommentInput | undefined;
+	onDidChangeInput: Event<CommentInput | undefined>;
 	acceptInputCommand?: Command;
 	additionalCommands: Command[];
 	onDidChangeAcceptInputCommand: Event<Command>;
@@ -1368,8 +1368,8 @@ export interface CommentThreadChangedEvent {
  */
 export interface DocumentCommentProvider {
 	provideDocumentComments(resource: URI, token: CancellationToken): Promise<CommentInfo>;
-	createNewCommentThread(resource: URI, range: Range, text: string, token: CancellationToken): Promise<CommentThread>;
-	replyToCommentThread(resource: URI, range: Range, thread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread>;
+	createNewCommentThread(resource: URI, range: Range, text: string, token: CancellationToken): Promise<CommentThread | null>;
+	replyToCommentThread(resource: URI, range: Range, thread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread | null>;
 	editComment(resource: URI, comment: Comment, text: string, token: CancellationToken): Promise<void>;
 	deleteComment(resource: URI, comment: Comment, token: CancellationToken): Promise<void>;
 	startDraft?(resource: URI, token: CancellationToken): Promise<void>;
