@@ -23,10 +23,8 @@ export class HashService implements IHashService {
 
 	createSHA1(content: string): Thenable<string> {
 		return crypto.subtle.digest('SHA-1', new TextEncoder().encode(content)).then(buffer => {
-			const byteArray = new Uint8Array(buffer);
-
 			// https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/digest#Converting_a_digest_to_a_hex_string
-			return [...byteArray].map(value => (`00${value.toString(16)}`).slice(-2)).join('');
+			return Array.prototype.map.call(new Uint8Array(buffer), value => `00${value.toString(16)}`.slice(-2)).join('');
 		});
 	}
 }
