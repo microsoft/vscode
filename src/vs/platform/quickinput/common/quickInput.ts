@@ -195,6 +195,8 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 	valueSelection: Readonly<[number, number]> | undefined;
 
 	validationMessage: string | undefined;
+
+	insertText(text: string);
 }
 
 export interface IInputBox extends IQuickInput {

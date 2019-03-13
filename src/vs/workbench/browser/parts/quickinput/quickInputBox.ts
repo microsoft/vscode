@@ -81,6 +81,10 @@ export class QuickInputBox {
 		this.inputBox.setEnabled(enabled);
 	}
 
+	insertText(text: string) {
+		this.inputBox.insertText(text);
+	}
+
 	setAttribute(name: string, value: string) {
 		this.inputBox.inputElement.setAttribute(name, value);
 	}

@@ -249,6 +249,12 @@ export class InputBox extends Widget {
 		}
 	}
 
+	public insertText(text: string) {
+		if (this.hasFocus()) {
+			document.execCommand('insertText', false, text);
+		}
+	}
+
 	public get height(): number {
 		return this.cachedHeight === null ? dom.getTotalHeight(this.element) : this.cachedHeight;
 	}
