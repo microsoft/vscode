@@ -5,7 +5,7 @@
 
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorInputFactory } from 'vs/workbench/common/editor';
-import { WebviewEditorInput, RevivedWebviewEditorInput } from './webviewEditorInput';
+import { WebviewEditorInput } from './webviewEditorInput';
 import { IWebviewEditorService, WebviewInputOptions } from './webviewEditorService';
 import { URI, UriComponents } from 'vs/base/common/uri';
 
@@ -36,13 +36,7 @@ export class WebviewEditorInputFactory implements IEditorInputFactory {
 	public serialize(
 		input: WebviewEditorInput
 	): string | null {
-		// Has no state, don't revive
-		if (!input.state) {
-			return null;
-		}
-
-		// Only attempt revival if we may have a reviver
-		if (!this._webviewService.canRevive(input) && !(input instanceof RevivedWebviewEditorInput)) {
+		if (!this._webviewService.shouldPersist(input)) {
 			return null;
 		}
 

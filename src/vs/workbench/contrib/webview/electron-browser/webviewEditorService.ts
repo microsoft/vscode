@@ -54,7 +54,7 @@ export interface IWebviewEditorService {
 		reviver: WebviewReviver
 	): IDisposable;
 
-	canRevive(
+	shouldPersist(
 		input: WebviewEditorInput
 	): boolean;
 }
@@ -92,7 +92,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 	_serviceBrand: any;
 
 	private readonly _revivers = new Set<WebviewReviver>();
-	private _awaitingRevival: { input: WebviewEditorInput, resolve: (x: any) => void }[] = [];
+	private _awaitingRevival: { input: WebviewEditorInput, resolve: () => void }[] = [];
 
 	constructor(
 		@IEditorService private readonly _editorService: IEditorService,
@@ -167,7 +167,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 		this._awaitingRevival = this._awaitingRevival.filter(x => !reviver.canRevive(x.input));
 
 		for (const input of toRevive) {
-			reviver.reviveWebview(input.input).then(() => input.resolve(undefined));
+			reviver.reviveWebview(input.input).then(() => input.resolve());
 		}
 
 		return toDisposable(() => {
@@ -175,15 +175,19 @@ export class WebviewEditorService implements IWebviewEditorService {
 		});
 	}
 
-	canRevive(
+	shouldPersist(
 		webview: WebviewEditorInput
 	): boolean {
-		for (const reviver of values(this._revivers)) {
-			if (reviver.canRevive(webview)) {
-				return true;
-			}
+		// Has no state, don't persist
+		if (!webview.state) {
+			return false;
 		}
-		return false;
+
+		if (values(this._revivers).some(reviver => reviver.canRevive(webview))) {
+			return true;
+		}
+
+		return !(webview instanceof RevivedWebviewEditorInput);
 	}
 
 	private async tryRevive(
