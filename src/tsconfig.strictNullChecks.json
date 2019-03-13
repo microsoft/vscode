@@ -197,6 +197,7 @@
 		"./vs/workbench/contrib/files/browser/files.ts",
 		"./vs/workbench/contrib/files/browser/views/emptyView.ts",
 		"./vs/workbench/contrib/files/browser/views/explorerDecorationsProvider.ts",
+		"./vs/workbench/contrib/files/browser/fileActions.ts",
 		"./vs/workbench/contrib/files/common/dirtyFilesTracker.ts",
 		"./vs/workbench/contrib/files/common/editors/fileEditorInput.ts",
 		"./vs/workbench/contrib/files/common/explorerModel.ts",

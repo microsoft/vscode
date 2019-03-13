@@ -313,7 +313,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 
 		// Hide those that match Hidden Patterns
 		const cached = this.hiddenExpressionPerRoot.get(stat.root.resource.toString());
-		if (cached && cached.parsed(path.normalize(path.relative(stat.root.resource.path, stat.resource.path)), stat.name, name => !!stat.parent.getChild(name))) {
+		if (cached && cached.parsed(path.normalize(path.relative(stat.root.resource.path, stat.resource.path)), stat.name, name => !!(stat.parent && stat.parent.getChild(name)))) {
 			// review (isidor): is path.normalize necessary? path.relative already returns an os path
 			return false; // hidden through pattern
 		}
@@ -338,7 +338,9 @@ export class FileSorter implements ITreeSorter<ExplorerItem> {
 		// Do not sort roots
 		if (statA.isRoot) {
 			if (statB.isRoot) {
-				return this.contextService.getWorkspaceFolder(statA.resource).index - this.contextService.getWorkspaceFolder(statB.resource).index;
+				const workspaceA = this.contextService.getWorkspaceFolder(statA.resource);
+				const workspaceB = this.contextService.getWorkspaceFolder(statB.resource);
+				return workspaceA && workspaceB ? (workspaceA.index - workspaceB.index) : -1;
 			}
 
 			return -1;
@@ -400,7 +402,7 @@ export class FileSorter implements ITreeSorter<ExplorerItem> {
 
 			case 'modified':
 				if (statA.mtime !== statB.mtime) {
-					return statA.mtime < statB.mtime ? 1 : -1;
+					return (statA.mtime && statB.mtime && statA.mtime < statB.mtime) ? 1 : -1;
 				}
 
 				return compareFileNames(statA.name, statB.name);
@@ -439,7 +441,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		this.toDispose.push(this.configurationService.onDidChangeConfiguration((e) => updateDropEnablement()));
 	}
 
-	onDragOver(data: IDragAndDropData, target: ExplorerItem, targetIndex: number, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
+	onDragOver(data: IDragAndDropData, target: ExplorerItem | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
 		if (!this.dropEnabled) {
 			return false;
 		}
@@ -449,7 +451,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		const effect = (fromDesktop || isCopy) ? ListDragOverEffect.Copy : ListDragOverEffect.Move;
 
 		// Desktop DND
-		if (fromDesktop) {
+		if (fromDesktop && originalEvent.dataTransfer) {
 			const types = originalEvent.dataTransfer.types;
 			const typesArray: string[] = [];
 			for (let i = 0; i < types.length; i++) {
@@ -543,7 +545,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		return element.resource.toString();
 	}
 
-	getDragLabel(elements: ExplorerItem[]): string {
+	getDragLabel(elements: ExplorerItem[]): string | undefined {
 		if (elements.length > 1) {
 			return String(elements.length);
 		}
@@ -553,7 +555,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
 		const items = (data as ElementsDragAndDropData<ExplorerItem>).elements;
-		if (items && items.length) {
+		if (items && items.length && originalEvent.dataTransfer) {
 			// Apply some datatransfer types to allow for dragging the element outside of the application
 			this.instantiationService.invokeFunction(fillResourceDataTransfers, items, originalEvent);
 
@@ -566,12 +568,12 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		}
 	}
 
-	drop(data: IDragAndDropData, target: ExplorerItem, targetIndex: number, originalEvent: DragEvent): void {
+	drop(data: IDragAndDropData, target: ExplorerItem | undefined, targetIndex: number | undefined, originalEvent: DragEvent): void {
 		// Find parent to add to
 		if (!target) {
 			target = this.explorerService.roots[this.explorerService.roots.length - 1];
 		}
-		if (!target.isDirectory) {
+		if (!target.isDirectory && target.parent) {
 			target = target.parent;
 		}
 		if (target.isReadonly) {
@@ -599,7 +601,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			this.windowService.focusWindow();
 
 			// Handle folders by adding to workspace if we are in workspace context
-			const folders = result.filter(r => r.success && r.stat.isDirectory).map(result => ({ uri: result.stat.resource }));
+			const folders = result.filter(r => r.success && r.stat && r.stat.isDirectory).map(result => ({ uri: result.stat!.resource }));
 			if (folders.length > 0) {
 
 				// If we are in no-workspace context, ask for confirmation to create a workspace
@@ -767,6 +769,9 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			} else {
 				rootsToMove.push(data);
 			}
+		}
+		if (!targetIndex) {
+			targetIndex = workspaceCreationData.length;
 		}
 
 		workspaceCreationData.splice(targetIndex, 0, ...rootsToMove);

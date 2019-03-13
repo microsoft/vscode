@@ -1112,12 +1112,15 @@ export const renameHandler = (accessor: ServicesAccessor) => {
 	}
 
 	const { stat } = getContext(listService.lastFocusedList);
+	if (!stat) {
+		return;
+	}
 
 	explorerService.setEditable(stat, {
 		validationMessage: value => validateFileName(stat, value),
 		onFinish: (value, success) => {
 			if (success) {
-				const parentResource = stat.parent.resource;
+				const parentResource = stat.parent!.resource;
 				const targetResource = resources.joinPath(parentResource, value);
 				textFileService.move(stat.resource, targetResource).then(() => refreshIfSeparator(value, explorerService), onUnexpectedError);
 			}
@@ -1159,9 +1162,11 @@ export const copyFileHandler = (accessor: ServicesAccessor) => {
 	}
 	const explorerContext = getContext(listService.lastFocusedList);
 	const explorerService = accessor.get(IExplorerService);
-	const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
-	explorerService.setToCopy(stats, false);
-	pasteShouldMove = false;
+	if (explorerContext.stat) {
+		const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
+		explorerService.setToCopy(stats, false);
+		pasteShouldMove = false;
+	}
 };
 
 export const cutFileHandler = (accessor: ServicesAccessor) => {
@@ -1171,9 +1176,11 @@ export const cutFileHandler = (accessor: ServicesAccessor) => {
 	}
 	const explorerContext = getContext(listService.lastFocusedList);
 	const explorerService = accessor.get(IExplorerService);
-	const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
-	explorerService.setToCopy(stats, true);
-	pasteShouldMove = true;
+	if (explorerContext.stat) {
+		const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
+		explorerService.setToCopy(stats, true);
+		pasteShouldMove = true;
+	}
 };
 
 export const pasteFileHandler = (accessor: ServicesAccessor) => {
