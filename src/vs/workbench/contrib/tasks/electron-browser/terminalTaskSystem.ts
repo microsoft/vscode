@@ -773,13 +773,13 @@ export class TerminalTaskSystem implements ITaskSystem {
 					if (!shellSpecified) {
 						toAdd.push('-Command');
 					}
-				} else if ((basename === 'bash.exe') || (basename === 'zsh.exe') || ((basename === 'wsl.exe') && (getWindowsBuildNumber() < 17763))) { // See https://github.com/Microsoft/vscode/issues/67855
+				} else if ((basename === 'bash.exe') || (basename === 'zsh.exe')) {
 					windowsShellArgs = false;
 					if (!shellSpecified) {
 						toAdd.push('-c');
 					}
 				} else if (basename === 'wsl.exe') {
-					if (!shellSpecified) {
+					if (!shellSpecified && (getWindowsBuildNumber() >= 17763)) { // See https://github.com/Microsoft/vscode/issues/67855
 						toAdd.push('-e');
 					}
 				} else {
