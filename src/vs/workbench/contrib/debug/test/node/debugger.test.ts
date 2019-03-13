@@ -149,7 +149,7 @@ suite('Debug - Debugger', () => {
 	});
 
 	test('schema attributes', () => {
-		const schemaAttribute = _debugger.getSchemaAttributes()[0];
+		const schemaAttribute = _debugger.getSchemaAttributes()![0];
 		assert.notDeepEqual(schemaAttribute, debuggerContribution.configurationAttributes);
 		Object.keys(debuggerContribution.configurationAttributes.launch).forEach(key => {
 			assert.deepEqual(schemaAttribute[key], debuggerContribution.configurationAttributes.launch[key]);

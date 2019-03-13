@@ -159,6 +159,7 @@
 		"./vs/workbench/contrib/comments/electron-browser/reactionsAction.ts",
 		"./vs/workbench/contrib/comments/electron-browser/simpleCommentEditor.ts",
 		"./vs/workbench/contrib/debug/test/browser/baseDebugView.test.ts",
+		"./vs/workbench/contrib/debug/test/electron-browser/debugModel.test.ts",
 		"./vs/workbench/contrib/debug/test/common/debugSource.test.ts",
 		"./vs/workbench/contrib/debug/test/common/debugUtils.test.ts",
 		"./vs/workbench/contrib/debug/test/common/mockDebug.ts",
