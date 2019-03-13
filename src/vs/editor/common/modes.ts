@@ -1207,7 +1207,7 @@ export interface CommentInfo {
 	threads: CommentThread[];
 	commentingRanges?: (IRange[] | CommentingRanges);
 	reply?: Command;
-	draftMode: DraftMode;
+	draftMode?: DraftMode;
 }
 
 /**
@@ -1259,14 +1259,14 @@ export interface CommentInput {
 export interface CommentThread2 {
 	commentThreadHandle: number;
 	extensionId?: string;
-	threadId: string;
-	resource: string;
+	threadId: string | null;
+	resource: string | null;
 	range: IRange;
 	label: string;
 	comments: Comment[];
 	onDidChangeComments: Event<Comment[]>;
 	collapsibleState?: CommentThreadCollapsibleState;
-	input: CommentInput;
+	input?: CommentInput;
 	onDidChangeInput: Event<CommentInput | undefined>;
 	acceptInputCommand?: Command;
 	additionalCommands: Command[];
@@ -1293,8 +1293,8 @@ export interface CommentingRanges {
  */
 export interface CommentThread {
 	extensionId?: string;
-	threadId: string;
-	resource: string;
+	threadId: string | null;
+	resource: string | null;
 	range: IRange;
 	comments: Comment[];
 	collapsibleState?: CommentThreadCollapsibleState;

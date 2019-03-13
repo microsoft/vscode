@@ -160,7 +160,7 @@ export class CommentNode extends Disposable {
 							action => {
 								return this.actionItemProvider(action as Action);
 							},
-							this.actionRunner,
+							this.actionRunner!,
 							undefined,
 							'toolbar-toggle-pickReactions',
 							() => { return AnchorAlignment.RIGHT; }
@@ -231,7 +231,7 @@ export class CommentNode extends Disposable {
 				}
 				return this.actionItemProvider(action as Action);
 			},
-			this.actionRunner,
+			this.actionRunner!,
 			undefined,
 			'toolbar-toggle-pickReactions',
 			() => { return AnchorAlignment.RIGHT; }
@@ -252,7 +252,7 @@ export class CommentNode extends Disposable {
 						action => {
 							return this.actionItemProvider(action as Action);
 						},
-						this.actionRunner,
+						this.actionRunner!,
 						undefined,
 						'toolbar-toggle-pickReactions',
 						() => { return AnchorAlignment.RIGHT; }
@@ -287,7 +287,9 @@ export class CommentNode extends Disposable {
 				}
 			}, reaction.iconPath, reaction.count);
 
-			this._reactionsActionBar.push(action, { label: true, icon: true });
+			if (this._reactionsActionBar) {
+				this._reactionsActionBar.push(action, { label: true, icon: true });
+			}
 		});
 
 		let reactionGroup = this.commentService.getReactionGroup(this.owner);
@@ -315,21 +317,21 @@ export class CommentNode extends Disposable {
 		let commentThread = this.commentThread as modes.CommentThread2;
 		if (commentThread.commentThreadHandle) {
 			commentThread.input = {
-				uri: this._commentEditor.getModel().uri,
+				uri: this._commentEditor.getModel()!.uri,
 				value: this.comment.body.value
 			};
 			this.commentService.setActiveCommentThread(commentThread);
 
 			this._commentEditorDisposables.push(this._commentEditor.onDidFocusEditorWidget(() => {
 				commentThread.input = {
-					uri: this._commentEditor.getModel().uri,
+					uri: this._commentEditor!.getModel()!.uri,
 					value: this.comment.body.value
 				};
 				this.commentService.setActiveCommentThread(commentThread);
 			}));
 
 			this._commentEditorDisposables.push(this._commentEditor.onDidChangeModelContent(e => {
-				if (commentThread.input && this._commentEditor.getModel().uri === commentThread.input.uri) {
+				if (commentThread.input && this._commentEditor && this._commentEditor.getModel()!.uri === commentThread.input.uri) {
 					let newVal = this._commentEditor.getValue();
 					if (newVal !== commentThread.input.value) {
 						let input = commentThread.input;
@@ -361,6 +363,10 @@ export class CommentNode extends Disposable {
 	}
 
 	async editComment(): Promise<void> {
+		if (!this._commentEditor) {
+			throw new Error('No comment editor');
+		}
+
 		this._updateCommentButton.enabled = false;
 		this._updateCommentButton.label = UPDATE_IN_PROGRESS_LABEL;
 
@@ -370,7 +376,7 @@ export class CommentNode extends Disposable {
 			if (this.comment.editCommand) {
 				let commentThread = this.commentThread as modes.CommentThread2;
 				commentThread.input = {
-					uri: this._commentEditor.getModel().uri,
+					uri: this._commentEditor.getModel()!.uri,
 					value: newBody
 				};
 				this.commentService.setActiveCommentThread(commentThread);
@@ -384,7 +390,7 @@ export class CommentNode extends Disposable {
 
 			this._updateCommentButton.enabled = true;
 			this._updateCommentButton.label = UPDATE_COMMENT_LABEL;
-			this._commentEditor!.getDomNode().style.outline = '';
+			this._commentEditor.getDomNode()!.style.outline = '';
 			this.removeCommentEditor();
 			const editedComment = assign({}, this.comment, { body: new MarkdownString(newBody) });
 			this.update(editedComment);
@@ -392,7 +398,7 @@ export class CommentNode extends Disposable {
 			this._updateCommentButton.enabled = true;
 			this._updateCommentButton.label = UPDATE_COMMENT_LABEL;
 
-			this._commentEditor.getDomNode().style.outline = `1px solid ${this.themeService.getTheme().getColor(inputValidationErrorBorder)}`;
+			this._commentEditor.getDomNode()!.style.outline = `1px solid ${this.themeService.getTheme().getColor(inputValidationErrorBorder)}`;
 			this._errorEditingContainer.textContent = e.message
 				? nls.localize('commentEditError', "Updating the comment failed: {0}.", e.message)
 				: nls.localize('commentEditDefaultError', "Updating the comment failed.");
@@ -466,7 +472,7 @@ export class CommentNode extends Disposable {
 			}));
 
 			this._editAction.enabled = false;
-			return null;
+			return Promise.resolve();
 		});
 	}
 

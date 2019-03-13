@@ -385,7 +385,7 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 	private _collapseState?: vscode.CommentThreadCollapsibleState;
 
 	get collapsibleState(): vscode.CommentThreadCollapsibleState {
-		return this._collapseState;
+		return this._collapseState!;
 	}
 
 	set collapsibleState(newState: vscode.CommentThreadCollapsibleState) {
@@ -410,7 +410,7 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 			this._comments.map(comment => { return convertToModeComment(comment, this._commandsConverter); }),
 			this._acceptInputCommand ? this._commandsConverter.toInternal(this._acceptInputCommand) : undefined,
 			this._additionalCommands ? this._additionalCommands.map(x => this._commandsConverter.toInternal(x)) : [],
-			this._collapseState
+			this._collapseState!
 		);
 	}
 
@@ -541,8 +541,8 @@ function convertToCommentThread(extensionId: ExtensionIdentifier, provider: vsco
 
 function convertFromCommentThread(commentThread: modes.CommentThread): vscode.CommentThread {
 	return {
-		threadId: commentThread.threadId,
-		resource: URI.parse(commentThread.resource),
+		threadId: commentThread.threadId!,
+		resource: URI.parse(commentThread.resource!),
 		range: extHostTypeConverter.Range.to(commentThread.range),
 		comments: commentThread.comments.map(convertFromComment),
 		collapsibleState: commentThread.collapsibleState

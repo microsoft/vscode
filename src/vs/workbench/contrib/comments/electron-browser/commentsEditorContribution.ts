@@ -171,7 +171,7 @@ export class ReviewController implements IEditorContribution {
 	private _computeCommentingRangePromise: CancelablePromise<ICommentInfo[]> | null;
 	private _computeCommentingRangeScheduler: Delayer<Array<ICommentInfo | null>> | null;
 	private _pendingCommentCache: { [key: number]: { [key: string]: string } };
-	private _pendingNewCommentCache: { [key: string]: { lineNumber: number, replyCommand: modes.Command | undefined, ownerId: string, extensionId: string, pendingComment: string, draftMode: modes.DraftMode } };
+	private _pendingNewCommentCache: { [key: string]: { lineNumber: number, replyCommand: modes.Command | undefined, ownerId: string, extensionId: string | undefined, pendingComment: string, draftMode: modes.DraftMode | undefined } };
 
 	constructor(
 		editor: ICodeEditor,
@@ -405,9 +405,9 @@ export class ReviewController implements IEditorContribution {
 				return;
 			}
 
-			let added = e.added.filter(thread => thread.resource.toString() === editorURI.toString());
-			let removed = e.removed.filter(thread => thread.resource.toString() === editorURI.toString());
-			let changed = e.changed.filter(thread => thread.resource.toString() === editorURI.toString());
+			let added = e.added.filter(thread => thread.resource && thread.resource.toString() === editorURI.toString());
+			let removed = e.removed.filter(thread => thread.resource && thread.resource.toString() === editorURI.toString());
+			let changed = e.changed.filter(thread => thread.resource && thread.resource.toString() === editorURI.toString());
 			let draftMode = e.draftMode;
 
 			commentInfo.forEach(info => info.draftMode = draftMode);
@@ -443,13 +443,13 @@ export class ReviewController implements IEditorContribution {
 		this.beginCompute();
 	}
 
-	private displayCommentThread(owner: string, thread: modes.CommentThread | modes.CommentThread2, pendingComment: string | null, draftMode: modes.DraftMode): void {
+	private displayCommentThread(owner: string, thread: modes.CommentThread | modes.CommentThread2, pendingComment: string | null, draftMode: modes.DraftMode | undefined): void {
 		const zoneWidget = this.instantiationService.createInstance(ReviewZoneWidget, this.editor, owner, thread, pendingComment, draftMode);
 		zoneWidget.display(thread.range.startLineNumber);
 		this._commentWidgets.push(zoneWidget);
 	}
 
-	private addComment(lineNumber: number, replyCommand: modes.Command | undefined, ownerId: string, extensionId: string | undefined, draftMode: modes.DraftMode, pendingComment: string | null) {
+	private addComment(lineNumber: number, replyCommand: modes.Command | undefined, ownerId: string, extensionId: string | undefined, draftMode: modes.DraftMode | undefined, pendingComment: string | null) {
 		if (this._newCommentWidget) {
 			this.notificationService.warn(`Please submit the comment at line ${this._newCommentWidget.position ? this._newCommentWidget.position.lineNumber : -1} before creating a new one.`);
 			return;

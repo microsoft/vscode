@@ -77,11 +77,11 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		return this._commentThread;
 	}
 
-	public get extensionId(): string {
+	public get extensionId(): string | undefined {
 		return this._commentThread.extensionId;
 	}
 
-	public get draftMode(): modes.DraftMode {
+	public get draftMode(): modes.DraftMode | undefined {
 		return this._draftMode;
 	}
 
@@ -90,7 +90,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		private _owner: string,
 		private _commentThread: modes.CommentThread | modes.CommentThread2,
 		private _pendingComment: string,
-		private _draftMode: modes.DraftMode,
+		private _draftMode: modes.DraftMode | undefined,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IModeService private modeService: IModeService,
 		@ICommandService private commandService: ICommandService,
@@ -120,7 +120,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._parentEditor = editor;
 	}
 
-	public get onDidClose(): Event<ReviewZoneWidget> {
+	public get onDidClose(): Event<ReviewZoneWidget | undefined> {
 		return this._onDidClose.event;
 	}
 
@@ -129,13 +129,14 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	}
 
 	public getPosition(): IPosition | undefined {
-		let position: IPosition | undefined = this.position;
-		if (position) {
-			return position;
+		if (this.position) {
+			return this.position;
 		}
 
-		position = withNullAsUndefined(this._commentGlyph.getPosition().position);
-		return position;
+		if (this._commentGlyph) {
+			return withNullAsUndefined(this._commentGlyph.getPosition().position);
+		}
+		return undefined;
 	}
 
 	protected revealLine(lineNumber: number) {
@@ -201,19 +202,22 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._collapseAction = new Action('review.expand', nls.localize('label.collapse', "Collapse"), COLLAPSE_ACTION_CLASS, true, () => {
 			if (this._commentThread.comments.length === 0 && (this._commentThread as modes.CommentThread2).commentThreadHandle === undefined) {
 				this.dispose();
-				return null;
+				return Promise.resolve();
 			}
 
 			this._isCollapsed = true;
 			this.hide();
-			return null;
+			return Promise.resolve();
 		});
 
 		this._actionbarWidget.push(this._collapseAction, { label: false, icon: true });
 	}
 
 	public getGlyphPosition(): number {
-		return this._commentGlyph.getPosition().position.lineNumber;
+		if (this._commentGlyph) {
+			return this._commentGlyph.getPosition().position!.lineNumber;
+		}
+		return 0;
 	}
 
 	toggleExpand(lineNumber: number) {
@@ -280,8 +284,10 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 		// Move comment glyph widget and show position if the line has changed.
 		const lineNumber = this._commentThread.range.startLineNumber;
-		if (this._commentGlyph.getPosition().position.lineNumber !== lineNumber) {
-			this._commentGlyph.setLineNumber(lineNumber);
+		if (this._commentGlyph) {
+			if (this._commentGlyph.getPosition().position!.lineNumber !== lineNumber) {
+				this._commentGlyph.setLineNumber(lineNumber);
+			}
 		}
 
 		if (!this._reviewThreadReplyButton) {
@@ -293,7 +299,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		}
 	}
 
-	updateDraftMode(draftMode: modes.DraftMode) {
+	updateDraftMode(draftMode: modes.DraftMode | undefined) {
 		if (this._draftMode !== draftMode) {
 			this._draftMode = draftMode;
 
@@ -362,7 +368,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			this._disposables.push(this._commentEditor.getModel()!.onDidChangeContent(() => {
 				let modelContent = this._commentEditor.getValue();
 				let thread = (this._commentThread as modes.CommentThread2);
-				if (thread.input.uri === this._commentEditor.getModel()!.uri && thread.input.value !== modelContent) {
+				if (thread.input && thread.input.uri === this._commentEditor.getModel()!.uri && thread.input.value !== modelContent) {
 					let newInput: modes.CommentInput = thread.input;
 					newInput.value = modelContent;
 					thread.input = newInput;
@@ -372,7 +378,10 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			this._disposables.push((this._commentThread as modes.CommentThread2).onDidChangeInput(input => {
 				let thread = (this._commentThread as modes.CommentThread2);
 
-				if (thread.input.uri !== this._commentEditor.getModel()!.uri) {
+				if (thread.input && thread.input.uri !== this._commentEditor.getModel()!.uri) {
+					return;
+				}
+				if (!input) {
 					return;
 				}
 
@@ -384,7 +393,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 						if (dom.hasClass(this._commentForm, 'expand')) {
 							dom.removeClass(this._commentForm, 'expand');
 						}
-						this._commentEditor.getDomNode().style.outline = '';
+						this._commentEditor.getDomNode()!.style.outline = '';
 						this._error.textContent = '';
 						dom.addClass(this._error, 'hidden');
 					}
@@ -435,8 +444,10 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			this._disposables.push((this._commentThread as modes.CommentThread2).onDidChangeRange(range => {
 				// Move comment glyph widget and show position if the line has changed.
 				const lineNumber = this._commentThread.range.startLineNumber;
-				if (this._commentGlyph.getPosition().position.lineNumber !== lineNumber) {
-					this._commentGlyph.setLineNumber(lineNumber);
+				if (this._commentGlyph) {
+					if (this._commentGlyph.getPosition().position!.lineNumber !== lineNumber) {
+						this._commentGlyph.setLineNumber(lineNumber);
+					}
 				}
 
 				if (!this._isCollapsed) {
@@ -541,7 +552,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 				if (submitDraftLabel) {
 					const submitdraftButton = new Button(container);
 					this._submitActionsDisposables.push(attachButtonStyler(submitdraftButton, this.themeService));
-					submitdraftButton.label = this.commentService.getFinishDraftLabel(this._owner);
+					submitdraftButton.label = this.commentService.getFinishDraftLabel(this._owner)!;
 					submitdraftButton.enabled = true;
 
 					submitdraftButton.onDidClick(async () => {
@@ -562,7 +573,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 				if (startDraftLabel) {
 					const draftButton = new Button(container);
 					this._disposables.push(attachButtonStyler(draftButton, this.themeService));
-					draftButton.label = this.commentService.getStartDraftLabel(this._owner);
+					draftButton.label = this.commentService.getStartDraftLabel(this._owner)!;
 
 					draftButton.enabled = model.getValueLength() > 0;
 					this._submitActionsDisposables.push(this._commentEditor.onDidChangeModelContent(_ => {
@@ -593,18 +604,19 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	private createCommentWidgetActions2(container: HTMLElement, model: ITextModel) {
 		let commentThread = this._commentThread as modes.CommentThread2;
 
-		if (commentThread.acceptInputCommand) {
+		const { acceptInputCommand } = commentThread;
+		if (acceptInputCommand) {
 			const button = new Button(container);
 			this._disposables.push(attachButtonStyler(button, this.themeService));
 
-			button.label = commentThread.acceptInputCommand.title;
+			button.label = acceptInputCommand.title;
 			this._disposables.push(button.onDidClick(async () => {
 				commentThread.input = {
 					uri: this._commentEditor.getModel()!.uri,
 					value: this._commentEditor.getValue()
 				};
 				this.commentService.setActiveCommentThread(this._commentThread);
-				await this.commandService.executeCommand(commentThread.acceptInputCommand.id, ...(commentThread.acceptInputCommand.arguments || []));
+				await this.commandService.executeCommand(acceptInputCommand.id, ...(acceptInputCommand.arguments || []));
 			}));
 
 			button.enabled = model.getValueLength() > 0;
@@ -675,7 +687,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 				if (commentThread.acceptInputCommand) {
 					commentThread.input = {
-						uri: this._commentEditor.getModel().uri,
+						uri: this._commentEditor.getModel()!.uri,
 						value: this._commentEditor.getValue()
 					};
 					this.commentService.setActiveCommentThread(this._commentThread);
@@ -700,9 +712,12 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			if (this._commentEditor.getModel()!.getValueLength() === 0) {
 				return;
 			}
+			if (!this._commentGlyph) {
+				return;
+			}
 
 			let newCommentThread;
-			const lineNumber = this._commentGlyph.getPosition().position.lineNumber;
+			const lineNumber = this._commentGlyph.getPosition().position!.lineNumber;
 			const isReply = this._commentThread.threadId !== null;
 
 
@@ -890,7 +905,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			return;
 		}
 
-		if (this._commentGlyph && this._commentGlyph.getPosition().position.lineNumber !== lineNumber) {
+		if (this._commentGlyph && this._commentGlyph.getPosition().position!.lineNumber !== lineNumber) {
 			return;
 		}
 
