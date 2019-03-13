@@ -137,6 +137,8 @@ export interface IViewDescriptor {
 	// Applies only to newly created views
 	readonly hideByDefault?: boolean;
 
+	readonly workspace?: boolean;
+
 	readonly focusCommand?: { id: string, keybindings?: IKeybindings };
 }
 

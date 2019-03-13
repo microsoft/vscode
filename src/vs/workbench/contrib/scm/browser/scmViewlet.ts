@@ -1009,6 +1009,7 @@ class RepositoryViewDescriptor implements IViewDescriptor {
 	readonly ctorDescriptor: { ctor: any, arguments?: any[] };
 	readonly canToggleVisibility = true;
 	readonly order = -500;
+	readonly workspace = true;
 
 	constructor(readonly repository: ISCMRepository, viewModel: IViewModel, readonly hideByDefault: boolean) {
 		const repoId = repository.provider.rootUri ? repository.provider.rootUri.toString() : `#${RepositoryViewDescriptor.counter++}`;
@@ -1027,6 +1028,7 @@ class MainPanelDescriptor implements IViewDescriptor {
 	readonly canToggleVisibility = true;
 	readonly hideByDefault = true;
 	readonly order = -1000;
+	readonly workspace = true;
 
 	constructor(viewModel: IViewModel) {
 		this.ctorDescriptor = { ctor: MainPanel, arguments: [viewModel] };
