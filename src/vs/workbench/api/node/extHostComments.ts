@@ -120,7 +120,7 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		}
 
 		return asPromise(() => {
-			return commentController.reactionProvider.availableReactions;
+			return commentController!.reactionProvider!.availableReactions;
 		}).then(reactions => reactions.map(reaction => convertToReaction2(commentController.reactionProvider, reaction)));
 	}
 
@@ -136,7 +136,10 @@ export class ExtHostComments implements ExtHostCommentsShape {
 			const commentThread = commentController.getCommentThread(threadHandle);
 			if (commentThread) {
 				const vscodeComment = commentThread.getComment(comment.commentId);
-				return commentController.reactionProvider.toggleReaction(document, vscodeComment, convertFromReaction(reaction));
+
+				if (commentController !== undefined && commentController.reactionProvider && commentController.reactionProvider.toggleReaction && vscodeComment) {
+					return commentController.reactionProvider.toggleReaction(document, vscodeComment, convertFromReaction(reaction));
+				}
 			}
 
 			return Promise.resolve(undefined);
@@ -519,13 +522,15 @@ class ExtHostCommentController implements vscode.CommentController {
 
 	private _commentReactionProvider?: vscode.CommentReactionProvider;
 
-	get reactionProvider() {
+	get reactionProvider(): vscode.CommentReactionProvider | undefined {
 		return this._commentReactionProvider;
 	}
 
-	set reactionProvider(provider: vscode.CommentReactionProvider) {
+	set reactionProvider(provider: vscode.CommentReactionProvider | undefined) {
 		this._commentReactionProvider = provider;
-		this._proxy.$updateCommentControllerFeatures(this.handle, { reactionGroup: provider.availableReactions.map(reaction => convertToReaction2(provider, reaction)) });
+		if (provider) {
+			this._proxy.$updateCommentControllerFeatures(this.handle, { reactionGroup: provider.availableReactions.map(reaction => convertToReaction2(provider, reaction)) });
+		}
 	}
 
 	constructor(
