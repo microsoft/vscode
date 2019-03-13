@@ -16,6 +16,11 @@ steps:
 - script: |
     set -e
 
+    # Make sure we get latest packages
+    apt update
+    apt upgrade -y
+
+    # Define variables
     REPO="$(pwd)"
     ARCH="$(VSCODE_ARCH)"
     SNAP_ROOT="$REPO/.build/linux/snap/$ARCH"
