@@ -17,8 +17,8 @@ steps:
     set -e
 
     # Make sure we get latest packages
-    apt update
-    apt upgrade -y
+    sudo apt-get update
+    sudo apt-get upgrade -y
 
     # Define variables
     REPO="$(pwd)"
