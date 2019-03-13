@@ -14,8 +14,6 @@ import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorMo
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 
@@ -43,7 +41,6 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		private preferredEncoding: string,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITextFileService private readonly textFileService: ITextFileService,
-		@IHashService private readonly hashService: IHashService,
 		@ILabelService private readonly labelService: ILabelService
 	) {
 		super();
@@ -220,18 +217,6 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		this._register(model.onDidChangeEncoding(() => this._onDidModelChangeEncoding.fire()));
 
 		return model;
-	}
-
-	getTelemetryDescriptor(): object {
-		const descriptor = super.getTelemetryDescriptor();
-		descriptor['resource'] = telemetryURIDescriptor(this.getResource(), path => this.hashService.createSHA1(path));
-
-		/* __GDPR__FRAGMENT__
-			"EditorTelemetryDescriptor" : {
-				"resource": { "${inline}": [ "${URIDescriptor}" ] }
-			}
-		*/
-		return descriptor;
 	}
 
 	matches(otherInput: any): boolean {

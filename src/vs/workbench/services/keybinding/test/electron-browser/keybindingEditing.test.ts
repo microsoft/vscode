@@ -40,12 +40,11 @@ import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { KeybindingsEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { TestBackupFileService, TestContextService, TestEditorGroupsService, TestEditorService, TestEnvironmentService, TestHashService, TestLifecycleService, TestLogService, TestStorageService, TestTextFileService, TestTextResourceConfigurationService, TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTestServices';
+import { TestBackupFileService, TestContextService, TestEditorGroupsService, TestEditorService, TestEnvironmentService, TestLifecycleService, TestLogService, TestStorageService, TestTextFileService, TestTextResourceConfigurationService, TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTestServices';
 
 interface Modifiers {
 	metaKey?: boolean;
@@ -76,7 +75,6 @@ suite('KeybindingsEditing', () => {
 			const lifecycleService = new TestLifecycleService();
 			instantiationService.stub(ILifecycleService, lifecycleService);
 			instantiationService.stub(IContextKeyService, <IContextKeyService>instantiationService.createInstance(MockContextKeyService));
-			instantiationService.stub(IHashService, new TestHashService());
 			instantiationService.stub(IEditorGroupsService, new TestEditorGroupsService());
 			instantiationService.stub(IEditorService, new TestEditorService());
 			instantiationService.stub(ITelemetryService, NullTelemetryService);

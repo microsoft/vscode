@@ -1562,8 +1562,8 @@ export class TestTextResourcePropertiesService implements ITextResourcePropertie
 export class TestHashService implements IHashService {
 	_serviceBrand: any;
 
-	createSHA1(content: string): string {
-		return content;
+	createSHA1(content: string): Thenable<string> {
+		return Promise.resolve(content);
 	}
 }
 

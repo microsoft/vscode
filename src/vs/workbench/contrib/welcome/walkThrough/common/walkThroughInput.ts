@@ -7,11 +7,9 @@ import * as strings from 'vs/base/common/strings';
 import { EditorInput, EditorModel, ITextEditorModel } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { IReference, IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import * as marked from 'vs/base/common/marked/marked';
 import { Schemas } from 'vs/base/common/network';
-import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 
 export class WalkThroughModel extends EditorModel {
 
@@ -57,8 +55,7 @@ export class WalkThroughInput extends EditorInput {
 
 	constructor(
 		private options: WalkThroughInputOptions,
-		@ITextModelService private readonly textModelResolverService: ITextModelService,
-		@IHashService private readonly hashService: IHashService
+		@ITextModelService private readonly textModelResolverService: ITextModelService
 	) {
 		super();
 	}
@@ -86,11 +83,9 @@ export class WalkThroughInput extends EditorInput {
 	getTelemetryDescriptor(): object {
 		const descriptor = super.getTelemetryDescriptor();
 		descriptor['target'] = this.getTelemetryFrom();
-		descriptor['resource'] = telemetryURIDescriptor(this.options.resource, path => this.hashService.createSHA1(path));
 		/* __GDPR__FRAGMENT__
 			"EditorTelemetryDescriptor" : {
-				"target" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"resource": { "${inline}": [ "${URIDescriptor}" ] }
+				"target" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
 		*/
 		return descriptor;
