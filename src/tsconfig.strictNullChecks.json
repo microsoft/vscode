@@ -118,6 +118,7 @@
 		"./vs/workbench/api/node/extHostStatusBar.ts",
 		"./vs/workbench/api/node/extHostStorage.ts",
 		// "./vs/workbench/api/node/extHostTask.ts",
+		"./vs/workbench/api/node/extHostTerminalService.ts",
 		"./vs/workbench/api/node/extHostTextEditor.ts",
 		"./vs/workbench/api/node/extHostTextEditors.ts",
 		"./vs/workbench/api/node/extHostTypeConverters.ts",
