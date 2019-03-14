@@ -26,8 +26,7 @@ import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode, ITreeContextMenuEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
-import { TreeResourceNavigator2, WorkbenchAsyncDataTree, IListService } from 'vs/platform/list/browser/listService';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { TreeResourceNavigator2, WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
@@ -46,7 +45,7 @@ export class CallStackView extends ViewletPanel {
 	private ignoreFocusStackFrameEvent: boolean;
 	private callStackItemType: IContextKey<string>;
 	private dataSource: CallStackDataSource;
-	private tree: WorkbenchAsyncDataTree<string | IStackFrame | IThread | IDebugSession | ThreadAndSessionIds | IDebugModel | IStackFrame[], CallStackItem, FuzzyScore>;
+	private tree: WorkbenchAsyncDataTree<CallStackItem | IDebugModel, CallStackItem, FuzzyScore>;
 	private contributedContextMenu: IMenu;
 
 	constructor(
@@ -58,9 +57,7 @@ export class CallStackView extends ViewletPanel {
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IMenuService menuService: IMenuService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IThemeService private readonly themeService: IThemeService,
-		@IListService private readonly listService: IListService
+		@IContextKeyService readonly contextKeyService: IContextKeyService,
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('callstackSection', "Call Stack Section") }, keybindingService, contextMenuService, configurationService);
 		this.callStackItemType = CONTEXT_CALLSTACK_ITEM_TYPE.bindTo(contextKeyService);
@@ -103,7 +100,7 @@ export class CallStackView extends ViewletPanel {
 		const treeContainer = renderViewTree(container);
 
 		this.dataSource = new CallStackDataSource();
-		this.tree = new WorkbenchAsyncDataTree(treeContainer, new CallStackDelegate(), [
+		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, treeContainer, new CallStackDelegate(), [
 			new SessionsRenderer(),
 			new ThreadsRenderer(),
 			this.instantiationService.createInstance(StackFramesRenderer),
@@ -122,7 +119,7 @@ export class CallStackView extends ViewletPanel {
 							return `showMore ${element[0].getId()}`;
 						}
 
-						return element.getId();
+						return (<IStackFrame | IThread | IDebugSession | ThreadAndSessionIds>element).getId();
 					}
 				},
 				keyboardNavigationLabelProvider: {
@@ -143,7 +140,7 @@ export class CallStackView extends ViewletPanel {
 						return nls.localize('showMoreStackFrames2', "Show More Stack Frames");
 					}
 				}
-			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
+			}) as WorkbenchAsyncDataTree<CallStackItem | IDebugModel, CallStackItem, FuzzyScore>;
 
 		this.tree.setInput(this.debugService.getModel()).then(undefined, onUnexpectedError);
 

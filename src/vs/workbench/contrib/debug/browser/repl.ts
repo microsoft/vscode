@@ -56,11 +56,10 @@ import { ReplCollapseAllAction, CopyAction } from 'vs/workbench/contrib/debug/br
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
-import { WorkbenchAsyncDataTree, IListService } from 'vs/platform/list/browser/listService';
+import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -116,10 +115,8 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IListService private readonly listService: IListService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITextResourcePropertiesService private readonly textResourcePropertiesService: ITextResourcePropertiesService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IClipboardService private readonly clipboardService: IClipboardService
 	) {
 		super(REPL_ID, telemetryService, themeService, storageService);
@@ -369,7 +366,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		this.createReplInput(this.container);
 
 		this.replDelegate = new ReplDelegate(this.configurationService);
-		this.tree = new WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>(treeContainer, this.replDelegate, [
+		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, treeContainer, this.replDelegate, [
 			this.instantiationService.createInstance(VariablesRenderer),
 			this.instantiationService.createInstance(ReplSimpleElementsRenderer),
 			new ReplExpressionsRenderer(),
@@ -377,13 +374,13 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		], new ReplDataSource(), {
 				ariaLabel: nls.localize('replAriaLabel', "Read Eval Print Loop Panel"),
 				accessibilityProvider: new ReplAccessibilityProvider(),
-				identityProvider: { getId: element => element.getId() },
+				identityProvider: { getId: element => (<IReplElement>element).getId() },
 				mouseSupport: false,
 				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: e => e },
 				horizontalScrolling: false,
 				setRowLineHeight: false,
 				supportDynamicHeights: true
-			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
+			}) as WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>;
 
 		this.toDispose.push(this.tree.onContextMenu(e => this.onContextMenu(e)));
 		// Make sure to select the session if debugging is already active

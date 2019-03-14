@@ -26,11 +26,8 @@ import { getExactExpressionStartAndEnd } from 'vs/workbench/contrib/debug/common
 import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { WorkbenchAsyncDataTree, IListService } from 'vs/platform/list/browser/listService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { coalesce } from 'vs/base/common/arrays';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { VariablesRenderer } from 'vs/workbench/contrib/debug/browser/variablesView';
 
@@ -61,10 +58,6 @@ export class DebugHoverWidget implements IContentWidget {
 		@IDebugService private readonly debugService: IDebugService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService private readonly themeService: IThemeService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IListService private readonly listService: IListService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
 		this.toDispose = [];
 
@@ -81,13 +74,13 @@ export class DebugHoverWidget implements IContentWidget {
 		this.treeContainer.setAttribute('role', 'tree');
 		this.dataSource = new DebugHoverDataSource();
 
-		this.tree = new WorkbenchAsyncDataTree(this.treeContainer, new DebugHoverDelegate(), [this.instantiationService.createInstance(VariablesRenderer)],
+		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, this.treeContainer, new DebugHoverDelegate(), [this.instantiationService.createInstance(VariablesRenderer)],
 			this.dataSource, {
 				ariaLabel: nls.localize('treeAriaLabel', "Debug Hover"),
 				accessibilityProvider: new DebugHoverAccessibilityProvider(),
 				mouseSupport: false,
 				horizontalScrolling: true
-			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
+			}) as any as AsyncDataTree<IExpression, IExpression, any>;
 
 		this.valueContainer = $('.value');
 		this.valueContainer.tabIndex = 0;

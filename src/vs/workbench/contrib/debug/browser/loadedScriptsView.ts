@@ -29,8 +29,7 @@ import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode, ITreeFilter, TreeVisibility, TreeFilterResult, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { WorkbenchAsyncDataTree, IListService, TreeResourceNavigator2 } from 'vs/platform/list/browser/listService';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { WorkbenchAsyncDataTree, TreeResourceNavigator2 } from 'vs/platform/list/browser/listService';
 import { dispose } from 'vs/base/common/lifecycle';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
 import { DebugContentProvider } from 'vs/workbench/contrib/debug/common/debugContentProvider';
@@ -387,12 +386,10 @@ export class LoadedScriptsView extends ViewletPanel {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextKeyService readonly contextKeyService: IContextKeyService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IDebugService private readonly debugService: IDebugService,
-		@IListService private readonly listService: IListService,
-		@IThemeService private readonly themeService: IThemeService
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('loadedScriptsSection', "Loaded Scripts Section") }, keybindingService, contextMenuService, configurationService);
 		this.loadedScriptsItemType = CONTEXT_LOADED_SCRIPTS_ITEM_TYPE.bindTo(contextKeyService);
@@ -411,22 +408,21 @@ export class LoadedScriptsView extends ViewletPanel {
 		this.treeLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility } as IResourceLabelsContainer);
 		this.disposables.push(this.treeLabels);
 
-		this.tree = new WorkbenchAsyncDataTree(this.treeContainer, new LoadedScriptsDelegate(),
+		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, this.treeContainer, new LoadedScriptsDelegate(),
 			[new LoadedScriptsRenderer(this.treeLabels)],
 			new LoadedScriptsDataSource(),
 			{
 				identityProvider: {
-					getId: element => element.getId()
+					getId: element => (<LoadedScriptsItem>element).getId()
 				},
 				keyboardNavigationLabelProvider: {
-					getKeyboardNavigationLabel: element => element.getLabel()
+					getKeyboardNavigationLabel: element => (<LoadedScriptsItem>element).getLabel()
 				},
 				filter: this.filter,
 				accessibilityProvider: new LoadedSciptsAccessibilityProvider(),
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'loadedScriptsAriaLabel' }, "Debug Loaded Scripts"),
-			},
-			this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService
-		);
+			}
+		) as WorkbenchAsyncDataTree<LoadedScriptsItem, LoadedScriptsItem, FuzzyScore>;
 
 		this.tree.setInput(root);
 

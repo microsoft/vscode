@@ -21,9 +21,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IViewletPanelOptions, ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { WorkbenchAsyncDataTree, IListService } from 'vs/platform/list/browser/listService';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { IAsyncDataSource, ITreeMouseEvent, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeDragOverReaction } from 'vs/base/browser/ui/tree/tree';
 import { IDragAndDropData } from 'vs/base/browser/dnd';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -47,9 +45,6 @@ export class WatchExpressionsView extends ViewletPanel {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IListService private readonly listService: IListService,
-		@IThemeService private readonly themeService: IThemeService
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('watchExpressionsSection', "Watch Expressions Section") }, keybindingService, contextMenuService, configurationService);
 
@@ -64,14 +59,14 @@ export class WatchExpressionsView extends ViewletPanel {
 		const treeContainer = renderViewTree(container);
 
 		const expressionsRenderer = this.instantiationService.createInstance(WatchExpressionsRenderer);
-		this.tree = new WorkbenchAsyncDataTree(treeContainer, new WatchExpressionsDelegate(), [expressionsRenderer, this.instantiationService.createInstance(VariablesRenderer)],
+		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, treeContainer, new WatchExpressionsDelegate(), [expressionsRenderer, this.instantiationService.createInstance(VariablesRenderer)],
 			new WatchExpressionsDataSource(), {
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'watchAriaTreeLabel' }, "Debug Watch Expressions"),
 				accessibilityProvider: new WatchExpressionsAccessibilityProvider(),
-				identityProvider: { getId: element => element.getId() },
+				identityProvider: { getId: element => (<IExpression>element).getId() },
 				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: e => e },
 				dnd: new WatchExpressionsDragAndDrop(this.debugService),
-			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
+			}) as WorkbenchAsyncDataTree<IDebugService | IExpression, IExpression, FuzzyScore>;
 
 		this.tree.setInput(this.debugService).then(undefined, onUnexpectedError);
 		CONTEXT_WATCH_EXPRESSIONS_FOCUSED.bindTo(this.tree.contextKeyService);

@@ -26,7 +26,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { IDecorationsService } from 'vs/workbench/services/decorations/browser/decorations';
-import { WorkbenchAsyncDataTree, IListService, TreeResourceNavigator2 } from 'vs/platform/list/browser/listService';
+import { WorkbenchAsyncDataTree, TreeResourceNavigator2 } from 'vs/platform/list/browser/listService';
 import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IViewletPanelOptions, ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
@@ -83,7 +83,6 @@ export class ExplorerView extends ViewletPanel {
 		@IDecorationsService decorationService: IDecorationsService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IThemeService private readonly themeService: IWorkbenchThemeService,
-		@IListService private readonly listService: IListService,
 		@IMenuService private readonly menuService: IMenuService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IExplorerService private readonly explorerService: IExplorerService,
@@ -279,20 +278,21 @@ export class ExplorerView extends ViewletPanel {
 
 		this.disposables.push(createFileIconThemableTreeContainerScope(container, this.themeService));
 
-		this.tree = new WorkbenchAsyncDataTree(container, new ExplorerDelegate(), [filesRenderer],
+		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, container, new ExplorerDelegate(), [filesRenderer],
 			this.instantiationService.createInstance(ExplorerDataSource), {
 				accessibilityProvider: new ExplorerAccessibilityProvider(),
 				ariaLabel: nls.localize('treeAriaLabel', "Files Explorer"),
 				identityProvider: {
-					getId: stat => stat.resource
+					getId: stat => (<ExplorerItem>stat).resource
 				},
 				keyboardNavigationLabelProvider: {
 					getKeyboardNavigationLabel: stat => {
-						if (this.explorerService.isEditable(stat)) {
+						const item = <ExplorerItem>stat;
+						if (this.explorerService.isEditable(item)) {
 							return undefined;
 						}
 
-						return stat.name;
+						return item.name;
 					}
 				},
 				multipleSelectionSupport: true,
@@ -300,7 +300,7 @@ export class ExplorerView extends ViewletPanel {
 				sorter: this.instantiationService.createInstance(FileSorter),
 				dnd: this.instantiationService.createInstance(FileDragAndDrop),
 				autoExpandSingleChildren: true
-			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
+			}) as WorkbenchAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>;
 		this.disposables.push(this.tree);
 
 		// Bind context keys
