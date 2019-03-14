@@ -8,6 +8,10 @@ import { localize } from 'vs/nls';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CallHierarchyProviderRegistry, CallHierarchyDirection } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { CallHierarchyPeekWidget } from 'vs/workbench/contrib/callHierarchy/browser/callHierarchyPeek';
+import { Range } from 'vs/editor/common/core/range';
+import { Event } from 'vs/base/common/event';
 
 registerAction({
 	id: 'editor.showCallHierarchy',
@@ -19,8 +23,11 @@ registerAction({
 		menuId: MenuId.CommandPalette
 	},
 	handler: async function (accessor) {
-		const editor = accessor.get(ICodeEditorService).getActiveCodeEditor();
 
+		const instaService = accessor.get(IInstantiationService);
+		const editorService = accessor.get(ICodeEditorService);
+
+		const editor = editorService.getActiveCodeEditor();
 		if (!editor || !editor.hasModel()) {
 			console.log('bad editor');
 			return;
@@ -32,14 +39,28 @@ registerAction({
 			return;
 		}
 
-		const data = await provider.provideCallHierarchyItem(editor.getModel(), editor.getPosition(), CancellationToken.None);
-		if (!data) {
+		const rootItem = await provider.provideCallHierarchyItem(editor.getModel(), editor.getPosition(), CancellationToken.None);
+		if (!rootItem) {
 			console.log('no data');
 			return;
 		}
 
-		const callsTo = await provider.resolveCallHierarchyItem(data, CallHierarchyDirection.CallsTo, CancellationToken.None);
-		console.log(data);
-		console.log(callsTo);
+		const widget = instaService.createInstance(CallHierarchyPeekWidget, editor, provider, CallHierarchyDirection.CallsTo, rootItem);
+
+		const listener = Event.any<any>(editor.onDidChangeModel, editor.onDidChangeModelLanguage)(_ => widget.dispose());
+
+		widget.show(Range.fromPositions(editor.getPosition()));
+
+		widget.onDidClose(() => {
+			console.log('DONE');
+			listener.dispose();
+		});
+
+		widget.tree.onDidOpen(e => {
+			const [element] = e.elements;
+			if (element) {
+				console.log(element);
+			}
+		});
 	}
 });

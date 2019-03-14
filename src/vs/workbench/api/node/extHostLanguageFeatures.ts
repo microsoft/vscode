@@ -991,7 +991,7 @@ class CallHierarchyAdapter {
 
 	resolveCallHierarchyItem(item: callHierarchy.CallHierarchyItem, direction: callHierarchy.CallHierarchyDirection, token: CancellationToken): Promise<[callHierarchy.CallHierarchyItem, modes.Location[]][]> {
 		return asPromise(() => this._provider.resolveCallHierarchyItem(
-			this._cache.get(item._id),
+			this._cache.get(item._id)!,
 			direction as number, token) // todo@joh proper convert
 		).then(data => {
 			if (!data) {
