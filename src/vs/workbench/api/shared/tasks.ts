@@ -102,7 +102,7 @@ export interface TaskSetDTO {
 
 export interface TaskExecutionDTO {
 	id: string;
-	task: TaskDTO;
+	task: TaskDTO | undefined;
 }
 
 export interface TaskProcessStartedDTO {
