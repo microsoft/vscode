@@ -372,10 +372,6 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		return result;
 	}
 
-	public addMessage(extensionId: ExtensionIdentifier, severity: Severity, message: string): void {
-		this._mainThreadExtensionsProxy.$addMessage(extensionId, severity, message);
-	}
-
 	// --- impl
 
 	private _activateExtension(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason): Promise<ActivatedExtension> {

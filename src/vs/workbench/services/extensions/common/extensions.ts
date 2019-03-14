@@ -42,7 +42,7 @@ export interface IMessage {
 
 export interface IExtensionsStatus {
 	messages: IMessage[];
-	activationTimes: ActivationTimes;
+	activationTimes: ActivationTimes | undefined;
 	runtimeErrors: Error[];
 }
 

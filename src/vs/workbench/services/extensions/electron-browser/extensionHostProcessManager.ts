@@ -45,13 +45,13 @@ export class ExtensionHostProcessManager extends Disposable {
 	 * A map of already activated events to speed things up if the same activation event is triggered multiple times.
 	 */
 	private readonly _extensionHostProcessFinishedActivateEvents: { [activationEvent: string]: boolean; };
-	private _extensionHostProcessRPCProtocol: RPCProtocol;
+	private _extensionHostProcessRPCProtocol: RPCProtocol | null;
 	private readonly _extensionHostProcessCustomers: IDisposable[];
 	private readonly _extensionHostProcessWorker: IExtensionHostStarter;
 	/**
 	 * winjs believes a proxy is a promise because it has a `then` method, so wrap the result in an object.
 	 */
-	private _extensionHostProcessProxy: Promise<{ value: ExtHostExtensionServiceShape; }>;
+	private _extensionHostProcessProxy: Promise<{ value: ExtHostExtensionServiceShape; } | null> | null;
 
 	constructor(
 		extensionHostProcessWorker: IExtensionHostStarter,
@@ -67,7 +67,7 @@ export class ExtensionHostProcessManager extends Disposable {
 
 		this._extensionHostProcessWorker = extensionHostProcessWorker;
 		this.onDidCrash = this._extensionHostProcessWorker.onCrashed;
-		this._extensionHostProcessProxy = this._extensionHostProcessWorker.start().then(
+		this._extensionHostProcessProxy = this._extensionHostProcessWorker.start()!.then(
 			(protocol) => {
 				return { value: this._createExtensionHostCustomers(protocol) };
 			},
@@ -105,10 +105,14 @@ export class ExtensionHostProcessManager extends Disposable {
 		super.dispose();
 	}
 
-	private async measure(): Promise<ExtHostLatencyResult> {
-		const latency = await this._measureLatency();
-		const down = await this._measureDown();
-		const up = await this._measureUp();
+	private async measure(): Promise<ExtHostLatencyResult | null> {
+		const proxy = await this._getExtensionHostProcessProxy();
+		if (!proxy) {
+			return null;
+		}
+		const latency = await this._measureLatency(proxy);
+		const down = await this._measureDown(proxy);
+		const up = await this._measureUp(proxy);
 		return {
 			remoteAuthority: this._remoteAuthority,
 			latency,
@@ -117,10 +121,20 @@ export class ExtensionHostProcessManager extends Disposable {
 		};
 	}
 
-	private async _measureLatency(): Promise<number> {
+	private async _getExtensionHostProcessProxy(): Promise<ExtHostExtensionServiceShape | null> {
+		if (!this._extensionHostProcessProxy) {
+			return null;
+		}
+		const p = await this._extensionHostProcessProxy;
+		if (!p) {
+			return null;
+		}
+		return p.value;
+	}
+
+	private async _measureLatency(proxy: ExtHostExtensionServiceShape): Promise<number> {
 		const COUNT = 10;
 
-		const { value: proxy } = await this._extensionHostProcessProxy;
 		let sum = 0;
 		for (let i = 0; i < COUNT; i++) {
 			const sw = StopWatch.create(true);
@@ -135,10 +149,9 @@ export class ExtensionHostProcessManager extends Disposable {
 		return (byteCount * 1000 * 8) / elapsedMillis;
 	}
 
-	private async _measureUp(): Promise<number> {
+	private async _measureUp(proxy: ExtHostExtensionServiceShape): Promise<number> {
 		const SIZE = 10 * 1024 * 1024; // 10MB
 
-		const { value: proxy } = await this._extensionHostProcessProxy;
 		let b = Buffer.alloc(SIZE, Math.random() % 256);
 		const sw = StopWatch.create(true);
 		await proxy.$test_up(b);
@@ -146,10 +159,9 @@ export class ExtensionHostProcessManager extends Disposable {
 		return ExtensionHostProcessManager._convert(SIZE, sw.elapsed());
 	}
 
-	private async _measureDown(): Promise<number> {
+	private async _measureDown(proxy: ExtHostExtensionServiceShape): Promise<number> {
 		const SIZE = 10 * 1024 * 1024; // 10MB
 
-		const { value: proxy } = await this._extensionHostProcessProxy;
 		const sw = StopWatch.create(true);
 		await proxy.$test_down(SIZE);
 		sw.stop();
@@ -171,9 +183,9 @@ export class ExtensionHostProcessManager extends Disposable {
 		this._register(this._extensionHostProcessRPCProtocol.onDidChangeResponsiveState((responsiveState: ResponsiveState) => this._onDidChangeResponsiveState.fire(responsiveState)));
 		const extHostContext: IExtHostContext = {
 			remoteAuthority: this._remoteAuthority,
-			getProxy: <T>(identifier: ProxyIdentifier<T>): T => this._extensionHostProcessRPCProtocol.getProxy(identifier),
-			set: <T, R extends T>(identifier: ProxyIdentifier<T>, instance: R): R => this._extensionHostProcessRPCProtocol.set(identifier, instance),
-			assertRegistered: (identifiers: ProxyIdentifier<any>[]): void => this._extensionHostProcessRPCProtocol.assertRegistered(identifiers),
+			getProxy: <T>(identifier: ProxyIdentifier<T>): T => this._extensionHostProcessRPCProtocol!.getProxy(identifier),
+			set: <T, R extends T>(identifier: ProxyIdentifier<T>, instance: R): R => this._extensionHostProcessRPCProtocol!.set(identifier, instance),
+			assertRegistered: (identifiers: ProxyIdentifier<any>[]): void => this._extensionHostProcessRPCProtocol!.assertRegistered(identifiers),
 		};
 
 		// Named customers
@@ -199,10 +211,12 @@ export class ExtensionHostProcessManager extends Disposable {
 		return this._extensionHostProcessRPCProtocol.getProxy(ExtHostContext.ExtHostExtensionService);
 	}
 
-	public activate(extension: ExtensionIdentifier, activationEvent: string): Promise<boolean> {
-		return this._extensionHostProcessProxy.then((proxy) => {
-			return proxy.value.$activate(extension, activationEvent);
-		});
+	public async activate(extension: ExtensionIdentifier, activationEvent: string): Promise<boolean> {
+		const proxy = await this._getExtensionHostProcessProxy();
+		if (!proxy) {
+			return false;
+		}
+		return proxy.$activate(extension, activationEvent);
 	}
 
 	public activateByEvent(activationEvent: string): Promise<void> {
@@ -241,7 +255,7 @@ export class ExtensionHostProcessManager extends Disposable {
 		return 0;
 	}
 
-	public resolveAuthority(remoteAuthority: string): Promise<ResolvedAuthority> {
+	public async resolveAuthority(remoteAuthority: string): Promise<ResolvedAuthority> {
 		const authorityPlusIndex = remoteAuthority.indexOf('+');
 		if (authorityPlusIndex === -1) {
 			// This authority does not need to be resolved, simply parse the port number
@@ -252,15 +266,27 @@ export class ExtensionHostProcessManager extends Disposable {
 				port: parseInt(pieces[1], 10)
 			});
 		}
-		return this._extensionHostProcessProxy.then(proxy => proxy.value.$resolveAuthority(remoteAuthority));
+		const proxy = await this._getExtensionHostProcessProxy();
+		if (!proxy) {
+			throw new Error(`Cannot resolve authority`);
+		}
+		return proxy.$resolveAuthority(remoteAuthority);
 	}
 
-	public start(enabledExtensionIds: ExtensionIdentifier[]): Promise<void> {
-		return this._extensionHostProcessProxy.then(proxy => proxy.value.$startExtensionHost(enabledExtensionIds));
+	public async start(enabledExtensionIds: ExtensionIdentifier[]): Promise<void> {
+		const proxy = await this._getExtensionHostProcessProxy();
+		if (!proxy) {
+			return;
+		}
+		return proxy.$startExtensionHost(enabledExtensionIds);
 	}
 
-	public deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void> {
-		return this._extensionHostProcessProxy.then(proxy => proxy.value.$deltaExtensions(toAdd, toRemove));
+	public async deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void> {
+		const proxy = await this._getExtensionHostProcessProxy();
+		if (!proxy) {
+			return;
+		}
+		return proxy.$deltaExtensions(toAdd, toRemove);
 	}
 }
 
@@ -328,7 +354,7 @@ interface ExtHostLatencyResult {
 }
 
 interface ExtHostLatencyProvider {
-	measure(): Promise<ExtHostLatencyResult>;
+	measure(): Promise<ExtHostLatencyResult | null>;
 }
 
 let providers: ExtHostLatencyProvider[] = [];

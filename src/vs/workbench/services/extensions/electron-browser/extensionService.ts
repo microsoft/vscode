@@ -62,7 +62,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	public _serviceBrand: any;
 
 	private readonly _extensionHostLogsLocation: URI;
-	private _registry: ExtensionDescriptionRegistry;
+	private readonly _registry: ExtensionDescriptionRegistry;
 	private readonly _installedExtensionsReady: Barrier;
 	private readonly _isDev: boolean;
 	private readonly _extensionsMessages: Map<string, IMessage[]>;
@@ -103,7 +103,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	) {
 		super();
 		this._extensionHostLogsLocation = URI.file(path.join(this._environmentService.logsPath, `exthost${this._windowService.getCurrentWindowId()}`));
-		this._registry = null;
+		this._registry = new ExtensionDescriptionRegistry([]);
 		this._installedExtensionsReady = new Barrier();
 		this._isDev = !this._environmentService.isBuilt || this._environmentService.isExtensionDevelopment;
 		this._extensionsMessages = new Map<string, IMessage[]>();
@@ -354,7 +354,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 		if (shouldActivate) {
 			await Promise.all(
-				this._extensionHostProcessManagers.map(extHostManager => extHostManager.activate(extensionDescription.identifier, shouldActivateReason))
+				this._extensionHostProcessManagers.map(extHostManager => extHostManager.activate(extensionDescription.identifier, shouldActivateReason!))
 			).then(() => { });
 		}
 	}
@@ -550,9 +550,9 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			for (const extension of extensions) {
 				const extensionKey = ExtensionIdentifier.toKey(extension.identifier);
 				result[extension.identifier.value] = {
-					messages: this._extensionsMessages.get(extensionKey),
+					messages: this._extensionsMessages.get(extensionKey) || [],
 					activationTimes: this._extensionHostProcessActivationTimes.get(extensionKey),
-					runtimeErrors: this._extensionHostExtensionRuntimeErrors.get(extensionKey),
+					runtimeErrors: this._extensionHostExtensionRuntimeErrors.get(extensionKey) || [],
 				};
 			}
 		}
@@ -613,7 +613,6 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	}
 
 	private _handleExtensionPoints(allExtensions: IExtensionDescription[]): void {
-		this._registry = new ExtensionDescriptionRegistry([]);
 		const result = this._registry.deltaExtensions(allExtensions, []);
 		if (result.removedDueToLooping.length > 0) {
 			this._logOrShowMessage(Severity.Error, nls.localize('looping', "The following extensions contain dependency loops and have been disabled: {0}", result.removedDueToLooping.map(e => `'${e.identifier.value}'`).join(', ')));
@@ -668,7 +667,11 @@ export class ExtensionService extends Disposable implements IExtensionService {
 					(enableProposedApiFor.length === 0 && 'enable-proposed-api' in this._environmentService.args);
 
 				for (const extension of allExtensions) {
-					const isExtensionUnderDevelopment = this._environmentService.isExtensionDevelopment && isEqualOrParent(extension.extensionLocation, this._environmentService.extensionDevelopmentLocationURI);
+					const isExtensionUnderDevelopment = (
+						this._environmentService.isExtensionDevelopment
+						&& this._environmentService.extensionDevelopmentLocationURI
+						&& isEqualOrParent(extension.extensionLocation, this._environmentService.extensionDevelopmentLocationURI)
+					);
 					// Do not disable extensions under development
 					if (!isExtensionUnderDevelopment) {
 						if (disabledExtensions.some(disabled => areSameExtensions(disabled, { id: extension.identifier.value }))) {
@@ -730,7 +733,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		if (!this._extensionsMessages.has(extensionKey)) {
 			this._extensionsMessages.set(extensionKey, []);
 		}
-		this._extensionsMessages.get(extensionKey).push(msg);
+		this._extensionsMessages.get(extensionKey)!.push(msg);
 
 		const extension = this._registry.getExtensionDescription(msg.extensionId);
 		const strMsg = `[${msg.extensionId.value}]: ${msg.message}`;
@@ -826,21 +829,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		if (!this._extensionHostExtensionRuntimeErrors.has(extensionKey)) {
 			this._extensionHostExtensionRuntimeErrors.set(extensionKey, []);
 		}
-		this._extensionHostExtensionRuntimeErrors.get(extensionKey).push(err);
-		this._onDidChangeExtensionsStatus.fire([extensionId]);
-	}
-
-	public _addMessage(extensionId: ExtensionIdentifier, severity: Severity, message: string): void {
-		const extensionKey = ExtensionIdentifier.toKey(extensionId);
-		if (!this._extensionsMessages.has(extensionKey)) {
-			this._extensionsMessages.set(extensionKey, []);
-		}
-		this._extensionsMessages.get(extensionKey)!.push({
-			type: severity,
-			message: message,
-			extensionId: null,
-			extensionPointId: null
-		});
+		this._extensionHostExtensionRuntimeErrors.get(extensionKey)!.push(err);
 		this._onDidChangeExtensionsStatus.fire([extensionId]);
 	}
 }

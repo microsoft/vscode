@@ -51,7 +51,4 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 	}
 	$onExtensionActivationFailed(extensionId: ExtensionIdentifier): void {
 	}
-	$addMessage(extensionId: ExtensionIdentifier, severity: Severity, message: string): void {
-		this._extensionService._addMessage(extensionId, severity, message);
-	}
 }
