@@ -39,8 +39,8 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	public ptyProcessReady: Promise<void>;
 	public shellProcessId: number;
 	public remoteAuthority: string | undefined;
-	public os: platform.OperatingSystem;
-	public userHome: string;
+	public os: platform.OperatingSystem | undefined;
+	public userHome: string | undefined;
 
 	private _process: ITerminalChildProcess | null = null;
 	private _preLaunchInputQueue: string[] = [];
@@ -112,7 +112,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		this.os = platform.OS;
 		if (launchRemotely) {
 			if (hasRemoteAuthority) {
-				this._terminalInstanceService.getRemoteUserHome().then(userHome => this.userHome = userHome.path);
+				this._terminalInstanceService.getRemoteUserHome().then(userHome => this.userHome = userHome ? userHome.path : undefined);
 				this._terminalInstanceService.getRemoteOperatingSystem().then(os => this.os = os);
 			}
 

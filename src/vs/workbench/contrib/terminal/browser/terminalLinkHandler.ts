@@ -255,6 +255,9 @@ export class TerminalLinkHandler {
 	protected _preprocessPath(link: string): string | null {
 		if (link.charAt(0) === '~') {
 			// Resolve ~ -> userHome
+			if (!this._processManager.userHome) {
+				return null;
+			}
 			link = this.osPath.join(this._processManager.userHome, link.substring(1));
 		} else if (link.charAt(0) !== '/' && link.charAt(0) !== '~') {
 			// Resolve workspace path . | .. | <relative_path> -> <path>/. | <path>/.. | <path>/<relative_path>
