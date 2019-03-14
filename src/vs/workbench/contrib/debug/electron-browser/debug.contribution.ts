@@ -33,7 +33,6 @@ import {
 } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { DebugToolbar } from 'vs/workbench/contrib/debug/browser/debugToolbar';
 import * as service from 'vs/workbench/contrib/debug/electron-browser/debugService';
-import { DebugContentProvider } from 'vs/workbench/contrib/debug/browser/debugContentProvider';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { registerCommands, ADD_CONFIGURATION_ID, TOGGLE_INLINE_BREAKPOINT_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
@@ -53,6 +52,7 @@ import { TOGGLE_LOG_POINT_ID, TOGGLE_CONDITIONAL_BREAKPOINT_ID, TOGGLE_BREAKPOIN
 import { WatchExpressionsView } from 'vs/workbench/contrib/debug/browser/watchExpressionsView';
 import { VariablesView } from 'vs/workbench/contrib/debug/browser/variablesView';
 import { ClearReplAction, Repl } from 'vs/workbench/contrib/debug/browser/repl';
+import { DebugContentProvider } from 'vs/workbench/contrib/debug/common/debugContentProvider';
 
 class OpenDebugViewletAction extends ShowViewletAction {
 	public static readonly ID = VIEWLET_ID;

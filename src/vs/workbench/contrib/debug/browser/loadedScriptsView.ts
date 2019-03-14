@@ -31,9 +31,9 @@ import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { WorkbenchAsyncDataTree, IListService, TreeResourceNavigator2 } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { DebugContentProvider } from 'vs/workbench/contrib/debug/browser/debugContentProvider';
 import { dispose } from 'vs/base/common/lifecycle';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
+import { DebugContentProvider } from 'vs/workbench/contrib/debug/common/debugContentProvider';
 
 const SMART = true;
 
