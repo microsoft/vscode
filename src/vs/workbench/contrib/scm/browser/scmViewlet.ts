@@ -749,25 +749,7 @@ export class RepositoryPanel extends ViewletPanel {
 		super.renderHeaderTitle(container, title);
 		addClass(container, 'scm-provider');
 		append(container, $('span.type', undefined, type));
-		// const onContextMenu = Event.map(stop(domEvent(container, 'contextmenu')), e => new StandardMouseEvent(e));
-		// onContextMenu(this.onContextMenu, this, this.disposables);
 	}
-
-	// private onContextMenu(event: StandardMouseEvent): void {
-	// 	if (this.viewModel.selectedRepositories.length <= 1) {
-	// 		return;
-	// 	}
-
-	// 	this.contextMenuService.showContextMenu({
-	// 		getAnchor: () => ({ x: event.posx, y: event.posy }),
-	// 		getActions: () => [<IAction>{
-	// 			id: `scm.hideRepository`,
-	// 			label: localize('hideRepository', "Hide"),
-	// 			enabled: true,
-	// 			run: () => this.viewModel.hide(this.repository)
-	// 		}],
-	// 	});
-	// }
 
 	protected renderBody(container: HTMLElement): void {
 		const focusTracker = trackFocus(container);
