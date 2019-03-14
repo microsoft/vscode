@@ -314,7 +314,7 @@ class StatusBarEntryItem implements IStatusbarItem {
 		};
 	}
 
-	private applyColor(container: HTMLElement, color: string | ThemeColor, isBackground?: boolean): IDisposable {
+	private applyColor(container: HTMLElement, color: string | ThemeColor | undefined, isBackground?: boolean): IDisposable {
 		const disposable: IDisposable[] = [];
 
 		if (color) {
