@@ -1212,6 +1212,22 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 		return new ContextAwareMenuItemActionItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
 	}
 
+	getActions(): IAction[] {
+		if (this.repositories.length > 0) {
+			return super.getActions();
+		}
+
+		return this.menus.getTitleActions();
+	}
+
+	getSecondaryActions(): IAction[] {
+		if (this.repositories.length > 0) {
+			return super.getSecondaryActions();
+		}
+
+		return this.menus.getTitleSecondaryActions();
+	}
+
 	getActionsContext(): any {
 		if (this.visibleRepositories.length === 1) {
 			return this.repositories[0].provider;
