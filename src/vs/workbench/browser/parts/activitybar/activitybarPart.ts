@@ -308,6 +308,14 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 					this.compositeBar.activateComposite(viewlet.id);
 				}
 			}
+
+			const viewContainer = this.getViewContainer(viewlet.id);
+			if (viewContainer) {
+				const viewDescriptors = this.viewsService.getViewDescriptors(viewContainer);
+				if (viewDescriptors) {
+					viewDescriptors.onDidChangeActiveViews(() => this.onDidChangeActiveViews(viewlet, viewDescriptors));
+				}
+			}
 		}
 	}
 
