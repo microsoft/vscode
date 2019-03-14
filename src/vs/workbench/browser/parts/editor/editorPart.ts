@@ -116,7 +116,6 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 	//#endregion
 
-	private dimension: Dimension;
 	private _preferredSize: Dimension | undefined;
 
 	private workspaceMemento: object;
@@ -204,6 +203,9 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	//#endregion
 
 	//#region IEditorGroupsService
+
+	private _dimension: Dimension;
+	get dimension(): Dimension { return this._dimension; }
 
 	get activeGroup(): IEditorGroupView {
 		return this._activeGroup;
@@ -411,7 +413,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		this.doCreateGridControlWithState(gridDescriptor, activeGroup.id, currentGroupViews);
 
 		// Layout
-		this.doLayout(this.dimension);
+		this.doLayout(this._dimension);
 
 		// Update container
 		this.updateContainer();
@@ -960,10 +962,10 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	}
 
 	private doLayout(dimension: Dimension): void {
-		this.dimension = dimension;
+		this._dimension = dimension;
 
 		// Layout Grid
-		this.centeredLayoutWidget.layout(this.dimension.width, this.dimension.height);
+		this.centeredLayoutWidget.layout(this._dimension.width, this._dimension.height);
 
 		// Event
 		this._onDidLayout.fire(dimension);

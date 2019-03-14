@@ -902,7 +902,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		return isAncestor(activeElement, container);
 	}
 
-	getContainer(part: Parts): HTMLElement | null {
+	getContainer(part: Parts): HTMLElement {
 		switch (part) {
 			case Parts.TITLEBAR_PART:
 				return this.getPart(Parts.TITLEBAR_PART).getContainer();
@@ -917,8 +917,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			case Parts.STATUSBAR_PART:
 				return this.getPart(Parts.STATUSBAR_PART).getContainer();
 		}
-
-		return null;
 	}
 
 	isVisible(part: Parts): boolean {
