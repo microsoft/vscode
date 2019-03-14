@@ -105,7 +105,7 @@ export interface IExpressionContainer extends ITreeElement {
 export interface IExpression extends IReplElement, IExpressionContainer {
 	name: string;
 	readonly value: string;
-	readonly valueChanged?: boolean;
+	valueChanged?: boolean;
 	readonly type?: string;
 }
 
