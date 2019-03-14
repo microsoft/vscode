@@ -22,6 +22,7 @@ import { URI } from 'vs/base/common/uri';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as codeInset from 'vs/workbench/contrib/codeinset/common/codeInset';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { CallHierarchyProviderRegistry } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesShape {
@@ -467,6 +468,19 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		this._registrations[handle] = modes.SelectionRangeRegistry.register(typeConverters.LanguageSelector.from(selector), {
 			provideSelectionRanges: (model, positions, token) => {
 				return this._proxy.$provideSelectionRanges(handle, model.uri, positions, token);
+			}
+		});
+	}
+
+	// --- call hierarchy
+
+	$registerCallHierarchyProvider(handle: number, selector: ISerializedDocumentFilter[]): void {
+		this._registrations[handle] = CallHierarchyProviderRegistry.register(typeConverters.LanguageSelector.from(selector), {
+			provideCallHierarchyItem: (document, position, token) => {
+				return this._proxy.$provideCallHierarchyItem(handle, document.uri, position, token);
+			},
+			resolveCallHierarchyItem: (item, direction, token) => {
+				return this._proxy.$resolveCallHierarchyItem(handle, item, direction, token);
 			}
 		});
 	}

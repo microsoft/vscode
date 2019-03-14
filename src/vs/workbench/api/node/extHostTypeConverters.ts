@@ -883,7 +883,6 @@ export namespace TextDocumentSaveReason {
 	}
 }
 
-
 export namespace EndOfLine {
 
 	export function from(eol: vscode.EndOfLine): EndOfLineSequence | undefined {

@@ -1111,6 +1111,27 @@ export class SelectionRange {
 }
 
 
+export enum CallHierarchyDirection {
+	CallsFrom = 1,
+	CallsTo = 2,
+}
+
+export class CallHierarchyItem {
+	kind: SymbolKind;
+	name: string;
+	detail?: string;
+	range: Range;
+	selectionRange: Range;
+
+	constructor(kind: SymbolKind, name: string, detail: string | undefined = undefined, range: Range, selectionRange: Range) {
+		this.kind = kind;
+		this.name = name;
+		this.detail = detail;
+		this.range = range;
+		this.selectionRange = selectionRange;
+	}
+}
+
 @es5ClassCompat
 export class CodeLens {
 

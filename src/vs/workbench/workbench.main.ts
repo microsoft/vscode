@@ -305,6 +305,9 @@ import 'vs/workbench/contrib/welcome/gettingStarted/electron-browser/gettingStar
 import 'vs/workbench/contrib/welcome/overlay/browser/welcomeOverlay';
 import 'vs/workbench/contrib/welcome/page/browser/welcomePage.contribution';
 
+// Call Hierarchy
+import 'vs/workbench/contrib/callHierarchy/browser/callHierarchy.contribution';
+
 // Outline
 import 'vs/workbench/contrib/outline/browser/outline.contribution';
 
