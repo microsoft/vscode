@@ -370,7 +370,7 @@ export interface MainThreadProgressShape extends IDisposable {
 }
 
 export interface MainThreadTerminalServiceShape extends IDisposable {
-	$createTerminal(name?: string, shellPath?: string, shellArgs?: string[], cwd?: string | UriComponents, env?: { [key: string]: string }, waitOnExit?: boolean, strictEnv?: boolean): Promise<{ id: number, name: string }>;
+	$createTerminal(name?: string, shellPath?: string, shellArgs?: string[], cwd?: string | UriComponents, env?: { [key: string]: string | null }, waitOnExit?: boolean, strictEnv?: boolean): Promise<{ id: number, name: string }>;
 	$createTerminalRenderer(name: string): Promise<number>;
 	$dispose(terminalId: number): void;
 	$hide(terminalId: number): void;
