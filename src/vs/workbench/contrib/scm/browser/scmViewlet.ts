@@ -273,12 +273,12 @@ export class MainPanel extends ViewletPanel {
 	}
 
 	private updateBodySize(): void {
-		const visibleCount = this.configurationService.getValue<number>('scm.providers.visible');
+		const visibleCount = Math.max(this.configurationService.getValue<number>('scm.providers.visible'), 1);
 		const empty = this.list.length === 0;
 		const size = Math.min(this.viewModel.repositories.length, visibleCount) * 22;
 
-		this.minimumBodySize = visibleCount === 0 ? 22 : size;
-		this.maximumBodySize = visibleCount === 0 ? Number.POSITIVE_INFINITY : empty ? Number.POSITIVE_INFINITY : size;
+		this.minimumBodySize = size;
+		this.maximumBodySize = empty ? Number.POSITIVE_INFINITY : size;
 	}
 
 	private onListContextMenu(e: IListContextMenuEvent<ISCMRepository>): void {
