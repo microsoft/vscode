@@ -241,7 +241,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			'extensions.enableExperimentalAzureSearch': {
 				type: 'boolean',
 				description: localize('enableExperimentalAzureSearch', "Enable experimental Azure based search for searching extensions in Marketplace."),
-				default: false
+				default: true
 			}
 		}
 	});
