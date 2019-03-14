@@ -25,7 +25,6 @@ import { IInstantiationService, createDecorator } from 'vs/platform/instantiatio
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { Panel } from 'vs/workbench/browser/panel';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { clipboard } from 'electron';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { memoize } from 'vs/base/common/decorators';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
@@ -66,6 +65,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 const $ = dom.$;
 
@@ -120,7 +120,8 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		@IListService private readonly listService: IListService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITextResourcePropertiesService private readonly textResourcePropertiesService: ITextResourcePropertiesService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IClipboardService private readonly clipboardService: IClipboardService
 	) {
 		super(REPL_ID, telemetryService, themeService, storageService);
 
@@ -455,9 +456,9 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 	private onContextMenu(e: ITreeContextMenuEvent<IReplElement>): void {
 		const actions: IAction[] = [];
-		actions.push(new CopyAction(CopyAction.ID, CopyAction.LABEL));
+		actions.push(new CopyAction(CopyAction.ID, CopyAction.LABEL, this.clipboardService));
 		actions.push(new Action('workbench.debug.action.copyAll', nls.localize('copyAll', "Copy All"), undefined, true, () => {
-			clipboard.writeText(this.getVisibleContent());
+			this.clipboardService.writeText(this.getVisibleContent());
 			return Promise.resolve(undefined);
 		}));
 		actions.push(new ReplCollapseAllAction(this.tree, this.replInput));
@@ -823,7 +824,8 @@ class ReplCopyAllAction extends EditorAction {
 	}
 
 	run(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
-		clipboard.writeText(accessor.get(IPrivateReplService).getVisibleContent());
+		const clipboardService = accessor.get(IClipboardService);
+		clipboardService.writeText(accessor.get(IPrivateReplService).getVisibleContent());
 	}
 }
 

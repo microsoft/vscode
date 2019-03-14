@@ -294,7 +294,7 @@ export class CallStackView extends ViewletPanel {
 			if (element.thread.session.capabilities.supportsRestartFrame) {
 				actions.push(new RestartFrameAction(RestartFrameAction.ID, RestartFrameAction.LABEL, this.debugService, this.keybindingService));
 			}
-			actions.push(new CopyStackTraceAction(CopyStackTraceAction.ID, CopyStackTraceAction.LABEL));
+			actions.push(this.instantiationService.createInstance(CopyStackTraceAction, CopyStackTraceAction.ID, CopyStackTraceAction.LABEL));
 		} else {
 			this.callStackItemType.reset();
 		}

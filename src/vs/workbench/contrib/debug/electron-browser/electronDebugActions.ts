@@ -7,14 +7,18 @@ import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { Variable } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IDebugService, IStackFrame } from 'vs/workbench/contrib/debug/common/debug';
-import { clipboard } from 'electron';
 import { isWindows } from 'vs/base/common/platform';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 export class CopyValueAction extends Action {
 	static readonly ID = 'workbench.debug.viewlet.action.copyValue';
 	static LABEL = nls.localize('copyValue', "Copy Value");
 
-	constructor(id: string, label: string, private value: any, private context: string, @IDebugService private readonly debugService: IDebugService) {
+	constructor(
+		id: string, label: string, private value: any, private context: string,
+		@IDebugService private readonly debugService: IDebugService,
+		@IClipboardService private readonly clipboardService: IClipboardService
+	) {
 		super(id, label, 'debug-action copy-value');
 		this._enabled = typeof this.value === 'string' || (this.value instanceof Variable && !!this.value.evaluateName);
 	}
@@ -25,11 +29,11 @@ export class CopyValueAction extends Action {
 
 		if (this.value instanceof Variable && stackFrame && session && this.value.evaluateName) {
 			return session.evaluate(this.value.evaluateName, stackFrame.frameId, this.context).then(result => {
-				clipboard.writeText(result.body.result);
-			}, err => clipboard.writeText(this.value.value));
+				this.clipboardService.writeText(result.body.result);
+			}, err => this.clipboardService.writeText(this.value.value));
 		}
 
-		clipboard.writeText(this.value);
+		this.clipboardService.writeText(this.value);
 		return Promise.resolve(undefined);
 	}
 }
@@ -38,13 +42,16 @@ export class CopyEvaluatePathAction extends Action {
 	static readonly ID = 'workbench.debug.viewlet.action.copyEvaluatePath';
 	static LABEL = nls.localize('copyAsExpression', "Copy as Expression");
 
-	constructor(id: string, label: string, private value: Variable) {
+	constructor(
+		id: string, label: string, private value: Variable,
+		@IClipboardService private readonly clipboardService: IClipboardService
+	) {
 		super(id, label);
 		this._enabled = this.value && !!this.value.evaluateName;
 	}
 
 	public run(): Promise<any> {
-		clipboard.writeText(this.value.evaluateName!);
+		this.clipboardService.writeText(this.value.evaluateName!);
 		return Promise.resolve(undefined);
 	}
 }
@@ -53,8 +60,15 @@ export class CopyAction extends Action {
 	static readonly ID = 'workbench.debug.action.copy';
 	static LABEL = nls.localize('copy', "Copy");
 
+	constructor(
+		id: string, label: string,
+		@IClipboardService private readonly clipboardService: IClipboardService
+	) {
+		super(id, label);
+	}
+
 	public run(): Promise<any> {
-		clipboard.writeText(window.getSelection().toString());
+		this.clipboardService.writeText(window.getSelection().toString());
 		return Promise.resolve(undefined);
 	}
 }
@@ -65,8 +79,15 @@ export class CopyStackTraceAction extends Action {
 	static readonly ID = 'workbench.action.debug.copyStackTrace';
 	static LABEL = nls.localize('copyStackTrace', "Copy Call Stack");
 
+	constructor(
+		id: string, label: string,
+		@IClipboardService private readonly clipboardService: IClipboardService
+	) {
+		super(id, label);
+	}
+
 	public run(frame: IStackFrame): Promise<any> {
-		clipboard.writeText(frame.thread.getCallStack().map(sf => sf.toString()).join(lineDelimiter));
+		this.clipboardService.writeText(frame.thread.getCallStack().map(sf => sf.toString()).join(lineDelimiter));
 		return Promise.resolve(undefined);
 	}
 }

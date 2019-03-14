@@ -140,8 +140,8 @@ export class VariablesView extends ViewletPanel {
 			const actions: IAction[] = [];
 			const variable = element as Variable;
 			actions.push(new SetValueAction(SetValueAction.ID, SetValueAction.LABEL, variable, this.debugService, this.keybindingService));
-			actions.push(new CopyValueAction(CopyValueAction.ID, CopyValueAction.LABEL, variable, 'variables', this.debugService));
-			actions.push(new CopyEvaluatePathAction(CopyEvaluatePathAction.ID, CopyEvaluatePathAction.LABEL, variable));
+			actions.push(this.instantiationService.createInstance(CopyValueAction, CopyValueAction.ID, CopyValueAction.LABEL, variable, 'variables'));
+			actions.push(this.instantiationService.createInstance(CopyEvaluatePathAction, CopyEvaluatePathAction.ID, CopyEvaluatePathAction.LABEL, variable));
 			actions.push(new Separator());
 			actions.push(new AddToWatchExpressionsAction(AddToWatchExpressionsAction.ID, AddToWatchExpressionsAction.LABEL, variable, this.debugService, this.keybindingService));
 
