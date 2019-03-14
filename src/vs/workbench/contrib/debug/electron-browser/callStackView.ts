@@ -15,8 +15,7 @@ import { MenuId, IMenu, IMenuService } from 'vs/platform/actions/common/actions'
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { renderViewTree } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { IAction } from 'vs/base/common/actions';
-import { RestartAction, StopAction, ContinueAction, StepOverAction, StepIntoAction, StepOutAction, PauseAction, RestartFrameAction, TerminateThreadAction } from 'vs/workbench/contrib/debug/browser/debugActions';
-import { CopyStackTraceAction } from 'vs/workbench/contrib/debug/electron-browser/electronDebugActions';
+import { RestartAction, StopAction, ContinueAction, StepOverAction, StepIntoAction, StepOutAction, PauseAction, RestartFrameAction, TerminateThreadAction, CopyStackTraceAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';

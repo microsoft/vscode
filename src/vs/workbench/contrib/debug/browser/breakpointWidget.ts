@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!../browser/media/breakpointWidget';
+import 'vs/css!./media/breakpointWidget';
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { SelectBox, ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';

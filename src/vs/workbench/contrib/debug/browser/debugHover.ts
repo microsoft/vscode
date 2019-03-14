@@ -17,7 +17,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IDebugService, IExpression, IExpressionContainer } from 'vs/workbench/contrib/debug/common/debug';
 import { Expression } from 'vs/workbench/contrib/debug/common/debugModel';
 import { renderExpressionValue } from 'vs/workbench/contrib/debug/browser/baseDebugView';
-import { VariablesRenderer } from 'vs/workbench/contrib/debug/electron-browser/variablesView';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -33,6 +32,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { coalesce } from 'vs/base/common/arrays';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
+import { VariablesRenderer } from 'vs/workbench/contrib/debug/browser/variablesView';
 
 const $ = dom.$;
 const MAX_TREE_HEIGHT = 324;

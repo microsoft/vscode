@@ -225,7 +225,8 @@ import 'vs/workbench/contrib/scm/browser/scmViewlet';
 // Debug
 // import 'vs/workbench/contrib/debug/electron-browser/debug.contribution';
 // import 'vs/workbench/contrib/debug/browser/debugQuickOpen';
-// import 'vs/workbench/contrib/debug/electron-browser/repl';
+// import 'vs/workbench/contrib/debug/browser/debugEditorContribution';
+// import 'vs/workbench/contrib/debug/browser/repl';
 // import 'vs/workbench/contrib/debug/browser/debugViewlet';
 
 // Markers

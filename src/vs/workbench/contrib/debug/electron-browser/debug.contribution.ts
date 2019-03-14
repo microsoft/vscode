@@ -17,9 +17,7 @@ import { ShowViewletAction, Extensions as ViewletExtensions, ViewletRegistry, Vi
 import { TogglePanelAction, Extensions as PanelExtensions, PanelRegistry, PanelDescriptor } from 'vs/workbench/browser/panel';
 import { StatusbarItemDescriptor, IStatusbarRegistry, Extensions as StatusExtensions } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { StatusbarAlignment } from 'vs/platform/statusbar/common/statusbar';
-import { VariablesView } from 'vs/workbench/contrib/debug/electron-browser/variablesView';
 import { BreakpointsView } from 'vs/workbench/contrib/debug/browser/breakpointsView';
-import { WatchExpressionsView } from 'vs/workbench/contrib/debug/electron-browser/watchExpressionsView';
 import { CallStackView } from 'vs/workbench/contrib/debug/electron-browser/callStackView';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import {
@@ -36,7 +34,6 @@ import {
 import { DebugToolbar } from 'vs/workbench/contrib/debug/browser/debugToolbar';
 import * as service from 'vs/workbench/contrib/debug/electron-browser/debugService';
 import { DebugContentProvider } from 'vs/workbench/contrib/debug/browser/debugContentProvider';
-import 'vs/workbench/contrib/debug/electron-browser/debugEditorContribution';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { registerCommands, ADD_CONFIGURATION_ID, TOGGLE_INLINE_BREAKPOINT_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
@@ -46,7 +43,6 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
 import { DebugViewlet } from 'vs/workbench/contrib/debug/browser/debugViewlet';
-import { Repl, ClearReplAction } from 'vs/workbench/contrib/debug/electron-browser/repl';
 import { DebugQuickOpenHandler } from 'vs/workbench/contrib/debug/browser/debugQuickOpen';
 import { DebugStatus } from 'vs/workbench/contrib/debug/browser/debugStatus';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
@@ -54,6 +50,9 @@ import { launchSchemaId } from 'vs/workbench/services/configuration/common/confi
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { LoadedScriptsView } from 'vs/workbench/contrib/debug/browser/loadedScriptsView';
 import { TOGGLE_LOG_POINT_ID, TOGGLE_CONDITIONAL_BREAKPOINT_ID, TOGGLE_BREAKPOINT_ID } from 'vs/workbench/contrib/debug/browser/debugEditorActions';
+import { WatchExpressionsView } from 'vs/workbench/contrib/debug/browser/watchExpressionsView';
+import { VariablesView } from 'vs/workbench/contrib/debug/browser/variablesView';
+import { ClearReplAction, Repl } from 'vs/workbench/contrib/debug/browser/repl';
 
 class OpenDebugViewletAction extends ShowViewletAction {
 	public static readonly ID = VIEWLET_ID;

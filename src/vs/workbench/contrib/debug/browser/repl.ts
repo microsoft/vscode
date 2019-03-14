@@ -46,15 +46,13 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { Variable, Expression, SimpleReplElement, RawObjectReplElement } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { VariablesRenderer } from 'vs/workbench/contrib/debug/electron-browser/variablesView';
 import { ITreeRenderer, ITreeNode, ITreeContextMenuEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { renderExpressionValue } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { handleANSIOutput } from 'vs/workbench/contrib/debug/browser/debugANSIHandling';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
-import { CopyAction } from 'vs/workbench/contrib/debug/electron-browser/electronDebugActions';
-import { ReplCollapseAllAction } from 'vs/workbench/contrib/debug/browser/debugActions';
+import { ReplCollapseAllAction, CopyAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
@@ -66,6 +64,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { VariablesRenderer } from 'vs/workbench/contrib/debug/browser/variablesView';
 
 const $ = dom.$;
 
