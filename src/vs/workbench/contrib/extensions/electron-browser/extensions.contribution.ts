@@ -237,6 +237,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				type: 'boolean',
 				description: localize('extensionsCloseExtensionDetailsOnViewChange', "When enabled, editors with extension details will be automatically closed upon navigating away from the Extensions View."),
 				default: false
+			},
+			'extensions.enableExperimentalAzureSearch': {
+				type: 'boolean',
+				description: localize('enableExperimentalAzureSearch', "Enable experimental Azure based search for searching extensions in Marketplace."),
+				default: false
 			}
 		}
 	});
