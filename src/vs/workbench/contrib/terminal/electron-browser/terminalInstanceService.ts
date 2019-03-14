@@ -10,8 +10,10 @@ import { ITerminalInstance, IWindowsShellHelper, ITerminalConfigHelper, ITermina
 import { WindowsShellHelper } from 'vs/workbench/contrib/terminal/node/windowsShellHelper';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
-import { IProcessEnvironment } from 'vs/base/common/platform';
+import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { TerminalProcess } from 'vs/workbench/contrib/terminal/node/terminalProcess';
+import { IRemoteAgentService, IRemoteAgentEnvironment } from 'vs/workbench/services/remote/node/remoteAgentService';
+import { URI } from 'vs/base/common/uri';
 
 let Terminal: typeof XTermTerminal;
 
@@ -23,8 +25,11 @@ let Terminal: typeof XTermTerminal;
 export class TerminalInstanceService implements ITerminalInstanceService {
 	public _serviceBrand: any;
 
+	private _remoteAgentEnvironment: IRemoteAgentEnvironment | undefined | null;
+
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService
 	) {
 	}
 
@@ -53,5 +58,33 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 
 	public createTerminalProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean): ITerminalChildProcess {
 		return new TerminalProcess(shellLaunchConfig, cwd, cols, rows, env, windowsEnableConpty);
+	}
+
+	private async _fetchRemoteAgentEnvironment(): Promise<IRemoteAgentEnvironment | null> {
+		if (this._remoteAgentEnvironment === undefined) {
+			const connection = await this._remoteAgentService.getConnection();
+			if (!connection) {
+				this._remoteAgentEnvironment = null;
+				return this._remoteAgentEnvironment;
+			}
+			this._remoteAgentEnvironment = await connection.getEnvironment();
+		}
+		return this._remoteAgentEnvironment;
+	}
+
+	public async getRemoteUserHome(): Promise<URI | undefined> {
+		const env = await this._fetchRemoteAgentEnvironment();
+		if (env === null) {
+			return undefined;
+		}
+		return env.userHome;
+	}
+
+	public async getRemoteOperatingSystem(): Promise<OperatingSystem | undefined> {
+		const env = await this._fetchRemoteAgentEnvironment();
+		if (env === null) {
+			return undefined;
+		}
+		return env.os;
 	}
 }

@@ -637,6 +637,9 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly processState: ProcessState;
 	readonly ptyProcessReady: Promise<void>;
 	readonly shellProcessId: number;
+	readonly remoteAuthority: string | undefined;
+	readonly os: platform.OperatingSystem | undefined;
+	readonly userHome: string | undefined;
 
 	readonly onProcessReady: Event<void>;
 	readonly onProcessData: Event<string>;

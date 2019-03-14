@@ -38,6 +38,9 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	public processState: ProcessState = ProcessState.UNINITIALIZED;
 	public ptyProcessReady: Promise<void>;
 	public shellProcessId: number;
+	public remoteAuthority: string | undefined;
+	public os: platform.OperatingSystem | undefined;
+	public userHome: string | undefined;
 
 	private _process: ITerminalChildProcess | null = null;
 	private _preLaunchInputQueue: string[] = [];
@@ -96,17 +99,24 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		cols: number,
 		rows: number
 	): void {
-		let launchRemotely = false;
 		const forceExtHostProcess = (this._configHelper.config as any).extHostProcess;
-
 		if (shellLaunchConfig.cwd && typeof shellLaunchConfig.cwd === 'object') {
-			launchRemotely = !!getRemoteAuthority(shellLaunchConfig.cwd);
+			this.remoteAuthority = getRemoteAuthority(shellLaunchConfig.cwd);
 		} else {
-			launchRemotely = !!this._windowService.getConfiguration().remoteAuthority;
+			this.remoteAuthority = this._windowService.getConfiguration().remoteAuthority;
 		}
+		const hasRemoteAuthority = !!this.remoteAuthority;
+		let launchRemotely = hasRemoteAuthority || forceExtHostProcess;
 
-		if (launchRemotely || forceExtHostProcess) {
-			const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(forceExtHostProcess ? undefined : REMOTE_HOST_SCHEME);
+		this.userHome = this._environmentService.userHome;
+		this.os = platform.OS;
+		if (launchRemotely) {
+			if (hasRemoteAuthority) {
+				this._terminalInstanceService.getRemoteUserHome().then(userHome => this.userHome = userHome ? userHome.path : undefined);
+				this._terminalInstanceService.getRemoteOperatingSystem().then(os => this.os = os);
+			}
+
+			const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(hasRemoteAuthority ? REMOTE_HOST_SCHEME : undefined);
 			this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows);
 		} else {
 			if (!shellLaunchConfig.executable) {
