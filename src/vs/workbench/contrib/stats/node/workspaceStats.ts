@@ -20,7 +20,6 @@ import { hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspa
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { joinPath } from 'vs/base/common/resources';
-import { collectWorkspaceStats, WorkspaceStats as WorkspaceStatsType } from 'vs/base/node/stats';
 
 const SshProtocolMatcher = /^([^@:]+@)?([^:]+):/;
 const SshUrlMatcher = /^([^@:]+@)?([^:]+):(.+)$/;
@@ -226,14 +225,9 @@ export class WorkspaceStats implements IWorkbenchContribution {
 
 	private report(): void {
 
-		// Workspace Tags
+		// Workspace Stats
 		this.resolveWorkspaceTags(this.windowService.getConfiguration(), rootFiles => this.handleWorkspaceFiles(rootFiles))
 			.then(tags => this.reportWorkspaceTags(tags), error => onUnexpectedError(error));
-
-		// Workspace file types, config files, and launch configs
-		this.getWorkspaceMetadata().then(stats => {
-			this.reportWorkspaceMetadata(stats);
-		});
 
 		// Cloud Stats
 		this.reportCloudStats();
@@ -740,40 +734,5 @@ export class WorkspaceStats implements IWorkbenchContribution {
 				*/
 				this.telemetryService.publicLog('resolveProxy.stats', { type });
 			}).then(undefined, onUnexpectedError);
-	}
-
-	/* __GDPR__
-		"workspace.metadata" : {
-			"fileTypes" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"configTypes" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"launchConfigs" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-		}
-	*/
-	private reportWorkspaceMetadata(stats: WorkspaceStatsType[]): void {
-		for (let stat of stats) { // one event for each root folder in the workspace
-			this.telemetryService.publicLog('workspace.metadata', {
-				'fileTypes': stat.fileTypes,
-				'configTypes': stat.configFiles,
-				'launchConfigs': stat.launchConfigFiles
-			});
-		}
-	}
-
-	private getWorkspaceMetadata(): Promise<WorkspaceStatsType[]> {
-		const workspaceStatPromises: Promise<WorkspaceStatsType>[] = [];
-		const workspace = this.contextService.getWorkspace();
-		workspace.folders.forEach(folder => {
-			const folderUri = URI.revive(folder.uri);
-			if (folderUri.scheme === 'file') {
-				const folder = folderUri.fsPath;
-				workspaceStatPromises.push(collectWorkspaceStats(folder, ['node_modules', '.git']).then(async stats => {
-					return stats;
-				}));
-			}
-		});
-
-		return Promise.all(workspaceStatPromises).then((stats) => {
-			return stats;
-		});
 	}
 }

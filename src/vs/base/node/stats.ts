@@ -67,7 +67,7 @@ export function collectLaunchConfigs(folder: string): Promise<WorkspaceStatItem[
 	});
 }
 
-export async function collectWorkspaceStats(folder: string, filter: string[]): Promise<WorkspaceStats> {
+export function collectWorkspaceStats(folder: string, filter: string[]): Promise<WorkspaceStats> {
 	const configFilePatterns = [
 		{ 'tag': 'grunt.js', 'pattern': /^gruntfile\.js$/i },
 		{ 'tag': 'gulp.js', 'pattern': /^gulpfile\.js$/i },
