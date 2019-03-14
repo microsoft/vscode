@@ -86,7 +86,7 @@ export class MenuBar extends Disposable {
 	constructor(private container: HTMLElement, private options: IMenuBarOptions = {}) {
 		super();
 
-		this.container.attributes['role'] = 'menubar';
+		this.container.setAttribute('role', 'menubar');
 
 		this.menuCache = [];
 		this.mnemonics = new Map<string, number>();
@@ -857,7 +857,7 @@ export class MenuBar extends Disposable {
 			getKeyBinding: this.options.getKeybinding,
 			actionRunner: this.actionRunner,
 			enableMnemonics: this.options.alwaysOnMnemonics || (this.mnemonicsInUse && this.options.enableMnemonics),
-			ariaLabel: customMenu.buttonElement.attributes['aria-label'].value
+			ariaLabel: customMenu.buttonElement.getAttribute('aria-label')
 		};
 
 		let menuWidget = this._register(new Menu(menuHolder, customMenu.actions, menuOptions));
