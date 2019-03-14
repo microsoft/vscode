@@ -155,6 +155,7 @@ export class ExtensionHostMain {
 		initData.environment.extensionDevelopmentLocationURI = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.extensionDevelopmentLocationURI));
 		initData.environment.extensionTestsLocationURI = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.extensionTestsLocationURI));
 		initData.environment.globalStorageHome = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.globalStorageHome));
+		initData.environment.userHome = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.userHome));
 		initData.logsLocation = URI.revive(rpcProtocol.transformIncomingURIs(initData.logsLocation));
 		initData.workspace = rpcProtocol.transformIncomingURIs(initData.workspace);
 		return initData;

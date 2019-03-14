@@ -432,7 +432,8 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 						appSettingsHome: this._environmentService.appSettingsHome ? URI.file(this._environmentService.appSettingsHome) : undefined,
 						extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 						extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
-						globalStorageHome: URI.file(this._environmentService.globalStorageHome)
+						globalStorageHome: URI.file(this._environmentService.globalStorageHome),
+						userHome: URI.file(this._environmentService.userHome)
 					},
 					workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? undefined : {
 						configuration: withNullAsUndefined(workspace.configuration),

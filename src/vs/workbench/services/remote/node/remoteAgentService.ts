@@ -22,6 +22,7 @@ export interface IRemoteAgentEnvironment {
 	extensionsPath: URI;
 	extensionHostLogsPath: URI;
 	globalStorageHome: URI;
+	userHome: URI;
 	extensions: IExtensionDescription[];
 	os: OperatingSystem;
 	syncExtensions: boolean;
