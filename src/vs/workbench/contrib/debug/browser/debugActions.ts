@@ -23,7 +23,7 @@ import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { memoize } from 'vs/base/common/decorators';
 import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { isWindows } from 'vs/base/common/platform';
+import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 
 export abstract class AbstractDebugAction extends Action {
 
@@ -876,21 +876,21 @@ export class CopyAction extends Action {
 	}
 }
 
-const lineDelimiter = isWindows ? '\r\n' : '\n';
-
 export class CopyStackTraceAction extends Action {
 	static readonly ID = 'workbench.action.debug.copyStackTrace';
 	static LABEL = nls.localize('copyStackTrace', "Copy Call Stack");
 
 	constructor(
 		id: string, label: string,
-		@IClipboardService private readonly clipboardService: IClipboardService
+		@IClipboardService private readonly clipboardService: IClipboardService,
+		@ITextResourcePropertiesService private readonly textResourcePropertiesService: ITextResourcePropertiesService
 	) {
 		super(id, label);
 	}
 
 	public run(frame: IStackFrame): Promise<any> {
-		this.clipboardService.writeText(frame.thread.getCallStack().map(sf => sf.toString()).join(lineDelimiter));
+		const eol = this.textResourcePropertiesService.getEOL(frame.source.uri);
+		this.clipboardService.writeText(frame.thread.getCallStack().map(sf => sf.toString()).join(eol));
 		return Promise.resolve(undefined);
 	}
 }
