@@ -22,7 +22,6 @@ import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IViewletPanelOptions, ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { DebugSession } from 'vs/workbench/contrib/debug/electron-browser/debugSession';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
@@ -128,7 +127,7 @@ export class CallStackView extends ViewletPanel {
 				},
 				keyboardNavigationLabelProvider: {
 					getKeyboardNavigationLabel: e => {
-						if (e instanceof DebugSession) {
+						if (isDebugSession(e)) {
 							return e.getLabel();
 						}
 						if (e instanceof Thread) {
@@ -172,7 +171,7 @@ export class CallStackView extends ViewletPanel {
 			if (element instanceof Thread) {
 				focusStackFrame(undefined, element, element.session);
 			}
-			if (element instanceof DebugSession) {
+			if (isDebugSession(element)) {
 				focusStackFrame(undefined, undefined, element);
 			}
 			if (element instanceof ThreadAndSessionIds) {
@@ -270,7 +269,7 @@ export class CallStackView extends ViewletPanel {
 	private onContextMenu(e: ITreeContextMenuEvent<CallStackItem>): void {
 		const actions: IAction[] = [];
 		const element = e.element;
-		if (element instanceof DebugSession) {
+		if (isDebugSession(element)) {
 			this.callStackItemType.set('session');
 			actions.push(this.instantiationService.createInstance(RestartAction, RestartAction.ID, RestartAction.LABEL));
 			actions.push(new StopAction(StopAction.ID, StopAction.LABEL, this.debugService, this.keybindingService));
@@ -547,7 +546,7 @@ class CallStackDelegate implements IListVirtualDelegate<CallStackItem> {
 	}
 
 	getTemplateId(element: CallStackItem): string {
-		if (element instanceof DebugSession) {
+		if (isDebugSession(element)) {
 			return SessionsRenderer.ID;
 		}
 		if (element instanceof Thread) {
@@ -572,6 +571,10 @@ function isDebugModel(obj: any): obj is IDebugModel {
 	return typeof obj.getSessions === 'function';
 }
 
+function isDebugSession(obj: any): obj is IDebugSession {
+	return typeof obj.getAllThreads === 'function';
+}
+
 function isDeemphasized(frame: IStackFrame): boolean {
 	return frame.source.presentationHint === 'deemphasize' || frame.presentationHint === 'deemphasize';
 }
@@ -580,7 +583,7 @@ class CallStackDataSource implements IAsyncDataSource<IDebugModel, CallStackItem
 	deemphasizedStackFramesToShow: IStackFrame[];
 
 	hasChildren(element: IDebugModel | CallStackItem): boolean {
-		return isDebugModel(element) || element instanceof DebugSession || (element instanceof Thread && element.stopped);
+		return isDebugModel(element) || isDebugSession(element) || (element instanceof Thread && element.stopped);
 	}
 
 	getChildren(element: IDebugModel | CallStackItem): Promise<CallStackItem[]> {
@@ -596,7 +599,7 @@ class CallStackDataSource implements IAsyncDataSource<IDebugModel, CallStackItem
 			const threads = sessions[0].getAllThreads();
 			// Only show the threads in the call stack if there is more than 1 thread.
 			return threads.length === 1 ? this.getThreadChildren(<Thread>threads[0]) : Promise.resolve(threads);
-		} else if (element instanceof DebugSession) {
+		} else if (isDebugSession(element)) {
 			return Promise.resolve(element.getAllThreads());
 		} else {
 			return this.getThreadChildren(<Thread>element);
@@ -670,7 +673,7 @@ class CallStackAccessibilityProvider implements IAccessibilityProvider<CallStack
 		if (element instanceof StackFrame) {
 			return nls.localize('stackFrameAriaLabel', "Stack Frame {0} line {1} {2}, callstack, debug", element.name, element.range.startLineNumber, element.getSpecificSourceName());
 		}
-		if (element instanceof DebugSession) {
+		if (isDebugSession(element)) {
 			return nls.localize('sessionLabel', "Debug Session {0}", element.getLabel());
 		}
 		if (typeof element === 'string') {

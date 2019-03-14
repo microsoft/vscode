@@ -18,7 +18,7 @@ import { TogglePanelAction, Extensions as PanelExtensions, PanelRegistry, PanelD
 import { StatusbarItemDescriptor, IStatusbarRegistry, Extensions as StatusExtensions } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { StatusbarAlignment } from 'vs/platform/statusbar/common/statusbar';
 import { BreakpointsView } from 'vs/workbench/contrib/debug/browser/breakpointsView';
-import { CallStackView } from 'vs/workbench/contrib/debug/electron-browser/callStackView';
+import { CallStackView } from 'vs/workbench/contrib/debug/browser/callStackView';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import {
 	IDebugService, VIEWLET_ID, REPL_ID, CONTEXT_IN_DEBUG_MODE, INTERNAL_CONSOLE_OPTIONS_SCHEMA,
