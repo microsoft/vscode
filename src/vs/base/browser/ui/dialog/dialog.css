@@ -1,0 +1,121 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/** Dialog: Container */
+.monaco-workbench .dialog-box {
+	position: absolute;
+	display: flex;
+	flex-direction: column-reverse;
+	z-index: 2000;
+	top: 200px;
+	left: 50%;
+	margin-left: -250px;
+	width: 500px;
+	min-height: 75px;
+	padding: 10px 5px;
+}
+
+/** Dialog: Message Row */
+.monaco-workbench .dialog-box .dialog-message-row {
+	display: flex;
+	flex-grow: 1;
+	padding: 20px 20px;
+}
+
+.monaco-workbench .dialog-box .dialog-message-row .dialog-icon {
+	flex: 0 0 30px;
+	margin-right: 4px;
+	margin-left: 4px;
+	background-position: center;
+	background-repeat: no-repeat;
+}
+
+.vs .monaco-workbench .dialog-box .dialog-message-row .dialog-icon.icon-info {
+	background-image: url('info.svg');
+}
+
+.vs .monaco-workbench .dialog-box .dialog-message-row .dialog-icon.icon-warning {
+	background-image: url('warning.svg');
+}
+
+.vs .monaco-workbench .dialog-box .dialog-message-row .dialog-icon.icon-error {
+	background-image: url('error.svg');
+}
+
+.vs-dark .monaco-workbench .dialog-box .dialog-message-row .dialog-icon.icon-info,
+.hc-black .monaco-workbench .dialog-box .dialog-message-row .dialog-icon.icon-info {
+	background-image: url('info-inverse.svg');
+}
+
+.vs-dark .monaco-workbench .dialog-box .dialog-message-row .dialog-icon.icon-warning,
+.hc-black .monaco-workbench .dialog-box .dialog-message-row .dialog-icon.icon-warning {
+	background-image: url('warning-inverse.svg');
+}
+
+.vs-dark .monaco-workbench .dialog-box .dialog-message-row .dialog-icon.icon-error,
+.hc-black .monaco-workbench .dialog-box .dialog-message-row .dialog-icon.icon-error {
+	background-image: url('error-inverse.svg');
+}
+
+/** Dialog: Message Container */
+.monaco-workbench .dialog-box .dialog-message-row .dialog-message-container {
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	margin-left: 12px;
+	user-select: text;
+	word-wrap: break-word; /* never overflow long words, but break to next line */
+	white-space: normal;
+}
+
+/** Dialog: Message */
+.monaco-workbench .dialog-box .dialog-message-row .dialog-message-container .dialog-message {
+	line-height: 22px;
+	font-size: 18px;
+	flex: 1; /* let the message always grow */
+	white-space: normal;
+	word-wrap: break-word; /* never overflow long words, but break to next line */
+	padding-bottom: 10px;
+}
+
+/** Dialog: Details */
+.monaco-workbench .dialog-box .dialog-message-row .dialog-message-container .dialog-message-detail {
+	line-height: 22px;
+	flex: 1; /* let the message always grow */
+	opacity: .9;
+}
+
+.monaco-workbench .dialog-box .dialog-message-row .dialog-message-container .dialog-message a:focus {
+	outline-width: 1px;
+	outline-style: solid;
+}
+
+/** Dialog: Buttons Row */
+.monaco-workbench .dialog-box > .dialog-buttons-row {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	padding: 0px 20px;
+	overflow: hidden; /* buttons row should never overflow */
+}
+
+.monaco-workbench .monaco-workbench .dialog-box > .dialog-buttons-row {
+	display: flex;
+}
+
+/** Dialog: Buttons */
+.monaco-workbench .monaco-workbench .dialog-box > .dialog-buttons-row > .dialog-buttons {
+	display: flex;
+	overflow: hidden;
+}
+
+.monaco-workbench .dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button {
+	max-width: fit-content;
+	padding: 5px 10px;
+	margin: 4px 5px; /* allows button focus outline to be visible */
+	overflow: hidden;
+	text-overflow: ellipsis;
+}

@@ -95,6 +95,8 @@ import { ContextViewService } from 'vs/platform/contextview/browser/contextViewS
 // import { RelayURLService } from 'vs/platform/url/electron-browser/urlService';
 
 import 'vs/workbench/browser/nodeless.simpleservices';
+import 'vs/platform/dialogs/browser/dialogService';
+
 
 import 'vs/workbench/services/bulkEdit/browser/bulkEditService';
 // import 'vs/workbench/services/integrity/node/integrityService';
@@ -114,7 +116,6 @@ import 'vs/workbench/services/output/common/outputChannelModelService';
 // import 'vs/workbench/services/configuration/node/jsonEditingService';
 import 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import 'vs/workbench/services/textfile/common/textFileService';
-// import 'vs/workbench/services/dialogs/electron-browser/dialogService';
 // import 'vs/workbench/services/backup/node/backupFileService';
 import 'vs/workbench/services/editor/browser/editorService';
 import 'vs/workbench/services/history/browser/history';
