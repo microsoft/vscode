@@ -130,16 +130,37 @@ suite('Debug - ANSI Handling', () => {
 			});
 		}
 
-		// Codes do not interfere
-		assertSingleSequenceElement('\x1b[1;3;4;30;31;32;33;34;35;36;37m', (child) => {
-			assert.equal(11, child.classList.length);
+		// Different codes do not interfere
+		assertSingleSequenceElement('\x1b[1;3;4;30;41m', (child) => {
+			assert.equal(5, child.classList.length);
 
 			assert(dom.hasClass(child, 'code-bold'));
 			assert(dom.hasClass(child, 'code-italic'));
 			assert(dom.hasClass(child, 'code-underline'));
-			for (let i = 30; i <= 37; i++) {
-				assert(dom.hasClass(child, 'code-foreground-' + i));
-			}
+			assert(dom.hasClass(child, 'code-foreground-30'));
+			assert(dom.hasClass(child, 'code-background-41'));
+		});
+
+		// New foreground color codes remove old codes
+		assertSingleSequenceElement('\x1b[30;31;32;33;34;35;36;37m', (child) => {
+			assert.equal(1, child.classList.length);
+
+			assert(dom.hasClass(child, 'code-foreground-37'));
+		});
+
+		// New background color codes remove old codes
+		assertSingleSequenceElement('\x1b[40;41;42;43;44;45;46;47m', (child) => {
+			assert.equal(1, child.classList.length);
+
+			assert(dom.hasClass(child, 'code-background-47'));
+		});
+
+		// New foreground codes don't remove old background codes and vice versa
+		assertSingleSequenceElement('\x1b[40;31;42;33m', (child) => {
+			assert.equal(2, child.classList.length);
+
+			assert(dom.hasClass(child, 'code-background-42'));
+			assert(dom.hasClass(child, 'code-foreground-33'));
 		});
 
 		// Duplicate codes do not change output
