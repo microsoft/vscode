@@ -310,7 +310,7 @@ import 'vs/workbench/contrib/watermark/browser/watermark';
 import 'vs/workbench/contrib/welcome/walkThrough/browser/walkThrough.contribution';
 // import 'vs/workbench/contrib/welcome/gettingStarted/electron-browser/gettingStarted.contribution';
 import 'vs/workbench/contrib/welcome/overlay/browser/welcomeOverlay';
-import 'vs/workbench/contrib/welcome/page/browser/welcomePage.contribution';
+// import 'vs/workbench/contrib/welcome/page/browser/welcomePage.contribution';
 
 // Outline
 import 'vs/workbench/contrib/outline/browser/outline.contribution';

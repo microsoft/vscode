@@ -19,7 +19,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEnvironmentService, IExtensionHostDebugParams, IDebugParams } from 'vs/platform/environment/common/environment';
-import { IExtensionGalleryService, IQueryOptions, IGalleryExtension, InstallOperation, StatisticType, ITranslation, IGalleryExtensionVersion, IExtensionIdentifier, IReportedExtension, IExtensionManagementService, ILocalExtension, IGalleryMetadata } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionGalleryService, IQueryOptions, IGalleryExtension, InstallOperation, StatisticType, ITranslation, IGalleryExtensionVersion, IExtensionIdentifier, IReportedExtension, IExtensionManagementService, ILocalExtension, IGalleryMetadata, IExtensionTipsService, ExtensionRecommendationReason, IExtensionRecommendation } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IPager } from 'vs/base/common/paging';
 import { IExtensionManifest, ExtensionType, ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { NullExtensionService, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -350,6 +350,45 @@ registerSingleton(IExtensionGalleryService, SimpleExtensionGalleryService, true)
 
 //#region Extension Management
 
+//#region Extension Tips
+
+export class SimpleExtensionTipsService implements IExtensionTipsService {
+	_serviceBrand: any;
+
+	onRecommendationChange = Event.None;
+
+	getAllRecommendationsWithReason(): { [id: string]: { reasonId: ExtensionRecommendationReason; reasonText: string; }; } {
+		return Object.create(null);
+	}
+
+	getFileBasedRecommendations(): IExtensionRecommendation[] {
+		return [];
+	}
+
+	getOtherRecommendations(): Promise<IExtensionRecommendation[]> {
+		return Promise.resolve([]);
+	}
+
+	getWorkspaceRecommendations(): Promise<IExtensionRecommendation[]> {
+		return Promise.resolve([]);
+	}
+
+	getKeymapRecommendations(): IExtensionRecommendation[] {
+		return [];
+	}
+
+	toggleIgnoredRecommendation(extensionId: string, shouldIgnore: boolean): void {
+	}
+
+	getAllIgnoredRecommendations(): { global: string[]; workspace: string[]; } {
+		return Object.create(null);
+	}
+}
+
+registerSingleton(IExtensionTipsService, SimpleExtensionTipsService, true);
+
+//#endregion
+
 export class SimpleExtensionManagementService implements IExtensionManagementService {
 
 	_serviceBrand: any;
@@ -428,13 +467,9 @@ export class SimpleExtensionURLHandler implements IExtensionUrlHandler {
 
 	_serviceBrand: any;
 
-	registerExtensionHandler(extensionId: ExtensionIdentifier, handler: IURLHandler): void {
-		throw new Error('Method not implemented.');
-	}
+	registerExtensionHandler(extensionId: ExtensionIdentifier, handler: IURLHandler): void { }
 
-	unregisterExtensionHandler(extensionId: ExtensionIdentifier): void {
-		throw new Error('Method not implemented.');
-	}
+	unregisterExtensionHandler(extensionId: ExtensionIdentifier): void { }
 }
 
 registerSingleton(IExtensionUrlHandler, SimpleExtensionURLHandler, true);
@@ -1556,7 +1591,7 @@ export class SimpleWindowsService implements IWindowsService {
 	}
 
 	getWindows(): Promise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]> {
-		throw new Error('not implemented');
+		return Promise.resolve([]);
 	}
 
 	getWindowCount(): Promise<number> {
