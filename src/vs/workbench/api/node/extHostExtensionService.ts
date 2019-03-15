@@ -9,7 +9,6 @@ import { originalFSPath } from 'vs/base/common/resources';
 import { Barrier } from 'vs/base/common/async';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/map';
-import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -20,7 +19,7 @@ import { ActivatedExtension, EmptyExtension, ExtensionActivatedByAPI, ExtensionA
 import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
 import { ExtHostStorage } from 'vs/workbench/api/node/extHostStorage';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
-import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionDescription, ExtensionActivationError } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
 import { connectProxyResolver } from 'vs/workbench/services/extensions/node/proxyResolver';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -208,19 +207,8 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		initData.hostExtensions.forEach((extensionId) => hostExtensions.add(ExtensionIdentifier.toKey(extensionId)));
 
 		this._activator = new ExtensionsActivator(this._registry, initData.resolvedExtensions, initData.hostExtensions, {
-			showMessage: (severity: Severity, message: string): void => {
-				this._mainThreadExtensionsProxy.$localShowMessage(severity, message);
-
-				switch (severity) {
-					case Severity.Error:
-						console.error(message);
-						break;
-					case Severity.Warning:
-						console.warn(message);
-						break;
-					default:
-						console.log(message);
-				}
+			onExtensionActivationError: (extensionId: ExtensionIdentifier, error: ExtensionActivationError): void => {
+				this._mainThreadExtensionsProxy.$onExtensionActivationError(extensionId, error);
 			},
 
 			actualActivateExtension: async (extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<ActivatedExtension> => {
@@ -383,7 +371,6 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 			this._logExtensionActivationTimes(extensionDescription, reason, 'success', activationTimes);
 			return activatedExtension;
 		}, (err) => {
-			this._mainThreadExtensionsProxy.$onExtensionActivationFailed(extensionDescription.identifier);
 			this._logExtensionActivationTimes(extensionDescription, reason, 'failure');
 			throw err;
 		});
