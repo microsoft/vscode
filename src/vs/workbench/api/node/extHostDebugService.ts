@@ -31,7 +31,7 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
-import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 
 
