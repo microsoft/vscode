@@ -79,9 +79,13 @@ namespace ProcessExecutionOptionsDTO {
 }
 
 namespace ProcessExecutionDTO {
-	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CustomExecutionDTO): value is ProcessExecutionDTO {
-		const candidate = value as ProcessExecutionDTO;
-		return candidate && !!candidate.process;
+	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CustomExecutionDTO | undefined): value is ProcessExecutionDTO {
+		if (value) {
+			const candidate = value as ProcessExecutionDTO;
+			return candidate && !!candidate.process;
+		} else {
+			return false;
+		}
 	}
 	export function from(value: vscode.ProcessExecution): ProcessExecutionDTO | undefined {
 		if (value === undefined || value === null) {
@@ -120,9 +124,13 @@ namespace ShellExecutionOptionsDTO {
 }
 
 namespace ShellExecutionDTO {
-	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CustomExecutionDTO): value is ShellExecutionDTO {
-		const candidate = value as ShellExecutionDTO;
-		return candidate && (!!candidate.commandLine || !!candidate.command);
+	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CustomExecutionDTO | undefined): value is ShellExecutionDTO {
+		if (value) {
+			const candidate = value as ShellExecutionDTO;
+			return candidate && (!!candidate.commandLine || !!candidate.command);
+		} else {
+			return false;
+		}
 	}
 	export function from(value: vscode.ShellExecution): ShellExecutionDTO | undefined {
 		if (value === undefined || value === null) {
@@ -154,9 +162,13 @@ namespace ShellExecutionDTO {
 }
 
 namespace CustomExecutionDTO {
-	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CustomExecutionDTO): value is CustomExecutionDTO {
-		let candidate = value as CustomExecutionDTO;
-		return candidate && candidate.customExecution === 'customExecution';
+	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CustomExecutionDTO | undefined): value is CustomExecutionDTO {
+		if (value) {
+			let candidate = value as CustomExecutionDTO;
+			return candidate && candidate.customExecution === 'customExecution';
+		} else {
+			return false;
+		}
 	}
 
 	export function from(value: vscode.CustomExecution): CustomExecutionDTO {
