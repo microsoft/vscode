@@ -15,7 +15,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 // tslint:disable-next-line: import-patterns no-standalone-editor
 import { SimpleConfigurationService as StandaloneEditorConfigurationService, SimpleDialogService as StandaloneEditorDialogService, StandaloneKeybindingService, SimpleResourcePropertiesService } from 'vs/editor/standalone/browser/simpleServices';
-import { IDialogService, IFileDialogService, IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEnvironmentService, IExtensionHostDebugParams, IDebugParams } from 'vs/platform/environment/common/environment';
@@ -439,53 +439,6 @@ export class SimpleExtensionURLHandler implements IExtensionUrlHandler {
 }
 
 registerSingleton(IExtensionUrlHandler, SimpleExtensionURLHandler, true);
-
-//#endregion
-
-//#region File Dialog
-
-export class SimpleFileDialogService implements IFileDialogService {
-
-	_serviceBrand: any;
-
-	defaultFilePath(schemeFilter?: string): URI {
-		throw new Error('Method not implemented.');
-	}
-
-	defaultFolderPath(schemeFilter?: string): URI {
-		throw new Error('Method not implemented.');
-	}
-
-	defaultWorkspacePath(schemeFilter?: string): URI {
-		throw new Error('Method not implemented.');
-	}
-
-	pickFileFolderAndOpen(options: IPickAndOpenOptions): Promise<any> {
-		throw new Error('Method not implemented.');
-	}
-
-	pickFileAndOpen(options: IPickAndOpenOptions): Promise<any> {
-		throw new Error('Method not implemented.');
-	}
-
-	pickFolderAndOpen(options: IPickAndOpenOptions): Promise<any> {
-		throw new Error('Method not implemented.');
-	}
-
-	pickWorkspaceAndOpen(options: IPickAndOpenOptions): Promise<any> {
-		throw new Error('Method not implemented.');
-	}
-
-	showSaveDialog(options: ISaveDialogOptions): Promise<URI> {
-		throw new Error('Method not implemented.');
-	}
-
-	showOpenDialog(options: IOpenDialogOptions): Promise<URI[]> {
-		throw new Error('Method not implemented.');
-	}
-}
-
-registerSingleton(IFileDialogService, SimpleFileDialogService, true);
 
 //#endregion
 
