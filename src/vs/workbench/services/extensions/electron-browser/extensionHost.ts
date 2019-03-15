@@ -38,9 +38,9 @@ import { IExtensionDescription } from 'vs/workbench/services/extensions/common/e
 import { withNullAsUndefined } from 'vs/base/common/types';
 
 export interface IExtensionHostStarter {
-	readonly onCrashed: Event<[number, string]>;
+	readonly onCrashed: Event<[number, string | null]>;
 	start(): Promise<IMessagePassingProtocol> | null;
-	getInspectPort(): number;
+	getInspectPort(): number | undefined;
 	dispose(): void;
 }
 

@@ -60,7 +60,7 @@ export interface IEnvironment {
 export interface IStaticWorkspaceData {
 	id: string;
 	name: string;
-	configuration?: UriComponents;
+	configuration?: UriComponents | null;
 }
 
 export interface IWorkspaceData extends IStaticWorkspaceData {
@@ -71,7 +71,7 @@ export interface IInitData {
 	commit?: string;
 	parentPid: number;
 	environment: IEnvironment;
-	workspace?: IStaticWorkspaceData;
+	workspace?: IStaticWorkspaceData | null;
 	resolvedExtensions: ExtensionIdentifier[];
 	hostExtensions: ExtensionIdentifier[];
 	extensions: IExtensionDescription[];
