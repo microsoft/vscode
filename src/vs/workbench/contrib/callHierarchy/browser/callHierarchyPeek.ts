@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./callHierarchy';
+import 'vs/css!./media/callHierarchy';
 import { PeekViewWidget } from 'vs/editor/contrib/referenceSearch/peekViewWidget';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -111,7 +111,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		// goto location
 		this._list.onDidOpen(e => {
 			const [element] = e.elements;
-			this.hide();
+			this.dispose();
 			this._editorService.openEditor({
 				resource: element.uri,
 				options: { selection: element.range }
@@ -151,7 +151,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 
 export class CallHierarchyColumnPeekWidget extends PeekViewWidget {
 
-	private readonly _emitter = new Emitter<{ column: callHList.CallColumn, element: callHList.ListElement }>();
+	private readonly _emitter = new Emitter<{ column: callHList.CallColumn, element: callHList.ListElement, focus: boolean }>();
 	private _splitView: SplitView;
 	private _dim: Dimension;
 
@@ -160,10 +160,17 @@ export class CallHierarchyColumnPeekWidget extends PeekViewWidget {
 		private readonly _provider: CallHierarchyProvider,
 		private readonly _direction: CallHierarchyDirection,
 		private readonly _root: CallHierarchyItem,
+		@IEditorService private readonly _editorService: IEditorService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super(editor, { showFrame: true, showArrow: true, isResizeable: true, isAccessible: true });
 		this.create();
+	}
+
+	dispose(): void {
+		super.dispose();
+		this._splitView.dispose();
+		this._emitter.dispose();
 	}
 
 	protected _fillBody(container: HTMLElement): void {
@@ -171,7 +178,7 @@ export class CallHierarchyColumnPeekWidget extends PeekViewWidget {
 
 		this._splitView = new SplitView(container, { orientation: Orientation.HORIZONTAL });
 		this._emitter.event(e => {
-			const { element, column } = e;
+			const { element, column, focus } = e;
 
 			// remove old
 			while (column.index + 1 < this._splitView.length) {
@@ -180,9 +187,8 @@ export class CallHierarchyColumnPeekWidget extends PeekViewWidget {
 			const getDim = () => this._dim || { height: undefined, width: undefined };
 
 			// add new
-			let newColumn: callHList.CallColumn | callHList.LocationColumn;
 			if (element instanceof callHTree.Call) {
-				newColumn = this._instantiationService.createInstance(
+				let newColumn = this._instantiationService.createInstance(
 					callHList.CallColumn,
 					column.index + 1,
 					element,
@@ -191,23 +197,35 @@ export class CallHierarchyColumnPeekWidget extends PeekViewWidget {
 					this._emitter,
 					getDim
 				);
+				this._disposables.push(newColumn);
+				this._splitView.addView(newColumn, Sizing.Distribute);
+
+				if (!focus) {
+					setTimeout(() => newColumn.focus());
+				}
+
+				let parts = this._splitView.items.map(column => column instanceof callHList.CallColumn ? column.root.item.name : undefined).filter(e => Boolean(e));
+				this.setTitle(localize('title', "Call Hierarchy for '{0}'", parts.join(' > ')));
+
 			} else {
-				newColumn = this._instantiationService.createInstance(
-					callHList.LocationColumn,
-					element,
-					getDim,
-					this.editor
-				);
+
+				if (!focus) {
+					this.dispose();
+					this._editorService.openEditor({
+						resource: element.uri,
+						options: { selection: element.range }
+					});
+				} else {
+					let newColumn = this._instantiationService.createInstance(
+						callHList.LocationColumn,
+						element,
+						getDim,
+						this.editor
+					);
+					this._disposables.push(newColumn);
+					this._splitView.addView(newColumn, Sizing.Distribute);
+				}
 			}
-
-			this._disposables.push(newColumn);
-			this._splitView.addView(newColumn, Sizing.Distribute);
-
-			setTimeout(() => newColumn.focus());
-
-			let parts = this._splitView.items.map(column => column instanceof callHList.CallColumn ? column.root.item.name : undefined).filter(e => Boolean(e));
-			this.setTitle(localize('title', "Call Hierarchy for '{0}'", parts.join(' > ')));
-
 		});
 	}
 
@@ -228,7 +246,7 @@ export class CallHierarchyColumnPeekWidget extends PeekViewWidget {
 		);
 		this._disposables.push(item);
 		this._splitView.addView(item, item.minimumSize);
-		item.focus();
+		setTimeout(() => item.focus());
 	}
 
 	protected _onWidth(width: number) {

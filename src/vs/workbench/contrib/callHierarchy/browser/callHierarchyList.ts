@@ -115,17 +115,19 @@ export class CallColumn extends Disposable implements IView {
 
 	readonly element: HTMLElement = document.createElement('div');
 	readonly minimumSize: number = 100;
-	readonly maximumSize: number = 1000;
+	readonly maximumSize: number = Number.MAX_VALUE;
 
 	private readonly _onDidChange = new Emitter<number | undefined>();
 	readonly onDidChange: Event<number | undefined> = this._onDidChange.event;
+
+	private readonly _fakeEvent = new UIEvent('fake');
 
 	constructor(
 		readonly index: number,
 		readonly root: callHierarchyTree.Call,
 		private readonly _provider: CallHierarchyProvider,
 		private readonly _direction: CallHierarchyDirection,
-		private readonly _emitter: Emitter<{ column: CallColumn, element: ListElement }>,
+		private readonly _emitter: Emitter<{ column: CallColumn, element: ListElement, focus: boolean }>,
 		private readonly _getDim: () => Dimension,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
@@ -143,20 +145,30 @@ export class CallColumn extends Disposable implements IView {
 			{}
 		));
 
-		this._list.onDidOpen(e => {
-			this._emitter.fire({ column: this, element: e.elements[0] });
-		});
+		this._register(this._list.onFocusChange(e => {
+			if (e.browserEvent !== this._fakeEvent && e.elements.length === 1) {
+				this._emitter.fire({ column: this, element: e.elements[0], focus: true });
+			}
+		}));
+		this._register(this._list.onSelectionChange(e => {
+			if (e.browserEvent !== this._fakeEvent && e.elements.length === 1) {
+				this._emitter.fire({ column: this, element: e.elements[0], focus: false });
+			}
+		}));
 
 		this._token = this._register(new CancellationTokenSource());
 
 		Promise.resolve(this._provider.resolveCallHierarchyItem(this.root.item, this._direction, this._token.token)).then(calls => {
-			if (calls) {
+			if (calls && calls.length > 0) {
 				const input: ListElement[] = [];
 				for (const [item, locations] of calls) {
 					input.push(new callHierarchyTree.Call(this._direction, item, locations));
 					input.push(...locations);
 				}
 				this._list.splice(0, this._list.length, input);
+				this._list.focusFirst(this._fakeEvent);
+				this._list.setSelection([0], this._fakeEvent);
+
 			} else {
 				// show message
 			}
@@ -172,7 +184,6 @@ export class CallColumn extends Disposable implements IView {
 
 	focus(): void {
 		this._list.domFocus();
-		this._list.focusFirst();
 	}
 }
 
@@ -180,7 +191,7 @@ export class CallColumn extends Disposable implements IView {
 export class LocationColumn extends Disposable implements IView {
 
 	readonly element: HTMLElement = document.createElement('div');
-	readonly minimumSize: number = 370;
+	readonly minimumSize: number = 100;
 	readonly maximumSize: number = Number.MAX_VALUE;
 
 	private readonly _onDidChange = new Emitter<number | undefined>();
