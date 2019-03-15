@@ -232,7 +232,6 @@ export class SimpleEnvironmentService implements IEnvironmentService {
 	execPath: string;
 	cliPath: string;
 	appRoot: string = '/nodeless/';
-	remoteEnvironment: IRemoteAgentEnvironment;
 	userHome: string;
 	userDataPath: string;
 	appNameLong: string;
