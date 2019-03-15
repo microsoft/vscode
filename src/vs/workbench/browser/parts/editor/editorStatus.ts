@@ -15,7 +15,7 @@ import { Action } from 'vs/base/common/actions';
 import { language, LANGUAGE_DEFAULT } from 'vs/base/common/platform';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { IFileEditorInput, EncodingMode, IEncodingSupport, toResource, SideBySideEditorInput, IEditor as IBaseEditor, IEditorInput } from 'vs/workbench/common/editor';
-import { IDisposable, combinedDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, combinedDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IEditorAction } from 'vs/editor/common/editorCommon';
 import { EndOfLineSequence, ITextModel } from 'vs/editor/common/model';
@@ -354,14 +354,12 @@ export class EditorStatus implements IStatusbarItem {
 		this.toRender = null;
 
 		this.toDispose.push(
-			{
-				dispose: () => {
-					if (this.delayedRender) {
-						this.delayedRender.dispose();
-						this.delayedRender = null;
-					}
+			toDisposable(() => {
+				if (this.delayedRender) {
+					this.delayedRender.dispose();
+					this.delayedRender = null;
 				}
-			},
+			}),
 			this.editorService.onDidActiveEditorChange(() => this.updateStatusBar()),
 			this.untitledEditorService.onDidChangeEncoding(r => this.onResourceEncodingChange(r)),
 			this.textFileService.models.onModelEncodingChanged(e => this.onResourceEncodingChange(e.resource)),
