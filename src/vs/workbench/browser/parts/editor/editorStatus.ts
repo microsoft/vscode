@@ -100,25 +100,14 @@ interface IEditorSelectionStatus {
 class StateChange {
 	_stateChangeBrand: void;
 
-	indentation: boolean;
-	selectionStatus: boolean;
-	mode: boolean;
-	encoding: boolean;
-	EOL: boolean;
-	tabFocusMode: boolean;
-	screenReaderMode: boolean;
-	metadata: boolean;
-
-	constructor() {
-		this.indentation = false;
-		this.selectionStatus = false;
-		this.mode = false;
-		this.encoding = false;
-		this.EOL = false;
-		this.tabFocusMode = false;
-		this.screenReaderMode = false;
-		this.metadata = false;
-	}
+	indentation: boolean = false;
+	selectionStatus: boolean = false;
+	mode: boolean = false;
+	encoding: boolean = false;
+	EOL: boolean = false;
+	tabFocusMode: boolean = false;
+	screenReaderMode: boolean = false;
+	metadata: boolean = false;
 
 	combine(other: StateChange) {
 		this.indentation = this.indentation || other.indentation;
