@@ -22,6 +22,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IProductService } from 'vs/platform/product/common/product';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IRemoteEnvironmentService } from 'vs/workbench/services/remote/common/remoteEnvironmentService';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -67,7 +68,8 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		@IConfigurationService private readonly _workspaceConfigurationService: IConfigurationService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IProductService private readonly _productService: IProductService,
-		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService
+		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
+		@IRemoteEnvironmentService private readonly _remoteEnvironmentService: IRemoteEnvironmentService
 	) {
 		this.ptyProcessReady = new Promise<void>(c => {
 			this.onProcessReady(() => {
@@ -112,8 +114,13 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		this.os = platform.OS;
 		if (launchRemotely) {
 			if (hasRemoteAuthority) {
-				this._terminalInstanceService.getRemoteUserHome().then(userHome => this.userHome = userHome ? userHome.path : undefined);
-				this._terminalInstanceService.getRemoteOperatingSystem().then(os => this.os = os);
+				this._remoteEnvironmentService.remoteEnvironment.then(env => {
+					if (!env) {
+						return;
+					}
+					this.userHome = env.userHome.path;
+					this.os = env.os;
+				});
 			}
 
 			const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(hasRemoteAuthority ? REMOTE_HOST_SCHEME : undefined);
