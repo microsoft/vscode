@@ -95,6 +95,7 @@
 		"./vs/workbench/api/node/extHostCommands.ts",
 		"./vs/workbench/api/node/extHostComments.ts",
 		"./vs/workbench/api/node/extHostConfiguration.ts",
+		// "./vs/workbench/api/node/extHostDebugService.ts",
 		"./vs/workbench/api/node/extHostDecorations.ts",
 		"./vs/workbench/api/node/extHostDiagnostics.ts",
 		"./vs/workbench/api/node/extHostDialogs.ts",

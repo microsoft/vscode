@@ -638,8 +638,8 @@ export interface MainThreadDebugServiceShape extends IDisposable {
 	$registerDebugTypes(debugTypes: string[]): void;
 	$sessionCached(sessionID: string): void;
 	$acceptDAMessage(handle: number, message: DebugProtocol.ProtocolMessage): void;
-	$acceptDAError(handle: number, name: string, message: string, stack: string): void;
-	$acceptDAExit(handle: number, code: number, signal: string): void;
+	$acceptDAError(handle: number, name: string, message: string, stack: string | undefined): void;
+	$acceptDAExit(handle: number, code: number | undefined, signal: string | undefined): void;
 	$registerDebugConfigurationProvider(type: string, hasProvideMethod: boolean, hasResolveMethod: boolean, hasProvideDaMethod: boolean, handle: number): Promise<void>;
 	$registerDebugAdapterDescriptorFactory(type: string, handle: number): Promise<void>;
 	$registerDebugAdapterTrackerFactory(type: string, handle: number);
