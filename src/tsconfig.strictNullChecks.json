@@ -265,7 +265,6 @@
 		"./vs/workbench/contrib/search/test/common/queryBuilder.test.ts",
 		"./vs/workbench/contrib/search/test/common/searchModel.test.ts",
 		"./vs/workbench/contrib/search/test/common/searchResult.test.ts",
-		"./vs/workbench/contrib/stats/node/stats.contribution.ts",
 		"./vs/workbench/contrib/stats/node/workspaceStats.ts",
 		"./vs/workbench/contrib/stats/test/workspaceStats.test.ts",
 		"./vs/workbench/contrib/surveys/electron-browser/languageSurveys.contribution.ts",
