@@ -596,10 +596,14 @@ export class DebugService implements IDebugService {
 								substitutionThenable = this.configurationManager.resolveConfigurationByProviders(launch.workspace ? launch.workspace.uri : undefined, unresolved.type, unresolved)
 									.then(resolved => {
 										if (resolved) {
+											// start debugging
 											return this.substituteVariables(launch, resolved);
+										} else if (resolved === null) {
+											// abort debugging silently and open launch.json
+											return Promise.resolve(null);
 										} else {
-											// resolve is null or undefined here
-											return Promise.resolve(resolved);
+											// abort debugging silently
+											return Promise.resolve(undefined);
 										}
 									});
 							}
