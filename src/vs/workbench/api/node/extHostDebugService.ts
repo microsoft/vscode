@@ -30,10 +30,9 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
-import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
 import { IProcessEnvironment } from 'vs/base/common/platform';
-
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 export class ExtHostDebugService implements ExtHostDebugServiceShape {
 

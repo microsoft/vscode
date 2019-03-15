@@ -20,6 +20,8 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { Schemas } from 'vs/base/common/network';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IRemoteEnvironmentService } from 'vs/workbench/services/remote/common/remoteEnvironmentService';
 
 interface FileQuickPickItem extends IQuickPickItem {
 	uri: URI;
@@ -56,13 +58,16 @@ export class RemoteFileDialog {
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IModelService private readonly modelService: IModelService,
 		@IModeService private readonly modeService: IModeService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IRemoteEnvironmentService private readonly remoteEnvironmentService: IRemoteEnvironmentService,
+
 	) {
 		this.remoteAuthority = this.windowService.getConfiguration().remoteAuthority;
 	}
 
 	public async showOpenDialog(options: IOpenDialogOptions = {}): Promise<IURIToOpen[] | undefined> {
 		this.scheme = this.getScheme(options.defaultUri, options.availableFileSystems);
-		const newOptions = this.getOptions(options);
+		const newOptions = await this.getOptions(options);
 		if (!newOptions) {
 			return Promise.resolve(undefined);
 		}
@@ -84,10 +89,10 @@ export class RemoteFileDialog {
 		});
 	}
 
-	public showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
+	public async showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
 		this.scheme = this.getScheme(options.defaultUri, options.availableFileSystems);
 		this.requiresTrailing = true;
-		const newOptions = this.getOptions(options);
+		const newOptions = await this.getOptions(options);
 		if (!newOptions) {
 			return Promise.resolve(undefined);
 		}
@@ -103,8 +108,16 @@ export class RemoteFileDialog {
 		});
 	}
 
-	private getOptions(options: ISaveDialogOptions | IOpenDialogOptions): IOpenDialogOptions | undefined {
-		const defaultUri = options.defaultUri ? options.defaultUri : URI.from({ scheme: this.scheme, authority: this.remoteAuthority, path: '/' });
+	private async getOptions(options: ISaveDialogOptions | IOpenDialogOptions): Promise<IOpenDialogOptions | undefined> {
+		let defaultUri = options.defaultUri;
+		if (!defaultUri) {
+			const env = await this.remoteEnvironmentService.remoteEnvironment;
+			if (env) {
+				defaultUri = env.userHome;
+			} else {
+				defaultUri = URI.from({ scheme: this.scheme, path: this.environmentService.userHome });
+			}
+		}
 		if ((this.scheme !== Schemas.file) && !this.fileService.canHandleResource(defaultUri)) {
 			this.notificationService.info(nls.localize('remoteFileDialog.notConnectedToRemote', 'File system provider for {0} is not available.', defaultUri.toString()));
 			return undefined;
