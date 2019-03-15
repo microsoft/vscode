@@ -244,29 +244,38 @@ const nlsTabFocusMode = nls.localize('tabFocusModeEnabled', "Tab Moves Focus");
 const nlsScreenReaderDetected = nls.localize('screenReaderDetected', "Screen Reader Optimized");
 const nlsScreenReaderDetectedTitle = nls.localize('screenReaderDetectedExtra', "If you are not using a Screen Reader, please change the setting `editor.accessibilitySupport` to \"off\".");
 
-function setDisplay(el: HTMLElement, desiredValue: string): void {
-	if (el.style.display !== desiredValue) {
-		el.style.display = desiredValue;
+
+class HideableElement {
+	private _showing = true;
+
+	constructor(
+		public readonly element: HTMLElement
+	) { }
+
+	public show(): void { this.toggle(true); }
+
+	public hide(): void { this.toggle(false); }
+
+	public toggle(shouldShow: boolean): void {
+		if (shouldShow !== this._showing) {
+			this._showing = shouldShow;
+			this.element.style.display = shouldShow ? '' : 'none';
+		}
 	}
 }
-function show(el: HTMLElement): void {
-	setDisplay(el, '');
-}
-function hide(el: HTMLElement): void {
-	setDisplay(el, 'none');
-}
+
 
 export class EditorStatus implements IStatusbarItem {
 	private state: State;
 	private element: HTMLElement;
-	private tabFocusModeElement: HTMLElement;
-	private screenRedearModeElement: HTMLElement;
-	private indentationElement: HTMLElement;
-	private selectionElement: HTMLElement;
-	private encodingElement: HTMLElement;
-	private eolElement: HTMLElement;
-	private modeElement: HTMLElement;
-	private metadataElement: HTMLElement;
+	private tabFocusModeElement: HideableElement;
+	private screenRedearModeElement: HideableElement;
+	private indentationElement: HideableElement;
+	private selectionElement: HideableElement;
+	private encodingElement: HideableElement;
+	private eolElement: HideableElement;
+	private modeElement: HideableElement;
+	private metadataElement: HideableElement;
 	private toDispose: IDisposable[];
 	private activeEditorListeners: IDisposable[];
 	private delayedRender: IDisposable | null;
@@ -292,46 +301,46 @@ export class EditorStatus implements IStatusbarItem {
 	render(container: HTMLElement): IDisposable {
 		this.element = append(container, $('.editor-statusbar-item'));
 
-		this.tabFocusModeElement = append(this.element, $('a.editor-status-tabfocusmode.status-bar-info'));
-		this.tabFocusModeElement.title = nls.localize('disableTabMode', "Disable Accessibility Mode");
-		this.tabFocusModeElement.onclick = () => this.onTabFocusModeClick();
-		this.tabFocusModeElement.textContent = nlsTabFocusMode;
-		hide(this.tabFocusModeElement);
+		this.tabFocusModeElement = new HideableElement(append(this.element, $('a.editor-status-tabfocusmode.status-bar-info')));
+		this.tabFocusModeElement.element.title = nls.localize('disableTabMode', "Disable Accessibility Mode");
+		this.tabFocusModeElement.element.onclick = () => this.onTabFocusModeClick();
+		this.tabFocusModeElement.element.textContent = nlsTabFocusMode;
+		this.tabFocusModeElement.hide();
 
-		this.screenRedearModeElement = append(this.element, $('a.editor-status-screenreadermode.status-bar-info'));
-		this.screenRedearModeElement.textContent = nlsScreenReaderDetected;
-		this.screenRedearModeElement.title = nlsScreenReaderDetectedTitle;
-		this.screenRedearModeElement.onclick = () => this.onScreenReaderModeClick();
-		hide(this.screenRedearModeElement);
+		this.screenRedearModeElement = new HideableElement(append(this.element, $('a.editor-status-screenreadermode.status-bar-info')));
+		this.screenRedearModeElement.element.textContent = nlsScreenReaderDetected;
+		this.screenRedearModeElement.element.title = nlsScreenReaderDetectedTitle;
+		this.screenRedearModeElement.element.onclick = () => this.onScreenReaderModeClick();
+		this.screenRedearModeElement.hide();
 
-		this.selectionElement = append(this.element, $('a.editor-status-selection'));
-		this.selectionElement.title = nls.localize('gotoLine', "Go to Line");
-		this.selectionElement.onclick = () => this.onSelectionClick();
-		hide(this.selectionElement);
+		this.selectionElement = new HideableElement(append(this.element, $('a.editor-status-selection')));
+		this.selectionElement.element.title = nls.localize('gotoLine', "Go to Line");
+		this.selectionElement.element.onclick = () => this.onSelectionClick();
+		this.selectionElement.hide();
 
-		this.indentationElement = append(this.element, $('a.editor-status-indentation'));
-		this.indentationElement.title = nls.localize('selectIndentation', "Select Indentation");
-		this.indentationElement.onclick = () => this.onIndentationClick();
-		hide(this.indentationElement);
+		this.indentationElement = new HideableElement(append(this.element, $('a.editor-status-indentation')));
+		this.indentationElement.element.title = nls.localize('selectIndentation', "Select Indentation");
+		this.indentationElement.element.onclick = () => this.onIndentationClick();
+		this.indentationElement.hide();
 
-		this.encodingElement = append(this.element, $('a.editor-status-encoding'));
-		this.encodingElement.title = nls.localize('selectEncoding', "Select Encoding");
-		this.encodingElement.onclick = () => this.onEncodingClick();
-		hide(this.encodingElement);
+		this.encodingElement = new HideableElement(append(this.element, $('a.editor-status-encoding')));
+		this.encodingElement.element.title = nls.localize('selectEncoding', "Select Encoding");
+		this.encodingElement.element.onclick = () => this.onEncodingClick();
+		this.encodingElement.hide();
 
-		this.eolElement = append(this.element, $('a.editor-status-eol'));
-		this.eolElement.title = nls.localize('selectEOL', "Select End of Line Sequence");
-		this.eolElement.onclick = () => this.onEOLClick();
-		hide(this.eolElement);
+		this.eolElement = new HideableElement(append(this.element, $('a.editor-status-eol')));
+		this.eolElement.element.title = nls.localize('selectEOL', "Select End of Line Sequence");
+		this.eolElement.element.onclick = () => this.onEOLClick();
+		this.eolElement.hide();
 
-		this.modeElement = append(this.element, $('a.editor-status-mode'));
-		this.modeElement.title = nls.localize('selectLanguageMode', "Select Language Mode");
-		this.modeElement.onclick = () => this.onModeClick();
-		hide(this.modeElement);
+		this.modeElement = new HideableElement(append(this.element, $('a.editor-status-mode')));
+		this.modeElement.element.title = nls.localize('selectLanguageMode', "Select Language Mode");
+		this.modeElement.element.onclick = () => this.onModeClick();
+		this.modeElement.hide();
 
-		this.metadataElement = append(this.element, $('span.editor-status-metadata'));
-		this.metadataElement.title = nls.localize('fileInfo', "File Information");
-		hide(this.metadataElement);
+		this.metadataElement = new HideableElement(append(this.element, $('span.editor-status-metadata')));
+		this.metadataElement.element.title = nls.localize('fileInfo', "File Information");
+		this.metadataElement.hide();
 
 		this.delayedRender = null;
 		this.toRender = null;
@@ -378,72 +387,64 @@ export class EditorStatus implements IStatusbarItem {
 
 	private _renderNow(changed: StateChange): void {
 		if (changed.tabFocusMode) {
-			if (this.state.tabFocusMode && this.state.tabFocusMode === true) {
-				show(this.tabFocusModeElement);
-			} else {
-				hide(this.tabFocusModeElement);
-			}
+			this.tabFocusModeElement.toggle(!!this.state.tabFocusMode);
 		}
 
 		if (changed.screenReaderMode) {
-			if (this.state.screenReaderMode && this.state.screenReaderMode === true) {
-				show(this.screenRedearModeElement);
-			} else {
-				hide(this.screenRedearModeElement);
-			}
+			this.screenRedearModeElement.toggle(!!this.state.screenReaderMode);
 		}
 
 		if (changed.indentation) {
 			if (this.state.indentation) {
-				this.indentationElement.textContent = this.state.indentation;
-				show(this.indentationElement);
+				this.indentationElement.element.textContent = this.state.indentation;
+				this.indentationElement.show();
 			} else {
-				hide(this.indentationElement);
+				this.indentationElement.hide();
 			}
 		}
 
 		if (changed.selectionStatus) {
 			if (this.state.selectionStatus && !this.state.screenReaderMode) {
-				this.selectionElement.textContent = this.state.selectionStatus;
-				show(this.selectionElement);
+				this.selectionElement.element.textContent = this.state.selectionStatus;
+				this.selectionElement.show();
 			} else {
-				hide(this.selectionElement);
+				this.selectionElement.hide();
 			}
 		}
 
 		if (changed.encoding) {
 			if (this.state.encoding) {
-				this.encodingElement.textContent = this.state.encoding;
-				show(this.encodingElement);
+				this.encodingElement.element.textContent = this.state.encoding;
+				this.encodingElement.show();
 			} else {
-				hide(this.encodingElement);
+				this.encodingElement.hide();
 			}
 		}
 
 		if (changed.EOL) {
 			if (this.state.EOL) {
-				this.eolElement.textContent = this.state.EOL === '\r\n' ? nlsEOLCRLF : nlsEOLLF;
-				show(this.eolElement);
+				this.eolElement.element.textContent = this.state.EOL === '\r\n' ? nlsEOLCRLF : nlsEOLLF;
+				this.eolElement.show();
 			} else {
-				hide(this.eolElement);
+				this.eolElement.hide();
 			}
 		}
 
 		if (changed.mode) {
 			if (this.state.mode) {
-				this.modeElement.textContent = this.state.mode;
-				show(this.modeElement);
+				this.modeElement.element.textContent = this.state.mode;
+				this.modeElement.show();
 			} else {
-				hide(this.modeElement);
+				this.modeElement.hide();
 			}
 		}
 
 		if (changed.metadata) {
 			if (this.state.metadata) {
-				this.metadataElement.textContent = this.state.metadata;
-				show(this.metadataElement);
+				this.metadataElement.element.textContent = this.state.metadata;
+				this.metadataElement.show();
 			} else {
-				hide(this.metadataElement);
+				this.metadataElement.hide();
 			}
 		}
 	}
