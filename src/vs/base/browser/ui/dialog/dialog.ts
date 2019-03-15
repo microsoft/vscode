@@ -11,6 +11,8 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Color } from 'vs/base/common/color';
 import { ButtonGroup } from 'vs/base/browser/ui/button/button';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { Action } from 'vs/base/common/actions';
 
 export interface IDialogOptions {
 	cancelId?: number;
@@ -27,6 +29,7 @@ export class Dialog extends Disposable {
 	private element: HTMLElement | undefined;
 	private buttonsContainer: HTMLElement | undefined;
 	private iconElement: HTMLElement | undefined;
+	private toolbarContainer: HTMLElement | undefined;
 
 	constructor(private container: HTMLElement, private message: string, private buttons: string[], private options: IDialogOptions) {
 		super();
@@ -45,6 +48,9 @@ export class Dialog extends Disposable {
 			const messageDetailElement = messageContainer.appendChild($('.dialog-message-detail'));
 			messageDetailElement.innerText = this.options.detail;
 		}
+
+		const toolbarRowElement = this.element.appendChild($('.dialog-toolbar-row'));
+		this.toolbarContainer = toolbarRowElement.appendChild($('.dialog-toolbar'));
 	}
 
 	async show(): Promise<number> {
@@ -89,6 +95,15 @@ export class Dialog extends Disposable {
 					addClass(this.iconElement, 'icon-info');
 					break;
 			}
+
+			const actionBar = new ActionBar(this.toolbarContainer, {});
+
+			const action = new Action('dialog.close', 'Close Dialog', 'dialog-close-action', true, () => {
+				resolve(this.options.cancelId || 0);
+				return Promise.resolve();
+			});
+
+			actionBar.push(action, { icon: true, label: false, });
 
 			show(this.element);
 

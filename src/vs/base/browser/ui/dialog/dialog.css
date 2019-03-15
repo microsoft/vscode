@@ -14,20 +14,45 @@
 	margin-left: -250px;
 	width: 500px;
 	min-height: 75px;
-	padding: 10px 5px;
+	padding: 5px;
+}
+
+/** Dialog: Title Actions Row */
+.monaco-workbench .dialog-box .dialog-toolbar-row {
+	padding-right: 1px;
+}
+
+.monaco-workbench .dialog-box .action-label {
+	height: 16px;
+	min-width: 16px;
+	background-size: 16px;
+	background-position: 50%;
+	background-repeat: no-repeat;
+	margin: 0px;
+	margin-left: 4px;
+}
+
+
+.monaco-workbench .dialog-box .dialog-close-action {
+	background: url('close.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-workbench .dialog-box .dialog-close-action,
+.hc-black .monaco-workbench .dialog-box .dialog-close-action {
+	background: url('close-inverse.svg') center center no-repeat;
 }
 
 /** Dialog: Message Row */
 .monaco-workbench .dialog-box .dialog-message-row {
 	display: flex;
 	flex-grow: 1;
-	padding: 20px 20px;
+	padding: 10px 15px 20px;
 }
 
 .monaco-workbench .dialog-box .dialog-message-row .dialog-icon {
 	flex: 0 0 30px;
-	margin-right: 4px;
-	margin-left: 4px;
+	padding-right: 4px;
+	padding-left: 4px;
 	background-position: center;
 	background-repeat: no-repeat;
 }
@@ -65,7 +90,7 @@
 	flex-direction: column;
 	overflow: hidden;
 	text-overflow: ellipsis;
-	margin-left: 12px;
+	padding-left: 20px;
 	user-select: text;
 	word-wrap: break-word; /* never overflow long words, but break to next line */
 	white-space: normal;
@@ -98,7 +123,7 @@
 	display: flex;
 	align-items: center;
 	justify-content: flex-end;
-	padding: 0px 20px;
+	padding-right: 1px;
 	overflow: hidden; /* buttons row should never overflow */
 }
 
