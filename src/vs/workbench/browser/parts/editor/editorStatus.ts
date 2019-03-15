@@ -182,56 +182,56 @@ class State {
 		const e = new StateChange();
 		let somethingChanged = false;
 
-		if (typeof update.selectionStatus !== 'undefined') {
+		if ('selectionStatus' in update) {
 			if (this._selectionStatus !== update.selectionStatus) {
 				this._selectionStatus = update.selectionStatus;
 				somethingChanged = true;
 				e.selectionStatus = true;
 			}
 		}
-		if (typeof update.indentation !== 'undefined') {
+		if ('indentation' in update) {
 			if (this._indentation !== update.indentation) {
 				this._indentation = update.indentation;
 				somethingChanged = true;
 				e.indentation = true;
 			}
 		}
-		if (typeof update.mode !== 'undefined') {
+		if ('mode' in update) {
 			if (this._mode !== update.mode) {
 				this._mode = update.mode;
 				somethingChanged = true;
 				e.mode = true;
 			}
 		}
-		if (typeof update.encoding !== 'undefined') {
+		if ('encoding' in update) {
 			if (this._encoding !== update.encoding) {
 				this._encoding = update.encoding;
 				somethingChanged = true;
 				e.encoding = true;
 			}
 		}
-		if (typeof update.EOL !== 'undefined') {
+		if ('EOL' in update) {
 			if (this._EOL !== update.EOL) {
 				this._EOL = update.EOL;
 				somethingChanged = true;
 				e.EOL = true;
 			}
 		}
-		if (typeof update.tabFocusMode !== 'undefined') {
+		if ('tabFocusMode' in update) {
 			if (this._tabFocusMode !== update.tabFocusMode) {
 				this._tabFocusMode = update.tabFocusMode;
 				somethingChanged = true;
 				e.tabFocusMode = true;
 			}
 		}
-		if (typeof update.screenReaderMode !== 'undefined') {
+		if ('screenReaderMode' in update) {
 			if (this._screenReaderMode !== update.screenReaderMode) {
 				this._screenReaderMode = update.screenReaderMode;
 				somethingChanged = true;
 				e.screenReaderMode = true;
 			}
 		}
-		if (typeof update.metadata !== 'undefined') {
+		if ('metadata' in update) {
 			if (this._metadata !== update.metadata) {
 				this._metadata = update.metadata;
 				somethingChanged = true;
