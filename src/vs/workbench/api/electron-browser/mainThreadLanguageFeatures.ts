@@ -480,7 +480,12 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 				return this._proxy.$provideCallHierarchyItem(handle, document.uri, position, token);
 			},
 			resolveCallHierarchyItem: (item, direction, token) => {
-				return this._proxy.$resolveCallHierarchyItem(handle, item, direction, token);
+				return this._proxy.$resolveCallHierarchyItem(handle, item, direction, token).then(data => {
+					if (data) {
+						data.forEach(tuple => tuple[1] = tuple[1].map(l => MainThreadLanguageFeatures._reviveLocationDto(l)));
+					}
+					return data;
+				});
 			}
 		});
 	}

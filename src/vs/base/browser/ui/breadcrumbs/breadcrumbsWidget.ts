@@ -17,6 +17,7 @@ export abstract class BreadcrumbsItem {
 	dispose(): void { }
 	abstract equals(other: BreadcrumbsItem): boolean;
 	abstract render(container: HTMLElement): void;
+	layout(height: number | undefined): void { }
 }
 
 export class SimpleBreadcrumbsItem extends BreadcrumbsItem {
@@ -140,6 +141,8 @@ export class BreadcrumbsWidget {
 			this._domNode.style.width = `${dim.width}px`;
 			this._domNode.style.height = `${dim.height}px`;
 			disposables.push(this._updateScrollbar());
+
+			this._items.forEach(item => item.layout(this._dimension.height));
 		}));
 		return combinedDisposable(disposables);
 	}
@@ -327,6 +330,7 @@ export class BreadcrumbsWidget {
 		dom.clearNode(container);
 		container.className = '';
 		item.render(container);
+		item.layout(this._dimension && this._dimension.height);
 		container.tabIndex = -1;
 		container.setAttribute('role', 'listitem');
 		dom.addClass(container, 'monaco-breadcrumb-item');

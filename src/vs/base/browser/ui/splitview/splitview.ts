@@ -117,6 +117,10 @@ export class SplitView extends Disposable {
 	private _onDidSashReset = this._register(new Emitter<number>());
 	readonly onDidSashReset = this._onDidSashReset.event;
 
+	get items(): ReadonlyArray<IView> {
+		return this.viewItems.map(item => item.view);
+	}
+
 	get length(): number {
 		return this.viewItems.length;
 	}

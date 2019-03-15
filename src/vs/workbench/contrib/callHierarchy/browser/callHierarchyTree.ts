@@ -5,19 +5,18 @@
 
 import { IAsyncDataSource, ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { CallHierarchyItem, CallHierarchyDirection, CallHierarchyProvider } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
-import { IRange } from 'vs/editor/common/core/range';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { symbolKindToCssClass } from 'vs/editor/common/modes';
+import { symbolKindToCssClass, Location } from 'vs/editor/common/modes';
 import { localize } from 'vs/nls';
 
 export class Call {
 	constructor(
 		readonly direction: CallHierarchyDirection,
 		readonly item: CallHierarchyItem,
-		readonly ranges: IRange[] | undefined
+		readonly locations: Location[] | undefined
 	) { }
 }
 
@@ -36,7 +35,7 @@ export class SingleDirectionDataSource implements IAsyncDataSource<CallHierarchy
 		if (element instanceof Call) {
 			const calls = await this.provider.resolveCallHierarchyItem(element.item, this.direction, CancellationToken.None);
 			return calls
-				? calls.map(([item, locations]) => new Call(this.direction, item, locations.map(l => l.range)))
+				? calls.map(([item, locations]) => new Call(this.direction, item, locations))
 				: [];
 		} else {
 			return [new Call(this.direction, element, undefined)];
@@ -67,13 +66,13 @@ export class CallRenderer implements ITreeRenderer<Call, FuzzyScore, CallRenderi
 	renderElement(node: ITreeNode<Call, FuzzyScore>, _index: number, template: CallRenderingTemplate): void {
 		const { element, filterData } = node;
 		let detail: string | undefined;
-		if (!element.ranges) {
+		if (!element.locations) {
 			// root
 			detail = element.item.detail;
 		} else {
-			detail = element.ranges.length === 1
+			detail = element.locations.length === 1
 				? localize('label.1', "(1 usage)")
-				: localize('label.n', "({0} usages)", element.ranges.length);
+				: localize('label.n', "({0} usages)", element.locations.length);
 		}
 		template.iconLabel.setLabel(
 			element.item.name,

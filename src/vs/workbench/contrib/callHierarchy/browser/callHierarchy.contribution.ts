@@ -9,9 +9,11 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { CallHierarchyProviderRegistry, CallHierarchyDirection } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CallHierarchyPeekWidget } from 'vs/workbench/contrib/callHierarchy/browser/callHierarchyPeek';
+import { CallHierarchyTreePeekWidget, CallHierarchyColumnPeekWidget } from 'vs/workbench/contrib/callHierarchy/browser/callHierarchyPeek';
 import { Range } from 'vs/editor/common/core/range';
 import { Event } from 'vs/base/common/event';
+
+const tree = false;
 
 registerAction({
 	id: 'editor.showCallHierarchy',
@@ -20,7 +22,7 @@ registerAction({
 		original: 'Show Call Hierarchy'
 	},
 	menu: {
-		menuId: MenuId.EditorContext
+		menuId: MenuId.CommandPalette
 	},
 	handler: async function (accessor) {
 
@@ -45,22 +47,29 @@ registerAction({
 			return;
 		}
 
-		const widget = instaService.createInstance(CallHierarchyPeekWidget, editor, provider, CallHierarchyDirection.CallsTo, rootItem);
+		if (tree) {
+			const widget = instaService.createInstance(CallHierarchyTreePeekWidget, editor, provider, CallHierarchyDirection.CallsTo, rootItem);
+			const listener = Event.any<any>(editor.onDidChangeModel, editor.onDidChangeModelLanguage)(_ => widget.dispose());
+			widget.show(Range.fromPositions(editor.getPosition()));
+			widget.onDidClose(() => {
+				console.log('DONE');
+				listener.dispose();
+			});
+			widget.tree.onDidOpen(e => {
+				const [element] = e.elements;
+				if (element) {
+					console.log(element);
+				}
+			});
 
-		const listener = Event.any<any>(editor.onDidChangeModel, editor.onDidChangeModelLanguage)(_ => widget.dispose());
-
-		widget.show(Range.fromPositions(editor.getPosition()));
-
-		widget.onDidClose(() => {
-			console.log('DONE');
-			listener.dispose();
-		});
-
-		widget.tree.onDidOpen(e => {
-			const [element] = e.elements;
-			if (element) {
-				console.log(element);
-			}
-		});
+		} else {
+			const widget = instaService.createInstance(CallHierarchyColumnPeekWidget, editor, provider, CallHierarchyDirection.CallsTo, rootItem);
+			const listener = Event.any<any>(editor.onDidChangeModel, editor.onDidChangeModelLanguage)(_ => widget.dispose());
+			widget.show(Range.fromPositions(editor.getPosition()));
+			widget.onDidClose(() => {
+				console.log('DONE');
+				listener.dispose();
+			});
+		}
 	}
 });
