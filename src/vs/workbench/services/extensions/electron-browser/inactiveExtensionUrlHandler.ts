@@ -22,6 +22,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 const FIVE_MINUTES = 5 * 60 * 1000;
 const THIRTY_SECONDS = 30 * 1000;
 const URL_TO_HANDLE = 'extensionUrlHandler.urlToHandle';
+const CONFIRMED_EXTENSIONS_STORAGE_KEY = 'extensionUrlHandler.confirmedExtensions';
 
 function isExtensionId(value: string): boolean {
 	return /^[a-z0-9][a-z0-9\-]*\.[a-z0-9][a-z0-9\-]*$/i.test(value);
@@ -90,6 +91,9 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 			return true;
 		}
 
+		const confirmedExtensionIds = this.getConfirmedExtensionIds();
+		confirmed = confirmed || confirmedExtensionIds.indexOf(ExtensionIdentifier.toKey(extensionId)) >= 0;
+
 		if (!confirmed) {
 			let uriString = uri.toString();
 
@@ -99,6 +103,9 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 
 			const result = await this.dialogService.confirm({
 				message: localize('confirmUrl', "Allow an extension to open this URL?", extensionId),
+				checkbox: {
+					label: localize('rememberConfirmUrl', "Don't ask again for this extension."),
+				},
 				detail: `${extension.displayName || extension.name} (${extensionId}) wants to open a URL:\n\n${uriString}`,
 				primaryButton: localize('open', "&&Open"),
 				type: 'question'
@@ -106,6 +113,14 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 
 			if (!result.confirmed) {
 				return true;
+			}
+
+			if (result.checkboxChecked) {
+				this.storageService.store(
+					CONFIRMED_EXTENSIONS_STORAGE_KEY,
+					JSON.stringify([...confirmedExtensionIds, ExtensionIdentifier.toKey(extensionId)]),
+					StorageScope.GLOBAL,
+				);
 			}
 		}
 
@@ -151,6 +166,15 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 
 	unregisterExtensionHandler(extensionId: ExtensionIdentifier): void {
 		this.extensionHandlers.delete(ExtensionIdentifier.toKey(extensionId));
+	}
+
+	private getConfirmedExtensionIds(): Array<string> {
+		const ignoredExtensions = this.storageService.get(CONFIRMED_EXTENSIONS_STORAGE_KEY, StorageScope.GLOBAL, '[]');
+		try {
+			return JSON.parse(ignoredExtensions);
+		} catch (err) {
+			return [];
+		}
 	}
 
 	private async handleUnhandledURL(uri: URI, extensionIdentifier: IExtensionIdentifier): Promise<void> {
