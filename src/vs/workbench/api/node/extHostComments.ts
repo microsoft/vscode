@@ -382,8 +382,6 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 		this._proxy.$updateCommentThreadLabel(this._commentController.handle, this.handle, this._label);
 	}
 
-	private _comments: vscode.Comment[] = [];
-
 	get comments(): vscode.Comment[] {
 		return this._comments;
 	}
@@ -434,7 +432,8 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 		private _commentController: ExtHostCommentController,
 		private _threadId: string,
 		private _resource: vscode.Uri,
-		private _range: vscode.Range
+		private _range: vscode.Range,
+		private _comments: vscode.Comment[]
 	) {
 		this._proxy.$createCommentThread(
 			this._commentController.handle,
@@ -516,7 +515,7 @@ class ExtHostCommentController implements vscode.CommentController {
 
 	private _threads: Map<number, ExtHostCommentThread> = new Map<number, ExtHostCommentThread>();
 	commentingRangeProvider?: vscode.CommentingRangeProvider;
-	emptyCommentThreadFactory: vscode.EmptyCommentThreadFactory;
+	emptyCommentThreadFactory?: vscode.EmptyCommentThreadFactory;
 
 
 	private _commentReactionProvider?: vscode.CommentReactionProvider;
@@ -543,8 +542,8 @@ class ExtHostCommentController implements vscode.CommentController {
 		this._proxy.$registerCommentController(this.handle, _id, _label);
 	}
 
-	createCommentThread(id: string, resource: vscode.Uri, range: vscode.Range): vscode.CommentThread {
-		const commentThread = new ExtHostCommentThread(this._proxy, this._commandsConverter, this, id, resource, range);
+	createCommentThread(id: string, resource: vscode.Uri, range: vscode.Range, comments: vscode.Comment[]): vscode.CommentThread {
+		const commentThread = new ExtHostCommentThread(this._proxy, this._commandsConverter, this, id, resource, range, comments);
 		this._threads.set(commentThread.handle, commentThread);
 		return commentThread;
 	}
