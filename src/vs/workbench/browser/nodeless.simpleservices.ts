@@ -24,7 +24,6 @@ import { IPager } from 'vs/base/common/paging';
 import { IExtensionManifest, ExtensionType, ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { NullExtensionService, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IURLHandler, IURLService } from 'vs/platform/url/common/url';
-import { IJSONEditingService, IJSONValue } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITelemetryService, ITelemetryData, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
@@ -439,21 +438,6 @@ export class SimpleExtensionURLHandler implements IExtensionUrlHandler {
 }
 
 registerSingleton(IExtensionUrlHandler, SimpleExtensionURLHandler, true);
-
-//#endregion
-
-//#region JSON Editing
-
-export class SimpleJSONEditingService implements IJSONEditingService {
-
-	_serviceBrand: any;
-
-	write(resource: URI, value: IJSONValue, save: boolean): Promise<void> {
-		return Promise.resolve();
-	}
-}
-
-registerSingleton(IJSONEditingService, SimpleJSONEditingService, true);
 
 //#endregion
 
