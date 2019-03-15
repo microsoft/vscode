@@ -3,33 +3,58 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerAction, MenuId } from 'vs/platform/actions/common/actions';
 import { localize } from 'vs/nls';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CallHierarchyProviderRegistry, CallHierarchyDirection } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { CallHierarchyTreePeekWidget, CallHierarchyColumnPeekWidget } from 'vs/workbench/contrib/callHierarchy/browser/callHierarchyPeek';
 import { Range } from 'vs/editor/common/core/range';
 import { Event } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { registerEditorContribution, registerEditorAction, EditorAction } from 'vs/editor/browser/editorExtensions';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { Disposable } from 'vs/base/common/lifecycle';
 
-registerAction({
-	id: 'editor.showCallHierarchy',
-	title: {
-		value: localize('title', "Show Call Hierarchy"),
-		original: 'Show Call Hierarchy'
-	},
-	menu: {
-		menuId: MenuId.CommandPalette
-	},
-	handler: async function (accessor) {
+
+const _hasCompletionItemProvider = new RawContextKey<boolean>('editorHasCallHierarchyProvider', false);
+
+registerEditorContribution(class extends Disposable implements IEditorContribution {
+	constructor(
+		editor: ICodeEditor
+	) {
+		super();
+		const context = editor.invokeWithinContext(accssor => _hasCompletionItemProvider.bindTo(accssor.get(IContextKeyService)));
+		this._register(Event.any<any>(editor.onDidChangeModel, editor.onDidChangeModelLanguage, CallHierarchyProviderRegistry.onDidChange)(() => {
+			context.set(editor.hasModel() && CallHierarchyProviderRegistry.has(editor.getModel()));
+		}));
+	}
+	getId(): string {
+		return 'callhierarch.contextkey';
+	}
+});
+
+registerEditorAction(class extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.showCallHierarchy',
+			label: localize('title', "Call Hierarchy"),
+			alias: 'Call Hierarchy',
+			menuOpts: {
+				group: 'navigation',
+				order: 111
+			},
+			precondition: _hasCompletionItemProvider
+		});
+	}
+
+	async run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): Promise<void> {
 
 		const instaService = accessor.get(IInstantiationService);
-		const editorService = accessor.get(ICodeEditorService);
 		const configService = accessor.get(IConfigurationService);
 
-		const editor = editorService.getActiveCodeEditor();
 		if (!editor || !editor.hasModel()) {
 			console.log('bad editor');
 			return;
@@ -58,7 +83,6 @@ registerAction({
 		const listener = Event.any<any>(editor.onDidChangeModel, editor.onDidChangeModelLanguage)(_ => widget.dispose());
 		widget.show(Range.fromPositions(editor.getPosition()));
 		widget.onDidClose(() => {
-			console.log('DONE');
 			listener.dispose();
 		});
 	}
