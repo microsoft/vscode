@@ -13,7 +13,7 @@ import { CallHierarchyTreePeekWidget, CallHierarchyColumnPeekWidget } from 'vs/w
 import { Range } from 'vs/editor/common/core/range';
 import { Event } from 'vs/base/common/event';
 
-const tree = false;
+const tree = true;
 
 registerAction({
 	id: 'editor.showCallHierarchy',
@@ -47,29 +47,18 @@ registerAction({
 			return;
 		}
 
+		let widget: CallHierarchyTreePeekWidget | CallHierarchyColumnPeekWidget;
 		if (tree) {
-			const widget = instaService.createInstance(CallHierarchyTreePeekWidget, editor, provider, CallHierarchyDirection.CallsTo, rootItem);
-			const listener = Event.any<any>(editor.onDidChangeModel, editor.onDidChangeModelLanguage)(_ => widget.dispose());
-			widget.show(Range.fromPositions(editor.getPosition()));
-			widget.onDidClose(() => {
-				console.log('DONE');
-				listener.dispose();
-			});
-			widget.tree.onDidOpen(e => {
-				const [element] = e.elements;
-				if (element) {
-					console.log(element);
-				}
-			});
-
+			widget = instaService.createInstance(CallHierarchyTreePeekWidget, editor, provider, CallHierarchyDirection.CallsTo, rootItem);
 		} else {
-			const widget = instaService.createInstance(CallHierarchyColumnPeekWidget, editor, provider, CallHierarchyDirection.CallsTo, rootItem);
-			const listener = Event.any<any>(editor.onDidChangeModel, editor.onDidChangeModelLanguage)(_ => widget.dispose());
-			widget.show(Range.fromPositions(editor.getPosition()));
-			widget.onDidClose(() => {
-				console.log('DONE');
-				listener.dispose();
-			});
+			widget = instaService.createInstance(CallHierarchyColumnPeekWidget, editor, provider, CallHierarchyDirection.CallsTo, rootItem);
 		}
+
+		const listener = Event.any<any>(editor.onDidChangeModel, editor.onDidChangeModelLanguage)(_ => widget.dispose());
+		widget.show(Range.fromPositions(editor.getPosition()));
+		widget.onDidClose(() => {
+			console.log('DONE');
+			listener.dispose();
+		});
 	}
 });

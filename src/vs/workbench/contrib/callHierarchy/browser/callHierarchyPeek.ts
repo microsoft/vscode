@@ -8,27 +8,33 @@ import { PeekViewWidget } from 'vs/editor/contrib/referenceSearch/peekViewWidget
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CallHierarchyItem, CallHierarchyProvider, CallHierarchyDirection } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
-import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
+import { WorkbenchAsyncDataTree, WorkbenchList } from 'vs/platform/list/browser/listService';
 import { FuzzyScore } from 'vs/base/common/filters';
 import * as callHTree from 'vs/workbench/contrib/callHierarchy/browser/callHierarchyTree';
+import * as callHList from 'vs/workbench/contrib/callHierarchy/browser/callHierarchyList';
 import { IAsyncDataTreeOptions } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { localize } from 'vs/nls';
 import { ScrollType } from 'vs/editor/common/editorCommon';
+import { Location } from 'vs/editor/common/modes';
 import { IRange } from 'vs/editor/common/core/range';
 import { SplitView, Orientation, Sizing } from 'vs/base/browser/ui/splitview/splitview';
 import { Dimension, addClass } from 'vs/base/browser/dom';
-import { CallColumn, ListElement, LocationColumn } from 'vs/workbench/contrib/callHierarchy/browser/callHierarchyList';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 
+	private _splitView: SplitView;
 	private _tree: WorkbenchAsyncDataTree<CallHierarchyItem, callHTree.Call, FuzzyScore>;
+	private _list: WorkbenchList<Location>;
+	private _dim: Dimension = { height: undefined, width: undefined };
 
 	constructor(
 		editor: ICodeEditor,
 		private readonly _provider: CallHierarchyProvider,
 		private readonly _direction: CallHierarchyDirection,
 		private readonly _item: CallHierarchyItem,
+		@IEditorService private readonly _editorService: IEditorService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super(editor, { showFrame: true, showArrow: true, isResizeable: true, isAccessible: true });
@@ -37,25 +43,88 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 
 	protected _fillBody(container: HTMLElement): void {
 
+		this._splitView = new SplitView(container, { orientation: Orientation.HORIZONTAL });
 
+		// tree stuff
+		const treeContainer = document.createElement('div');
+		container.appendChild(treeContainer);
 		const options: IAsyncDataTreeOptions<callHTree.Call, FuzzyScore> = {
 			identityProvider: new callHTree.IdentityProvider(),
 			ariaLabel: localize('tree.aria', "Call Hierarchy"),
 			expandOnlyOnTwistieClick: true,
 		};
-
 		this._tree = <any>this._instantiationService.createInstance(
 			WorkbenchAsyncDataTree,
-			container,
+			treeContainer,
 			new callHTree.VirtualDelegate(),
 			[new callHTree.CallRenderer()],
 			new callHTree.SingleDirectionDataSource(this._provider, this._direction),
 			options
 		);
+
+		// list stuff
+		const listContainer = document.createElement('div');
+		container.appendChild(listContainer);
+		this._list = <any>this._instantiationService.createInstance(
+			WorkbenchList,
+			listContainer,
+			new callHList.Delegate(),
+			[this._instantiationService.createInstance(callHList.LocationRenderer)],
+			{}
+		);
+
+		// split stuff
+
+		this._splitView.addView({
+			onDidChange: Event.None,
+			element: treeContainer,
+			minimumSize: 100,
+			maximumSize: Number.MAX_VALUE,
+			layout: (width) => {
+				this._tree.layout(this._dim.height, width);
+			}
+		}, Sizing.Distribute);
+
+		this._splitView.addView({
+			onDidChange: Event.None,
+			element: listContainer,
+			minimumSize: 100,
+			maximumSize: Number.MAX_VALUE,
+			layout: (width) => {
+				this._list.layout(this._dim.height, width);
+			}
+		}, Sizing.Distribute);
+
+		// update list
+		this._tree.onDidChangeFocus(e => {
+			const [element] = e.elements;
+			if (element && element.locations) {
+				this._list.splice(0, this._list.length, element.locations);
+			}
+		}, undefined, this._disposables);
+
+		// this._tree.onDidOpen(e => {
+		// 	this._list.focusFirst();
+		// 	this._list.domFocus();
+		// }, undefined, this._disposables);
+
+		// goto location
+		this._list.onDidOpen(e => {
+			const [element] = e.elements;
+			this.hide();
+			this._editorService.openEditor({
+				resource: element.uri,
+				options: { selection: element.range }
+			});
+
+		}, undefined, this._disposables);
 	}
 
-	get tree(): WorkbenchAsyncDataTree<CallHierarchyItem, callHTree.Call, FuzzyScore> {
-		return this._tree;
+	dispose(): void {
+		super.dispose();
+		this._splitView.dispose();
+		this._tree.dispose();
+		this._list.dispose();
 	}
 
 	show(where: IRange) {
@@ -67,19 +136,24 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		this._tree.focusFirst();
 	}
 
+	protected _onWidth(width: number) {
+		if (this._dim) {
+			this._doLayoutBody(this._dim.height, width);
+		}
+	}
+
 	protected _doLayoutBody(height: number, width: number): void {
 		super._doLayoutBody(height, width);
-		this._tree.layout(height, width);
+		this._dim = { height, width };
+		this._splitView.layout(width);
 	}
 }
 
-
 export class CallHierarchyColumnPeekWidget extends PeekViewWidget {
 
-	private readonly _emitter = new Emitter<{ column: CallColumn, element: ListElement }>();
+	private readonly _emitter = new Emitter<{ column: callHList.CallColumn, element: callHList.ListElement }>();
 	private _splitView: SplitView;
 	private _dim: Dimension;
-
 
 	constructor(
 		editor: ICodeEditor,
@@ -106,10 +180,10 @@ export class CallHierarchyColumnPeekWidget extends PeekViewWidget {
 			const getDim = () => this._dim || { height: undefined, width: undefined };
 
 			// add new
-			let newColumn: CallColumn | LocationColumn;
+			let newColumn: callHList.CallColumn | callHList.LocationColumn;
 			if (element instanceof callHTree.Call) {
 				newColumn = this._instantiationService.createInstance(
-					CallColumn,
+					callHList.CallColumn,
 					column.index + 1,
 					element,
 					this._provider,
@@ -119,7 +193,7 @@ export class CallHierarchyColumnPeekWidget extends PeekViewWidget {
 				);
 			} else {
 				newColumn = this._instantiationService.createInstance(
-					LocationColumn,
+					callHList.LocationColumn,
 					element,
 					getDim,
 					this.editor
@@ -131,7 +205,7 @@ export class CallHierarchyColumnPeekWidget extends PeekViewWidget {
 
 			setTimeout(() => newColumn.focus());
 
-			let parts = this._splitView.items.map(column => column instanceof CallColumn ? column.root.item.name : undefined).filter(e => Boolean(e));
+			let parts = this._splitView.items.map(column => column instanceof callHList.CallColumn ? column.root.item.name : undefined).filter(e => Boolean(e));
 			this.setTitle(localize('title', "Call Hierarchy for '{0}'", parts.join(' > ')));
 
 		});
@@ -144,7 +218,7 @@ export class CallHierarchyColumnPeekWidget extends PeekViewWidget {
 
 		// add root items...
 		const item = this._instantiationService.createInstance(
-			CallColumn,
+			callHList.CallColumn,
 			0,
 			new callHTree.Call(this._direction, this._root, []),
 			this._provider,
