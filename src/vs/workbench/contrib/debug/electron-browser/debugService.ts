@@ -591,12 +591,20 @@ export class DebugService implements IDebugService {
 								}
 							}
 
-							let substitutionThenable: Promise<IConfig | undefined> = Promise.resolve(session.configuration);
+							let substitutionThenable: Promise<IConfig | null | undefined> = Promise.resolve(session.configuration);
 							if (launch && needsToSubstitute && unresolved) {
 								substitutionThenable = this.configurationManager.resolveConfigurationByProviders(launch.workspace ? launch.workspace.uri : undefined, unresolved.type, unresolved)
-									.then(resolved => this.substituteVariables(launch, resolved));
+									.then(resolved => {
+										if (resolved) {
+											return this.substituteVariables(launch, resolved);
+										} else {
+											// resolve is null or undefined here
+											return Promise.resolve(resolved);
+										}
+									});
 							}
 							substitutionThenable.then(resolved => {
+
 								if (!resolved) {
 									return c(undefined);
 								}
