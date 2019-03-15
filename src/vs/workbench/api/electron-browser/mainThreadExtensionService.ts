@@ -44,9 +44,6 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 	public dispose(): void {
 	}
 
-	$localShowMessage(severity: Severity, msg: string): void {
-		this._extensionService._logOrShowMessage(severity, msg);
-	}
 	$activateExtension(extensionId: ExtensionIdentifier, activationEvent: string): Promise<void> {
 		return this._extensionService._activateById(extensionId, activationEvent);
 	}

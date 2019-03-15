@@ -571,7 +571,6 @@ export interface MainThreadTaskShape extends IDisposable {
 }
 
 export interface MainThreadExtensionServiceShape extends IDisposable {
-	$localShowMessage(severity: Severity, msg: string): void;
 	$activateExtension(extensionId: ExtensionIdentifier, activationEvent: string | null): Promise<void>;
 	$onWillActivateExtension(extensionId: ExtensionIdentifier): void;
 	$onDidActivateExtension(extensionId: ExtensionIdentifier, startup: boolean, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationEvent: string | null): void;
