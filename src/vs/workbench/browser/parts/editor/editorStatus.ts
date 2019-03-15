@@ -144,29 +144,29 @@ interface StateDelta {
 }
 
 class State {
-	private _selectionStatus: string | null;
-	get selectionStatus(): string | null { return this._selectionStatus; }
+	private _selectionStatus: string | null | undefined;
+	get selectionStatus(): string | null | undefined { return this._selectionStatus; }
 
-	private _mode: string | null;
-	get mode(): string | null { return this._mode; }
+	private _mode: string | null | undefined;
+	get mode(): string | null | undefined { return this._mode; }
 
-	private _encoding: string | null;
-	get encoding(): string | null { return this._encoding; }
+	private _encoding: string | null | undefined;
+	get encoding(): string | null | undefined { return this._encoding; }
 
-	private _EOL: string | null;
-	get EOL(): string | null { return this._EOL; }
+	private _EOL: string | null | undefined;
+	get EOL(): string | null | undefined { return this._EOL; }
 
-	private _indentation: string | null;
-	get indentation(): string | null { return this._indentation; }
+	private _indentation: string | null | undefined;
+	get indentation(): string | null | undefined { return this._indentation; }
 
-	private _tabFocusMode: boolean | null;
-	get tabFocusMode(): boolean | null { return this._tabFocusMode; }
+	private _tabFocusMode: boolean | null | undefined;
+	get tabFocusMode(): boolean | null | undefined { return this._tabFocusMode; }
 
-	private _screenReaderMode: boolean | null;
-	get screenReaderMode(): boolean | null { return this._screenReaderMode; }
+	private _screenReaderMode: boolean | null | undefined;
+	get screenReaderMode(): boolean | null | undefined { return this._screenReaderMode; }
 
-	private _metadata: string | null;
-	get metadata(): string | null { return this._metadata; }
+	private _metadata: string | null | undefined;
+	get metadata(): string | null | undefined { return this._metadata; }
 
 	constructor() {
 		this._selectionStatus = null;
