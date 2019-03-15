@@ -11,7 +11,6 @@ import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { localize } from 'vs/nls';
 import { values } from 'vs/base/common/map';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { Action } from 'vs/base/common/actions';
 import { IWindowService } from 'vs/platform/windows/common/windows';
@@ -22,7 +21,6 @@ export class ExtensionDependencyChecker extends Disposable implements IWorkbench
 	constructor(
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IWindowService private readonly windowService: IWindowService
 	) {
@@ -35,8 +33,6 @@ export class ExtensionDependencyChecker extends Disposable implements IWorkbench
 				title: localize('auto install missing deps', "Install Missing Dependencies")
 			}
 		});
-		this.checkAndInstallMissingDependencies();
-		this._register(this.configurationService.onDidChangeConfiguration(e => { if (e.affectsConfiguration('extensions.autoInstallMissingDependencies')) { this.checkAndInstallMissingDependencies(); } }));
 	}
 
 	private async getUninstalledMissingDependencies(): Promise<string[]> {
@@ -59,13 +55,6 @@ export class ExtensionDependencyChecker extends Disposable implements IWorkbench
 			}
 		}
 		return values(missingDependencies);
-	}
-
-	private async checkAndInstallMissingDependencies(): Promise<void> {
-		const missingDependencies = await this.getUninstalledMissingDependencies();
-		if (missingDependencies.length > 0 && this.configurationService.getValue<boolean>('extensions.autoInstallMissingDependencies')) {
-			this.installMissingDependencies();
-		}
 	}
 
 	private async installMissingDependencies(): Promise<void> {

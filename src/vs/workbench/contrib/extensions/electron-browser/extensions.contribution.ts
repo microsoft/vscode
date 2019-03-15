@@ -240,13 +240,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				type: 'boolean',
 				description: localize('extensionsCloseExtensionDetailsOnViewChange', "When enabled, editors with extension details will be automatically closed upon navigating away from the Extensions View."),
 				default: false
-			},
-			'extensions.autoInstallMissingDependencies': {
-				type: 'boolean',
-				description: localize('autoInstallMissingDependencies', "When enabled, automatically installs the missing dependencies of currently enabled extensions."),
-				default: false,
-				scope: ConfigurationScope.APPLICATION,
-				tags: ['usesOnlineServices']
 			}
 		}
 	});
