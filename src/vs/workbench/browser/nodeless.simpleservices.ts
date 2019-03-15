@@ -34,7 +34,7 @@ import { ShutdownReason, ILifecycleService } from 'vs/platform/lifecycle/common/
 import { IMenubarService, IMenubarData } from 'vs/platform/menubar/common/menubar';
 import { IProductService } from 'vs/platform/product/common/product';
 import { IRemoteAuthorityResolverService, ResolvedAuthority } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { joinPath, isEqualOrParent, isEqual } from 'vs/base/common/resources';
+import { joinPath, isEqualOrParent, isEqual, dirname } from 'vs/base/common/resources';
 import { basename } from 'vs/base/common/path';
 import { ISearchService, ITextQueryProps, ISearchProgressItem, ISearchComplete, IFileQueryProps, SearchProviderType, ISearchResultProvider, ITextQuery, IFileMatch, QueryType, FileMatch, pathIncludedInQuery } from 'vs/workbench/services/search/common/search';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -761,13 +761,36 @@ export class SimpleRemoteFileService implements IFileService {
 
 	moveFile(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStat> { return Promise.resolve(null!); }
 
-	copyFile(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStat> { throw new Error('not implemented'); }
+	copyFile(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStat> {
+		const parent = fileMap.get(dirname(_target));
+		if (!parent) {
+			return Promise.resolve(undefined);
+		}
 
-	createFile(_resource: URI, _content?: string, _options?: ICreateFileOptions): Promise<IFileStat> { throw new Error('not implemented'); }
+		return this.resolveContent(_source).then(content => {
+			return Promise.resolve(createFile(parent, basename(_target.path), content.value));
+		});
+	}
+
+	createFile(_resource: URI, _content?: string, _options?: ICreateFileOptions): Promise<IFileStat> {
+		const parent = fileMap.get(dirname(_resource));
+		if (!parent) {
+			return Promise.reject(new Error(`Unable to create file in ${dirname(_resource).path}`));
+		}
+
+		return Promise.resolve(createFile(parent, basename(_resource.path)));
+	}
 
 	readFolder(_resource: URI) { return Promise.resolve([]); }
 
-	createFolder(_resource: URI): Promise<IFileStat> { throw new Error('not implemented'); }
+	createFolder(_resource: URI): Promise<IFileStat> {
+		const parent = fileMap.get(dirname(_resource));
+		if (!parent) {
+			return Promise.reject(new Error(`Unable to create folder in ${dirname(_resource).path}`));
+		}
+
+		return Promise.resolve(createFolder(parent, basename(_resource.path)));
+	}
 
 	registerProvider(_scheme: string, _provider) { return { dispose() { } }; }
 
@@ -786,49 +809,51 @@ export class SimpleRemoteFileService implements IFileService {
 	dispose(): void { }
 }
 
+function createFile(parent: IFileStat, name: string, content: string = ''): IFileStat {
+	const file: IFileStat = {
+		resource: joinPath(parent.resource, name),
+		etag: Date.now().toString(),
+		mtime: Date.now(),
+		isDirectory: false,
+		name
+	};
+
+	// @ts-ignore
+	parent.children.push(file);
+
+	fileMap.set(file.resource, file);
+
+	contentMap.set(file.resource, {
+		resource: joinPath(parent.resource, name),
+		etag: Date.now().toString(),
+		mtime: Date.now(),
+		value: content,
+		encoding: 'utf8',
+		name
+	} as IContent);
+
+	return file;
+}
+
+function createFolder(parent: IFileStat, name: string): IFileStat {
+	const folder: IFileStat = {
+		resource: joinPath(parent.resource, name),
+		etag: Date.now().toString(),
+		mtime: Date.now(),
+		isDirectory: true,
+		name,
+		children: []
+	};
+
+	// @ts-ignore
+	parent.children.push(folder);
+
+	fileMap.set(folder.resource, folder);
+
+	return folder;
+}
+
 function initFakeFileSystem(): void {
-
-	function createFile(parent: IFileStat, name: string, content: string): void {
-		const file: IFileStat = {
-			resource: joinPath(parent.resource, name),
-			etag: Date.now().toString(),
-			mtime: Date.now(),
-			isDirectory: false,
-			name
-		};
-
-		// @ts-ignore
-		parent.children.push(file);
-
-		fileMap.set(file.resource, file);
-
-		contentMap.set(file.resource, {
-			resource: joinPath(parent.resource, name),
-			etag: Date.now().toString(),
-			mtime: Date.now(),
-			value: content,
-			encoding: 'utf8',
-			name
-		} as IContent);
-	}
-
-	function createFolder(parent: IFileStat, name: string): IFileStat {
-		const folder: IFileStat = {
-			resource: joinPath(parent.resource, name),
-			etag: Date.now().toString(),
-			mtime: Date.now(),
-			isDirectory: true,
-			name,
-			children: []
-		};
-
-		// @ts-ignore
-		parent.children.push(folder);
-
-		fileMap.set(folder.resource, folder);
-
-		return folder;
-	}
 
 	const root: IFileStat = {
 		resource: workspaceResource,
