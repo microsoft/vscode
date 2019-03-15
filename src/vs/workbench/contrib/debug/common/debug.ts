@@ -63,10 +63,8 @@ export const INTERNAL_CONSOLE_OPTIONS_SCHEMA = {
 // raw
 
 export interface IRawModelUpdate {
-	threadId: number;
 	sessionId: string;
-	thread?: DebugProtocol.Thread;
-	callStack?: DebugProtocol.StackFrame[];
+	threads: DebugProtocol.Thread[];
 	stoppedDetails?: IRawStoppedDetails;
 }
 
