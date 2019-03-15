@@ -20,7 +20,7 @@ registerAction({
 		original: 'Show Call Hierarchy'
 	},
 	menu: {
-		menuId: MenuId.CommandPalette
+		menuId: MenuId.EditorContext
 	},
 	handler: async function (accessor) {
 
