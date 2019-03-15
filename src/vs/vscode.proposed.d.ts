@@ -803,6 +803,11 @@ declare module 'vscode' {
 		 * Defaults to Collapsed.
 		 */
 		collapsibleState?: CommentThreadCollapsibleState;
+
+		/**
+		 * Dispose this comment thread.
+		 * Once disposed, the comment thread will be removed from visible text editors and Comments Panel.
+		 */
 		dispose?(): void;
 	}
 
@@ -821,7 +826,8 @@ declare module 'vscode' {
 		body: MarkdownString;
 
 		/**
-		 * Label describing the [Comment](#Comment)
+		 * Optional label describing the [Comment](#Comment)
+		 * Label will be rendered next to userName if exists.
 		 */
 		label?: string;
 
@@ -834,7 +840,6 @@ declare module 'vscode' {
 		 * The icon path for the user who created the comment
 		 */
 		userIconPath?: Uri;
-
 
 		/**
 		 * @deprecated Use userIconPath instead. The avatar src of the user who created the comment
@@ -872,13 +877,30 @@ declare module 'vscode' {
 		 */
 		selectCommand?: Command;
 
+		/**
+		 * The command to be executed when users try to save the edits to the comment
+		 */
 		editCommand?: Command;
+
+		/**
+		 * The command to be executed when users try to delete the comment
+		 */
 		deleteCommand?: Command;
 
+		/**
+		 * Deprecated
+		 */
 		isDraft?: boolean;
+
+		/**
+		 * Proposed Comment Reaction
+		 */
 		commentReactions?: CommentReaction[];
 	}
 
+	/**
+	 * Deprecated
+	 */
 	export interface CommentThreadChangedEvent {
 		/**
 		 * Added comment threads.
@@ -901,6 +923,9 @@ declare module 'vscode' {
 		readonly inDraftMode: boolean;
 	}
 
+	/**
+	 * Comment Reactions
+	 */
 	interface CommentReaction {
 		readonly label?: string;
 		readonly iconPath?: string | Uri;
@@ -971,21 +996,26 @@ declare module 'vscode' {
 		onDidChangeCommentThreads: Event<CommentThreadChangedEvent>;
 	}
 
+	/**
+	 * The comment input box in Comment Widget.
+	 */
 	export interface CommentInputBox {
-
 		/**
-		 * Setter and getter for the contents of the input box.
+		 * Setter and getter for the contents of the comment input box.
 		 */
 		value: string;
-	}
-
-	export interface CommentingRangeProvider {
-		provideCommentingRanges(document: TextDocument, token: CancellationToken): ProviderResult<Range[]>;
 	}
 
 	export interface CommentReactionProvider {
 		availableReactions: CommentReaction[];
 		toggleReaction?(document: TextDocument, comment: Comment, reaction: CommentReaction): Promise<void>;
+	}
+
+	export interface CommentingRangeProvider {
+		/**
+		 * Provide a list of ranges which allow new comment threads creation or null for a given document
+		 */
+		provideCommentingRanges(document: TextDocument, token: CancellationToken): ProviderResult<Range[]>;
 	}
 
 	export interface EmptyCommentThreadFactory {
@@ -1026,7 +1056,7 @@ declare module 'vscode' {
 		/**
 		 * Optional new comment thread factory.
 		 */
-		emptyCommentThreadFactory: EmptyCommentThreadFactory;
+		emptyCommentThreadFactory?: EmptyCommentThreadFactory;
 
 		/**
 		 * Optional reaction provider
