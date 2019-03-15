@@ -27,9 +27,9 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import product from 'vs/platform/product/node/product';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ConfigurationEditingService } from 'vs/workbench/services/configuration/node/configurationEditingService';
+import { ConfigurationEditingService } from 'vs/workbench/services/configuration/common/configurationEditingService';
 import { WorkspaceConfiguration, FolderConfiguration } from 'vs/workbench/services/configuration/node/configuration';
-import { JSONEditingService } from 'vs/workbench/services/configuration/node/jsonEditingService';
+import { JSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditingService';
 import { UserConfiguration } from 'vs/platform/configuration/node/configuration';
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { localize } from 'vs/nls';

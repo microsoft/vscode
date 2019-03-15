@@ -436,7 +436,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		this._extensionHostProcessManagers.push(extHostProcessManager);
 	}
 
-	private _onExtensionHostCrashed(code: number, signal: string): void {
+	private _onExtensionHostCrashed(code: number, signal: string | null): void {
 		console.error('Extension host terminated unexpectedly. Code: ', code, ' Signal: ', signal);
 		this._stopExtensionHostProcess();
 

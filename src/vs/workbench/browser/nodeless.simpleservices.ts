@@ -19,23 +19,22 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEnvironmentService, IExtensionHostDebugParams, IDebugParams } from 'vs/platform/environment/common/environment';
-import { IExtensionGalleryService, IQueryOptions, IGalleryExtension, InstallOperation, StatisticType, ITranslation, IGalleryExtensionVersion, IExtensionIdentifier, IReportedExtension, IExtensionManagementService, ILocalExtension, IGalleryMetadata } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionGalleryService, IQueryOptions, IGalleryExtension, InstallOperation, StatisticType, ITranslation, IGalleryExtensionVersion, IExtensionIdentifier, IReportedExtension, IExtensionManagementService, ILocalExtension, IGalleryMetadata, IExtensionTipsService, ExtensionRecommendationReason, IExtensionRecommendation } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IPager } from 'vs/base/common/paging';
 import { IExtensionManifest, ExtensionType, ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { NullExtensionService, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IURLHandler, IURLService } from 'vs/platform/url/common/url';
-import { IJSONEditingService, IJSONValue } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITelemetryService, ITelemetryData, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { AbstractLifecycleService } from 'vs/platform/lifecycle/common/lifecycleService';
-import { ILogService, NullLogService, LogLevel } from 'vs/platform/log/common/log';
+import { ILogService, LogLevel, ConsoleLogService } from 'vs/platform/log/common/log';
 import { ShutdownReason, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IMenubarService, IMenubarData } from 'vs/platform/menubar/common/menubar';
 import { IProductService } from 'vs/platform/product/common/product';
 import { IRemoteAuthorityResolverService, ResolvedAuthority } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { joinPath, isEqualOrParent, isEqual } from 'vs/base/common/resources';
+import { joinPath, isEqualOrParent, isEqual, dirname } from 'vs/base/common/resources';
 import { basename } from 'vs/base/common/path';
 import { ISearchService, ITextQueryProps, ISearchProgressItem, ISearchComplete, IFileQueryProps, SearchProviderType, ISearchResultProvider, ITextQuery, IFileMatch, QueryType, FileMatch, pathIncludedInQuery } from 'vs/workbench/services/search/common/search';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -353,6 +352,45 @@ registerSingleton(IExtensionGalleryService, SimpleExtensionGalleryService, true)
 
 //#region Extension Management
 
+//#region Extension Tips
+
+export class SimpleExtensionTipsService implements IExtensionTipsService {
+	_serviceBrand: any;
+
+	onRecommendationChange = Event.None;
+
+	getAllRecommendationsWithReason(): { [id: string]: { reasonId: ExtensionRecommendationReason; reasonText: string; }; } {
+		return Object.create(null);
+	}
+
+	getFileBasedRecommendations(): IExtensionRecommendation[] {
+		return [];
+	}
+
+	getOtherRecommendations(): Promise<IExtensionRecommendation[]> {
+		return Promise.resolve([]);
+	}
+
+	getWorkspaceRecommendations(): Promise<IExtensionRecommendation[]> {
+		return Promise.resolve([]);
+	}
+
+	getKeymapRecommendations(): IExtensionRecommendation[] {
+		return [];
+	}
+
+	toggleIgnoredRecommendation(extensionId: string, shouldIgnore: boolean): void {
+	}
+
+	getAllIgnoredRecommendations(): { global: string[]; workspace: string[]; } {
+		return Object.create(null);
+	}
+}
+
+registerSingleton(IExtensionTipsService, SimpleExtensionTipsService, true);
+
+//#endregion
+
 export class SimpleExtensionManagementService implements IExtensionManagementService {
 
 	_serviceBrand: any;
@@ -431,31 +469,12 @@ export class SimpleExtensionURLHandler implements IExtensionUrlHandler {
 
 	_serviceBrand: any;
 
-	registerExtensionHandler(extensionId: ExtensionIdentifier, handler: IURLHandler): void {
-		throw new Error('Method not implemented.');
-	}
+	registerExtensionHandler(extensionId: ExtensionIdentifier, handler: IURLHandler): void { }
 
-	unregisterExtensionHandler(extensionId: ExtensionIdentifier): void {
-		throw new Error('Method not implemented.');
-	}
+	unregisterExtensionHandler(extensionId: ExtensionIdentifier): void { }
 }
 
 registerSingleton(IExtensionUrlHandler, SimpleExtensionURLHandler, true);
-
-//#endregion
-
-//#region JSON Editing
-
-export class SimpleJSONEditingService implements IJSONEditingService {
-
-	_serviceBrand: any;
-
-	write(resource: URI, value: IJSONValue, save: boolean): Promise<void> {
-		return Promise.resolve();
-	}
-}
-
-registerSingleton(IJSONEditingService, SimpleJSONEditingService, true);
 
 //#endregion
 
@@ -527,7 +546,7 @@ registerSingleton(ILifecycleService, SimpleLifecycleService);
 
 //#region Log
 
-export class SimpleLogService extends NullLogService { }
+export class SimpleLogService extends ConsoleLogService { }
 
 //#endregion
 
@@ -744,13 +763,36 @@ export class SimpleRemoteFileService implements IFileService {
 
 	moveFile(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStat> { return Promise.resolve(null!); }
 
-	copyFile(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStat> { throw new Error('not implemented'); }
+	copyFile(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStat> {
+		const parent = fileMap.get(dirname(_target));
+		if (!parent) {
+			return Promise.resolve(undefined);
+		}
 
-	createFile(_resource: URI, _content?: string, _options?: ICreateFileOptions): Promise<IFileStat> { throw new Error('not implemented'); }
+		return this.resolveContent(_source).then(content => {
+			return Promise.resolve(createFile(parent, basename(_target.path), content.value));
+		});
+	}
+
+	createFile(_resource: URI, _content?: string, _options?: ICreateFileOptions): Promise<IFileStat> {
+		const parent = fileMap.get(dirname(_resource));
+		if (!parent) {
+			return Promise.reject(new Error(`Unable to create file in ${dirname(_resource).path}`));
+		}
+
+		return Promise.resolve(createFile(parent, basename(_resource.path)));
+	}
 
 	readFolder(_resource: URI) { return Promise.resolve([]); }
 
-	createFolder(_resource: URI): Promise<IFileStat> { throw new Error('not implemented'); }
+	createFolder(_resource: URI): Promise<IFileStat> {
+		const parent = fileMap.get(dirname(_resource));
+		if (!parent) {
+			return Promise.reject(new Error(`Unable to create folder in ${dirname(_resource).path}`));
+		}
+
+		return Promise.resolve(createFolder(parent, basename(_resource.path)));
+	}
 
 	registerProvider(_scheme: string, _provider) { return { dispose() { } }; }
 
@@ -769,49 +811,51 @@ export class SimpleRemoteFileService implements IFileService {
 	dispose(): void { }
 }
 
+function createFile(parent: IFileStat, name: string, content: string = ''): IFileStat {
+	const file: IFileStat = {
+		resource: joinPath(parent.resource, name),
+		etag: Date.now().toString(),
+		mtime: Date.now(),
+		isDirectory: false,
+		name
+	};
+
+	// @ts-ignore
+	parent.children.push(file);
+
+	fileMap.set(file.resource, file);
+
+	contentMap.set(file.resource, {
+		resource: joinPath(parent.resource, name),
+		etag: Date.now().toString(),
+		mtime: Date.now(),
+		value: content,
+		encoding: 'utf8',
+		name
+	} as IContent);
+
+	return file;
+}
+
+function createFolder(parent: IFileStat, name: string): IFileStat {
+	const folder: IFileStat = {
+		resource: joinPath(parent.resource, name),
+		etag: Date.now().toString(),
+		mtime: Date.now(),
+		isDirectory: true,
+		name,
+		children: []
+	};
+
+	// @ts-ignore
+	parent.children.push(folder);
+
+	fileMap.set(folder.resource, folder);
+
+	return folder;
+}
+
 function initFakeFileSystem(): void {
-
-	function createFile(parent: IFileStat, name: string, content: string): void {
-		const file: IFileStat = {
-			resource: joinPath(parent.resource, name),
-			etag: Date.now().toString(),
-			mtime: Date.now(),
-			isDirectory: false,
-			name
-		};
-
-		// @ts-ignore
-		parent.children.push(file);
-
-		fileMap.set(file.resource, file);
-
-		contentMap.set(file.resource, {
-			resource: joinPath(parent.resource, name),
-			etag: Date.now().toString(),
-			mtime: Date.now(),
-			value: content,
-			encoding: 'utf8',
-			name
-		} as IContent);
-	}
-
-	function createFolder(parent: IFileStat, name: string): IFileStat {
-		const folder: IFileStat = {
-			resource: joinPath(parent.resource, name),
-			etag: Date.now().toString(),
-			mtime: Date.now(),
-			isDirectory: true,
-			name,
-			children: []
-		};
-
-		// @ts-ignore
-		parent.children.push(folder);
-
-		fileMap.set(folder.resource, folder);
-
-		return folder;
-	}
 
 	const root: IFileStat = {
 		resource: workspaceResource,
@@ -1010,7 +1054,7 @@ registerSingleton(IFileService, SimpleRemoteFileService);
 
 //#region Request
 
-export const IRequestService = createDecorator<IRequestService>('requestService2');
+export const IRequestService = createDecorator<IRequestService>('requestService');
 
 export interface IRequestService {
 	_serviceBrand: any;
@@ -1574,7 +1618,7 @@ export class SimpleWindowsService implements IWindowsService {
 	}
 
 	getWindows(): Promise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]> {
-		throw new Error('not implemented');
+		return Promise.resolve([]);
 	}
 
 	getWindowCount(): Promise<number> {

@@ -36,7 +36,7 @@ const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
 
 export class ExtensionHostProcessManager extends Disposable {
 
-	public readonly onDidCrash: Event<[number, string]>;
+	public readonly onDidCrash: Event<[number, string | null]>;
 
 	private readonly _onDidChangeResponsiveState: Emitter<ResponsiveState> = this._register(new Emitter<ResponsiveState>());
 	public readonly onDidChangeResponsiveState: Event<ResponsiveState> = this._onDidChangeResponsiveState.event;

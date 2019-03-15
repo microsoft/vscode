@@ -314,7 +314,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this._win.webContents.session.webRequest.onBeforeSendHeaders({ urls }, (details: any, cb: any) => {
 			this.marketplaceHeadersPromise.then(headers => {
 				const requestHeaders = objects.assign(details.requestHeaders, headers);
-				if (this.configurationService.getValue('extensions.enableExperimentalAzureSearch')) {
+				if (!this.configurationService.getValue('extensions.disableExperimentalAzureSearch')) {
 					requestHeaders['Cookie'] = `${requestHeaders['Cookie'] ? requestHeaders['Cookie'] + ';' : ''}EnableExternalSearchForVSCode=true`;
 				}
 				cb({ cancel: false, requestHeaders });

@@ -111,7 +111,7 @@ import 'vs/workbench/services/editor/browser/codeEditorService';
 // import 'vs/workbench/services/broadcast/electron-browser/broadcastService';
 import 'vs/workbench/services/preferences/browser/preferencesService';
 import 'vs/workbench/services/output/common/outputChannelModelService';
-// import 'vs/workbench/services/configuration/node/jsonEditingService';
+import 'vs/workbench/services/configuration/common/jsonEditingService';
 import 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import 'vs/workbench/services/textfile/common/textFileService';
 import 'vs/workbench/services/dialogs/browser/fileDialogService';
@@ -312,7 +312,7 @@ import 'vs/workbench/contrib/watermark/browser/watermark';
 import 'vs/workbench/contrib/welcome/walkThrough/browser/walkThrough.contribution';
 // import 'vs/workbench/contrib/welcome/gettingStarted/electron-browser/gettingStarted.contribution';
 import 'vs/workbench/contrib/welcome/overlay/browser/welcomeOverlay';
-import 'vs/workbench/contrib/welcome/page/browser/welcomePage.contribution';
+// import 'vs/workbench/contrib/welcome/page/browser/welcomePage.contribution';
 
 // Outline
 import 'vs/workbench/contrib/outline/browser/outline.contribution';
