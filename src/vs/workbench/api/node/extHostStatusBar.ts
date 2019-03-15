@@ -157,18 +157,49 @@ class StatusBarMessage {
 	}
 }
 
+class StatusBarBackground {
+	private _color: string;
+	private _statusBar: ExtHostStatusBar;
+
+	constructor(statusBar: ExtHostStatusBar) {
+		this._statusBar = statusBar;
+	}
+
+	dispose() { }
+
+	setBackground(color: string): Disposable {
+		this._color = color;
+		this._update();
+		return new Disposable(() => { });
+	}
+
+	private _update() {
+		this._statusBar.updateBackground(this._color);
+	}
+}
 export class ExtHostStatusBar {
 
 	private _proxy: MainThreadStatusBarShape;
 	private _statusMessage: StatusBarMessage;
+	private _statusBarBackground: StatusBarBackground;
 
 	constructor(mainContext: IMainContext) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadStatusBar);
 		this._statusMessage = new StatusBarMessage(this);
+		this._statusBarBackground = new StatusBarBackground(this);
+	}
+
+	updateBackground(color: string) {
+		this._proxy.$setBackground(color);
 	}
 
 	createStatusBarEntry(extensionId: ExtensionIdentifier | undefined, alignment?: ExtHostStatusBarAlignment, priority?: number): StatusBarItem {
 		return new ExtHostStatusBarEntry(this._proxy, extensionId, alignment, priority);
+	}
+
+	setStatusBarBackground(color: string): Disposable {
+		this._statusBarBackground.setBackground(color);
+		return new Disposable(() => { });
 	}
 
 	setStatusBarMessage(text: string, timeoutOrThenable?: number | Thenable<any>): Disposable {

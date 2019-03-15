@@ -450,6 +450,9 @@ export function createApiFactory(
 			showSaveDialog(options) {
 				return extHostDialogs.showSaveDialog(options);
 			},
+			setStatusBarBackground(color: string): vscode.Disposable {
+				return extHostStatusBar.setStatusBarBackground(color);
+			},
 			createStatusBarItem(position?: vscode.StatusBarAlignment, priority?: number): vscode.StatusBarItem {
 				return extHostStatusBar.createStatusBarEntry(extension.identifier, <number>position, priority);
 			},

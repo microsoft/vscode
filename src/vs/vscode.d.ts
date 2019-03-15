@@ -6477,6 +6477,9 @@ declare module 'vscode' {
 		 */
 		export function createWebviewPanel(viewType: string, title: string, showOptions: ViewColumn | { viewColumn: ViewColumn, preserveFocus?: boolean }, options?: WebviewPanelOptions & WebviewOptions): WebviewPanel;
 
+		// §TODO: disposable that reset color
+		export function setStatusBarBackground(color: string): Disposable;
+
 		/**
 		 * Set a message to the status bar. This is a short hand for the more powerful
 		 * status bar [items](#window.createStatusBarItem).

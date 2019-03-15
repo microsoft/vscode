@@ -160,6 +160,9 @@ suite('AbstractKeybindingService', () => {
 							statusMessageCallsDisposed!.push(message);
 						}
 					};
+				},
+				setBackgroundColor(color: string) {
+					return { dispose() { } };
 				}
 			};
 

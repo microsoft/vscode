@@ -38,6 +38,10 @@ export class MainThreadStatusBar implements MainThreadStatusBarShape {
 		this._entries[id] = entry;
 	}
 
+	$setBackground(color: string): void {
+		this._statusbarService.setBackgroundColor(color);
+	}
+
 	$dispose(id: number) {
 		const disposeable = this._entries[id];
 		if (disposeable) {
