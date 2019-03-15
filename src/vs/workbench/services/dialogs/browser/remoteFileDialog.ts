@@ -20,7 +20,8 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { Schemas } from 'vs/base/common/network';
-import { IEnvironmentService, IRemoteEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IRemoteEnvironmentService } from 'vs/workbench/services/remote/common/remoteEnvironmentService';
 
 interface FileQuickPickItem extends IQuickPickItem {
 	uri: URI;
