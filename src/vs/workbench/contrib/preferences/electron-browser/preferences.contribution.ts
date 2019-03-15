@@ -424,7 +424,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 						dark: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/electron-browser/media/preferences-editor-inverse.svg`))
 					}
 				},
-				when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.workspaceSettingsResource.toString()), WorkbenchStateContext.isEqualTo('workspace')),
+				when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.workspaceSettingsResource!.toString()), WorkbenchStateContext.isEqualTo('workspace')),
 				group: 'navigation',
 				order: 1
 			});
@@ -452,7 +452,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 							dark: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/electron-browser/media/preferences-editor-inverse.svg`))
 						}
 					},
-					when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.getFolderSettingsResource(folder.uri).toString())),
+					when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.getFolderSettingsResource(folder.uri)!.toString())),
 					group: 'navigation',
 					order: 1
 				});
