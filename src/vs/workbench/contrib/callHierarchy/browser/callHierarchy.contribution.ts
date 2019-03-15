@@ -12,8 +12,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { CallHierarchyTreePeekWidget, CallHierarchyColumnPeekWidget } from 'vs/workbench/contrib/callHierarchy/browser/callHierarchyPeek';
 import { Range } from 'vs/editor/common/core/range';
 import { Event } from 'vs/base/common/event';
-
-const tree = true;
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 registerAction({
 	id: 'editor.showCallHierarchy',
@@ -28,6 +27,7 @@ registerAction({
 
 		const instaService = accessor.get(IInstantiationService);
 		const editorService = accessor.get(ICodeEditorService);
+		const configService = accessor.get(IConfigurationService);
 
 		const editor = editorService.getActiveCodeEditor();
 		if (!editor || !editor.hasModel()) {
@@ -47,11 +47,12 @@ registerAction({
 			return;
 		}
 
+		let mode = configService.getValue<'tree' | 'columns'>('callHierarchy.mode');
 		let widget: CallHierarchyTreePeekWidget | CallHierarchyColumnPeekWidget;
-		if (tree) {
-			widget = instaService.createInstance(CallHierarchyTreePeekWidget, editor, provider, CallHierarchyDirection.CallsTo, rootItem);
-		} else {
+		if (mode === 'columns') {
 			widget = instaService.createInstance(CallHierarchyColumnPeekWidget, editor, provider, CallHierarchyDirection.CallsTo, rootItem);
+		} else {
+			widget = instaService.createInstance(CallHierarchyTreePeekWidget, editor, provider, CallHierarchyDirection.CallsTo, rootItem);
 		}
 
 		const listener = Event.any<any>(editor.onDidChangeModel, editor.onDidChangeModelLanguage)(_ => widget.dispose());
