@@ -75,12 +75,14 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 
 	private async _handleMissingDependency(extensionId: ExtensionIdentifier, missingDependency: string): Promise<void> {
 		const extension = await this._extensionService.getExtension(extensionId.value);
-		const local = await this._extensionsWorkbenchService.queryLocal();
-		const installedDependency = local.filter(i => areSameExtensions(i.identifier, { id: missingDependency }))[0];
-		if (installedDependency) {
-			await this._handleMissingInstalledDependency(extension, installedDependency);
-		} else {
-			await this._handleMissingNotInstalledDependency(extension, missingDependency);
+		if (extension) {
+			const local = await this._extensionsWorkbenchService.queryLocal();
+			const installedDependency = local.filter(i => areSameExtensions(i.identifier, { id: missingDependency }))[0];
+			if (installedDependency) {
+				await this._handleMissingInstalledDependency(extension, installedDependency);
+			} else {
+				await this._handleMissingNotInstalledDependency(extension, missingDependency);
+			}
 		}
 	}
 
