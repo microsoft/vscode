@@ -340,7 +340,7 @@ export class ExplorerView extends ViewletPanel {
 		this.disposables.push(this.tree.onKeyDown(e => {
 			const event = new StandardKeyboardEvent(e);
 			const toggleCollapsed = isMacintosh ? (event.keyCode === KeyCode.DownArrow && event.metaKey) : event.keyCode === KeyCode.Enter;
-			if (toggleCollapsed) {
+			if (toggleCollapsed && !this.explorerService.isEditable(undefined)) {
 				const focus = this.tree.getFocus();
 				if (focus.length === 1 && focus[0].isDirectory) {
 					this.tree.toggleCollapsed(focus[0]);
