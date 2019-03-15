@@ -249,13 +249,11 @@ class StatusBarItem {
 	private _showing = true;
 
 	constructor(
-		private readonly element: HTMLElement
+		private readonly element: HTMLElement,
+		title: string,
 	) {
 		this.setVisible(false);
-	}
-
-	public set title(value: string) {
-		this.element.title = value;
+		this.element.title = title;
 	}
 
 	public set textContent(value: string) {
@@ -311,38 +309,46 @@ export class EditorStatus implements IStatusbarItem {
 	render(container: HTMLElement): IDisposable {
 		this.element = append(container, $('.editor-statusbar-item'));
 
-		this.tabFocusModeElement = new StatusBarItem(append(this.element, $('a.editor-status-tabfocusmode.status-bar-info')));
-		this.tabFocusModeElement.title = nls.localize('disableTabMode', "Disable Accessibility Mode");
+		this.tabFocusModeElement = new StatusBarItem(
+			append(this.element, $('a.editor-status-tabfocusmode.status-bar-info')),
+			nls.localize('disableTabMode', "Disable Accessibility Mode"));
 		this.tabFocusModeElement.onclick = () => this.onTabFocusModeClick();
 		this.tabFocusModeElement.textContent = nlsTabFocusMode;
 
-		this.screenRedearModeElement = new StatusBarItem(append(this.element, $('a.editor-status-screenreadermode.status-bar-info')));
+		this.screenRedearModeElement = new StatusBarItem(
+			append(this.element, $('a.editor-status-screenreadermode.status-bar-info')),
+			nlsScreenReaderDetectedTitle);
 		this.screenRedearModeElement.textContent = nlsScreenReaderDetected;
-		this.screenRedearModeElement.title = nlsScreenReaderDetectedTitle;
 		this.screenRedearModeElement.onclick = () => this.onScreenReaderModeClick();
 
-		this.selectionElement = new StatusBarItem(append(this.element, $('a.editor-status-selection')));
-		this.selectionElement.title = nls.localize('gotoLine', "Go to Line");
+		this.selectionElement = new StatusBarItem(
+			append(this.element, $('a.editor-status-selection')),
+			nls.localize('gotoLine', "Go to Line"));
 		this.selectionElement.onclick = () => this.onSelectionClick();
 
-		this.indentationElement = new StatusBarItem(append(this.element, $('a.editor-status-indentation')));
-		this.indentationElement.title = nls.localize('selectIndentation', "Select Indentation");
+		this.indentationElement = new StatusBarItem(
+			append(this.element, $('a.editor-status-indentation')),
+			nls.localize('selectIndentation', "Select Indentation"));
 		this.indentationElement.onclick = () => this.onIndentationClick();
 
-		this.encodingElement = new StatusBarItem(append(this.element, $('a.editor-status-encoding')));
-		this.encodingElement.title = nls.localize('selectEncoding', "Select Encoding");
+		this.encodingElement = new StatusBarItem(
+			append(this.element, $('a.editor-status-encoding')),
+			nls.localize('selectEncoding', "Select Encoding"));
 		this.encodingElement.onclick = () => this.onEncodingClick();
 
-		this.eolElement = new StatusBarItem(append(this.element, $('a.editor-status-eol')));
-		this.eolElement.title = nls.localize('selectEOL', "Select End of Line Sequence");
+		this.eolElement = new StatusBarItem(
+			append(this.element, $('a.editor-status-eol')),
+			nls.localize('selectEOL', "Select End of Line Sequence"));
 		this.eolElement.onclick = () => this.onEOLClick();
 
-		this.modeElement = new StatusBarItem(append(this.element, $('a.editor-status-mode')));
-		this.modeElement.title = nls.localize('selectLanguageMode', "Select Language Mode");
+		this.modeElement = new StatusBarItem(
+			append(this.element, $('a.editor-status-mode')),
+			nls.localize('selectLanguageMode', "Select Language Mode"));
 		this.modeElement.onclick = () => this.onModeClick();
 
-		this.metadataElement = new StatusBarItem(append(this.element, $('span.editor-status-metadata')));
-		this.metadataElement.title = nls.localize('fileInfo', "File Information");
+		this.metadataElement = new StatusBarItem(
+			append(this.element, $('span.editor-status-metadata')),
+			nls.localize('fileInfo', "File Information"));
 
 		this.delayedRender = null;
 		this.toRender = null;
