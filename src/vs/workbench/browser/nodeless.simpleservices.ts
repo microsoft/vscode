@@ -46,7 +46,7 @@ import { editorMatchesToTextSearchResults, addContextToEditorMatches } from 'vs/
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { InMemoryStorageService, IStorageService } from 'vs/platform/storage/common/storage';
 import { ITextMateService, IGrammar as ITextMategrammar } from 'vs/workbench/services/textMate/common/textMateService';
-import { LanguageId } from 'vs/editor/common/modes';
+import { LanguageId, TokenizationRegistry } from 'vs/editor/common/modes';
 import { IUpdateService, State } from 'vs/platform/update/common/update';
 import { IWindowConfiguration, IPath, IPathsToWaitFor, IWindowService, INativeOpenDialogOptions, IEnterWorkspaceResult, IURIToOpen, IMessageBoxResult, IWindowsService } from 'vs/platform/windows/common/windows';
 import { IProcessEnvironment, isWindows } from 'vs/base/common/platform';
@@ -59,6 +59,7 @@ import { IWorkspaceContextService, Workspace, toWorkspaceFolders, IWorkspaceFold
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { Color, RGBA } from 'vs/base/common/color';
 
 export const workspaceResource = URI.file(isWindows ? 'C:\\simpleWorkspace' : '/simpleWorkspace');
 
@@ -1213,6 +1214,8 @@ registerSingleton(ITelemetryService, SimpleTelemetryService);
 //#endregion
 
 //#region Textmate
+
+TokenizationRegistry.setColorMap([null, new Color(new RGBA(212, 212, 212, 1)), new Color(new RGBA(30, 30, 30, 1))]);
 
 export class SimpleTextMateService implements ITextMateService {
 
