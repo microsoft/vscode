@@ -20,10 +20,9 @@ import { IRawFileMatch2, resultIsMatch } from 'vs/workbench/services/search/comm
 import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { Range, RelativePattern } from 'vs/workbench/api/node/extHostTypes';
 import { ITextQueryBuilderOptions } from 'vs/workbench/contrib/search/common/queryBuilder';
-import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import * as vscode from 'vscode';
 import { ExtHostWorkspaceShape, IWorkspaceData, MainThreadMessageServiceShape, MainThreadWorkspaceShape, IMainContext, MainContext, IStaticWorkspaceData } from './extHost.protocol';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Barrier } from 'vs/base/common/async';
 
 export interface IExtHostWorkspaceProvider {

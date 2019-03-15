@@ -5,9 +5,9 @@
 
 import * as platform from 'vs/base/common/platform';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { IChannel } from 'vs/base/parts/ipc/node/ipc';
-import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { IRemoteAgentEnvironment } from 'vs/workbench/services/remote/node/remoteAgentService';
+import { IChannel } from 'vs/base/parts/ipc/common/ipc';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 
 export interface IGetEnvironmentDataArguments {
 	language: string;

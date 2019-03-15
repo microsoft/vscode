@@ -14,8 +14,7 @@ import { ExtHostCommentsShape, IMainContext, MainContext, MainThreadCommentsShap
 import { CommandsConverter, ExtHostCommands } from './extHostCommands';
 import { IRange } from 'vs/editor/common/core/range';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Event, Emitter } from 'vs/base/common/event';
 
 interface HandlerData<T> {

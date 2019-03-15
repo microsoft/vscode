@@ -41,13 +41,14 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IDisposable, dispose, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { DownloadService } from 'vs/platform/download/node/downloadService';
 import { IDownloadService } from 'vs/platform/download/common/download';
-import { StaticRouter, IServerChannel, IChannel } from 'vs/base/parts/ipc/node/ipc';
+import { StaticRouter } from 'vs/base/parts/ipc/node/ipc';
 import { NodeCachedDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/nodeCachedDataCleaner';
 import { LanguagePackCachedDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/languagePackCachedDataCleaner';
 import { StorageDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/storageDataCleaner';
 import { LogsDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/logsDataCleaner';
 import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;

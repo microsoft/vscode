@@ -12,8 +12,9 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { TerminalProcess } from 'vs/workbench/contrib/terminal/node/terminalProcess';
-import { IRemoteAgentService, IRemoteAgentEnvironment } from 'vs/workbench/services/remote/node/remoteAgentService';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { URI } from 'vs/base/common/uri';
+import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 
 let Terminal: typeof XTermTerminal;
 

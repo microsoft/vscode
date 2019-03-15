@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { UriComponents } from 'vs/base/common/uri';
-import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 export interface TaskDefinitionDTO {
 	type: string;

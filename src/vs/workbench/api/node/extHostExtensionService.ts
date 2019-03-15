@@ -19,14 +19,14 @@ import { ActivatedExtension, EmptyExtension, ExtensionActivatedByAPI, ExtensionA
 import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
 import { ExtHostStorage } from 'vs/workbench/api/node/extHostStorage';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
-import { IExtensionDescription, ExtensionActivationError } from 'vs/workbench/services/extensions/common/extensions';
+import { ExtensionActivationError } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
 import { connectProxyResolver } from 'vs/workbench/services/extensions/node/proxyResolver';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 import { ResolvedAuthority } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import * as vscode from 'vscode';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { Schemas } from 'vs/base/common/network';
 

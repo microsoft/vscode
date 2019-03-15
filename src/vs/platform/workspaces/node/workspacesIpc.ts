@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IServerChannel } from 'vs/base/parts/ipc/node/ipc';
+import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';

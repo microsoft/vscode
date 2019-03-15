@@ -5,6 +5,7 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
+import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 
 export interface ParsedArgs {
 	[arg: string]: any;
@@ -150,3 +151,10 @@ export interface IEnvironmentService {
 	driverHandle?: string;
 	driverVerbose: boolean;
 }
+
+export interface IRemoteEnvironmentService {
+	_serviceBrand: any;
+	remoteEnvironment: Promise<IRemoteAgentEnvironment | undefined>;
+}
+
+export const IRemoteEnvironmentService = createDecorator<IRemoteEnvironmentService>('remoteEnvironmentService');

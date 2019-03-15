@@ -60,6 +60,7 @@ import { IWorkspaceContextService, Workspace, toWorkspaceFolders, IWorkspaceFold
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 
 export const workspaceResource = URI.file(isWindows ? 'C:\\simpleWorkspace' : '/simpleWorkspace');
 
@@ -232,6 +233,7 @@ export class SimpleEnvironmentService implements IEnvironmentService {
 	execPath: string;
 	cliPath: string;
 	appRoot: string = '/nodeless/';
+	remoteEnvironment: IRemoteAgentEnvironment;
 	userHome: string;
 	userDataPath: string;
 	appNameLong: string;

@@ -8,7 +8,6 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { debounce } from 'vs/base/common/decorators';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { asPromise } from 'vs/base/common/async';
-import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceSplice, SCMRawResourceSplices, IMainContext, ExtHostSCMShape, CommandDto } from './extHost.protocol';
 import { sortedDiff } from 'vs/base/common/arrays';
@@ -17,7 +16,7 @@ import * as vscode from 'vscode';
 import { ISplice } from 'vs/base/common/sequence';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 type ProviderHandle = number;
 type GroupHandle = number;

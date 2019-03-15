@@ -11,7 +11,6 @@ import { asPromise } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { win32 } from 'vs/base/node/processes';
 
-import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 
 import { MainContext, MainThreadTaskShape, ExtHostTaskShape, IMainContext } from 'vs/workbench/api/node/extHost.protocol';
 
@@ -32,6 +31,7 @@ import { ExtHostTerminalService, ExtHostTerminal } from 'vs/workbench/api/node/e
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 namespace TaskDefinitionDTO {
 	export function from(value: vscode.TaskDefinition): TaskDefinitionDTO | undefined {

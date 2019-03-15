@@ -4,11 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Client, BufferedProtocol } from 'vs/base/parts/ipc/node/ipc.net';
-
-export interface RemoteAgentConnectionContext {
-	remoteAuthority: string;
-	clientId: string;
-}
+import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
 
 export function connectRemoteAgentManagement(remoteAuthority: string, host: string, port: number, clientId: string, isBuilt: boolean): Promise<Client<RemoteAgentConnectionContext>> {
 	throw new Error(`Not implemented`);

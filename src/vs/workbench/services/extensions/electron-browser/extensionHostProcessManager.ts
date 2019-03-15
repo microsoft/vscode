@@ -12,13 +12,13 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ExtHostCustomersRegistry } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { ExtHostContext, ExtHostExtensionServiceShape, IExtHostContext, MainContext } from 'vs/workbench/api/node/extHost.protocol';
-import { ProfileSession, IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { ProfileSession } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtensionHostStarter } from 'vs/workbench/services/extensions/electron-browser/extensionHost';
 import { ExtensionHostProfiler } from 'vs/workbench/services/extensions/electron-browser/extensionHostProfiler';
 import { ProxyIdentifier } from 'vs/workbench/services/extensions/node/proxyIdentifier';
 import { IRPCProtocolLogger, RPCProtocol, RequestInitiator, ResponsiveState } from 'vs/workbench/services/extensions/node/rpcProtocol';
 import { ResolvedAuthority } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';

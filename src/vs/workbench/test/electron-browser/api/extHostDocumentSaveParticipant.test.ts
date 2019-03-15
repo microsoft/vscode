@@ -13,11 +13,10 @@ import { SingleProxyRPCProtocol } from './testRPCProtocol';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import * as vscode from 'vscode';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
-import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { isResourceTextEdit, ResourceTextEdit } from 'vs/editor/common/modes';
 import { timeout } from 'vs/base/common/async';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 suite('ExtHostDocumentSaveParticipant', () => {
 

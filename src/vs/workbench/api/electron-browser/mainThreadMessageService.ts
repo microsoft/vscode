@@ -8,13 +8,12 @@ import Severity from 'vs/base/common/severity';
 import { Action, IAction } from 'vs/base/common/actions';
 import { MainThreadMessageServiceShape, MainContext, IExtHostContext, MainThreadMessageOptions } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
-import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Event } from 'vs/base/common/event';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { dispose } from 'vs/base/common/lifecycle';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 @extHostNamedCustomer(MainContext.MainThreadMessageService)
 export class MainThreadMessageService implements MainThreadMessageServiceShape {
