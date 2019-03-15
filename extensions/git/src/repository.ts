@@ -801,10 +801,22 @@ export class Repository implements Disposable {
 	}
 
 	async commit(message: string, opts: CommitOptions = Object.create(null)): Promise<void> {
+		const config = workspace.getConfiguration('git');
+		const onlyTrackStagedFile = config.get<boolean>('onlyTrackedFilesCanBeAutoStaged');
+
 		if (this.rebaseCommit) {
 			await this.run(Operation.RebaseContinue, async () => {
 				if (opts.all) {
-					await this.repository.add([]);
+					if (onlyTrackStagedFile) {
+						const unstageFiles = await this.trackedUnstagedFiles();
+						if (unstageFiles.length === 0) {
+							window.showInformationMessage(localize('no changes', "There are no changes to commit."));
+							return false;
+						}
+						await this.repository.add(unstageFiles);
+					} else {
+						await this.repository.add([]);
+					}
 				}
 
 				await this.repository.rebaseContinue();
@@ -812,7 +824,16 @@ export class Repository implements Disposable {
 		} else {
 			await this.run(Operation.Commit, async () => {
 				if (opts.all) {
-					await this.repository.add([]);
+					if (onlyTrackStagedFile) {
+						const unstageFiles = await this.trackedUnstagedFiles();
+						if (unstageFiles.length === 0) {
+							window.showInformationMessage(localize('no changes', "There are no changes to commit."));
+							return false;
+						}
+						await this.repository.add(unstageFiles);
+					} else {
+						await this.repository.add([]);
+					}
 				}
 
 				await this.repository.commit(message, opts);
@@ -1447,6 +1468,12 @@ export class Repository implements Disposable {
 		}
 
 		this.eventuallyUpdateWhenIdleAndWait();
+	}
+
+	private async trackedUnstagedFiles(): Promise<string[]> {
+		const rawChangedFiles = await this.repository.run(['ls-files', '.', '-m']);
+		const parsedFiles = rawChangedFiles.stdout.split('\n').filter(l => !!l);
+		return parsedFiles;
 	}
 
 	@debounce(1000)
