@@ -247,11 +247,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				default: false,
 				scope: ConfigurationScope.APPLICATION,
 				tags: ['usesOnlineServices']
-			},
-			'extensions.enableExperimentalAzureSearch': {
-				type: 'boolean',
-				description: localize('enableExperimentalAzureSearch', "Enable experimental Azure based search for searching extensions in Marketplace."),
-				default: true
 			}
 		}
 	});
