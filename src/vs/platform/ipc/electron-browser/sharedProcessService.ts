@@ -7,7 +7,8 @@ import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/co
 import { Client, connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IChannel, getDelayedChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
+import { getDelayedChannel } from 'vs/base/parts/ipc/node/ipc';
+import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 
 export const ISharedProcessService = createDecorator<ISharedProcessService>('sharedProcessService');
 

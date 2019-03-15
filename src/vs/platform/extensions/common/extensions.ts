@@ -228,6 +228,15 @@ export class ExtensionIdentifier {
 	}
 }
 
+export interface IExtensionDescription extends IExtensionManifest {
+	readonly identifier: ExtensionIdentifier;
+	readonly uuid?: string;
+	readonly isBuiltin: boolean;
+	readonly isUnderDevelopment: boolean;
+	readonly extensionLocation: URI;
+	enableProposedApi?: boolean;
+}
+
 export function isLanguagePackExtension(manifest: IExtensionManifest): boolean {
 	return manifest.contributes && manifest.contributes.localizations ? manifest.contributes.localizations.length > 0 : false;
 }

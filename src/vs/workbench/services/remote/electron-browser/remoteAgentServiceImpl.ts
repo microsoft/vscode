@@ -5,14 +5,14 @@
 
 import { localize } from 'vs/nls';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IChannel, getDelayedChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
+import { getDelayedChannel } from 'vs/base/parts/ipc/node/ipc';
 import { Client } from 'vs/base/parts/ipc/node/ipc.net';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { connectRemoteAgentManagement, RemoteAgentConnectionContext } from 'vs/platform/remote/node/remoteAgentConnection';
+import { connectRemoteAgentManagement } from 'vs/platform/remote/node/remoteAgentConnection';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { RemoteExtensionEnvironmentChannelClient } from 'vs/workbench/services/remote/node/remoteAgentEnvironmentChannel';
-import { IRemoteAgentConnection, IRemoteAgentEnvironment, IRemoteAgentService } from 'vs/workbench/services/remote/node/remoteAgentService';
+import { IRemoteAgentConnection, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
@@ -21,6 +21,8 @@ import { DownloadServiceChannel } from 'vs/platform/download/node/downloadIpc';
 import { LogLevelSetterChannel } from 'vs/platform/log/node/logIpc';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IRemoteAgentEnvironment, RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
+import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 
 export class RemoteAgentService implements IRemoteAgentService {
 

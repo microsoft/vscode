@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChannel } from 'vs/base/parts/ipc/node/ipc';
+import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Event } from 'vs/base/common/event';
 import { ILocalizationsService, LanguageType } from 'vs/platform/localizations/common/localizations';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';

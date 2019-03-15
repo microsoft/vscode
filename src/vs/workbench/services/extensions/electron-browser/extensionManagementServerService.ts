@@ -8,9 +8,9 @@ import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { IExtensionManagementServer, IExtensionManagementServerService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/node/extensionManagementIpc';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/node/remoteAgentService';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
-import { IChannel } from 'vs/base/parts/ipc/node/ipc';
+import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 

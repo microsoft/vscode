@@ -262,7 +262,7 @@ export class ContributableViewsModel extends Disposable {
 		return this.isViewDescriptorVisible(viewDescriptor);
 	}
 
-	setVisible(id: string, visible: boolean): void {
+	setVisible(id: string, visible: boolean, size?: number): void {
 		const { visibleIndex, viewDescriptor, state } = this.find(id);
 
 		if (!viewDescriptor.canToggleVisibility) {
@@ -277,6 +277,10 @@ export class ContributableViewsModel extends Disposable {
 			state.visibleWorkspace = visible;
 		} else {
 			state.visibleGlobal = visible;
+		}
+
+		if (typeof size === 'number') {
+			state.size = size;
 		}
 
 		if (visible) {

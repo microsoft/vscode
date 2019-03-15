@@ -479,8 +479,8 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 		return true;
 	}
 
-	public getContainer(_part: Parts): HTMLElement | null {
-		return null;
+	public getContainer(_part: Parts): HTMLElement {
+		return null!;
 	}
 
 	public isTitleBarHidden(): boolean {
@@ -664,6 +664,8 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 
 	orientation: any;
 	whenRestored: Promise<void> = Promise.resolve(undefined);
+
+	dimension = { width: 800, height: 600 };
 
 	get activeGroup(): IEditorGroup {
 		return this.groups[0];

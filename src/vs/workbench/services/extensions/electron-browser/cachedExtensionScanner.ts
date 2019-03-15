@@ -16,12 +16,11 @@ import { URI } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { BUILTIN_MANIFEST_CACHE_FILE, MANIFEST_CACHE_FOLDER, USER_MANIFEST_CACHE_FILE, ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { BUILTIN_MANIFEST_CACHE_FILE, MANIFEST_CACHE_FOLDER, USER_MANIFEST_CACHE_FILE, ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import pkg from 'vs/platform/product/node/package';
 import product from 'vs/platform/product/node/product';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IWindowService } from 'vs/platform/windows/common/windows';
-import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionScanner, ExtensionScannerInput, IExtensionReference, IExtensionResolver, ILog, IRelaxedExtensionDescription, Translations } from 'vs/workbench/services/extensions/node/extensionPoints';
 
 interface IExtensionCacheData {

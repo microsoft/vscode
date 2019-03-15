@@ -643,8 +643,8 @@ suite('BackupMainService', () => {
 		});
 
 		test('should remove empty workspaces from workspaces.json', () => {
-			service.registerEmptyWindowBackupSync({ backupFolder: 'foo' });
-			service.registerEmptyWindowBackupSync({ backupFolder: 'bar' });
+			service.registerEmptyWindowBackupSync('foo');
+			service.registerEmptyWindowBackupSync('bar');
 			service.unregisterEmptyWindowBackupSync('foo');
 			return pfs.readFile(backupWorkspacesPath, 'utf-8').then(buffer => {
 				const json = <IBackupWorkspacesFormat>JSON.parse(buffer);

@@ -188,8 +188,8 @@ export class CommentsPanel extends Panel {
 		const threadToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].threadId : element.threadId;
 		const commentToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].comment : element.comment;
 
-		if (commentToReveal.command) {
-			this.commandService.executeCommand(commentToReveal.command.id, ...(commentToReveal.command.arguments || [])).then(_ => {
+		if (commentToReveal.selectCommand) {
+			this.commandService.executeCommand(commentToReveal.selectCommand.id, ...(commentToReveal.selectCommand.arguments || [])).then(_ => {
 				let activeWidget = this.editorService.activeTextEditorWidget;
 				if (isDiffEditor(activeWidget)) {
 					const originalEditorWidget = activeWidget.getOriginalEditor();

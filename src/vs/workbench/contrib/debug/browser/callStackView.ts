@@ -15,21 +15,18 @@ import { MenuId, IMenu, IMenuService } from 'vs/platform/actions/common/actions'
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { renderViewTree } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { IAction } from 'vs/base/common/actions';
-import { RestartAction, StopAction, ContinueAction, StepOverAction, StepIntoAction, StepOutAction, PauseAction, RestartFrameAction, TerminateThreadAction } from 'vs/workbench/contrib/debug/browser/debugActions';
-import { CopyStackTraceAction } from 'vs/workbench/contrib/debug/electron-browser/electronDebugActions';
+import { RestartAction, StopAction, ContinueAction, StepOverAction, StepIntoAction, StepOutAction, PauseAction, RestartFrameAction, TerminateThreadAction, CopyStackTraceAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IViewletPanelOptions, ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { DebugSession } from 'vs/workbench/contrib/debug/electron-browser/debugSession';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode, ITreeContextMenuEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
-import { TreeResourceNavigator2, WorkbenchAsyncDataTree, IListService } from 'vs/platform/list/browser/listService';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { TreeResourceNavigator2, WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
@@ -48,7 +45,7 @@ export class CallStackView extends ViewletPanel {
 	private ignoreFocusStackFrameEvent: boolean;
 	private callStackItemType: IContextKey<string>;
 	private dataSource: CallStackDataSource;
-	private tree: WorkbenchAsyncDataTree<string | IStackFrame | IThread | IDebugSession | ThreadAndSessionIds | IDebugModel | IStackFrame[], CallStackItem, FuzzyScore>;
+	private tree: WorkbenchAsyncDataTree<CallStackItem | IDebugModel, CallStackItem, FuzzyScore>;
 	private contributedContextMenu: IMenu;
 
 	constructor(
@@ -60,9 +57,7 @@ export class CallStackView extends ViewletPanel {
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IMenuService menuService: IMenuService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IThemeService private readonly themeService: IThemeService,
-		@IListService private readonly listService: IListService
+		@IContextKeyService readonly contextKeyService: IContextKeyService,
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('callstackSection', "Call Stack Section") }, keybindingService, contextMenuService, configurationService);
 		this.callStackItemType = CONTEXT_CALLSTACK_ITEM_TYPE.bindTo(contextKeyService);
@@ -105,7 +100,7 @@ export class CallStackView extends ViewletPanel {
 		const treeContainer = renderViewTree(container);
 
 		this.dataSource = new CallStackDataSource();
-		this.tree = new WorkbenchAsyncDataTree(treeContainer, new CallStackDelegate(), [
+		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, treeContainer, new CallStackDelegate(), [
 			new SessionsRenderer(),
 			new ThreadsRenderer(),
 			this.instantiationService.createInstance(StackFramesRenderer),
@@ -124,12 +119,12 @@ export class CallStackView extends ViewletPanel {
 							return `showMore ${element[0].getId()}`;
 						}
 
-						return element.getId();
+						return (<IStackFrame | IThread | IDebugSession | ThreadAndSessionIds>element).getId();
 					}
 				},
 				keyboardNavigationLabelProvider: {
 					getKeyboardNavigationLabel: e => {
-						if (e instanceof DebugSession) {
+						if (isDebugSession(e)) {
 							return e.getLabel();
 						}
 						if (e instanceof Thread) {
@@ -145,7 +140,7 @@ export class CallStackView extends ViewletPanel {
 						return nls.localize('showMoreStackFrames2', "Show More Stack Frames");
 					}
 				}
-			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
+			}) as WorkbenchAsyncDataTree<CallStackItem | IDebugModel, CallStackItem, FuzzyScore>;
 
 		this.tree.setInput(this.debugService.getModel()).then(undefined, onUnexpectedError);
 
@@ -173,7 +168,7 @@ export class CallStackView extends ViewletPanel {
 			if (element instanceof Thread) {
 				focusStackFrame(undefined, element, element.session);
 			}
-			if (element instanceof DebugSession) {
+			if (isDebugSession(element)) {
 				focusStackFrame(undefined, undefined, element);
 			}
 			if (element instanceof ThreadAndSessionIds) {
@@ -271,7 +266,7 @@ export class CallStackView extends ViewletPanel {
 	private onContextMenu(e: ITreeContextMenuEvent<CallStackItem>): void {
 		const actions: IAction[] = [];
 		const element = e.element;
-		if (element instanceof DebugSession) {
+		if (isDebugSession(element)) {
 			this.callStackItemType.set('session');
 			actions.push(this.instantiationService.createInstance(RestartAction, RestartAction.ID, RestartAction.LABEL));
 			actions.push(new StopAction(StopAction.ID, StopAction.LABEL, this.debugService, this.keybindingService));
@@ -294,7 +289,7 @@ export class CallStackView extends ViewletPanel {
 			if (element.thread.session.capabilities.supportsRestartFrame) {
 				actions.push(new RestartFrameAction(RestartFrameAction.ID, RestartFrameAction.LABEL, this.debugService, this.keybindingService));
 			}
-			actions.push(new CopyStackTraceAction(CopyStackTraceAction.ID, CopyStackTraceAction.LABEL));
+			actions.push(this.instantiationService.createInstance(CopyStackTraceAction, CopyStackTraceAction.ID, CopyStackTraceAction.LABEL));
 		} else {
 			this.callStackItemType.reset();
 		}
@@ -548,7 +543,7 @@ class CallStackDelegate implements IListVirtualDelegate<CallStackItem> {
 	}
 
 	getTemplateId(element: CallStackItem): string {
-		if (element instanceof DebugSession) {
+		if (isDebugSession(element)) {
 			return SessionsRenderer.ID;
 		}
 		if (element instanceof Thread) {
@@ -573,6 +568,10 @@ function isDebugModel(obj: any): obj is IDebugModel {
 	return typeof obj.getSessions === 'function';
 }
 
+function isDebugSession(obj: any): obj is IDebugSession {
+	return typeof obj.getAllThreads === 'function';
+}
+
 function isDeemphasized(frame: IStackFrame): boolean {
 	return frame.source.presentationHint === 'deemphasize' || frame.presentationHint === 'deemphasize';
 }
@@ -581,7 +580,7 @@ class CallStackDataSource implements IAsyncDataSource<IDebugModel, CallStackItem
 	deemphasizedStackFramesToShow: IStackFrame[];
 
 	hasChildren(element: IDebugModel | CallStackItem): boolean {
-		return isDebugModel(element) || element instanceof DebugSession || (element instanceof Thread && element.stopped);
+		return isDebugModel(element) || isDebugSession(element) || (element instanceof Thread && element.stopped);
 	}
 
 	getChildren(element: IDebugModel | CallStackItem): Promise<CallStackItem[]> {
@@ -597,7 +596,7 @@ class CallStackDataSource implements IAsyncDataSource<IDebugModel, CallStackItem
 			const threads = sessions[0].getAllThreads();
 			// Only show the threads in the call stack if there is more than 1 thread.
 			return threads.length === 1 ? this.getThreadChildren(<Thread>threads[0]) : Promise.resolve(threads);
-		} else if (element instanceof DebugSession) {
+		} else if (isDebugSession(element)) {
 			return Promise.resolve(element.getAllThreads());
 		} else {
 			return this.getThreadChildren(<Thread>element);
@@ -671,7 +670,7 @@ class CallStackAccessibilityProvider implements IAccessibilityProvider<CallStack
 		if (element instanceof StackFrame) {
 			return nls.localize('stackFrameAriaLabel', "Stack Frame {0} line {1} {2}, callstack, debug", element.name, element.range.startLineNumber, element.getSpecificSourceName());
 		}
-		if (element instanceof DebugSession) {
+		if (isDebugSession(element)) {
 			return nls.localize('sessionLabel', "Debug Session {0}", element.getLabel());
 		}
 		if (typeof element === 'string') {

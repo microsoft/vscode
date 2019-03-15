@@ -25,7 +25,6 @@ import { IInstantiationService, createDecorator } from 'vs/platform/instantiatio
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { Panel } from 'vs/workbench/browser/panel';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { clipboard } from 'electron';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { memoize } from 'vs/base/common/decorators';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
@@ -47,25 +46,24 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { Variable, Expression, SimpleReplElement, RawObjectReplElement } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { VariablesRenderer } from 'vs/workbench/contrib/debug/electron-browser/variablesView';
 import { ITreeRenderer, ITreeNode, ITreeContextMenuEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { renderExpressionValue } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { handleANSIOutput } from 'vs/workbench/contrib/debug/browser/debugANSIHandling';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
-import { CopyAction } from 'vs/workbench/contrib/debug/electron-browser/electronDebugActions';
-import { ReplCollapseAllAction } from 'vs/workbench/contrib/debug/browser/debugActions';
+import { ReplCollapseAllAction, CopyAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
-import { WorkbenchAsyncDataTree, IListService } from 'vs/platform/list/browser/listService';
+import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { VariablesRenderer } from 'vs/workbench/contrib/debug/browser/variablesView';
 
 const $ = dom.$;
 
@@ -117,10 +115,9 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IListService private readonly listService: IListService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITextResourcePropertiesService private readonly textResourcePropertiesService: ITextResourcePropertiesService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService
+		@IClipboardService private readonly clipboardService: IClipboardService
 	) {
 		super(REPL_ID, telemetryService, themeService, storageService);
 
@@ -369,7 +366,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		this.createReplInput(this.container);
 
 		this.replDelegate = new ReplDelegate(this.configurationService);
-		this.tree = new WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>(treeContainer, this.replDelegate, [
+		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, treeContainer, this.replDelegate, [
 			this.instantiationService.createInstance(VariablesRenderer),
 			this.instantiationService.createInstance(ReplSimpleElementsRenderer),
 			new ReplExpressionsRenderer(),
@@ -377,13 +374,13 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		], new ReplDataSource(), {
 				ariaLabel: nls.localize('replAriaLabel', "Read Eval Print Loop Panel"),
 				accessibilityProvider: new ReplAccessibilityProvider(),
-				identityProvider: { getId: element => element.getId() },
+				identityProvider: { getId: element => (<IReplElement>element).getId() },
 				mouseSupport: false,
 				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: e => e },
 				horizontalScrolling: false,
 				setRowLineHeight: false,
 				supportDynamicHeights: true
-			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
+			}) as WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>;
 
 		this.toDispose.push(this.tree.onContextMenu(e => this.onContextMenu(e)));
 		// Make sure to select the session if debugging is already active
@@ -455,9 +452,9 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 	private onContextMenu(e: ITreeContextMenuEvent<IReplElement>): void {
 		const actions: IAction[] = [];
-		actions.push(new CopyAction(CopyAction.ID, CopyAction.LABEL));
+		actions.push(new CopyAction(CopyAction.ID, CopyAction.LABEL, this.clipboardService));
 		actions.push(new Action('workbench.debug.action.copyAll', nls.localize('copyAll', "Copy All"), undefined, true, () => {
-			clipboard.writeText(this.getVisibleContent());
+			this.clipboardService.writeText(this.getVisibleContent());
 			return Promise.resolve(undefined);
 		}));
 		actions.push(new ReplCollapseAllAction(this.tree, this.replInput));
@@ -823,7 +820,8 @@ class ReplCopyAllAction extends EditorAction {
 	}
 
 	run(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
-		clipboard.writeText(accessor.get(IPrivateReplService).getVisibleContent());
+		const clipboardService = accessor.get(IClipboardService);
+		clipboardService.writeText(accessor.get(IPrivateReplService).getVisibleContent());
 	}
 }
 

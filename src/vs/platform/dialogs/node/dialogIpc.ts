@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
+import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IDialogService, IConfirmation, IConfirmationResult } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
 import { Event } from 'vs/base/common/event';

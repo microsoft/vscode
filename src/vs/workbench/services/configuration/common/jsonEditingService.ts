@@ -6,7 +6,6 @@
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import * as json from 'vs/base/common/json';
-import * as encoding from 'vs/base/node/encoding';
 import * as strings from 'vs/base/common/strings';
 import { setProperty } from 'vs/base/common/jsonEdit';
 import { Queue } from 'vs/base/common/async';
@@ -87,7 +86,7 @@ export class JSONEditingService implements IJSONEditingService {
 	private async resolveModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
 		const exists = await this.fileService.existsFile(resource);
 		if (!exists) {
-			await this.fileService.updateContent(resource, '{}', { encoding: encoding.UTF8 });
+			await this.fileService.updateContent(resource, '{}', { encoding: 'utf8' });
 		}
 		return this.textModelResolverService.createModelReference(resource);
 	}

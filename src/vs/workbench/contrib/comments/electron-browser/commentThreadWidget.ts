@@ -231,7 +231,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		}
 	}
 
-	update(commentThread: modes.CommentThread | modes.CommentThread2) {
+	async update(commentThread: modes.CommentThread | modes.CommentThread2) {
 		const oldCommentsLen = this._commentElements.length;
 		const newCommentsLen = commentThread.comments.length;
 
@@ -400,8 +400,8 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 				}
 			}));
 
-			this._disposables.push((this._commentThread as modes.CommentThread2).onDidChangeComments(_ => {
-				this.update(this._commentThread);
+			this._disposables.push((this._commentThread as modes.CommentThread2).onDidChangeComments(async _ => {
+				await this.update(this._commentThread);
 			}));
 
 			this._disposables.push((this._commentThread as modes.CommentThread2).onDidChangeLabel(_ => {

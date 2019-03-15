@@ -12,8 +12,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { URI } from 'vs/base/common/uri';
 import { ExecutableDebugAdapter } from 'vs/workbench/contrib/debug/node/debugAdapter';
 import { TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTestServices';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 
 suite('Debug - Debugger', () => {

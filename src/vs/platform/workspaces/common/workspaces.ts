@@ -173,7 +173,7 @@ const SLASH = '/';
  */
 export function getStoredWorkspaceFolder(folderURI: URI, folderName: string | undefined, targetConfigFolderURI: URI, useSlashForPath = !isWindows): IStoredWorkspaceFolder {
 
-	if (folderURI.scheme !== targetConfigFolderURI.scheme || !isEqualAuthority(folderURI.authority, targetConfigFolderURI.authority)) {
+	if (folderURI.scheme !== targetConfigFolderURI.scheme) {
 		return { name: folderName, uri: folderURI.toString(true) };
 	}
 
@@ -200,6 +200,9 @@ export function getStoredWorkspaceFolder(folderURI: URI, folderName: string | un
 				}
 			}
 		} else {
+			if (!isEqualAuthority(folderURI.authority, targetConfigFolderURI.authority)) {
+				return { name: folderName, uri: folderURI.toString(true) };
+			}
 			folderPath = folderURI.path;
 		}
 	}

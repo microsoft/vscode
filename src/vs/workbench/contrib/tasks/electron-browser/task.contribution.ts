@@ -1772,10 +1772,10 @@ class TaskService extends Disposable implements ITaskService {
 	}
 
 	public configureAction(): Action {
-		let run = () => { this.runConfigureTasks(); return Promise.resolve(undefined); };
+		const thisCapture: TaskService = this;
 		return new class extends Action {
 			constructor() {
-				super(ConfigureTaskAction.ID, ConfigureTaskAction.TEXT, undefined, true, run);
+				super(ConfigureTaskAction.ID, ConfigureTaskAction.TEXT, undefined, true, () => { thisCapture.runConfigureTasks(); return Promise.resolve(undefined); });
 			}
 		};
 	}

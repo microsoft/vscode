@@ -10,28 +10,25 @@ import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDebugService, IExpression, CONTEXT_WATCH_EXPRESSIONS_FOCUSED } from 'vs/workbench/contrib/debug/common/debug';
 import { Expression, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
-import { AddWatchExpressionAction, RemoveAllWatchExpressionsAction, EditWatchExpressionAction, RemoveWatchExpressionAction } from 'vs/workbench/contrib/debug/browser/debugActions';
+import { AddWatchExpressionAction, RemoveAllWatchExpressionsAction, EditWatchExpressionAction, RemoveWatchExpressionAction, CopyValueAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IAction } from 'vs/base/common/actions';
-import { CopyValueAction } from 'vs/workbench/contrib/debug/electron-browser/electronDebugActions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { renderExpressionValue, renderViewTree, IInputBoxOptions, AbstractExpressionsRenderer, IExpressionTemplateData } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewletPanelOptions, ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { VariablesRenderer, variableSetEmitter } from 'vs/workbench/contrib/debug/electron-browser/variablesView';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { WorkbenchAsyncDataTree, IListService } from 'vs/platform/list/browser/listService';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { IAsyncDataSource, ITreeMouseEvent, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeDragOverReaction } from 'vs/base/browser/ui/tree/tree';
 import { IDragAndDropData } from 'vs/base/browser/dnd';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
+import { variableSetEmitter, VariablesRenderer } from 'vs/workbench/contrib/debug/browser/variablesView';
 
 const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
 
@@ -48,9 +45,6 @@ export class WatchExpressionsView extends ViewletPanel {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IListService private readonly listService: IListService,
-		@IThemeService private readonly themeService: IThemeService
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('watchExpressionsSection', "Watch Expressions Section") }, keybindingService, contextMenuService, configurationService);
 
@@ -65,14 +59,14 @@ export class WatchExpressionsView extends ViewletPanel {
 		const treeContainer = renderViewTree(container);
 
 		const expressionsRenderer = this.instantiationService.createInstance(WatchExpressionsRenderer);
-		this.tree = new WorkbenchAsyncDataTree(treeContainer, new WatchExpressionsDelegate(), [expressionsRenderer, this.instantiationService.createInstance(VariablesRenderer)],
+		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, treeContainer, new WatchExpressionsDelegate(), [expressionsRenderer, this.instantiationService.createInstance(VariablesRenderer)],
 			new WatchExpressionsDataSource(), {
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'watchAriaTreeLabel' }, "Debug Watch Expressions"),
 				accessibilityProvider: new WatchExpressionsAccessibilityProvider(),
-				identityProvider: { getId: element => element.getId() },
+				identityProvider: { getId: element => (<IExpression>element).getId() },
 				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: e => e },
 				dnd: new WatchExpressionsDragAndDrop(this.debugService),
-			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
+			}) as WorkbenchAsyncDataTree<IDebugService | IExpression, IExpression, FuzzyScore>;
 
 		this.tree.setInput(this.debugService).then(undefined, onUnexpectedError);
 		CONTEXT_WATCH_EXPRESSIONS_FOCUSED.bindTo(this.tree.contextKeyService);
@@ -152,7 +146,7 @@ export class WatchExpressionsView extends ViewletPanel {
 			actions.push(new AddWatchExpressionAction(AddWatchExpressionAction.ID, AddWatchExpressionAction.LABEL, this.debugService, this.keybindingService));
 			actions.push(new EditWatchExpressionAction(EditWatchExpressionAction.ID, EditWatchExpressionAction.LABEL, this.debugService, this.keybindingService));
 			if (!expression.hasChildren) {
-				actions.push(new CopyValueAction(CopyValueAction.ID, CopyValueAction.LABEL, expression.value, 'watch', this.debugService));
+				actions.push(this.instantiationService.createInstance(CopyValueAction, CopyValueAction.ID, CopyValueAction.LABEL, expression.value, 'watch', this.debugService));
 			}
 			actions.push(new Separator());
 
@@ -163,7 +157,7 @@ export class WatchExpressionsView extends ViewletPanel {
 			if (element instanceof Variable) {
 				const variable = element as Variable;
 				if (!variable.hasChildren) {
-					actions.push(new CopyValueAction(CopyValueAction.ID, CopyValueAction.LABEL, variable, 'watch', this.debugService));
+					actions.push(this.instantiationService.createInstance(CopyValueAction, CopyValueAction.ID, CopyValueAction.LABEL, variable, 'watch', this.debugService));
 				}
 				actions.push(new Separator());
 			}

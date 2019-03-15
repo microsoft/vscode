@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChannel } from 'vs/base/parts/ipc/node/ipc';
+import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IWorkspacesService, IWorkspaceIdentifier, IWorkspaceFolderCreationData, reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';

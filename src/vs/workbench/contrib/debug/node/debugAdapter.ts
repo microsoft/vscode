@@ -14,9 +14,9 @@ import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ExtensionsChannelId } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { IOutputService } from 'vs/workbench/contrib/output/common/output';
 import { IDebugAdapter, IDebugAdapterExecutable, IDebuggerContribution, IPlatformSpecificAdapterContribution, IDebugAdapterServer } from 'vs/workbench/contrib/debug/common/debug';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 /**
  * Abstract implementation of the low level API for a debug adapter.

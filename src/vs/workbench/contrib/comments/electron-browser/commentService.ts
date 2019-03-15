@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CommentThread, DocumentCommentProvider, CommentThreadChangedEvent, CommentInfo, Comment, CommentReaction, CommentingRanges } from 'vs/editor/common/modes';
+import { CommentThread, DocumentCommentProvider, CommentThreadChangedEvent, CommentInfo, Comment, CommentReaction, CommentingRanges, CommentThread2 } from 'vs/editor/common/modes';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -63,6 +63,7 @@ export interface ICommentService {
 	addReaction(owner: string, resource: URI, comment: Comment, reaction: CommentReaction): Promise<void>;
 	deleteReaction(owner: string, resource: URI, comment: Comment, reaction: CommentReaction): Promise<void>;
 	getReactionGroup(owner: string): CommentReaction[] | undefined;
+	toggleReaction(owner: string, resource: URI, thread: CommentThread2, comment: Comment, reaction: CommentReaction): Promise<void>;
 	setActiveCommentThread(commentThread: CommentThread | null);
 	setInput(input: string);
 }
@@ -237,11 +238,27 @@ export class CommentService extends Disposable implements ICommentService {
 		}
 	}
 
+	async toggleReaction(owner: string, resource: URI, thread: CommentThread2, comment: Comment, reaction: CommentReaction): Promise<void> {
+		const commentController = this._commentControls.get(owner);
+
+		if (commentController) {
+			return commentController.toggleReaction(resource, thread, comment, reaction, CancellationToken.None);
+		} else {
+			throw new Error('Not supported');
+		}
+	}
+
 	getReactionGroup(owner: string): CommentReaction[] | undefined {
-		const commentProvider = this._commentProviders.get(owner);
+		const commentProvider = this._commentControls.get(owner);
 
 		if (commentProvider) {
-			return commentProvider.reactionGroup;
+			return commentProvider.getReactionGroup();
+		}
+
+		const commentController = this._commentControls.get(owner);
+
+		if (commentController) {
+			return commentController.getReactionGroup();
 		}
 
 		return undefined;

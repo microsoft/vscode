@@ -213,9 +213,7 @@ export class BackupMainService implements IBackupMainService {
 		}
 	}
 
-	registerEmptyWindowBackupSync(backupInfo: IEmptyWindowBackupInfo): string {
-		let backupFolder = backupInfo.backupFolder;
-		let remoteAuthority = backupInfo.remoteAuthority;
+	registerEmptyWindowBackupSync(backupFolder?: string, remoteAuthority?: string): string {
 
 		// Generate a new folder if this is a new empty workspace
 		if (!backupFolder) {

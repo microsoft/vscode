@@ -15,8 +15,8 @@ import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
-import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 // we don't (yet) throw when extensions parse
 // uris that have no scheme
@@ -155,6 +155,7 @@ export class ExtensionHostMain {
 		initData.environment.extensionDevelopmentLocationURI = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.extensionDevelopmentLocationURI));
 		initData.environment.extensionTestsLocationURI = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.extensionTestsLocationURI));
 		initData.environment.globalStorageHome = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.globalStorageHome));
+		initData.environment.userHome = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.userHome));
 		initData.logsLocation = URI.revive(rpcProtocol.transformIncomingURIs(initData.logsLocation));
 		initData.workspace = rpcProtocol.transformIncomingURIs(initData.workspace);
 		return initData;

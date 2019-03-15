@@ -55,7 +55,7 @@ import { LogLevelSetterChannel } from 'vs/platform/log/node/logIpc';
 import * as errors from 'vs/base/common/errors';
 import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
 import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
-import { connectRemoteAgentManagement, RemoteAgentConnectionContext } from 'vs/platform/remote/node/remoteAgentConnection';
+import { connectRemoteAgentManagement } from 'vs/platform/remote/node/remoteAgentConnection';
 import { IMenubarService } from 'vs/platform/menubar/common/menubar';
 import { MenubarService } from 'vs/platform/menubar/electron-main/menubarService';
 import { MenubarChannel } from 'vs/platform/menubar/node/menubarIpc';
@@ -78,6 +78,7 @@ import { IBackupMainService } from 'vs/platform/backup/common/backup';
 import { HistoryMainService } from 'vs/platform/history/electron-main/historyMainService';
 import { URLService } from 'vs/platform/url/common/urlService';
 import { WorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
+import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
 
 export class CodeApplication extends Disposable {
 

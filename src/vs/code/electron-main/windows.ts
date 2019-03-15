@@ -691,7 +691,7 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		// Handle empty to restore
-		const allEmptyToRestore = arrays.distinct(emptyToRestore, info => info.backupFolder || ''); // prevent duplicates
+		const allEmptyToRestore = arrays.distinct(emptyToRestore, info => info.backupFolder); // prevent duplicates
 		if (allEmptyToRestore.length > 0) {
 			allEmptyToRestore.forEach(emptyWindowBackupInfo => {
 				const remoteAuthority = emptyWindowBackupInfo.remoteAuthority;
@@ -1247,7 +1247,7 @@ export class WindowsManager implements IWindowsMainService {
 		// For all other cases we first call into registerEmptyWindowBackupSync() to set it before
 		// loading the window.
 		if (options.emptyWindowBackupInfo) {
-			configuration.backupPath = join(this.environmentService.backupHome, options.emptyWindowBackupInfo.backupFolder!);
+			configuration.backupPath = join(this.environmentService.backupHome, options.emptyWindowBackupInfo.backupFolder);
 		}
 
 		let window: ICodeWindow | undefined;
@@ -1352,7 +1352,7 @@ export class WindowsManager implements IWindowsMainService {
 				configuration.backupPath = this.backupMainService.registerFolderBackupSync(configuration.folderUri);
 			} else {
 				const backupFolder = options.emptyWindowBackupInfo && options.emptyWindowBackupInfo.backupFolder;
-				configuration.backupPath = this.backupMainService.registerEmptyWindowBackupSync({ backupFolder, remoteAuthority: configuration.remoteAuthority });
+				configuration.backupPath = this.backupMainService.registerEmptyWindowBackupSync(backupFolder, configuration.remoteAuthority);
 			}
 		}
 

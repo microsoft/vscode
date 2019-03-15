@@ -36,14 +36,14 @@ import { ITreeItem, IRevealOptions } from 'vs/workbench/common/views';
 import { IAdapterDescriptor, IConfig, ITerminalSettings } from 'vs/workbench/contrib/debug/common/debug';
 import { ITextQueryBuilderOptions } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { ITerminalDimensions } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { ExtensionActivationError } from 'vs/workbench/services/extensions/common/extensions';
 import { IRPCProtocol, createExtHostContextProxyIdentifier as createExtId, createMainContextProxyIdentifier as createMainId } from 'vs/workbench/services/extensions/node/proxyIdentifier';
 import { IProgressOptions, IProgressStep } from 'vs/platform/progress/common/progress';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import * as vscode from 'vscode';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { ResolvedAuthority } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IRemoteConsoleLog } from 'vs/base/node/console';
 import * as codeInset from 'vs/workbench/contrib/codeinset/common/codeInset';
 
@@ -54,12 +54,13 @@ export interface IEnvironment {
 	extensionDevelopmentLocationURI?: URI;
 	extensionTestsLocationURI?: URI;
 	globalStorageHome: URI;
+	userHome: URI;
 }
 
 export interface IStaticWorkspaceData {
 	id: string;
 	name: string;
-	configuration?: UriComponents;
+	configuration?: UriComponents | null;
 }
 
 export interface IWorkspaceData extends IStaticWorkspaceData {
@@ -70,7 +71,7 @@ export interface IInitData {
 	commit?: string;
 	parentPid: number;
 	environment: IEnvironment;
-	workspace?: IStaticWorkspaceData;
+	workspace?: IStaticWorkspaceData | null;
 	resolvedExtensions: ExtensionIdentifier[];
 	hostExtensions: ExtensionIdentifier[];
 	extensions: IExtensionDescription[];
@@ -120,6 +121,7 @@ export interface CommentProviderFeatures {
 
 export interface MainThreadCommentsShape extends IDisposable {
 	$registerCommentController(handle: number, id: string, label: string): void;
+	$updateCommentControllerFeatures(handle: number, features: CommentProviderFeatures): void;
 	$createCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, range: IRange, comments: modes.Comment[], acceptInputCommand: modes.Command | undefined, additionalCommands: modes.Command[], collapseState: modes.CommentThreadCollapsibleState): modes.CommentThread2 | undefined;
 	$deleteCommentThread(handle: number, commentThreadHandle: number): void;
 	$updateComments(handle: number, commentThreadHandle: number, comments: modes.Comment[]): void;
@@ -368,7 +370,7 @@ export interface MainThreadProgressShape extends IDisposable {
 }
 
 export interface MainThreadTerminalServiceShape extends IDisposable {
-	$createTerminal(name?: string, shellPath?: string, shellArgs?: string[], cwd?: string | UriComponents, env?: { [key: string]: string }, waitOnExit?: boolean, strictEnv?: boolean): Promise<{ id: number, name: string }>;
+	$createTerminal(name?: string, shellPath?: string, shellArgs?: string[], cwd?: string | UriComponents, env?: { [key: string]: string | null }, waitOnExit?: boolean, strictEnv?: boolean): Promise<{ id: number, name: string }>;
 	$createTerminalRenderer(name: string): Promise<number>;
 	$dispose(terminalId: number): void;
 	$hide(terminalId: number): void;
@@ -569,13 +571,11 @@ export interface MainThreadTaskShape extends IDisposable {
 }
 
 export interface MainThreadExtensionServiceShape extends IDisposable {
-	$localShowMessage(severity: Severity, msg: string): void;
 	$activateExtension(extensionId: ExtensionIdentifier, activationEvent: string | null): Promise<void>;
 	$onWillActivateExtension(extensionId: ExtensionIdentifier): void;
 	$onDidActivateExtension(extensionId: ExtensionIdentifier, startup: boolean, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationEvent: string | null): void;
-	$onExtensionActivationFailed(extensionId: ExtensionIdentifier): void;
+	$onExtensionActivationError(extensionId: ExtensionIdentifier, error: ExtensionActivationError): Promise<void>;
 	$onExtensionRuntimeError(extensionId: ExtensionIdentifier, error: SerializedError): void;
-	$addMessage(extensionId: ExtensionIdentifier, severity: Severity, message: string): void;
 }
 
 export interface SCMProviderFeatures {
@@ -638,8 +638,8 @@ export interface MainThreadDebugServiceShape extends IDisposable {
 	$registerDebugTypes(debugTypes: string[]): void;
 	$sessionCached(sessionID: string): void;
 	$acceptDAMessage(handle: number, message: DebugProtocol.ProtocolMessage): void;
-	$acceptDAError(handle: number, name: string, message: string, stack: string): void;
-	$acceptDAExit(handle: number, code: number, signal: string): void;
+	$acceptDAError(handle: number, name: string, message: string, stack: string | undefined): void;
+	$acceptDAExit(handle: number, code: number | undefined, signal: string | undefined): void;
 	$registerDebugConfigurationProvider(type: string, hasProvideMethod: boolean, hasResolveMethod: boolean, hasProvideDaMethod: boolean, handle: number): Promise<void>;
 	$registerDebugAdapterDescriptorFactory(type: string, handle: number): Promise<void>;
 	$registerDebugAdapterTrackerFactory(type: string, handle: number);
@@ -1062,7 +1062,7 @@ export interface ExtHostDebugServiceShape {
 	$startDASession(handle: number, session: IDebugSessionDto): Promise<void>;
 	$stopDASession(handle: number): Promise<void>;
 	$sendDAMessage(handle: number, message: DebugProtocol.ProtocolMessage): void;
-	$resolveDebugConfiguration(handle: number, folder: UriComponents | undefined, debugConfiguration: IConfig): Promise<IConfig>;
+	$resolveDebugConfiguration(handle: number, folder: UriComponents | undefined, debugConfiguration: IConfig): Promise<IConfig | null | undefined>;
 	$provideDebugConfigurations(handle: number, folder: UriComponents | undefined): Promise<IConfig[]>;
 	$legacyDebugAdapterExecutable(handle: number, folderUri: UriComponents | undefined): Promise<IAdapterDescriptor>; // TODO@AW legacy
 	$provideDebugAdapter(handle: number, session: IDebugSessionDto): Promise<IAdapterDescriptor>;
@@ -1108,6 +1108,8 @@ export interface ExtHostCommentsShape {
 	$createNewCommentThread(handle: number, document: UriComponents, range: IRange, text: string): Promise<modes.CommentThread | null>;
 	$onCommentWidgetInputChange(commentControllerHandle: number, input: string | undefined): Promise<number | undefined>;
 	$provideCommentingRanges(commentControllerHandle: number, uriComponents: UriComponents, token: CancellationToken): Promise<IRange[] | undefined>;
+	$provideReactionGroup(commentControllerHandle: number): Promise<modes.CommentReaction[] | undefined>;
+	$toggleReaction(commentControllerHandle: number, threadHandle: number, uri: UriComponents, comment: modes.Comment, reaction: modes.CommentReaction): Promise<void>;
 	$createNewCommentWidgetCallback(commentControllerHandle: number, uriComponents: UriComponents, range: IRange, token: CancellationToken): void;
 	$replyToCommentThread(handle: number, document: UriComponents, range: IRange, commentThread: modes.CommentThread, text: string): Promise<modes.CommentThread | null>;
 	$editComment(handle: number, document: UriComponents, comment: modes.Comment, text: string): Promise<void>;

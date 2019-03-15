@@ -59,11 +59,11 @@ import { ExtHostUrls } from 'vs/workbench/api/node/extHostUrls';
 import { ExtHostWebviews } from 'vs/workbench/api/node/extHostWebview';
 import { ExtHostWindow } from 'vs/workbench/api/node/extHostWindow';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
-import { IExtensionDescription, throwProposedApiError, checkProposedApiEnabled, nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { throwProposedApiError, checkProposedApiEnabled, nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ProxyIdentifier } from 'vs/workbench/services/extensions/node/proxyIdentifier';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
 import * as vscode from 'vscode';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { originalFSPath } from 'vs/base/common/resources';
 import { CLIServer } from 'vs/workbench/api/node/extHostCLIServer';
 

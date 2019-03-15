@@ -14,7 +14,7 @@ import { URI } from 'vs/base/common/uri';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/node/remoteAgentService';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { getManifest } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 import { ILogService } from 'vs/platform/log/common/log';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';

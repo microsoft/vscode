@@ -8,14 +8,13 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Counter } from 'vs/base/common/numbers';
 import { basename } from 'vs/base/common/path';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IWorkspaceFolderData } from 'vs/platform/workspace/common/workspace';
 import { MainThreadWorkspace } from 'vs/workbench/api/electron-browser/mainThreadWorkspace';
 import { IMainContext, IWorkspaceData, MainContext } from 'vs/workbench/api/node/extHost.protocol';
 import { RelativePattern } from 'vs/workbench/api/node/extHostTypes';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
-import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import { TestRPCProtocol } from './testRPCProtocol';
 

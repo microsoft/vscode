@@ -314,7 +314,9 @@ export class MainPanel extends ViewletPanel {
 
 	private onListSelectionChange(e: IListEvent<ISCMRepository>): void {
 		if (e.elements.length > 0 && e.browserEvent) {
+			const scrollTop = this.list.scrollTop;
 			this.viewModel.setVisibleRepositories(e.elements);
+			this.list.scrollTop = scrollTop;
 		}
 	}
 
@@ -749,25 +751,7 @@ export class RepositoryPanel extends ViewletPanel {
 		super.renderHeaderTitle(container, title);
 		addClass(container, 'scm-provider');
 		append(container, $('span.type', undefined, type));
-		// const onContextMenu = Event.map(stop(domEvent(container, 'contextmenu')), e => new StandardMouseEvent(e));
-		// onContextMenu(this.onContextMenu, this, this.disposables);
 	}
-
-	// private onContextMenu(event: StandardMouseEvent): void {
-	// 	if (this.viewModel.selectedRepositories.length <= 1) {
-	// 		return;
-	// 	}
-
-	// 	this.contextMenuService.showContextMenu({
-	// 		getAnchor: () => ({ x: event.posx, y: event.posy }),
-	// 		getActions: () => [<IAction>{
-	// 			id: `scm.hideRepository`,
-	// 			label: localize('hideRepository', "Hide"),
-	// 			enabled: true,
-	// 			run: () => this.viewModel.hide(this.repository)
-	// 		}],
-	// 	});
-	// }
 
 	protected renderBody(container: HTMLElement): void {
 		const focusTracker = trackFocus(container);
@@ -1077,12 +1061,23 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 		const toSetInvisible = visibleViewDescriptors
 			.filter(d => d instanceof RepositoryViewDescriptor && repositories.indexOf(d.repository) === -1);
 
-		for (const viewDescriptor of toSetVisible) {
-			this.viewsModel.setVisible(viewDescriptor.id, true);
-		}
+		let size: number | undefined;
+		const oneToOne = toSetVisible.length === 1 && toSetInvisible.length === 1;
 
 		for (const viewDescriptor of toSetInvisible) {
+			if (oneToOne) {
+				const panel = this.panels.filter(panel => panel.id === viewDescriptor.id)[0];
+
+				if (panel) {
+					size = this.getPanelSize(panel);
+				}
+			}
+
 			this.viewsModel.setVisible(viewDescriptor.id, false);
+		}
+
+		for (const viewDescriptor of toSetVisible) {
+			this.viewsModel.setVisible(viewDescriptor.id, true, size);
 		}
 	}
 
@@ -1228,6 +1223,22 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 		}
 
 		return new ContextAwareMenuItemActionItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
+	}
+
+	getActions(): IAction[] {
+		if (this.repositories.length > 0) {
+			return super.getActions();
+		}
+
+		return this.menus.getTitleActions();
+	}
+
+	getSecondaryActions(): IAction[] {
+		if (this.repositories.length > 0) {
+			return super.getSecondaryActions();
+		}
+
+		return this.menus.getTitleSecondaryActions();
 	}
 
 	getActionsContext(): any {

@@ -8,10 +8,10 @@ import { IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import * as Objects from 'vs/base/common/objects';
 import { UriComponents } from 'vs/base/common/uri';
 
-import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ProblemMatcher } from 'vs/workbench/contrib/tasks/common/problemMatcher';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 export const TASK_RUNNING_STATE = new RawContextKey<boolean>('taskRunning', false);
 
