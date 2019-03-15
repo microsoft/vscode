@@ -869,7 +869,7 @@ export class ExtHostVariableResolverService extends AbstractVariableResolverServ
 
 	constructor(folders: vscode.WorkspaceFolder[], editorService: ExtHostDocumentsAndEditors, configurationService: ExtHostConfigProvider) {
 		super({
-			getFolderUri: (folderName: string): URI => {
+			getFolderUri: (folderName: string): URI | undefined => {
 				const found = folders.filter(f => f.name === folderName);
 				if (found && found.length > 0) {
 					return found[0].uri;
@@ -879,7 +879,7 @@ export class ExtHostVariableResolverService extends AbstractVariableResolverServ
 			getWorkspaceFolderCount: (): number => {
 				return folders.length;
 			},
-			getConfigurationValue: (folderUri: URI, section: string) => {
+			getConfigurationValue: (folderUri: URI, section: string): string | undefined => {
 				return configurationService.getConfiguration(undefined, folderUri).get<string>(section);
 			},
 			getExecPath: (): string | undefined => {
@@ -902,7 +902,7 @@ export class ExtHostVariableResolverService extends AbstractVariableResolverServ
 				}
 				return undefined;
 			},
-			getLineNumber: (): string => {
+			getLineNumber: (): string | undefined => {
 				const activeEditor = editorService.activeEditor();
 				if (activeEditor) {
 					return String(activeEditor.selection.end.line + 1);

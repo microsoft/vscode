@@ -408,6 +408,7 @@
 		"./vs/workbench/services/untitled/common/untitledEditorService.ts",
 		"./vs/workbench/services/viewlet/browser/viewlet.ts",
 		"./vs/workbench/services/workspace/common/workspaceEditing.ts",
+		"./vs/workbench/services/configurationResolver/common/variableResolver.ts",
 		"./vs/workbench/services/workspace/node/workspaceEditingService.ts",
 		"./vs/workbench/test/browser/actionRegistry.test.ts",
 		"./vs/workbench/test/browser/part.test.ts",

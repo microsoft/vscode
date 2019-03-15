@@ -22,7 +22,7 @@ export interface IVariableResolveContext {
 	getExecPath(): string | undefined;
 	getFilePath(): string | undefined;
 	getSelectedText(): string | undefined;
-	getLineNumber(): string;
+	getLineNumber(): string | undefined;
 }
 
 export class AbstractVariableResolverService implements IConfigurationResolverService {
@@ -90,187 +90,181 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 		throw new Error('resolveWithInteraction not implemented.');
 	}
 
-	private recursiveResolve(folderUri: uri, value: any, commandValueMapping?: IStringDictionary<string>, resolvedVariables?: Map<string, string>): any {
+	private recursiveResolve(folderUri: uri | undefined, value: any, commandValueMapping?: IStringDictionary<string>, resolvedVariables?: Map<string, string>): any {
 		if (types.isString(value)) {
-			const resolved = this.resolveString(folderUri, value, commandValueMapping);
-			if (resolvedVariables) {
-				resolvedVariables.set(resolved.variableName, resolved.resolvedValue);
-			}
-			return resolved.replaced;
+			return this.resolveString(folderUri, value, commandValueMapping, resolvedVariables);
 		} else if (types.isArray(value)) {
 			return value.map(s => this.recursiveResolve(folderUri, s, commandValueMapping, resolvedVariables));
 		} else if (types.isObject(value)) {
 			let result: IStringDictionary<string | IStringDictionary<string> | string[]> = Object.create(null);
 			Object.keys(value).forEach(key => {
-				const resolvedKey = this.resolveString(folderUri, key, commandValueMapping);
-				if (resolvedVariables) {
-					resolvedVariables.set(resolvedKey.variableName, resolvedKey.resolvedValue);
-				}
-				result[resolvedKey.replaced] = this.recursiveResolve(folderUri, value[key], commandValueMapping, resolvedVariables);
+				const replaced = this.resolveString(folderUri, key, commandValueMapping, resolvedVariables);
+				result[replaced] = this.recursiveResolve(folderUri, value[key], commandValueMapping, resolvedVariables);
 			});
 			return result;
 		}
 		return value;
 	}
 
-	private resolveString(folderUri: uri, value: string, commandValueMapping: IStringDictionary<string>): { replaced: string, variableName: string, resolvedValue: string } {
+	private resolveString(folderUri: uri | undefined, value: string, commandValueMapping: IStringDictionary<string> | undefined, resolvedVariables?: Map<string, string>): string {
 
-		const filePath = this._context.getFilePath();
-		let variableName: string | undefined;
-		let resolvedValue: string | undefined;
+		// loop through all variables occurrences in 'value'
 		const replaced = value.replace(AbstractVariableResolverService.VARIABLE_REGEXP, (match: string, variable: string) => {
 
-			variableName = variable;
-			let argument: string | undefined;
-			const parts = variable.split(':');
-			if (parts && parts.length > 1) {
-				variable = parts[0];
-				argument = parts[1];
+			let resolvedValue = this.evaluateSingleVariable(match, variable, folderUri, commandValueMapping);
+
+			if (resolvedVariables) {
+				resolvedVariables.set(variable, resolvedValue);
 			}
 
-			switch (variable) {
-
-				case 'env':
-					if (argument) {
-						if (isWindows) {
-							argument = argument.toLowerCase();
-						}
-						const env = this._envVariables[argument];
-						if (types.isString(env)) {
-							return resolvedValue = env;
-						}
-						// For `env` we should do the same as a normal shell does - evaluates missing envs to an empty string #46436
-						return resolvedValue = '';
-					}
-					throw new Error(localize('missingEnvVarName', "'{0}' can not be resolved because no environment variable name is given.", match));
-
-				case 'config':
-					if (argument) {
-						const config = this._context.getConfigurationValue(folderUri, argument);
-						if (types.isUndefinedOrNull(config)) {
-							throw new Error(localize('configNotFound', "'{0}' can not be resolved because setting '{1}' not found.", match, argument));
-						}
-						if (types.isObject(config)) {
-							throw new Error(localize('configNoString', "'{0}' can not be resolved because '{1}' is a structured value.", match, argument));
-						}
-						return resolvedValue = config;
-					}
-					throw new Error(localize('missingConfigName', "'{0}' can not be resolved because no settings name is given.", match));
-
-				case 'command':
-					return resolvedValue = this.resolveFromMap(match, argument, commandValueMapping, 'command');
-				case 'input':
-					return resolvedValue = this.resolveFromMap(match, argument, commandValueMapping, 'input');
-
-				default: {
-
-					// common error handling for all variables that require an open folder and accept a folder name argument
-					switch (variable) {
-						case 'workspaceRoot':
-						case 'workspaceFolder':
-						case 'workspaceRootFolderName':
-						case 'workspaceFolderBasename':
-						case 'relativeFile':
-							if (argument) {
-								const folder = this._context.getFolderUri(argument);
-								if (folder) {
-									folderUri = folder;
-								} else {
-									throw new Error(localize('canNotFindFolder', "'{0}' can not be resolved. No such folder '{1}'.", match, argument));
-								}
-							}
-							if (!folderUri) {
-								if (this._context.getWorkspaceFolderCount() > 1) {
-									throw new Error(localize('canNotResolveWorkspaceFolderMultiRoot', "'{0}' can not be resolved in a multi folder workspace. Scope this variable using ':' and a workspace folder name.", match));
-								}
-								throw new Error(localize('canNotResolveWorkspaceFolder', "'{0}' can not be resolved. Please open a folder.", match));
-							}
-							break;
-						default:
-							break;
-					}
-
-					// common error handling for all variables that require an open file
-					switch (variable) {
-						case 'file':
-						case 'relativeFile':
-						case 'fileDirname':
-						case 'fileExtname':
-						case 'fileBasename':
-						case 'fileBasenameNoExtension':
-							if (!filePath) {
-								throw new Error(localize('canNotResolveFile', "'{0}' can not be resolved. Please open an editor.", match));
-							}
-							break;
-						default:
-							break;
-					}
-
-					switch (variable) {
-						case 'workspaceRoot':
-						case 'workspaceFolder':
-							return resolvedValue = normalizeDriveLetter(folderUri.fsPath);
-
-						case 'cwd':
-							return resolvedValue = (folderUri ? normalizeDriveLetter(folderUri.fsPath) : process.cwd());
-
-						case 'workspaceRootFolderName':
-						case 'workspaceFolderBasename':
-							return resolvedValue = paths.basename(folderUri.fsPath);
-
-						case 'lineNumber':
-							const lineNumber = this._context.getLineNumber();
-							if (lineNumber) {
-								return resolvedValue = lineNumber;
-							}
-							throw new Error(localize('canNotResolveLineNumber', "'{0}' can not be resolved. Make sure to have a line selected in the active editor.", match));
-
-						case 'selectedText':
-							const selectedText = this._context.getSelectedText();
-							if (selectedText) {
-								return resolvedValue = selectedText;
-							}
-							throw new Error(localize('canNotResolveSelectedText', "'{0}' can not be resolved. Make sure to have some text selected in the active editor.", match));
-
-						case 'file':
-							return resolvedValue = filePath;
-
-						case 'relativeFile':
-							if (folderUri) {
-								return resolvedValue = paths.normalize(paths.relative(folderUri.fsPath, filePath));
-							}
-							return resolvedValue = filePath;
-
-						case 'fileDirname':
-							return resolvedValue = paths.dirname(filePath);
-
-						case 'fileExtname':
-							return resolvedValue = paths.extname(filePath);
-
-						case 'fileBasename':
-							return resolvedValue = paths.basename(filePath);
-
-						case 'fileBasenameNoExtension':
-							const basename = paths.basename(filePath);
-							return resolvedValue = (basename.slice(0, basename.length - paths.extname(basename).length));
-
-						case 'execPath':
-							const ep = this._context.getExecPath();
-							if (ep) {
-								return resolvedValue = ep;
-							}
-							return resolvedValue = match;
-
-						default:
-							return resolvedValue = match;
-					}
-				}
-			}
+			return resolvedValue;
 		});
-		return { replaced, variableName, resolvedValue };
+
+		return replaced;
 	}
 
-	private resolveFromMap(match: string, argument: string, commandValueMapping: IStringDictionary<string>, prefix: string): string {
+	private evaluateSingleVariable(match: string, variable: string, folderUri0: uri | undefined, commandValueMapping: IStringDictionary<string> | undefined): string {
+
+		// try to separate variable arguments from variable name
+		let argument: string | undefined;
+		const parts = variable.split(':');
+		if (parts.length > 1) {
+			variable = parts[0];
+			argument = parts[1];
+		}
+
+		// common error handling for all variables that require an open editor
+		const getFilePath = (): string => {
+
+			const filePath = this._context.getFilePath();
+			if (filePath) {
+				return filePath;
+			}
+			throw new Error(localize('canNotResolveFile', "'{0}' can not be resolved. Please open an editor.", match));
+		};
+
+		// common error handling for all variables that require an open folder and accept a folder name argument
+		const getFolderUri = (): uri => {
+
+			if (argument) {
+				const folder = this._context.getFolderUri(argument);
+				if (folder) {
+					return folder;
+				}
+				throw new Error(localize('canNotFindFolder', "'{0}' can not be resolved. No such folder '{1}'.", match, argument));
+			}
+
+			if (folderUri0) {
+				return folderUri0;
+			}
+
+			if (this._context.getWorkspaceFolderCount() > 1) {
+				throw new Error(localize('canNotResolveWorkspaceFolderMultiRoot', "'{0}' can not be resolved in a multi folder workspace. Scope this variable using ':' and a workspace folder name.", match));
+			}
+			throw new Error(localize('canNotResolveWorkspaceFolder', "'{0}' can not be resolved. Please open a folder.", match));
+		};
+
+
+		switch (variable) {
+
+			case 'env':
+				if (argument) {
+					if (isWindows) {
+						argument = argument.toLowerCase();
+					}
+					const env = this._envVariables[argument];
+					if (types.isString(env)) {
+						return env;
+					}
+					// For `env` we should do the same as a normal shell does - evaluates missing envs to an empty string #46436
+					return '';
+				}
+				throw new Error(localize('missingEnvVarName', "'{0}' can not be resolved because no environment variable name is given.", match));
+
+			case 'config':
+				if (argument) {
+					const config = this._context.getConfigurationValue(getFolderUri(), argument);
+					if (types.isUndefinedOrNull(config)) {
+						throw new Error(localize('configNotFound', "'{0}' can not be resolved because setting '{1}' not found.", match, argument));
+					}
+					if (types.isObject(config)) {
+						throw new Error(localize('configNoString', "'{0}' can not be resolved because '{1}' is a structured value.", match, argument));
+					}
+					return config;
+				}
+				throw new Error(localize('missingConfigName', "'{0}' can not be resolved because no settings name is given.", match));
+
+			case 'command':
+				return this.resolveFromMap(match, argument, commandValueMapping, 'command');
+
+			case 'input':
+				return this.resolveFromMap(match, argument, commandValueMapping, 'input');
+
+			default: {
+
+				switch (variable) {
+					case 'workspaceRoot':
+					case 'workspaceFolder':
+						return normalizeDriveLetter(getFolderUri().fsPath);
+
+					case 'cwd':
+						return (folderUri0 ? normalizeDriveLetter(getFolderUri().fsPath) : process.cwd());
+
+					case 'workspaceRootFolderName':
+					case 'workspaceFolderBasename':
+						return paths.basename(getFolderUri().fsPath);
+
+					case 'lineNumber':
+						const lineNumber = this._context.getLineNumber();
+						if (lineNumber) {
+							return lineNumber;
+						}
+						throw new Error(localize('canNotResolveLineNumber', "'{0}' can not be resolved. Make sure to have a line selected in the active editor.", match));
+
+					case 'selectedText':
+						const selectedText = this._context.getSelectedText();
+						if (selectedText) {
+							return selectedText;
+						}
+						throw new Error(localize('canNotResolveSelectedText', "'{0}' can not be resolved. Make sure to have some text selected in the active editor.", match));
+
+					case 'file':
+						return getFilePath();
+
+					case 'relativeFile':
+						if (folderUri0) {
+							return paths.normalize(paths.relative(getFolderUri().fsPath, getFilePath()));
+						}
+						return getFilePath();
+
+					case 'fileDirname':
+						return paths.dirname(getFilePath());
+
+					case 'fileExtname':
+						return paths.extname(getFilePath());
+
+					case 'fileBasename':
+						return paths.basename(getFilePath());
+
+					case 'fileBasenameNoExtension':
+						const basename = paths.basename(getFilePath());
+						return (basename.slice(0, basename.length - paths.extname(basename).length));
+
+					case 'execPath':
+						const ep = this._context.getExecPath();
+						if (ep) {
+							return ep;
+						}
+						return match;
+
+					default:
+						return match;
+				}
+			}
+		}
+	}
+
+	private resolveFromMap(match: string, argument: string | undefined, commandValueMapping: IStringDictionary<string> | undefined, prefix: string): string {
 		if (argument && commandValueMapping) {
 			const v = commandValueMapping[prefix + ':' + argument];
 			if (typeof v === 'string') {
