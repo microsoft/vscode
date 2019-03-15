@@ -123,7 +123,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 		return replaced;
 	}
 
-	private evaluateSingleVariable(match: string, variable: string, folderUri0: uri | undefined, commandValueMapping: IStringDictionary<string> | undefined): string {
+	private evaluateSingleVariable(match: string, variable: string, folderUri: uri | undefined, commandValueMapping: IStringDictionary<string> | undefined): string {
 
 		// try to separate variable arguments from variable name
 		let argument: string | undefined;
@@ -144,9 +144,9 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 		};
 
 		// common error handling for all variables that require an open folder and accept a folder name argument
-		const getFolderUri = (): uri => {
+		const getFolderUri = (withArg = true): uri => {
 
-			if (argument) {
+			if (withArg && argument) {
 				const folder = this._context.getFolderUri(argument);
 				if (folder) {
 					return folder;
@@ -154,8 +154,8 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 				throw new Error(localize('canNotFindFolder', "'{0}' can not be resolved. No such folder '{1}'.", match, argument));
 			}
 
-			if (folderUri0) {
-				return folderUri0;
+			if (folderUri) {
+				return folderUri;
 			}
 
 			if (this._context.getWorkspaceFolderCount() > 1) {
@@ -183,7 +183,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 
 			case 'config':
 				if (argument) {
-					const config = this._context.getConfigurationValue(getFolderUri(), argument);
+					const config = this._context.getConfigurationValue(getFolderUri(false), argument);
 					if (types.isUndefinedOrNull(config)) {
 						throw new Error(localize('configNotFound', "'{0}' can not be resolved because setting '{1}' not found.", match, argument));
 					}
@@ -208,7 +208,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 						return normalizeDriveLetter(getFolderUri().fsPath);
 
 					case 'cwd':
-						return (folderUri0 ? normalizeDriveLetter(getFolderUri().fsPath) : process.cwd());
+						return (folderUri ? normalizeDriveLetter(getFolderUri().fsPath) : process.cwd());
 
 					case 'workspaceRootFolderName':
 					case 'workspaceFolderBasename':
@@ -232,7 +232,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 						return getFilePath();
 
 					case 'relativeFile':
-						if (folderUri0) {
+						if (folderUri) {
 							return paths.normalize(paths.relative(getFolderUri().fsPath, getFilePath()));
 						}
 						return getFilePath();
