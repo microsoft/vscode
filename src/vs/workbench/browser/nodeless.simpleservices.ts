@@ -29,7 +29,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITelemetryService, ITelemetryData, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { AbstractLifecycleService } from 'vs/platform/lifecycle/common/lifecycleService';
-import { ILogService, NullLogService, LogLevel } from 'vs/platform/log/common/log';
+import { ILogService, LogLevel, ConsoleLogService } from 'vs/platform/log/common/log';
 import { ShutdownReason, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IMenubarService, IMenubarData } from 'vs/platform/menubar/common/menubar';
 import { IProductService } from 'vs/platform/product/common/product';
@@ -509,7 +509,7 @@ registerSingleton(ILifecycleService, SimpleLifecycleService);
 
 //#region Log
 
-export class SimpleLogService extends NullLogService { }
+export class SimpleLogService extends ConsoleLogService { }
 
 //#endregion
 
@@ -992,7 +992,7 @@ registerSingleton(IFileService, SimpleRemoteFileService);
 
 //#region Request
 
-export const IRequestService = createDecorator<IRequestService>('requestService2');
+export const IRequestService = createDecorator<IRequestService>('requestService');
 
 export interface IRequestService {
 	_serviceBrand: any;
