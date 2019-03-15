@@ -762,7 +762,7 @@ export class SimpleRemoteFileService implements IFileService {
 
 	moveFile(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStat> { return Promise.resolve(null!); }
 
-	copyFile(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStat> {
+	copyFile(_source: URI, _target: URI, _overwrite?: boolean): Promise<any> {
 		const parent = fileMap.get(dirname(_target));
 		if (!parent) {
 			return Promise.resolve(undefined);
@@ -1215,7 +1215,7 @@ registerSingleton(ITelemetryService, SimpleTelemetryService);
 
 //#region Textmate
 
-TokenizationRegistry.setColorMap([null, new Color(new RGBA(212, 212, 212, 1)), new Color(new RGBA(30, 30, 30, 1))]);
+TokenizationRegistry.setColorMap([<any>null, new Color(new RGBA(212, 212, 212, 1)), new Color(new RGBA(30, 30, 30, 1))]);
 
 export class SimpleTextMateService implements ITextMateService {
 
