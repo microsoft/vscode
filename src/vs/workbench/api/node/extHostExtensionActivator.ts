@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { ExtensionActivationError, MissingDependenciesError } from 'vs/workbench/services/extensions/common/extensions';
+import { ExtensionActivationError, MissingDependencyError } from 'vs/workbench/services/extensions/common/extensions';
 
 const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
 
@@ -305,7 +305,7 @@ export class ExtensionsActivator {
 			}
 
 			// Error condition 1: unknown dependency
-			this._host.onExtensionActivationError(currentExtension.identifier, new MissingDependenciesError([depId]));
+			this._host.onExtensionActivationError(currentExtension.identifier, new MissingDependencyError(depId));
 			const error = new Error(`Unknown dependency '${depId}'`);
 			this._activatedExtensions.set(ExtensionIdentifier.toKey(currentExtension.identifier), new FailedExtension(error));
 			return;

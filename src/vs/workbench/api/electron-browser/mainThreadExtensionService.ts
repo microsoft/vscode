@@ -69,7 +69,7 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 		if (typeof activationError === 'string') {
 			this._extensionService._logOrShowMessage(Severity.Error, activationError);
 		} else {
-			this._handleMissingDependency(extensionId, activationError.dependencies[0]);
+			this._handleMissingDependency(extensionId, activationError.dependency);
 		}
 	}
 
