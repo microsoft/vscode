@@ -440,7 +440,7 @@ export class RemoteFileService extends FileService {
 			return this._withProvider(resource).then(RemoteFileService._throwIfFileSystemIsReadonly).then(provider => {
 
 				return RemoteFileService._mkdirp(provider, resources.dirname(resource)).then(() => {
-					const encoding = this.encoding.getWriteEncoding(resource);
+					const { encoding } = this.encoding.getWriteEncoding(resource);
 					return this._writeFile(provider, resource, new StringSnapshot(content || ''), encoding, { create: true, overwrite: Boolean(options && options.overwrite) });
 				});
 
@@ -470,8 +470,8 @@ export class RemoteFileService extends FileService {
 
 	private _writeFile(provider: IFileSystemProvider, resource: URI, snapshot: ITextSnapshot, preferredEncoding: string | undefined = undefined, options: FileWriteOptions): Promise<IFileStat> {
 		const readable = createReadableOfSnapshot(snapshot);
-		const encoding = this.encoding.getWriteEncoding(resource, preferredEncoding);
-		const encoder = encodeStream(encoding);
+		const { encoding, hasBOM } = this.encoding.getWriteEncoding(resource, preferredEncoding);
+		const encoder = encodeStream(encoding, { addBOM: hasBOM });
 		const target = createWritableOfProvider(provider, resource, options);
 		return new Promise<IFileStat>((resolve, reject) => {
 			readable.pipe(encoder).pipe(target);

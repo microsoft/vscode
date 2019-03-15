@@ -16,9 +16,10 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
-import { addDisposableListener, EventType, $ } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType, $, removeNode } from 'vs/base/browser/dom';
 import { attachMenuStyler } from 'vs/platform/theme/common/styler';
 import { domEvent } from 'vs/base/browser/event';
+import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 
 export class ContextMenuHandler {
 	private element: HTMLElement | null;
@@ -28,14 +29,14 @@ export class ContextMenuHandler {
 	private block: HTMLElement | null;
 
 	constructor(
-		element: HTMLElement | null,
+		private layoutService: ILayoutService,
 		private contextViewService: IContextViewService,
 		private telemetryService: ITelemetryService,
 		private notificationService: INotificationService,
 		private keybindingService: IKeybindingService,
 		private themeService: IThemeService
 	) {
-		this.setContainer(element);
+		this.setContainer(this.layoutService.container);
 	}
 
 	setContainer(container: HTMLElement | null): void {
@@ -75,7 +76,9 @@ export class ContextMenuHandler {
 				}
 
 				// Render invisible div to block mouse interaction in the rest of the UI
-				this.block = container.appendChild($('.context-view-block'));
+				if (this.layoutService.hasWorkbench) {
+					this.block = container.appendChild($('.context-view-block'));
+				}
 
 				const menuDisposables: IDisposable[] = [];
 
@@ -110,7 +113,7 @@ export class ContextMenuHandler {
 				}
 
 				if (this.block) {
-					this.block.remove();
+					removeNode(this.block);
 					this.block = null;
 				}
 

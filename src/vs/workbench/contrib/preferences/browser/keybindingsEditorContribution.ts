@@ -135,7 +135,7 @@ export class KeybindingWidgetRenderer extends Disposable {
 		this._defineWidget.start().then(keybinding => this._onAccepted(keybinding));
 	}
 
-	private _onAccepted(keybinding: string): void {
+	private _onAccepted(keybinding: string | null): void {
 		this._editor.focus();
 		if (keybinding && this._editor.hasModel()) {
 			const regexp = new RegExp(/\\/g);

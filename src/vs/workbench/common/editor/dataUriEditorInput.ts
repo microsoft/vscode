@@ -17,14 +17,10 @@ export class DataUriEditorInput extends EditorInput {
 
 	static readonly ID: string = 'workbench.editors.dataUriEditorInput';
 
-	private resource: URI;
-	private readonly name: string | undefined;
-	private readonly description: string | undefined;
-
 	constructor(
-		name: string,
-		description: string,
-		resource: URI,
+		private readonly name: string | undefined,
+		private readonly description: string | undefined,
+		private readonly resource: URI,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();

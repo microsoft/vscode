@@ -14,7 +14,7 @@ export class ExtHostStatusBarEntry implements StatusBarItem {
 
 	private _id: number;
 	private _alignment: number;
-	private _priority: number;
+	private _priority?: number;
 	private _disposed: boolean;
 	private _visible: boolean;
 
@@ -26,9 +26,9 @@ export class ExtHostStatusBarEntry implements StatusBarItem {
 	private _timeoutHandle: any;
 	private _proxy: MainThreadStatusBarShape;
 
-	private _extensionId: ExtensionIdentifier;
+	private _extensionId?: ExtensionIdentifier;
 
-	constructor(proxy: MainThreadStatusBarShape, extensionId: ExtensionIdentifier, alignment: ExtHostStatusBarAlignment = ExtHostStatusBarAlignment.Left, priority?: number) {
+	constructor(proxy: MainThreadStatusBarShape, extensionId: ExtensionIdentifier | undefined, alignment: ExtHostStatusBarAlignment = ExtHostStatusBarAlignment.Left, priority?: number) {
 		this._id = ExtHostStatusBarEntry.ID_GEN++;
 		this._proxy = proxy;
 		this._alignment = alignment;
@@ -44,7 +44,7 @@ export class ExtHostStatusBarEntry implements StatusBarItem {
 		return this._alignment;
 	}
 
-	public get priority(): number {
+	public get priority(): number | undefined {
 		return this._priority;
 	}
 
@@ -167,7 +167,7 @@ export class ExtHostStatusBar {
 		this._statusMessage = new StatusBarMessage(this);
 	}
 
-	createStatusBarEntry(extensionId: ExtensionIdentifier, alignment?: ExtHostStatusBarAlignment, priority?: number): StatusBarItem {
+	createStatusBarEntry(extensionId: ExtensionIdentifier | undefined, alignment?: ExtHostStatusBarAlignment, priority?: number): StatusBarItem {
 		return new ExtHostStatusBarEntry(this._proxy, extensionId, alignment, priority);
 	}
 

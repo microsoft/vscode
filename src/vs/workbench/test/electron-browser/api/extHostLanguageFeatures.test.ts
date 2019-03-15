@@ -600,9 +600,9 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let value = await getCodeActions(model, model.getFullModelRange(), { type: 'manual' }, CancellationToken.None);
-		assert.equal(value.length, 2);
-		const [first, second] = value;
+		const { actions } = await getCodeActions(model, model.getFullModelRange(), { type: 'manual' }, CancellationToken.None);
+		assert.equal(actions.length, 2);
+		const [first, second] = actions;
 		assert.equal(first.title, 'Testing1');
 		assert.equal(first.command!.id, 'test1');
 		assert.equal(second.title, 'Testing2');
@@ -624,9 +624,9 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let value = await getCodeActions(model, model.getFullModelRange(), { type: 'manual' }, CancellationToken.None);
-		assert.equal(value.length, 1);
-		const [first] = value;
+		const { actions } = await getCodeActions(model, model.getFullModelRange(), { type: 'manual' }, CancellationToken.None);
+		assert.equal(actions.length, 1);
+		const [first] = actions;
 		assert.equal(first.title, 'Testing1');
 		assert.equal(first.command!.title, 'Testing1Command');
 		assert.equal(first.command!.id, 'test1');
@@ -647,8 +647,8 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = await getCodeActions(model, model.getFullModelRange(), { type: 'manual' }, CancellationToken.None);
-		assert.equal(value.length, 1);
+		const { actions } = await getCodeActions(model, model.getFullModelRange(), { type: 'manual' }, CancellationToken.None);
+		assert.equal(actions.length, 1);
 	});
 
 	test('Quick Fix, evil provider', async () => {
@@ -665,8 +665,8 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = await getCodeActions(model, model.getFullModelRange(), { type: 'manual' }, CancellationToken.None);
-		assert.equal(value.length, 1);
+		const { actions } = await getCodeActions(model, model.getFullModelRange(), { type: 'manual' }, CancellationToken.None);
+		assert.equal(actions.length, 1);
 	});
 
 	// --- navigate types
@@ -1104,10 +1104,9 @@ suite('ExtHostLanguageFeatures', function () {
 	test('Selection Ranges, data conversion', async () => {
 		disposables.push(extHost.registerSelectionRangeProvider(defaultExtension, defaultSelector, new class implements vscode.SelectionRangeProvider {
 			provideSelectionRanges() {
-				return [[
-					new types.SelectionRange(new types.Range(0, 10, 0, 18), types.SelectionRangeKind.Empty),
-					new types.SelectionRange(new types.Range(0, 2, 0, 20), types.SelectionRangeKind.Empty)
-				]];
+				return [
+					new types.SelectionRange(new types.Range(0, 10, 0, 18), new types.SelectionRange(new types.Range(0, 2, 0, 20))),
+				];
 			}
 		}));
 
@@ -1117,5 +1116,18 @@ suite('ExtHostLanguageFeatures', function () {
 			assert.equal(ranges.length, 1);
 			assert.ok(ranges[0].length >= 2);
 		});
+	});
+
+	test('Selection Ranges, bad data', async () => {
+
+		try {
+			let _a = new types.SelectionRange(new types.Range(0, 10, 0, 18),
+				new types.SelectionRange(new types.Range(0, 11, 0, 18))
+			);
+			assert.ok(false, String(_a));
+		} catch (err) {
+			assert.ok(true);
+		}
+
 	});
 });

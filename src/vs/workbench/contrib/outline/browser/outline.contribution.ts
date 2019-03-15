@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { ViewsRegistry, IViewDescriptor } from 'vs/workbench/common/views';
+import { IViewsRegistry, IViewDescriptor, Extensions as ViewExtensions } from 'vs/workbench/common/views';
 import { OutlinePanel } from './outlinePanel';
 import { VIEW_CONTAINER } from 'vs/workbench/contrib/files/common/files';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -23,7 +23,7 @@ const _outlineDesc = <IViewDescriptor>{
 	focusCommand: { id: 'outline.focus' }
 };
 
-ViewsRegistry.registerViews([_outlineDesc], VIEW_CONTAINER);
+Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([_outlineDesc], VIEW_CONTAINER);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	'id': 'outline',

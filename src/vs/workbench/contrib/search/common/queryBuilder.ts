@@ -332,7 +332,7 @@ export class QueryBuilder {
 
 			searchPath = normalizeSlashes(searchPath);
 			if (strings.startsWith(searchPath, '../')) {
-				const resolvedPath = path.resolve(workspaceUri.path, searchPath);
+				const resolvedPath = path.posix.resolve(workspaceUri.path, searchPath);
 				return [{
 					searchPath: workspaceUri.with({ path: resolvedPath })
 				}];

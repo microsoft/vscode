@@ -31,16 +31,16 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 	private readonly _onDidChangeEncoding: Emitter<void> = this._register(new Emitter<void>());
 	get onDidChangeEncoding(): Event<void> { return this._onDidChangeEncoding.event; }
 
-	private dirty: boolean;
-	private versionId: number;
-	private contentChangeEventScheduler: RunOnceScheduler;
+	private dirty: boolean = false;
+	private versionId: number = 0;
+	private readonly contentChangeEventScheduler: RunOnceScheduler;
 	private configuredEncoding: string;
 
 	constructor(
-		private modeId: string,
-		private resource: URI,
+		private readonly modeId: string,
+		private readonly resource: URI,
 		private _hasAssociatedFilePath: boolean,
-		private initialValue: string,
+		private readonly initialValue: string,
 		private preferredEncoding: string,
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
@@ -48,9 +48,6 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 		@ITextResourceConfigurationService private readonly configurationService: ITextResourceConfigurationService
 	) {
 		super(modelService, modeService);
-
-		this.dirty = false;
-		this.versionId = 0;
 
 		this.contentChangeEventScheduler = this._register(new RunOnceScheduler(() => this._onDidChangeContent.fire(), UntitledEditorModel.DEFAULT_CONTENT_CHANGE_BUFFER_DELAY));
 

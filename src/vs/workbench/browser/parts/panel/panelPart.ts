@@ -121,7 +121,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			hidePart: () => this.layoutService.setPanelHidden(true),
 			compositeSize: 0,
 			overflowActionSize: 44,
-			colors: theme => ({
+			colors: (theme: ITheme) => ({
 				activeBackgroundColor: theme.getColor(PANEL_BACKGROUND), // Background color for overflow action
 				inactiveBackgroundColor: theme.getColor(PANEL_BACKGROUND), // Background color for overflow action
 				activeBorderBottomColor: theme.getColor(PANEL_ACTIVE_TITLE_BORDER),

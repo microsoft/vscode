@@ -137,7 +137,7 @@ suite('ParameterHintsModel', () => {
 					assert.strictEqual(invokeCount, 2);
 					assert.strictEqual(context.triggerKind, modes.SignatureHelpTriggerKind.TriggerCharacter);
 					assert.strictEqual(context.triggerCharacter, triggerChar);
-					assert.strictEqual(context.isRetrigger, false);
+					assert.strictEqual(context.isRetrigger, true);
 					assert.strictEqual(context.activeSignatureHelp, undefined);
 					done();
 				}

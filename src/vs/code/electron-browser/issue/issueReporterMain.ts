@@ -16,7 +16,6 @@ import * as os from 'os';
 import { debounce } from 'vs/base/common/decorators';
 import * as platform from 'vs/base/common/platform';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { Client as ElectronIPCClient } from 'vs/base/parts/ipc/electron-browser/ipc.electron-browser';
 import { getDelayedChannel } from 'vs/base/parts/ipc/node/ipc';
 import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -28,7 +27,8 @@ import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
-import { WindowsChannelClient } from 'vs/platform/windows/node/windowsIpc';
+import { WindowsService } from 'vs/platform/windows/electron-browser/windowsService';
+import { MainProcessService, IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IssueReporterModel } from 'vs/code/electron-browser/issue/issueReporterModel';
 import { IssueReporterData, IssueReporterStyles, IssueType, ISettingsSearchIssueReporterData, IssueReporterFeatures, IssueReporterExtensionData } from 'vs/platform/issue/common/issue';
@@ -273,14 +273,14 @@ export class IssueReporter extends Disposable {
 
 	private initServices(configuration: IWindowConfiguration): void {
 		const serviceCollection = new ServiceCollection();
-		const mainProcessClient = new ElectronIPCClient(String(`window${configuration.windowId}`));
+		const mainProcessService = new MainProcessService(configuration.windowId);
+		serviceCollection.set(IMainProcessService, mainProcessService);
 
-		const windowsChannel = mainProcessClient.getChannel('windows');
-		serviceCollection.set(IWindowsService, new WindowsChannelClient(windowsChannel));
+		serviceCollection.set(IWindowsService, new WindowsService(mainProcessService));
 		this.environmentService = new EnvironmentService(configuration, configuration.execPath);
 
 		const logService = createSpdLogService(`issuereporter${configuration.windowId}`, getLogLevel(this.environmentService), this.environmentService.logsPath);
-		const logLevelClient = new LogLevelSetterChannelClient(mainProcessClient.getChannel('loglevel'));
+		const logLevelClient = new LogLevelSetterChannelClient(mainProcessService.getChannel('loglevel'));
 		this.logService = new FollowerLogService(logLevelClient, logService);
 
 		const sharedProcess = (<IWindowsService>serviceCollection.get(IWindowsService)).whenSharedProcessReady()

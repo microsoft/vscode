@@ -566,7 +566,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		}
 		this._lastAriaAlertLabel = newAriaAlertLabel;
 		if (this._lastAriaAlertLabel) {
-			alert(this._lastAriaAlertLabel);
+			alert(this._lastAriaAlertLabel, true);
 		}
 	}
 

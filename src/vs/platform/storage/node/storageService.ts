@@ -123,7 +123,7 @@ export class StorageService extends Disposable implements IStorageService {
 	private prepareWorkspaceStorageFolder(payload: IWorkspaceInitializationPayload): Promise<{ path: string, wasCreated: boolean }> {
 		const workspaceStorageFolderPath = this.getWorkspaceStorageFolderPath(payload);
 
-		return exists(workspaceStorageFolderPath).then(exists => {
+		return exists(workspaceStorageFolderPath).then<{ path: string, wasCreated: boolean }>(exists => {
 			if (exists) {
 				return { path: workspaceStorageFolderPath, wasCreated: false };
 			}

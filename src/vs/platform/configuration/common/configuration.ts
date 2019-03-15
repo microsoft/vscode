@@ -83,8 +83,7 @@ export interface IConfigurationService {
 	updateValue(key: string, value: any, target: ConfigurationTarget): Promise<void>;
 	updateValue(key: string, value: any, overrides: IConfigurationOverrides, target: ConfigurationTarget, donotNotifyError?: boolean): Promise<void>;
 
-	reloadConfiguration(): Promise<void>;
-	reloadConfiguration(folder: IWorkspaceFolder): Promise<void>;
+	reloadConfiguration(folder?: IWorkspaceFolder): Promise<void>;
 
 	inspect<T>(key: string, overrides?: IConfigurationOverrides): {
 		default: T,

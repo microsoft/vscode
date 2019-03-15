@@ -93,6 +93,7 @@ class LanguagePacksCache extends Disposable {
 	private languagePacks: { [language: string]: ILanguagePack } = {};
 	private languagePacksFilePath: string;
 	private languagePacksFileLimiter: Queue<any>;
+	private initializedCache: boolean;
 
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService,
@@ -105,7 +106,7 @@ class LanguagePacksCache extends Disposable {
 
 	getLanguagePacks(): Promise<{ [language: string]: ILanguagePack }> {
 		// if queue is not empty, fetch from disk
-		if (this.languagePacksFileLimiter.size) {
+		if (this.languagePacksFileLimiter.size || !this.initializedCache) {
 			return this.withLanguagePacks()
 				.then(() => this.languagePacks);
 		}
@@ -175,6 +176,7 @@ class LanguagePacksCache extends Disposable {
 						}
 					}
 					this.languagePacks = languagePacks;
+					this.initializedCache = true;
 					const raw = JSON.stringify(this.languagePacks);
 					this.logService.debug('Writing language packs', raw);
 					return pfs.writeFile(this.languagePacksFilePath, raw);

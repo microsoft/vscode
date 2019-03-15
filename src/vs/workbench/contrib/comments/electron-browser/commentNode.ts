@@ -133,8 +133,14 @@ export class CommentNode extends Disposable {
 
 		let reactionGroup = this.commentService.getReactionGroup(this.owner);
 		if (reactionGroup && reactionGroup.length) {
-			let toggleReactionAction = this.createReactionPicker();
-			actions.push(toggleReactionAction);
+			let commentThread = this.commentThread as modes.CommentThread2;
+			if (commentThread.commentThreadHandle) {
+				let toggleReactionAction = this.createReactionPicker2();
+				actions.push(toggleReactionAction);
+			} else {
+				let toggleReactionAction = this.createReactionPicker();
+				actions.push(toggleReactionAction);
+			}
 		}
 
 		if (this.comment.canEdit || this.comment.editCommand) {
@@ -160,7 +166,7 @@ export class CommentNode extends Disposable {
 							action => {
 								return this.actionItemProvider(action as Action);
 							},
-							this.actionRunner,
+							this.actionRunner!,
 							undefined,
 							'toolbar-toggle-pickReactions',
 							() => { return AnchorAlignment.RIGHT; }
@@ -192,6 +198,52 @@ export class CommentNode extends Disposable {
 			let item = new ActionItem({}, action, options);
 			return item;
 		}
+	}
+
+	private createReactionPicker2(): ToggleReactionsAction {
+		let toggleReactionActionItem: DropdownMenuActionItem;
+		let toggleReactionAction = this._register(new ToggleReactionsAction(() => {
+			if (toggleReactionActionItem) {
+				toggleReactionActionItem.show();
+			}
+		}, nls.localize('commentToggleReaction', "Toggle Reaction")));
+
+		let reactionMenuActions: Action[] = [];
+		let reactionGroup = this.commentService.getReactionGroup(this.owner);
+		if (reactionGroup && reactionGroup.length) {
+			reactionMenuActions = reactionGroup.map((reaction) => {
+				return new Action(`reaction.command.${reaction.label}`, `${reaction.label}`, '', true, async () => {
+					try {
+						await this.commentService.toggleReaction(this.owner, this.resource, this.commentThread as modes.CommentThread2, this.comment, reaction);
+					} catch (e) {
+						const error = e.message
+							? nls.localize('commentToggleReactionError', "Toggling the comment reaction failed: {0}.", e.message)
+							: nls.localize('commentToggleReactionDefaultError', "Toggling the comment reaction failed");
+						this.notificationService.error(error);
+					}
+				});
+			});
+		}
+
+		toggleReactionAction.menuActions = reactionMenuActions;
+
+		toggleReactionActionItem = new DropdownMenuActionItem(
+			toggleReactionAction,
+			(<ToggleReactionsAction>toggleReactionAction).menuActions,
+			this.contextMenuService,
+			action => {
+				if (action.id === ToggleReactionsAction.ID) {
+					return toggleReactionActionItem;
+				}
+				return this.actionItemProvider(action as Action);
+			},
+			this.actionRunner,
+			undefined,
+			'toolbar-toggle-pickReactions',
+			() => { return AnchorAlignment.RIGHT; }
+		);
+
+		return toggleReactionAction;
 	}
 
 	private createReactionPicker(): ToggleReactionsAction {
@@ -231,7 +283,7 @@ export class CommentNode extends Disposable {
 				}
 				return this.actionItemProvider(action as Action);
 			},
-			this.actionRunner,
+			this.actionRunner!,
 			undefined,
 			'toolbar-toggle-pickReactions',
 			() => { return AnchorAlignment.RIGHT; }
@@ -252,7 +304,7 @@ export class CommentNode extends Disposable {
 						action => {
 							return this.actionItemProvider(action as Action);
 						},
-						this.actionRunner,
+						this.actionRunner!,
 						undefined,
 						'toolbar-toggle-pickReactions',
 						() => { return AnchorAlignment.RIGHT; }
@@ -266,10 +318,15 @@ export class CommentNode extends Disposable {
 		this.comment.commentReactions!.map(reaction => {
 			let action = new ReactionAction(`reaction.${reaction.label}`, `${reaction.label}`, reaction.hasReacted && reaction.canEdit ? 'active' : '', reaction.canEdit, async () => {
 				try {
-					if (reaction.hasReacted) {
-						await this.commentService.deleteReaction(this.owner, this.resource, this.comment, reaction);
+					let commentThread = this.commentThread as modes.CommentThread2;
+					if (commentThread.commentThreadHandle) {
+						await this.commentService.toggleReaction(this.owner, this.resource, this.commentThread as modes.CommentThread2, this.comment, reaction);
 					} else {
-						await this.commentService.addReaction(this.owner, this.resource, this.comment, reaction);
+						if (reaction.hasReacted) {
+							await this.commentService.deleteReaction(this.owner, this.resource, this.comment, reaction);
+						} else {
+							await this.commentService.addReaction(this.owner, this.resource, this.comment, reaction);
+						}
 					}
 				} catch (e) {
 					let error: string;
@@ -287,13 +344,21 @@ export class CommentNode extends Disposable {
 				}
 			}, reaction.iconPath, reaction.count);
 
-			this._reactionsActionBar.push(action, { label: true, icon: true });
+			if (this._reactionsActionBar) {
+				this._reactionsActionBar.push(action, { label: true, icon: true });
+			}
 		});
 
 		let reactionGroup = this.commentService.getReactionGroup(this.owner);
 		if (reactionGroup && reactionGroup.length) {
-			let toggleReactionAction = this.createReactionPicker();
-			this._reactionsActionBar.push(toggleReactionAction, { label: false, icon: true });
+			let commentThread = this.commentThread as modes.CommentThread2;
+			if (commentThread.commentThreadHandle) {
+				let toggleReactionAction = this.createReactionPicker2();
+				this._reactionsActionBar.push(toggleReactionAction, { label: false, icon: true });
+			} else {
+				let toggleReactionAction = this.createReactionPicker();
+				this._reactionsActionBar.push(toggleReactionAction, { label: false, icon: true });
+			}
 		}
 	}
 
@@ -315,21 +380,21 @@ export class CommentNode extends Disposable {
 		let commentThread = this.commentThread as modes.CommentThread2;
 		if (commentThread.commentThreadHandle) {
 			commentThread.input = {
-				uri: this._commentEditor.getModel().uri,
+				uri: this._commentEditor.getModel()!.uri,
 				value: this.comment.body.value
 			};
 			this.commentService.setActiveCommentThread(commentThread);
 
 			this._commentEditorDisposables.push(this._commentEditor.onDidFocusEditorWidget(() => {
 				commentThread.input = {
-					uri: this._commentEditor.getModel().uri,
+					uri: this._commentEditor!.getModel()!.uri,
 					value: this.comment.body.value
 				};
 				this.commentService.setActiveCommentThread(commentThread);
 			}));
 
 			this._commentEditorDisposables.push(this._commentEditor.onDidChangeModelContent(e => {
-				if (commentThread.input && this._commentEditor.getModel().uri === commentThread.input.uri) {
+				if (commentThread.input && this._commentEditor && this._commentEditor.getModel()!.uri === commentThread.input.uri) {
 					let newVal = this._commentEditor.getValue();
 					if (newVal !== commentThread.input.value) {
 						let input = commentThread.input;
@@ -361,6 +426,10 @@ export class CommentNode extends Disposable {
 	}
 
 	async editComment(): Promise<void> {
+		if (!this._commentEditor) {
+			throw new Error('No comment editor');
+		}
+
 		this._updateCommentButton.enabled = false;
 		this._updateCommentButton.label = UPDATE_IN_PROGRESS_LABEL;
 
@@ -370,7 +439,7 @@ export class CommentNode extends Disposable {
 			if (this.comment.editCommand) {
 				let commentThread = this.commentThread as modes.CommentThread2;
 				commentThread.input = {
-					uri: this._commentEditor.getModel().uri,
+					uri: this._commentEditor.getModel()!.uri,
 					value: newBody
 				};
 				this.commentService.setActiveCommentThread(commentThread);
@@ -384,7 +453,7 @@ export class CommentNode extends Disposable {
 
 			this._updateCommentButton.enabled = true;
 			this._updateCommentButton.label = UPDATE_COMMENT_LABEL;
-			this._commentEditor!.getDomNode().style.outline = '';
+			this._commentEditor.getDomNode()!.style.outline = '';
 			this.removeCommentEditor();
 			const editedComment = assign({}, this.comment, { body: new MarkdownString(newBody) });
 			this.update(editedComment);
@@ -392,7 +461,7 @@ export class CommentNode extends Disposable {
 			this._updateCommentButton.enabled = true;
 			this._updateCommentButton.label = UPDATE_COMMENT_LABEL;
 
-			this._commentEditor.getDomNode().style.outline = `1px solid ${this.themeService.getTheme().getColor(inputValidationErrorBorder)}`;
+			this._commentEditor.getDomNode()!.style.outline = `1px solid ${this.themeService.getTheme().getColor(inputValidationErrorBorder)}`;
 			this._errorEditingContainer.textContent = e.message
 				? nls.localize('commentEditError', "Updating the comment failed: {0}.", e.message)
 				: nls.localize('commentEditDefaultError', "Updating the comment failed.");
@@ -466,7 +535,7 @@ export class CommentNode extends Disposable {
 			}));
 
 			this._editAction.enabled = false;
-			return null;
+			return Promise.resolve();
 		});
 	}
 

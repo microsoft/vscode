@@ -36,11 +36,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDebugService);
 		this._toDispose = [];
 		this._toDispose.push(debugService.onDidNewSession(session => {
-			if (session) {
-				this._proxy.$acceptDebugSessionStarted(this.getSessionDto(session));
-			} else {
-				console.error('undefined session received in onDidNewSession');
-			}
+			this._proxy.$acceptDebugSessionStarted(this.getSessionDto(session));
 		}));
 		// Need to start listening early to new session events because a custom event can come while a session is initialising
 		this._toDispose.push(debugService.onWillNewSession(session => {
@@ -74,7 +70,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		return da;
 	}
 
-	substituteVariables(folder: IWorkspaceFolder, config: IConfig): Promise<IConfig> {
+	substituteVariables(folder: IWorkspaceFolder | undefined, config: IConfig): Promise<IConfig> {
 		return Promise.resolve(this._proxy.$substituteVariables(folder ? folder.uri : undefined, config));
 	}
 
@@ -162,18 +158,18 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		};
 		if (hasProvide) {
 			provider.provideDebugConfigurations = (folder) => {
-				return Promise.resolve(this._proxy.$provideDebugConfigurations(handle, folder));
+				return this._proxy.$provideDebugConfigurations(handle, folder);
 			};
 		}
 		if (hasResolve) {
 			provider.resolveDebugConfiguration = (folder, config) => {
-				return Promise.resolve(this._proxy.$resolveDebugConfiguration(handle, folder, config));
+				return this._proxy.$resolveDebugConfiguration(handle, folder, config);
 			};
 		}
 		if (hasProvideDebugAdapter) {
 			console.info('DebugConfigurationProvider.debugAdapterExecutable is deprecated and will be removed soon; please use DebugAdapterDescriptorFactory.createDebugAdapterDescriptor instead.');
 			provider.debugAdapterExecutable = (folder) => {
-				return Promise.resolve(this._proxy.$legacyDebugAdapterExecutable(handle, folder));
+				return this._proxy.$legacyDebugAdapterExecutable(handle, folder);
 			};
 		}
 		this._debugConfigurationProviders.set(handle, provider);

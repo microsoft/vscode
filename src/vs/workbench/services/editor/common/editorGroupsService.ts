@@ -8,7 +8,7 @@ import { createDecorator, ServiceIdentifier, ServicesAccessor } from 'vs/platfor
 import { IEditorInput, IEditor, GroupIdentifier, IEditorInputWithOptions, CloseDirection, IEditorPartOptions } from 'vs/workbench/common/editor';
 import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IActiveEditor } from 'vs/workbench/services/editor/common/editorService';
+import { IVisibleEditor } from 'vs/workbench/services/editor/common/editorService';
 import { IDimension } from 'vs/editor/common/editorCommon';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
@@ -177,6 +177,11 @@ export interface IEditorGroupsService {
 	readonly onDidLayout: Event<IDimension>;
 
 	/**
+	 * The size of the editor groups area.
+	 */
+	readonly dimension: IDimension;
+
+	/**
 	 * An active group is the default location for new editors to open.
 	 */
 	readonly activeGroup: IEditorGroup;
@@ -212,7 +217,7 @@ export interface IEditorGroupsService {
 	/**
 	 * Allows to convert a group identifier to a group.
 	 */
-	getGroup(identifier: GroupIdentifier): IEditorGroup;
+	getGroup(identifier: GroupIdentifier): IEditorGroup | undefined;
 
 	/**
 	 * Set a group as active. An active group is the default location for new editors to open.
@@ -374,7 +379,7 @@ export interface IEditorGroup {
 	/**
 	 * The active control is the currently visible control of the group.
 	 */
-	readonly activeControl: IActiveEditor | undefined;
+	readonly activeControl: IVisibleEditor | undefined;
 
 	/**
 	 * The active editor is the currently visible editor of the group

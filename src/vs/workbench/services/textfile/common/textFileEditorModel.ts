@@ -272,7 +272,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 					mtime: Date.now(),
 					etag: undefined,
 					value: createTextBufferFactory(''), /* will be filled later from backup */
-					encoding: this.fileService.encoding.getWriteEncoding(this.resource, this.preferredEncoding),
+					encoding: this.fileService.encoding.getWriteEncoding(this.resource, this.preferredEncoding).encoding,
 					isReadonly: false
 				};
 
@@ -714,26 +714,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			}).then(stat => {
 				this.logService.trace(`doSave(${versionId}) - after updateContent()`, this.resource);
 
-				// Telemetry
-				const settingsType = this.getTypeIfSettings();
-				if (settingsType) {
-					/* __GDPR__
-						"settingsWritten" : {
-							"settingsType": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-						}
-					*/
-					this.telemetryService.publicLog('settingsWritten', { settingsType }); // Do not log write to user settings.json and .vscode folder as a filePUT event as it ruins our JSON usage data
-				} else {
-					/* __GDPR__
-						"filePUT" : {
-							"${include}": [
-								"${FileTelemetryData}"
-							]
-						}
-					*/
-					this.telemetryService.publicLog('filePUT', this.getTelemetryData(options.reason));
-				}
-
 				// Update dirty state unless model has changed meanwhile
 				if (versionId === this.versionId) {
 					this.logService.trace(`doSave(${versionId}) - setting dirty to false because versionId did not change`, this.resource);
@@ -750,6 +730,33 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 				// Emit File Saved Event
 				this._onDidStateChange.fire(StateChange.SAVED);
+
+				// Telemetry
+				let telemetryPromise: Thenable<void>;
+				const settingsType = this.getTypeIfSettings();
+				if (settingsType) {
+					/* __GDPR__
+						"settingsWritten" : {
+							"settingsType": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						}
+					*/
+					this.telemetryService.publicLog('settingsWritten', { settingsType }); // Do not log write to user settings.json and .vscode folder as a filePUT event as it ruins our JSON usage data
+
+					telemetryPromise = Promise.resolve();
+				} else {
+					telemetryPromise = this.getTelemetryData(options.reason).then(data => {
+						/* __GDPR__
+							"filePUT" : {
+								"${include}": [
+									"${FileTelemetryData}"
+								]
+							}
+						*/
+						this.telemetryService.publicLog('filePUT', data);
+					});
+				}
+
+				return telemetryPromise;
 			}, error => {
 				if (!error) {
 					error = new Error('Unknown Save Error'); // TODO@remote we should never get null as error (https://github.com/Microsoft/vscode/issues/55051)
@@ -813,30 +820,32 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return '';
 	}
 
-	private getTelemetryData(reason: number | undefined): Object {
-		const ext = extname(this.resource);
-		const fileName = basename(this.resource);
-		const telemetryData = {
-			mimeType: guessMimeTypes(this.resource.fsPath).join(', '),
-			ext,
-			path: this.hashService.createSHA1(this.resource.fsPath),
-			reason
-		};
+	private getTelemetryData(reason: number | undefined): Thenable<object> {
+		return this.hashService.createSHA1(this.resource.fsPath).then(hashedPath => {
+			const ext = extname(this.resource);
+			const fileName = basename(this.resource);
+			const telemetryData = {
+				mimeType: guessMimeTypes(this.resource.fsPath).join(', '),
+				ext,
+				path: hashedPath,
+				reason
+			};
 
-		if (ext === '.json' && TextFileEditorModel.WHITELIST_JSON.indexOf(fileName) > -1) {
-			telemetryData['whitelistedjson'] = fileName;
-		}
-
-		/* __GDPR__FRAGMENT__
-			"FileTelemetryData" : {
-				"mimeType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"ext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"path": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"reason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"whitelistedjson": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			if (ext === '.json' && TextFileEditorModel.WHITELIST_JSON.indexOf(fileName) > -1) {
+				telemetryData['whitelistedjson'] = fileName;
 			}
-		*/
-		return telemetryData;
+
+			/* __GDPR__FRAGMENT__
+				"FileTelemetryData" : {
+					"mimeType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"ext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"path": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"reason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+					"whitelistedjson": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
+			return telemetryData;
+		});
 	}
 
 	private doTouch(versionId: number): Promise<void> {

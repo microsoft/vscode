@@ -13,7 +13,7 @@ import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { ITextResourceConfigurationService, ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
-import { SimpleBulkEditService, SimpleConfigurationService, SimpleDialogService, SimpleNotificationService, SimpleProgressService, SimpleResourceConfigurationService, SimpleResourcePropertiesService, SimpleUriLabelService, SimpleWorkspaceContextService, StandaloneCommandService, StandaloneKeybindingService, StandaloneTelemetryService, BrowserAccessibilityService, SimpleLayoutService } from 'vs/editor/standalone/browser/simpleServices';
+import { SimpleBulkEditService, SimpleConfigurationService, SimpleDialogService, SimpleNotificationService, SimpleProgressService, SimpleResourceConfigurationService, SimpleResourcePropertiesService, SimpleUriLabelService, SimpleWorkspaceContextService, StandaloneCommandService, StandaloneKeybindingService, StandaloneTelemetryService, SimpleLayoutService } from 'vs/editor/standalone/browser/simpleServices';
 import { StandaloneCodeEditorServiceImpl } from 'vs/editor/standalone/browser/standaloneCodeServiceImpl';
 import { StandaloneThemeServiceImpl } from 'vs/editor/standalone/browser/standaloneThemeServiceImpl';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
@@ -46,6 +46,7 @@ import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDeco
 import { MarkerDecorationsService } from 'vs/editor/common/services/markerDecorationsServiceImpl';
 import { ISuggestMemoryService, SuggestMemoryService } from 'vs/editor/contrib/suggest/suggestMemory';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { BrowserAccessibilityService } from 'vs/platform/accessibility/common/accessibilityService';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 
 export interface IEditorOverrideServices {
@@ -201,7 +202,7 @@ export class DynamicStandaloneServices extends Disposable {
 
 		let contextViewService = ensure(IContextViewService, () => this._register(new ContextViewService(layoutService)));
 
-		ensure(IContextMenuService, () => this._register(new ContextMenuService(domElement, telemetryService, notificationService, contextViewService, keybindingService, themeService)));
+		ensure(IContextMenuService, () => this._register(new ContextMenuService(layoutService, telemetryService, notificationService, contextViewService, keybindingService, themeService)));
 
 		ensure(IMenuService, () => new MenuService(commandService));
 

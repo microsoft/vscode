@@ -4,9 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-//import * as nls from 'vscode-nls';
 import * as util from 'util';
-
 
 const PATTERN = 'listening on.* (https?://\\S+|[0-9]+)'; // matches "listening on port 3000" or "Now listening on: https://localhost:5001"
 const URI_FORMAT = 'http://localhost:%s';
@@ -23,6 +21,7 @@ class ServerReadyDetector extends vscode.Disposable {
 	static detectors = new Map<vscode.DebugSession, ServerReadyDetector>();
 
 	private hasFired = false;
+	private shellPid?: number;
 	private regexp: RegExp;
 	private disposables: vscode.Disposable[] = [];
 
@@ -46,6 +45,13 @@ class ServerReadyDetector extends vscode.Disposable {
 		}
 	}
 
+	static rememberShellPid(session: vscode.DebugSession, pid: number) {
+		let detector = ServerReadyDetector.detectors.get(session);
+		if (detector) {
+			detector.shellPid = pid;
+		}
+	}
+
 	private constructor(private session: vscode.DebugSession) {
 		super(() => this.internalDispose());
 
@@ -57,9 +63,19 @@ class ServerReadyDetector extends vscode.Disposable {
 		this.disposables = [];
 	}
 
-	trackTerminals() {
-		// TODO: listen only on the Terminal associated with the debug session
-		vscode.window.terminals.forEach(terminal => {
+	async trackTerminals() {
+
+		let terminals: vscode.Terminal[] = [];
+
+		// either find the terminal where the debug is started with "runInTerminal" or use all terminals
+		for (let terminal of vscode.window.terminals) {
+			if (!this.shellPid || await terminal.processId === this.shellPid) {
+				terminals.push(terminal);
+			}
+		}
+		this.shellPid = undefined;
+
+		terminals.forEach(terminal => {
 			this.disposables.push(terminal.onDidWriteData(s => {
 				this.detectPattern(s);
 			}));
@@ -149,10 +165,22 @@ function startTrackerForType(context: vscode.ExtensionContext, type: string) {
 		createDebugAdapterTracker(session: vscode.DebugSession) {
 			const detector = ServerReadyDetector.start(session);
 			if (detector) {
+				let runInTerminalRequestSeq: number | undefined;
 				return {
 					onDidSendMessage: m => {
 						if (m.type === 'event' && m.event === 'output' && m.body.output) {
 							detector.detectPattern(m.body.output);
+						}
+						if (m.type === 'request' && m.command === 'runInTerminal' && m.arguments) {
+							if (m.arguments.kind === 'integrated') {
+								runInTerminalRequestSeq = m.seq; // remember this to find matching response
+							}
+						}
+					},
+					onWillReceiveMessage: m => {
+						if (runInTerminalRequestSeq && m.type === 'response' && m.command === 'runInTerminal' && m.body && runInTerminalRequestSeq === m.request_seq) {
+							runInTerminalRequestSeq = undefined;
+							ServerReadyDetector.rememberShellPid(session, m.body.shellProcessId);
 						}
 					}
 				};

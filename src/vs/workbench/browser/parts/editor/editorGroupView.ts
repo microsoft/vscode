@@ -33,7 +33,6 @@ import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch
 import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
 import { IEditorGroupsAccessor, IEditorGroupView, IEditorPartOptionsChangeEvent, getActiveTextEditorOptions, IEditorOpeningEvent } from 'vs/workbench/browser/parts/editor/editor';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { join } from 'vs/base/common/path';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ActionRunner, IAction, Action } from 'vs/base/common/actions';
@@ -44,8 +43,11 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { isErrorWithActions, IErrorWithActions } from 'vs/base/common/errorsWithActions';
-import { URI } from 'vs/base/common/uri';
-import { IActiveEditor } from 'vs/workbench/services/editor/common/editorService';
+import { IVisibleEditor } from 'vs/workbench/services/editor/common/editorService';
+import { withNullAsUndefined } from 'vs/base/common/types';
+import { IHashService } from 'vs/workbench/services/hash/common/hashService';
+import { guessMimeTypes } from 'vs/base/common/mime';
+import { extname } from 'vs/base/common/path';
 
 export class EditorGroupView extends Themable implements IEditorGroupView {
 
@@ -125,7 +127,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IMenuService private readonly menuService: IMenuService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IHashService private readonly hashService: IHashService
 	) {
 		super(themeService);
 
@@ -456,14 +459,18 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	private onDidEditorOpen(editor: EditorInput): void {
-		/* __GDPR__
-			"editorOpened" : {
-				"${include}": [
-					"${EditorTelemetryDescriptor}"
-				]
-			}
-		*/
-		this.telemetryService.publicLog('editorOpened', editor.getTelemetryDescriptor());
+
+		// Telemetry
+		this.toEditorTelemetryDescriptor(editor).then(descriptor => {
+			/* __GDPR__
+				"editorOpened" : {
+					"${include}": [
+						"${EditorTelemetryDescriptor}"
+					]
+				}
+			*/
+			this.telemetryService.publicLog('editorOpened', descriptor);
+		});
 
 		// Update container
 		this.updateContainer();
@@ -494,14 +501,17 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			}
 		});
 
-		/* __GDPR__
-			"editorClosed" : {
-				"${include}": [
-					"${EditorTelemetryDescriptor}"
-				]
-			}
-		*/
-		this.telemetryService.publicLog('editorClosed', event.editor.getTelemetryDescriptor());
+		// Telemetry
+		this.toEditorTelemetryDescriptor(event.editor).then(descriptor => {
+			/* __GDPR__
+				"editorClosed" : {
+					"${include}": [
+						"${EditorTelemetryDescriptor}"
+					]
+				}
+			*/
+			this.telemetryService.publicLog('editorClosed', descriptor);
+		});
 
 		// Update container
 		this.updateContainer();
@@ -509,6 +519,26 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Event
 		this._onDidCloseEditor.fire(event);
 		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_CLOSE, editor, editorIndex: event.index });
+	}
+
+	private toEditorTelemetryDescriptor(editor: EditorInput): Thenable<object> {
+		const descriptor = editor.getTelemetryDescriptor();
+
+		const resource = editor.getResource();
+		if (resource && resource.fsPath) {
+			return this.hashService.createSHA1(resource.fsPath).then(hashedPath => {
+				descriptor['resource'] = { mimeType: guessMimeTypes(resource.fsPath).join(', '), scheme: resource.scheme, ext: extname(resource.fsPath), path: hashedPath };
+
+				/* __GDPR__FRAGMENT__
+					"EditorTelemetryDescriptor" : {
+						"resource": { "${inline}": [ "${URIDescriptor}" ] }
+					}
+				*/
+				return descriptor;
+			});
+		}
+
+		return Promise.resolve(descriptor);
 	}
 
 	private onDidEditorDispose(editor: EditorInput): void {
@@ -658,8 +688,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this._group.count;
 	}
 
-	get activeControl(): IActiveEditor | undefined {
-		return this.editorControl ? this.editorControl.activeControl || undefined : undefined;
+	get activeControl(): IVisibleEditor | undefined {
+		return this.editorControl ? withNullAsUndefined(this.editorControl.activeControl) : undefined;
 	}
 
 	get activeEditor(): EditorInput | null {
@@ -1466,10 +1496,10 @@ export interface EditorReplacement {
 registerThemingParticipant((theme, collector, environment) => {
 
 	// Letterpress
-	const letterpress = `resources/letterpress${theme.type === 'dark' ? '-dark' : theme.type === 'hc' ? '-hc' : ''}.svg`;
+	const letterpress = `./media/letterpress${theme.type === 'dark' ? '-dark' : theme.type === 'hc' ? '-hc' : ''}.svg`;
 	collector.addRule(`
 		.monaco-workbench .part.editor > .content .editor-group-container.empty .editor-group-letterpress {
-			background-image: url('${URI.file(join(environment.appRoot, letterpress)).toString()}')
+			background-image: url('${require.toUrl(letterpress)}')
 		}
 	`);
 

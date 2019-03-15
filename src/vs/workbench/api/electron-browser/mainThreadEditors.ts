@@ -242,12 +242,16 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		}
 
 		const codeEditor = editor.getCodeEditor();
+		if (!codeEditor) {
+			return Promise.reject(new Error('No such CodeEditor'));
+		}
+
 		const codeEditorId = codeEditor.getId();
 		const diffEditors = this._codeEditorService.listDiffEditors();
 		const [diffEditor] = diffEditors.filter(d => d.getOriginalEditor().getId() === codeEditorId || d.getModifiedEditor().getId() === codeEditorId);
 
 		if (diffEditor) {
-			return Promise.resolve(diffEditor.getLineChanges());
+			return Promise.resolve(diffEditor.getLineChanges() || []);
 		}
 
 		const dirtyDiffContribution = codeEditor.getContribution('editor.contrib.dirtydiff');

@@ -314,7 +314,7 @@ export class KeybindingResolver {
 	public static getAllUnboundCommands(boundCommands: Map<string, boolean>): string[] {
 		const unboundCommands: string[] = [];
 		const seenMap: Map<string, boolean> = new Map<string, boolean>();
-		const addCommand = id => {
+		const addCommand = (id: string, includeCommandWithArgs: boolean) => {
 			if (seenMap.has(id)) {
 				return;
 			}
@@ -325,18 +325,20 @@ export class KeybindingResolver {
 			if (boundCommands.get(id) === true) {
 				return;
 			}
-			const command = CommandsRegistry.getCommand(id);
-			if (command && typeof command.description === 'object'
-				&& isNonEmptyArray((<ICommandHandlerDescription>command.description).args)) { // command with args
-				return;
+			if (!includeCommandWithArgs) {
+				const command = CommandsRegistry.getCommand(id);
+				if (command && typeof command.description === 'object'
+					&& isNonEmptyArray((<ICommandHandlerDescription>command.description).args)) { // command with args
+					return;
+				}
 			}
 			unboundCommands.push(id);
 		};
 		for (const id in MenuRegistry.getCommands()) {
-			addCommand(id);
+			addCommand(id, true);
 		}
 		for (const id in CommandsRegistry.getCommands()) {
-			addCommand(id);
+			addCommand(id, false);
 		}
 
 		return unboundCommands;

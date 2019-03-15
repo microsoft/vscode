@@ -659,22 +659,22 @@ suite('QueryBuilder', () => {
 						}]
 					}
 				],
-				// [
-				// 	'../',
-				// 	{
-				// 		searchPaths: [{
-				// 			searchPath: getUri('/foo')
-				// 		}]
-				// 	}
-				// ],
-				// [
-				// 	'..\\bar',
-				// 	{
-				// 		searchPaths: [{
-				// 			searchPath: getUri('/foo/bar')
-				// 		}]
-				// 	}
-				// ]
+				[
+					'../',
+					{
+						searchPaths: [{
+							searchPath: getUri('/foo')
+						}]
+					}
+				],
+				[
+					'..\\bar',
+					{
+						searchPaths: [{
+							searchPath: getUri('/foo/bar')
+						}]
+					}
+				]
 			];
 			cases.forEach(testIncludesDataItem);
 		});

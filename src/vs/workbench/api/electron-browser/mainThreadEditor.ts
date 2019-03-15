@@ -16,6 +16,7 @@ import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2
 import { IApplyEditsOptions, IEditorPropertiesChangeData, IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate, IUndoStopOptions, TextEditorRevealType } from 'vs/workbench/api/node/extHost.protocol';
 import { EndOfLine, TextEditorLineNumbersStyle } from 'vs/workbench/api/node/extHostTypes';
 import { IEditor } from 'vs/workbench/common/editor';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 export interface IFocusTracker {
 	onGainedFocus(): void;
@@ -114,7 +115,7 @@ export class MainThreadTextEditorProperties {
 		if (!oldProps || !MainThreadTextEditorProperties._selectionsEqual(oldProps.selections, this.selections)) {
 			delta.selections = {
 				selections: this.selections,
-				source: selectionChangeSource || undefined
+				source: withNullAsUndefined(selectionChangeSource)
 			};
 		}
 

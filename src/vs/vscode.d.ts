@@ -4517,7 +4517,7 @@ declare module 'vscode' {
 		 * The priority of this item. Higher value means the item should
 		 * be shown more to the left.
 		 */
-		readonly priority: number;
+		readonly priority?: number;
 
 		/**
 		 * The text to show for the entry. You can embed icons in the text by leveraging the syntax:

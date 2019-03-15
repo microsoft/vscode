@@ -190,7 +190,7 @@ export class ContextMenuController implements IEditorContribution {
 			},
 
 			getKeyBinding: (action): ResolvedKeybinding | undefined => {
-				return this._keybindingFor(action) || undefined;
+				return this._keybindingFor(action);
 			},
 
 			onHide: (wasCancelled: boolean) => {

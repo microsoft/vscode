@@ -140,33 +140,33 @@ interface StateDelta {
 	indentation?: string;
 	tabFocusMode?: boolean;
 	screenReaderMode?: boolean;
-	metadata?: string;
+	metadata?: string | null;
 }
 
 class State {
-	private _selectionStatus: string;
-	get selectionStatus(): string { return this._selectionStatus; }
+	private _selectionStatus: string | null | undefined;
+	get selectionStatus(): string | null | undefined { return this._selectionStatus; }
 
-	private _mode: string;
-	get mode(): string { return this._mode; }
+	private _mode: string | null | undefined;
+	get mode(): string | null | undefined { return this._mode; }
 
-	private _encoding: string;
-	get encoding(): string { return this._encoding; }
+	private _encoding: string | null | undefined;
+	get encoding(): string | null | undefined { return this._encoding; }
 
-	private _EOL: string;
-	get EOL(): string { return this._EOL; }
+	private _EOL: string | null | undefined;
+	get EOL(): string | null | undefined { return this._EOL; }
 
-	private _indentation: string;
-	get indentation(): string { return this._indentation; }
+	private _indentation: string | null | undefined;
+	get indentation(): string | null | undefined { return this._indentation; }
 
-	private _tabFocusMode: boolean;
-	get tabFocusMode(): boolean { return this._tabFocusMode; }
+	private _tabFocusMode: boolean | null | undefined;
+	get tabFocusMode(): boolean | null | undefined { return this._tabFocusMode; }
 
-	private _screenReaderMode: boolean;
-	get screenReaderMode(): boolean { return this._screenReaderMode; }
+	private _screenReaderMode: boolean | null | undefined;
+	get screenReaderMode(): boolean | null | undefined { return this._screenReaderMode; }
 
-	private _metadata: string;
-	get metadata(): string { return this._metadata; }
+	private _metadata: string | null | undefined;
+	get metadata(): string | null | undefined { return this._metadata; }
 
 	constructor() {
 		this._selectionStatus = null;
@@ -182,56 +182,56 @@ class State {
 		const e = new StateChange();
 		let somethingChanged = false;
 
-		if (typeof update.selectionStatus !== 'undefined') {
+		if ('selectionStatus' in update) {
 			if (this._selectionStatus !== update.selectionStatus) {
 				this._selectionStatus = update.selectionStatus;
 				somethingChanged = true;
 				e.selectionStatus = true;
 			}
 		}
-		if (typeof update.indentation !== 'undefined') {
+		if ('indentation' in update) {
 			if (this._indentation !== update.indentation) {
 				this._indentation = update.indentation;
 				somethingChanged = true;
 				e.indentation = true;
 			}
 		}
-		if (typeof update.mode !== 'undefined') {
+		if ('mode' in update) {
 			if (this._mode !== update.mode) {
 				this._mode = update.mode;
 				somethingChanged = true;
 				e.mode = true;
 			}
 		}
-		if (typeof update.encoding !== 'undefined') {
+		if ('encoding' in update) {
 			if (this._encoding !== update.encoding) {
 				this._encoding = update.encoding;
 				somethingChanged = true;
 				e.encoding = true;
 			}
 		}
-		if (typeof update.EOL !== 'undefined') {
+		if ('EOL' in update) {
 			if (this._EOL !== update.EOL) {
 				this._EOL = update.EOL;
 				somethingChanged = true;
 				e.EOL = true;
 			}
 		}
-		if (typeof update.tabFocusMode !== 'undefined') {
+		if ('tabFocusMode' in update) {
 			if (this._tabFocusMode !== update.tabFocusMode) {
 				this._tabFocusMode = update.tabFocusMode;
 				somethingChanged = true;
 				e.tabFocusMode = true;
 			}
 		}
-		if (typeof update.screenReaderMode !== 'undefined') {
+		if ('screenReaderMode' in update) {
 			if (this._screenReaderMode !== update.screenReaderMode) {
 				this._screenReaderMode = update.screenReaderMode;
 				somethingChanged = true;
 				e.screenReaderMode = true;
 			}
 		}
-		if (typeof update.metadata !== 'undefined') {
+		if ('metadata' in update) {
 			if (this._metadata !== update.metadata) {
 				this._metadata = update.metadata;
 				somethingChanged = true;
@@ -546,7 +546,7 @@ export class EditorStatus implements IStatusbarItem {
 
 	private updateStatusBar(): void {
 		const activeControl = this.editorService.activeControl;
-		const activeCodeEditor = activeControl ? getCodeEditor(activeControl.getControl()) || undefined : undefined;
+		const activeCodeEditor = activeControl ? types.withNullAsUndefined(getCodeEditor(activeControl.getControl())) : undefined;
 
 		// Update all states
 		this.onScreenReaderModeChange(activeCodeEditor);
@@ -668,7 +668,7 @@ export class EditorStatus implements IStatusbarItem {
 		const update: StateDelta = { metadata: undefined };
 
 		if (editor instanceof BaseBinaryResourceEditor || editor instanceof BinaryResourceDiffEditor) {
-			update.metadata = editor.getMetadata() || undefined;
+			update.metadata = editor.getMetadata();
 		}
 
 		this.updateState(update);
@@ -725,7 +725,7 @@ export class EditorStatus implements IStatusbarItem {
 
 			// Compute the visible column for one selection. This will properly handle tabs and their configured widths
 			if (info.selections.length === 1) {
-				const visibleColumn = editorWidget.getVisibleColumnFromPosition(editorWidget.getPosition());
+				const visibleColumn = editorWidget.getVisibleColumnFromPosition(editorWidget.getPosition()!);
 
 				let selectionClone = info.selections[0].clone(); // do not modify the original position we got from the editor
 				selectionClone = new Selection(
@@ -947,7 +947,9 @@ export class ChangeModeAction extends Action {
 
 			// User decided to permanently configure associations, return right after
 			if (pick === configureModeAssociations) {
-				this.configureFileAssociation(resource);
+				if (resource) {
+					this.configureFileAssociation(resource);
+				}
 				return;
 			}
 
@@ -979,17 +981,24 @@ export class ChangeModeAction extends Action {
 			}
 
 			// Find mode
-			let languageSelection: ILanguageSelection;
+			let languageSelection: ILanguageSelection | undefined;
 			if (pick === autoDetectMode) {
-				languageSelection = this.modeService.createByFilepathOrFirstLine(toResource(activeEditor, { supportSideBySide: true }).fsPath, textModel.getLineContent(1));
+				if (textModel) {
+					const resource = toResource(activeEditor, { supportSideBySide: true });
+					if (resource) {
+						languageSelection = this.modeService.createByFilepathOrFirstLine(resource.fsPath, textModel.getLineContent(1));
+					}
+				}
 			} else {
 				languageSelection = this.modeService.createByLanguageName(pick.label);
 			}
 
 			// Change mode
-			models.forEach(textModel => {
-				this.modelService.setMode(textModel, languageSelection);
-			});
+			if (typeof languageSelection !== 'undefined') {
+				for (const textModel of models) {
+					this.modelService.setMode(textModel, languageSelection);
+				}
+			}
 		});
 	}
 
@@ -1128,7 +1137,7 @@ export class ChangeEOLAction extends Action {
 		return this.quickInputService.pick(EOLOptions, { placeHolder: nls.localize('pickEndOfLine', "Select End of Line Sequence"), activeItem: EOLOptions[selectedIndex] }).then(eol => {
 			if (eol) {
 				const activeCodeEditor = getCodeEditor(this.editorService.activeTextEditorWidget);
-				if (activeCodeEditor && isWritableCodeEditor(activeCodeEditor)) {
+				if (activeCodeEditor && activeCodeEditor.hasModel() && isWritableCodeEditor(activeCodeEditor)) {
 					const textModel = activeCodeEditor.getModel();
 					textModel.pushEOL(eol.eol);
 				}
@@ -1158,11 +1167,11 @@ export class ChangeEncodingAction extends Action {
 			return this.quickInputService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
 		}
 
-		let activeControl = this.editorService.activeControl;
+		const activeControl = this.editorService.activeControl;
 		if (!activeControl) {
 			return this.quickInputService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
 		}
-		let encodingSupport: IEncodingSupport | null = toEditorWithEncodingSupport(activeControl.input);
+		const encodingSupport: IEncodingSupport | null = toEditorWithEncodingSupport(activeControl.input);
 		if (!encodingSupport) {
 			return this.quickInputService.pick([{ label: nls.localize('noFileEditor', "No file active at this time") }]);
 		}
@@ -1191,7 +1200,7 @@ export class ChangeEncodingAction extends Action {
 				return undefined;
 			}
 
-			const resource = toResource(activeControl.input, { supportSideBySide: true });
+			const resource = toResource(activeControl!.input, { supportSideBySide: true });
 
 			return timeout(50 /* quick open is sensitive to being opened so soon after another */)
 				.then(() => {
@@ -1204,7 +1213,7 @@ export class ChangeEncodingAction extends Action {
 				.then((guessedEncoding: string) => {
 					const isReopenWithEncoding = (action === reopenWithEncodingPick);
 
-					const configuredEncoding = this.textResourceConfigurationService.getValue(resource, 'files.encoding');
+					const configuredEncoding = this.textResourceConfigurationService.getValue(types.withNullAsUndefined(resource), 'files.encoding');
 
 					let directMatchIndex: number | undefined;
 					let aliasMatchIndex: number | undefined;
@@ -1249,12 +1258,16 @@ export class ChangeEncodingAction extends Action {
 						placeHolder: isReopenWithEncoding ? nls.localize('pickEncodingForReopen', "Select File Encoding to Reopen File") : nls.localize('pickEncodingForSave', "Select File Encoding to Save with"),
 						activeItem: items[typeof directMatchIndex === 'number' ? directMatchIndex : typeof aliasMatchIndex === 'number' ? aliasMatchIndex : -1]
 					}).then(encoding => {
-						if (encoding) {
-							activeControl = this.editorService.activeControl;
-							encodingSupport = toEditorWithEncodingSupport(activeControl.input);
-							if (encodingSupport && encodingSupport.getEncoding() !== encoding.id) {
-								encodingSupport.setEncoding(encoding.id, isReopenWithEncoding ? EncodingMode.Decode : EncodingMode.Encode); // Set new encoding
-							}
+						if (!encoding) {
+							return;
+						}
+						const activeControl = this.editorService.activeControl;
+						if (!activeControl) {
+							return;
+						}
+						const encodingSupport = toEditorWithEncodingSupport(activeControl.input);
+						if (typeof encoding.id !== 'undefined' && encodingSupport && encodingSupport.getEncoding() !== encoding.id) {
+							encodingSupport.setEncoding(encoding.id, isReopenWithEncoding ? EncodingMode.Decode : EncodingMode.Encode); // Set new encoding
 						}
 					});
 				});

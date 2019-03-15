@@ -6,7 +6,7 @@
 import Severity from 'vs/base/common/severity';
 import * as vscode from 'vscode';
 import { MainContext, MainThreadMessageServiceShape, MainThreadMessageOptions, IMainContext } from './extHost.protocol';
-import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 function isMessageItem(item: any): item is vscode.MessageItem {
 	return item && item.title;

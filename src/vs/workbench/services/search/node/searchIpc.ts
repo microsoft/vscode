@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
-import { IRawFileQuery, IRawTextQuery } from 'vs/workbench/services/search/common/search';
-import { IRawSearchService, ISerializedSearchComplete, ISerializedSearchProgressItem } from './search';
+import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
+import { IRawFileQuery, IRawTextQuery, IRawSearchService, ISerializedSearchComplete, ISerializedSearchProgressItem } from 'vs/workbench/services/search/common/search';
 
 export class SearchChannel implements IServerChannel {
 

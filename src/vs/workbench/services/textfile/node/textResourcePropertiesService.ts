@@ -7,11 +7,12 @@ import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 import { OperatingSystem, OS } from 'vs/base/common/platform';
-import { IRemoteAgentService, IRemoteAgentEnvironment } from 'vs/workbench/services/remote/node/remoteAgentService';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { Schemas } from 'vs/base/common/network';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 
 export class TextResourcePropertiesService implements ITextResourcePropertiesService {
 

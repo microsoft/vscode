@@ -59,11 +59,11 @@ import { ExtHostUrls } from 'vs/workbench/api/node/extHostUrls';
 import { ExtHostWebviews } from 'vs/workbench/api/node/extHostWebview';
 import { ExtHostWindow } from 'vs/workbench/api/node/extHostWindow';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
-import { IExtensionDescription, throwProposedApiError, checkProposedApiEnabled, nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { throwProposedApiError, checkProposedApiEnabled, nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ProxyIdentifier } from 'vs/workbench/services/extensions/node/proxyIdentifier';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
 import * as vscode from 'vscode';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { originalFSPath } from 'vs/base/common/resources';
 import { CLIServer } from 'vs/workbench/api/node/extHostCLIServer';
 
@@ -647,7 +647,7 @@ export function createApiFactory(
 		// namespace: scm
 		const scm: typeof vscode.scm = {
 			get inputBox() {
-				return extHostSCM.getLastInputBox(extension);
+				return extHostSCM.getLastInputBox(extension)!; // Strict null override - Deprecated api
 			},
 			createSourceControl(id: string, label: string, rootUri?: vscode.Uri) {
 				return extHostSCM.createSourceControl(extension, id, label, rootUri);
@@ -800,7 +800,6 @@ export function createApiFactory(
 			ResolvedAuthority: extHostTypes.ResolvedAuthority,
 			Selection: extHostTypes.Selection,
 			SelectionRange: extHostTypes.SelectionRange,
-			SelectionRangeKind: extHostTypes.SelectionRangeKind,
 			ShellExecution: extHostTypes.ShellExecution,
 			ShellQuoting: extHostTypes.ShellQuoting,
 			SignatureHelpTriggerKind: extHostTypes.SignatureHelpTriggerKind,
@@ -860,7 +859,7 @@ class Extension<T> implements vscode.Extension<T> {
 
 	get exports(): T {
 		if (this.packageJSON.api === 'none') {
-			return undefined;
+			return undefined!; // Strict nulloverride - Public api
 		}
 		return <T>this._extensionService.getExtensionExports(this._identifier);
 	}

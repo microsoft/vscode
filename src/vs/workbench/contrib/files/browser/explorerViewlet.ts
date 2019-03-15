@@ -21,7 +21,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ViewsRegistry, IViewDescriptor } from 'vs/workbench/common/views';
+import { IViewsRegistry, IViewDescriptor, Extensions } from 'vs/workbench/common/views';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -30,9 +30,10 @@ import { DelegatingEditorService } from 'vs/workbench/services/editor/browser/ed
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorInput } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditor } from 'vs/workbench/common/editor';
 import { ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { KeyChord, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 export class ExplorerViewletViewsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -56,7 +57,8 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 	}
 
 	private registerViews(): void {
-		const viewDescriptors = ViewsRegistry.getViews(VIEW_CONTAINER);
+		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
+		const viewDescriptors = viewsRegistry.getViews(VIEW_CONTAINER);
 
 		let viewDescriptorsToRegister: IViewDescriptor[] = [];
 		let viewDescriptorsToDeregister: IViewDescriptor[] = [];
@@ -88,10 +90,10 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 		}
 
 		if (viewDescriptorsToRegister.length) {
-			ViewsRegistry.registerViews(viewDescriptorsToRegister, VIEW_CONTAINER);
+			viewsRegistry.registerViews(viewDescriptorsToRegister, VIEW_CONTAINER);
 		}
 		if (viewDescriptorsToDeregister.length) {
-			ViewsRegistry.deregisterViews(viewDescriptorsToDeregister, VIEW_CONTAINER);
+			viewsRegistry.deregisterViews(viewDescriptorsToDeregister, VIEW_CONTAINER);
 		}
 	}
 
@@ -181,7 +183,7 @@ export class ExplorerViewlet extends ViewContainerViewlet {
 			// We try to be smart and only use the delay if we recognize that the user action is likely to cause
 			// a new entry in the opened editors view.
 			const delegatingEditorService = this.instantiationService.createInstance(DelegatingEditorService);
-			delegatingEditorService.setEditorOpenHandler((group: IEditorGroup, editor: IEditorInput, options?: IEditorOptions) => {
+			delegatingEditorService.setEditorOpenHandler((group: IEditorGroup, editor: IEditorInput, options?: IEditorOptions): Promise<IEditor | null> => {
 				let openEditorsView = this.getOpenEditorsView();
 				if (openEditorsView) {
 					let delay = 0;
@@ -197,8 +199,8 @@ export class ExplorerViewlet extends ViewContainerViewlet {
 					openEditorsView.setStructuralRefreshDelay(delay);
 				}
 
-				const onSuccessOrError = (editor?: BaseEditor) => {
-					let openEditorsView = this.getOpenEditorsView();
+				const onSuccessOrError = (editor: BaseEditor | null) => {
+					const openEditorsView = this.getOpenEditorsView();
 					if (openEditorsView) {
 						openEditorsView.setStructuralRefreshDelay(0);
 					}

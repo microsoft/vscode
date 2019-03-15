@@ -5,7 +5,7 @@
 
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorInputFactory } from 'vs/workbench/common/editor';
-import { WebviewEditorInput, RevivedWebviewEditorInput } from './webviewEditorInput';
+import { WebviewEditorInput } from './webviewEditorInput';
 import { IWebviewEditorService, WebviewInputOptions } from './webviewEditorService';
 import { URI, UriComponents } from 'vs/base/common/uri';
 
@@ -22,6 +22,7 @@ interface SerializedWebview {
 	readonly extensionLocation: string | UriComponents | undefined;
 	readonly state: any;
 	readonly iconPath: SerializedIconPath | undefined;
+	readonly group?: number;
 }
 
 export class WebviewEditorInputFactory implements IEditorInputFactory {
@@ -35,13 +36,7 @@ export class WebviewEditorInputFactory implements IEditorInputFactory {
 	public serialize(
 		input: WebviewEditorInput
 	): string | null {
-		// Has no state, don't revive
-		if (!input.state) {
-			return null;
-		}
-
-		// Only attempt revival if we may have a reviver
-		if (!this._webviewService.canRevive(input) && !(input instanceof RevivedWebviewEditorInput)) {
+		if (!this._webviewService.shouldPersist(input)) {
 			return null;
 		}
 
@@ -53,6 +48,7 @@ export class WebviewEditorInputFactory implements IEditorInputFactory {
 			extensionLocation: input.extensionLocation,
 			state: input.state,
 			iconPath: input.iconPath ? { light: input.iconPath.light, dark: input.iconPath.dark, } : undefined,
+			group: input.group
 		};
 
 		try {
@@ -69,7 +65,7 @@ export class WebviewEditorInputFactory implements IEditorInputFactory {
 		const data: SerializedWebview = JSON.parse(serializedEditorInput);
 		const extensionLocation = reviveUri(data.extensionLocation);
 		const iconPath = reviveIconPath(data.iconPath);
-		return this._webviewService.reviveWebview(data.viewType, data.id, data.title, iconPath, data.state, data.options, extensionLocation);
+		return this._webviewService.reviveWebview(data.viewType, data.id, data.title, iconPath, data.state, data.options, extensionLocation, data.group);
 	}
 }
 function reviveIconPath(data: SerializedIconPath | undefined) {

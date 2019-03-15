@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
+import { exists } from 'vs/base/node/pfs';
 import * as cp from 'child_process';
 import * as stream from 'stream';
 import * as nls from 'vs/nls';
@@ -14,9 +14,9 @@ import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ExtensionsChannelId } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { IOutputService } from 'vs/workbench/contrib/output/common/output';
 import { IDebugAdapter, IDebugAdapterExecutable, IDebuggerContribution, IPlatformSpecificAdapterContribution, IDebugAdapterServer } from 'vs/workbench/contrib/debug/common/debug';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 /**
  * Abstract implementation of the low level API for a debug adapter.
@@ -320,8 +320,8 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 			// verify executables asynchronously
 			if (command) {
 				if (path.isAbsolute(command)) {
-					const ok = await new Promise<boolean>(resolve => fs.exists(command, resolve));
-					if (!ok) {
+					const commandExists = await exists(command);
+					if (!commandExists) {
 						throw new Error(nls.localize('debugAdapterBinNotFound', "Debug adapter executable '{0}' does not exist.", command));
 					}
 				} else {
