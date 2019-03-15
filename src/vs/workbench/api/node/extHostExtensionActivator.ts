@@ -5,9 +5,9 @@
 
 import * as nls from 'vs/nls';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import Severity from 'vs/base/common/severity';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionActivationError, MissingDependenciesError } from 'vs/workbench/services/extensions/common/extensions';
 
 const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
 
@@ -173,8 +173,7 @@ export class FailedExtension extends ActivatedExtension {
 }
 
 export interface IExtensionsActivatorHost {
-	showMessage(severity: Severity, message: string): void;
-
+	onExtensionActivationError(extensionId: ExtensionIdentifier, error: ExtensionActivationError): void;
 	actualActivateExtension(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<ActivatedExtension>;
 }
 
@@ -283,7 +282,7 @@ export class ExtensionsActivator {
 
 			if (dep && dep.activationFailed) {
 				// Error condition 2: a dependency has already failed activation
-				this._host.showMessage(Severity.Error, nls.localize('failedDep1', "Cannot activate extension '{0}' because it depends on extension '{1}', which failed to activate.", currentExtension.displayName || currentExtension.identifier.value, depId));
+				this._host.onExtensionActivationError(currentExtension.identifier, nls.localize('failedDep1', "Cannot activate extension '{0}' because it depends on extension '{1}', which failed to activate.", currentExtension.displayName || currentExtension.identifier.value, depId));
 				const error = new Error(`Dependency ${depId} failed to activate`);
 				(<any>error).detail = dep.activationFailedError;
 				this._activatedExtensions.set(ExtensionIdentifier.toKey(currentExtension.identifier), new FailedExtension(error));
@@ -306,7 +305,7 @@ export class ExtensionsActivator {
 			}
 
 			// Error condition 1: unknown dependency
-			this._host.showMessage(Severity.Error, nls.localize('unknownDep', "Cannot activate extension '{0}' because it depends on extension '{1}', which is not installed or disabled. Please install or enable '{1}' and reload the window.", currentExtension.displayName || currentExtension.identifier.value, depId));
+			this._host.onExtensionActivationError(currentExtension.identifier, new MissingDependenciesError([depId]));
 			const error = new Error(`Unknown dependency '${depId}'`);
 			this._activatedExtensions.set(ExtensionIdentifier.toKey(currentExtension.identifier), new FailedExtension(error));
 			return;
@@ -373,7 +372,7 @@ export class ExtensionsActivator {
 		}
 
 		const newlyActivatingExtension = this._host.actualActivateExtension(extensionId, reason).then(undefined, (err) => {
-			this._host.showMessage(Severity.Error, nls.localize('activationError', "Activating extension '{0}' failed: {1}.", extensionId.value, err.message));
+			this._host.onExtensionActivationError(extensionId, nls.localize('activationError', "Activating extension '{0}' failed: {1}.", extensionId.value, err.message));
 			console.error('Activating extension `' + extensionId.value + '` failed: ', err.message);
 			console.log('Here is the error stack: ', err.stack);
 			// Treat the extension as being empty

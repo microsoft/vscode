@@ -7,22 +7,38 @@ import { SerializedError } from 'vs/base/common/errors';
 import Severity from 'vs/base/common/severity';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { IExtHostContext, MainContext, MainThreadExtensionServiceShape } from 'vs/workbench/api/node/extHost.protocol';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, ExtensionActivationError, IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionService } from 'vs/workbench/services/extensions/electron-browser/extensionService';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { localize } from 'vs/nls';
+import { Action } from 'vs/base/common/actions';
+import { EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IExtensionsWorkbenchService, IExtension } from 'vs/workbench/contrib/extensions/common/extensions';
 
 @extHostNamedCustomer(MainContext.MainThreadExtensionService)
 export class MainThreadExtensionService implements MainThreadExtensionServiceShape {
 
 	private readonly _extensionService: ExtensionService;
+	private readonly _notificationService: INotificationService;
+	private readonly _extensionsWorkbenchService: IExtensionsWorkbenchService;
+	private readonly _windowService: IWindowService;
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IExtensionService extensionService: IExtensionService
+		@IExtensionService extensionService: IExtensionService,
+		@INotificationService notificationService: INotificationService,
+		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IWindowService windowService: IWindowService
 	) {
 		if (extensionService instanceof ExtensionService) {
 			this._extensionService = extensionService;
 		}
+		this._notificationService = notificationService;
+		this._extensionsWorkbenchService = extensionsWorkbenchService;
+		this._windowService = windowService;
 	}
 
 	public dispose(): void {
@@ -49,6 +65,64 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 		console.error(`[${extensionId}]${error.message}`);
 		console.error(error.stack);
 	}
-	$onExtensionActivationFailed(extensionId: ExtensionIdentifier): void {
+	async $onExtensionActivationError(extensionId: ExtensionIdentifier, activationError: ExtensionActivationError): Promise<void> {
+		if (typeof activationError === 'string') {
+			this._extensionService._logOrShowMessage(Severity.Error, activationError);
+		} else {
+			this._handleMissingDependency(extensionId, activationError.dependencies[0]);
+		}
 	}
+
+	private async _handleMissingDependency(extensionId: ExtensionIdentifier, missingDependency: string): Promise<void> {
+		const extension = await this._extensionService.getExtension(extensionId.value);
+		const local = await this._extensionsWorkbenchService.queryLocal();
+		const installedDependency = local.filter(i => areSameExtensions(i.identifier, { id: missingDependency }))[0];
+		if (installedDependency) {
+			await this._handleMissingInstalledDependency(extension, installedDependency);
+		} else {
+			await this._handleMissingNotInstalledDependency(extension, missingDependency);
+		}
+	}
+
+	private async _handleMissingInstalledDependency(extension: IExtensionDescription, missingInstalledDependency: IExtension): Promise<void> {
+		const extName = extension.displayName || extension.name;
+		if (missingInstalledDependency.enablementState === EnablementState.Enabled || missingInstalledDependency.enablementState === EnablementState.WorkspaceEnabled) {
+			this._notificationService.notify({
+				severity: Severity.Error,
+				message: localize('reload window', "Cannot activate extension '{0}' because it depends on extension '{1}', which is not loaded. Would you like to reload the window to load the extension?", extName, missingInstalledDependency.displayName),
+				actions: {
+					primary: [new Action('reload', localize('reload', "Reload Window"), '', true, () => this._windowService.reloadWindow())]
+				}
+			});
+		} else {
+			this._notificationService.notify({
+				severity: Severity.Error,
+				message: localize('disabledDep', "Cannot activate extension '{0}' because it depends on extension '{1}', which is disabled. Would you like to enable the extension and reload the window?", extName, missingInstalledDependency.displayName),
+				actions: {
+					primary: [new Action('enable', localize('enable dep', "Enable and Reload"), '', true,
+						() => this._extensionsWorkbenchService.setEnablement([missingInstalledDependency], missingInstalledDependency.enablementState === EnablementState.Disabled ? EnablementState.Enabled : EnablementState.WorkspaceEnabled)
+							.then(() => this._windowService.reloadWindow(), e => this._notificationService.error(e)))]
+				}
+			});
+		}
+	}
+
+	private async _handleMissingNotInstalledDependency(extension: IExtensionDescription, missingDependency: string): Promise<void> {
+		const extName = extension.displayName || extension.name;
+		const dependencyExtension = (await this._extensionsWorkbenchService.queryGallery({ names: [missingDependency] })).firstPage[0];
+		if (dependencyExtension) {
+			this._notificationService.notify({
+				severity: Severity.Error,
+				message: localize('uninstalledDep', "Cannot activate extension '{0}' because it depends on extension '{1}', which is not installed. Would you like to install the extension and reload the window?", extName, dependencyExtension.displayName),
+				actions: {
+					primary: [new Action('install', localize('install missing dep', "Install and Reload"), '', true,
+						() => this._extensionsWorkbenchService.install(dependencyExtension)
+							.then(() => this._windowService.reloadWindow(), e => this._notificationService.error(e)))]
+				}
+			});
+		} else {
+			this._notificationService.error(localize('unknownDep', "Cannot activate extension '{0}' because it depends on an unknown extension '{1}'.", extName, missingDependency));
+		}
+	}
+
 }

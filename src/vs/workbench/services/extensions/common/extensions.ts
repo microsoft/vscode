@@ -46,6 +46,11 @@ export interface IExtensionsStatus {
 	runtimeErrors: Error[];
 }
 
+export type ExtensionActivationError = string | MissingDependenciesError;
+export class MissingDependenciesError {
+	constructor(readonly dependencies: string[]) { }
+}
+
 /**
  * e.g.
  * ```
