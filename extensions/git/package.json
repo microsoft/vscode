@@ -1222,6 +1222,12 @@
           "default": false,
           "description": "%config.alwaysShowStagedChangesResourceGroup%"
         },
+        "git.onlyTrackedFilesCanBeAutoStaged": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": false,
+          "description": "%config.onlyTrackedFilesCanBeAutoStaged%"
+        },
         "git.alwaysSignOff": {
           "type": "boolean",
           "scope": "resource",
