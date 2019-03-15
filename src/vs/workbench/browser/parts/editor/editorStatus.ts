@@ -119,6 +119,17 @@ class StateChange {
 		this.screenReaderMode = this.screenReaderMode || other.screenReaderMode;
 		this.metadata = this.metadata || other.metadata;
 	}
+
+	public hasChanges(): boolean {
+		return this.indentation
+			|| this.selectionStatus
+			|| this.mode
+			|| this.encoding
+			|| this.EOL
+			|| this.tabFocusMode
+			|| this.screenReaderMode
+			|| this.metadata;
+	}
 }
 
 interface StateDelta {
@@ -167,71 +178,59 @@ class State {
 		this._metadata = null;
 	}
 
-	update(update: StateDelta): StateChange | null {
-		const e = new StateChange();
-		let somethingChanged = false;
+	update(update: StateDelta): StateChange {
+		const change = new StateChange();
 
 		if ('selectionStatus' in update) {
 			if (this._selectionStatus !== update.selectionStatus) {
 				this._selectionStatus = update.selectionStatus;
-				somethingChanged = true;
-				e.selectionStatus = true;
+				change.selectionStatus = true;
 			}
 		}
 		if ('indentation' in update) {
 			if (this._indentation !== update.indentation) {
 				this._indentation = update.indentation;
-				somethingChanged = true;
-				e.indentation = true;
+				change.indentation = true;
 			}
 		}
 		if ('mode' in update) {
 			if (this._mode !== update.mode) {
 				this._mode = update.mode;
-				somethingChanged = true;
-				e.mode = true;
+				change.mode = true;
 			}
 		}
 		if ('encoding' in update) {
 			if (this._encoding !== update.encoding) {
 				this._encoding = update.encoding;
-				somethingChanged = true;
-				e.encoding = true;
+				change.encoding = true;
 			}
 		}
 		if ('EOL' in update) {
 			if (this._EOL !== update.EOL) {
 				this._EOL = update.EOL;
-				somethingChanged = true;
-				e.EOL = true;
+				change.EOL = true;
 			}
 		}
 		if ('tabFocusMode' in update) {
 			if (this._tabFocusMode !== update.tabFocusMode) {
 				this._tabFocusMode = update.tabFocusMode;
-				somethingChanged = true;
-				e.tabFocusMode = true;
+				change.tabFocusMode = true;
 			}
 		}
 		if ('screenReaderMode' in update) {
 			if (this._screenReaderMode !== update.screenReaderMode) {
 				this._screenReaderMode = update.screenReaderMode;
-				somethingChanged = true;
-				e.screenReaderMode = true;
+				change.screenReaderMode = true;
 			}
 		}
 		if ('metadata' in update) {
 			if (this._metadata !== update.metadata) {
 				this._metadata = update.metadata;
-				somethingChanged = true;
-				e.metadata = true;
+				change.metadata = true;
 			}
 		}
 
-		if (somethingChanged) {
-			return e;
-		}
-		return null;
+		return change;
 	}
 }
 
@@ -357,7 +356,7 @@ export class EditorStatus implements IStatusbarItem {
 
 	private updateState(update: StateDelta): void {
 		const changed = this.state.update(update);
-		if (!changed) {
+		if (!changed.hasChanges()) {
 			// Nothing really changed
 			return;
 		}
