@@ -114,8 +114,6 @@ export class RemoteFileDialog {
 			const env = await this.remoteEnvironmentService.remoteEnvironment;
 			if (env) {
 				defaultUri = env.userHome;
-			} else if (this.scheme !== Schemas.file) {
-				defaultUri = options.defaultUri ? options.defaultUri : URI.from({ scheme: this.scheme, authority: this.remoteAuthority, path: '/' });
 			} else {
 				defaultUri = URI.from({ scheme: this.scheme, path: this.environmentService.userHome });
 			}

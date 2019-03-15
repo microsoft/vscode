@@ -10,7 +10,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 
 export interface IRemoteEnvironmentService {
 	_serviceBrand: any;
-	remoteEnvironment: Promise<IRemoteAgentEnvironment | undefined>;
+	remoteEnvironment: Promise<IRemoteAgentEnvironment | null>;
 }
 
 export const IRemoteEnvironmentService = createDecorator<IRemoteEnvironmentService>('remoteEnvironmentService');
@@ -22,12 +22,12 @@ export class RemoteEnvironmentService implements IRemoteEnvironmentService {
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
 	) { }
 
-	get remoteEnvironment(): Promise<IRemoteAgentEnvironment | undefined> {
+	get remoteEnvironment(): Promise<IRemoteAgentEnvironment | null> {
 		const connection = this.remoteAgentService.getConnection();
 		if (connection) {
 			return connection.getEnvironment();
 		}
-		return Promise.resolve(undefined);
+		return Promise.resolve(null);
 	}
 }
 
