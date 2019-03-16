@@ -125,8 +125,12 @@ export class CommentNode extends Disposable {
 
 		this._isPendingLabel = dom.append(header, dom.$('span.isPending'));
 
-		if (this.comment.isDraft) {
+		if (this.comment.label) {
+			this._isPendingLabel.innerText = this.comment.label;
+		} else if (this.comment.isDraft) {
 			this._isPendingLabel.innerText = 'Pending';
+		} else {
+			this._isPendingLabel.innerText = '';
 		}
 
 		const actions: Action[] = [];
