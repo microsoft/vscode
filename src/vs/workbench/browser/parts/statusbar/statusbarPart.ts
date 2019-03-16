@@ -49,6 +49,8 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	private statusMsgDispose: IDisposable;
 	private styleElement: HTMLStyleElement;
 
+	private _currentBackgroundColor: string;
+
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
@@ -231,11 +233,15 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	}
 
 	public setBackgroundColor(color: string): IDisposable {
-		const originalColor = document.getElementById('workbench.parts.statusbar').style.backgroundColor;
-		document.getElementById('workbench.parts.statusbar').style.backgroundColor = color;
+		const el = document.getElementById('workbench.parts.statusbar');
+		const originalColor = el.style.backgroundColor;
+		el.style.backgroundColor = color;
+		this._currentBackgroundColor = color;
 		return {
 			dispose: () => {
-				document.getElementById('workbench.parts.statusbar').style.backgroundColor = originalColor;
+				if (this._currentBackgroundColor === color) {
+					el.style.backgroundColor = originalColor;
+				}
 			}
 		};
 	}

@@ -51,7 +51,7 @@ export class MainThreadStatusBar implements MainThreadStatusBarShape {
 	}
 	$disposeBackground(id: number) {
 		let index; // find not working
-		this._stackColor.forEach((e, idx) => { if (e.id === id) { index = idx; });
+		this._stackColor.forEach((e, idx) => { if (e.id === id) { index = idx; } });
 
 		if (index /*&& index === this._stackColor.length -1*/) {
 			this._stackColor[index].disposable.dispose();
