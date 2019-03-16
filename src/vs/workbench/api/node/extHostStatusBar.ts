@@ -5,7 +5,7 @@
 
 import { StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/platform/statusbar/common/statusbar';
 import { StatusBarAlignment as ExtHostStatusBarAlignment, Disposable, ThemeColor } from './extHostTypes';
-import { StatusBarItem, StatusBarAlignment } from 'vscode';
+import { StatusBarItem, StatusBarAlignment, StatusBarStyle } from 'vscode';
 import { MainContext, MainThreadStatusBarShape, IMainContext } from './extHost.protocol';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
@@ -119,6 +119,27 @@ export class ExtHostStatusBarEntry implements StatusBarItem {
 	}
 }
 
+export class ExtHostStatusBarStyle implements StatusBarStyle {
+	private static ID_GEN = 0;
+	private readonly _id: number;
+	private _color: string | ThemeColor;
+	public readonly backgroundColor: string | ThemeColor;
+	private _proxy: MainThreadStatusBarShape;
+	constructor(proxy: MainThreadStatusBarShape, color: string | ThemeColor) {
+		this._id = ExtHostStatusBarStyle.ID_GEN++;
+		this._proxy = proxy;
+		this._color = color;
+		this.backgroundColor = color;
+	}
+
+	apply() {
+		this._proxy.$setBackground(this._id, this._color);
+	}
+	dispose() {
+		this._proxy.$disposeBackground(this._id);
+	}
+}
+
 class StatusBarMessage {
 
 	private _item: StatusBarItem;
@@ -158,23 +179,26 @@ class StatusBarMessage {
 }
 
 class StatusBarBackground {
-	private _color: string;
+	private _statusBarStyles: StatusBarStyle[];
 	private _statusBar: ExtHostStatusBar;
 
-	constructor(statusBar: ExtHostStatusBar) {
+	constructor(statusBar: ExtHostStatusBar, color?: string) {
 		this._statusBar = statusBar;
+		this._statusBarStyles = [statusBar.createStatusBarStyle(color)];
 	}
 
-	dispose() { }
-
-	setBackground(color: string): Disposable {
-		this._color = color;
+	setBackground(color): Disposable {
+		const style = this._statusBar.createStatusBarStyle(color);
+		this._statusBarStyles.push(style);
 		this._update();
-		return new Disposable(() => { });
+		return new Disposable(() => {
+			this._statusBarStyles = this._statusBarStyles.filter(s => s !== style);
+			style.dispose();
+		});
 	}
 
 	private _update() {
-		this._statusBar.updateBackground(this._color);
+		this._statusBarStyles[this._statusBarStyles.length - 1].apply();
 	}
 }
 export class ExtHostStatusBar {
@@ -189,17 +213,16 @@ export class ExtHostStatusBar {
 		this._statusBarBackground = new StatusBarBackground(this);
 	}
 
-	updateBackground(color: string) {
-		this._proxy.$setBackground(color);
-	}
-
 	createStatusBarEntry(extensionId: ExtensionIdentifier | undefined, alignment?: ExtHostStatusBarAlignment, priority?: number): StatusBarItem {
 		return new ExtHostStatusBarEntry(this._proxy, extensionId, alignment, priority);
 	}
 
+	createStatusBarStyle(color): StatusBarStyle {
+		return new ExtHostStatusBarStyle(this._proxy, color);
+	}
+
 	setStatusBarBackground(color: string): Disposable {
-		this._statusBarBackground.setBackground(color);
-		return new Disposable(() => { });
+		return this._statusBarBackground.setBackground(color);
 	}
 
 	setStatusBarMessage(text: string, timeoutOrThenable?: number | Thenable<any>): Disposable {

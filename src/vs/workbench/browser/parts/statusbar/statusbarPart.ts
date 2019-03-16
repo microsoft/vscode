@@ -231,8 +231,13 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	}
 
 	public setBackgroundColor(color: string): IDisposable {
+		const originalColor = document.getElementById('workbench.parts.statusbar').style.backgroundColor;
 		document.getElementById('workbench.parts.statusbar').style.backgroundColor = color;
-		return { dispose: () => { } };
+		return {
+			dispose: () => {
+				document.getElementById('workbench.parts.statusbar').style.backgroundColor = originalColor;
+			}
+		};
 	}
 
 	layout(width: number, height: number): void {

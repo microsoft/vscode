@@ -4562,6 +4562,13 @@ declare module 'vscode' {
 		dispose(): void;
 	}
 
+	export interface StatusBarStyle {
+		backgroundColor: string | ThemeColor | undefined;
+		// §todo: add documentation and other stuff
+		apply(): void;
+		dispose(): void;
+	}
+
 	/**
 	 * Defines a generalized way of reporting progress updates.
 	 */

@@ -10,16 +10,23 @@ import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
+type ColorItem = {
+	id: number,
+	disposable: IDisposable
+};
+
 @extHostNamedCustomer(MainContext.MainThreadStatusBar)
 export class MainThreadStatusBar implements MainThreadStatusBarShape {
 
 	private readonly _entries: { [id: number]: IDisposable };
+	private _stackColor: ColorItem[];
 
 	constructor(
 		extHostContext: IExtHostContext,
 		@IStatusbarService private readonly _statusbarService: IStatusbarService
 	) {
 		this._entries = Object.create(null);
+		this._stackColor = [];
 	}
 
 	dispose(): void {
@@ -38,10 +45,20 @@ export class MainThreadStatusBar implements MainThreadStatusBarShape {
 		this._entries[id] = entry;
 	}
 
-	$setBackground(color: string): void {
-		this._statusbarService.setBackgroundColor(color);
+	$setBackground(id: number, color: string): void {
+		const disposable = this._statusbarService.setBackgroundColor(color);
+		this._stackColor.push({ id, disposable });
 	}
+	$disposeBackground(id: number) {
+		let index; // find not working
+		this._stackColor.forEach((e, idx) => { if (e.id === id) { index = idx; });
 
+		if (index /*&& index === this._stackColor.length -1*/) {
+			this._stackColor[index].disposable.dispose();
+		}
+
+		this._stackColor = this._stackColor.filter(e => e.id === id);
+	}
 	$dispose(id: number) {
 		const disposeable = this._entries[id];
 		if (disposeable) {
