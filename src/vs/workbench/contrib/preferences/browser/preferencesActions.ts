@@ -19,7 +19,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 export class OpenRawDefaultSettingsAction extends Action {
 
 	static readonly ID = 'workbench.action.openRawDefaultSettings';
-	static readonly LABEL = nls.localize('openRawDefaultSettings', "Open Default Settings (JSON)");
+	static readonly LABEL = nls.localize('openRawDefaultSettings', "Open Default Settings ( JSON )");
 
 	constructor(
 		id: string,
@@ -37,7 +37,7 @@ export class OpenRawDefaultSettingsAction extends Action {
 export class OpenSettings2Action extends Action {
 
 	static readonly ID = 'workbench.action.openSettings2';
-	static readonly LABEL = nls.localize('openSettings2', "Open Settings (UI)");
+	static readonly LABEL = nls.localize('openSettings2', "Open Settings ( UI )");
 
 	constructor(
 		id: string,
@@ -55,7 +55,7 @@ export class OpenSettings2Action extends Action {
 export class OpenSettingsJsonAction extends Action {
 
 	static readonly ID = 'workbench.action.openSettingsJson';
-	static readonly LABEL = nls.localize('openSettingsJson', "Open Settings (JSON)");
+	static readonly LABEL = nls.localize('openSettingsJson', "Open Settings ( JSON )");
 
 	constructor(
 		id: string,

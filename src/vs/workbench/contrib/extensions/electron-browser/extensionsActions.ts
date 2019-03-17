@@ -2024,7 +2024,7 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 export class ConfigureWorkspaceRecommendedExtensionsAction extends AbstractConfigureRecommendedExtensionsAction {
 
 	static readonly ID = 'workbench.extensions.action.configureWorkspaceRecommendedExtensions';
-	static LABEL = localize('configureWorkspaceRecommendedExtensions', "Configure Recommended Extensions (Workspace)");
+	static LABEL = localize('configureWorkspaceRecommendedExtensions', "Configure Recommended Extensions ( Workspace )");
 
 	private disposables: IDisposable[] = [];
 
@@ -2065,7 +2065,7 @@ export class ConfigureWorkspaceRecommendedExtensionsAction extends AbstractConfi
 export class ConfigureWorkspaceFolderRecommendedExtensionsAction extends AbstractConfigureRecommendedExtensionsAction {
 
 	static readonly ID = 'workbench.extensions.action.configureWorkspaceFolderRecommendedExtensions';
-	static LABEL = localize('configureWorkspaceFolderRecommendedExtensions', "Configure Recommended Extensions (Workspace Folder)");
+	static LABEL = localize('configureWorkspaceFolderRecommendedExtensions', "Configure Recommended Extensions ( Workspace Folder )");
 
 	private disposables: IDisposable[] = [];
 

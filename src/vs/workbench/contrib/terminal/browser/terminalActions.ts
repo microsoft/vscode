@@ -355,7 +355,7 @@ export class CreateNewTerminalAction extends Action {
 export class CreateNewInActiveWorkspaceTerminalAction extends Action {
 
 	public static readonly ID = TERMINAL_COMMAND_ID.NEW_IN_ACTIVE_WORKSPACE;
-	public static readonly LABEL = nls.localize('workbench.action.terminal.newInActiveWorkspace', "Create New Integrated Terminal (In Active Workspace)");
+	public static readonly LABEL = nls.localize('workbench.action.terminal.newInActiveWorkspace', "Create New Integrated Terminal ( In Active Workspace )");
 
 	constructor(
 		id: string, label: string,
@@ -406,7 +406,7 @@ export class SplitTerminalAction extends Action {
 
 export class SplitInActiveWorkspaceTerminalAction extends Action {
 	public static readonly ID = TERMINAL_COMMAND_ID.SPLIT_IN_ACTIVE_WORKSPACE;
-	public static readonly LABEL = nls.localize('workbench.action.terminal.splitInActiveWorkspace', "Split Terminal (In Active Workspace)");
+	public static readonly LABEL = nls.localize('workbench.action.terminal.splitInActiveWorkspace', "Split Terminal ( In Active Workspace )");
 
 	constructor(
 		id: string, label: string,
@@ -749,7 +749,7 @@ export class SwitchTerminalActionItem extends SelectActionItem {
 export class ScrollDownTerminalAction extends Action {
 
 	public static readonly ID = TERMINAL_COMMAND_ID.SCROLL_DOWN_LINE;
-	public static readonly LABEL = nls.localize('workbench.action.terminal.scrollDown', "Scroll Down (Line)");
+	public static readonly LABEL = nls.localize('workbench.action.terminal.scrollDown', "Scroll Down ( Line )");
 
 	constructor(
 		id: string, label: string,
@@ -770,7 +770,7 @@ export class ScrollDownTerminalAction extends Action {
 export class ScrollDownPageTerminalAction extends Action {
 
 	public static readonly ID = TERMINAL_COMMAND_ID.SCROLL_DOWN_PAGE;
-	public static readonly LABEL = nls.localize('workbench.action.terminal.scrollDownPage', "Scroll Down (Page)");
+	public static readonly LABEL = nls.localize('workbench.action.terminal.scrollDownPage', "Scroll Down ( Page )");
 
 	constructor(
 		id: string, label: string,
@@ -812,7 +812,7 @@ export class ScrollToBottomTerminalAction extends Action {
 export class ScrollUpTerminalAction extends Action {
 
 	public static readonly ID = TERMINAL_COMMAND_ID.SCROLL_UP_LINE;
-	public static readonly LABEL = nls.localize('workbench.action.terminal.scrollUp', "Scroll Up (Line)");
+	public static readonly LABEL = nls.localize('workbench.action.terminal.scrollUp', "Scroll Up ( Line )");
 
 	constructor(
 		id: string, label: string,
@@ -833,7 +833,7 @@ export class ScrollUpTerminalAction extends Action {
 export class ScrollUpPageTerminalAction extends Action {
 
 	public static readonly ID = TERMINAL_COMMAND_ID.SCROLL_UP_PAGE;
-	public static readonly LABEL = nls.localize('workbench.action.terminal.scrollUpPage', "Scroll Up (Page)");
+	public static readonly LABEL = nls.localize('workbench.action.terminal.scrollUpPage', "Scroll Up ( Page )");
 
 	constructor(
 		id: string, label: string,

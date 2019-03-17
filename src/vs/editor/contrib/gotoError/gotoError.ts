@@ -423,7 +423,7 @@ class MarkerNavigationAction extends EditorAction {
 
 export class NextMarkerAction extends MarkerNavigationAction {
 	static ID: string = 'editor.action.marker.next';
-	static LABEL: string = nls.localize('markerAction.next.label', "Go to Next Problem (Error, Warning, Info)");
+	static LABEL: string = nls.localize('markerAction.next.label', "Go to Next Problem ( Error, Warning, Info )");
 	constructor() {
 		super(true, false, {
 			id: NextMarkerAction.ID,
@@ -437,7 +437,7 @@ export class NextMarkerAction extends MarkerNavigationAction {
 
 class PrevMarkerAction extends MarkerNavigationAction {
 	static ID: string = 'editor.action.marker.prev';
-	static LABEL: string = nls.localize('markerAction.previous.label', "Go to Previous Problem (Error, Warning, Info)");
+	static LABEL: string = nls.localize('markerAction.previous.label', "Go to Previous Problem ( Error, Warning, Info )");
 	constructor() {
 		super(false, false, {
 			id: PrevMarkerAction.ID,
@@ -453,7 +453,7 @@ class NextMarkerInFilesAction extends MarkerNavigationAction {
 	constructor() {
 		super(true, true, {
 			id: 'editor.action.marker.nextInFiles',
-			label: nls.localize('markerAction.nextInFiles.label', "Go to Next Problem in Files (Error, Warning, Info)"),
+			label: nls.localize('markerAction.nextInFiles.label', "Go to Next Problem in Files ( Error, Warning, Info )"),
 			alias: 'Go to Next Error or Warning in Files',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
@@ -469,7 +469,7 @@ class PrevMarkerInFilesAction extends MarkerNavigationAction {
 	constructor() {
 		super(false, true, {
 			id: 'editor.action.marker.prevInFiles',
-			label: nls.localize('markerAction.previousInFiles.label', "Go to Previous Problem in Files (Error, Warning, Info)"),
+			label: nls.localize('markerAction.previousInFiles.label', "Go to Previous Problem in Files ( Error, Warning, Info )"),
 			alias: 'Go to Previous Error or Warning in Files',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {

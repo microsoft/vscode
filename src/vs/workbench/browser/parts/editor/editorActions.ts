@@ -1577,7 +1577,7 @@ export class EditorLayoutThreeRowsAction extends ExecuteCommandAction {
 export class EditorLayoutTwoByTwoGridAction extends ExecuteCommandAction {
 
 	static readonly ID = 'workbench.action.editorLayoutTwoByTwoGrid';
-	static readonly LABEL = nls.localize('editorLayoutTwoByTwoGrid', "Grid Editor Layout (2x2)");
+	static readonly LABEL = nls.localize('editorLayoutTwoByTwoGrid', "Grid Editor Layout ( 2x2 )");
 
 	constructor(
 		id: string,
