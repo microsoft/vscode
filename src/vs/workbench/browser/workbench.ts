@@ -37,7 +37,6 @@ import { registerNotificationCommands } from 'vs/workbench/browser/parts/notific
 import { NotificationsToasts } from 'vs/workbench/browser/parts/notifications/notificationsToasts';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { setARIAContainer } from 'vs/base/browser/ui/aria/aria';
 import { restoreFontInfo, readFontInfo, saveFontInfo } from 'vs/editor/browser/config/configuration';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
@@ -82,7 +81,7 @@ export class Workbench extends Layout {
 		setUnexpectedErrorHandler(error => this.handleUnexpectedError(error, logService));
 
 		// Inform user about loading issues from the loader
-		(<any>self).require.config({
+		(<any>window).require.config({
 			onError: err => {
 				if (err.errorCode === 'load') {
 					onUnexpectedError(new Error(localize('loaderErrorNative', "Failed to load a required file. Please restart the application to try again. Details: {0}", JSON.stringify(err))));
@@ -140,7 +139,7 @@ export class Workbench extends Layout {
 				this.initLayout(accessor);
 
 				// Registries
-				this.initRegistries(accessor);
+				this.startRegistries(accessor);
 
 				// Context Keys
 				this._register(instantiationService.createInstance(WorkbenchContextKeysHandler));
@@ -185,17 +184,15 @@ export class Workbench extends Layout {
 			serviceCollection.set(contributedService.id, contributedService.descriptor);
 		}
 
-		const instantationServie = new InstantiationService(serviceCollection, true);
+		const instantiationService = new InstantiationService(serviceCollection, true);
 
 		// Wrap up
-		instantationServie.invokeFunction(accessor => {
+		instantiationService.invokeFunction(accessor => {
 			const lifecycleService = accessor.get(ILifecycleService);
 
-			// TODO@Ben TODO@Sandeep TODO@Martin debt around cyclic dependencies
+			// TODO@Ben TODO@Sandeep debt around cyclic dependencies
 			const fileService = accessor.get(IFileService);
-			const instantiationService = accessor.get(IInstantiationService);
 			const configurationService = accessor.get(IConfigurationService) as any;
-			const themeService = accessor.get(IWorkbenchThemeService) as any;
 
 			if (typeof configurationService.acquireFileService === 'function') {
 				configurationService.acquireFileService(fileService);
@@ -205,18 +202,14 @@ export class Workbench extends Layout {
 				configurationService.acquireInstantiationService(instantiationService);
 			}
 
-			if (typeof themeService.acquireFileService === 'function') {
-				themeService.acquireFileService(fileService);
-			}
-
 			// Signal to lifecycle that services are set
 			lifecycleService.phase = LifecyclePhase.Ready;
 		});
 
-		return instantationServie;
+		return instantiationService;
 	}
 
-	private initRegistries(accessor: ServicesAccessor): void {
+	private startRegistries(accessor: ServicesAccessor): void {
 		Registry.as<IActionBarRegistry>(ActionBarExtensions.Actionbar).start(accessor);
 		Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).start(accessor);
 		Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).start(accessor);
@@ -347,7 +340,7 @@ export class Workbench extends Layout {
 		logService: ILogService,
 		lifecycleService: ILifecycleService
 	): Promise<void> {
-		const restorePromises: Promise<any>[] = [];
+		const restorePromises: Promise<void>[] = [];
 
 		// Restore editors
 		mark('willRestoreEditors');

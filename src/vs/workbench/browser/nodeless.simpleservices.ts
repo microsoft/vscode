@@ -1134,7 +1134,6 @@ export class SimpleSearchService implements ISearchService {
 				}
 
 				// Don't support other resource schemes than files for now
-				// todo@remote
 				// why is that? we should search for resources from other
 				// schemes
 				else if (resource.scheme !== Schemas.file) {
