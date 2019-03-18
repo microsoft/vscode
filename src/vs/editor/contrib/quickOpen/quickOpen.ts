@@ -78,7 +78,7 @@ registerLanguageCommand('_executeDocumentSymbolProvider', function (accessor, ar
 	return accessor.get(ITextModelService).createModelReference(resource).then(reference => {
 		return new Promise((resolve, reject) => {
 			try {
-				const result = getDocumentSymbols(model, false, CancellationToken.None);
+				const result = getDocumentSymbols(reference.object.textEditorModel, false, CancellationToken.None);
 				resolve(result);
 			} catch (err) {
 				reject(err);

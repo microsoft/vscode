@@ -16,7 +16,7 @@ export class Call {
 	constructor(
 		readonly direction: CallHierarchyDirection,
 		readonly item: CallHierarchyItem,
-		readonly locations: Location[] | undefined
+		readonly locations: Location[]
 	) { }
 }
 

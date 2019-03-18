@@ -27,6 +27,7 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { TrackedRangeStickiness, IModelDeltaDecoration } from 'vs/editor/common/model';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { peekViewEditorMatchHighlight } from 'vs/editor/contrib/referenceSearch/referencesWidget';
+import { isNonEmptyArray } from 'vs/base/common/arrays';
 
 
 registerThemingParticipant((theme, collector) => {
@@ -41,7 +42,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 	private _splitView: SplitView;
 	private _tree: WorkbenchAsyncDataTree<CallHierarchyItem, callHTree.Call, FuzzyScore>;
 	private _editor: EmbeddedCodeEditorWidget;
-	private _dim: Dimension = { height: undefined, width: undefined };
+	private _dim: Dimension = { height: 0, width: 0 };
 
 	constructor(
 		editor: ICodeEditor,
@@ -129,7 +130,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		// update editor
 		this._tree.onDidChangeFocus(e => {
 			const [element] = e.elements;
-			if (element && element.locations && element.locations.length > 0) {
+			if (element && isNonEmptyArray(element.locations)) {
 
 				localDispose = dispose(localDispose);
 
@@ -146,7 +147,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 
 				this._textModelService.createModelReference(element.locations[0].uri).then(value => {
 					this._editor.setModel(value.object.textEditorModel);
-					this._editor.revealRangeInCenter(fullRange, ScrollType.Smooth);
+					this._editor.revealRangeInCenter(fullRange!, ScrollType.Smooth);
 					this._editor.revealLine(element.item.range.startLineNumber, ScrollType.Smooth);
 					const ids = this._editor.deltaDecorations([], decorations);
 					localDispose.push({ dispose: () => this._editor.deltaDecorations(ids, []) });
@@ -173,7 +174,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		}, undefined, this._disposables);
 
 		this._tree.onMouseDblClick(e => {
-			if (e.element.locations) {
+			if (e.element && isNonEmptyArray(e.element.locations)) {
 				this.dispose();
 				this._editorService.openEditor({
 					resource: e.element.locations[0].uri,
