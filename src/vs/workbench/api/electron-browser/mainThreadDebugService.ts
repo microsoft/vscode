@@ -226,10 +226,17 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		}
 	}
 
-	public $startDebugging(_folderUri: uri | undefined, nameOrConfiguration: string | IConfig): Promise<boolean> {
+	private getSession(sessionId: DebugSessionUUID | undefined): IDebugSession | undefined {
+		if (sessionId) {
+			return this.debugService.getModel().getSessions(true).filter(s => s.getId() === sessionId).pop();
+		}
+		return undefined;
+	}
+
+	public $startDebugging(_folderUri: uri | undefined, nameOrConfiguration: string | IConfig, parentSessionID: DebugSessionUUID | undefined): Promise<boolean> {
 		const folderUri = _folderUri ? uri.revive(_folderUri) : undefined;
 		const launch = this.debugService.getConfigurationManager().getLaunch(folderUri);
-		return this.debugService.startDebugging(launch, nameOrConfiguration).then(success => {
+		return this.debugService.startDebugging(launch, nameOrConfiguration, false, this.getSession(parentSessionID)).then(success => {
 			return success;
 		}, err => {
 			return Promise.reject(new Error(err && err.message ? err.message : 'cannot start debugging'));

@@ -119,7 +119,7 @@ class ServerReadyDetector extends vscode.Disposable {
 					request: 'launch',
 					url: uri,
 					webRoot: args.webRoot || WEB_ROOT
-				});
+				}, session);
 				break;
 			default:
 				// not supported
