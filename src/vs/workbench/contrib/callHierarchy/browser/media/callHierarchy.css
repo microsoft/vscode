@@ -17,3 +17,10 @@
 	text-align: center;
 	padding-top: 3em;
 }
+
+.monaco-workbench .call-hierarchy-toggle {
+	background-image: url(files_CallerOrCalleeView_CallerOrCalleeView_16x.svg);
+	background-size: 16px 16px;
+	background-repeat: no-repeat;
+	background-position: left center;
+}

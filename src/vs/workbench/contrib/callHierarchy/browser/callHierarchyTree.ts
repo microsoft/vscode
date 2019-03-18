@@ -24,7 +24,7 @@ export class SingleDirectionDataSource implements IAsyncDataSource<CallHierarchy
 
 	constructor(
 		public provider: CallHierarchyProvider,
-		public direction: CallHierarchyDirection
+		public direction: () => CallHierarchyDirection
 	) { }
 
 	hasChildren(_element: CallHierarchyItem): boolean {
@@ -43,9 +43,10 @@ export class SingleDirectionDataSource implements IAsyncDataSource<CallHierarchy
 		if (element instanceof Call) {
 			element = element.item;
 		}
-		const calls = await this.provider.resolveCallHierarchyItem(element, this.direction, CancellationToken.None);
+		const direction = this.direction();
+		const calls = await this.provider.resolveCallHierarchyItem(element, direction, CancellationToken.None);
 		return calls
-			? calls.map(([item, locations]) => new Call(this.direction, item, locations))
+			? calls.map(([item, locations]) => new Call(direction, item, locations))
 			: [];
 	}
 }

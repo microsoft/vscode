@@ -28,6 +28,8 @@ import { registerThemingParticipant, themeColorFromId } from 'vs/platform/theme/
 import { peekViewEditorMatchHighlight } from 'vs/editor/contrib/referenceSearch/referencesWidget';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { IPosition } from 'vs/editor/common/core/position';
+import { Action } from 'vs/base/common/actions';
+import { IActionBarOptions, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 
 registerThemingParticipant((theme, collector) => {
 	const referenceHighlightColor = theme.getColor(peekViewEditorMatchHighlight);
@@ -42,8 +44,31 @@ const enum State {
 	Data = 'data'
 }
 
+class ToggleHierarchyDirectionAction extends Action {
+
+	constructor(public direction: () => CallHierarchyDirection, callback: () => void) {
+		super('toggle.dir', undefined, 'call-hierarchy-toggle', true, () => {
+			callback();
+			this._update();
+			return Promise.resolve();
+		});
+		this._update();
+	}
+
+	private _update() {
+		if (this.direction() === CallHierarchyDirection.CallsFrom) {
+			this.label = localize('toggle.from', "Calls From...");
+			this.checked = true;
+		} else {
+			this.label = localize('toggle.to', "Calls To...");
+			this.checked = false;
+		}
+	}
+}
+
 export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 
+	private _toggleDirection: ToggleHierarchyDirectionAction;
 	private _parent: HTMLElement;
 	private _message: HTMLElement;
 	private _splitView: SplitView;
@@ -55,7 +80,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		editor: ICodeEditor,
 		private readonly _where: IPosition,
 		private readonly _provider: CallHierarchyProvider,
-		private readonly _direction: CallHierarchyDirection,
+		private _direction: CallHierarchyDirection,
 		@IEditorService private readonly _editorService: IEditorService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -69,6 +94,12 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		this._tree.dispose();
 		this._editor.dispose();
 		super.dispose();
+	}
+
+	protected _getActionBarOptions(): IActionBarOptions {
+		return {
+			orientation: ActionsOrientation.HORIZONTAL_REVERSE
+		};
 	}
 
 	protected _fillBody(parent: HTMLElement): void {
@@ -124,7 +155,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 			treeContainer,
 			new callHTree.VirtualDelegate(),
 			[new callHTree.CallRenderer()],
-			new callHTree.SingleDirectionDataSource(this._provider, this._direction),
+			new callHTree.SingleDirectionDataSource(this._provider, () => this._direction),
 			options
 		);
 
@@ -240,12 +271,31 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 
 	showItem(item: CallHierarchyItem) {
 		this._parent.dataset['state'] = State.Data;
+		this._editor.setModel(undefined);
 		this._tree.setInput(item).then(() => {
 			this._tree.domFocus();
 			this._tree.focusFirst();
-			this.setTitle(localize('title', "Call Hierarchy for '{0}'", item.name));
+			this.setTitle(
+				localize('title', "Call Hierarchy"),
+				this._direction === CallHierarchyDirection.CallsFrom
+					? localize('title.from', "calls from '{0}'", item.name)
+					: localize('title.to', "calls to '{0}'", item.name)
+			);
 		});
 		this._show();
+
+		if (!this._toggleDirection) {
+			this._toggleDirection = new ToggleHierarchyDirectionAction(
+				() => this._direction,
+				() => {
+					let newDirection = this._direction === CallHierarchyDirection.CallsFrom ? CallHierarchyDirection.CallsTo : CallHierarchyDirection.CallsFrom;
+					this._direction = newDirection;
+					this.showItem(item);
+				}
+			);
+			this._actionbarWidget.push(this._toggleDirection, { label: false, icon: true });
+			this._disposables.push(this._toggleDirection);
+		}
 	}
 
 	private _show() {
