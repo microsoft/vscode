@@ -12,7 +12,7 @@ import * as types from 'vs/base/common/types';
 import { URI as uri } from 'vs/base/common/uri';
 import { IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { Action } from 'vs/base/common/actions';
-import { language, LANGUAGE_DEFAULT } from 'vs/base/common/platform';
+import { Language } from 'vs/base/common/platform';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { IFileEditorInput, EncodingMode, IEncodingSupport, toResource, SideBySideEditorInput, IEditor as IBaseEditor, IEditorInput } from 'vs/workbench/common/editor';
 import { IDisposable, combinedDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
@@ -1081,7 +1081,7 @@ class ChangeIndentationAction extends Action {
 			return {
 				id: a.id,
 				label: a.label,
-				detail: (language === LANGUAGE_DEFAULT) ? undefined : a.alias,
+				detail: Language.isDefaultVariant() ? undefined : a.alias,
 				run: () => {
 					activeTextEditorWidget.focus();
 					a.run();
@@ -1173,7 +1173,7 @@ export class ChangeEncodingAction extends Action {
 
 		let saveWithEncodingPick: IQuickPickItem;
 		let reopenWithEncodingPick: IQuickPickItem;
-		if (language === LANGUAGE_DEFAULT) {
+		if (Language.isDefaultVariant()) {
 			saveWithEncodingPick = { label: nls.localize('saveWithEncoding', "Save with Encoding") };
 			reopenWithEncodingPick = { label: nls.localize('reopenWithEncoding', "Reopen with Encoding") };
 		} else {

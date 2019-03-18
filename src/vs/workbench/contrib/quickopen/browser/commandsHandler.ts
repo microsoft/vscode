@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import * as arrays from 'vs/base/common/arrays';
 import * as types from 'vs/base/common/types';
-import { language, LANGUAGE_DEFAULT } from 'vs/base/common/platform';
+import { Language } from 'vs/base/common/platform';
 import { Action } from 'vs/base/common/actions';
 import { Mode, IEntryRunContext, IAutoFocus, IModel, IQuickNavigateConfiguration } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenEntryGroup, IHighlight, QuickOpenModel, QuickOpenEntry } from 'vs/base/parts/quickopen/browser/quickOpenModel';
@@ -506,7 +506,7 @@ export class CommandsHandler extends QuickOpenHandler {
 			if (label) {
 
 				// Alias for non default languages
-				const alias = (language !== LANGUAGE_DEFAULT) ? action.alias : null;
+				const alias = !Language.isDefaultVariant() ? action.alias : null;
 				const labelHighlights = wordFilter(searchValue, label);
 				const aliasHighlights = alias ? wordFilter(searchValue, alias) : null;
 
@@ -540,8 +540,8 @@ export class CommandsHandler extends QuickOpenHandler {
 				const labelHighlights = wordFilter(searchValue, label);
 
 				// Add an 'alias' in original language when running in different locale
-				const aliasTitle = (language !== LANGUAGE_DEFAULT && typeof action.item.title !== 'string') ? action.item.title.original : null;
-				const aliasCategory = (language !== LANGUAGE_DEFAULT && category && action.item.category && typeof action.item.category !== 'string') ? action.item.category.original : null;
+				const aliasTitle = (!Language.isDefaultVariant() && typeof action.item.title !== 'string') ? action.item.title.original : null;
+				const aliasCategory = (!Language.isDefaultVariant() && category && action.item.category && typeof action.item.category !== 'string') ? action.item.category.original : null;
 				let alias;
 				if (aliasTitle && category) {
 					alias = aliasCategory ? `${aliasCategory}: ${aliasTitle}` : `${category}: ${aliasTitle}`;
