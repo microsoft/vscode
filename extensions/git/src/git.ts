@@ -633,6 +633,7 @@ export interface CommitOptions {
 }
 
 export interface PullOptions {
+	includeTagsWithPull?: boolean;
 	unshallow?: boolean;
 }
 
@@ -1360,7 +1361,11 @@ export class Repository {
 	}
 
 	async pull(rebase?: boolean, remote?: string, branch?: string, options: PullOptions = {}): Promise<void> {
-		const args = ['pull', '--tags'];
+		const args = ['pull'];
+
+		if (options.includeTagsWithPull) {
+			args.push('--tags');
+		}
 
 		if (options.unshallow) {
 			args.push('--unshallow');
