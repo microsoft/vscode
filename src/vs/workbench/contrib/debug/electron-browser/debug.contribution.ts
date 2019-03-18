@@ -22,14 +22,14 @@ import { CallStackView } from 'vs/workbench/contrib/debug/browser/callStackView'
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import {
 	IDebugService, VIEWLET_ID, REPL_ID, CONTEXT_IN_DEBUG_MODE, INTERNAL_CONSOLE_OPTIONS_SCHEMA,
-	CONTEXT_DEBUG_STATE, VARIABLES_VIEW_ID, CALLSTACK_VIEW_ID, WATCH_VIEW_ID, BREAKPOINTS_VIEW_ID, VIEW_CONTAINER, LOADED_SCRIPTS_VIEW_ID, CONTEXT_LOADED_SCRIPTS_SUPPORTED
+	CONTEXT_DEBUG_STATE, VARIABLES_VIEW_ID, CALLSTACK_VIEW_ID, WATCH_VIEW_ID, BREAKPOINTS_VIEW_ID, VIEW_CONTAINER, LOADED_SCRIPTS_VIEW_ID, CONTEXT_LOADED_SCRIPTS_SUPPORTED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_STEP_BACK_SUPPORTED,
 } from 'vs/workbench/contrib/debug/common/debug';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { DebugEditorModelManager } from 'vs/workbench/contrib/debug/browser/debugEditorModelManager';
 import {
 	StepOverAction, FocusReplAction, StepIntoAction, StepOutAction, StartAction, RestartAction, ContinueAction, StopAction, DisconnectAction, PauseAction, AddFunctionBreakpointAction,
-	ConfigureAction, DisableAllBreakpointsAction, EnableAllBreakpointsAction, RemoveAllBreakpointsAction, RunAction, ReapplyBreakpointsAction, SelectAndStartAction, TerminateThreadAction
+	ConfigureAction, DisableAllBreakpointsAction, EnableAllBreakpointsAction, RemoveAllBreakpointsAction, RunAction, ReapplyBreakpointsAction, SelectAndStartAction, TerminateThreadAction, StepBackAction, ReverseContinueAction,
 } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { DebugToolbar } from 'vs/workbench/contrib/debug/browser/debugToolbar';
 import * as service from 'vs/workbench/contrib/debug/electron-browser/debugService';
@@ -239,6 +239,36 @@ registerCommands();
 // Register Debug Status
 const statusBar = Registry.as<IStatusbarRegistry>(StatusExtensions.Statusbar);
 statusBar.registerStatusbarItem(new StatusbarItemDescriptor(DebugStatus, StatusbarAlignment.LEFT, 30 /* Low Priority */));
+
+// Debug toolbar
+
+const registerDebugToolbarItem = (id: string, title: string, icon: string, order: number, when?: ContextKeyExpr, precondition?: ContextKeyExpr) => {
+	MenuRegistry.appendMenuItem(MenuId.DebugToolbar, {
+		group: 'navigation',
+		when,
+		order,
+		command: {
+			id,
+			title,
+			iconLocation: {
+				light: URI.parse(require.toUrl(`vs/workbench/contrib/debug/browser/media/${icon}.svg`)),
+				dark: URI.parse(require.toUrl(`vs/workbench/contrib/debug/browser/media/${icon}-inverse.svg`))
+			},
+			precondition
+		}
+	});
+};
+
+registerDebugToolbarItem(ContinueAction.ID, ContinueAction.LABEL, 'continue', 10, CONTEXT_DEBUG_STATE.notEqualsTo('running'));
+registerDebugToolbarItem(PauseAction.ID, PauseAction.LABEL, 'pause', 10, CONTEXT_DEBUG_STATE.isEqualTo('running'));
+registerDebugToolbarItem(StopAction.ID, StopAction.LABEL, 'stop', 70, CONTEXT_FOCUSED_SESSION_IS_ATTACH.toNegated());
+registerDebugToolbarItem(DisconnectAction.ID, DisconnectAction.LABEL, 'disconnect', 70, CONTEXT_FOCUSED_SESSION_IS_ATTACH);
+registerDebugToolbarItem(StepOverAction.ID, StepOverAction.LABEL, 'step-over', 20, undefined, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
+registerDebugToolbarItem(StepIntoAction.ID, StepIntoAction.LABEL, 'step-into', 30, undefined, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
+registerDebugToolbarItem(StepOutAction.ID, StepOutAction.LABEL, 'step-out', 40, undefined, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
+registerDebugToolbarItem(RestartAction.ID, RestartAction.LABEL, 'restart', 60);
+registerDebugToolbarItem(StepBackAction.ID, StepBackAction.LABEL, 'step-back', 50, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
+registerDebugToolbarItem(ReverseContinueAction.ID, ReverseContinueAction.LABEL, 'reverse-continue', 60, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
 
 // View menu
 

@@ -10,7 +10,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ViewContainerViewlet } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDebugService, VIEWLET_ID, State, BREAKPOINTS_VIEW_ID, IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
-import { StartAction, ToggleReplAction, ConfigureAction, AbstractDebugAction, SelectAndStartAction, FocusSessionAction } from 'vs/workbench/contrib/debug/browser/debugActions';
+import { StartAction, ToggleReplAction, ConfigureAction, SelectAndStartAction, FocusSessionAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { StartDebugActionItem, FocusSessionActionItem } from 'vs/workbench/contrib/debug/browser/debugActionItems';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -38,7 +38,6 @@ export class DebugViewlet extends ViewContainerViewlet {
 	private progressRunner: IProgressRunner;
 	private breakpointView: ViewletPanel;
 	private panelListeners = new Map<string, IDisposable>();
-	private allActions: AbstractDebugAction[] = [];
 	private debugToolbarMenu: IMenu;
 
 	constructor(
@@ -112,7 +111,7 @@ export class DebugViewlet extends ViewContainerViewlet {
 			this.debugToolbarMenu = this.menuService.createMenu(MenuId.DebugToolbar, this.contextKeyService);
 			this.toDispose.push(this.debugToolbarMenu);
 		}
-		return DebugToolbar.getActions(this.debugToolbarMenu, this.allActions, this.toDispose, this.debugService, this.keybindingService, this.instantiationService);
+		return DebugToolbar.getActions(this.debugToolbarMenu, this.debugService, this.instantiationService);
 	}
 
 	get showInitialDebugActions(): boolean {
