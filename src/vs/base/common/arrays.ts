@@ -549,3 +549,7 @@ export function mapArrayOrNot<T, U>(items: T | T[], fn: (_: T) => U): U | U[] {
 		items.map(fn) :
 		fn(items);
 }
+
+export function asArray<T>(x: T | T[]): T[] {
+	return Array.isArray(x) ? x : [x];
+}

@@ -19,7 +19,7 @@ import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesSh
 import { regExpLeadsToEndlessLoop, regExpFlags } from 'vs/base/common/strings';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range as EditorRange } from 'vs/editor/common/core/range';
-import { isFalsyOrEmpty, isNonEmptyArray, coalesce } from 'vs/base/common/arrays';
+import { isFalsyOrEmpty, isNonEmptyArray, coalesce, asArray } from 'vs/base/common/arrays';
 import { isObject } from 'vs/base/common/types';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -193,12 +193,7 @@ class CodeInsetAdapter {
 }
 
 function convertToLocationLinks(value: vscode.Definition): modes.LocationLink[] {
-	if (Array.isArray(value)) {
-		return (value as (vscode.DefinitionLink | vscode.Location)[]).map(typeConvert.DefinitionLink.from);
-	} else if (value) {
-		return [typeConvert.DefinitionLink.from(value)];
-	}
-	return [];
+	return value ? asArray(value).map(typeConvert.DefinitionLink.from) : [];
 }
 
 class DefinitionAdapter {
@@ -1071,11 +1066,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 	}
 
 	private _transformDocumentSelector(selector: vscode.DocumentSelector): Array<ISerializedDocumentFilter> {
-		if (Array.isArray(selector)) {
-			return coalesce(selector.map(sel => this._doTransformDocumentSelector(sel)));
-		}
-
-		return coalesce([this._doTransformDocumentSelector(selector)]);
+		return coalesce(asArray(selector).map(sel => this._doTransformDocumentSelector(sel)));
 	}
 
 	private _doTransformDocumentSelector(selector: string | vscode.DocumentFilter): ISerializedDocumentFilter | undefined {
