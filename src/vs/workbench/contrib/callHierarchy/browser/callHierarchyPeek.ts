@@ -8,25 +8,39 @@ import { PeekViewWidget } from 'vs/editor/contrib/referenceSearch/peekViewWidget
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CallHierarchyItem, CallHierarchyProvider, CallHierarchyDirection } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
-import { WorkbenchAsyncDataTree, WorkbenchList } from 'vs/platform/list/browser/listService';
+import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { FuzzyScore } from 'vs/base/common/filters';
 import * as callHTree from 'vs/workbench/contrib/callHierarchy/browser/callHierarchyTree';
 import * as callHList from 'vs/workbench/contrib/callHierarchy/browser/callHierarchyList';
 import { IAsyncDataTreeOptions } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { localize } from 'vs/nls';
 import { ScrollType } from 'vs/editor/common/editorCommon';
-import { Location } from 'vs/editor/common/modes';
-import { IRange } from 'vs/editor/common/core/range';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { SplitView, Orientation, Sizing } from 'vs/base/browser/ui/splitview/splitview';
 import { Dimension, addClass } from 'vs/base/browser/dom';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { TrackedRangeStickiness, IModelDeltaDecoration } from 'vs/editor/common/model';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { peekViewEditorMatchHighlight } from 'vs/editor/contrib/referenceSearch/referencesWidget';
+
+
+registerThemingParticipant((theme, collector) => {
+	const referenceHighlightColor = theme.getColor(peekViewEditorMatchHighlight);
+	if (referenceHighlightColor) {
+		collector.addRule(`.monaco-editor .call-hierarchy .call-decoration { background-color: ${referenceHighlightColor}; }`);
+	}
+});
 
 export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 
 	private _splitView: SplitView;
 	private _tree: WorkbenchAsyncDataTree<CallHierarchyItem, callHTree.Call, FuzzyScore>;
-	private _list: WorkbenchList<Location>;
+	private _editor: EmbeddedCodeEditorWidget;
 	private _dim: Dimension = { height: undefined, width: undefined };
 
 	constructor(
@@ -35,6 +49,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		private readonly _direction: CallHierarchyDirection,
 		private readonly _item: CallHierarchyItem,
 		@IEditorService private readonly _editorService: IEditorService,
+		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super(editor, { showFrame: true, showArrow: true, isResizeable: true, isAccessible: true });
@@ -42,8 +57,33 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 	}
 
 	protected _fillBody(container: HTMLElement): void {
-
+		addClass(container, 'call-hierarchy');
 		this._splitView = new SplitView(container, { orientation: Orientation.HORIZONTAL });
+
+		// editor stuff
+		const editorContainer = document.createElement('div');
+		container.appendChild(editorContainer);
+		let editorOptions: IEditorOptions = {
+			scrollBeyondLastLine: false,
+			scrollbar: {
+				verticalScrollbarSize: 14,
+				horizontal: 'auto',
+				useShadows: true,
+				verticalHasArrows: false,
+				horizontalHasArrows: false
+			},
+			overviewRulerLanes: 2,
+			fixedOverflowWidgets: true,
+			minimap: {
+				enabled: false
+			}
+		};
+		this._editor = this._instantiationService.createInstance(
+			EmbeddedCodeEditorWidget,
+			editorContainer,
+			editorOptions,
+			this.editor
+		);
 
 		// tree stuff
 		const treeContainer = document.createElement('div');
@@ -62,78 +102,114 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 			options
 		);
 
-		// list stuff
-		const listContainer = document.createElement('div');
-		container.appendChild(listContainer);
-		this._list = <any>this._instantiationService.createInstance(
-			WorkbenchList,
-			listContainer,
-			new callHList.Delegate(),
-			[this._instantiationService.createInstance(callHList.LocationRenderer)],
-			{}
-		);
-
 		// split stuff
+		this._splitView.addView({
+			onDidChange: Event.None,
+			element: editorContainer,
+			minimumSize: 70,
+			maximumSize: Number.MAX_VALUE,
+			layout: (width) => {
+				this._editor.layout({ height: this._dim.height, width });
+			}
+		}, Sizing.Distribute);
 
 		this._splitView.addView({
 			onDidChange: Event.None,
 			element: treeContainer,
-			minimumSize: 100,
+			minimumSize: 30,
 			maximumSize: Number.MAX_VALUE,
 			layout: (width) => {
 				this._tree.layout(this._dim.height, width);
 			}
 		}, Sizing.Distribute);
 
-		this._splitView.addView({
-			onDidChange: Event.None,
-			element: listContainer,
-			minimumSize: 100,
-			maximumSize: Number.MAX_VALUE,
-			layout: (width) => {
-				this._list.layout(this._dim.height, width);
-			}
-		}, Sizing.Distribute);
+		let localDispose: IDisposable[] = [];
+		this._disposables.push({ dispose() { dispose(localDispose); } });
 
-		// update list
+		// update editor
 		this._tree.onDidChangeFocus(e => {
 			const [element] = e.elements;
-			if (element && element.locations) {
-				this._list.splice(0, this._list.length, element.locations);
+			if (element && element.locations && element.locations.length > 0) {
+
+				localDispose = dispose(localDispose);
+
+				const options = {
+					stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+					className: 'call-decoration'
+				};
+				let decorations: IModelDeltaDecoration[] = [];
+				let fullRange: IRange | undefined;
+				for (const { range } of element.locations) {
+					decorations.push({ range, options });
+					fullRange = !fullRange ? range : Range.plusRange(range, fullRange);
+				}
+
+				this._textModelService.createModelReference(element.locations[0].uri).then(value => {
+					this._editor.setModel(value.object.textEditorModel);
+					this._editor.revealRangeInCenter(fullRange, ScrollType.Smooth);
+					this._editor.revealLine(element.item.range.startLineNumber, ScrollType.Smooth);
+					const ids = this._editor.deltaDecorations([], decorations);
+					localDispose.push({ dispose: () => this._editor.deltaDecorations(ids, []) });
+					localDispose.push(value);
+				});
 			}
 		}, undefined, this._disposables);
 
-		// this._tree.onDidOpen(e => {
-		// 	this._list.focusFirst();
-		// 	this._list.domFocus();
-		// }, undefined, this._disposables);
-
-		// goto location
-		this._list.onDidOpen(e => {
-			const [element] = e.elements;
+		this._editor.onMouseDown(e => {
+			const { event, target } = e;
+			if (event.detail !== 2) {
+				return;
+			}
+			const [focus] = this._tree.getFocus();
+			if (!focus) {
+				return;
+			}
 			this.dispose();
 			this._editorService.openEditor({
-				resource: element.uri,
-				options: { selection: element.range }
+				resource: focus.locations[0].uri,
+				options: { selection: target.range! }
 			});
 
 		}, undefined, this._disposables);
+
+		this._tree.onMouseDblClick(e => {
+			if (e.element.locations) {
+				this.dispose();
+				this._editorService.openEditor({
+					resource: e.element.locations[0].uri,
+					options: { selection: e.element.locations[0].range }
+				});
+			}
+		}, undefined, this._disposables);
+
+		this._tree.onDidChangeSelection(e => {
+			const [element] = e.elements;
+			// don't close on click
+			if (element && !(e.browserEvent instanceof MouseEvent)) {
+				this.dispose();
+				this._editorService.openEditor({
+					resource: element.locations[0].uri,
+					options: { selection: element.locations[0].range }
+				});
+			}
+		});
 	}
 
 	dispose(): void {
 		super.dispose();
 		this._splitView.dispose();
 		this._tree.dispose();
-		this._list.dispose();
+		this._editor.dispose();
 	}
 
 	show(where: IRange) {
 		this.editor.revealRangeInCenterIfOutsideViewport(where, ScrollType.Smooth);
-		super.show(where, 12);
+		super.show(where, 16);
 		this.setTitle(localize('title', "Call Hierarchy for '{0}'", this._item.name));
-		this._tree.setInput(this._item);
-		this._tree.domFocus();
-		this._tree.focusFirst();
+		this._tree.setInput(this._item).then(() => {
+			this._tree.domFocus();
+			this._tree.focusFirst();
+		});
 	}
 
 	protected _onWidth(width: number) {

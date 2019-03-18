@@ -32,14 +32,21 @@ export class SingleDirectionDataSource implements IAsyncDataSource<CallHierarchy
 	}
 
 	async getChildren(element: CallHierarchyItem | Call): Promise<Call[]> {
+		// if (element instanceof Call) {
+		// 	const calls = await this.provider.resolveCallHierarchyItem(element.item, this.direction, CancellationToken.None);
+		// 	return calls
+		// 		? calls.map(([item, locations]) => new Call(this.direction, item, locations))
+		// 		: [];
+		// } else {
+		// 	return [new Call(this.direction, element, undefined)];
+		// }
 		if (element instanceof Call) {
-			const calls = await this.provider.resolveCallHierarchyItem(element.item, this.direction, CancellationToken.None);
-			return calls
-				? calls.map(([item, locations]) => new Call(this.direction, item, locations))
-				: [];
-		} else {
-			return [new Call(this.direction, element, undefined)];
+			element = element.item;
 		}
+		const calls = await this.provider.resolveCallHierarchyItem(element, this.direction, CancellationToken.None);
+		return calls
+			? calls.map(([item, locations]) => new Call(this.direction, item, locations))
+			: [];
 	}
 }
 
