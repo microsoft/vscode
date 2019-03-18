@@ -142,6 +142,14 @@ export class MainThreadCommentThread implements modes.CommentThread2 {
 		return this._additionalCommands;
 	}
 
+	set deleteCommand(newCommand: modes.Command) {
+		this._deleteCommand = newCommand;
+	}
+
+	get deleteCommand(): modes.Command {
+		return this._deleteCommand;
+	}
+
 	private _onDidChangeAdditionalCommands = new Emitter<modes.Command[]>();
 	get onDidChangeAdditionalCommands(): Event<modes.Command[]> { return this._onDidChangeAdditionalCommands.event; }
 
@@ -179,6 +187,7 @@ export class MainThreadCommentThread implements modes.CommentThread2 {
 		private _comments: modes.Comment[],
 		private _acceptInputCommand: modes.Command | undefined,
 		private _additionalCommands: modes.Command[],
+		private _deleteCommand: modes.Command | undefined,
 		private _collapsibleState: modes.CommentThreadCollapsibleState
 	) {
 
@@ -240,7 +249,15 @@ export class MainThreadCommentController {
 		this._features = features;
 	}
 
-	createCommentThread(commentThreadHandle: number, threadId: string, resource: UriComponents, range: IRange, comments: modes.Comment[], acceptInputCommand: modes.Command | undefined, additionalCommands: modes.Command[], collapseState: modes.CommentThreadCollapsibleState): modes.CommentThread2 {
+	createCommentThread(commentThreadHandle: number,
+		threadId: string,
+		resource: UriComponents,
+		range: IRange,
+		comments: modes.Comment[],
+		acceptInputCommand: modes.Command | undefined,
+		additionalCommands: modes.Command[],
+		deleteCommand: modes.Command | undefined,
+		collapseState: modes.CommentThreadCollapsibleState): modes.CommentThread2 {
 		let thread = new MainThreadCommentThread(
 			commentThreadHandle,
 			this,
@@ -251,6 +268,7 @@ export class MainThreadCommentController {
 			comments,
 			acceptInputCommand,
 			additionalCommands,
+			deleteCommand,
 			collapseState
 		);
 
@@ -301,6 +319,11 @@ export class MainThreadCommentController {
 		thread.additionalCommands = additionalCommands;
 	}
 
+	updateDeleteCommand(commentThreadHandle: number, deleteCommand: modes.Command) {
+		const thread = this.getKnownThread(commentThreadHandle);
+		thread.deleteCommand = deleteCommand;
+	}
+
 	updateCollapsibleState(commentThreadHandle: number, collapseState: modes.CommentThreadCollapsibleState) {
 		let thread = this.getKnownThread(commentThreadHandle);
 		thread.collapsibleState = collapseState;
@@ -326,7 +349,7 @@ export class MainThreadCommentController {
 		}
 	}
 
-	private getKnownThread(commentThreadHandle: number) {
+	private getKnownThread(commentThreadHandle: number): MainThreadCommentThread {
 		const thread = this._threads.get(commentThreadHandle);
 		if (!thread) {
 			throw new Error('unknown thread');
@@ -468,14 +491,23 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		provider.updateFeatures(features);
 	}
 
-	$createCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, range: IRange, comments: modes.Comment[], acceptInputCommand: modes.Command | undefined, additionalCommands: modes.Command[], collapseState: modes.CommentThreadCollapsibleState): modes.CommentThread2 | undefined {
+	$createCommentThread(handle: number,
+		commentThreadHandle: number,
+		threadId: string,
+		resource: UriComponents,
+		range: IRange,
+		comments: modes.Comment[],
+		acceptInputCommand: modes.Command | undefined,
+		additionalCommands: modes.Command[],
+		deleteCommand: modes.Command,
+		collapseState: modes.CommentThreadCollapsibleState): modes.CommentThread2 | undefined {
 		let provider = this._commentControllers.get(handle);
 
 		if (!provider) {
 			return undefined;
 		}
 
-		return provider.createCommentThread(commentThreadHandle, threadId, resource, range, comments, acceptInputCommand, additionalCommands, collapseState);
+		return provider.createCommentThread(commentThreadHandle, threadId, resource, range, comments, acceptInputCommand, additionalCommands, deleteCommand, collapseState);
 	}
 
 	$deleteCommentThread(handle: number, commentThreadHandle: number) {
@@ -526,6 +558,16 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		}
 
 		provider.updateAdditionalCommands(commentThreadHandle, additionalCommands);
+	}
+
+	$updateCommentThreadDeleteCommand(handle: number, commentThreadHandle: number, acceptInputCommand: modes.Command) {
+		let provider = this._commentControllers.get(handle);
+
+		if (!provider) {
+			return;
+		}
+
+		provider.updateDeleteCommand(commentThreadHandle, acceptInputCommand);
 	}
 
 	$updateCommentThreadCollapsibleState(handle: number, commentThreadHandle: number, collapseState: modes.CommentThreadCollapsibleState): void {

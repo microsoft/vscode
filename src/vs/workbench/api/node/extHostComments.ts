@@ -415,6 +415,18 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 		this._proxy.$updateCommentThreadAdditionalCommands(this._commentController.handle, this.handle, internals);
 	}
 
+	private _deleteCommand?: vscode.Command;
+	get deleteComand(): vscode.Command | undefined {
+		return this._deleteCommand;
+	}
+
+	set deleteCommand(deleteCommand: vscode.Command) {
+		this._deleteCommand = deleteCommand;
+
+		const internal = this._commandsConverter.toInternal(deleteCommand);
+		this._proxy.$updateCommentThreadDeleteCommand(this._commentController.handle, this.handle, internal);
+	}
+
 	private _collapseState?: vscode.CommentThreadCollapsibleState;
 
 	get collapsibleState(): vscode.CommentThreadCollapsibleState {
@@ -444,6 +456,7 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 			this._comments.map(comment => { return convertToModeComment(this._commentController, comment, this._commandsConverter); }),
 			this._acceptInputCommand ? this._commandsConverter.toInternal(this._acceptInputCommand) : undefined,
 			this._additionalCommands ? this._additionalCommands.map(x => this._commandsConverter.toInternal(x)) : [],
+			this._deleteCommand ? this._commandsConverter.toInternal(this._deleteCommand) : undefined,
 			this._collapseState!
 		);
 	}

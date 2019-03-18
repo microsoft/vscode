@@ -821,6 +821,12 @@ declare module 'vscode' {
 		collapsibleState?: CommentThreadCollapsibleState;
 
 		/**
+		 * The command to be executed when users try to delete the comment thread. Currently, this is only called
+		 * when the user collapses a comment thread that has no comments in it.
+		 */
+		deleteCommand?: Command;
+
+		/**
 		 * Dispose this comment thread.
 		 * Once disposed, the comment thread will be removed from visible text editors and Comments Panel.
 		 */
