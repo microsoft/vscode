@@ -22,7 +22,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 
 type TreeItemHandle = string;
 
-function toTreeItemLabel(label: any, extension: IExtensionDescription): ITreeItemLabel {
+function toTreeItemLabel(label: any, extension: IExtensionDescription): ITreeItemLabel | undefined {
 	if (isString(label)) {
 		return { label };
 	}
@@ -31,7 +31,7 @@ function toTreeItemLabel(label: any, extension: IExtensionDescription): ITreeIte
 		&& typeof label === 'object'
 		&& typeof label.label === 'string') {
 		checkProposedApiEnabled(extension);
-		let highlights: [number, number][] = undefined;
+		let highlights: [number, number][] | undefined = undefined;
 		if (Array.isArray(label.highlights)) {
 			highlights = (<[number, number][]>label.highlights).filter((highlight => highlight.length === 2 && typeof highlight[0] === 'number' && typeof highlight[1] === 'number'));
 			highlights = highlights.length ? highlights : undefined;
@@ -136,13 +136,14 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 	}
 }
 
+type Root = null | undefined;
+type TreeData<T> = { message: boolean, element: T | Root | false };
+
 interface TreeNode {
 	item: ITreeItem;
-	parent: TreeNode;
-	children: TreeNode[];
+	parent: TreeNode | Root;
+	children?: TreeNode[];
 }
-
-type TreeData<T> = { message: boolean, element: T | null | undefined | false };
 
 class ExtHostTreeView<T> extends Disposable {
 
@@ -159,7 +160,7 @@ class ExtHostTreeView<T> extends Disposable {
 	get visible(): boolean { return this._visible; }
 
 	private _selectedHandles: TreeItemHandle[] = [];
-	get selectedElements(): T[] { return this._selectedHandles.map(handle => this.getExtensionElement(handle)).filter(element => !isUndefinedOrNull(element)); }
+	get selectedElements(): T[] { return <T[]>this._selectedHandles.map(handle => this.getExtensionElement(handle)).filter(element => !isUndefinedOrNull(element)); }
 
 	private _onDidExpandElement: Emitter<vscode.TreeViewExpansionEvent<T>> = this._register(new Emitter<vscode.TreeViewExpansionEvent<T>>());
 	readonly onDidExpandElement: Event<vscode.TreeViewExpansionEvent<T>> = this._onDidExpandElement.event;
@@ -186,7 +187,7 @@ class ExtHostTreeView<T> extends Disposable {
 		}
 
 		let refreshingPromise, promiseCallback;
-		this._register(Event.debounce<TreeData<T>, { message: boolean, elements: T[] }>(this._onDidChangeData.event, (result, current) => {
+		this._register(Event.debounce<TreeData<T>, { message: boolean, elements: (T | Root)[] }>(this._onDidChangeData.event, (result, current) => {
 			if (!result) {
 				result = { message: false, elements: [] };
 			}
@@ -214,7 +215,7 @@ class ExtHostTreeView<T> extends Disposable {
 		}));
 	}
 
-	getChildren(parentHandle?: TreeItemHandle): Promise<ITreeItem[]> {
+	getChildren(parentHandle: TreeItemHandle | Root): Promise<ITreeItem[]> {
 		const parentElement = parentHandle ? this.getExtensionElement(parentHandle) : undefined;
 		if (parentHandle && !parentElement) {
 			console.error(`No tree item with id \'${parentHandle}\' found.`);
@@ -226,7 +227,7 @@ class ExtHostTreeView<T> extends Disposable {
 			.then(nodes => nodes.map(n => n.item));
 	}
 
-	getExtensionElement(treeItemHandle: TreeItemHandle): T {
+	getExtensionElement(treeItemHandle: TreeItemHandle): T | undefined {
 		return this.elements.get(treeItemHandle);
 	}
 
@@ -295,12 +296,12 @@ class ExtHostTreeView<T> extends Disposable {
 			});
 	}
 
-	private resolveParent(element: T): Promise<T> {
+	private resolveParent(element: T): Promise<T | Root> {
 		const node = this.nodes.get(element);
 		if (node) {
-			return Promise.resolve(node.parent ? this.elements.get(node.parent.item.handle) : null);
+			return Promise.resolve(node.parent ? this.elements.get(node.parent.item.handle) : undefined);
 		}
-		return asPromise(() => this.dataProvider.getParent(element));
+		return asPromise(() => this.dataProvider.getParent!(element));
 	}
 
 	private resolveTreeNode(element: T, parent?: TreeNode): Promise<TreeNode> {
@@ -310,7 +311,7 @@ class ExtHostTreeView<T> extends Disposable {
 		}
 		return asPromise(() => this.dataProvider.getTreeItem(element))
 			.then(extTreeItem => this.createHandle(element, extTreeItem, parent, true))
-			.then(handle => this.getChildren(parent ? parent.item.handle : null)
+			.then(handle => this.getChildren(parent ? parent.item.handle : undefined)
 				.then(() => {
 					const cachedElement = this.getExtensionElement(handle);
 					if (cachedElement) {
@@ -323,16 +324,16 @@ class ExtHostTreeView<T> extends Disposable {
 				}));
 	}
 
-	private getChildrenNodes(parentNodeOrHandle?: TreeNode | TreeItemHandle): TreeNode[] {
+	private getChildrenNodes(parentNodeOrHandle: TreeNode | TreeItemHandle | Root): TreeNode[] | null {
 		if (parentNodeOrHandle) {
-			let parentNode: TreeNode;
+			let parentNode: TreeNode | undefined;
 			if (typeof parentNodeOrHandle === 'string') {
 				const parentElement = this.getExtensionElement(parentNodeOrHandle);
-				parentNode = parentElement ? this.nodes.get(parentElement) : null;
+				parentNode = parentElement ? this.nodes.get(parentElement) : undefined;
 			} else {
 				parentNode = parentNodeOrHandle;
 			}
-			return parentNode ? parentNode.children : null;
+			return parentNode ? parentNode.children || null : null;
 		}
 		return this.roots;
 	}
@@ -350,13 +351,13 @@ class ExtHostTreeView<T> extends Disposable {
 			.then(coalesce);
 	}
 
-	private refresh(elements: T[]): Promise<void> {
+	private refresh(elements: (T | Root)[]): Promise<void> {
 		const hasRoot = elements.some(element => !element);
 		if (hasRoot) {
 			this.clearAll(); // clear cache
 			return this.proxy.$refresh(this.viewId);
 		} else {
-			const handlesToRefresh = this.getHandlesToRefresh(elements);
+			const handlesToRefresh = this.getHandlesToRefresh(<T[]>elements);
 			if (handlesToRefresh.length) {
 				return this.refreshHandles(handlesToRefresh);
 			}
@@ -370,12 +371,12 @@ class ExtHostTreeView<T> extends Disposable {
 			const elementNode = this.nodes.get(element);
 			if (elementNode && !elementsToUpdate.has(elementNode.item.handle)) {
 				// check if an ancestor of extElement is already in the elements to update list
-				let currentNode = elementNode;
+				let currentNode: TreeNode | undefined = elementNode;
 				while (currentNode && currentNode.parent && !elementsToUpdate.has(currentNode.parent.item.handle)) {
 					const parentElement = this.elements.get(currentNode.parent.item.handle);
-					currentNode = this.nodes.get(parentElement);
+					currentNode = parentElement ? this.nodes.get(parentElement) : undefined;
 				}
-				if (!currentNode.parent) {
+				if (currentNode && !currentNode.parent) {
 					elementsToUpdate.add(elementNode.item.handle);
 				}
 			}
@@ -385,9 +386,11 @@ class ExtHostTreeView<T> extends Disposable {
 		// Take only top level elements
 		elementsToUpdate.forEach((handle) => {
 			const element = this.elements.get(handle);
-			const node = this.nodes.get(element);
-			if (node && (!node.parent || !elementsToUpdate.has(node.parent.item.handle))) {
-				handlesToUpdate.push(handle);
+			if (element) {
+				const node = this.nodes.get(element);
+				if (node && (!node.parent || !elementsToUpdate.has(node.parent.item.handle))) {
+					handlesToUpdate.push(handle);
+				}
 			}
 		});
 
@@ -403,25 +406,30 @@ class ExtHostTreeView<T> extends Disposable {
 						itemsToRefresh[treeItemHandle] = node.item;
 					}
 				})))
-			.then(() => Object.keys(itemsToRefresh).length ? this.proxy.$refresh(this.viewId, itemsToRefresh) : null);
+			.then(() => Object.keys(itemsToRefresh).length ? this.proxy.$refresh(this.viewId, itemsToRefresh) : undefined);
 	}
 
-	private refreshNode(treeItemHandle: TreeItemHandle): Promise<TreeNode> {
+	private refreshNode(treeItemHandle: TreeItemHandle): Promise<TreeNode | null> {
 		const extElement = this.getExtensionElement(treeItemHandle);
-		const existing = this.nodes.get(extElement);
-		this.clearChildren(extElement); // clear children cache
-		return asPromise(() => this.dataProvider.getTreeItem(extElement))
-			.then(extTreeItem => {
-				if (extTreeItem) {
-					const newNode = this.createTreeNode(extElement, extTreeItem, existing.parent);
-					this.updateNodeCache(extElement, newNode, existing, existing.parent);
-					return newNode;
-				}
-				return null;
-			});
+		if (extElement) {
+			const existing = this.nodes.get(extElement);
+			if (existing) {
+				this.clearChildren(extElement); // clear children cache
+				return asPromise(() => this.dataProvider.getTreeItem(extElement))
+					.then(extTreeItem => {
+						if (extTreeItem) {
+							const newNode = this.createTreeNode(extElement, extTreeItem, existing.parent);
+							this.updateNodeCache(extElement, newNode, existing, existing.parent);
+							return newNode;
+						}
+						return null;
+					});
+			}
+		}
+		return Promise.resolve(null);
 	}
 
-	private createAndRegisterTreeNode(element: T, extTreeItem: vscode.TreeItem, parentNode: TreeNode): TreeNode {
+	private createAndRegisterTreeNode(element: T, extTreeItem: vscode.TreeItem, parentNode: TreeNode | Root): TreeNode {
 		const node = this.createTreeNode(element, extTreeItem, parentNode);
 		if (extTreeItem.id && this.elements.has(node.item.handle)) {
 			throw new Error(localize('treeView.duplicateElement', 'Element with id {0} is already registered', extTreeItem.id));
@@ -431,7 +439,7 @@ class ExtHostTreeView<T> extends Disposable {
 		return node;
 	}
 
-	private createTreeNode(element: T, extensionTreeItem: vscode.TreeItem, parent: TreeNode): TreeNode {
+	private createTreeNode(element: T, extensionTreeItem: vscode.TreeItem, parent: TreeNode | Root): TreeNode {
 		return {
 			item: this.createTreeItem(element, extensionTreeItem, parent),
 			parent,
@@ -439,7 +447,7 @@ class ExtHostTreeView<T> extends Disposable {
 		};
 	}
 
-	private createTreeItem(element: T, extensionTreeItem: vscode.TreeItem, parent?: TreeNode): ITreeItem {
+	private createTreeItem(element: T, extensionTreeItem: vscode.TreeItem, parent: TreeNode | Root): ITreeItem {
 
 		const handle = this.createHandle(element, extensionTreeItem, parent);
 		const icon = this.getLightIconPath(extensionTreeItem);
@@ -461,7 +469,7 @@ class ExtHostTreeView<T> extends Disposable {
 		return item;
 	}
 
-	private createHandle(element: T, { id, label, resourceUri }: vscode.TreeItem, parent: TreeNode, returnFirst?: boolean): TreeItemHandle {
+	private createHandle(element: T, { id, label, resourceUri }: vscode.TreeItem, parent: TreeNode | Root, returnFirst?: boolean): TreeItemHandle {
 		if (id) {
 			return `${ExtHostTreeView.ID_HANDLE_PREFIX}/${id}`;
 		}
@@ -470,7 +478,7 @@ class ExtHostTreeView<T> extends Disposable {
 		const prefix: string = parent ? parent.item.handle : ExtHostTreeView.LABEL_HANDLE_PREFIX;
 		let elementId = treeItemLabel ? treeItemLabel.label : resourceUri ? basename(resourceUri) : '';
 		elementId = elementId.indexOf('/') !== -1 ? elementId.replace('/', '//') : elementId;
-		const existingHandle = this.nodes.has(element) ? this.nodes.get(element).item.handle : undefined;
+		const existingHandle = this.nodes.has(element) ? this.nodes.get(element)!.item.handle : undefined;
 		const childrenNodes = (this.getChildrenNodes(parent) || []);
 
 		let handle: TreeItemHandle;
@@ -489,7 +497,7 @@ class ExtHostTreeView<T> extends Disposable {
 		return handle;
 	}
 
-	private getLightIconPath(extensionTreeItem: vscode.TreeItem): URI {
+	private getLightIconPath(extensionTreeItem: vscode.TreeItem): URI | undefined {
 		if (extensionTreeItem.iconPath && !(extensionTreeItem.iconPath instanceof ThemeIcon)) {
 			if (typeof extensionTreeItem.iconPath === 'string'
 				|| extensionTreeItem.iconPath instanceof URI) {
@@ -500,7 +508,7 @@ class ExtHostTreeView<T> extends Disposable {
 		return undefined;
 	}
 
-	private getDarkIconPath(extensionTreeItem: vscode.TreeItem): URI {
+	private getDarkIconPath(extensionTreeItem: vscode.TreeItem): URI | undefined {
 		if (extensionTreeItem.iconPath && !(extensionTreeItem.iconPath instanceof ThemeIcon) && extensionTreeItem.iconPath['dark']) {
 			return this.getIconPath(extensionTreeItem.iconPath['dark']);
 		}
@@ -519,7 +527,7 @@ class ExtHostTreeView<T> extends Disposable {
 		this.nodes.set(element, node);
 	}
 
-	private updateNodeCache(element: T, newNode: TreeNode, existing: TreeNode, parentNode: TreeNode): void {
+	private updateNodeCache(element: T, newNode: TreeNode, existing: TreeNode, parentNode: TreeNode | Root): void {
 		// Remove from the cache
 		this.elements.delete(newNode.item.handle);
 		this.nodes.delete(element);
@@ -538,7 +546,7 @@ class ExtHostTreeView<T> extends Disposable {
 		}
 	}
 
-	private addNodeToParentCache(node: TreeNode, parentNode: TreeNode): void {
+	private addNodeToParentCache(node: TreeNode, parentNode: TreeNode | Root): void {
 		if (parentNode) {
 			if (!parentNode.children) {
 				parentNode.children = [];
@@ -555,6 +563,25 @@ class ExtHostTreeView<T> extends Disposable {
 	private clearChildren(parentElement?: T): void {
 		if (parentElement) {
 			const node = this.nodes.get(parentElement);
+			if (node) {
+				if (node.children) {
+					for (const child of node.children) {
+						const childEleement = this.elements.get(child.item.handle);
+						if (childEleement) {
+							this.clear(childEleement);
+						}
+					}
+				}
+				node.children = undefined;
+			}
+		} else {
+			this.clearAll();
+		}
+	}
+
+	private clear(element: T): void {
+		const node = this.nodes.get(element);
+		if (node) {
 			if (node.children) {
 				for (const child of node.children) {
 					const childEleement = this.elements.get(child.item.handle);
@@ -563,24 +590,9 @@ class ExtHostTreeView<T> extends Disposable {
 					}
 				}
 			}
-			node.children = undefined;
-		} else {
-			this.clearAll();
+			this.nodes.delete(element);
+			this.elements.delete(node.item.handle);
 		}
-	}
-
-	private clear(element: T): void {
-		const node = this.nodes.get(element);
-		if (node.children) {
-			for (const child of node.children) {
-				const childEleement = this.elements.get(child.item.handle);
-				if (childEleement) {
-					this.clear(childEleement);
-				}
-			}
-		}
-		this.nodes.delete(element);
-		this.elements.delete(node.item.handle);
 	}
 
 	private clearAll(): void {

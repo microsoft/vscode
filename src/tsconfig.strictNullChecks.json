@@ -123,6 +123,8 @@
 		"./vs/workbench/api/node/extHostTerminalService.ts",
 		"./vs/workbench/api/node/extHostTextEditor.ts",
 		"./vs/workbench/api/node/extHostTextEditors.ts",
+		"./vs/workbench/api/node/extHostTreeViews.ts",
+		"./vs/workbench/test/electron-browser/api/extHostTreeViews.test.ts",
 		"./vs/workbench/api/node/extHostTypeConverters.ts",
 		"./vs/workbench/api/node/extHostTypes.ts",
 		"./vs/workbench/api/node/extHostUrls.ts",
