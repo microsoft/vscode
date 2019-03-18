@@ -245,7 +245,7 @@ export class CommentNode extends Disposable {
 				}
 				return this.actionItemProvider(action as Action);
 			},
-			this.actionRunner,
+			this.actionRunner!,
 			undefined,
 			'toolbar-toggle-pickReactions',
 			() => { return AnchorAlignment.RIGHT; }
