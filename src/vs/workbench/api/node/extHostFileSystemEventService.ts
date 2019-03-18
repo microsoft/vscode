@@ -8,11 +8,11 @@ import { AsyncEmitter, Emitter, Event } from 'vs/base/common/event';
 import { IRelativePattern, parse } from 'vs/base/common/glob';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
-import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import * as vscode from 'vscode';
 import { ExtHostFileSystemEventServiceShape, FileSystemEvents, IMainContext, MainContext, ResourceFileEditDto, ResourceTextEditDto, MainThreadTextEditorsShape } from './extHost.protocol';
 import * as typeConverter from './extHostTypeConverters';
 import { Disposable, WorkspaceEdit } from './extHostTypes';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 class FileSystemWatcher implements vscode.FileSystemWatcher {
 

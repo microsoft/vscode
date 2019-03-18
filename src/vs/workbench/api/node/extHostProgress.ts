@@ -6,11 +6,11 @@
 import { ProgressOptions } from 'vscode';
 import { MainThreadProgressShape, ExtHostProgressShape } from './extHost.protocol';
 import { ProgressLocation } from './extHostTypeConverters';
-import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { Progress, IProgressStep } from 'vs/platform/progress/common/progress';
 import { localize } from 'vs/nls';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 import { debounce } from 'vs/base/common/decorators';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 export class ExtHostProgress implements ExtHostProgressShape {
 

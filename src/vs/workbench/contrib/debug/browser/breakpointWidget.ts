@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!../browser/media/breakpointWidget';
+import 'vs/css!./media/breakpointWidget';
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { SelectBox, ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
@@ -161,7 +161,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		}));
 		this.input.setPosition({ lineNumber: 1, column: this.input.getModel().getLineMaxColumn(1) });
 		// Due to an electron bug we have to do the timeout, otherwise we do not get focus
-		setTimeout(() => this.input.focus(), 100);
+		setTimeout(() => this.input.focus(), 150);
 	}
 
 	public close(success: boolean): void {

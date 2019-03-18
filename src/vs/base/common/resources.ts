@@ -218,14 +218,15 @@ export function relativePath(from: URI, to: URI): string | undefined {
  * Resolves a absolute or relative path against a base URI.
  */
 export function resolvePath(base: URI, path: string): URI {
-	let resolvedPath: string;
 	if (base.scheme === Schemas.file) {
-		resolvedPath = URI.file(paths.resolve(originalFSPath(base), path)).path;
-	} else {
-		resolvedPath = paths.posix.resolve(base.path, path);
+		const newURI = URI.file(paths.resolve(originalFSPath(base), path));
+		return base.with({
+			authority: newURI.authority,
+			path: newURI.path
+		});
 	}
 	return base.with({
-		path: resolvedPath
+		path: paths.posix.resolve(base.path, path)
 	});
 }
 

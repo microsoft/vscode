@@ -236,7 +236,10 @@ export class MainPanel extends ViewletPanel {
 		const renderer = this.instantiationService.createInstance(ProviderRenderer);
 		const identityProvider = { getId: r => r.provider.id };
 
-		this.list = this.instantiationService.createInstance(WorkbenchList, container, delegate, [renderer], { identityProvider }) as WorkbenchList<ISCMRepository>;
+		this.list = this.instantiationService.createInstance(WorkbenchList, container, delegate, [renderer], {
+			identityProvider,
+			horizontalScrolling: false
+		}) as WorkbenchList<ISCMRepository>;
 
 		renderer.onDidRenderElement(e => this.list.updateWidth(this.viewModel.repositories.indexOf(e)), null, this.disposables);
 		this.list.onSelectionChange(this.onListSelectionChange, this, this.disposables);
@@ -273,12 +276,12 @@ export class MainPanel extends ViewletPanel {
 	}
 
 	private updateBodySize(): void {
-		const visibleCount = Math.max(this.configurationService.getValue<number>('scm.providers.visible'), 1);
+		const visibleCount = this.configurationService.getValue<number>('scm.providers.visible');
 		const empty = this.list.length === 0;
 		const size = Math.min(this.viewModel.repositories.length, visibleCount) * 22;
 
-		this.minimumBodySize = size;
-		this.maximumBodySize = empty ? Number.POSITIVE_INFINITY : size;
+		this.minimumBodySize = visibleCount === 0 ? 22 : size;
+		this.maximumBodySize = visibleCount === 0 ? Number.POSITIVE_INFINITY : empty ? Number.POSITIVE_INFINITY : size;
 	}
 
 	private onListContextMenu(e: IListContextMenuEvent<ISCMRepository>): void {
@@ -314,7 +317,9 @@ export class MainPanel extends ViewletPanel {
 
 	private onListSelectionChange(e: IListEvent<ISCMRepository>): void {
 		if (e.elements.length > 0 && e.browserEvent) {
+			const scrollTop = this.list.scrollTop;
 			this.viewModel.setVisibleRepositories(e.elements);
+			this.list.scrollTop = scrollTop;
 		}
 	}
 
@@ -834,7 +839,8 @@ export class RepositoryPanel extends ViewletPanel {
 
 		this.list = this.instantiationService.createInstance(WorkbenchList, this.listContainer, delegate, renderers, {
 			identityProvider: scmResourceIdentityProvider,
-			keyboardNavigationLabelProvider: scmKeyboardNavigationLabelProvider
+			keyboardNavigationLabelProvider: scmKeyboardNavigationLabelProvider,
+			horizontalScrolling: false
 		}) as WorkbenchList<ISCMResourceGroup | ISCMResource>;
 
 		Event.chain(this.list.onDidOpen)
@@ -1059,12 +1065,23 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 		const toSetInvisible = visibleViewDescriptors
 			.filter(d => d instanceof RepositoryViewDescriptor && repositories.indexOf(d.repository) === -1);
 
-		for (const viewDescriptor of toSetVisible) {
-			this.viewsModel.setVisible(viewDescriptor.id, true);
-		}
+		let size: number | undefined;
+		const oneToOne = toSetVisible.length === 1 && toSetInvisible.length === 1;
 
 		for (const viewDescriptor of toSetInvisible) {
+			if (oneToOne) {
+				const panel = this.panels.filter(panel => panel.id === viewDescriptor.id)[0];
+
+				if (panel) {
+					size = this.getPanelSize(panel);
+				}
+			}
+
 			this.viewsModel.setVisible(viewDescriptor.id, false);
+		}
+
+		for (const viewDescriptor of toSetVisible) {
+			this.viewsModel.setVisible(viewDescriptor.id, true, size);
 		}
 	}
 

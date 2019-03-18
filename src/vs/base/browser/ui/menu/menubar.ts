@@ -16,6 +16,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { KeyCode, ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 const $ = DOM.$;
 
@@ -86,7 +87,7 @@ export class MenuBar extends Disposable {
 	constructor(private container: HTMLElement, private options: IMenuBarOptions = {}) {
 		super();
 
-		this.container.attributes['role'] = 'menubar';
+		this.container.setAttribute('role', 'menubar');
 
 		this.menuCache = [];
 		this.mnemonics = new Map<string, number>();
@@ -857,7 +858,7 @@ export class MenuBar extends Disposable {
 			getKeyBinding: this.options.getKeybinding,
 			actionRunner: this.actionRunner,
 			enableMnemonics: this.options.alwaysOnMnemonics || (this.mnemonicsInUse && this.options.enableMnemonics),
-			ariaLabel: customMenu.buttonElement.attributes['aria-label'].value
+			ariaLabel: withNullAsUndefined(customMenu.buttonElement.getAttribute('aria-label'))
 		};
 
 		let menuWidget = this._register(new Menu(menuHolder, customMenu.actions, menuOptions));

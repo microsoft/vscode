@@ -25,7 +25,6 @@ import { ITextMateService } from 'vs/workbench/services/textMate/common/textMate
 import { ITokenColorizationRule, IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IEmbeddedLanguagesMap as IEmbeddedLanguagesMap2, IGrammar, ITokenTypeMap, Registry, StackElement, StandardTokenType } from 'vscode-textmate';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
@@ -162,7 +161,7 @@ export class TextMateService extends Disposable implements ITextMateService {
 		@IFileService private readonly _fileService: IFileService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ILogService private readonly _logService: ILogService,
-		@IConfigurationService private readonly _configurationService: ConfigurationService
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();
 		this._styleElement = dom.createStyleSheet();

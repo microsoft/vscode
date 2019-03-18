@@ -115,11 +115,10 @@ suite('Debug - Model', () => {
 		assert.equal(model.getSessions(true).length, 1);
 		model.rawUpdate({
 			sessionId: session.getId(),
-			threadId: threadId,
-			thread: {
+			threads: [{
 				id: threadId,
 				name: threadName
-			}
+			}]
 		});
 
 		assert.equal(session.getThread(threadId)!.name, threadName);
@@ -144,26 +143,27 @@ suite('Debug - Model', () => {
 
 		model.rawUpdate({
 			sessionId: session.getId(),
-			threadId: threadId1,
-			thread: {
+			threads: [{
 				id: threadId1,
 				name: threadName1
-			}
+			}]
 		});
 
 		model.rawUpdate({
 			sessionId: session.getId(),
-			threadId: threadId2,
-			thread: {
+			threads: [{
 				id: threadId2,
 				name: threadName2
-			}
+			}]
 		});
 
 		// Stopped event with all threads stopped
 		model.rawUpdate({
 			sessionId: session.getId(),
-			threadId: threadId1,
+			threads: [{
+				id: threadId1,
+				name: threadName1
+			}],
 			stoppedDetails: {
 				reason: stoppedReason,
 				threadId: 1,
@@ -232,26 +232,27 @@ suite('Debug - Model', () => {
 		// Add the threads
 		model.rawUpdate({
 			sessionId: session.getId(),
-			threadId: stoppedThreadId,
-			thread: {
+			threads: [{
 				id: stoppedThreadId,
 				name: stoppedThreadName
-			}
+			}]
 		});
 
 		model.rawUpdate({
 			sessionId: session.getId(),
-			threadId: runningThreadId,
-			thread: {
+			threads: [{
 				id: runningThreadId,
 				name: runningThreadName
-			}
+			}]
 		});
 
 		// Stopped event with only one thread stopped
 		model.rawUpdate({
 			sessionId: session.getId(),
-			threadId: stoppedThreadId,
+			threads: [{
+				id: 1,
+				name: stoppedThreadName
+			}],
 			stoppedDetails: {
 				reason: stoppedReason,
 				threadId: 1,

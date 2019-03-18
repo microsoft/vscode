@@ -364,9 +364,10 @@ const searchInFolderCommand: ICommandHandler = (accessor, resource?: URI) => {
 	const viewletService = accessor.get(IViewletService);
 	const panelService = accessor.get(IPanelService);
 	const fileService = accessor.get(IFileService);
+	const configurationService = accessor.get(IConfigurationService);
 	const resources = getMultiSelectedResources(resource, listService, accessor.get(IEditorService));
 
-	return openSearchView(viewletService, panelService, true).then(searchView => {
+	return openSearchView(viewletService, panelService, configurationService, true).then(searchView => {
 		if (resources && resources.length) {
 			return fileService.resolveFiles(resources.map(resource => ({ resource }))).then(results => {
 				const folders: URI[] = [];
@@ -412,7 +413,7 @@ const FIND_IN_WORKSPACE_ID = 'filesExplorer.findInWorkspace';
 CommandsRegistry.registerCommand({
 	id: FIND_IN_WORKSPACE_ID,
 	handler: (accessor) => {
-		return openSearchView(accessor.get(IViewletService), accessor.get(IPanelService), true).then(searchView => {
+		return openSearchView(accessor.get(IViewletService), accessor.get(IPanelService), accessor.get(IConfigurationService), true).then(searchView => {
 			searchView.searchInFolders(null);
 		});
 	}

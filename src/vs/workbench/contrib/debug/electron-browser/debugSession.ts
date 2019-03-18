@@ -544,32 +544,34 @@ export class DebugSession implements IDebugSession {
 	}
 
 	rawUpdate(data: IRawModelUpdate): void {
-
-		if (data.thread && !this.threads.has(data.threadId)) {
-			// A new thread came in, initialize it.
-			this.threads.set(data.threadId, new Thread(this, data.thread.name, data.thread.id));
-		} else if (data.thread && data.thread.name) {
-			// Just the thread name got updated #18244
-			const thread = this.threads.get(data.threadId);
-			if (thread) {
-				thread.name = data.thread.name;
+		data.threads.forEach(thread => {
+			if (!this.threads.has(thread.id)) {
+				// A new thread came in, initialize it.
+				this.threads.set(thread.id, new Thread(this, thread.name, thread.id));
+			} else if (thread.name) {
+				// Just the thread name got updated #18244
+				const oldThread = this.threads.get(thread.id);
+				if (oldThread) {
+					oldThread.name = thread.name;
+				}
 			}
-		}
+		});
 
-		if (data.stoppedDetails) {
+		const stoppedDetails = data.stoppedDetails;
+		if (stoppedDetails) {
 			// Set the availability of the threads' callstacks depending on
 			// whether the thread is stopped or not
-			if (data.stoppedDetails.allThreadsStopped) {
+			if (stoppedDetails.allThreadsStopped) {
 				this.threads.forEach(thread => {
-					thread.stoppedDetails = thread.threadId === data.threadId ? data.stoppedDetails : { reason: undefined };
+					thread.stoppedDetails = thread.threadId === stoppedDetails.threadId ? stoppedDetails : { reason: undefined };
 					thread.stopped = true;
 					thread.clearCallStack();
 				});
 			} else {
-				const thread = this.threads.get(data.threadId);
+				const thread = typeof stoppedDetails.threadId === 'number' ? this.threads.get(stoppedDetails.threadId) : undefined;
 				if (thread) {
 					// One thread is stopped, only update that thread.
-					thread.stoppedDetails = data.stoppedDetails;
+					thread.stoppedDetails = stoppedDetails;
 					thread.clearCallStack();
 					thread.stopped = true;
 				}
@@ -580,13 +582,10 @@ export class DebugSession implements IDebugSession {
 	private fetchThreads(stoppedDetails?: IRawStoppedDetails): Promise<void> {
 		return this.raw ? this.raw.threads().then(response => {
 			if (response && response.body && response.body.threads) {
-				response.body.threads.forEach(thread => {
-					this.model.rawUpdate({
-						sessionId: this.getId(),
-						threadId: thread.id,
-						thread,
-						stoppedDetails: stoppedDetails && thread.id === stoppedDetails.threadId ? stoppedDetails : undefined
-					});
+				this.model.rawUpdate({
+					sessionId: this.getId(),
+					threads: response.body.threads,
+					stoppedDetails
 				});
 			}
 		}) : Promise.resolve(undefined);

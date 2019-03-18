@@ -64,9 +64,10 @@
 	};
 
 	/**
+	 * @param {HTMLDocument} document
 	 * @param {HTMLElement} body
 	 */
-	const applyStyles = (body) => {
+	const applyStyles = (document, body) => {
 		if (!body) {
 			return;
 		}
@@ -76,7 +77,7 @@
 
 		if (initData.styles) {
 			for (const variable of Object.keys(initData.styles)) {
-				body.style.setProperty(`--${variable}`, initData.styles[variable]);
+				document.documentElement.style.setProperty(`--${variable}`, initData.styles[variable]);
 			}
 		}
 	};
@@ -175,7 +176,7 @@
 				return;
 			}
 
-			applyStyles(target.contentDocument.body);
+			applyStyles(target.contentDocument, target.contentDocument.body);
 		});
 
 		// propagate focus
@@ -249,10 +250,10 @@
 			// apply default styles
 			const defaultStyles = newDocument.createElement('style');
 			defaultStyles.id = '_defaultStyles';
-			defaultStyles.innerHTML = getDefaultCss(initData.styles);
+			defaultStyles.innerHTML = defaultCssRules;
 			newDocument.head.prepend(defaultStyles);
 
-			applyStyles(newDocument.body);
+			applyStyles(newDocument, newDocument.body);
 
 			const frame = getActiveFrame();
 			const wasFirstLoad = firstLoad;
@@ -321,7 +322,7 @@
 						document.body.removeChild(oldActiveFrame);
 					}
 					// Styles may have changed since we created the element. Make sure we re-style
-					applyStyles(newFrame.contentDocument.body);
+					applyStyles(newFrame.contentDocument, newFrame.contentDocument.body);
 					newFrame.setAttribute('id', 'active-frame');
 					newFrame.style.visibility = 'visible';
 					newFrame.contentWindow.focus();
@@ -395,19 +396,6 @@
 		// signal ready
 		ipcRenderer.sendToHost('webview-ready', process.pid);
 	});
-
-	/**
-	 * @param {{ [variable: string]: string }} styles
-	 */
-	function getDefaultCss(styles) {
-		const vars = Object.keys(styles || {}).map(variable => {
-			return `--${variable}: ${styles[variable].replace(/[^#"',. a-z0-9\-()]/gi, '')};`;
-		});
-		return `
-			:root { ${vars.join('\n')} }
-			${defaultCssRules}
-		`;
-	}
 
 	const defaultCssRules = `
 		body {

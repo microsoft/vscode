@@ -6,7 +6,6 @@
 import * as nls from 'vs/nls';
 import * as resources from 'vs/base/common/resources';
 import * as objects from 'vs/base/common/objects';
-import { RemoteFileService } from 'vs/workbench/services/files/node/remoteFileService';
 import { IFileService, IFileStat, FileKind } from 'vs/platform/files/common/files';
 import { IQuickInputService, IQuickPickItem, IQuickPick, IQuickInputButton } from 'vs/platform/quickinput/common/quickInput';
 import { URI } from 'vs/base/common/uri';
@@ -21,6 +20,8 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { Schemas } from 'vs/base/common/network';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IRemoteEnvironmentService } from 'vs/workbench/services/remote/common/remoteEnvironmentService';
 
 interface FileQuickPickItem extends IQuickPickItem {
 	uri: URI;
@@ -48,7 +49,7 @@ export class RemoteFileDialog {
 	private shouldOverwriteFile: boolean = false;
 
 	constructor(
-		@IFileService private readonly remoteFileService: RemoteFileService,
+		@IFileService private readonly fileService: IFileService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IWindowService private readonly windowService: IWindowService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -57,13 +58,16 @@ export class RemoteFileDialog {
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IModelService private readonly modelService: IModelService,
 		@IModeService private readonly modeService: IModeService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IRemoteEnvironmentService private readonly remoteEnvironmentService: IRemoteEnvironmentService,
+
 	) {
 		this.remoteAuthority = this.windowService.getConfiguration().remoteAuthority;
 	}
 
 	public async showOpenDialog(options: IOpenDialogOptions = {}): Promise<IURIToOpen[] | undefined> {
 		this.scheme = this.getScheme(options.defaultUri, options.availableFileSystems);
-		const newOptions = this.getOptions(options);
+		const newOptions = await this.getOptions(options);
 		if (!newOptions) {
 			return Promise.resolve(undefined);
 		}
@@ -77,7 +81,7 @@ export class RemoteFileDialog {
 
 		return this.pickResource().then(async fileFolderUri => {
 			if (fileFolderUri) {
-				const stat = await this.remoteFileService.resolveFile(fileFolderUri);
+				const stat = await this.fileService.resolveFile(fileFolderUri);
 				return <IURIToOpen[]>[{ uri: fileFolderUri, typeHint: stat.isDirectory ? 'folder' : 'file' }];
 
 			}
@@ -85,10 +89,10 @@ export class RemoteFileDialog {
 		});
 	}
 
-	public showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
+	public async showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
 		this.scheme = this.getScheme(options.defaultUri, options.availableFileSystems);
 		this.requiresTrailing = true;
-		const newOptions = this.getOptions(options);
+		const newOptions = await this.getOptions(options);
 		if (!newOptions) {
 			return Promise.resolve(undefined);
 		}
@@ -104,9 +108,17 @@ export class RemoteFileDialog {
 		});
 	}
 
-	private getOptions(options: ISaveDialogOptions | IOpenDialogOptions): IOpenDialogOptions | undefined {
-		const defaultUri = options.defaultUri ? options.defaultUri : URI.from({ scheme: this.scheme, authority: this.remoteAuthority, path: '/' });
-		if ((this.scheme !== Schemas.file) && !this.remoteFileService.canHandleResource(defaultUri)) {
+	private async getOptions(options: ISaveDialogOptions | IOpenDialogOptions): Promise<IOpenDialogOptions | undefined> {
+		let defaultUri = options.defaultUri;
+		if (!defaultUri) {
+			const env = await this.remoteEnvironmentService.remoteEnvironment;
+			if (env) {
+				defaultUri = env.userHome;
+			} else {
+				defaultUri = URI.from({ scheme: this.scheme, path: this.environmentService.userHome });
+			}
+		}
+		if ((this.scheme !== Schemas.file) && !this.fileService.canHandleResource(defaultUri)) {
 			this.notificationService.info(nls.localize('remoteFileDialog.notConnectedToRemote', 'File system provider for {0} is not available.', defaultUri.toString()));
 			return undefined;
 		}
@@ -141,7 +153,7 @@ export class RemoteFileDialog {
 		let ext: string = resources.extname(homedir);
 		if (this.options.defaultUri) {
 			try {
-				stat = await this.remoteFileService.resolveFile(this.options.defaultUri);
+				stat = await this.fileService.resolveFile(this.options.defaultUri);
 			} catch (e) {
 				// The file or folder doesn't exist
 			}
@@ -236,6 +248,8 @@ export class RemoteFileDialog {
 			this.updateItems(homedir, trailing);
 			if (trailing) {
 				this.filePickBox.valueSelection = [this.filePickBox.value.length - trailing.length, this.filePickBox.value.length - ext.length];
+			} else {
+				this.filePickBox.valueSelection = [this.filePickBox.value.length, this.filePickBox.value.length];
 			}
 			this.userValue = this.filePickBox.value;
 		});
@@ -267,8 +281,8 @@ export class RemoteFileDialog {
 		let stat: IFileStat | undefined;
 		let statDirname: IFileStat | undefined;
 		try {
-			statDirname = await this.remoteFileService.resolveFile(inputUriDirname);
-			stat = await this.remoteFileService.resolveFile(inputUri);
+			statDirname = await this.fileService.resolveFile(inputUriDirname);
+			stat = await this.fileService.resolveFile(inputUri);
 		} catch (e) {
 			// do nothing
 		}
@@ -310,7 +324,7 @@ export class RemoteFileDialog {
 		if (this.endsWithSlash(value) || (!resources.isEqual(this.currentFolder, resources.dirname(valueUri), true) && resources.isEqualOrParent(this.currentFolder, resources.dirname(valueUri), true))) {
 			let stat: IFileStat | undefined;
 			try {
-				stat = await this.remoteFileService.resolveFile(valueUri);
+				stat = await this.fileService.resolveFile(valueUri);
 			} catch (e) {
 				// do nothing
 			}
@@ -321,7 +335,7 @@ export class RemoteFileDialog {
 				if (!resources.isEqual(this.currentFolder, inputUriDirname, true)) {
 					let statWithoutTrailing: IFileStat | undefined;
 					try {
-						statWithoutTrailing = await this.remoteFileService.resolveFile(inputUriDirname);
+						statWithoutTrailing = await this.fileService.resolveFile(inputUriDirname);
 					} catch (e) {
 						// do nothing
 					}
@@ -358,8 +372,8 @@ export class RemoteFileDialog {
 		let stat: IFileStat | undefined;
 		let statDirname: IFileStat | undefined;
 		try {
-			statDirname = await this.remoteFileService.resolveFile(resources.dirname(uri));
-			stat = await this.remoteFileService.resolveFile(uri);
+			statDirname = await this.fileService.resolveFile(resources.dirname(uri));
+			stat = await this.fileService.resolveFile(uri);
 		} catch (e) {
 			// do nothing
 		}
@@ -480,7 +494,7 @@ export class RemoteFileDialog {
 
 		const backDir = this.createBackItem(currentFolder);
 		try {
-			const fileNames = await this.remoteFileService.readFolder(currentFolder);
+			const fileNames = await this.fileService.readFolder(currentFolder);
 			const items = await Promise.all(fileNames.map(fileName => this.createItem(fileName, currentFolder)));
 			for (let item of items) {
 				if (item) {
@@ -528,7 +542,7 @@ export class RemoteFileDialog {
 	private async createItem(filename: string, parent: URI): Promise<FileQuickPickItem | undefined> {
 		let fullPath = resources.joinPath(parent, filename);
 		try {
-			const stat = await this.remoteFileService.resolveFile(fullPath);
+			const stat = await this.fileService.resolveFile(fullPath);
 			if (stat.isDirectory) {
 				filename = this.basenameWithTrailingSlash(fullPath);
 				return { label: filename, uri: fullPath, isFolder: true, iconClasses: getIconClasses(this.modelService, this.modeService, fullPath || undefined, FileKind.FOLDER) };
@@ -543,8 +557,8 @@ export class RemoteFileDialog {
 
 	private getDialogIcons(name: string): { light: URI, dark: URI } {
 		return {
-			dark: URI.parse(require.toUrl(`vs/workbench/services/dialogs/electron-browser/media/dark/${name}.svg`)),
-			light: URI.parse(require.toUrl(`vs/workbench/services/dialogs/electron-browser/media/light/${name}.svg`))
+			dark: URI.parse(require.toUrl(`vs/workbench/services/dialogs/browser/media/dark/${name}.svg`)),
+			light: URI.parse(require.toUrl(`vs/workbench/services/dialogs/browser/media/light/${name}.svg`))
 		};
 	}
 }

@@ -28,10 +28,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { DebugHoverWidget } from 'vs/workbench/contrib/debug/electron-browser/debugHover';
 import { RemoveBreakpointAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { IDebugEditorContribution, IDebugService, State, IBreakpoint, EDITOR_CONTRIBUTION_ID, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, IStackFrame, IDebugConfiguration, IExpression, IExceptionInfo, BreakpointWidgetContext } from 'vs/workbench/contrib/debug/common/debug';
-import { BreakpointWidget } from 'vs/workbench/contrib/debug/electron-browser/breakpointWidget';
 import { ExceptionWidget } from 'vs/workbench/contrib/debug/browser/exceptionWidget';
 import { FloatingClickWidget } from 'vs/workbench/browser/parts/editor/editorWidgets';
 import { Position } from 'vs/editor/common/core/position';
@@ -45,6 +43,8 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { getHover } from 'vs/editor/contrib/hover/getHover';
 import { IEditorHoverOptions } from 'vs/editor/common/config/editorOptions';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { BreakpointWidget } from 'vs/workbench/contrib/debug/browser/breakpointWidget';
+import { DebugHoverWidget } from 'vs/workbench/contrib/debug/browser/debugHover';
 
 const HOVER_DELAY = 300;
 const LAUNCH_JSON_REGEX = /launch\.json$/;

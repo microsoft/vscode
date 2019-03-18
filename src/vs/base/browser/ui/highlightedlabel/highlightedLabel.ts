@@ -95,7 +95,7 @@ export class HighlightedLabel {
 		let total = 0;
 		let extra = 0;
 
-		return text.replace(/\r\n|\r|\n/, (match, offset) => {
+		return text.replace(/\r\n|\r|\n/g, (match, offset) => {
 			extra = match === '\r\n' ? -1 : 0;
 			offset += total;
 

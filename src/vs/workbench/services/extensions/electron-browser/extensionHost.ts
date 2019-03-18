@@ -34,13 +34,13 @@ import { IWindowService, IWindowsService } from 'vs/platform/windows/common/wind
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IInitData } from 'vs/workbench/api/node/extHost.protocol';
 import { MessageType, createMessageOfType, isMessageOfType } from 'vs/workbench/services/extensions/node/extensionHostProtocol';
-import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 export interface IExtensionHostStarter {
-	readonly onCrashed: Event<[number, string]>;
+	readonly onCrashed: Event<[number, string | null]>;
 	start(): Promise<IMessagePassingProtocol> | null;
-	getInspectPort(): number;
+	getInspectPort(): number | undefined;
 	dispose(): void;
 }
 

@@ -14,8 +14,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { renderViewTree, renderVariable, IInputBoxOptions, AbstractExpressionsRenderer, IExpressionTemplateData } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { IAction } from 'vs/base/common/actions';
-import { SetValueAction, AddToWatchExpressionsAction } from 'vs/workbench/contrib/debug/browser/debugActions';
-import { CopyValueAction, CopyEvaluatePathAction } from 'vs/workbench/contrib/debug/electron-browser/electronDebugActions';
+import { SetValueAction, AddToWatchExpressionsAction, CopyValueAction, CopyEvaluatePathAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewletPanelOptions, ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
@@ -24,9 +23,7 @@ import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode, ITreeMouseEvent, ITreeContextMenuEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Emitter } from 'vs/base/common/event';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { WorkbenchAsyncDataTree, IListService } from 'vs/platform/list/browser/listService';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
@@ -48,9 +45,6 @@ export class VariablesView extends ViewletPanel {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IListService private readonly listService: IListService,
-		@IThemeService private readonly themeService: IThemeService
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('variablesSection', "Variables Section") }, keybindingService, contextMenuService, configurationService);
 
@@ -75,14 +69,14 @@ export class VariablesView extends ViewletPanel {
 		dom.addClass(container, 'debug-variables');
 		const treeContainer = renderViewTree(container);
 
-		this.tree = new WorkbenchAsyncDataTree(treeContainer, new VariablesDelegate(),
+		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, treeContainer, new VariablesDelegate(),
 			[this.instantiationService.createInstance(VariablesRenderer), new ScopesRenderer()],
 			new VariablesDataSource(), {
 				ariaLabel: nls.localize('variablesAriaTreeLabel', "Debug Variables"),
 				accessibilityProvider: new VariablesAccessibilityProvider(),
-				identityProvider: { getId: element => element.getId() },
+				identityProvider: { getId: element => (<IExpression | IScope>element).getId() },
 				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: e => e }
-			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
+			}) as WorkbenchAsyncDataTree<IViewModel | IExpression | IScope, IExpression | IScope, FuzzyScore>;
 
 		this.tree.setInput(this.debugService.getViewModel()).then(null, onUnexpectedError);
 
@@ -140,8 +134,8 @@ export class VariablesView extends ViewletPanel {
 			const actions: IAction[] = [];
 			const variable = element as Variable;
 			actions.push(new SetValueAction(SetValueAction.ID, SetValueAction.LABEL, variable, this.debugService, this.keybindingService));
-			actions.push(new CopyValueAction(CopyValueAction.ID, CopyValueAction.LABEL, variable, 'variables', this.debugService));
-			actions.push(new CopyEvaluatePathAction(CopyEvaluatePathAction.ID, CopyEvaluatePathAction.LABEL, variable));
+			actions.push(this.instantiationService.createInstance(CopyValueAction, CopyValueAction.ID, CopyValueAction.LABEL, variable, 'variables'));
+			actions.push(this.instantiationService.createInstance(CopyEvaluatePathAction, CopyEvaluatePathAction.ID, CopyEvaluatePathAction.LABEL, variable));
 			actions.push(new Separator());
 			actions.push(new AddToWatchExpressionsAction(AddToWatchExpressionsAction.ID, AddToWatchExpressionsAction.LABEL, variable, this.debugService, this.keybindingService));
 

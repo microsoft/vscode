@@ -48,8 +48,9 @@ export class CommentNode extends Disposable {
 	private _editAction: Action;
 	private _commentEditContainer: HTMLElement;
 	private _commentDetailsContainer: HTMLElement;
+	private _actionsToolbarContainer: HTMLElement;
 	private _reactionsActionBar?: ActionBar;
-	private _actionsContainer?: HTMLElement;
+	private _reactionActionsContainer?: HTMLElement;
 	private _commentEditor: SimpleCommentEditor | null;
 	private _commentEditorDisposables: IDisposable[] = [];
 	private _commentEditorModel: ITextModel;
@@ -125,10 +126,19 @@ export class CommentNode extends Disposable {
 
 		this._isPendingLabel = dom.append(header, dom.$('span.isPending'));
 
-		if (this.comment.isDraft) {
+		if (this.comment.label) {
+			this._isPendingLabel.innerText = this.comment.label;
+		} else if (this.comment.isDraft) {
 			this._isPendingLabel.innerText = 'Pending';
+		} else {
+			this._isPendingLabel.innerText = '';
 		}
 
+		this._actionsToolbarContainer = dom.append(header, dom.$('.comment-actions.hidden'));
+		this.createActionsToolbar();
+	}
+
+	private createActionsToolbar() {
 		const actions: Action[] = [];
 
 		let reactionGroup = this.commentService.getReactionGroup(this.owner);
@@ -144,7 +154,7 @@ export class CommentNode extends Disposable {
 		}
 
 		if (this.comment.canEdit || this.comment.editCommand) {
-			this._editAction = this.createEditAction(commentDetailsContainer);
+			this._editAction = this.createEditAction(this._commentDetailsContainer);
 			actions.push(this._editAction);
 		}
 
@@ -154,9 +164,7 @@ export class CommentNode extends Disposable {
 		}
 
 		if (actions.length) {
-			const actionsContainer = dom.append(header, dom.$('.comment-actions.hidden'));
-
-			this.toolbar = new ToolBar(actionsContainer, this.contextMenuService, {
+			this.toolbar = new ToolBar(this._actionsToolbarContainer, this.contextMenuService, {
 				actionItemProvider: action => {
 					if (action.id === ToggleReactionsAction.ID) {
 						return new DropdownMenuActionItem(
@@ -177,7 +185,7 @@ export class CommentNode extends Disposable {
 				orientation: ActionsOrientation.HORIZONTAL
 			});
 
-			this.registerActionBarListeners(actionsContainer);
+			this.registerActionBarListeners(this._actionsToolbarContainer);
 			this.toolbar.setActions(actions, [])();
 			this._toDispose.push(this.toolbar);
 		}
@@ -293,8 +301,8 @@ export class CommentNode extends Disposable {
 	}
 
 	private createReactionsContainer(commentDetailsContainer: HTMLElement): void {
-		this._actionsContainer = dom.append(commentDetailsContainer, dom.$('div.comment-reactions'));
-		this._reactionsActionBar = new ActionBar(this._actionsContainer, {
+		this._reactionActionsContainer = dom.append(commentDetailsContainer, dom.$('div.comment-reactions'));
+		this._reactionsActionBar = new ActionBar(this._reactionActionsContainer, {
 			actionItemProvider: action => {
 				if (action.id === ToggleReactionsAction.ID) {
 					return new DropdownMenuActionItem(
@@ -573,7 +581,14 @@ export class CommentNode extends Disposable {
 			this._body.appendChild(this._md);
 		}
 
+		const shouldUpdateActions = newComment.editCommand !== this.comment.editCommand || newComment.deleteCommand !== this.comment.deleteCommand;
 		this.comment = newComment;
+
+		if (shouldUpdateActions) {
+			dom.clearNode(this._actionsToolbarContainer);
+			this.createActionsToolbar();
+		}
+
 
 		if (newComment.label) {
 			this._isPendingLabel.innerText = newComment.label;
@@ -584,8 +599,8 @@ export class CommentNode extends Disposable {
 		}
 
 		// update comment reactions
-		if (this._actionsContainer) {
-			this._actionsContainer.remove();
+		if (this._reactionActionsContainer) {
+			this._reactionActionsContainer.remove();
 		}
 
 		if (this._reactionsActionBar) {

@@ -40,7 +40,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		@IJSONEditingService private readonly jsonEditingService: IJSONEditingService,
 		@IWorkspaceContextService private readonly contextService: WorkspaceService,
 		@IWindowService private readonly windowService: IWindowService,
-		@IConfigurationService private readonly workspaceConfigurationService: IConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IBackupFileService private readonly backupFileService: IBackupFileService,
@@ -411,13 +411,13 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	private doCopyWorkspaceSettings(toWorkspace: IWorkspaceIdentifier, filter?: (config: IConfigurationPropertySchema) => boolean): Promise<void> {
 		const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
 		const targetWorkspaceConfiguration = {};
-		for (const key of this.workspaceConfigurationService.keys().workspace) {
+		for (const key of this.configurationService.keys().workspace) {
 			if (configurationProperties[key]) {
 				if (filter && !filter(configurationProperties[key])) {
 					continue;
 				}
 
-				targetWorkspaceConfiguration[key] = this.workspaceConfigurationService.inspect(key).workspace;
+				targetWorkspaceConfiguration[key] = this.configurationService.inspect(key).workspace;
 			}
 		}
 

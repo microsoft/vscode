@@ -30,9 +30,9 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
-import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
-
+import { IProcessEnvironment } from 'vs/base/common/platform';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
@@ -77,7 +77,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 	private _variableResolver: IConfigurationResolverService;
 
-	private _integratedTerminalInstance: vscode.Terminal;
+	private _integratedTerminalInstance?: vscode.Terminal;
 	private _terminalDisposedListener: IDisposable;
 
 
@@ -241,8 +241,8 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		return this._debugServiceProxy.$unregisterBreakpoints(ids, fids);
 	}
 
-	public startDebugging(folder: vscode.WorkspaceFolder | undefined, nameOrConfig: string | vscode.DebugConfiguration): Promise<boolean> {
-		return this._debugServiceProxy.$startDebugging(folder ? folder.uri : undefined, nameOrConfig);
+	public startDebugging(folder: vscode.WorkspaceFolder | undefined, nameOrConfig: string | vscode.DebugConfiguration, parentSession?: vscode.DebugSession): Promise<boolean> {
+		return this._debugServiceProxy.$startDebugging(folder ? folder.uri : undefined, nameOrConfig, parentSession ? parentSession.id : undefined);
 	}
 
 	public registerDebugConfigurationProvider(type: string, provider: vscode.DebugConfigurationProvider): vscode.Disposable {
@@ -324,7 +324,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 				// React on terminal disposed and check if that is the debug terminal #12956
 				this._terminalDisposedListener = this._terminalService.onDidCloseTerminal(terminal => {
 					if (this._integratedTerminalInstance && this._integratedTerminalInstance === terminal) {
-						this._integratedTerminalInstance = null;
+						this._integratedTerminalInstance = undefined;
 					}
 				});
 			}
@@ -341,16 +341,17 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 				}
 			}).then(needNewTerminal => {
 
-				if (needNewTerminal) {
+				if (needNewTerminal || !this._integratedTerminalInstance) {
 					this._integratedTerminalInstance = this._terminalService.createTerminal(args.title || nls.localize('debug.terminal.title', "debuggee"));
 				}
+				const terminal: vscode.Terminal = this._integratedTerminalInstance;
 
-				this._integratedTerminalInstance.show();
+				terminal.show();
 
 				return this._integratedTerminalInstance.processId.then(shellProcessId => {
 
 					const command = prepareCommand(args, config);
-					this._integratedTerminalInstance.sendText(command, true);
+					terminal.sendText(command, true);
 
 					return shellProcessId;
 				});
@@ -363,13 +364,13 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 				return terminalLauncher.runInTerminal(args, config);
 			}
 		}
-		return undefined;
+		return Promise.resolve(undefined);
 	}
 
 	public async $substituteVariables(folderUri: UriComponents | undefined, config: IConfig): Promise<IConfig> {
-		const [workspaceFolders, configProvider] = await Promise.all([this._workspaceService.getWorkspaceFolders2(), this._configurationService.getConfigProvider()]);
 		if (!this._variableResolver) {
-			this._variableResolver = new ExtHostVariableResolverService(workspaceFolders, this._editorsService, configProvider);
+			const [workspaceFolders, configProvider] = await Promise.all([this._workspaceService.getWorkspaceFolders2(), this._configurationService.getConfigProvider()]);
+			this._variableResolver = new ExtHostVariableResolverService(workspaceFolders || [], this._editorsService, configProvider);
 		}
 		let ws: IWorkspaceFolder | undefined;
 		const folder = await this.getFolder(folderUri);
@@ -390,9 +391,10 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		const mythis = this;
 
 		const session = await this.getSession(sessionDto);
-		return this.getAdapterDescriptor(this.getAdapterFactoryByType(session.type), session).then(x => {
 
-			const adapter = this.convertToDto(x);
+		return this.getAdapterDescriptor(this.getAdapterFactoryByType(session.type), session).then(daDescriptor => {
+
+			const adapter = this.convertToDto(daDescriptor);
 			let da: AbstractDebugAdapter | undefined = undefined;
 
 			switch (adapter.type) {
@@ -413,8 +415,10 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 					break;
 			}
 
-			if (da) {
-				this._debugAdapters.set(debugAdapterHandle, da);
+			const debugAdapter = da;
+
+			if (debugAdapter) {
+				this._debugAdapters.set(debugAdapterHandle, debugAdapter);
 
 				return this.getDebugAdapterTrackers(session).then(tracker => {
 
@@ -422,9 +426,9 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 						this._debugAdaptersTrackers.set(debugAdapterHandle, tracker);
 					}
 
-					da.onMessage(message => {
+					debugAdapter.onMessage(message => {
 
-						if (tracker) {
+						if (tracker && tracker.onDidSendMessage) {
 							tracker.onDidSendMessage(message);
 						}
 
@@ -433,24 +437,24 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 						mythis._debugServiceProxy.$acceptDAMessage(debugAdapterHandle, message);
 					});
-					da.onError(err => {
-						if (tracker) {
+					debugAdapter.onError(err => {
+						if (tracker && tracker.onError) {
 							tracker.onError(err);
 						}
 						this._debugServiceProxy.$acceptDAError(debugAdapterHandle, err.name, err.message, err.stack);
 					});
-					da.onExit(code => {
-						if (tracker) {
+					debugAdapter.onExit((code: number) => {
+						if (tracker && tracker.onExit) {
 							tracker.onExit(code, undefined);
 						}
-						this._debugServiceProxy.$acceptDAExit(debugAdapterHandle, code, null);
+						this._debugServiceProxy.$acceptDAExit(debugAdapterHandle, code, undefined);
 					});
 
-					if (tracker) {
+					if (tracker && tracker.onWillStartSession) {
 						tracker.onWillStartSession();
 					}
 
-					return da.startSession();
+					return debugAdapter.startSession();
 				});
 
 			}
@@ -458,13 +462,13 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		});
 	}
 
-	public $sendDAMessage(debugAdapterHandle: number, message: DebugProtocol.ProtocolMessage): Promise<void> {
+	public $sendDAMessage(debugAdapterHandle: number, message: DebugProtocol.ProtocolMessage): void {
 
 		// VS Code -> DA
 		message = convertToDAPaths(message, false);
 
 		const tracker = this._debugAdaptersTrackers.get(debugAdapterHandle);	// TODO@AW: same handle?
-		if (tracker) {
+		if (tracker && tracker.onWillReceiveMessage) {
 			tracker.onWillReceiveMessage(message);
 		}
 
@@ -472,14 +476,13 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		if (da) {
 			da.sendMessage(message);
 		}
-		return undefined;
 	}
 
 	public $stopDASession(debugAdapterHandle: number): Promise<void> {
 
 		const tracker = this._debugAdaptersTrackers.get(debugAdapterHandle);
 		this._debugAdaptersTrackers.delete(debugAdapterHandle);
-		if (tracker) {
+		if (tracker && tracker.onWillStopSession) {
 			tracker.onWillStopSession();
 		}
 
@@ -488,7 +491,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		if (da) {
 			return da.stopSession();
 		} else {
-			return undefined;
+			return Promise.resolve(void 0);
 		}
 	}
 
@@ -500,8 +503,8 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 		if (delta.added) {
 			for (const bpd of delta.added) {
-
-				if (!this._breakpoints.has(bpd.id)) {
+				const id = bpd.id;
+				if (id && !this._breakpoints.has(id)) {
 					let bp: vscode.Breakpoint;
 					if (bpd.type === 'function') {
 						bp = new FunctionBreakpoint(bpd.functionName, bpd.enabled, bpd.condition, bpd.hitCondition, bpd.logMessage);
@@ -509,8 +512,8 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 						const uri = URI.revive(bpd.uri);
 						bp = new SourceBreakpoint(new Location(uri, new Position(bpd.line, bpd.character)), bpd.enabled, bpd.condition, bpd.hitCondition, bpd.logMessage);
 					}
-					(bp as any)._id = bpd.id;
-					this._breakpoints.set(bpd.id, bp);
+					(bp as any)._id = id;
+					this._breakpoints.set(id, bp);
 					a.push(bp);
 				}
 			}
@@ -528,24 +531,26 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 		if (delta.changed) {
 			for (const bpd of delta.changed) {
-				const bp = this._breakpoints.get(bpd.id);
-				if (bp) {
-					if (bp instanceof FunctionBreakpoint && bpd.type === 'function') {
-						const fbp = <any>bp;
-						fbp.enabled = bpd.enabled;
-						fbp.condition = bpd.condition;
-						fbp.hitCondition = bpd.hitCondition;
-						fbp.logMessage = bpd.logMessage;
-						fbp.functionName = bpd.functionName;
-					} else if (bp instanceof SourceBreakpoint && bpd.type === 'source') {
-						const sbp = <any>bp;
-						sbp.enabled = bpd.enabled;
-						sbp.condition = bpd.condition;
-						sbp.hitCondition = bpd.hitCondition;
-						sbp.logMessage = bpd.logMessage;
-						sbp.location = new Location(URI.revive(bpd.uri), new Position(bpd.line, bpd.character));
+				if (bpd.id) {
+					const bp = this._breakpoints.get(bpd.id);
+					if (bp) {
+						if (bp instanceof FunctionBreakpoint && bpd.type === 'function') {
+							const fbp = <any>bp;
+							fbp.enabled = bpd.enabled;
+							fbp.condition = bpd.condition;
+							fbp.hitCondition = bpd.hitCondition;
+							fbp.logMessage = bpd.logMessage;
+							fbp.functionName = bpd.functionName;
+						} else if (bp instanceof SourceBreakpoint && bpd.type === 'source') {
+							const sbp = <any>bp;
+							sbp.enabled = bpd.enabled;
+							sbp.condition = bpd.condition;
+							sbp.hitCondition = bpd.hitCondition;
+							sbp.logMessage = bpd.logMessage;
+							sbp.location = new Location(URI.revive(bpd.uri), new Position(bpd.line, bpd.character));
+						}
+						c.push(bp);
 					}
-					c.push(bp);
 				}
 			}
 		}
@@ -553,41 +558,57 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		this.fireBreakpointChanges(a, r, c);
 	}
 
-	public async $provideDebugConfigurations(configProviderHandle: number, folderUri: UriComponents | undefined): Promise<vscode.DebugConfiguration[]> {
-		const provider = this.getConfigProviderByHandle(configProviderHandle);
-		if (!provider) {
-			return Promise.reject(new Error('no handler found'));
-		}
-		if (!provider.provideDebugConfigurations) {
-			return Promise.reject(new Error('handler has no method provideDebugConfigurations'));
-		}
-		const folder = await this.getFolder(folderUri);
-		return asPromise(() => provider.provideDebugConfigurations(folder, CancellationToken.None));
+	public $provideDebugConfigurations(configProviderHandle: number, folderUri: UriComponents | undefined): Promise<vscode.DebugConfiguration[]> {
+		return asPromise(async () => {
+			const provider = this.getConfigProviderByHandle(configProviderHandle);
+			if (!provider) {
+				throw new Error('no DebugConfigurationProvider found');
+			}
+			if (!provider.provideDebugConfigurations) {
+				throw new Error('DebugConfigurationProvider has no method provideDebugConfigurations');
+			}
+			const folder = await this.getFolder(folderUri);
+			return provider.provideDebugConfigurations(folder, CancellationToken.None);
+		}).then(debugConfigurations => {
+			if (!debugConfigurations) {
+				throw new Error('nothing returned from DebugConfigurationProvider.provideDebugConfigurations');
+			}
+			return debugConfigurations;
+		});
 	}
 
-	public async $resolveDebugConfiguration(configProviderHandle: number, folderUri: UriComponents | undefined, debugConfiguration: vscode.DebugConfiguration): Promise<vscode.DebugConfiguration> {
-		const provider = this.getConfigProviderByHandle(configProviderHandle);
-		if (!provider) {
-			return Promise.reject(new Error('no handler found'));
-		}
-		if (!provider.resolveDebugConfiguration) {
-			return Promise.reject(new Error('handler has no method resolveDebugConfiguration'));
-		}
-		const folder = await this.getFolder(folderUri);
-		return asPromise(() => provider.resolveDebugConfiguration(folder, debugConfiguration, CancellationToken.None));
+	public $resolveDebugConfiguration(configProviderHandle: number, folderUri: UriComponents | undefined, debugConfiguration: vscode.DebugConfiguration): Promise<vscode.DebugConfiguration | null | undefined> {
+		return asPromise(async () => {
+			const provider = this.getConfigProviderByHandle(configProviderHandle);
+			if (!provider) {
+				throw new Error('no DebugConfigurationProvider found');
+			}
+			if (!provider.resolveDebugConfiguration) {
+				throw new Error('DebugConfigurationProvider has no method resolveDebugConfiguration');
+			}
+			const folder = await this.getFolder(folderUri);
+			return provider.resolveDebugConfiguration(folder, debugConfiguration, CancellationToken.None);
+		});
 	}
 
-	// TODO@AW legacy
-	public async $legacyDebugAdapterExecutable(configProviderHandle: number, folderUri: UriComponents | undefined): Promise<IAdapterDescriptor> {
-		const provider = this.getConfigProviderByHandle(configProviderHandle);
-		if (!provider) {
-			return Promise.reject(new Error('no handler found'));
-		}
-		if (!provider.debugAdapterExecutable) {
-			return Promise.reject(new Error('handler has no method debugAdapterExecutable'));
-		}
-		const folder = await this.getFolder(folderUri);
-		return asPromise(() => provider.debugAdapterExecutable(folder, CancellationToken.None)).then(x => this.convertToDto(x));
+	// TODO@AW deprecated and legacy
+	public $legacyDebugAdapterExecutable(configProviderHandle: number, folderUri: UriComponents | undefined): Promise<IAdapterDescriptor> {
+		return asPromise(async () => {
+			const provider = this.getConfigProviderByHandle(configProviderHandle);
+			if (!provider) {
+				throw new Error('no DebugConfigurationProvider found');
+			}
+			if (!provider.debugAdapterExecutable) {
+				throw new Error('DebugConfigurationProvider has no method debugAdapterExecutable');
+			}
+			const folder = await this.getFolder(folderUri);
+			return provider.debugAdapterExecutable(folder, CancellationToken.None);
+		}).then(executable => {
+			if (!executable) {
+				throw new Error('nothing returned from DebugConfigurationProvider.debugAdapterExecutable');
+			}
+			return this.convertToDto(executable);
+		});
 	}
 
 	public async $provideDebugAdapter(adapterProviderHandle: number, sessionDto: IDebugSessionDto): Promise<IAdapterDescriptor> {
@@ -629,7 +650,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 	// private & dto helpers
 
-	private convertToDto(x: vscode.DebugAdapterDescriptor): IAdapterDescriptor {
+	private convertToDto(x: vscode.DebugAdapterDescriptor | undefined): IAdapterDescriptor {
 		if (x instanceof DebugAdapterExecutable) {
 			return <IDebugAdapterExecutable>{
 				type: 'executable',
@@ -649,11 +670,11 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 				implementation: x.implementation
 			};
 		} else */ {
-			throw new Error('unexpected type');
+			throw new Error('convertToDto unexpected type');
 		}
 	}
 
-	private getAdapterFactoryByType(type: string): vscode.DebugAdapterDescriptorFactory {
+	private getAdapterFactoryByType(type: string): vscode.DebugAdapterDescriptorFactory | undefined {
 		const results = this._adapterFactories.filter(p => p.type === type);
 		if (results.length > 0) {
 			return results[0].factory;
@@ -661,7 +682,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		return undefined;
 	}
 
-	private getAdapterProviderByHandle(handle: number): vscode.DebugAdapterDescriptorFactory {
+	private getAdapterProviderByHandle(handle: number): vscode.DebugAdapterDescriptorFactory | undefined {
 		const results = this._adapterFactories.filter(p => p.handle === handle);
 		if (results.length > 0) {
 			return results[0].factory;
@@ -669,7 +690,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		return undefined;
 	}
 
-	private getConfigProviderByHandle(handle: number): vscode.DebugConfigurationProvider {
+	private getConfigProviderByHandle(handle: number): vscode.DebugConfigurationProvider | undefined {
 		const results = this._configProviders.filter(p => p.handle === handle);
 		if (results.length > 0) {
 			return results[0].provider;
@@ -694,18 +715,18 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		return false;
 	}
 
-	private getDebugAdapterTrackers(session: ExtHostDebugSession): Promise<vscode.DebugAdapterTracker> {
+	private getDebugAdapterTrackers(session: ExtHostDebugSession): Promise<vscode.DebugAdapterTracker | undefined> {
 
 		const config = session.configuration;
 		const type = config.type;
 
 		const promises = this._trackerFactories
 			.filter(tuple => tuple.type === type || tuple.type === '*')
-			.map(tuple => asPromise(() => tuple.factory.createDebugAdapterTracker(session)).then(p => p).catch(err => null));
+			.map(tuple => asPromise<vscode.ProviderResult<vscode.DebugAdapterTracker>>(() => tuple.factory.createDebugAdapterTracker(session)).then(p => p, err => null));
 
 		return Promise.race([
-			Promise.all(promises).then(trackers => {
-				trackers = trackers.filter(t => t);	// filter null
+			Promise.all(promises).then(result => {
+				const trackers = <vscode.DebugAdapterTracker[]>result.filter(t => !!t);	// filter null
 				if (trackers.length > 0) {
 					return new MultiTracker(trackers);
 				}
@@ -723,7 +744,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		});
 	}
 
-	private async getAdapterDescriptor(adapterProvider: vscode.DebugAdapterDescriptorFactory, session: ExtHostDebugSession): Promise<vscode.DebugAdapterDescriptor> {
+	private async getAdapterDescriptor(adapterProvider: vscode.DebugAdapterDescriptorFactory | undefined, session: ExtHostDebugSession): Promise<vscode.DebugAdapterDescriptor | undefined> {
 
 		// a "debugServer" attribute in the launch config takes precedence
 		const serverPort = session.configuration.debugServer;
@@ -732,16 +753,25 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		}
 
 		// TODO@AW legacy
-		const pairs = this._configProviders.filter(p => p.type === session.type);
-		if (pairs.length > 0) {
-			if (pairs[0].provider.debugAdapterExecutable) {
-				return asPromise(() => pairs[0].provider.debugAdapterExecutable(session.workspaceFolder, CancellationToken.None));
-			}
+		const pair = this._configProviders.filter(p => p.type === session.type).pop();
+		if (pair && pair.provider.debugAdapterExecutable) {
+			const func = pair.provider.debugAdapterExecutable;
+			return asPromise(() => func(session.workspaceFolder, CancellationToken.None)).then(executable => {
+				if (executable) {
+					return executable;
+				}
+				return undefined;
+			});
 		}
 
 		if (adapterProvider) {
 			const extensionRegistry = await this._extensionService.getExtensionRegistry();
-			return asPromise(() => adapterProvider.createDebugAdapterDescriptor(session, this.daExecutableFromPackage(session, extensionRegistry)));
+			return asPromise(() => adapterProvider.createDebugAdapterDescriptor(session, this.daExecutableFromPackage(session, extensionRegistry))).then(daDescriptor => {
+				if (daDescriptor) {
+					return daDescriptor;
+				}
+				return undefined;
+			});
 		}
 
 		// try deprecated command based extension API "adapterExecutableCommand" to determine the executable
@@ -788,7 +818,10 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 	private async getSession(dto: IDebugSessionDto): Promise<ExtHostDebugSession> {
 		if (dto) {
 			if (typeof dto === 'string') {
-				return this._debugSessions.get(dto);
+				const ds = this._debugSessions.get(dto);
+				if (ds) {
+					return ds;
+				}
 			} else {
 				let ds = this._debugSessions.get(dto.id);
 				if (!ds) {
@@ -800,7 +833,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 				return ds;
 			}
 		}
-		return undefined;
+		throw new Error('cannot find session');
 	}
 
 	private getFolder(_folderUri: UriComponents | undefined): Promise<vscode.WorkspaceFolder | undefined> {
@@ -808,7 +841,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 			const folderURI = URI.revive(_folderUri);
 			return this._workspaceService.resolveWorkspaceFolder(folderURI);
 		}
-		return undefined;
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -869,7 +902,7 @@ export class ExtHostVariableResolverService extends AbstractVariableResolverServ
 
 	constructor(folders: vscode.WorkspaceFolder[], editorService: ExtHostDocumentsAndEditors, configurationService: ExtHostConfigProvider) {
 		super({
-			getFolderUri: (folderName: string): URI => {
+			getFolderUri: (folderName: string): URI | undefined => {
 				const found = folders.filter(f => f.name === folderName);
 				if (found && found.length > 0) {
 					return found[0].uri;
@@ -879,7 +912,7 @@ export class ExtHostVariableResolverService extends AbstractVariableResolverServ
 			getWorkspaceFolderCount: (): number => {
 				return folders.length;
 			},
-			getConfigurationValue: (folderUri: URI, section: string) => {
+			getConfigurationValue: (folderUri: URI, section: string): string | undefined => {
 				return configurationService.getConfiguration(undefined, folderUri).get<string>(section);
 			},
 			getExecPath: (): string | undefined => {
@@ -902,14 +935,14 @@ export class ExtHostVariableResolverService extends AbstractVariableResolverServ
 				}
 				return undefined;
 			},
-			getLineNumber: (): string => {
+			getLineNumber: (): string | undefined => {
 				const activeEditor = editorService.activeEditor();
 				if (activeEditor) {
 					return String(activeEditor.selection.end.line + 1);
 				}
 				return undefined;
 			}
-		}, process.env);
+		}, process.env as IProcessEnvironment);
 	}
 }
 

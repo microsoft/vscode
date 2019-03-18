@@ -24,7 +24,7 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 	public _serviceBrand: any;
 
 	constructor(
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 	}
 

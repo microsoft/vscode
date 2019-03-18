@@ -15,8 +15,8 @@ import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
-import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 // we don't (yet) throw when extensions parse
 // uris that have no scheme
