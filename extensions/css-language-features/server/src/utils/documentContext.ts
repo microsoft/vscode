@@ -40,11 +40,15 @@ export function getDocumentContext(documentUri: string, workspaceFolders: Worksp
 					}
 				}
 			}
+			// Following [css-loader](https://github.com/webpack-contrib/css-loader#url)
+			// and [sass-loader's](https://github.com/webpack-contrib/sass-loader#imports)
+			// convention, if an import path starts with ~ then use node module resolution
+			// *unless* it starts with "~/" as this refers to the user's home directory.
 			if (ref[0] === '~' && ref[1] !== '/') {
 				const moduleName = getModuleNameFromPath(ref.substring(1));
 				const modulePath = require.resolve(moduleName, { paths: [base] });
-				const pathInModule = ref.substring(moduleName.length + 2);
-				return url.resolve(modulePath, pathInModule);
+				const pathWithinModule = ref.substring(moduleName.length + 2);
+				return url.resolve(modulePath, pathWithinModule);
 			}
 			return url.resolve(base, ref);
 		},
