@@ -248,6 +248,8 @@ export class RemoteFileDialog {
 			this.updateItems(homedir, trailing);
 			if (trailing) {
 				this.filePickBox.valueSelection = [this.filePickBox.value.length - trailing.length, this.filePickBox.value.length - ext.length];
+			} else {
+				this.filePickBox.valueSelection = [this.filePickBox.value.length, this.filePickBox.value.length];
 			}
 			this.userValue = this.filePickBox.value;
 		});
