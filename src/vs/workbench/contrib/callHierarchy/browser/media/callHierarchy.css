@@ -3,32 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .call-hierarchy-columns .split-view-view .column {
-	height: 100%;
-	/* padding: 0 2px; */
+.monaco-workbench .call-hierarchy .results,
+.monaco-workbench .call-hierarchy .message {
+	display: none;
 }
 
-.monaco-workbench .call-hierarchy-columns .split-view-view:not(:last-child) .column {
-	border-right: solid 1px rgba(128, 128, 128, 0.527);
+.monaco-workbench .call-hierarchy[data-state="data"] .results {
+	display: inherit;
 }
 
-.monaco-workbench .call-hierarchy-columns .monaco-list-row .monaco-icon-label.call {
-	font-weight: 400;
-}
-
-.monaco-workbench .call-hierarchy-columns .monaco-list-row .monaco-icon-label.call::after{
-	content: '▶'; /*todo@joh use octicon*/
-	opacity: 0.2;
-}
-
-.monaco-workbench .call-hierarchy-columns .monaco-list-row.focused.selected .monaco-icon-label.call::after{
-	opacity: 0.5;
-}
-
-.monaco-workbench .call-hierarchy-columns .monaco-list-row .monaco-icon-label.location {
-	padding-left: 4px;
-}
-
-.monaco-workbench .call-hierarchy-columns .monaco-list-row:not(.focused):not(.selected) .monaco-icon-label.location {
-	opacity: 0.7;
+.monaco-workbench .call-hierarchy[data-state="message"] .message {
+	display: inherit;
+	text-align: center;
+	padding-top: 3em;
 }

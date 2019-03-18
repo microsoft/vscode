@@ -5,10 +5,9 @@
 
 import { localize } from 'vs/nls';
 import { CallHierarchyProviderRegistry, CallHierarchyDirection } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { CallHierarchyTreePeekWidget } from 'vs/workbench/contrib/callHierarchy/browser/callHierarchyPeek';
-import { Range } from 'vs/editor/common/core/range';
 import { Event } from 'vs/base/common/event';
 import { registerEditorContribution, registerEditorAction, EditorAction, registerEditorCommand, EditorCommand } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
@@ -77,18 +76,35 @@ class CallHierarchyController extends Disposable implements IEditorContribution 
 			return;
 		}
 
-		const rootItem = await provider.provideCallHierarchyItem(model, position, CancellationToken.None);
-		if (!rootItem) {
-			console.log('no data');
-			return;
-		}
-
 		Event.any<any>(this._editor.onDidChangeModel, this._editor.onDidChangeModelLanguage)(this.endCallHierarchy, this, this._sessionDispose);
-		const widget = this._instantiationService.createInstance(CallHierarchyTreePeekWidget, this._editor, provider, CallHierarchyDirection.CallsTo, rootItem);
-		widget.show(Range.fromPositions(position));
+		const widget = this._instantiationService.createInstance(
+			CallHierarchyTreePeekWidget,
+			this._editor,
+			position,
+			provider,
+			CallHierarchyDirection.CallsTo
+		);
+
+		widget.showLoading();
 		this._ctxIsVisible.set(true);
+
+		const cancel = new CancellationTokenSource();
+
 		this._sessionDispose.push(widget.onDidClose(() => this.endCallHierarchy()));
+		this._sessionDispose.push({ dispose() { cancel.cancel(); } });
 		this._sessionDispose.push(widget);
+
+		Promise.resolve(provider.provideCallHierarchyItem(model, position, cancel.token)).then(item => {
+			if (cancel.token.isCancellationRequested) {
+				return;
+			}
+			if (!item) {
+				widget.showEmpty();
+				return;
+			}
+
+			widget.showItem(item);
+		});
 	}
 
 	endCallHierarchy(): void {

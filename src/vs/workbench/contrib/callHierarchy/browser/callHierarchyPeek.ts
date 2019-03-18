@@ -27,6 +27,7 @@ import { TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationOptions,
 import { registerThemingParticipant, themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { peekViewEditorMatchHighlight } from 'vs/editor/contrib/referenceSearch/referencesWidget';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
+import { IPosition } from 'vs/editor/common/core/position';
 
 registerThemingParticipant((theme, collector) => {
 	const referenceHighlightColor = theme.getColor(peekViewEditorMatchHighlight);
@@ -35,8 +36,16 @@ registerThemingParticipant((theme, collector) => {
 	}
 });
 
+const enum State {
+	Loading = 'loading',
+	Message = 'message',
+	Data = 'data'
+}
+
 export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 
+	private _parent: HTMLElement;
+	private _message: HTMLElement;
 	private _splitView: SplitView;
 	private _tree: WorkbenchAsyncDataTree<CallHierarchyItem, callHTree.Call, FuzzyScore>;
 	private _editor: EmbeddedCodeEditorWidget;
@@ -44,9 +53,9 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 
 	constructor(
 		editor: ICodeEditor,
+		private readonly _where: IPosition,
 		private readonly _provider: CallHierarchyProvider,
 		private readonly _direction: CallHierarchyDirection,
-		private readonly _item: CallHierarchyItem,
 		@IEditorService private readonly _editorService: IEditorService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -62,8 +71,19 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		super.dispose();
 	}
 
-	protected _fillBody(container: HTMLElement): void {
-		addClass(container, 'call-hierarchy');
+	protected _fillBody(parent: HTMLElement): void {
+		this._parent = parent;
+		addClass(parent, 'call-hierarchy');
+
+		const message = document.createElement('div');
+		addClass(message, 'message');
+		parent.appendChild(message);
+		this._message = message;
+
+		const container = document.createElement('div');
+		addClass(container, 'results');
+		parent.appendChild(container);
+
 		this._splitView = new SplitView(container, { orientation: Orientation.HORIZONTAL });
 
 		// editor stuff
@@ -205,14 +225,34 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		});
 	}
 
-	show(where: IRange) {
-		this.editor.revealRangeInCenterIfOutsideViewport(where, ScrollType.Smooth);
-		super.show(where, 16);
-		this.setTitle(localize('title', "Call Hierarchy for '{0}'", this._item.name));
-		this._tree.setInput(this._item).then(() => {
+	showLoading(): void {
+		this._parent.dataset['state'] = State.Loading;
+		this.setTitle(localize('title.loading', "Loading..."));
+		this._show();
+	}
+
+	showEmpty(): void {
+		this._parent.dataset['state'] = State.Message;
+		this.setTitle('');
+		this._message.innerText = localize('empty', "No results");
+		this._show();
+	}
+
+	showItem(item: CallHierarchyItem) {
+		this._parent.dataset['state'] = State.Data;
+		this._tree.setInput(item).then(() => {
 			this._tree.domFocus();
 			this._tree.focusFirst();
+			this.setTitle(localize('title', "Call Hierarchy for '{0}'", item.name));
 		});
+		this._show();
+	}
+
+	private _show() {
+		if (!this._isShowing) {
+			this.editor.revealLineInCenterIfOutsideViewport(this._where.lineNumber, ScrollType.Smooth);
+			super.show(Range.fromPositions(this._where), 17);
+		}
 	}
 
 	protected _onWidth(width: number) {
