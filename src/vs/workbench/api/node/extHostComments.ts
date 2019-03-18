@@ -564,6 +564,8 @@ class ExtHostCommentController implements vscode.CommentController {
 		this._threads.forEach(value => {
 			value.dispose();
 		});
+
+		this._proxy.$unregisterCommentController(this.handle);
 	}
 }
 

@@ -451,6 +451,13 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		this._commentService.setWorkspaceComments(String(handle), []);
 	}
 
+	$unregisterCommentController(handle: number): void {
+		const providerId = this._handlers.get(handle);
+		this._commentService.unregisterCommentController(providerId);
+		this._handlers.delete(handle);
+		this._commentControllers.delete(handle);
+	}
+
 	$updateCommentControllerFeatures(handle: number, features: CommentProviderFeatures): void {
 		let provider = this._commentControllers.get(handle);
 

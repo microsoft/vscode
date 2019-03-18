@@ -45,6 +45,7 @@ export interface ICommentService {
 	setWorkspaceComments(owner: string, commentsByResource: CommentThread[]): void;
 	removeWorkspaceComments(owner: string): void;
 	registerCommentController(owner: string, commentControl: MainThreadCommentController): void;
+	unregisterCommentController(owner: string): void;
 	registerDataProvider(owner: string, commentProvider: DocumentCommentProvider): void;
 	unregisterDataProvider(owner: string): void;
 	updateComments(ownerId: string, event: CommentThreadChangedEvent): void;
@@ -131,6 +132,11 @@ export class CommentService extends Disposable implements ICommentService {
 	registerCommentController(owner: string, commentControl: MainThreadCommentController): void {
 		this._commentControls.set(owner, commentControl);
 		this._onDidSetDataProvider.fire();
+	}
+
+	unregisterCommentController(owner: string): void {
+		this._commentControls.delete(owner);
+		this._onDidDeleteDataProvider.fire(owner);
 	}
 
 	registerDataProvider(owner: string, commentProvider: DocumentCommentProvider): void {
