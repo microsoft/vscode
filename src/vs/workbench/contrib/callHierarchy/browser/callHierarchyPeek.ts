@@ -24,11 +24,10 @@ import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeE
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { TrackedRangeStickiness, IModelDeltaDecoration } from 'vs/editor/common/model';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationOptions, OverviewRulerLane } from 'vs/editor/common/model';
+import { registerThemingParticipant, themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { peekViewEditorMatchHighlight } from 'vs/editor/contrib/referenceSearch/referencesWidget';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
-
 
 registerThemingParticipant((theme, collector) => {
 	const referenceHighlightColor = theme.getColor(peekViewEditorMatchHighlight);
@@ -55,6 +54,13 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 	) {
 		super(editor, { showFrame: true, showArrow: true, isResizeable: true, isAccessible: true });
 		this.create();
+	}
+
+	dispose(): void {
+		super.dispose();
+		this._splitView.dispose();
+		this._tree.dispose();
+		this._editor.dispose();
 	}
 
 	protected _fillBody(container: HTMLElement): void {
@@ -134,9 +140,13 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 
 				localDispose = dispose(localDispose);
 
-				const options = {
+				const options: IModelDecorationOptions = {
 					stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-					className: 'call-decoration'
+					className: 'call-decoration',
+					overviewRuler: {
+						color: themeColorFromId(peekViewEditorMatchHighlight),
+						position: OverviewRulerLane.Center
+					},
 				};
 				let decorations: IModelDeltaDecoration[] = [];
 				let fullRange: IRange | undefined;
@@ -194,13 +204,6 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 				});
 			}
 		});
-	}
-
-	dispose(): void {
-		super.dispose();
-		this._splitView.dispose();
-		this._tree.dispose();
-		this._editor.dispose();
 	}
 
 	show(where: IRange) {

@@ -7,33 +7,96 @@ import { localize } from 'vs/nls';
 import { CallHierarchyProviderRegistry, CallHierarchyDirection } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { CallHierarchyTreePeekWidget, CallHierarchyColumnPeekWidget } from 'vs/workbench/contrib/callHierarchy/browser/callHierarchyPeek';
+import { CallHierarchyTreePeekWidget } from 'vs/workbench/contrib/callHierarchy/browser/callHierarchyPeek';
 import { Range } from 'vs/editor/common/core/range';
 import { Event } from 'vs/base/common/event';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { registerEditorContribution, registerEditorAction, EditorAction } from 'vs/editor/browser/editorExtensions';
+import { registerEditorContribution, registerEditorAction, EditorAction, registerEditorCommand, EditorCommand } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 
-const _hasCompletionItemProvider = new RawContextKey<boolean>('editorHasCallHierarchyProvider', false);
+const _ctxHasCompletionItemProvider = new RawContextKey<boolean>('editorHasCallHierarchyProvider', false);
+const _ctxCallHierarchyVisible = new RawContextKey<boolean>('callHierarchyVisible', false);
 
-registerEditorContribution(class extends Disposable implements IEditorContribution {
+class CallHierarchyController extends Disposable implements IEditorContribution {
+
+	static Id = 'callHierarchy';
+
+	static get(editor: ICodeEditor): CallHierarchyController {
+		return editor.getContribution<CallHierarchyController>(CallHierarchyController.Id);
+	}
+
+	private readonly _ctxHasProvider: IContextKey<boolean>;
+	private readonly _ctxIsVisible: IContextKey<boolean>;
+
+	private _sessionDispose: IDisposable[] = [];
+
 	constructor(
-		editor: ICodeEditor
+		private readonly _editor: ICodeEditor,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
-		const context = editor.invokeWithinContext(accssor => _hasCompletionItemProvider.bindTo(accssor.get(IContextKeyService)));
-		this._register(Event.any<any>(editor.onDidChangeModel, editor.onDidChangeModelLanguage, CallHierarchyProviderRegistry.onDidChange)(() => {
-			context.set(editor.hasModel() && CallHierarchyProviderRegistry.has(editor.getModel()));
+
+		this._ctxIsVisible = _ctxCallHierarchyVisible.bindTo(this._contextKeyService);
+		this._ctxHasProvider = _ctxHasCompletionItemProvider.bindTo(this._contextKeyService);
+		this._register(Event.any<any>(_editor.onDidChangeModel, _editor.onDidChangeModelLanguage, CallHierarchyProviderRegistry.onDidChange)(() => {
+			this._ctxHasProvider.set(_editor.hasModel() && CallHierarchyProviderRegistry.has(_editor.getModel()));
 		}));
+
+		this._register({ dispose: () => dispose(this._sessionDispose) });
 	}
+
+	dispose(): void {
+		this._ctxHasProvider.reset();
+		this._ctxIsVisible.reset();
+		super.dispose();
+	}
+
 	getId(): string {
-		return 'callhierarch.contextkey';
+		return CallHierarchyController.Id;
 	}
-});
+
+	async startCallHierarchy(): Promise<void> {
+		this._sessionDispose = dispose(this._sessionDispose);
+
+		if (!this._editor.hasModel()) {
+			return;
+		}
+
+		const model = this._editor.getModel();
+		const position = this._editor.getPosition();
+		const [provider] = CallHierarchyProviderRegistry.ordered(model);
+		if (!provider) {
+			console.log('no provider');
+			return;
+		}
+
+		const rootItem = await provider.provideCallHierarchyItem(model, position, CancellationToken.None);
+		if (!rootItem) {
+			console.log('no data');
+			return;
+		}
+
+		Event.any<any>(this._editor.onDidChangeModel, this._editor.onDidChangeModelLanguage)(this.endCallHierarchy, this, this._sessionDispose);
+		const widget = this._instantiationService.createInstance(CallHierarchyTreePeekWidget, this._editor, provider, CallHierarchyDirection.CallsTo, rootItem);
+		widget.show(Range.fromPositions(position));
+		this._ctxIsVisible.set(true);
+		this._sessionDispose.push(widget);
+	}
+
+	endCallHierarchy(): void {
+		this._sessionDispose = dispose(this._sessionDispose);
+		this._ctxIsVisible.set(false);
+	}
+}
+
+registerEditorContribution(CallHierarchyController);
 
 registerEditorAction(class extends EditorAction {
 
@@ -46,44 +109,35 @@ registerEditorAction(class extends EditorAction {
 				group: 'navigation',
 				order: 111
 			},
-			precondition: _hasCompletionItemProvider
+			kbOpts: {
+				kbExpr: EditorContextKeys.editorTextFocus,
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.Shift + KeyMod.Alt + KeyCode.KEY_H
+			},
+			precondition: _ctxHasCompletionItemProvider
 		});
 	}
 
-	async run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): Promise<void> {
+	async run(_accessor: ServicesAccessor, editor: ICodeEditor, args: any): Promise<void> {
+		return CallHierarchyController.get(editor).startCallHierarchy();
+	}
+});
 
-		const instaService = accessor.get(IInstantiationService);
-		const configService = accessor.get(IConfigurationService);
 
-		if (!editor || !editor.hasModel()) {
-			console.log('bad editor');
-			return;
-		}
+registerEditorCommand(new class extends EditorCommand {
 
-		const [provider] = CallHierarchyProviderRegistry.ordered(editor.getModel());
-		if (!provider) {
-			console.log('no provider');
-			return;
-		}
-
-		const rootItem = await provider.provideCallHierarchyItem(editor.getModel(), editor.getPosition(), CancellationToken.None);
-		if (!rootItem) {
-			console.log('no data');
-			return;
-		}
-
-		let mode = configService.getValue<'tree' | 'columns'>('callHierarchy.mode');
-		let widget: CallHierarchyTreePeekWidget | CallHierarchyColumnPeekWidget;
-		if (mode === 'columns') {
-			widget = instaService.createInstance(CallHierarchyColumnPeekWidget, editor, provider, CallHierarchyDirection.CallsTo, rootItem);
-		} else {
-			widget = instaService.createInstance(CallHierarchyTreePeekWidget, editor, provider, CallHierarchyDirection.CallsTo, rootItem);
-		}
-
-		const listener = Event.any<any>(editor.onDidChangeModel, editor.onDidChangeModelLanguage)(_ => widget.dispose());
-		widget.show(Range.fromPositions(editor.getPosition()));
-		widget.onDidClose(() => {
-			listener.dispose();
+	constructor() {
+		super({
+			id: 'editor.closeCallHierarchy',
+			kbOpts: {
+				weight: KeybindingWeight.WorkbenchContrib + 10,
+				primary: KeyCode.Escape
+			},
+			precondition: _ctxCallHierarchyVisible
 		});
+	}
+
+	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor): void {
+		return CallHierarchyController.get(editor).endCallHierarchy();
 	}
 });
