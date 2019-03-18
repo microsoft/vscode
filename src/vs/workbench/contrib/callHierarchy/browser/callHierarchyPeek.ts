@@ -11,14 +11,13 @@ import { CallHierarchyItem, CallHierarchyProvider, CallHierarchyDirection } from
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { FuzzyScore } from 'vs/base/common/filters';
 import * as callHTree from 'vs/workbench/contrib/callHierarchy/browser/callHierarchyTree';
-import * as callHList from 'vs/workbench/contrib/callHierarchy/browser/callHierarchyList';
 import { IAsyncDataTreeOptions } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { localize } from 'vs/nls';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { SplitView, Orientation, Sizing } from 'vs/base/browser/ui/splitview/splitview';
 import { Dimension, addClass } from 'vs/base/browser/dom';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -57,10 +56,10 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 	}
 
 	dispose(): void {
-		super.dispose();
 		this._splitView.dispose();
 		this._tree.dispose();
 		this._editor.dispose();
+		super.dispose();
 	}
 
 	protected _fillBody(container: HTMLElement): void {
@@ -214,119 +213,6 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 			this._tree.domFocus();
 			this._tree.focusFirst();
 		});
-	}
-
-	protected _onWidth(width: number) {
-		if (this._dim) {
-			this._doLayoutBody(this._dim.height, width);
-		}
-	}
-
-	protected _doLayoutBody(height: number, width: number): void {
-		super._doLayoutBody(height, width);
-		this._dim = { height, width };
-		this._splitView.layout(width);
-	}
-}
-
-export class CallHierarchyColumnPeekWidget extends PeekViewWidget {
-
-	private readonly _emitter = new Emitter<{ column: callHList.CallColumn, element: callHList.ListElement, focus: boolean }>();
-	private _splitView: SplitView;
-	private _dim: Dimension;
-
-	constructor(
-		editor: ICodeEditor,
-		private readonly _provider: CallHierarchyProvider,
-		private readonly _direction: CallHierarchyDirection,
-		private readonly _root: CallHierarchyItem,
-		@IEditorService private readonly _editorService: IEditorService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-	) {
-		super(editor, { showFrame: true, showArrow: true, isResizeable: true, isAccessible: true });
-		this.create();
-	}
-
-	dispose(): void {
-		super.dispose();
-		this._splitView.dispose();
-		this._emitter.dispose();
-	}
-
-	protected _fillBody(container: HTMLElement): void {
-		addClass(container, 'call-hierarchy-columns');
-
-		this._splitView = new SplitView(container, { orientation: Orientation.HORIZONTAL });
-		this._emitter.event(e => {
-			const { element, column, focus } = e;
-
-			// remove old
-			while (column.index + 1 < this._splitView.length) {
-				this._splitView.removeView(this._splitView.length - 1);
-			}
-			const getDim = () => this._dim || { height: undefined, width: undefined };
-
-			// add new
-			if (element instanceof callHTree.Call) {
-				let newColumn = this._instantiationService.createInstance(
-					callHList.CallColumn,
-					column.index + 1,
-					element,
-					this._provider,
-					this._direction,
-					this._emitter,
-					getDim
-				);
-				this._disposables.push(newColumn);
-				this._splitView.addView(newColumn, Sizing.Distribute);
-
-				if (!focus) {
-					setTimeout(() => newColumn.focus());
-				}
-
-				let parts = this._splitView.items.map(column => column instanceof callHList.CallColumn ? column.root.item.name : undefined).filter(e => Boolean(e));
-				this.setTitle(localize('title', "Call Hierarchy for '{0}'", parts.join(' > ')));
-
-			} else {
-
-				if (!focus) {
-					this.dispose();
-					this._editorService.openEditor({
-						resource: element.uri,
-						options: { selection: element.range }
-					});
-				} else {
-					let newColumn = this._instantiationService.createInstance(
-						callHList.LocationColumn,
-						element,
-						getDim,
-						this.editor
-					);
-					this._disposables.push(newColumn);
-					this._splitView.addView(newColumn, Sizing.Distribute);
-				}
-			}
-		});
-	}
-
-	show(where: IRange) {
-		this.editor.revealRangeInCenterIfOutsideViewport(where, ScrollType.Smooth);
-		super.show(where, 16);
-		this.setTitle(localize('title', "Call Hierarchy for '{0}'", this._root.name));
-
-		// add root items...
-		const item = this._instantiationService.createInstance(
-			callHList.CallColumn,
-			0,
-			new callHTree.Call(this._direction, this._root, []),
-			this._provider,
-			this._direction,
-			this._emitter,
-			() => this._dim || { height: undefined, width: undefined }
-		);
-		this._disposables.push(item);
-		this._splitView.addView(item, item.minimumSize);
-		setTimeout(() => item.focus());
 	}
 
 	protected _onWidth(width: number) {
