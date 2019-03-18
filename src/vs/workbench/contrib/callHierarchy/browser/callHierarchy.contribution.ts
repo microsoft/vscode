@@ -87,12 +87,14 @@ class CallHierarchyController extends Disposable implements IEditorContribution 
 		const widget = this._instantiationService.createInstance(CallHierarchyTreePeekWidget, this._editor, provider, CallHierarchyDirection.CallsTo, rootItem);
 		widget.show(Range.fromPositions(position));
 		this._ctxIsVisible.set(true);
+		this._sessionDispose.push(widget.onDidClose(() => this.endCallHierarchy()));
 		this._sessionDispose.push(widget);
 	}
 
 	endCallHierarchy(): void {
 		this._sessionDispose = dispose(this._sessionDispose);
 		this._ctxIsVisible.set(false);
+		this._editor.focus();
 	}
 }
 
