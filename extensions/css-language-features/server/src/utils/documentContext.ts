@@ -16,6 +16,14 @@ function getModuleNameFromPath(path: string) {
 	return path.substring(0, path.indexOf('/'));
 }
 
+function resolvePathToModule(moduleName: string, relativeTo: string) {
+	// if we require.resolve('my-module') then it will follow the main property in the linked package.json
+	// but we want the root of the module so resolve to the package.json and then trim
+	return require
+		.resolve(`${moduleName}/package.json`, { paths: [relativeTo] })
+		.slice(0, -12); // remove trailing `package.json`
+}
+
 export function getDocumentContext(documentUri: string, workspaceFolders: WorkspaceFolder[]): DocumentContext {
 	function getRootFolder(): string | undefined {
 		for (let folder of workspaceFolders) {
@@ -46,7 +54,7 @@ export function getDocumentContext(documentUri: string, workspaceFolders: Worksp
 			// *unless* it starts with "~/" as this refers to the user's home directory.
 			if (ref[0] === '~' && ref[1] !== '/') {
 				const moduleName = getModuleNameFromPath(ref.substring(1));
-				const modulePath = require.resolve(moduleName, { paths: [base] });
+				const modulePath = resolvePathToModule(moduleName, base);
 				const pathWithinModule = ref.substring(moduleName.length + 2);
 				return url.resolve(modulePath, pathWithinModule);
 			}
