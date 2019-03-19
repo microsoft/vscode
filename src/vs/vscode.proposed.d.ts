@@ -16,6 +16,46 @@
 
 declare module 'vscode' {
 
+	//#region Joh - call hierarchy
+
+	export enum CallHierarchyDirection {
+		CallsFrom = 1,
+		CallsTo = 2,
+	}
+
+	export class CallHierarchyItem {
+		kind: SymbolKind;
+		name: string;
+		detail?: string;
+		uri: Uri;
+		range: Range;
+		selectionRange: Range;
+
+		constructor(kind: SymbolKind, name: string, detail: string, uri: Uri, range: Range, selectionRange: Range);
+	}
+
+	export interface CallHierarchyItemProvider {
+
+		provideCallHierarchyItem(
+			document: TextDocument,
+			postion: Position,
+			token: CancellationToken
+		): ProviderResult<CallHierarchyItem>;
+
+		resolveCallHierarchyItem(
+			item: CallHierarchyItem,
+			direction: CallHierarchyDirection,
+			token: CancellationToken
+		): ProviderResult<[CallHierarchyItem, Location[]][]>;
+	}
+
+	export namespace languages {
+		export function registerCallHierarchyProvider(selector: DocumentSelector, provider: CallHierarchyItemProvider): Disposable;
+	}
+
+	//#endregion
+
+
 	//#region Alex - resolvers
 
 	export class ResolvedAuthority {

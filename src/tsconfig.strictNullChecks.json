@@ -13,6 +13,7 @@
 		"./vs/workbench/common/**/*",
 		"./vs/workbench/browser/**/*",
 		"./vs/workbench/electron-browser/**/*",
+		"./vs/workbench/contrib/callHierarchy/**/*",
 		"./vs/workbench/contrib/emmet/**/*",
 		"./vs/workbench/contrib/extensions/**/*",
 		"./vs/workbench/contrib/externalTerminal/**/*",

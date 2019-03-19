@@ -357,6 +357,10 @@ export function createApiFactory(
 			registerSelectionRangeProvider(selector: vscode.DocumentSelector, provider: vscode.SelectionRangeProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerSelectionRangeProvider(extension, selector, provider);
 			},
+			registerCallHierarchyProvider(selector: vscode.DocumentSelector, provider: vscode.CallHierarchyItemProvider): vscode.Disposable {
+				checkProposedApiEnabled(extension);
+				return extHostLanguageFeatures.registerCallHierarchyProvider(extension, selector, provider);
+			},
 			setLanguageConfiguration: (language: string, configuration: vscode.LanguageConfiguration): vscode.Disposable => {
 				return extHostLanguageFeatures.setLanguageConfiguration(language, configuration);
 			}
@@ -831,7 +835,9 @@ export function createApiFactory(
 			Uri: URI,
 			ViewColumn: extHostTypes.ViewColumn,
 			WorkspaceEdit: extHostTypes.WorkspaceEdit,
-			// functions
+			// proposed
+			CallHierarchyDirection: extHostTypes.CallHierarchyDirection,
+			CallHierarchyItem: extHostTypes.CallHierarchyItem
 		};
 	};
 }

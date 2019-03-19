@@ -46,6 +46,7 @@ import { ResolvedAuthority } from 'vs/platform/remote/common/remoteAuthorityReso
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IRemoteConsoleLog } from 'vs/base/node/console';
 import * as codeInset from 'vs/workbench/contrib/codeinset/common/codeInset';
+import * as callHierarchy from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -337,6 +338,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerDocumentColorProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$registerFoldingRangeProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$registerSelectionRangeProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
+	$registerCallHierarchyProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$setLanguageConfiguration(handle: number, languageId: string, configuration: ISerializedLanguageConfiguration): void;
 }
 
@@ -920,6 +922,16 @@ export interface CodeLensDto extends ObjectIdentifier {
 
 export type CodeInsetDto = ObjectIdentifier & codeInset.ICodeInsetSymbol;
 
+export interface CallHierarchyDto {
+	_id: number;
+	kind: modes.SymbolKind;
+	name: string;
+	detail?: string;
+	uri: UriComponents;
+	range: IRange;
+	selectionRange: IRange;
+}
+
 export interface ExtHostLanguageFeaturesShape {
 	$provideDocumentSymbols(handle: number, resource: UriComponents, token: CancellationToken): Promise<modes.DocumentSymbol[] | undefined>;
 	$provideCodeLenses(handle: number, resource: UriComponents, token: CancellationToken): Promise<CodeLensDto[]>;
@@ -952,6 +964,8 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideColorPresentations(handle: number, resource: UriComponents, colorInfo: IRawColorInfo, token: CancellationToken): Promise<modes.IColorPresentation[] | undefined>;
 	$provideFoldingRanges(handle: number, resource: UriComponents, context: modes.FoldingContext, token: CancellationToken): Promise<modes.FoldingRange[] | undefined>;
 	$provideSelectionRanges(handle: number, resource: UriComponents, positions: IPosition[], token: CancellationToken): Promise<modes.SelectionRange[][]>;
+	$provideCallHierarchyItem(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<CallHierarchyDto | undefined>;
+	$resolveCallHierarchyItem(handle: number, item: callHierarchy.CallHierarchyItem, direction: callHierarchy.CallHierarchyDirection, token: CancellationToken): Promise<[CallHierarchyDto, modes.Location[]][]>;
 }
 
 export interface ExtHostQuickOpenShape {
