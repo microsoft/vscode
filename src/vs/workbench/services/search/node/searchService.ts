@@ -29,6 +29,7 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { SearchChannelClient } from './searchIpc';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 
 export class SearchService extends Disposable implements ISearchService {
 	_serviceBrand: any;
@@ -374,11 +375,8 @@ export class SearchService extends Disposable implements ISearchService {
 					}
 				}
 
-				// Don't support other resource schemes than files for now
-				// todo@remote
-				// why is that? we should search for resources from other
-				// schemes
-				else if (resource.scheme !== Schemas.file) {
+				// Block walkthrough, webview, etc.
+				else if (resource.scheme !== Schemas.file && resource.scheme !== REMOTE_HOST_SCHEME) {
 					return;
 				}
 
