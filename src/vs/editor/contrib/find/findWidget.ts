@@ -764,16 +764,12 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			appendWholeWordsLabel: this._keybindingLabelFor(FIND_IDS.ToggleWholeWordCommand),
 			appendRegexLabel: this._keybindingLabelFor(FIND_IDS.ToggleRegexCommand),
 			validation: (value: string): InputBoxMessage | null => {
-				if (value.length === 0) {
-					return null;
-				}
-				if (!this._findInput.getRegex()) {
+				if (value.length === 0 || !this._findInput.getRegex()) {
 					return null;
 				}
 				try {
-					/* tslint:disable:no-unused-expression */
+					/* tslint:disable-next-line:no-unused-expression */
 					new RegExp(value);
-					/* tslint:enable:no-unused-expression */
 					return null;
 				} catch (e) {
 					return { content: e.message };
