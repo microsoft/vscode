@@ -10,7 +10,7 @@ import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import commonSchema from './jsonSchemaCommon';
 
 import { ProblemMatcherRegistry } from 'vs/workbench/contrib/tasks/common/problemMatcher';
-import { TaskDefinitionRegistry } from '../common/taskDefinitionRegistry';
+import { TaskDefinitionRegistry } from './taskDefinitionRegistry';
 import * as ConfigurationResolverUtils from 'vs/workbench/services/configurationResolver/common/configurationResolverUtils';
 import { inputsSchema } from 'vs/workbench/services/configurationResolver/common/configurationResolverSchema';
 
