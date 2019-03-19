@@ -31,6 +31,9 @@ gulp.task('mixin', function () {
 
 	const url = `https://github.com/${repo}.git`;
 
+	cp.execSync(`git config user.email "vscode@microsoft.com"`);
+	cp.execSync(`git config user.name "VSCode"`);
+
 	cp.execSync(`git remote add distro ${url}`);
 	cp.execSync(`git fetch distro`);
 	cp.execSync(`git merge ${pkg.distro}`);
