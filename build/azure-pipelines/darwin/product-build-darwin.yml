@@ -14,7 +14,6 @@ steps:
     machine monacotools.visualstudio.com
     password $(VSO_PAT)
     machine github.com
-    login $(VSCODE_MIXIN_USERNAME)
     password $(VSCODE_MIXIN_PASSWORD)
     EOF
 
