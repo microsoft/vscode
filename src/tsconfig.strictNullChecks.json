@@ -36,6 +36,7 @@
 		"./vs/workbench/contrib/webview/**/*.ts",
 		"./vs/workbench/contrib/preferences/common/**/*.ts",
 		"./vs/workbench/contrib/preferences/**/settings*.ts",
+		"./vs/workbench/contrib/search/**/*.ts",
 		"./vs/workbench/contrib/terminal/**/*"
 	],
 	"files": [

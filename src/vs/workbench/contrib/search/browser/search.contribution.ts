@@ -365,15 +365,15 @@ const searchInFolderCommand: ICommandHandler = (accessor, resource?: URI) => {
 	const panelService = accessor.get(IPanelService);
 	const fileService = accessor.get(IFileService);
 	const configurationService = accessor.get(IConfigurationService);
-	const resources = getMultiSelectedResources(resource, listService, accessor.get(IEditorService));
+	const resources = resource && getMultiSelectedResources(resource, listService, accessor.get(IEditorService));
 
 	return openSearchView(viewletService, panelService, configurationService, true).then(searchView => {
-		if (resources && resources.length) {
+		if (resources && resources.length && searchView) {
 			return fileService.resolveFiles(resources.map(resource => ({ resource }))).then(results => {
 				const folders: URI[] = [];
 
 				results.forEach(result => {
-					if (result.success) {
+					if (result.success && result.stat) {
 						folders.push(result.stat.isDirectory ? result.stat.resource : dirname(result.stat.resource));
 					}
 				});
@@ -414,7 +414,9 @@ CommandsRegistry.registerCommand({
 	id: FIND_IN_WORKSPACE_ID,
 	handler: (accessor) => {
 		return openSearchView(accessor.get(IViewletService), accessor.get(IPanelService), accessor.get(IConfigurationService), true).then(searchView => {
-			searchView.searchInFolders(null);
+			if (searchView) {
+				searchView.searchInFolders();
+			}
 		});
 	}
 });
@@ -456,7 +458,7 @@ class ShowAllSymbolsAction extends Action {
 	run(context?: any): Promise<void> {
 
 		let prefix = ShowAllSymbolsAction.ALL_SYMBOLS_PREFIX;
-		let inputSelection: { start: number; end: number; } = undefined;
+		let inputSelection: { start: number; end: number; } | undefined = undefined;
 		const editor = this.editorService.getFocusedCodeEditor();
 		const word = editor && getSelectionSearchString(editor);
 		if (word) {

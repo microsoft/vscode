@@ -64,7 +64,7 @@ export class SearchPanel extends Panel {
 		super.saveState();
 	}
 
-	getSearchView(): SearchView | null {
+	getSearchView(): SearchView {
 		return this.searchView;
 	}
 }
