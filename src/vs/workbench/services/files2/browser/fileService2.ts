@@ -69,12 +69,10 @@ export class FileService2 extends Disposable implements IFileService {
 	}
 
 	activateProvider(scheme: string): Promise<void> {
-		if (this.provider.has(scheme)) {
-			return Promise.resolve(); // provider is already here! TODO@ben should we still activate by event but not wait for it?
-		}
 
+		// Emit an event that we are about to activate a provider with the given scheme.
+		// Listeners can participate in the activation by registering a provider for it.
 		const joiners: Promise<void>[] = [];
-
 		this._onWillActivateFileSystemProvider.fire({
 			scheme,
 			join(promise) {
@@ -84,6 +82,12 @@ export class FileService2 extends Disposable implements IFileService {
 			},
 		});
 
+		if (this.provider.has(scheme)) {
+			return Promise.resolve(); // provider is already here so we can return directly
+		}
+
+		// If the provider is not yet there, make sure to join on the listeners assuming
+		// that it takes a bit longer to register the file system provider.
 		return Promise.all(joiners).then(() => undefined);
 	}
 

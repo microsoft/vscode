@@ -23,8 +23,11 @@ suite('File Service 2', () => {
 		});
 
 		let registrationDisposable: IDisposable;
+		let callCount = 0;
 		service.onWillActivateFileSystemProvider(e => {
-			if (e.scheme === 'test') {
+			callCount++;
+
+			if (e.scheme === 'test' && callCount === 1) {
 				e.join(new Promise(resolve => {
 					registrationDisposable = service.registerProvider('test', new NullFileSystemProvider());
 
@@ -40,6 +43,10 @@ suite('File Service 2', () => {
 		assert.equal(registrations.length, 1);
 		assert.equal(registrations[0].scheme, 'test');
 		assert.equal(registrations[0].added, true);
+		assert.ok(registrationDisposable);
+
+		await service.activateProvider('test');
+		assert.equal(callCount, 2); // activation is called again
 
 		registrationDisposable.dispose();
 
