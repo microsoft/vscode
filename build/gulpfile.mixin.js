@@ -47,7 +47,7 @@ gulp.task('mixin', function () {
 	try {
 		cp.execSync(`git merge ${pkg.distro}`);
 	} catch (err) {
-		fancyLog(ansiColors.red('[mixin]'), `Failed to merge ${pkg.distro} from distro. Please proceed with manual merge to fix the build.`, ansiColors.red('❌'));
+		fancyLog(ansiColors.red('[mixin] ❌'), `Failed to merge ${pkg.distro} from distro. Please proceed with manual merge to fix the build.`);
 		throw err;
 	}
 
