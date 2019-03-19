@@ -223,6 +223,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/services/files2",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/integrity",
 			"project": "vscode-workbench"
 		},

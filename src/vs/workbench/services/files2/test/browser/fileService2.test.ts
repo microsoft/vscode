@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { FileService2 } from 'vs/workbench/services/files2/browser/fileService2';
+import { FileService2 } from 'vs/workbench/services/files2/common/fileService2';
 import { URI } from 'vs/base/common/uri';
 import { IFileSystemProviderRegistrationEvent } from 'vs/platform/files/common/files';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -22,7 +22,7 @@ suite('File Service 2', () => {
 			registrations.push(e);
 		});
 
-		let registrationDisposable: IDisposable;
+		let registrationDisposable: IDisposable | undefined = undefined;
 		let callCount = 0;
 		service.onWillActivateFileSystemProvider(e => {
 			callCount++;
@@ -48,7 +48,7 @@ suite('File Service 2', () => {
 		await service.activateProvider('test');
 		assert.equal(callCount, 2); // activation is called again
 
-		registrationDisposable.dispose();
+		registrationDisposable!.dispose();
 
 		assert.equal(service.canHandleResource(URI.parse('test://foo/bar')), false);
 

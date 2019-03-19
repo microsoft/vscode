@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, IDisposable, toDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
-import { IFileService, IResolveFileOptions, IResourceEncodings, FileChangesEvent, FileOperationEvent, IFileSystemProviderRegistrationEvent, IFileSystemProvider, IFileStat, IResolveFileResult, IResolveContentOptions, IContent, IStreamContent, ITextSnapshot, IUpdateContentOptions, ICreateFileOptions, IFileSystemProviderActivationEvent } from 'vs/platform/files/common/files';
+import { IFileService, IResolveFileOptions, IResourceEncodings, FileChangesEvent, FileOperationEvent, IFileSystemProviderRegistrationEvent, IFileSystemProvider, IFileStat, IResolveFileResult, IResolveContentOptions, IContent, IStreamContent, ITextSnapshot, IUpdateContentOptions, ICreateFileOptions, IFileSystemProviderActivationEvent, FileOperationError, FileOperationResult, FileOperation, FileSystemProviderCapabilities, FileType } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { Schemas } from 'vs/base/common/network';
+import { isAbsolutePath, dirname, basename, joinPath, isEqual } from 'vs/base/common/resources';
+import { localize } from 'vs/nls';
 
 export class FileService2 extends Disposable implements IFileService {
 
@@ -40,7 +41,7 @@ export class FileService2 extends Disposable implements IFileService {
 
 	registerProvider(scheme: string, provider: IFileSystemProvider): IDisposable {
 		if (this.provider.has(scheme)) {
-			throw new Error('a provider for that scheme is already registered');
+			throw new Error(`A provider for the scheme ${scheme} is already registered.`);
 		}
 
 		let legacyDisposal: IDisposable;
@@ -92,7 +93,33 @@ export class FileService2 extends Disposable implements IFileService {
 	}
 
 	canHandleResource(resource: URI): boolean {
-		return this.provider.has(resource.scheme) || resource.scheme === Schemas.file; // TODO@ben proper file:// registration
+		return this.provider.has(resource.scheme);
+	}
+
+	private async withProvider(resource: URI): Promise<IFileSystemProvider> {
+
+		// Assert path is absolute
+		if (!isAbsolutePath(resource)) {
+			throw new FileOperationError(
+				localize('invalidPath', "The path of resource '{0}' must be absolute", resource.toString(true)),
+				FileOperationResult.FILE_INVALID_PATH
+			);
+		}
+
+		// Activate provider
+		await this.activateProvider(resource.scheme);
+
+		// Assert provider
+		const provider = this.provider.get(resource.scheme);
+		if (!provider) {
+			const err = new Error();
+			err.name = 'ENOPRO';
+			err.message = `no provider for ${resource.toString()}`;
+
+			return Promise.reject(err);
+		}
+
+		return provider;
 	}
 
 	//#endregion
@@ -152,8 +179,46 @@ export class FileService2 extends Disposable implements IFileService {
 		return this._impl.copyFile(source, target, overwrite);
 	}
 
-	createFolder(resource: URI): Promise<IFileStat> {
-		return this._impl.createFolder(resource);
+	async createFolder(resource: URI): Promise<IFileStat> {
+		const provider = this.throwIfFileSystemIsReadonly(await this.withProvider(resource));
+
+		// mkdir recursively
+		await this.mkdirp(provider, resource);
+
+		// events
+		const fileStat = await this.resolveFile(resource);
+		this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, fileStat));
+
+		return fileStat;
+	}
+
+	private async mkdirp(provider: IFileSystemProvider, directory: URI): Promise<void> {
+		const directoriesToCreate: string[] = [];
+
+		// mkdir until we reach root
+		while (!isEqual(directory, dirname(directory))) {
+			try {
+				const stat = await provider.stat(directory);
+				if ((stat.type & FileType.Directory) === 0) {
+					throw new Error(`${directory.toString()} is not a directory`);
+				}
+
+				break; // we have hit a directory -> good
+			} catch (e) {
+
+				// Upon error, remember directories that need to be created
+				directoriesToCreate.push(basename(directory));
+
+				// Continue up
+				directory = dirname(directory);
+			}
+		}
+
+		// Create directories as needed
+		for (let i = directoriesToCreate.length - 1; i >= 0; i--) {
+			directory = joinPath(directory, directoriesToCreate[i]);
+			await provider.mkdir(directory);
+		}
 	}
 
 	del(resource: URI, options?: { useTrash?: boolean; recursive?: boolean; }): Promise<void> {
@@ -173,6 +238,18 @@ export class FileService2 extends Disposable implements IFileService {
 
 	unwatchFileChanges(resource: URI): void {
 		this._impl.unwatchFileChanges(resource);
+	}
+
+	//#endregion
+
+	//#region Helpers
+
+	private throwIfFileSystemIsReadonly(provider: IFileSystemProvider): IFileSystemProvider {
+		if (provider.capabilities & FileSystemProviderCapabilities.Readonly) {
+			throw new FileOperationError(localize('err.readonly', "Resource can not be modified."), FileOperationResult.FILE_PERMISSION_DENIED);
+		}
+
+		return provider;
 	}
 
 	//#endregion

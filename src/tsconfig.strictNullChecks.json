@@ -45,7 +45,8 @@
 		"./vs/workbench/contrib/files/**/*.ts",
 		"./vs/workbench/contrib/webview/**/*.ts",
 		"./vs/workbench/contrib/search/**/*.ts",
-		"./vs/workbench/contrib/terminal/**/*"
+		"./vs/workbench/contrib/terminal/**/*",
+		"./vs/workbench/services/files2/**/*.ts"
 	],
 	"files": [
 		"./vs/monaco.d.ts",
@@ -274,7 +275,6 @@
 		"./vs/workbench/services/extensions/node/rpcProtocol.ts",
 		"./vs/workbench/services/extensions/test/node/rpcProtocol.test.ts",
 		"./vs/workbench/services/files/node/encoding.ts",
-		"./vs/workbench/services/files2/browser/fileService2.ts",
 		"./vs/workbench/services/files/node/fileService.ts",
 		"./vs/workbench/services/files/node/remoteFileService.ts",
 		"./vs/workbench/services/files/node/streams.ts",
