@@ -602,7 +602,7 @@ export class ReviewController implements IEditorContribution {
 						this.processNextThreadToAdd();
 					})
 					.catch(e => {
-						this.notificationService.error(nls.localize('commentThreadAddFailure', "Adding a new comment thread failed failed: {0}.", e.message));
+						this.notificationService.error(nls.localize('commentThreadAddFailure', "Adding a new comment thread failed: {0}.", e.message));
 						this.processNextThreadToAdd();
 					});
 			}
