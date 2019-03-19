@@ -17,7 +17,7 @@ import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFeatures';
 import { MainThreadLanguageFeatures } from 'vs/workbench/api/electron-browser/mainThreadLanguageFeatures';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
-import { MainThreadCommands } from 'vs/workbench/api/electron-browser/mainThreadCommands';
+import { MainThreadCommands } from 'vs/workbench/api/browser/mainThreadCommands';
 import { IHeapService } from 'vs/workbench/api/electron-browser/mainThreadHeapService';
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';

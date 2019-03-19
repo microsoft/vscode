@@ -20,7 +20,7 @@ import { IHeapService } from 'vs/workbench/api/electron-browser/mainThreadHeapSe
 import { ExtHostApiCommands } from 'vs/workbench/api/node/extHostApiCommands';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
-import { MainThreadCommands } from 'vs/workbench/api/electron-browser/mainThreadCommands';
+import { MainThreadCommands } from 'vs/workbench/api/browser/mainThreadCommands';
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
 import { MainContext, ExtHostContext } from 'vs/workbench/api/common/extHost.protocol';

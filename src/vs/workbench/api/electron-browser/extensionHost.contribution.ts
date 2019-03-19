@@ -15,23 +15,23 @@ import { LanguageConfigurationFileHandler } from 'vs/workbench/contrib/codeEdito
 
 // --- mainThread participants
 import 'vs/workbench/api/node/apiCommands';
-import './mainThreadClipboard';
-import './mainThreadCommands';
-import './mainThreadConfiguration';
+import '../browser/mainThreadClipboard';
+import '../browser/mainThreadCommands';
+import '../browser/mainThreadConfiguration';
 import './mainThreadConsole';
 import '../browser/mainThreadDebugService';
-import './mainThreadDecorations';
-import './mainThreadDiagnostics';
-import './mainThreadDialogs';
-import './mainThreadDocumentContentProviders';
+import '../browser/mainThreadDecorations';
+import '../browser/mainThreadDiagnostics';
+import '../browser/mainThreadDialogs';
+import '../browser/mainThreadDocumentContentProviders';
 import './mainThreadDocuments';
 import './mainThreadDocumentsAndEditors';
 import './mainThreadEditor';
 import './mainThreadEditors';
-import './mainThreadErrors';
+import '../browser/mainThreadErrors';
 import './mainThreadExtensionService';
-import './mainThreadFileSystem';
-import './mainThreadFileSystemEventService';
+import '../browser/mainThreadFileSystem';
+import '../browser/mainThreadFileSystemEventService';
 import './mainThreadHeapService';
 import './mainThreadLanguageFeatures';
 import './mainThreadLanguages';
