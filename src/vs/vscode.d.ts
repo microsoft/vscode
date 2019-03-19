@@ -6925,9 +6925,10 @@ declare module 'vscode' {
 		shellPath?: string;
 
 		/**
-		 * Args for the custom shell executable, this does not work on Windows (see #8429)
+		 * Args for the custom shell executable. A string can be used on Windows only which allows
+		 * specifying shell args in [command-line format](https://msdn.microsoft.com/en-au/08dfcab2-eb6e-49a4-80eb-87d4076c98c6).
 		 */
-		shellArgs?: string[];
+		shellArgs?: string[] | string;
 
 		/**
 		 * A path or Uri for the current working directory to be used for the terminal.

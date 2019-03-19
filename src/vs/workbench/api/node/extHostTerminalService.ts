@@ -106,7 +106,7 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 
 	public create(
 		shellPath?: string,
-		shellArgs?: string[],
+		shellArgs?: string[] | string,
 		cwd?: string | URI,
 		env?: { [key: string]: string | null },
 		waitOnExit?: boolean,
