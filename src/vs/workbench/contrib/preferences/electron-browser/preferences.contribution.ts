@@ -227,7 +227,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: (accessor, args: any) => {
 		const control = accessor.get(IEditorService).activeControl as IKeybindingsEditor;
 		if (control && control instanceof KeybindingsEditor) {
-			control.defineKeybinding(control.activeKeybindingEntry);
+			control.defineKeybinding(control.activeKeybindingEntry!);
 		}
 	}
 });
@@ -239,8 +239,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_E),
 	handler: (accessor, args: any) => {
 		const control = accessor.get(IEditorService).activeControl as IKeybindingsEditor;
-		if (control && control instanceof KeybindingsEditor && control.activeKeybindingEntry.keybindingItem.keybinding) {
-			control.defineWhenExpression(control.activeKeybindingEntry);
+		if (control && control instanceof KeybindingsEditor && control.activeKeybindingEntry!.keybindingItem.keybinding) {
+			control.defineWhenExpression(control.activeKeybindingEntry!);
 		}
 	}
 });
@@ -256,7 +256,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: (accessor, args: any) => {
 		const control = accessor.get(IEditorService).activeControl as IKeybindingsEditor;
 		if (control && control instanceof KeybindingsEditor) {
-			control.removeKeybinding(control.activeKeybindingEntry);
+			control.removeKeybinding(control.activeKeybindingEntry!);
 		}
 	}
 });
@@ -269,7 +269,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: (accessor, args: any) => {
 		const control = accessor.get(IEditorService).activeControl as IKeybindingsEditor;
 		if (control && control instanceof KeybindingsEditor) {
-			control.resetKeybinding(control.activeKeybindingEntry);
+			control.resetKeybinding(control.activeKeybindingEntry!);
 		}
 	}
 });
@@ -323,7 +323,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: (accessor, args: any) => {
 		const control = accessor.get(IEditorService).activeControl as IKeybindingsEditor;
 		if (control) {
-			control.showSimilarKeybindings(control.activeKeybindingEntry);
+			control.showSimilarKeybindings(control.activeKeybindingEntry!);
 		}
 	}
 });
@@ -336,7 +336,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: (accessor, args: any) => {
 		const control = accessor.get(IEditorService).activeControl as IKeybindingsEditor;
 		if (control) {
-			control.copyKeybinding(control.activeKeybindingEntry);
+			control.copyKeybinding(control.activeKeybindingEntry!);
 		}
 	}
 });
@@ -349,7 +349,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: (accessor, args: any) => {
 		const control = accessor.get(IEditorService).activeControl as IKeybindingsEditor;
 		if (control) {
-			control.copyKeybindingCommand(control.activeKeybindingEntry);
+			control.copyKeybindingCommand(control.activeKeybindingEntry!);
 		}
 	}
 });
