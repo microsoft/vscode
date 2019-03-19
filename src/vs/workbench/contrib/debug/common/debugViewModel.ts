@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { CONTEXT_EXPRESSION_SELECTED, IViewModel, IStackFrame, IDebugSession, IThread, IExpression, IFunctionBreakpoint, CONTEXT_BREAKPOINT_SELECTED, CONTEXT_LOADED_SCRIPTS_SUPPORTED, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_FOCUSED_SESSION_IS_ATTACH } from 'vs/workbench/contrib/debug/common/debug';
+import { CONTEXT_EXPRESSION_SELECTED, IViewModel, IStackFrame, IDebugSession, IThread, IExpression, IFunctionBreakpoint, CONTEXT_BREAKPOINT_SELECTED, CONTEXT_LOADED_SCRIPTS_SUPPORTED, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_RESTART_FRAME_SUPPORTED } from 'vs/workbench/contrib/debug/common/debug';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { isExtensionHostDebugging } from 'vs/workbench/contrib/debug/common/debugUtils';
 
@@ -26,6 +26,7 @@ export class ViewModel implements IViewModel {
 	private loadedScriptsSupportedContextKey: IContextKey<boolean>;
 	private stepBackSupportedContextKey: IContextKey<boolean>;
 	private focusedSessionIsAttach: IContextKey<boolean>;
+	private restartFrameSupportedContextKey: IContextKey<boolean>;
 
 	constructor(contextKeyService: IContextKeyService) {
 		this._onDidFocusSession = new Emitter<IDebugSession | undefined>();
@@ -37,6 +38,7 @@ export class ViewModel implements IViewModel {
 		this.loadedScriptsSupportedContextKey = CONTEXT_LOADED_SCRIPTS_SUPPORTED.bindTo(contextKeyService);
 		this.stepBackSupportedContextKey = CONTEXT_STEP_BACK_SUPPORTED.bindTo(contextKeyService);
 		this.focusedSessionIsAttach = CONTEXT_FOCUSED_SESSION_IS_ATTACH.bindTo(contextKeyService);
+		this.restartFrameSupportedContextKey = CONTEXT_RESTART_FRAME_SUPPORTED.bindTo(contextKeyService);
 	}
 
 	getId(): string {
@@ -65,6 +67,7 @@ export class ViewModel implements IViewModel {
 
 		this.loadedScriptsSupportedContextKey.set(session ? !!session.capabilities.supportsLoadedSourcesRequest : false);
 		this.stepBackSupportedContextKey.set(session ? !!session.capabilities.supportsStepBack : false);
+		this.restartFrameSupportedContextKey.set(session ? !!session.capabilities.supportsRestartFrame : false);
 		const attach = !!session && session.configuration.request === 'attach' && !isExtensionHostDebugging(session.configuration);
 		this.focusedSessionIsAttach.set(attach);
 
