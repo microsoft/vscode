@@ -21,8 +21,7 @@ import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/contrib/sea
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
-import { ExtHostContext, ExtHostWorkspaceShape, IExtHostContext, MainContext, MainThreadWorkspaceShape, IWorkspaceData } from '../common/extHost.protocol';
-import { TextSearchComplete } from 'vscode';
+import { ExtHostContext, ExtHostWorkspaceShape, IExtHostContext, MainContext, MainThreadWorkspaceShape, IWorkspaceData, ITextSearchComplete } from '../common/extHost.protocol';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
 export class MainThreadWorkspace implements MainThreadWorkspaceShape {
@@ -148,7 +147,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		});
 	}
 
-	$startTextSearch(pattern: IPatternInfo, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<TextSearchComplete> {
+	$startTextSearch(pattern: IPatternInfo, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete> {
 		const workspace = this._contextService.getWorkspace();
 		const folders = workspace.folders.map(folder => folder.uri);
 

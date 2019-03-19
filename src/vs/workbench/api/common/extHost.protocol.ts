@@ -39,7 +39,6 @@ import { ExtensionActivationError } from 'vs/workbench/services/extensions/commo
 import { IRPCProtocol, createExtHostContextProxyIdentifier as createExtId, createMainContextProxyIdentifier as createMainId } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { IProgressOptions, IProgressStep } from 'vs/platform/progress/common/progress';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
-import * as vscode from 'vscode';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { ResolvedAuthority } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -302,11 +301,13 @@ export interface ISerializedLanguageConfiguration {
 	};
 }
 
+export type GlobPattern = string | { base: string; pattern: string };
+
 export interface ISerializedDocumentFilter {
 	$serialized: true;
 	language?: string;
 	scheme?: string;
-	pattern?: vscode.GlobPattern;
+	pattern?: GlobPattern;
 	exclusive?: boolean;
 }
 
@@ -464,11 +465,20 @@ export interface TransferInputBox extends BaseTransferQuickInput {
 	validationMessage?: string;
 }
 
+export interface IInputBoxOptions {
+	value?: string;
+	valueSelection?: [number, number];
+	prompt?: string;
+	placeHolder?: string;
+	password?: boolean;
+	ignoreFocusOut?: boolean;
+}
+
 export interface MainThreadQuickOpenShape extends IDisposable {
 	$show(instance: number, options: quickInput.IPickOptions<TransferQuickPickItems>, token: CancellationToken): Promise<number | number[] | undefined>;
 	$setItems(instance: number, items: TransferQuickPickItems[]): Promise<void>;
 	$setError(instance: number, error: Error): Promise<void>;
-	$input(options: vscode.InputBoxOptions | undefined, validateInput: boolean, token: CancellationToken): Promise<string>;
+	$input(options: IInputBoxOptions | undefined, validateInput: boolean, token: CancellationToken): Promise<string>;
 	$createOrUpdate(params: TransferQuickInput): Promise<void>;
 	$dispose(id: number): Promise<void>;
 }
@@ -496,16 +506,27 @@ export interface WebviewPanelShowOptions {
 	readonly preserveFocus?: boolean;
 }
 
+export interface IWebviewPanelOptions {
+	readonly enableFindWidget?: boolean;
+	readonly retainContextWhenHidden?: boolean;
+}
+
+export interface IWebviewOptions {
+	readonly enableScripts?: boolean;
+	readonly enableCommandUris?: boolean;
+	readonly localResourceRoots?: ReadonlyArray<UriComponents>;
+}
+
 export interface MainThreadWebviewsShape extends IDisposable {
-	$createWebviewPanel(handle: WebviewPanelHandle, viewType: string, title: string, showOptions: WebviewPanelShowOptions, options: vscode.WebviewPanelOptions & vscode.WebviewOptions, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): void;
-	$createWebviewCodeInset(handle: WebviewInsetHandle, symbolId: string, options: vscode.WebviewOptions, extensionLocation: UriComponents | undefined): void;
+	$createWebviewPanel(handle: WebviewPanelHandle, viewType: string, title: string, showOptions: WebviewPanelShowOptions, options: IWebviewPanelOptions & IWebviewOptions, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): void;
+	$createWebviewCodeInset(handle: WebviewInsetHandle, symbolId: string, options: IWebviewOptions, extensionLocation: UriComponents | undefined): void;
 	$disposeWebview(handle: WebviewPanelHandle): void;
 	$reveal(handle: WebviewPanelHandle, showOptions: WebviewPanelShowOptions): void;
 	$setTitle(handle: WebviewPanelHandle, value: string): void;
 	$setIconPath(handle: WebviewPanelHandle, value: { light: UriComponents, dark: UriComponents } | undefined): void;
 
 	$setHtml(handle: WebviewPanelHandle | WebviewInsetHandle, value: string): void;
-	$setOptions(handle: WebviewPanelHandle | WebviewInsetHandle, options: vscode.WebviewOptions): void;
+	$setOptions(handle: WebviewPanelHandle | WebviewInsetHandle, options: IWebviewOptions): void;
 	$postMessage(handle: WebviewPanelHandle | WebviewInsetHandle, value: any): Promise<boolean>;
 
 	$registerSerializer(viewType: string): void;
@@ -522,7 +543,7 @@ export interface ExtHostWebviewsShape {
 	$onMessage(handle: WebviewPanelHandle, message: any): void;
 	$onDidChangeWebviewPanelViewState(handle: WebviewPanelHandle, newState: WebviewPanelViewState): void;
 	$onDidDisposeWebviewPanel(handle: WebviewPanelHandle): Promise<void>;
-	$deserializeWebviewPanel(newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, state: any, position: EditorViewColumn, options: vscode.WebviewOptions): Promise<void>;
+	$deserializeWebviewPanel(newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, state: any, position: EditorViewColumn, options: IWebviewOptions): Promise<void>;
 }
 
 export interface MainThreadUrlsShape extends IDisposable {
@@ -534,9 +555,13 @@ export interface ExtHostUrlsShape {
 	$handleExternalUri(handle: number, uri: UriComponents): Promise<void>;
 }
 
+export interface ITextSearchComplete {
+	limitHit?: boolean;
+}
+
 export interface MainThreadWorkspaceShape extends IDisposable {
 	$startFileSearch(includePattern: string | undefined, includeFolder: UriComponents | undefined, excludePatternOrDisregardExcludes: string | false | undefined, maxResults: number | undefined, token: CancellationToken): Promise<UriComponents[] | undefined>;
-	$startTextSearch(query: search.IPatternInfo, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<vscode.TextSearchComplete>;
+	$startTextSearch(query: search.IPatternInfo, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete>;
 	$checkExists(includes: string[], token: CancellationToken): Promise<boolean>;
 	$saveAll(includeUntitled?: boolean): Promise<boolean>;
 	$updateWorkspaceFolders(extensionName: string, index: number, deleteCount: number, workspaceFoldersToAdd: { uri: UriComponents, name?: string }[]): Promise<void>;
@@ -640,6 +665,13 @@ export interface MainThreadSCMShape extends IDisposable {
 
 export type DebugSessionUUID = string;
 
+export interface IDebugConfiguration {
+	type: string;
+	name: string;
+	request: string;
+	[key: string]: any;
+}
+
 export interface MainThreadDebugServiceShape extends IDisposable {
 	$registerDebugTypes(debugTypes: string[]): void;
 	$sessionCached(sessionID: string): void;
@@ -652,7 +684,7 @@ export interface MainThreadDebugServiceShape extends IDisposable {
 	$unregisterDebugConfigurationProvider(handle: number): void;
 	$unregisterDebugAdapterDescriptorFactory(handle: number): void;
 	$unregisterDebugAdapterTrackerFactory(handle: number): void;
-	$startDebugging(folder: UriComponents | undefined, nameOrConfig: string | vscode.DebugConfiguration, parentSessionID: string | undefined): Promise<boolean>;
+	$startDebugging(folder: UriComponents | undefined, nameOrConfig: string | IDebugConfiguration, parentSessionID: string | undefined): Promise<boolean>;
 	$customDebugAdapterRequest(id: DebugSessionUUID, command: string, args: any): Promise<any>;
 	$appendDebugConsole(value: string): void;
 	$startBreakpointEvents(): void;

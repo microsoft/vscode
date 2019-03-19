@@ -376,7 +376,7 @@
 				]
 			},
 			{
-				"target": "**/vs/workbench/api/common/extHost.protocol.ts",
+				"target": "**/vs/workbench/api/common/**",
 				"restrictions": [
 					"**/vs/base/common/**",
 					"**/vs/platform/*/common/**",
@@ -385,8 +385,7 @@
 					"**/vs/workbench/api/common/**",
 					"**/vs/workbench/common/**",
 					"**/vs/workbench/services/*/common/**",
-					"**/vs/workbench/contrib/*/common/**",
-					"vscode"
+					"**/vs/workbench/contrib/*/common/**"
 				]
 			},
 			{

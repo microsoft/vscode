@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IPickOptions, IInputOptions, IQuickInputService, IQuickInput } from 'vs/platform/quickinput/common/quickInput';
-import { InputBoxOptions } from 'vscode';
-import { ExtHostContext, MainThreadQuickOpenShape, ExtHostQuickOpenShape, TransferQuickPickItems, MainContext, IExtHostContext, TransferQuickInput, TransferQuickInputButton } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, MainThreadQuickOpenShape, ExtHostQuickOpenShape, TransferQuickPickItems, MainContext, IExtHostContext, TransferQuickInput, TransferQuickInputButton, IInputBoxOptions } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { URI } from 'vs/base/common/uri';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -85,7 +84,7 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 
 	// ---- input
 
-	$input(options: InputBoxOptions | undefined, validateInput: boolean, token: CancellationToken): Promise<string> {
+	$input(options: IInputBoxOptions | undefined, validateInput: boolean, token: CancellationToken): Promise<string> {
 		const inputOptions: IInputOptions = Object.create(null);
 
 		if (options) {
