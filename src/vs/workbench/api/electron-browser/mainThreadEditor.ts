@@ -447,7 +447,9 @@ export class MainThreadTextEditor {
 			return false;
 		}
 
-		this._model.pushEOL(opts.setEndOfLine);
+		if (typeof opts.setEndOfLine !== 'undefined') {
+			this._model.pushEOL(opts.setEndOfLine);
+		}
 
 		const transformedEdits = edits.map((edit): IIdentifiedSingleEditOperation => {
 			return {

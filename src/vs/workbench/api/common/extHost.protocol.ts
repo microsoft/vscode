@@ -216,7 +216,7 @@ export interface IUndoStopOptions {
 }
 
 export interface IApplyEditsOptions extends IUndoStopOptions {
-	setEndOfLine: EndOfLineSequence;
+	setEndOfLine?: EndOfLineSequence;
 }
 
 export interface ITextDocumentShowOptions {

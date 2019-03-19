@@ -607,7 +607,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 		});
 
 		return this._proxy.$tryApplyEdits(this._id, editData.documentVersionId, edits, {
-			setEndOfLine: TypeConverters.EndOfLine.from(editData.setEndOfLine),
+			setEndOfLine: editData.setEndOfLine && TypeConverters.EndOfLine.from(editData.setEndOfLine),
 			undoStopBefore: editData.undoStopBefore,
 			undoStopAfter: editData.undoStopAfter
 		});
