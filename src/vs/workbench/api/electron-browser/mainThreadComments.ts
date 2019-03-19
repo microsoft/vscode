@@ -142,11 +142,11 @@ export class MainThreadCommentThread implements modes.CommentThread2 {
 		return this._additionalCommands;
 	}
 
-	set deleteCommand(newCommand: modes.Command) {
+	set deleteCommand(newCommand: modes.Command | undefined) {
 		this._deleteCommand = newCommand;
 	}
 
-	get deleteCommand(): modes.Command {
+	get deleteCommand(): modes.Command | undefined {
 		return this._deleteCommand;
 	}
 
@@ -476,6 +476,9 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 
 	$unregisterCommentController(handle: number): void {
 		const providerId = this._handlers.get(handle);
+		if (typeof providerId !== 'string') {
+			throw new Error('unknown handler');
+		}
 		this._commentService.unregisterCommentController(providerId);
 		this._handlers.delete(handle);
 		this._commentControllers.delete(handle);

@@ -360,6 +360,7 @@
 		"./vs/workbench/test/common/memento.test.ts",
 		"./vs/workbench/test/common/notifications.test.ts",
 		"./vs/workbench/test/electron-browser/api/extHost.api.impl.test.ts",
+		"./vs/workbench/test/electron-browser/api/extHostApiCommands.test.ts",
 		"./vs/workbench/test/electron-browser/api/extHostCommands.test.ts",
 		"./vs/workbench/test/electron-browser/api/extHostConfiguration.test.ts",
 		"./vs/workbench/test/electron-browser/api/extHostDiagnostics.test.ts",
@@ -388,6 +389,8 @@
 		"./vs/workbench/test/electron-browser/api/mock.ts",
 		"./vs/workbench/test/electron-browser/api/testRPCProtocol.ts",
 		"./vs/workbench/test/electron-browser/colorRegistry.releaseTest.ts",
+		"./vs/workbench/test/electron-browser/quickopen.perf.integrationTest.ts",
+		"./vs/workbench/test/electron-browser/textsearch.perf.integrationTest.ts",
 		"./vs/workbench/test/workbenchTestServices.ts"
 	],
 	"exclude": [
