@@ -11,7 +11,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IWorkspaceFolderData } from 'vs/platform/workspace/common/workspace';
-import { MainThreadWorkspace } from 'vs/workbench/api/electron-browser/mainThreadWorkspace';
+import { MainThreadWorkspace } from 'vs/workbench/api/browser/mainThreadWorkspace';
 import { IMainContext, IWorkspaceData, MainContext } from 'vs/workbench/api/common/extHost.protocol';
 import { RelativePattern } from 'vs/workbench/api/node/extHostTypes';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';

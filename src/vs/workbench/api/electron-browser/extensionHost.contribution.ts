@@ -52,8 +52,8 @@ import './mainThreadTerminalService';
 import './mainThreadTreeViews';
 import './mainThreadUrls';
 import './mainThreadWebview';
-import './mainThreadWindow';
-import './mainThreadWorkspace';
+import '../browser/mainThreadWindow';
+import '../browser/mainThreadWorkspace';
 
 export class ExtensionPoints implements IWorkbenchContribution {
 
