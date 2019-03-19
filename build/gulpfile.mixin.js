@@ -10,11 +10,9 @@ const json = require('gulp-json-editor');
 const buffer = require('gulp-buffer');
 const filter = require('gulp-filter');
 const es = require('event-stream');
-const util = require('./lib/util');
-const remote = require('gulp-remote-src');
-const zip = require('gulp-vinyl-zip');
-
+const vfs = require('vinyl-fs');
 const pkg = require('../package.json');
+const cp = require('child_process');
 
 gulp.task('mixin', function () {
 	const repo = process.env['VSCODE_MIXIN_REPO'];
@@ -31,38 +29,24 @@ gulp.task('mixin', function () {
 		return;
 	}
 
-	const url = `https://github.com/${repo}/archive/${pkg.distro}.zip`;
-	const opts = { base: url };
-	const username = process.env['VSCODE_MIXIN_USERNAME'];
-	const password = process.env['VSCODE_MIXIN_PASSWORD'];
+	const url = `https://github.com/${repo}.git`;
 
-	if (username || password) {
-		opts.auth = { user: username || '', pass: password || '' };
-	}
+	cp.execSync(`git remote add distro ${url}`);
+	cp.execSync(`git fetch distro`);
+	cp.execSync(`git merge ${pkg.distro}`);
 
 	console.log('Mixing in sources from \'' + url + '\':');
 
-	let all = remote('', opts)
-		.pipe(zip.src())
-		.pipe(filter(function (f) { return !f.isDirectory(); }))
-		.pipe(util.rebase(1));
+	const productJsonFilter = filter('product.json', { restore: true });
 
-	if (quality) {
-		const productJsonFilter = filter('product.json', { restore: true });
-		const mixin = all
-			.pipe(filter(['quality/' + quality + '/**']))
-			.pipe(util.rebase(2))
-			.pipe(productJsonFilter)
-			.pipe(buffer())
-			.pipe(json(o => Object.assign({}, require('../product.json'), o)))
-			.pipe(productJsonFilter.restore);
-
-		all = es.merge(mixin);
-	}
-
-	return all
+	return vfs
+		.src(`quality/${quality}/**`, { base: `quality/${quality}` })
+		.pipe(productJsonFilter)
+		.pipe(buffer())
+		.pipe(json(o => Object.assign({}, require('../product.json'), o)))
+		.pipe(productJsonFilter.restore)
 		.pipe(es.mapSync(function (f) {
-			console.log(f.relative);
+			console.log('mixin', f.relative);
 			return f;
 		}))
 		.pipe(gulp.dest('.'));
