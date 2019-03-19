@@ -176,7 +176,7 @@ export class SearchService extends Disposable implements ISearchService {
 
 		const fqs = this.groupFolderQueriesByScheme(query);
 		keys(fqs).forEach(scheme => {
-			const schemeFQs = fqs.get(scheme);
+			const schemeFQs = fqs.get(scheme)!;
 			const provider = query.type === QueryType.File ?
 				this.fileSearchProviders.get(scheme) :
 				this.textSearchProviders.get(scheme);
@@ -226,7 +226,7 @@ export class SearchService extends Disposable implements ISearchService {
 			const endToEndTime = e2eSW.elapsed();
 			this.logService.trace(`SearchService#search: ${endToEndTime}ms`);
 			const searchError = deserializeSearchError(err.message);
-			this.sendTelemetry(query, endToEndTime, null, searchError);
+			this.sendTelemetry(query, endToEndTime, undefined, searchError);
 
 			throw searchError;
 		});
@@ -352,8 +352,8 @@ export class SearchService extends Disposable implements ISearchService {
 		}
 	}
 
-	private getLocalResults(query: ITextQuery): ResourceMap<IFileMatch> {
-		const localResults = new ResourceMap<IFileMatch>();
+	private getLocalResults(query: ITextQuery): ResourceMap<IFileMatch | null> {
+		const localResults = new ResourceMap<IFileMatch | null>();
 
 		if (query.type === QueryType.Text) {
 			const models = this.modelService.getModels();
@@ -387,7 +387,7 @@ export class SearchService extends Disposable implements ISearchService {
 				}
 
 				// Use editor API to find matches
-				const matches = model.findMatches(query.contentPattern.pattern, false, query.contentPattern.isRegExp, query.contentPattern.isCaseSensitive, query.contentPattern.isWordMatch ? query.contentPattern.wordSeparators : null, false, query.maxResults);
+				const matches = model.findMatches(query.contentPattern.pattern, false, !!query.contentPattern.isRegExp, !!query.contentPattern.isCaseSensitive, query.contentPattern.isWordMatch ? query.contentPattern.wordSeparators! : null, false, query.maxResults);
 				if (matches.length) {
 					const fileMatch = new FileMatch(resource);
 					localResults.set(resource, fileMatch);
