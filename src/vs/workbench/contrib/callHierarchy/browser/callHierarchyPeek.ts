@@ -25,7 +25,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationOptions, OverviewRulerLane } from 'vs/editor/common/model';
 import { registerThemingParticipant, themeColorFromId, IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
-import { peekViewEditorMatchHighlight, peekViewBorder, peekViewTitleBackground, peekViewTitleForeground, peekViewTitleInfoForeground } from 'vs/editor/contrib/referenceSearch/referencesWidget';
+import * as referencesWidget from 'vs/editor/contrib/referenceSearch/referencesWidget';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Action } from 'vs/base/common/actions';
@@ -33,13 +33,6 @@ import { IActionBarOptions, ActionsOrientation } from 'vs/base/browser/ui/action
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { Color } from 'vs/base/common/color';
-
-registerThemingParticipant((theme, collector) => {
-	const referenceHighlightColor = theme.getColor(peekViewEditorMatchHighlight);
-	if (referenceHighlightColor) {
-		collector.addRule(`.monaco-editor .call-hierarchy .call-decoration { background-color: ${referenceHighlightColor}; }`);
-	}
-});
 
 const enum State {
 	Loading = 'loading',
@@ -129,13 +122,13 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 	}
 
 	private _applyTheme(theme: ITheme) {
-		const borderColor = theme.getColor(peekViewBorder) || Color.transparent;
+		const borderColor = theme.getColor(referencesWidget.peekViewBorder) || Color.transparent;
 		this.style({
 			arrowColor: borderColor,
 			frameColor: borderColor,
-			headerBackgroundColor: theme.getColor(peekViewTitleBackground) || Color.transparent,
-			primaryHeadingColor: theme.getColor(peekViewTitleForeground),
-			secondaryHeadingColor: theme.getColor(peekViewTitleInfoForeground)
+			headerBackgroundColor: theme.getColor(referencesWidget.peekViewTitleBackground) || Color.transparent,
+			primaryHeadingColor: theme.getColor(referencesWidget.peekViewTitleForeground),
+			secondaryHeadingColor: theme.getColor(referencesWidget.peekViewTitleInfoForeground)
 		});
 	}
 
@@ -166,6 +159,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 
 		// editor stuff
 		const editorContainer = document.createElement('div');
+		addClass(editorContainer, 'editor');
 		container.appendChild(editorContainer);
 		let editorOptions: IEditorOptions = {
 			scrollBeyondLastLine: false,
@@ -191,6 +185,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 
 		// tree stuff
 		const treeContainer = document.createElement('div');
+		addClass(treeContainer, 'tree');
 		container.appendChild(treeContainer);
 		const options: IAsyncDataTreeOptions<callHTree.Call, FuzzyScore> = {
 			identityProvider: new callHTree.IdentityProvider(),
@@ -248,7 +243,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 					stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 					className: 'call-decoration',
 					overviewRuler: {
-						color: themeColorFromId(peekViewEditorMatchHighlight),
+						color: themeColorFromId(referencesWidget.peekViewEditorMatchHighlight),
 						position: OverviewRulerLane.Center
 					},
 				};
@@ -384,3 +379,47 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		this._splitView.resizeView(0, width * this._layoutInfo.ratio);
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	const referenceHighlightColor = theme.getColor(referencesWidget.peekViewEditorMatchHighlight);
+	if (referenceHighlightColor) {
+		collector.addRule(`.monaco-editor .call-hierarchy .call-decoration { background-color: ${referenceHighlightColor}; }`);
+	}
+	const referenceHighlightBorder = theme.getColor(referencesWidget.peekViewEditorMatchHighlightBorder);
+	if (referenceHighlightBorder) {
+		collector.addRule(`.monaco-editor .call-hierarchy .call-decoration { border: 2px solid ${referenceHighlightBorder}; box-sizing: border-box; }`);
+	}
+	const resultsBackground = theme.getColor(referencesWidget.peekViewResultsBackground);
+	if (resultsBackground) {
+		collector.addRule(`.monaco-editor .call-hierarchy .tree { background-color: ${resultsBackground}; }`);
+	}
+	const resultsMatchForeground = theme.getColor(referencesWidget.peekViewResultsFileForeground);
+	if (resultsMatchForeground) {
+		collector.addRule(`.monaco-editor .call-hierarchy .tree { color: ${resultsMatchForeground}; }`);
+	}
+	const resultsSelectedBackground = theme.getColor(referencesWidget.peekViewResultsSelectionBackground);
+	if (resultsSelectedBackground) {
+		collector.addRule(`.monaco-editor .call-hierarchy .tree .monaco-list:focus .monaco-list-rows > .monaco-list-row.selected:not(.highlighted) { background-color: ${resultsSelectedBackground}; }`);
+	}
+	const resultsSelectedForeground = theme.getColor(referencesWidget.peekViewResultsSelectionForeground);
+	if (resultsSelectedForeground) {
+		collector.addRule(`.monaco-editor .call-hierarchy .tree .monaco-list:focus .monaco-list-rows > .monaco-list-row.selected:not(.highlighted) { color: ${resultsSelectedForeground} !important; }`);
+	}
+	const editorBackground = theme.getColor(referencesWidget.peekViewEditorBackground);
+	if (editorBackground) {
+		collector.addRule(
+			`.monaco-editor .call-hierarchy .editor .monaco-editor .monaco-editor-background,` +
+			`.monaco-editor .call-hierarchy .editor .monaco-editor .inputarea.ime-input {` +
+			`	background-color: ${editorBackground};` +
+			`}`
+		);
+	}
+	const editorGutterBackground = theme.getColor(referencesWidget.peekViewEditorGutterBackground);
+	if (editorGutterBackground) {
+		collector.addRule(
+			`.monaco-editor .call-hierarchy .editor .monaco-editor .margin {` +
+			`	background-color: ${editorGutterBackground};` +
+			`}`
+		);
+	}
+});

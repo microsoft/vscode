@@ -29,3 +29,11 @@
 .hc-dark .monaco-workbench .call-hierarchy-toggle {
 	background-image: url(CallerOrCalleeView_16x_dark.svg);
 }
+
+.monaco-workbench .call-hierarchy .monaco-split-view2.horizontal > .split-view-container > .split-view-view{
+	/* this is a little bizare.. */
+	height: unset;
+}
+.monaco-workbench .call-hierarchy .tree{
+	height: 100%;
+}
