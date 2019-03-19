@@ -352,20 +352,6 @@ export class EditWatchExpressionAction extends AbstractDebugAction {
 	}
 }
 
-export class RemoveWatchExpressionAction extends AbstractDebugAction {
-	static readonly ID = 'workbench.debug.viewlet.action.removeWatchExpression';
-	static LABEL = nls.localize('removeWatchExpression', "Remove Expression");
-
-	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
-		super(id, label, '', debugService, keybindingService);
-	}
-
-	public run(expression: Expression): Promise<any> {
-		this.debugService.removeWatchExpressions(expression.getId());
-		return Promise.resolve();
-	}
-}
-
 export class RemoveAllWatchExpressionsAction extends AbstractDebugAction {
 	static readonly ID = 'workbench.debug.viewlet.action.removeAllWatchExpressions';
 	static LABEL = nls.localize('removeAllWatchExpressions', "Remove All Expressions");

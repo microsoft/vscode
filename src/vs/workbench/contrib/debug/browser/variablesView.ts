@@ -135,7 +135,7 @@ export class VariablesView extends ViewletPanel {
 		if (variable instanceof Variable && !!variable.value) {
 			const actions: IAction[] = [];
 			const session = this.debugService.getViewModel().focusedSession;
-			if (session.capabilities.supportsSetVariable) {
+			if (session && session.capabilities.supportsSetVariable) {
 				actions.push(new Action('workbench.setValue', nls.localize('setValue', "Set Value"), undefined, true, () => {
 					this.debugService.getViewModel().setSelectedExpression(variable);
 					return Promise.resolve();
@@ -144,7 +144,7 @@ export class VariablesView extends ViewletPanel {
 			actions.push(this.instantiationService.createInstance(CopyValueAction, CopyValueAction.ID, CopyValueAction.LABEL, variable, 'variables'));
 			if (variable.evaluateName) {
 				actions.push(new Action('debug.copyEvaluatePath', nls.localize('copyAsExpression', "Copy as Expression"), undefined, true, () => {
-					this.clipboardService.writeText(variable.evaluateName);
+					this.clipboardService.writeText(variable.evaluateName!);
 					return Promise.resolve();
 				}));
 				actions.push(new Separator());
