@@ -5,7 +5,7 @@
 import * as assert from 'assert';
 import { TextEditorLineNumbersStyle, Range } from 'vs/workbench/api/node/extHostTypes';
 import { TextEditorCursorStyle, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
-import { MainThreadTextEditorsShape, IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate } from 'vs/workbench/api/node/extHost.protocol';
+import { MainThreadTextEditorsShape, IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostTextEditorOptions, ExtHostTextEditor } from 'vs/workbench/api/node/extHostTextEditor';
 import { ExtHostDocumentData } from 'vs/workbench/api/node/extHostDocumentData';
 import { URI } from 'vs/base/common/uri';

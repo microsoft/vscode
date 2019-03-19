@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { MainThreadTelemetryShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
+import { MainThreadTelemetryShape, MainContext, IExtHostContext } from '../common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadTelemetry)

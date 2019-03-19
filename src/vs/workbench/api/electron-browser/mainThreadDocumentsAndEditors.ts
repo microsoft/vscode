@@ -20,8 +20,8 @@ import { extHostCustomer } from 'vs/workbench/api/electron-browser/extHostCustom
 import { MainThreadDocuments } from 'vs/workbench/api/electron-browser/mainThreadDocuments';
 import { MainThreadTextEditor } from 'vs/workbench/api/electron-browser/mainThreadEditor';
 import { MainThreadTextEditors } from 'vs/workbench/api/electron-browser/mainThreadEditors';
-import { ExtHostContext, ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta, IExtHostContext, IModelAddedData, ITextEditorAddData, MainContext } from 'vs/workbench/api/node/extHost.protocol';
-import { EditorViewColumn, editorGroupToViewColumn } from 'vs/workbench/api/shared/editor';
+import { ExtHostContext, ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta, IExtHostContext, IModelAddedData, ITextEditorAddData, MainContext } from 'vs/workbench/api/common/extHost.protocol';
+import { EditorViewColumn, editorGroupToViewColumn } from 'vs/workbench/api/common/shared/editor';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { IEditor as IWorkbenchEditor } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';

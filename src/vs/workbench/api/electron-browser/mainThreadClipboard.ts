@@ -5,7 +5,7 @@
 
 import { clipboard } from 'electron';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
-import { MainContext, MainThreadClipboardShape } from '../node/extHost.protocol';
+import { MainContext, MainThreadClipboardShape } from '../common/extHost.protocol';
 
 @extHostNamedCustomer(MainContext.MainThreadClipboard)
 export class MainThreadCommands implements MainThreadClipboardShape {

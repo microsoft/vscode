@@ -5,7 +5,7 @@
 
 import { IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/platform/statusbar/common/statusbar';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { MainThreadStatusBarShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
+import { MainThreadStatusBarShape, MainContext, IExtHostContext } from '../common/extHost.protocol';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';

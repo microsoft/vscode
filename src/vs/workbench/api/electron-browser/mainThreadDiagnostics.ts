@@ -5,7 +5,7 @@
 
 import { IMarkerService, IMarkerData } from 'vs/platform/markers/common/markers';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { MainThreadDiagnosticsShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
+import { MainThreadDiagnosticsShape, MainContext, IExtHostContext } from '../common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadDiagnostics)

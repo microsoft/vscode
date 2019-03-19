@@ -6,7 +6,7 @@
 import { extHostCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IExtHostContext, ExtHostContext } from 'vs/workbench/api/node/extHost.protocol';
+import { IExtHostContext, ExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
 
 @extHostCustomer
 export class MainThreadLogService extends Disposable {

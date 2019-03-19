@@ -21,7 +21,7 @@ import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/contrib/sea
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
-import { ExtHostContext, ExtHostWorkspaceShape, IExtHostContext, MainContext, MainThreadWorkspaceShape, IWorkspaceData } from '../node/extHost.protocol';
+import { ExtHostContext, ExtHostWorkspaceShape, IExtHostContext, MainContext, MainThreadWorkspaceShape, IWorkspaceData } from '../common/extHost.protocol';
 import { TextSearchComplete } from 'vscode';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)

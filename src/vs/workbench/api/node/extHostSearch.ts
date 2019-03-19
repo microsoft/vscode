@@ -15,7 +15,7 @@ import { RipgrepSearchProvider } from 'vs/workbench/services/search/node/ripgrep
 import { OutputChannel } from 'vs/workbench/services/search/node/ripgrepSearchUtils';
 import { TextSearchManager } from 'vs/workbench/services/search/node/textSearchManager';
 import * as vscode from 'vscode';
-import { ExtHostSearchShape, IMainContext, MainContext, MainThreadSearchShape } from './extHost.protocol';
+import { ExtHostSearchShape, IMainContext, MainContext, MainThreadSearchShape } from '../common/extHost.protocol';
 
 export interface ISchemeTransformer {
 	transformOutgoing(scheme: string): string;
