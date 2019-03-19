@@ -99,54 +99,6 @@ suite('FileService', () => {
 		});
 	});
 
-	test('createFolder', () => {
-		let event: FileOperationEvent;
-		const toDispose = service.onAfterOperation(e => {
-			event = e;
-		});
-
-		return service.resolveFile(uri.file(testDir)).then(parent => {
-			const resource = uri.file(path.join(parent.resource.fsPath, 'newFolder'));
-
-			return service.createFolder(resource).then(f => {
-				assert.equal(f.name, 'newFolder');
-				assert.equal(fs.existsSync(f.resource.fsPath), true);
-
-				assert.ok(event);
-				assert.equal(event.resource.fsPath, resource.fsPath);
-				assert.equal(event.operation, FileOperation.CREATE);
-				assert.equal(event.target!.resource.fsPath, resource.fsPath);
-				assert.equal(event.target!.isDirectory, true);
-				toDispose.dispose();
-			});
-		});
-	});
-
-	test('createFolder: creating multiple folders at once', function () {
-		let event: FileOperationEvent;
-		const toDispose = service.onAfterOperation(e => {
-			event = e;
-		});
-
-		const multiFolderPaths = ['a', 'couple', 'of', 'folders'];
-		return service.resolveFile(uri.file(testDir)).then(parent => {
-			const resource = uri.file(path.join(parent.resource.fsPath, ...multiFolderPaths));
-
-			return service.createFolder(resource).then(f => {
-				const lastFolderName = multiFolderPaths[multiFolderPaths.length - 1];
-				assert.equal(f.name, lastFolderName);
-				assert.equal(fs.existsSync(f.resource.fsPath), true);
-
-				assert.ok(event);
-				assert.equal(event.resource.fsPath, resource.fsPath);
-				assert.equal(event.operation, FileOperation.CREATE);
-				assert.equal(event.target!.resource.fsPath, resource.fsPath);
-				assert.equal(event.target!.isDirectory, true);
-				toDispose.dispose();
-			});
-		});
-	});
-
 	test('renameFile', () => {
 		let event: FileOperationEvent;
 		const toDispose = service.onAfterOperation(e => {

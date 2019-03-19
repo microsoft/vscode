@@ -762,23 +762,6 @@ export class FileService extends Disposable implements ILegacyFileService {
 		return pfs.readdir(absolutePath);
 	}
 
-	createFolder(resource: uri): Promise<IFileStat> {
-
-		// 1.) Create folder
-		const absolutePath = this.toAbsolutePath(resource);
-		return pfs.mkdirp(absolutePath).then(() => {
-
-			// 2.) Resolve
-			return this.resolve(resource).then(result => {
-
-				// Events
-				this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, result));
-
-				return result;
-			});
-		});
-	}
-
 	private checkFileBeforeWriting(absolutePath: string, options: IUpdateContentOptions = Object.create(null), ignoreReadonly?: boolean): Promise<boolean /* exists */> {
 		return pfs.exists(absolutePath).then(exists => {
 			if (exists) {
@@ -1108,6 +1091,32 @@ export class FileService extends Disposable implements ILegacyFileService {
 
 		this.activeFileChangesWatchers.forEach(watcher => watcher.unwatch());
 		this.activeFileChangesWatchers.clear();
+	}
+
+
+
+
+
+
+
+
+	// Tests only
+
+	createFolder(resource: uri): Promise<IFileStat> {
+
+		// 1.) Create folder
+		const absolutePath = this.toAbsolutePath(resource);
+		return pfs.mkdirp(absolutePath).then(() => {
+
+			// 2.) Resolve
+			return this.resolve(resource).then(result => {
+
+				// Events
+				this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, result));
+
+				return result;
+			});
+		});
 	}
 }
 

@@ -483,23 +483,6 @@ export class RemoteFileService extends FileService {
 		}
 	}
 
-	createFolder(resource: URI): Promise<IFileStat> {
-		if (resource.scheme === Schemas.file) {
-			return super.createFolder(resource);
-		} else {
-			return this._withProvider(resource).then(RemoteFileService._throwIfFileSystemIsReadonly).then(provider => {
-				return RemoteFileService._mkdirp(provider, resources.dirname(resource)).then(() => {
-					return provider.mkdir(resource).then(() => {
-						return this.resolveFile(resource);
-					});
-				});
-			}).then(fileStat => {
-				this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, fileStat));
-				return fileStat;
-			});
-		}
-	}
-
 	moveFile(source: URI, target: URI, overwrite?: boolean): Promise<IFileStat> {
 		if (source.scheme !== target.scheme) {
 			return this._doMoveAcrossScheme(source, target);

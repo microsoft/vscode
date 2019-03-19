@@ -1060,8 +1060,6 @@ export interface ILegacyFileService {
 
 	readFolder(resource: URI): Promise<string[]>;
 
-	createFolder(resource: URI): Promise<IFileStat>;
-
 	del(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): Promise<void>;
 
 	watchFileChanges(resource: URI): void;
