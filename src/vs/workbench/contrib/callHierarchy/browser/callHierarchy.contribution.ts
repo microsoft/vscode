@@ -12,7 +12,7 @@ import { Event } from 'vs/base/common/event';
 import { registerEditorContribution, registerEditorAction, EditorAction, registerEditorCommand, EditorCommand } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, RawContextKey, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -150,7 +150,7 @@ registerEditorCommand(new class extends EditorCommand {
 				weight: KeybindingWeight.WorkbenchContrib + 10,
 				primary: KeyCode.Escape
 			},
-			precondition: _ctxCallHierarchyVisible
+			precondition: ContextKeyExpr.and(_ctxCallHierarchyVisible, ContextKeyExpr.not('config.editor.stablePeek'))
 		});
 	}
 
