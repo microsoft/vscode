@@ -229,6 +229,7 @@
 		"./vs/workbench/contrib/output/test/outputLinkProvider.test.ts",
 		"./vs/workbench/contrib/preferences/browser/preferencesEditor.ts",
 		"./vs/workbench/contrib/preferences/browser/preferencesRenderers.ts",
+		"./vs/workbench/contrib/preferences/browser/keybindingsEditor.ts",
 		"./vs/workbench/contrib/preferences/browser/keybindingsEditorContribution.ts",
 		"./vs/workbench/contrib/preferences/browser/keybindingWidgets.ts",
 		"./vs/workbench/contrib/preferences/browser/preferencesActions.ts",
