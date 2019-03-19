@@ -10,6 +10,7 @@
 		"noImplicitThis": true,
 		"alwaysStrict": true,
 		"strictBindCallApply": true,
+		"strictNullChecks": true,
 		"baseUrl": ".",
 		"paths": {
 			"vs/*": [

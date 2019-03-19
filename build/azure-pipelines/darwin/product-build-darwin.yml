@@ -22,7 +22,6 @@ steps:
     VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" yarn gulp -- mixin
     yarn gulp -- hygiene
     yarn monaco-compile-check
-    yarn strict-null-check
     node build/azure-pipelines/common/installDistro.js
     node build/lib/builtInExtensions.js
   displayName: Prepare build

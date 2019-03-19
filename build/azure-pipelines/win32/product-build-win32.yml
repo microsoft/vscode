@@ -23,7 +23,6 @@ steps:
     exec { npm run gulp -- mixin }
     exec { npm run gulp -- hygiene }
     exec { npm run monaco-compile-check }
-    exec { npm run strict-null-check }
     exec { node build/azure-pipelines/common/installDistro.js }
     exec { node build/lib/builtInExtensions.js }
 

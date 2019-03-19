@@ -26,7 +26,6 @@ steps:
     VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" npm run gulp -- mixin
     npm run gulp -- hygiene
     npm run monaco-compile-check
-    npm run strict-null-check
     node build/azure-pipelines/common/installDistro.js
     node build/lib/builtInExtensions.js
 

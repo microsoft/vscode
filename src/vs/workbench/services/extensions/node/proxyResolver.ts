@@ -150,7 +150,7 @@ function setupProxyResolution(
 			return;
 		}
 
-		if (envNoProxy(hostname, String(parsedUrl.port || (<any>opts.agent).defaultPort))) {
+		if (typeof hostname === 'string' && envNoProxy(hostname, String(parsedUrl.port || (<any>opts.agent).defaultPort))) {
 			envNoProxyCount++;
 			callback('DIRECT');
 			extHostLogService.trace('ProxyResolver#resolveProxy envNoProxy', url, 'DIRECT');
@@ -184,8 +184,10 @@ function setupProxyResolution(
 		const start = Date.now();
 		extHostWorkspace.resolveProxy(url) // Use full URL to ensure it is an actually used one.
 			.then(proxy => {
-				cacheProxy(key, proxy);
-				collectResult(results, proxy, parsedUrl.protocol === 'https:' ? 'HTTPS' : 'HTTP', req);
+				if (proxy) {
+					cacheProxy(key, proxy);
+					collectResult(results, proxy, parsedUrl.protocol === 'https:' ? 'HTTPS' : 'HTTP', req);
+				}
 				callback(proxy);
 				extHostLogService.debug('ProxyResolver#resolveProxy', url, proxy);
 			}).then(() => {
@@ -314,7 +316,7 @@ function patches(originals: typeof http | typeof https, resolveProxy: ReturnType
 	};
 
 	function patch(original: typeof http.get) {
-		function patched(url: string | URL, options?: http.RequestOptions, callback?: (res: http.IncomingMessage) => void): http.ClientRequest {
+		function patched(url?: string | URL | null, options?: http.RequestOptions | null, callback?: (res: http.IncomingMessage) => void): http.ClientRequest {
 			if (typeof url !== 'string' && !(url && (<any>url).searchParams)) {
 				callback = <any>options;
 				options = url;
@@ -457,10 +459,10 @@ async function readCaCertificates() {
 function readWindowsCaCertificates() {
 	const winCA = require.__$__nodeRequire<any>('win-ca-lib');
 
-	let ders = [];
+	let ders: any[] = [];
 	const store = winCA();
 	try {
-		let der;
+		let der: any;
 		while (der = store.next()) {
 			ders.push(der);
 		}

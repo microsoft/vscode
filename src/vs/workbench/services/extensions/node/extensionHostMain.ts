@@ -17,6 +17,7 @@ import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 // we don't (yet) throw when extensions parse
 // uris that have no scheme
@@ -73,7 +74,7 @@ export class ExtensionHostMain {
 		this.disposables.push(this._extHostLogService);
 
 		this._searchRequestIdProvider = new Counter();
-		const extHostWorkspace = new ExtHostWorkspace(rpcProtocol, this._extHostLogService, this._searchRequestIdProvider, initData.workspace);
+		const extHostWorkspace = new ExtHostWorkspace(rpcProtocol, this._extHostLogService, this._searchRequestIdProvider, withNullAsUndefined(initData.workspace));
 
 		this._extHostLogService.info('extension host started');
 		this._extHostLogService.trace('initData', initData);

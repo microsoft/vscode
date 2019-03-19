@@ -86,7 +86,9 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 
 			// Now that we have managed to install a message listener, ask the other side to send us the socket
 			const req: IExtHostReadyMessage = { type: 'VSCODE_EXTHOST_IPC_READY' };
-			process.send(req);
+			if (process.send) {
+				process.send(req);
+			}
 		});
 
 	} else {

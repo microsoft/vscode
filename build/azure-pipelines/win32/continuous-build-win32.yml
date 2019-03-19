@@ -34,9 +34,6 @@ steps:
 - powershell: |
     yarn monaco-compile-check
   displayName: Run Monaco Editor Checks
-- script: |
-    yarn strict-null-check
-  displayName: Run Strict Null Checks
 - powershell: |
     yarn compile
   displayName: Compile Sources

@@ -21,10 +21,7 @@
     "update-grammars": "node build/npm/update-all-grammars.js",
     "update-localization-extension": "node build/npm/update-localization-extension.js",
     "smoketest": "cd test/smoke && node test/index.js",
-    "monaco-compile-check": "tsc -p src/tsconfig.monaco.json --noEmit",
-    "download-builtin-extensions": "node build/lib/builtInExtensions.js",
-    "strict-null-check": "tsc -p src/tsconfig.strictNullChecks.json",
-    "strict-null-check-watch": "tsc -p src/tsconfig.strictNullChecks.json --watch"
+    "monaco-compile-check": "tsc -p src/tsconfig.monaco.json --noEmit"
   },
   "dependencies": {
     "applicationinsights": "1.0.8",
