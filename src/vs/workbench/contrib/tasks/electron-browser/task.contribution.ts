@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/task.contribution';
+import 'vs/css!../common/media/task.contribution';
 
 import * as nls from 'vs/nls';
 import * as semver from 'semver';
