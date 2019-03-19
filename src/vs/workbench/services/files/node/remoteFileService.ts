@@ -14,7 +14,7 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/res
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FileWriteOptions, FileSystemProviderCapabilities, IContent, ICreateFileOptions, IFileStat, IFileSystemProvider, IFilesConfiguration, IResolveContentOptions, IResolveFileOptions, IResolveFileResult, IStat, IStreamContent, ITextSnapshot, IUpdateContentOptions, StringSnapshot, IWatchOptions, FileType, ILegacyFileService, IFileService } from 'vs/platform/files/common/files';
+import { FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FileWriteOptions, FileSystemProviderCapabilities, IContent, ICreateFileOptions, IFileStat, IFileSystemProvider, IFilesConfiguration, IResolveContentOptions, IResolveFileOptions, IResolveFileResult, IStat, IStreamContent, ITextSnapshot, IUpdateContentOptions, StringSnapshot, IWatchOptions, FileType, ILegacyFileService, IFileService, toFileOperationResult } from 'vs/platform/files/common/files';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -196,30 +196,6 @@ export class RemoteFileService extends FileService {
 				this._provider.delete(scheme);
 			}
 		};
-	}
-
-	private _tryParseFileOperationResult(err: any): FileOperationResult | undefined {
-		if (!(err instanceof Error)) {
-			return undefined;
-		}
-		let match = /^(.+) \(FileSystemError\)$/.exec(err.name);
-		if (!match) {
-			return undefined;
-		}
-		switch (match[1]) {
-			case 'EntryNotFound':
-				return FileOperationResult.FILE_NOT_FOUND;
-			case 'EntryIsADirectory':
-				return FileOperationResult.FILE_IS_DIRECTORY;
-			case 'NoPermissions':
-				return FileOperationResult.FILE_PERMISSION_DENIED;
-			case 'EntryExists':
-				return FileOperationResult.FILE_MOVE_CONFLICT;
-			case 'EntryNotADirectory':
-			default:
-				// todo
-				return undefined;
-		}
 	}
 
 	// --- stat
@@ -433,8 +409,8 @@ export class RemoteFileService extends FileService {
 				return fileStat;
 			}, err => {
 				const message = localize('err.create', "Failed to create file {0}", resource.toString(false));
-				const result = this._tryParseFileOperationResult(err);
-				throw new FileOperationError(message, result || -1, options);
+				const result = toFileOperationResult(err);
+				throw new FileOperationError(message, result, options);
 			});
 		}
 	}
@@ -548,7 +524,7 @@ export class RemoteFileService extends FileService {
 					this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.MOVE, fileStat));
 					return fileStat;
 				}, err => {
-					const result = this._tryParseFileOperationResult(err);
+					const result = toFileOperationResult(err);
 					if (result === FileOperationResult.FILE_MOVE_CONFLICT) {
 						throw new FileOperationError(localize('fileMoveConflict', "Unable to move/copy. File already exists at destination."), result);
 					}
@@ -584,7 +560,7 @@ export class RemoteFileService extends FileService {
 					this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.COPY, fileStat));
 					return fileStat;
 				}, err => {
-					const result = this._tryParseFileOperationResult(err);
+					const result = toFileOperationResult(err);
 					if (result === FileOperationResult.FILE_MOVE_CONFLICT) {
 						throw new FileOperationError(localize('fileMoveConflict', "Unable to move/copy. File already exists at destination."), result);
 					}
@@ -611,7 +587,7 @@ export class RemoteFileService extends FileService {
 							return fileStat;
 						});
 					}, err => {
-						const result = this._tryParseFileOperationResult(err);
+						const result = toFileOperationResult(err);
 						if (result === FileOperationResult.FILE_MOVE_CONFLICT) {
 							throw new FileOperationError(localize('fileMoveConflict', "Unable to move/copy. File already exists at destination."), result);
 						} else if (err instanceof Error && err.name === 'ENOPRO') {
