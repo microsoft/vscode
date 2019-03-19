@@ -26,7 +26,7 @@ import { ITaskService, TaskFilter, ITaskProvider } from 'vs/workbench/contrib/ta
 
 import { TaskDefinition } from 'vs/workbench/contrib/tasks/node/tasks';
 
-import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
+import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ExtHostContext, MainThreadTaskShape, ExtHostTaskShape, MainContext, IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
 import {
 	TaskDefinitionDTO, TaskExecutionDTO, ProcessExecutionOptionsDTO, TaskPresentationOptionsDTO,

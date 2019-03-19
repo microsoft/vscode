@@ -10,7 +10,7 @@ import * as strings from 'vs/base/common/strings';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ExtHostCustomersRegistry } from 'vs/workbench/api/electron-browser/extHostCustomers';
+import { ExtHostCustomersRegistry } from 'vs/workbench/api/common/extHostCustomers';
 import { ExtHostContext, ExtHostExtensionServiceShape, IExtHostContext, MainContext } from 'vs/workbench/api/common/extHost.protocol';
 import { ProfileSession } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtensionHostStarter } from 'vs/workbench/services/extensions/electron-browser/extensionHost';

@@ -16,7 +16,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService, shouldSynchronizeModel } from 'vs/editor/common/services/modelService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IFileService } from 'vs/platform/files/common/files';
-import { extHostCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
+import { extHostCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { MainThreadDocuments } from 'vs/workbench/api/electron-browser/mainThreadDocuments';
 import { MainThreadTextEditor } from 'vs/workbench/api/electron-browser/mainThreadEditor';
 import { MainThreadTextEditors } from 'vs/workbench/api/electron-browser/mainThreadEditors';

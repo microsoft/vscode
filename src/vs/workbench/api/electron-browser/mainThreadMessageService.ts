@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import Severity from 'vs/base/common/severity';
 import { Action, IAction } from 'vs/base/common/actions';
 import { MainThreadMessageServiceShape, MainContext, IExtHostContext, MainThreadMessageOptions } from '../common/extHost.protocol';
-import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
+import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Event } from 'vs/base/common/event';

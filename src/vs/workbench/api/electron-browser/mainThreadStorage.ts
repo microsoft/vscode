@@ -5,7 +5,7 @@
 
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { MainThreadStorageShape, MainContext, IExtHostContext, ExtHostStorageShape, ExtHostContext } from '../common/extHost.protocol';
-import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
+import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
 @extHostNamedCustomer(MainContext.MainThreadStorage)

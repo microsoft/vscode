@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { clipboard } from 'electron';
-import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
+import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { MainContext, MainThreadClipboardShape } from '../common/extHost.protocol';
 
 @extHostNamedCustomer(MainContext.MainThreadClipboard)

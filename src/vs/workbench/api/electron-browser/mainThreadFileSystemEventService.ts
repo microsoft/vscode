@@ -5,7 +5,7 @@
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { FileChangeType, IFileService, FileOperation } from 'vs/platform/files/common/files';
-import { extHostCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
+import { extHostCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ExtHostContext, FileSystemEvents, IExtHostContext } from '../common/extHost.protocol';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 

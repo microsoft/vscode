@@ -16,7 +16,7 @@ import { IFileMatch, IPatternInfo, ISearchProgressItem, ISearchService } from 'v
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IWorkspaceContextService, WorkbenchState, IWorkspace } from 'vs/platform/workspace/common/workspace';
-import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
+import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';

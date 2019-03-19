@@ -25,7 +25,7 @@ import { ACTIVE_GROUP, IEditorService } from 'vs/workbench/services/editor/commo
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import * as vscode from 'vscode';
-import { extHostNamedCustomer } from './extHostCustomers';
+import { extHostNamedCustomer } from '../common/extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadWebviews)
 export class MainThreadWebviews extends Disposable implements MainThreadWebviewsShape {

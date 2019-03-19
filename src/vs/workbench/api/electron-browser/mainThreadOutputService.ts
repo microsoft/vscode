@@ -8,7 +8,7 @@ import { IOutputService, IOutputChannel, OUTPUT_PANEL_ID, Extensions, IOutputCha
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { MainThreadOutputServiceShape, MainContext, IExtHostContext, ExtHostOutputServiceShape, ExtHostContext } from '../common/extHost.protocol';
-import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
+import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { UriComponents, URI } from 'vs/base/common/uri';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';

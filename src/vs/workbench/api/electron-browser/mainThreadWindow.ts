@@ -7,7 +7,7 @@ import { Event } from 'vs/base/common/event';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
-import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
+import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ExtHostContext, ExtHostWindowShape, IExtHostContext, MainContext, MainThreadWindowShape } from '../common/extHost.protocol';
 
 @extHostNamedCustomer(MainContext.MainThreadWindow)
