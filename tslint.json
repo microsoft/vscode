@@ -378,6 +378,7 @@
 			{
 				"target": "**/vs/workbench/api/common/**",
 				"restrictions": [
+					"vs/nls",
 					"**/vs/base/common/**",
 					"**/vs/platform/*/common/**",
 					"**/vs/editor/common/**",
