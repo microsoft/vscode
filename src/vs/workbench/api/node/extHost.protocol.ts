@@ -20,17 +20,17 @@ import { CharacterPair, CommentRule, EnterAction } from 'vs/editor/common/modes/
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationData, IConfigurationModel } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { FileChangeType, FileDeleteOptions, FileOverwriteOptions, FileSystemProviderCapabilities, FileType, FileWriteOptions, IStat, IWatchOptions, FileOpenOptions } from 'vs/platform/files/common/files';
+import * as files from 'vs/platform/files/common/files';
 import { ResourceLabelFormatter } from 'vs/platform/label/common/label';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
-import { IPickOptions, IQuickInputButton, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { IPatternInfo, IRawFileMatch2, IRawQuery, IRawTextQuery, ISearchCompleteStats } from 'vs/workbench/services/search/common/search';
-import { StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/platform/statusbar/common/statusbar';
+import * as quickInput from 'vs/platform/quickinput/common/quickInput';
+import * as search from 'vs/workbench/services/search/common/search';
+import * as statusbar from 'vs/platform/statusbar/common/statusbar';
 import { ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { EditorViewColumn } from 'vs/workbench/api/shared/editor';
-import { TaskDTO, TaskExecutionDTO, TaskFilterDTO, TaskHandleDTO, TaskProcessEndedDTO, TaskProcessStartedDTO, TaskSystemInfoDTO, TaskSetDTO } from 'vs/workbench/api/shared/tasks';
+import * as tasks from 'vs/workbench/api/shared/tasks';
 import { ITreeItem, IRevealOptions } from 'vs/workbench/common/views';
 import { IAdapterDescriptor, IConfig, ITerminalSettings } from 'vs/workbench/contrib/debug/common/debug';
 import { ITextQueryBuilderOptions } from 'vs/workbench/contrib/search/common/queryBuilder';
@@ -396,11 +396,11 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 	$terminalRendererRegisterOnInputListener(terminalId: number): void;
 }
 
-export interface TransferQuickPickItems extends IQuickPickItem {
+export interface TransferQuickPickItems extends quickInput.IQuickPickItem {
 	handle: number;
 }
 
-export interface TransferQuickInputButton extends IQuickInputButton {
+export interface TransferQuickInputButton extends quickInput.IQuickInputButton {
 	handle: number;
 }
 
@@ -462,7 +462,7 @@ export interface TransferInputBox extends BaseTransferQuickInput {
 }
 
 export interface MainThreadQuickOpenShape extends IDisposable {
-	$show(instance: number, options: IPickOptions<TransferQuickPickItems>, token: CancellationToken): Promise<number | number[] | undefined>;
+	$show(instance: number, options: quickInput.IPickOptions<TransferQuickPickItems>, token: CancellationToken): Promise<number | number[] | undefined>;
 	$setItems(instance: number, items: TransferQuickPickItems[]): Promise<void>;
 	$setError(instance: number, error: Error): Promise<void>;
 	$input(options: vscode.InputBoxOptions | undefined, validateInput: boolean, token: CancellationToken): Promise<string>;
@@ -471,7 +471,7 @@ export interface MainThreadQuickOpenShape extends IDisposable {
 }
 
 export interface MainThreadStatusBarShape extends IDisposable {
-	$setEntry(id: number, extensionId: ExtensionIdentifier | undefined, text: string, tooltip: string, command: string, color: string | ThemeColor, alignment: MainThreadStatusBarAlignment, priority: number | undefined): void;
+	$setEntry(id: number, extensionId: ExtensionIdentifier | undefined, text: string, tooltip: string, command: string, color: string | ThemeColor, alignment: statusbar.StatusbarAlignment, priority: number | undefined): void;
 	$dispose(id: number): void;
 }
 
@@ -533,7 +533,7 @@ export interface ExtHostUrlsShape {
 
 export interface MainThreadWorkspaceShape extends IDisposable {
 	$startFileSearch(includePattern: string | undefined, includeFolder: UriComponents | undefined, excludePatternOrDisregardExcludes: string | false | undefined, maxResults: number | undefined, token: CancellationToken): Promise<UriComponents[] | undefined>;
-	$startTextSearch(query: IPatternInfo, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<vscode.TextSearchComplete>;
+	$startTextSearch(query: search.IPatternInfo, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<vscode.TextSearchComplete>;
 	$checkExists(includes: string[], token: CancellationToken): Promise<boolean>;
 	$saveAll(includeUntitled?: boolean): Promise<boolean>;
 	$updateWorkspaceFolders(extensionName: string, index: number, deleteCount: number, workspaceFoldersToAdd: { uri: UriComponents, name?: string }[]): Promise<void>;
@@ -542,11 +542,11 @@ export interface MainThreadWorkspaceShape extends IDisposable {
 
 export interface IFileChangeDto {
 	resource: UriComponents;
-	type: FileChangeType;
+	type: files.FileChangeType;
 }
 
 export interface MainThreadFileSystemShape extends IDisposable {
-	$registerFileSystemProvider(handle: number, scheme: string, capabilities: FileSystemProviderCapabilities): void;
+	$registerFileSystemProvider(handle: number, scheme: string, capabilities: files.FileSystemProviderCapabilities): void;
 	$unregisterProvider(handle: number): void;
 	$registerResourceLabelFormatter(handle: number, formatter: ResourceLabelFormatter): void;
 	$unregisterResourceLabelFormatter(handle: number): void;
@@ -558,18 +558,18 @@ export interface MainThreadSearchShape extends IDisposable {
 	$registerTextSearchProvider(handle: number, scheme: string): void;
 	$unregisterProvider(handle: number): void;
 	$handleFileMatch(handle: number, session: number, data: UriComponents[]): void;
-	$handleTextMatch(handle: number, session: number, data: IRawFileMatch2[]): void;
+	$handleTextMatch(handle: number, session: number, data: search.IRawFileMatch2[]): void;
 	$handleTelemetry(eventName: string, data: any): void;
 }
 
 export interface MainThreadTaskShape extends IDisposable {
-	$createTaskId(task: TaskDTO): Promise<string>;
+	$createTaskId(task: tasks.TaskDTO): Promise<string>;
 	$registerTaskProvider(handle: number): Promise<void>;
 	$unregisterTaskProvider(handle: number): Promise<void>;
-	$fetchTasks(filter?: TaskFilterDTO): Promise<TaskDTO[]>;
-	$executeTask(task: TaskHandleDTO | TaskDTO): Promise<TaskExecutionDTO>;
+	$fetchTasks(filter?: tasks.TaskFilterDTO): Promise<tasks.TaskDTO[]>;
+	$executeTask(task: tasks.TaskHandleDTO | tasks.TaskDTO): Promise<tasks.TaskExecutionDTO>;
 	$terminateTask(id: string): Promise<void>;
-	$registerTaskSystem(scheme: string, info: TaskSystemInfoDTO): void;
+	$registerTaskSystem(scheme: string, info: tasks.TaskSystemInfoDTO): void;
 	$customExecutionComplete(id: string, result?: number): Promise<void>;
 }
 
@@ -749,29 +749,29 @@ export interface ExtHostTreeViewsShape {
 export interface ExtHostWorkspaceShape {
 	$initializeWorkspace(workspace: IWorkspaceData | null): void;
 	$acceptWorkspaceData(workspace: IWorkspaceData | null): void;
-	$handleTextSearchResult(result: IRawFileMatch2, requestId: number): void;
+	$handleTextSearchResult(result: search.IRawFileMatch2, requestId: number): void;
 }
 
 export interface ExtHostFileSystemShape {
-	$stat(handle: number, resource: UriComponents): Promise<IStat>;
-	$readdir(handle: number, resource: UriComponents): Promise<[string, FileType][]>;
+	$stat(handle: number, resource: UriComponents): Promise<files.IStat>;
+	$readdir(handle: number, resource: UriComponents): Promise<[string, files.FileType][]>;
 	$readFile(handle: number, resource: UriComponents): Promise<Buffer>;
-	$writeFile(handle: number, resource: UriComponents, content: Buffer, opts: FileWriteOptions): Promise<void>;
-	$rename(handle: number, resource: UriComponents, target: UriComponents, opts: FileOverwriteOptions): Promise<void>;
-	$copy(handle: number, resource: UriComponents, target: UriComponents, opts: FileOverwriteOptions): Promise<void>;
+	$writeFile(handle: number, resource: UriComponents, content: Buffer, opts: files.FileWriteOptions): Promise<void>;
+	$rename(handle: number, resource: UriComponents, target: UriComponents, opts: files.FileOverwriteOptions): Promise<void>;
+	$copy(handle: number, resource: UriComponents, target: UriComponents, opts: files.FileOverwriteOptions): Promise<void>;
 	$mkdir(handle: number, resource: UriComponents): Promise<void>;
-	$delete(handle: number, resource: UriComponents, opts: FileDeleteOptions): Promise<void>;
-	$watch(handle: number, session: number, resource: UriComponents, opts: IWatchOptions): void;
+	$delete(handle: number, resource: UriComponents, opts: files.FileDeleteOptions): Promise<void>;
+	$watch(handle: number, session: number, resource: UriComponents, opts: files.IWatchOptions): void;
 	$unwatch(handle: number, session: number): void;
-	$open(handle: number, resource: UriComponents, opts: FileOpenOptions): Promise<number>;
+	$open(handle: number, resource: UriComponents, opts: files.FileOpenOptions): Promise<number>;
 	$close(handle: number, fd: number): Promise<void>;
 	$read(handle: number, fd: number, pos: number, length: number): Promise<Buffer>;
 	$write(handle: number, fd: number, pos: number, data: Buffer): Promise<number>;
 }
 
 export interface ExtHostSearchShape {
-	$provideFileSearchResults(handle: number, session: number, query: IRawQuery, token: CancellationToken): Promise<ISearchCompleteStats>;
-	$provideTextSearchResults(handle: number, session: number, query: IRawTextQuery, token: CancellationToken): Promise<ISearchCompleteStats>;
+	$provideFileSearchResults(handle: number, session: number, query: search.IRawQuery, token: CancellationToken): Promise<search.ISearchCompleteStats>;
+	$provideTextSearchResults(handle: number, session: number, query: search.IRawTextQuery, token: CancellationToken): Promise<search.ISearchCompleteStats>;
 	$clearCache(cacheKey: string): Promise<void>;
 }
 
@@ -1017,11 +1017,11 @@ export interface ExtHostSCMShape {
 }
 
 export interface ExtHostTaskShape {
-	$provideTasks(handle: number, validTypes: { [key: string]: boolean; }): Thenable<TaskSetDTO>;
-	$onDidStartTask(execution: TaskExecutionDTO, terminalId: number): void;
-	$onDidStartTaskProcess(value: TaskProcessStartedDTO): void;
-	$onDidEndTaskProcess(value: TaskProcessEndedDTO): void;
-	$OnDidEndTask(execution: TaskExecutionDTO): void;
+	$provideTasks(handle: number, validTypes: { [key: string]: boolean; }): Thenable<tasks.TaskSetDTO>;
+	$onDidStartTask(execution: tasks.TaskExecutionDTO, terminalId: number): void;
+	$onDidStartTaskProcess(value: tasks.TaskProcessStartedDTO): void;
+	$onDidEndTaskProcess(value: tasks.TaskProcessEndedDTO): void;
+	$OnDidEndTask(execution: tasks.TaskExecutionDTO): void;
 	$resolveVariables(workspaceFolder: UriComponents, toResolve: { process?: { name: string; cwd?: string }, variables: string[] }): Promise<{ process?: string; variables: { [key: string]: string } }>;
 }
 
