@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { isAbsolutePath, dirname, basename, joinPath } from 'vs/base/common/resources';
+import { isAbsolutePath, dirname, basename, joinPath, isEqual } from 'vs/base/common/resources';
 import { localize } from 'vs/nls';
 
 export class FileService2 extends Disposable implements IFileService {
@@ -195,7 +195,8 @@ export class FileService2 extends Disposable implements IFileService {
 	private async mkdirp(provider: IFileSystemProvider, directory: URI): Promise<void> {
 		const directoriesToCreate: string[] = [];
 
-		while (directory.path !== '/') {
+		// mkdir until we reach root
+		while (!isEqual(directory, dirname(directory))) {
 			try {
 				const stat = await provider.stat(directory);
 				if ((stat.type & FileType.Directory) === 0) {
