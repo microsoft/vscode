@@ -12,7 +12,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IURITransformer, transformIncomingURIs } from 'vs/base/common/uriIpc';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
 import { LazyPromise } from 'vs/workbench/services/extensions/node/lazyPromise';
-import { IRPCProtocol, ProxyIdentifier, getStringIdentifierForProxy } from 'vs/workbench/services/extensions/node/proxyIdentifier';
+import { IRPCProtocol, ProxyIdentifier, getStringIdentifierForProxy } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 
 export interface JSONStringifyReplacer {
 	(key: string, value: any): any;

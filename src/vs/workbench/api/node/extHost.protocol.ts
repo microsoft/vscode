@@ -37,7 +37,7 @@ import { IAdapterDescriptor, IConfig, ITerminalSettings } from 'vs/workbench/con
 import { ITextQueryBuilderOptions } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { ITerminalDimensions } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ExtensionActivationError } from 'vs/workbench/services/extensions/common/extensions';
-import { IRPCProtocol, createExtHostContextProxyIdentifier as createExtId, createMainContextProxyIdentifier as createMainId } from 'vs/workbench/services/extensions/node/proxyIdentifier';
+import { IRPCProtocol, createExtHostContextProxyIdentifier as createExtId, createMainContextProxyIdentifier as createMainId } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { IProgressOptions, IProgressStep } from 'vs/platform/progress/common/progress';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import * as vscode from 'vscode';

@@ -60,7 +60,7 @@ import { ExtHostWebviews } from 'vs/workbench/api/node/extHostWebview';
 import { ExtHostWindow } from 'vs/workbench/api/node/extHostWindow';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { throwProposedApiError, checkProposedApiEnabled, nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { ProxyIdentifier } from 'vs/workbench/services/extensions/node/proxyIdentifier';
+import { ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
 import * as vscode from 'vscode';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
