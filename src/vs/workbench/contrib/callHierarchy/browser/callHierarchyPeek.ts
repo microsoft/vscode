@@ -31,6 +31,7 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { Action } from 'vs/base/common/actions';
 import { IActionBarOptions, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 registerThemingParticipant((theme, collector) => {
 	const referenceHighlightColor = theme.getColor(peekViewEditorMatchHighlight);
@@ -67,6 +68,28 @@ class ToggleHierarchyDirectionAction extends Action {
 	}
 }
 
+class LayoutInfo {
+
+	static store(info: LayoutInfo, storageService: IStorageService): void {
+		storageService.store('callHierarchyPeekLayout', JSON.stringify(info), StorageScope.GLOBAL);
+	}
+
+	static retrieve(storageService: IStorageService): LayoutInfo {
+		const value = storageService.get('callHierarchyPeekLayout', StorageScope.GLOBAL, '{}');
+		const defaultInfo: LayoutInfo = { ratio: 0.7, height: 17 };
+		try {
+			return { ...defaultInfo, ...JSON.parse(value) };
+		} catch {
+			return defaultInfo;
+		}
+	}
+
+	constructor(
+		public ratio: number,
+		public height: number
+	) { }
+}
+
 export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 
 	private _toggleDirection: ToggleHierarchyDirectionAction;
@@ -75,7 +98,8 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 	private _splitView: SplitView;
 	private _tree: WorkbenchAsyncDataTree<CallHierarchyItem, callHTree.Call, FuzzyScore>;
 	private _editor: EmbeddedCodeEditorWidget;
-	private _dim: Dimension = { height: 0, width: 0 };
+	private _dim: Dimension;
+	private _layoutInfo: LayoutInfo;
 
 	constructor(
 		editor: ICodeEditor,
@@ -85,6 +109,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		@IEditorService private readonly _editorService: IEditorService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@ILabelService private readonly _labelService: ILabelService,
+		@IStorageService private readonly _storageService: IStorageService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super(editor, { showFrame: true, showArrow: true, isResizeable: true, isAccessible: true });
@@ -92,6 +117,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 	}
 
 	dispose(): void {
+		LayoutInfo.store(this._layoutInfo, this._storageService);
 		this._splitView.dispose();
 		this._tree.dispose();
 		this._editor.dispose();
@@ -105,6 +131,10 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 	}
 
 	protected _fillBody(parent: HTMLElement): void {
+
+		this._layoutInfo = LayoutInfo.retrieve(this._storageService);
+		this._dim = { height: 0, width: 0 };
+
 		this._parent = parent;
 		addClass(parent, 'call-hierarchy');
 
@@ -165,7 +195,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		this._splitView.addView({
 			onDidChange: Event.None,
 			element: editorContainer,
-			minimumSize: 70,
+			minimumSize: 200,
 			maximumSize: Number.MAX_VALUE,
 			layout: (width) => {
 				this._editor.layout({ height: this._dim.height, width });
@@ -175,13 +205,20 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		this._splitView.addView({
 			onDidChange: Event.None,
 			element: treeContainer,
-			minimumSize: 30,
+			minimumSize: 100,
 			maximumSize: Number.MAX_VALUE,
 			layout: (width) => {
 				this._tree.layout(this._dim.height, width);
 			}
 		}, Sizing.Distribute);
 
+		this._splitView.onDidSashChange(() => {
+			if (this._dim.width) {
+				this._layoutInfo.ratio = this._splitView.getViewSize(0) / this._dim.width;
+			}
+		}, undefined, this._disposables);
+
+		// session state
 		let localDispose: IDisposable[] = [];
 		this._disposables.push({ dispose() { dispose(localDispose); } });
 
@@ -314,7 +351,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 	private _show() {
 		if (!this._isShowing) {
 			this.editor.revealLineInCenterIfOutsideViewport(this._where.lineNumber, ScrollType.Smooth);
-			super.show(Range.fromPositions(this._where), 17);
+			super.show(Range.fromPositions(this._where), this._layoutInfo.height);
 		}
 	}
 
@@ -327,6 +364,8 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 	protected _doLayoutBody(height: number, width: number): void {
 		super._doLayoutBody(height, width);
 		this._dim = { height, width };
+		this._layoutInfo.height = this._viewZone.heightInLines;
 		this._splitView.layout(width);
+		this._splitView.resizeView(0, width * this._layoutInfo.ratio);
 	}
 }
