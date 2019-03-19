@@ -379,7 +379,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 	protected _doLayoutBody(height: number, width: number): void {
 		super._doLayoutBody(height, width);
 		this._dim = { height, width };
-		this._layoutInfo.height = this._viewZone.heightInLines;
+		this._layoutInfo.height = this._viewZone ? this._viewZone.heightInLines : this._layoutInfo.height;
 		this._splitView.layout(width);
 		this._splitView.resizeView(0, width * this._layoutInfo.ratio);
 	}
