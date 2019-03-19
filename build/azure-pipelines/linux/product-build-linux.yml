@@ -14,12 +14,19 @@ steps:
       export PKG_CONFIG_PATH="/usr/lib/i386-linux-gnu/pkgconfig"
     fi
 
-    echo "machine monacotools.visualstudio.com password $(VSO_PAT)" > ~/.netrc
+    cat << EOF > ~/.netrc
+    machine monacotools.visualstudio.com
+    password $(VSO_PAT)
+    machine github.com
+    login vscode
+    password $(VSCODE_MIXIN_PASSWORD)
+    EOF
+
     CHILD_CONCURRENCY=1 yarn
+    VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" npm run gulp -- mixin
     npm run gulp -- hygiene
     npm run monaco-compile-check
     npm run strict-null-check
-    VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" npm run gulp -- mixin
     node build/azure-pipelines/common/installDistro.js
     node build/lib/builtInExtensions.js
 
