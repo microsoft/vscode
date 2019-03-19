@@ -13,6 +13,8 @@ const es = require('event-stream');
 const vfs = require('vinyl-fs');
 const pkg = require('../package.json');
 const cp = require('child_process');
+const fancyLog = require('fancy-log');
+const ansiColors = require('ansi-colors');
 
 gulp.task('mixin', function () {
 	const repo = process.env['VSCODE_MIXIN_REPO'];
@@ -34,14 +36,18 @@ gulp.task('mixin', function () {
 	cp.execSync(`git config user.email "vscode@microsoft.com"`);
 	cp.execSync(`git config user.name "VSCode"`);
 
+	fancyLog(ansiColors.blue('[mixin]'), 'Add distro remote');
 	cp.execSync(`git remote add distro ${url}`);
-	cp.execSync(`git fetch distro`);
-	cp.execSync(`git merge ${pkg.distro}`);
 
-	console.log('Mixing in sources from \'' + url + '\':');
+	fancyLog(ansiColors.blue('[mixin]'), 'Add fetch distro sources');
+	cp.execSync(`git fetch distro`);
+
+	fancyLog(ansiColors.blue('[mixin]'), `Merge ${pkg.distro} from distro`);
+	cp.execSync(`git merge ${pkg.distro}`);
 
 	const productJsonFilter = filter('product.json', { restore: true });
 
+	fancyLog(ansiColors.blue('[mixin]'), `Mixing in sources:`);
 	return vfs
 		.src(`quality/${quality}/**`, { base: `quality/${quality}` })
 		.pipe(filter(function (f) { return !f.isDirectory(); }))
@@ -50,7 +56,7 @@ gulp.task('mixin', function () {
 		.pipe(json(o => Object.assign({}, require('../product.json'), o)))
 		.pipe(productJsonFilter.restore)
 		.pipe(es.mapSync(function (f) {
-			console.log('mixin', f.relative);
+			fancyLog(ansiColors.blue('[mixin]'), f.relative, ansiColors.green('✔︎'));
 			return f;
 		}))
 		.pipe(gulp.dest('.'));
