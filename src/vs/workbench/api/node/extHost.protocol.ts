@@ -43,7 +43,6 @@ import * as vscode from 'vscode';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { ResolvedAuthority } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { IRemoteConsoleLog } from 'vs/base/node/console';
 import * as codeInset from 'vs/workbench/contrib/codeinset/common/codeInset';
 import * as callHierarchy from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 
@@ -256,7 +255,11 @@ export interface MainThreadErrorsShape extends IDisposable {
 }
 
 export interface MainThreadConsoleShape extends IDisposable {
-	$logExtensionHostMessage(msg: IRemoteConsoleLog): void;
+	$logExtensionHostMessage(msg: {
+		type: string;
+		severity: string;
+		arguments: string;
+	}): void;
 }
 
 export interface ISerializedRegExp {
