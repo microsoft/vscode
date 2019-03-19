@@ -8,12 +8,9 @@ import { Action } from 'vs/base/common/actions';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IDebugService, State, IEnablement, IBreakpoint, REPL_ID } from 'vs/workbench/contrib/debug/common/debug';
-import { Variable, Expression, Breakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { IDebugService, State, IEnablement, IBreakpoint } from 'vs/workbench/contrib/debug/common/debug';
+import { Variable, Breakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -338,20 +335,6 @@ export class AddWatchExpressionAction extends AbstractDebugAction {
 	}
 }
 
-export class EditWatchExpressionAction extends AbstractDebugAction {
-	static readonly ID = 'workbench.debug.viewlet.action.editWatchExpression';
-	static LABEL = nls.localize('editWatchExpression', "Edit Expression");
-
-	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
-		super(id, label, '', debugService, keybindingService);
-	}
-
-	public run(expression: Expression): Promise<any> {
-		this.debugService.getViewModel().setSelectedExpression(expression);
-		return Promise.resolve();
-	}
-}
-
 export class RemoveAllWatchExpressionsAction extends AbstractDebugAction {
 	static readonly ID = 'workbench.debug.viewlet.action.removeAllWatchExpressions';
 	static LABEL = nls.localize('removeAllWatchExpressions', "Remove All Expressions");
@@ -368,35 +351,6 @@ export class RemoveAllWatchExpressionsAction extends AbstractDebugAction {
 
 	protected isEnabled(state: State): boolean {
 		return super.isEnabled(state) && this.debugService.getModel().getWatchExpressions().length > 0;
-	}
-}
-
-export class ToggleReplAction extends TogglePanelAction {
-	static readonly ID = 'workbench.debug.action.toggleRepl';
-	static LABEL = nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugConsoleAction' }, 'Debug Console');
-	private toDispose: lifecycle.IDisposable[];
-
-	constructor(id: string, label: string,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IPanelService panelService: IPanelService
-	) {
-		super(id, label, REPL_ID, panelService, layoutService, 'debug-action toggle-repl');
-		this.toDispose = [];
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-		this.toDispose.push(this.panelService.onDidPanelOpen(({ panel }) => {
-			if (panel.getId() === REPL_ID) {
-				this.class = 'debug-action toggle-repl';
-				this.tooltip = ToggleReplAction.LABEL;
-			}
-		}));
-	}
-
-	public dispose(): void {
-		super.dispose();
-		this.toDispose = lifecycle.dispose(this.toDispose);
 	}
 }
 
