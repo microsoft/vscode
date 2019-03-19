@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { extHostCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
+import { extHostCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IExtHostContext, ExtHostContext } from 'vs/workbench/api/node/extHost.protocol';
+import { IExtHostContext, ExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
 
 @extHostCustomer
 export class MainThreadLogService extends Disposable {

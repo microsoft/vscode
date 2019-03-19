@@ -19,7 +19,7 @@ import './mainThreadClipboard';
 import './mainThreadCommands';
 import './mainThreadConfiguration';
 import './mainThreadConsole';
-import './mainThreadDebugService';
+import '../browser/mainThreadDebugService';
 import './mainThreadDecorations';
 import './mainThreadDiagnostics';
 import './mainThreadDialogs';

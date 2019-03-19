@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
-import { MainThreadCommandsShape } from 'vs/workbench/api/node/extHost.protocol';
+import { MainThreadCommandsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { SingleProxyRPCProtocol } from './testRPCProtocol';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';

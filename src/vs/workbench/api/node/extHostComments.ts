@@ -10,7 +10,7 @@ import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import * as extHostTypeConverter from 'vs/workbench/api/node/extHostTypeConverters';
 import * as types from 'vs/workbench/api/node/extHostTypes';
 import * as vscode from 'vscode';
-import { ExtHostCommentsShape, IMainContext, MainContext, MainThreadCommentsShape } from './extHost.protocol';
+import { ExtHostCommentsShape, IMainContext, MainContext, MainThreadCommentsShape } from '../common/extHost.protocol';
 import { CommandsConverter, ExtHostCommands } from './extHostCommands';
 import { IRange } from 'vs/editor/common/core/range';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -415,6 +415,18 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 		this._proxy.$updateCommentThreadAdditionalCommands(this._commentController.handle, this.handle, internals);
 	}
 
+	private _deleteCommand?: vscode.Command;
+	get deleteComand(): vscode.Command | undefined {
+		return this._deleteCommand;
+	}
+
+	set deleteCommand(deleteCommand: vscode.Command) {
+		this._deleteCommand = deleteCommand;
+
+		const internal = this._commandsConverter.toInternal(deleteCommand);
+		this._proxy.$updateCommentThreadDeleteCommand(this._commentController.handle, this.handle, internal);
+	}
+
 	private _collapseState?: vscode.CommentThreadCollapsibleState;
 
 	get collapsibleState(): vscode.CommentThreadCollapsibleState {
@@ -444,6 +456,7 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 			this._comments.map(comment => { return convertToModeComment(this._commentController, comment, this._commandsConverter); }),
 			this._acceptInputCommand ? this._commandsConverter.toInternal(this._acceptInputCommand) : undefined,
 			this._additionalCommands ? this._additionalCommands.map(x => this._commandsConverter.toInternal(x)) : [],
+			this._deleteCommand ? this._commandsConverter.toInternal(this._deleteCommand) : undefined,
 			this._collapseState!
 		);
 	}

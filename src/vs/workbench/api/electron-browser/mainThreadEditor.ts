@@ -10,11 +10,10 @@ import { RenderLineNumbersType, TextEditorCursorStyle, cursorStyleToString } fro
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { EndOfLineSequence, IIdentifiedSingleEditOperation, ISingleEditOperation, ITextModel, ITextModelUpdateOptions } from 'vs/editor/common/model';
+import { IIdentifiedSingleEditOperation, ISingleEditOperation, ITextModel, ITextModelUpdateOptions } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
-import { IApplyEditsOptions, IEditorPropertiesChangeData, IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate, IUndoStopOptions, TextEditorRevealType } from 'vs/workbench/api/node/extHost.protocol';
-import { EndOfLine, TextEditorLineNumbersStyle } from 'vs/workbench/api/node/extHostTypes';
+import { IApplyEditsOptions, IEditorPropertiesChangeData, IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate, IUndoStopOptions, TextEditorRevealType } from 'vs/workbench/api/common/extHost.protocol';
 import { IEditor } from 'vs/workbench/common/editor';
 import { withNullAsUndefined } from 'vs/base/common/types';
 
@@ -57,28 +56,17 @@ export class MainThreadTextEditorProperties {
 		}
 
 		let cursorStyle: TextEditorCursorStyle;
-		let lineNumbers: TextEditorLineNumbersStyle;
+		let lineNumbers: RenderLineNumbersType;
 		if (codeEditor) {
 			const codeEditorOpts = codeEditor.getConfiguration();
 			cursorStyle = codeEditorOpts.viewInfo.cursorStyle;
-
-			switch (codeEditorOpts.viewInfo.renderLineNumbers) {
-				case RenderLineNumbersType.Off:
-					lineNumbers = TextEditorLineNumbersStyle.Off;
-					break;
-				case RenderLineNumbersType.Relative:
-					lineNumbers = TextEditorLineNumbersStyle.Relative;
-					break;
-				default:
-					lineNumbers = TextEditorLineNumbersStyle.On;
-					break;
-			}
+			lineNumbers = codeEditorOpts.viewInfo.renderLineNumbers;
 		} else if (previousProperties) {
 			cursorStyle = previousProperties.options.cursorStyle;
 			lineNumbers = previousProperties.options.lineNumbers;
 		} else {
 			cursorStyle = TextEditorCursorStyle.Line;
-			lineNumbers = TextEditorLineNumbersStyle.On;
+			lineNumbers = RenderLineNumbersType.On;
 		}
 
 		const modelOptions = model.getOptions();
@@ -377,10 +365,10 @@ export class MainThreadTextEditor {
 		if (typeof newConfiguration.lineNumbers !== 'undefined') {
 			let lineNumbers: 'on' | 'off' | 'relative';
 			switch (newConfiguration.lineNumbers) {
-				case TextEditorLineNumbersStyle.On:
+				case RenderLineNumbersType.On:
 					lineNumbers = 'on';
 					break;
-				case TextEditorLineNumbersStyle.Relative:
+				case RenderLineNumbersType.Relative:
 					lineNumbers = 'relative';
 					break;
 				default:
@@ -459,10 +447,8 @@ export class MainThreadTextEditor {
 			return false;
 		}
 
-		if (opts.setEndOfLine === EndOfLine.CRLF) {
-			this._model.pushEOL(EndOfLineSequence.CRLF);
-		} else if (opts.setEndOfLine === EndOfLine.LF) {
-			this._model.pushEOL(EndOfLineSequence.LF);
+		if (typeof opts.setEndOfLine !== 'undefined') {
+			this._model.pushEOL(opts.setEndOfLine);
 		}
 
 		const transformedEdits = edits.map((edit): IIdentifiedSingleEditOperation => {

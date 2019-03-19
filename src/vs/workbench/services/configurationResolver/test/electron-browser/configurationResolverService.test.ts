@@ -37,7 +37,7 @@ suite('Configuration Resolver Service', () => {
 			uri: uri.parse('file:///VSCode/workspaceLocation'),
 			name: 'hey',
 			index: 0,
-			toResource: () => null
+			toResource: (path: string) => uri.file(path)
 		};
 		configurationResolverService = new ConfigurationResolverService(windowService, editorService, TestEnvironmentService, new MockInputsConfigurationService(), mockCommandService, new TestContextService(), quickInputService);
 	});
@@ -528,7 +528,7 @@ class MockQuickInputService implements IQuickInputService {
 
 	public pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: true }, token?: CancellationToken): Promise<T[]>;
 	public pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: false }, token?: CancellationToken): Promise<T>;
-	public pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: Omit<IPickOptions<T>, 'canPickMany'>, token?: CancellationToken): Promise<T> {
+	public pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: Omit<IPickOptions<T>, 'canPickMany'>, token?: CancellationToken): Promise<T | undefined> {
 		if (Types.isArray(picks)) {
 			return Promise.resolve(<T>{ label: 'selectedPick', description: 'pick description' });
 		} else {
@@ -537,7 +537,7 @@ class MockQuickInputService implements IQuickInputService {
 	}
 
 	public input(options?: IInputOptions, token?: CancellationToken): Promise<string> {
-		return Promise.resolve('resolved' + options.prompt);
+		return Promise.resolve(options ? 'resolved' + options.prompt : 'resolved');
 	}
 
 	backButton: IQuickInputButton;

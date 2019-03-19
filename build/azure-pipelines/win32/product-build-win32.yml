@@ -15,15 +15,15 @@ steps:
 - powershell: |
     . build/azure-pipelines/win32/exec.ps1
     $ErrorActionPreference = "Stop"
-    "machine monacotools.visualstudio.com password $(VSO_PAT)" | Out-File "$env:USERPROFILE\_netrc" -Encoding ASCII
+    "machine monacotools.visualstudio.com`npassword $(VSO_PAT)`nmachine github.com`nlogin vscode`npassword $(VSCODE_MIXIN_PASSWORD)" | Out-File "$env:USERPROFILE\_netrc" -Encoding ASCII
     $env:npm_config_arch="$(VSCODE_ARCH)"
     $env:CHILD_CONCURRENCY="1"
     $env:VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)"
     exec { yarn }
+    exec { npm run gulp -- mixin }
     exec { npm run gulp -- hygiene }
     exec { npm run monaco-compile-check }
     exec { npm run strict-null-check }
-    exec { npm run gulp -- mixin }
     exec { node build/azure-pipelines/common/installDistro.js }
     exec { node build/lib/builtInExtensions.js }
 

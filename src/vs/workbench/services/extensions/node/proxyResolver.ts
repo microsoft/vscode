@@ -16,7 +16,7 @@ import { endsWith } from 'vs/base/common/strings';
 import { IExtHostWorkspaceProvider } from 'vs/workbench/api/node/extHostWorkspace';
 import { ExtHostConfigProvider } from 'vs/workbench/api/node/extHostConfiguration';
 import { ProxyAgent } from 'vscode-proxy-agent';
-import { MainThreadTelemetryShape } from 'vs/workbench/api/node/extHost.protocol';
+import { MainThreadTelemetryShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';

@@ -1270,6 +1270,7 @@ export interface CommentThread2 {
 	onDidChangeInput: Event<CommentInput | undefined>;
 	acceptInputCommand?: Command;
 	additionalCommands: Command[];
+	deleteCommand?: Command;
 	onDidChangeAcceptInputCommand: Event<Command>;
 	onDidChangeAdditionalCommands: Event<Command[]>;
 	onDidChangeRange: Event<IRange>;

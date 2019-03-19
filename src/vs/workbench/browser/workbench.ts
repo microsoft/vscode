@@ -23,7 +23,7 @@ import { Position, Parts, IWorkbenchLayoutService } from 'vs/workbench/services/
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IFileService } from 'vs/platform/files/common/files';
+import { IFileService, ILegacyFileService } from 'vs/platform/files/common/files';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -190,15 +190,16 @@ export class Workbench extends Layout {
 		instantiationService.invokeFunction(accessor => {
 			const lifecycleService = accessor.get(ILifecycleService);
 
-			// TODO@Ben TODO@Sandeep debt around cyclic dependencies
-			const fileService = accessor.get(IFileService);
-			const configurationService = accessor.get(IConfigurationService) as any;
-
-			if (typeof configurationService.acquireFileService === 'function') {
-				configurationService.acquireFileService(fileService);
+			// TODO@Ben legacy file service
+			const fileService = accessor.get(IFileService) as any;
+			if (typeof fileService.setImpl === 'function') {
+				fileService.setImpl(accessor.get(ILegacyFileService));
 			}
 
-			if (typeof configurationService.acquireInstantiationService === 'function') {
+			// TODO@Sandeep debt around cyclic dependencies
+			const configurationService = accessor.get(IConfigurationService) as any;
+			if (typeof configurationService.acquireFileService === 'function') {
+				configurationService.acquireFileService(fileService);
 				configurationService.acquireInstantiationService(instantiationService);
 			}
 
