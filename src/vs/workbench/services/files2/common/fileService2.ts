@@ -129,10 +129,6 @@ export class FileService2 extends Disposable implements IFileService {
 
 	//#region File Metadata Resolving
 
-	readFolder(resource: URI): Promise<string[]> {
-		return this._impl.readFolder(resource);
-	}
-
 	resolveFile(resource: URI, options?: IResolveFileOptions): Promise<IFileStat> {
 		return this._impl.resolveFile(resource, options);
 	}

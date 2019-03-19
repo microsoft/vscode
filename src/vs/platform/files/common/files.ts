@@ -140,12 +140,6 @@ export interface IFileService {
 	createFile(resource: URI, content?: string, options?: ICreateFileOptions): Promise<IFileStat>;
 
 	/**
-	 * Reads a folder's content with the given path. The returned promise
-	 * will have the list of children as a result.
-	 */
-	readFolder(resource: URI): Promise<string[]>;
-
-	/**
 	 * Creates a new folder with the given path. The returned promise
 	 * will have the stat model object as a result.
 	 */
@@ -1057,8 +1051,6 @@ export interface ILegacyFileService {
 	copyFile(source: URI, target: URI, overwrite?: boolean): Promise<IFileStat>;
 
 	createFile(resource: URI, content?: string, options?: ICreateFileOptions): Promise<IFileStat>;
-
-	readFolder(resource: URI): Promise<string[]>;
 
 	del(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): Promise<void>;
 

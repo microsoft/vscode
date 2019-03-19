@@ -494,7 +494,8 @@ export class RemoteFileDialog {
 
 		const backDir = this.createBackItem(currentFolder);
 		try {
-			const fileNames = await this.fileService.readFolder(currentFolder);
+			const folder = await this.fileService.resolveFile(currentFolder);
+			const fileNames = folder.children ? folder.children.map(child => child.name) : [];
 			const items = await Promise.all(fileNames.map(fileName => this.createItem(fileName, currentFolder)));
 			for (let item of items) {
 				if (item) {

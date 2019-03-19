@@ -783,8 +783,6 @@ export class SimpleRemoteFileService implements IFileService {
 		return Promise.resolve(createFile(parent, basename(_resource.path)));
 	}
 
-	readFolder(_resource: URI) { return Promise.resolve([]); }
-
 	createFolder(_resource: URI): Promise<IFileStat> {
 		const parent = fileMap.get(dirname(_resource));
 		if (!parent) {

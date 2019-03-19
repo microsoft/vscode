@@ -473,16 +473,6 @@ export class RemoteFileService extends FileService {
 		}
 	}
 
-	readFolder(resource: URI): Promise<string[]> {
-		if (resource.scheme === Schemas.file) {
-			return super.readFolder(resource);
-		} else {
-			return this._withProvider(resource).then(provider => {
-				return provider.readdir(resource);
-			}).then(list => list.map(l => l[0]));
-		}
-	}
-
 	moveFile(source: URI, target: URI, overwrite?: boolean): Promise<IFileStat> {
 		if (source.scheme !== target.scheme) {
 			return this._doMoveAcrossScheme(source, target);

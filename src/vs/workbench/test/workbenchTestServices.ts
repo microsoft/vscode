@@ -1005,10 +1005,6 @@ export class TestFileService implements IFileService {
 		throw new Error('not implemented');
 	}
 
-	readFolder(_resource: URI) {
-		return Promise.resolve([]);
-	}
-
 	createFolder(_resource: URI): Promise<IFileStat> {
 		throw new Error('not implemented');
 	}

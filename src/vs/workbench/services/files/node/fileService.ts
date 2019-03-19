@@ -756,12 +756,6 @@ export class FileService extends Disposable implements ILegacyFileService {
 		});
 	}
 
-	readFolder(resource: uri): Promise<string[]> {
-		const absolutePath = this.toAbsolutePath(resource);
-
-		return pfs.readdir(absolutePath);
-	}
-
 	private checkFileBeforeWriting(absolutePath: string, options: IUpdateContentOptions = Object.create(null), ignoreReadonly?: boolean): Promise<boolean /* exists */> {
 		return pfs.exists(absolutePath).then(exists => {
 			if (exists) {
