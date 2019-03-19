@@ -43,7 +43,13 @@ gulp.task('mixin', function () {
 	cp.execSync(`git fetch distro`);
 
 	fancyLog(ansiColors.blue('[mixin]'), `Merge ${pkg.distro} from distro`);
-	cp.execSync(`git merge ${pkg.distro}`);
+
+	try {
+		cp.execSync(`git merge ${pkg.distro}`);
+	} catch (err) {
+		fancyLog(ansiColors.red('[mixin]'), `Failed to merge ${pkg.distro} from distro. Please proceed with manual merge to fix the build.`, ansiColors.red('❌'));
+		throw err;
+	}
 
 	const productJsonFilter = filter('product.json', { restore: true });
 
