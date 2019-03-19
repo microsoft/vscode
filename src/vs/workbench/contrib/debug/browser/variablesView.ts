@@ -13,8 +13,8 @@ import { Variable, Scope } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { renderViewTree, renderVariable, IInputBoxOptions, AbstractExpressionsRenderer, IExpressionTemplateData } from 'vs/workbench/contrib/debug/browser/baseDebugView';
-import { IAction } from 'vs/base/common/actions';
-import { SetValueAction, AddToWatchExpressionsAction, CopyValueAction, CopyEvaluatePathAction } from 'vs/workbench/contrib/debug/browser/debugActions';
+import { IAction, Action } from 'vs/base/common/actions';
+import { CopyValueAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewletPanelOptions, ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
@@ -27,6 +27,7 @@ import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 const $ = dom.$;
 
@@ -45,6 +46,7 @@ export class VariablesView extends ViewletPanel {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IClipboardService private readonly clipboardService: IClipboardService
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('variablesSection', "Variables Section") }, keybindingService, contextMenuService, configurationService);
 
@@ -129,20 +131,33 @@ export class VariablesView extends ViewletPanel {
 	}
 
 	private onContextMenu(e: ITreeContextMenuEvent<IExpression | IScope>): void {
-		const element = e.element;
-		if (element instanceof Variable && !!element.value) {
+		const variable = e.element;
+		if (variable instanceof Variable && !!variable.value) {
 			const actions: IAction[] = [];
-			const variable = element as Variable;
-			actions.push(new SetValueAction(SetValueAction.ID, SetValueAction.LABEL, variable, this.debugService, this.keybindingService));
+			const session = this.debugService.getViewModel().focusedSession;
+			if (session.capabilities.supportsSetVariable) {
+				actions.push(new Action('workbench.setValue', nls.localize('setValue', "Set Value"), undefined, true, () => {
+					this.debugService.getViewModel().setSelectedExpression(variable);
+					return Promise.resolve();
+				}));
+			}
 			actions.push(this.instantiationService.createInstance(CopyValueAction, CopyValueAction.ID, CopyValueAction.LABEL, variable, 'variables'));
-			actions.push(this.instantiationService.createInstance(CopyEvaluatePathAction, CopyEvaluatePathAction.ID, CopyEvaluatePathAction.LABEL, variable));
-			actions.push(new Separator());
-			actions.push(new AddToWatchExpressionsAction(AddToWatchExpressionsAction.ID, AddToWatchExpressionsAction.LABEL, variable, this.debugService, this.keybindingService));
+			if (variable.evaluateName) {
+				actions.push(new Action('debug.copyEvaluatePath', nls.localize('copyAsExpression', "Copy as Expression"), undefined, true, () => {
+					this.clipboardService.writeText(variable.evaluateName);
+					return Promise.resolve();
+				}));
+				actions.push(new Separator());
+				actions.push(new Action('debug.addToWatchExpressions', nls.localize('addToWatchExpressions', "Add to Watch"), undefined, true, () => {
+					this.debugService.addWatchExpression(variable.evaluateName);
+					return Promise.resolve(undefined);
+				}));
+			}
 
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,
 				getActions: () => actions,
-				getActionsContext: () => element
+				getActionsContext: () => variable
 			});
 		}
 	}

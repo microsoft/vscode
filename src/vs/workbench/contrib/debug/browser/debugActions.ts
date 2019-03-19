@@ -8,8 +8,7 @@ import { Action } from 'vs/base/common/actions';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IDebugService, State, IEnablement, IBreakpoint, REPL_ID }
-	from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, State, IEnablement, IBreakpoint, REPL_ID } from 'vs/workbench/contrib/debug/common/debug';
 import { Variable, Expression, Breakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -17,9 +16,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { startDebugging } from 'vs/workbench/contrib/debug/common/debugUtils';
 
@@ -322,29 +319,6 @@ export class AddFunctionBreakpointAction extends AbstractDebugAction {
 	}
 }
 
-export class SetValueAction extends AbstractDebugAction {
-	static readonly ID = 'workbench.debug.viewlet.action.setValue';
-	static LABEL = nls.localize('setValue', "Set Value");
-
-	constructor(id: string, label: string, private variable: Variable, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
-		super(id, label, '', debugService, keybindingService);
-	}
-
-	public run(): Promise<any> {
-		if (this.variable instanceof Variable) {
-			this.debugService.getViewModel().setSelectedExpression(this.variable);
-		}
-
-		return Promise.resolve();
-	}
-
-	protected isEnabled(state: State): boolean {
-		const session = this.debugService.getViewModel().focusedSession;
-		return !!(super.isEnabled(state) && state === State.Stopped && session && session.capabilities.supportsSetVariable);
-	}
-}
-
-
 export class AddWatchExpressionAction extends AbstractDebugAction {
 	static readonly ID = 'workbench.debug.viewlet.action.addWatchExpression';
 	static LABEL = nls.localize('addWatchExpression', "Add Expression");
@@ -375,25 +349,6 @@ export class EditWatchExpressionAction extends AbstractDebugAction {
 	public run(expression: Expression): Promise<any> {
 		this.debugService.getViewModel().setSelectedExpression(expression);
 		return Promise.resolve();
-	}
-}
-
-export class AddToWatchExpressionsAction extends AbstractDebugAction {
-	static readonly ID = 'workbench.debug.viewlet.action.addToWatchExpressions';
-	static LABEL = nls.localize('addToWatchExpressions', "Add to Watch");
-
-	constructor(id: string, label: string, private variable: Variable, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
-		super(id, label, 'debug-action add-to-watch', debugService, keybindingService);
-		this.updateEnablement();
-	}
-
-	public run(): Promise<any> {
-		this.debugService.addWatchExpression(this.variable.evaluateName);
-		return Promise.resolve(undefined);
-	}
-
-	protected isEnabled(state: State): boolean {
-		return super.isEnabled(state) && this.variable && !!this.variable.evaluateName;
 	}
 }
 
@@ -459,24 +414,6 @@ export class ToggleReplAction extends TogglePanelAction {
 	}
 }
 
-export class FocusReplAction extends Action {
-
-	static readonly ID = 'workbench.debug.action.focusRepl';
-	static LABEL = nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugFocusConsole' }, 'Focus on Debug Console View');
-
-
-	constructor(id: string, label: string,
-		@IPanelService private readonly panelService: IPanelService
-	) {
-		super(id, label);
-	}
-
-	public run(): Promise<any> {
-		this.panelService.openPanel(REPL_ID, true);
-		return Promise.resolve();
-	}
-}
-
 export class FocusSessionAction extends AbstractDebugAction {
 	static readonly ID = 'workbench.action.debug.focusProcess';
 	static LABEL = nls.localize('focusSession', "Focus Session");
@@ -498,18 +435,6 @@ export class FocusSessionAction extends AbstractDebugAction {
 		}
 
 		return Promise.resolve(undefined);
-	}
-}
-
-export class ReplCollapseAllAction extends CollapseAction {
-	constructor(tree: AsyncDataTree<any, any, any>, private toFocus: { focus(): void; }) {
-		super(tree, true, undefined);
-	}
-
-	public run(event?: any): Promise<any> {
-		return super.run(event).then(() => {
-			this.toFocus.focus();
-		});
 	}
 }
 
@@ -537,41 +462,6 @@ export class CopyValueAction extends Action {
 		}
 
 		this.clipboardService.writeText(this.value);
-		return Promise.resolve(undefined);
-	}
-}
-
-export class CopyEvaluatePathAction extends Action {
-	static readonly ID = 'workbench.debug.viewlet.action.copyEvaluatePath';
-	static LABEL = nls.localize('copyAsExpression', "Copy as Expression");
-
-	constructor(
-		id: string, label: string, private value: Variable,
-		@IClipboardService private readonly clipboardService: IClipboardService
-	) {
-		super(id, label);
-		this._enabled = this.value && !!this.value.evaluateName;
-	}
-
-	public run(): Promise<any> {
-		this.clipboardService.writeText(this.value.evaluateName!);
-		return Promise.resolve(undefined);
-	}
-}
-
-export class CopyAction extends Action {
-	static readonly ID = 'workbench.debug.action.copy';
-	static LABEL = nls.localize('copy', "Copy");
-
-	constructor(
-		id: string, label: string,
-		@IClipboardService private readonly clipboardService: IClipboardService
-	) {
-		super(id, label);
-	}
-
-	public run(): Promise<any> {
-		this.clipboardService.writeText(window.getSelection().toString());
 		return Promise.resolve(undefined);
 	}
 }
