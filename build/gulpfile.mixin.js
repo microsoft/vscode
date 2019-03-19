@@ -44,6 +44,7 @@ gulp.task('mixin', function () {
 
 	return vfs
 		.src(`quality/${quality}/**`, { base: `quality/${quality}` })
+		.pipe(filter(function (f) { return !f.isDirectory(); }))
 		.pipe(productJsonFilter)
 		.pipe(buffer())
 		.pipe(json(o => Object.assign({}, require('../product.json'), o)))
