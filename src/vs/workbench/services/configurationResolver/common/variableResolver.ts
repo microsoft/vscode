@@ -82,11 +82,11 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 		return { newConfig, resolvedVariables };
 	}
 
-	public resolveWithInteractionReplace(folder: IWorkspaceFolder, config: any): Promise<any> {
+	public resolveWithInteractionReplace(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>): Promise<any> {
 		throw new Error('resolveWithInteractionReplace not implemented.');
 	}
 
-	public resolveWithInteraction(folder: IWorkspaceFolder, config: any): Promise<any> {
+	public resolveWithInteraction(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>): Promise<Map<string, string> | undefined> {
 		throw new Error('resolveWithInteraction not implemented.');
 	}
 

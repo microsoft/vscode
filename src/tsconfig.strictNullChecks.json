@@ -33,6 +33,7 @@
 		"./vs/workbench/contrib/tasks/**/*.ts",
 		"./vs/workbench/services/commands/**/*",
 		"./vs/workbench/services/configuration/common/**/*",
+		"./vs/workbench/services/configurationResolver/**/*.ts",
 		"./vs/workbench/services/files/node/watcher/**/*",
 		"./vs/workbench/services/themes/**/*.ts",
 		"./vs/workbench/services/bulkEdit/**/*.ts",
