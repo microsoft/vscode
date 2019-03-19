@@ -529,6 +529,10 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		this._terminalProcesses[id].getCwd().then(cwd => this._proxy.$sendProcessCwd(id, cwd));
 	}
 
+	public $acceptProcessRequestLatency(id: number): number {
+		return id;
+	}
+
 	private _onProcessExit(id: number, exitCode: number): void {
 		// Remove listeners
 		this._terminalProcesses[id].dispose();

@@ -8,6 +8,7 @@ import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalProce
 import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape, MainContext, IExtHostContext, ShellLaunchConfigDto } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { UriComponents, URI } from 'vs/base/common/uri';
+import { StopWatch } from 'vs/base/common/stopwatch';
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalService)
 export class MainThreadTerminalService implements MainThreadTerminalServiceShape {
@@ -227,6 +228,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		request.proxy.onShutdown(immediate => this._proxy.$acceptProcessShutdown(request.proxy.terminalId, immediate));
 		request.proxy.onRequestCwd(() => this._proxy.$acceptProcessRequestCwd(request.proxy.terminalId));
 		request.proxy.onRequestInitialCwd(() => this._proxy.$acceptProcessRequestInitialCwd(request.proxy.terminalId));
+		request.proxy.onRequestLatency(() => this._onRequestLatency(request.proxy.terminalId));
 	}
 
 	public $sendProcessTitle(terminalId: number, title: string): void {
@@ -252,5 +254,17 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 
 	public $sendProcessCwd(terminalId: number, cwd: string): void {
 		this._terminalProcesses[terminalId].emitCwd(cwd);
+	}
+
+	private async _onRequestLatency(terminalId: number): Promise<void> {
+		const COUNT = 2;
+		let sum = 0;
+		for (let i = 0; i < COUNT; i++) {
+			const sw = StopWatch.create(true);
+			await this._proxy.$acceptProcessRequestLatency(terminalId);
+			sw.stop();
+			sum += sw.elapsed();
+		}
+		this._terminalProcesses[terminalId].emitLatency(sum / COUNT);
 	}
 }

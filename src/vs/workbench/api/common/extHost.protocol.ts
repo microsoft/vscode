@@ -1041,6 +1041,7 @@ export interface ExtHostTerminalServiceShape {
 	$acceptProcessShutdown(id: number, immediate: boolean): void;
 	$acceptProcessRequestInitialCwd(id: number): void;
 	$acceptProcessRequestCwd(id: number): void;
+	$acceptProcessRequestLatency(id: number): number;
 }
 
 export interface ExtHostSCMShape {
