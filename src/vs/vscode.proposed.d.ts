@@ -27,10 +27,11 @@ declare module 'vscode' {
 		kind: SymbolKind;
 		name: string;
 		detail?: string;
+		uri: Uri;
 		range: Range;
 		selectionRange: Range;
 
-		constructor(kind: SymbolKind, name: string, detail: string, range: Range, selectionRange: Range);
+		constructor(kind: SymbolKind, name: string, detail: string, uri: Uri, range: Range, selectionRange: Range);
 	}
 
 	export interface CallHierarchyItemProvider {

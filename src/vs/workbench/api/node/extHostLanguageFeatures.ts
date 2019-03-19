@@ -1011,6 +1011,7 @@ class CallHierarchyAdapter {
 			name: item.name,
 			detail: item.detail,
 			kind: typeConvert.SymbolKind.from(item.kind),
+			uri: item.uri,
 			range: typeConvert.Range.from(item.range),
 			selectionRange: typeConvert.Range.from(item.selectionRange),
 		};

@@ -9,6 +9,7 @@ import { SymbolKind, ProviderResult, Location } from 'vs/editor/common/modes';
 import { ITextModel } from 'vs/editor/common/model';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { LanguageFeatureRegistry } from 'vs/editor/common/modes/languageFeatureRegistry';
+import { URI } from 'vs/base/common/uri';
 
 export const enum CallHierarchyDirection {
 	CallsFrom = 1,
@@ -20,6 +21,7 @@ export interface CallHierarchyItem {
 	kind: SymbolKind;
 	name: string;
 	detail?: string;
+	uri: URI;
 	range: IRange;
 	selectionRange: IRange;
 }

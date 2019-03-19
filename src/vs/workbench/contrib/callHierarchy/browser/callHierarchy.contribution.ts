@@ -72,7 +72,6 @@ class CallHierarchyController extends Disposable implements IEditorContribution 
 		const position = this._editor.getPosition();
 		const [provider] = CallHierarchyProviderRegistry.ordered(model);
 		if (!provider) {
-			console.log('no provider');
 			return;
 		}
 
@@ -99,7 +98,7 @@ class CallHierarchyController extends Disposable implements IEditorContribution 
 				return;
 			}
 			if (!item) {
-				widget.showEmpty();
+				widget.showMessage(localize('no.item', "No results"));
 				return;
 			}
 

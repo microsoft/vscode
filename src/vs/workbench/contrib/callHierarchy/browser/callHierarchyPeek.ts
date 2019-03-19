@@ -30,6 +30,7 @@ import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Action } from 'vs/base/common/actions';
 import { IActionBarOptions, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 registerThemingParticipant((theme, collector) => {
 	const referenceHighlightColor = theme.getColor(peekViewEditorMatchHighlight);
@@ -83,6 +84,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		private _direction: CallHierarchyDirection,
 		@IEditorService private readonly _editorService: IEditorService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
+		@ILabelService private readonly _labelService: ILabelService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super(editor, { showFrame: true, showArrow: true, isResizeable: true, isAccessible: true });
@@ -205,7 +207,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 					fullRange = !fullRange ? range : Range.plusRange(range, fullRange);
 				}
 
-				this._textModelService.createModelReference(element.locations[0].uri).then(value => {
+				this._textModelService.createModelReference(element.item.uri).then(value => {
 					this._editor.setModel(value.object.textEditorModel);
 					this._editor.revealRangeInCenter(fullRange!, ScrollType.Smooth);
 					this._editor.revealLine(element.item.range.startLineNumber, ScrollType.Smooth);
@@ -227,7 +229,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 			}
 			this.dispose();
 			this._editorService.openEditor({
-				resource: focus.locations[0].uri,
+				resource: focus.item.uri,
 				options: { selection: target.range! }
 			});
 
@@ -237,7 +239,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 			if (e.element && isNonEmptyArray(e.element.locations)) {
 				this.dispose();
 				this._editorService.openEditor({
-					resource: e.element.locations[0].uri,
+					resource: e.element.item.uri,
 					options: { selection: e.element.locations[0].range }
 				});
 			}
@@ -249,7 +251,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 			if (element && !(e.browserEvent instanceof MouseEvent)) {
 				this.dispose();
 				this._editorService.openEditor({
-					resource: element.locations[0].uri,
+					resource: element.item.uri,
 					options: { selection: element.locations[0].range }
 				});
 			}
@@ -262,27 +264,38 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		this._show();
 	}
 
-	showEmpty(): void {
+	showMessage(message: string): void {
 		this._parent.dataset['state'] = State.Message;
 		this.setTitle('');
-		this._message.innerText = localize('empty', "No results");
+		this.setMetaTitle('');
+		this._message.innerText = message;
 		this._show();
 	}
 
 	showItem(item: CallHierarchyItem) {
 		this._parent.dataset['state'] = State.Data;
-		this._editor.setModel(undefined);
-		this._tree.setInput(item).then(() => {
-			this._tree.domFocus();
-			this._tree.focusFirst();
-			this.setTitle(
-				localize('title', "Call Hierarchy"),
-				this._direction === CallHierarchyDirection.CallsFrom
-					? localize('title.from', "calls from '{0}'", item.name)
-					: localize('title.to', "calls to '{0}'", item.name)
-			);
-		});
+
 		this._show();
+		this._tree.setInput(item).then(() => {
+
+			if (!this._tree.getFirstElementChild(item)) {
+				//
+				this.showMessage(this._direction === CallHierarchyDirection.CallsFrom
+					? localize('empt.callsFrom', "No calls from '{0}'", item.name)
+					: localize('empt.callsTo', "No calls to '{0}'", item.name));
+
+			} else {
+				this._tree.domFocus();
+				this._tree.focusFirst();
+				this.setTitle(
+					item.name,
+					item.detail || this._labelService.getUriLabel(item.uri, { relative: true }),
+				);
+				this.setMetaTitle(this._direction === CallHierarchyDirection.CallsFrom
+					? localize('title.from', " – calls from '{0}'", item.name)
+					: localize('title.to', " – calls to '{0}'", item.name));
+			}
+		});
 
 		if (!this._toggleDirection) {
 			this._toggleDirection = new ToggleHierarchyDirectionAction(
