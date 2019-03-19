@@ -274,6 +274,9 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 				this._receiveReplyErr(msgLength, req, undefined);
 				break;
 			}
+			default:
+				console.error(`received unexpected message`);
+				console.error(rawmsg);
 		}
 	}
 
