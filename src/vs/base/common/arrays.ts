@@ -379,6 +379,18 @@ export function uniqueFilter<T>(keyFn: (t: T) => string): (t: T) => boolean {
 	};
 }
 
+export function lastIndex<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean): number {
+	for (let i = array.length - 1; i >= 0; i--) {
+		const element = array[i];
+
+		if (fn(element)) {
+			return i;
+		}
+	}
+
+	return -1;
+}
+
 export function firstIndex<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean): number {
 	for (let i = 0; i < array.length; i++) {
 		const element = array[i];
