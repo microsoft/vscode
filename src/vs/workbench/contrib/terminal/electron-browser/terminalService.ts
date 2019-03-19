@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as pfs from 'vs/base/node/pfs';
 import * as platform from 'vs/base/common/platform';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -27,6 +26,7 @@ import { coalesce } from 'vs/base/common/arrays';
 import { IFileService } from 'vs/platform/files/common/files';
 import { escapeNonWindowsPath } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { execFile } from 'child_process';
+import { URI } from 'vs/base/common/uri';
 
 export class TerminalService extends BrowserTerminalService implements ITerminalService {
 	public get configHelper(): ITerminalConfigHelper { return this._configHelper; }
@@ -54,7 +54,8 @@ export class TerminalService extends BrowserTerminalService implements ITerminal
 			// the termProgram variable) and we are instructed to wait for editors close, wait for the
 			// marker file to get deleted and then focus back to the integrated terminal.
 			if (request.termProgram === 'vscode' && request.filesToWait) {
-				pfs.whenDeleted(request.filesToWait.waitMarkerFilePath).then(() => {
+				const waitMarkerFileUri = URI.revive(request.filesToWait.waitMarkerFileUri);
+				this.whenDeleted(waitMarkerFileUri).then(() => {
 					if (this.terminalInstances.length > 0) {
 						const terminal = this.getActiveInstance();
 						if (terminal) {
@@ -70,6 +71,27 @@ export class TerminalService extends BrowserTerminalService implements ITerminal
 				return;
 			}
 			activeTab.terminalInstances.forEach(instance => instance.forceRedraw());
+		});
+	}
+
+	private whenDeleted(path: URI): Promise<void> {
+
+		// Complete when wait marker file is deleted
+		return new Promise<void>(resolve => {
+			let running = false;
+			const interval = setInterval(() => {
+				if (!running) {
+					running = true;
+					this._fileService.existsFile(path).then(exists => {
+						running = false;
+
+						if (!exists) {
+							clearInterval(interval);
+							resolve(undefined);
+						}
+					});
+				}
+			}, 1000);
 		});
 	}
 

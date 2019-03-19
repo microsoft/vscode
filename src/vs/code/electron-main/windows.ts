@@ -422,7 +422,7 @@ export class WindowsManager implements IWindowsMainService {
 
 		// When run with --wait, make sure we keep the paths to wait for
 		if (fileInputs && openConfig.cli.wait && openConfig.cli.waitMarkerFilePath) {
-			fileInputs.filesToWait = { paths: [...fileInputs.filesToDiff, ...fileInputs.filesToOpen, ...fileInputs.filesToCreate], waitMarkerFilePath: openConfig.cli.waitMarkerFilePath };
+			fileInputs.filesToWait = { paths: [...fileInputs.filesToDiff, ...fileInputs.filesToOpen, ...fileInputs.filesToCreate], waitMarkerFileUri: URI.file(openConfig.cli.waitMarkerFilePath) };
 		}
 
 		//
