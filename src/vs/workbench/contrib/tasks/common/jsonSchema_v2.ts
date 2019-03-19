@@ -440,6 +440,7 @@ processTask.properties!.type = {
 	description: nls.localize('JsonSchema.tasks.type', 'Defines whether the task is run as a process or as a command inside a shell.')
 };
 processTask.required!.push('command');
+processTask.required!.push('type');
 
 taskDefinitions.push(processTask);
 
