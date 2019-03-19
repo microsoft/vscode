@@ -28,26 +28,18 @@ export interface IResourceEncoding {
 export interface IFileService {
 	_serviceBrand: any;
 
-	/**
-	 * Helper to determine read/write encoding for resources.
-	 */
-	encoding: IResourceEncodings;
-
-	/**
-	 * Allows to listen for file changes. The event will fire for every file within the opened workspace
-	 * (if any) as well as all files that have been watched explicitly using the #watchFileChanges() API.
-	 */
-	onFileChanges: Event<FileChangesEvent>;
-
-	/**
-	 * An event that is fired upon successful completion of a certain file operation.
-	 */
-	onAfterOperation: Event<FileOperationEvent>;
+	//#region File System Provider
 
 	/**
 	 * An event that is fired when a file system provider is added or removed
 	 */
-	onDidChangeFileSystemProviderRegistrations: Event<IFileSystemProviderRegistrationEvent>;
+	readonly onDidChangeFileSystemProviderRegistrations: Event<IFileSystemProviderRegistrationEvent>;
+
+	/**
+	 * An event that is fired when a file system provider is about to be activated. Listeners
+	 * can join this event with a long running promise to help in the activation process.
+	 */
+	readonly onWillActivateFileSystemProvider: Event<IFileSystemProviderActivationEvent>;
 
 	/**
 	 * Registers a file system provider for a certain scheme.
@@ -63,6 +55,24 @@ export interface IFileService {
 	 * Checks if this file service can handle the given resource.
 	 */
 	canHandleResource(resource: URI): boolean;
+
+	//#endregion
+
+	/**
+	 * Helper to determine read/write encoding for resources.
+	 */
+	encoding: IResourceEncodings;
+
+	/**
+	 * Allows to listen for file changes. The event will fire for every file within the opened workspace
+	 * (if any) as well as all files that have been watched explicitly using the #watchFileChanges() API.
+	 */
+	readonly onFileChanges: Event<FileChangesEvent>;
+
+	/**
+	 * An event that is fired upon successful completion of a certain file operation.
+	 */
+	readonly onAfterOperation: Event<FileOperationEvent>;
 
 	/**
 	 * Resolve the properties of a file identified by the resource.
@@ -238,6 +248,11 @@ export interface IFileSystemProviderRegistrationEvent {
 	added: boolean;
 	scheme: string;
 	provider?: IFileSystemProvider;
+}
+
+export interface IFileSystemProviderActivationEvent {
+	scheme: string;
+	join(promise: Promise<void>): void;
 }
 
 export const enum FileOperation {
@@ -942,3 +957,42 @@ export enum FileKind {
 
 export const MIN_MAX_MEMORY_SIZE_MB = 2048;
 export const FALLBACK_MAX_MEMORY_SIZE_MB = 4096;
+
+// TODO@ben remove traces of legacy file service
+export const ILegacyFileService = createDecorator<ILegacyFileService>('legacyFileService');
+export interface ILegacyFileService {
+	_serviceBrand: any;
+
+	encoding: IResourceEncodings;
+
+	onFileChanges: Event<FileChangesEvent>;
+	onAfterOperation: Event<FileOperationEvent>;
+
+	resolveFile(resource: URI, options?: IResolveFileOptions): Promise<IFileStat>;
+
+	resolveFiles(toResolve: { resource: URI, options?: IResolveFileOptions }[]): Promise<IResolveFileResult[]>;
+
+	existsFile(resource: URI): Promise<boolean>;
+
+	resolveContent(resource: URI, options?: IResolveContentOptions): Promise<IContent>;
+
+	resolveStreamContent(resource: URI, options?: IResolveContentOptions): Promise<IStreamContent>;
+
+	updateContent(resource: URI, value: string | ITextSnapshot, options?: IUpdateContentOptions): Promise<IFileStat>;
+
+	moveFile(source: URI, target: URI, overwrite?: boolean): Promise<IFileStat>;
+
+	copyFile(source: URI, target: URI, overwrite?: boolean): Promise<IFileStat>;
+
+	createFile(resource: URI, content?: string, options?: ICreateFileOptions): Promise<IFileStat>;
+
+	readFolder(resource: URI): Promise<string[]>;
+
+	createFolder(resource: URI): Promise<IFileStat>;
+
+	del(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): Promise<void>;
+
+	watchFileChanges(resource: URI): void;
+
+	unwatchFileChanges(resource: URI): void;
+}

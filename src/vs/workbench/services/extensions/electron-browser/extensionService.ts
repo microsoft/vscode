@@ -32,6 +32,7 @@ import { ExtensionHostProcessManager } from 'vs/workbench/services/extensions/el
 import { ExtensionIdentifier, IExtension, ExtensionType, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Schemas } from 'vs/base/common/network';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IFileService } from 'vs/platform/files/common/files';
 
 const hasOwnProperty = Object.hasOwnProperty;
 const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
@@ -99,9 +100,16 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		@IExtensionEnablementService private readonly _extensionEnablementService: IExtensionEnablementService,
 		@IExtensionManagementService private readonly _extensionManagementService: IExtensionManagementService,
 		@IWindowService private readonly _windowService: IWindowService,
-		@ILifecycleService private readonly _lifecycleService: ILifecycleService
+		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
+		@IFileService fileService: IFileService
 	) {
 		super();
+
+		// help the file service to activate providers by activating extensions by file system event
+		this._register(fileService.onWillActivateFileSystemProvider(e => {
+			e.join(this.activateByEvent(`onFileSystem:${e.scheme}`));
+		}));
+
 		this._extensionHostLogsLocation = URI.file(path.join(this._environmentService.logsPath, `exthost${this._windowService.getCurrentWindowId()}`));
 		this._registry = new ExtensionDescriptionRegistry([]);
 		this._installedExtensionsReady = new Barrier();
@@ -127,7 +135,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			}]);
 		}
 
-		this._extensionEnablementService.onEnablementChanged((extensions) => {
+		this._register(this._extensionEnablementService.onEnablementChanged((extensions) => {
 			let toAdd: IExtension[] = [];
 			let toRemove: string[] = [];
 			for (const extension of extensions) {
@@ -140,23 +148,23 @@ export class ExtensionService extends Disposable implements IExtensionService {
 				}
 			}
 			this._handleDeltaExtensions(new DeltaExtensionsQueueItem(toAdd, toRemove));
-		});
+		}));
 
-		this._extensionManagementService.onDidInstallExtension((event) => {
+		this._register(this._extensionManagementService.onDidInstallExtension((event) => {
 			if (event.local) {
 				if (this._extensionEnablementService.isEnabled(event.local)) {
 					// an extension has been installed
 					this._handleDeltaExtensions(new DeltaExtensionsQueueItem([event.local], []));
 				}
 			}
-		});
+		}));
 
-		this._extensionManagementService.onDidUninstallExtension((event) => {
+		this._register(this._extensionManagementService.onDidUninstallExtension((event) => {
 			if (!event.error) {
 				// an extension has been uninstalled
 				this._handleDeltaExtensions(new DeltaExtensionsQueueItem([], [event.identifier.id]));
 			}
-		});
+		}));
 	}
 
 	private _inHandleDeltaExtensions = false;

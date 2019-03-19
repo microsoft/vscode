@@ -14,12 +14,11 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/res
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { FileChangesEvent, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FileWriteOptions, FileSystemProviderCapabilities, IContent, ICreateFileOptions, IFileStat, IFileSystemProvider, IFilesConfiguration, IResolveContentOptions, IResolveFileOptions, IResolveFileResult, IStat, IStreamContent, ITextSnapshot, IUpdateContentOptions, StringSnapshot, IWatchOptions, FileType, IFileService } from 'vs/platform/files/common/files';
+import { FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FileWriteOptions, FileSystemProviderCapabilities, IContent, ICreateFileOptions, IFileStat, IFileSystemProvider, IFilesConfiguration, IResolveContentOptions, IResolveFileOptions, IResolveFileResult, IStat, IStreamContent, ITextSnapshot, IUpdateContentOptions, StringSnapshot, IWatchOptions, FileType, ILegacyFileService, IFileService } from 'vs/platform/files/common/files';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
 import { createReadableOfProvider, createReadableOfSnapshot, createWritableOfProvider } from 'vs/workbench/services/files/node/streams';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -162,7 +161,7 @@ export class RemoteFileService extends FileService {
 	private readonly _provider: Map<string, IFileSystemProvider>;
 
 	constructor(
-		@IExtensionService private readonly _extensionService: IExtensionService,
+		@IFileService private readonly _fileService: IFileService,
 		@IStorageService storageService: IStorageService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -191,27 +190,12 @@ export class RemoteFileService extends FileService {
 		}
 
 		this._provider.set(scheme, provider);
-		this._onDidChangeFileSystemProviderRegistrations.fire({ added: true, scheme, provider });
 
-		const reg = provider.onDidChangeFile(changes => {
-			// forward change events
-			this._onFileChanges.fire(new FileChangesEvent(changes));
-		});
 		return {
 			dispose: () => {
-				this._onDidChangeFileSystemProviderRegistrations.fire({ added: false, scheme, provider });
 				this._provider.delete(scheme);
-				reg.dispose();
 			}
 		};
-	}
-
-	activateProvider(scheme: string): Promise<void> {
-		return this._extensionService.activateByEvent('onFileSystem:' + scheme);
-	}
-
-	canHandleResource(resource: URI): boolean {
-		return resource.scheme === Schemas.file || this._provider.has(resource.scheme);
 	}
 
 	private _tryParseFileOperationResult(err: any): FileOperationResult | undefined {
@@ -250,7 +234,7 @@ export class RemoteFileService extends FileService {
 		}
 
 		return Promise.all([
-			this.activateProvider(resource.scheme)
+			this._fileService.activateProvider(resource.scheme)
 		]).then(() => {
 			const provider = this._provider.get(resource.scheme);
 			if (!provider) {
@@ -678,4 +662,4 @@ export class RemoteFileService extends FileService {
 	}
 }
 
-registerSingleton(IFileService, RemoteFileService);
+registerSingleton(ILegacyFileService, RemoteFileService);
