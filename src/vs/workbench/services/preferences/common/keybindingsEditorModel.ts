@@ -43,12 +43,12 @@ export interface IListEntry {
 
 export interface IKeybindingItemEntry extends IListEntry {
 	keybindingItem: IKeybindingItem;
-	commandIdMatches: IMatch[] | null;
-	commandLabelMatches: IMatch[] | null;
-	commandDefaultLabelMatches: IMatch[] | null;
-	sourceMatches: IMatch[] | null;
-	whenMatches: IMatch[] | null;
-	keybindingMatches: KeybindingMatches | null;
+	commandIdMatches?: IMatch[];
+	commandLabelMatches?: IMatch[];
+	commandDefaultLabelMatches?: IMatch[];
+	sourceMatches?: IMatch[];
+	whenMatches?: IMatch[];
+	keybindingMatches?: KeybindingMatches;
 }
 
 export interface IKeybindingItem {
@@ -139,13 +139,13 @@ export class KeybindingsEditorModel extends EditorModel {
 				result.push({
 					id: KeybindingsEditorModel.getId(keybindingItem),
 					templateId: KEYBINDING_ENTRY_TEMPLATE_ID,
-					commandLabelMatches: keybindingMatches.commandLabelMatches,
-					commandDefaultLabelMatches: keybindingMatches.commandDefaultLabelMatches,
+					commandLabelMatches: keybindingMatches.commandLabelMatches || undefined,
+					commandDefaultLabelMatches: keybindingMatches.commandDefaultLabelMatches || undefined,
 					keybindingItem,
-					keybindingMatches: keybindingMatches.keybindingMatches,
-					commandIdMatches: keybindingMatches.commandIdMatches,
-					sourceMatches: keybindingMatches.sourceMatches,
-					whenMatches: keybindingMatches.whenMatches
+					keybindingMatches: keybindingMatches.keybindingMatches || undefined,
+					commandIdMatches: keybindingMatches.commandIdMatches || undefined,
+					sourceMatches: keybindingMatches.sourceMatches || undefined,
+					whenMatches: keybindingMatches.whenMatches || undefined
 				});
 			}
 		}

@@ -5,6 +5,9 @@
 
 import * as vscode from 'vscode';
 import * as util from 'util';
+import * as nls from 'vscode-nls';
+
+const localize = nls.loadMessageBundle();
 
 const PATTERN = 'listening on.* (https?://\\S+|[0-9]+)'; // matches "listening on port 3000" or "Now listening on: https://localhost:5001"
 const URI_FORMAT = 'http://localhost:%s';
@@ -85,24 +88,44 @@ class ServerReadyDetector extends vscode.Disposable {
 	detectPattern(s: string): void {
 
 		if (!this.hasFired) {
-			const result = this.regexp.exec(s);
-			if (result && result.length === 2) {
-				this.openExternalWithString(this.session, result[1]);
+			const matches = this.regexp.exec(s);
+			if (matches && matches.length >= 1) {
+				this.openExternalWithString(this.session, matches.length > 1 ? matches[1] : '');
 				this.hasFired = true;
 				this.internalDispose();
 			}
 		}
 	}
 
-	private openExternalWithString(session: vscode.DebugSession, portOrUriString: string) {
+	private openExternalWithString(session: vscode.DebugSession, captureString: string) {
 
-		if (portOrUriString) {
-			if (/^[0-9]+$/.test(portOrUriString)) {
-				const args: ServerReadyAction = session.configuration.serverReadyAction;
-				portOrUriString = util.format(args.uriFormat || URI_FORMAT, portOrUriString);
+		const args: ServerReadyAction = session.configuration.serverReadyAction;
+		const format = args.uriFormat || URI_FORMAT;
+
+		if (captureString === '') {
+			// nothing captured by reg exp -> use the uriFormat as the target url without substitution
+			// verify that format does not contain '%s'
+			if (format.indexOf('%s') >= 0) {
+				const errMsg = localize('server.ready.nocapture.error', "Format uri ('{0}') uses a substitution placeholder but pattern did not capture anything.", format);
+				vscode.window.showErrorMessage(errMsg, { modal: true }).then(_ => undefined);
+				return;
 			}
-			this.openExternalWithUri(session, portOrUriString);
+			captureString = format;
+		} else if (/^[0-9]+$/.test(captureString)) {
+			// looks like a port number -> use the uriFormat and substitute a single "%s" with the port
+			// verify that format only contains a single '%s'
+			const s = format.split('%s');
+			if (s.length !== 2) {
+				const errMsg = localize('server.ready.placeholder.error', "Format uri ('{0}') must contain exactly one substitution placeholder.", format);
+				vscode.window.showErrorMessage(errMsg, { modal: true }).then(_ => undefined);
+				return;
+			}
+			captureString = util.format(format, captureString);
+		} else {
+			// use the string as is
 		}
+
+		this.openExternalWithUri(session, captureString);
 	}
 
 	private openExternalWithUri(session: vscode.DebugSession, uri: string) {

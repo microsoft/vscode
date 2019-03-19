@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/task.contribution';
+import 'vs/css!../common/media/task.contribution';
 
 import * as nls from 'vs/nls';
 import * as semver from 'semver';
@@ -2696,8 +2696,8 @@ let schema: IJSONSchema = {
 	}
 };
 
-import schemaVersion1 from './jsonSchema_v1';
-import schemaVersion2, { updateProblemMatchers } from './jsonSchema_v2';
+import schemaVersion1 from '../common/jsonSchema_v1';
+import schemaVersion2, { updateProblemMatchers } from '../common/jsonSchema_v2';
 schema.definitions = {
 	...schemaVersion1.definitions,
 	...schemaVersion2.definitions,
