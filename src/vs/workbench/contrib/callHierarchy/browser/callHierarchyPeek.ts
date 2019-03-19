@@ -24,14 +24,15 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationOptions, OverviewRulerLane } from 'vs/editor/common/model';
-import { registerThemingParticipant, themeColorFromId } from 'vs/platform/theme/common/themeService';
-import { peekViewEditorMatchHighlight } from 'vs/editor/contrib/referenceSearch/referencesWidget';
+import { registerThemingParticipant, themeColorFromId, IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
+import { peekViewEditorMatchHighlight, peekViewBorder, peekViewTitleBackground, peekViewTitleForeground, peekViewTitleInfoForeground } from 'vs/editor/contrib/referenceSearch/referencesWidget';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Action } from 'vs/base/common/actions';
 import { IActionBarOptions, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { Color } from 'vs/base/common/color';
 
 registerThemingParticipant((theme, collector) => {
 	const referenceHighlightColor = theme.getColor(peekViewEditorMatchHighlight);
@@ -106,6 +107,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		private readonly _where: IPosition,
 		private readonly _provider: CallHierarchyProvider,
 		private _direction: CallHierarchyDirection,
+		@IThemeService themeService: IThemeService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@ILabelService private readonly _labelService: ILabelService,
@@ -114,6 +116,8 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 	) {
 		super(editor, { showFrame: true, showArrow: true, isResizeable: true, isAccessible: true });
 		this.create();
+		this._applyTheme(themeService.getTheme());
+		themeService.onThemeChange(this._applyTheme, this, this._disposables);
 	}
 
 	dispose(): void {
@@ -122,6 +126,17 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		this._tree.dispose();
 		this._editor.dispose();
 		super.dispose();
+	}
+
+	private _applyTheme(theme: ITheme) {
+		const borderColor = theme.getColor(peekViewBorder) || Color.transparent;
+		this.style({
+			arrowColor: borderColor,
+			frameColor: borderColor,
+			headerBackgroundColor: theme.getColor(peekViewTitleBackground) || Color.transparent,
+			primaryHeadingColor: theme.getColor(peekViewTitleForeground),
+			secondaryHeadingColor: theme.getColor(peekViewTitleInfoForeground)
+		});
 	}
 
 	protected _getActionBarOptions(): IActionBarOptions {
