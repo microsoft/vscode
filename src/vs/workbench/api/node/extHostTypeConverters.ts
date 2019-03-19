@@ -29,6 +29,7 @@ import { parse } from 'vs/base/common/marshalling';
 import { cloneAndChange } from 'vs/base/common/objects';
 import { LogLevel as _MainLogLevel } from 'vs/platform/log/common/log';
 import { coalesce } from 'vs/base/common/arrays';
+import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 
 export interface PositionLike {
 	line: number;
@@ -879,6 +880,31 @@ export namespace TextDocumentSaveReason {
 			case SaveReason.FOCUS_CHANGE:
 			case SaveReason.WINDOW_CHANGE:
 				return types.TextDocumentSaveReason.FocusOut;
+		}
+	}
+}
+
+export namespace TextEditorLineNumbersStyle {
+	export function from(style: vscode.TextEditorLineNumbersStyle): RenderLineNumbersType {
+		switch (style) {
+			case types.TextEditorLineNumbersStyle.Off:
+				return RenderLineNumbersType.Off;
+			case types.TextEditorLineNumbersStyle.Relative:
+				return RenderLineNumbersType.Relative;
+			case types.TextEditorLineNumbersStyle.On:
+			default:
+				return RenderLineNumbersType.On;
+		}
+	}
+	export function to(style: RenderLineNumbersType): vscode.TextEditorLineNumbersStyle {
+		switch (style) {
+			case RenderLineNumbersType.Off:
+				return types.TextEditorLineNumbersStyle.Off;
+			case RenderLineNumbersType.Relative:
+				return types.TextEditorLineNumbersStyle.Relative;
+			case RenderLineNumbersType.On:
+			default:
+				return types.TextEditorLineNumbersStyle.On;
 		}
 	}
 }

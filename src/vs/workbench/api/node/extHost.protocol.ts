@@ -8,12 +8,12 @@ import { SerializedError } from 'vs/base/common/errors';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
+import { TextEditorCursorStyle, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { ISingleEditOperation } from 'vs/editor/common/model';
+import { ISingleEditOperation, EndOfLineSequence } from 'vs/editor/common/model';
 import { IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
 import * as modes from 'vs/editor/common/modes';
 import { CharacterPair, CommentRule, EnterAction } from 'vs/editor/common/modes/languageConfiguration';
@@ -29,7 +29,6 @@ import { IPatternInfo, IRawFileMatch2, IRawQuery, IRawTextQuery, ISearchComplete
 import { StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/platform/statusbar/common/statusbar';
 import { ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
-import { EndOfLine, IFileOperationOptions, TextEditorLineNumbersStyle } from 'vs/workbench/api/node/extHostTypes';
 import { EditorViewColumn } from 'vs/workbench/api/shared/editor';
 import { TaskDTO, TaskExecutionDTO, TaskFilterDTO, TaskHandleDTO, TaskProcessEndedDTO, TaskProcessStartedDTO, TaskSystemInfoDTO, TaskSetDTO } from 'vs/workbench/api/shared/tasks';
 import { ITreeItem, IRevealOptions } from 'vs/workbench/common/views';
@@ -194,7 +193,7 @@ export interface ITextEditorConfigurationUpdate {
 	indentSize?: number | 'tabSize';
 	insertSpaces?: boolean | 'auto';
 	cursorStyle?: TextEditorCursorStyle;
-	lineNumbers?: TextEditorLineNumbersStyle;
+	lineNumbers?: RenderLineNumbersType;
 }
 
 export interface IResolvedTextEditorConfiguration {
@@ -202,7 +201,7 @@ export interface IResolvedTextEditorConfiguration {
 	indentSize: number;
 	insertSpaces: boolean;
 	cursorStyle: TextEditorCursorStyle;
-	lineNumbers: TextEditorLineNumbersStyle;
+	lineNumbers: RenderLineNumbersType;
 }
 
 export enum TextEditorRevealType {
@@ -218,7 +217,7 @@ export interface IUndoStopOptions {
 }
 
 export interface IApplyEditsOptions extends IUndoStopOptions {
-	setEndOfLine: EndOfLine;
+	setEndOfLine: EndOfLineSequence;
 }
 
 export interface ITextDocumentShowOptions {
@@ -868,7 +867,12 @@ export interface WorkspaceSymbolsDto extends IdObject {
 export interface ResourceFileEditDto {
 	oldUri?: UriComponents;
 	newUri?: UriComponents;
-	options?: IFileOperationOptions;
+	options?: {
+		overwrite?: boolean;
+		ignoreIfExists?: boolean;
+		ignoreIfNotExists?: boolean;
+		recursive?: boolean;
+	};
 }
 
 export interface ResourceTextEditDto {

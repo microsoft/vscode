@@ -118,7 +118,7 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 		if (data.options) {
 			this._onDidChangeTextEditorOptions.fire({
 				textEditor: textEditor,
-				options: data.options
+				options: { ...data.options, lineNumbers: TypeConverters.TextEditorLineNumbersStyle.to(data.options.lineNumbers) }
 			});
 		}
 		if (data.selections) {
