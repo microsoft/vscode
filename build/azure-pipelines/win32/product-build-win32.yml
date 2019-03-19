@@ -20,10 +20,10 @@ steps:
     $env:CHILD_CONCURRENCY="1"
     $env:VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)"
     exec { yarn }
+    exec { npm run gulp -- mixin }
     exec { npm run gulp -- hygiene }
     exec { npm run monaco-compile-check }
     exec { npm run strict-null-check }
-    exec { npm run gulp -- mixin }
     exec { node build/azure-pipelines/common/installDistro.js }
     exec { node build/lib/builtInExtensions.js }
 
