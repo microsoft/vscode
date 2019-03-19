@@ -145,15 +145,15 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		});
 	}
 
-	$createNewCommentWidgetCallback(commentControllerHandle: number, uriComponents: UriComponents, range: IRange, token: CancellationToken): void {
+	$createNewCommentWidgetCallback(commentControllerHandle: number, uriComponents: UriComponents, range: IRange, token: CancellationToken): Promise<void> {
 		const commentController = this._commentControllers.get(commentControllerHandle);
 
 		if (!commentController || !commentController.emptyCommentThreadFactory) {
-			return;
+			return Promise.resolve();
 		}
 
 		const document = this._documents.getDocument(URI.revive(uriComponents));
-		commentController.emptyCommentThreadFactory.createEmptyCommentThread(document, extHostTypeConverter.Range.to(range));
+		return asPromise(() => commentController.emptyCommentThreadFactory!.createEmptyCommentThread(document, extHostTypeConverter.Range.to(range))).then(() => Promise.resolve());
 	}
 
 	registerWorkspaceCommentProvider(

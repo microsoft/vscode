@@ -1286,7 +1286,7 @@ export interface CommentingRanges {
 	readonly resource: URI;
 	ranges: IRange[];
 	newCommentThreadCommand?: Command;
-	newCommentThreadCallback?: (uri: UriComponents, range: IRange) => void;
+	newCommentThreadCallback?: (uri: UriComponents, range: IRange) => Promise<void>;
 }
 
 /**

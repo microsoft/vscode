@@ -374,8 +374,8 @@ export class MainThreadCommentController {
 			threads: ret,
 			commentingRanges: commentingRanges ?
 				{
-					resource: resource, ranges: commentingRanges, newCommentThreadCallback: (uri: UriComponents, range: IRange) => {
-						this._proxy.$createNewCommentWidgetCallback(this.handle, uri, range, token);
+					resource: resource, ranges: commentingRanges, newCommentThreadCallback: async (uri: UriComponents, range: IRange) => {
+						await this._proxy.$createNewCommentWidgetCallback(this.handle, uri, range, token);
 					}
 				} : [],
 			draftMode: modes.DraftMode.NotSupported
