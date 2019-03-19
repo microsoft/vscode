@@ -154,7 +154,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 			WorkbenchAsyncDataTree,
 			treeContainer,
 			new callHTree.VirtualDelegate(),
-			[new callHTree.CallRenderer()],
+			[this._instantiationService.createInstance(callHTree.CallRenderer)],
 			new callHTree.SingleDirectionDataSource(this._provider, () => this._direction),
 			options
 		);

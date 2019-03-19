@@ -10,7 +10,7 @@ import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { symbolKindToCssClass, Location } from 'vs/editor/common/modes';
-import { localize } from 'vs/nls';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 export class Call {
 	constructor(
@@ -32,14 +32,6 @@ export class SingleDirectionDataSource implements IAsyncDataSource<CallHierarchy
 	}
 
 	async getChildren(element: CallHierarchyItem | Call): Promise<Call[]> {
-		// if (element instanceof Call) {
-		// 	const calls = await this.provider.resolveCallHierarchyItem(element.item, this.direction, CancellationToken.None);
-		// 	return calls
-		// 		? calls.map(([item, locations]) => new Call(this.direction, item, locations))
-		// 		: [];
-		// } else {
-		// 	return [new Call(this.direction, element, undefined)];
-		// }
 		if (element instanceof Call) {
 			element = element.item;
 		}
@@ -67,21 +59,16 @@ export class CallRenderer implements ITreeRenderer<Call, FuzzyScore, CallRenderi
 
 	templateId: string = CallRenderer.id;
 
+	constructor(@ILabelService private readonly _labelService: ILabelService) { }
+
 	renderTemplate(container: HTMLElement): CallRenderingTemplate {
 		const iconLabel = new IconLabel(container, { supportHighlights: true });
 		return { iconLabel };
 	}
 	renderElement(node: ITreeNode<Call, FuzzyScore>, _index: number, template: CallRenderingTemplate): void {
 		const { element, filterData } = node;
-		let detail: string | undefined;
-		if (!element.locations) {
-			// root
-			detail = element.item.detail;
-		} else {
-			detail = element.locations.length === 1
-				? localize('label.1', "(1 usage)")
-				: localize('label.n', "({0} usages)", element.locations.length);
-		}
+		const detail = element.item.detail || this._labelService.getUriLabel(element.locations[0].uri, { relative: true });
+
 		template.iconLabel.setLabel(
 			element.item.name,
 			detail,
