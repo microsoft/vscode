@@ -16,6 +16,7 @@ import { EnablementState } from 'vs/platform/extensionManagement/common/extensio
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IExtensionsWorkbenchService, IExtension } from 'vs/workbench/contrib/extensions/common/extensions';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 @extHostNamedCustomer(MainContext.MainThreadExtensionService)
 export class MainThreadExtensionService implements MainThreadExtensionServiceShape {
@@ -105,7 +106,7 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 
 	private async _handleMissingNotInstalledDependency(extension: IExtensionDescription, missingDependency: string): Promise<void> {
 		const extName = extension.displayName || extension.name;
-		const dependencyExtension = (await this._extensionsWorkbenchService.queryGallery({ names: [missingDependency] })).firstPage[0];
+		const dependencyExtension = (await this._extensionsWorkbenchService.queryGallery({ names: [missingDependency] }, CancellationToken.None)).firstPage[0];
 		if (dependencyExtension) {
 			this._notificationService.notify({
 				severity: Severity.Error,

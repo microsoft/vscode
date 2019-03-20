@@ -118,7 +118,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 					return;
 				}
 
-				this.galleryService.query({ text: `tag:lp-${locale}` }).then(tagResult => {
+				this.galleryService.query({ text: `tag:lp-${locale}` }, CancellationToken.None).then(tagResult => {
 					if (tagResult.total === 0) {
 						return;
 					}

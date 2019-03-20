@@ -395,7 +395,12 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			});
 	}
 
-	query(options: IQueryOptions = {}): Promise<IPager<IGalleryExtension>> {
+	query(token: CancellationToken): Promise<IPager<IGalleryExtension>>;
+	query(options: IQueryOptions, token: CancellationToken): Promise<IPager<IGalleryExtension>>;
+	query(arg1: any, arg2?: any): Promise<IPager<IGalleryExtension>> {
+		const options: IQueryOptions = CancellationToken.isCancellationToken(arg1) ? {} : arg1;
+		const token: CancellationToken = CancellationToken.isCancellationToken(arg1) ? arg1 : arg2;
+
 		if (!this.isEnabled()) {
 			return Promise.reject(new Error('No extension gallery service configured.'));
 		}
@@ -455,7 +460,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			query = query.withSortOrder(options.sortOrder);
 		}
 
-		return this.queryGallery(query, CancellationToken.None).then(({ galleryExtensions, total }) => {
+		return this.queryGallery(query, token).then(({ galleryExtensions, total }) => {
 			const extensions = galleryExtensions.map((e, index) => toExtension(e, e.versions[0], index, query, options.source));
 			const pageSize = query.pageSize;
 			const getPage = (pageIndex: number, ct: CancellationToken) => {

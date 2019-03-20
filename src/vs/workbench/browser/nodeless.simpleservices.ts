@@ -288,7 +288,9 @@ export class SimpleExtensionGalleryService implements IExtensionGalleryService {
 		return false;
 	}
 
-	query(options?: IQueryOptions): Promise<IPager<IGalleryExtension>> {
+	query(token: CancellationToken): Promise<IPager<IGalleryExtension>>;
+	query(options: IQueryOptions, token: CancellationToken): Promise<IPager<IGalleryExtension>>;
+	query(arg1: any, arg2?: any): Promise<IPager<IGalleryExtension>> {
 		// @ts-ignore
 		return Promise.resolve(undefined);
 	}
