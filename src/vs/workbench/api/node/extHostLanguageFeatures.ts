@@ -1082,7 +1082,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 				$serialized: true,
 				language: selector.language,
 				scheme: this._transformScheme(selector.scheme),
-				pattern: selector.pattern,
+				pattern: typeof selector.pattern === 'undefined' ? undefined : typeConvert.GlobPattern.from(selector.pattern),
 				exclusive: selector.exclusive
 			};
 		}
