@@ -8,7 +8,7 @@ import { extHostNamedCustomer } from '../common/extHostCustomers';
 import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IExtensionUrlHandler } from 'vs/workbench/services/extensions/electron-browser/inactiveExtensionUrlHandler';
+import { IExtensionUrlHandler } from 'vs/workbench/services/extensions/common/inactiveExtensionUrlHandler';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 class ExtensionUrlHandler implements IURLHandler {

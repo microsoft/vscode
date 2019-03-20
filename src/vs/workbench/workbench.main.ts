@@ -100,7 +100,7 @@ import 'vs/workbench/services/hash/node/hashService';
 import 'vs/workbench/services/textMate/electron-browser/textMateService';
 import 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
 import 'vs/workbench/services/workspace/node/workspaceEditingService';
-import 'vs/workbench/services/extensions/electron-browser/inactiveExtensionUrlHandler';
+import 'vs/workbench/services/extensions/common/inactiveExtensionUrlHandler';
 import 'vs/workbench/services/decorations/browser/decorationsService';
 import 'vs/workbench/services/search/node/searchService';
 import 'vs/workbench/services/progress/browser/progressService2';
