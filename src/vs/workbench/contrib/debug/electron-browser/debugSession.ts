@@ -183,6 +183,10 @@ export class DebugSession implements IDebugSession {
 					});
 				});
 			});
+		}).then(undefined, err => {
+			this.initialized = true;
+			this._onDidChangeState.fire();
+			return Promise.reject(err);
 		});
 	}
 
