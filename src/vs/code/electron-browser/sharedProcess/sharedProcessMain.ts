@@ -38,7 +38,7 @@ import { ILocalizationsService } from 'vs/platform/localizations/common/localiza
 import { LocalizationsChannel } from 'vs/platform/localizations/node/localizationsIpc';
 import { DialogChannelClient } from 'vs/platform/dialogs/node/dialogIpc';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IDisposable, dispose, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
 import { DownloadService } from 'vs/platform/download/node/downloadService';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { StaticRouter } from 'vs/base/parts/ipc/node/ipc';
@@ -161,12 +161,12 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 			const localizationsChannel = new LocalizationsChannel(localizationsService);
 			server.registerChannel('localizations', localizationsChannel);
 
+			// clean up deprecated extensions
+			(extensionManagementService as ExtensionManagementService).removeDeprecatedExtensions();
+			// update localizations cache
+			(localizationsService as LocalizationsService).update();
+			// cache clean ups
 			disposables.push(combinedDisposable([
-				// clean up deprecated extensions
-				toDisposable(() => (extensionManagementService as ExtensionManagementService).removeDeprecatedExtensions()),
-				// update localizations cache
-				toDisposable(() => (localizationsService as LocalizationsService).update()),
-				// other cache clean ups
 				instantiationService2.createInstance(NodeCachedDataCleaner),
 				instantiationService2.createInstance(LanguagePackCachedDataCleaner),
 				instantiationService2.createInstance(StorageDataCleaner),
