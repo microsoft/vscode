@@ -35,7 +35,7 @@ import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/p
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_ATTACH_BROADCAST_CHANNEL, EXTENSION_TERMINATE_BROADCAST_CHANNEL, EXTENSION_RELOAD_BROADCAST_CHANNEL, EXTENSION_CLOSE_EXTHOST_BROADCAST_CHANNEL } from 'vs/platform/extensions/common/extensionHost';
 import { IBroadcastService } from 'vs/workbench/services/broadcast/common/broadcast';
-import { IRemoteConsoleLog, parse, getFirstFrame } from 'vs/base/node/console';
+import { IRemoteConsoleLog, parse, getFirstFrame } from 'vs/base/common/console';
 import { TaskEvent, TaskEventKind, TaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';

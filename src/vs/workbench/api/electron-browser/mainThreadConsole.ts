@@ -6,7 +6,7 @@
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { MainContext, MainThreadConsoleShape, IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IRemoteConsoleLog, log, parse } from 'vs/base/node/console';
+import { IRemoteConsoleLog, log, parse } from 'vs/base/common/console';
 import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/electron-browser/extensionHost';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IBroadcastService } from 'vs/workbench/services/broadcast/common/broadcast';

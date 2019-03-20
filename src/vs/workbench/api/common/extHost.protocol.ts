@@ -45,6 +45,7 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import * as codeInset from 'vs/workbench/contrib/codeinset/common/codeInset';
 import * as callHierarchy from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { IRelativePattern } from 'vs/base/common/glob';
+import { IRemoteConsoleLog } from 'vs/base/common/console';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -255,11 +256,7 @@ export interface MainThreadErrorsShape extends IDisposable {
 }
 
 export interface MainThreadConsoleShape extends IDisposable {
-	$logExtensionHostMessage(msg: {
-		type: string;
-		severity: string;
-		arguments: string;
-	}): void;
+	$logExtensionHostMessage(msg: IRemoteConsoleLog): void;
 }
 
 export interface ISerializedRegExp {

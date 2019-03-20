@@ -17,7 +17,7 @@ import * as objects from 'vs/base/common/objects';
 import { isWindows } from 'vs/base/common/platform';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { IRemoteConsoleLog, log, parse } from 'vs/base/node/console';
+import { IRemoteConsoleLog, log, parse } from 'vs/base/common/console';
 import { findFreePort, randomPort } from 'vs/base/node/ports';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
 import { PersistentProtocol, generateRandomPipeName } from 'vs/base/parts/ipc/node/ipc.net';
