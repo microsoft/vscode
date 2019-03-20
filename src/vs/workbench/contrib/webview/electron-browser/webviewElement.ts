@@ -3,9 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { OnBeforeRequestDetails, OnHeadersReceivedDetails, Response } from 'electron';
 import { addClass, addDisposableListener } from 'vs/base/browser/dom';
 import { Emitter, Event } from 'vs/base/common/event';
+import { once } from 'vs/base/common/functional';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { isMacintosh } from 'vs/base/common/platform';
+import { endsWith } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -15,8 +19,11 @@ import { DARK, ITheme, IThemeService, LIGHT } from 'vs/platform/theme/common/the
 import { registerFileProtocol, WebviewProtocol } from 'vs/workbench/contrib/webview/electron-browser/webviewProtocols';
 import { areWebviewInputOptionsEqual } from './webviewEditorService';
 import { WebviewFindWidget } from './webviewFindWidget';
-import { endsWith } from 'vs/base/common/strings';
-import { isMacintosh } from 'vs/base/common/platform';
+
+export interface WebviewPortMapping {
+	readonly from: number;
+	readonly to: number;
+}
 
 export interface WebviewOptions {
 	readonly allowSvgs?: boolean;
@@ -28,6 +35,7 @@ export interface WebviewContentOptions {
 	readonly allowScripts?: boolean;
 	readonly svgWhiteList?: string[];
 	readonly localResourceRoots?: ReadonlyArray<URI>;
+	readonly portMappings?: ReadonlyArray<WebviewPortMapping>;
 }
 
 interface IKeydownEvent {
@@ -41,6 +49,58 @@ interface IKeydownEvent {
 	repeat: boolean;
 }
 
+type OnBeforeRequestDelegate = (details: OnBeforeRequestDetails) => Promise<Response | undefined>;
+type OnHeadersReceivedDelegate = (details: OnHeadersReceivedDetails) => { cancel: boolean } | undefined;
+
+class WebviewSession extends Disposable {
+
+	private readonly _onBeforeRequestDelegates: Array<OnBeforeRequestDelegate> = [];
+	private readonly _onHeadersReceivedDelegates: Array<OnHeadersReceivedDelegate> = [];
+
+	public constructor(
+		webview: Electron.WebviewTag
+	) {
+		super();
+
+		this._register(addDisposableListener(webview, 'did-start-loading', once(() => {
+			const contents = webview.getWebContents();
+			if (!contents) {
+				return;
+			}
+
+			contents.session.webRequest.onBeforeRequest(async (details, callback) => {
+				for (const delegate of this._onBeforeRequestDelegates) {
+					const result = await delegate(details);
+					if (typeof result !== 'undefined') {
+						callback(result);
+						return;
+					}
+				}
+				callback({});
+			});
+
+			contents.session.webRequest.onHeadersReceived((details, callback) => {
+				for (const delegate of this._onHeadersReceivedDelegates) {
+					const result = delegate(details);
+					if (typeof result !== 'undefined') {
+						callback(result);
+						return;
+					}
+				}
+				callback({ cancel: false, responseHeaders: details.responseHeaders });
+			});
+		})));
+	}
+
+	public onBeforeRequest(delegate: OnBeforeRequestDelegate) {
+		this._onBeforeRequestDelegates.push(delegate);
+	}
+
+	public onHeadersReceived(delegate) {
+		this._onHeadersReceivedDelegates.push(delegate);
+	}
+}
+
 class WebviewProtocolProvider extends Disposable {
 	constructor(
 		webview: Electron.WebviewTag,
@@ -51,21 +111,15 @@ class WebviewProtocolProvider extends Disposable {
 	) {
 		super();
 
-		let loaded = false;
-		this._register(addDisposableListener(webview, 'did-start-loading', () => {
-			if (loaded) {
-				return;
-			}
-			loaded = true;
-
+		this._register(addDisposableListener(webview, 'did-start-loading', once(() => {
 			const contents = webview.getWebContents();
 			if (contents) {
-				this.registerFileProtocols(contents);
+				this.registerProtocols(contents);
 			}
-		}));
+		})));
 	}
 
-	private registerFileProtocols(contents: Electron.WebContents) {
+	private registerProtocols(contents: Electron.WebContents) {
 		if (contents.isDestroyed()) {
 			return;
 		}
@@ -82,52 +136,71 @@ class WebviewProtocolProvider extends Disposable {
 	}
 }
 
+class WebviewPortMappingProvider extends Disposable {
+
+	constructor(
+		session: WebviewSession,
+		mappings: () => ReadonlyArray<WebviewPortMapping>
+	) {
+		super();
+
+		session.onBeforeRequest(async (details) => {
+			const uri = URI.parse(details.url);
+			if (uri.scheme !== 'http' && uri.scheme !== 'https') {
+				return undefined;
+			}
+
+			const localhostMatch = /^localhost:(\d+)$/.exec(uri.authority);
+			if (localhostMatch) {
+				const port = +localhostMatch[1];
+				for (const mapping of mappings()) {
+					if (mapping.from === port) {
+						return {
+							redirectURL: `${uri.scheme}://localhost:${mapping.to}`
+						};
+					}
+				}
+			}
+
+			return undefined;
+		});
+	}
+}
+
 class SvgBlocker extends Disposable {
 
 	private readonly _onDidBlockSvg = this._register(new Emitter<void>());
 	public readonly onDidBlockSvg = this._onDidBlockSvg.event;
 
 	constructor(
-		webview: Electron.WebviewTag,
+		session: WebviewSession,
 		private readonly _options: WebviewContentOptions,
 	) {
 		super();
 
-		let loaded = false;
-		this._register(addDisposableListener(webview, 'did-start-loading', () => {
-			if (loaded) {
-				return;
-			}
-			loaded = true;
-
-			const contents = webview.getWebContents();
-			if (!contents) {
-				return;
+		session.onBeforeRequest(async (details) => {
+			if (details.url.indexOf('.svg') > 0) {
+				const uri = URI.parse(details.url);
+				if (uri && !uri.scheme.match(/file/i) && endsWith(uri.path, '.svg') && !this.isAllowedSvg(uri)) {
+					this._onDidBlockSvg.fire();
+					return { cancel: true };
+				}
 			}
 
-			contents.session.webRequest.onBeforeRequest((details, callback) => {
-				if (details.url.indexOf('.svg') > 0) {
-					const uri = URI.parse(details.url);
-					if (uri && !uri.scheme.match(/file/i) && endsWith(uri.path, '.svg') && !this.isAllowedSvg(uri)) {
-						this._onDidBlockSvg.fire();
-						return callback({ cancel: true });
-					}
-				}
-				return callback({});
-			});
+			return undefined;
+		});
 
-			contents.session.webRequest.onHeadersReceived((details, callback) => {
-				const contentType: string[] = details.responseHeaders['content-type'] || details.responseHeaders['Content-Type'];
-				if (contentType && Array.isArray(contentType) && contentType.some(x => x.toLowerCase().indexOf('image/svg') >= 0)) {
-					const uri = URI.parse(details.url);
-					if (uri && !this.isAllowedSvg(uri)) {
-						this._onDidBlockSvg.fire();
-						return callback({ cancel: true });
-					}
+		session.onHeadersReceived((details) => {
+			const contentType: string[] = details.responseHeaders['content-type'] || details.responseHeaders['Content-Type'];
+			if (contentType && Array.isArray(contentType) && contentType.some(x => x.toLowerCase().indexOf('image/svg') >= 0)) {
+				const uri = URI.parse(details.url);
+				if (uri && !this.isAllowedSvg(uri)) {
+					this._onDidBlockSvg.fire();
+					return { cancel: true };
 				}
-				return callback({ cancel: false, responseHeaders: details.responseHeaders });
-			});
-		}));
+			}
+			return undefined;
+		});
 	}
 
 	private isAllowedSvg(uri: URI): boolean {
@@ -236,7 +309,7 @@ export class WebviewElement extends Disposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IFileService fileService: IFileService
+		@IFileService fileService: IFileService,
 	) {
 		super();
 		this._webview = document.createElement('webview');
@@ -264,16 +337,22 @@ export class WebviewElement extends Disposable {
 			}));
 		});
 
-		this._register(
-			new WebviewProtocolProvider(
-				this._webview,
-				this._options.extensionLocation,
-				() => (this._contentOptions.localResourceRoots || []),
-				environmentService,
-				fileService));
+		const session = this._register(new WebviewSession(this._webview));
+
+		this._register(new WebviewProtocolProvider(
+			this._webview,
+			this._options.extensionLocation,
+			() => (this._contentOptions.localResourceRoots || []),
+			environmentService,
+			fileService));
+
+		this._register(new WebviewPortMappingProvider(
+			session,
+			() => (this._contentOptions.portMappings || [{ from: 3000, to: 4000 }])
+		));
 
 		if (!this._options.allowSvgs) {
-			const svgBlocker = this._register(new SvgBlocker(this._webview, this._contentOptions));
+			const svgBlocker = this._register(new SvgBlocker(session, this._contentOptions));
 			svgBlocker.onDidBlockSvg(() => this.onDidBlockSvg());
 		}
 
