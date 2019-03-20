@@ -762,7 +762,11 @@ export class TerminalInstance implements ITerminalInstance {
 		if (!this._xterm) {
 			return;
 		}
-		const text = window.getSelection().toString();
+		const selection = window.getSelection();
+		if (!selection) {
+			return;
+		}
+		const text = selection.toString();
 		if (!text || force) {
 			this._xterm.focus();
 		}
