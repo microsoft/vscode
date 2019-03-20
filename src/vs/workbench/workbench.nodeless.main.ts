@@ -94,6 +94,7 @@ import { ContextViewService } from 'vs/platform/contextview/browser/contextViewS
 // import { IURLService } from 'vs/platform/url/common/url';
 // import { RelayURLService } from 'vs/platform/url/electron-browser/urlService';
 import { IHeapService, NullHeapService } from 'vs/workbench/services/heap/common/heap';
+import { IBroadcastService, NullBroadcastService } from 'vs/workbench/services/broadcast/common/broadcast';
 
 import 'vs/workbench/browser/nodeless.simpleservices';
 
@@ -169,6 +170,7 @@ registerSingleton(IContextViewService, ContextViewService, true);
 // registerSingleton(IMenubarService, MenubarService);
 // registerSingleton(IURLService, RelayURLService);
 registerSingleton(IHeapService, NullHeapService);
+registerSingleton(IBroadcastService, NullBroadcastService);
 
 registerSingleton(IContextMenuService, ContextMenuService);
 

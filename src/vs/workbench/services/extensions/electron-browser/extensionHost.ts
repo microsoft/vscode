@@ -21,7 +21,7 @@ import { IRemoteConsoleLog, log, parse } from 'vs/base/node/console';
 import { findFreePort, randomPort } from 'vs/base/node/ports';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
 import { PersistentProtocol, generateRandomPipeName } from 'vs/base/parts/ipc/node/ipc.net';
-import { IBroadcast, IBroadcastService } from 'vs/workbench/services/broadcast/electron-browser/broadcastService';
+import { IBroadcast, IBroadcastService } from 'vs/workbench/services/broadcast/common/broadcast';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { EXTENSION_ATTACH_BROADCAST_CHANNEL, EXTENSION_CLOSE_EXTHOST_BROADCAST_CHANNEL, EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_RELOAD_BROADCAST_CHANNEL, EXTENSION_TERMINATE_BROADCAST_CHANNEL } from 'vs/platform/extensions/common/extensionHost';
 import { ILabelService } from 'vs/platform/label/common/label';
