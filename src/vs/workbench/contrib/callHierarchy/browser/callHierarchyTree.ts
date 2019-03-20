@@ -11,6 +11,12 @@ import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { symbolKindToCssClass, Location } from 'vs/editor/common/modes';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
+import { $, append } from 'vs/base/browser/dom';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
+import { localize } from 'vs/nls';
 
 export class Call {
 	constructor(
@@ -50,7 +56,9 @@ export class IdentityProvider implements IIdentityProvider<Call> {
 }
 
 class CallRenderingTemplate {
-	iconLabel: IconLabel;
+	readonly disposable: IDisposable[];
+	readonly iconLabel: IconLabel;
+	readonly badge: CountBadge;
 }
 
 export class CallRenderer implements ITreeRenderer<Call, FuzzyScore, CallRenderingTemplate> {
@@ -59,12 +67,19 @@ export class CallRenderer implements ITreeRenderer<Call, FuzzyScore, CallRenderi
 
 	templateId: string = CallRenderer.id;
 
-	constructor(@ILabelService private readonly _labelService: ILabelService) { }
+	constructor(
+		@ILabelService private readonly _labelService: ILabelService,
+		@IThemeService private readonly _themeService: IThemeService,
+	) { }
 
-	renderTemplate(container: HTMLElement): CallRenderingTemplate {
+	renderTemplate(parent: HTMLElement): CallRenderingTemplate {
+		const container = append(parent, $('.call'));
 		const iconLabel = new IconLabel(container, { supportHighlights: true });
-		return { iconLabel };
+		const badge = new CountBadge(append(container, $('.count')));
+		const listener = attachBadgeStyler(badge, this._themeService);
+		return { iconLabel, badge, disposable: [iconLabel, listener] };
 	}
+
 	renderElement(node: ITreeNode<Call, FuzzyScore>, _index: number, template: CallRenderingTemplate): void {
 		const { element, filterData } = node;
 		const detail = element.item.detail || this._labelService.getUriLabel(element.item.uri, { relative: true });
@@ -78,9 +93,15 @@ export class CallRenderer implements ITreeRenderer<Call, FuzzyScore, CallRenderi
 				extraClasses: [symbolKindToCssClass(element.item.kind, true)]
 			}
 		);
+
+		template.badge.setCount(element.locations.length);
+		template.badge.setTitleFormat(element.direction === CallHierarchyDirection.CallsTo
+			? localize('count.to', "{0} calls to")
+			: localize('count.from', "{0} calls from"));
+
 	}
 	disposeTemplate(template: CallRenderingTemplate): void {
-		template.iconLabel.dispose();
+		dispose(template.disposable);
 	}
 }
 
