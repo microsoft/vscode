@@ -6,7 +6,7 @@
 import 'vs/css!./media/statusbarpart';
 import * as nls from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { dispose, IDisposable, toDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable, toDisposable, combinedDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -68,9 +68,13 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	}
 
 	addEntry(entry: IStatusbarEntry, alignment: StatusbarAlignment, priority: number = 0): IDisposable {
+
+		// As long as we have not been created into a container yet, record all entries
+		// that are pending so that they can get created at a later point
 		if (!this.element) {
-			const pendingEntry = { entry, alignment, priority, disposable: toDisposable(() => { }) };
+			const pendingEntry = { entry, alignment, priority, disposable: Disposable.None };
 			this.pendingEntries.push(pendingEntry);
+
 			return toDisposable(() => {
 				this.pendingEntries = this.pendingEntries.filter(e => e !== pendingEntry);
 				pendingEntry.disposable.dispose();
@@ -156,11 +160,12 @@ export class StatusbarPart extends Part implements IStatusbarService {
 			this.element.appendChild(el);
 		}
 
-		if (this.pendingEntries.length) {
-			for (let entry of this.pendingEntries) {
+		// Fill in pending entries if any
+		while (this.pendingEntries.length) {
+			const entry = this.pendingEntries.shift();
+			if (entry) {
 				entry.disposable = this.addEntry(entry.entry, entry.alignment, entry.priority);
 			}
-			this.pendingEntries.length = 0;
 		}
 
 		return this.element;
