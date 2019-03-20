@@ -196,10 +196,9 @@ suite('Editor Contrib - Line Operations', () => {
 					const endOfNonono = new Selection(5, 11, 5, 11);
 
 					editor.setSelections([beforeSecondWasoSelection, endOfBCCSelection, endOfNonono]);
-					let selections;
 
 					deleteAllLeftAction.run(null!, editor);
-					selections = editor.getSelections();
+					let selections = editor.getSelections()!;
 
 					assert.equal(model.getLineContent(2), '');
 					assert.equal(model.getLineContent(3), ' waso waso');
@@ -227,7 +226,7 @@ suite('Editor Contrib - Line Operations', () => {
 					], [5, 1, 5, 1]);
 
 					deleteAllLeftAction.run(null!, editor);
-					selections = editor.getSelections();
+					selections = editor.getSelections()!;
 
 					assert.equal(model.getLineContent(1), 'hi my name is Carlos Matos waso waso');
 					assert.equal(selections.length, 2);

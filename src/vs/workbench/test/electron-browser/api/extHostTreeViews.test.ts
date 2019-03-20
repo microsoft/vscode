@@ -43,7 +43,9 @@ suite('ExtHostTreeView', function () {
 	let target: RecordingShape;
 	let onDidChangeTreeNode: Emitter<{ key: string } | undefined>;
 	let onDidChangeTreeNodeWithId: Emitter<{ key: string }>;
-	let tree, labels, nodes;
+	let tree: object;
+	let labels: object;
+	let nodes: object;
 
 	setup(() => {
 		tree = {
@@ -582,7 +584,7 @@ suite('ExtHostTreeView', function () {
 			});
 	});
 
-	function loadCompleteTree(treeId, element?: string) {
+	function loadCompleteTree(treeId: string, element?: string): Promise<null> {
 		return testObject.$getChildren(treeId, element)
 			.then(elements => elements.map(e => loadCompleteTree(treeId, e.handle)))
 			.then(() => null);
@@ -661,7 +663,7 @@ suite('ExtHostTreeView', function () {
 		};
 	}
 
-	function getTreeElement(element): any {
+	function getTreeElement(element: string): any {
 		let parent = tree;
 		for (let i = 0; i < element.length; i++) {
 			parent = parent[element.substring(0, i + 1)];

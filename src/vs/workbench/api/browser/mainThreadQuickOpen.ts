@@ -171,14 +171,14 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 				}
 			} else if (param === 'items') {
 				handlesToItems.clear();
-				params[param].forEach(item => {
+				params[param].forEach((item: TransferQuickPickItems) => {
 					handlesToItems.set(item.handle, item);
 				});
 				input[param] = params[param];
 			} else if (param === 'activeItems' || param === 'selectedItems') {
 				input[param] = params[param]
-					.filter(handle => handlesToItems.has(handle))
-					.map(handle => handlesToItems.get(handle));
+					.filter((handle: number) => handlesToItems.has(handle))
+					.map((handle: number) => handlesToItems.get(handle));
 			} else if (param === 'buttons') {
 				input[param] = params.buttons!.map(button => {
 					if (button.handle === -1) {

@@ -341,7 +341,7 @@ export interface TaskSourceConfigElement {
 }
 
 interface BaseTaskSource {
-	readonly kind;
+	readonly kind: string;
 	readonly label: string;
 }
 
@@ -467,7 +467,7 @@ export abstract class CommonTask {
 	 */
 	_label: string;
 
-	type;
+	type?: string;
 
 	runOptions: RunOptions;
 
@@ -477,7 +477,7 @@ export abstract class CommonTask {
 
 	private _taskLoadMessages: string[] | undefined;
 
-	protected constructor(id: string, label: string | undefined, type, runOptions: RunOptions,
+	protected constructor(id: string, label: string | undefined, type: string | undefined, runOptions: RunOptions,
 		configurationProperties: ConfigurationProperties, source: BaseTaskSource) {
 		this._id = id;
 		if (label) {
@@ -575,7 +575,7 @@ export class CustomTask extends CommonTask {
 	 */
 	command: CommandConfiguration;
 
-	public constructor(id: string, source: WorkspaceTaskSource, label: string, type, command: CommandConfiguration | undefined,
+	public constructor(id: string, source: WorkspaceTaskSource, label: string, type: string, command: CommandConfiguration | undefined,
 		hasDefinedMatchers: boolean, runOptions: RunOptions, configurationProperties: ConfigurationProperties) {
 		super(id, label, undefined, runOptions, configurationProperties, source);
 		this._source = source;
@@ -677,7 +677,7 @@ export class ConfiguringTask extends CommonTask {
 
 	configures: KeyedTaskIdentifier;
 
-	public constructor(id: string, source: WorkspaceTaskSource, label: string | undefined, type,
+	public constructor(id: string, source: WorkspaceTaskSource, label: string | undefined, type: string | undefined,
 		configures: KeyedTaskIdentifier, runOptions: RunOptions, configurationProperties: ConfigurationProperties) {
 		super(id, label, type, runOptions, configurationProperties, source);
 		this._source = source;
@@ -710,7 +710,7 @@ export class ContributedTask extends CommonTask {
 	 */
 	command: CommandConfiguration;
 
-	public constructor(id: string, source: ExtensionTaskSource, label: string, type, defines: KeyedTaskIdentifier,
+	public constructor(id: string, source: ExtensionTaskSource, label: string, type: string | undefined, defines: KeyedTaskIdentifier,
 		command: CommandConfiguration, hasDefinedMatchers: boolean, runOptions: RunOptions,
 		configurationProperties: ConfigurationProperties) {
 		super(id, label, type, runOptions, configurationProperties, source);
@@ -770,7 +770,7 @@ export class InMemoryTask extends CommonTask {
 
 	type: 'inMemory';
 
-	public constructor(id: string, source: InMemoryTaskSource, label: string, type,
+	public constructor(id: string, source: InMemoryTaskSource, label: string, type: string,
 		runOptions: RunOptions, configurationProperties: ConfigurationProperties) {
 		super(id, label, type, runOptions, configurationProperties, source);
 		this._source = source;

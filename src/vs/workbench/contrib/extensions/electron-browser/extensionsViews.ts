@@ -161,12 +161,14 @@ export class ExtensionsListView extends ViewletPanel {
 			case 'name': options = assign(options, { sortBy: SortBy.Title }); break;
 		}
 
-		const successCallback = model => {
+		const successCallback = (model: IPagedModel<IExtension>) => {
 			this.queryRequest = null;
 			this.setModel(model);
 			return model;
 		};
-		const errorCallback = e => {
+
+
+		const errorCallback = (e: Error) => {
 			const model = new PagedModel([]);
 			if (!isPromiseCanceledError(e)) {
 				this.queryRequest = null;
@@ -531,7 +533,7 @@ export class ExtensionsListView extends ViewletPanel {
 				return Promise.all([othersPromise, workspacePromise])
 					.then(([others, workspaceRecommendations]) => {
 						fileBasedRecommendations = fileBasedRecommendations.filter(x => workspaceRecommendations.every(({ extensionId }) => x.extensionId !== extensionId));
-						others = others.filter(x => x => workspaceRecommendations.every(({ extensionId }) => x.extensionId !== extensionId));
+						others = others.filter(x => workspaceRecommendations.every(({ extensionId }) => x.extensionId !== extensionId));
 
 						const names = this.getTrimmedRecommendations(local, value, fileBasedRecommendations, others, []);
 						const recommendationsWithReason = this.tipsService.getAllRecommendationsWithReason();
