@@ -3,26 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtHostContext, ObjectIdentifier, IExtHostContext } from '../common/extHost.protocol';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { extHostCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { GCSignal } from 'gc-signals';
-
-export const IHeapService = createDecorator<IHeapService>('heapService');
-
-export interface IHeapService {
-	_serviceBrand: any;
-
-	readonly onGarbageCollection: Event<number[]>;
-
-	/**
-	 * Track gc-collection for the given object
-	 */
-	trackObject(obj: ObjectIdentifier | undefined): void;
-}
+import { IHeapService, ObjectIdentifier } from 'vs/workbench/services/heap/common/heap';
 
 export class HeapService implements IHeapService {
 
@@ -91,28 +75,6 @@ export class HeapService implements IHeapService {
 			});
 		}
 	}
-}
-
-@extHostCustomer
-export class MainThreadHeapService {
-
-	private readonly _toDispose: IDisposable;
-
-	constructor(
-		extHostContext: IExtHostContext,
-		@IHeapService heapService: IHeapService,
-	) {
-		const proxy = extHostContext.getProxy(ExtHostContext.ExtHostHeapService);
-		this._toDispose = heapService.onGarbageCollection((ids) => {
-			// send to ext host
-			proxy.$onGarbageCollection(ids);
-		});
-	}
-
-	public dispose(): void {
-		this._toDispose.dispose();
-	}
-
 }
 
 registerSingleton(IHeapService, HeapService, true);

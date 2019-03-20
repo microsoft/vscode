@@ -134,6 +134,7 @@ import 'vs/workbench/services/extensions/electron-browser/extensionManagementSer
 import 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import 'vs/workbench/services/notification/common/notificationService';
 import 'vs/workbench/services/remote/common/remoteEnvironmentService';
+import 'vs/workbench/services/heap/node/heap';
 
 registerSingleton(IMenuService, MenuService, true);
 registerSingleton(IListService, ListService, true);
