@@ -93,6 +93,7 @@ import { ContextViewService } from 'vs/platform/contextview/browser/contextViewS
 // import { MenubarService } from 'vs/platform/menubar/electron-browser/menubarService';
 // import { IURLService } from 'vs/platform/url/common/url';
 // import { RelayURLService } from 'vs/platform/url/electron-browser/urlService';
+import { IHeapService, NullHeapService } from 'vs/workbench/services/heap/common/heap';
 
 import 'vs/workbench/browser/nodeless.simpleservices';
 
@@ -136,7 +137,7 @@ import 'vs/workbench/services/label/common/labelService';
 // import 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import 'vs/workbench/services/notification/common/notificationService';
 import 'vs/workbench/services/remote/common/remoteEnvironmentService';
-// import 'vs/workbench/services/heap/node/heap';
+
 
 
 registerSingleton(IMenuService, MenuService, true);
@@ -167,6 +168,7 @@ registerSingleton(IContextViewService, ContextViewService, true);
 // registerSingleton(IWorkspacesService, WorkspacesService);
 // registerSingleton(IMenubarService, MenubarService);
 // registerSingleton(IURLService, RelayURLService);
+registerSingleton(IHeapService, NullHeapService);
 
 registerSingleton(IContextMenuService, ContextMenuService);
 
