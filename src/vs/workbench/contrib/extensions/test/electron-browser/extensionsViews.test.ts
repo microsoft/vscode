@@ -124,7 +124,7 @@ suite('ExtensionsListView Tests', () => {
 		instantiationService.stubPromise(IExperimentService, 'getExperimentsByType', []);
 
 		instantiationService.stub(IExtensionService, {
-			getExtensions: () => {
+			getExtensions: (): any => { // TODO remove any
 				return Promise.resolve([
 					{ identifier: new ExtensionIdentifier(localEnabledTheme.identifier.id) },
 					{ identifier: new ExtensionIdentifier(localEnabledLanguage.identifier.id) },

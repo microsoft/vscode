@@ -70,10 +70,8 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		instantiationService.stub(IWorkspaceContextService, new TestContextService());
 		instantiationService.stub(IConfigurationService, {
-			onDidUpdateConfiguration: () => { },
-			onDidChangeConfiguration: () => { },
-			getConfiguration: () => ({}),
-			getValue: (key) => {
+			onDidChangeConfiguration: () => { return undefined!; },
+			getValue: (key?) => {
 				return (key === AutoCheckUpdatesConfigurationKey || key === AutoUpdateConfigurationKey) ? true : undefined;
 			}
 		});
@@ -91,7 +89,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		instantiationService.set(IExtensionTipsService, instantiationService.createInstance(ExtensionTipsService));
 
-		instantiationService.stub(INotificationService, { prompt: () => null });
+		instantiationService.stub(INotificationService, { prompt: () => null! });
 	});
 
 	setup(async () => {
