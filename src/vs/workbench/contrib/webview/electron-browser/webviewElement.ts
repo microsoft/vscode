@@ -159,9 +159,11 @@ class WebviewPortMappingProvider extends Disposable {
 			if (localhostMatch) {
 				const port = +localhostMatch[1];
 				for (const mapping of mappings()) {
-					if (mapping.from === port) {
+					if (mapping.from === port && mapping.from !== mapping.to) {
 						return {
-							redirectURL: `${uri.scheme}://localhost:${mapping.to}`
+							redirectURL: details.url.replace(
+								new RegExp(`^${uri.scheme}://localhost:${mapping.from}/`),
+								`${uri.scheme}://localhost:${mapping.to}/`)
 						};
 					}
 				}
@@ -353,7 +355,7 @@ export class WebviewElement extends Disposable {
 
 		this._register(new WebviewPortMappingProvider(
 			session,
-			() => (this._contentOptions.portMappings || [{ from: 3000, to: 4000 }])
+			() => (this._contentOptions.portMappings || [])
 		));
 
 
