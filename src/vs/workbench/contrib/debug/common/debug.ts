@@ -149,6 +149,7 @@ export interface IDebugSession extends ITreeElement {
 	readonly unresolvedConfiguration: IConfig | undefined;
 	readonly state: State;
 	readonly root: IWorkspaceFolder;
+	readonly parentSession: IDebugSession | undefined;
 
 	getLabel(): string;
 

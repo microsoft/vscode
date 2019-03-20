@@ -315,7 +315,7 @@ export class DebugService implements IDebugService {
 								}
 							}
 
-							return this.createSession(launchForName, launchForName!.getConfiguration(name), noDebug);
+							return this.createSession(launchForName, launchForName!.getConfiguration(name), noDebug, parentSession);
 						})).then(values => values.every(success => !!success)); // Compound launch is a success only if each configuration launched successfully
 					}
 
@@ -325,7 +325,7 @@ export class DebugService implements IDebugService {
 						return Promise.reject(new Error(message));
 					}
 
-					return this.createSession(launch, config, noDebug);
+					return this.createSession(launch, config, noDebug, parentSession);
 				});
 			}));
 		}).then(success => {
@@ -341,7 +341,7 @@ export class DebugService implements IDebugService {
 	/**
 	 * gets the debugger for the type, resolves configurations by providers, substitutes variables and runs prelaunch tasks
 	 */
-	private createSession(launch: ILaunch | undefined, config: IConfig | undefined, noDebug: boolean): Promise<boolean> {
+	private createSession(launch: ILaunch | undefined, config: IConfig | undefined, noDebug: boolean, parentSession?: IDebugSession): Promise<boolean> {
 		// We keep the debug type in a separate variable 'type' so that a no-folder config has no attributes.
 		// Storing the type in the config would break extensions that assume that the no-folder case is indicated by an empty config.
 		let type: string | undefined;
@@ -386,7 +386,7 @@ export class DebugService implements IDebugService {
 						const workspace = launch ? launch.workspace : undefined;
 						return this.runTaskAndCheckErrors(workspace, resolvedConfig.preLaunchTask).then(result => {
 							if (result === TaskRunResult.Success) {
-								return this.doCreateSession(workspace, { resolved: resolvedConfig, unresolved: unresolvedConfig });
+								return this.doCreateSession(workspace, { resolved: resolvedConfig, unresolved: unresolvedConfig }, parentSession);
 							}
 							return false;
 						});
@@ -415,9 +415,9 @@ export class DebugService implements IDebugService {
 	/**
 	 * instantiates the new session, initializes the session, registers session listeners and reports telemetry
 	 */
-	private doCreateSession(root: IWorkspaceFolder | undefined, configuration: { resolved: IConfig, unresolved: IConfig | undefined }): Promise<boolean> {
+	private doCreateSession(root: IWorkspaceFolder | undefined, configuration: { resolved: IConfig, unresolved: IConfig | undefined }, parentSession?: IDebugSession): Promise<boolean> {
 
-		const session = this.instantiationService.createInstance(DebugSession, configuration, root, this.model);
+		const session = this.instantiationService.createInstance(DebugSession, configuration, root, this.model, parentSession);
 		this.model.addSession(session);
 		// register listeners as the very first thing!
 		this.registerSessionListeners(session);

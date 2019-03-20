@@ -97,7 +97,7 @@ export class CallStackView extends ViewletPanel {
 		dom.addClass(container, 'debug-call-stack');
 		const treeContainer = renderViewTree(container);
 
-		this.dataSource = new CallStackDataSource();
+		this.dataSource = new CallStackDataSource(this.debugService);
 		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, treeContainer, new CallStackDelegate(), [
 			new SessionsRenderer(),
 			new ThreadsRenderer(),
@@ -562,6 +562,8 @@ function isDeemphasized(frame: IStackFrame): boolean {
 class CallStackDataSource implements IAsyncDataSource<IDebugModel, CallStackItem> {
 	deemphasizedStackFramesToShow: IStackFrame[];
 
+	constructor(private debugService: IDebugService) { }
+
 	hasChildren(element: IDebugModel | CallStackItem): boolean {
 		return isDebugModel(element) || isDebugSession(element) || (element instanceof Thread && element.stopped);
 	}
@@ -573,13 +575,18 @@ class CallStackDataSource implements IAsyncDataSource<IDebugModel, CallStackItem
 				return Promise.resolve([]);
 			}
 			if (sessions.length > 1) {
-				return Promise.resolve(sessions);
+				return Promise.resolve(sessions.filter(s => !s.parentSession));
 			}
 
 			const threads = sessions[0].getAllThreads();
 			// Only show the threads in the call stack if there is more than 1 thread.
 			return threads.length === 1 ? this.getThreadChildren(<Thread>threads[0]) : Promise.resolve(threads);
 		} else if (isDebugSession(element)) {
+			const childSessions = this.debugService.getModel().getSessions().filter(s => s.parentSession === element);
+			if (childSessions.length) {
+				return Promise.resolve(childSessions);
+			}
+
 			return Promise.resolve(element.getAllThreads());
 		} else {
 			return this.getThreadChildren(<Thread>element);
