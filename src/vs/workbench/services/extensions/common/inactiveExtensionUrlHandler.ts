@@ -7,6 +7,7 @@ import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { EnablementState, IExtensionEnablementService, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -22,6 +23,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 const FIVE_MINUTES = 5 * 60 * 1000;
 const THIRTY_SECONDS = 30 * 1000;
 const URL_TO_HANDLE = 'extensionUrlHandler.urlToHandle';
+const CONFIRMED_EXTENSIONS_CONFIGURATION_KEY = 'extensions.confirmedUriHandlerExtensionIds';
 const CONFIRMED_EXTENSIONS_STORAGE_KEY = 'extensionUrlHandler.confirmedExtensions';
 
 function isExtensionId(value: string): boolean {
@@ -62,7 +64,9 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService,
 		@IWindowService private readonly windowService: IWindowService,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
-		@IStorageService private readonly storageService: IStorageService
+		@IStorageService private readonly storageService: IStorageService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
+
 	) {
 		const interval = setInterval(() => this.garbageCollect(), THIRTY_SECONDS);
 		const urlToHandleValue = this.storageService.get(URL_TO_HANDLE, StorageScope.WORKSPACE);
@@ -92,7 +96,7 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		}
 
 		const confirmedExtensionIds = this.getConfirmedExtensionIds();
-		confirmed = confirmed || confirmedExtensionIds.indexOf(ExtensionIdentifier.toKey(extensionId)) >= 0;
+		confirmed = confirmed || confirmedExtensionIds.has(ExtensionIdentifier.toKey(extensionId));
 
 		if (!confirmed) {
 			let uriString = uri.toString();
@@ -116,11 +120,7 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 			}
 
 			if (result.checkboxChecked) {
-				this.storageService.store(
-					CONFIRMED_EXTENSIONS_STORAGE_KEY,
-					JSON.stringify([...confirmedExtensionIds, ExtensionIdentifier.toKey(extensionId)]),
-					StorageScope.GLOBAL,
-				);
+				this.addConfirmedExtensionIdToStorage(extensionId);
 			}
 		}
 
@@ -166,15 +166,6 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 
 	unregisterExtensionHandler(extensionId: ExtensionIdentifier): void {
 		this.extensionHandlers.delete(ExtensionIdentifier.toKey(extensionId));
-	}
-
-	private getConfirmedExtensionIds(): Array<string> {
-		const ignoredExtensions = this.storageService.get(CONFIRMED_EXTENSIONS_STORAGE_KEY, StorageScope.GLOBAL, '[]');
-		try {
-			return JSON.parse(ignoredExtensions);
-		} catch (err) {
-			return [];
-		}
 	}
 
 	private async handleUnhandledURL(uri: URI, extensionIdentifier: IExtensionIdentifier): Promise<void> {
@@ -288,6 +279,50 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		});
 
 		this.uriBuffer = uriBuffer;
+	}
+
+	private getConfirmedExtensionIds(): Set<string> {
+		return new Set([
+			...this.getConfirmedExtensionIdsFromStorage(),
+			...this.getConfirmedExtensionIdsFromConfiguration(),
+		].map(
+			extensionId => ExtensionIdentifier.toKey(extensionId)
+		));
+	}
+
+	private getConfirmedExtensionIdsFromConfiguration(): Array<string> {
+		const confirmedExtensionIds = this.configurationService.getValue<Array<string>>(
+			CONFIRMED_EXTENSIONS_CONFIGURATION_KEY
+		);
+		if (!Array.isArray(confirmedExtensionIds)) {
+			return [];
+		}
+
+		return confirmedExtensionIds;
+	}
+
+	private getConfirmedExtensionIdsFromStorage(): Array<string> {
+		const confirmedExtensionIdsJson = this.storageService.get(
+			CONFIRMED_EXTENSIONS_STORAGE_KEY,
+			StorageScope.GLOBAL,
+			'[]',
+		);
+		try {
+			return JSON.parse(confirmedExtensionIdsJson);
+		} catch (err) {
+			return [];
+		}
+	}
+	private addConfirmedExtensionIdToStorage(extensionId: string): void {
+		const existingConfirmedExtensionIds = this.getConfirmedExtensionIdsFromStorage();
+		this.storageService.store(
+			CONFIRMED_EXTENSIONS_STORAGE_KEY,
+			JSON.stringify([
+				...existingConfirmedExtensionIds,
+				ExtensionIdentifier.toKey(extensionId),
+			]),
+			StorageScope.GLOBAL,
+		);
 	}
 
 	dispose(): void {
