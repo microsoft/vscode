@@ -13,7 +13,6 @@ import { URI as uri } from 'vs/base/common/uri';
 import * as uuid from 'vs/base/common/uuid';
 import * as pfs from 'vs/base/node/pfs';
 import * as encodingLib from 'vs/base/node/encoding';
-import * as utils from 'vs/workbench/services/files/test/electron-browser/utils';
 import { TestEnvironmentService, TestContextService, TestTextResourceConfigurationService, TestLifecycleService, TestStorageService } from 'vs/workbench/test/workbenchTestServices';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
@@ -453,33 +452,6 @@ suite('FileService', () => {
 			}, error => {
 				return Promise.resolve(true);
 			});
-		});
-	});
-
-	test('resolveFile', () => {
-		return service.resolveFile(uri.file(testDir), { resolveTo: [uri.file(path.join(testDir, 'deep'))] }).then(r => {
-			assert.equal(r.children!.length, 8);
-
-			const deep = utils.getByName(r, 'deep')!;
-			assert.equal(deep.children!.length, 4);
-		});
-	});
-
-	test('resolveFiles', () => {
-		return service.resolveFiles([
-			{ resource: uri.file(testDir), options: { resolveTo: [uri.file(path.join(testDir, 'deep'))] } },
-			{ resource: uri.file(path.join(testDir, 'deep')) }
-		]).then(res => {
-			const r1 = res[0].stat!;
-
-			assert.equal(r1.children!.length, 8);
-
-			const deep = utils.getByName(r1, 'deep')!;
-			assert.equal(deep.children!.length, 4);
-
-			const r2 = res[1].stat!;
-			assert.equal(r2.children!.length, 4);
-			assert.equal(r2.name, 'deep');
 		});
 	});
 

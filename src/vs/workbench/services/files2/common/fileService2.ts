@@ -4,13 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, IDisposable, toDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
-import { IFileService, IResolveFileOptions, IResourceEncodings, FileChangesEvent, FileOperationEvent, IFileSystemProviderRegistrationEvent, IFileSystemProvider, IFileStat, IResolveFileResult, IResolveContentOptions, IContent, IStreamContent, ITextSnapshot, IUpdateContentOptions, ICreateFileOptions, IFileSystemProviderActivationEvent, FileOperationError, FileOperationResult, FileOperation, FileSystemProviderCapabilities, FileType, toFileSystemProviderErrorCode, FileSystemProviderErrorCode } from 'vs/platform/files/common/files';
+import { IFileService, IResolveFileOptions, IResourceEncodings, FileChangesEvent, FileOperationEvent, IFileSystemProviderRegistrationEvent, IFileSystemProvider, IFileStat, IResolveFileResult, IResolveContentOptions, IContent, IStreamContent, ITextSnapshot, IUpdateContentOptions, ICreateFileOptions, IFileSystemProviderActivationEvent, FileOperationError, FileOperationResult, FileOperation, FileSystemProviderCapabilities, FileType, toFileSystemProviderErrorCode, FileSystemProviderErrorCode, IStat } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { isAbsolutePath, dirname, basename, joinPath, isEqual } from 'vs/base/common/resources';
 import { localize } from 'vs/nls';
+import { TernarySearchTree } from 'vs/base/common/map';
+import { isNonEmptyArray } from 'vs/base/common/arrays';
+import { getBaseLabel } from 'vs/base/common/labels';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class FileService2 extends Disposable implements IFileService {
 
@@ -28,6 +32,10 @@ export class FileService2 extends Disposable implements IFileService {
 	//#endregion
 
 	_serviceBrand: ServiceIdentifier<any>;
+
+	constructor(@ILogService private logService: ILogService) {
+		super();
+	}
 
 	//#region File System Provider
 
@@ -69,7 +77,7 @@ export class FileService2 extends Disposable implements IFileService {
 		]);
 	}
 
-	activateProvider(scheme: string): Promise<void> {
+	async activateProvider(scheme: string): Promise<void> {
 
 		// Emit an event that we are about to activate a provider with the given scheme.
 		// Listeners can participate in the activation by registering a provider for it.
@@ -89,7 +97,7 @@ export class FileService2 extends Disposable implements IFileService {
 
 		// If the provider is not yet there, make sure to join on the listeners assuming
 		// that it takes a bit longer to register the file system provider.
-		return Promise.all(joiners).then(() => undefined);
+		await Promise.all(joiners);
 	}
 
 	canHandleResource(resource: URI): boolean {
@@ -129,16 +137,134 @@ export class FileService2 extends Disposable implements IFileService {
 
 	//#region File Metadata Resolving
 
-	resolveFile(resource: URI, options?: IResolveFileOptions): Promise<IFileStat> {
-		return this._impl.resolveFile(resource, options);
+	async resolveFile(resource: URI, options?: IResolveFileOptions): Promise<IFileStat> {
+		try {
+			return await this.doResolveFile(resource, options);
+		} catch (error) {
+
+			// Specially handle file not found case as file operation result
+			if (toFileSystemProviderErrorCode(error) === FileSystemProviderErrorCode.FileNotFound) {
+				throw new FileOperationError(
+					localize('fileNotFoundError', "File not found ({0})", resource.toString(true)),
+					FileOperationResult.FILE_NOT_FOUND
+				);
+			}
+
+			// Bubble up any other error as is
+			throw error;
+		}
 	}
 
-	resolveFiles(toResolve: { resource: URI; options?: IResolveFileOptions; }[]): Promise<IResolveFileResult[]> {
-		return this._impl.resolveFiles(toResolve);
+	private async doResolveFile(resource: URI, options?: IResolveFileOptions): Promise<IFileStat> {
+		const provider = await this.withProvider(resource);
+
+		// leverage a trie to check for recursive resolving
+		const to = options && options.resolveTo;
+		const trie = TernarySearchTree.forPaths<true>();
+		trie.set(resource.toString(), true);
+		if (isNonEmptyArray(to)) {
+			to.forEach(uri => trie.set(uri.toString(), true));
+		}
+
+		const stat = await provider.stat(resource);
+
+		return await this.toFileStat(provider, resource, stat, async stat => {
+
+			// check for recursive resolving
+			if (Boolean(trie.findSuperstr(stat.resource.toString()) || trie.get(stat.resource.toString()))) {
+				return true;
+			}
+
+			// check for resolving single child folders
+			if (stat.isDirectory && options && options.resolveSingleChildDescendants) {
+				try {
+					return (await provider.readdir(resource)).length === 1;
+				} catch (error) {
+					return false;
+				}
+			}
+
+			return false;
+		});
 	}
 
-	existsFile(resource: URI): Promise<boolean> {
-		return this.resolveFile(resource).then(_ => true, error => false);
+	private async toFileStat(provider: IFileSystemProvider, resource: URI, stat: IStat, recurse: (stat: IFileStat) => Promise<boolean>): Promise<IFileStat> {
+
+		// convert to file stat
+		const fileStat: IFileStat = {
+			resource,
+			name: getBaseLabel(resource),
+			isDirectory: (stat.type & FileType.Directory) !== 0,
+			isSymbolicLink: (stat.type & FileType.SymbolicLink) !== 0,
+			isReadonly: !!(provider.capabilities & FileSystemProviderCapabilities.Readonly),
+			mtime: stat.mtime,
+			size: stat.size,
+			etag: stat.mtime.toString(29) + stat.size.toString(31),
+		};
+
+		// check to recurse for directories
+		if (fileStat.isDirectory && await recurse(fileStat)) {
+			try {
+				const entries = await provider.readdir(resource);
+
+				fileStat.children = await Promise.all(entries.map(async entry => {
+					const childResource = joinPath(resource, entry[0]);
+					const childStat = await provider.stat(childResource);
+
+					return this.toFileStat(provider, childResource, childStat, recurse);
+				}));
+			} catch (error) {
+				this.logService.trace(error);
+
+				fileStat.children = []; // gracefully handle errors, we may not have permissions to read
+			}
+
+			return fileStat;
+		}
+
+		return Promise.resolve(fileStat);
+	}
+
+	async resolveFiles(toResolve: { resource: URI; options?: IResolveFileOptions; }[]): Promise<IResolveFileResult[]> {
+
+		// soft-groupBy, keep order, don't rearrange/merge groups
+		const groups: Array<typeof toResolve> = [];
+		let group: typeof toResolve | undefined;
+		for (const request of toResolve) {
+			if (!group || group[0].resource.scheme !== request.resource.scheme) {
+				group = [];
+				groups.push(group);
+			}
+
+			group.push(request);
+		}
+
+		// resolve files
+		const result: IResolveFileResult[] = [];
+		for (const group of groups) {
+			for (const groupEntry of group) {
+				try {
+					const stat = await this.doResolveFile(groupEntry.resource, groupEntry.options);
+					result.push({ stat, success: true });
+				} catch (error) {
+					this.logService.trace(error);
+
+					result.push({ stat: undefined, success: false });
+				}
+			}
+		}
+
+		return result;
+	}
+
+	async existsFile(resource: URI): Promise<boolean> {
+		try {
+			await this.resolveFile(resource);
+
+			return true;
+		} catch (error) {
+			return false;
+		}
 	}
 
 	//#endregion
@@ -200,11 +326,11 @@ export class FileService2 extends Disposable implements IFileService {
 				}
 
 				break; // we have hit a directory that exists -> good
-			} catch (e) {
+			} catch (error) {
 
 				// Bubble up any other error that is not file not found
-				if (toFileSystemProviderErrorCode(e) !== FileSystemProviderErrorCode.FileNotFound) {
-					throw e;
+				if (toFileSystemProviderErrorCode(error) !== FileSystemProviderErrorCode.FileNotFound) {
+					throw error;
 				}
 
 				// Upon error, remember directories that need to be created

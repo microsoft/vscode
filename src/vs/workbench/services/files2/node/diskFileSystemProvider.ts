@@ -10,8 +10,9 @@ import { IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatc
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { isLinux } from 'vs/base/common/platform';
-import { statLink } from 'vs/base/node/pfs';
+import { statLink, readdir } from 'vs/base/node/pfs';
 import { normalize } from 'vs/base/common/path';
+import { joinPath } from 'vs/base/common/resources';
 
 export class DiskFileSystemProvider extends Disposable implements IFileSystemProvider {
 
@@ -54,8 +55,22 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 		}
 	}
 
-	readdir(resource: URI): Promise<[string, FileType][]> {
-		throw new Error('Method not implemented.');
+	async readdir(resource: URI): Promise<[string, FileType][]> {
+		try {
+			const children = await readdir(this.toFilePath(resource));
+
+			const result: [string, FileType][] = [];
+			for (let i = 0; i < children.length; i++) {
+				const child = children[i];
+
+				const stat = await this.stat(joinPath(resource, child));
+				result.push([child, stat.type]);
+			}
+
+			return result;
+		} catch (error) {
+			throw this.toFileSystemProviderError(error);
+		}
 	}
 
 	//#endregion

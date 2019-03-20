@@ -701,7 +701,16 @@ export interface IUpdateContentOptions {
 }
 
 export interface IResolveFileOptions {
+
+	/**
+	 * Automatically continue resolving children of a directory until the provided resources
+	 * are found.
+	 */
 	resolveTo?: URI[];
+
+	/**
+	 * Automatically continue resolving children of a directory if the number of children is 1.
+	 */
 	resolveSingleChildDescendants?: boolean;
 }
 
@@ -1033,10 +1042,6 @@ export interface ILegacyFileService {
 
 	onFileChanges: Event<FileChangesEvent>;
 	onAfterOperation: Event<FileOperationEvent>;
-
-	resolveFile(resource: URI, options?: IResolveFileOptions): Promise<IFileStat>;
-
-	resolveFiles(toResolve: { resource: URI, options?: IResolveFileOptions }[]): Promise<IResolveFileResult[]>;
 
 	resolveContent(resource: URI, options?: IResolveContentOptions): Promise<IContent>;
 
