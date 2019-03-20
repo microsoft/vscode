@@ -138,7 +138,7 @@ export class FileService2 extends Disposable implements IFileService {
 	}
 
 	existsFile(resource: URI): Promise<boolean> {
-		return this._impl.existsFile(resource);
+		return this.resolveFile(resource).then(_ => true, error => false);
 	}
 
 	//#endregion

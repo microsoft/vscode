@@ -95,4 +95,14 @@ suite('Disk File Service', () => {
 			});
 		});
 	});
+
+	test('existsFile', () => {
+		return service.existsFile(URI.file(testDir)).then((exists) => {
+			assert.equal(exists, true);
+
+			return service.existsFile(URI.file(testDir + 'something')).then((exists) => {
+				assert.equal(exists, false);
+			});
+		});
+	});
 });

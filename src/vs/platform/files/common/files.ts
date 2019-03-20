@@ -1038,8 +1038,6 @@ export interface ILegacyFileService {
 
 	resolveFiles(toResolve: { resource: URI, options?: IResolveFileOptions }[]): Promise<IResolveFileResult[]>;
 
-	existsFile(resource: URI): Promise<boolean>;
-
 	resolveContent(resource: URI, options?: IResolveContentOptions): Promise<IContent>;
 
 	resolveStreamContent(resource: URI, options?: IResolveContentOptions): Promise<IStreamContent>;

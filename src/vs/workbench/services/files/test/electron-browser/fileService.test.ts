@@ -483,16 +483,6 @@ suite('FileService', () => {
 		});
 	});
 
-	test('existsFile', () => {
-		return service.existsFile(uri.file(testDir)).then((exists) => {
-			assert.equal(exists, true);
-
-			return service.existsFile(uri.file(testDir + 'something')).then((exists) => {
-				assert.equal(exists, false);
-			});
-		});
-	});
-
 	test('updateContent', () => {
 		const resource = uri.file(path.join(testDir, 'small.txt'));
 

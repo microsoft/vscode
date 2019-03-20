@@ -226,10 +226,6 @@ export class FileService extends Disposable implements ILegacyFileService {
 			.then(stat => ({ stat, success: true }), error => ({ stat: undefined, success: false }))));
 	}
 
-	existsFile(resource: uri): Promise<boolean> {
-		return this.resolveFile(resource).then(() => true, () => false);
-	}
-
 	resolveContent(resource: uri, options?: IResolveContentOptions): Promise<IContent> {
 		return this.resolveStreamContent(resource, options).then(streamContent => {
 			return new Promise<IContent>((resolve, reject) => {
@@ -1111,6 +1107,10 @@ export class FileService extends Disposable implements ILegacyFileService {
 				return result;
 			});
 		});
+	}
+
+	existsFile(resource: uri): Promise<boolean> {
+		return this.resolveFile(resource).then(() => true, () => false);
 	}
 }
 

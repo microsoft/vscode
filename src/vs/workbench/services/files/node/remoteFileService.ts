@@ -223,14 +223,6 @@ export class RemoteFileService extends FileService {
 		});
 	}
 
-	existsFile(resource: URI): Promise<boolean> {
-		if (resource.scheme === Schemas.file) {
-			return super.existsFile(resource);
-		} else {
-			return this.resolveFile(resource).then(_data => true, _err => false);
-		}
-	}
-
 	resolveFile(resource: URI, options?: IResolveFileOptions): Promise<IFileStat> {
 		if (resource.scheme === Schemas.file) {
 			return super.resolveFile(resource, options);
