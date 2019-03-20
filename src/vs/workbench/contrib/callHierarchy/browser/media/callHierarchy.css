@@ -37,17 +37,3 @@
 .monaco-workbench .call-hierarchy .tree{
 	height: 100%;
 }
-
-.monaco-workbench .call-hierarchy .call {
-	display: flex;
-}
-
-.monaco-workbench .call-hierarchy .call .count {
-	margin-right: 12px;
-	margin-left: auto;
-	display: none;
-}
-
-.monaco-workbench .call-hierarchy .monaco-list-row.focused .call .count {
-	display: unset;
-}
