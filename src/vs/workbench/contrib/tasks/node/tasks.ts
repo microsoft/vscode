@@ -28,9 +28,9 @@ namespace KeyedTaskIdentifier {
 				test = sortedStringify(test);
 			}
 			let stringified: string = '' + test;
-			if (stringified.length > 50) { // 50 is an arbitrary number
-				// This can result in collisions, but it's unlikely
-				stringified = hexValue(stringified);
+			if (stringified.length > 100) { // 100 is an arbitrary number
+				// This can result in collisions. Divide the string in half, since this value will start to converge at long lengths. This not ideal.
+				stringified = hexValue(stringified.substring(0, stringified.length / 2)) + hexValue(stringified.substring(stringified.length / 2, stringified.length));
 			}
 
 			result += keys[position] + ',' + stringified + ',';
