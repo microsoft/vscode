@@ -12,7 +12,6 @@ import { timeout } from 'vs/base/common/async';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
 import * as objects from 'vs/base/common/objects';
 import { isWindows } from 'vs/base/common/platform';
 import { isEqual } from 'vs/base/common/resources';
@@ -36,34 +35,13 @@ import { IInitData } from 'vs/workbench/api/common/extHost.protocol';
 import { MessageType, createMessageOfType, isMessageOfType } from 'vs/workbench/services/extensions/node/extensionHostProtocol';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { parseExtensionDevOptions } from '../common/extensionDevOptions';
 
 export interface IExtensionHostStarter {
 	readonly onCrashed: Event<[number, string | null]>;
 	start(): Promise<IMessagePassingProtocol> | null;
 	getInspectPort(): number | undefined;
 	dispose(): void;
-}
-
-export interface IExtensionDevOptions {
-	readonly isExtensionDevHost: boolean;
-	readonly isExtensionDevDebug: boolean;
-	readonly isExtensionDevDebugBrk: boolean;
-	readonly isExtensionDevTestFromCli: boolean;
-}
-export function parseExtensionDevOptions(environmentService: IEnvironmentService): IExtensionDevOptions {
-	// handle extension host lifecycle a bit special when we know we are developing an extension that runs inside
-	let isExtensionDevHost = environmentService.isExtensionDevelopment;
-	const extDevLoc = environmentService.extensionDevelopmentLocationURI;
-	const debugOk = !extDevLoc || extDevLoc.scheme === Schemas.file;
-	let isExtensionDevDebug = debugOk && typeof environmentService.debugExtensionHost.port === 'number';
-	let isExtensionDevDebugBrk = debugOk && !!environmentService.debugExtensionHost.break;
-	let isExtensionDevTestFromCli = isExtensionDevHost && !!environmentService.extensionTestsLocationURI && !environmentService.debugExtensionHost.break;
-	return {
-		isExtensionDevHost,
-		isExtensionDevDebug,
-		isExtensionDevDebugBrk,
-		isExtensionDevTestFromCli,
-	};
 }
 
 export class ExtensionHostProcessWorker implements IExtensionHostStarter {
