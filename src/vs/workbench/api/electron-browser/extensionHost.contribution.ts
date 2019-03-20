@@ -50,7 +50,7 @@ import '../browser/mainThreadWindow';
 import '../browser/mainThreadWorkspace';
 import './mainThreadComments';
 import './mainThreadConsole';
-import './mainThreadExtensionService';
+import '../browser/mainThreadExtensionService';
 import './mainThreadTask';
 import './mainThreadWebview';
 import 'vs/workbench/api/node/apiCommands';

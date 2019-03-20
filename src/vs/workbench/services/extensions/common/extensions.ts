@@ -218,6 +218,13 @@ export interface IExtensionService extends ICpuProfilerTarget {
 	 * Stops the extension host.
 	 */
 	stopExtensionHost(): void;
+
+	_logOrShowMessage(severity: Severity, msg: string): void;
+	_activateById(extensionId: ExtensionIdentifier, activationEvent: string): Promise<void>;
+	_onWillActivateExtension(extensionId: ExtensionIdentifier): void;
+	_onDidActivateExtension(extensionId: ExtensionIdentifier, startup: boolean, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationEvent: string): void;
+	_onExtensionRuntimeError(extensionId: ExtensionIdentifier, err: Error): void;
+
 }
 
 export interface ICpuProfilerTarget {
@@ -278,4 +285,9 @@ export class NullExtensionService implements IExtensionService {
 	stopExtensionHost(): void { }
 	canAddExtension(): boolean { return false; }
 	canRemoveExtension(): boolean { return false; }
+	_logOrShowMessage(_severity: Severity, _msg: string): void { }
+	_activateById(_extensionId: ExtensionIdentifier, _activationEvent: string): Promise<void> { return Promise.resolve(); }
+	_onWillActivateExtension(_extensionId: ExtensionIdentifier): void { }
+	_onDidActivateExtension(_extensionId: ExtensionIdentifier, _startup: boolean, _codeLoadingTime: number, _activateCallTime: number, _activateResolvedTime: number, _activationEvent: string): void { }
+	_onExtensionRuntimeError(_extensionId: ExtensionIdentifier, _err: Error): void { }
 }

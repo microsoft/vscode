@@ -8,7 +8,6 @@ import Severity from 'vs/base/common/severity';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { IExtHostContext, MainContext, MainThreadExtensionServiceShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IExtensionService, ExtensionActivationError } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtensionService } from 'vs/workbench/services/extensions/electron-browser/extensionService';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { localize } from 'vs/nls';
@@ -21,7 +20,7 @@ import { IExtensionsWorkbenchService, IExtension } from 'vs/workbench/contrib/ex
 @extHostNamedCustomer(MainContext.MainThreadExtensionService)
 export class MainThreadExtensionService implements MainThreadExtensionServiceShape {
 
-	private readonly _extensionService: ExtensionService;
+	private readonly _extensionService: IExtensionService;
 	private readonly _notificationService: INotificationService;
 	private readonly _extensionsWorkbenchService: IExtensionsWorkbenchService;
 	private readonly _windowService: IWindowService;
@@ -33,9 +32,7 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IWindowService windowService: IWindowService
 	) {
-		if (extensionService instanceof ExtensionService) {
-			this._extensionService = extensionService;
-		}
+		this._extensionService = extensionService;
 		this._notificationService = notificationService;
 		this._extensionsWorkbenchService = extensionsWorkbenchService;
 		this._windowService = windowService;
