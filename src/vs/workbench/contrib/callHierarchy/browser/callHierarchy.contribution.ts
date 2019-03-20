@@ -17,6 +17,7 @@ import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { PeekContext } from 'vs/editor/contrib/referenceSearch/peekViewWidget';
 
 
 const _ctxHasCompletionItemProvider = new RawContextKey<boolean>('editorHasCallHierarchyProvider', false);
@@ -131,7 +132,10 @@ registerEditorAction(class extends EditorAction {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.Shift + KeyMod.Alt + KeyCode.KEY_H
 			},
-			precondition: _ctxHasCompletionItemProvider
+			precondition: ContextKeyExpr.and(
+				_ctxHasCompletionItemProvider,
+				PeekContext.notInPeekEditor
+			)
 		});
 	}
 
@@ -150,7 +154,10 @@ registerEditorCommand(new class extends EditorCommand {
 				weight: KeybindingWeight.WorkbenchContrib + 10,
 				primary: KeyCode.Escape
 			},
-			precondition: ContextKeyExpr.and(_ctxCallHierarchyVisible, ContextKeyExpr.not('config.editor.stablePeek'))
+			precondition: ContextKeyExpr.and(
+				_ctxCallHierarchyVisible,
+				ContextKeyExpr.not('config.editor.stablePeek')
+			)
 		});
 	}
 
