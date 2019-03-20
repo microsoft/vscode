@@ -1385,14 +1385,14 @@ declare module 'vscode' {
 	 */
 	export interface WebviewPortMapping {
 		/**
-		 * Port to remap on localhost.
+		 * Localhost port to remap inside the webview.
 		 */
-		readonly from: number;
+		readonly port: number;
 
 		/**
-		 * Destination port. The `from` port is resolved to this port.
+		 * Destination port. The `port` is resolved to this port.
 		 */
-		readonly to: number;
+		readonly resolvedPort: number;
 	}
 
 	export interface WebviewOptions {

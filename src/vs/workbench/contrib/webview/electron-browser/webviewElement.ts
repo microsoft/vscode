@@ -21,13 +21,13 @@ import { areWebviewInputOptionsEqual } from './webviewEditorService';
 import { WebviewFindWidget } from './webviewFindWidget';
 
 export interface WebviewPortMapping {
-	readonly from: number;
-	readonly to: number;
+	readonly port: number;
+	readonly resolvedPort: number;
 }
 
 export interface WebviewPortMapping {
-	readonly from: number;
-	readonly to: number;
+	readonly port: number;
+	readonly resolvedPort: number;
 }
 
 export interface WebviewOptions {
@@ -159,11 +159,11 @@ class WebviewPortMappingProvider extends Disposable {
 			if (localhostMatch) {
 				const port = +localhostMatch[1];
 				for (const mapping of mappings()) {
-					if (mapping.from === port && mapping.from !== mapping.to) {
+					if (mapping.port === port && mapping.port !== mapping.resolvedPort) {
 						return {
 							redirectURL: details.url.replace(
-								new RegExp(`^${uri.scheme}://localhost:${mapping.from}/`),
-								`${uri.scheme}://localhost:${mapping.to}/`)
+								new RegExp(`^${uri.scheme}://localhost:${mapping.port}/`),
+								`${uri.scheme}://localhost:${mapping.resolvedPort}/`)
 						};
 					}
 				}
