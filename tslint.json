@@ -376,6 +376,20 @@
 				]
 			},
 			{
+				"target": "**/vs/workbench/api/common/**",
+				"restrictions": [
+					"vs/nls",
+					"**/vs/base/common/**",
+					"**/vs/platform/*/common/**",
+					"**/vs/editor/common/**",
+					"**/vs/editor/contrib/*/common/**",
+					"**/vs/workbench/api/common/**",
+					"**/vs/workbench/common/**",
+					"**/vs/workbench/services/*/common/**",
+					"**/vs/workbench/contrib/*/common/**"
+				]
+			},
+			{
 				"target": "**/vs/workbench/electron-browser/**",
 				"restrictions": [
 					"vs/nls",

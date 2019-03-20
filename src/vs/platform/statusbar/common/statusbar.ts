@@ -37,6 +37,11 @@ export interface IStatusbarEntry {
 	readonly color?: string | ThemeColor;
 
 	/**
+	 * An optional background color to use for the entry
+	 */
+	readonly backgroundColor?: string | ThemeColor;
+
+	/**
 	 * An optional id of a command that is known to the workbench to execute on click
 	 */
 	readonly command?: string;

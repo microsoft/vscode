@@ -9,12 +9,19 @@ steps:
 
 - script: |
     set -e
-    echo "machine monacotools.visualstudio.com password $(VSO_PAT)" > ~/.netrc
+
+    cat << EOF > ~/.netrc
+    machine monacotools.visualstudio.com
+    password $(VSO_PAT)
+    machine github.com
+    login vscode
+    password $(VSCODE_MIXIN_PASSWORD)
+    EOF
+
     yarn
+    VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" yarn gulp -- mixin
     yarn gulp -- hygiene
     yarn monaco-compile-check
-    yarn strict-null-check
-    VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" yarn gulp -- mixin
     node build/azure-pipelines/common/installDistro.js
     node build/lib/builtInExtensions.js
   displayName: Prepare build

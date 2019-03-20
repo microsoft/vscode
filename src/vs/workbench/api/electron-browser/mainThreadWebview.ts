@@ -13,8 +13,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ExtHostContext, ExtHostWebviewsShape, IExtHostContext, MainContext, MainThreadWebviewsShape, WebviewInsetHandle, WebviewPanelHandle, WebviewPanelShowOptions } from 'vs/workbench/api/node/extHost.protocol';
-import { editorGroupToViewColumn, EditorViewColumn, viewColumnToEditorGroup } from 'vs/workbench/api/shared/editor';
+import { ExtHostContext, ExtHostWebviewsShape, IExtHostContext, MainContext, MainThreadWebviewsShape, WebviewInsetHandle, WebviewPanelHandle, WebviewPanelShowOptions, IWebviewOptions } from 'vs/workbench/api/common/extHost.protocol';
+import { editorGroupToViewColumn, EditorViewColumn, viewColumnToEditorGroup } from 'vs/workbench/api/common/shared/editor';
 import { CodeInsetController } from 'vs/workbench/contrib/codeinset/electron-browser/codeInset.contribution';
 import { WebviewEditor } from 'vs/workbench/contrib/webview/electron-browser/webviewEditor';
 import { WebviewEditorInput } from 'vs/workbench/contrib/webview/electron-browser/webviewEditorInput';
@@ -24,8 +24,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { ACTIVE_GROUP, IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import * as vscode from 'vscode';
-import { extHostNamedCustomer } from './extHostCustomers';
+import { extHostNamedCustomer } from '../common/extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadWebviews)
 export class MainThreadWebviews extends Disposable implements MainThreadWebviewsShape {
@@ -111,7 +110,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		this._telemetryService.publicLog('webviews:createWebviewPanel', { extensionId: extensionId.value });
 	}
 
-	$createWebviewCodeInset(handle: WebviewInsetHandle, symbolId: string, options: vscode.WebviewOptions, extensionLocation: UriComponents): void {
+	$createWebviewCodeInset(handle: WebviewInsetHandle, symbolId: string, options: IWebviewOptions, extensionLocation: UriComponents): void {
 		// todo@joh main is for the lack of a code-inset service
 		// which we maybe wanna have... this is how it now works
 		// 1) create webview element
@@ -173,12 +172,12 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		}
 	}
 
-	public $setOptions(handle: WebviewPanelHandle | WebviewInsetHandle, options: vscode.WebviewOptions): void {
+	public $setOptions(handle: WebviewPanelHandle | WebviewInsetHandle, options: IWebviewOptions): void {
 		if (typeof handle === 'number') {
-			this.getWebviewElement(handle).options = reviveWebviewOptions(options);
+			this.getWebviewElement(handle).options = reviveWebviewOptions(options as any /*todo@mat */);
 		} else {
 			const webview = this.getWebview(handle);
-			webview.setOptions(reviveWebviewOptions(options));
+			webview.setOptions(reviveWebviewOptions(options as any /*todo@mat */));
 		}
 	}
 

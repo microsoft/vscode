@@ -8,8 +8,8 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as crypto from 'crypto';
 import * as assert from 'assert';
-import { isParent, FileOperation, FileOperationEvent, IContent, IFileService, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IUpdateContentOptions, FileChangeType, FileChangesEvent, ICreateFileOptions, IContentData, ITextSnapshot, IFilesConfiguration, IFileSystemProviderRegistrationEvent, IFileSystemProvider } from 'vs/platform/files/common/files';
-import { MAX_FILE_SIZE, MAX_HEAP_SIZE } from 'vs/platform/files/node/files';
+import { isParent, FileOperation, FileOperationEvent, IContent, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IUpdateContentOptions, FileChangeType, FileChangesEvent, ICreateFileOptions, IContentData, ITextSnapshot, IFilesConfiguration, IFileSystemProviderRegistrationEvent, IFileSystemProvider, ILegacyFileService } from 'vs/platform/files/common/files';
+import { MAX_FILE_SIZE, MAX_HEAP_SIZE } from 'vs/platform/files/node/fileConstants';
 import { isEqualOrParent } from 'vs/base/common/extpath';
 import { ResourceMap } from 'vs/base/common/map';
 import * as arrays from 'vs/base/common/arrays';
@@ -48,7 +48,7 @@ export interface IFileServiceTestOptions {
 	encodingOverride?: IEncodingOverride[];
 }
 
-export class FileService extends Disposable implements IFileService {
+export class FileService extends Disposable implements ILegacyFileService {
 
 	_serviceBrand: any;
 
@@ -69,6 +69,8 @@ export class FileService extends Disposable implements IFileService {
 
 	protected readonly _onDidChangeFileSystemProviderRegistrations = this._register(new Emitter<IFileSystemProviderRegistrationEvent>());
 	get onDidChangeFileSystemProviderRegistrations(): Event<IFileSystemProviderRegistrationEvent> { return this._onDidChangeFileSystemProviderRegistrations.event; }
+
+	readonly onWillActivateFileSystemProvider = Event.None;
 
 	private activeWorkspaceFileChangeWatcher: IDisposable | null;
 	private activeFileChangesWatchers: ResourceMap<{ unwatch: Function, count: number }>;
@@ -213,19 +215,6 @@ export class FileService extends Disposable implements IFileService {
 
 	canHandleResource(resource: uri): boolean {
 		return resource.scheme === Schemas.file;
-	}
-
-	resolveFile(resource: uri, options?: IResolveFileOptions): Promise<IFileStat> {
-		return this.resolve(resource, options);
-	}
-
-	resolveFiles(toResolve: { resource: uri, options?: IResolveFileOptions }[]): Promise<IResolveFileResult[]> {
-		return Promise.all(toResolve.map(resourceAndOptions => this.resolve(resourceAndOptions.resource, resourceAndOptions.options)
-			.then(stat => ({ stat, success: true }), error => ({ stat: undefined, success: false }))));
-	}
-
-	existsFile(resource: uri): Promise<boolean> {
-		return this.resolveFile(resource).then(() => true, () => false);
 	}
 
 	resolveContent(resource: uri, options?: IResolveContentOptions): Promise<IContent> {
@@ -754,29 +743,6 @@ export class FileService extends Disposable implements IFileService {
 		});
 	}
 
-	readFolder(resource: uri): Promise<string[]> {
-		const absolutePath = this.toAbsolutePath(resource);
-
-		return pfs.readdir(absolutePath);
-	}
-
-	createFolder(resource: uri): Promise<IFileStat> {
-
-		// 1.) Create folder
-		const absolutePath = this.toAbsolutePath(resource);
-		return pfs.mkdirp(absolutePath).then(() => {
-
-			// 2.) Resolve
-			return this.resolve(resource).then(result => {
-
-				// Events
-				this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, result));
-
-				return result;
-			});
-		});
-	}
-
 	private checkFileBeforeWriting(absolutePath: string, options: IUpdateContentOptions = Object.create(null), ignoreReadonly?: boolean): Promise<boolean /* exists */> {
 		return pfs.exists(absolutePath).then(exists => {
 			if (exists) {
@@ -1106,6 +1072,45 @@ export class FileService extends Disposable implements IFileService {
 
 		this.activeFileChangesWatchers.forEach(watcher => watcher.unwatch());
 		this.activeFileChangesWatchers.clear();
+	}
+
+
+
+
+
+
+
+
+	// Tests only
+
+	resolveFile(resource: uri, options?: IResolveFileOptions): Promise<IFileStat> {
+		return this.resolve(resource, options);
+	}
+
+	resolveFiles(toResolve: { resource: uri, options?: IResolveFileOptions }[]): Promise<IResolveFileResult[]> {
+		return Promise.all(toResolve.map(resourceAndOptions => this.resolve(resourceAndOptions.resource, resourceAndOptions.options)
+			.then(stat => ({ stat, success: true }), error => ({ stat: undefined, success: false }))));
+	}
+
+	createFolder(resource: uri): Promise<IFileStat> {
+
+		// 1.) Create folder
+		const absolutePath = this.toAbsolutePath(resource);
+		return pfs.mkdirp(absolutePath).then(() => {
+
+			// 2.) Resolve
+			return this.resolve(resource).then(result => {
+
+				// Events
+				this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, result));
+
+				return result;
+			});
+		});
+	}
+
+	existsFile(resource: uri): Promise<boolean> {
+		return this.resolveFile(resource).then(() => true, () => false);
 	}
 }
 

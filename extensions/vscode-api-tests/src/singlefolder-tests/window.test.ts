@@ -697,7 +697,7 @@ suite('window namespace tests', () => {
 		});
 
 		test('onDidChangeTerminalDimensions should fire when new terminals are created', (done) => {
-			const reg1 = window.onDidChangeTerminalDimensions((event: TerminalDimensionsChangeEvent) => {
+			const reg1 = window.onDidChangeTerminalDimensions(async (event: TerminalDimensionsChangeEvent) => {
 				assert.equal(event.terminal, terminal1);
 				assert.equal(typeof event.dimensions.columns, 'number');
 				assert.equal(typeof event.dimensions.rows, 'number');
@@ -706,7 +706,7 @@ suite('window namespace tests', () => {
 				reg1.dispose();
 				let terminal2: Terminal;
 				const reg2 = window.onDidOpenTerminal((newTerminal) => {
-					// THis is guarentees to fire before dimensions change event
+					// This is guarantees to fire before dimensions change event
 					if (newTerminal !== terminal1) {
 						terminal2 = newTerminal;
 						reg2.dispose();
@@ -729,6 +729,7 @@ suite('window namespace tests', () => {
 						done();
 					}
 				});
+				await timeout(500);
 				commands.executeCommand('workbench.action.terminal.split');
 			});
 			const terminal1 = window.createTerminal({ name: 'test' });

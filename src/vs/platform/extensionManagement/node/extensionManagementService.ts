@@ -299,9 +299,6 @@ export class ExtensionManagementService extends Disposable implements IExtension
 				const existingExtension = installed.filter(i => areSameExtensions(i.identifier, extension.identifier))[0];
 				if (existingExtension) {
 					operation = InstallOperation.Update;
-					if (semver.gt(existingExtension.manifest.version, extension.version)) {
-						await this.uninstall(existingExtension, true);
-					}
 				}
 
 				this.downloadInstallableExtension(extension, operation)
@@ -310,7 +307,10 @@ export class ExtensionManagementService extends Disposable implements IExtension
 					.then(local => this.installDependenciesAndPackExtensions(local, existingExtension)
 						.then(() => local, error => this.uninstall(local, true).then(() => Promise.reject(error), () => Promise.reject(error))))
 					.then(
-						local => {
+						async local => {
+							if (existingExtension && semver.neq(existingExtension.manifest.version, extension.version)) {
+								await this.setUninstalled(existingExtension);
+							}
 							this.installingExtensions.delete(key);
 							onDidInstallExtensionSuccess(extension, operation, local);
 							successCallback(null);

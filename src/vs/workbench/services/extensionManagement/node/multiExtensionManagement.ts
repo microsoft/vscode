@@ -16,7 +16,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { getManifest } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
-import { ILogService } from 'vs/platform/log/common/log';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { localize } from 'vs/nls';
 import { isUIExtension } from 'vs/workbench/services/extensions/node/extensionsUtil';
@@ -37,8 +36,7 @@ export class MultiExtensionManagementService extends Disposable implements IExte
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
-		@ILogService private readonly logService: ILogService
+		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService
 	) {
 		super();
 		this.servers = this.extensionManagementServerService.remoteExtensionManagementServer ? [this.extensionManagementServerService.localExtensionManagementServer, this.extensionManagementServerService.remoteExtensionManagementServer] : [this.extensionManagementServerService.localExtensionManagementServer];
@@ -174,8 +172,7 @@ export class MultiExtensionManagementService extends Disposable implements IExte
 				await this.installUIDependencies(manifest);
 				return promise;
 			} else {
-				this.logService.info('Manifest was not found. Hence installing only in local server');
-				return this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.installFromGallery(gallery);
+				return Promise.reject(localize('Manifest is not found', "Installing Extension {0} failed: Manifest is not found.", gallery.displayName || gallery.name));
 			}
 		}
 		return this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.installFromGallery(gallery);

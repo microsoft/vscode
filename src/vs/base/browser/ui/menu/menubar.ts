@@ -17,6 +17,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { KeyCode, ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { asArray } from 'vs/base/common/arrays';
 
 const $ = DOM.$;
 
@@ -184,7 +185,7 @@ export class MenuBar extends Disposable {
 	}
 
 	push(arg: MenuBarMenu | MenuBarMenu[]): void {
-		const menus: MenuBarMenu[] = !Array.isArray(arg) ? [arg] : arg;
+		const menus: MenuBarMenu[] = asArray(arg);
 
 		menus.forEach((menuBarMenu) => {
 			const menuIndex = this.menuCache.length;

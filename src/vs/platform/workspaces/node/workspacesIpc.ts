@@ -12,11 +12,11 @@ export class WorkspacesChannel implements IServerChannel {
 
 	constructor(private service: IWorkspacesMainService) { }
 
-	listen<T>(_, event: string): Event<T> {
+	listen<T>(_: unknown, event: string): Event<T> {
 		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(_, command: string, arg?: any): Promise<any> {
+	call(_: unknown, command: string, arg?: any): Promise<any> {
 		switch (command) {
 			case 'createUntitledWorkspace': {
 				const rawFolders: IWorkspaceFolderCreationData[] = arg[0];

@@ -70,7 +70,7 @@ export abstract class TerminalService implements ITerminalService {
 		@INotificationService protected readonly _notificationService: INotificationService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
-		@IFileService private readonly _fileService: IFileService
+		@IFileService protected readonly _fileService: IFileService
 	) {
 		this._activeTabIndex = 0;
 		this._isShuttingDown = false;

@@ -115,13 +115,13 @@ export class SearchView extends ViewletPanel {
 	private inputPatternIncludes: PatternInputWidget;
 	private resultsElement: HTMLElement;
 
-	private currentSelectedFileMatch: FileMatch;
+	private currentSelectedFileMatch: FileMatch | undefined;
 
 	private readonly selectCurrentMatchEmitter: Emitter<string | undefined>;
 	private delayedRefresh: Delayer<void>;
 	private changedWhileHidden: boolean;
 
-	private searchWithoutFolderMessageElement: HTMLElement;
+	private searchWithoutFolderMessageElement: HTMLElement | undefined;
 
 	private currentSearchQ = Promise.resolve();
 
@@ -474,7 +474,7 @@ export class SearchView extends ViewletPanel {
 		});
 	}
 
-	private createFolderIterator(folderMatch: FolderMatch, collapseResults: ISearchConfigurationProperties['collapseResults']): Iterator<ITreeElement<RenderableMatch>> {
+	private createFolderIterator(folderMatch: BaseFolderMatch, collapseResults: ISearchConfigurationProperties['collapseResults']): Iterator<ITreeElement<RenderableMatch>> {
 		const filesIt = Iterator.fromArray(
 			folderMatch.matches()
 				.sort(searchMatchComparer));
@@ -797,7 +797,7 @@ export class SearchView extends ViewletPanel {
 
 	updateTextFromSelection(allowUnselectedWord = true): boolean {
 		let updatedText = false;
-		const seedSearchStringFromSelection = this.configurationService.getValue<IEditorOptions>('editor').find.seedSearchStringFromSelection;
+		const seedSearchStringFromSelection = this.configurationService.getValue<IEditorOptions>('editor').find!.seedSearchStringFromSelection;
 		if (seedSearchStringFromSelection) {
 			let selectedText = this.getSearchTextFromEditor(allowUnselectedWord);
 			if (selectedText) {
@@ -1074,7 +1074,7 @@ export class SearchView extends ViewletPanel {
 		}
 	}
 
-	searchInFolders(resources: URI[]): void {
+	searchInFolders(resources?: URI[]): void {
 		const folderPaths: string[] = [];
 		const workspace = this.contextService.getWorkspace();
 
@@ -1338,7 +1338,7 @@ export class SearchView extends ViewletPanel {
 
 		const onError = (e: any) => {
 			if (errors.isPromiseCanceledError(e)) {
-				return onComplete(null);
+				return onComplete(undefined);
 			} else {
 				this.searching = false;
 				this.updateActions();
@@ -1422,7 +1422,7 @@ export class SearchView extends ViewletPanel {
 		this.openSettings('.exclude');
 	}
 
-	private openSettings(query: string): Promise<IEditor> {
+	private openSettings(query: string): Promise<IEditor | null> {
 		const options: ISettingsEditorOptions = { query };
 		return this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ?
 			this.preferencesService.openWorkspaceSettings(undefined, options) :
@@ -1480,7 +1480,7 @@ export class SearchView extends ViewletPanel {
 
 			const actionClass = env.isMacintosh ? OpenFileFolderAction : OpenFolderAction;
 			const action = this.instantiationService.createInstance<string, string, IAction>(actionClass, actionClass.ID, actionClass.LABEL);
-			this.actionRunner.run(action).then(() => {
+			this.actionRunner!.run(action).then(() => {
 				action.dispose();
 			}, err => {
 				action.dispose();
@@ -1499,7 +1499,7 @@ export class SearchView extends ViewletPanel {
 		// this.replaceService.disposeAllReplacePreviews();
 		dom.hide(this.messagesElement);
 		dom.show(this.resultsElement);
-		this.currentSelectedFileMatch = null;
+		this.currentSelectedFileMatch = undefined;
 	}
 
 	private onFocus(lineMatch: any, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<any> {
@@ -1514,7 +1514,7 @@ export class SearchView extends ViewletPanel {
 			this.open(lineMatch, preserveFocus, sideBySide, pinned);
 	}
 
-	open(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<any> {
+	open(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<void> {
 		const selection = this.getSelectionFrom(element);
 		const resource = element instanceof Match ? element.parent().resource() : (<FileMatch>element).resource();
 		return this.editorService.openEditor({
@@ -1528,7 +1528,7 @@ export class SearchView extends ViewletPanel {
 		}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(editor => {
 			if (editor && element instanceof Match && preserveFocus) {
 				this.viewModel.searchResult.rangeHighlightDecorations.highlightRange(
-					(<ICodeEditor>editor.getControl()).getModel(),
+					(<ICodeEditor>editor.getControl()).getModel()!,
 					element.range()
 				);
 			} else {
@@ -1536,9 +1536,7 @@ export class SearchView extends ViewletPanel {
 			}
 
 			if (editor) {
-				return this.editorGroupsService.activateGroup(editor.group);
-			} else {
-				return Promise.resolve(null);
+				this.editorGroupsService.activateGroup(editor.group!);
 			}
 		}, errors.onUnexpectedError);
 	}

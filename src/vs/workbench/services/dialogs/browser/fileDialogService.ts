@@ -40,9 +40,11 @@ export class FileDialogService implements IFileDialogService {
 		// ...then for last active file root
 		if (!candidate) {
 			candidate = this.historyService.getLastActiveWorkspaceRoot(schemeFilter);
+		} else {
+			candidate = candidate && resources.dirname(candidate);
 		}
 
-		return candidate && resources.dirname(candidate) || undefined;
+		return candidate || undefined;
 	}
 
 	defaultFolderPath(schemeFilter = this.getSchemeFilterForWindow()): URI | undefined {

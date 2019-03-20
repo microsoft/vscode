@@ -52,14 +52,15 @@ export function appendKeyBindingLabel(label: string, inputKeyBinding: number | R
 	}
 }
 
-export function openSearchView(viewletService: IViewletService, panelService: IPanelService, configurationService: IConfigurationService, focus?: boolean): Promise<SearchView> {
+export function openSearchView(viewletService: IViewletService, panelService: IPanelService, configurationService: IConfigurationService, focus?: boolean): Promise<SearchView | undefined> {
 	if (configurationService.getValue<ISearchConfiguration>().search.location === 'panel') {
 		return Promise.resolve((panelService.openPanel(PANEL_ID, focus) as SearchPanel).getSearchView());
 	}
+
 	return viewletService.openViewlet(VIEWLET_ID, focus).then(viewlet => (viewlet as SearchViewlet).getSearchView());
 }
 
-export function getSearchView(viewletService: IViewletService, panelService: IPanelService): SearchView | null {
+export function getSearchView(viewletService: IViewletService, panelService: IPanelService): SearchView | undefined {
 	const activeViewlet = viewletService.getActiveViewlet();
 	if (activeViewlet && activeViewlet.getId() === VIEWLET_ID) {
 		return (activeViewlet as SearchViewlet).getSearchView();
@@ -70,7 +71,7 @@ export function getSearchView(viewletService: IViewletService, panelService: IPa
 		return (activePanel as SearchPanel).getSearchView();
 	}
 
-	return null;
+	return undefined;
 }
 
 function doAppendKeyBindingLabel(label: string, keyBinding: ResolvedKeybinding | undefined): string {
@@ -149,11 +150,13 @@ export abstract class FindOrReplaceInFilesAction extends Action {
 
 	run(): Promise<any> {
 		return openSearchView(this.viewletService, this.panelService, this.configurationService, false).then(openedView => {
-			const searchAndReplaceWidget = openedView.searchAndReplaceWidget;
-			searchAndReplaceWidget.toggleReplace(this.expandSearchReplaceWidget);
+			if (openedView) {
+				const searchAndReplaceWidget = openedView.searchAndReplaceWidget;
+				searchAndReplaceWidget.toggleReplace(this.expandSearchReplaceWidget);
 
-			const updatedText = openedView.updateTextFromSelection(!this.expandSearchReplaceWidget);
-			openedView.searchAndReplaceWidget.focus(undefined, updatedText, updatedText);
+				const updatedText = openedView.updateTextFromSelection(!this.expandSearchReplaceWidget);
+				openedView.searchAndReplaceWidget.focus(undefined, updatedText, updatedText);
+			}
 		});
 	}
 }
@@ -240,7 +243,7 @@ export class RefreshAction extends Action {
 	static readonly ID: string = 'search.action.refreshSearchResults';
 	static LABEL: string = nls.localize('RefreshAction.label', "Refresh");
 
-	private searchView: SearchView | null;
+	private searchView: SearchView | undefined;
 
 	constructor(id: string, label: string,
 		@IViewletService private readonly viewletService: IViewletService,
@@ -394,7 +397,9 @@ export class FocusNextSearchResultAction extends Action {
 
 	run(): Promise<any> {
 		return openSearchView(this.viewletService, this.panelService, this.configurationService).then(searchView => {
-			searchView.selectNextMatch();
+			if (searchView) {
+				searchView.selectNextMatch();
+			}
 		});
 	}
 }
@@ -413,7 +418,9 @@ export class FocusPreviousSearchResultAction extends Action {
 
 	run(): Promise<any> {
 		return openSearchView(this.viewletService, this.panelService, this.configurationService).then(searchView => {
-			searchView.selectPreviousMatch();
+			if (searchView) {
+				searchView.selectPreviousMatch();
+			}
 		});
 	}
 }
@@ -771,6 +778,8 @@ export const focusSearchListCommand: ICommandHandler = accessor => {
 	const panelService = accessor.get(IPanelService);
 	const configurationService = accessor.get(IConfigurationService);
 	openSearchView(viewletService, panelService, configurationService).then(searchView => {
-		searchView.moveFocusToResults();
+		if (searchView) {
+			searchView.moveFocusToResults();
+		}
 	});
 };

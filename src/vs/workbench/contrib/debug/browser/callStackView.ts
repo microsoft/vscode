@@ -15,10 +15,8 @@ import { MenuId, IMenu, IMenuService } from 'vs/platform/actions/common/actions'
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { renderViewTree } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { IAction } from 'vs/base/common/actions';
-import { RestartAction, StopAction, ContinueAction, StepOverAction, StepIntoAction, StepOutAction, PauseAction, RestartFrameAction, TerminateThreadAction, CopyStackTraceAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IViewletPanelOptions, ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -99,7 +97,7 @@ export class CallStackView extends ViewletPanel {
 		dom.addClass(container, 'debug-call-stack');
 		const treeContainer = renderViewTree(container);
 
-		this.dataSource = new CallStackDataSource();
+		this.dataSource = new CallStackDataSource(this.debugService);
 		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, treeContainer, new CallStackDelegate(), [
 			new SessionsRenderer(),
 			new ThreadsRenderer(),
@@ -264,32 +262,13 @@ export class CallStackView extends ViewletPanel {
 	}
 
 	private onContextMenu(e: ITreeContextMenuEvent<CallStackItem>): void {
-		const actions: IAction[] = [];
 		const element = e.element;
 		if (isDebugSession(element)) {
 			this.callStackItemType.set('session');
-			actions.push(this.instantiationService.createInstance(RestartAction, RestartAction.ID, RestartAction.LABEL));
-			actions.push(new StopAction(StopAction.ID, StopAction.LABEL, this.debugService, this.keybindingService));
 		} else if (element instanceof Thread) {
 			this.callStackItemType.set('thread');
-			const thread = <Thread>element;
-			if (thread.stopped) {
-				actions.push(new ContinueAction(ContinueAction.ID, ContinueAction.LABEL, this.debugService, this.keybindingService));
-				actions.push(new StepOverAction(StepOverAction.ID, StepOverAction.LABEL, this.debugService, this.keybindingService));
-				actions.push(new StepIntoAction(StepIntoAction.ID, StepIntoAction.LABEL, this.debugService, this.keybindingService));
-				actions.push(new StepOutAction(StepOutAction.ID, StepOutAction.LABEL, this.debugService, this.keybindingService));
-			} else {
-				actions.push(new PauseAction(PauseAction.ID, PauseAction.LABEL, this.debugService, this.keybindingService));
-			}
-
-			actions.push(new Separator());
-			actions.push(new TerminateThreadAction(TerminateThreadAction.ID, TerminateThreadAction.LABEL, this.debugService, this.keybindingService));
 		} else if (element instanceof StackFrame) {
 			this.callStackItemType.set('stackFrame');
-			if (element.thread.session.capabilities.supportsRestartFrame) {
-				actions.push(new RestartFrameAction(RestartFrameAction.ID, RestartFrameAction.LABEL, this.debugService, this.keybindingService));
-			}
-			actions.push(this.instantiationService.createInstance(CopyStackTraceAction, CopyStackTraceAction.ID, CopyStackTraceAction.LABEL));
 		} else {
 			this.callStackItemType.reset();
 		}
@@ -297,7 +276,8 @@ export class CallStackView extends ViewletPanel {
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
 			getActions: () => {
-				fillInContextMenuActions(this.contributedContextMenu, { arg: this.getContextForContributedActions(element) }, actions, this.contextMenuService);
+				const actions: IAction[] = [];
+				fillInContextMenuActions(this.contributedContextMenu, { arg: this.getContextForContributedActions(element), shouldForwardArgs: true }, actions, this.contextMenuService);
 				return actions;
 			},
 			getActionsContext: () => element
@@ -314,6 +294,9 @@ export class CallStackView extends ViewletPanel {
 		}
 		if (element instanceof Thread) {
 			return element.threadId;
+		}
+		if (isDebugSession(element)) {
+			return element.getId();
 		}
 
 		return undefined;
@@ -579,6 +562,8 @@ function isDeemphasized(frame: IStackFrame): boolean {
 class CallStackDataSource implements IAsyncDataSource<IDebugModel, CallStackItem> {
 	deemphasizedStackFramesToShow: IStackFrame[];
 
+	constructor(private debugService: IDebugService) { }
+
 	hasChildren(element: IDebugModel | CallStackItem): boolean {
 		return isDebugModel(element) || isDebugSession(element) || (element instanceof Thread && element.stopped);
 	}
@@ -590,13 +575,18 @@ class CallStackDataSource implements IAsyncDataSource<IDebugModel, CallStackItem
 				return Promise.resolve([]);
 			}
 			if (sessions.length > 1) {
-				return Promise.resolve(sessions);
+				return Promise.resolve(sessions.filter(s => !s.parentSession));
 			}
 
 			const threads = sessions[0].getAllThreads();
 			// Only show the threads in the call stack if there is more than 1 thread.
 			return threads.length === 1 ? this.getThreadChildren(<Thread>threads[0]) : Promise.resolve(threads);
 		} else if (isDebugSession(element)) {
+			const childSessions = this.debugService.getModel().getSessions().filter(s => s.parentSession === element);
+			if (childSessions.length) {
+				return Promise.resolve(childSessions);
+			}
+
 			return Promise.resolve(element.getAllThreads());
 		} else {
 			return this.getThreadChildren(<Thread>element);

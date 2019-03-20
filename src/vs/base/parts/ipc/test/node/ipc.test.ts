@@ -143,7 +143,7 @@ class TestChannel implements IServerChannel {
 
 	constructor(private service: ITestService) { }
 
-	call(_, command: string, arg: any, cancellationToken: CancellationToken): Promise<any> {
+	call(_: unknown, command: string, arg: any, cancellationToken: CancellationToken): Promise<any> {
 		switch (command) {
 			case 'marco': return this.service.marco();
 			case 'error': return this.service.error(arg);
@@ -154,7 +154,7 @@ class TestChannel implements IServerChannel {
 		}
 	}
 
-	listen(_, event: string, arg?: any): Event<any> {
+	listen(_: unknown, event: string, arg?: any): Event<any> {
 		switch (event) {
 			case 'pong': return this.service.pong;
 			default: throw new Error('not implemented');

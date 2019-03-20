@@ -39,7 +39,7 @@ export class TextSearchEngineAdapter {
 					},
 					token)
 				.then(
-					c => resolve({ limitHit: c.limitHit, stats: null, type: 'success' } as ISerializedSearchSuccess),
+					c => resolve({ limitHit: c.limitHit, type: 'success' } as ISerializedSearchSuccess),
 					reject);
 		});
 	}
@@ -47,7 +47,7 @@ export class TextSearchEngineAdapter {
 
 function fileMatchToSerialized(match: IFileMatch): ISerializedFileMatch {
 	return {
-		path: match.resource ? match.resource.fsPath : undefined,
+		path: match.resource && match.resource.fsPath,
 		results: match.results,
 		numMatches: (match.results || []).reduce((sum, r) => {
 			if (!!(<ITextSearchMatch>r).ranges) {

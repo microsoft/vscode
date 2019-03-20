@@ -15,8 +15,7 @@ import { app } from 'electron';
 import { basename, join } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { readdir, stat, exists, readFile } from 'fs';
-import { parse, ParseError } from 'vs/base/common/json';
+import { readdir, stat } from 'fs';
 
 export const ID = 'diagnosticsService';
 export const IDiagnosticsService = createDecorator<IDiagnosticsService>(ID);
@@ -248,14 +247,14 @@ export class DiagnosticsService implements IDiagnosticsService {
 			output.push(line);
 		}
 
-		if (workspaceStats.launchConfigFiles.length > 0) {
-			let line = '|      Launch Configs:';
-			workspaceStats.launchConfigFiles.forEach(each => {
-				const item = each.count > 1 ? ` ${each.name}(${each.count})` : ` ${each.name}`;
-				line += item;
-			});
-			output.push(line);
-		}
+		// if (workspaceStats.launchConfigFiles.length > 0) {
+		// 	let line = '|      Launch Configs:';
+		// 	workspaceStats.launchConfigFiles.forEach(each => {
+		// 		const item = each.count > 1 ? ` ${each.name}(${each.count})` : ` ${each.name}`;
+		// 		line += item;
+		// 	});
+		// 	output.push(line);
+		// }
 		return output.join('\n');
 	}
 
@@ -307,17 +306,17 @@ export class DiagnosticsService implements IDiagnosticsService {
 	}
 }
 
-export interface WorkspaceStatItem {
+interface WorkspaceStatItem {
 	name: string;
 	count: number;
 }
 
-export interface WorkspaceStats {
+interface WorkspaceStats {
 	fileTypes: WorkspaceStatItem[];
 	configFiles: WorkspaceStatItem[];
 	fileCount: number;
 	maxFilesReached: boolean;
-	launchConfigFiles: WorkspaceStatItem[];
+	// launchConfigFiles: WorkspaceStatItem[];
 }
 
 function asSortedItems(map: Map<string, number>): WorkspaceStatItem[] {
@@ -326,48 +325,48 @@ function asSortedItems(map: Map<string, number>): WorkspaceStatItem[] {
 	return a.sort((a, b) => b.count - a.count);
 }
 
-export function collectLaunchConfigs(folder: string): Promise<WorkspaceStatItem[]> {
-	const launchConfigs = new Map<string, number>();
+// function collectLaunchConfigs(folder: string): Promise<WorkspaceStatItem[]> {
+// 	const launchConfigs = new Map<string, number>();
 
-	const launchConfig = join(folder, '.vscode', 'launch.json');
-	return new Promise((resolve, reject) => {
-		exists(launchConfig, (doesExist) => {
-			if (doesExist) {
-				readFile(launchConfig, (err, contents) => {
-					if (err) {
-						return resolve([]);
-					}
+// 	const launchConfig = join(folder, '.vscode', 'launch.json');
+// 	return new Promise((resolve, reject) => {
+// 		exists(launchConfig, (doesExist) => {
+// 			if (doesExist) {
+// 				readFile(launchConfig, (err, contents) => {
+// 					if (err) {
+// 						return resolve([]);
+// 					}
 
-					const errors: ParseError[] = [];
-					const json = parse(contents.toString(), errors);
-					if (errors.length) {
-						console.log(`Unable to parse ${launchConfig}`);
-						return resolve([]);
-					}
+// 					const errors: ParseError[] = [];
+// 					const json = parse(contents.toString(), errors);
+// 					if (errors.length) {
+// 						console.log(`Unable to parse ${launchConfig}`);
+// 						return resolve([]);
+// 					}
 
-					if (json['configurations']) {
-						for (const each of json['configurations']) {
-							const type = each['type'];
-							if (type) {
-								if (launchConfigs.has(type)) {
-									launchConfigs.set(type, launchConfigs.get(type)! + 1);
-								} else {
-									launchConfigs.set(type, 1);
-								}
-							}
-						}
-					}
+// 					if (json['configurations']) {
+// 						for (const each of json['configurations']) {
+// 							const type = each['type'];
+// 							if (type) {
+// 								if (launchConfigs.has(type)) {
+// 									launchConfigs.set(type, launchConfigs.get(type)! + 1);
+// 								} else {
+// 									launchConfigs.set(type, 1);
+// 								}
+// 							}
+// 						}
+// 					}
 
-					return resolve(asSortedItems(launchConfigs));
-				});
-			} else {
-				return resolve([]);
-			}
-		});
-	});
-}
+// 					return resolve(asSortedItems(launchConfigs));
+// 				});
+// 			} else {
+// 				return resolve([]);
+// 			}
+// 		});
+// 	});
+// }
 
-export function collectWorkspaceStats(folder: string, filter: string[]): Promise<WorkspaceStats> {
+function collectWorkspaceStats(folder: string, filter: string[]): Promise<WorkspaceStats> {
 	const configFilePatterns = [
 		{ 'tag': 'grunt.js', 'pattern': /^gruntfile\.js$/i },
 		{ 'tag': 'gulp.js', 'pattern': /^gulpfile\.js$/i },
@@ -486,14 +485,16 @@ export function collectWorkspaceStats(folder: string, filter: string[]): Promise
 		walk(folder, filter, token, async (files) => {
 			files.forEach(acceptFile);
 
-			const launchConfigs = await collectLaunchConfigs(folder);
+			// TODO@rachel commented out due to severe performance issues
+			// see https://github.com/Microsoft/vscode/issues/70563
+			// const launchConfigs = await collectLaunchConfigs(folder);
 
 			resolve({
 				configFiles: asSortedItems(configFiles),
 				fileTypes: asSortedItems(fileTypes),
 				fileCount: token.count,
 				maxFilesReached: token.maxReached,
-				launchConfigFiles: launchConfigs
+				// launchConfigFiles: launchConfigs
 			});
 		});
 	});

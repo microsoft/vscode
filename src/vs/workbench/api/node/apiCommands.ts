@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import * as typeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import { CommandsRegistry, ICommandService, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { EditorViewColumn } from 'vs/workbench/api/shared/editor';
+import { EditorViewColumn } from 'vs/workbench/api/common/shared/editor';
 import { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IWindowsService, IOpenSettings } from 'vs/platform/windows/common/windows';
@@ -64,6 +64,25 @@ CommandsRegistry.registerCommand({
 		args: [
 			{ name: 'uri', description: '(optional) Uri of the folder or workspace file to open. If not provided, a native dialog will ask the user for the folder', constraint: (value: any) => value === undefined || value instanceof URI },
 			{ name: 'options', description: '(optional) Options. Object with the following properties: `forceNewWindow `: Whether to open the folder/workspace in a new window or the same. Defaults to opening in the same window. `noRecentEntry`: Wheter the opened URI will appear in the \'Open Recent\' list. Defaults to true. `recentEntryLabel`: The label used for \'Open Recent\' list. Note, for backward compatibility, options can also be of type boolean, representing the `forceNewWindow` setting.', constraint: (value: any) => value === undefined || typeof value === 'object' || typeof value === 'boolean' }
+		]
+	}
+});
+
+interface INewWindowAPICommandOptions {
+}
+
+export class NewWindowAPICommand {
+	public static ID = 'vscode.newWindow';
+	public static execute(executor: ICommandsExecutor, options?: INewWindowAPICommandOptions): Promise<any> {
+		return executor.executeCommand('_files.newWindow', [options]);
+	}
+}
+CommandsRegistry.registerCommand({
+	id: NewWindowAPICommand.ID,
+	handler: adjustHandler(NewWindowAPICommand.execute),
+	description: {
+		description: 'Opens an new window',
+		args: [
 		]
 	}
 });

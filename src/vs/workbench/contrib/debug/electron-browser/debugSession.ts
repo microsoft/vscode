@@ -57,6 +57,7 @@ export class DebugSession implements IDebugSession {
 		private _configuration: { resolved: IConfig, unresolved: IConfig | undefined },
 		public root: IWorkspaceFolder,
 		private model: DebugModel,
+		private _parentSession: IDebugSession | undefined,
 		@IDebugService private readonly debugService: IDebugService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IOutputService private readonly outputService: IOutputService,
@@ -81,6 +82,10 @@ export class DebugSession implements IDebugSession {
 
 	get unresolvedConfiguration(): IConfig | undefined {
 		return this._configuration.unresolved;
+	}
+
+	get parentSession(): IDebugSession | undefined {
+		return this._parentSession;
 	}
 
 	setConfiguration(configuration: { resolved: IConfig, unresolved: IConfig | undefined }) {
@@ -178,6 +183,10 @@ export class DebugSession implements IDebugSession {
 					});
 				});
 			});
+		}).then(undefined, err => {
+			this.initialized = true;
+			this._onDidChangeState.fire();
+			return Promise.reject(err);
 		});
 	}
 

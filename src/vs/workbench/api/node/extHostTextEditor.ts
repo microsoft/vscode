@@ -9,7 +9,7 @@ import { IdGenerator } from 'vs/base/common/idGenerator';
 import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISingleEditOperation } from 'vs/editor/common/model';
-import { IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate, MainThreadTextEditorsShape } from 'vs/workbench/api/node/extHost.protocol';
+import { IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate, MainThreadTextEditorsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostDocumentData } from 'vs/workbench/api/node/extHostDocumentData';
 import * as TypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import { EndOfLine, Position, Range, Selection, SnippetString, TextEditorLineNumbersStyle, TextEditorRevealType } from 'vs/workbench/api/node/extHostTypes';
@@ -158,7 +158,7 @@ export class ExtHostTextEditorOptions implements vscode.TextEditorOptions {
 		this._indentSize = source.indentSize;
 		this._insertSpaces = source.insertSpaces;
 		this._cursorStyle = source.cursorStyle;
-		this._lineNumbers = source.lineNumbers;
+		this._lineNumbers = TypeConverters.TextEditorLineNumbersStyle.to(source.lineNumbers);
 	}
 
 	public get tabSize(): number | string {
@@ -295,7 +295,7 @@ export class ExtHostTextEditorOptions implements vscode.TextEditorOptions {
 		}
 		this._lineNumbers = value;
 		warnOnError(this._proxy.$trySetOptions(this._id, {
-			lineNumbers: value
+			lineNumbers: TypeConverters.TextEditorLineNumbersStyle.from(value)
 		}));
 	}
 
@@ -354,7 +354,7 @@ export class ExtHostTextEditorOptions implements vscode.TextEditorOptions {
 			if (this._lineNumbers !== newOptions.lineNumbers) {
 				this._lineNumbers = newOptions.lineNumbers;
 				hasUpdate = true;
-				bulkConfigurationUpdate.lineNumbers = newOptions.lineNumbers;
+				bulkConfigurationUpdate.lineNumbers = TypeConverters.TextEditorLineNumbersStyle.from(newOptions.lineNumbers);
 			}
 		}
 
@@ -607,7 +607,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 		});
 
 		return this._proxy.$tryApplyEdits(this._id, editData.documentVersionId, edits, {
-			setEndOfLine: editData.setEndOfLine,
+			setEndOfLine: editData.setEndOfLine && TypeConverters.EndOfLine.from(editData.setEndOfLine),
 			undoStopBefore: editData.undoStopBefore,
 			undoStopAfter: editData.undoStopAfter
 		});

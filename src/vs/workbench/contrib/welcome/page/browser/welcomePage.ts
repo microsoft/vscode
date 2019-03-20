@@ -68,8 +68,10 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 					if (openWithReadme) {
 						return Promise.all(contextService.getWorkspace().folders.map(folder => {
 							const folderUri = folder.uri;
-							return fileService.readFolder(folderUri)
-								.then(files => {
+							return fileService.resolveFile(folderUri)
+								.then(folder => {
+									const files = folder.children ? folder.children.map(child => child.name) : [];
+
 									const file = arrays.find(files.sort(), file => strings.startsWith(file.toLowerCase(), 'readme'));
 									if (file) {
 										return joinPath(folderUri, file);

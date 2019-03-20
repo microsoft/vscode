@@ -39,11 +39,6 @@
 	border: 1px solid white;
 }
 
-.vs-dark .monaco-workbench .debug-action.start,
-.hc-black .monaco-workbench .debug-action.start {
-	background: url('continue-inverse.svg') center center no-repeat;
-}
-
 .vs-dark .monaco-workbench .debug-action.configure,
 .hc-black .monaco-workbench .debug-action.configure {
 	background: url('configure-inverse.svg') center center no-repeat;

@@ -52,7 +52,6 @@ import { renderExpressionValue } from 'vs/workbench/contrib/debug/browser/baseDe
 import { handleANSIOutput } from 'vs/workbench/contrib/debug/browser/debugANSIHandling';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
-import { ReplCollapseAllAction, CopyAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
@@ -452,12 +451,19 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 	private onContextMenu(e: ITreeContextMenuEvent<IReplElement>): void {
 		const actions: IAction[] = [];
-		actions.push(new CopyAction(CopyAction.ID, CopyAction.LABEL, this.clipboardService));
+		actions.push(new Action('debug.replCopy', nls.localize('copy', "Copy"), undefined, true, () => {
+			this.clipboardService.writeText(window.getSelection().toString());
+			return Promise.resolve();
+		}));
 		actions.push(new Action('workbench.debug.action.copyAll', nls.localize('copyAll', "Copy All"), undefined, true, () => {
 			this.clipboardService.writeText(this.getVisibleContent());
 			return Promise.resolve(undefined);
 		}));
-		actions.push(new ReplCollapseAllAction(this.tree, this.replInput));
+		actions.push(new Action('debug.collapseRepl', nls.localize('collapse', "Collapse All"), undefined, true, () => {
+			this.tree.collapseAll();
+			this.replInput.focus();
+			return Promise.resolve();
+		}));
 		actions.push(new Separator());
 		actions.push(this.clearReplAction);
 

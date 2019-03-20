@@ -12,6 +12,7 @@ import { GlyphHoverWidget } from 'vs/editor/contrib/hover/hoverWidgets';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/opener';
+import { asArray } from 'vs/base/common/arrays';
 
 export interface IHoverMessage {
 	value: IMarkdownString;
@@ -62,11 +63,7 @@ class MarginComputer implements IHoverComputer<IHoverMessage[]> {
 				continue;
 			}
 
-			if (Array.isArray(hoverMessage)) {
-				result.push(...hoverMessage.map(toHoverMessage));
-			} else {
-				result.push(toHoverMessage(hoverMessage));
-			}
+			result.push(...asArray(hoverMessage).map(toHoverMessage));
 		}
 
 		return result;

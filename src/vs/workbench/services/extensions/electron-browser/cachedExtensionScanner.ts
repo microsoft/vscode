@@ -70,7 +70,7 @@ export class CachedExtensionScanner {
 		const version = pkg.version;
 		const commit = product.commit;
 		const devMode = !!process.env['VSCODE_DEV'];
-		const locale = platform.locale;
+		const locale = platform.language;
 		const input = new ExtensionScannerInput(version, commit, locale, devMode, path, isBuiltin, false, translations);
 		return ExtensionScanner.scanSingleExtension(input, log);
 	}
@@ -249,7 +249,7 @@ export class CachedExtensionScanner {
 		const version = pkg.version;
 		const commit = product.commit;
 		const devMode = !!process.env['VSCODE_DEV'];
-		const locale = platform.locale;
+		const locale = platform.language;
 
 		const builtinExtensions = this._scanExtensionsWithCache(
 			windowService,

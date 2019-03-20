@@ -70,11 +70,11 @@ export class LaunchChannel implements IServerChannel {
 
 	constructor(private service: ILaunchService) { }
 
-	listen<T>(_, event: string): Event<T> {
+	listen<T>(_: unknown, event: string): Event<T> {
 		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(_, command: string, arg: any): Promise<any> {
+	call(_: unknown, command: string, arg: any): Promise<any> {
 		switch (command) {
 			case 'start':
 				const { args, userEnv } = arg as IStartArguments;

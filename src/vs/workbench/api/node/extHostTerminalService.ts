@@ -10,7 +10,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import * as platform from 'vs/base/common/platform';
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { Event, Emitter } from 'vs/base/common/event';
-import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, IMainContext, ShellLaunchConfigDto } from 'vs/workbench/api/node/extHost.protocol';
+import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, IMainContext, ShellLaunchConfigDto } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { EXT_HOST_CREATION_DELAY, IShellLaunchConfig } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -106,7 +106,7 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 
 	public create(
 		shellPath?: string,
-		shellArgs?: string[],
+		shellArgs?: string[] | string,
 		cwd?: string | URI,
 		env?: { [key: string]: string | null },
 		waitOnExit?: boolean,
@@ -363,21 +363,22 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		});
 	}
 
-	public async $acceptTerminalDimensions(id: number, cols: number, rows: number): Promise<void> {
-		const terminal = this._getTerminalById(id);
-		if (terminal) {
-			if (terminal.setDimensions(cols, rows)) {
-				this._onDidChangeTerminalDimensions.fire({
-					terminal: terminal,
-					dimensions: terminal.dimensions as vscode.TerminalDimensions
-				});
+	public $acceptTerminalDimensions(id: number, cols: number, rows: number): void {
+		this._getTerminalByIdEventually(id).then(terminal => {
+			if (terminal) {
+				if (terminal.setDimensions(cols, rows)) {
+					this._onDidChangeTerminalDimensions.fire({
+						terminal: terminal,
+						dimensions: terminal.dimensions as vscode.TerminalDimensions
+					});
+				}
 			}
-		}
-		// When a terminal's dimensions change, a renderer's _maximum_ dimensions change
-		const renderer = this._getTerminalRendererById(id);
-		if (renderer) {
-			renderer._setMaximumDimensions(cols, rows);
-		}
+			// When a terminal's dimensions change, a renderer's _maximum_ dimensions change
+			const renderer = this._getTerminalRendererById(id);
+			if (renderer) {
+				renderer._setMaximumDimensions(cols, rows);
+			}
+		});
 	}
 
 	public $acceptTerminalRendererInput(id: number, data: string): void {
@@ -528,6 +529,10 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		this._terminalProcesses[id].getCwd().then(cwd => this._proxy.$sendProcessCwd(id, cwd));
 	}
 
+	public $acceptProcessRequestLatency(id: number): number {
+		return id;
+	}
+
 	private _onProcessExit(id: number, exitCode: number): void {
 		// Remove listeners
 		this._terminalProcesses[id].dispose();
@@ -564,7 +569,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 			} else {
 				// This should only be needed immediately after createTerminalRenderer is called as
 				// the ExtHostTerminal has not yet been iniitalized
-				timeout(200).then(() => c(this._getTerminalByIdEventually(id, retries - 1)));
+				timeout(200).then(() => c(this._createGetTerminalPromise(id, retries - 1)));
 			}
 		});
 	}

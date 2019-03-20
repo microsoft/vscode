@@ -1270,6 +1270,7 @@ export interface CommentThread2 {
 	onDidChangeInput: Event<CommentInput | undefined>;
 	acceptInputCommand?: Command;
 	additionalCommands: Command[];
+	deleteCommand?: Command;
 	onDidChangeAcceptInputCommand: Event<Command>;
 	onDidChangeAdditionalCommands: Event<Command[]>;
 	onDidChangeRange: Event<IRange>;
@@ -1285,7 +1286,7 @@ export interface CommentingRanges {
 	readonly resource: URI;
 	ranges: IRange[];
 	newCommentThreadCommand?: Command;
-	newCommentThreadCallback?: (uri: UriComponents, range: IRange) => void;
+	newCommentThreadCallback?: (uri: UriComponents, range: IRange) => Promise<void>;
 }
 
 /**
