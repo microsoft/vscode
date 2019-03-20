@@ -224,7 +224,7 @@ export interface IExtensionService extends ICpuProfilerTarget {
 	_onWillActivateExtension(extensionId: ExtensionIdentifier): void;
 	_onDidActivateExtension(extensionId: ExtensionIdentifier, startup: boolean, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationEvent: string): void;
 	_onExtensionRuntimeError(extensionId: ExtensionIdentifier, err: Error): void;
-
+	_onExtensionHostExit(code: number): void;
 }
 
 export interface ICpuProfilerTarget {
@@ -290,4 +290,5 @@ export class NullExtensionService implements IExtensionService {
 	_onWillActivateExtension(_extensionId: ExtensionIdentifier): void { }
 	_onDidActivateExtension(_extensionId: ExtensionIdentifier, _startup: boolean, _codeLoadingTime: number, _activateCallTime: number, _activateResolvedTime: number, _activationEvent: string): void { }
 	_onExtensionRuntimeError(_extensionId: ExtensionIdentifier, _err: Error): void { }
+	_onExtensionHostExit(code: number): void { }
 }

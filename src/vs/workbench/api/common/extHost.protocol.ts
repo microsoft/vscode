@@ -605,6 +605,7 @@ export interface MainThreadExtensionServiceShape extends IDisposable {
 	$onDidActivateExtension(extensionId: ExtensionIdentifier, startup: boolean, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationEvent: string | null): void;
 	$onExtensionActivationError(extensionId: ExtensionIdentifier, error: ExtensionActivationError): Promise<void>;
 	$onExtensionRuntimeError(extensionId: ExtensionIdentifier, error: SerializedError): void;
+	$onExtensionHostExit(code: number): void;
 }
 
 export interface SCMProviderFeatures {

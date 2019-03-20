@@ -5,6 +5,7 @@
 
 import * as nls from 'vs/nls';
 import * as path from 'vs/base/common/path';
+import { ipcRenderer as ipc } from 'electron';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Barrier, runWhenIdle } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -839,6 +840,10 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		}
 		this._extensionHostExtensionRuntimeErrors.get(extensionKey)!.push(err);
 		this._onDidChangeExtensionsStatus.fire([extensionId]);
+	}
+
+	public _onExtensionHostExit(code: number): void {
+		ipc.send('vscode:exit', code);
 	}
 }
 

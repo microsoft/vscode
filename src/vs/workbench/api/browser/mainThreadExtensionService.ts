@@ -121,4 +121,7 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 		}
 	}
 
+	$onExtensionHostExit(code: number): void {
+		this._extensionService._onExtensionHostExit(code);
+	}
 }
