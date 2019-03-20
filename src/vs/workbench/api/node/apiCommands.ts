@@ -68,6 +68,25 @@ CommandsRegistry.registerCommand({
 	}
 });
 
+interface INewWindowAPICommandOptions {
+}
+
+export class NewWindowAPICommand {
+	public static ID = 'vscode.newWindow';
+	public static execute(executor: ICommandsExecutor, options?: INewWindowAPICommandOptions): Promise<any> {
+		return executor.executeCommand('_files.newWindow', [options]);
+	}
+}
+CommandsRegistry.registerCommand({
+	id: NewWindowAPICommand.ID,
+	handler: adjustHandler(NewWindowAPICommand.execute),
+	description: {
+		description: 'Opens an new window',
+		args: [
+		]
+	}
+});
+
 export class DiffAPICommand {
 	public static ID = 'vscode.diff';
 	public static execute(executor: ICommandsExecutor, left: URI, right: URI, label: string, options?: vscode.TextDocumentShowOptions): Promise<any> {
