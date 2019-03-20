@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { IExpression, IDebugService } from 'vs/workbench/contrib/debug/common/debug';
-import { Expression, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
+import { Expression, Variable, ExpressionContainer } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInputValidationOptions, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/tree/tree';
@@ -61,9 +61,10 @@ export function renderExpressionValue(expressionOrValue: IExpression | string, c
 		if (value !== Expression.DEFAULT_VALUE) {
 			dom.addClass(container, 'error');
 		}
-	} else if (options.showChanged && (<any>expressionOrValue).valueChanged && value !== Expression.DEFAULT_VALUE) {
+	} else if ((expressionOrValue instanceof ExpressionContainer) && options.showChanged && expressionOrValue.valueChanged && value !== Expression.DEFAULT_VALUE) {
 		// value changed color has priority over other colors.
 		container.className = 'value changed';
+		expressionOrValue.valueChanged = false;
 	}
 
 	if (options.colorize && typeof expressionOrValue !== 'string') {

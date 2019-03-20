@@ -10,7 +10,7 @@ import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/co
 import { Registry } from 'vs/platform/registry/common/platform';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
-export const IRequestService = createDecorator<IRequestService>('requestService2');
+export const IRequestService = createDecorator<IRequestService>('requestService');
 
 export interface IRequestService {
 	_serviceBrand: any;

@@ -6,7 +6,7 @@
 import { join } from 'vs/base/common/path';
 import { ILogService, DelegatedLogService, LogLevel } from 'vs/platform/log/common/log';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
-import { ExtHostLogServiceShape } from 'vs/workbench/api/node/extHost.protocol';
+import { ExtHostLogServiceShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtensionHostLogFileName } from 'vs/workbench/services/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';

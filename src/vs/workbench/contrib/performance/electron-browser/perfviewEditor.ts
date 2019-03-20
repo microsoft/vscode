@@ -7,7 +7,6 @@ import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
-import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILifecycleService, LifecyclePhase, StartupKindToString } from 'vs/platform/lifecycle/common/lifecycle';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -47,14 +46,13 @@ export class PerfviewInput extends ResourceEditorInput {
 	static readonly Uri = URI.from({ scheme: 'perf', path: 'Startup Performance' });
 
 	constructor(
-		@ITextModelService textModelResolverService: ITextModelService,
-		@IHashService hashService: IHashService
+		@ITextModelService textModelResolverService: ITextModelService
 	) {
 		super(
 			localize('name', "Startup Performance"),
 			null,
 			PerfviewInput.Uri,
-			textModelResolverService, hashService
+			textModelResolverService
 		);
 	}
 

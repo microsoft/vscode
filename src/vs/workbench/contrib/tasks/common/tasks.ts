@@ -8,10 +8,10 @@ import { IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import * as Objects from 'vs/base/common/objects';
 import { UriComponents } from 'vs/base/common/uri';
 
-import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ProblemMatcher } from 'vs/workbench/contrib/tasks/common/problemMatcher';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 export const TASK_RUNNING_STATE = new RawContextKey<boolean>('taskRunning', false);
 
@@ -597,27 +597,28 @@ export class CustomTask extends CommonTask {
 			return this._source.customizes;
 		} else {
 			let type: string;
-			if (this.command !== undefined) {
-				switch (this.command.runtime) {
-					case RuntimeType.Shell:
-						type = 'shell';
-						break;
+			const commandRuntime = this.command ? this.command.runtime : undefined;
+			switch (commandRuntime) {
+				case RuntimeType.Shell:
+					type = 'shell';
+					break;
 
-					case RuntimeType.Process:
-						type = 'process';
-						break;
+				case RuntimeType.Process:
+					type = 'process';
+					break;
 
-					case RuntimeType.CustomExecution:
-						type = 'customExecution';
-						break;
+				case RuntimeType.CustomExecution:
+					type = 'customExecution';
+					break;
 
-					default:
-						throw new Error('Unexpected task runtime');
-						break;
-				}
-			} else {
-				type = '$composite';
+				case undefined:
+					type = '$composite';
+					break;
+
+				default:
+					throw new Error('Unexpected task runtime');
 			}
+
 			let result: KeyedTaskIdentifier = {
 				type,
 				_key: this._id,

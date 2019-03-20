@@ -11,8 +11,8 @@ export class HashService implements IHashService {
 
 	_serviceBrand: any;
 
-	createSHA1(content: string): string {
-		return createHash('sha1').update(content).digest('hex');
+	createSHA1(content: string): Promise<string> {
+		return Promise.resolve(createHash('sha1').update(content).digest('hex'));
 	}
 }
 

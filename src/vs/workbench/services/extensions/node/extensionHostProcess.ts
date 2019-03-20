@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nativeWatchdog from 'native-watchdog';
-import { createConnection } from 'net';
+import * as net from 'net';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
-import { Protocol } from 'vs/base/parts/ipc/node/ipc.net';
+import { PersistentProtocol, ProtocolConstants } from 'vs/base/parts/ipc/node/ipc.net';
 import product from 'vs/platform/product/node/product';
-import { IInitData } from 'vs/workbench/api/node/extHost.protocol';
-import { MessageType, createMessageOfType, isMessageOfType } from 'vs/workbench/services/extensions/node/extensionHostProtocol';
+import { IInitData } from 'vs/workbench/api/common/extHost.protocol';
+import { MessageType, createMessageOfType, isMessageOfType, IExtHostSocketMessage, IExtHostReadyMessage } from 'vs/workbench/services/extensions/node/extensionHostProtocol';
 import { exit, ExtensionHostMain } from 'vs/workbench/services/extensions/node/extensionHostMain';
 
 // With Electron 2.x and node.js 8.x the "natives" module
@@ -43,40 +43,93 @@ let onTerminate = function () {
 	exit();
 };
 
-function createExtHostProtocol(): Promise<IMessagePassingProtocol> {
+function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
+	if (process.env.VSCODE_EXTHOST_WILL_SEND_SOCKET) {
 
-	const pipeName = process.env.VSCODE_IPC_HOOK_EXTHOST!;
+		return new Promise<IMessagePassingProtocol>((resolve, reject) => {
 
-	return new Promise<IMessagePassingProtocol>((resolve, reject) => {
+			let protocol: PersistentProtocol | null = null;
 
-		const socket = createConnection(pipeName, () => {
-			socket.removeListener('error', reject);
-			resolve(new Protocol(socket));
-		});
-		socket.once('error', reject);
+			let timer = setTimeout(() => {
+				reject(new Error('VSCODE_EXTHOST_IPC_SOCKET timeout'));
+			}, 60000);
 
-	}).then(protocol => {
+			let disconnectWaitTimer: NodeJS.Timeout | null = null;
 
-		return new class implements IMessagePassingProtocol {
+			process.on('message', (msg: IExtHostSocketMessage, handle: net.Socket) => {
+				if (msg && msg.type === 'VSCODE_EXTHOST_IPC_SOCKET') {
+					const initialDataChunk = Buffer.from(msg.initialDataChunk, 'base64');
+					if (protocol) {
+						// reconnection case
+						if (disconnectWaitTimer) {
+							clearTimeout(disconnectWaitTimer);
+							disconnectWaitTimer = null;
+						}
+						protocol.beginAcceptReconnection(handle, initialDataChunk);
+						protocol.endAcceptReconnection();
+					} else {
+						clearTimeout(timer);
+						protocol = new PersistentProtocol(handle, initialDataChunk);
+						protocol.onClose(() => onTerminate());
+						resolve(protocol);
 
-			private _terminating = false;
-
-			readonly onMessage: Event<any> = Event.filter(protocol.onMessage, msg => {
-				if (!isMessageOfType(msg, MessageType.Terminate)) {
-					return true;
+						protocol.onSocketClose(() => {
+							// The socket has closed, let's give the renderer a certain amount of time to reconnect
+							disconnectWaitTimer = setTimeout(() => {
+								disconnectWaitTimer = null;
+								onTerminate();
+							}, ProtocolConstants.ReconnectionGraceTime);
+						});
+					}
 				}
-				this._terminating = true;
-				onTerminate();
-				return false;
 			});
 
-			send(msg: any): void {
-				if (!this._terminating) {
-					protocol.send(msg);
-				}
+			// Now that we have managed to install a message listener, ask the other side to send us the socket
+			const req: IExtHostReadyMessage = { type: 'VSCODE_EXTHOST_IPC_READY' };
+			if (process.send) {
+				process.send(req);
 			}
-		};
-	});
+		});
+
+	} else {
+
+		const pipeName = process.env.VSCODE_IPC_HOOK_EXTHOST!;
+
+		return new Promise<IMessagePassingProtocol>((resolve, reject) => {
+
+			const socket = net.createConnection(pipeName, () => {
+				socket.removeListener('error', reject);
+				resolve(new PersistentProtocol(socket));
+			});
+			socket.once('error', reject);
+
+		});
+	}
+}
+
+async function createExtHostProtocol(): Promise<IMessagePassingProtocol> {
+
+	const protocol = await _createExtHostProtocol();
+
+	return new class implements IMessagePassingProtocol {
+
+		private _terminating = false;
+
+		readonly onMessage: Event<any> = Event.filter(protocol.onMessage, msg => {
+			if (!isMessageOfType(msg, MessageType.Terminate)) {
+				return true;
+			}
+			this._terminating = true;
+			onTerminate();
+			return false;
+		});
+
+		send(msg: any): void {
+			if (!this._terminating) {
+				protocol.send(msg);
+			}
+		}
+	};
 }
 
 function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRendererConnection> {

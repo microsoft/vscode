@@ -393,6 +393,6 @@
 	line-height: 20px;
 }
 
-.vs .panel .search-view .monaco-inputbox {
+.vs .search-panel .search-view .monaco-inputbox {
 	border: 1px solid #ddd;
 }

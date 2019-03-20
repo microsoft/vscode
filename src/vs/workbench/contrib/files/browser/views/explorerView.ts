@@ -26,7 +26,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { IDecorationsService } from 'vs/workbench/services/decorations/browser/decorations';
-import { WorkbenchAsyncDataTree, IListService, TreeResourceNavigator2 } from 'vs/platform/list/browser/listService';
+import { WorkbenchAsyncDataTree, TreeResourceNavigator2 } from 'vs/platform/list/browser/listService';
 import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IViewletPanelOptions, ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
@@ -83,7 +83,6 @@ export class ExplorerView extends ViewletPanel {
 		@IDecorationsService decorationService: IDecorationsService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IThemeService private readonly themeService: IWorkbenchThemeService,
-		@IListService private readonly listService: IListService,
 		@IMenuService private readonly menuService: IMenuService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IExplorerService private readonly explorerService: IExplorerService,
@@ -175,7 +174,7 @@ export class ExplorerView extends ViewletPanel {
 			const isEditing = !!this.explorerService.getEditableData(e);
 
 			if (isEditing) {
-				await this.tree.expand(e.parent);
+				await this.tree.expand(e.parent!);
 			} else {
 				DOM.removeClass(treeContainer, 'highlight');
 			}
@@ -279,20 +278,21 @@ export class ExplorerView extends ViewletPanel {
 
 		this.disposables.push(createFileIconThemableTreeContainerScope(container, this.themeService));
 
-		this.tree = new WorkbenchAsyncDataTree(container, new ExplorerDelegate(), [filesRenderer],
+		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, container, new ExplorerDelegate(), [filesRenderer],
 			this.instantiationService.createInstance(ExplorerDataSource), {
 				accessibilityProvider: new ExplorerAccessibilityProvider(),
 				ariaLabel: nls.localize('treeAriaLabel', "Files Explorer"),
 				identityProvider: {
-					getId: stat => stat.resource
+					getId: stat => (<ExplorerItem>stat).resource
 				},
 				keyboardNavigationLabelProvider: {
 					getKeyboardNavigationLabel: stat => {
-						if (this.explorerService.isEditable(stat)) {
+						const item = <ExplorerItem>stat;
+						if (this.explorerService.isEditable(item)) {
 							return undefined;
 						}
 
-						return stat.name;
+						return item.name;
 					}
 				},
 				multipleSelectionSupport: true,
@@ -300,7 +300,7 @@ export class ExplorerView extends ViewletPanel {
 				sorter: this.instantiationService.createInstance(FileSorter),
 				dnd: this.instantiationService.createInstance(FileDragAndDrop),
 				autoExpandSingleChildren: true
-			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
+			}) as WorkbenchAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>;
 		this.disposables.push(this.tree);
 
 		// Bind context keys
@@ -319,9 +319,8 @@ export class ExplorerView extends ViewletPanel {
 			// Check if the item was previously also selected, if yes the user is simply expanding / collapsing current selection #66589.
 			const shiftDown = e.browserEvent instanceof KeyboardEvent && e.browserEvent.shiftKey;
 			if (selection.length === 1 && !shiftDown) {
-				// Do not react if user is clicking on explorer items which are input placeholders
-				if (!selection[0].name || selection[0].isDirectory) {
-					// Do not react if user is clicking on explorer items which are input placeholders
+				if (selection[0].isDirectory || this.explorerService.isEditable(undefined)) {
+					// Do not react if user is clicking on explorer items while some are being edited #70276
 					// Do not react if clicking on directories
 					return;
 				}
@@ -341,7 +340,7 @@ export class ExplorerView extends ViewletPanel {
 		this.disposables.push(this.tree.onKeyDown(e => {
 			const event = new StandardKeyboardEvent(e);
 			const toggleCollapsed = isMacintosh ? (event.keyCode === KeyCode.DownArrow && event.metaKey) : event.keyCode === KeyCode.Enter;
-			if (toggleCollapsed) {
+			if (toggleCollapsed && !this.explorerService.isEditable(undefined)) {
 				const focus = this.tree.getFocus();
 				if (focus.length === 1 && focus[0].isDirectory) {
 					this.tree.toggleCollapsed(focus[0]);
@@ -400,7 +399,7 @@ export class ExplorerView extends ViewletPanel {
 					this.tree.domFocus();
 				}
 			},
-			getActionsContext: () => selection && selection.indexOf(stat) >= 0
+			getActionsContext: () => stat && selection && selection.indexOf(stat) >= 0
 				? selection.map((fs: ExplorerItem) => fs.resource)
 				: stat instanceof ExplorerItem ? [stat.resource] : []
 		});
@@ -508,7 +507,7 @@ export class ExplorerView extends ViewletPanel {
 		return withNullAsUndefined(toResource(input, { supportSideBySide: true }));
 	}
 
-	private onSelectItem(fileStat: ExplorerItem, reveal = this.autoReveal): Promise<void> {
+	private onSelectItem(fileStat: ExplorerItem | undefined, reveal = this.autoReveal): Promise<void> {
 		if (!fileStat || !this.isBodyVisible() || this.tree.getInput() === fileStat) {
 			return Promise.resolve(undefined);
 		}
@@ -531,7 +530,7 @@ export class ExplorerView extends ViewletPanel {
 		});
 	}
 
-	private onCopyItems(stats: ExplorerItem[], cut: boolean, previousCut: ExplorerItem[]): void {
+	private onCopyItems(stats: ExplorerItem[], cut: boolean, previousCut: ExplorerItem[] | undefined): void {
 		this.fileCopiedContextKey.set(stats.length > 0);
 		this.resourceCutContextKey.set(cut && stats.length > 0);
 		if (previousCut) {

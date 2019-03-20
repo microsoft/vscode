@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
-import { MainContext, MainThreadConsoleShape, IExtHostContext } from 'vs/workbench/api/node/extHost.protocol';
+import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
+import { MainContext, MainThreadConsoleShape, IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IRemoteConsoleLog, log, parse } from 'vs/base/node/console';
 import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/electron-browser/extensionHost';

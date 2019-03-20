@@ -99,54 +99,6 @@ suite('FileService', () => {
 		});
 	});
 
-	test('createFolder', () => {
-		let event: FileOperationEvent;
-		const toDispose = service.onAfterOperation(e => {
-			event = e;
-		});
-
-		return service.resolveFile(uri.file(testDir)).then(parent => {
-			const resource = uri.file(path.join(parent.resource.fsPath, 'newFolder'));
-
-			return service.createFolder(resource).then(f => {
-				assert.equal(f.name, 'newFolder');
-				assert.equal(fs.existsSync(f.resource.fsPath), true);
-
-				assert.ok(event);
-				assert.equal(event.resource.fsPath, resource.fsPath);
-				assert.equal(event.operation, FileOperation.CREATE);
-				assert.equal(event.target!.resource.fsPath, resource.fsPath);
-				assert.equal(event.target!.isDirectory, true);
-				toDispose.dispose();
-			});
-		});
-	});
-
-	test('createFolder: creating multiple folders at once', function () {
-		let event: FileOperationEvent;
-		const toDispose = service.onAfterOperation(e => {
-			event = e;
-		});
-
-		const multiFolderPaths = ['a', 'couple', 'of', 'folders'];
-		return service.resolveFile(uri.file(testDir)).then(parent => {
-			const resource = uri.file(path.join(parent.resource.fsPath, ...multiFolderPaths));
-
-			return service.createFolder(resource).then(f => {
-				const lastFolderName = multiFolderPaths[multiFolderPaths.length - 1];
-				assert.equal(f.name, lastFolderName);
-				assert.equal(fs.existsSync(f.resource.fsPath), true);
-
-				assert.ok(event);
-				assert.equal(event.resource.fsPath, resource.fsPath);
-				assert.equal(event.operation, FileOperation.CREATE);
-				assert.equal(event.target!.resource.fsPath, resource.fsPath);
-				assert.equal(event.target!.isDirectory, true);
-				toDispose.dispose();
-			});
-		});
-	});
-
 	test('renameFile', () => {
 		let event: FileOperationEvent;
 		const toDispose = service.onAfterOperation(e => {
@@ -518,14 +470,14 @@ suite('FileService', () => {
 			{ resource: uri.file(testDir), options: { resolveTo: [uri.file(path.join(testDir, 'deep'))] } },
 			{ resource: uri.file(path.join(testDir, 'deep')) }
 		]).then(res => {
-			const r1 = res[0].stat;
+			const r1 = res[0].stat!;
 
 			assert.equal(r1.children!.length, 8);
 
 			const deep = utils.getByName(r1, 'deep')!;
 			assert.equal(deep.children!.length, 4);
 
-			const r2 = res[1].stat;
+			const r2 = res[1].stat!;
 			assert.equal(r2.children!.length, 4);
 			assert.equal(r2.name, 'deep');
 		});
@@ -808,27 +760,27 @@ suite('FileService', () => {
 		}, 100);
 	});
 
-	test('watchFileChanges - support atomic save', function (done) {
-		const toWatch = uri.file(path.join(testDir, 'index.html'));
+	// test('watchFileChanges - support atomic save', function (done) {
+	// 	const toWatch = uri.file(path.join(testDir, 'index.html'));
 
-		service.watchFileChanges(toWatch);
+	// 	service.watchFileChanges(toWatch);
 
-		service.onFileChanges((e: FileChangesEvent) => {
-			assert.ok(e);
+	// 	service.onFileChanges((e: FileChangesEvent) => {
+	// 		assert.ok(e);
 
-			service.unwatchFileChanges(toWatch);
-			done();
-		});
+	// 		service.unwatchFileChanges(toWatch);
+	// 		done();
+	// 	});
 
-		setTimeout(() => {
-			// Simulate atomic save by deleting the file, creating it under different name
-			// and then replacing the previously deleted file with those contents
-			const renamed = `${toWatch.fsPath}.bak`;
-			fs.unlinkSync(toWatch.fsPath);
-			fs.writeFileSync(renamed, 'Changes');
-			fs.renameSync(renamed, toWatch.fsPath);
-		}, 100);
-	});
+	// 	setTimeout(() => {
+	// 		// Simulate atomic save by deleting the file, creating it under different name
+	// 		// and then replacing the previously deleted file with those contents
+	// 		const renamed = `${toWatch.fsPath}.bak`;
+	// 		fs.unlinkSync(toWatch.fsPath);
+	// 		fs.writeFileSync(renamed, 'Changes');
+	// 		fs.renameSync(renamed, toWatch.fsPath);
+	// 	}, 100);
+	// });
 
 	test('options - encoding override (parent)', function () {
 

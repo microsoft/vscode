@@ -49,7 +49,8 @@ export interface IExplorerService {
 
 	setEditable(stat: ExplorerItem, data: IEditableData | null): void;
 	getEditableData(stat: ExplorerItem): IEditableData | undefined;
-	isEditable(stat: ExplorerItem): boolean;
+	// If undefined is passed checks if any element is currently being edited.
+	isEditable(stat: ExplorerItem | undefined): boolean;
 	findClosest(resource: URI): ExplorerItem | null;
 	refresh(): void;
 	setToCopy(stats: ExplorerItem[], cut: boolean): void;

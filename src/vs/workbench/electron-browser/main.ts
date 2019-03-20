@@ -78,7 +78,8 @@ class CodeRendererMain extends Disposable {
 			this.configuration.workspace = reviveWorkspaceIdentifier(this.configuration.workspace);
 		}
 
-		const filesToWaitPaths = this.configuration.filesToWait && this.configuration.filesToWait.paths;
+		const filesToWait = this.configuration.filesToWait;
+		const filesToWaitPaths = filesToWait && filesToWait.paths;
 		[filesToWaitPaths, this.configuration.filesToOpen, this.configuration.filesToCreate, this.configuration.filesToDiff].forEach(paths => {
 			if (Array.isArray(paths)) {
 				paths.forEach(path => {
@@ -88,6 +89,9 @@ class CodeRendererMain extends Disposable {
 				});
 			}
 		});
+		if (filesToWait) {
+			filesToWait.waitMarkerFileUri = uri.revive(filesToWait.waitMarkerFileUri);
+		}
 	}
 
 	open(): Promise<void> {

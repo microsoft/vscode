@@ -164,7 +164,7 @@ class TitleMenus implements IDisposable {
 class Root implements ITreeItem {
 	label = { label: 'root' };
 	handle = '0';
-	parentHandle: string | null = null;
+	parentHandle: string | undefined = undefined;
 	collapsibleState = TreeItemCollapsibleState.Expanded;
 	children: ITreeItem[] | undefined = undefined;
 }

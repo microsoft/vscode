@@ -55,7 +55,7 @@ import { LogLevelSetterChannel } from 'vs/platform/log/node/logIpc';
 import * as errors from 'vs/base/common/errors';
 import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
 import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
-import { connectRemoteAgentManagement, RemoteAgentConnectionContext } from 'vs/platform/remote/node/remoteAgentConnection';
+import { connectRemoteAgentManagement, ManagementPersistentConnection } from 'vs/platform/remote/node/remoteAgentConnection';
 import { IMenubarService } from 'vs/platform/menubar/common/menubar';
 import { MenubarService } from 'vs/platform/menubar/electron-main/menubarService';
 import { MenubarChannel } from 'vs/platform/menubar/node/menubarIpc';
@@ -78,6 +78,7 @@ import { IBackupMainService } from 'vs/platform/backup/common/backup';
 import { HistoryMainService } from 'vs/platform/history/electron-main/historyMainService';
 import { URLService } from 'vs/platform/url/common/urlService';
 import { WorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
+import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
 
 export class CodeApplication extends Disposable {
 
@@ -649,26 +650,27 @@ export class CodeApplication extends Disposable {
 
 		class ActiveConnection {
 			private readonly _authority: string;
-			private readonly _client: Promise<Client<RemoteAgentConnectionContext>>;
+			private readonly _connection: Promise<ManagementPersistentConnection>;
 			private readonly _disposeRunner: RunOnceScheduler;
 
 			constructor(authority: string, host: string, port: number) {
 				this._authority = authority;
-				this._client = connectRemoteAgentManagement(authority, host, port, `main`, isBuilt);
+				this._connection = connectRemoteAgentManagement(authority, host, port, `main`, isBuilt);
 				this._disposeRunner = new RunOnceScheduler(() => this.dispose(), 5000);
 			}
 
 			dispose(): void {
 				this._disposeRunner.dispose();
 				connectionPool.delete(this._authority);
-				this._client.then((connection) => {
+				this._connection.then((connection) => {
 					connection.dispose();
 				});
 			}
 
-			getClient(): Promise<Client<RemoteAgentConnectionContext>> {
+			async getClient(): Promise<Client<RemoteAgentConnectionContext>> {
 				this._disposeRunner.schedule();
-				return this._client;
+				const connection = await this._connection;
+				return connection.client;
 			}
 		}
 

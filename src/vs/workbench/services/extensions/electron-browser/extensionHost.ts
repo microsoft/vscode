@@ -20,7 +20,7 @@ import { URI } from 'vs/base/common/uri';
 import { IRemoteConsoleLog, log, parse } from 'vs/base/node/console';
 import { findFreePort, randomPort } from 'vs/base/node/ports';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
-import { Protocol, generateRandomPipeName, BufferedProtocol } from 'vs/base/parts/ipc/node/ipc.net';
+import { PersistentProtocol, generateRandomPipeName } from 'vs/base/parts/ipc/node/ipc.net';
 import { IBroadcast, IBroadcastService } from 'vs/workbench/services/broadcast/electron-browser/broadcastService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { EXTENSION_ATTACH_BROADCAST_CHANNEL, EXTENSION_CLOSE_EXTHOST_BROADCAST_CHANNEL, EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_RELOAD_BROADCAST_CHANNEL, EXTENSION_TERMINATE_BROADCAST_CHANNEL } from 'vs/platform/extensions/common/extensionHost';
@@ -32,15 +32,15 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IInitData } from 'vs/workbench/api/node/extHost.protocol';
+import { IInitData } from 'vs/workbench/api/common/extHost.protocol';
 import { MessageType, createMessageOfType, isMessageOfType } from 'vs/workbench/services/extensions/node/extensionHostProtocol';
-import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 export interface IExtensionHostStarter {
-	readonly onCrashed: Event<[number, string]>;
+	readonly onCrashed: Event<[number, string | null]>;
 	start(): Promise<IMessagePassingProtocol> | null;
-	getInspectPort(): number;
+	getInspectPort(): number | undefined;
 	dispose(): void;
 }
 
@@ -361,7 +361,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 				// using a buffered message protocol here because between now
 				// and the first time a `then` executes some messages might be lost
 				// unless we immediately register a listener for `onMessage`.
-				resolve(new BufferedProtocol(new Protocol(this._extensionHostConnection)));
+				resolve(new PersistentProtocol(this._extensionHostConnection));
 			});
 
 		}).then((protocol) => {
@@ -432,7 +432,8 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 						appSettingsHome: this._environmentService.appSettingsHome ? URI.file(this._environmentService.appSettingsHome) : undefined,
 						extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 						extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
-						globalStorageHome: URI.file(this._environmentService.globalStorageHome)
+						globalStorageHome: URI.file(this._environmentService.globalStorageHome),
+						userHome: URI.file(this._environmentService.userHome)
 					},
 					workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? undefined : {
 						configuration: withNullAsUndefined(workspace.configuration),

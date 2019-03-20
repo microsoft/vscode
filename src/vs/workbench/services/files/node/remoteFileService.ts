@@ -14,12 +14,11 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/res
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { FileChangesEvent, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FileWriteOptions, FileSystemProviderCapabilities, IContent, ICreateFileOptions, IFileStat, IFileSystemProvider, IFilesConfiguration, IResolveContentOptions, IResolveFileOptions, IResolveFileResult, IStat, IStreamContent, ITextSnapshot, IUpdateContentOptions, StringSnapshot, IWatchOptions, FileType, IFileService } from 'vs/platform/files/common/files';
+import { FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FileWriteOptions, FileSystemProviderCapabilities, IContent, ICreateFileOptions, IFileStat, IFileSystemProvider, IFilesConfiguration, IResolveContentOptions, IResolveFileOptions, IResolveFileResult, IStat, IStreamContent, ITextSnapshot, IUpdateContentOptions, StringSnapshot, IWatchOptions, FileType, ILegacyFileService, IFileService, toFileOperationResult } from 'vs/platform/files/common/files';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
 import { createReadableOfProvider, createReadableOfSnapshot, createWritableOfProvider } from 'vs/workbench/services/files/node/streams';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -162,7 +161,7 @@ export class RemoteFileService extends FileService {
 	private readonly _provider: Map<string, IFileSystemProvider>;
 
 	constructor(
-		@IExtensionService private readonly _extensionService: IExtensionService,
+		@IFileService private readonly _fileService: IFileService,
 		@IStorageService storageService: IStorageService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -191,51 +190,12 @@ export class RemoteFileService extends FileService {
 		}
 
 		this._provider.set(scheme, provider);
-		this._onDidChangeFileSystemProviderRegistrations.fire({ added: true, scheme, provider });
 
-		const reg = provider.onDidChangeFile(changes => {
-			// forward change events
-			this._onFileChanges.fire(new FileChangesEvent(changes));
-		});
 		return {
 			dispose: () => {
-				this._onDidChangeFileSystemProviderRegistrations.fire({ added: false, scheme, provider });
 				this._provider.delete(scheme);
-				reg.dispose();
 			}
 		};
-	}
-
-	activateProvider(scheme: string): Promise<void> {
-		return this._extensionService.activateByEvent('onFileSystem:' + scheme);
-	}
-
-	canHandleResource(resource: URI): boolean {
-		return resource.scheme === Schemas.file || this._provider.has(resource.scheme);
-	}
-
-	private _tryParseFileOperationResult(err: any): FileOperationResult | undefined {
-		if (!(err instanceof Error)) {
-			return undefined;
-		}
-		let match = /^(.+) \(FileSystemError\)$/.exec(err.name);
-		if (!match) {
-			return undefined;
-		}
-		switch (match[1]) {
-			case 'EntryNotFound':
-				return FileOperationResult.FILE_NOT_FOUND;
-			case 'EntryIsADirectory':
-				return FileOperationResult.FILE_IS_DIRECTORY;
-			case 'NoPermissions':
-				return FileOperationResult.FILE_PERMISSION_DENIED;
-			case 'EntryExists':
-				return FileOperationResult.FILE_MOVE_CONFLICT;
-			case 'EntryNotADirectory':
-			default:
-				// todo
-				return undefined;
-		}
 	}
 
 	// --- stat
@@ -250,7 +210,7 @@ export class RemoteFileService extends FileService {
 		}
 
 		return Promise.all([
-			this.activateProvider(resource.scheme)
+			this._fileService.activateProvider(resource.scheme)
 		]).then(() => {
 			const provider = this._provider.get(resource.scheme);
 			if (!provider) {
@@ -449,8 +409,8 @@ export class RemoteFileService extends FileService {
 				return fileStat;
 			}, err => {
 				const message = localize('err.create', "Failed to create file {0}", resource.toString(false));
-				const result = this._tryParseFileOperationResult(err);
-				throw new FileOperationError(message, result || -1, options);
+				const result = toFileOperationResult(err);
+				throw new FileOperationError(message, result, options);
 			});
 		}
 	}
@@ -513,33 +473,6 @@ export class RemoteFileService extends FileService {
 		}
 	}
 
-	readFolder(resource: URI): Promise<string[]> {
-		if (resource.scheme === Schemas.file) {
-			return super.readFolder(resource);
-		} else {
-			return this._withProvider(resource).then(provider => {
-				return provider.readdir(resource);
-			}).then(list => list.map(l => l[0]));
-		}
-	}
-
-	createFolder(resource: URI): Promise<IFileStat> {
-		if (resource.scheme === Schemas.file) {
-			return super.createFolder(resource);
-		} else {
-			return this._withProvider(resource).then(RemoteFileService._throwIfFileSystemIsReadonly).then(provider => {
-				return RemoteFileService._mkdirp(provider, resources.dirname(resource)).then(() => {
-					return provider.mkdir(resource).then(() => {
-						return this.resolveFile(resource);
-					});
-				});
-			}).then(fileStat => {
-				this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, fileStat));
-				return fileStat;
-			});
-		}
-	}
-
 	moveFile(source: URI, target: URI, overwrite?: boolean): Promise<IFileStat> {
 		if (source.scheme !== target.scheme) {
 			return this._doMoveAcrossScheme(source, target);
@@ -564,7 +497,7 @@ export class RemoteFileService extends FileService {
 					this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.MOVE, fileStat));
 					return fileStat;
 				}, err => {
-					const result = this._tryParseFileOperationResult(err);
+					const result = toFileOperationResult(err);
 					if (result === FileOperationResult.FILE_MOVE_CONFLICT) {
 						throw new FileOperationError(localize('fileMoveConflict', "Unable to move/copy. File already exists at destination."), result);
 					}
@@ -600,7 +533,7 @@ export class RemoteFileService extends FileService {
 					this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.COPY, fileStat));
 					return fileStat;
 				}, err => {
-					const result = this._tryParseFileOperationResult(err);
+					const result = toFileOperationResult(err);
 					if (result === FileOperationResult.FILE_MOVE_CONFLICT) {
 						throw new FileOperationError(localize('fileMoveConflict', "Unable to move/copy. File already exists at destination."), result);
 					}
@@ -627,7 +560,7 @@ export class RemoteFileService extends FileService {
 							return fileStat;
 						});
 					}, err => {
-						const result = this._tryParseFileOperationResult(err);
+						const result = toFileOperationResult(err);
 						if (result === FileOperationResult.FILE_MOVE_CONFLICT) {
 							throw new FileOperationError(localize('fileMoveConflict', "Unable to move/copy. File already exists at destination."), result);
 						} else if (err instanceof Error && err.name === 'ENOPRO') {
@@ -678,4 +611,4 @@ export class RemoteFileService extends FileService {
 	}
 }
 
-registerSingleton(IFileService, RemoteFileService);
+registerSingleton(ILegacyFileService, RemoteFileService);

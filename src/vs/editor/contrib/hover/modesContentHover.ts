@@ -23,7 +23,7 @@ import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contri
 import { ContentHoverWidget } from 'vs/editor/contrib/hover/hoverWidgets';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
+import { coalesce, isNonEmptyArray, asArray } from 'vs/base/common/arrays';
 import { IMarker, IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { basename } from 'vs/base/common/resources';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
@@ -148,16 +148,7 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 					return null;
 				}
 
-				let contents: IMarkdownString[] = [];
-
-				if (d.options.hoverMessage) {
-					if (Array.isArray(d.options.hoverMessage)) {
-						contents = [...d.options.hoverMessage];
-					} else {
-						contents = [d.options.hoverMessage];
-					}
-				}
-
+				const contents: IMarkdownString[] = d.options.hoverMessage ? asArray(d.options.hoverMessage) : [];
 				return { contents, range };
 			}
 		});

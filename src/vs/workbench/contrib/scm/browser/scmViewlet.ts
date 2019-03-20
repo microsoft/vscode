@@ -236,7 +236,10 @@ export class MainPanel extends ViewletPanel {
 		const renderer = this.instantiationService.createInstance(ProviderRenderer);
 		const identityProvider = { getId: r => r.provider.id };
 
-		this.list = this.instantiationService.createInstance(WorkbenchList, container, delegate, [renderer], { identityProvider }) as WorkbenchList<ISCMRepository>;
+		this.list = this.instantiationService.createInstance(WorkbenchList, container, delegate, [renderer], {
+			identityProvider,
+			horizontalScrolling: false
+		}) as WorkbenchList<ISCMRepository>;
 
 		renderer.onDidRenderElement(e => this.list.updateWidth(this.viewModel.repositories.indexOf(e)), null, this.disposables);
 		this.list.onSelectionChange(this.onListSelectionChange, this, this.disposables);
@@ -314,7 +317,9 @@ export class MainPanel extends ViewletPanel {
 
 	private onListSelectionChange(e: IListEvent<ISCMRepository>): void {
 		if (e.elements.length > 0 && e.browserEvent) {
+			const scrollTop = this.list.scrollTop;
 			this.viewModel.setVisibleRepositories(e.elements);
+			this.list.scrollTop = scrollTop;
 		}
 	}
 
@@ -749,25 +754,7 @@ export class RepositoryPanel extends ViewletPanel {
 		super.renderHeaderTitle(container, title);
 		addClass(container, 'scm-provider');
 		append(container, $('span.type', undefined, type));
-		// const onContextMenu = Event.map(stop(domEvent(container, 'contextmenu')), e => new StandardMouseEvent(e));
-		// onContextMenu(this.onContextMenu, this, this.disposables);
 	}
-
-	// private onContextMenu(event: StandardMouseEvent): void {
-	// 	if (this.viewModel.selectedRepositories.length <= 1) {
-	// 		return;
-	// 	}
-
-	// 	this.contextMenuService.showContextMenu({
-	// 		getAnchor: () => ({ x: event.posx, y: event.posy }),
-	// 		getActions: () => [<IAction>{
-	// 			id: `scm.hideRepository`,
-	// 			label: localize('hideRepository', "Hide"),
-	// 			enabled: true,
-	// 			run: () => this.viewModel.hide(this.repository)
-	// 		}],
-	// 	});
-	// }
 
 	protected renderBody(container: HTMLElement): void {
 		const focusTracker = trackFocus(container);
@@ -852,7 +839,8 @@ export class RepositoryPanel extends ViewletPanel {
 
 		this.list = this.instantiationService.createInstance(WorkbenchList, this.listContainer, delegate, renderers, {
 			identityProvider: scmResourceIdentityProvider,
-			keyboardNavigationLabelProvider: scmKeyboardNavigationLabelProvider
+			keyboardNavigationLabelProvider: scmKeyboardNavigationLabelProvider,
+			horizontalScrolling: false
 		}) as WorkbenchList<ISCMResourceGroup | ISCMResource>;
 
 		Event.chain(this.list.onDidOpen)
@@ -1009,6 +997,7 @@ class RepositoryViewDescriptor implements IViewDescriptor {
 	readonly ctorDescriptor: { ctor: any, arguments?: any[] };
 	readonly canToggleVisibility = true;
 	readonly order = -500;
+	readonly workspace = true;
 
 	constructor(readonly repository: ISCMRepository, viewModel: IViewModel, readonly hideByDefault: boolean) {
 		const repoId = repository.provider.rootUri ? repository.provider.rootUri.toString() : `#${RepositoryViewDescriptor.counter++}`;
@@ -1027,6 +1016,7 @@ class MainPanelDescriptor implements IViewDescriptor {
 	readonly canToggleVisibility = true;
 	readonly hideByDefault = true;
 	readonly order = -1000;
+	readonly workspace = true;
 
 	constructor(viewModel: IViewModel) {
 		this.ctorDescriptor = { ctor: MainPanel, arguments: [viewModel] };
@@ -1075,12 +1065,23 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 		const toSetInvisible = visibleViewDescriptors
 			.filter(d => d instanceof RepositoryViewDescriptor && repositories.indexOf(d.repository) === -1);
 
-		for (const viewDescriptor of toSetVisible) {
-			this.viewsModel.setVisible(viewDescriptor.id, true);
-		}
+		let size: number | undefined;
+		const oneToOne = toSetVisible.length === 1 && toSetInvisible.length === 1;
 
 		for (const viewDescriptor of toSetInvisible) {
+			if (oneToOne) {
+				const panel = this.panels.filter(panel => panel.id === viewDescriptor.id)[0];
+
+				if (panel) {
+					size = this.getPanelSize(panel);
+				}
+			}
+
 			this.viewsModel.setVisible(viewDescriptor.id, false);
+		}
+
+		for (const viewDescriptor of toSetVisible) {
+			this.viewsModel.setVisible(viewDescriptor.id, true, size);
 		}
 	}
 
@@ -1226,6 +1227,22 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 		}
 
 		return new ContextAwareMenuItemActionItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
+	}
+
+	getActions(): IAction[] {
+		if (this.repositories.length > 0) {
+			return super.getActions();
+		}
+
+		return this.menus.getTitleActions();
+	}
+
+	getSecondaryActions(): IAction[] {
+		if (this.repositories.length > 0) {
+			return super.getSecondaryActions();
+		}
+
+		return this.menus.getTitleSecondaryActions();
 	}
 
 	getActionsContext(): any {

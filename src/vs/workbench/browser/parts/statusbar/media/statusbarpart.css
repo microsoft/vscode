@@ -48,9 +48,15 @@
 .monaco-workbench .part.statusbar > .statusbar-item.left:first-child, .monaco-workbench .part.statusbar > .statusbar-item.right + .statusbar-item.left {
 	padding-left: 7px;
 }
+.monaco-workbench .part.statusbar > .statusbar-item.has-background-color.left:first-child, .monaco-workbench .part.statusbar > .statusbar-item.right + .statusbar-item.has-background-color.left {
+	padding-right: 7px; /* expand padding if background color is configured for the status bar entry to make it look centered properly */
+}
 /* adding padding to the most right status bar item */
 .monaco-workbench .part.statusbar > .statusbar-item.right:first-child {
 	padding-right: 7px;
+}
+.monaco-workbench .part.statusbar > .statusbar-item.has-background-color.right:first-child {
+	padding-left: 7px; /* expand padding if background color is configured for the status bar entry to make it look centered properly */
 }
 
 .monaco-workbench .part.statusbar > .statusbar-item a {

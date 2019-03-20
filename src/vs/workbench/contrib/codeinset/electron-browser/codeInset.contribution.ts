@@ -17,7 +17,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { WebviewElement } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
-import { localize } from 'vs/nls';
+// import { localize } from 'vs/nls';
 
 export class CodeInsetController implements editorCommon.IEditorContribution {
 
@@ -344,10 +344,10 @@ registerEditorContribution(CodeInsetController);
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'editor',
 	properties: {
-		['editor.codeInsets']: {
-			description: localize('editor.codeInsets', "Enable/disable editor code insets"),
-			type: 'boolean',
-			default: false
-		}
+		// ['editor.codeInsets']: {
+		// 	description: localize('editor.codeInsets', "Enable/disable editor code insets"),
+		// 	type: 'boolean',
+		// 	default: false
+		// }
 	}
 });

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MainContext, MainThreadStorageShape, IMainContext, ExtHostStorageShape } from './extHost.protocol';
+import { MainContext, MainThreadStorageShape, IMainContext, ExtHostStorageShape } from '../common/extHost.protocol';
 import { Emitter } from 'vs/base/common/event';
 
 export interface IStorageChangeEvent {

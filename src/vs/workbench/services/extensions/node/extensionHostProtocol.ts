@@ -3,6 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+export interface IExtHostReadyMessage {
+	type: 'VSCODE_EXTHOST_IPC_READY';
+}
+
+export interface IExtHostSocketMessage {
+	type: 'VSCODE_EXTHOST_IPC_SOCKET';
+	initialDataChunk: string;
+}
+
 export const enum MessageType {
 	Initialized,
 	Ready,

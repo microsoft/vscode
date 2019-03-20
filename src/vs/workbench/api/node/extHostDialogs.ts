@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { URI } from 'vs/base/common/uri';
-import { MainContext, MainThreadDiaglogsShape, IMainContext } from 'vs/workbench/api/node/extHost.protocol';
+import { MainContext, MainThreadDiaglogsShape, IMainContext } from 'vs/workbench/api/common/extHost.protocol';
 
 export class ExtHostDialogs {
 

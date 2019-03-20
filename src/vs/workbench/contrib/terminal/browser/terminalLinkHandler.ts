@@ -4,18 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as path from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/terminalWidgetManager';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalService, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILinkMatcherOptions } from 'vscode-xterm';
+import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
+import { posix, win32 } from 'vs/base/common/path';
 
 const pathPrefix = '(\\.\\.?|\\~)';
 const pathSeparatorClause = '\\/';
@@ -57,12 +58,16 @@ const LOCAL_LINK_PRIORITY = -2;
 export type XtermLinkMatcherHandler = (event: MouseEvent, uri: string) => boolean | void;
 export type XtermLinkMatcherValidationCallback = (uri: string, callback: (isValid: boolean) => void) => void;
 
+interface IPath {
+	join(...paths: string[]): string;
+	normalize(path: string): string;
+}
+
 export class TerminalLinkHandler {
 	private _hoverDisposables: IDisposable[] = [];
 	private _mouseMoveDisposable: IDisposable;
 	private _widgetManager: TerminalWidgetManager;
 	private _processCwd: string;
-	private _localLinkPattern: RegExp;
 	private _gitDiffPreImagePattern: RegExp;
 	private _gitDiffPostImagePattern: RegExp;
 	private readonly _tooltipCallback: (event: MouseEvent, uri: string) => boolean | void;
@@ -70,15 +75,13 @@ export class TerminalLinkHandler {
 	constructor(
 		private _xterm: any,
 		private _platform: platform.Platform,
+		private readonly _processManager: ITerminalProcessManager,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IFileService private readonly _fileService: IFileService
 	) {
-		const baseLocalLinkClause = _platform === platform.Platform.Windows ? winLocalLinkClause : unixLocalLinkClause;
-		// Append line and column number regex
-		this._localLinkPattern = new RegExp(`${baseLocalLinkClause}(${lineAndColumnClause})`);
 		// Matches '--- a/src/file1', capturing 'src/file1' in group 1
 		this._gitDiffPreImagePattern = /^--- a\/(\S*)/;
 		// Matches '+++ b/src/file1', capturing 'src/file1' in group 1
@@ -183,7 +186,9 @@ export class TerminalLinkHandler {
 	}
 
 	protected get _localLinkRegex(): RegExp {
-		return this._localLinkPattern;
+		const baseLocalLinkClause = this._processManager.os === platform.OperatingSystem.Windows ? winLocalLinkClause : unixLocalLinkClause;
+		// Append line and column number regex
+		return new RegExp(`${baseLocalLinkClause}(${lineAndColumnClause})`);
 	}
 
 	protected get _gitDiffPreImageRegex(): RegExp {
@@ -199,19 +204,12 @@ export class TerminalLinkHandler {
 			if (!resolvedLink) {
 				return Promise.resolve(null);
 			}
-			const normalizedPath = path.normalize(path.resolve(resolvedLink));
-			const normalizedUrl = this.extractLinkUrl(normalizedPath);
-			if (!normalizedUrl) {
-				return Promise.resolve(null);
-			}
-			const resource = URI.file(normalizedUrl);
 			const lineColumnInfo: LineColumnInfo = this.extractLineColumnInfo(link);
 			const selection: ITextEditorSelection = {
 				startLineNumber: lineColumnInfo.lineNumber,
 				startColumn: lineColumnInfo.columnNumber
 			};
-
-			return this._editorService.openEditor({ resource, options: { pinned: true, selection } });
+			return this._editorService.openEditor({ resource: resolvedLink, options: { pinned: true, selection } });
 		});
 	}
 
@@ -247,37 +245,44 @@ export class TerminalLinkHandler {
 		return nls.localize('terminalLinkHandler.followLinkCtrl', 'Ctrl + click to follow link');
 	}
 
-	protected _preprocessPath(link: string): string | null {
-		if (this._platform === platform.Platform.Windows) {
-			// Resolve ~ -> %HOMEDRIVE%\%HOMEPATH%
-			if (link.charAt(0) === '~') {
-				if (!process.env.HOMEDRIVE || !process.env.HOMEPATH) {
-					return null;
-				}
-				link = `${process.env.HOMEDRIVE}\\${process.env.HOMEPATH + link.substring(1)}`;
-			}
+	private get osPath(): IPath {
+		if (this._processManager.os === platform.OperatingSystem.Windows) {
+			return win32;
+		}
+		return posix;
+	}
 
-			// Resolve relative paths (.\a, ..\a, ~\a, a\b)
-			if (!link.match('^' + winDrivePrefix)) {
+	protected _preprocessPath(link: string): string | null {
+		if (link.charAt(0) === '~') {
+			// Resolve ~ -> userHome
+			if (!this._processManager.userHome) {
+				return null;
+			}
+			link = this.osPath.join(this._processManager.userHome, link.substring(1));
+		} else if (link.charAt(0) !== '/' && link.charAt(0) !== '~') {
+			// Resolve workspace path . | .. | <relative_path> -> <path>/. | <path>/.. | <path>/<relative_path>
+			if (this._processManager.os === platform.OperatingSystem.Windows) {
+				if (!link.match('^' + winDrivePrefix)) {
+					if (!this._processCwd) {
+						// Abort if no workspace is open
+						return null;
+					}
+					link = this.osPath.join(this._processCwd, link);
+				}
+			} else {
 				if (!this._processCwd) {
 					// Abort if no workspace is open
 					return null;
 				}
-				link = path.join(this._processCwd, link);
+				link = this.osPath.join(this._processCwd, link);
 			}
 		}
-		// Resolve workspace path . | .. | <relative_path> -> <path>/. | <path>/.. | <path>/<relative_path>
-		else if (link.charAt(0) !== '/' && link.charAt(0) !== '~') {
-			if (!this._processCwd) {
-				// Abort if no workspace is open
-				return null;
-			}
-			link = path.join(this._processCwd, link);
-		}
+		link = this.osPath.normalize(link);
+
 		return link;
 	}
 
-	private _resolvePath(link: string): PromiseLike<string | null> {
+	private _resolvePath(link: string): PromiseLike<URI | null> {
 		const preprocessedLink = this._preprocessPath(link);
 		if (!preprocessedLink) {
 			return Promise.resolve(null);
@@ -288,13 +293,31 @@ export class TerminalLinkHandler {
 			return Promise.resolve(null);
 		}
 
-		// Ensure the file exists on disk, so an editor can be opened after clicking it
-		return this._fileService.resolveFile(URI.file(linkUrl)).then(stat => {
-			if (stat.isDirectory) {
-				return null;
+		try {
+			let uri: URI;
+			if (this._processManager.remoteAuthority) {
+				uri = URI.from({
+					scheme: REMOTE_HOST_SCHEME,
+					authority: this._processManager.remoteAuthority,
+					path: linkUrl
+				});
+			} else {
+				uri = URI.file(linkUrl);
 			}
-			return preprocessedLink;
-		});
+
+			return this._fileService.resolveFile(uri).then(stat => {
+				if (stat.isDirectory) {
+					return null;
+				}
+				return uri;
+			}).catch(() => {
+				// Does not exist
+				return null;
+			});
+		} catch {
+			// Errors in parsing the path
+			return Promise.resolve(null);
+		}
 	}
 
 	/**

@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtHostContext, ObjectIdentifier, IExtHostContext } from '../node/extHost.protocol';
+import { ExtHostContext, ObjectIdentifier, IExtHostContext } from '../common/extHost.protocol';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { extHostCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
+import { extHostCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { GCSignal } from 'gc-signals';
 
 export const IHeapService = createDecorator<IHeapService>('heapService');
