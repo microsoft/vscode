@@ -24,6 +24,7 @@ steps:
     exec { npm run gulp -- hygiene }
     exec { npm run monaco-compile-check }
     exec { node build/azure-pipelines/common/installDistro.js }
+    exec { npm run strict-any-check }
     exec { node build/lib/builtInExtensions.js }
 
 - powershell: |

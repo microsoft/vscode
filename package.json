@@ -22,7 +22,9 @@
     "update-localization-extension": "node build/npm/update-localization-extension.js",
     "smoketest": "cd test/smoke && node test/index.js",
     "download-builtin-extensions": "node build/lib/builtInExtensions.js",
-    "monaco-compile-check": "tsc -p src/tsconfig.monaco.json --noEmit"
+    "monaco-compile-check": "tsc -p src/tsconfig.monaco.json --noEmit",
+    "strict-any-check": "tsc -p src/tsconfig.strictAnyChecks.json",
+    "strict-any-check-watch": "tsc -p src/tsconfig.strictAnyChecks.json --watch"
   },
   "dependencies": {
     "applicationinsights": "1.0.8",

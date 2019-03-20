@@ -25,6 +25,7 @@ steps:
     CHILD_CONCURRENCY=1 yarn
     VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" npm run gulp -- mixin
     npm run gulp -- hygiene
+    npm run strict-any-check
     npm run monaco-compile-check
     node build/azure-pipelines/common/installDistro.js
     node build/lib/builtInExtensions.js

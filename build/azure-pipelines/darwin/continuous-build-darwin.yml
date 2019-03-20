@@ -31,6 +31,9 @@ steps:
     yarn monaco-compile-check
   displayName: Run Monaco Editor Checks
 - script: |
+    yarn strict-any-check
+  displayName: Run Strict Any Checks
+- script: |
     yarn compile
   displayName: Compile Sources
 - script: |

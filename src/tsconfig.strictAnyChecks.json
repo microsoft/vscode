@@ -1,0 +1,23 @@
+{
+	"extends": "./tsconfig.base.json",
+	"compilerOptions": {
+		"noEmit": true,
+		"noImplicitAny": true
+	},
+	"include": [
+		"./typings",
+		"./vs/base/**/*.ts",
+		"./vs/code/**/*.ts",
+		"./vs/editor/**/*.ts",
+		"./vs/platform/**/*.ts",
+		"./vs/workbench/**/*.ts"
+	],
+	"files": [
+		"./vs/monaco.d.ts",
+		"./vs/nls.d.ts",
+		"./vs/nls.mock.ts",
+		"./vs/vscode.d.ts",
+		"./vs/vscode.proposed.d.ts"
+	],
+	"exclude": []
+}
