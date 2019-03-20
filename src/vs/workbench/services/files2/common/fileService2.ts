@@ -344,8 +344,18 @@ export class FileService2 extends Disposable implements IFileService {
 		}
 	}
 
-	del(resource: URI, options?: { useTrash?: boolean; recursive?: boolean; }): Promise<void> {
-		return this._impl.del(resource, options);
+	async del(resource: URI, options?: { useTrash?: boolean; recursive?: boolean; }): Promise<void> {
+		if (options && options.useTrash) {
+			return this._impl.del(resource, options); //TODO@ben this is https://github.com/Microsoft/vscode/issues/48259
+		}
+
+		const provider = this.throwIfFileSystemIsReadonly(await this.withProvider(resource));
+
+		// Delete through provider
+		await provider.delete(resource, { recursive: !!(options && options.recursive) });
+
+		// Events
+		this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.DELETE));
 	}
 
 	//#endregion

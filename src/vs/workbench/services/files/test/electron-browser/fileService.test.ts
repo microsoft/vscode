@@ -406,55 +406,6 @@ suite('FileService', () => {
 		});
 	});
 
-	test('deleteFile', () => {
-		let event: FileOperationEvent;
-		const toDispose = service.onAfterOperation(e => {
-			event = e;
-		});
-
-		const resource = uri.file(path.join(testDir, 'deep', 'conway.js'));
-		return service.resolveFile(resource).then(source => {
-			return service.del(source.resource).then(() => {
-				assert.equal(fs.existsSync(source.resource.fsPath), false);
-
-				assert.ok(event);
-				assert.equal(event.resource.fsPath, resource.fsPath);
-				assert.equal(event.operation, FileOperation.DELETE);
-				toDispose.dispose();
-			});
-		});
-	});
-
-	test('deleteFolder (recursive)', function () {
-		let event: FileOperationEvent;
-		const toDispose = service.onAfterOperation(e => {
-			event = e;
-		});
-
-		const resource = uri.file(path.join(testDir, 'deep'));
-		return service.resolveFile(resource).then(source => {
-			return service.del(source.resource, { recursive: true }).then(() => {
-				assert.equal(fs.existsSync(source.resource.fsPath), false);
-
-				assert.ok(event);
-				assert.equal(event.resource.fsPath, resource.fsPath);
-				assert.equal(event.operation, FileOperation.DELETE);
-				toDispose.dispose();
-			});
-		});
-	});
-
-	test('deleteFolder (non recursive)', function () {
-		const resource = uri.file(path.join(testDir, 'deep'));
-		return service.resolveFile(resource).then(source => {
-			return service.del(source.resource).then(() => {
-				return Promise.reject(new Error('Unexpected'));
-			}, error => {
-				return Promise.resolve(true);
-			});
-		});
-	});
-
 	test('updateContent', () => {
 		const resource = uri.file(path.join(testDir, 'small.txt'));
 

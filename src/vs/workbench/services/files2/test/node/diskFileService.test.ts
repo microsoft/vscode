@@ -250,4 +250,54 @@ suite('Disk File Service', () => {
 		assert.equal(r2.children!.length, 4);
 		assert.equal(r2.name, 'deep');
 	});
+
+	test('deleteFile', async () => {
+		let event: FileOperationEvent;
+		const toDispose = service.onAfterOperation(e => {
+			event = e;
+		});
+
+		const resource = URI.file(join(testDir, 'deep', 'conway.js'));
+		const source = await service.resolveFile(resource);
+
+		await service.del(source.resource);
+
+		assert.equal(existsSync(source.resource.fsPath), false);
+		assert.ok(event!);
+		assert.equal(event!.resource.fsPath, resource.fsPath);
+		assert.equal(event!.operation, FileOperation.DELETE);
+
+		toDispose.dispose();
+	});
+
+	test('deleteFolder (recursive)', async () => {
+		let event: FileOperationEvent;
+		const toDispose = service.onAfterOperation(e => {
+			event = e;
+		});
+
+		const resource = URI.file(join(testDir, 'deep'));
+		const source = await service.resolveFile(resource);
+
+		await service.del(source.resource, { recursive: true });
+
+		assert.equal(existsSync(source.resource.fsPath), false);
+		assert.ok(event!);
+		assert.equal(event!.resource.fsPath, resource.fsPath);
+		assert.equal(event!.operation, FileOperation.DELETE);
+
+		toDispose.dispose();
+	});
+
+	test('deleteFolder (non recursive)', async () => {
+		const resource = URI.file(join(testDir, 'deep'));
+		const source = await service.resolveFile(resource);
+		try {
+			await service.del(source.resource);
+			return Promise.reject(new Error('Unexpected'));
+		}
+		catch (error) {
+			return Promise.resolve(true);
+		}
+	});
 });
