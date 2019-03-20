@@ -610,8 +610,14 @@ export class TextFileService extends Disposable implements ITextFileService {
 
 	private untitledToAssociatedFileResource(untitled: URI): URI {
 		const authority = this.windowService.getConfiguration().remoteAuthority;
-
-		return authority ? untitled.with({ scheme: REMOTE_HOST_SCHEME, authority }) : untitled.with({ scheme: Schemas.file });
+		if (authority) {
+			let path = untitled.path;
+			if (path && path[0] !== '/') {
+				path = '/' + path;
+			}
+			return untitled.with({ scheme: REMOTE_HOST_SCHEME, authority, path });
+		}
+		return untitled.with({ scheme: Schemas.file });
 	}
 
 	private doSaveAllFiles(resources?: URI[], options: ISaveOptions = Object.create(null)): Promise<ITextFileOperationResult> {
