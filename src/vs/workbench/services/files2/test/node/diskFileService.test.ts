@@ -22,7 +22,6 @@ import { Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/work
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { NullLogService } from 'vs/platform/log/common/log';
-import { isLinux } from 'vs/base/common/platform';
 
 function getByName(root: IFileStat, name: string): IFileStat | null {
 	if (root.children === undefined) {
@@ -183,33 +182,6 @@ suite('Disk File Service', () => {
 		assert.ok(deep);
 		assert.ok(deep!.children!.length > 0);
 		assert.equal(deep!.children!.length, 4);
-	});
-
-	test('resolve directory - resolveTo single directory - mixed casing', async () => {
-		const resolverFixturesPath = getPathFromAmdModule(require, './fixtures/resolver');
-		const result = await service.resolveFile(URI.file(resolverFixturesPath), { resolveTo: [URI.file(join(resolverFixturesPath, 'other/Deep'))] });
-
-		assert.ok(result);
-		assert.ok(result.children);
-		assert.ok(result.children!.length > 0);
-		assert.ok(result.isDirectory);
-
-		const children = result.children;
-		assert.equal(children!.length, 4);
-
-		const other = getByName(result, 'other');
-		assert.ok(other);
-		assert.ok(other!.children!.length > 0);
-
-		const deep = getByName(other!, 'deep');
-		if (isLinux) { // Linux has case sensitive file system
-			assert.ok(deep);
-			assert.ok(!deep!.children); // not resolved because we got instructed to resolve other/Deep with capital D
-		} else {
-			assert.ok(deep);
-			assert.ok(deep!.children!.length > 0);
-			assert.equal(deep!.children!.length, 4);
-		}
 	});
 
 	test('resolve directory - resolveTo multiple directories', async () => {
