@@ -185,8 +185,8 @@ suite('ExtensionsListView Tests', () => {
 		});
 	});
 
-	test('Test installed query results', () => {
-		const allInstalledCheck = testableView.show('@installed').then(result => {
+	test('Test installed query results', async () => {
+		await testableView.show('@installed').then(result => {
 			assert.equal(result.length, 5, 'Unexpected number of results for @installed query');
 			const actual = [result.get(0).name, result.get(1).name, result.get(2).name, result.get(3).name, result.get(4).name].sort();
 			const expected = [localDisabledTheme.manifest.name, localEnabledTheme.manifest.name, localRandom.manifest.name, localDisabledLanguage.manifest.name, localEnabledLanguage.manifest.name];
@@ -195,125 +195,102 @@ suite('ExtensionsListView Tests', () => {
 			}
 		});
 
-		const installedCheck = testableView.show('@installed first').then(result => {
+		await testableView.show('@installed first').then(result => {
 			assert.equal(result.length, 2, 'Unexpected number of results for @installed query');
 			assert.equal(result.get(0).name, localDisabledTheme.manifest.name, 'Unexpected extension for @installed query with search text.');
 			assert.equal(result.get(1).name, localEnabledTheme.manifest.name, 'Unexpected extension for @installed query with search text.');
 		});
 
-		const allDisabledCheck = testableView.show('@disabled').then(result => {
+		await testableView.show('@disabled').then(result => {
 			assert.equal(result.length, 2, 'Unexpected number of results for @disabled query');
 			assert.equal(result.get(0).name, localDisabledTheme.manifest.name, 'Unexpected extension for @disabled query.');
 			assert.equal(result.get(1).name, localDisabledLanguage.manifest.name, 'Unexpected extension for @disabled query.');
 		});
 
-		const allEnabledCheck = testableView.show('@enabled').then(result => {
+		await testableView.show('@enabled').then(result => {
 			assert.equal(result.length, 3, 'Unexpected number of results for @enabled query');
 			assert.equal(result.get(0).name, localEnabledTheme.manifest.name, 'Unexpected extension for @enabled query.');
 			assert.equal(result.get(1).name, localRandom.manifest.name, 'Unexpected extension for @enabled query.');
 			assert.equal(result.get(2).name, localEnabledLanguage.manifest.name, 'Unexpected extension for @enabled query.');
 		});
 
-		const allBuiltinThemesCheck = testableView.show('@builtin:themes').then(result => {
+		await testableView.show('@builtin:themes').then(result => {
 			assert.equal(result.length, 1, 'Unexpected number of results for @builtin:themes query');
 			assert.equal(result.get(0).name, builtInTheme.manifest.name, 'Unexpected extension for @builtin:themes query.');
 		});
 
-		const allBuiltinBasicsCheck = testableView.show('@builtin:basics').then(result => {
+		await testableView.show('@builtin:basics').then(result => {
 			assert.equal(result.length, 1, 'Unexpected number of results for @builtin:basics query');
 			assert.equal(result.get(0).name, builtInBasic.manifest.name, 'Unexpected extension for @builtin:basics query.');
 		});
 
-		const allBuiltinCheck = testableView.show('@builtin').then(result => {
+		await testableView.show('@builtin').then(result => {
 			assert.equal(result.length, 2, 'Unexpected number of results for @builtin query');
 			assert.equal(result.get(0).name, builtInBasic.manifest.name, 'Unexpected extension for @builtin query.');
 			assert.equal(result.get(1).name, builtInTheme.manifest.name, 'Unexpected extension for @builtin query.');
 		});
 
-		const builtinCheck = testableView.show('@builtin my-theme').then(result => {
+		await testableView.show('@builtin my-theme').then(result => {
 			assert.equal(result.length, 1, 'Unexpected number of results for @builtin query');
 			assert.equal(result.get(0).name, builtInTheme.manifest.name, 'Unexpected extension for @builtin query.');
 		});
-
-		return Promise.all([
-			allInstalledCheck,
-			installedCheck,
-			allDisabledCheck,
-			allEnabledCheck,
-			allBuiltinThemesCheck,
-			allBuiltinBasicsCheck,
-			allBuiltinCheck,
-			builtinCheck]);
 	});
 
-	test('Test installed query with category', () => {
-		const installedCategoryWithoutQuotesCheck = testableView.show('@installed category:themes').then(result => {
+	test('Test installed query with category', async () => {
+		await testableView.show('@installed category:themes').then(result => {
 			assert.equal(result.length, 2, 'Unexpected number of results for @installed query with category');
 			assert.equal(result.get(0).name, localDisabledTheme.manifest.name, 'Unexpected extension for @installed query with category.');
 			assert.equal(result.get(1).name, localEnabledTheme.manifest.name, 'Unexpected extension for @installed query with category.');
 		});
 
-		const installedCategoryWithQuotesCheck = testableView.show('@installed category:"themes"').then(result => {
+		await testableView.show('@installed category:"themes"').then(result => {
 			assert.equal(result.length, 2, 'Unexpected number of results for @installed query with quoted category');
 			assert.equal(result.get(0).name, localDisabledTheme.manifest.name, 'Unexpected extension for @installed query with quoted category.');
 			assert.equal(result.get(1).name, localEnabledTheme.manifest.name, 'Unexpected extension for @installed query with quoted category.');
 		});
 
-		const installedCategoryWithSpaceCheck = testableView.show('@installed category:"programming languages"').then(result => {
+		await testableView.show('@installed category:"programming languages"').then(result => {
 			assert.equal(result.length, 2, 'Unexpected number of results for @installed query with quoted category including space');
 			assert.equal(result.get(0).name, localDisabledLanguage.manifest.name, 'Unexpected extension for @installed query with quoted category inlcuding space.');
 			assert.equal(result.get(1).name, localEnabledLanguage.manifest.name, 'Unexpected extension for @installed query with quoted category including space.');
 		});
 
-		const installedMultipleCategoryCheck = testableView.show('@installed category:themes category:random').then(result => {
+		await testableView.show('@installed category:themes category:random').then(result => {
 			assert.equal(result.length, 3, 'Unexpected number of results for @installed query with multiple category');
 			assert.equal(result.get(0).name, localDisabledTheme.manifest.name, 'Unexpected extension for @installed query with multiple category.');
 			assert.equal(result.get(1).name, localEnabledTheme.manifest.name, 'Unexpected extension for @installed query with multiple category.');
 			assert.equal(result.get(2).name, localRandom.manifest.name, 'Unexpected extension for @installed query with multiple category.');
 		});
 
-		const enabledCategoryWithoutQuotesCheck = testableView.show('@enabled category:themes').then(result => {
+		await testableView.show('@enabled category:themes').then(result => {
 			assert.equal(result.length, 1, 'Unexpected number of results for @enabled query with category');
 			assert.equal(result.get(0).name, localEnabledTheme.manifest.name, 'Unexpected extension for @enabled query with category.');
 		});
 
-		const enabledCategoryWithQuotesCheck = testableView.show('@enabled category:"themes"').then(result => {
+		await testableView.show('@enabled category:"themes"').then(result => {
 			assert.equal(result.length, 1, 'Unexpected number of results for @enabled query with quoted category');
 			assert.equal(result.get(0).name, localEnabledTheme.manifest.name, 'Unexpected extension for @enabled query with quoted category.');
 		});
 
-		const enabledCategoryWithSpaceCheck = testableView.show('@enabled category:"programming languages"').then(result => {
+		await testableView.show('@enabled category:"programming languages"').then(result => {
 			assert.equal(result.length, 1, 'Unexpected number of results for @enabled query with quoted category inlcuding space');
 			assert.equal(result.get(0).name, localEnabledLanguage.manifest.name, 'Unexpected extension for @enabled query with quoted category including space.');
 		});
 
-		const disabledCategoryWithoutQuotesCheck = testableView.show('@disabled category:themes').then(result => {
+		await testableView.show('@disabled category:themes').then(result => {
 			assert.equal(result.length, 1, 'Unexpected number of results for @disabled query with category');
 			assert.equal(result.get(0).name, localDisabledTheme.manifest.name, 'Unexpected extension for @disabled query with category.');
 		});
 
-		const disabledCategoryWithQuotesCheck = testableView.show('@disabled category:"themes"').then(result => {
+		await testableView.show('@disabled category:"themes"').then(result => {
 			assert.equal(result.length, 1, 'Unexpected number of results for @disabled query with quoted category');
 			assert.equal(result.get(0).name, localDisabledTheme.manifest.name, 'Unexpected extension for @disabled query with quoted category.');
 		});
 
-		const disabledCategoryWithSpaceCheck = testableView.show('@disabled category:"programming languages"').then(result => {
+		await testableView.show('@disabled category:"programming languages"').then(result => {
 			assert.equal(result.length, 1, 'Unexpected number of results for @disabled query with quoted category inlcuding space');
 			assert.equal(result.get(0).name, localDisabledLanguage.manifest.name, 'Unexpected extension for @disabled query with quoted category including space.');
 		});
-
-		return Promise.resolve([
-			installedCategoryWithoutQuotesCheck,
-			installedCategoryWithQuotesCheck,
-			installedCategoryWithSpaceCheck,
-			installedMultipleCategoryCheck,
-			enabledCategoryWithoutQuotesCheck,
-			enabledCategoryWithQuotesCheck,
-			enabledCategoryWithSpaceCheck,
-			disabledCategoryWithoutQuotesCheck,
-			disabledCategoryWithQuotesCheck,
-			disabledCategoryWithSpaceCheck
-		]);
 	});
 
 	test('Test @recommended:workspace query', () => {
