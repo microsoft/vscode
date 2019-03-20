@@ -49,6 +49,8 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	private statusMsgDispose: IDisposable;
 	private styleElement: HTMLStyleElement;
 
+	private pendingEntries: { entry: IStatusbarEntry, alignment: StatusbarAlignment, priority: number, disposable: IDisposable }[] = [];
+
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
@@ -66,6 +68,14 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	}
 
 	addEntry(entry: IStatusbarEntry, alignment: StatusbarAlignment, priority: number = 0): IDisposable {
+		if (!this.element) {
+			const pendingEntry = { entry, alignment, priority, disposable: toDisposable(() => { }) };
+			this.pendingEntries.push(pendingEntry);
+			return toDisposable(() => {
+				this.pendingEntries = this.pendingEntries.filter(e => e !== pendingEntry);
+				pendingEntry.disposable.dispose();
+			});
+		}
 
 		// Render entry in status bar
 		const el = this.doCreateStatusItem(alignment, priority, entry.showBeak ? 'has-beak' : undefined);
@@ -144,6 +154,13 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 			this._register(item.render(el));
 			this.element.appendChild(el);
+		}
+
+		if (this.pendingEntries.length) {
+			for (let entry of this.pendingEntries) {
+				entry.disposable = this.addEntry(entry.entry, entry.alignment, entry.priority);
+			}
+			this.pendingEntries.length = 0;
 		}
 
 		return this.element;
