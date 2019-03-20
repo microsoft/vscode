@@ -17,9 +17,9 @@ import { IModelService, shouldSynchronizeModel } from 'vs/editor/common/services
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { extHostCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { MainThreadDocuments } from 'vs/workbench/api/electron-browser/mainThreadDocuments';
-import { MainThreadTextEditor } from 'vs/workbench/api/electron-browser/mainThreadEditor';
-import { MainThreadTextEditors } from 'vs/workbench/api/electron-browser/mainThreadEditors';
+import { MainThreadDocuments } from 'vs/workbench/api/browser/mainThreadDocuments';
+import { MainThreadTextEditor } from 'vs/workbench/api/browser/mainThreadEditor';
+import { MainThreadTextEditors } from 'vs/workbench/api/browser/mainThreadEditors';
 import { ExtHostContext, ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta, IExtHostContext, IModelAddedData, ITextEditorAddData, MainContext } from 'vs/workbench/api/common/extHost.protocol';
 import { EditorViewColumn, editorGroupToViewColumn } from 'vs/workbench/api/common/shared/editor';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
