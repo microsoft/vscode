@@ -9,11 +9,12 @@ import { URI } from 'vs/base/common/uri';
 import { IFileSystemProviderRegistrationEvent } from 'vs/platform/files/common/files';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { NullFileSystemProvider } from 'vs/workbench/test/workbenchTestServices';
+import { NullLogService } from 'vs/platform/log/common/log';
 
 suite('File Service 2', () => {
 
 	test('provider registration', async () => {
-		const service = new FileService2();
+		const service = new FileService2(new NullLogService());
 
 		assert.equal(service.canHandleResource(URI.parse('test://foo/bar')), false);
 
