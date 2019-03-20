@@ -1058,15 +1058,15 @@ export class CodeAction {
 export class CodeActionKind {
 	private static readonly sep = '.';
 
-	public static Empty;
-	public static QuickFix;
-	public static Refactor;
-	public static RefactorExtract;
-	public static RefactorInline;
-	public static RefactorRewrite;
-	public static Source;
-	public static SourceOrganizeImports;
-	public static SourceFixAll;
+	public static Empty: CodeActionKind;
+	public static QuickFix: CodeActionKind;
+	public static Refactor: CodeActionKind;
+	public static RefactorExtract: CodeActionKind;
+	public static RefactorInline: CodeActionKind;
+	public static RefactorRewrite: CodeActionKind;
+	public static Source: CodeActionKind;
+	public static SourceOrganizeImports: CodeActionKind;
+	public static SourceFixAll: CodeActionKind;
 
 	constructor(
 		public readonly value: string

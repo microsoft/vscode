@@ -125,7 +125,7 @@ export class ExtHostConfigProvider {
 				if (typeof result === 'undefined') {
 					result = defaultValue;
 				} else {
-					let clonedConfig = undefined;
+					let clonedConfig: any | undefined = undefined;
 					const cloneOnWriteProxy = (target: any, accessor: string): any => {
 						let clonedTarget: any | undefined = undefined;
 						const cloneTarget = () => {
@@ -209,7 +209,7 @@ export class ExtHostConfigProvider {
 	}
 
 	private _toReadonlyValue(result: any): any {
-		const readonlyProxy = (target) => {
+		const readonlyProxy = (target: any): any => {
 			return isObject(target) ?
 				new Proxy(target, {
 					get: (target: any, property: string) => readonlyProxy(target[property]),
