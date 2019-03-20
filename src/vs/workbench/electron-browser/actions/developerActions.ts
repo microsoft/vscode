@@ -192,20 +192,25 @@ export class ToggleScreencastModeAction extends Action {
 			const event = new StandardKeyboardEvent(e);
 			const keybinding = this.keybindingService.resolveKeyboardEvent(event);
 			const label = keybinding.getLabel();
-			const oldtext = keyboardMarker.textContent;
-			const specialkeys = new Array(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80);
 
-			if ((event.ctrlKey || event.shiftKey || event.altKey || event.metaKey || specialkeys.indexOf(event.keyCode) !== -1)) {
-				const lastToken = oldtext.substr(oldtext.lastIndexOf(' ') + 1);
-				keyboardMarker.textContent = (label.substring(0, lastToken.length) === lastToken) ? oldtext.substring(0, oldtext.lastIndexOf(' ')) + ' ' + label : keyboardMarker.textContent += ' ' + label;
+			if (!this.keybindingService.mightProducePrintableCharacter(event)) {
+				keyboardMarker.textContent = label;
+
+			}
+			else if (event.keyCode < 21) {
+				const lastToken = keyboardMarker.textContent.substr(keyboardMarker.textContent.lastIndexOf(' ') + 1);
+				keyboardMarker.textContent = (label.substring(0, lastToken.length) === lastToken) ? keyboardMarker.textContent.substring(0, keyboardMarker.textContent.lastIndexOf(' ')) + ' ' + label : keyboardMarker.textContent += ' ' + label;
 			}
 			else {
 				keyboardMarker.textContent += ' ' + label;
 			}
 
+			// TODO
+			//	chords
+			//	correct how it looks
 
 			if (keyboardMarker.scrollHeight > keyboardMarker.clientHeight) {
-				keyboardMarker.textContent = keyboardMarker.textContent.substring(label.length + 4);
+				keyboardMarker.textContent = keyboardMarker.textContent.substring(label.length + 3);
 			}
 
 			keyboardMarker.style.display = 'block';
