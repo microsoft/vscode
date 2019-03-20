@@ -120,6 +120,9 @@ export class MenubarControl extends Disposable {
 
 		this.menuUpdater = this._register(new RunOnceScheduler(() => this.doUpdateMenubar(false), 200));
 
+		this._onVisibilityChange = this._register(new Emitter<boolean>());
+		this._onFocusStateChange = this._register(new Emitter<boolean>());
+
 		if (isMacintosh || this.currentTitlebarStyleSetting !== 'custom') {
 			for (const topLevelMenuName of Object.keys(this.topLevelMenus)) {
 				const menu = this.topLevelMenus[topLevelMenuName];
@@ -127,15 +130,14 @@ export class MenubarControl extends Disposable {
 					this._register(menu.onDidChange(() => this.updateMenubar()));
 				}
 			}
-
-			this.doUpdateMenubar(true);
 		}
-
-		this._onVisibilityChange = this._register(new Emitter<boolean>());
-		this._onFocusStateChange = this._register(new Emitter<boolean>());
 
 		this.windowService.getRecentlyOpened().then((recentlyOpened) => {
 			this.recentlyOpened = recentlyOpened;
+
+			if (isMacintosh || this.currentTitlebarStyleSetting !== 'custom') {
+				this.doUpdateMenubar(true);
+			}
 		});
 
 		this.notifyExistingLinuxUser();
