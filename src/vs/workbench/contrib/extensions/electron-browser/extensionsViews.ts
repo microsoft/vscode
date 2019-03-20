@@ -167,12 +167,13 @@ export class ExtensionsListView extends ViewletPanel {
 			return model;
 		};
 		const errorCallback = e => {
+			const model = new PagedModel([]);
 			if (!isPromiseCanceledError(e)) {
 				this.queryRequest = null;
 				console.warn('Error querying extensions gallery', e);
-				this.setModel(new PagedModel([]), true);
+				this.setModel(model, true);
 			}
-			return this.list!.model;
+			return this.list ? this.list.model : model;
 		};
 
 		const isLocalQuery = ExtensionsListView.isInstalledExtensionsQuery(query) || /@builtin/.test(query);
