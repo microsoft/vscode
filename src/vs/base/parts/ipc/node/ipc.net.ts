@@ -248,6 +248,7 @@ class ProtocolReader {
 
 class ProtocolWriter {
 
+	private _isDisposed: boolean;
 	private readonly _socket: Socket;
 	private readonly _logFile: number;
 	private _data: Buffer[];
@@ -255,6 +256,7 @@ class ProtocolWriter {
 	public lastWriteTime: number;
 
 	constructor(socket: Socket, logFile: number) {
+		this._isDisposed = false;
 		this._socket = socket;
 		this._logFile = logFile;
 		this._data = [];
@@ -264,6 +266,7 @@ class ProtocolWriter {
 
 	public dispose(): void {
 		this.flush();
+		this._isDisposed = true;
 	}
 
 	public flush(): void {
@@ -272,6 +275,11 @@ class ProtocolWriter {
 	}
 
 	public write(msg: ProtocolMessage) {
+		if (this._isDisposed) {
+			console.warn(`Cannot write message in a disposed ProtocolWriter`);
+			console.warn(msg);
+			return;
+		}
 		if (this._logFile) {
 			log(this._logFile, `send-${ProtocolMessageTypeToString(msg.type)}-${msg.id}-${msg.ack}-`, msg.data);
 		}
@@ -373,12 +381,13 @@ export class Protocol implements IDisposable, IMessagePassingProtocol {
 	}
 
 	dispose(): void {
+		this._socketWriter.dispose();
 		this._socketReader.dispose();
 		this._socket.removeListener('close', this._socketCloseListener);
 	}
 
-	end(): void {
-		this._socket.end();
+	getSocket(): Socket {
+		return this._socket;
 	}
 
 	send(buffer: Buffer): void {
@@ -427,8 +436,9 @@ export class Client<TContext = string> extends IPCClient<TContext> {
 
 	dispose(): void {
 		super.dispose();
-		this.protocol.end();
+		const socket = this.protocol.getSocket();
 		this.protocol.dispose();
+		socket.end();
 	}
 }
 
@@ -798,10 +808,6 @@ export class PersistentProtocol {
 		} else if (msg.type === ProtocolMessageType.Control) {
 			this._onControlMessage.fire(msg.data);
 		}
-	}
-
-	end(): void {
-		this._socket.end();
 	}
 
 	readEntireBuffer(): Buffer {

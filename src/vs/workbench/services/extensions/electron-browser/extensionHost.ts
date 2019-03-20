@@ -65,7 +65,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 	private _inspectPort: number;
 	private _extensionHostProcess: ChildProcess | null;
 	private _extensionHostConnection: Socket | null;
-	private _messageProtocol: Promise<IMessagePassingProtocol> | null;
+	private _messageProtocol: Promise<PersistentProtocol> | null;
 
 	constructor(
 		private readonly _autoStart: boolean,
@@ -314,9 +314,9 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		});
 	}
 
-	private _tryExtHostHandshake(): Promise<IMessagePassingProtocol> {
+	private _tryExtHostHandshake(): Promise<PersistentProtocol> {
 
-		return new Promise<IMessagePassingProtocol>((resolve, reject) => {
+		return new Promise<PersistentProtocol>((resolve, reject) => {
 
 			// Wait for the extension host to connect to our named pipe
 			// and wrap the socket in the message passing protocol
@@ -346,7 +346,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
 			// 1) wait for the incoming `ready` event and send the initialization data.
 			// 2) wait for the incoming `initialized` event.
-			return new Promise<IMessagePassingProtocol>((resolve, reject) => {
+			return new Promise<PersistentProtocol>((resolve, reject) => {
 
 				let timeoutHandle: NodeJS.Timer;
 				const installTimeoutCheck = () => {
@@ -521,6 +521,8 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 			// Send the extension host a request to terminate itself
 			// (graceful termination)
 			protocol.send(createMessageOfType(MessageType.Terminate));
+
+			protocol.dispose();
 
 			// Give the extension host 10s, after which we will
 			// try to kill the process and release any resources
