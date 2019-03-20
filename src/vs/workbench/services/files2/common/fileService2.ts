@@ -168,7 +168,7 @@ export class FileService2 extends Disposable implements IFileService {
 
 		const stat = await provider.stat(resource);
 
-		return await this.toFileStat(provider, resource, stat, async stat => {
+		return await this.toFileStat(provider, resource, stat, undefined, (stat, siblings) => {
 
 			// check for recursive resolving
 			if (Boolean(trie.findSuperstr(stat.resource.toString()) || trie.get(stat.resource.toString()))) {
@@ -177,18 +177,14 @@ export class FileService2 extends Disposable implements IFileService {
 
 			// check for resolving single child folders
 			if (stat.isDirectory && options && options.resolveSingleChildDescendants) {
-				try {
-					return (await provider.readdir(resource)).length === 1;
-				} catch (error) {
-					return false;
-				}
+				return siblings === 1;
 			}
 
 			return false;
 		});
 	}
 
-	private async toFileStat(provider: IFileSystemProvider, resource: URI, stat: IStat, recurse: (stat: IFileStat) => Promise<boolean>): Promise<IFileStat> {
+	private async toFileStat(provider: IFileSystemProvider, resource: URI, stat: IStat, siblings: number | undefined, recurse: (stat: IFileStat, siblings?: number) => boolean): Promise<IFileStat> {
 
 		// convert to file stat
 		const fileStat: IFileStat = {
@@ -203,7 +199,7 @@ export class FileService2 extends Disposable implements IFileService {
 		};
 
 		// check to recurse for directories
-		if (fileStat.isDirectory && await recurse(fileStat)) {
+		if (fileStat.isDirectory && recurse(fileStat, siblings)) {
 			try {
 				const entries = await provider.readdir(resource);
 
@@ -211,7 +207,7 @@ export class FileService2 extends Disposable implements IFileService {
 					const childResource = joinPath(resource, entry[0]);
 					const childStat = await provider.stat(childResource);
 
-					return this.toFileStat(provider, childResource, childStat, recurse);
+					return this.toFileStat(provider, childResource, childStat, entries.length, recurse);
 				}));
 			} catch (error) {
 				this.logService.trace(error);
