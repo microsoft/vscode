@@ -24,8 +24,6 @@ import { ExtHostContext, ExtHostEditorsShape, IApplyEditsOptions, IExtHostContex
 import { EditorViewColumn, editorGroupToViewColumn, viewColumnToEditorGroup } from 'vs/workbench/api/common/shared/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IURLService } from 'vs/platform/url/common/url';
-import product from 'vs/platform/product/node/product';
 
 export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 
@@ -270,7 +268,6 @@ CommandsRegistry.registerCommand('_workbench.open', function (accessor: Services
 	const editorService = accessor.get(IEditorService);
 	const editorGroupService = accessor.get(IEditorGroupsService);
 	const openerService = accessor.get(IOpenerService);
-	const urlService = accessor.get(IURLService);
 
 	const [resource, options, position, label] = args;
 
@@ -282,12 +279,8 @@ CommandsRegistry.registerCommand('_workbench.open', function (accessor: Services
 	if (resource && resource.scheme === 'command') {
 		// do not allow to execute commands from here
 		return Promise.resolve(undefined);
-	}
 
-	if (resource && (resource.scheme === product.urlProtocol || /^vscode/.test(resource.scheme))) {
-		return urlService.open(resource).then(_ => undefined);
 	}
-
 	// finally, delegate to opener service
 	return openerService.open(resource).then(_ => undefined);
 });
