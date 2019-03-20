@@ -38,7 +38,7 @@ import { IExperimentService, ExperimentService, ExperimentState, ExperimentActio
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import { ExtensionManagementServerService } from 'vs/workbench/services/extensions/electron-browser/extensionManagementServerService';
-import { ExtensionIdentifier, ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, ExtensionType, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 
 
@@ -124,13 +124,13 @@ suite('ExtensionsListView Tests', () => {
 		instantiationService.stubPromise(IExperimentService, 'getExperimentsByType', []);
 
 		instantiationService.stub(IExtensionService, {
-			getExtensions: () => {
+			getExtensions: (): Promise<IExtensionDescription[]> => {
 				return Promise.resolve([
-					{ identifier: new ExtensionIdentifier(localEnabledTheme.identifier.id) },
-					{ identifier: new ExtensionIdentifier(localEnabledLanguage.identifier.id) },
-					{ identifier: new ExtensionIdentifier(localRandom.identifier.id) },
-					{ identifier: new ExtensionIdentifier(builtInTheme.identifier.id) },
-					{ identifier: new ExtensionIdentifier(builtInBasic.identifier.id) }
+					toExtensionDescription(localEnabledTheme),
+					toExtensionDescription(localEnabledLanguage),
+					toExtensionDescription(localRandom),
+					toExtensionDescription(builtInTheme),
+					toExtensionDescription(builtInBasic)
 				]);
 			}
 		});
@@ -522,6 +522,16 @@ suite('ExtensionsListView Tests', () => {
 
 	function aPage<T>(...objects: T[]): IPager<T> {
 		return { firstPage: objects, total: objects.length, pageSize: objects.length, getPage: () => null! };
+	}
+
+	function toExtensionDescription(local: ILocalExtension): IExtensionDescription {
+		return {
+			identifier: new ExtensionIdentifier(local.identifier.id),
+			isBuiltin: local.type === ExtensionType.System,
+			isUnderDevelopment: false,
+			extensionLocation: local.location,
+			...local.manifest
+		};
 	}
 });
 

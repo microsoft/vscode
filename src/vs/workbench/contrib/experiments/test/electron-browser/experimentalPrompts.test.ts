@@ -95,6 +95,7 @@ suite('Experimental Prompts', () => {
 				assert.equal(b, promptText);
 				assert.equal(c.length, 2);
 				c[0].run();
+				return undefined!;
 			}
 		});
 
@@ -119,6 +120,7 @@ suite('Experimental Prompts', () => {
 				assert.equal(b, promptText);
 				assert.equal(c.length, 2);
 				c[1].run();
+				return undefined!;
 			}
 		});
 
@@ -143,6 +145,7 @@ suite('Experimental Prompts', () => {
 				assert.equal(b, promptText);
 				assert.equal(c.length, 2);
 				options.onCancel();
+				return undefined!;
 			}
 		});
 

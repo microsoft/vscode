@@ -9,24 +9,14 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 
 suite('Workbench - GettingStarted', () => {
 	let instantiation: TestInstantiationService | null = null;
-	let welcomePageEnvConfig: string | null = null;
 	let hideWelcomeSettingsValue: string | null = null;
-	// let machineId: string | null = null;
-	let appName: string | null = null;
 
 	suiteSetup(() => {
 		instantiation = new TestInstantiationService();
 		instantiation.stub(IWorkspaceContextService, {
-			getConfiguration: () => {
-				return {
-					env: {
-						welcomePage: welcomePageEnvConfig,
-						appName: appName
-					}
-				};
-			}
+
 		});
-		instantiation.stub(IStorageService, {
+		instantiation.stub(IStorageService, <Partial<IStorageService>>{
 			get: () => hideWelcomeSettingsValue,
 			store: (value) => hideWelcomeSettingsValue = value
 		});
@@ -37,8 +27,6 @@ suite('Workbench - GettingStarted', () => {
 	});
 
 	setup(() => {
-		welcomePageEnvConfig = null;
 		hideWelcomeSettingsValue = null;
-		appName = null;
 	});
 });
