@@ -41,14 +41,14 @@ export class MainThreadDocumentContentProviders implements MainThreadDocumentCon
 
 	$registerTextContentProvider(handle: number, scheme: string): void {
 		const registration = this._textModelResolverService.registerTextModelContentProvider(scheme, {
-			provideTextContent: (uri: URI): Promise<ITextModel | undefined> => {
+			provideTextContent: (uri: URI): Promise<ITextModel | null> => {
 				return this._proxy.$provideTextDocumentContent(handle, uri).then(value => {
 					if (typeof value === 'string') {
 						const firstLineText = value.substr(0, 1 + value.search(/\r?\n/));
 						const languageSelection = this._modeService.createByFilepathOrFirstLine(uri.fsPath, firstLineText);
 						return this._modelService.createModel(value, languageSelection, uri);
 					}
-					return undefined;
+					return null;
 				});
 			}
 		});

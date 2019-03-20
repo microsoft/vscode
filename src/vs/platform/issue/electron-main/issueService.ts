@@ -50,7 +50,7 @@ export class IssueService implements IIssueService {
 			});
 		});
 
-		ipcMain.on('vscode:issueReporterConfirmClose', (_) => {
+		ipcMain.on('vscode:issueReporterConfirmClose', () => {
 			const messageOptions = {
 				message: localize('confirmCloseIssueReporter', "Your input will not be saved. Are you sure you want to close this window?"),
 				type: 'warning',
@@ -72,7 +72,7 @@ export class IssueService implements IIssueService {
 			}
 		});
 
-		ipcMain.on('vscode:workbenchCommand', (_, commandInfo) => {
+		ipcMain.on('vscode:workbenchCommand', (_: unknown, commandInfo) => {
 			const { id, from, args } = commandInfo;
 
 			let parentWindow: BrowserWindow | null;
@@ -92,7 +92,7 @@ export class IssueService implements IIssueService {
 			}
 		});
 
-		ipcMain.on('vscode:openExternal', (_, arg) => {
+		ipcMain.on('vscode:openExternal', (_: unknown, arg) => {
 			this.windowsService.openExternal(arg);
 		});
 

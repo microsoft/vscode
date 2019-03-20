@@ -12,11 +12,11 @@ export class DialogChannel implements IServerChannel {
 
 	constructor(@IDialogService private readonly dialogService: IDialogService) { }
 
-	listen<T>(_, event: string): Event<T> {
+	listen<T>(_: unknown, event: string): Event<T> {
 		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(_, command: string, args?: any[]): Promise<any> {
+	call(_: unknown, command: string, args?: any[]): Promise<any> {
 		switch (command) {
 			case 'show': return this.dialogService.show(args![0], args![1], args![2]);
 			case 'confirm': return this.dialogService.confirm(args![0]);

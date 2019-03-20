@@ -104,11 +104,11 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 	private resolveTextModelContent(key: string): Promise<ITextModel> {
 		const resource = URI.parse(key);
 		const providers = this.providers[resource.scheme] || [];
-		const factories = providers.map(p => () => Promise.resolve<ITextModel | undefined | null>(p.provideTextContent(resource)));
+		const factories = providers.map(p => () => Promise.resolve(p.provideTextContent(resource)));
 
 		return first(factories).then(model => {
 			if (!model) {
-				return Promise.reject<any>(new Error('resource is not available'));
+				return Promise.reject(new Error('resource is not available'));
 			}
 
 			return model;

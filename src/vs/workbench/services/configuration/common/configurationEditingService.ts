@@ -487,7 +487,7 @@ export class ConfigurationEditingService {
 		return { key, jsonPath, value: config.value, resource: resource || undefined, target };
 	}
 
-	private isWorkspaceConfigurationResource(resource: URI | null | undefined): boolean {
+	private isWorkspaceConfigurationResource(resource: URI | null): boolean {
 		const workspace = this.contextService.getWorkspace();
 		return !!(workspace.configuration && resource && workspace.configuration.fsPath === resource.fsPath);
 	}

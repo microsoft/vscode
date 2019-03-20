@@ -642,7 +642,7 @@ export class GlobalCompareResourcesAction extends Action {
 						override: this.editorService.openEditor({
 							leftResource: activeResource,
 							rightResource: resource
-						}).then(() => undefined)
+						}).then(() => null)
 					};
 				}
 
@@ -833,7 +833,7 @@ export class ShowActiveFileInExplorer extends Action {
 	}
 
 	public run(): Promise<any> {
-		const resource = toResource(this.editorService.activeEditor || null, { supportSideBySide: true });
+		const resource = toResource(this.editorService.activeEditor, { supportSideBySide: true });
 		if (resource) {
 			this.commandService.executeCommand(REVEAL_IN_EXPLORER_COMMAND_ID, resource);
 		} else {
@@ -905,7 +905,7 @@ export class ShowOpenedFileInNewWindow extends Action {
 	}
 
 	public run(): Promise<any> {
-		const fileResource = toResource(this.editorService.activeEditor || null, { supportSideBySide: true });
+		const fileResource = toResource(this.editorService.activeEditor, { supportSideBySide: true });
 		if (fileResource) {
 			if (this.fileService.canHandleResource(fileResource)) {
 				this.windowService.openWindow([{ uri: fileResource, typeHint: 'file' }], { forceNewWindow: true, forceOpenWorkspaceAsFile: true });
@@ -1008,7 +1008,7 @@ export class CompareWithClipboardAction extends Action {
 	}
 
 	public run(): Promise<any> {
-		const resource = toResource(this.editorService.activeEditor || null, { supportSideBySide: true });
+		const resource = toResource(this.editorService.activeEditor, { supportSideBySide: true });
 		if (resource && (this.fileService.canHandleResource(resource) || resource.scheme === Schemas.untitled)) {
 			if (!this.registrationDisposal) {
 				const provider = this.instantiationService.createInstance(ClipboardContentProvider);
