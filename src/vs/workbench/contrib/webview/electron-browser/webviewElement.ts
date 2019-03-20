@@ -72,7 +72,7 @@ class WebviewProtocolProvider extends Disposable {
 
 		const appRootUri = URI.file(this._environmentService.appRoot);
 
-		registerFileProtocol(contents, WebviewProtocol.CoreResource, this._fileService, null, () => [
+		registerFileProtocol(contents, WebviewProtocol.CoreResource, this._fileService, undefined, () => [
 			appRootUri
 		]);
 

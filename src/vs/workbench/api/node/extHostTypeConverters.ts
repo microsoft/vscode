@@ -986,9 +986,9 @@ export namespace TextEditorOptions {
 export namespace GlobPattern {
 
 	export function from(pattern: vscode.GlobPattern): string | types.RelativePattern;
-	export function from(pattern: undefined | null): undefined | null;
-	export function from(pattern: vscode.GlobPattern | undefined | null): string | types.RelativePattern | undefined | null;
-	export function from(pattern: vscode.GlobPattern | undefined | null): string | types.RelativePattern | undefined | null {
+	export function from(pattern: undefined): undefined;
+	export function from(pattern: vscode.GlobPattern | undefined): string | types.RelativePattern | undefined;
+	export function from(pattern: vscode.GlobPattern | undefined): string | types.RelativePattern | undefined {
 		if (pattern instanceof types.RelativePattern) {
 			return pattern;
 		}

@@ -36,7 +36,7 @@ export interface IOpenEditorOverride {
 	 * If defined, will prevent the opening of an editor and replace the resulting
 	 * promise with the provided promise for the openEditor() call.
 	 */
-	override?: Promise<IEditor | null | undefined>;
+	override?: Promise<IEditor | null>;
 }
 
 export interface IVisibleEditor extends IEditor {

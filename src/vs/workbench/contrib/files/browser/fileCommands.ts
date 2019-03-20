@@ -119,7 +119,7 @@ function save(
 			let viewStateOfSource: IEditorViewState | null;
 			const activeTextEditorWidget = getCodeEditor(editorService.activeTextEditorWidget);
 			if (activeTextEditorWidget) {
-				const activeResource = toResource(editorService.activeEditor || null, { supportSideBySide: true });
+				const activeResource = toResource(editorService.activeEditor, { supportSideBySide: true });
 				if (activeResource && (fileService.canHandleResource(activeResource) || resource.scheme === Schemas.untitled) && activeResource.toString() === resource.toString()) {
 					viewStateOfSource = activeTextEditorWidget.saveViewState();
 				}

@@ -30,7 +30,7 @@ export function registerFileProtocol(
 	contents: Electron.WebContents,
 	protocol: WebviewProtocol,
 	fileService: IFileService,
-	extensionLocation: URI | null | undefined,
+	extensionLocation: URI | undefined,
 	getRoots: () => ReadonlyArray<URI>
 ) {
 	contents.session.protocol.registerBufferProtocol(protocol, (request, callback: any) => {

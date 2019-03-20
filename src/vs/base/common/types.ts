@@ -93,7 +93,6 @@ export function isUndefinedOrNull(obj: any): obj is undefined | null {
 	return isUndefined(obj) || obj === null;
 }
 
-
 const hasOwnProperty = Object.prototype.hasOwnProperty;
 
 /**
