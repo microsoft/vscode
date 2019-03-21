@@ -309,12 +309,12 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		this.replInput.focus();
 	}
 
-	getActionItem(action: IAction): IActionItem | null {
+	getActionItem(action: IAction): IActionItem | undefined {
 		if (action.id === SelectReplAction.ID) {
 			return this.instantiationService.createInstance(SelectReplActionItem, this.selectReplAction);
 		}
 
-		return null;
+		return undefined;
 	}
 
 	getActions(): IAction[] {

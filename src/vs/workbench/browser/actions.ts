@@ -130,7 +130,7 @@ export class ContributableActionProvider implements IActionProvider {
 		return prepareActions(actions);
 	}
 
-	getActionItem(tree: ITree, element: any, action: Action): BaseActionItem | null {
+	getActionItem(tree: ITree, element: any, action: Action): BaseActionItem | undefined {
 		const contributors = this.registry.getActionBarContributors(Scope.VIEWER);
 		const context = this.toContext(tree, element);
 
@@ -143,7 +143,7 @@ export class ContributableActionProvider implements IActionProvider {
 			}
 		}
 
-		return null;
+		return undefined;
 	}
 }
 

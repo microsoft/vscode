@@ -129,7 +129,7 @@ export class DebugViewlet extends ViewContainerViewlet {
 		return [this.selectAndStartAction, this.configureAction, this.toggleReplAction];
 	}
 
-	getActionItem(action: IAction): IActionItem | null {
+	getActionItem(action: IAction): IActionItem | undefined {
 		if (action.id === StartAction.ID) {
 			this.startDebugActionItem = this.instantiationService.createInstance(StartDebugActionItem, null, action);
 			return this.startDebugActionItem;
@@ -141,7 +141,7 @@ export class DebugViewlet extends ViewContainerViewlet {
 			return new MenuItemActionItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
 		}
 
-		return null;
+		return undefined;
 	}
 
 	focusView(id: string): void {

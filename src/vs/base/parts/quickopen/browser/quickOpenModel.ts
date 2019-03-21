@@ -300,8 +300,8 @@ class NoActionProvider implements IActionProvider {
 		return null;
 	}
 
-	getActionItem(tree: ITree, element: any, action: Action): IActionItem | null {
-		return null;
+	getActionItem(tree: ITree, element: any, action: Action): IActionItem | undefined {
+		return undefined;
 	}
 }
 

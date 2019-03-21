@@ -75,7 +75,7 @@ export class OutputPanel extends AbstractTextResourceEditor {
 		return this.actions;
 	}
 
-	public getActionItem(action: Action): IActionItem | null {
+	public getActionItem(action: Action): IActionItem | undefined {
 		if (action.id === SwitchOutputAction.ID) {
 			return this.instantiationService.createInstance(SwitchOutputActionItem, action);
 		}

@@ -376,7 +376,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 				if (action.id === this.recordKeysAction.id) {
 					return new CheckboxActionItem(null, action);
 				}
-				return null;
+				return undefined;
 			}
 		}));
 

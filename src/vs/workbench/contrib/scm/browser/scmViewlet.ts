@@ -918,9 +918,9 @@ export class RepositoryPanel extends ViewletPanel {
 		return this.menus.getTitleSecondaryActions();
 	}
 
-	getActionItem(action: IAction): IActionItem | null {
+	getActionItem(action: IAction): IActionItem | undefined {
 		if (!(action instanceof MenuItemAction)) {
-			return null;
+			return undefined;
 		}
 
 		return new ContextAwareMenuItemActionItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
@@ -1221,9 +1221,9 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 		}
 	}
 
-	getActionItem(action: IAction): IActionItem | null {
+	getActionItem(action: IAction): IActionItem | undefined {
 		if (!(action instanceof MenuItemAction)) {
-			return null;
+			return undefined;
 		}
 
 		return new ContextAwareMenuItemActionItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
