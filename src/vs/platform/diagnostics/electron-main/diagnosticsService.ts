@@ -391,7 +391,7 @@ function collectWorkspaceStats(folder: string, filter: string[]): Promise<Worksp
 
 	const MAX_FILES = 20000;
 
-	function walk(dir: string, filter: string[], token, done: (allFiles: string[]) => void): void {
+	function walk(dir: string, filter: string[], token: { count: any; maxReached: any; }, done: (allFiles: string[]) => void): void {
 		let results: string[] = [];
 		readdir(dir, async (err, files) => {
 			// Ignore folders that can't be read

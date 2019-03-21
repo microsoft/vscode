@@ -31,7 +31,7 @@ export class BroadcastService extends Disposable implements IBroadcastService {
 	}
 
 	private registerListeners(): void {
-		ipc.on('vscode:broadcast', (event, b: IBroadcast) => {
+		ipc.on('vscode:broadcast', (event: unknown, b: IBroadcast) => {
 			this.logService.trace(`Received broadcast from main in window ${this.windowId}: `, b);
 
 			this._onBroadcast.fire(b);

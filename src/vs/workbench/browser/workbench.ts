@@ -82,7 +82,7 @@ export class Workbench extends Layout {
 
 		// Inform user about loading issues from the loader
 		(<any>window).require.config({
-			onError: err => {
+			onError: (err: { errorCode: string; }) => {
 				if (err.errorCode === 'load') {
 					onUnexpectedError(new Error(localize('loaderErrorNative', "Failed to load a required file. Please restart the application to try again. Details: {0}", JSON.stringify(err))));
 				}
