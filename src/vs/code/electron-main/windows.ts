@@ -1897,9 +1897,15 @@ class Dialogs {
 	showMessageBox(options: Electron.MessageBoxOptions, window?: ICodeWindow): Promise<IMessageBoxResult> {
 		return this.getDialogQueue(window).queue(() => {
 			return new Promise(resolve => {
-				dialog.showMessageBox(window ? window.win : null, options, (response: number, checkboxChecked: boolean) => {
+				const callback = (response: number, checkboxChecked: boolean) => {
 					resolve({ button: response, checkboxChecked });
-				});
+				};
+
+				if (window) {
+					dialog.showMessageBox(window.win, options, callback);
+				} else {
+					dialog.showMessageBox(options, callback);
+				}
 			});
 		});
 	}
@@ -1916,9 +1922,15 @@ class Dialogs {
 
 		return this.getDialogQueue(window).queue(() => {
 			return new Promise(resolve => {
-				dialog.showSaveDialog(window ? window.win : null, options, path => {
+				const callback = (path: string) => {
 					resolve(normalizePath(path));
-				});
+				};
+
+				if (window) {
+					dialog.showSaveDialog(window.win, options, callback);
+				} else {
+					dialog.showSaveDialog(options, callback);
+				}
 			});
 		});
 	}
@@ -1948,9 +1960,15 @@ class Dialogs {
 
 				// Show dialog and wrap as promise
 				validatePathPromise.then(() => {
-					dialog.showOpenDialog(window ? window.win : null, options, paths => {
+					const callback = (paths: string[]) => {
 						resolve(normalizePaths(paths));
-					});
+					};
+
+					if (window) {
+						dialog.showOpenDialog(window.win, options, callback);
+					} else {
+						dialog.showOpenDialog(options, callback);
+					}
 				});
 			});
 		});

@@ -2589,7 +2589,7 @@ declare namespace Electron {
 		 * is passed, the dialog will not block the process. The API call will be
 		 * asynchronous and the result will be passed via callback(response).
 		 */
-		showMessageBox(browserWindow: BrowserWindow | null, options: MessageBoxOptions, callback?: (response: number, checkboxChecked: boolean) => void): number;
+		showMessageBox(browserWindow: BrowserWindow, options: MessageBoxOptions, callback?: (response: number, checkboxChecked: boolean) => void): number;
 		/**
 		 * Shows a message box, it will block the process until the message box is closed.
 		 * It returns the index of the clicked button. The browserWindow argument allows
@@ -2610,7 +2610,7 @@ declare namespace Electron {
 		 * file selector and a directory selector, so if you set properties to ['openFile',
 		 * 'openDirectory'] on these platforms, a directory selector will be shown.
 		 */
-		showOpenDialog(browserWindow: BrowserWindow | null, options: OpenDialogOptions, callback?: (filePaths: string[], bookmarks: string[]) => void): string[];
+		showOpenDialog(browserWindow: BrowserWindow, options: OpenDialogOptions, callback?: (filePaths: string[], bookmarks: string[]) => void): string[];
 		/**
 		 * The browserWindow argument allows the dialog to attach itself to a parent
 		 * window, making it modal. The filters specifies an array of file types that can
@@ -2631,7 +2631,7 @@ declare namespace Electron {
 		 * the API call will be asynchronous and the result will be passed via
 		 * callback(filename).
 		 */
-		showSaveDialog(browserWindow: BrowserWindow | null, options: SaveDialogOptions, callback?: (filename: string, bookmark: string) => void): string;
+		showSaveDialog(browserWindow: BrowserWindow, options: SaveDialogOptions, callback?: (filename: string, bookmark: string) => void): string;
 		/**
 		 * The browserWindow argument allows the dialog to attach itself to a parent
 		 * window, making it modal. The filters specifies an array of file types that can
