@@ -893,9 +893,12 @@ export class TerminalInstance implements ITerminalInstance {
 
 		if (platform.isWindows) {
 			this._processManager.ptyProcessReady.then(() => {
+				if (this._processManager!.remoteAuthority) {
+					return;
+				}
 				this._xtermReadyPromise.then(() => {
 					if (!this._isDisposed) {
-						this._terminalInstanceService.createWindowsShellHelper(this._processManager!.shellProcessId, this, this._xterm);
+						this._windowsShellHelper = this._terminalInstanceService.createWindowsShellHelper(this._processManager!.shellProcessId, this, this._xterm);
 					}
 				});
 			});
