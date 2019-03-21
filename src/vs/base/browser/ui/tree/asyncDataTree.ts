@@ -16,6 +16,7 @@ import { IDragAndDropData } from 'vs/base/browser/dnd';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
 import { toggleClass } from 'vs/base/browser/dom';
+import { values } from 'vs/base/common/map';
 
 interface IAsyncDataTreeNode<TInput, T> {
 	element: TInput | T;
@@ -814,7 +815,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			return childAsyncDataTreeNode;
 		});
 
-		for (const node of nodesToForget.values()) {
+		for (const node of values(nodesToForget)) {
 			dfs(node, node => this.nodes.delete(node.element as T));
 		}
 
