@@ -8,10 +8,9 @@ import { getDelayedChannel } from 'vs/base/parts/ipc/node/ipc';
 import { Client } from 'vs/base/parts/ipc/node/ipc.net';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { connectRemoteAgentManagement } from 'vs/platform/remote/node/remoteAgentConnection';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { IRemoteAgentConnection, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { DialogChannel } from 'vs/platform/dialogs/node/dialogIpc';
 import { DownloadServiceChannel } from 'vs/platform/download/node/downloadIpc';
@@ -34,12 +33,11 @@ export class RemoteAgentService extends Disposable implements IRemoteAgentServic
 	private _environment: Promise<IRemoteAgentEnvironment | null> | null;
 
 	constructor(
-		@IWindowService windowService: IWindowService,
+		{ remoteAuthority }: IWindowConfiguration,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService
 	) {
 		super();
-		const { remoteAuthority } = windowService.getConfiguration();
 		if (remoteAuthority) {
 			this._connection = this._register(new RemoteAgentConnection(remoteAuthority, _environmentService, remoteAuthorityResolverService));
 		}
@@ -133,4 +131,3 @@ class RemoteConnectionFailureNotificationContribution implements IWorkbenchContr
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(RemoteChannelsContribution, LifecyclePhase.Ready);
 workbenchRegistry.registerWorkbenchContribution(RemoteConnectionFailureNotificationContribution, LifecyclePhase.Ready);
-registerSingleton(IRemoteAgentService, RemoteAgentService);

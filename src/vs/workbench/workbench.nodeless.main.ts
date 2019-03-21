@@ -159,7 +159,6 @@ registerSingleton(IContextViewService, ContextViewService, true);
 // registerSingleton(ILifecycleService, LifecycleService);
 // registerSingleton(ILocalizationsService, LocalizationsService);
 // registerSingleton(ISharedProcessService, SharedProcessService, true);
-// registerSingleton(IRemoteAuthorityResolverService, RemoteAuthorityResolverService, true);
 // registerSingleton(ITelemetryService, TelemetryService);
 // registerSingleton(IProductService, ProductService, true);
 // registerSingleton(IWindowsService, WindowsService);
