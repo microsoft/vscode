@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Registry } from 'vs/platform/registry/common/platform';
-import { Action, IAction } from 'vs/base/common/actions';
-import { BaseActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IAction } from 'vs/base/common/actions';
+import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ITree, IActionProvider } from 'vs/base/parts/tree/browser/tree';
 import { IInstantiationService, IConstructorSignature0, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
@@ -26,27 +26,6 @@ export class ActionBarContributor {
 	 */
 	getActions(context: any): IAction[] {
 		return [];
-	}
-
-	/**
-	 * Returns true if this contributor has secondary actions for the given context.
-	 */
-	hasSecondaryActions(context: any): boolean {
-		return false;
-	}
-
-	/**
-	 * Returns an array of secondary actions in the given context.
-	 */
-	getSecondaryActions(context: any): IAction[] {
-		return [];
-	}
-
-	/**
-	 * Can return a specific IActionItem to render the given action.
-	 */
-	getActionItem(context: any, action: Action): BaseActionItem | null {
-		return null;
 	}
 }
 
@@ -100,50 +79,6 @@ export class ContributableActionProvider implements IActionProvider {
 		}
 
 		return prepareActions(actions);
-	}
-
-	hasSecondaryActions(tree: ITree, element: any): boolean {
-		const context = this.toContext(tree, element);
-
-		const contributors = this.registry.getActionBarContributors(Scope.VIEWER);
-		for (const contributor of contributors) {
-			if (contributor.hasSecondaryActions(context)) {
-				return true;
-			}
-		}
-
-		return false;
-	}
-
-	getSecondaryActions(tree: ITree, element: any): IAction[] {
-		const actions: IAction[] = [];
-		const context = this.toContext(tree, element);
-
-		// Collect Actions
-		const contributors = this.registry.getActionBarContributors(Scope.VIEWER);
-		for (const contributor of contributors) {
-			if (contributor.hasSecondaryActions(context)) {
-				actions.push(...contributor.getSecondaryActions(context));
-			}
-		}
-
-		return prepareActions(actions);
-	}
-
-	getActionItem(tree: ITree, element: any, action: Action): BaseActionItem | undefined {
-		const contributors = this.registry.getActionBarContributors(Scope.VIEWER);
-		const context = this.toContext(tree, element);
-
-		for (let i = contributors.length - 1; i >= 0; i--) {
-			const contributor = contributors[i];
-
-			const itemProvider = contributor.getActionItem(context, action);
-			if (itemProvider) {
-				return itemProvider;
-			}
-		}
-
-		return undefined;
 	}
 }
 
@@ -201,25 +136,6 @@ export const Extensions = {
 };
 
 export interface IActionBarRegistry {
-
-	/**
-	 * Goes through all action bar contributors and asks them for contributed actions for
-	 * the provided scope and context. Supports primary actions.
-	 */
-	getActionBarActionsForContext(scope: string, context: any): IAction[];
-
-	/**
-	 * Goes through all action bar contributors and asks them for contributed actions for
-	 * the provided scope and context. Supports secondary actions.
-	 */
-	getSecondaryActionBarActionsForContext(scope: string, context: any): IAction[];
-
-	/**
-	 * Goes through all action bar contributors and asks them for contributed action item for
-	 * the provided scope and context.
-	 */
-	getActionItemForContext(scope: string, context: any, action: Action): BaseActionItem | null;
-
 	/**
 	 * Registers an Actionbar contributor. It will be called to contribute actions to all the action bars
 	 * that are used in the Workbench in the given scope.
@@ -262,48 +178,6 @@ class ActionBarRegistry implements IActionBarRegistry {
 
 	private getContributors(scope: string): ActionBarContributor[] {
 		return this.actionBarContributorInstances[scope] || [];
-	}
-
-	getActionBarActionsForContext(scope: string, context: any): IAction[] {
-		const actions: IAction[] = [];
-
-		// Go through contributors for scope
-		this.getContributors(scope).forEach((contributor: ActionBarContributor) => {
-
-			// Primary Actions
-			if (contributor.hasActions(context)) {
-				actions.push(...contributor.getActions(context));
-			}
-		});
-
-		return actions;
-	}
-
-	getSecondaryActionBarActionsForContext(scope: string, context: any): IAction[] {
-		const actions: IAction[] = [];
-
-		// Go through contributors
-		this.getContributors(scope).forEach((contributor: ActionBarContributor) => {
-
-			// Secondary Actions
-			if (contributor.hasSecondaryActions(context)) {
-				actions.push(...contributor.getSecondaryActions(context));
-			}
-		});
-
-		return actions;
-	}
-
-	getActionItemForContext(scope: string, context: any, action: Action): BaseActionItem | null {
-		const contributors = this.getContributors(scope);
-		for (const contributor of contributors) {
-			const item = contributor.getActionItem(context, action);
-			if (item) {
-				return item;
-			}
-		}
-
-		return null;
 	}
 
 	registerActionBarContributor(scope: string, ctor: IConstructorSignature0<ActionBarContributor>): void {
