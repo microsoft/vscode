@@ -119,6 +119,15 @@ function isWhitespace(code: number): boolean {
 	);
 }
 
+const wordSeparators = new Set<number>();
+'`~!@#$%^&*()-=+[{]}\\|;:\'",.<>/?'
+	.split('')
+	.forEach(s => wordSeparators.add(s.charCodeAt(0)));
+
+function isWordSeparator(code: number): boolean {
+	return wordSeparators.has(code);
+}
+
 function isAlphanumeric(code: number): boolean {
 	return isLower(code) || isUpper(code) || isNumber(code);
 }
@@ -308,7 +317,8 @@ function _matchesWords(word: string, target: string, i: number, j: number, conti
 function nextWord(word: string, start: number): number {
 	for (let i = start; i < word.length; i++) {
 		const c = word.charCodeAt(i);
-		if (isWhitespace(c) || (i > 0 && isWhitespace(word.charCodeAt(i - 1)))) {
+		if (isWhitespace(c) || (i > 0 && isWhitespace(word.charCodeAt(i - 1))) ||
+			isWordSeparator(c) || (i > 0 && isWordSeparator(word.charCodeAt(i - 1)))) {
 			return i;
 		}
 	}
