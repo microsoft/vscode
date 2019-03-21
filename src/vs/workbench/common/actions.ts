@@ -6,7 +6,7 @@
 import { Registry } from 'vs/platform/registry/common/platform';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { SyncActionDescriptor, MenuRegistry, MenuId, ICommandAction } from 'vs/platform/actions/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
@@ -58,16 +58,16 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 		if (descriptor.label) {
 
 			let idx = alias.indexOf(': ');
-			let categoryOriginal;
+			let categoryOriginal = '';
 			if (idx > 0) {
 				categoryOriginal = alias.substr(0, idx);
 				alias = alias.substr(idx + 2);
 			}
 
-			const command = {
+			const command: ICommandAction = {
 				id: descriptor.id,
 				title: { value: descriptor.label, original: alias },
-				category: category && { value: category, original: categoryOriginal }
+				category: category ? { value: category, original: categoryOriginal } : undefined
 			};
 
 			MenuRegistry.addCommand(command);

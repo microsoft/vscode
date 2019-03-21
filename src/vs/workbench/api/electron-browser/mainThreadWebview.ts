@@ -272,8 +272,8 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 
 	private createWebviewEventDelegate(handle: WebviewPanelHandle) {
 		return {
-			onDidClickLink: uri => this.onDidClickLink(handle, uri),
-			onMessage: message => this._proxy.$onMessage(handle, message),
+			onDidClickLink: (uri: URI) => this.onDidClickLink(handle, uri),
+			onMessage: (message: any) => this._proxy.$onMessage(handle, message),
 			onDispose: () => {
 				this._proxy.$onDidDisposeWebviewPanel(handle).finally(() => {
 					this._webviews.delete(handle);

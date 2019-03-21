@@ -309,7 +309,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	private static INPUT_BOX_ARIA_LABEL = localize('quickInputBox.ariaLabel', "Type to narrow down results.");
 
 	private _value = '';
-	private _placeholder;
+	private _placeholder: string;
 	private onDidChangeValueEmitter = new Emitter<string>();
 	private onDidAcceptEmitter = new Emitter<void>();
 	private _items: Array<T | IQuickPickSeparator> = [];

@@ -156,9 +156,9 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 		const info = document.createElement('div');
 		const building = document.createElement('div');
 
-		const errorTitle = n => nls.localize('totalErrors', "{0} Errors", n);
-		const warningTitle = n => nls.localize('totalWarnings', "{0} Warnings", n);
-		const infoTitle = n => nls.localize('totalInfos', "{0} Infos", n);
+		const errorTitle = (n: number) => nls.localize('totalErrors', "{0} Errors", n);
+		const warningTitle = (n: number) => nls.localize('totalWarnings', "{0} Warnings", n);
+		const infoTitle = (n: number) => nls.localize('totalInfos', "{0} Infos", n);
 
 		Dom.addClass(element, 'task-statusbar-item');
 		element.title = nls.localize('problems', "Problems");
@@ -211,7 +211,7 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 		}));
 
 		const manyProblems = nls.localize('manyProblems', "10K+");
-		const packNumber = n => n > 9999 ? manyProblems : n > 999 ? n.toString().charAt(0) + 'K' : n.toString();
+		const packNumber = (n: number) => n > 9999 ? manyProblems : n > 999 ? n.toString().charAt(0) + 'K' : n.toString();
 		let updateLabel = (stats: MarkerStatistics) => {
 			error.innerHTML = packNumber(stats.errors);
 			error.title = errorIcon.title = errorTitle(stats.errors);

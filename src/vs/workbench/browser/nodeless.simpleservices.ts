@@ -791,7 +791,7 @@ export class SimpleRemoteFileService implements IFileService {
 		return Promise.resolve(createFolder(parent, basename(_resource.path)));
 	}
 
-	registerProvider(_scheme: string, _provider) { return { dispose() { } }; }
+	registerProvider() { return { dispose() { } }; }
 
 	activateProvider(_scheme: string): Promise<void> { return Promise.resolve(undefined); }
 
@@ -1059,14 +1059,14 @@ export const IRequestService = createDecorator<IRequestService>('requestService'
 export interface IRequestService {
 	_serviceBrand: any;
 
-	request(options, token: CancellationToken): Promise<object>;
+	request(options: any, token: CancellationToken): Promise<object>;
 }
 
 export class SimpleRequestService implements IRequestService {
 
 	_serviceBrand: any;
 
-	request(options, token: CancellationToken): Promise<object> {
+	request(options: any, token: CancellationToken): Promise<object> {
 		return Promise.resolve(Object.create(null));
 	}
 }
