@@ -22,7 +22,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IProductService } from 'vs/platform/product/common/product';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IRemoteEnvironmentService } from 'vs/workbench/services/remote/common/remoteEnvironmentService';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -77,7 +77,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IProductService private readonly _productService: IProductService,
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
-		@IRemoteEnvironmentService private readonly _remoteEnvironmentService: IRemoteEnvironmentService
+		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService
 	) {
 		this.ptyProcessReady = new Promise<void>(c => {
 			this.onProcessReady(() => {
@@ -123,7 +123,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		this.os = platform.OS;
 		if (launchRemotely) {
 			if (hasRemoteAuthority) {
-				this._remoteEnvironmentService.getEnvironment().then(env => {
+				this._remoteAgentService.getEnvironment().then(env => {
 					if (!env) {
 						return;
 					}

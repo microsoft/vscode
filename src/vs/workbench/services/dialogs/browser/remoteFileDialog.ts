@@ -21,7 +21,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { Schemas } from 'vs/base/common/network';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IRemoteEnvironmentService } from 'vs/workbench/services/remote/common/remoteEnvironmentService';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 interface FileQuickPickItem extends IQuickPickItem {
 	uri: URI;
@@ -59,7 +59,7 @@ export class RemoteFileDialog {
 		@IModelService private readonly modelService: IModelService,
 		@IModeService private readonly modeService: IModeService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IRemoteEnvironmentService private readonly remoteEnvironmentService: IRemoteEnvironmentService,
+		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
 
 	) {
 		this.remoteAuthority = this.windowService.getConfiguration().remoteAuthority;
@@ -111,7 +111,7 @@ export class RemoteFileDialog {
 	private async getOptions(options: ISaveDialogOptions | IOpenDialogOptions): Promise<IOpenDialogOptions | undefined> {
 		let defaultUri = options.defaultUri;
 		if (!defaultUri) {
-			const env = await this.remoteEnvironmentService.getEnvironment();
+			const env = await this.remoteAgentService.getEnvironment();
 			if (env) {
 				defaultUri = env.userHome;
 			} else {

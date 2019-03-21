@@ -17,32 +17,53 @@ import { DialogChannel } from 'vs/platform/dialogs/node/dialogIpc';
 import { DownloadServiceChannel } from 'vs/platform/download/node/downloadIpc';
 import { LogLevelSetterChannel } from 'vs/platform/log/node/logIpc';
 import { ILogService } from 'vs/platform/log/common/log';
-import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
+import { RemoteAgentConnectionContext, IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { RemoteExtensionEnvironmentChannelClient } from 'vs/workbench/services/remote/node/remoteAgentEnvironmentChannel';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { localize } from 'vs/nls';
 
 export class RemoteAgentService extends Disposable implements IRemoteAgentService {
 
 	_serviceBrand: any;
 
 	private readonly _connection: IRemoteAgentConnection | null = null;
+	private _environment: Promise<IRemoteAgentEnvironment | null> | null;
 
 	constructor(
 		@IWindowService windowService: IWindowService,
-		@IEnvironmentService environmentService: IEnvironmentService,
+		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
+		@INotificationService private readonly _notificationService: INotificationService
 	) {
 		super();
 		const { remoteAuthority } = windowService.getConfiguration();
 		if (remoteAuthority) {
-			this._connection = this._register(new RemoteAgentConnection(remoteAuthority, environmentService, remoteAuthorityResolverService));
+			this._connection = this._register(new RemoteAgentConnection(remoteAuthority, _environmentService, remoteAuthorityResolverService));
 		}
 	}
 
 	getConnection(): IRemoteAgentConnection | null {
 		return this._connection;
+	}
+
+	getEnvironment(): Promise<IRemoteAgentEnvironment | null> {
+		if (!this._environment) {
+			const connection = this.getConnection();
+			if (connection) {
+				const client = new RemoteExtensionEnvironmentChannelClient(connection.getChannel('remoteextensionsenvironment'));
+
+				// Let's cover the case where connecting to fetch the remote extension info fails
+				this._environment = client.getEnvironmentData(connection.remoteAuthority, this._environmentService.extensionDevelopmentLocationURI)
+					.then(undefined, err => { this._notificationService.error(localize('connectionError', "Failed to connect to the remote extension host agent (Error: {0})", err ? err.message : '')); return null; });
+			} else {
+				this._environment = Promise.resolve(null);
+			}
+		}
+		return this._environment;
 	}
 }
 

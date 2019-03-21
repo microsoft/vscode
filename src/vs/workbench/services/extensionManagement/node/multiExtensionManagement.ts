@@ -19,7 +19,7 @@ import { areSameExtensions } from 'vs/platform/extensionManagement/common/extens
 import { localize } from 'vs/nls';
 import { isUIExtension } from 'vs/workbench/services/extensions/node/extensionsUtil';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IRemoteEnvironmentService } from 'vs/workbench/services/remote/common/remoteEnvironmentService';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 export class MultiExtensionManagementService extends Disposable implements IExtensionManagementService {
 
@@ -36,7 +36,7 @@ export class MultiExtensionManagementService extends Disposable implements IExte
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IRemoteEnvironmentService private readonly remoteEnvironmentService: IRemoteEnvironmentService
+		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService
 	) {
 		super();
 		this.servers = this.extensionManagementServerService.remoteExtensionManagementServer ? [this.extensionManagementServerService.localExtensionManagementServer, this.extensionManagementServerService.remoteExtensionManagementServer] : [this.extensionManagementServerService.localExtensionManagementServer];
@@ -204,7 +204,7 @@ export class MultiExtensionManagementService extends Disposable implements IExte
 		if (!this.extensionManagementServerService.remoteExtensionManagementServer) {
 			return false;
 		}
-		const remoteEnv = await this.remoteEnvironmentService.getEnvironment();
+		const remoteEnv = await this.remoteAgentService.getEnvironment();
 		if (!remoteEnv) {
 			return false;
 		}

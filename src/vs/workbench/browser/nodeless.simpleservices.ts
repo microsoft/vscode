@@ -60,8 +60,8 @@ import { ITextResourcePropertiesService } from 'vs/editor/common/services/resour
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Color, RGBA } from 'vs/base/common/color';
-import { IRemoteEnvironmentService } from 'vs/workbench/services/remote/common/remoteEnvironmentService';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
+import { IRemoteAgentService, IRemoteAgentConnection } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 export const workspaceResource = URI.file(isWindows ? 'C:\\simpleWorkspace' : '/simpleWorkspace');
 
@@ -642,34 +642,18 @@ registerSingleton(IProductService, SimpleProductService, true);
 
 //#region Remote Agent
 
-export const IRemoteAgentService = createDecorator<IRemoteAgentService>('remoteAgentService');
-
-export interface IRemoteAgentService {
-	_serviceBrand: any;
-
-	getConnection(): object;
-}
-
 export class SimpleRemoteAgentService implements IRemoteAgentService {
 
 	_serviceBrand: any;
 
-	getConnection(): object {
-		// @ts-ignore
-		return undefined;
+	getConnection(): IRemoteAgentConnection | null {
+		return null;
 	}
-}
-
-export class SimpleRemoteEnvironmentService implements IRemoteEnvironmentService {
-
-	_serviceBrand: any;
 
 	getEnvironment(): Promise<IRemoteAgentEnvironment | null> {
 		return Promise.resolve(null);
 	}
 }
-
-registerSingleton(IRemoteAgentService, SimpleRemoteAgentService);
 
 //#endregion
 
