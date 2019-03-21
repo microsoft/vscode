@@ -15,7 +15,6 @@ import { VersionDependentRegistration } from '../utils/dependentRegistration';
 import { Disposable } from '../utils/dispose';
 import * as fileSchemes from '../utils/fileSchemes';
 import { isTypeScriptDocument } from '../utils/languageModeIds';
-import { escapeRegExp } from '../utils/regexp';
 import * as typeConverters from '../utils/typeConverters';
 import FileConfigurationManager from './fileConfigurationManager';
 
@@ -79,26 +78,6 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 		// Make sure TS knows about file
 		this.client.bufferSyncSupport.closeResource(oldResource);
 		this.client.bufferSyncSupport.openTextDocument(document);
-
-		if (this.client.apiVersion.lt(API.v300) && !fs.lstatSync(newResource.fsPath).isDirectory()) {
-			// Workaround for https://github.com/Microsoft/vscode/issues/52967
-			// Never attempt to update import paths if the file does not contain something the looks like an export
-			try {
-				const response = await this.client.execute('navtree', { file: newFile }, nulToken);
-				if (response.type !== 'response' || !response.body) {
-					return;
-				}
-
-				const hasExport = (node: Proto.NavigationTree): boolean => {
-					return !!node.kindModifiers.match(/\bexports?\b/g) || !!(node.childItems && node.childItems.some(hasExport));
-				};
-				if (!hasExport(response.body)) {
-					return;
-				}
-			} catch {
-				// noop
-			}
-		}
 
 		const edits = await this.getEditsForFileRename(document, oldFile, newFile);
 		if (!edits || !edits.size) {
@@ -206,8 +185,7 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 			return undefined;
 		}
 
-		const isDirectory = fs.lstatSync(resource.fsPath).isDirectory();
-		if (isDirectory && this.client.apiVersion.gte(API.v292)) {
+		if (fs.lstatSync(resource.fsPath).isDirectory()) {
 			const files = await vscode.workspace.findFiles({
 				base: resource.fsPath,
 				pattern: '**/*.{ts,tsx,js,jsx}',
@@ -223,8 +201,6 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 		oldFile: string,
 		newFile: string,
 	): Promise<vscode.WorkspaceEdit | undefined> {
-		const isDirectoryRename = fs.lstatSync(newFile).isDirectory();
-
 		const response = await this.client.interruptGetErr(() => {
 			this.fileConfigurationManager.setGlobalConfigurationFromDocument(document, nulToken);
 			const args: Proto.GetEditsForFileRenameRequestArgs = {
@@ -237,65 +213,7 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 			return;
 		}
 
-		const edits: Proto.FileCodeEdits[] = [];
-		for (const edit of response.body) {
-			// Workaround for https://github.com/Microsoft/vscode/issues/52675
-			if (this.client.apiVersion.lt(API.v300)) {
-				if (edit.fileName.match(/[\/\\]node_modules[\/\\]/gi)) {
-					continue;
-				}
-				for (const change of edit.textChanges) {
-					if (change.newText.match(/\/node_modules\//gi)) {
-						continue;
-					}
-				}
-			}
-
-			edits.push(await this.fixEdit(edit, isDirectoryRename, oldFile, newFile));
-		}
-		return typeConverters.WorkspaceEdit.fromFileCodeEdits(this.client, edits);
-	}
-
-	private async fixEdit(
-		edit: Proto.FileCodeEdits,
-		isDirectoryRename: boolean,
-		oldFile: string,
-		newFile: string,
-	): Promise<Proto.FileCodeEdits> {
-		if (!isDirectoryRename || this.client.apiVersion.gte(API.v300)) {
-			return edit;
-		}
-
-		const document = await vscode.workspace.openTextDocument(edit.fileName);
-		const oldFileRe = new RegExp('/' + escapeRegExp(path.basename(oldFile)) + '/');
-
-		// Workaround for https://github.com/Microsoft/TypeScript/issues/24968
-		const textChanges = edit.textChanges.map((change): Proto.CodeEdit => {
-			const existingText = document.getText(typeConverters.Range.fromTextSpan(change));
-			const existingMatch = existingText.match(oldFileRe);
-			if (!existingMatch) {
-				return change;
-			}
-
-			const match = new RegExp('/' + escapeRegExp(path.basename(newFile)) + '/(.+)$', 'g').exec(change.newText);
-			if (!match) {
-				return change;
-			}
-
-			return {
-				newText: change.newText.slice(0, -match[1].length),
-				start: change.start,
-				end: {
-					line: change.end.line,
-					offset: change.end.offset - match[1].length,
-				},
-			};
-		});
-
-		return {
-			fileName: edit.fileName,
-			textChanges,
-		};
+		return typeConverters.WorkspaceEdit.fromFileCodeEdits(this.client, response.body);
 	}
 }
 
@@ -304,6 +222,6 @@ export function register(
 	fileConfigurationManager: FileConfigurationManager,
 	handles: (uri: vscode.Uri) => Promise<boolean>,
 ) {
-	return new VersionDependentRegistration(client, API.v290, () =>
+	return new VersionDependentRegistration(client, API.v300, () =>
 		new UpdateImportsOnFileRenameHandler(client, fileConfigurationManager, handles));
 }
