@@ -17,9 +17,9 @@ import { DialogChannel } from 'vs/platform/dialogs/node/dialogIpc';
 import { DownloadServiceChannel } from 'vs/platform/download/node/downloadIpc';
 import { LogLevelSetterChannel } from 'vs/platform/log/node/logIpc';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 
@@ -88,12 +88,12 @@ class RemoteChannelsContribution implements IWorkbenchContribution {
 
 	constructor(
 		@ILogService logService: ILogService,
-		@IInstantiationService instantiationService: IInstantiationService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+		@IDialogService dialogService: IDialogService
 	) {
 		const connection = remoteAgentService.getConnection();
 		if (connection) {
-			connection.registerChannel('dialog', instantiationService.createInstance(DialogChannel));
+			connection.registerChannel('dialog', new DialogChannel(dialogService));
 			connection.registerChannel('download', new DownloadServiceChannel());
 			connection.registerChannel('loglevel', new LogLevelSetterChannel(logService));
 		}
