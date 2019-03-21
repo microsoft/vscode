@@ -16,6 +16,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { memoize } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
+import { IExplorerService } from 'vs/workbench/contrib/files/common/files';
 
 export class ExplorerModel implements IDisposable {
 
@@ -242,10 +243,13 @@ export class ExplorerItem {
 		return this.children.get(this.getPlatformAwareName(name));
 	}
 
-	fetchChildren(fileService: IFileService): Promise<ExplorerItem[]> {
+	fetchChildren(fileService: IFileService, explorerService: IExplorerService): Promise<ExplorerItem[]> {
 		let promise: Promise<any> = Promise.resolve(undefined);
 		if (!this._isDirectoryResolved) {
-			promise = fileService.resolveFile(this.resource, { resolveSingleChildDescendants: true, resolveMetadata: true /* TODO@isidor only do this when needed */ }).then(stat => {
+			// Resolve metadata only when the mtime is needed since this can be expensive
+			// Mtime is only used when the sort order is 'modified'
+			const resolveMetadata = explorerService.sortOrder === 'modified';
+			promise = fileService.resolveFile(this.resource, { resolveSingleChildDescendants: true, resolveMetadata }).then(stat => {
 				const resolved = ExplorerItem.create(stat, this);
 				ExplorerItem.mergeLocalWithDisk(resolved, this);
 				this._isDirectoryResolved = true;

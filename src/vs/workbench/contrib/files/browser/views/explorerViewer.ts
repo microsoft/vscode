@@ -63,10 +63,11 @@ export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | ExplorerItem[], ExplorerItem> {
 
 	constructor(
-		@IProgressService private progressService: IProgressService,
-		@INotificationService private notificationService: INotificationService,
-		@IWorkbenchLayoutService private layoutService: IWorkbenchLayoutService,
-		@IFileService private fileService: IFileService
+		@IProgressService private readonly progressService: IProgressService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IFileService private readonly fileService: IFileService,
+		@IExplorerService private readonly explorerService
 	) { }
 
 	hasChildren(element: ExplorerItem | ExplorerItem[]): boolean {
@@ -78,7 +79,7 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 			return Promise.resolve(element);
 		}
 
-		const promise = element.fetchChildren(this.fileService).then(undefined, e => {
+		const promise = element.fetchChildren(this.fileService, this.explorerService).then(undefined, e => {
 			// Do not show error for roots since we already use an explorer decoration to notify user
 			if (!(element instanceof ExplorerItem && element.isRoot)) {
 				this.notificationService.error(e);

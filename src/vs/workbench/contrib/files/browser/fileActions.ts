@@ -138,7 +138,7 @@ export class NewFileAction extends BaseErrorReportingAction {
 		}
 
 		const stat = new ExplorerItem(PLACEHOLDER_URI, folder, false);
-		return folder.fetchChildren(this.fileService).then(() => {
+		return folder.fetchChildren(this.fileService, this.explorerService).then(() => {
 			folder.addChild(stat);
 
 			const onSuccess = (value: string) => {
@@ -206,7 +206,7 @@ export class NewFolderAction extends BaseErrorReportingAction {
 		}
 
 		const stat = new ExplorerItem(PLACEHOLDER_URI, folder, true);
-		return folder.fetchChildren(this.fileService).then(() => {
+		return folder.fetchChildren(this.fileService, this.explorerService).then(() => {
 			folder.addChild(stat);
 
 			const onSuccess = (value: string) => {
