@@ -49,6 +49,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 let EDITOR_ID = 0;
 
@@ -308,7 +309,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				action.id,
 				action.label,
 				action.alias,
-				action.precondition,
+				withNullAsUndefined(action.precondition),
 				(): Promise<void> => {
 					return this._instantiationService.invokeFunction((accessor) => {
 						return Promise.resolve(action.runEditorCommand(accessor, this, null));

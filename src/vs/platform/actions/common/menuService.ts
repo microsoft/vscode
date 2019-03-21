@@ -8,7 +8,6 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IMenu, IMenuActionOptions, IMenuItem, IMenuService, isIMenuItem, ISubmenuItem, MenuId, MenuItemAction, MenuRegistry, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { withUndefinedAsNull } from 'vs/base/common/types';
 
 export class MenuService implements IMenuService {
 
@@ -111,7 +110,7 @@ class Menu implements IMenu {
 			const [id, items] = group;
 			const activeActions: Array<MenuItemAction | SubmenuItemAction> = [];
 			for (const item of items) {
-				if (this._contextKeyService.contextMatchesRules(withUndefinedAsNull(item.when))) {
+				if (this._contextKeyService.contextMatchesRules(item.when)) {
 					const action = isIMenuItem(item) ? new MenuItemAction(item.command, item.alt, options, this._contextKeyService, this._commandService) : new SubmenuItemAction(item);
 					activeActions.push(action);
 				}
