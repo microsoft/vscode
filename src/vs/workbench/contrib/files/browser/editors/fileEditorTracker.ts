@@ -27,6 +27,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ResourceQueue, timeout } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 export class FileEditorTracker extends Disposable implements IWorkbenchContribution {
 
@@ -276,7 +277,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 				if (editorResource && resource.toString() === editorResource.toString()) {
 					const control = editor.getControl();
 					if (isCodeEditor(control)) {
-						return control.saveViewState() || undefined;
+						return withNullAsUndefined(control.saveViewState());
 					}
 				}
 			}

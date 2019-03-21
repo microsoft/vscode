@@ -21,6 +21,7 @@ import { Choice, Placeholder, SnippetParser, Text, TextmateSnippet } from './sni
 import { ClipboardBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, SelectionBasedVariableResolver, TimeBasedVariableResolver, CommentBasedVariableResolver, WorkspaceBasedVariableResolver } from './snippetVariables';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import * as colors from 'vs/platform/theme/common/colorRegistry';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 registerThemingParticipant((theme, collector) => {
 
@@ -281,7 +282,7 @@ export class OneSnippet {
 		let result: Range | undefined;
 		const model = this._editor.getModel();
 		this._placeholderDecorations.forEach((decorationId) => {
-			const placeholderRange = model.getDecorationRange(decorationId) || undefined;
+			const placeholderRange = withNullAsUndefined(model.getDecorationRange(decorationId));
 			if (!result) {
 				result = placeholderRange;
 			} else {

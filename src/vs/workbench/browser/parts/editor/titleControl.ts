@@ -39,6 +39,7 @@ import { Themable } from 'vs/workbench/common/theme';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IFileService } from 'vs/platform/files/common/files';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 export interface IToolbarActions {
 	primary: IAction[];
@@ -321,7 +322,7 @@ export abstract class TitleControl extends Themable {
 	protected getKeybindingLabel(action: IAction): string | undefined {
 		const keybinding = this.getKeybinding(action);
 
-		return keybinding ? keybinding.getLabel() || undefined : undefined;
+		return keybinding ? withNullAsUndefined(keybinding.getLabel()) : undefined;
 	}
 
 	abstract openEditor(editor: IEditorInput): void;

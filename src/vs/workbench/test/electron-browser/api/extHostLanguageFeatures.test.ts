@@ -49,6 +49,7 @@ import { provideSelectionRanges } from 'vs/editor/contrib/smartSelect/smartSelec
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { dispose } from 'vs/base/common/lifecycle';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 const defaultSelector = { scheme: 'far' };
 const model: ITextModel = EditorModel.createFromString(
@@ -906,7 +907,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 	const NullWorkerService = new class extends mock<IEditorWorkerService>() {
 		computeMoreMinimalEdits(resource: URI, edits: modes.TextEdit[] | null | undefined): Promise<modes.TextEdit[] | undefined> {
-			return Promise.resolve(edits || undefined);
+			return Promise.resolve(withNullAsUndefined(edits));
 		}
 	};
 
