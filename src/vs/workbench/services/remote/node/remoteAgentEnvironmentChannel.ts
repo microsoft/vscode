@@ -19,6 +19,7 @@ export interface IRemoteAgentEnvironmentDTO {
 	pid: number;
 	appRoot: UriComponents;
 	appSettingsHome: UriComponents;
+	appSettingsPath: UriComponents;
 	logsPath: UriComponents;
 	extensionsPath: UriComponents;
 	extensionHostLogsPath: UriComponents;
@@ -45,6 +46,7 @@ export class RemoteExtensionEnvironmentChannelClient {
 					pid: data.pid,
 					appRoot: URI.revive(data.appRoot),
 					appSettingsHome: URI.revive(data.appSettingsHome),
+					appSettingsPath: URI.revive(data.appSettingsPath),
 					logsPath: URI.revive(data.logsPath),
 					extensionsPath: URI.revive(data.extensionsPath),
 					extensionHostLogsPath: URI.revive(data.extensionHostLogsPath),
