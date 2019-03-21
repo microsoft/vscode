@@ -779,11 +779,14 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 				this.nodes.set(element, asyncDataTreeNode);
 
 				asyncDataTreeNode.element = element;
-				asyncDataTreeNode.stale = asyncDataTreeNode.stale || recursive;
 				asyncDataTreeNode.hasChildren = !!this.dataSource.hasChildren(element);
 
-				if (recursive && !childNode.collapsed) {
-					childrenToRefresh.push(asyncDataTreeNode);
+				if (recursive) {
+					if (childNode.collapsed) {
+						dfs(asyncDataTreeNode, node => node.stale = true);
+					} else {
+						childrenToRefresh.push(asyncDataTreeNode);
+					}
 				}
 
 				return asyncDataTreeNode;
