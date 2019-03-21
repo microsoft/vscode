@@ -14,9 +14,9 @@ import { CharacterSet } from 'vs/editor/common/core/characterClassifier';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { DocumentRangeFormattingEditProviderRegistry, OnTypeFormattingEditProviderRegistry, DocumentFormattingEditProviderRegistry } from 'vs/editor/common/modes';
+import { DocumentRangeFormattingEditProviderRegistry, OnTypeFormattingEditProviderRegistry } from 'vs/editor/common/modes';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { getOnTypeFormattingEdits, formatDocumentRangeUntilResult, formatDocumentWithProvider, formatDocumentRangeWithProvider, alertFormattingEdits } from 'vs/editor/contrib/format/format';
+import { getOnTypeFormattingEdits, formatDocumentRangeUntilResult, formatDocumentWithProvider, formatDocumentRangeWithProvider, alertFormattingEdits, getAllDocumentFormattersOrdered } from 'vs/editor/contrib/format/format';
 import { FormattingEdit } from 'vs/editor/contrib/format/formattingEdit';
 import * as nls from 'vs/nls';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
@@ -247,16 +247,10 @@ class FormatDocumentAction extends EditorAction {
 		}
 		const instaService = accessor.get(IInstantiationService);
 		const model = editor.getModel();
-		const [docFormatter] = DocumentFormattingEditProviderRegistry.ordered(model);
-		let didFormat = false;
-		if (docFormatter) {
-			didFormat = await instaService.invokeFunction(formatDocumentWithProvider, docFormatter, editor, CancellationToken.None);
+		const [provider] = getAllDocumentFormattersOrdered(model);
+		if (provider) {
+			await instaService.invokeFunction(formatDocumentWithProvider, provider, editor, CancellationToken.None);
 		}
-		if (didFormat) {
-			return;
-		}
-		const [rangeFormatter] = DocumentRangeFormattingEditProviderRegistry.ordered(model);
-		await instaService.invokeFunction(formatDocumentRangeWithProvider, rangeFormatter, editor, model.getFullModelRange(), CancellationToken.None);
 	}
 }
 
@@ -287,14 +281,13 @@ class FormatSelectionAction extends EditorAction {
 		}
 		const instaService = accessor.get(IInstantiationService);
 		const [best] = DocumentRangeFormattingEditProviderRegistry.ordered(editor.getModel());
-		if (!best) {
-			return;
+		if (best) {
+			let range: Range = editor.getSelection();
+			if (range.isEmpty()) {
+				range = new Range(range.startLineNumber, 1, range.startLineNumber, editor.getModel().getLineMaxColumn(range.startLineNumber));
+			}
+			await instaService.invokeFunction(formatDocumentRangeWithProvider, best, editor, range, CancellationToken.None);
 		}
-		let range: Range = editor.getSelection();
-		if (range.isEmpty()) {
-			range = new Range(range.startLineNumber, 1, range.startLineNumber, editor.getModel().getLineMaxColumn(range.startLineNumber));
-		}
-		await instaService.invokeFunction(formatDocumentRangeWithProvider, best, editor, range, CancellationToken.None);
 	}
 }
 

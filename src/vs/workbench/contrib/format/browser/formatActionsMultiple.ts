@@ -7,15 +7,14 @@ import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { DocumentRangeFormattingEditProviderRegistry, DocumentFormattingEditProviderRegistry } from 'vs/editor/common/modes';
+import { DocumentRangeFormattingEditProviderRegistry } from 'vs/editor/common/modes';
 import * as nls from 'vs/nls';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputService, IQuickPickItem, IQuickInputButton } from 'vs/platform/quickinput/common/quickInput';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { formatDocumentRangeWithProvider, formatDocumentWithProvider } from 'vs/editor/contrib/format/format';
+import { formatDocumentRangeWithProvider, formatDocumentWithProvider, getAllDocumentFormattersOrdered } from 'vs/editor/contrib/format/format';
 import { Range } from 'vs/editor/common/core/range';
 import { showExtensionQuery } from 'vs/workbench/contrib/format/browser/showExtensionQuery';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -59,39 +58,24 @@ registerEditorAction(class FormatDocumentMultipleAction extends EditorAction {
 		const viewletService = accessor.get(IViewletService);
 		const model = editor.getModel();
 
-		const rangeFormatter = DocumentRangeFormattingEditProviderRegistry.ordered(model);
-		const docFormatter = DocumentFormattingEditProviderRegistry.ordered(model);
-		const provider = [...rangeFormatter, ...docFormatter];
-		const seen = new Set<string>();
-		const picks: IIndexedPick[] = [];
-		provider.forEach((provider, index) => {
-			if (provider.extensionId) {
-				if (seen.has(ExtensionIdentifier.toKey(provider.extensionId))) {
-					return;
-				}
-				seen.add(ExtensionIdentifier.toKey(provider.extensionId));
-			}
-			picks.push({
+		const provider = getAllDocumentFormattersOrdered(model);
+		const picks = provider.map((provider, index) => {
+			return <IIndexedPick>{
 				index,
 				label: provider.displayName || '',
 				buttons: [openExtensionAction]
-			});
+			};
 		});
 
 		const pick = await quickPickService.pick(picks, {
 			placeHolder: nls.localize('format.placeHolder', "Select a formatter"),
 			onDidTriggerItemButton: (e) => {
-				const { extensionId } = (e.item.index < rangeFormatter.length ? rangeFormatter : docFormatter)[e.item.index];
+				const { extensionId } = provider[e.item.index];
 				return showExtensionQuery(viewletService, `@id:${extensionId!.value}`);
 			}
 		});
-		if (!pick) {
-			return;
-		}
-		if (pick.index < rangeFormatter.length) {
-			await instaService.invokeFunction(formatDocumentRangeWithProvider, rangeFormatter[pick.index], editor, model.getFullModelRange(), CancellationToken.None);
-		} else {
-			await instaService.invokeFunction(formatDocumentWithProvider, docFormatter[pick.index], editor, CancellationToken.None);
+		if (pick) {
+			await instaService.invokeFunction(formatDocumentWithProvider, provider[pick.index], editor, CancellationToken.None);
 		}
 	}
 });
@@ -147,10 +131,8 @@ registerEditorAction(class FormatSelectionMultipleAction extends EditorAction {
 				return showExtensionQuery(viewletService, `@id:${extensionId!.value}`);
 			}
 		});
-		if (!pick) {
-			return;
+		if (pick) {
+			await instaService.invokeFunction(formatDocumentRangeWithProvider, provider[pick.index], editor, range, CancellationToken.None);
 		}
-
-		await instaService.invokeFunction(formatDocumentRangeWithProvider, provider[pick.index], editor, range, CancellationToken.None);
 	}
 });

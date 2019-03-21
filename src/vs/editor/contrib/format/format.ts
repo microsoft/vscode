@@ -23,6 +23,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { FormattingEdit } from 'vs/editor/contrib/format/formattingEdit';
 import * as nls from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export function alertFormattingEdits(edits: ISingleEditOperation[]): void {
 
@@ -49,6 +50,39 @@ export function alertFormattingEdits(edits: ISingleEditOperation[]): void {
 			alert(nls.localize('hintnn', "Made {0} formatting edits between lines {1} and {2}", edits.length, startLineNumber, endLineNumber));
 		}
 	}
+}
+
+export function getAllDocumentFormattersOrdered(model: ITextModel): DocumentFormattingEditProvider[] {
+	const result: DocumentFormattingEditProvider[] = [];
+	const seen = new Set<string>();
+
+	// (1) add all document formatter
+	const docFormatter = DocumentFormattingEditProviderRegistry.ordered(model);
+	for (const formatter of docFormatter) {
+		result.push(formatter);
+		if (formatter.extensionId) {
+			seen.add(ExtensionIdentifier.toKey(formatter.extensionId));
+		}
+	}
+
+	// (2) add all range formatter as document formatter (unless the same extension already did that)
+	const rangeFormatter = DocumentRangeFormattingEditProviderRegistry.ordered(model);
+	for (const formatter of rangeFormatter) {
+		if (formatter.extensionId) {
+			if (seen.has(ExtensionIdentifier.toKey(formatter.extensionId))) {
+				continue;
+			}
+			seen.add(ExtensionIdentifier.toKey(formatter.extensionId));
+		}
+		result.push({
+			displayName: formatter.displayName,
+			extensionId: formatter.extensionId,
+			provideDocumentFormattingEdits(model, options, token) {
+				return formatter.provideDocumentRangeFormattingEdits(model, model.getFullModelRange(), options, token);
+			}
+		});
+	}
+	return result;
 }
 
 export async function formatDocumentRangeUntilResult(
