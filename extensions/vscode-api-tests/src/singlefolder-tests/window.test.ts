@@ -380,13 +380,13 @@ suite('window namespace tests', () => {
 		assert.equal(await two, 'notempty');
 	});
 
-
-	test('showQuickPick, accept first', async function () {
-		const pick = window.showQuickPick(['eins', 'zwei', 'drei']);
-		await new Promise(resolve => setTimeout(resolve, 10)); // Allow UI to update.
-		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
-		assert.equal(await pick, 'eins');
-	});
+	// TODO@chrmarti Disabled due to flaky behaviour (https://github.com/Microsoft/vscode/issues/70887)
+	// test('showQuickPick, accept first', async function () {
+	// 	const pick = window.showQuickPick(['eins', 'zwei', 'drei']);
+	// 	await new Promise(resolve => setTimeout(resolve, 10)); // Allow UI to update.
+	// 	await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+	// 	assert.equal(await pick, 'eins');
+	// });
 
 	test('showQuickPick, accept second', async function () {
 		const resolves: ((value: string) => void)[] = [];
