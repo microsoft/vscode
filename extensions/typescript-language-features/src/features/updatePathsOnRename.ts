@@ -22,6 +22,17 @@ const localize = nls.loadMessageBundle();
 
 const updateImportsOnFileMoveName = 'updateImportsOnFileMove.enabled';
 
+function isDirectory(path: string): Promise<boolean> {
+	return new Promise<boolean>((resolve, reject) => {
+		fs.stat(path, (err, stat) => {
+			if (err) {
+				return reject(err);
+			}
+			return resolve(stat.isDirectory());
+		});
+	});
+}
+
 enum UpdateImportsOnFileMoveSetting {
 	Prompt = 'prompt',
 	Always = 'always',
@@ -185,7 +196,7 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 			return undefined;
 		}
 
-		if (fs.lstatSync(resource.fsPath).isDirectory()) {
+		if (await isDirectory(resource.fsPath)) {
 			const files = await vscode.workspace.findFiles({
 				base: resource.fsPath,
 				pattern: '**/*.{ts,tsx,js,jsx}',
