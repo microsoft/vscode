@@ -250,6 +250,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	}
 
 	public async getLatency(): Promise<number> {
+		await this.ptyProcessReady;
 		if (!this._process) {
 			return Promise.resolve(0);
 		}
