@@ -26,7 +26,6 @@ interface IAsyncDataTreeNode<TInput, T> {
 	hasChildren: boolean;
 	stale: boolean;
 	slow: boolean;
-	disposed: boolean;
 }
 
 interface IAsyncDataTreeNodeRequiredProps<TInput, T> extends Partial<IAsyncDataTreeNode<TInput, T>> {
@@ -41,7 +40,6 @@ function createAsyncDataTreeNode<TInput, T>(props: IAsyncDataTreeNodeRequiredPro
 		children: [],
 		loading: false,
 		stale: true,
-		disposed: false,
 		slow: false
 	};
 }
@@ -272,6 +270,11 @@ interface IAsyncDataTreeViewStateContext<TInput, T> {
 	readonly viewState: IAsyncDataTreeViewState;
 	readonly selection: IAsyncDataTreeNode<TInput, T>[];
 	readonly focus: IAsyncDataTreeNode<TInput, T>[];
+}
+
+function dfs<TInput, T>(node: IAsyncDataTreeNode<TInput, T>, fn: (node: IAsyncDataTreeNode<TInput, T>) => void): void {
+	fn(node);
+	node.children.forEach(child => dfs(child, fn));
 }
 
 export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable {
@@ -629,11 +632,6 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	}
 
 	private async refreshNode(node: IAsyncDataTreeNode<TInput, T>, recursive: boolean, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>): Promise<void> {
-		if (node.disposed) {
-			console.error('Async data tree node is disposed');
-			return;
-		}
-
 		let result: Promise<void> | undefined;
 
 		this.subTreeRefreshPromises.forEach((refreshPromise, refreshNode) => {
@@ -748,29 +746,49 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			return [];
 		}
 
-		const nodeChildren = new Map<T, IAsyncDataTreeNode<TInput, T>>();
+		const nodesToForget = new Map<T, IAsyncDataTreeNode<TInput, T>>();
+		const childrenTreeNodesById = new Map<string, ITreeNode<IAsyncDataTreeNode<TInput, T> | null, TFilterData>>();
 
 		for (const child of node.children) {
-			nodeChildren.set(child.element as T, child);
+			nodesToForget.set(child.element as T, child);
+
+			if (this.identityProvider) {
+				childrenTreeNodesById.set(child.id!, this.tree.getNode(child));
+			}
 		}
 
-		let childrenToRefresh: IAsyncDataTreeNode<TInput, T>[] = [];
+		const childrenToRefresh: IAsyncDataTreeNode<TInput, T>[] = [];
 
 		const children = childrenElements.map<IAsyncDataTreeNode<TInput, T>>(element => {
-			const asyncDataTreeNode = nodeChildren.get(element);
+			if (!this.identityProvider) {
+				return createAsyncDataTreeNode({
+					element,
+					parent: node,
+					hasChildren: !!this.dataSource.hasChildren(element)
+				});
+			}
 
-			if (asyncDataTreeNode) {
+			const id = this.identityProvider.getId(element).toString();
+			const childNode = childrenTreeNodesById.get(id);
+
+			if (childNode) {
+				const asyncDataTreeNode = childNode.element!;
+
+				nodesToForget.delete(asyncDataTreeNode.element as T);
+				this.nodes.delete(asyncDataTreeNode.element as T);
+				this.nodes.set(element, asyncDataTreeNode);
+
+				asyncDataTreeNode.element = element;
 				asyncDataTreeNode.stale = asyncDataTreeNode.stale || recursive;
 				asyncDataTreeNode.hasChildren = !!this.dataSource.hasChildren(element);
 
-				if (recursive && !this.tree.isCollapsed(asyncDataTreeNode)) {
+				if (recursive && !childNode.collapsed) {
 					childrenToRefresh.push(asyncDataTreeNode);
 				}
 
 				return asyncDataTreeNode;
 			}
 
-			const id = this.identityProvider && this.identityProvider.getId(element).toString();
 			const childAsyncDataTreeNode = createAsyncDataTreeNode({
 				element,
 				parent: node,
@@ -778,22 +796,28 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 				hasChildren: !!this.dataSource.hasChildren(element)
 			});
 
-			if (id) {
-				if (viewStateContext && viewStateContext.viewState.focus && viewStateContext.viewState.focus.indexOf(id) > -1) {
-					viewStateContext.focus.push(childAsyncDataTreeNode);
-				}
+			if (viewStateContext && viewStateContext.viewState.focus && viewStateContext.viewState.focus.indexOf(id) > -1) {
+				viewStateContext.focus.push(childAsyncDataTreeNode);
+			}
 
-				if (viewStateContext && viewStateContext.viewState.selection && viewStateContext.viewState.selection.indexOf(id) > -1) {
-					viewStateContext.selection.push(childAsyncDataTreeNode);
-				}
+			if (viewStateContext && viewStateContext.viewState.selection && viewStateContext.viewState.selection.indexOf(id) > -1) {
+				viewStateContext.selection.push(childAsyncDataTreeNode);
+			}
 
-				if (viewStateContext && viewStateContext.viewState.expanded && viewStateContext.viewState.expanded.indexOf(id) > -1) {
-					childrenToRefresh.push(childAsyncDataTreeNode);
-				}
+			if (viewStateContext && viewStateContext.viewState.expanded && viewStateContext.viewState.expanded.indexOf(id) > -1) {
+				childrenToRefresh.push(childAsyncDataTreeNode);
 			}
 
 			return childAsyncDataTreeNode;
 		});
+
+		for (const node of nodesToForget.values()) {
+			dfs(node, node => this.nodes.delete(node.element as T));
+		}
+
+		for (const child of children) {
+			this.nodes.set(child.element as T, child);
+		}
 
 		node.children.splice(0, node.children.length, ...children);
 
@@ -801,29 +825,8 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	}
 
 	private render(node: IAsyncDataTreeNode<TInput, T>, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>): void {
-		const insertedElements = new Set<T>();
-
-		const onDidCreateNode = (treeNode: ITreeNode<IAsyncDataTreeNode<TInput, T>, TFilterData>) => {
-			if (treeNode.element.element) {
-				insertedElements.add(treeNode.element.element as T);
-				this.nodes.set(treeNode.element.element as T, treeNode.element);
-			}
-		};
-
-		const onDidDeleteNode = (treeNode: ITreeNode<IAsyncDataTreeNode<TInput, T>, TFilterData>) => {
-			if (treeNode.element.element) {
-				if (!insertedElements.has(treeNode.element.element as T)) {
-					treeNode.element.disposed = true;
-					this.nodes.delete(treeNode.element.element as T);
-				}
-			}
-		};
-
 		const children = node.children.map(c => asTreeElement(c, viewStateContext));
-		this.tree.setChildren(node === this.root ? null : node, children, onDidCreateNode, onDidDeleteNode);
-
-		console.log(this.nodes.size);
-
+		this.tree.setChildren(node === this.root ? null : node, children);
 		this._onDidRender.fire();
 	}
 
