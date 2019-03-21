@@ -388,7 +388,7 @@ export class CodeApplication extends Disposable {
 		this.logService.info(`Tracing: waiting for windows to get ready...`);
 
 		let recordingStopped = false;
-		const stopRecording = (timeout) => {
+		const stopRecording = (timeout: boolean) => {
 			if (recordingStopped) {
 				return;
 			}

@@ -326,6 +326,6 @@ export const defaultMenuStyles = <IMenuStyleOverrides>{
 	separatorColor: menuSeparatorBackground
 };
 
-export function attachMenuStyler(widget: IThemable, themeService, style?: IMenuStyleOverrides): IDisposable {
+export function attachMenuStyler(widget: IThemable, themeService: IThemeService, style?: IMenuStyleOverrides): IDisposable {
 	return attachStyler(themeService, { ...defaultMenuStyles, ...style }, widget);
 }

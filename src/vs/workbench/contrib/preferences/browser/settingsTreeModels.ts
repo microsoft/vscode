@@ -378,7 +378,7 @@ function wordifyKey(key: string): string {
 }
 
 function trimCategoryForGroup(category: string, groupId: string): string {
-	const doTrim = forward => {
+	const doTrim = (forward: boolean) => {
 		const parts = groupId.split('.');
 		while (parts.length) {
 			const reg = new RegExp(`^${parts.join('\\.')}(\\.|$)`, 'i');

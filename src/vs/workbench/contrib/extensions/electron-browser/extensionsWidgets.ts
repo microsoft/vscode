@@ -12,7 +12,7 @@ import { localize } from 'vs/nls';
 import { IExtensionManagementServerService, IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { extensionButtonProminentBackground, extensionButtonProminentForeground } from 'vs/workbench/contrib/extensions/electron-browser/extensionsActions';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { STATUS_BAR_HOST_NAME_BACKGROUND, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_FOREGROUND } from 'vs/workbench/common/theme';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
@@ -178,7 +178,7 @@ export class RecommendationWidget extends ExtensionWidget {
 			this.element = append(this.parent, $('div.bookmark'));
 			const recommendation = append(this.element, $('.recommendation'));
 			append(recommendation, $('span.octicon.octicon-star'));
-			const applyBookmarkStyle = (theme) => {
+			const applyBookmarkStyle = (theme: ITheme) => {
 				const bgColor = theme.getColor(extensionButtonProminentBackground);
 				const fgColor = theme.getColor(extensionButtonProminentForeground);
 				recommendation.style.borderTopColor = bgColor ? bgColor.toString() : 'transparent';

@@ -101,7 +101,7 @@ class WebviewSession extends Disposable {
 		this._onBeforeRequestDelegates.push(delegate);
 	}
 
-	public onHeadersReceived(delegate) {
+	public onHeadersReceived(delegate: OnHeadersReceivedDelegate) {
 		this._onHeadersReceivedDelegates.push(delegate);
 	}
 }
@@ -582,7 +582,7 @@ export class WebviewElement extends Disposable {
 		if (!window || !window.webContents || window.webContents.isDestroyed()) {
 			return;
 		}
-		window.webContents.getZoomFactor(factor => {
+		window.webContents.getZoomFactor((factor: number) => {
 			if (contents.isDestroyed()) {
 				return;
 			}

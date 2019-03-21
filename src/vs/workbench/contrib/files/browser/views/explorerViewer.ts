@@ -67,7 +67,7 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 		@INotificationService private readonly notificationService: INotificationService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IFileService private readonly fileService: IFileService,
-		@IExplorerService private readonly explorerService
+		@IExplorerService private readonly explorerService: IExplorerService
 	) { }
 
 	hasChildren(element: ExplorerItem | ExplorerItem[]): boolean {

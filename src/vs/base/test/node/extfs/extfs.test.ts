@@ -17,7 +17,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 const ignore = () => { };
 
-const mkdirp = (path: string, mode: number, callback: (error) => void) => {
+const mkdirp = (path: string, mode: number, callback: (error: any) => void) => {
 	extfs.mkdirp(path, mode).then(() => callback(null), error => callback(error));
 };
 

@@ -52,7 +52,7 @@ export class SelectColorThemeAction extends Action {
 				configurationEntries(this.extensionGalleryService, localize('installColorThemes', "Install Additional Color Themes..."))
 			);
 
-			const selectTheme = (theme, applyTheme: boolean) => {
+			const selectTheme = (theme: IColorTheme, applyTheme: boolean) => {
 				if (typeof theme.id === 'undefined') { // 'pick in marketplace' entry
 					if (applyTheme) {
 						openExtensionViewlet(this.viewletService, 'category:themes ');

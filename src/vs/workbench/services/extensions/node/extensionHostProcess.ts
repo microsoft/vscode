@@ -23,7 +23,7 @@ import { exit, ExtensionHostMain } from 'vs/workbench/services/extensions/node/e
 	const Module = require.__$__nodeRequire('module') as any;
 	const originalLoad = Module._load;
 
-	Module._load = function (request) {
+	Module._load = function (request: string) {
 		if (request === 'natives') {
 			throw new Error('Either the extension or a NPM dependency is using the "natives" node module which is unsupported as it can cause a crash of the extension host. Click [here](https://go.microsoft.com/fwlink/?linkid=871887) to find out more');
 		}
