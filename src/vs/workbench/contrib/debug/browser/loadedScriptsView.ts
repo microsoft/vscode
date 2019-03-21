@@ -33,8 +33,12 @@ import { WorkbenchAsyncDataTree, TreeResourceNavigator2 } from 'vs/platform/list
 import { dispose } from 'vs/base/common/lifecycle';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
 import { DebugContentProvider } from 'vs/workbench/contrib/debug/common/debugContentProvider';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 const SMART = true;
+
+// RFC 2396, Appendix A: https://www.ietf.org/rfc/rfc2396.txt
+const URI_SCHEMA_PATTERN = /^[a-zA-Z][a-zA-Z0-9\+\-\.]+:/;
 
 type LoadedScriptsItem = BaseTreeItem;
 
@@ -217,7 +221,7 @@ class RootFolderTreeItem extends BaseTreeItem {
 
 class RootTreeItem extends BaseTreeItem {
 
-	constructor(private _debugModel: IDebugModel, private _environmentService: IEnvironmentService, private _contextService: IWorkspaceContextService) {
+	constructor(private _debugModel: IDebugModel, private _environmentService: IEnvironmentService, private _contextService: IWorkspaceContextService, private _labelService: ILabelService) {
 		super(undefined, 'Root');
 		this._debugModel.getSessions().forEach(session => {
 			this.add(session);
@@ -225,7 +229,7 @@ class RootTreeItem extends BaseTreeItem {
 	}
 
 	add(session: IDebugSession): SessionTreeItem {
-		return this.createIfNeeded(session.getId(), () => new SessionTreeItem(this, session, this._environmentService, this._contextService));
+		return this.createIfNeeded(session.getId(), () => new SessionTreeItem(this._labelService, this, session, this._environmentService, this._contextService));
 	}
 
 	find(session: IDebugSession): SessionTreeItem {
@@ -240,9 +244,11 @@ class SessionTreeItem extends BaseTreeItem {
 	private _session: IDebugSession;
 	private _initialized: boolean;
 	private _map: Map<string, BaseTreeItem>;
+	private _labelService: ILabelService;
 
-	constructor(parent: BaseTreeItem, session: IDebugSession, private _environmentService: IEnvironmentService, private rootProvider: IWorkspaceContextService) {
+	constructor(labelService: ILabelService, parent: BaseTreeItem, session: IDebugSession, private _environmentService: IEnvironmentService, private rootProvider: IWorkspaceContextService) {
 		super(parent, session.getLabel());
+		this._labelService = labelService;
 		this._initialized = false;
 		this._session = session;
 		this._map = new Map();
@@ -307,6 +313,10 @@ class SessionTreeItem extends BaseTreeItem {
 		let path = source.raw.path;
 		if (!path) {
 			return;
+		}
+
+		if (this._labelService && URI_SCHEMA_PATTERN.test(path)) {
+			path = this._labelService.getUriLabel(URI.parse(path));
 		}
 
 		const match = SessionTreeItem.URL_REGEXP.exec(path);
@@ -390,6 +400,7 @@ export class LoadedScriptsView extends ViewletPanel {
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IDebugService private readonly debugService: IDebugService,
+		@ILabelService private readonly labelService: ILabelService
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('loadedScriptsSection', "Loaded Scripts Section") }, keybindingService, contextMenuService, configurationService);
 		this.loadedScriptsItemType = CONTEXT_LOADED_SCRIPTS_ITEM_TYPE.bindTo(contextKeyService);
@@ -403,7 +414,7 @@ export class LoadedScriptsView extends ViewletPanel {
 
 		this.filter = new LoadedScriptsFilter();
 
-		const root = new RootTreeItem(this.debugService.getModel(), this.environmentService, this.contextService);
+		const root = new RootTreeItem(this.debugService.getModel(), this.environmentService, this.contextService, this.labelService);
 
 		this.treeLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility } as IResourceLabelsContainer);
 		this.disposables.push(this.treeLabels);
