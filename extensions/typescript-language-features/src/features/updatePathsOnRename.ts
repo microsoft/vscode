@@ -51,13 +51,10 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 		oldResource: vscode.Uri,
 		newResource: vscode.Uri,
 	): Promise<void> {
-		const targetResource = await this.getTargetResource(newResource);
-		if (!targetResource) {
-			return;
-		}
-
-		const targetFile = this.client.toPath(targetResource);
-		if (!targetFile) {
+		// Try to get a js/ts file that is being moved
+		// For directory moves, this returns a js/ts file under the directory.
+		const jsTsFileThatIsBeingMoved = await this.getJsTsFileBeingMoved(newResource);
+		if (!jsTsFileThatIsBeingMoved || !this.client.toPath(jsTsFileThatIsBeingMoved)) {
 			return;
 		}
 
@@ -71,7 +68,7 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 			return;
 		}
 
-		const document = await vscode.workspace.openTextDocument(targetResource);
+		const document = await vscode.workspace.openTextDocument(jsTsFileThatIsBeingMoved);
 
 		const config = this.getConfiguration(document);
 		const setting = config.get<UpdateImportsOnFileMoveSetting>(updateImportsOnFileMoveName);
@@ -103,7 +100,7 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 			}
 		}
 
-		const edits = await this.getEditsForFileRename(targetFile, document, oldFile, newFile);
+		const edits = await this.getEditsForFileRename(document, oldFile, newFile);
 		if (!edits || !edits.size) {
 			return;
 		}
@@ -204,16 +201,12 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 		return false;
 	}
 
-	private async getTargetResource(resource: vscode.Uri): Promise<vscode.Uri | undefined> {
+	private async getJsTsFileBeingMoved(resource: vscode.Uri): Promise<vscode.Uri | undefined> {
 		if (resource.scheme !== fileSchemes.file) {
 			return undefined;
 		}
 
 		const isDirectory = fs.lstatSync(resource.fsPath).isDirectory();
-		if (isDirectory && this.client.apiVersion.gte(API.v300)) {
-			return resource;
-		}
-
 		if (isDirectory && this.client.apiVersion.gte(API.v292)) {
 			const files = await vscode.workspace.findFiles({
 				base: resource.fsPath,
@@ -226,7 +219,6 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 	}
 
 	private async getEditsForFileRename(
-		targetResource: string,
 		document: vscode.TextDocument,
 		oldFile: string,
 		newFile: string,
@@ -235,8 +227,7 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 
 		const response = await this.client.interruptGetErr(() => {
 			this.fileConfigurationManager.setGlobalConfigurationFromDocument(document, nulToken);
-			const args: Proto.GetEditsForFileRenameRequestArgs & { file: string } = {
-				file: targetResource,
+			const args: Proto.GetEditsForFileRenameRequestArgs = {
 				oldFilePath: oldFile,
 				newFilePath: newFile,
 			};
