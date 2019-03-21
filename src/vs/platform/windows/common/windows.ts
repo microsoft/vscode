@@ -182,6 +182,7 @@ export interface IOpenSettings {
 	forceOpenWorkspaceAsFile?: boolean;
 	diffMode?: boolean;
 	addMode?: boolean;
+	noRecentEntry?: boolean;
 	args?: ParsedArgs;
 }
 

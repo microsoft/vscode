@@ -273,7 +273,7 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 		});
 	}
 
-	async openWindow(windowId: number, urisToOpen: IURIToOpen[], options?: IOpenSettings): Promise<void> {
+	async openWindow(windowId: number, urisToOpen: IURIToOpen[], options: IOpenSettings = {}): Promise<void> {
 		this.logService.trace('windowsService#openWindow');
 		if (!urisToOpen || !urisToOpen.length) {
 			return undefined;
@@ -283,12 +283,13 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 			context: OpenContext.API,
 			contextWindowId: windowId,
 			urisToOpen: urisToOpen,
-			cli: options && options.args ? { ...this.environmentService.args, ...options.args } : this.environmentService.args,
-			forceNewWindow: options && options.forceNewWindow,
-			forceReuseWindow: options && options.forceReuseWindow,
-			forceOpenWorkspaceAsFile: options && options.forceOpenWorkspaceAsFile,
-			diffMode: options && options.diffMode,
-			addMode: options && options.addMode
+			cli: options.args ? { ...this.environmentService.args, ...options.args } : this.environmentService.args,
+			forceNewWindow: options.forceNewWindow,
+			forceReuseWindow: options.forceReuseWindow,
+			forceOpenWorkspaceAsFile: options.forceOpenWorkspaceAsFile,
+			diffMode: options.diffMode,
+			addMode: options.addMode,
+			noRecentEntry: options.noRecentEntry
 		});
 	}
 

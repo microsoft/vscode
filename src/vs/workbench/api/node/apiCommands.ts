@@ -48,10 +48,7 @@ export class OpenFolderAPICommand {
 		if (!uri) {
 			return executor.executeCommand('_files.pickFolderAndOpen', arg.forceNewWindow);
 		}
-		const options: IOpenSettings = { forceNewWindow: arg.forceNewWindow };
-		if (arg.noRecentEntry) {
-			options.args = { _: [], 'skip-add-to-recently-opened': true };
-		}
+		const options: IOpenSettings = { forceNewWindow: arg.forceNewWindow, noRecentEntry: arg.noRecentEntry };
 		uri = URI.revive(uri);
 		return executor.executeCommand('_files.windowOpen', [{ uri, label: arg.recentEntryLabel }], options);
 	}
