@@ -41,7 +41,11 @@ parts:
       - libxtst6
       - zlib1g
     prime:
-      - -usr/share/dh-python
+      - -usr/share/doc
+      - -usr/share/fonts
+      - -usr/share/icons
+      - -usr/share/lintian
+      - -usr/share/man
 
 apps:
   @@NAME@@:
