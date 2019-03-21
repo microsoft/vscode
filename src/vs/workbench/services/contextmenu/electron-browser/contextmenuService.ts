@@ -25,7 +25,6 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { ContextMenuService as HTMLContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 
 export class ContextMenuService extends Disposable implements IContextMenuService {
 
@@ -42,14 +41,13 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
 		@IConfigurationService configurationService: IConfigurationService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IContextViewService contextViewService: IContextViewService,
-		@IThemeService themeService: IThemeService,
-		@ILayoutService layoutService: ILayoutService
+		@IThemeService themeService: IThemeService
 	) {
 		super();
 
 		// Custom context menu: Linux/Windows if custom title is enabled
 		if (!isMacintosh && getTitleBarStyle(configurationService, environmentService) === 'custom') {
-			this.impl = new HTMLContextMenuService(layoutService, telemetryService, notificationService, contextViewService, keybindingService, themeService);
+			this.impl = new HTMLContextMenuService(telemetryService, notificationService, contextViewService, keybindingService, themeService);
 		}
 
 		// Native context menu: otherwise

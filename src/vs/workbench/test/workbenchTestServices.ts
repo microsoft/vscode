@@ -506,10 +506,6 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 		return false;
 	}
 
-	public get hasWorkbench(): boolean {
-		return true;
-	}
-
 	public setEditorHidden(_hidden: boolean): Promise<void> { return Promise.resolve(); }
 
 	public setSideBarHidden(_hidden: boolean): Promise<void> { return Promise.resolve(); }
@@ -1018,7 +1014,7 @@ export class TestFileService implements IFileService {
 
 	onDidChangeFileSystemProviderRegistrations = Event.None;
 
-	registerProvider(_scheme: string) {
+	registerProvider(_scheme: string, _provider) {
 		return { dispose() { } };
 	}
 

@@ -76,8 +76,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private _container: HTMLElement = document.createElement('div');
 	get container(): HTMLElement { return this._container; }
 
-	get hasWorkbench(): boolean { return true; }
-
 	private parts: Map<string, Part> = new Map<string, Part>();
 
 	private workbenchGrid: Grid<View> | WorkbenchLegacyLayout;

@@ -202,7 +202,12 @@ export class DynamicStandaloneServices extends Disposable {
 
 		let contextViewService = ensure(IContextViewService, () => this._register(new ContextViewService(layoutService)));
 
-		ensure(IContextMenuService, () => this._register(new ContextMenuService(layoutService, telemetryService, notificationService, contextViewService, keybindingService, themeService)));
+		ensure(IContextMenuService, () => {
+			const contextMenuService = new ContextMenuService(telemetryService, notificationService, contextViewService, keybindingService, themeService);
+			contextMenuService.configure({ blockMouse: false }); // we do not want that in the standalone editor
+
+			return this._register(contextMenuService);
+		});
 
 		ensure(IMenuService, () => new MenuService(commandService));
 
