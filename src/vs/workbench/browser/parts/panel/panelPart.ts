@@ -30,7 +30,7 @@ import { Dimension, trackFocus } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { isUndefinedOrNull } from 'vs/base/common/types';
+import { isUndefinedOrNull, withUndefinedAsNull } from 'vs/base/common/types';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { LayoutPriority } from 'vs/base/browser/ui/grid/gridview';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -222,7 +222,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			}
 		}
 
-		return this.openComposite(id, focus) || null;
+		return withUndefinedAsNull(this.openComposite(id, focus));
 	}
 
 	showActivity(panelId: string, badge: IBadge, clazz?: string): IDisposable {

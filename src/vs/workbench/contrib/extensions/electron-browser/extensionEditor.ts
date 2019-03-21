@@ -51,7 +51,7 @@ import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { getDefaultValue } from 'vs/platform/configuration/common/configurationRegistry';
-import { isUndefined } from 'vs/base/common/types';
+import { isUndefined, withUndefinedAsNull } from 'vs/base/common/types';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 
 function renderBody(body: string): string {
@@ -712,7 +712,7 @@ export class ExtensionEditor extends BaseEditor {
 
 			constructor(extension: IExtension, parent?: IExtensionData) {
 				this.extension = extension;
-				this.parent = parent || null;
+				this.parent = withUndefinedAsNull(parent);
 			}
 
 			get hasChildren(): boolean {

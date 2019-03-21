@@ -42,6 +42,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import product from 'vs/platform/product/node/product';
 import { IEncodingOverride, ResourceEncodings } from 'vs/workbench/services/files/node/encoding';
 import { createReadableOfSnapshot } from 'vs/workbench/services/files/node/streams';
+import { withUndefinedAsNull } from 'vs/base/common/types';
 
 export interface IFileServiceTestOptions {
 	disableWatcher?: boolean;
@@ -464,7 +465,7 @@ export class FileService extends Disposable implements ILegacyFileService, IFile
 					}
 				};
 
-				let currentPosition: number | null = (options && options.position) || null;
+				let currentPosition: number | null = withUndefinedAsNull(options && options.position);
 
 				const readChunk = () => {
 					fs.read(fd, chunkBuffer, 0, chunkBuffer.length, currentPosition, (err, bytesRead) => {

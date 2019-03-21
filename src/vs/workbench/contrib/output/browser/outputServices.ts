@@ -27,6 +27,7 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IOutputChannelModel, IOutputChannelModelService } from 'vs/workbench/services/output/common/outputChannelModel';
+import { withUndefinedAsNull } from 'vs/base/common/types';
 
 const OUTPUT_ACTIVE_CHANNEL_KEY = 'output.activechannel';
 
@@ -141,7 +142,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 	}
 
 	getChannel(id: string): OutputChannel | null {
-		return this.channels.get(id) || null;
+		return withUndefinedAsNull(this.channels.get(id));
 	}
 
 	getChannelDescriptors(): IOutputChannelDescriptor[] {

@@ -27,6 +27,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { ITextModel } from 'vs/editor/common/model';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { withUndefinedAsNull } from 'vs/base/common/types';
 
 export const enum ConfigurationEditingErrorCode {
 
@@ -504,7 +505,7 @@ export class ConfigurationEditingService {
 
 			if (target === ConfigurationTarget.WORKSPACE) {
 				if (workbenchState === WorkbenchState.WORKSPACE) {
-					return workspace.configuration || null;
+					return withUndefinedAsNull(workspace.configuration);
 				}
 				if (workbenchState === WorkbenchState.FOLDER) {
 					return workspace.folders[0].toResource(relativePath);

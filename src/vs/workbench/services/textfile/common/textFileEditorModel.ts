@@ -9,7 +9,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { guessMimeTypes } from 'vs/base/common/mime';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { URI } from 'vs/base/common/uri';
-import { isUndefinedOrNull } from 'vs/base/common/types';
+import { isUndefinedOrNull, withUndefinedAsNull } from 'vs/base/common/types';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorModel, ISaveOptions, ISaveErrorHandler, ISaveParticipant, StateChange, SaveReason, IRawTextContent, ILoadOptions, LoadReason, IResolvedTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
@@ -492,7 +492,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			return Promise.resolve(null);
 		}
 
-		return this.backupFileService.resolveBackupContent(backup).then(backupContent => backupContent || null, error => null /* ignore errors */);
+		return this.backupFileService.resolveBackupContent(backup).then(withUndefinedAsNull, error => null /* ignore errors */);
 	}
 
 	protected getOrCreateMode(modeService: IModeService, preferredModeIds: string | undefined, firstLineText?: string): ILanguageSelection {

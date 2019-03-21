@@ -783,7 +783,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 	}
 
 	getResource(): URI | null {
-		return this.resource || null;
+		return types.withUndefinedAsNull(this.resource);
 	}
 
 	getInput(): IEditorInput | IResourceInput {

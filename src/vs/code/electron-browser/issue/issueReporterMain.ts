@@ -39,6 +39,7 @@ import { ILogService, getLogLevel } from 'vs/platform/log/common/log';
 import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { normalizeGitHubUrl } from 'vs/code/electron-browser/issue/issueReporterUtil';
 import { Button } from 'vs/base/browser/ui/button/button';
+import { withUndefinedAsNull } from 'vs/base/common/types';
 
 const MAX_URL_LENGTH = platform.isWindows ? 2081 : 5400;
 
@@ -211,7 +212,7 @@ export class IssueReporter extends Disposable {
 
 		styleTag.innerHTML = content.join('\n');
 		document.head.appendChild(styleTag);
-		document.body.style.color = styles.color || null;
+		document.body.style.color = withUndefinedAsNull(styles.color);
 	}
 
 	private handleExtensionData(extensions: IssueReporterExtensionData[]) {
