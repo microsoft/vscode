@@ -5,20 +5,30 @@
 
 import * as nls from 'vs/nls';
 
-import * as crypto from 'crypto';
-
 import * as Objects from 'vs/base/common/objects';
 
 import { TaskIdentifier, KeyedTaskIdentifier, TaskDefinition } from 'vs/workbench/contrib/tasks/common/tasks';
 import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
 
 namespace KeyedTaskIdentifier {
-	export function create(value: TaskIdentifier): KeyedTaskIdentifier {
-		const hash = crypto.createHash('md5');
-		hash.update(JSON.stringify(value));
-		let result = { _key: hash.digest('hex'), type: value.taskType };
-		Objects.assign(result, value);
+	function sortedStringify(literal: any): string {
+		const keys = Object.keys(literal).sort();
+		let result: string = '';
+		for (let position in keys) {
+			let stringified = literal[keys[position]];
+			if (stringified instanceof Object) {
+				stringified = sortedStringify(test);
+			} else if (typeof stringified === 'string') {
+				stringified = stringified.replace(/,/g, ',,');
+			}
+			result += keys[position] + ',' + stringified + ',';
+		}
 		return result;
+	}
+	export function create(value: TaskIdentifier): KeyedTaskIdentifier {
+		const resultKey = sortedStringify(value);
+		console.log(resultKey);
+		return { _key: resultKey, type: value.taskType };
 	}
 }
 
