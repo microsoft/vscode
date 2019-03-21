@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 
-# Create $XDG_RUNTIME_DIR if it doesn't exist
+# On Fedora $SNAP is under /var and there is some magic to map it to /snap.
+# We need to handle that case and reset $SNAP
+SNAP=$(echo $SNAP | sed -e "s|/var/lib/snapd||g")
+# Create $XDG_RUNTIME_DIR if not exists (to be removed when https://pad.lv/1656340 is fixed)
 [ -n "$XDG_RUNTIME_DIR" ] && mkdir -p $XDG_RUNTIME_DIR -m 700
 
 exec "$@"
