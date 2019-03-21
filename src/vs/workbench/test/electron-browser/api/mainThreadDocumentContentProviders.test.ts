@@ -28,7 +28,7 @@ suite('MainThreadDocumentContentProviders', function () {
 				}
 			},
 			new class extends mock<IEditorWorkerService>() {
-				computeMoreMinimalEdits(_uri: URI, data: TextEdit[] | null | undefined) {
+				computeMoreMinimalEdits(_uri: URI, data: TextEdit[] | undefined) {
 					assert.equal(model.getValue(), '1');
 					return Promise.resolve(data);
 				}
