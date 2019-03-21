@@ -522,7 +522,7 @@ export class ExplorerView extends ViewletPanel {
 			item = first(values(item.children), i => isEqualOrParent(resource, i.resource));
 		}
 
-		if (item) {
+		if (item && item.parent) {
 			if (reveal) {
 				this.tree.reveal(item, 0.5);
 			}
