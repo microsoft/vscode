@@ -270,6 +270,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 					resource: this.resource,
 					name: basename(this.resource),
 					mtime: Date.now(),
+					size: 0,
 					etag: etag(Date.now(), 0),
 					value: createTextBufferFactory(''), /* will be filled later from backup */
 					encoding: this.fileService.encoding.getWriteEncoding(this.resource, this.preferredEncoding).encoding,
@@ -349,6 +350,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	private loadWithContent(content: IRawTextContent, options?: ILoadOptions, backup?: URI): Promise<TextFileEditorModel> {
 		return this.doLoadWithContent(content, backup).then(model => {
+
 			// Telemetry: We log the fileGet telemetry event after the model has been loaded to ensure a good mimetype
 			const settingsType = this.getTypeIfSettings();
 			if (settingsType) {
@@ -381,11 +383,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			resource: this.resource,
 			name: content.name,
 			mtime: content.mtime,
-			size: -1,
+			size: content.size,
 			etag: content.etag,
 			isDirectory: false,
 			isSymbolicLink: false,
-			children: undefined,
 			isReadonly: content.isReadonly
 		});
 

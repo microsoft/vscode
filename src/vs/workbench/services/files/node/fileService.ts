@@ -228,6 +228,7 @@ export class FileService extends Disposable implements ILegacyFileService, IFile
 					etag: streamContent.etag,
 					encoding: streamContent.encoding,
 					isReadonly: streamContent.isReadonly,
+					size: streamContent.size,
 					value: ''
 				};
 
@@ -279,6 +280,7 @@ export class FileService extends Disposable implements ILegacyFileService, IFile
 			result.name = stat.name;
 			result.mtime = stat.mtime;
 			result.etag = stat.etag;
+			result.size = stat.size;
 
 			// Return early if resource is a directory
 			if (stat.isDirectory) {

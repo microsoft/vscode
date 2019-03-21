@@ -251,7 +251,8 @@ export class TestTextFileService extends TextFileService {
 				mtime: content.mtime,
 				etag: content.etag,
 				encoding: content.encoding,
-				value: createTextBufferFactory(content.value)
+				value: createTextBufferFactory(content.value),
+				size: content.value.length
 			};
 		});
 	}
@@ -961,7 +962,8 @@ export class TestFileService implements IFileService {
 			etag: 'index.txt',
 			encoding: 'utf8',
 			mtime: Date.now(),
-			name: resources.basename(resource)
+			name: resources.basename(resource),
+			size: 1
 		});
 	}
 
@@ -981,6 +983,7 @@ export class TestFileService implements IFileService {
 			etag: 'index.txt',
 			encoding: 'utf8',
 			mtime: Date.now(),
+			size: 1,
 			name: resources.basename(resource)
 		});
 	}

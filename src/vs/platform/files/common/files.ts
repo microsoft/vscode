@@ -500,6 +500,14 @@ interface IBaseStat {
 	name: string;
 
 	/**
+	 * The size of the file.
+	 *
+	 * The value may or may not be resolved as
+	 * it is optional.
+	 */
+	size?: number;
+
+	/**
 	 * The last modifictaion date represented
 	 * as millis from unix epoch.
 	 *
@@ -526,6 +534,7 @@ interface IBaseStat {
 export interface IBaseStatWithMetadata extends IBaseStat {
 	mtime: number;
 	etag: string;
+	size: number;
 }
 
 /**
@@ -548,14 +557,6 @@ export interface IFileStat extends IBaseStat {
 	 * The children of the file stat or undefined if none.
 	 */
 	children?: IFileStat[];
-
-	/**
-	 * The size of the file.
-	 *
-	 * The value may or may not be resolved as
-	 * it is optional.
-	 */
-	size?: number;
 }
 
 export interface IFileStatWithMetadata extends IFileStat, IBaseStatWithMetadata {

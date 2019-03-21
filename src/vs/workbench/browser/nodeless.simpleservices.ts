@@ -736,7 +736,9 @@ export class SimpleRemoteFileService implements IFileService {
 				// @ts-ignore
 				mtime: content.mtime,
 				// @ts-ignore
-				name: content.name
+				name: content.name,
+				// @ts-ignore
+				size: content.size
 			};
 		});
 	}
@@ -860,7 +862,8 @@ function initFakeFileSystem(): void {
 		mtime: Date.now(),
 		isDirectory: true,
 		name: basename(workspaceResource.fsPath),
-		children: []
+		children: [],
+		size: 0
 	};
 
 	fileMap.set(root.resource, root);

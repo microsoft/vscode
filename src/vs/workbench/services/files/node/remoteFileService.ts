@@ -324,7 +324,8 @@ export class RemoteFileService extends FileService {
 						name: fileStat.name,
 						etag: fileStat.etag,
 						mtime: fileStat.mtime,
-						isReadonly: fileStat.isReadonly
+						isReadonly: fileStat.isReadonly,
+						size: fileStat.size
 					};
 				});
 			});
@@ -418,6 +419,7 @@ export class RemoteFileService extends FileService {
 				value: '',
 				encoding: content.encoding,
 				etag: content.etag,
+				size: content.size,
 				mtime: content.mtime,
 				name: content.name,
 				resource: content.resource,
