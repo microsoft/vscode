@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { flatten, isNonEmptyArray } from 'vs/base/common/arrays';
+import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
@@ -223,8 +223,8 @@ export class RemoteFileService extends FileService {
 		});
 	}
 
-	resolveFile(resource: URI, options?: IResolveFileOptions): Promise<IFileStat>;
 	resolveFile(resource: URI, options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
+	resolveFile(resource: URI, options?: IResolveFileOptions): Promise<IFileStat>;
 	resolveFile(resource: URI, options?: IResolveFileOptions): Promise<IFileStat> {
 		if (resource.scheme === Schemas.file) {
 			return super.resolveFile(resource, options);
@@ -240,30 +240,6 @@ export class RemoteFileService extends FileService {
 				}
 			});
 		}
-	}
-
-	resolveFiles(toResolve: { resource: URI; options?: IResolveFileOptions; }[]): Promise<IResolveFileResult[]> {
-
-		// soft-groupBy, keep order, don't rearrange/merge groups
-		let groups: Array<typeof toResolve> = [];
-		let group: typeof toResolve | undefined;
-		for (const request of toResolve) {
-			if (!group || group[0].resource.scheme !== request.resource.scheme) {
-				group = [];
-				groups.push(group);
-			}
-			group.push(request);
-		}
-
-		const promises: Promise<IResolveFileResult[]>[] = [];
-		for (const group of groups) {
-			if (group[0].resource.scheme === Schemas.file) {
-				promises.push(super.resolveFiles(group));
-			} else {
-				promises.push(this._doResolveFiles(group));
-			}
-		}
-		return Promise.all(promises).then(data => flatten(data));
 	}
 
 	private _doResolveFiles(toResolve: { resource: URI; options?: IResolveFileOptions; }[]): Promise<IResolveFileResult[]> {
@@ -467,52 +443,7 @@ export class RemoteFileService extends FileService {
 		}
 	}
 
-	moveFile(source: URI, target: URI, overwrite?: boolean): Promise<IFileStat> {
-		if (source.scheme !== target.scheme) {
-			return this._doMoveAcrossScheme(source, target);
-		} else if (source.scheme === Schemas.file) {
-			return super.moveFile(source, target, overwrite);
-		} else {
-			return this._doMoveWithInScheme(source, target, overwrite);
-		}
-	}
-
-	private _doMoveWithInScheme(source: URI, target: URI, overwrite: boolean = false): Promise<IFileStat> {
-
-		const prepare = overwrite
-			? Promise.resolve(this.del(target, { recursive: true }).catch(_err => { /*ignore*/ }))
-			: Promise.resolve();
-
-		return prepare.then(() => this._withProvider(source)).then(RemoteFileService._throwIfFileSystemIsReadonly).then(provider => {
-			return RemoteFileService._mkdirp(provider, resources.dirname(target)).then(() => {
-				return provider.rename(source, target, { overwrite }).then(() => {
-					return this.resolveFile(target);
-				}).then(fileStat => {
-					this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.MOVE, fileStat));
-					return fileStat;
-				}, err => {
-					const result = toFileOperationResult(err);
-					if (result === FileOperationResult.FILE_MOVE_CONFLICT) {
-						throw new FileOperationError(localize('fileMoveConflict', "Unable to move/copy. File already exists at destination."), result);
-					}
-					throw err;
-				});
-			});
-		});
-	}
-
-	private _doMoveAcrossScheme(source: URI, target: URI, overwrite?: boolean): Promise<IFileStat> {
-		return this.copyFile(source, target, overwrite).then(() => {
-			return this.del(source, { recursive: true });
-		}).then(() => {
-			return this.resolveFile(target);
-		}).then(fileStat => {
-			this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.MOVE, fileStat));
-			return fileStat;
-		});
-	}
-
-	copyFile(source: URI, target: URI, overwrite?: boolean): Promise<IFileStat> {
+	copyFile(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata> {
 		if (source.scheme === target.scheme && source.scheme === Schemas.file) {
 			return super.copyFile(source, target, overwrite);
 		}
@@ -522,7 +453,7 @@ export class RemoteFileService extends FileService {
 			if (source.scheme === target.scheme && (provider.capabilities & FileSystemProviderCapabilities.FileFolderCopy)) {
 				// good: provider supports copy withing scheme
 				return provider.copy!(source, target, { overwrite: !!overwrite }).then(() => {
-					return this.resolveFile(target);
+					return this.resolveFile(target, { resolveMetadata: true });
 				}).then(fileStat => {
 					this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.COPY, fileStat));
 					return fileStat;

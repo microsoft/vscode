@@ -127,14 +127,14 @@ export interface IFileService {
 	 *
 	 * The optional parameter overwrite can be set to replace an existing file at the location.
 	 */
-	moveFile(source: URI, target: URI, overwrite?: boolean): Promise<IFileStat>;
+	moveFile(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata>;
 
 	/**
 	 * Copies the file to a path identified by the resource.
 	 *
 	 * The optional parameter overwrite can be set to replace an existing file at the location.
 	 */
-	copyFile(source: URI, target: URI, overwrite?: boolean): Promise<IFileStat>;
+	copyFile(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata>;
 
 	/**
 	 * Creates a new file with the given path. The returned promise
@@ -334,7 +334,7 @@ export const enum FileOperation {
 
 export class FileOperationEvent {
 
-	constructor(private _resource: URI, private _operation: FileOperation, private _target?: IFileStat) {
+	constructor(private _resource: URI, private _operation: FileOperation, private _target?: IFileStatWithMetadata) {
 	}
 
 	get resource(): URI {
@@ -1099,8 +1099,6 @@ export interface ILegacyFileService {
 	resolveStreamContent(resource: URI, options?: IResolveContentOptions): Promise<IStreamContent>;
 
 	updateContent(resource: URI, value: string | ITextSnapshot, options?: IUpdateContentOptions): Promise<IFileStat>;
-
-	moveFile(source: URI, target: URI, overwrite?: boolean): Promise<IFileStat>;
 
 	copyFile(source: URI, target: URI, overwrite?: boolean): Promise<IFileStat>;
 

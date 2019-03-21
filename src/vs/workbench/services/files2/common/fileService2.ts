@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { isAbsolutePath, dirname, basename, joinPath, isEqual } from 'vs/base/common/resources';
+import { isAbsolutePath, dirname, basename, joinPath, isEqual, isEqualOrParent } from 'vs/base/common/resources';
 import { localize } from 'vs/nls';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { isNonEmptyArray, coalesce } from 'vs/base/common/arrays';
@@ -307,11 +307,77 @@ export class FileService2 extends Disposable implements IFileService {
 
 	//#region Move/Copy/Delete/Create Folder
 
-	moveFile(source: URI, target: URI, overwrite?: boolean): Promise<IFileStat> {
-		return this._impl.moveFile(source, target, overwrite);
+	moveFile(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata> {
+		if (source.scheme !== target.scheme) {
+			return this.doMoveAcrossScheme(source, target);
+		}
+
+		return this.doMoveWithInScheme(source, target, overwrite);
 	}
 
-	copyFile(source: URI, target: URI, overwrite?: boolean): Promise<IFileStat> {
+	private async doMoveWithInScheme(source: URI, target: URI, overwrite: boolean = false): Promise<IFileStatWithMetadata> {
+		const provider = this.throwIfFileSystemIsReadonly(await this.withProvider(source));
+
+		// validation
+		const isPathCaseSensitive = !!(provider.capabilities & FileSystemProviderCapabilities.PathCaseSensitive);
+		const isCaseRename = isPathCaseSensitive ? false : isEqual(source, target, true /* ignore case */);
+		if (!isCaseRename && isEqualOrParent(target, source, !isPathCaseSensitive)) {
+			return Promise.reject(new Error(localize('unableToMoveError1', "Unable to move when source path is equal or parent of target path")));
+		}
+
+		// delete target if we are told to overwrite and this is not a case rename
+		if (!isCaseRename && overwrite && await this.existsFile(target)) {
+
+			// Special case: if the target is a parent of the source, we cannot delete
+			// it as it would delete the source as well. In this case we have to throw
+			if (isEqualOrParent(source, target, !isPathCaseSensitive)) {
+				return Promise.reject(new Error(localize('unableToMoveError2', "Unable to move/copy. File would replace folder it is contained in.")));
+			}
+
+			try {
+				await this.del(target, { recursive: true });
+			} catch (error) {
+				// ignore - target might not exist
+			}
+		}
+
+		// create parent folders
+		await this.mkdirp(provider, dirname(target));
+
+		// rename source => target
+		try {
+			await provider.rename(source, target, { overwrite });
+		} catch (error) {
+			if (toFileSystemProviderErrorCode(error) === FileSystemProviderErrorCode.FileExists) {
+				throw new FileOperationError(localize('unableToMoveError3', "Unable to move/copy. File already exists at destination."), FileOperationResult.FILE_MOVE_CONFLICT);
+			}
+
+			throw error;
+		}
+
+		// resolve and send events
+		const fileStat = await this.resolveFile(target, { resolveMetadata: true });
+		this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.MOVE, fileStat));
+
+		return fileStat;
+	}
+
+	private async doMoveAcrossScheme(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata> {
+
+		// copy file source => target
+		await this.copyFile(source, target, overwrite);
+
+		// delete source
+		await this.del(source, { recursive: true });
+
+		// resolve and send events
+		const fileStat = await this.resolveFile(target, { resolveMetadata: true });
+		this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.MOVE, fileStat));
+
+		return fileStat;
+	}
+
+	copyFile(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata> {
 		return this._impl.copyFile(source, target, overwrite);
 	}
 
@@ -336,7 +402,7 @@ export class FileService2 extends Disposable implements IFileService {
 			try {
 				const stat = await provider.stat(directory);
 				if ((stat.type & FileType.Directory) === 0) {
-					throw new Error(`${directory.toString()} exists, but is not a directory`);
+					throw new Error(localize('mkdirExistsError', "{0} exists, but is not a directory", directory.toString()));
 				}
 
 				break; // we have hit a directory that exists -> good

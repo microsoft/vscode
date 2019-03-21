@@ -11,9 +11,10 @@ import { IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatc
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { isLinux } from 'vs/base/common/platform';
-import { statLink, readdir, unlink, del } from 'vs/base/node/pfs';
+import { statLink, readdir, unlink, del, fileExists, move } from 'vs/base/node/pfs';
 import { normalize } from 'vs/base/common/path';
 import { joinPath } from 'vs/base/common/resources';
+import { isEqual } from 'vs/base/common/extpath';
 
 export class DiskFileSystemProvider extends Disposable implements IFileSystemProvider {
 
@@ -132,11 +133,32 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 		}
 	}
 
-	rename(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> {
-		throw new Error('Method not implemented.');
+	async rename(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> {
+		try {
+			const fromFilePath = this.toFilePath(from);
+			const toFilePath = this.toFilePath(to);
+
+			const isPathCaseSensitive = !!(this.capabilities & FileSystemProviderCapabilities.PathCaseSensitive);
+			const isCaseRename = isPathCaseSensitive ? false : isEqual(fromFilePath, toFilePath, true /* ignore case */);
+
+			// handle existing target (unless this is a case rename)
+			if (!isCaseRename && await fileExists(toFilePath)) {
+				if (!opts.overwrite) {
+					throw createFileSystemProviderError(new Error('File at rename target already exists'), FileSystemProviderErrorCode.FileExists);
+				}
+
+				await this.delete(to, { recursive: true });
+			}
+
+			// move
+			await move(fromFilePath, toFilePath);
+		} catch (error) {
+			throw this.toFileSystemProviderError(error);
+		}
 	}
 
 	copy?(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> {
+		// TODO use new fs.copy method?
 		throw new Error('Method not implemented.');
 	}
 
@@ -160,6 +182,10 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 	}
 
 	private toFileSystemProviderError(error: NodeJS.ErrnoException): FileSystemProviderError {
+		if (error instanceof FileSystemProviderError) {
+			return error; // avoid double conversion
+		}
+
 		let code: FileSystemProviderErrorCode | undefined = undefined;
 		switch (error.code) {
 			case 'ENOENT':

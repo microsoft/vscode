@@ -10,12 +10,12 @@ import { Schemas } from 'vs/base/common/network';
 import { DiskFileSystemProvider } from 'vs/workbench/services/files2/node/diskFileSystemProvider';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { generateUuid } from 'vs/base/common/uuid';
-import { join, basename } from 'vs/base/common/path';
+import { join, basename, dirname } from 'vs/base/common/path';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { copy, del } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
-import { existsSync } from 'fs';
-import { FileOperation, FileOperationEvent, IFileStat } from 'vs/platform/files/common/files';
+import { existsSync, statSync } from 'fs';
+import { FileOperation, FileOperationEvent, IFileStat, FileOperationResult } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
 import { TestContextService, TestEnvironmentService, TestTextResourceConfigurationService, TestLifecycleService, TestStorageService } from 'vs/workbench/test/workbenchTestServices';
 import { Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
@@ -334,5 +334,222 @@ suite('Disk File Service', () => {
 		catch (error) {
 			return Promise.resolve(true);
 		}
+	});
+
+	test('renameFile', async () => {
+		let event: FileOperationEvent;
+		const toDispose = service.onAfterOperation(e => {
+			event = e;
+		});
+
+		const resource = URI.file(join(testDir, 'index.html'));
+		const source = await service.resolveFile(resource);
+
+		const renamed = await service.moveFile(source.resource, URI.file(join(dirname(source.resource.fsPath), 'other.html')));
+
+		assert.equal(existsSync(renamed.resource.fsPath), true);
+		assert.equal(existsSync(source.resource.fsPath), false);
+		assert.ok(event!);
+		assert.equal(event!.resource.fsPath, resource.fsPath);
+		assert.equal(event!.operation, FileOperation.MOVE);
+		assert.equal(event!.target!.resource.fsPath, renamed.resource.fsPath);
+
+		toDispose.dispose();
+	});
+
+	test('renameFile - multi folder', async () => {
+		let event: FileOperationEvent;
+		const toDispose = service.onAfterOperation(e => {
+			event = e;
+		});
+
+		const multiFolderPaths = ['a', 'couple', 'of', 'folders'];
+		const renameToPath = join(...multiFolderPaths, 'other.html');
+
+		const resource = URI.file(join(testDir, 'index.html'));
+		const source = await service.resolveFile(resource);
+
+		const renamed = await service.moveFile(source.resource, URI.file(join(dirname(source.resource.fsPath), renameToPath)));
+
+		assert.equal(existsSync(renamed.resource.fsPath), true);
+		assert.equal(existsSync(source.resource.fsPath), false);
+		assert.ok(event!);
+		assert.equal(event!.resource.fsPath, resource.fsPath);
+		assert.equal(event!.operation, FileOperation.MOVE);
+		assert.equal(event!.target!.resource.fsPath, renamed.resource.fsPath);
+
+		toDispose.dispose();
+	});
+
+	test('renameFolder', async () => {
+		let event: FileOperationEvent;
+		const toDispose = service.onAfterOperation(e => {
+			event = e;
+		});
+
+		const resource = URI.file(join(testDir, 'deep'));
+		const source = await service.resolveFile(resource);
+
+		const renamed = await service.moveFile(source.resource, URI.file(join(dirname(source.resource.fsPath), 'deeper')));
+
+		assert.equal(existsSync(renamed.resource.fsPath), true);
+		assert.equal(existsSync(source.resource.fsPath), false);
+		assert.ok(event!);
+		assert.equal(event!.resource.fsPath, resource.fsPath);
+		assert.equal(event!.operation, FileOperation.MOVE);
+		assert.equal(event!.target!.resource.fsPath, renamed.resource.fsPath);
+
+		toDispose.dispose();
+	});
+
+	test('renameFolder - multi folder', async () => {
+		let event: FileOperationEvent;
+		const toDispose = service.onAfterOperation(e => {
+			event = e;
+		});
+
+		const multiFolderPaths = ['a', 'couple', 'of', 'folders'];
+		const renameToPath = join(...multiFolderPaths);
+
+		const resource = URI.file(join(testDir, 'deep'));
+		const source = await service.resolveFile(resource);
+
+		const renamed = await service.moveFile(source.resource, URI.file(join(dirname(source.resource.fsPath), renameToPath)));
+
+		assert.equal(existsSync(renamed.resource.fsPath), true);
+		assert.equal(existsSync(source.resource.fsPath), false);
+		assert.ok(event!);
+		assert.equal(event!.resource.fsPath, resource.fsPath);
+		assert.equal(event!.operation, FileOperation.MOVE);
+		assert.equal(event!.target!.resource.fsPath, renamed.resource.fsPath);
+
+		toDispose.dispose();
+	});
+	test('renameFile - MIX CASE', function () {
+		let event: FileOperationEvent;
+		const toDispose = service.onAfterOperation(e => {
+			event = e;
+		});
+
+		const resource = URI.file(join(testDir, 'index.html'));
+		return service.resolveFile(resource).then(source => {
+			return service.moveFile(source.resource, URI.file(join(dirname(source.resource.fsPath), 'INDEX.html'))).then(renamed => {
+				assert.equal(existsSync(renamed.resource.fsPath), true);
+				assert.equal(basename(renamed.resource.fsPath), 'INDEX.html');
+
+				assert.ok(event);
+				assert.equal(event.resource.fsPath, resource.fsPath);
+				assert.equal(event.operation, FileOperation.MOVE);
+				assert.equal(event.target!.resource.fsPath, renamed.resource.fsPath);
+				toDispose.dispose();
+			});
+		});
+	});
+
+	test('moveFile', async () => {
+		let event: FileOperationEvent;
+		const toDispose = service.onAfterOperation(e => {
+			event = e;
+		});
+
+		const resource = URI.file(join(testDir, 'index.html'));
+		const source = await service.resolveFile(resource);
+
+		const renamed = await service.moveFile(source.resource, URI.file(join(testDir, 'other.html')));
+
+		assert.equal(existsSync(renamed.resource.fsPath), true);
+		assert.equal(existsSync(source.resource.fsPath), false);
+		assert.ok(event!);
+		assert.equal(event!.resource.fsPath, resource.fsPath);
+		assert.equal(event!.operation, FileOperation.MOVE);
+		assert.equal(event!.target!.resource.fsPath, renamed.resource.fsPath);
+
+		toDispose.dispose();
+	});
+
+	test('move - source parent of target', async () => {
+		let event: FileOperationEvent;
+		const toDispose = service.onAfterOperation(e => {
+			event = e;
+		});
+
+		await service.resolveFile(URI.file(join(testDir, 'index.html')));
+		try {
+			await service.moveFile(URI.file(testDir), URI.file(join(testDir, 'binary.txt')));
+		} catch (e) {
+			assert.ok(e);
+			assert.ok(!event!);
+			toDispose.dispose();
+		}
+	});
+
+	test('move - FILE_MOVE_CONFLICT', async () => {
+		let event: FileOperationEvent;
+		const toDispose = service.onAfterOperation(e => {
+			event = e;
+		});
+
+		const source = await service.resolveFile(URI.file(join(testDir, 'index.html')));
+		try {
+			await service.moveFile(source.resource, URI.file(join(testDir, 'binary.txt')));
+		} catch (e) {
+			assert.equal(e.fileOperationResult, FileOperationResult.FILE_MOVE_CONFLICT);
+			assert.ok(!event!);
+			toDispose.dispose();
+		}
+	});
+
+	test('moveFile - MIX CASE', async () => {
+		let event: FileOperationEvent;
+		const toDispose = service.onAfterOperation(e => {
+			event = e;
+		});
+
+		const resource = URI.file(join(testDir, 'index.html'));
+		const source = await service.resolveFile(resource);
+
+		const renamed = await service.moveFile(source.resource, URI.file(join(testDir, 'INDEX.html')));
+
+		assert.equal(existsSync(renamed.resource.fsPath), true);
+		assert.equal(basename(renamed.resource.fsPath), 'INDEX.html');
+		assert.ok(event!);
+		assert.equal(event!.resource.fsPath, resource.fsPath);
+		assert.equal(event!.operation, FileOperation.MOVE);
+		assert.equal(event!.target!.resource.fsPath, renamed.resource.fsPath);
+
+		toDispose.dispose();
+	});
+
+	test('moveFile - overwrite folder with file', async () => {
+		let createEvent: FileOperationEvent;
+		let moveEvent: FileOperationEvent;
+		let deleteEvent: FileOperationEvent;
+		const toDispose = service.onAfterOperation(e => {
+			if (e.operation === FileOperation.CREATE) {
+				createEvent = e;
+			} else if (e.operation === FileOperation.DELETE) {
+				deleteEvent = e;
+			} else if (e.operation === FileOperation.MOVE) {
+				moveEvent = e;
+			}
+		});
+
+		const parent = await service.resolveFile(URI.file(testDir));
+		const folderResource = URI.file(join(parent.resource.fsPath, 'conway.js'));
+		const f = await service.createFolder(folderResource);
+		const resource = URI.file(join(testDir, 'deep', 'conway.js'));
+
+		const moved = await service.moveFile(resource, f.resource, true);
+
+		assert.equal(existsSync(moved.resource.fsPath), true);
+		assert.ok(statSync(moved.resource.fsPath).isFile);
+		assert.ok(createEvent!);
+		assert.ok(deleteEvent!);
+		assert.ok(moveEvent!);
+		assert.equal(moveEvent!.resource.fsPath, resource.fsPath);
+		assert.equal(moveEvent!.target!.resource.fsPath, moved.resource.fsPath);
+		assert.equal(deleteEvent!.resource.fsPath, folderResource.fsPath);
+
+		toDispose.dispose();
 	});
 });
