@@ -7,7 +7,6 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { getDelayedChannel } from 'vs/base/parts/ipc/node/ipc';
 import { Client } from 'vs/base/parts/ipc/node/ipc.net';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import { connectRemoteAgentManagement } from 'vs/platform/remote/node/remoteAgentConnection';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IRemoteAgentConnection, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -24,7 +23,7 @@ import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 
-export class RemoteAgentService implements IRemoteAgentService {
+export class RemoteAgentService extends Disposable implements IRemoteAgentService {
 
 	_serviceBrand: any;
 
@@ -32,13 +31,13 @@ export class RemoteAgentService implements IRemoteAgentService {
 
 	constructor(
 		@IWindowService windowService: IWindowService,
-		@INotificationService notificationService: INotificationService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 	) {
+		super();
 		const { remoteAuthority } = windowService.getConfiguration();
 		if (remoteAuthority) {
-			this._connection = new RemoteAgentConnection(remoteAuthority, environmentService, remoteAuthorityResolverService);
+			this._connection = this._register(new RemoteAgentConnection(remoteAuthority, environmentService, remoteAuthorityResolverService));
 		}
 	}
 
