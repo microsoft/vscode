@@ -13,6 +13,14 @@ elif [ "$SNAP_ARCH" == "arm64" ]; then
 else
   ARCH="$SNAP_ARCH-linux-gnu"
 fi
+
+export XDG_CACHE_HOME=$SNAP_USER_COMMON/.cache
+if [[ -d $SNAP_USER_DATA/.cache && ! -e $XDG_CACHE_HOME ]]; then
+  # the .cache directory used to be stored under $SNAP_USER_DATA, migrate it
+  mv $SNAP_USER_DATA/.cache $SNAP_USER_COMMON/
+fi
+mkdir -p $XDG_CACHE_HOME
+
 # Create $XDG_RUNTIME_DIR if not exists (to be removed when https://pad.lv/1656340 is fixed)
 [ -n "$XDG_RUNTIME_DIR" ] && mkdir -p $XDG_RUNTIME_DIR -m 700
 
