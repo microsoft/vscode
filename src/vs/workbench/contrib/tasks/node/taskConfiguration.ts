@@ -933,9 +933,6 @@ namespace CommandConfiguration {
 
 	function fromBase(this: void, config: BaseCommandConfiguationShape, context: ParseContext): Tasks.CommandConfiguration | undefined {
 		let name: Tasks.CommandString | undefined = ShellString.from(config.command);
-		if (name === undefined) {
-			return undefined;
-		}
 		let runtime: Tasks.RuntimeType;
 		if (Types.isString(config.type)) {
 			if (config.type === 'shell' || config.type === 'process') {
