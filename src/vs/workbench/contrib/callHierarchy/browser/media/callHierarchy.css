@@ -18,16 +18,18 @@
 	padding-top: 3em;
 }
 
-.monaco-workbench .call-hierarchy-toggle {
-	background-image: url(CallerOrCalleeView_16x.svg);
+.monaco-workbench .action-label.calls-to {
+	background-image: url(files_CallTo_CallTo_16x.svg);
 	background-size: 14px 14px;
 	background-repeat: no-repeat;
 	background-position: left center;
 }
 
-.vs-dark .monaco-workbench .call-hierarchy-toggle,
-.hc-dark .monaco-workbench .call-hierarchy-toggle {
-	background-image: url(CallerOrCalleeView_16x_dark.svg);
+.monaco-workbench .action-label.calls-from {
+	background-image: url(files_CallFrom_CallFrom_16x.svg);
+	background-size: 14px 14px;
+	background-repeat: no-repeat;
+	background-position: left center;
 }
 
 .monaco-workbench .call-hierarchy .monaco-split-view2.horizontal > .split-view-container > .split-view-view{

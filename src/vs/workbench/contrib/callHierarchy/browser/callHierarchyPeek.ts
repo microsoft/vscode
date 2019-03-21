@@ -40,25 +40,29 @@ const enum State {
 	Data = 'data'
 }
 
-class ToggleHierarchyDirectionAction extends Action {
+class ChangeHierarchyDirectionAction extends Action {
 
-	constructor(public direction: () => CallHierarchyDirection, callback: () => void) {
-		super('toggle.dir', undefined, 'call-hierarchy-toggle', true, () => {
-			callback();
-			this._update();
+	constructor(direction: CallHierarchyDirection, updateDirection: (direction: CallHierarchyDirection) => void) {
+		super('', undefined, '', true, () => {
+			if (direction === CallHierarchyDirection.CallsTo) {
+				direction = CallHierarchyDirection.CallsFrom;
+			} else {
+				direction = CallHierarchyDirection.CallsTo;
+			}
+			updateDirection(direction);
+			update();
 			return Promise.resolve();
 		});
-		this._update();
-	}
-
-	private _update() {
-		if (this.direction() === CallHierarchyDirection.CallsFrom) {
-			this.label = localize('toggle.from', "Calls From...");
-			this.checked = true;
-		} else {
-			this.label = localize('toggle.to', "Calls To...");
-			this.checked = false;
-		}
+		const update = () => {
+			if (direction === CallHierarchyDirection.CallsFrom) {
+				this.label = localize('toggle.from', "Showing Calls");
+				this.class = 'calls-from';
+			} else {
+				this.label = localize('toggle.to', "Showing Callers");
+				this.class = 'calls-to';
+			}
+		};
+		update();
 	}
 }
 
@@ -86,7 +90,7 @@ class LayoutInfo {
 
 export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 
-	private _toggleDirection: ToggleHierarchyDirectionAction;
+	private _changeDirectionAction: ChangeHierarchyDirectionAction;
 	private _parent: HTMLElement;
 	private _message: HTMLElement;
 	private _splitView: SplitView;
@@ -363,18 +367,17 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 			);
 		}
 
-		if (!this._toggleDirection) {
-			this._toggleDirection = new ToggleHierarchyDirectionAction(
-				() => this._direction,
-				() => {
-					let newDirection = this._direction === CallHierarchyDirection.CallsFrom ? CallHierarchyDirection.CallsTo : CallHierarchyDirection.CallsFrom;
+		if (!this._changeDirectionAction) {
+			const changeDirection = (newDirection: CallHierarchyDirection) => {
+				if (this._direction !== newDirection) {
 					this._treeViewStates.set(this._direction, this._tree.getViewState());
 					this._direction = newDirection;
 					this.showItem(item);
 				}
-			);
-			this._actionbarWidget.push(this._toggleDirection, { label: false, icon: true });
-			this._disposables.push(this._toggleDirection);
+			};
+			this._changeDirectionAction = new ChangeHierarchyDirectionAction(this._direction, changeDirection);
+			this._disposables.push(this._changeDirectionAction);
+			this._actionbarWidget.push(this._changeDirectionAction, { icon: true, label: false });
 		}
 	}
 
