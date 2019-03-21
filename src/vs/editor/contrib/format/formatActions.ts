@@ -16,7 +16,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { DocumentRangeFormattingEditProviderRegistry, OnTypeFormattingEditProviderRegistry } from 'vs/editor/common/modes';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { getOnTypeFormattingEdits, formatDocumentRangeUntilResult, formatDocumentWithProvider, formatDocumentRangeWithProvider, alertFormattingEdits, getAllDocumentFormattersOrdered } from 'vs/editor/contrib/format/format';
+import { getOnTypeFormattingEdits, formatDocumentWithProvider, formatDocumentRangeWithProvider, alertFormattingEdits, getRealAndSyntheticDocumentFormattersOrdered } from 'vs/editor/contrib/format/format';
 import { FormattingEdit } from 'vs/editor/contrib/format/formattingEdit';
 import * as nls from 'vs/nls';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
@@ -196,16 +196,12 @@ class FormatOnPaste implements editorCommon.IEditorContribution {
 			return;
 		}
 
-		let model = this.editor.getModel();
-
-		// no support
-		if (!DocumentRangeFormattingEditProviderRegistry.has(model)) {
+		// no formatter
+		if (!DocumentRangeFormattingEditProviderRegistry.has(this.editor.getModel())) {
 			return;
 		}
 
-		this._callOnModel.push(this.editor.onDidPaste((range: Range) => {
-			this._trigger(range);
-		}));
+		this._callOnModel.push(this.editor.onDidPaste(range => this._trigger(range)));
 	}
 
 	private _trigger(range: Range): void {
@@ -215,7 +211,12 @@ class FormatOnPaste implements editorCommon.IEditorContribution {
 		if (this.editor.getSelections().length > 1) {
 			return;
 		}
-		this._instantiationService.invokeFunction(formatDocumentRangeUntilResult, this.editor, range, CancellationToken.None).catch(onUnexpectedError);
+		const provider = DocumentRangeFormattingEditProviderRegistry.ordered(this.editor.getModel());
+		if (provider.length !== 1) {
+			// print status in n>1 case?
+			return;
+		}
+		this._instantiationService.invokeFunction(formatDocumentRangeWithProvider, provider[0], this.editor, range, CancellationToken.None).catch(onUnexpectedError);
 	}
 }
 
@@ -247,7 +248,7 @@ class FormatDocumentAction extends EditorAction {
 		}
 		const instaService = accessor.get(IInstantiationService);
 		const model = editor.getModel();
-		const [provider] = getAllDocumentFormattersOrdered(model);
+		const [provider] = getRealAndSyntheticDocumentFormattersOrdered(model);
 		if (provider) {
 			await instaService.invokeFunction(formatDocumentWithProvider, provider, editor, CancellationToken.None);
 		}

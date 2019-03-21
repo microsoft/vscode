@@ -14,7 +14,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { IQuickInputService, IQuickPickItem, IQuickInputButton } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { formatDocumentRangeWithProvider, formatDocumentWithProvider, getAllDocumentFormattersOrdered } from 'vs/editor/contrib/format/format';
+import { formatDocumentRangeWithProvider, formatDocumentWithProvider, getRealAndSyntheticDocumentFormattersOrdered } from 'vs/editor/contrib/format/format';
 import { Range } from 'vs/editor/common/core/range';
 import { showExtensionQuery } from 'vs/workbench/contrib/format/browser/showExtensionQuery';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -58,7 +58,7 @@ registerEditorAction(class FormatDocumentMultipleAction extends EditorAction {
 		const viewletService = accessor.get(IViewletService);
 		const model = editor.getModel();
 
-		const provider = getAllDocumentFormattersOrdered(model);
+		const provider = getRealAndSyntheticDocumentFormattersOrdered(model);
 		const picks = provider.map((provider, index) => {
 			return <IIndexedPick>{
 				index,

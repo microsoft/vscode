@@ -5,7 +5,6 @@
 
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { first } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { illegalArgument, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
@@ -22,7 +21,6 @@ import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerServ
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { FormattingEdit } from 'vs/editor/contrib/format/formattingEdit';
 import * as nls from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export function alertFormattingEdits(edits: ISingleEditOperation[]): void {
@@ -52,7 +50,7 @@ export function alertFormattingEdits(edits: ISingleEditOperation[]): void {
 	}
 }
 
-export function getAllDocumentFormattersOrdered(model: ITextModel): DocumentFormattingEditProvider[] {
+export function getRealAndSyntheticDocumentFormattersOrdered(model: ITextModel): DocumentFormattingEditProvider[] {
 	const result: DocumentFormattingEditProvider[] = [];
 	const seen = new Set<string>();
 
@@ -83,29 +81,6 @@ export function getAllDocumentFormattersOrdered(model: ITextModel): DocumentForm
 		});
 	}
 	return result;
-}
-
-export async function formatDocumentRangeUntilResult(
-	accessor: ServicesAccessor,
-	editorOrModel: ITextModel | IActiveCodeEditor,
-	range: Range,
-	token: CancellationToken
-): Promise<boolean> {
-
-	const insta = accessor.get(IInstantiationService);
-	const model = isCodeEditor(editorOrModel) ? editorOrModel.getModel() : editorOrModel;
-	const providers = DocumentRangeFormattingEditProviderRegistry.ordered(model);
-
-	for (const provider of providers) {
-		if (token.isCancellationRequested) {
-			return false;
-		}
-		const didFormat = await insta.invokeFunction(formatDocumentRangeWithProvider, provider, editorOrModel, range, token);
-		if (didFormat) {
-			return true;
-		}
-	}
-	return false;
 }
 
 export async function formatDocumentRangeWithProvider(
@@ -175,28 +150,6 @@ export async function formatDocumentRangeWithProvider(
 	}
 
 	return true;
-}
-
-export async function formatDocumentUntilResult(
-	accessor: ServicesAccessor,
-	editorOrModel: ITextModel | IActiveCodeEditor,
-	token: CancellationToken
-): Promise<boolean> {
-
-	const insta = accessor.get(IInstantiationService);
-	const model = isCodeEditor(editorOrModel) ? editorOrModel.getModel() : editorOrModel;
-	const providers = DocumentFormattingEditProviderRegistry.ordered(model);
-
-	for (const provider of providers) {
-		if (token.isCancellationRequested) {
-			return false;
-		}
-		const didFormat = await insta.invokeFunction(formatDocumentWithProvider, provider, editorOrModel, token);
-		if (didFormat) {
-			return true;
-		}
-	}
-	return false;
 }
 
 export async function formatDocumentWithProvider(
@@ -272,15 +225,16 @@ export async function getDocumentRangeFormattingEditsUntilResult(
 	range: Range,
 	options: FormattingOptions,
 	token: CancellationToken
-): Promise<TextEdit[] | undefined | null> {
+): Promise<TextEdit[] | undefined> {
 
 	const providers = DocumentRangeFormattingEditProviderRegistry.ordered(model);
-	return first(providers.map(provider => () => {
-		return Promise.resolve(provider.provideDocumentRangeFormattingEdits(model, range, options, token)).catch(onUnexpectedExternalError);
-	}), isNonEmptyArray).then(edits => {
-		// break edits into smaller edits
-		return workerService.computeMoreMinimalEdits(model.uri, edits);
-	});
+	for (const provider of providers) {
+		let rawEdits = await Promise.resolve(provider.provideDocumentRangeFormattingEdits(model, range, options, token)).catch(onUnexpectedExternalError);
+		if (isNonEmptyArray(rawEdits)) {
+			return await workerService.computeMoreMinimalEdits(model.uri, rawEdits);
+		}
+	}
+	return undefined;
 }
 
 export async function getDocumentFormattingEditsUntilResult(
@@ -288,25 +242,16 @@ export async function getDocumentFormattingEditsUntilResult(
 	model: ITextModel,
 	options: FormattingOptions,
 	token: CancellationToken
-): Promise<TextEdit[] | null | undefined> {
+): Promise<TextEdit[] | undefined> {
 
-	// (1) try document formatter - if available, if successfull
-	const providers = DocumentFormattingEditProviderRegistry.ordered(model);
+	const providers = getRealAndSyntheticDocumentFormattersOrdered(model);
 	for (const provider of providers) {
 		let rawEdits = await Promise.resolve(provider.provideDocumentFormattingEdits(model, options, token)).catch(onUnexpectedExternalError);
-		if (rawEdits) {
+		if (isNonEmptyArray(rawEdits)) {
 			return await workerService.computeMoreMinimalEdits(model.uri, rawEdits);
 		}
 	}
-
-	// (2) try range formatters when no document formatter is registered
-	return getDocumentRangeFormattingEditsUntilResult(
-		workerService,
-		model,
-		model.getFullModelRange(),
-		options,
-		token
-	);
+	return undefined;
 }
 
 export function getOnTypeFormattingEdits(

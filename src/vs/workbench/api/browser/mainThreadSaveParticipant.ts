@@ -21,7 +21,7 @@ import { shouldSynchronizeModel } from 'vs/editor/common/services/modelService';
 import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
 import { applyCodeAction } from 'vs/editor/contrib/codeAction/codeActionCommands';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
-import { formatDocumentUntilResult } from 'vs/editor/contrib/format/format';
+import { getRealAndSyntheticDocumentFormattersOrdered, formatDocumentWithProvider } from 'vs/editor/contrib/format/format';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -219,23 +219,32 @@ class FormatOnSaveParticipant implements ISaveParticipantParticipant {
 	async participate(editorModel: IResolvedTextFileEditorModel, env: { reason: SaveReason }): Promise<void> {
 
 		const model = editorModel.textEditorModel;
-		if (env.reason === SaveReason.AUTO
-			|| !this._configurationService.getValue('editor.formatOnSave', { overrideIdentifier: model.getLanguageIdentifier().language, resource: editorModel.getResource() })) {
+		const overrides = { overrideIdentifier: model.getLanguageIdentifier().language, resource: model.uri };
+
+		if (env.reason === SaveReason.AUTO || !this._configurationService.getValue('editor.formatOnSave', overrides)) {
 			return undefined;
 		}
 
-		const timeout = this._configurationService.getValue<number>('editor.formatOnSaveTimeout', { overrideIdentifier: model.getLanguageIdentifier().language, resource: editorModel.getResource() });
-
 		return new Promise<any>((resolve, reject) => {
 			const source = new CancellationTokenSource();
-			const request = this._instantiationService.invokeFunction(formatDocumentUntilResult, model, source.token);
 
-			setTimeout(() => {
-				reject(localize('timeout.formatOnSave', "Aborted format on save after {0}ms", timeout));
-				source.cancel();
-			}, timeout);
+			const provider = getRealAndSyntheticDocumentFormattersOrdered(model);
+			if (provider.length !== 1) {
+				// print message for >1 case?
+				resolve();
 
-			request.then(resolve, reject);
+			} else {
+				// having 1 formatter -> go for it
+				const timeout = this._configurationService.getValue<number>('editor.formatOnSaveTimeout', overrides);
+				const request = this._instantiationService.invokeFunction(formatDocumentWithProvider, provider[0], model, source.token);
+
+				setTimeout(() => {
+					reject(localize('timeout.formatOnSave', "Aborted format on save after {0}ms", timeout));
+					source.cancel();
+				}, timeout);
+
+				request.then(resolve, reject);
+			}
 		});
 	}
 }
