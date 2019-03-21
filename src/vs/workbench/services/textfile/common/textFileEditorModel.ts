@@ -16,7 +16,7 @@ import { ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorMo
 import { EncodingMode } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { IFileService, IFileStat, FileOperationError, FileOperationResult, CONTENT_CHANGE_EVENT_BUFFER_DELAY, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
+import { IFileService, FileOperationError, FileOperationResult, CONTENT_CHANGE_EVENT_BUFFER_DELAY, FileChangesEvent, FileChangeType, IFileStatWithMetadata, etag } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModeService, ILanguageSelection } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -60,7 +60,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private dirty: boolean;
 	private versionId: number;
 	private bufferSavedVersionId: number;
-	private lastResolvedDiskStat: IFileStat;
+	private lastResolvedDiskStat: IFileStatWithMetadata;
 	private blockModelContentChange: boolean;
 	private autoSaveAfterMillies?: number;
 	private autoSaveAfterMilliesEnabled: boolean;
@@ -270,7 +270,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 					resource: this.resource,
 					name: basename(this.resource),
 					mtime: Date.now(),
-					etag: undefined,
+					etag: etag(Date.now(), 0),
 					value: createTextBufferFactory(''), /* will be filled later from backup */
 					encoding: this.fileService.encoding.getWriteEncoding(this.resource, this.preferredEncoding).encoding,
 					isReadonly: false
@@ -381,12 +381,13 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			resource: this.resource,
 			name: content.name,
 			mtime: content.mtime,
+			size: -1,
 			etag: content.etag,
 			isDirectory: false,
 			isSymbolicLink: false,
 			children: undefined,
 			isReadonly: content.isReadonly
-		} as IFileStat);
+		});
 
 		// Keep the original encoding to not loose it when saving
 		const oldEncoding = this.contentEncoding;
@@ -899,7 +900,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 	}
 
-	private updateLastResolvedDiskStat(newVersionOnDiskStat: IFileStat): void {
+	private updateLastResolvedDiskStat(newVersionOnDiskStat: IFileStatWithMetadata): void {
 
 		// First resolve - just take
 		if (!this.lastResolvedDiskStat) {
@@ -1034,7 +1035,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.resource;
 	}
 
-	getStat(): IFileStat {
+	getStat(): IFileStatWithMetadata {
 		return this.lastResolvedDiskStat;
 	}
 

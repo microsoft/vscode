@@ -160,7 +160,7 @@ class OutputFileListener extends Disposable {
 	}
 
 	private doWatch(): Promise<void> {
-		return this.fileService.resolveFile(this.file)
+		return this.fileService.resolveFile(this.file, { resolveMetadata: true })
 			.then(stat => {
 				if (stat.etag !== this.etag) {
 					this.etag = stat.etag;

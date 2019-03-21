@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, IDisposable, toDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
-import { IFileService, IResolveFileOptions, IResourceEncodings, FileChangesEvent, FileOperationEvent, IFileSystemProviderRegistrationEvent, IFileSystemProvider, IFileStat, IResolveFileResult, IResolveContentOptions, IContent, IStreamContent, ITextSnapshot, IUpdateContentOptions, ICreateFileOptions, IFileSystemProviderActivationEvent, FileOperationError, FileOperationResult, FileOperation, FileSystemProviderCapabilities, FileType, toFileSystemProviderErrorCode, FileSystemProviderErrorCode, IStat } from 'vs/platform/files/common/files';
+import { IFileService, IResolveFileOptions, IResourceEncodings, FileChangesEvent, FileOperationEvent, IFileSystemProviderRegistrationEvent, IFileSystemProvider, IFileStat, IResolveFileResult, IResolveContentOptions, IContent, IStreamContent, ITextSnapshot, IUpdateContentOptions, ICreateFileOptions, IFileSystemProviderActivationEvent, FileOperationError, FileOperationResult, FileOperation, FileSystemProviderCapabilities, FileType, toFileSystemProviderErrorCode, FileSystemProviderErrorCode, IStat, IFileStatWithMetadata, IResolveMetadataFileOptions, etag } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
@@ -137,6 +137,8 @@ export class FileService2 extends Disposable implements IFileService {
 
 	//#region File Metadata Resolving
 
+	async resolveFile(resource: URI, options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
+	async resolveFile(resource: URI, options?: IResolveFileOptions): Promise<IFileStat>;
 	async resolveFile(resource: URI, options?: IResolveFileOptions): Promise<IFileStat> {
 		try {
 			return await this.doResolveFile(resource, options);
@@ -155,6 +157,8 @@ export class FileService2 extends Disposable implements IFileService {
 		}
 	}
 
+	private async doResolveFile(resource: URI, options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
+	private async doResolveFile(resource: URI, options?: IResolveFileOptions): Promise<IFileStat>;
 	private async doResolveFile(resource: URI, options?: IResolveFileOptions): Promise<IFileStat> {
 		const provider = await this.withProvider(resource);
 
@@ -166,9 +170,12 @@ export class FileService2 extends Disposable implements IFileService {
 			resolveTo.forEach(uri => trie.set(uri.toString(), true));
 		}
 
+		const resolveSingleChildDescendants = !!(options && options.resolveSingleChildDescendants);
+		const resolveMetadata = !!(options && options.resolveMetadata);
+
 		const stat = await provider.stat(resource);
 
-		return await this.toFileStat(provider, resource, stat, undefined, (stat, siblings) => {
+		return await this.toFileStat(provider, resource, stat, undefined, resolveMetadata, (stat, siblings) => {
 
 			// check for recursive resolving
 			if (Boolean(trie.findSuperstr(stat.resource.toString()) || trie.get(stat.resource.toString()))) {
@@ -176,7 +183,7 @@ export class FileService2 extends Disposable implements IFileService {
 			}
 
 			// check for resolving single child folders
-			if (stat.isDirectory && options && options.resolveSingleChildDescendants) {
+			if (stat.isDirectory && resolveSingleChildDescendants) {
 				return siblings === 1;
 			}
 
@@ -184,7 +191,7 @@ export class FileService2 extends Disposable implements IFileService {
 		});
 	}
 
-	private async toFileStat(provider: IFileSystemProvider, resource: URI, stat: IStat, siblings: number | undefined, recurse: (stat: IFileStat, siblings?: number) => boolean): Promise<IFileStat> {
+	private async toFileStat(provider: IFileSystemProvider, resource: URI, stat: IStat, siblings: number | undefined, resolveMetadata: boolean, recurse: (stat: IFileStat, siblings?: number) => boolean): Promise<IFileStat> {
 
 		// convert to file stat
 		const fileStat: IFileStat = {
@@ -195,19 +202,19 @@ export class FileService2 extends Disposable implements IFileService {
 			isReadonly: !!(provider.capabilities & FileSystemProviderCapabilities.Readonly),
 			mtime: stat.mtime,
 			size: stat.size,
-			etag: stat.mtime.toString(29) + stat.size.toString(31),
+			etag: etag(stat.mtime, stat.size)
 		};
 
 		// check to recurse for directories
 		if (fileStat.isDirectory && recurse(fileStat, siblings)) {
 			try {
 				const entries = await provider.readdir(resource);
-				const resolvedEntries = await Promise.all(entries.map(async entry => {
+				const resolvedEntries = await Promise.all(entries.map(async ([name, type]) => {
 					try {
-						const childResource = joinPath(resource, entry[0]);
-						const childStat = await provider.stat(childResource);
+						const childResource = joinPath(resource, name);
+						const childStat = resolveMetadata ? await provider.stat(childResource) : { type };
 
-						return this.toFileStat(provider, childResource, childStat, entries.length, recurse);
+						return this.toFileStat(provider, childResource, childStat, entries.length, resolveMetadata, recurse);
 					} catch (error) {
 						this.logService.trace(error);
 
@@ -229,6 +236,8 @@ export class FileService2 extends Disposable implements IFileService {
 		return Promise.resolve(fileStat);
 	}
 
+	async resolveFiles(toResolve: { resource: URI, options?: IResolveFileOptions }[]): Promise<IResolveFileResult[]>;
+	async resolveFiles(toResolve: { resource: URI, options: IResolveMetadataFileOptions }[]): Promise<IResolveFileResult[]>;
 	async resolveFiles(toResolve: { resource: URI; options?: IResolveFileOptions; }[]): Promise<IResolveFileResult[]> {
 
 		// soft-groupBy, keep order, don't rearrange/merge groups
@@ -278,7 +287,7 @@ export class FileService2 extends Disposable implements IFileService {
 
 	get encoding(): IResourceEncodings { return this._impl.encoding; }
 
-	createFile(resource: URI, content?: string, options?: ICreateFileOptions): Promise<IFileStat> {
+	createFile(resource: URI, content?: string, options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
 		return this._impl.createFile(resource, content, options);
 	}
 
@@ -290,7 +299,7 @@ export class FileService2 extends Disposable implements IFileService {
 		return this._impl.resolveStreamContent(resource, options);
 	}
 
-	updateContent(resource: URI, value: string | ITextSnapshot, options?: IUpdateContentOptions): Promise<IFileStat> {
+	updateContent(resource: URI, value: string | ITextSnapshot, options?: IUpdateContentOptions): Promise<IFileStatWithMetadata> {
 		return this._impl.updateContent(resource, value, options);
 	}
 
@@ -306,14 +315,14 @@ export class FileService2 extends Disposable implements IFileService {
 		return this._impl.copyFile(source, target, overwrite);
 	}
 
-	async createFolder(resource: URI): Promise<IFileStat> {
+	async createFolder(resource: URI): Promise<IFileStatWithMetadata> {
 		const provider = this.throwIfFileSystemIsReadonly(await this.withProvider(resource));
 
 		// mkdir recursively
 		await this.mkdirp(provider, resource);
 
 		// events
-		const fileStat = await this.resolveFile(resource);
+		const fileStat = await this.resolveFile(resource, { resolveMetadata: true });
 		this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, fileStat));
 
 		return fileStat;

@@ -140,13 +140,48 @@ suite('Disk File Service', () => {
 		assert.ok(result!.isDirectory);
 		assert.equal(result.children!.length, testsElements.length);
 
-		assert.ok(result.children!.every((entry) => {
-			return testsElements.some((name) => {
+		assert.ok(result.children!.every(entry => {
+			return testsElements.some(name => {
 				return basename(entry.resource.fsPath) === name;
 			});
 		}));
 
-		result.children!.forEach((value) => {
+		result.children!.forEach(value => {
+			assert.ok(basename(value.resource.fsPath));
+			if (['examples', 'other'].indexOf(basename(value.resource.fsPath)) >= 0) {
+				assert.ok(value.isDirectory);
+			} else if (basename(value.resource.fsPath) === 'index.html') {
+				assert.ok(!value.isDirectory);
+				assert.ok(!value.children);
+			} else if (basename(value.resource.fsPath) === 'site.css') {
+				assert.ok(!value.isDirectory);
+				assert.ok(!value.children);
+			} else {
+				assert.ok(!'Unexpected value ' + basename(value.resource.fsPath));
+			}
+		});
+	});
+
+	test('resolveFile - directory - with metadata', async () => {
+		const testsElements = ['examples', 'other', 'index.html', 'site.css'];
+
+		const result = await service.resolveFile(URI.file(getPathFromAmdModule(require, './fixtures/resolver')), { resolveMetadata: true });
+
+		assert.ok(result);
+		assert.ok(result.children);
+		assert.ok(result.children!.length > 0);
+		assert.ok(result!.isDirectory);
+		assert.equal(result.children!.length, testsElements.length);
+
+		assert.ok(result.children!.every(entry => {
+			return testsElements.some(name => {
+				return basename(entry.resource.fsPath) === name;
+			});
+		}));
+
+		assert.ok(result.children!.every(entry => entry.etag.length > 0));
+
+		result.children!.forEach(value => {
 			assert.ok(basename(value.resource.fsPath));
 			if (['examples', 'other'].indexOf(basename(value.resource.fsPath)) >= 0) {
 				assert.ok(value.isDirectory);

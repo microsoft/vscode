@@ -14,7 +14,7 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/res
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FileWriteOptions, FileSystemProviderCapabilities, IContent, ICreateFileOptions, IFileStat, IFileSystemProvider, IFilesConfiguration, IResolveContentOptions, IResolveFileOptions, IResolveFileResult, IStat, IStreamContent, ITextSnapshot, IUpdateContentOptions, StringSnapshot, IWatchOptions, FileType, ILegacyFileService, IFileService, toFileOperationResult } from 'vs/platform/files/common/files';
+import { FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FileWriteOptions, FileSystemProviderCapabilities, IContent, ICreateFileOptions, IFileStat, IFileSystemProvider, IFilesConfiguration, IResolveContentOptions, IResolveFileOptions, IResolveFileResult, IStat, IStreamContent, ITextSnapshot, IUpdateContentOptions, StringSnapshot, IWatchOptions, FileType, ILegacyFileService, IFileService, toFileOperationResult, IFileStatWithMetadata, IResolveMetadataFileOptions, etag } from 'vs/platform/files/common/files';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -46,7 +46,7 @@ function toIFileStat(provider: IFileSystemProvider, tuple: [URI, IStat], recurse
 		isReadonly: !!(provider.capabilities & FileSystemProviderCapabilities.Readonly),
 		mtime: stat.mtime,
 		size: stat.size,
-		etag: stat.mtime.toString(29) + stat.size.toString(31),
+		etag: etag(stat.mtime, stat.size),
 	};
 
 	if (fileStat.isDirectory) {
@@ -223,6 +223,8 @@ export class RemoteFileService extends FileService {
 		});
 	}
 
+	resolveFile(resource: URI, options?: IResolveFileOptions): Promise<IFileStat>;
+	resolveFile(resource: URI, options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
 	resolveFile(resource: URI, options?: IResolveFileOptions): Promise<IFileStat> {
 		if (resource.scheme === Schemas.file) {
 			return super.resolveFile(resource, options);
@@ -384,7 +386,7 @@ export class RemoteFileService extends FileService {
 		return provider;
 	}
 
-	createFile(resource: URI, content?: string, options?: ICreateFileOptions): Promise<IFileStat> {
+	createFile(resource: URI, content?: string, options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
 		if (resource.scheme === Schemas.file) {
 			return super.createFile(resource, content, options);
 		} else {
@@ -407,7 +409,7 @@ export class RemoteFileService extends FileService {
 		}
 	}
 
-	updateContent(resource: URI, value: string | ITextSnapshot, options?: IUpdateContentOptions): Promise<IFileStat> {
+	updateContent(resource: URI, value: string | ITextSnapshot, options?: IUpdateContentOptions): Promise<IFileStatWithMetadata> {
 		if (resource.scheme === Schemas.file) {
 			return super.updateContent(resource, value, options);
 		} else {
@@ -420,17 +422,17 @@ export class RemoteFileService extends FileService {
 		}
 	}
 
-	private _writeFile(provider: IFileSystemProvider, resource: URI, snapshot: ITextSnapshot, preferredEncoding: string | undefined = undefined, options: FileWriteOptions): Promise<IFileStat> {
+	private _writeFile(provider: IFileSystemProvider, resource: URI, snapshot: ITextSnapshot, preferredEncoding: string | undefined = undefined, options: FileWriteOptions): Promise<IFileStatWithMetadata> {
 		const readable = createReadableOfSnapshot(snapshot);
 		const { encoding, hasBOM } = this.encoding.getWriteEncoding(resource, preferredEncoding);
 		const encoder = encodeStream(encoding, { addBOM: hasBOM });
 		const target = createWritableOfProvider(provider, resource, options);
-		return new Promise<IFileStat>((resolve, reject) => {
+		return new Promise((resolve, reject) => {
 			readable.pipe(encoder).pipe(target);
 			target.once('error', err => reject(err));
 			target.once('finish', _ => resolve(undefined));
 		}).then(_ => {
-			return this.resolveFile(resource);
+			return this.resolveFile(resource, { resolveMetadata: true }) as Promise<IFileStatWithMetadata>;
 		});
 	}
 

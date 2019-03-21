@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as crypto from 'crypto';
 import * as assert from 'assert';
-import { isParent, FileOperation, FileOperationEvent, IContent, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IUpdateContentOptions, FileChangeType, FileChangesEvent, ICreateFileOptions, IContentData, ITextSnapshot, IFilesConfiguration, IFileSystemProviderRegistrationEvent, IFileSystemProvider, ILegacyFileService } from 'vs/platform/files/common/files';
+import { isParent, FileOperation, FileOperationEvent, IContent, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IUpdateContentOptions, FileChangeType, FileChangesEvent, ICreateFileOptions, IContentData, ITextSnapshot, IFilesConfiguration, IFileSystemProviderRegistrationEvent, IFileSystemProvider, ILegacyFileService, IFileStatWithMetadata, IFileService, IResolveMetadataFileOptions } from 'vs/platform/files/common/files';
 import { MAX_FILE_SIZE, MAX_HEAP_SIZE } from 'vs/platform/files/node/fileConstants';
 import { isEqualOrParent } from 'vs/base/common/extpath';
 import { ResourceMap } from 'vs/base/common/map';
@@ -48,7 +48,7 @@ export interface IFileServiceTestOptions {
 	encodingOverride?: IEncodingOverride[];
 }
 
-export class FileService extends Disposable implements ILegacyFileService {
+export class FileService extends Disposable implements ILegacyFileService, IFileService {
 
 	_serviceBrand: any;
 
@@ -531,7 +531,7 @@ export class FileService extends Disposable implements ILegacyFileService {
 		});
 	}
 
-	updateContent(resource: uri, value: string | ITextSnapshot, options: IUpdateContentOptions = Object.create(null)): Promise<IFileStat> {
+	updateContent(resource: uri, value: string | ITextSnapshot, options: IUpdateContentOptions = Object.create(null)): Promise<IFileStatWithMetadata> {
 		if (options.writeElevated) {
 			return this.doUpdateContentElevated(resource, value, options);
 		}
@@ -539,7 +539,7 @@ export class FileService extends Disposable implements ILegacyFileService {
 		return this.doUpdateContent(resource, value, options);
 	}
 
-	private doUpdateContent(resource: uri, value: string | ITextSnapshot, options: IUpdateContentOptions = Object.create(null)): Promise<IFileStat> {
+	private doUpdateContent(resource: uri, value: string | ITextSnapshot, options: IUpdateContentOptions = Object.create(null)): Promise<IFileStatWithMetadata> {
 		const absolutePath = this.toAbsolutePath(resource);
 
 		// 1.) check file for writing
@@ -650,7 +650,7 @@ export class FileService extends Disposable implements ILegacyFileService {
 		});
 	}
 
-	private doUpdateContentElevated(resource: uri, value: string | ITextSnapshot, options: IUpdateContentOptions = Object.create(null)): Promise<IFileStat> {
+	private doUpdateContentElevated(resource: uri, value: string | ITextSnapshot, options: IUpdateContentOptions = Object.create(null)): Promise<IFileStatWithMetadata> {
 		const absolutePath = this.toAbsolutePath(resource);
 
 		// 1.) check file for writing
@@ -712,7 +712,7 @@ export class FileService extends Disposable implements ILegacyFileService {
 		});
 	}
 
-	createFile(resource: uri, content: string = '', options: ICreateFileOptions = Object.create(null)): Promise<IFileStat> {
+	createFile(resource: uri, content: string = '', options: ICreateFileOptions = Object.create(null)): Promise<IFileStatWithMetadata> {
 		const absolutePath = this.toAbsolutePath(resource);
 
 		let checkFilePromise: Promise<boolean>;
@@ -945,6 +945,8 @@ export class FileService extends Disposable implements ILegacyFileService {
 		return paths.normalize(resource.fsPath);
 	}
 
+	private resolve(resource: uri, options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
+	private resolve(resource: uri, options?: IResolveFileOptions): Promise<IFileStat>;
 	private resolve(resource: uri, options: IResolveFileOptions = Object.create(null)): Promise<IFileStat> {
 		return this.toStatResolver(resource).then(model => model.resolve(options));
 	}
@@ -1083,6 +1085,8 @@ export class FileService extends Disposable implements ILegacyFileService {
 
 	// Tests only
 
+	resolveFile(resource: uri, options?: IResolveFileOptions): Promise<IFileStat>;
+	resolveFile(resource: uri, options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
 	resolveFile(resource: uri, options?: IResolveFileOptions): Promise<IFileStat> {
 		return this.resolve(resource, options);
 	}
@@ -1092,14 +1096,14 @@ export class FileService extends Disposable implements ILegacyFileService {
 			.then(stat => ({ stat, success: true }), error => ({ stat: undefined, success: false }))));
 	}
 
-	createFolder(resource: uri): Promise<IFileStat> {
+	createFolder(resource: uri): Promise<IFileStatWithMetadata> {
 
 		// 1.) Create folder
 		const absolutePath = this.toAbsolutePath(resource);
 		return pfs.mkdirp(absolutePath).then(() => {
 
 			// 2.) Resolve
-			return this.resolve(resource).then(result => {
+			return this.resolve(resource, { resolveMetadata: true }).then(result => {
 
 				// Events
 				this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, result));

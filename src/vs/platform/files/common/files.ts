@@ -84,13 +84,18 @@ export interface IFileService {
 	 * If the optional parameter "resolveSingleChildDescendants" is specified in options,
 	 * the stat service is asked to automatically resolve child folders that only
 	 * contain a single element.
+	 *
+	 * If the optional parameter "resolveMetadata" is specified in options,
+	 * the stat will contain metadata information such as size, mtime and etag.
 	 */
+	resolveFile(resource: URI, options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
 	resolveFile(resource: URI, options?: IResolveFileOptions): Promise<IFileStat>;
 
 	/**
 	 * Same as resolveFile but supports resolving multiple resources in parallel.
 	 * If one of the resolve targets fails to resolve returns a fake IFileStat instead of making the whole call fail.
 	 */
+	resolveFiles(toResolve: { resource: URI, options: IResolveMetadataFileOptions }[]): Promise<IResolveFileResult[]>;
 	resolveFiles(toResolve: { resource: URI, options?: IResolveFileOptions }[]): Promise<IResolveFileResult[]>;
 
 	/**
@@ -115,7 +120,7 @@ export interface IFileService {
 	/**
 	 * Updates the content replacing its previous value.
 	 */
-	updateContent(resource: URI, value: string | ITextSnapshot, options?: IUpdateContentOptions): Promise<IFileStat>;
+	updateContent(resource: URI, value: string | ITextSnapshot, options?: IUpdateContentOptions): Promise<IFileStatWithMetadata>;
 
 	/**
 	 * Moves the file to a new path identified by the resource.
@@ -137,13 +142,13 @@ export interface IFileService {
 	 *
 	 * The optional parameter content can be used as value to fill into the new file.
 	 */
-	createFile(resource: URI, content?: string, options?: ICreateFileOptions): Promise<IFileStat>;
+	createFile(resource: URI, content?: string, options?: ICreateFileOptions): Promise<IFileStatWithMetadata>;
 
 	/**
 	 * Creates a new folder with the given path. The returned promise
 	 * will have the stat model object as a result.
 	 */
-	createFolder(resource: URI): Promise<IFileStat>;
+	createFolder(resource: URI): Promise<IFileStatWithMetadata>;
 
 	/**
 	 * Deletes the provided file. The optional useTrash parameter allows to
@@ -194,9 +199,9 @@ export enum FileType {
 
 export interface IStat {
 	type: FileType;
-	mtime: number;
-	ctime: number;
-	size: number;
+	mtime?: number;
+	ctime?: number;
+	size?: number;
 }
 
 export interface IWatchOptions {
@@ -481,7 +486,7 @@ export function isParent(path: string, candidate: string, ignoreCase?: boolean):
 	return path.indexOf(candidate) === 0;
 }
 
-export interface IBaseStat {
+interface IBaseStat {
 
 	/**
 	 * The unified resource identifier of this file or folder.
@@ -497,12 +502,18 @@ export interface IBaseStat {
 	/**
 	 * The last modifictaion date represented
 	 * as millis from unix epoch.
+	 *
+	 * The value may or may not be resolved as
+	 * it is optional.
 	 */
-	mtime: number;
+	mtime?: number;
 
 	/**
 	 * A unique identifier thet represents the
 	 * current state of the file or directory.
+	 *
+	 * The value may or may not be resolved as
+	 * it is optional.
 	 */
 	etag?: string;
 
@@ -510,6 +521,11 @@ export interface IBaseStat {
 	 * The resource is readonly.
 	 */
 	isReadonly?: boolean;
+}
+
+export interface IBaseStatWithMetadata extends IBaseStat {
+	mtime: number;
+	etag: string;
 }
 
 /**
@@ -534,9 +550,19 @@ export interface IFileStat extends IBaseStat {
 	children?: IFileStat[];
 
 	/**
-	 * The size of the file if known.
+	 * The size of the file.
+	 *
+	 * The value may or may not be resolved as
+	 * it is optional.
 	 */
 	size?: number;
+}
+
+export interface IFileStatWithMetadata extends IFileStat, IBaseStatWithMetadata {
+	mtime: number;
+	etag: string;
+	size: number;
+	children?: IFileStatWithMetadata[];
 }
 
 export interface IResolveFileResult {
@@ -544,10 +570,14 @@ export interface IResolveFileResult {
 	success: boolean;
 }
 
+export interface IResolveFileResultWithMetadata extends IResolveFileResult {
+	stat?: IFileStatWithMetadata;
+}
+
 /**
  * Content and meta information of a file.
  */
-export interface IContent extends IBaseStat {
+export interface IContent extends IBaseStatWithMetadata {
 
 	/**
 	 * The content of a text file.
@@ -614,7 +644,7 @@ export function snapshotToString(snapshot: ITextSnapshot): string {
 /**
  * Streamable content and meta information of a file.
  */
-export interface IStreamContent extends IBaseStat {
+export interface IStreamContent extends IBaseStatWithMetadata {
 
 	/**
 	 * The streamable content of a text file.
@@ -712,6 +742,16 @@ export interface IResolveFileOptions {
 	 * Automatically continue resolving children of a directory if the number of children is 1.
 	 */
 	resolveSingleChildDescendants?: boolean;
+
+	/**
+	 * Will resolve mtime, size and etag of files if enabled. This can have a negative impact
+	 * on performance and thus should only be used when these values are required.
+	 */
+	resolveMetadata?: boolean;
+}
+
+export interface IResolveMetadataFileOptions extends IResolveFileOptions {
+	resolveMetadata: true;
 }
 
 export interface ICreateFileOptions {
@@ -1032,6 +1072,17 @@ export enum FileKind {
 
 export const MIN_MAX_MEMORY_SIZE_MB = 2048;
 export const FALLBACK_MAX_MEMORY_SIZE_MB = 4096;
+
+export function etag(mtime: number, size: number): string;
+export function etag(mtime: number | undefined, size: number | undefined): string | undefined;
+export function etag(mtime: number | undefined, size: number | undefined): string | undefined {
+	if (typeof size !== 'number' || typeof mtime !== 'number') {
+		return undefined;
+	}
+
+	return mtime.toString(29) + size.toString(31);
+}
+
 
 // TODO@ben remove traces of legacy file service
 export const ILegacyFileService = createDecorator<ILegacyFileService>('legacyFileService');

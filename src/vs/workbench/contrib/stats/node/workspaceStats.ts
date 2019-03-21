@@ -196,12 +196,15 @@ export function getHashedRemotesFromConfig(text: string, stripEndingDotGit: bool
 export function getHashedRemotesFromUri(workspaceUri: URI, fileService: IFileService, stripEndingDotGit: boolean = false): Promise<string[]> {
 	const path = workspaceUri.path;
 	const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/.git/config` });
-	return fileService.resolveFile(uri).then(() => {
+	return fileService.existsFile(uri).then(exists => {
+		if (!exists) {
+			return [];
+		}
 		return fileService.resolveContent(uri, { acceptTextOnly: true }).then(
 			content => getHashedRemotesFromConfig(content.value, stripEndingDotGit),
 			err => [] // ignore missing or binary file
 		);
-	}, err => []);
+	});
 }
 
 export class WorkspaceStats implements IWorkbenchContribution {
@@ -434,7 +437,11 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			function getFilePromises(filename: string, fileService: IFileService, contentHandler: (content: IContent) => void): Promise<void>[] {
 				return !nameSet.has(filename) ? [] : (folders as URI[]).map(workspaceUri => {
 					const uri = workspaceUri.with({ path: `${workspaceUri.path !== '/' ? workspaceUri.path : ''}/${filename}` });
-					return fileService.resolveFile(uri).then(() => {
+					return fileService.existsFile(uri).then(exists => {
+						if (!exists) {
+							return undefined;
+						}
+
 						return fileService.resolveContent(uri, { acceptTextOnly: true }).then(contentHandler);
 					}, err => {
 						// Ignore missing file
@@ -613,12 +620,15 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		Promise.all<string[]>(workspaceUris.map(workspaceUri => {
 			const path = workspaceUri.path;
 			const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/.git/config` });
-			return this.fileService.resolveFile(uri).then(() => {
+			return this.fileService.existsFile(uri).then(exists => {
+				if (!exists) {
+					return [];
+				}
 				return this.fileService.resolveContent(uri, { acceptTextOnly: true }).then(
 					content => getDomainsOfRemotes(content.value, SecondLevelDomainWhitelist),
 					err => [] // ignore missing or binary file
 				);
-			}, err => []);
+			});
 		})).then(domains => {
 			const set = domains.reduce((set, list) => list.reduce((set, item) => set.add(item), set), new Set<string>());
 			const list: string[] = [];
@@ -679,12 +689,15 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		return Promise.all(workspaceUris.map(workspaceUri => {
 			const path = workspaceUri.path;
 			const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/pom.xml` });
-			return this.fileService.resolveFile(uri).then(stats => {
+			return this.fileService.existsFile(uri).then(exists => {
+				if (!exists) {
+					return false;
+				}
 				return this.fileService.resolveContent(uri, { acceptTextOnly: true }).then(
 					content => !!content.value.match(/azure/i),
 					err => false
 				);
-			}, err => false);
+			});
 		})).then(javas => {
 			if (javas.indexOf(true) !== -1) {
 				tags['java'] = true;

@@ -5,7 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { ITextSnapshot, IFileStat, IContent, IFileService, IResourceEncodings, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IStreamContent, IUpdateContentOptions, snapshotToString, ICreateFileOptions, IResourceEncoding } from 'vs/platform/files/common/files';
+import { ITextSnapshot, IFileStat, IContent, IFileService, IResourceEncodings, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IStreamContent, IUpdateContentOptions, snapshotToString, ICreateFileOptions, IResourceEncoding, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { ITextBufferFactory } from 'vs/editor/common/model';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { keys, ResourceMap } from 'vs/base/common/map';
@@ -699,7 +699,7 @@ export class SimpleRemoteFileService implements IFileService {
 	readonly onDidChangeFileSystemProviderRegistrations = Event.None;
 	readonly onWillActivateFileSystemProvider = Event.None;
 
-	resolveFile(resource: URI, options?: IResolveFileOptions): Promise<IFileStat> {
+	resolveFile(resource: URI, options?: IResolveFileOptions): Promise<IFileStatWithMetadata> {
 		// @ts-ignore
 		return Promise.resolve(fileMap.get(resource));
 	}
@@ -746,7 +746,7 @@ export class SimpleRemoteFileService implements IFileService {
 		});
 	}
 
-	updateContent(resource: URI, value: string | ITextSnapshot, _options?: IUpdateContentOptions): Promise<IFileStat> {
+	updateContent(resource: URI, value: string | ITextSnapshot, _options?: IUpdateContentOptions): Promise<IFileStatWithMetadata> {
 		// @ts-ignore
 		return Promise.resolve(fileMap.get(resource)).then(file => {
 			const content = contentMap.get(resource);
@@ -776,7 +776,7 @@ export class SimpleRemoteFileService implements IFileService {
 		});
 	}
 
-	createFile(_resource: URI, _content?: string, _options?: ICreateFileOptions): Promise<IFileStat> {
+	createFile(_resource: URI, _content?: string, _options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
 		const parent = fileMap.get(dirname(_resource));
 		if (!parent) {
 			return Promise.reject(new Error(`Unable to create file in ${dirname(_resource).path}`));
@@ -785,7 +785,7 @@ export class SimpleRemoteFileService implements IFileService {
 		return Promise.resolve(createFile(parent, basename(_resource.path)));
 	}
 
-	createFolder(_resource: URI): Promise<IFileStat> {
+	createFolder(_resource: URI): Promise<IFileStatWithMetadata> {
 		const parent = fileMap.get(dirname(_resource));
 		if (!parent) {
 			return Promise.reject(new Error(`Unable to create folder in ${dirname(_resource).path}`));
@@ -811,13 +811,14 @@ export class SimpleRemoteFileService implements IFileService {
 	dispose(): void { }
 }
 
-function createFile(parent: IFileStat, name: string, content: string = ''): IFileStat {
-	const file: IFileStat = {
+function createFile(parent: IFileStat, name: string, content: string = ''): IFileStatWithMetadata {
+	const file: IFileStatWithMetadata = {
 		resource: joinPath(parent.resource, name),
 		etag: Date.now().toString(),
 		mtime: Date.now(),
 		isDirectory: false,
-		name
+		name,
+		size: -1
 	};
 
 	// @ts-ignore
@@ -837,13 +838,14 @@ function createFile(parent: IFileStat, name: string, content: string = ''): IFil
 	return file;
 }
 
-function createFolder(parent: IFileStat, name: string): IFileStat {
-	const folder: IFileStat = {
+function createFolder(parent: IFileStat, name: string): IFileStatWithMetadata {
+	const folder: IFileStatWithMetadata = {
 		resource: joinPath(parent.resource, name),
 		etag: Date.now().toString(),
 		mtime: Date.now(),
 		isDirectory: true,
 		name,
+		size: 0,
 		children: []
 	};
 
