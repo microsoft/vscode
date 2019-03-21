@@ -404,9 +404,8 @@ export function firstIndex<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean)
 }
 
 export function first<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean, notFoundValue: T): T;
-export function first<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean): T | null;
-export function first<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean, notFoundValue: T | null): T | null;
-export function first<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean, notFoundValue: T | null = null): T | null {
+export function first<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean): T | undefined;
+export function first<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean, notFoundValue: T | undefined = undefined): T | undefined {
 	const index = firstIndex(array, fn);
 	return index < 0 ? notFoundValue : array[index];
 }
