@@ -344,7 +344,7 @@ export class FileSearchManager {
 			engine.cancel();
 		});
 
-		const _onResult = match => {
+		const _onResult = (match: IInternalFileMatch) => {
 			if (match) {
 				batch.push(match);
 				if (batchSize > 0 && batch.length >= batchSize) {

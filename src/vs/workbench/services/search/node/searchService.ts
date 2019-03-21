@@ -26,7 +26,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { deserializeSearchError, FileMatch, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IProgress, IRawSearchService, ISearchComplete, ISearchConfiguration, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, isSerializedSearchComplete, isSerializedSearchSuccess, ITextQuery, pathIncludedInQuery, QueryType, SearchError, SearchErrorCode, SearchProviderType } from 'vs/workbench/services/search/common/search';
+import { deserializeSearchError, FileMatch, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, IRawSearchService, ISearchComplete, ISearchConfiguration, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, isSerializedSearchComplete, isSerializedSearchSuccess, ITextQuery, pathIncludedInQuery, QueryType, SearchError, SearchErrorCode, SearchProviderType, isFileMatch, isProgressMessage } from 'vs/workbench/services/search/common/search';
 import { addContextToEditorMatches, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { SearchChannelClient } from './searchIpc';
@@ -78,18 +78,18 @@ export class SearchService extends Disposable implements ISearchService {
 			arrays.coalesce(localResults.values()).forEach(onProgress);
 		}
 
-		const onProviderProgress = progress => {
-			if (progress.resource) {
+		const onProviderProgress = (progress: ISearchProgressItem) => {
+			if (isFileMatch(progress)) {
 				// Match
 				if (!localResults.has(progress.resource) && onProgress) { // don't override local results
 					onProgress(progress);
 				}
 			} else if (onProgress) {
 				// Progress
-				onProgress(<IProgress>progress);
+				onProgress(<IProgressMessage>progress);
 			}
 
-			if (progress.message) {
+			if (isProgressMessage(progress)) {
 				this.logService.debug('SearchService#search', progress.message);
 			}
 		};
@@ -142,7 +142,7 @@ export class SearchService extends Disposable implements ISearchService {
 				return <ISearchComplete>{
 					limitHit: completes[0] && completes[0].limitHit,
 					stats: completes[0].stats,
-					results: arrays.flatten(completes.map(c => c.results))
+					results: arrays.flatten(completes.map((c: ISearchComplete) => c.results))
 				};
 			});
 
@@ -497,7 +497,7 @@ export class DiskSearch implements ISearchResultProvider {
 				let event: Event<ISerializedSearchProgressItem | ISerializedSearchComplete>;
 				event = this.raw.fileSearch(query);
 
-				const onProgress = (p: IProgress) => {
+				const onProgress = (p: IProgressMessage) => {
 					if (p.message) {
 						// Should only be for logs
 						this.logService.debug('SearchService#search', p.message);
@@ -561,7 +561,7 @@ export class DiskSearch implements ISearchResultProvider {
 
 					// Progress
 					else if (onProgress) {
-						onProgress(<IProgress>ev);
+						onProgress(<IProgressMessage>ev);
 					}
 				}
 			});

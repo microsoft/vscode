@@ -165,10 +165,11 @@ export class RipgrepParser extends EventEmitter {
 	}
 
 
-	on(event: 'result', listener: (result: vscode.TextSearchResult) => void);
-	on(event: 'hitLimit', listener: () => void);
-	on(event: string, listener: (...args: any[]) => void) {
+	on(event: 'result', listener: (result: vscode.TextSearchResult) => void): this;
+	on(event: 'hitLimit', listener: () => void): this;
+	on(event: string, listener: (...args: any[]) => void): this {
 		super.on(event, listener);
+		return this;
 	}
 
 	handleData(data: Buffer | string): void {
