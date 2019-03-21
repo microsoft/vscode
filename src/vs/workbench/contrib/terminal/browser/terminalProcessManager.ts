@@ -123,7 +123,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		this.os = platform.OS;
 		if (launchRemotely) {
 			if (hasRemoteAuthority) {
-				this._remoteEnvironmentService.remoteEnvironment.then(env => {
+				this._remoteEnvironmentService.getEnvironment().then(env => {
 					if (!env) {
 						return;
 					}

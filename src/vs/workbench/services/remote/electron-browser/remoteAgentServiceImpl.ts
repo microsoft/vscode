@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { getDelayedChannel } from 'vs/base/parts/ipc/node/ipc';
 import { Client } from 'vs/base/parts/ipc/node/ipc.net';
@@ -11,7 +10,6 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { connectRemoteAgentManagement } from 'vs/platform/remote/node/remoteAgentConnection';
 import { IWindowService } from 'vs/platform/windows/common/windows';
-import { RemoteExtensionEnvironmentChannelClient } from 'vs/workbench/services/remote/node/remoteAgentEnvironmentChannel';
 import { IRemoteAgentConnection, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -21,7 +19,7 @@ import { DownloadServiceChannel } from 'vs/platform/download/node/downloadIpc';
 import { LogLevelSetterChannel } from 'vs/platform/log/node/logIpc';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IRemoteAgentEnvironment, RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
+import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -40,7 +38,7 @@ export class RemoteAgentService implements IRemoteAgentService {
 	) {
 		const { remoteAuthority } = windowService.getConfiguration();
 		if (remoteAuthority) {
-			this._connection = new RemoteAgentConnection(remoteAuthority, notificationService, environmentService, remoteAuthorityResolverService);
+			this._connection = new RemoteAgentConnection(remoteAuthority, environmentService, remoteAuthorityResolverService);
 		}
 	}
 
@@ -53,29 +51,15 @@ class RemoteAgentConnection extends Disposable implements IRemoteAgentConnection
 
 	readonly remoteAuthority: string;
 	private _connection: Promise<Client<RemoteAgentConnectionContext>> | null;
-	private _environment: Promise<IRemoteAgentEnvironment | null> | null;
 
 	constructor(
 		remoteAuthority: string,
-		private _notificationService: INotificationService,
 		private _environmentService: IEnvironmentService,
 		private _remoteAuthorityResolverService: IRemoteAuthorityResolverService
 	) {
 		super();
 		this.remoteAuthority = remoteAuthority;
 		this._connection = null;
-		this._environment = null;
-	}
-
-	getEnvironment(): Promise<IRemoteAgentEnvironment | null> {
-		if (!this._environment) {
-			const client = new RemoteExtensionEnvironmentChannelClient(this.getChannel('remoteextensionsenvironment'));
-
-			// Let's cover the case where connecting to fetch the remote extension info fails
-			this._environment = client.getEnvironmentData(this.remoteAuthority, this._environmentService.extensionDevelopmentLocationURI)
-				.then(undefined, err => { this._notificationService.error(localize('connectionError', "Failed to connect to the remote extension host agent (Error: {0})", err ? err.message : '')); return null; });
-		}
-		return this._environment;
 	}
 
 	getChannel<T extends IChannel>(channelName: string): T {

@@ -111,7 +111,7 @@ export class RemoteFileDialog {
 	private async getOptions(options: ISaveDialogOptions | IOpenDialogOptions): Promise<IOpenDialogOptions | undefined> {
 		let defaultUri = options.defaultUri;
 		if (!defaultUri) {
-			const env = await this.remoteEnvironmentService.remoteEnvironment;
+			const env = await this.remoteEnvironmentService.getEnvironment();
 			if (env) {
 				defaultUri = env.userHome;
 			} else {

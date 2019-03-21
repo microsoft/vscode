@@ -14,12 +14,12 @@ import { URI } from 'vs/base/common/uri';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { getManifest } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { localize } from 'vs/nls';
 import { isUIExtension } from 'vs/workbench/services/extensions/node/extensionsUtil';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IRemoteEnvironmentService } from 'vs/workbench/services/remote/common/remoteEnvironmentService';
 
 export class MultiExtensionManagementService extends Disposable implements IExtensionManagementService {
 
@@ -36,7 +36,7 @@ export class MultiExtensionManagementService extends Disposable implements IExte
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService
+		@IRemoteEnvironmentService private readonly remoteEnvironmentService: IRemoteEnvironmentService
 	) {
 		super();
 		this.servers = this.extensionManagementServerService.remoteExtensionManagementServer ? [this.extensionManagementServerService.localExtensionManagementServer, this.extensionManagementServerService.remoteExtensionManagementServer] : [this.extensionManagementServerService.localExtensionManagementServer];
@@ -204,16 +204,10 @@ export class MultiExtensionManagementService extends Disposable implements IExte
 		if (!this.extensionManagementServerService.remoteExtensionManagementServer) {
 			return false;
 		}
-		const connection = this.remoteAgentService.getConnection();
-		if (!connection) {
-			return false;
-		}
-
-		const remoteEnv = await connection.getEnvironment();
+		const remoteEnv = await this.remoteEnvironmentService.getEnvironment();
 		if (!remoteEnv) {
 			return false;
 		}
-
 		return remoteEnv.syncExtensions;
 	}
 }
