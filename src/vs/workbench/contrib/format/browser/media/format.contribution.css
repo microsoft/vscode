@@ -3,6 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/format.contribution';
-import './formatActionsMultiple';
-import './formatActionsNone';
+.monaco-workbench .format-show-extension {
+	background-image: url('configure.svg');
+}
+
+.vs-dark .monaco-workbench .format-show-extension,
+.hc-black .monaco-workbench .format-show-extension {
+	background-image: url('configure-inverse.svg');
+}

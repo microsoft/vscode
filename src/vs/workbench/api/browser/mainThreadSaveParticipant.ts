@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { IdleValue, sequence } from 'vs/base/common/async';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 import * as strings from 'vs/base/common/strings';
-import { ICodeEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { trimTrailingWhitespace } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
@@ -16,15 +15,13 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
-import { CodeAction, TextEdit } from 'vs/editor/common/modes';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { ITextModel } from 'vs/editor/common/model';
+import { CodeAction } from 'vs/editor/common/modes';
 import { shouldSynchronizeModel } from 'vs/editor/common/services/modelService';
 import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
 import { applyCodeAction } from 'vs/editor/contrib/codeAction/codeActionCommands';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
-import { getDocumentFormattingEdits, FormatMode } from 'vs/editor/contrib/format/format';
-import { FormattingEdit } from 'vs/editor/contrib/format/formattingEdit';
+import { formatDocumentUntilResult } from 'vs/editor/contrib/format/format';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -36,7 +33,6 @@ import { extHostCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { ISaveParticipant, SaveReason, IResolvedTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { ExtHostContext, ExtHostDocumentSaveParticipantShape, IExtHostContext } from '../common/extHost.protocol';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export interface ISaveParticipantParticipant extends ISaveParticipant {
 	// progressMessage: string;
@@ -214,10 +210,8 @@ export class TrimFinalNewLinesParticipant implements ISaveParticipantParticipant
 class FormatOnSaveParticipant implements ISaveParticipantParticipant {
 
 	constructor(
-		@ICodeEditorService private readonly _editorService: ICodeEditorService,
-		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		// Nothing
 	}
@@ -230,13 +224,11 @@ class FormatOnSaveParticipant implements ISaveParticipantParticipant {
 			return undefined;
 		}
 
-		const versionNow = model.getVersionId();
-
 		const timeout = this._configurationService.getValue<number>('editor.formatOnSaveTimeout', { overrideIdentifier: model.getLanguageIdentifier().language, resource: editorModel.getResource() });
 
-		return new Promise<TextEdit[] | null>((resolve, reject) => {
+		return new Promise<any>((resolve, reject) => {
 			const source = new CancellationTokenSource();
-			const request = getDocumentFormattingEdits(this._telemetryService, this._editorWorkerService, model, model.getFormattingOptions(), FormatMode.Auto, source.token);
+			const request = this._instantiationService.invokeFunction(formatDocumentUntilResult, model, source.token);
 
 			setTimeout(() => {
 				reject(localize('timeout.formatOnSave', "Aborted format on save after {0}ms", timeout));
@@ -244,44 +236,7 @@ class FormatOnSaveParticipant implements ISaveParticipantParticipant {
 			}, timeout);
 
 			request.then(resolve, reject);
-
-		}).then(edits => {
-			if (isNonEmptyArray(edits) && versionNow === model.getVersionId()) {
-				const editor = findEditor(model, this._editorService);
-				if (editor) {
-					this._editsWithEditor(editor, edits);
-				} else {
-					this._editWithModel(model, edits);
-				}
-			}
 		});
-	}
-
-	private _editsWithEditor(editor: ICodeEditor, edits: TextEdit[]): void {
-		FormattingEdit.execute(editor, edits);
-	}
-
-	private _editWithModel(model: ITextModel, edits: TextEdit[]): void {
-
-		const [{ range }] = edits;
-		const initialSelection = new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
-
-		model.pushEditOperations([initialSelection], edits.map(FormatOnSaveParticipant._asIdentEdit), undoEdits => {
-			for (const { range } of undoEdits) {
-				if (Range.areIntersectingOrTouching(range, initialSelection)) {
-					return [new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn)];
-				}
-			}
-			return null;
-		});
-	}
-
-	private static _asIdentEdit({ text, range }: TextEdit): IIdentifiedSingleEditOperation {
-		return {
-			text,
-			range: Range.lift(range),
-			forceMoveMarkers: true
-		};
 	}
 }
 

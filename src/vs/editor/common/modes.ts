@@ -929,6 +929,8 @@ export interface DocumentFormattingEditProvider {
 	 */
 	readonly extensionId?: ExtensionIdentifier;
 
+	readonly displayName?: string;
+
 	/**
 	 * Provide formatting edits for a whole document.
 	 */
@@ -939,12 +941,12 @@ export interface DocumentFormattingEditProvider {
  * the formatting-feature.
  */
 export interface DocumentRangeFormattingEditProvider {
-
-
 	/**
 	 * @internal
 	 */
 	readonly extensionId?: ExtensionIdentifier;
+
+	readonly displayName?: string;
 
 	/**
 	 * Provide formatting edits for a range in a document.
