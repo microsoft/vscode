@@ -36,8 +36,7 @@ export class RemoteAgentService extends Disposable implements IRemoteAgentServic
 	constructor(
 		@IWindowService windowService: IWindowService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
-		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@INotificationService private readonly _notificationService: INotificationService
+		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService
 	) {
 		super();
 		const { remoteAuthority } = windowService.getConfiguration();
@@ -50,20 +49,17 @@ export class RemoteAgentService extends Disposable implements IRemoteAgentServic
 		return this._connection;
 	}
 
-	getEnvironment(): Promise<IRemoteAgentEnvironment | null> {
+	getEnvironment(bail?: boolean): Promise<IRemoteAgentEnvironment | null> {
 		if (!this._environment) {
 			const connection = this.getConnection();
 			if (connection) {
 				const client = new RemoteExtensionEnvironmentChannelClient(connection.getChannel('remoteextensionsenvironment'));
-
-				// Let's cover the case where connecting to fetch the remote extension info fails
-				this._environment = client.getEnvironmentData(connection.remoteAuthority, this._environmentService.extensionDevelopmentLocationURI)
-					.then(undefined, err => { this._notificationService.error(localize('connectionError', "Failed to connect to the remote extension host agent (Error: {0})", err ? err.message : '')); return null; });
+				this._environment = client.getEnvironmentData(connection.remoteAuthority, this._environmentService.extensionDevelopmentLocationURI);
 			} else {
 				this._environment = Promise.resolve(null);
 			}
 		}
-		return this._environment;
+		return bail ? this._environment : this._environment.then(undefined, () => null);
 	}
 }
 
@@ -121,6 +117,20 @@ class RemoteChannelsContribution implements IWorkbenchContribution {
 	}
 }
 
+class RemoteConnectionFailureNotificationContribution implements IWorkbenchContribution {
+
+	constructor(
+		@IRemoteAgentService remoteAgentService: RemoteAgentService,
+		@INotificationService notificationService: INotificationService,
+	) {
+		// Let's cover the case where connecting to fetch the remote extension info fails
+		remoteAgentService.getEnvironment(true)
+			.then(undefined, err => notificationService.error(localize('connectionError', "Failed to connect to the remote extension host agent (Error: {0})", err ? err.message : '')));
+	}
+
+}
+
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(RemoteChannelsContribution, LifecyclePhase.Ready);
+workbenchRegistry.registerWorkbenchContribution(RemoteConnectionFailureNotificationContribution, LifecyclePhase.Ready);
 registerSingleton(IRemoteAgentService, RemoteAgentService);
