@@ -299,15 +299,15 @@ registerEditorAction(FormatSelectionAction);
 
 // this is the old format action that does both (format document OR format selection)
 // and we keep it here such that existing keybinding configurations etc will still work
-CommandsRegistry.registerCommand('editor.action.format', accessor => {
+CommandsRegistry.registerCommand('editor.action.format', async accessor => {
 	const editor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
 	if (!editor || !editor.hasModel()) {
 		return;
 	}
 	const commandService = accessor.get(ICommandService);
 	if (editor.getSelection().isEmpty()) {
-		return commandService.executeCommand('editor.action.formatDocument');
+		await commandService.executeCommand('editor.action.formatDocument');
 	} else {
-		return commandService.executeCommand('editor.action.formatSelection');
+		await commandService.executeCommand('editor.action.formatSelection');
 	}
 });
