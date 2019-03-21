@@ -88,7 +88,7 @@ interface ISerializedPreferencesEditorInput {
 // Register Preferences Editor Input Factory
 class PreferencesEditorInputFactory implements IEditorInputFactory {
 
-	serialize(editorInput: EditorInput): string | null {
+	serialize(editorInput: EditorInput): string | undefined {
 		const input = <PreferencesEditorInput>editorInput;
 
 		if (input.details && input.master) {
@@ -113,10 +113,10 @@ class PreferencesEditorInputFactory implements IEditorInputFactory {
 			}
 		}
 
-		return null;
+		return undefined;
 	}
 
-	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput | null {
+	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput | undefined {
 		const deserialized: ISerializedPreferencesEditorInput = JSON.parse(serializedEditorInput);
 
 		const registry = Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories);
@@ -132,7 +132,7 @@ class PreferencesEditorInputFactory implements IEditorInputFactory {
 			}
 		}
 
-		return null;
+		return undefined;
 	}
 }
 
