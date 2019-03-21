@@ -85,7 +85,6 @@ export class ExplorerItem {
 		private _isReadonly?: boolean,
 		private _name: string = resources.basenameOrAuthority(resource),
 		private _mtime?: number,
-		private _etag?: string,
 	) {
 		this._isDirectoryResolved = false;
 	}
@@ -104,10 +103,6 @@ export class ExplorerItem {
 
 	get isReadonly(): boolean {
 		return !!this._isReadonly;
-	}
-
-	get etag(): string | undefined {
-		return this._etag;
 	}
 
 	get mtime(): number | undefined {
@@ -154,7 +149,7 @@ export class ExplorerItem {
 	}
 
 	static create(raw: IFileStat, parent: ExplorerItem | undefined, resolveTo?: URI[]): ExplorerItem {
-		const stat = new ExplorerItem(raw.resource, parent, raw.isDirectory, raw.isSymbolicLink, raw.isReadonly, raw.name, raw.mtime, raw.etag);
+		const stat = new ExplorerItem(raw.resource, parent, raw.isDirectory, raw.isSymbolicLink, raw.isReadonly, raw.name, raw.mtime);
 
 		// Recursively add children if present
 		if (stat.isDirectory) {

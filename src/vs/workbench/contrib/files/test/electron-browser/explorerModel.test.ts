@@ -147,7 +147,6 @@ suite('Files - View Model', function () {
 		assert.strictEqual(s1.find(toResource.call(this, 'foobar')), null);
 
 		assert.strictEqual(s1.find(toResource.call(this, '/')), s1);
-		// assert.strictEqual(s1.find(toResource.call(this, '')), s1); //TODO@isidor this fails with proper paths usage
 	});
 
 	test('Find with mixed case', function () {
@@ -244,21 +243,19 @@ suite('Files - View Model', function () {
 	});
 
 	test('Merge Local with Disk', function () {
-		const d = new Date().toUTCString();
-
-		const merge1 = new ExplorerItem(URI.file(join('C:\\', '/path/to')), undefined, true, false, false, 'to', Date.now(), d);
-		const merge2 = new ExplorerItem(URI.file(join('C:\\', '/path/to')), undefined, true, false, false, 'to', Date.now(), new Date(0).toUTCString());
+		const merge1 = new ExplorerItem(URI.file(join('C:\\', '/path/to')), undefined, true, false, false, 'to', Date.now());
+		const merge2 = new ExplorerItem(URI.file(join('C:\\', '/path/to')), undefined, true, false, false, 'to', Date.now());
 
 		// Merge Properties
 		ExplorerItem.mergeLocalWithDisk(merge2, merge1);
 		assert.strictEqual(merge1.mtime, merge2.mtime);
 
 		// Merge Child when isDirectoryResolved=false is a no-op
-		merge2.addChild(new ExplorerItem(URI.file(join('C:\\', '/path/to/foo.html')), undefined, true, false, false, 'foo.html', Date.now(), d));
+		merge2.addChild(new ExplorerItem(URI.file(join('C:\\', '/path/to/foo.html')), undefined, true, false, false, 'foo.html', Date.now()));
 		ExplorerItem.mergeLocalWithDisk(merge2, merge1);
 
 		// Merge Child with isDirectoryResolved=true
-		const child = new ExplorerItem(URI.file(join('C:\\', '/path/to/foo.html')), undefined, true, false, false, 'foo.html', Date.now(), d);
+		const child = new ExplorerItem(URI.file(join('C:\\', '/path/to/foo.html')), undefined, true, false, false, 'foo.html', Date.now());
 		merge2.removeChild(child);
 		merge2.addChild(child);
 		(<any>merge2)._isDirectoryResolved = true;
