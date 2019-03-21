@@ -499,6 +499,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 							if (this.canSelectMany) {
 								this.ui.list.domFocus();
 							}
+							event.preventDefault();
 							break;
 						case KeyCode.UpArrow:
 							if (this.ui.list.getFocusedElements().length) {
@@ -509,6 +510,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 							if (this.canSelectMany) {
 								this.ui.list.domFocus();
 							}
+							event.preventDefault();
 							break;
 						case KeyCode.PageDown:
 							if (this.ui.list.getFocusedElements().length) {
@@ -519,6 +521,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 							if (this.canSelectMany) {
 								this.ui.list.domFocus();
 							}
+							event.preventDefault();
 							break;
 						case KeyCode.PageUp:
 							if (this.ui.list.getFocusedElements().length) {
@@ -529,6 +532,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 							if (this.canSelectMany) {
 								this.ui.list.domFocus();
 							}
+							event.preventDefault();
 							break;
 					}
 				}),
