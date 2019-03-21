@@ -12,7 +12,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { isAbsolutePath, dirname, basename, joinPath, isEqual } from 'vs/base/common/resources';
 import { localize } from 'vs/nls';
 import { TernarySearchTree } from 'vs/base/common/map';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
+import { isNonEmptyArray, coalesce } from 'vs/base/common/arrays';
 import { getBaseLabel } from 'vs/base/common/labels';
 import { ILogService } from 'vs/platform/log/common/log';
 
@@ -159,11 +159,11 @@ export class FileService2 extends Disposable implements IFileService {
 		const provider = await this.withProvider(resource);
 
 		// leverage a trie to check for recursive resolving
-		const to = options && options.resolveTo;
+		const resolveTo = options && options.resolveTo;
 		const trie = TernarySearchTree.forPaths<true>();
 		trie.set(resource.toString(), true);
-		if (isNonEmptyArray(to)) {
-			to.forEach(uri => trie.set(uri.toString(), true));
+		if (isNonEmptyArray(resolveTo)) {
+			resolveTo.forEach(uri => trie.set(uri.toString(), true));
 		}
 
 		const stat = await provider.stat(resource);
@@ -202,13 +202,21 @@ export class FileService2 extends Disposable implements IFileService {
 		if (fileStat.isDirectory && recurse(fileStat, siblings)) {
 			try {
 				const entries = await provider.readdir(resource);
+				const resolvedEntries = await Promise.all(entries.map(async entry => {
+					try {
+						const childResource = joinPath(resource, entry[0]);
+						const childStat = await provider.stat(childResource);
 
-				fileStat.children = await Promise.all(entries.map(async entry => {
-					const childResource = joinPath(resource, entry[0]);
-					const childStat = await provider.stat(childResource);
+						return this.toFileStat(provider, childResource, childStat, entries.length, recurse);
+					} catch (error) {
+						this.logService.trace(error);
 
-					return this.toFileStat(provider, childResource, childStat, entries.length, recurse);
+						return null; // can happen e.g. due to permission errors
+					}
 				}));
+
+				// make sure to get rid of null values that signal a failure to resolve a particular entry
+				fileStat.children = coalesce(resolvedEntries);
 			} catch (error) {
 				this.logService.trace(error);
 
@@ -235,22 +243,23 @@ export class FileService2 extends Disposable implements IFileService {
 			group.push(request);
 		}
 
-		// resolve files
-		const result: IResolveFileResult[] = [];
+		// resolve files (in parallel)
+		const result: Promise<IResolveFileResult>[] = [];
 		for (const group of groups) {
 			for (const groupEntry of group) {
-				try {
-					const stat = await this.doResolveFile(groupEntry.resource, groupEntry.options);
-					result.push({ stat, success: true });
-				} catch (error) {
-					this.logService.trace(error);
+				result.push((async () => {
+					try {
+						return { stat: await this.doResolveFile(groupEntry.resource, groupEntry.options), success: true };
+					} catch (error) {
+						this.logService.trace(error);
 
-					result.push({ stat: undefined, success: false });
-				}
+						return { stat: undefined, success: false };
+					}
+				})());
 			}
 		}
 
-		return result;
+		return Promise.all(result);
 	}
 
 	async existsFile(resource: URI): Promise<boolean> {
