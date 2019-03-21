@@ -1396,6 +1396,24 @@ export interface WorkspaceCommentProvider {
 	onDidChangeCommentThreads(): Event<CommentThreadChangedEvent>;
 }
 
+/**
+ * @internal
+ */
+export interface IWebviewOptions {
+	readonly enableScripts?: boolean;
+	readonly enableCommandUris?: boolean;
+	readonly localResourceRoots?: ReadonlyArray<URI>;
+	readonly portMapping?: ReadonlyArray<{ port: number, resolvedPort: number }>;
+}
+
+/**
+ * @internal
+ */
+export interface IWebviewPanelOptions {
+	readonly enableFindWidget?: boolean;
+	readonly retainContextWhenHidden?: boolean;
+}
+
 export interface ICodeLensSymbol {
 	range: IRange;
 	id?: string;

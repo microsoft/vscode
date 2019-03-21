@@ -11,8 +11,8 @@ import { createDecorator, IInstantiationService } from 'vs/platform/instantiatio
 import { GroupIdentifier } from 'vs/workbench/common/editor';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
-import * as vscode from 'vscode';
 import { RevivedWebviewEditorInput, WebviewEditorInput } from './webviewEditorInput';
+import { IWebviewOptions, IWebviewPanelOptions } from 'vs/editor/common/modes';
 
 export const IWebviewEditorService = createDecorator<IWebviewEditorService>('webviewEditorService');
 
@@ -72,10 +72,10 @@ export interface WebviewReviver {
 export interface WebviewEvents {
 	onMessage?(message: any): void;
 	onDispose?(): void;
-	onDidClickLink?(link: URI, options: vscode.WebviewOptions): void;
+	onDidClickLink?(link: URI, options: IWebviewOptions): void;
 }
 
-export interface WebviewInputOptions extends vscode.WebviewOptions, vscode.WebviewPanelOptions {
+export interface WebviewInputOptions extends IWebviewOptions, IWebviewPanelOptions {
 	tryRestoreScrollPosition?: boolean;
 }
 
@@ -129,7 +129,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 		viewType: string,
 		title: string,
 		showOptions: ICreateWebViewShowOptions,
-		options: vscode.WebviewOptions,
+		options: IWebviewOptions,
 		extensionLocation: URI | undefined,
 		events: WebviewEvents
 	): WebviewEditorInput {

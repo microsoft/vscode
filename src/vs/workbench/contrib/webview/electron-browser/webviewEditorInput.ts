@@ -9,9 +9,8 @@ import { URI } from 'vs/base/common/uri';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { EditorInput, EditorModel, GroupIdentifier, IEditorInput } from 'vs/workbench/common/editor';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import * as vscode from 'vscode';
 import { WebviewEvents, WebviewInputOptions } from './webviewEditorService';
-import { WebviewElement } from './webviewElement';
+import { WebviewElement, WebviewOptions } from './webviewElement';
 
 export class WebviewEditorInput extends EditorInput {
 	private static handlePool = 0;
@@ -195,7 +194,7 @@ export class WebviewEditorInput extends EditorInput {
 		return this._options;
 	}
 
-	public setOptions(value: vscode.WebviewOptions) {
+	public setOptions(value: WebviewOptions) {
 		this._options = {
 			...this._options,
 			...value
