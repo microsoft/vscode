@@ -43,7 +43,7 @@ const CHAR_QUESTION_MARK = 63; /* ? */
 
 class ErrorInvalidArgType extends Error {
 	code: 'ERR_INVALID_ARG_TYPE';
-	constructor(name: string, expected: string, actual: string) {
+	constructor(name: string, expected: string, actual: any) {
 		// determiner: 'must be' or 'must not be'
 		let determiner;
 		if (typeof expected === 'string' && expected.indexOf('not ') === 0) {
@@ -53,9 +53,8 @@ class ErrorInvalidArgType extends Error {
 			determiner = 'must be';
 		}
 
-		let msg;
 		const type = name.indexOf('.') !== -1 ? 'property' : 'argument';
-		msg = `The "${name}" ${type} ${determiner} of type ${expected}`;
+		let msg = `The "${name}" ${type} ${determiner} of type ${expected}`;
 
 		msg += `. Received type ${typeof actual}`;
 		super(msg);
