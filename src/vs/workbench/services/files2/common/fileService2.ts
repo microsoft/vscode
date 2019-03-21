@@ -360,38 +360,29 @@ export class FileService2 extends Disposable implements IFileService {
 			return Promise.reject(new Error(localize('unableToMoveCopyError1', "Unable to move/copy when source path is equal or parent of target path")));
 		}
 
-		// delete target if we are told to overwrite and this is not a case change
-		if (!isCaseChange && overwrite && await this.existsFile(target)) {
+		const exists = await this.existsFile(target);
+		if (exists && !isCaseChange) {
+			if (!overwrite) {
+				throw new FileOperationError(localize('unableToMoveCopyError2', "Unable to move/copy. File already exists at destination."), FileOperationResult.FILE_MOVE_CONFLICT);
+			}
 
 			// Special case: if the target is a parent of the source, we cannot delete
 			// it as it would delete the source as well. In this case we have to throw
 			if (isEqualOrParent(source, target, !isPathCaseSensitive)) {
-				return Promise.reject(new Error(localize('unableToMoveCopyError2', "Unable to move/copy. File would replace folder it is contained in.")));
+				return Promise.reject(new Error(localize('unableToMoveCopyError3', "Unable to move/copy. File would replace folder it is contained in.")));
 			}
 
-			try {
-				await this.del(target, { recursive: true });
-			} catch (error) {
-				// ignore - target might not exist
-			}
+			await this.del(target, { recursive: true });
 		}
 
 		// create parent folders
 		await this.mkdirp(provider, dirname(target));
 
 		// rename/copy source => target
-		try {
-			if (keepCopy) {
-				await provider.copy!(source, target, { overwrite: !!overwrite });
-			} else {
-				await provider.rename(source, target, { overwrite: !!overwrite });
-			}
-		} catch (error) {
-			if (toFileSystemProviderErrorCode(error) === FileSystemProviderErrorCode.FileExists) {
-				throw new FileOperationError(localize('unableToMoveError3', "Unable to move/copy. File already exists at destination."), FileOperationResult.FILE_MOVE_CONFLICT);
-			}
-
-			throw error;
+		if (keepCopy) {
+			await provider.copy!(source, target, { overwrite: !!overwrite });
+		} else {
+			await provider.rename(source, target, { overwrite: !!overwrite });
 		}
 
 		// resolve and send events
