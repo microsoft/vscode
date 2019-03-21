@@ -1101,8 +1101,6 @@ export interface ILegacyFileService {
 
 	updateContent(resource: URI, value: string | ITextSnapshot, options?: IUpdateContentOptions): Promise<IFileStat>;
 
-	copyFile(source: URI, target: URI, overwrite?: boolean): Promise<IFileStat>;
-
 	createFile(resource: URI, content?: string, options?: ICreateFileOptions): Promise<IFileStat>;
 
 	del(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): Promise<void>;

@@ -10,11 +10,11 @@ import { Schemas } from 'vs/base/common/network';
 import { DiskFileSystemProvider } from 'vs/workbench/services/files2/node/diskFileSystemProvider';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { generateUuid } from 'vs/base/common/uuid';
-import { join, basename, dirname } from 'vs/base/common/path';
+import { join, basename, dirname, posix } from 'vs/base/common/path';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { copy, del } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
-import { existsSync, statSync } from 'fs';
+import { existsSync, statSync, readdirSync } from 'fs';
 import { FileOperation, FileOperationEvent, IFileStat, FileOperationResult } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
 import { TestContextService, TestEnvironmentService, TestTextResourceConfigurationService, TestLifecycleService, TestStorageService } from 'vs/workbench/test/workbenchTestServices';
@@ -551,5 +551,84 @@ suite('Disk File Service', () => {
 		assert.equal(deleteEvent!.resource.fsPath, folderResource.fsPath);
 
 		toDispose.dispose();
+	});
+
+	test('copyFile', async () => {
+		let event: FileOperationEvent;
+		const toDispose = service.onAfterOperation(e => {
+			event = e;
+		});
+
+		const source = await service.resolveFile(URI.file(join(testDir, 'index.html')));
+		const resource = URI.file(join(testDir, 'other.html'));
+
+		const copied = await service.copyFile(source.resource, resource);
+
+		assert.equal(existsSync(copied.resource.fsPath), true);
+		assert.equal(existsSync(source.resource.fsPath), true);
+		assert.ok(event!);
+		assert.equal(event!.resource.fsPath, source.resource.fsPath);
+		assert.equal(event!.operation, FileOperation.COPY);
+		assert.equal(event!.target!.resource.fsPath, copied.resource.fsPath);
+		toDispose.dispose();
+	});
+
+	test('copyFile - overwrite folder with file', async () => {
+		let createEvent: FileOperationEvent;
+		let copyEvent: FileOperationEvent;
+		let deleteEvent: FileOperationEvent;
+		const toDispose = service.onAfterOperation(e => {
+			if (e.operation === FileOperation.CREATE) {
+				createEvent = e;
+			} else if (e.operation === FileOperation.DELETE) {
+				deleteEvent = e;
+			} else if (e.operation === FileOperation.COPY) {
+				copyEvent = e;
+			}
+		});
+
+		const parent = await service.resolveFile(URI.file(testDir));
+		const folderResource = URI.file(join(parent.resource.fsPath, 'conway.js'));
+		const f = await service.createFolder(folderResource);
+		const resource = URI.file(join(testDir, 'deep', 'conway.js'));
+
+		const copied = await service.copyFile(resource, f.resource, true);
+
+		assert.equal(existsSync(copied.resource.fsPath), true);
+		assert.ok(statSync(copied.resource.fsPath).isFile);
+		assert.ok(createEvent!);
+		assert.ok(deleteEvent!);
+		assert.ok(copyEvent!);
+		assert.equal(copyEvent!.resource.fsPath, resource.fsPath);
+		assert.equal(copyEvent!.target!.resource.fsPath, copied.resource.fsPath);
+		assert.equal(deleteEvent!.resource.fsPath, folderResource.fsPath);
+
+		toDispose.dispose();
+	});
+
+	test('copyFile - MIX CASE', async () => {
+		const source = await service.resolveFile(URI.file(join(testDir, 'index.html')));
+		const renamed = await service.moveFile(source.resource, URI.file(join(dirname(source.resource.fsPath), 'CONWAY.js')));
+		assert.equal(existsSync(renamed.resource.fsPath), true);
+		assert.ok(readdirSync(testDir).some(f => f === 'CONWAY.js'));
+		const source_1 = await service.resolveFile(URI.file(join(testDir, 'deep', 'conway.js')));
+		const targetParent = URI.file(testDir);
+		const target = targetParent.with({ path: posix.join(targetParent.path, posix.basename(source_1.resource.path)) });
+
+		const res = await service.copyFile(source_1.resource, target, true);
+		assert.equal(existsSync(res.resource.fsPath), true);
+		assert.ok(readdirSync(testDir).some(f => f === 'conway.js'));
+	});
+
+	test('copyFile - same file should throw', async () => {
+		const source = await service.resolveFile(URI.file(join(testDir, 'index.html')));
+		const targetParent = URI.file(dirname(source.resource.fsPath));
+		const target = targetParent.with({ path: posix.join(targetParent.path, posix.basename(source.resource.path)) });
+
+		try {
+			await service.copyFile(source.resource, target, true);
+		} catch (error) {
+			assert.ok(error);
+		}
 	});
 });

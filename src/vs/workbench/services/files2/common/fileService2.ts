@@ -108,10 +108,7 @@ export class FileService2 extends Disposable implements IFileService {
 
 		// Assert path is absolute
 		if (!isAbsolutePath(resource)) {
-			throw new FileOperationError(
-				localize('invalidPath', "The path of resource '{0}' must be absolute", resource.toString(true)),
-				FileOperationResult.FILE_INVALID_PATH
-			);
+			throw new FileOperationError(localize('invalidPath', "The path of resource '{0}' must be absolute", resource.toString(true)), FileOperationResult.FILE_INVALID_PATH);
 		}
 
 		// Activate provider
@@ -308,61 +305,14 @@ export class FileService2 extends Disposable implements IFileService {
 	//#region Move/Copy/Delete/Create Folder
 
 	moveFile(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata> {
-		if (source.scheme !== target.scheme) {
-			return this.doMoveAcrossScheme(source, target);
+		if (source.scheme === target.scheme) {
+			return this.doMoveCopyWithSameProvider(source, target, false /* just move */, overwrite);
 		}
 
-		return this.doMoveWithInScheme(source, target, overwrite);
+		return this.doMoveWithDifferentProvider(source, target);
 	}
 
-	private async doMoveWithInScheme(source: URI, target: URI, overwrite: boolean = false): Promise<IFileStatWithMetadata> {
-		const provider = this.throwIfFileSystemIsReadonly(await this.withProvider(source));
-
-		// validation
-		const isPathCaseSensitive = !!(provider.capabilities & FileSystemProviderCapabilities.PathCaseSensitive);
-		const isCaseRename = isPathCaseSensitive ? false : isEqual(source, target, true /* ignore case */);
-		if (!isCaseRename && isEqualOrParent(target, source, !isPathCaseSensitive)) {
-			return Promise.reject(new Error(localize('unableToMoveError1', "Unable to move when source path is equal or parent of target path")));
-		}
-
-		// delete target if we are told to overwrite and this is not a case rename
-		if (!isCaseRename && overwrite && await this.existsFile(target)) {
-
-			// Special case: if the target is a parent of the source, we cannot delete
-			// it as it would delete the source as well. In this case we have to throw
-			if (isEqualOrParent(source, target, !isPathCaseSensitive)) {
-				return Promise.reject(new Error(localize('unableToMoveError2', "Unable to move/copy. File would replace folder it is contained in.")));
-			}
-
-			try {
-				await this.del(target, { recursive: true });
-			} catch (error) {
-				// ignore - target might not exist
-			}
-		}
-
-		// create parent folders
-		await this.mkdirp(provider, dirname(target));
-
-		// rename source => target
-		try {
-			await provider.rename(source, target, { overwrite });
-		} catch (error) {
-			if (toFileSystemProviderErrorCode(error) === FileSystemProviderErrorCode.FileExists) {
-				throw new FileOperationError(localize('unableToMoveError3', "Unable to move/copy. File already exists at destination."), FileOperationResult.FILE_MOVE_CONFLICT);
-			}
-
-			throw error;
-		}
-
-		// resolve and send events
-		const fileStat = await this.resolveFile(target, { resolveMetadata: true });
-		this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.MOVE, fileStat));
-
-		return fileStat;
-	}
-
-	private async doMoveAcrossScheme(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata> {
+	private async doMoveWithDifferentProvider(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata> {
 
 		// copy file source => target
 		await this.copyFile(source, target, overwrite);
@@ -377,8 +327,78 @@ export class FileService2 extends Disposable implements IFileService {
 		return fileStat;
 	}
 
-	copyFile(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata> {
-		return this._impl.copyFile(source, target, overwrite);
+	async copyFile(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata> {
+		if (source.scheme === target.scheme) {
+			return this.doCopyWithSameProvider(source, target, overwrite);
+		}
+
+		return this.doCopyWithDifferentProvider(source, target);
+	}
+
+	private async doCopyWithSameProvider(source: URI, target: URI, overwrite: boolean = false): Promise<IFileStatWithMetadata> {
+		const provider = this.throwIfFileSystemIsReadonly(await this.withProvider(source));
+
+		// check if provider supports fast file/folder copy
+		if (provider.capabilities & FileSystemProviderCapabilities.FileFolderCopy && typeof provider.copy === 'function') {
+			return this.doMoveCopyWithSameProvider(source, target, true /* keep copy */, overwrite);
+		}
+
+		return this._impl.copyFile(source, target, overwrite); // TODO@ben implement properly
+	}
+
+	private async doCopyWithDifferentProvider(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata> {
+		return this._impl.copyFile(source, target, overwrite); // TODO@ben implement properly
+	}
+
+	private async doMoveCopyWithSameProvider(source: URI, target: URI, keepCopy: boolean, overwrite?: boolean): Promise<IFileStatWithMetadata> {
+		const provider = this.throwIfFileSystemIsReadonly(await this.withProvider(source));
+
+		// validation
+		const isPathCaseSensitive = !!(provider.capabilities & FileSystemProviderCapabilities.PathCaseSensitive);
+		const isCaseChange = isPathCaseSensitive ? false : isEqual(source, target, true /* ignore case */);
+		if (!isCaseChange && isEqualOrParent(target, source, !isPathCaseSensitive)) {
+			return Promise.reject(new Error(localize('unableToMoveCopyError1', "Unable to move/copy when source path is equal or parent of target path")));
+		}
+
+		// delete target if we are told to overwrite and this is not a case change
+		if (!isCaseChange && overwrite && await this.existsFile(target)) {
+
+			// Special case: if the target is a parent of the source, we cannot delete
+			// it as it would delete the source as well. In this case we have to throw
+			if (isEqualOrParent(source, target, !isPathCaseSensitive)) {
+				return Promise.reject(new Error(localize('unableToMoveCopyError2', "Unable to move/copy. File would replace folder it is contained in.")));
+			}
+
+			try {
+				await this.del(target, { recursive: true });
+			} catch (error) {
+				// ignore - target might not exist
+			}
+		}
+
+		// create parent folders
+		await this.mkdirp(provider, dirname(target));
+
+		// rename/copy source => target
+		try {
+			if (keepCopy) {
+				await provider.copy!(source, target, { overwrite: !!overwrite });
+			} else {
+				await provider.rename(source, target, { overwrite: !!overwrite });
+			}
+		} catch (error) {
+			if (toFileSystemProviderErrorCode(error) === FileSystemProviderErrorCode.FileExists) {
+				throw new FileOperationError(localize('unableToMoveError3', "Unable to move/copy. File already exists at destination."), FileOperationResult.FILE_MOVE_CONFLICT);
+			}
+
+			throw error;
+		}
+
+		// resolve and send events
+		const fileStat = await this.resolveFile(target, { resolveMetadata: true });
+		this._onAfterOperation.fire(new FileOperationEvent(source, keepCopy ? FileOperation.COPY : FileOperation.MOVE, fileStat));
+
+		return fileStat;
 	}
 
 	async createFolder(resource: URI): Promise<IFileStatWithMetadata> {
