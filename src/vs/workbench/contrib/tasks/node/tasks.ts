@@ -11,34 +11,23 @@ import { TaskIdentifier, KeyedTaskIdentifier, TaskDefinition } from 'vs/workbenc
 import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
 
 namespace KeyedTaskIdentifier {
-	function hexValue(input: string): string {
-		let result: number = 0;
-		for (let i = 0; i < input.length; i++) {
-			result += input.charCodeAt(i);
-		}
-		return '' + result;
-	}
-
 	function sortedStringify(literal: any): string {
 		const keys = Object.keys(literal).sort();
 		let result: string = '';
 		for (let position in keys) {
-			let test = literal[keys[position]];
-			if (test instanceof Object) {
-				test = sortedStringify(test);
+			let stringified = literal[keys[position]];
+			if (stringified instanceof Object) {
+				stringified = sortedStringify(test);
+			} else if (typeof stringified === 'string') {
+				stringified = stringified.replace(/,/g, ',,');
 			}
-			let stringified: string = '' + test;
-			if (stringified.length > 100) { // 100 is an arbitrary number
-				// This can result in collisions. Divide the string in half, since this value will start to converge at long lengths. This not ideal.
-				stringified = hexValue(stringified.substring(0, stringified.length / 2)) + hexValue(stringified.substring(stringified.length / 2, stringified.length));
-			}
-
 			result += keys[position] + ',' + stringified + ',';
 		}
 		return result;
 	}
 	export function create(value: TaskIdentifier): KeyedTaskIdentifier {
 		const resultKey = sortedStringify(value);
+		console.log(resultKey);
 		return { _key: resultKey, type: value.taskType };
 	}
 }
