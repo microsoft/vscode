@@ -134,13 +134,22 @@ class FormatOnType implements editorCommon.IEditorContribution {
 		@IEditorWorkerService private readonly _workerService: IEditorWorkerService
 	) {
 		this._editor = editor;
-		this._callOnDispose.push(editor.onDidChangeConfiguration(() => this.update()));
-		this._callOnDispose.push(editor.onDidChangeModel(() => this.update()));
-		this._callOnDispose.push(editor.onDidChangeModelLanguage(() => this.update()));
-		this._callOnDispose.push(OnTypeFormattingEditProviderRegistry.onDidChange(this.update, this));
+		this._callOnDispose.push(editor.onDidChangeConfiguration(() => this._update()));
+		this._callOnDispose.push(editor.onDidChangeModel(() => this._update()));
+		this._callOnDispose.push(editor.onDidChangeModelLanguage(() => this._update()));
+		this._callOnDispose.push(OnTypeFormattingEditProviderRegistry.onDidChange(this._update, this));
 	}
 
-	private update(): void {
+	getId(): string {
+		return FormatOnType.ID;
+	}
+
+	dispose(): void {
+		this._callOnDispose = dispose(this._callOnDispose);
+		this._callOnModel = dispose(this._callOnModel);
+	}
+
+	private _update(): void {
 
 		// clean up
 		this._callOnModel = dispose(this._callOnModel);
@@ -171,12 +180,12 @@ class FormatOnType implements editorCommon.IEditorContribution {
 		this._callOnModel.push(this._editor.onDidType((text: string) => {
 			let lastCharCode = text.charCodeAt(text.length - 1);
 			if (triggerChars.has(lastCharCode)) {
-				this.trigger(String.fromCharCode(lastCharCode));
+				this._trigger(String.fromCharCode(lastCharCode));
 			}
 		}));
 	}
 
-	private trigger(ch: string): void {
+	private _trigger(ch: string): void {
 		if (!this._editor.hasModel()) {
 			return;
 		}
@@ -238,42 +247,42 @@ class FormatOnType implements editorCommon.IEditorContribution {
 			throw err;
 		});
 	}
-
-	public getId(): string {
-		return FormatOnType.ID;
-	}
-
-	public dispose(): void {
-		this._callOnDispose = dispose(this._callOnDispose);
-		this._callOnModel = dispose(this._callOnModel);
-	}
 }
 
 class FormatOnPaste implements editorCommon.IEditorContribution {
 
 	private static readonly ID = 'editor.contrib.formatOnPaste';
 
-	private callOnDispose: IDisposable[];
-	private callOnModel: IDisposable[];
+	private _callOnDispose: IDisposable[];
+	private _callOnModel: IDisposable[];
 
 	constructor(
 		private readonly editor: ICodeEditor,
 		@IEditorWorkerService private readonly workerService: IEditorWorkerService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
-		this.callOnDispose = [];
-		this.callOnModel = [];
+		this._callOnDispose = [];
+		this._callOnModel = [];
 
-		this.callOnDispose.push(editor.onDidChangeConfiguration(() => this.update()));
-		this.callOnDispose.push(editor.onDidChangeModel(() => this.update()));
-		this.callOnDispose.push(editor.onDidChangeModelLanguage(() => this.update()));
-		this.callOnDispose.push(DocumentRangeFormattingEditProviderRegistry.onDidChange(this.update, this));
+		this._callOnDispose.push(editor.onDidChangeConfiguration(() => this._update()));
+		this._callOnDispose.push(editor.onDidChangeModel(() => this._update()));
+		this._callOnDispose.push(editor.onDidChangeModelLanguage(() => this._update()));
+		this._callOnDispose.push(DocumentRangeFormattingEditProviderRegistry.onDidChange(this._update, this));
 	}
 
-	private update(): void {
+	getId(): string {
+		return FormatOnPaste.ID;
+	}
+
+	dispose(): void {
+		this._callOnDispose = dispose(this._callOnDispose);
+		this._callOnModel = dispose(this._callOnModel);
+	}
+
+	private _update(): void {
 
 		// clean up
-		this.callOnModel = dispose(this.callOnModel);
+		this._callOnModel = dispose(this._callOnModel);
 
 		// we are disabled
 		if (!this.editor.getConfiguration().contribInfo.formatOnPaste) {
@@ -292,12 +301,12 @@ class FormatOnPaste implements editorCommon.IEditorContribution {
 			return;
 		}
 
-		this.callOnModel.push(this.editor.onDidPaste((range: Range) => {
-			this.trigger(range);
+		this._callOnModel.push(this.editor.onDidPaste((range: Range) => {
+			this._trigger(range);
 		}));
 	}
 
-	private trigger(range: Range): void {
+	private _trigger(range: Range): void {
 		if (!this.editor.hasModel()) {
 			return;
 		}
@@ -308,15 +317,6 @@ class FormatOnPaste implements editorCommon.IEditorContribution {
 
 		const model = this.editor.getModel();
 		formatDocumentRange(this.telemetryService, this.workerService, this.editor, range, model.getFormattingOptions(), CancellationToken.None);
-	}
-
-	public getId(): string {
-		return FormatOnPaste.ID;
-	}
-
-	public dispose(): void {
-		this.callOnDispose = dispose(this.callOnDispose);
-		this.callOnModel = dispose(this.callOnModel);
 	}
 }
 
@@ -331,7 +331,6 @@ export class FormatDocumentAction extends EditorAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_F,
-				// secondary: [KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_D)],
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I },
 				weight: KeybindingWeight.EditorContrib
 			},
