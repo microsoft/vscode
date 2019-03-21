@@ -49,5 +49,5 @@ parts:
 
 apps:
   @@NAME@@:
-    command: electron-launch ${SNAP}/usr/share/@@NAME@@/bin/@@NAME@@
+    command: electron-launch $SNAP/usr/share/@@NAME@@/bin/@@NAME@@
     desktop: usr/share/applications/@@NAME@@.desktop
