@@ -53,3 +53,4 @@ apps:
     desktop: usr/share/applications/@@NAME@@.desktop
     environment:
       DISABLE_WAYLAND: 1
+      GSETTINGS_SCHEMA_DIR: $SNAP/usr/share/glib-2.0/schemas
