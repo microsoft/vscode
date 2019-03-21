@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { ITree, IActionProvider } from 'vs/base/parts/tree/browser/tree';
 import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IQuickNavigateConfiguration, IModel, IDataSource, IFilter, IAccessiblityProvider, IRenderer, IRunner, Mode, IEntryRunContext } from 'vs/base/parts/quickopen/common/quickOpen';
-import { Action, IAction, IActionRunner, IActionItem } from 'vs/base/common/actions';
+import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { compareAnything } from 'vs/base/common/comparers';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
@@ -290,18 +290,6 @@ class NoActionProvider implements IActionProvider {
 
 	getActions(tree: ITree, element: any): IAction[] | null {
 		return null;
-	}
-
-	hasSecondaryActions(tree: ITree, element: any): boolean {
-		return false;
-	}
-
-	getSecondaryActions(tree: ITree, element: any): IAction[] | null {
-		return null;
-	}
-
-	getActionItem(tree: ITree, element: any, action: Action): IActionItem | undefined {
-		return undefined;
 	}
 }
 
