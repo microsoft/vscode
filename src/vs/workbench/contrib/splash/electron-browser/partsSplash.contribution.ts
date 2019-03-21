@@ -9,7 +9,7 @@ import { getTotalHeight, getTotalWidth } from 'vs/base/browser/dom';
 import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { IBroadcastService } from 'vs/workbench/services/broadcast/electron-browser/broadcastService';
+import { IBroadcastService } from 'vs/workbench/services/broadcast/common/broadcast';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ColorIdentifier, editorBackground, foreground } from 'vs/platform/theme/common/colorRegistry';
@@ -73,10 +73,10 @@ class PartsSplash {
 		const layoutInfo = !this._shouldSaveLayoutInfo() ? undefined : {
 			sideBarSide: this._layoutService.getSideBarPosition() === Position.RIGHT ? 'right' : 'left',
 			editorPartMinWidth: DEFAULT_EDITOR_MIN_DIMENSIONS.width,
-			titleBarHeight: getTotalHeight(this._layoutService.getContainer(Parts.TITLEBAR_PART)!),
-			activityBarWidth: getTotalWidth(this._layoutService.getContainer(Parts.ACTIVITYBAR_PART)!),
-			sideBarWidth: getTotalWidth(this._layoutService.getContainer(Parts.SIDEBAR_PART)!),
-			statusBarHeight: getTotalHeight(this._layoutService.getContainer(Parts.STATUSBAR_PART)!),
+			titleBarHeight: getTotalHeight(this._layoutService.getContainer(Parts.TITLEBAR_PART)),
+			activityBarWidth: getTotalWidth(this._layoutService.getContainer(Parts.ACTIVITYBAR_PART)),
+			sideBarWidth: getTotalWidth(this._layoutService.getContainer(Parts.SIDEBAR_PART)),
+			statusBarHeight: getTotalHeight(this._layoutService.getContainer(Parts.STATUSBAR_PART)),
 		};
 		this._fileService.updateContent(
 			URI.file(join(this._envService.userDataPath, 'rapid_render.json')),

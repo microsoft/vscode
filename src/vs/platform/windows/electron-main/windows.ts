@@ -134,6 +134,7 @@ export interface IOpenConfiguration {
 	addMode?: boolean;
 	readonly forceOpenWorkspaceAsFile?: boolean;
 	readonly initialStartup?: boolean;
+	readonly noRecentEntry?: boolean;
 }
 
 export interface ISharedProcess {

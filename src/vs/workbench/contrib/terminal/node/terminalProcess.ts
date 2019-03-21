@@ -213,4 +213,8 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 			resolve(this._initialCwd);
 		});
 	}
+
+	public getLatency(): Promise<number> {
+		return Promise.resolve(0);
+	}
 }

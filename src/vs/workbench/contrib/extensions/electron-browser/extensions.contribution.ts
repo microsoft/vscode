@@ -9,7 +9,7 @@ import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IExtensionTipsService, ExtensionsLabel, ExtensionsChannelId, PreferencesLabel } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionTipsService, ExtensionsLabel, ExtensionsChannelId, PreferencesLabel, IExtensionManagementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } from 'vs/workbench/common/actions';
 import { ExtensionTipsService } from 'vs/workbench/contrib/extensions/electron-browser/extensionTipsService';
@@ -42,10 +42,13 @@ import { RuntimeExtensionsEditor, ShowRuntimeExtensionsAction, IExtensionHostPro
 import { EditorInput, IEditorInputFactory, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, ActiveEditorContext } from 'vs/workbench/common/editor';
 import { ExtensionHostProfileService } from 'vs/workbench/contrib/extensions/electron-browser/extensionProfileService';
 import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/electron-browser/runtimeExtensionsInput';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionActivationProgress } from 'vs/workbench/contrib/extensions/electron-browser/extensionsActivationProgress';
 import { ExtensionsAutoProfiler } from 'vs/workbench/contrib/extensions/electron-browser/extensionsAutoProfiler';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { ExtensionDependencyChecker } from 'vs/workbench/contrib/extensions/electron-browser/extensionsDependencyChecker';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
@@ -60,6 +63,7 @@ workbenchRegistry.registerWorkbenchContribution(KeymapExtensions, LifecyclePhase
 workbenchRegistry.registerWorkbenchContribution(ExtensionsViewletViewsContribution, LifecyclePhase.Starting);
 workbenchRegistry.registerWorkbenchContribution(ExtensionActivationProgress, LifecyclePhase.Eventually);
 workbenchRegistry.registerWorkbenchContribution(ExtensionsAutoProfiler, LifecyclePhase.Eventually);
+workbenchRegistry.registerWorkbenchContribution(ExtensionDependencyChecker, LifecyclePhase.Eventually);
 
 Registry.as<IOutputChannelRegistry>(OutputExtensions.OutputChannels)
 	.registerChannel({ id: ExtensionsChannelId, label: ExtensionsLabel, log: false });
@@ -256,7 +260,7 @@ CommandsRegistry.registerCommand('_extensions.manage', (accessor: ServicesAccess
 CommandsRegistry.registerCommand('extension.open', (accessor: ServicesAccessor, extensionId: string) => {
 	const extensionService = accessor.get(IExtensionsWorkbenchService);
 
-	return extensionService.queryGallery({ names: [extensionId], pageSize: 1 }).then(pager => {
+	return extensionService.queryGallery({ names: [extensionId], pageSize: 1 }, CancellationToken.None).then(pager => {
 		if (pager.total !== 1) {
 			return;
 		}
@@ -266,23 +270,23 @@ CommandsRegistry.registerCommand('extension.open', (accessor: ServicesAccessor, 
 });
 
 CommandsRegistry.registerCommand(DebugExtensionHostAction.ID, (accessor: ServicesAccessor) => {
-	const instantationService = accessor.get(IInstantiationService);
-	instantationService.createInstance(DebugExtensionHostAction).run();
+	const instantiationService = accessor.get(IInstantiationService);
+	instantiationService.createInstance(DebugExtensionHostAction).run();
 });
 
 CommandsRegistry.registerCommand(StartExtensionHostProfileAction.ID, (accessor: ServicesAccessor) => {
-	const instantationService = accessor.get(IInstantiationService);
-	instantationService.createInstance(StartExtensionHostProfileAction, StartExtensionHostProfileAction.ID, StartExtensionHostProfileAction.LABEL).run();
+	const instantiationService = accessor.get(IInstantiationService);
+	instantiationService.createInstance(StartExtensionHostProfileAction, StartExtensionHostProfileAction.ID, StartExtensionHostProfileAction.LABEL).run();
 });
 
 CommandsRegistry.registerCommand(StopExtensionHostProfileAction.ID, (accessor: ServicesAccessor) => {
-	const instantationService = accessor.get(IInstantiationService);
-	instantationService.createInstance(StopExtensionHostProfileAction, StopExtensionHostProfileAction.ID, StopExtensionHostProfileAction.LABEL).run();
+	const instantiationService = accessor.get(IInstantiationService);
+	instantiationService.createInstance(StopExtensionHostProfileAction, StopExtensionHostProfileAction.ID, StopExtensionHostProfileAction.LABEL).run();
 });
 
 CommandsRegistry.registerCommand(SaveExtensionHostProfileAction.ID, (accessor: ServicesAccessor) => {
-	const instantationService = accessor.get(IInstantiationService);
-	instantationService.createInstance(SaveExtensionHostProfileAction, SaveExtensionHostProfileAction.ID, SaveExtensionHostProfileAction.LABEL).run();
+	const instantiationService = accessor.get(IInstantiationService);
+	instantiationService.createInstance(SaveExtensionHostProfileAction, SaveExtensionHostProfileAction.ID, SaveExtensionHostProfileAction.LABEL).run();
 });
 
 // File menu registration
@@ -369,4 +373,38 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	},
 	group: 'navigation',
 	when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(RuntimeExtensionsEditor.ID))
+});
+
+CommandsRegistry.registerCommand({
+	id: 'workbench.extensions.installExtension',
+	description: {
+		description: localize('workbench.extensions.installExtension.description', "Install the given extension"),
+		args: [
+			{
+				name: localize('workbench.extensions.installExtension.arg.name', "Extension id or VSIX resource uri"),
+				schema: {
+					'type': ['object', 'string']
+				}
+			}
+		]
+	},
+	handler: async (accessor, arg: string | UriComponents) => {
+		const extensionManagementService = accessor.get(IExtensionManagementService);
+		const extensionGalleryService = accessor.get(IExtensionGalleryService);
+		try {
+			if (typeof arg === 'string') {
+				const extension = await extensionGalleryService.getCompatibleExtension({ id: arg });
+				if (extension) {
+					await extensionManagementService.installFromGallery(extension);
+				} else {
+					throw new Error(localize('notFound', "Extension '{0}' not found.", arg));
+				}
+			} else {
+				const vsix = URI.revive(arg);
+				await extensionManagementService.install(vsix);
+			}
+		} catch (e) {
+			onUnexpectedError(e);
+		}
+	}
 });

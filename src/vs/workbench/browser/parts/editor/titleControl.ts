@@ -154,18 +154,18 @@ export abstract class TitleControl extends Themable {
 		}));
 	}
 
-	private actionItemProvider(action: Action): IActionItem | null {
+	private actionItemProvider(action: Action): IActionItem | undefined {
 		const activeControl = this.group.activeControl;
 
 		// Check Active Editor
-		let actionItem: IActionItem | null = null;
+		let actionItem: IActionItem | undefined = undefined;
 		if (activeControl instanceof BaseEditor) {
 			actionItem = activeControl.getActionItem(action);
 		}
 
 		// Check extensions
 		if (!actionItem) {
-			actionItem = createActionItem(action, this.keybindingService, this.notificationService, this.contextMenuService) || null;
+			actionItem = createActionItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
 		}
 
 		return actionItem;

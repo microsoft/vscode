@@ -5,10 +5,9 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import * as extfs from 'vs/base/node/extfs';
-import { IFileMatch, IProgress, ITextQuery, ITextSearchStats, ITextSearchMatch } from 'vs/workbench/services/search/common/search';
+import { IFileMatch, IProgress, ITextQuery, ITextSearchStats, ITextSearchMatch, ISerializedFileMatch, ISerializedSearchSuccess } from 'vs/workbench/services/search/common/search';
 import { RipgrepTextSearchEngine } from 'vs/workbench/services/search/node/ripgrepTextSearchEngine';
 import { TextSearchManager } from 'vs/workbench/services/search/node/textSearchManager';
-import { ISerializedFileMatch, ISerializedSearchSuccess } from './search';
 
 export class TextSearchEngineAdapter {
 
@@ -40,7 +39,7 @@ export class TextSearchEngineAdapter {
 					},
 					token)
 				.then(
-					c => resolve({ limitHit: c.limitHit, stats: null, type: 'success' } as ISerializedSearchSuccess),
+					c => resolve({ limitHit: c.limitHit, type: 'success' } as ISerializedSearchSuccess),
 					reject);
 		});
 	}
@@ -48,7 +47,7 @@ export class TextSearchEngineAdapter {
 
 function fileMatchToSerialized(match: IFileMatch): ISerializedFileMatch {
 	return {
-		path: match.resource ? match.resource.fsPath : undefined,
+		path: match.resource && match.resource.fsPath,
 		results: match.results,
 		numMatches: (match.results || []).reduce((sum, r) => {
 			if (!!(<ITextSearchMatch>r).ranges) {

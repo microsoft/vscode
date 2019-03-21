@@ -571,7 +571,7 @@ export class UpdateContribution implements IGlobalActivity {
 				return new Action('update.updating', nls.localize('installingUpdate', "Installing Update..."), undefined, false);
 
 			case StateType.Ready:
-				return new Action('update.restart', nls.localize('restartToUpdate', "Restart to Update..."), undefined, true, () =>
+				return new Action('update.restart', nls.localize('restartToUpdate', "Restart to Update"), undefined, true, () =>
 					this.updateService.quitAndInstall());
 		}
 	}

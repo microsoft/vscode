@@ -10,13 +10,14 @@ import { Counter } from 'vs/base/common/numbers';
 import { URI, setUriThrowOnMissingScheme } from 'vs/base/common/uri';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
-import { IEnvironment, IInitData, MainContext, MainThreadConsoleShape } from 'vs/workbench/api/node/extHost.protocol';
+import { IEnvironment, IInitData, MainContext, MainThreadConsoleShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
-import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 // we don't (yet) throw when extensions parse
 // uris that have no scheme
@@ -56,7 +57,7 @@ export class ExtensionHostMain {
 
 	constructor(protocol: IMessagePassingProtocol, initData: IInitData) {
 		this._isTerminating = false;
-		const uriTransformer: IURITransformer = null;
+		const uriTransformer: IURITransformer | null = null;
 		const rpcProtocol = new RPCProtocol(protocol, null, uriTransformer);
 
 		// ensure URIs are transformed and revived
@@ -73,7 +74,7 @@ export class ExtensionHostMain {
 		this.disposables.push(this._extHostLogService);
 
 		this._searchRequestIdProvider = new Counter();
-		const extHostWorkspace = new ExtHostWorkspace(rpcProtocol, this._extHostLogService, this._searchRequestIdProvider, initData.workspace);
+		const extHostWorkspace = new ExtHostWorkspace(rpcProtocol, this._extHostLogService, this._searchRequestIdProvider, withNullAsUndefined(initData.workspace));
 
 		this._extHostLogService.info('extension host started');
 		this._extHostLogService.trace('initData', initData);
@@ -117,7 +118,7 @@ export class ExtensionHostMain {
 
 	private _patchPatchedConsole(mainThreadConsole: MainThreadConsoleShape): void {
 		// The console is already patched to use `process.send()`
-		const nativeProcessSend = process.send;
+		const nativeProcessSend = process.send!;
 		process.send = (...args: any[]) => {
 			if (args.length === 0 || !args[0] || args[0].type !== '__$console') {
 				return nativeProcessSend.apply(process, args);
@@ -155,6 +156,7 @@ export class ExtensionHostMain {
 		initData.environment.extensionDevelopmentLocationURI = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.extensionDevelopmentLocationURI));
 		initData.environment.extensionTestsLocationURI = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.extensionTestsLocationURI));
 		initData.environment.globalStorageHome = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.globalStorageHome));
+		initData.environment.userHome = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.userHome));
 		initData.logsLocation = URI.revive(rpcProtocol.transformIncomingURIs(initData.logsLocation));
 		initData.workspace = rpcProtocol.transformIncomingURIs(initData.workspace);
 		return initData;

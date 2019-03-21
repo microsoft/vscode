@@ -15,10 +15,10 @@ import { TestRPCProtocol } from './testRPCProtocol';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFeatures';
-import { MainThreadLanguageFeatures } from 'vs/workbench/api/electron-browser/mainThreadLanguageFeatures';
+import { MainThreadLanguageFeatures } from 'vs/workbench/api/browser/mainThreadLanguageFeatures';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
-import { MainThreadCommands } from 'vs/workbench/api/electron-browser/mainThreadCommands';
-import { IHeapService } from 'vs/workbench/api/electron-browser/mainThreadHeapService';
+import { MainThreadCommands } from 'vs/workbench/api/browser/mainThreadCommands';
+import { IHeapService, NullHeapService } from 'vs/workbench/services/heap/common/heap';
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
 import { getDocumentSymbols } from 'vs/editor/contrib/quickOpen/quickOpen';
@@ -35,7 +35,7 @@ import { provideSignatureHelp } from 'vs/editor/contrib/parameterHints/provideSi
 import { provideSuggestionItems, CompletionOptions } from 'vs/editor/contrib/suggest/suggest';
 import { getDocumentFormattingEdits, getDocumentRangeFormattingEdits, getOnTypeFormattingEdits, FormatMode } from 'vs/editor/contrib/format/format';
 import { getLinks } from 'vs/editor/contrib/links/getLinks';
-import { MainContext, ExtHostContext } from 'vs/workbench/api/node/extHost.protocol';
+import { MainContext, ExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
 import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
 import * as vscode from 'vscode';
@@ -81,12 +81,7 @@ suite('ExtHostLanguageFeatures', function () {
 		{
 			let instantiationService = new TestInstantiationService();
 			instantiationService.stub(IMarkerService, MarkerService);
-			instantiationService.stub(IHeapService, {
-				_serviceBrand: undefined,
-				trackObject(_obj: any) {
-					// nothing
-				}
-			});
+			instantiationService.stub(IHeapService, NullHeapService);
 			inst = instantiationService;
 		}
 
@@ -600,9 +595,9 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let value = await getCodeActions(model, model.getFullModelRange(), { type: 'manual' }, CancellationToken.None);
-		assert.equal(value.length, 2);
-		const [first, second] = value;
+		const { actions } = await getCodeActions(model, model.getFullModelRange(), { type: 'manual' }, CancellationToken.None);
+		assert.equal(actions.length, 2);
+		const [first, second] = actions;
 		assert.equal(first.title, 'Testing1');
 		assert.equal(first.command!.id, 'test1');
 		assert.equal(second.title, 'Testing2');
@@ -624,9 +619,9 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let value = await getCodeActions(model, model.getFullModelRange(), { type: 'manual' }, CancellationToken.None);
-		assert.equal(value.length, 1);
-		const [first] = value;
+		const { actions } = await getCodeActions(model, model.getFullModelRange(), { type: 'manual' }, CancellationToken.None);
+		assert.equal(actions.length, 1);
+		const [first] = actions;
 		assert.equal(first.title, 'Testing1');
 		assert.equal(first.command!.title, 'Testing1Command');
 		assert.equal(first.command!.id, 'test1');
@@ -647,8 +642,8 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = await getCodeActions(model, model.getFullModelRange(), { type: 'manual' }, CancellationToken.None);
-		assert.equal(value.length, 1);
+		const { actions } = await getCodeActions(model, model.getFullModelRange(), { type: 'manual' }, CancellationToken.None);
+		assert.equal(actions.length, 1);
 	});
 
 	test('Quick Fix, evil provider', async () => {
@@ -665,8 +660,8 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = await getCodeActions(model, model.getFullModelRange(), { type: 'manual' }, CancellationToken.None);
-		assert.equal(value.length, 1);
+		const { actions } = await getCodeActions(model, model.getFullModelRange(), { type: 'manual' }, CancellationToken.None);
+		assert.equal(actions.length, 1);
 	});
 
 	// --- navigate types
@@ -1104,10 +1099,9 @@ suite('ExtHostLanguageFeatures', function () {
 	test('Selection Ranges, data conversion', async () => {
 		disposables.push(extHost.registerSelectionRangeProvider(defaultExtension, defaultSelector, new class implements vscode.SelectionRangeProvider {
 			provideSelectionRanges() {
-				return [[
-					new types.SelectionRange(new types.Range(0, 10, 0, 18), types.SelectionRangeKind.Empty),
-					new types.SelectionRange(new types.Range(0, 2, 0, 20), types.SelectionRangeKind.Empty)
-				]];
+				return [
+					new types.SelectionRange(new types.Range(0, 10, 0, 18), new types.SelectionRange(new types.Range(0, 2, 0, 20))),
+				];
 			}
 		}));
 
@@ -1117,5 +1111,18 @@ suite('ExtHostLanguageFeatures', function () {
 			assert.equal(ranges.length, 1);
 			assert.ok(ranges[0].length >= 2);
 		});
+	});
+
+	test('Selection Ranges, bad data', async () => {
+
+		try {
+			let _a = new types.SelectionRange(new types.Range(0, 10, 0, 18),
+				new types.SelectionRange(new types.Range(0, 11, 0, 18))
+			);
+			assert.ok(false, String(_a));
+		} catch (err) {
+			assert.ok(true);
+		}
+
 	});
 });

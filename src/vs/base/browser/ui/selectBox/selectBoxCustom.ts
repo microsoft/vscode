@@ -123,12 +123,6 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 
 		this.selectElement = document.createElement('select');
 
-		// Workaround for Electron 2.x
-		// Native select should not require explicit role attribute, however, Electron 2.x
-		// incorrectly exposes select as menuItem which interferes with labeling and results
-		// in the unlabeled not been read.  Electron 3 appears to fix.
-		this.selectElement.setAttribute('role', 'combobox');
-
 		// Use custom CSS vars for padding calculation
 		this.selectElement.className = 'monaco-select-box monaco-select-box-dropdown-padding';
 
@@ -854,8 +848,8 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 
 		this.selectionDetailsPane.innerText = '';
 		const selectedIndex = e.indexes[0];
-		const description = this.options[selectedIndex].description || null;
-		const descriptionIsMarkdown = this.options[selectedIndex].descriptionIsMarkdown || null;
+		const description = this.options[selectedIndex].description;
+		const descriptionIsMarkdown = this.options[selectedIndex].descriptionIsMarkdown;
 
 		if (description) {
 			if (descriptionIsMarkdown) {

@@ -24,19 +24,21 @@ import { Emitter } from 'vs/base/common/event';
 import { IPager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IExtensionService, IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { TestContextService, TestWindowService } from 'vs/workbench/test/workbenchTestServices';
+import { TestContextService, TestWindowService, TestSharedProcessService } from 'vs/workbench/test/workbenchTestServices';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { URLService } from 'vs/platform/url/common/urlService';
 import { URI } from 'vs/base/common/uri';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/node/remoteAgentService';
+import { ExtensionManagementServerService } from 'vs/workbench/services/extensions/electron-browser/extensionManagementServerService';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
-import { ExtensionIdentifier, IExtensionContributions, ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionContributions, ExtensionType, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 suite('ExtensionsActions Test', () => {
 
@@ -63,7 +65,7 @@ suite('ExtensionsActions Test', () => {
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 
 		instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
-
+		instantiationService.stub(ISharedProcessService, TestSharedProcessService);
 
 		instantiationService.stub(IExtensionManagementService, ExtensionManagementService);
 		instantiationService.stub(IExtensionManagementService, 'onInstallExtension', installEvent.event);
@@ -109,7 +111,7 @@ suite('ExtensionsActions Test', () => {
 		return workbenchService.queryLocal()
 			.then(() => {
 				instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', { identifier: local.identifier })));
-				return workbenchService.queryGallery()
+				return workbenchService.queryGallery(CancellationToken.None)
 					.then((paged) => {
 						testObject.extension = paged.firstPage[0];
 						assert.ok(!testObject.enabled);
@@ -125,7 +127,7 @@ suite('ExtensionsActions Test', () => {
 		instantiationService.get(IExtensionsWorkbenchService).onChange(() => testObject.update());
 		const gallery = aGalleryExtension('a');
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
-		return workbenchService.queryGallery()
+		return workbenchService.queryGallery(CancellationToken.None)
 			.then((paged) => {
 				testObject.extension = paged.firstPage[0];
 				installEvent.fire({ identifier: gallery.identifier, gallery });
@@ -142,7 +144,7 @@ suite('ExtensionsActions Test', () => {
 		instantiationService.get(IExtensionsWorkbenchService).onChange(() => testObject.update());
 		const gallery = aGalleryExtension('a');
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
-		return workbenchService.queryGallery()
+		return workbenchService.queryGallery(CancellationToken.None)
 			.then((paged) => {
 				testObject.extension = paged.firstPage[0];
 				assert.ok(testObject.enabled);
@@ -256,7 +258,7 @@ suite('ExtensionsActions Test', () => {
 		const gallery = aGalleryExtension('a');
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 
-		return instantiationService.get(IExtensionsWorkbenchService).queryGallery()
+		return instantiationService.get(IExtensionsWorkbenchService).queryGallery(CancellationToken.None)
 			.then(paged => {
 				testObject.extension = paged.firstPage[0];
 
@@ -298,7 +300,7 @@ suite('ExtensionsActions Test', () => {
 		const gallery = aGalleryExtension('a');
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 
-		return workbenchService.queryGallery()
+		return workbenchService.queryGallery(CancellationToken.None)
 			.then((paged) => {
 				testObject.extension = paged.firstPage[0];
 				assert.ok(testObject.enabled);
@@ -328,7 +330,7 @@ suite('ExtensionsActions Test', () => {
 		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
 		const gallery = aGalleryExtension('a');
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
-		return workbenchService.queryGallery()
+		return workbenchService.queryGallery(CancellationToken.None)
 			.then((paged) => {
 				testObject.extension = paged.firstPage[0];
 				installEvent.fire({ identifier: gallery.identifier, gallery });
@@ -386,7 +388,7 @@ suite('ExtensionsActions Test', () => {
 		instantiationService.get(IExtensionsWorkbenchService).onChange(() => testObject.update());
 		const gallery = aGalleryExtension('a', { version: '1.0.0' });
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
-		return instantiationService.get(IExtensionsWorkbenchService).queryGallery()
+		return instantiationService.get(IExtensionsWorkbenchService).queryGallery(CancellationToken.None)
 			.then((paged) => {
 				testObject.extension = paged.firstPage[0];
 				assert.ok(!testObject.enabled);
@@ -403,7 +405,7 @@ suite('ExtensionsActions Test', () => {
 			.then(extensions => {
 				testObject.extension = extensions[0];
 				instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', { identifier: local.identifier, version: local.manifest.version })));
-				return instantiationService.get(IExtensionsWorkbenchService).queryGallery()
+				return instantiationService.get(IExtensionsWorkbenchService).queryGallery(CancellationToken.None)
 					.then(extensions => assert.ok(!testObject.enabled));
 			});
 	});
@@ -418,7 +420,7 @@ suite('ExtensionsActions Test', () => {
 			.then(extensions => {
 				testObject.extension = extensions[0];
 				instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', { identifier: local.identifier, version: '1.0.1' })));
-				return instantiationService.get(IExtensionsWorkbenchService).queryGallery()
+				return instantiationService.get(IExtensionsWorkbenchService).queryGallery(CancellationToken.None)
 					.then(extensions => assert.ok(!testObject.enabled));
 			});
 	});
@@ -441,7 +443,7 @@ suite('ExtensionsActions Test', () => {
 							c();
 						}
 					});
-					instantiationService.get(IExtensionsWorkbenchService).queryGallery();
+					instantiationService.get(IExtensionsWorkbenchService).queryGallery(CancellationToken.None);
 				});
 			});
 	});
@@ -457,7 +459,7 @@ suite('ExtensionsActions Test', () => {
 				testObject.extension = extensions[0];
 				const gallery = aGalleryExtension('a', { identifier: local.identifier, version: '1.0.1' });
 				instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
-				return instantiationService.get(IExtensionsWorkbenchService).queryGallery()
+				return instantiationService.get(IExtensionsWorkbenchService).queryGallery(CancellationToken.None)
 					.then(extensions => {
 						installEvent.fire({ identifier: local.identifier, gallery });
 						assert.ok(!testObject.enabled);
@@ -493,7 +495,7 @@ suite('ExtensionsActions Test', () => {
 		const gallery = aGalleryExtension('a');
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 
-		return instantiationService.get(IExtensionsWorkbenchService).queryGallery()
+		return instantiationService.get(IExtensionsWorkbenchService).queryGallery(CancellationToken.None)
 			.then(page => {
 				testObject.extension = page.firstPage[0];
 				assert.ok(!testObject.enabled);
@@ -508,7 +510,7 @@ suite('ExtensionsActions Test', () => {
 		const gallery = aGalleryExtension('a');
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 
-		return instantiationService.get(IExtensionsWorkbenchService).queryGallery()
+		return instantiationService.get(IExtensionsWorkbenchService).queryGallery(CancellationToken.None)
 			.then(page => {
 				testObject.extension = page.firstPage[0];
 
@@ -525,7 +527,7 @@ suite('ExtensionsActions Test', () => {
 		const gallery = aGalleryExtension('a');
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 
-		return instantiationService.get(IExtensionsWorkbenchService).queryGallery()
+		return instantiationService.get(IExtensionsWorkbenchService).queryGallery(CancellationToken.None)
 			.then(page => {
 				testObject.extension = page.firstPage[0];
 				installEvent.fire({ identifier: gallery.identifier, gallery });
@@ -749,7 +751,7 @@ suite('ExtensionsActions Test', () => {
 		const gallery = aGalleryExtension('a');
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 
-		return instantiationService.get(IExtensionsWorkbenchService).queryGallery()
+		return instantiationService.get(IExtensionsWorkbenchService).queryGallery(CancellationToken.None)
 			.then(page => {
 				const testObject: ExtensionsActions.EnableDropDownAction = instantiationService.createInstance(ExtensionsActions.EnableDropDownAction);
 				testObject.extension = page.firstPage[0];
@@ -761,7 +763,7 @@ suite('ExtensionsActions Test', () => {
 		const gallery = aGalleryExtension('a');
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 
-		return instantiationService.get(IExtensionsWorkbenchService).queryGallery()
+		return instantiationService.get(IExtensionsWorkbenchService).queryGallery(CancellationToken.None)
 			.then(page => {
 				const testObject: ExtensionsActions.EnableDropDownAction = instantiationService.createInstance(ExtensionsActions.EnableDropDownAction);
 				testObject.extension = page.firstPage[0];
@@ -933,7 +935,7 @@ suite('ExtensionsActions Test', () => {
 		const gallery = aGalleryExtension('a');
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 
-		return instantiationService.get(IExtensionsWorkbenchService).queryGallery()
+		return instantiationService.get(IExtensionsWorkbenchService).queryGallery(CancellationToken.None)
 			.then(page => {
 				const testObject: ExtensionsActions.DisableDropDownAction = instantiationService.createInstance(ExtensionsActions.DisableDropDownAction, [{ identifier: new ExtensionIdentifier('pub.a'), extensionLocation: URI.file('pub.a') }]);
 				testObject.extension = page.firstPage[0];
@@ -945,7 +947,7 @@ suite('ExtensionsActions Test', () => {
 		const gallery = aGalleryExtension('a');
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 
-		return instantiationService.get(IExtensionsWorkbenchService).queryGallery()
+		return instantiationService.get(IExtensionsWorkbenchService).queryGallery(CancellationToken.None)
 			.then(page => {
 				const testObject: ExtensionsActions.DisableDropDownAction = instantiationService.createInstance(ExtensionsActions.DisableDropDownAction, [{ identifier: new ExtensionIdentifier('pub.a'), extensionLocation: URI.file('pub.a') }]);
 				testObject.extension = page.firstPage[0];
@@ -997,7 +999,7 @@ suite('ExtensionsActions Test', () => {
 							c();
 						}
 					});
-					workbenchService.queryGallery();
+					workbenchService.queryGallery(CancellationToken.None);
 				});
 			});
 	});
@@ -1019,7 +1021,7 @@ suite('ExtensionsActions Test', () => {
 							c();
 						}
 					});
-					workbenchService.queryGallery();
+					workbenchService.queryGallery(CancellationToken.None);
 				});
 			});
 	});
@@ -1033,7 +1035,7 @@ suite('ExtensionsActions Test', () => {
 		return workbenchService.queryLocal()
 			.then(() => {
 				instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...gallery));
-				return workbenchService.queryGallery()
+				return workbenchService.queryGallery(CancellationToken.None)
 					.then(() => {
 						installEvent.fire({ identifier: local[0].identifier, gallery: gallery[0] });
 						installEvent.fire({ identifier: local[1].identifier, gallery: gallery[1] });
@@ -1055,7 +1057,7 @@ suite('ExtensionsActions Test', () => {
 		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
 		const gallery = aGalleryExtension('a');
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
-		return workbenchService.queryGallery()
+		return workbenchService.queryGallery(CancellationToken.None)
 			.then((paged) => {
 				testObject.extension = paged.firstPage[0];
 				installEvent.fire({ identifier: gallery.identifier, gallery });
@@ -1085,7 +1087,7 @@ suite('ExtensionsActions Test', () => {
 		const gallery = aGalleryExtension('a');
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 
-		const paged = await instantiationService.get(IExtensionsWorkbenchService).queryGallery();
+		const paged = await instantiationService.get(IExtensionsWorkbenchService).queryGallery(CancellationToken.None);
 		testObject.extension = paged.firstPage[0];
 		assert.ok(!testObject.enabled);
 
@@ -1106,7 +1108,7 @@ suite('ExtensionsActions Test', () => {
 		instantiationService.get(IExtensionsWorkbenchService).onChange(() => testObject.update());
 		const gallery = aGalleryExtension('a');
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
-		return instantiationService.get(IExtensionsWorkbenchService).queryGallery()
+		return instantiationService.get(IExtensionsWorkbenchService).queryGallery(CancellationToken.None)
 			.then((paged) => {
 				testObject.extension = paged.firstPage[0];
 				const identifier = gallery.identifier;
@@ -1313,7 +1315,7 @@ suite('ExtensionsActions Test', () => {
 		const gallery = aGalleryExtension('a');
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 
-		const paged = await instantiationService.get(IExtensionsWorkbenchService).queryGallery();
+		const paged = await instantiationService.get(IExtensionsWorkbenchService).queryGallery(CancellationToken.None);
 		testObject.extension = paged.firstPage[0];
 		assert.ok(!testObject.enabled);
 

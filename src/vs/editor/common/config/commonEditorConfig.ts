@@ -828,6 +828,17 @@ const editorConfiguration: IConfigurationNode = {
 				},
 			}
 		},
+		'editor.gotoLocation.many': {
+			description: nls.localize('editor.gotoLocation.many', "Controls the behaviour of 'go to'-commands, like go to definition, when multiple target locations exist."),
+			type: 'string',
+			enum: ['peek', 'revealAndPeek', 'reveal'],
+			default: 'peek',
+			enumDescriptions: [
+				nls.localize('editor.gotoLocation.many.peek', 'Show peek view of the results at the request location'),
+				nls.localize('editor.gotoLocation.many.revealAndPeek', 'Reveal the first result and show peek view at its location'),
+				nls.localize('editor.gotoLocation.many.reveal', 'Reveal the first result and ignore others')
+			]
+		},
 		'editor.selectionHighlight': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.selectionHighlight,

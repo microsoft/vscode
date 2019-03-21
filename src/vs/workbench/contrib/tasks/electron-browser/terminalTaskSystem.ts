@@ -773,13 +773,13 @@ export class TerminalTaskSystem implements ITaskSystem {
 					if (!shellSpecified) {
 						toAdd.push('-Command');
 					}
-				} else if ((basename === 'bash.exe') || (basename === 'zsh.exe') || ((basename === 'wsl.exe') && (getWindowsBuildNumber() < 17763))) { // See https://github.com/Microsoft/vscode/issues/67855
+				} else if ((basename === 'bash.exe') || (basename === 'zsh.exe')) {
 					windowsShellArgs = false;
 					if (!shellSpecified) {
 						toAdd.push('-c');
 					}
 				} else if (basename === 'wsl.exe') {
-					if (!shellSpecified) {
+					if (!shellSpecified && (getWindowsBuildNumber() >= 17763)) { // See https://github.com/Microsoft/vscode/issues/67855
 						toAdd.push('-e');
 					}
 				} else {
@@ -925,7 +925,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 				// (or, if the task has no group, a terminal used by a task without group).
 				for (const taskId of this.idleTaskTerminals.keys()) {
 					const idleTerminalId = this.idleTaskTerminals.get(taskId)!;
-					if (idleTerminalId && this.terminals[idleTerminalId].group === group) {
+					if (idleTerminalId && this.terminals[idleTerminalId] && this.terminals[idleTerminalId].group === group) {
 						terminalId = this.idleTaskTerminals.remove(taskId);
 						break;
 					}

@@ -8,10 +8,11 @@ import { URI } from 'vs/base/common/uri';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { first } from 'vs/base/common/async';
 import { values } from 'vs/base/common/map';
+import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 export class URLService implements IURLService {
 
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<any>;
 
 	private handlers = new Set<IURLHandler>();
 
@@ -23,20 +24,5 @@ export class URLService implements IURLService {
 	registerHandler(handler: IURLHandler): IDisposable {
 		this.handlers.add(handler);
 		return toDisposable(() => this.handlers.delete(handler));
-	}
-}
-
-export class RelayURLService extends URLService implements IURLHandler {
-
-	constructor(private urlService: IURLService) {
-		super();
-	}
-
-	open(uri: URI): Promise<boolean> {
-		return this.urlService.open(uri);
-	}
-
-	handleURL(uri: URI): Promise<boolean> {
-		return super.open(uri);
 	}
 }

@@ -11,8 +11,7 @@ import { isObject } from 'vs/base/common/types';
 import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
 import { IJSONSchema, IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IConfig, IDebuggerContribution, IDebugAdapterExecutable, INTERNAL_CONSOLE_OPTIONS_SCHEMA, IConfigurationManager, IDebugAdapter, IDebugConfiguration, ITerminalSettings, IDebugger, IDebugSession, IAdapterDescriptor, IDebugAdapterServer } from 'vs/workbench/contrib/debug/common/debug';
-import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { IConfig, IDebuggerContribution, IDebugAdapterExecutable, INTERNAL_CONSOLE_OPTIONS_SCHEMA, IConfigurationManager, IDebugAdapter, ITerminalSettings, IDebugger, IDebugSession, IAdapterDescriptor, IDebugAdapterServer } from 'vs/workbench/contrib/debug/common/debug';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IOutputService } from 'vs/workbench/contrib/output/common/output';
@@ -28,6 +27,7 @@ import { ITextResourcePropertiesService } from 'vs/editor/common/services/resour
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { isDebuggerMainContribution } from 'vs/workbench/contrib/debug/common/debugUtils';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 export class Debugger implements IDebugger {
 
@@ -171,7 +171,7 @@ export class Debugger implements IDebugger {
 		});
 	}
 
-	substituteVariables(folder: IWorkspaceFolder, config: IConfig): Promise<IConfig> {
+	substituteVariables(folder: IWorkspaceFolder | undefined, config: IConfig): Promise<IConfig> {
 		if (this.inExtHost()) {
 			return this.configurationManager.substituteVariables(this.type, folder, config).then(config => {
 				return this.configurationResolverService.resolveWithInteractionReplace(folder, config, 'launch', this.variables);
@@ -187,10 +187,13 @@ export class Debugger implements IDebugger {
 	}
 
 	private inExtHost(): boolean {
+		/*
 		const debugConfigs = this.configurationService.getValue<IDebugConfiguration>('debug');
 		return !!debugConfigs.extensionHostDebugAdapter
 			|| this.configurationManager.needsToRunInExtHost(this.type)
 			|| (!!this.mainExtensionDescription && this.mainExtensionDescription.extensionLocation.scheme !== 'file');
+		*/
+		return true;
 	}
 
 	get label(): string {

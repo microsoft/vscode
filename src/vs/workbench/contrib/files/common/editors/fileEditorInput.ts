@@ -15,9 +15,7 @@ import { FileOperationError, FileOperationResult } from 'vs/platform/files/commo
 import { ITextFileService, AutoSaveMode, ModelState, TextFileModelChangeEvent, LoadReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IReference } from 'vs/base/common/lifecycle';
-import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { FILE_EDITOR_INPUT_ID, TEXT_FILE_EDITOR_ID, BINARY_FILE_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
 
@@ -36,16 +34,17 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 	 */
 	constructor(
 		private resource: URI,
-		preferredEncoding: string,
+		preferredEncoding: string | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
-		@IHashService private readonly hashService: IHashService,
 		@ILabelService private readonly labelService: ILabelService
 	) {
 		super();
 
-		this.setPreferredEncoding(preferredEncoding);
+		if (preferredEncoding) {
+			this.setPreferredEncoding(preferredEncoding);
+		}
 
 		this.registerListeners();
 	}
@@ -100,10 +99,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 	setPreferredEncoding(encoding: string): void {
 		this.preferredEncoding = encoding;
-
-		if (encoding) {
-			this.forceOpenAsText = true; // encoding is a good hint to open the file as text
-		}
+		this.forceOpenAsText = true; // encoding is a good hint to open the file as text
 	}
 
 	setForceOpenAsText(): void {
@@ -287,18 +283,6 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 	isResolved(): boolean {
 		return !!this.textFileService.models.get(this.resource);
-	}
-
-	getTelemetryDescriptor(): object {
-		const descriptor = super.getTelemetryDescriptor();
-		descriptor['resource'] = telemetryURIDescriptor(this.getResource(), path => this.hashService.createSHA1(path));
-
-		/* __GDPR__FRAGMENT__
-			"EditorTelemetryDescriptor" : {
-				"resource": { "${inline}": [ "${URIDescriptor}" ] }
-			}
-		*/
-		return descriptor;
 	}
 
 	dispose(): void {

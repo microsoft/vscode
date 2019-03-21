@@ -9,7 +9,7 @@ import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { MirrorTextModel } from 'vs/editor/common/model/mirrorTextModel';
 import { ensureValidWordDefinition, getWordAtText } from 'vs/editor/common/model/wordHelper';
-import { MainThreadDocumentsShape } from 'vs/workbench/api/node/extHost.protocol';
+import { MainThreadDocumentsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { EndOfLine, Position, Range } from 'vs/workbench/api/node/extHostTypes';
 import * as vscode from 'vscode';
 

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
+import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Event, Emitter } from 'vs/base/common/event';
 import { StorageMainService, IStorageChangeEvent } from 'vs/platform/storage/node/storageMainService';
 import { IUpdateRequest, IStorageDatabase, IStorageItemsChangeEvent } from 'vs/base/node/storage';
@@ -104,7 +104,7 @@ export class GlobalStorageDatabaseChannel extends Disposable implements IServerC
 		return { items: mapToSerializable(items) } as ISerializableItemsChangeEvent;
 	}
 
-	listen(_, event: string): Event<any> {
+	listen(_: unknown, event: string): Event<any> {
 		switch (event) {
 			case 'onDidChangeItems': return this.onDidChangeItems;
 		}
@@ -112,7 +112,7 @@ export class GlobalStorageDatabaseChannel extends Disposable implements IServerC
 		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(_, command: string, arg?: any): Promise<any> {
+	call(_: unknown, command: string, arg?: any): Promise<any> {
 		switch (command) {
 			case 'getItems': {
 				return this.whenReady.then(() => mapToSerializable(this.storageMainService.items));

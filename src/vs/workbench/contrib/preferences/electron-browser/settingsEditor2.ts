@@ -680,6 +680,14 @@ export class SettingsEditor2 extends BaseEditor {
 			elementToSync instanceof SettingsTreeGroupElement ? elementToSync :
 				null;
 
+		// It's possible for this to be called when the TOC and settings tree are out of sync - e.g. when the settings tree has deferred a refresh because
+		// it is focused. So, bail if element doesn't exist in the TOC.
+		let nodeExists = true;
+		try { this.tocTree.getNode(element); } catch (e) { nodeExists = false; }
+		if (!nodeExists) {
+			return;
+		}
+
 		if (element && this.tocTree.getSelection()[0] !== element) {
 			const ancestors = this.getAncestors(element);
 			ancestors.forEach(e => this.tocTree.expand(<SettingsTreeGroupElement>e));
@@ -981,7 +989,6 @@ export class SettingsEditor2 extends BaseEditor {
 			this.refreshTree();
 		}
 
-		this.tocTreeModel.update();
 		return;
 	}
 
@@ -997,6 +1004,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private refreshTOCTree(): void {
 		if (this.isVisible()) {
+			this.tocTreeModel.update();
 			this.tocTree.setChildren(null, createTOCIterator(this.tocTreeModel, this.tocTree));
 		}
 	}

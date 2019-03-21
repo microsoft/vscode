@@ -254,7 +254,7 @@ export class ExtensionEditor extends BaseEditor {
 				if (action instanceof ExtensionEditorDropDownAction) {
 					return action.createActionItem();
 				}
-				return null;
+				return undefined;
 			}
 		});
 
@@ -722,7 +722,7 @@ export class ExtensionEditor extends BaseEditor {
 			getChildren(): Promise<IExtensionData[] | null> {
 				if (this.hasChildren) {
 					const names = arrays.distinct(this.extension.extensionPack, e => e.toLowerCase());
-					return extensionsWorkbenchService.queryGallery({ names, pageSize: names.length })
+					return extensionsWorkbenchService.queryGallery({ names, pageSize: names.length }, CancellationToken.None)
 						.then(result => result.firstPage.map(extension => new ExtensionData(extension, this)));
 				}
 				return Promise.resolve(null);

@@ -22,9 +22,9 @@ export interface ISelectBoxDelegate {
 
 	// Public SelectBox Interface
 	readonly onDidSelect: Event<ISelectData>;
-	setOptions(options: ISelectOptionItem[], selected?: number);
+	setOptions(options: ISelectOptionItem[], selected?: number): void;
 	select(index: number): void;
-	setAriaLabel(label: string);
+	setAriaLabel(label: string): void;
 	focus(): void;
 	blur(): void;
 	dispose(): void;

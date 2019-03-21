@@ -36,10 +36,9 @@ import { fillResourceDataTransfers } from 'vs/workbench/browser/dnd';
 import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/common/async';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { Range } from 'vs/editor/common/core/range';
-import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
+import { getCodeActions, CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
 import { ITextModel } from 'vs/editor/common/model';
-import { CodeAction } from 'vs/editor/common/modes';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
@@ -254,7 +253,7 @@ class MarkerWidget extends Disposable {
 	) {
 		super();
 		this.actionBar = this._register(new ActionBar(dom.append(parent, dom.$('.actions')), {
-			actionItemProvider: (action) => action.id === QuickFixAction.ID ? instantiationService.createInstance(QuickFixActionItem, action) : null
+			actionItemProvider: (action) => action.id === QuickFixAction.ID ? instantiationService.createInstance(QuickFixActionItem, action) : undefined
 		}));
 		this.icon = dom.append(parent, dom.$('.icon'));
 		this.multilineActionbar = this._register(new ActionBar(dom.append(parent, dom.$('.multiline-actions'))));
@@ -493,7 +492,7 @@ export class MarkerViewModel extends Disposable {
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	private modelPromise: CancelablePromise<ITextModel> | null = null;
-	private codeActionsPromise: CancelablePromise<CodeAction[]> | null = null;
+	private codeActionsPromise: CancelablePromise<CodeActionSet> | null = null;
 
 	constructor(
 		private readonly marker: Marker,
@@ -548,16 +547,17 @@ export class MarkerViewModel extends Disposable {
 	}
 
 	private async setQuickFixes(waitForModel: boolean): Promise<void> {
-		const quickFixes = await this.getQuickFixes(waitForModel);
-		this.quickFixAction.quickFixes = quickFixes;
+		const codeActions = await this.getCodeActions(waitForModel);
+		this.quickFixAction.quickFixes = codeActions ? this.toActions(codeActions) : [];
+		this.quickFixAction.autoFixable(!!codeActions && codeActions.hasAutoFix);
 	}
 
-	private getCodeActions(waitForModel: boolean): Promise<CodeAction[] | null> {
+	private getCodeActions(waitForModel: boolean): Promise<CodeActionSet | null> {
 		if (this.codeActionsPromise !== null) {
 			return this.codeActionsPromise;
 		}
 		return this.getModel(waitForModel)
-			.then<CodeAction[] | null>(model => {
+			.then<CodeActionSet | null>(model => {
 				if (model) {
 					if (!this.codeActionsPromise) {
 						this.codeActionsPromise = createCancelablePromise(cancellationToken => {
@@ -570,8 +570,8 @@ export class MarkerViewModel extends Disposable {
 			});
 	}
 
-	private toActions(codeActions: CodeAction[]): IAction[] {
-		return codeActions.map(codeAction => new Action(
+	private toActions(codeActions: CodeActionSet): IAction[] {
+		return codeActions.actions.map(codeAction => new Action(
 			codeAction.command ? codeAction.command.id : codeAction.title,
 			codeAction.title,
 			undefined,

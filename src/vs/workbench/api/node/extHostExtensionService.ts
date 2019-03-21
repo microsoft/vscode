@@ -9,27 +9,27 @@ import { originalFSPath } from 'vs/base/common/resources';
 import { Barrier } from 'vs/base/common/async';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/map';
-import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
 import { ILogService } from 'vs/platform/log/common/log';
 import { createApiFactory, initializeExtensionApi, IExtensionApiFactory } from 'vs/workbench/api/node/extHost.api.impl';
-import { ExtHostExtensionServiceShape, IEnvironment, IInitData, IMainContext, MainContext, MainThreadExtensionServiceShape, MainThreadTelemetryShape, MainThreadWorkspaceShape, IStaticWorkspaceData } from 'vs/workbench/api/node/extHost.protocol';
+import { ExtHostExtensionServiceShape, IEnvironment, IInitData, IMainContext, MainContext, MainThreadExtensionServiceShape, MainThreadTelemetryShape, MainThreadWorkspaceShape, IStaticWorkspaceData } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
 import { ActivatedExtension, EmptyExtension, ExtensionActivatedByAPI, ExtensionActivatedByEvent, ExtensionActivationReason, ExtensionActivationTimes, ExtensionActivationTimesBuilder, ExtensionsActivator, IExtensionAPI, IExtensionContext, IExtensionMemento, IExtensionModule, HostExtension } from 'vs/workbench/api/node/extHostExtensionActivator';
 import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
 import { ExtHostStorage } from 'vs/workbench/api/node/extHostStorage';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
-import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { ExtensionActivationError } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
 import { connectProxyResolver } from 'vs/workbench/services/extensions/node/proxyResolver';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 import { ResolvedAuthority } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import * as vscode from 'vscode';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { Schemas } from 'vs/base/common/network';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 class ExtensionMemento implements IExtensionMemento {
 
@@ -202,25 +202,14 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		this._readyToRunExtensions = new Barrier();
 		this._registry = new ExtensionDescriptionRegistry(initData.extensions);
 		this._storage = new ExtHostStorage(this._extHostContext);
-		this._storagePath = new ExtensionStoragePath(initData.workspace, initData.environment);
+		this._storagePath = new ExtensionStoragePath(withNullAsUndefined(initData.workspace), initData.environment);
 
 		const hostExtensions = new Set<string>();
 		initData.hostExtensions.forEach((extensionId) => hostExtensions.add(ExtensionIdentifier.toKey(extensionId)));
 
 		this._activator = new ExtensionsActivator(this._registry, initData.resolvedExtensions, initData.hostExtensions, {
-			showMessage: (severity: Severity, message: string): void => {
-				this._mainThreadExtensionsProxy.$localShowMessage(severity, message);
-
-				switch (severity) {
-					case Severity.Error:
-						console.error(message);
-						break;
-					case Severity.Warning:
-						console.warn(message);
-						break;
-					default:
-						console.log(message);
-				}
+			onExtensionActivationError: (extensionId: ExtensionIdentifier, error: ExtensionActivationError): void => {
+				this._mainThreadExtensionsProxy.$onExtensionActivationError(extensionId, error);
 			},
 
 			actualActivateExtension: async (extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<ActivatedExtension> => {
@@ -372,10 +361,6 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		return result;
 	}
 
-	public addMessage(extensionId: ExtensionIdentifier, severity: Severity, message: string): void {
-		this._mainThreadExtensionsProxy.$addMessage(extensionId, severity, message);
-	}
-
 	// --- impl
 
 	private _activateExtension(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason): Promise<ActivatedExtension> {
@@ -387,7 +372,6 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 			this._logExtensionActivationTimes(extensionDescription, reason, 'success', activationTimes);
 			return activatedExtension;
 		}, (err) => {
-			this._mainThreadExtensionsProxy.$onExtensionActivationFailed(extensionDescription.identifier);
 			this._logExtensionActivationTimes(extensionDescription, reason, 'failure');
 			throw err;
 		});
@@ -656,7 +640,14 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	private _gracefulExit(code: number): void {
 		// to give the PH process a chance to flush any outstanding console
 		// messages to the main process, we delay the exit() by some time
-		setTimeout(() => this._nativeExit(code), 500);
+		setTimeout(() => {
+			if (!!this._initData.environment.extensionTestsLocationURI) {
+				// If extension tests are running, give the exit code to the renderer
+				this._mainThreadExtensionsProxy.$onExtensionHostExit(code);
+				return;
+			}
+			this._nativeExit(code);
+		}, 500);
 	}
 
 	private _startExtensionHost(): Promise<void> {

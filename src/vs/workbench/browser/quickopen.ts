@@ -214,7 +214,7 @@ class QuickOpenRegistry implements IQuickOpenRegistry {
 	}
 
 	getQuickOpenHandler(text: string): QuickOpenHandlerDescriptor | null {
-		return text ? arrays.first<QuickOpenHandlerDescriptor>(this.handlers, h => strings.startsWith(text, h.prefix), null) : null;
+		return text ? (arrays.first<QuickOpenHandlerDescriptor>(this.handlers, h => strings.startsWith(text, h.prefix)) || null) : null;
 	}
 
 	getDefaultQuickOpenHandler(): QuickOpenHandlerDescriptor {

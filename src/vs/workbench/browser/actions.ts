@@ -65,11 +65,7 @@ export const Scope = {
  * The ContributableActionProvider leverages the actionbar contribution model to find actions.
  */
 export class ContributableActionProvider implements IActionProvider {
-	private registry: IActionBarRegistry;
-
-	constructor() {
-		this.registry = Registry.as<IActionBarRegistry>(Extensions.Actionbar);
-	}
+	private readonly registry: IActionBarRegistry = Registry.as<IActionBarRegistry>(Extensions.Actionbar);
 
 	private toContext(tree: ITree, element: any): any {
 		return {
@@ -134,7 +130,7 @@ export class ContributableActionProvider implements IActionProvider {
 		return prepareActions(actions);
 	}
 
-	getActionItem(tree: ITree, element: any, action: Action): BaseActionItem | null {
+	getActionItem(tree: ITree, element: any, action: Action): BaseActionItem | undefined {
 		const contributors = this.registry.getActionBarContributors(Scope.VIEWER);
 		const context = this.toContext(tree, element);
 
@@ -147,7 +143,7 @@ export class ContributableActionProvider implements IActionProvider {
 			}
 		}
 
-		return null;
+		return undefined;
 	}
 }
 
@@ -242,8 +238,8 @@ export interface IActionBarRegistry {
 }
 
 class ActionBarRegistry implements IActionBarRegistry {
-	private actionBarContributorConstructors: { scope: string; ctor: IConstructorSignature0<ActionBarContributor>; }[] = [];
-	private actionBarContributorInstances: { [scope: string]: ActionBarContributor[] } = Object.create(null);
+	private readonly actionBarContributorConstructors: { scope: string; ctor: IConstructorSignature0<ActionBarContributor>; }[] = [];
+	private readonly actionBarContributorInstances: { [scope: string]: ActionBarContributor[] } = Object.create(null);
 	private instantiationService: IInstantiationService;
 
 	start(accessor: ServicesAccessor): void {

@@ -841,7 +841,9 @@ export class ProblemPatternParser extends Parser {
 
 	private createSingleProblemPattern(value: Config.CheckedProblemPattern): ProblemPattern | null {
 		let result = this.doCreateSingleProblemPattern(value, true);
-		if (result.kind === undefined) {
+		if (result === undefined) {
+			return null;
+		} else if (result.kind === undefined) {
 			result.kind = ProblemLocationKind.Location;
 		}
 		return this.validateProblemPattern([result]) ? result : null;
@@ -864,6 +866,9 @@ export class ProblemPatternParser extends Parser {
 		let result: MultiLineProblemPattern = [];
 		for (let i = 0; i < values.length; i++) {
 			let pattern = this.doCreateSingleProblemPattern(values[i], false);
+			if (pattern === undefined) {
+				return null;
+			}
 			if (i < values.length - 1) {
 				if (!Types.isUndefined(pattern.loop) && pattern.loop) {
 					pattern.loop = false;
@@ -878,10 +883,10 @@ export class ProblemPatternParser extends Parser {
 		return this.validateProblemPattern(result) ? result : null;
 	}
 
-	private doCreateSingleProblemPattern(value: Config.CheckedProblemPattern, setDefaults: boolean): ProblemPattern {
+	private doCreateSingleProblemPattern(value: Config.CheckedProblemPattern, setDefaults: boolean): ProblemPattern | undefined {
 		const regexp = this.createRegularExpression(value.regexp);
 		if (regexp === undefined) {
-			throw new Error('Invalid regular expression');
+			return undefined;
 		}
 		let result: ProblemPattern = { regexp };
 		if (value.kind) {

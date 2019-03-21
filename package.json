@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.33.0",
-  "distro": "533c92fa5e71d449c33c99a6d7c0fbc9a12ea537",
+  "distro": "ef073d0669d00835b9ad8399061b606646f7cc95",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -21,10 +21,8 @@
     "update-grammars": "node build/npm/update-all-grammars.js",
     "update-localization-extension": "node build/npm/update-localization-extension.js",
     "smoketest": "cd test/smoke && node test/index.js",
-    "monaco-compile-check": "tsc -p src/tsconfig.monaco.json --noEmit",
     "download-builtin-extensions": "node build/lib/builtInExtensions.js",
-    "strict-null-check": "tsc -p src/tsconfig.strictNullChecks.json",
-    "strict-null-check-watch": "tsc -p src/tsconfig.strictNullChecks.json --watch"
+    "monaco-compile-check": "tsc -p src/tsconfig.monaco.json --noEmit"
   },
   "dependencies": {
     "applicationinsights": "1.0.8",
@@ -52,7 +50,7 @@
     "vscode-ripgrep": "^1.2.5",
     "vscode-sqlite3": "4.0.7",
     "vscode-textmate": "^4.0.1",
-    "vscode-xterm": "3.12.0-beta5",
+    "vscode-xterm": "3.13.0-beta1",
     "yauzl": "^2.9.1",
     "yazl": "^2.4.3"
   },
@@ -146,6 +144,7 @@
   },
   "optionalDependencies": {
     "vscode-windows-registry": "1.0.1",
+    "win-ca-lib": "https://github.com/chrmarti/win-ca/releases/download/v2.4.1-lib-test/win-ca-lib-2.4.1.tgz",
     "windows-foreground-love": "0.1.0",
     "windows-mutex": "0.2.1",
     "windows-process-tree": "0.2.3"

@@ -17,6 +17,7 @@ import { isNumber } from 'vs/base/common/types';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { binarySearch } from 'vs/base/common/arrays';
+import { toUint8ArrayBuffer } from 'vs/base/common/uint';
 
 export interface IOutputChannelModel extends IDisposable {
 	readonly onDidAppendedContent: Event<void>;
@@ -115,7 +116,7 @@ export abstract class AbstractFileOutputChannelModel extends Disposable implemen
 	}
 
 	abstract loadModel(): Promise<ITextModel>;
-	abstract append(message: string);
+	abstract append(message: string): void;
 
 	protected onModelCreated(model: ITextModel) { }
 	protected onModelWillDispose(model: ITextModel | null) { }
@@ -159,7 +160,7 @@ class OutputFileListener extends Disposable {
 	}
 
 	private doWatch(): Promise<void> {
-		return this.fileService.resolveFile(this.file)
+		return this.fileService.resolveFile(this.file, { resolveMetadata: true })
 			.then(stat => {
 				if (stat.etag !== this.etag) {
 					this.etag = stat.etag;
@@ -184,7 +185,7 @@ class OutputFileListener extends Disposable {
 /**
  * An output channel driven by a file and does not support appending messages.
  */
-export class FileOutputChannelModel extends AbstractFileOutputChannelModel implements IOutputChannelModel {
+class FileOutputChannelModel extends AbstractFileOutputChannelModel implements IOutputChannelModel {
 
 	private readonly fileHandler: OutputFileListener;
 
@@ -210,7 +211,7 @@ export class FileOutputChannelModel extends AbstractFileOutputChannelModel imple
 	loadModel(): Promise<ITextModel> {
 		this.loadModelPromise = this.fileService.resolveContent(this.file, { position: this.startOffset, encoding: 'utf8' })
 			.then(content => {
-				this.endOffset = this.startOffset + Buffer.from(content.value).byteLength;
+				this.endOffset = this.startOffset + this.getByteLength(content.value);
 				this.etag = content.etag;
 				return this.createModel(content.value);
 			});
@@ -235,7 +236,7 @@ export class FileOutputChannelModel extends AbstractFileOutputChannelModel imple
 				.then(content => {
 					this.etag = content.etag;
 					if (content.value) {
-						this.endOffset = this.endOffset + Buffer.from(content.value).byteLength;
+						this.endOffset = this.endOffset + this.getByteLength(content.value);
 						this.appendToModel(content.value);
 					}
 					this.updateInProgress = false;
@@ -255,6 +256,13 @@ export class FileOutputChannelModel extends AbstractFileOutputChannelModel imple
 
 	protected onUpdateModelCancelled(): void {
 		this.updateInProgress = false;
+	}
+
+	protected getByteLength(str: string): number {
+		if (typeof Buffer !== 'undefined') {
+			return Buffer.from(str).byteLength;
+		}
+		return toUint8ArrayBuffer(str).byteLength;
 	}
 
 	update(size?: number): void {

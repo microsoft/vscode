@@ -155,7 +155,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 	private onDidRegisterChannel(channelId: string): void {
 		const channel = this.createChannel(channelId);
 		this.channels.set(channelId, channel);
-		if (this.activeChannelIdInStorage === channelId) {
+		if (!this.activeChannel || this.activeChannelIdInStorage === channelId) {
 			this.activeChannel = channel;
 			this.onDidPanelOpen(this.panelService.getActivePanel(), true)
 				.then(() => this._onActiveOutputChannel.fire(channelId));

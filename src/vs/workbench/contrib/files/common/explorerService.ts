@@ -135,8 +135,8 @@ export class ExplorerService implements IExplorerService {
 		return this.editable && this.editable.stat === stat ? this.editable.data : undefined;
 	}
 
-	isEditable(stat: ExplorerItem): boolean {
-		return !!this.editable && this.editable.stat === stat;
+	isEditable(stat: ExplorerItem | undefined): boolean {
+		return !!this.editable && (this.editable.stat === stat || !stat);
 	}
 
 	select(resource: URI, reveal?: boolean): Promise<void> {
@@ -147,7 +147,7 @@ export class ExplorerService implements IExplorerService {
 		}
 
 		// Stat needs to be resolved first and then revealed
-		const options: IResolveFileOptions = { resolveTo: [resource] };
+		const options: IResolveFileOptions = { resolveTo: [resource], resolveMetadata: true /* TODO@isidor only do this when needed */ };
 		const workspaceFolder = this.contextService.getWorkspaceFolder(resource);
 		const rootUri = workspaceFolder ? workspaceFolder.uri : this.roots[0].resource;
 		const root = this.roots.filter(r => r.resource.toString() === rootUri.toString()).pop()!;
@@ -192,7 +192,7 @@ export class ExplorerService implements IExplorerService {
 				// Add the new file to its parent (Model)
 				parents.forEach(p => {
 					// We have to check if the parent is resolved #29177
-					const thenable: Promise<IFileStat | undefined> = p.isDirectoryResolved ? Promise.resolve(undefined) : this.fileService.resolveFile(p.resource);
+					const thenable: Promise<IFileStat | undefined> = p.isDirectoryResolved ? Promise.resolve(undefined) : this.fileService.resolveFile(p.resource, { resolveMetadata: true /* TODO@isidor only do this when needed */ });
 					thenable.then(stat => {
 						if (stat) {
 							const modelStat = ExplorerItem.create(stat, p.parent);

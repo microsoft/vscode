@@ -389,7 +389,7 @@ export class FileMatch extends Disposable {
 }
 
 export interface IChangeEvent {
-	elements: (FileMatch | FolderMatch | SearchResult | null)[];
+	elements: (FileMatch | FolderMatch | SearchResult)[];
 	added?: boolean;
 	removed?: boolean;
 }

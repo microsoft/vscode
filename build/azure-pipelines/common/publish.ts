@@ -6,7 +6,6 @@
 'use strict';
 
 import * as fs from 'fs';
-import { execSync } from 'child_process';
 import { Readable } from 'stream';
 import * as crypto from 'crypto';
 import * as azure from 'azure-storage';
@@ -274,12 +273,18 @@ function main(): void {
 		return;
 	}
 
+	const commit = process.env['BUILD_SOURCEVERSION'];
+
+	if (!commit) {
+		console.warn('Skipping publish due to missing BUILD_SOURCEVERSION');
+		return;
+	}
+
 	const opts = minimist<PublishOptions>(process.argv.slice(2), {
 		boolean: ['upload-only']
 	});
 
 	const [quality, platform, type, name, version, _isUpdate, file] = opts._;
-	const commit = execSync('git rev-parse HEAD', { encoding: 'utf8' }).trim();
 
 	publish(commit, quality, platform, type, name, version, _isUpdate, file, opts).catch(err => {
 		console.error(err);

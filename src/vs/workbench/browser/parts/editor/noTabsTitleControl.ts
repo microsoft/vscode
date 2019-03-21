@@ -14,6 +14,7 @@ import { EDITOR_TITLE_HEIGHT } from 'vs/workbench/browser/parts/editor/editor';
 import { IAction } from 'vs/base/common/actions';
 import { CLOSE_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { Color } from 'vs/base/common/color';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 interface IRenderedEditorLabel {
 	editor?: IEditorInput;
@@ -205,12 +206,12 @@ export class NoTabsTitleControl extends TitleControl {
 	}
 
 	private redraw(): void {
-		const editor = this.group.activeEditor;
+		const editor = withNullAsUndefined(this.group.activeEditor);
 
 		const isEditorPinned = this.group.activeEditor ? this.group.isPinned(this.group.activeEditor) : false;
 		const isGroupActive = this.accessor.activeGroup === this.group;
 
-		this.activeLabel = { editor: editor || undefined, pinned: isEditorPinned };
+		this.activeLabel = { editor, pinned: isEditorPinned };
 
 		// Update Breadcrumbs
 		if (this.breadcrumbsControl) {

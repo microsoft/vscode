@@ -16,6 +16,46 @@
 
 declare module 'vscode' {
 
+	//#region Joh - call hierarchy
+
+	export enum CallHierarchyDirection {
+		CallsFrom = 1,
+		CallsTo = 2,
+	}
+
+	export class CallHierarchyItem {
+		kind: SymbolKind;
+		name: string;
+		detail?: string;
+		uri: Uri;
+		range: Range;
+		selectionRange: Range;
+
+		constructor(kind: SymbolKind, name: string, detail: string, uri: Uri, range: Range, selectionRange: Range);
+	}
+
+	export interface CallHierarchyItemProvider {
+
+		provideCallHierarchyItem(
+			document: TextDocument,
+			postion: Position,
+			token: CancellationToken
+		): ProviderResult<CallHierarchyItem>;
+
+		resolveCallHierarchyItem(
+			item: CallHierarchyItem,
+			direction: CallHierarchyDirection,
+			token: CancellationToken
+		): ProviderResult<[CallHierarchyItem, Location[]][]>;
+	}
+
+	export namespace languages {
+		export function registerCallHierarchyProvider(selector: DocumentSelector, provider: CallHierarchyItemProvider): Disposable;
+	}
+
+	//#endregion
+
+
 	//#region Alex - resolvers
 
 	export class ResolvedAuthority {
@@ -82,61 +122,9 @@ declare module 'vscode' {
 	//#endregion
 
 
-	//#region Joh - selection range provider
-
-	export class SelectionRangeKind {
-
-		/**
-		 * Empty Kind.
-		 */
-		static readonly Empty: SelectionRangeKind;
-
-		/**
-		 * The statement kind, its value is `statement`, possible extensions can be
-		 * `statement.if` etc
-		 */
-		static readonly Statement: SelectionRangeKind;
-
-		/**
-		 * The declaration kind, its value is `declaration`, possible extensions can be
-		 * `declaration.function`, `declaration.class` etc.
-		 */
-		static readonly Declaration: SelectionRangeKind;
-
-		readonly value: string;
-
-		private constructor(value: string);
-
-		append(value: string): SelectionRangeKind;
-	}
-
-	export class SelectionRange {
-		kind: SelectionRangeKind;
-		range: Range;
-		constructor(range: Range, kind: SelectionRangeKind);
-	}
-
-	export interface SelectionRangeProvider {
-		/**
-		 * Provide selection ranges for the given positions. Selection ranges should be computed individually and
-		 * independend for each postion. The editor will merge and deduplicate ranges but providers must return sequences
-		 * of ranges (per position) where a range must [contain](#Range.contains) and subsequent ranges.
-		 *
-		 * todo@joh
-		 */
-		provideSelectionRanges(document: TextDocument, positions: Position[], token: CancellationToken): ProviderResult<SelectionRange[][]>;
-	}
-
-	export namespace languages {
-		export function registerSelectionRangeProvider(selector: DocumentSelector, provider: SelectionRangeProvider): Disposable;
-	}
-
-	//#endregion
-
 	//#region Joh - read/write in chunks
 
 	export interface FileSystemProvider {
-		seperator?: '/' | '\\';
 		open?(resource: Uri, options: { create: boolean }): number | Thenable<number>;
 		close?(fd: number): void | Thenable<void>;
 		read?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): number | Thenable<number>;
@@ -586,6 +574,22 @@ declare module 'vscode' {
 
 	//#region André: debug
 
+	export namespace debug {
+
+		/**
+		 * Start debugging by using either a named launch or named compound configuration,
+		 * or by directly passing a [DebugConfiguration](#DebugConfiguration).
+		 * The named configurations are looked up in '.vscode/launch.json' found in the given folder.
+		 * Before debugging starts, all unsaved files are saved and the launch configurations are brought up-to-date.
+		 * Folder specific variables used in the configuration (e.g. '${workspaceFolder}') are resolved against the given folder.
+		 * @param folder The [workspace folder](#WorkspaceFolder) for looking up named configurations and resolving variables or `undefined` for a non-folder setup.
+		 * @param nameOrConfiguration Either the name of a debug or compound configuration or a [DebugConfiguration](#DebugConfiguration) object.
+		 * @param parent If specified the newly created debug session is registered as a "child" session of a "parent" debug session.
+		 * @return A thenable that resolves when debugging could be successfully started.
+		 */
+		export function startDebugging(folder: WorkspaceFolder | undefined, nameOrConfiguration: string | DebugConfiguration, parentSession?: DebugSession): Thenable<boolean>;
+	}
+
 	// deprecated
 
 	export interface DebugConfigurationProvider {
@@ -763,7 +767,7 @@ declare module 'vscode' {
 		range: Range;
 
 		/**
-		 * Label describing the [Comment Thread](#CommentThread)
+		 * The human-readable label describing the [Comment Thread](#CommentThread)
 		 */
 		label?: string;
 
@@ -773,28 +777,44 @@ declare module 'vscode' {
 		comments: Comment[];
 
 		/**
+		 * Optional accept input command
+		 *
 		 * `acceptInputCommand` is the default action rendered on Comment Widget, which is always placed rightmost.
-		 * It will be executed when users submit the comment from keyboard shortcut.
-		 * This action is disabled when the comment editor is empty.
+		 * This command will be invoked when users the user accepts the value in the comment editor.
+		 * This command will disabled when the comment editor is empty.
 		 */
 		acceptInputCommand?: Command;
 
 		/**
+		 * Optional additonal commands.
+		 *
 		 * `additionalCommands` are the secondary actions rendered on Comment Widget.
 		 */
 		additionalCommands?: Command[];
 
 		/**
-		 * Whether the thread should be collapsed or expanded when opening the document. Defaults to Collapsed.
+		 * Whether the thread should be collapsed or expanded when opening the document.
+		 * Defaults to Collapsed.
 		 */
 		collapsibleState?: CommentThreadCollapsibleState;
+
+		/**
+		 * The command to be executed when users try to delete the comment thread. Currently, this is only called
+		 * when the user collapses a comment thread that has no comments in it.
+		 */
+		deleteCommand?: Command;
+
+		/**
+		 * Dispose this comment thread.
+		 * Once disposed, the comment thread will be removed from visible text editors and Comments Panel.
+		 */
 		dispose?(): void;
 	}
 
 	/**
 	 * A comment is displayed within the editor or the Comments Panel, depending on how it is provided.
 	 */
-	interface Comment {
+	export interface Comment {
 		/**
 		 * The id of the comment
 		 */
@@ -806,7 +826,8 @@ declare module 'vscode' {
 		body: MarkdownString;
 
 		/**
-		 * Label describing the [Comment](#Comment)
+		 * Optional label describing the [Comment](#Comment)
+		 * Label will be rendered next to userName if exists.
 		 */
 		label?: string;
 
@@ -819,7 +840,6 @@ declare module 'vscode' {
 		 * The icon path for the user who created the comment
 		 */
 		userIconPath?: Uri;
-
 
 		/**
 		 * @deprecated Use userIconPath instead. The avatar src of the user who created the comment
@@ -847,17 +867,40 @@ declare module 'vscode' {
 		canDelete?: boolean;
 
 		/**
+		 * @deprecated
 		 * The command to be executed if the comment is selected in the Comments Panel
 		 */
 		command?: Command;
 
+		/**
+		 * The command to be executed if the comment is selected in the Comments Panel
+		 */
+		selectCommand?: Command;
+
+		/**
+		 * The command to be executed when users try to save the edits to the comment
+		 */
 		editCommand?: Command;
+
+		/**
+		 * The command to be executed when users try to delete the comment
+		 */
 		deleteCommand?: Command;
 
+		/**
+		 * Deprecated
+		 */
 		isDraft?: boolean;
+
+		/**
+		 * Proposed Comment Reaction
+		 */
 		commentReactions?: CommentReaction[];
 	}
 
+	/**
+	 * Deprecated
+	 */
 	export interface CommentThreadChangedEvent {
 		/**
 		 * Added comment threads.
@@ -880,6 +923,9 @@ declare module 'vscode' {
 		readonly inDraftMode: boolean;
 	}
 
+	/**
+	 * Comment Reactions
+	 */
 	interface CommentReaction {
 		readonly label?: string;
 		readonly iconPath?: string | Uri;
@@ -950,32 +996,76 @@ declare module 'vscode' {
 		onDidChangeCommentThreads: Event<CommentThreadChangedEvent>;
 	}
 
+	/**
+	 * The comment input box in Comment Widget.
+	 */
 	export interface CommentInputBox {
-
 		/**
-		 * Setter and getter for the contents of the input box.
+		 * Setter and getter for the contents of the comment input box.
 		 */
 		value: string;
 	}
 
-	export interface CommentController {
-		readonly id: string;
-		readonly label: string;
+	export interface CommentReactionProvider {
+		availableReactions: CommentReaction[];
+		toggleReaction?(document: TextDocument, comment: Comment, reaction: CommentReaction): Promise<void>;
+	}
+
+	export interface CommentingRangeProvider {
 		/**
-		 * The active (focused) comment input box.
+		 * Provide a list of ranges which allow new comment threads creation or null for a given document
+		 */
+		provideCommentingRanges(document: TextDocument, token: CancellationToken): ProviderResult<Range[]>;
+	}
+
+	export interface EmptyCommentThreadFactory {
+		/**
+		 * The method `createEmptyCommentThread` is called when users attempt to create new comment thread from the gutter or command palette.
+		 * Extensions still need to call `createCommentThread` inside this call when appropriate.
+		 */
+		createEmptyCommentThread(document: TextDocument, range: Range): ProviderResult<void>;
+	}
+
+	export interface CommentController {
+		/**
+		 * The id of this comment controller.
+		 */
+		readonly id: string;
+
+		/**
+		 * The human-readable label of this comment controller.
+		 */
+		readonly label: string;
+
+		/**
+		 * The active (focused) [comment input box](#CommentInputBox).
 		 */
 		readonly inputBox?: CommentInputBox;
-		createCommentThread(id: string, resource: Uri, range: Range): CommentThread;
+
 		/**
-		 * Provide a list [ranges](#Range) which support commenting to any given resource uri.
-		 *
-		 * @param uri The uri of the resource open in a text editor.
-		 * @param callback, a handler called when users attempt to create a new comment thread, either from the gutter or command palette
-		 * @param token A cancellation token.
-		 * @return A thenable that resolves to a list of commenting ranges or null and undefined if the provider
-		 * does not want to participate or was cancelled.
+		 * Create a [CommentThread](#CommentThread)
 		 */
-		registerCommentingRangeProvider(provider: (document: TextDocument, token: CancellationToken) => ProviderResult<Range[]>, callback: (document: TextDocument, range: Range) => void): void;
+		createCommentThread(id: string, resource: Uri, range: Range, comments: Comment[]): CommentThread;
+
+		/**
+		 * Optional commenting range provider.
+		 * Provide a list [ranges](#Range) which support commenting to any given resource uri.
+		 */
+		commentingRangeProvider?: CommentingRangeProvider;
+
+		/**
+		 * Optional new comment thread factory.
+		 */
+		emptyCommentThreadFactory?: EmptyCommentThreadFactory;
+
+		/**
+		 * Optional reaction provider
+		 */
+		reactionProvider?: CommentReactionProvider;
+
+		/**
+		 * Dispose this comment controller.
+		 */
 		dispose(): void;
 	}
 
@@ -1286,6 +1376,37 @@ declare module 'vscode' {
 		 * Controls whether the task is executed in a specific terminal group using split panes.
 		 */
 		group?: string;
+	}
+	//#endregion
+
+	//#region Webview Port mapping— mjbvz
+	/**
+	 * Defines a port mapping used for localhost inside the webview.
+	 */
+	export interface WebviewPortMapping {
+		/**
+		 * Localhost port to remap inside the webview.
+		 */
+		readonly port: number;
+
+		/**
+		 * Destination port. The `port` is resolved to this port.
+		 */
+		readonly resolvedPort: number;
+	}
+
+	export interface WebviewOptions {
+		/**
+		 * Mappings of localhost ports used inside the webview.
+		 *
+		 * Port mapping allow webviews to transparently define how localhost ports are resolved. This can be used
+		 * to allow using a static localhost port inside the webview that is resolved to random port that a service is
+		 * running on.
+		 *
+		 * If a webview accesses localhost content, we recomend that you specify port mappings even if
+		 * the `from` and `to` ports are the same.
+		 */
+		readonly portMapping?: ReadonlyArray<WebviewPortMapping>;
 	}
 	//#endregion
 }

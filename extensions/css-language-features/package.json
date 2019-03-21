@@ -42,6 +42,12 @@
             },
             "scope": "resource"
           },
+          "css.completion.triggerPropertyValueCompletion": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": true,
+            "description": "%css.completion.triggerPropertyValueCompletion.desc%"
+          },
           "css.validate": {
             "type": "boolean",
             "scope": "resource",

@@ -32,4 +32,10 @@ export interface ILayoutService {
 	 * event carries the dimensions of the container as part of it.
 	 */
 	readonly onLayout: Event<IDimension>;
+
+
+	/**
+	 * Indicates if the layout has a workbench surrounding the editor
+	 */
+	readonly hasWorkbench: boolean;
 }

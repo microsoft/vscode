@@ -4,11 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Platform } from 'vs/base/common/platform';
+import { Platform, OperatingSystem } from 'vs/base/common/platform';
 import { TerminalLinkHandler, LineColumnInfo } from 'vs/workbench/contrib/terminal/browser/terminalLinkHandler';
 import * as strings from 'vs/base/common/strings';
-import * as path from 'vs/base/common/path';
-import * as sinon from 'sinon';
 
 class TestTerminalLinkHandler extends TerminalLinkHandler {
 	public get localLinkRegex(): RegExp {
@@ -39,7 +37,10 @@ interface LinkFormatInfo {
 suite('Workbench - TerminalLinkHandler', () => {
 	suite('localLinkRegex', () => {
 		test('Windows', () => {
-			const terminalLinkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Windows, null!, null!, null!, null!, null!);
+			const terminalLinkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Windows, {
+				os: OperatingSystem.Windows,
+				userHome: ''
+			} as any, null!, null!, null!, null!, null!);
 			function testLink(link: string, linkUrl: string, lineNo?: string, columnNo?: string) {
 				assert.equal(terminalLinkHandler.extractLinkUrl(link), linkUrl);
 				assert.equal(terminalLinkHandler.extractLinkUrl(`:${link}:`), linkUrl);
@@ -111,7 +112,10 @@ suite('Workbench - TerminalLinkHandler', () => {
 		});
 
 		test('Linux', () => {
-			const terminalLinkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Linux, null!, null!, null!, null!, null!);
+			const terminalLinkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Linux, {
+				os: OperatingSystem.Linux,
+				userHome: ''
+			} as any, null!, null!, null!, null!, null!);
 			function testLink(link: string, linkUrl: string, lineNo?: string, columnNo?: string) {
 				assert.equal(terminalLinkHandler.extractLinkUrl(link), linkUrl);
 				assert.equal(terminalLinkHandler.extractLinkUrl(`:${link}:`), linkUrl);
@@ -175,58 +179,64 @@ suite('Workbench - TerminalLinkHandler', () => {
 
 	suite('preprocessPath', () => {
 		test('Windows', () => {
-			const linkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Windows, null!, null!, null!, null!, null!);
+			const linkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Windows, {
+				os: OperatingSystem.Windows,
+				userHome: 'C:\\Users\\Me'
+			} as any, null!, null!, null!, null!, null!);
 			linkHandler.processCwd = 'C:\\base';
 
-			let stub = sinon.stub(path, 'join', function (arg1: string, arg2: string) {
-				return arg1 + '\\' + arg2;
-			});
-			assert.equal(linkHandler.preprocessPath('./src/file1'), 'C:\\base\\./src/file1');
+			assert.equal(linkHandler.preprocessPath('./src/file1'), 'C:\\base\\src\\file1');
 			assert.equal(linkHandler.preprocessPath('src\\file2'), 'C:\\base\\src\\file2');
-			assert.equal(linkHandler.preprocessPath('C:\\absolute\\path\\file3'), 'C:\\absolute\\path\\file3');
-
-			stub.restore();
+			assert.equal(linkHandler.preprocessPath('~/src/file3'), 'C:\\Users\\Me\\src\\file3');
+			assert.equal(linkHandler.preprocessPath('~\\src\\file4'), 'C:\\Users\\Me\\src\\file4');
+			assert.equal(linkHandler.preprocessPath('C:\\absolute\\path\\file5'), 'C:\\absolute\\path\\file5');
 		});
 		test('Windows - spaces', () => {
-			const linkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Windows, null!, null!, null!, null!, null!);
+			const linkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Windows, {
+				os: OperatingSystem.Windows,
+				userHome: 'C:\\Users\\M e'
+			} as any, null!, null!, null!, null!, null!);
 			linkHandler.processCwd = 'C:\\base dir';
 
-			let stub = sinon.stub(path, 'join', function (arg1: string, arg2: string) {
-				return arg1 + '\\' + arg2;
-			});
-			assert.equal(linkHandler.preprocessPath('./src/file1'), 'C:\\base dir\\./src/file1');
+			assert.equal(linkHandler.preprocessPath('./src/file1'), 'C:\\base dir\\src\\file1');
 			assert.equal(linkHandler.preprocessPath('src\\file2'), 'C:\\base dir\\src\\file2');
-			assert.equal(linkHandler.preprocessPath('C:\\absolute\\path\\file3'), 'C:\\absolute\\path\\file3');
-
-			stub.restore();
+			assert.equal(linkHandler.preprocessPath('~/src/file3'), 'C:\\Users\\M e\\src\\file3');
+			assert.equal(linkHandler.preprocessPath('~\\src\\file4'), 'C:\\Users\\M e\\src\\file4');
+			assert.equal(linkHandler.preprocessPath('C:\\abso lute\\path\\file5'), 'C:\\abso lute\\path\\file5');
 		});
 
 		test('Linux', () => {
-			const linkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Linux, null!, null!, null!, null!, null!);
+			const linkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Linux, {
+				os: OperatingSystem.Linux,
+				userHome: '/home/me'
+			} as any, null!, null!, null!, null!, null!);
 			linkHandler.processCwd = '/base';
 
-			let stub = sinon.stub(path, 'join', function (arg1: string, arg2: string) {
-				return arg1 + '/' + arg2;
-			});
-
-			assert.equal(linkHandler.preprocessPath('./src/file1'), '/base/./src/file1');
+			assert.equal(linkHandler.preprocessPath('./src/file1'), '/base/src/file1');
 			assert.equal(linkHandler.preprocessPath('src/file2'), '/base/src/file2');
-			assert.equal(linkHandler.preprocessPath('/absolute/path/file3'), '/absolute/path/file3');
-			stub.restore();
+			assert.equal(linkHandler.preprocessPath('~/src/file3'), '/home/me/src/file3');
+			assert.equal(linkHandler.preprocessPath('/absolute/path/file4'), '/absolute/path/file4');
 		});
 
 		test('No Workspace', () => {
-			const linkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Linux, null!, null!, null!, null!, null!);
+			const linkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Linux, {
+				os: OperatingSystem.Linux,
+				userHome: '/home/me'
+			} as any, null!, null!, null!, null!, null!);
 
 			assert.equal(linkHandler.preprocessPath('./src/file1'), null);
 			assert.equal(linkHandler.preprocessPath('src/file2'), null);
-			assert.equal(linkHandler.preprocessPath('/absolute/path/file3'), '/absolute/path/file3');
+			assert.equal(linkHandler.preprocessPath('~/src/file3'), '/home/me/src/file3');
+			assert.equal(linkHandler.preprocessPath('/absolute/path/file4'), '/absolute/path/file4');
 		});
 	});
 
 	test('gitDiffLinkRegex', () => {
 		// The platform is irrelevant because the links generated by Git are the same format regardless of platform
-		const linkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Linux, null!, null!, null!, null!, null!);
+		const linkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Linux, {
+			os: OperatingSystem.Linux,
+			userHome: ''
+		} as any, null!, null!, null!, null!, null!);
 
 		function assertAreGoodMatches(matches: RegExpMatchArray | null) {
 			if (matches) {

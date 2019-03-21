@@ -70,7 +70,7 @@ export class RawDebugSession {
 		debugAdapter: IDebugAdapter,
 		dbgr: IDebugger,
 		private telemetryService: ITelemetryService,
-		public customTelemetryService: ITelemetryService,
+		public customTelemetryService: ITelemetryService | undefined,
 		private environmentService: IEnvironmentService
 	) {
 		this.debugAdapter = debugAdapter;

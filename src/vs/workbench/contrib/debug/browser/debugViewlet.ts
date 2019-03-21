@@ -9,8 +9,8 @@ import { IAction } from 'vs/base/common/actions';
 import * as DOM from 'vs/base/browser/dom';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ViewContainerViewlet } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IDebugService, VIEWLET_ID, State, BREAKPOINTS_VIEW_ID, IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
-import { StartAction, ToggleReplAction, ConfigureAction, AbstractDebugAction, SelectAndStartAction, FocusSessionAction } from 'vs/workbench/contrib/debug/browser/debugActions';
+import { IDebugService, VIEWLET_ID, State, BREAKPOINTS_VIEW_ID, IDebugConfiguration, REPL_ID } from 'vs/workbench/contrib/debug/common/debug';
+import { StartAction, ConfigureAction, SelectAndStartAction, FocusSessionAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { StartDebugActionItem, FocusSessionActionItem } from 'vs/workbench/contrib/debug/browser/debugActionItems';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -31,6 +31,8 @@ import { IMenu, MenuId, IMenuService, MenuItemAction } from 'vs/platform/actions
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MenuItemActionItem } from 'vs/platform/actions/browser/menuItemActionItem';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { TogglePanelAction } from 'vs/workbench/browser/panel';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 
 export class DebugViewlet extends ViewContainerViewlet {
 
@@ -38,7 +40,6 @@ export class DebugViewlet extends ViewContainerViewlet {
 	private progressRunner: IProgressRunner;
 	private breakpointView: ViewletPanel;
 	private panelListeners = new Map<string, IDisposable>();
-	private allActions: AbstractDebugAction[] = [];
 	private debugToolbarMenu: IMenu;
 
 	constructor(
@@ -112,7 +113,7 @@ export class DebugViewlet extends ViewContainerViewlet {
 			this.debugToolbarMenu = this.menuService.createMenu(MenuId.DebugToolbar, this.contextKeyService);
 			this.toDispose.push(this.debugToolbarMenu);
 		}
-		return DebugToolbar.getActions(this.debugToolbarMenu, this.allActions, this.toDispose, this.debugService, this.keybindingService, this.instantiationService);
+		return DebugToolbar.getActions(this.debugToolbarMenu, this.debugService, this.instantiationService);
 	}
 
 	get showInitialDebugActions(): boolean {
@@ -128,7 +129,7 @@ export class DebugViewlet extends ViewContainerViewlet {
 		return [this.selectAndStartAction, this.configureAction, this.toggleReplAction];
 	}
 
-	getActionItem(action: IAction): IActionItem | null {
+	getActionItem(action: IAction): IActionItem | undefined {
 		if (action.id === StartAction.ID) {
 			this.startDebugActionItem = this.instantiationService.createInstance(StartDebugActionItem, null, action);
 			return this.startDebugActionItem;
@@ -140,7 +141,7 @@ export class DebugViewlet extends ViewContainerViewlet {
 			return new MenuItemActionItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
 		}
 
-		return null;
+		return undefined;
 	}
 
 	focusView(id: string): void {
@@ -192,5 +193,17 @@ export class DebugViewlet extends ViewContainerViewlet {
 			const allOtherCollapsed = this.panels.every(view => !view.isExpanded() || view === this.breakpointView);
 			this.breakpointView.maximumBodySize = allOtherCollapsed ? Number.POSITIVE_INFINITY : this.breakpointView.minimumBodySize;
 		}
+	}
+}
+
+class ToggleReplAction extends TogglePanelAction {
+	static readonly ID = 'debug.toggleRepl';
+	static LABEL = nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugConsoleAction' }, 'Debug Console');
+
+	constructor(id: string, label: string,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@IPanelService panelService: IPanelService
+	) {
+		super(id, label, REPL_ID, panelService, layoutService, 'debug-action toggle-repl');
 	}
 }

@@ -24,6 +24,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { getIconClasses, getConfiguredLangId } from 'vs/editor/common/services/getIconClasses';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 export interface IResourceLabelProps {
 	resource?: uri;
@@ -331,9 +332,9 @@ class ResourceLabelWidget extends IconLabel {
 
 	setEditor(editor: IEditorInput, options?: IResourceLabelOptions): void {
 		this.setResource({
-			resource: toResource(editor, { supportSideBySide: true }) || undefined,
-			name: editor.getName() || undefined,
-			description: editor.getDescription() || undefined
+			resource: withNullAsUndefined(toResource(editor, { supportSideBySide: true })),
+			name: withNullAsUndefined(editor.getName()),
+			description: withNullAsUndefined(editor.getDescription())
 		}, options);
 	}
 
@@ -386,10 +387,10 @@ class ResourceLabelWidget extends IconLabel {
 		}
 
 		if (this.label) {
-			const configuredLangId = this.label.resource ? getConfiguredLangId(this.modelService, this.modeService, this.label.resource) : null;
+			const configuredLangId = this.label.resource ? withNullAsUndefined(getConfiguredLangId(this.modelService, this.modeService, this.label.resource)) : undefined;
 			if (this.lastKnownConfiguredLangId !== configuredLangId) {
 				clearIconCache = true;
-				this.lastKnownConfiguredLangId = configuredLangId || undefined;
+				this.lastKnownConfiguredLangId = configuredLangId;
 			}
 		}
 

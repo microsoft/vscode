@@ -14,7 +14,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IProgressService, LongRunningOperation } from 'vs/platform/progress/common/progress';
 import { IEditorGroupView, DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IActiveEditor } from 'vs/workbench/services/editor/common/editorService';
+import { IVisibleEditor } from 'vs/workbench/services/editor/common/editorService';
+import { withUndefinedAsNull } from 'vs/base/common/types';
 
 export interface IOpenEditorResult {
 	readonly control: BaseEditor;
@@ -53,8 +54,8 @@ export class EditorControl extends Disposable {
 		this.editorOperation = this._register(new LongRunningOperation(progressService));
 	}
 
-	get activeControl(): IActiveEditor | null {
-		return this._activeControl as IActiveEditor | null;
+	get activeControl(): IVisibleEditor | null {
+		return this._activeControl as IVisibleEditor | null;
 	}
 
 	openEditor(editor: EditorInput, options?: EditorOptions): Promise<IOpenEditorResult> {
@@ -67,7 +68,7 @@ export class EditorControl extends Disposable {
 		const control = this.doShowEditorControl(descriptor);
 
 		// Set input
-		return this.doSetInput(control, editor, options || null).then((editorChanged => (({ control, editorChanged } as IOpenEditorResult))));
+		return this.doSetInput(control, editor, withUndefinedAsNull(options)).then((editorChanged => (({ control, editorChanged } as IOpenEditorResult))));
 	}
 
 	private doShowEditorControl(descriptor: IEditorDescriptor): BaseEditor {

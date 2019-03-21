@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as vscode from 'vscode';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
-import { ExtHostConfigurationShape, MainThreadConfigurationShape, IWorkspaceConfigurationChangeEventData, IConfigurationInitData } from './extHost.protocol';
+import { ExtHostConfigurationShape, MainThreadConfigurationShape, IWorkspaceConfigurationChangeEventData, IConfigurationInitData } from '../common/extHost.protocol';
 import { ConfigurationTarget as ExtHostConfigurationTarget } from './extHostTypes';
 import { IConfigurationData, ConfigurationTarget, IConfigurationModel } from 'vs/platform/configuration/common/configuration';
 import { Configuration, ConfigurationChangeEvent, ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
@@ -125,7 +125,7 @@ export class ExtHostConfigProvider {
 				if (typeof result === 'undefined') {
 					result = defaultValue;
 				} else {
-					let clonedConfig = undefined;
+					let clonedConfig: any | undefined = undefined;
 					const cloneOnWriteProxy = (target: any, accessor: string): any => {
 						let clonedTarget: any | undefined = undefined;
 						const cloneTarget = () => {
@@ -209,7 +209,7 @@ export class ExtHostConfigProvider {
 	}
 
 	private _toReadonlyValue(result: any): any {
-		const readonlyProxy = (target) => {
+		const readonlyProxy = (target: any): any => {
 			return isObject(target) ?
 				new Proxy(target, {
 					get: (target: any, property: string) => readonlyProxy(target[property]),

@@ -88,7 +88,7 @@ interface ISerializedPreferencesEditorInput {
 // Register Preferences Editor Input Factory
 class PreferencesEditorInputFactory implements IEditorInputFactory {
 
-	serialize(editorInput: EditorInput): string {
+	serialize(editorInput: EditorInput): string | null {
 		const input = <PreferencesEditorInput>editorInput;
 
 		if (input.details && input.master) {
@@ -116,7 +116,7 @@ class PreferencesEditorInputFactory implements IEditorInputFactory {
 		return null;
 	}
 
-	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
+	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput | null {
 		const deserialized: ISerializedPreferencesEditorInput = JSON.parse(serializedEditorInput);
 
 		const registry = Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories);
@@ -227,7 +227,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: (accessor, args: any) => {
 		const control = accessor.get(IEditorService).activeControl as IKeybindingsEditor;
 		if (control && control instanceof KeybindingsEditor) {
-			control.defineKeybinding(control.activeKeybindingEntry);
+			control.defineKeybinding(control.activeKeybindingEntry!);
 		}
 	}
 });
@@ -239,8 +239,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_E),
 	handler: (accessor, args: any) => {
 		const control = accessor.get(IEditorService).activeControl as IKeybindingsEditor;
-		if (control && control instanceof KeybindingsEditor) {
-			control.defineWhenExpression(control.activeKeybindingEntry);
+		if (control && control instanceof KeybindingsEditor && control.activeKeybindingEntry!.keybindingItem.keybinding) {
+			control.defineWhenExpression(control.activeKeybindingEntry!);
 		}
 	}
 });
@@ -256,7 +256,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: (accessor, args: any) => {
 		const control = accessor.get(IEditorService).activeControl as IKeybindingsEditor;
 		if (control && control instanceof KeybindingsEditor) {
-			control.removeKeybinding(control.activeKeybindingEntry);
+			control.removeKeybinding(control.activeKeybindingEntry!);
 		}
 	}
 });
@@ -269,7 +269,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: (accessor, args: any) => {
 		const control = accessor.get(IEditorService).activeControl as IKeybindingsEditor;
 		if (control && control instanceof KeybindingsEditor) {
-			control.resetKeybinding(control.activeKeybindingEntry);
+			control.resetKeybinding(control.activeKeybindingEntry!);
 		}
 	}
 });
@@ -323,7 +323,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: (accessor, args: any) => {
 		const control = accessor.get(IEditorService).activeControl as IKeybindingsEditor;
 		if (control) {
-			control.showSimilarKeybindings(control.activeKeybindingEntry);
+			control.showSimilarKeybindings(control.activeKeybindingEntry!);
 		}
 	}
 });
@@ -336,7 +336,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: (accessor, args: any) => {
 		const control = accessor.get(IEditorService).activeControl as IKeybindingsEditor;
 		if (control) {
-			control.copyKeybinding(control.activeKeybindingEntry);
+			control.copyKeybinding(control.activeKeybindingEntry!);
 		}
 	}
 });
@@ -349,7 +349,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: (accessor, args: any) => {
 		const control = accessor.get(IEditorService).activeControl as IKeybindingsEditor;
 		if (control) {
-			control.copyKeybindingCommand(control.activeKeybindingEntry);
+			control.copyKeybindingCommand(control.activeKeybindingEntry!);
 		}
 	}
 });
@@ -424,7 +424,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 						dark: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/electron-browser/media/preferences-editor-inverse.svg`))
 					}
 				},
-				when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.workspaceSettingsResource.toString()), WorkbenchStateContext.isEqualTo('workspace')),
+				when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.workspaceSettingsResource!.toString()), WorkbenchStateContext.isEqualTo('workspace')),
 				group: 'navigation',
 				order: 1
 			});
@@ -452,7 +452,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 							dark: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/electron-browser/media/preferences-editor-inverse.svg`))
 						}
 					},
-					when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.getFolderSettingsResource(folder.uri).toString())),
+					when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.getFolderSettingsResource(folder.uri)!.toString())),
 					group: 'navigation',
 					order: 1
 				});
@@ -555,7 +555,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 
 abstract class SettingsCommand extends Command {
 
-	protected getPreferencesEditor(accessor: ServicesAccessor): PreferencesEditor | SettingsEditor2 {
+	protected getPreferencesEditor(accessor: ServicesAccessor): PreferencesEditor | SettingsEditor2 | null {
 		const activeControl = accessor.get(IEditorService).activeControl;
 		if (activeControl instanceof PreferencesEditor || activeControl instanceof SettingsEditor2) {
 			return activeControl;
@@ -603,7 +603,7 @@ class FocusSettingsFileEditorCommand extends SettingsCommand {
 		const preferencesEditor = this.getPreferencesEditor(accessor);
 		if (preferencesEditor instanceof PreferencesEditor) {
 			preferencesEditor.focusSettingsFileEditor();
-		} else {
+		} else if (preferencesEditor) {
 			preferencesEditor.focusSettings();
 		}
 	}

@@ -280,7 +280,7 @@ export namespace Event {
 		const flush = (listener: (e: T) => any, thisArgs?: any) => buffer.forEach(e => listener.call(thisArgs, e));
 
 		const emitter = new Emitter<T>({
-			onListenerDidAdd(emitter, listener: (e: T) => any, thisArgs?: any) {
+			onListenerDidAdd(emitter: Emitter<T>, listener: (e: T) => any, thisArgs?: any) {
 				if (nextTick) {
 					setTimeout(() => flush(listener, thisArgs));
 				} else {

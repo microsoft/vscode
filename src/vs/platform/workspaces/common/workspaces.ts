@@ -106,8 +106,6 @@ export interface IWorkspacesMainService extends IWorkspacesService {
 	deleteUntitledWorkspaceSync(workspace: IWorkspaceIdentifier): void;
 
 	getUntitledWorkspacesSync(): IUntitledWorkspaceInfo[];
-
-	getWorkspaceIdentifier(workspacePath: URI): IWorkspaceIdentifier;
 }
 
 export interface IWorkspacesService {
@@ -116,6 +114,8 @@ export interface IWorkspacesService {
 	createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[], remoteAuthority?: string): Promise<IWorkspaceIdentifier>;
 
 	deleteUntitledWorkspace(workspace: IWorkspaceIdentifier): Promise<void>;
+
+	getWorkspaceIdentifier(workspacePath: URI): Promise<IWorkspaceIdentifier>;
 }
 
 export function isSingleFolderWorkspaceIdentifier(obj: any): obj is ISingleFolderWorkspaceIdentifier {
@@ -173,7 +173,7 @@ const SLASH = '/';
  */
 export function getStoredWorkspaceFolder(folderURI: URI, folderName: string | undefined, targetConfigFolderURI: URI, useSlashForPath = !isWindows): IStoredWorkspaceFolder {
 
-	if (folderURI.scheme !== targetConfigFolderURI.scheme || !isEqualAuthority(folderURI.authority, targetConfigFolderURI.authority)) {
+	if (folderURI.scheme !== targetConfigFolderURI.scheme) {
 		return { name: folderName, uri: folderURI.toString(true) };
 	}
 
@@ -200,6 +200,9 @@ export function getStoredWorkspaceFolder(folderURI: URI, folderName: string | un
 				}
 			}
 		} else {
+			if (!isEqualAuthority(folderURI.authority, targetConfigFolderURI.authority)) {
+				return { name: folderName, uri: folderURI.toString(true) };
+			}
 			folderPath = folderURI.path;
 		}
 	}

@@ -129,7 +129,7 @@ export class Main {
 			extension = path.isAbsolute(extension) ? extension : path.join(process.cwd(), extension);
 
 			const manifest = await getManifest(extension);
-			if (this.remote && (!isLanguagePackExtension(manifest) && isUIExtension(manifest, this.configurationService))) {
+			if (this.remote && (!isLanguagePackExtension(manifest) && isUIExtension(manifest, [], this.configurationService))) {
 				console.log(localize('notSupportedUIExtension', "Can't install extension {0} since UI Extensions are not supported", getBaseLabel(extension)));
 				return null;
 			}
@@ -171,7 +171,7 @@ export class Main {
 					}
 
 					const manifest = await this.extensionGalleryService.getManifest(extension, CancellationToken.None);
-					if (this.remote && manifest && (!isLanguagePackExtension(manifest) && isUIExtension(manifest, this.configurationService))) {
+					if (this.remote && manifest && (!isLanguagePackExtension(manifest) && isUIExtension(manifest, [], this.configurationService))) {
 						console.log(localize('notSupportedUIExtension', "Can't install extension {0} since UI Extensions are not supported", extension.identifier.id));
 						return null;
 					}

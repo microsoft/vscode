@@ -26,13 +26,13 @@ import { ITaskService, TaskFilter, ITaskProvider } from 'vs/workbench/contrib/ta
 
 import { TaskDefinition } from 'vs/workbench/contrib/tasks/node/tasks';
 
-import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
-import { ExtHostContext, MainThreadTaskShape, ExtHostTaskShape, MainContext, IExtHostContext } from 'vs/workbench/api/node/extHost.protocol';
+import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
+import { ExtHostContext, MainThreadTaskShape, ExtHostTaskShape, MainContext, IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
 import {
 	TaskDefinitionDTO, TaskExecutionDTO, ProcessExecutionOptionsDTO, TaskPresentationOptionsDTO,
 	ProcessExecutionDTO, ShellExecutionDTO, ShellExecutionOptionsDTO, CustomExecutionDTO, TaskDTO, TaskSourceDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO, TaskSystemInfoDTO,
 	RunOptionsDTO
-} from 'vs/workbench/api/shared/tasks';
+} from 'vs/workbench/api/common/shared/tasks';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 
 namespace TaskExecutionDTO {
@@ -40,12 +40,6 @@ namespace TaskExecutionDTO {
 		return {
 			id: value.id,
 			task: TaskDTO.from(value.task)
-		};
-	}
-	export function to(value: TaskExecutionDTO, workspace: IWorkspaceContextService, executeOnly: boolean): TaskExecution {
-		return {
-			id: value.id,
-			task: TaskDTO.to(value.task, workspace, executeOnly)
 		};
 	}
 }
@@ -143,7 +137,7 @@ namespace ProcessExecutionDTO {
 		return candidate && !!candidate.process;
 	}
 	export function from(value: CommandConfiguration): ProcessExecutionDTO {
-		const process: string = Types.isString(value.name) ? value.name : value.name.value;
+		const process: string = Types.isString(value.name) ? value.name : value.name!.value;
 		const args: string[] = value.args ? value.args.map(value => Types.isString(value) ? value : value.value) : [];
 		const result: ProcessExecutionDTO = {
 			process: process,
@@ -290,7 +284,7 @@ namespace TaskSourceDTO {
 			scope = value.scope;
 		} else {
 			scope = TaskScope.Folder;
-			workspaceFolder = workspace.getWorkspaceFolder(URI.revive(value.scope)) || undefined;
+			workspaceFolder = Types.withNullAsUndefined(workspace.getWorkspaceFolder(URI.revive(value.scope)));
 		}
 		const result: ExtensionTaskSource = {
 			kind: TaskSourceKind.Extension,
@@ -347,8 +341,8 @@ namespace TaskDTO {
 		return result;
 	}
 
-	export function to(task: TaskDTO, workspace: IWorkspaceContextService, executeOnly: boolean): ContributedTask | undefined {
-		if (typeof task.name !== 'string') {
+	export function to(task: TaskDTO | undefined, workspace: IWorkspaceContextService, executeOnly: boolean): ContributedTask | undefined {
+		if (!task || (typeof task.name !== 'string')) {
 			return undefined;
 		}
 
@@ -370,7 +364,7 @@ namespace TaskDTO {
 		const source = TaskSourceDTO.to(task.source, workspace);
 
 		const label = nls.localize('task.label', '{0}: {1}', source.label, task.name);
-		const definition = TaskDefinitionDTO.to(task.definition, executeOnly);
+		const definition = TaskDefinitionDTO.to(task.definition, executeOnly)!;
 		const id = `${task.source.extensionId}.${definition._key}`;
 		const result: ContributedTask = new ContributedTask(
 			id, // uuidMap.getUUID(identifier)
@@ -420,7 +414,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 		this._taskService.onDidStateChange((event: TaskEvent) => {
 			const task = event.__task!;
 			if (event.kind === TaskEventKind.Start) {
-				this._proxy.$onDidStartTask(TaskExecutionDTO.from(task.getTaskExecution()), event.terminalId);
+				this._proxy.$onDidStartTask(TaskExecutionDTO.from(task.getTaskExecution()), event.terminalId!);
 			} else if (event.kind === TaskEventKind.ProcessStarted) {
 				this._proxy.$onDidStartTaskProcess(TaskProcessStartedDTO.from(task.getTaskExecution(), event.processId!));
 			} else if (event.kind === TaskEventKind.ProcessEnded) {
@@ -439,9 +433,13 @@ export class MainThreadTask implements MainThreadTaskShape {
 	}
 
 	$createTaskId(taskDTO: TaskDTO): Promise<string> {
-		return new Promise((resolve) => {
+		return new Promise((resolve, reject) => {
 			let task = TaskDTO.to(taskDTO, this._workspaceContextServer, true);
-			resolve(task._id);
+			if (task) {
+				resolve(task._id);
+			} else {
+				reject(new Error('Task could not be created from DTO'));
+			}
 		});
 	}
 
@@ -471,8 +469,11 @@ export class MainThreadTask implements MainThreadTaskShape {
 	}
 
 	public $unregisterTaskProvider(handle: number): Promise<void> {
-		this._providers.get(handle).disposable.dispose();
-		this._providers.delete(handle);
+		const provider = this._providers.get(handle);
+		if (provider) {
+			provider.disposable.dispose();
+			this._providers.delete(handle);
+		}
 		return Promise.resolve(undefined);
 	}
 
@@ -493,20 +494,24 @@ export class MainThreadTask implements MainThreadTaskShape {
 		return new Promise<TaskExecutionDTO>((resolve, reject) => {
 			if (TaskHandleDTO.is(value)) {
 				const workspaceFolder = this._workspaceContextServer.getWorkspaceFolder(URI.revive(value.workspaceFolder));
-				this._taskService.getTask(workspaceFolder, value.id, true).then((task: Task) => {
-					this._taskService.run(task).then(undefined, reason => {
-						// eat the error, it has already been surfaced to the user and we don't care about it here
+				if (workspaceFolder) {
+					this._taskService.getTask(workspaceFolder, value.id, true).then((task: Task) => {
+						this._taskService.run(task).then(undefined, reason => {
+							// eat the error, it has already been surfaced to the user and we don't care about it here
+						});
+						const result: TaskExecutionDTO = {
+							id: value.id,
+							task: TaskDTO.from(task)
+						};
+						resolve(result);
+					}, (_error) => {
+						reject(new Error('Task not found'));
 					});
-					const result: TaskExecutionDTO = {
-						id: value.id,
-						task: TaskDTO.from(task)
-					};
-					resolve(result);
-				}, (_error) => {
-					reject(new Error('Task not found'));
-				});
+				} else {
+					reject(new Error('No workspace folder'));
+				}
 			} else {
-				const task = TaskDTO.to(value, this._workspaceContextServer, true);
+				const task = TaskDTO.to(value, this._workspaceContextServer, true)!;
 				this._taskService.run(task).then(undefined, reason => {
 					// eat the error, it has already been surfaced to the user and we don't care about it here
 				});
@@ -592,7 +597,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 							};
 							for (let i = 0; i < partiallyResolvedVars.length; i++) {
 								const variableName = vars[i].substring(2, vars[i].length - 1);
-								if (values.variables[vars[i]] === vars[i]) {
+								if (resolvedVars && values.variables[vars[i]] === vars[i]) {
 									result.variables.set(variableName, resolvedVars.get(variableName));
 								} else {
 									result.variables.set(variableName, partiallyResolvedVars[i]);

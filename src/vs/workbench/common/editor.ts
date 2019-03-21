@@ -142,7 +142,7 @@ export interface IEditorControl extends ICompositeControl { }
 
 export interface IFileInputFactory {
 
-	createFileInput(resource: URI, encoding: string, instantiationService: IInstantiationService): IFileEditorInput;
+	createFileInput(resource: URI, encoding: string | undefined, instantiationService: IInstantiationService): IFileEditorInput;
 
 	isFileInput(obj: any): obj is IFileEditorInput;
 }
@@ -570,6 +570,7 @@ export class SideBySideEditorInput extends EditorInput {
 
 	getTelemetryDescriptor(): object {
 		const descriptor = this.master.getTelemetryDescriptor();
+
 		return objects.assign(descriptor, super.getTelemetryDescriptor());
 	}
 
@@ -983,7 +984,7 @@ export interface IResourceOptions {
 	filter?: string | string[];
 }
 
-export function toResource(editor: IEditorInput | null, options?: IResourceOptions): URI | null {
+export function toResource(editor: IEditorInput | null | undefined, options?: IResourceOptions): URI | null {
 	if (!editor) {
 		return null;
 	}
@@ -1044,7 +1045,7 @@ class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
 	private instantiationService: IInstantiationService;
 	private fileInputFactory: IFileInputFactory;
 	private editorInputFactoryConstructors: { [editorInputId: string]: IConstructorSignature0<IEditorInputFactory> } = Object.create(null);
-	private editorInputFactoryInstances: { [editorInputId: string]: IEditorInputFactory } = Object.create(null);
+	private readonly editorInputFactoryInstances: { [editorInputId: string]: IEditorInputFactory } = Object.create(null);
 
 	start(accessor: ServicesAccessor): void {
 		this.instantiationService = accessor.get(IInstantiationService);
@@ -1054,7 +1055,7 @@ class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
 			this.createEditorInputFactory(key, element);
 		}
 
-		this.editorInputFactoryConstructors = {};
+		this.editorInputFactoryConstructors = Object.create(null);
 	}
 
 	private createEditorInputFactory(editorInputId: string, ctor: IConstructorSignature0<IEditorInputFactory>): void {

@@ -26,7 +26,7 @@ import { IWorkspaceContextService, IWorkspace as IWorkbenchWorkspace, WorkbenchS
 import { ILifecycleService, BeforeShutdownEvent, ShutdownReason, StartupKind, LifecyclePhase, WillShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { TextFileService } from 'vs/workbench/services/textfile/common/textFileService';
-import { FileOperationEvent, IFileService, IResolveContentOptions, FileOperationError, IFileStat, IResolveFileResult, FileChangesEvent, IResolveFileOptions, IContent, IUpdateContentOptions, IStreamContent, ICreateFileOptions, ITextSnapshot, IResourceEncodings } from 'vs/platform/files/common/files';
+import { FileOperationEvent, IFileService, IResolveContentOptions, FileOperationError, IFileStat, IResolveFileResult, FileChangesEvent, IResolveFileOptions, IContent, IUpdateContentOptions, IStreamContent, ICreateFileOptions, ITextSnapshot, IResourceEncodings, IResourceEncoding, IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, IFileStatWithMetadata, IResolveMetadataFileOptions } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
@@ -44,7 +44,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { IRecentlyOpened } from 'vs/platform/history/common/history';
+import { IRecentlyOpened, IRecent } from 'vs/platform/history/common/history';
 import { ITextResourceConfigurationService, ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 import { IPosition, Position as EditorPosition } from 'vs/editor/common/core/position';
 import { IMenuService, MenuId, IMenu, ISerializableCommandAction } from 'vs/platform/actions/common/actions';
@@ -61,7 +61,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IDecorationsService, IResourceDecorationChangeEvent, IDecoration, IDecorationData, IDecorationsProvider } from 'vs/workbench/services/decorations/browser/decorations';
 import { IDisposable, toDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, GroupsArrangement, GroupDirection, IAddGroupOptions, IMergeGroupOptions, IMoveEditorOptions, ICopyEditorOptions, IEditorReplacement, IGroupChangeEvent, EditorsOrder, IFindGroupScope, EditorGroupLayout, ICloseEditorOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService, IOpenEditorOverrideHandler, IActiveEditor } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, IOpenEditorOverrideHandler, IVisibleEditor } from 'vs/workbench/services/editor/common/editorService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
@@ -81,6 +81,7 @@ import { Part } from 'vs/workbench/browser/part';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPanel } from 'vs/workbench/common/panel';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
+import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined);
@@ -478,8 +479,8 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 		return true;
 	}
 
-	public getContainer(_part: Parts): HTMLElement | null {
-		return null;
+	public getContainer(_part: Parts): HTMLElement {
+		return null!;
 	}
 
 	public isTitleBarHidden(): boolean {
@@ -502,6 +503,10 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 
 	public isSideBarHidden(): boolean {
 		return false;
+	}
+
+	public get hasWorkbench(): boolean {
+		return true;
 	}
 
 	public setEditorHidden(_hidden: boolean): Promise<void> { return Promise.resolve(); }
@@ -600,7 +605,7 @@ export class TestViewletService implements IViewletService {
 	public hideActiveViewlet(): void { }
 
 	public getLastActiveViewletId(): string {
-		return undefined;
+		return undefined!;
 	}
 }
 
@@ -638,7 +643,7 @@ export class TestPanelService implements IPanelService {
 	public hideActivePanel(): void { }
 
 	public getLastActivePanelId(): string {
-		return undefined;
+		return undefined!;
 	}
 }
 
@@ -659,6 +664,8 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 
 	orientation: any;
 	whenRestored: Promise<void> = Promise.resolve(undefined);
+
+	dimension = { width: 800, height: 600 };
 
 	get activeGroup(): IEditorGroup {
 		return this.groups[0];
@@ -741,7 +748,7 @@ export class TestEditorGroup implements IEditorGroupView {
 	constructor(public id: number) { }
 
 	get group(): EditorGroup { throw new Error('not implemented'); }
-	activeControl: IActiveEditor;
+	activeControl: IVisibleEditor;
 	activeEditor: IEditorInput;
 	previewEditor: IEditorInput;
 	count: number;
@@ -842,11 +849,11 @@ export class TestEditorService implements EditorServiceImpl {
 	onDidCloseEditor: Event<IEditorCloseEvent> = Event.None;
 	onDidOpenEditorFail: Event<IEditorIdentifier> = Event.None;
 
-	activeControl: IActiveEditor;
+	activeControl: IVisibleEditor;
 	activeTextEditorWidget: any;
 	activeEditor: IEditorInput;
 	editors: ReadonlyArray<IEditorInput> = [];
-	visibleControls: ReadonlyArray<IEditor> = [];
+	visibleControls: ReadonlyArray<IVisibleEditor> = [];
 	visibleTextEditorWidgets = [];
 	visibleEditors: ReadonlyArray<IEditorInput> = [];
 
@@ -892,6 +899,8 @@ export class TestFileService implements IFileService {
 	private readonly _onFileChanges: Emitter<FileChangesEvent>;
 	private readonly _onAfterOperation: Emitter<FileOperationEvent>;
 
+	readonly onWillActivateFileSystemProvider = Event.None;
+
 	private content = 'Hello Html';
 
 	constructor() {
@@ -923,12 +932,15 @@ export class TestFileService implements IFileService {
 		this._onAfterOperation.fire(event);
 	}
 
+	resolveFile(resource: URI, _options?: IResolveFileOptions): Promise<IFileStat>;
+	resolveFile(resource: URI, _options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
 	resolveFile(resource: URI, _options?: IResolveFileOptions): Promise<IFileStat> {
 		return Promise.resolve({
 			resource,
 			etag: Date.now().toString(),
 			encoding: 'utf8',
 			mtime: Date.now(),
+			size: 42,
 			isDirectory: false,
 			name: resources.basename(resource)
 		});
@@ -973,34 +985,31 @@ export class TestFileService implements IFileService {
 		});
 	}
 
-	updateContent(resource: URI, _value: string | ITextSnapshot, _options?: IUpdateContentOptions): Promise<IFileStat> {
+	updateContent(resource: URI, _value: string | ITextSnapshot, _options?: IUpdateContentOptions): Promise<IFileStatWithMetadata> {
 		return timeout(0).then(() => ({
 			resource,
 			etag: 'index.txt',
 			encoding: 'utf8',
 			mtime: Date.now(),
+			size: 42,
 			isDirectory: false,
 			name: resources.basename(resource)
 		}));
 	}
 
-	moveFile(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStat> {
+	moveFile(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStatWithMetadata> {
 		return Promise.resolve(null!);
 	}
 
-	copyFile(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStat> {
+	copyFile(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStatWithMetadata> {
 		throw new Error('not implemented');
 	}
 
-	createFile(_resource: URI, _content?: string, _options?: ICreateFileOptions): Promise<IFileStat> {
+	createFile(_resource: URI, _content?: string, _options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
 		throw new Error('not implemented');
 	}
 
-	readFolder(_resource: URI) {
-		return Promise.resolve([]);
-	}
-
-	createFolder(_resource: URI): Promise<IFileStat> {
+	createFolder(_resource: URI): Promise<IFileStatWithMetadata> {
 		throw new Error('not implemented');
 	}
 
@@ -1028,8 +1037,8 @@ export class TestFileService implements IFileService {
 	unwatchFileChanges(_resource: URI): void {
 	}
 
-	getWriteEncoding(_resource: URI): string {
-		return 'utf8';
+	getWriteEncoding(_resource: URI): IResourceEncoding {
+		return { encoding: 'utf8', hasBOM: false };
 	}
 
 	dispose(): void {
@@ -1355,7 +1364,7 @@ export class TestWindowsService implements IWindowsService {
 		return Promise.resolve();
 	}
 
-	addRecentlyOpened(_workspaces: URI[], _folders: URI[], _files: URI[]): Promise<void> {
+	addRecentlyOpened(_recents: IRecent[]): Promise<void> {
 		return Promise.resolve();
 	}
 
@@ -1557,7 +1566,40 @@ export class TestTextResourcePropertiesService implements ITextResourcePropertie
 export class TestHashService implements IHashService {
 	_serviceBrand: any;
 
-	createSHA1(content: string): string {
-		return content;
+	createSHA1(content: string): Thenable<string> {
+		return Promise.resolve(content);
 	}
+}
+
+export class TestSharedProcessService implements ISharedProcessService {
+
+	_serviceBrand: ServiceIdentifier<any>;
+
+	getChannel(channelName: string): any {
+		return undefined;
+	}
+
+	registerChannel(channelName: string, channel: any): void { }
+}
+
+export class NullFileSystemProvider implements IFileSystemProvider {
+
+	capabilities: FileSystemProviderCapabilities = FileSystemProviderCapabilities.Readonly;
+
+	onDidChangeCapabilities: Event<void> = Event.None;
+	onDidChangeFile: Event<IFileChange[]> = Event.None;
+
+	watch(resource: URI, opts: IWatchOptions): IDisposable { return Disposable.None; }
+	stat(resource: URI): Promise<IStat> { return Promise.resolve(undefined!); }
+	mkdir(resource: URI): Promise<void> { return Promise.resolve(undefined!); }
+	readdir(resource: URI): Promise<[string, FileType][]> { return Promise.resolve(undefined!); }
+	delete(resource: URI, opts: FileDeleteOptions): Promise<void> { return Promise.resolve(undefined!); }
+	rename(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> { return Promise.resolve(undefined!); }
+	copy?(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> { return Promise.resolve(undefined!); }
+	readFile?(resource: URI): Promise<Uint8Array> { return Promise.resolve(undefined!); }
+	writeFile?(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> { return Promise.resolve(undefined!); }
+	open?(resource: URI, opts: FileOpenOptions): Promise<number> { return Promise.resolve(undefined!); }
+	close?(fd: number): Promise<void> { return Promise.resolve(undefined!); }
+	read?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> { return Promise.resolve(undefined!); }
+	write?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> { return Promise.resolve(undefined!); }
 }

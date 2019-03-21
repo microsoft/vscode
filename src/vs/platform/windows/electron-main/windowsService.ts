@@ -16,8 +16,8 @@ import { Event } from 'vs/base/common/event';
 import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { IWindowsMainService, ISharedProcess, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
-import { IHistoryMainService, IRecentlyOpened } from 'vs/platform/history/common/history';
-import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
+import { IHistoryMainService, IRecentlyOpened, IRecent } from 'vs/platform/history/common/history';
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { Schemas } from 'vs/base/common/network';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
@@ -50,8 +50,7 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 		@IURLService urlService: IURLService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IHistoryMainService private readonly historyService: IHistoryMainService,
-		@ILogService private readonly logService: ILogService,
-		@IWorkspacesMainService private readonly workspacesMainService: IWorkspacesMainService,
+		@ILogService private readonly logService: ILogService
 	) {
 		urlService.registerHandler(this);
 
@@ -157,14 +156,12 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 		return this.withWindow(windowId, codeWindow => codeWindow.setRepresentedFilename(fileName));
 	}
 
-	async addRecentlyOpened(workspaces: URI[], folders: URI[], files: URI[]): Promise<void> {
+	async addRecentlyOpened(recents: IRecent[]): Promise<void> {
 		this.logService.trace('windowsService#addRecentlyOpened');
-
-		const workspaceIdentifiers = workspaces.map(w => this.workspacesMainService.getWorkspaceIdentifier(w));
-		this.historyService.addRecentlyOpened([...workspaceIdentifiers, ...folders], files);
+		this.historyService.addRecentlyOpened(recents);
 	}
 
-	async removeFromRecentlyOpened(paths: Array<IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | string>): Promise<void> {
+	async removeFromRecentlyOpened(paths: URI[]): Promise<void> {
 		this.logService.trace('windowsService#removeFromRecentlyOpened');
 
 		this.historyService.removeFromRecentlyOpened(paths);
@@ -179,7 +176,7 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 	async getRecentlyOpened(windowId: number): Promise<IRecentlyOpened> {
 		this.logService.trace('windowsService#getRecentlyOpened', windowId);
 
-		return this.withWindow(windowId, codeWindow => this.historyService.getRecentlyOpened(codeWindow.config.workspace || codeWindow.config.folderUri, codeWindow.config.filesToOpen), () => this.historyService.getRecentlyOpened())!;
+		return this.withWindow(windowId, codeWindow => this.historyService.getRecentlyOpened(codeWindow.config.workspace, codeWindow.config.folderUri, codeWindow.config.filesToOpen), () => this.historyService.getRecentlyOpened())!;
 	}
 
 	async newWindowTab(): Promise<void> {
@@ -276,7 +273,7 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 		});
 	}
 
-	async openWindow(windowId: number, urisToOpen: IURIToOpen[], options?: IOpenSettings): Promise<void> {
+	async openWindow(windowId: number, urisToOpen: IURIToOpen[], options: IOpenSettings = {}): Promise<void> {
 		this.logService.trace('windowsService#openWindow');
 		if (!urisToOpen || !urisToOpen.length) {
 			return undefined;
@@ -286,12 +283,13 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 			context: OpenContext.API,
 			contextWindowId: windowId,
 			urisToOpen: urisToOpen,
-			cli: options && options.args ? { ...this.environmentService.args, ...options.args } : this.environmentService.args,
-			forceNewWindow: options && options.forceNewWindow,
-			forceReuseWindow: options && options.forceReuseWindow,
-			forceOpenWorkspaceAsFile: options && options.forceOpenWorkspaceAsFile,
-			diffMode: options && options.diffMode,
-			addMode: options && options.addMode
+			cli: options.args ? { ...this.environmentService.args, ...options.args } : this.environmentService.args,
+			forceNewWindow: options.forceNewWindow,
+			forceReuseWindow: options.forceReuseWindow,
+			forceOpenWorkspaceAsFile: options.forceOpenWorkspaceAsFile,
+			diffMode: options.diffMode,
+			addMode: options.addMode,
+			noRecentEntry: options.noRecentEntry
 		});
 	}
 
@@ -423,7 +421,7 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 
 		// Catch file URLs
 		if (uri.authority === Schemas.file && !!uri.path) {
-			this.openFileForURI({ uri });
+			this.openFileForURI({ uri: URI.file(uri.fsPath) }); // using fsPath on a non-file URI...
 			return true;
 		}
 

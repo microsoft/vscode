@@ -8,10 +8,10 @@ import { IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import * as Objects from 'vs/base/common/objects';
 import { UriComponents } from 'vs/base/common/uri';
 
-import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ProblemMatcher } from 'vs/workbench/contrib/tasks/common/problemMatcher';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 export const TASK_RUNNING_STATE = new RawContextKey<boolean>('taskRunning', false);
 
@@ -341,7 +341,7 @@ export interface TaskSourceConfigElement {
 }
 
 interface BaseTaskSource {
-	readonly kind;
+	readonly kind: string;
 	readonly label: string;
 }
 
@@ -467,7 +467,7 @@ export abstract class CommonTask {
 	 */
 	_label: string;
 
-	type;
+	type?: string;
 
 	runOptions: RunOptions;
 
@@ -477,7 +477,7 @@ export abstract class CommonTask {
 
 	private _taskLoadMessages: string[] | undefined;
 
-	protected constructor(id: string, label: string | undefined, type, runOptions: RunOptions,
+	protected constructor(id: string, label: string | undefined, type: string | undefined, runOptions: RunOptions,
 		configurationProperties: ConfigurationProperties, source: BaseTaskSource) {
 		this._id = id;
 		if (label) {
@@ -575,7 +575,7 @@ export class CustomTask extends CommonTask {
 	 */
 	command: CommandConfiguration;
 
-	public constructor(id: string, source: WorkspaceTaskSource, label: string, type, command: CommandConfiguration | undefined,
+	public constructor(id: string, source: WorkspaceTaskSource, label: string, type: string, command: CommandConfiguration | undefined,
 		hasDefinedMatchers: boolean, runOptions: RunOptions, configurationProperties: ConfigurationProperties) {
 		super(id, label, undefined, runOptions, configurationProperties, source);
 		this._source = source;
@@ -597,27 +597,28 @@ export class CustomTask extends CommonTask {
 			return this._source.customizes;
 		} else {
 			let type: string;
-			if (this.command !== undefined) {
-				switch (this.command.runtime) {
-					case RuntimeType.Shell:
-						type = 'shell';
-						break;
+			const commandRuntime = this.command ? this.command.runtime : undefined;
+			switch (commandRuntime) {
+				case RuntimeType.Shell:
+					type = 'shell';
+					break;
 
-					case RuntimeType.Process:
-						type = 'process';
-						break;
+				case RuntimeType.Process:
+					type = 'process';
+					break;
 
-					case RuntimeType.CustomExecution:
-						type = 'customExecution';
-						break;
+				case RuntimeType.CustomExecution:
+					type = 'customExecution';
+					break;
 
-					default:
-						throw new Error('Unexpected task runtime');
-						break;
-				}
-			} else {
-				type = '$composite';
+				case undefined:
+					type = '$composite';
+					break;
+
+				default:
+					throw new Error('Unexpected task runtime');
 			}
+
 			let result: KeyedTaskIdentifier = {
 				type,
 				_key: this._id,
@@ -676,7 +677,7 @@ export class ConfiguringTask extends CommonTask {
 
 	configures: KeyedTaskIdentifier;
 
-	public constructor(id: string, source: WorkspaceTaskSource, label: string | undefined, type,
+	public constructor(id: string, source: WorkspaceTaskSource, label: string | undefined, type: string | undefined,
 		configures: KeyedTaskIdentifier, runOptions: RunOptions, configurationProperties: ConfigurationProperties) {
 		super(id, label, type, runOptions, configurationProperties, source);
 		this._source = source;
@@ -709,7 +710,7 @@ export class ContributedTask extends CommonTask {
 	 */
 	command: CommandConfiguration;
 
-	public constructor(id: string, source: ExtensionTaskSource, label: string, type, defines: KeyedTaskIdentifier,
+	public constructor(id: string, source: ExtensionTaskSource, label: string, type: string | undefined, defines: KeyedTaskIdentifier,
 		command: CommandConfiguration, hasDefinedMatchers: boolean, runOptions: RunOptions,
 		configurationProperties: ConfigurationProperties) {
 		super(id, label, type, runOptions, configurationProperties, source);
@@ -769,7 +770,7 @@ export class InMemoryTask extends CommonTask {
 
 	type: 'inMemory';
 
-	public constructor(id: string, source: InMemoryTaskSource, label: string, type,
+	public constructor(id: string, source: InMemoryTaskSource, label: string, type: string,
 		runOptions: RunOptions, configurationProperties: ConfigurationProperties) {
 		super(id, label, type, runOptions, configurationProperties, source);
 		this._source = source;

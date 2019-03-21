@@ -87,7 +87,7 @@ export interface IEditorGroupsAccessor {
 	readonly partOptions: IEditorPartOptions;
 	readonly onDidEditorPartOptionsChange: Event<IEditorPartOptionsChangeEvent>;
 
-	getGroup(identifier: GroupIdentifier): IEditorGroupView;
+	getGroup(identifier: GroupIdentifier): IEditorGroupView | undefined;
 	getGroups(order: GroupsOrder): IEditorGroupView[];
 
 	activateGroup(identifier: IEditorGroupView | GroupIdentifier): IEditorGroupView;

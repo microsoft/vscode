@@ -6,7 +6,7 @@
 import { URI } from 'vs/base/common/uri';
 import * as path from 'vs/base/common/path';
 import * as fs from 'fs';
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
+import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { mkdirp } from 'vs/base/node/pfs';
@@ -14,9 +14,9 @@ import { IURITransformer } from 'vs/base/common/uriIpc';
 import { tmpdir } from 'os';
 import { generateUuid } from 'vs/base/common/uuid';
 
-export type UploadResponse = Buffer | string | undefined;
+type UploadResponse = Buffer | string | undefined;
 
-export function upload(uri: URI): Event<UploadResponse> {
+function upload(uri: URI): Event<UploadResponse> {
 	const stream = new Emitter<UploadResponse>();
 	const readstream = fs.createReadStream(uri.fsPath);
 	readstream.on('data', data => stream.fire(data));
@@ -29,7 +29,7 @@ export class DownloadServiceChannel implements IServerChannel {
 
 	constructor() { }
 
-	listen(_, event: string, arg?: any): Event<any> {
+	listen(_: unknown, event: string, arg?: any): Event<any> {
 		switch (event) {
 			case 'upload': return Event.buffer(upload(URI.revive(arg)));
 		}
@@ -37,7 +37,7 @@ export class DownloadServiceChannel implements IServerChannel {
 		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(_, command: string): Promise<any> {
+	call(_: unknown, command: string): Promise<any> {
 		throw new Error(`Call not found: ${command}`);
 	}
 }

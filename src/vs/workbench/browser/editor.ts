@@ -172,10 +172,10 @@ class EditorRegistry implements IEditorRegistry {
 		this.editors = editorsToSet;
 	}
 
-	getEditorInputs(): any[] {
-		const inputClasses: any[] = [];
+	getEditorInputs(): SyncDescriptor<EditorInput>[] {
+		const inputClasses: SyncDescriptor<EditorInput>[] = [];
 		for (const editor of this.editors) {
-			const editorInputDescriptors = <SyncDescriptor<EditorInput>[]>editor[INPUT_DESCRIPTORS_PROPERTY];
+			const editorInputDescriptors = editor[INPUT_DESCRIPTORS_PROPERTY];
 			inputClasses.push(...editorInputDescriptors.map(descriptor => descriptor.ctor));
 		}
 

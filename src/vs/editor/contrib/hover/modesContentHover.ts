@@ -23,7 +23,7 @@ import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contri
 import { ContentHoverWidget } from 'vs/editor/contrib/hover/hoverWidgets';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
+import { coalesce, isNonEmptyArray, asArray } from 'vs/base/common/arrays';
 import { IMarker, IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { basename } from 'vs/base/common/resources';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
@@ -40,6 +40,7 @@ import { applyCodeAction, QuickFixAction } from 'vs/editor/contrib/codeAction/co
 import { Action } from 'vs/base/common/actions';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 const $ = dom.$;
 
@@ -147,16 +148,7 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 					return null;
 				}
 
-				let contents: IMarkdownString[] = [];
-
-				if (d.options.hoverMessage) {
-					if (Array.isArray(d.options.hoverMessage)) {
-						contents = [...d.options.hoverMessage];
-					} else {
-						contents = [d.options.hoverMessage];
-					}
-				}
-
+				const contents: IMarkdownString[] = d.options.hoverMessage ? asArray(d.options.hoverMessage) : [];
 				return { contents, range };
 			}
 		});
@@ -190,7 +182,7 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 
 	private _getLoadingMessage(): HoverPart {
 		return {
-			range: this._range || undefined,
+			range: withNullAsUndefined(this._range),
 			contents: [new MarkdownString().appendText(nls.localize('modesContentHover.loading', "Loading..."))]
 		};
 	}
@@ -569,8 +561,8 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 	private getCodeActions(marker: IMarker): CancelablePromise<Action[]> {
 		return createCancelablePromise(async cancellationToken => {
 			const codeActions = await getCodeActions(this._editor.getModel()!, new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn), { type: 'manual', filter: { kind: CodeActionKind.QuickFix } }, cancellationToken);
-			if (codeActions.length) {
-				return codeActions.map(codeAction => new Action(
+			if (codeActions.actions.length) {
+				return codeActions.actions.map(codeAction => new Action(
 					codeAction.command ? codeAction.command.id : codeAction.title,
 					codeAction.title,
 					undefined,

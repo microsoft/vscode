@@ -5,10 +5,11 @@
 
 import * as vscode from 'vscode';
 import { URI } from 'vs/base/common/uri';
-import { MainContext, IMainContext, ExtHostDecorationsShape, MainThreadDecorationsShape, DecorationData, DecorationRequest, DecorationReply } from 'vs/workbench/api/node/extHost.protocol';
+import { MainContext, IMainContext, ExtHostDecorationsShape, MainThreadDecorationsShape, DecorationData, DecorationRequest, DecorationReply } from 'vs/workbench/api/common/extHost.protocol';
 import { Disposable } from 'vs/workbench/api/node/extHostTypes';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { asArray } from 'vs/base/common/arrays';
 
 interface ProviderData {
 	provider: vscode.DecorationProvider;
@@ -32,7 +33,7 @@ export class ExtHostDecorations implements ExtHostDecorationsShape {
 		this._proxy.$registerDecorationProvider(handle, extensionId.value);
 
 		const listener = provider.onDidChangeDecorations(e => {
-			this._proxy.$onDidChange(handle, !e ? null : Array.isArray(e) ? e : [e]);
+			this._proxy.$onDidChange(handle, !e ? null : asArray(e));
 		});
 
 		return new Disposable(() => {

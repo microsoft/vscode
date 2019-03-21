@@ -316,6 +316,31 @@ suite('WorkspacesMainService', () => {
 		});
 	});
 
+	test('rewriteWorkspaceFileForNewLocation (unc paths)', () => {
+		if (!isWindows) {
+			return Promise.resolve();
+		}
+
+		const workspaceLocation = path.join(os.tmpdir(), 'wsloc');
+		const folder1Location = 'x:\\foo';
+		const folder2Location = '\\\\server\\share2\\some\\path';
+		const folder3Location = path.join(os.tmpdir(), 'wsloc', 'inner', 'more');
+
+		return createWorkspace([folder1Location, folder2Location, folder3Location]).then(workspace => {
+			const workspaceConfigPath = URI.file(path.join(workspaceLocation, `myworkspace.${Date.now()}.${WORKSPACE_EXTENSION}`));
+			let origContent = fs.readFileSync(workspace.configPath.fsPath).toString();
+
+			const newContent = rewriteWorkspaceFileForNewLocation(origContent, workspace.configPath, workspaceConfigPath);
+
+			const ws = JSON.parse(newContent) as IStoredWorkspace;
+			assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[0]).path, folder1Location);
+			assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[1]).path, folder2Location);
+			assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[2]).path, 'inner\\more');
+
+			service.deleteUntitledWorkspaceSync(workspace);
+		});
+	});
+
 	test('deleteUntitledWorkspaceSync (untitled)', () => {
 		return createWorkspace([process.cwd(), os.tmpdir()]).then(workspace => {
 			assert.ok(fs.existsSync(workspace.configPath.fsPath));

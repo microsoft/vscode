@@ -14,6 +14,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ParsedExpression, IExpression, parse } from 'vs/base/common/glob';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 export class ResourceContextKey extends Disposable implements IContextKey<URI> {
 
@@ -82,7 +83,7 @@ export class ResourceContextKey extends Disposable implements IContextKey<URI> {
 	}
 
 	get(): URI | undefined {
-		return this._resourceKey.get() || undefined;
+		return withNullAsUndefined(this._resourceKey.get());
 	}
 
 	private static _uriEquals(a: URI | undefined | null, b: URI | undefined | null): boolean {
@@ -108,8 +109,8 @@ export class ResourceGlobMatcher extends Disposable {
 	private readonly _onExpressionChange: Emitter<void> = this._register(new Emitter<void>());
 	get onExpressionChange(): Event<void> { return this._onExpressionChange.event; }
 
-	private mapRootToParsedExpression: Map<string | null, ParsedExpression>;
-	private mapRootToExpressionConfig: Map<string | null, IExpression>;
+	private readonly mapRootToParsedExpression: Map<string | null, ParsedExpression> = new Map<string, ParsedExpression>();
+	private readonly mapRootToExpressionConfig: Map<string | null, IExpression> = new Map<string, IExpression>();
 
 	constructor(
 		private globFn: (root?: URI) => IExpression,
@@ -118,9 +119,6 @@ export class ResourceGlobMatcher extends Disposable {
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
-
-		this.mapRootToParsedExpression = new Map<string, ParsedExpression>();
-		this.mapRootToExpressionConfig = new Map<string, IExpression>();
 
 		this.updateExcludes(false);
 

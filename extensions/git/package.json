@@ -241,6 +241,11 @@
         "category": "Git"
       },
       {
+        "command": "git.branchFrom",
+        "title": "%command.branchFrom%",
+        "category": "Git"
+      },
+      {
         "command": "git.deleteBranch",
         "title": "%command.deleteBranch%",
         "category": "Git"
@@ -510,6 +515,10 @@
         },
         {
           "command": "git.branch",
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.branchFrom",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {

@@ -6,7 +6,7 @@
 import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ISearchService, IFileQuery } from 'vs/workbench/services/search/common/search';
-import { MainThreadWorkspace } from 'vs/workbench/api/electron-browser/mainThreadWorkspace';
+import { MainThreadWorkspace } from 'vs/workbench/api/browser/mainThreadWorkspace';
 import * as assert from 'assert';
 import { SingleProxyRPCProtocol } from 'vs/workbench/test/electron-browser/api/testRPCProtocol';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';

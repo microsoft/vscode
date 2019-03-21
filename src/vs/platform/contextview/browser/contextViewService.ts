@@ -7,7 +7,6 @@ import { IContextViewService, IContextViewDelegate } from './contextView';
 import { ContextView } from 'vs/base/browser/ui/contextview/contextview';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class ContextViewService extends Disposable implements IContextViewService {
 	_serviceBrand: any;
@@ -43,5 +42,3 @@ export class ContextViewService extends Disposable implements IContextViewServic
 		this.contextView.hide(data);
 	}
 }
-
-registerSingleton(IContextViewService, ContextViewService, true);

@@ -932,7 +932,10 @@ namespace CommandConfiguration {
 	}
 
 	function fromBase(this: void, config: BaseCommandConfiguationShape, context: ParseContext): Tasks.CommandConfiguration | undefined {
-		let name: Tasks.CommandString = ShellString.from(config.command)!;
+		let name: Tasks.CommandString | undefined = ShellString.from(config.command);
+		if (name === undefined) {
+			return undefined;
+		}
 		let runtime: Tasks.RuntimeType;
 		if (Types.isString(config.type)) {
 			if (config.type === 'shell' || config.type === 'process') {
@@ -947,7 +950,7 @@ namespace CommandConfiguration {
 		}
 
 		let result: Tasks.CommandConfiguration = {
-			name: name!,
+			name: name,
 			runtime: runtime!,
 			presentation: PresentationOptions.from(config, context)!
 		};
@@ -1342,7 +1345,7 @@ namespace ConfiguringTask {
 		}
 		let configElement: Tasks.TaskSourceConfigElement = {
 			workspaceFolder: context.workspaceFolder,
-			file: '.vscode\\tasks.json',
+			file: '.vscode/tasks.json',
 			index,
 			element: external
 		};
@@ -1406,7 +1409,7 @@ namespace CustomTask {
 
 		let result: Tasks.CustomTask = new Tasks.CustomTask(
 			context.uuidMap.getUUID(taskName),
-			Objects.assign({} as Tasks.WorkspaceTaskSource, source, { config: { index, element: external, file: '.vscode\\tasks.json', workspaceFolder: context.workspaceFolder } }),
+			Objects.assign({} as Tasks.WorkspaceTaskSource, source, { config: { index, element: external, file: '.vscode/tasks.json', workspaceFolder: context.workspaceFolder } }),
 			taskName,
 			Tasks.CUSTOMIZED_TASK_TYPE,
 			undefined,

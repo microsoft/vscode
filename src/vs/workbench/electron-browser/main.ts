@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import * as gracefulFs from 'graceful-fs';
 import { createHash } from 'crypto';
 import { importEntries, mark } from 'vs/base/common/performance';
-import { Workbench } from 'vs/workbench/electron-browser/workbench';
+import { Workbench } from 'vs/workbench/browser/workbench';
 import { ElectronWindow } from 'vs/workbench/electron-browser/window';
 import { setZoomLevel, setZoomFactor, setFullscreen } from 'vs/base/browser/browser';
 import { domContentLoaded, addDisposableListener, EventType, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
@@ -20,26 +20,15 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { stat } from 'vs/base/node/pfs';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
-import { IWindowConfiguration, IWindowsService } from 'vs/platform/windows/common/windows';
-import { WindowsChannelClient } from 'vs/platform/windows/node/windowsIpc';
+import { IWindowConfiguration, IWindowService } from 'vs/platform/windows/common/windows';
+import { WindowService } from 'vs/platform/windows/electron-browser/windowService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { Client as ElectronIPCClient } from 'vs/base/parts/ipc/electron-browser/ipc.electron-browser';
 import { webFrame } from 'electron';
-import { UpdateChannelClient } from 'vs/platform/update/node/updateIpc';
-import { IUpdateService } from 'vs/platform/update/common/update';
-import { URLHandlerChannel, URLServiceChannelClient } from 'vs/platform/url/node/urlIpc';
-import { IURLService } from 'vs/platform/url/common/url';
-import { WorkspacesChannelClient } from 'vs/platform/workspaces/node/workspacesIpc';
-import { IWorkspacesService, ISingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, IMultiFolderWorkspaceInitializationPayload, IEmptyWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload, reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { ISingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, IMultiFolderWorkspaceInitializationPayload, IEmptyWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload, reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { ConsoleLogService, MultiplexLogService, ILogService } from 'vs/platform/log/common/log';
 import { StorageService } from 'vs/platform/storage/node/storageService';
-import { IssueChannelClient } from 'vs/platform/issue/node/issueIpc';
-import { IIssueService } from 'vs/platform/issue/common/issue';
 import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/node/logIpc';
-import { RelayURLService } from 'vs/platform/url/common/urlService';
-import { MenubarChannelClient } from 'vs/platform/menubar/node/menubarIpc';
-import { IMenubarService } from 'vs/platform/menubar/common/menubar';
 import { Schemas } from 'vs/base/common/network';
 import { sanitizeFilePath } from 'vs/base/node/extfs';
 import { basename } from 'vs/base/common/path';
@@ -47,9 +36,13 @@ import { GlobalStorageDatabaseChannelClient } from 'vs/platform/storage/node/sto
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { registerWindowDriver } from 'vs/platform/driver/electron-browser/driver';
+import { IMainProcessService, MainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
+import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-browser/remoteAuthorityResolverService';
+import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 class CodeRendererMain extends Disposable {
 
@@ -89,7 +82,8 @@ class CodeRendererMain extends Disposable {
 			this.configuration.workspace = reviveWorkspaceIdentifier(this.configuration.workspace);
 		}
 
-		const filesToWaitPaths = this.configuration.filesToWait && this.configuration.filesToWait.paths;
+		const filesToWait = this.configuration.filesToWait;
+		const filesToWaitPaths = filesToWait && filesToWait.paths;
 		[filesToWaitPaths, this.configuration.filesToOpen, this.configuration.filesToCreate, this.configuration.filesToDiff].forEach(paths => {
 			if (Array.isArray(paths)) {
 				paths.forEach(path => {
@@ -99,53 +93,50 @@ class CodeRendererMain extends Disposable {
 				});
 			}
 		});
+		if (filesToWait) {
+			filesToWait.waitMarkerFileUri = uri.revive(filesToWait.waitMarkerFileUri);
+		}
 	}
 
 	open(): Promise<void> {
-		const electronMainClient = this._register(new ElectronIPCClient(`window:${this.configuration.windowId}`));
-
-		return this.initServices(electronMainClient).then(services => {
+		return this.initServices().then(services => {
 
 			return domContentLoaded().then(() => {
 				mark('willStartWorkbench');
 
-				const instantiationService = new InstantiationService(services, true);
-
 				// Create Workbench
-				this.workbench = instantiationService.createInstance(
-					Workbench,
-					document.body,
-					this.configuration,
-					services
-				);
+				this.workbench = new Workbench(document.body, services.serviceCollection, services.logService);
 
 				// Layout
 				this._register(addDisposableListener(window, EventType.RESIZE, e => this.onWindowResize(e, true)));
 
 				// Workbench Lifecycle
 				this._register(this.workbench.onShutdown(() => this.dispose()));
-				this._register(this.workbench.onWillShutdown(event => event.join((services.get(IStorageService) as StorageService).close())));
+				this._register(this.workbench.onWillShutdown(event => event.join(services.storageService.close())));
 
 				// Startup
-				this.workbench.startup();
+				const instantiationService = this.workbench.startup();
 
 				// Window
 				this._register(instantiationService.createInstance(ElectronWindow));
 
 				// Driver
 				if (this.configuration.driver) {
-					registerWindowDriver(electronMainClient, this.configuration.windowId, instantiationService).then(disposable => this._register(disposable));
+					instantiationService.invokeFunction(accessor => registerWindowDriver(accessor).then(disposable => this._register(disposable)));
 				}
 
 				// Config Exporter
 				if (this.configuration['export-default-configuration']) {
 					instantiationService.createInstance(DefaultConfigurationExportHelper);
 				}
+
+				// Logging
+				services.logService.trace('workbench configuration', JSON.stringify(this.configuration));
 			});
 		});
 	}
 
-	private onWindowResize(e: any, retry: boolean): void {
+	private onWindowResize(e: Event, retry: boolean): void {
 		if (e.target === window) {
 			if (window.document && window.document.body && window.document.body.clientWidth === 0) {
 				// TODO@Ben this is an electron issue on macOS when simple fullscreen is enabled
@@ -163,65 +154,50 @@ class CodeRendererMain extends Disposable {
 		}
 	}
 
-	private initServices(electronMainClient: ElectronIPCClient): Promise<ServiceCollection> {
+	private initServices(): Promise<{ serviceCollection: ServiceCollection, logService: ILogService, storageService: StorageService }> {
 		const serviceCollection = new ServiceCollection();
 
-		// Windows Service
-		const windowsChannel = electronMainClient.getChannel('windows');
-		serviceCollection.set(IWindowsService, new WindowsChannelClient(windowsChannel));
+		// Main Process
+		const mainProcessService = this._register(new MainProcessService(this.configuration.windowId));
+		serviceCollection.set(IMainProcessService, mainProcessService);
 
-		// Update Service
-		const updateChannel = electronMainClient.getChannel('update');
-		serviceCollection.set(IUpdateService, new SyncDescriptor(UpdateChannelClient, [updateChannel]));
-
-		// URL Service
-		const urlChannel = electronMainClient.getChannel('url');
-		const mainUrlService = new URLServiceChannelClient(urlChannel);
-		const urlService = new RelayURLService(mainUrlService);
-		serviceCollection.set(IURLService, urlService);
-
-		// URLHandler Service
-		const urlHandlerChannel = new URLHandlerChannel(urlService);
-		electronMainClient.registerChannel('urlHandler', urlHandlerChannel);
-
-		// Issue Service
-		const issueChannel = electronMainClient.getChannel('issue');
-		serviceCollection.set(IIssueService, new SyncDescriptor(IssueChannelClient, [issueChannel]));
-
-		// Menubar Service
-		const menubarChannel = electronMainClient.getChannel('menubar');
-		serviceCollection.set(IMenubarService, new SyncDescriptor(MenubarChannelClient, [menubarChannel]));
-
-		// Workspaces Service
-		const workspacesChannel = electronMainClient.getChannel('workspaces');
-		serviceCollection.set(IWorkspacesService, new WorkspacesChannelClient(workspacesChannel));
+		// Window
+		serviceCollection.set(IWindowService, new SyncDescriptor(WindowService, [this.configuration]));
 
 		// Environment
 		const environmentService = new EnvironmentService(this.configuration, this.configuration.execPath);
 		serviceCollection.set(IEnvironmentService, environmentService);
 
 		// Log
-		const logService = this._register(this.createLogService(electronMainClient, environmentService));
+		const logService = this._register(this.createLogService(mainProcessService, environmentService));
 		serviceCollection.set(ILogService, logService);
 
-		// Resolve a workspace payload that we can get the workspace ID from
-		return this.resolveWorkspaceInitializationPayload(environmentService).then(payload => {
+		// Remote
+		const remoteAuthorityResolverService = new RemoteAuthorityResolverService();
+		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
+		const remoteAgentService = new RemoteAgentService(this.configuration, environmentService, remoteAuthorityResolverService);
+		serviceCollection.set(IRemoteAgentService, remoteAgentService);
 
-			return Promise.all([
+		return this.resolveWorkspaceInitializationPayload(environmentService).then(payload => Promise.all([
+			this.createWorkspaceService(payload, environmentService, logService).then(service => {
 
-				// Create and initialize workspace/configuration service
-				this.createWorkspaceService(payload, environmentService, logService),
+				// Workspace
+				serviceCollection.set(IWorkspaceContextService, service);
 
-				// Create and initialize storage service
-				this.createStorageService(payload, environmentService, logService, electronMainClient)
-			]).then(services => {
-				serviceCollection.set(IWorkspaceContextService, services[0]);
-				serviceCollection.set(IConfigurationService, services[0]);
-				serviceCollection.set(IStorageService, services[1]);
+				// Configuration
+				serviceCollection.set(IConfigurationService, service);
 
-				return serviceCollection;
-			});
-		});
+				return service;
+			}),
+
+			this.createStorageService(payload, environmentService, logService, mainProcessService).then(service => {
+
+				// Storage
+				serviceCollection.set(IStorageService, service);
+
+				return service;
+			})
+		]).then(services => ({ serviceCollection, logService, storageService: services[1] })));
 	}
 
 	private resolveWorkspaceInitializationPayload(environmentService: EnvironmentService): Promise<IWorkspaceInitializationPayload> {
@@ -305,8 +281,8 @@ class CodeRendererMain extends Disposable {
 		});
 	}
 
-	private createStorageService(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService, logService: ILogService, electronMainClient: ElectronIPCClient): Promise<StorageService> {
-		const globalStorageDatabase = new GlobalStorageDatabaseChannelClient(electronMainClient.getChannel('storage'));
+	private createStorageService(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService, logService: ILogService, mainProcessService: IMainProcessService): Promise<StorageService> {
+		const globalStorageDatabase = new GlobalStorageDatabaseChannelClient(mainProcessService.getChannel('storage'));
 		const storageService = new StorageService(globalStorageDatabase, logService, environmentService);
 
 		return storageService.initialize(payload).then(() => storageService, error => {
@@ -317,11 +293,11 @@ class CodeRendererMain extends Disposable {
 		});
 	}
 
-	private createLogService(electronMainClient: ElectronIPCClient, environmentService: IEnvironmentService): ILogService {
+	private createLogService(mainProcessService: IMainProcessService, environmentService: IEnvironmentService): ILogService {
 		const spdlogService = createSpdLogService(`renderer${this.configuration.windowId}`, this.configuration.logLevel, environmentService.logsPath);
 		const consoleLogService = new ConsoleLogService(this.configuration.logLevel);
 		const logService = new MultiplexLogService([consoleLogService, spdlogService]);
-		const logLevelClient = new LogLevelSetterChannelClient(electronMainClient.getChannel('loglevel'));
+		const logLevelClient = new LogLevelSetterChannelClient(mainProcessService.getChannel('loglevel'));
 
 		return new FollowerLogService(logLevelClient, logService);
 	}
