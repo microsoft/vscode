@@ -12,13 +12,8 @@ import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { IRemoteAgentConnection, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { DialogChannel } from 'vs/platform/dialogs/node/dialogIpc';
-import { DownloadServiceChannel } from 'vs/platform/download/node/downloadIpc';
-import { LogLevelSetterChannel } from 'vs/platform/log/node/logIpc';
-import { ILogService } from 'vs/platform/log/common/log';
 import { RemoteAgentConnectionContext, IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { RemoteExtensionEnvironmentChannelClient } from 'vs/workbench/services/remote/node/remoteAgentEnvironmentChannel';
@@ -99,22 +94,6 @@ class RemoteAgentConnection extends Disposable implements IRemoteAgentConnection
 	}
 }
 
-class RemoteChannelsContribution implements IWorkbenchContribution {
-
-	constructor(
-		@ILogService logService: ILogService,
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@IDialogService dialogService: IDialogService
-	) {
-		const connection = remoteAgentService.getConnection();
-		if (connection) {
-			connection.registerChannel('dialog', new DialogChannel(dialogService));
-			connection.registerChannel('download', new DownloadServiceChannel());
-			connection.registerChannel('loglevel', new LogLevelSetterChannel(logService));
-		}
-	}
-}
-
 class RemoteConnectionFailureNotificationContribution implements IWorkbenchContribution {
 
 	constructor(
@@ -129,5 +108,4 @@ class RemoteConnectionFailureNotificationContribution implements IWorkbenchContr
 }
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(RemoteChannelsContribution, LifecyclePhase.Ready);
 workbenchRegistry.registerWorkbenchContribution(RemoteConnectionFailureNotificationContribution, LifecyclePhase.Ready);
