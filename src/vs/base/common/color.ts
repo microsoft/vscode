@@ -260,7 +260,7 @@ export class Color {
 	}
 
 	readonly rgba: RGBA;
-	private _hsla: HSLA;
+	private _hsla?: HSLA;
 	get hsla(): HSLA {
 		if (this._hsla) {
 			return this._hsla;
@@ -269,7 +269,7 @@ export class Color {
 		}
 	}
 
-	private _hsva: HSVA;
+	private _hsva?: HSVA;
 	get hsva(): HSVA {
 		if (this._hsva) {
 			return this._hsva;
