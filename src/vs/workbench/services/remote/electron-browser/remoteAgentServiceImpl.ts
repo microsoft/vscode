@@ -15,7 +15,7 @@ import { RemoteExtensionEnvironmentChannelClient } from 'vs/workbench/services/r
 import { IRemoteAgentConnection, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { DialogChannel } from 'vs/platform/dialogs/node/dialogIpc';
 import { DownloadServiceChannel } from 'vs/platform/download/node/downloadIpc';
 import { LogLevelSetterChannel } from 'vs/platform/log/node/logIpc';
@@ -23,6 +23,8 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IRemoteAgentEnvironment, RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 export class RemoteAgentService implements IRemoteAgentService {
 
@@ -35,19 +37,10 @@ export class RemoteAgentService implements IRemoteAgentService {
 		@INotificationService notificationService: INotificationService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@ILifecycleService lifecycleService: ILifecycleService,
-		@ILogService logService: ILogService,
-		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		const { remoteAuthority } = windowService.getConfiguration();
 		if (remoteAuthority) {
-			const connection = this._connection = new RemoteAgentConnection(remoteAuthority, notificationService, environmentService, remoteAuthorityResolverService);
-
-			lifecycleService.when(LifecyclePhase.Ready).then(() => {
-				connection.registerChannel('dialog', instantiationService.createInstance(DialogChannel));
-				connection.registerChannel('download', new DownloadServiceChannel());
-				connection.registerChannel('loglevel', new LogLevelSetterChannel(logService));
-			});
+			this._connection = new RemoteAgentConnection(remoteAuthority, notificationService, environmentService, remoteAuthorityResolverService);
 		}
 	}
 
@@ -108,4 +101,22 @@ class RemoteAgentConnection extends Disposable implements IRemoteAgentConnection
 	}
 }
 
+class RemoteChannelsContribution implements IWorkbenchContribution {
+
+	constructor(
+		@ILogService logService: ILogService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+	) {
+		const connection = remoteAgentService.getConnection();
+		if (connection) {
+			connection.registerChannel('dialog', instantiationService.createInstance(DialogChannel));
+			connection.registerChannel('download', new DownloadServiceChannel());
+			connection.registerChannel('loglevel', new LogLevelSetterChannel(logService));
+		}
+	}
+}
+
+const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);
+workbenchRegistry.registerWorkbenchContribution(RemoteChannelsContribution, LifecyclePhase.Ready);
 registerSingleton(IRemoteAgentService, RemoteAgentService);
