@@ -1018,7 +1018,7 @@ export class TestFileService implements IFileService {
 
 	onDidChangeFileSystemProviderRegistrations = Event.None;
 
-	registerProvider(_scheme: string, _provider) {
+	registerProvider(_scheme: string) {
 		return { dispose() { } };
 	}
 

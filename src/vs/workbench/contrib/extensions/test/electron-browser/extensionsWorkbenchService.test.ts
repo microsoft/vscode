@@ -69,9 +69,9 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		instantiationService.stub(ISharedProcessService, TestSharedProcessService);
 
 		instantiationService.stub(IWorkspaceContextService, new TestContextService());
-		instantiationService.stub(IConfigurationService, {
+		instantiationService.stub(IConfigurationService, <Partial<IConfigurationService>>{
 			onDidChangeConfiguration: () => { return undefined!; },
-			getValue: (key?) => {
+			getValue: (key?: string) => {
 				return (key === AutoCheckUpdatesConfigurationKey || key === AutoUpdateConfigurationKey) ? true : undefined;
 			}
 		});

@@ -561,7 +561,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 	test('Parameter Hints, back and forth', async () => {
 		disposables.push(extHost.registerSignatureHelpProvider(nullExtensionDescription, defaultSelector, new class implements vscode.SignatureHelpProvider {
-			provideSignatureHelp(_document, _position, _token, context: vscode.SignatureHelpContext): vscode.SignatureHelp {
+			provideSignatureHelp(_document: vscode.TextDocument, _position: vscode.Position, _token: vscode.CancellationToken, context: vscode.SignatureHelpContext): vscode.SignatureHelp {
 				return {
 					activeSignature: 0,
 					activeParameter: 1,

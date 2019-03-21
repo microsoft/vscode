@@ -71,7 +71,7 @@ class Service1Consumer {
 
 class Target2Dep {
 
-	constructor(@IService1 service1: IService1, @IService2 service2) {
+	constructor(@IService1 service1: IService1, @IService2 service2: Service2) {
 		assert.ok(service1 instanceof Service1);
 		assert.ok(service2 instanceof Service2);
 	}
@@ -99,7 +99,7 @@ class TargetOptional {
 }
 
 class DependentServiceTarget {
-	constructor(@IDependentService d) {
+	constructor(@IDependentService d: IDependentService) {
 		assert.ok(d);
 		assert.equal(d.name, 'farboo');
 	}
