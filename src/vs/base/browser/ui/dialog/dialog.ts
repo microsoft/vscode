@@ -11,9 +11,10 @@ import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Color } from 'vs/base/common/color';
-import { ButtonGroup } from 'vs/base/browser/ui/button/button';
+import { ButtonGroup, IButtonStyles } from 'vs/base/browser/ui/button/button';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
+import { mnemonicButtonLabel } from 'vs/base/common/labels';
 
 export interface IDialogOptions {
 	cancelId?: number;
@@ -21,9 +22,10 @@ export interface IDialogOptions {
 	type?: 'none' | 'info' | 'error' | 'question' | 'warning';
 }
 
-export interface IDialogStyles {
-	foregroundColor?: Color;
-	backgroundColor?: Color;
+export interface IDialogStyles extends IButtonStyles {
+	dialogForeground?: Color;
+	dialogBackground?: Color;
+	dialogShadow?: Color;
 }
 
 export class Dialog extends Disposable {
@@ -32,6 +34,7 @@ export class Dialog extends Disposable {
 	private buttonsContainer: HTMLElement | undefined;
 	private iconElement: HTMLElement | undefined;
 	private toolbarContainer: HTMLElement | undefined;
+	private buttonGroup: ButtonGroup | undefined;
 
 	constructor(private container: HTMLElement, private message: string, private buttons: string[], private options: IDialogOptions) {
 		super();
@@ -63,12 +66,19 @@ export class Dialog extends Disposable {
 				return;
 			}
 
+			if (this.modal) {
+				this._register(domEvent(this.modal, 'mousedown')(e => {
+					// Used to stop focusing of modal with mouse
+					EventHelper.stop(e, true);
+				}));
+			}
+
 			clearNode(this.buttonsContainer);
 
 			let focusedButton = 0;
-			const buttonGroup = new ButtonGroup(this.buttonsContainer, this.buttons.length, { title: true });
-			buttonGroup.buttons.forEach((button, index) => {
-				button.label = this.buttons[index];
+			this.buttonGroup = new ButtonGroup(this.buttonsContainer, this.buttons.length, { title: true });
+			this.buttonGroup.buttons.forEach((button, index) => {
+				button.label = mnemonicButtonLabel(this.buttons[index], true);
 
 				this._register(button.onDidClick(e => {
 					EventHelper.stop(e);
@@ -82,14 +92,16 @@ export class Dialog extends Disposable {
 					return;
 				}
 
-				if ((evt.shiftKey && evt.equals(KeyCode.Tab)) || evt.equals(KeyCode.RightArrow)) {
-					focusedButton = focusedButton + buttonGroup.buttons.length - 1;
-					focusedButton = focusedButton % buttonGroup.buttons.length;
-					buttonGroup.buttons[focusedButton].focus();
-				} else if (evt.equals(KeyCode.Tab) || evt.equals(KeyCode.LeftArrow)) {
-					focusedButton++;
-					focusedButton = focusedButton % buttonGroup.buttons.length;
-					buttonGroup.buttons[focusedButton].focus();
+				if (this.buttonGroup) {
+					if ((evt.shiftKey && evt.equals(KeyCode.Tab)) || evt.equals(KeyCode.RightArrow)) {
+						focusedButton = focusedButton + this.buttonGroup.buttons.length - 1;
+						focusedButton = focusedButton % this.buttonGroup.buttons.length;
+						this.buttonGroup.buttons[focusedButton].focus();
+					} else if (evt.equals(KeyCode.Tab) || evt.equals(KeyCode.LeftArrow)) {
+						focusedButton++;
+						focusedButton = focusedButton % this.buttonGroup.buttons.length;
+						this.buttonGroup.buttons[focusedButton].focus();
+					}
 				}
 
 				EventHelper.stop(e, true);
@@ -133,17 +145,23 @@ export class Dialog extends Disposable {
 			show(this.element);
 
 			// Focus first element
-			buttonGroup.buttons[0].focus();
+			this.buttonGroup.buttons[focusedButton].focus();
 		});
 	}
 
 	style(style: IDialogStyles): void {
-		const fgColor = style.foregroundColor ? `${style.foregroundColor}` : null;
-		const bgColor = style.backgroundColor ? `${style.backgroundColor}` : null;
+		const fgColor = style.dialogForeground ? `${style.dialogForeground}` : null;
+		const bgColor = style.dialogBackground ? `${style.dialogBackground}` : null;
+		const shadowColor = style.dialogShadow ? `0 0px 8px ${style.dialogShadow}` : null;
 
 		if (this.element) {
 			this.element.style.color = fgColor;
 			this.element.style.backgroundColor = bgColor;
+			this.element.style.boxShadow = shadowColor;
+
+			if (this.buttonGroup) {
+				this.buttonGroup.buttons.forEach(button => button.style(style));
+			}
 		}
 	}
 

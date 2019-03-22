@@ -330,16 +330,23 @@ export function attachMenuStyler(widget: IThemable, themeService: IThemeService,
 	return attachStyler(themeService, { ...defaultMenuStyles, ...style }, widget);
 }
 
-export interface IDialogStyleOverrides extends IColorMapping {
-	foregroundColor?: ColorIdentifier;
-	backgroundColor?: ColorIdentifier;
+export interface IDialogStyleOverrides extends IButtonStyleOverrides {
+	dialogForeground?: ColorIdentifier;
+	dialogBackground?: ColorIdentifier;
+	dialogShadow?: ColorIdentifier;
 }
 
 export const defaultDialogStyles = <IDialogStyleOverrides>{
-	backgroundColor: editorWidgetBackground,
+	dialogBackground: editorWidgetBackground,
+	dialogForeground: foreground,
+	dialogShadow: widgetShadow,
+	buttonForeground: buttonForeground,
+	buttonBackground: buttonBackground,
+	buttonHoverBackground: buttonHoverBackground,
+	buttonBorder: contrastBorder
 };
 
 
 export function attachDialogStyler(widget: IThemable, themeService, style?: IDialogStyleOverrides): IDisposable {
-	return attachStyler(themeService, { ...defaultMenuStyles, ...style }, widget);
+	return attachStyler(themeService, { ...defaultDialogStyles, ...style }, widget);
 }

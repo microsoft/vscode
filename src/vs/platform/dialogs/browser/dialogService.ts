@@ -23,19 +23,6 @@ export class DialogService implements IDialogService {
 		@IThemeService private readonly themeService: IThemeService
 	) { }
 
-	// confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
-	// 	this.logService.trace('DialogService#confirm', confirmation.message);
-
-	// 	const { options, buttonIndexMap } = this.massageMessageBoxOptions(this.getConfirmOptions(confirmation));
-
-	// 	return this.windowService.showMessageBox(options).then(result => {
-	// 		return {
-	// 			confirmed: buttonIndexMap[result.button] === 0 ? true : false,
-	// 			checkboxChecked: result.checkboxChecked
-	// 		} as IConfirmationResult;
-	// 	});
-	// }
-
 	async confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
 		this.logService.trace('DialogService#confirm', confirmation.message);
 
