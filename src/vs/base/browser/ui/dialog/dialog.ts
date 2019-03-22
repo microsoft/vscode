@@ -35,6 +35,7 @@ export class Dialog extends Disposable {
 	private iconElement: HTMLElement | undefined;
 	private toolbarContainer: HTMLElement | undefined;
 	private buttonGroup: ButtonGroup | undefined;
+	private styles: IDialogStyles | undefined;
 
 	constructor(private container: HTMLElement, private message: string, private buttons: string[], private options: IDialogOptions) {
 		super();
@@ -93,11 +94,11 @@ export class Dialog extends Disposable {
 				}
 
 				if (this.buttonGroup) {
-					if ((evt.shiftKey && evt.equals(KeyCode.Tab)) || evt.equals(KeyCode.RightArrow)) {
+					if ((evt.shiftKey && evt.equals(KeyCode.Tab)) || evt.equals(KeyCode.LeftArrow)) {
 						focusedButton = focusedButton + this.buttonGroup.buttons.length - 1;
 						focusedButton = focusedButton % this.buttonGroup.buttons.length;
 						this.buttonGroup.buttons[focusedButton].focus();
-					} else if (evt.equals(KeyCode.Tab) || evt.equals(KeyCode.LeftArrow)) {
+					} else if (evt.equals(KeyCode.Tab) || evt.equals(KeyCode.RightArrow)) {
 						focusedButton++;
 						focusedButton = focusedButton % this.buttonGroup.buttons.length;
 						this.buttonGroup.buttons[focusedButton].focus();
@@ -142,6 +143,8 @@ export class Dialog extends Disposable {
 
 			actionBar.push(action, { icon: true, label: false, });
 
+			this.applyStyles();
+
 			show(this.element);
 
 			// Focus first element
@@ -149,20 +152,29 @@ export class Dialog extends Disposable {
 		});
 	}
 
-	style(style: IDialogStyles): void {
-		const fgColor = style.dialogForeground ? `${style.dialogForeground}` : null;
-		const bgColor = style.dialogBackground ? `${style.dialogBackground}` : null;
-		const shadowColor = style.dialogShadow ? `0 0px 8px ${style.dialogShadow}` : null;
+	private applyStyles() {
+		if (this.styles) {
+			const style = this.styles;
 
-		if (this.element) {
-			this.element.style.color = fgColor;
-			this.element.style.backgroundColor = bgColor;
-			this.element.style.boxShadow = shadowColor;
+			const fgColor = style.dialogForeground ? `${style.dialogForeground}` : null;
+			const bgColor = style.dialogBackground ? `${style.dialogBackground}` : null;
+			const shadowColor = style.dialogShadow ? `0 0px 8px ${style.dialogShadow}` : null;
 
-			if (this.buttonGroup) {
-				this.buttonGroup.buttons.forEach(button => button.style(style));
+			if (this.element) {
+				this.element.style.color = fgColor;
+				this.element.style.backgroundColor = bgColor;
+				this.element.style.boxShadow = shadowColor;
+
+				if (this.buttonGroup) {
+					this.buttonGroup.buttons.forEach(button => button.style(style));
+				}
 			}
 		}
+	}
+
+	style(style: IDialogStyles): void {
+		this.styles = style;
+		this.applyStyles();
 	}
 
 	dispose(): void {
