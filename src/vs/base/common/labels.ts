@@ -369,8 +369,8 @@ export function mnemonicMenuLabel(label: string, forceDisableMnemonics?: boolean
  * -   Linux: Supported via _ character (replace && with _)
  * -   macOS: Unsupported (replace && with empty string)
  */
-export function mnemonicButtonLabel(label: string): string {
-	if (isMacintosh) {
+export function mnemonicButtonLabel(label: string, forceDisableMnemonics?: boolean): string {
+	if (isMacintosh || forceDisableMnemonics) {
 		return label.replace(/\(&&\w\)|&&/g, '');
 	}
 

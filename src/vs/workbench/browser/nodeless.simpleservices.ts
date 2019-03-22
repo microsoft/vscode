@@ -14,8 +14,7 @@ import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 // tslint:disable-next-line: import-patterns no-standalone-editor
-import { SimpleConfigurationService as StandaloneEditorConfigurationService, SimpleDialogService as StandaloneEditorDialogService, StandaloneKeybindingService, SimpleResourcePropertiesService } from 'vs/editor/standalone/browser/simpleServices';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { SimpleConfigurationService as StandaloneEditorConfigurationService, StandaloneKeybindingService, SimpleResourcePropertiesService } from 'vs/editor/standalone/browser/simpleServices';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEnvironmentService, IExtensionHostDebugParams, IDebugParams } from 'vs/platform/environment/common/environment';
@@ -202,9 +201,9 @@ registerSingleton(IConfigurationService, SimpleConfigurationService);
 
 //#region Dialog
 
-export class SimpleDialogService extends StandaloneEditorDialogService { }
+// export class SimpleDialogService extends StandaloneEditorDialogService { }
 
-registerSingleton(IDialogService, SimpleDialogService, true);
+// registerSingleton(IDialogService, SimpleDialogService, true);
 
 //#endregion
 
