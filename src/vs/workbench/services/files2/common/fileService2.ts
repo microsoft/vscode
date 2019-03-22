@@ -131,7 +131,7 @@ export class FileService2 extends Disposable implements IFileService {
 		if (!provider) {
 			const err = new Error();
 			err.name = 'ENOPRO';
-			err.message = `no provider for ${resource.toString()}`;
+			err.message = `No provider found for ${resource.toString()}`;
 
 			return Promise.reject(err);
 		}
@@ -248,43 +248,20 @@ export class FileService2 extends Disposable implements IFileService {
 	async resolveFiles(toResolve: { resource: URI, options?: IResolveFileOptions }[]): Promise<IResolveFileResult[]>;
 	async resolveFiles(toResolve: { resource: URI, options: IResolveMetadataFileOptions }[]): Promise<IResolveFileResult[]>;
 	async resolveFiles(toResolve: { resource: URI; options?: IResolveFileOptions; }[]): Promise<IResolveFileResult[]> {
+		return Promise.all(toResolve.map(async entry => {
+			try {
+				return { stat: await this.doResolveFile(entry.resource, entry.options), success: true };
+			} catch (error) {
+				this.logService.trace(error);
 
-		// soft-groupBy, keep order, don't rearrange/merge groups
-		const groups: Array<typeof toResolve> = [];
-		let group: typeof toResolve | undefined;
-		for (const request of toResolve) {
-			if (!group || group[0].resource.scheme !== request.resource.scheme) {
-				group = [];
-				groups.push(group);
+				return { stat: undefined, success: false };
 			}
-
-			group.push(request);
-		}
-
-		// resolve files (in parallel)
-		const result: Promise<IResolveFileResult>[] = [];
-		for (const group of groups) {
-			for (const groupEntry of group) {
-				result.push((async () => {
-					try {
-						return { stat: await this.doResolveFile(groupEntry.resource, groupEntry.options), success: true };
-					} catch (error) {
-						this.logService.trace(error);
-
-						return { stat: undefined, success: false };
-					}
-				})());
-			}
-		}
-
-		return Promise.all(result);
+		}));
 	}
 
 	async existsFile(resource: URI): Promise<boolean> {
 		try {
-			await this.resolveFile(resource);
-
-			return true;
+			return !!(await this.resolveFile(resource));
 		} catch (error) {
 			return false;
 		}
@@ -328,7 +305,7 @@ export class FileService2 extends Disposable implements IFileService {
 		if (source.scheme === target.scheme) {
 			const provider = this.throwIfFileSystemIsReadonly(await this.withProvider(source));
 
-			await this.doMoveCopy(provider, source, target, false /* just move */, overwrite);
+			await this.doMoveCopy(provider, source, target, 'move', overwrite);
 		}
 
 		// across providers
@@ -343,21 +320,21 @@ export class FileService2 extends Disposable implements IFileService {
 		return fileStat;
 	}
 
-	private async doMoveCopy(provider: IFileSystemProvider, source: URI, target: URI, keepCopy: boolean, overwrite?: boolean): Promise<void> {
+	private async doMoveCopy(provider: IFileSystemProvider, source: URI, target: URI, mode: 'move' | 'copy', overwrite?: boolean): Promise<void> {
 
 		// validation
-		const { exists, isCaseChange } = await this.doValidateMoveCopy(provider, source, target, keepCopy, overwrite);
+		const { exists, isCaseChange } = await this.doValidateMoveCopy(provider, source, target, overwrite);
 
 		// delete as needed
-		if (exists && !isCaseChange) {
+		if (exists && !isCaseChange && overwrite) {
 			await this.del(target, { recursive: true });
 		}
 
 		// create parent folders
 		await this.mkdirp(provider, dirname(target));
 
-		// rename/copy source => target
-		if (keepCopy) {
+		// copy source => target
+		if (mode === 'copy') {
 
 			// check if provider supports fast file/folder copy
 			if (hasFileFolderCopyCapability(provider)) {
@@ -376,12 +353,15 @@ export class FileService2 extends Disposable implements IFileService {
 
 			// give up if provider has insufficient capabilities
 			return Promise.reject('Provider neither has FileReadWrite nor FileOpenReadWriteClose capability which is needed to support copy.');
-		} else {
+		}
+
+		// move source => target
+		else {
 			return provider.rename(source, target, { overwrite: !!overwrite });
 		}
 	}
 
-	private async doValidateMoveCopy(provider: IFileSystemProvider, source: URI, target: URI, keepCopy: boolean, overwrite?: boolean): Promise<{ exists: boolean, isCaseChange: boolean }> {
+	private async doValidateMoveCopy(provider: IFileSystemProvider, source: URI, target: URI, overwrite?: boolean): Promise<{ exists: boolean, isCaseChange: boolean }> {
 
 		// Check if source is equal or parent to target
 		const isPathCaseSensitive = !!(provider.capabilities & FileSystemProviderCapabilities.PathCaseSensitive);
@@ -423,7 +403,7 @@ export class FileService2 extends Disposable implements IFileService {
 		if (source.scheme === target.scheme) {
 			const provider = this.throwIfFileSystemIsReadonly(await this.withProvider(source));
 
-			await this.doMoveCopy(provider, source, target, true /* mode: copy */, overwrite);
+			await this.doMoveCopy(provider, source, target, 'copy', overwrite);
 		}
 
 		// across providers
@@ -497,8 +477,17 @@ export class FileService2 extends Disposable implements IFileService {
 
 		const provider = this.throwIfFileSystemIsReadonly(await this.withProvider(resource));
 
+		// Validate recursive
+		const recursive = !!(options && options.recursive);
+		if (!recursive && await this.existsFile(resource)) {
+			const stat = await this.resolveFile(resource);
+			if (stat.isDirectory && Array.isArray(stat.children) && stat.children.length > 0) {
+				throw new Error(localize('deleteFailed', "Failed to delete non-empty folder '{0}'.", resource.toString()));
+			}
+		}
+
 		// Delete through provider
-		await provider.delete(resource, { recursive: !!(options && options.recursive) });
+		await provider.delete(resource, { recursive });
 
 		// Events
 		this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.DELETE));
