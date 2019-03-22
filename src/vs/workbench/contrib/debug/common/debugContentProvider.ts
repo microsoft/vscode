@@ -81,7 +81,7 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 
 		if (resource.query) {
 			const data = Source.getEncodedDebugData(resource);
-			session = this.debugService.getModel().getSessions().filter(p => p.getId() === data.sessionId).pop();
+			session = this.debugService.getModel().getSession(data.sessionId);
 		}
 
 		if (!session) {

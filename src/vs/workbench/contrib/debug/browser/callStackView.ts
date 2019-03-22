@@ -170,7 +170,7 @@ export class CallStackView extends ViewletPanel {
 				focusStackFrame(undefined, undefined, element);
 			}
 			if (element instanceof ThreadAndSessionIds) {
-				const session = this.debugService.getModel().getSessions().filter(p => p.getId() === element.sessionId).pop();
+				const session = this.debugService.getModel().getSession(element.sessionId);
 				const thread = session && session.getThread(element.threadId);
 				if (thread) {
 					(<Thread>thread).fetchCallStack()
