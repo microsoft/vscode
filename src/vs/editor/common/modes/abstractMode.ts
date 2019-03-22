@@ -7,7 +7,7 @@ import { IMode, LanguageIdentifier } from 'vs/editor/common/modes';
 
 export class FrankensteinMode implements IMode {
 
-	private _languageIdentifier: LanguageIdentifier;
+	private readonly _languageIdentifier: LanguageIdentifier;
 
 	constructor(languageIdentifier: LanguageIdentifier) {
 		this._languageIdentifier = languageIdentifier;

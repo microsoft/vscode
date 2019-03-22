@@ -63,7 +63,7 @@ const DefaultOptions = {
 	setRowLineHeight: true,
 	supportDynamicHeights: false,
 	dnd: {
-		getDragElements(e) { return [e]; },
+		getDragElements<T>(e: T) { return [e]; },
 		getDragURI() { return null; },
 		onDragStart(): void { },
 		onDragOver() { return false; },

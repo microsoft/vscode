@@ -123,6 +123,11 @@ export class MockDebugService implements IDebugService {
 }
 
 export class MockSession implements IDebugSession {
+
+	get parentSession(): IDebugSession | undefined {
+		return undefined;
+	}
+
 	getReplElements(): IReplElement[] {
 		return [];
 	}

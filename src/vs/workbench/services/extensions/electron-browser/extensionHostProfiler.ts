@@ -6,7 +6,9 @@
 import { Profile, ProfileNode } from 'v8-inspect-profiler';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { realpathSync } from 'vs/base/node/extfs';
-import { IExtensionDescription, IExtensionHostProfile, IExtensionService, ProfileSegmentId, ProfileSession } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionHostProfile, IExtensionService, ProfileSegmentId, ProfileSession } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 export class ExtensionHostProfiler {
 
@@ -87,7 +89,7 @@ export class ExtensionHostProfiler {
 					distilledIds.push(currSegmentId);
 					distilledDeltas.push(currSegmentTime);
 				}
-				currSegmentId = segmentId || undefined;
+				currSegmentId = withNullAsUndefined(segmentId);
 				currSegmentTime = 0;
 			}
 			currSegmentTime += timeDeltas[i];

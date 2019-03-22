@@ -5,8 +5,8 @@
 
 import { spawn, ChildProcess } from 'child_process';
 import { assign } from 'vs/base/common/objects';
-import { buildHelpMessage, buildVersionMessage, addArg } from 'vs/platform/environment/node/argv';
-import { parseCLIProcessArgv, createWaitMarkerFile } from 'vs/platform/environment/node/argvHelper';
+import { buildHelpMessage, buildVersionMessage, addArg, createWaitMarkerFile } from 'vs/platform/environment/node/argv';
+import { parseCLIProcessArgv } from 'vs/platform/environment/node/argvHelper';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import product from 'vs/platform/product/node/product';
 import pkg from 'vs/platform/product/node/package';
@@ -229,7 +229,7 @@ export async function main(argv: string[]): Promise<any> {
 		// is closed and then exit the waiting process.
 		let waitMarkerFilePath: string | undefined;
 		if (args.wait) {
-			waitMarkerFilePath = await createWaitMarkerFile(verbose);
+			waitMarkerFilePath = createWaitMarkerFile(verbose);
 			if (waitMarkerFilePath) {
 				addArg(argv, '--waitMarkerFilePath', waitMarkerFilePath);
 			}

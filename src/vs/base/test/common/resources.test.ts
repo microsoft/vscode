@@ -296,6 +296,9 @@ suite('Resources', () => {
 
 			assertResolve(URI.file('\\\\server\\share\\some\\'), 'b1\\file.js', URI.file('\\\\server\\share\\some\\b1\\file.js'));
 			assertResolve(URI.file('\\\\server\\share\\some\\'), '\\file.js', URI.file('\\\\server\\share\\file.js'));
+
+			assertResolve(URI.file('c:\\'), '\\\\server\\share\\some\\', URI.file('\\\\server\\share\\some'));
+			assertResolve(URI.file('\\\\server\\share\\some\\'), 'c:\\', URI.file('c:\\'));
 		} else {
 			assertResolve(URI.file('/foo/bar'), 'file.js', URI.file('/foo/bar/file.js'));
 			assertResolve(URI.file('/foo/bar'), './file.js', URI.file('/foo/bar/file.js'));

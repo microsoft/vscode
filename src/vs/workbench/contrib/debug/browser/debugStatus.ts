@@ -89,11 +89,11 @@ export class DebugStatus extends Themable implements IStatusbarItem {
 	private setLabel(): void {
 		if (this.label && this.statusBarItem) {
 			const manager = this.debugService.getConfigurationManager();
-			const name = manager.selectedConfiguration.name;
+			const name = manager.selectedConfiguration.name || '';
 			const nameAndLaunchPresent = name && manager.selectedConfiguration.launch;
 			dom.toggleClass(this.statusBarItem, 'hidden', this.showInStatusBar === 'never' || !nameAndLaunchPresent);
 			if (nameAndLaunchPresent) {
-				this.label.textContent = manager.getLaunches().length > 1 ? `${name} (${manager.selectedConfiguration.launch.name})` : name;
+				this.label.textContent = manager.getLaunches().length > 1 ? `${name} (${manager.selectedConfiguration.launch!.name})` : name;
 			}
 		}
 	}

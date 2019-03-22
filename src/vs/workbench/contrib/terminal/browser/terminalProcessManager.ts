@@ -22,9 +22,15 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IProductService } from 'vs/platform/product/common/product';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
+
+/**
+ * The minimum amount of time between latency requests.
+ */
+const LATENCY_MEASURING_INTERVAL = 1000;
 
 /**
  * Holds all state related to the creation and management of terminal processes.
@@ -38,10 +44,16 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	public processState: ProcessState = ProcessState.UNINITIALIZED;
 	public ptyProcessReady: Promise<void>;
 	public shellProcessId: number;
+	public remoteAuthority: string | undefined;
+	public os: platform.OperatingSystem | undefined;
+	public userHome: string | undefined;
 
 	private _process: ITerminalChildProcess | null = null;
 	private _preLaunchInputQueue: string[] = [];
 	private _disposables: IDisposable[] = [];
+	private _latency: number = -1;
+	private _latencyRequest: Promise<number>;
+	private _latencyLastMeasured: number = 0;
 
 	private readonly _onProcessReady = new Emitter<void>();
 	public get onProcessReady(): Event<void> { return this._onProcessReady.event; }
@@ -64,7 +76,8 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		@IConfigurationService private readonly _workspaceConfigurationService: IConfigurationService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IProductService private readonly _productService: IProductService,
-		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService
+		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
+		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService
 	) {
 		this.ptyProcessReady = new Promise<void>(c => {
 			this.onProcessReady(() => {
@@ -72,6 +85,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 				c(undefined);
 			});
 		});
+		this.ptyProcessReady.then(async () => await this.getLatency());
 	}
 
 	public dispose(immediate: boolean = false): void {
@@ -96,17 +110,29 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		cols: number,
 		rows: number
 	): void {
-		let launchRemotely = false;
 		const forceExtHostProcess = (this._configHelper.config as any).extHostProcess;
-
 		if (shellLaunchConfig.cwd && typeof shellLaunchConfig.cwd === 'object') {
-			launchRemotely = !!getRemoteAuthority(shellLaunchConfig.cwd);
+			this.remoteAuthority = getRemoteAuthority(shellLaunchConfig.cwd);
 		} else {
-			launchRemotely = !!this._windowService.getConfiguration().remoteAuthority;
+			this.remoteAuthority = this._windowService.getConfiguration().remoteAuthority;
 		}
+		const hasRemoteAuthority = !!this.remoteAuthority;
+		let launchRemotely = hasRemoteAuthority || forceExtHostProcess;
 
-		if (launchRemotely || forceExtHostProcess) {
-			const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(forceExtHostProcess ? undefined : REMOTE_HOST_SCHEME);
+		this.userHome = this._environmentService.userHome;
+		this.os = platform.OS;
+		if (launchRemotely) {
+			if (hasRemoteAuthority) {
+				this._remoteAgentService.getEnvironment().then(env => {
+					if (!env) {
+						return;
+					}
+					this.userHome = env.userHome.path;
+					this.os = env.os;
+				});
+			}
+
+			const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(hasRemoteAuthority ? REMOTE_HOST_SCHEME : undefined);
 			this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows);
 		} else {
 			if (!shellLaunchConfig.executable) {
@@ -221,6 +247,19 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 			return Promise.resolve('');
 		}
 		return this._process.getCwd();
+	}
+
+	public async getLatency(): Promise<number> {
+		await this.ptyProcessReady;
+		if (!this._process) {
+			return Promise.resolve(0);
+		}
+		if (this._latencyLastMeasured === 0 || this._latencyLastMeasured + LATENCY_MEASURING_INTERVAL < Date.now()) {
+			this._latencyRequest = this._process.getLatency();
+			this._latency = await this._latencyRequest;
+			this._latencyLastMeasured = Date.now();
+		}
+		return Promise.resolve(this._latency);
 	}
 
 	private _onExit(exitCode: number): void {

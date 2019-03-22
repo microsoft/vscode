@@ -410,6 +410,10 @@ export class BulkEditService implements IBulkEditService {
 			}
 		}
 
+		if (codeEditor && codeEditor.getConfiguration().readOnly) {
+			// If the code editor is readonly still allow bulk edits to be applied #68549
+			codeEditor = undefined;
+		}
 		const bulkEdit = new BulkEdit(codeEditor, options.progress, this._logService, this._textModelService, this._fileService, this._textFileService, this._labelService, this._configurationService);
 		bulkEdit.add(edits);
 

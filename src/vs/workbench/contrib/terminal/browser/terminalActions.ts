@@ -10,7 +10,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { ITerminalService, TERMINAL_PANEL_ID, ITerminalInstance, Direction, ITerminalConfigHelper } from 'vs/workbench/contrib/terminal/common/terminal';
 import { SelectActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -34,6 +34,7 @@ import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { isWindows } from 'vs/base/common/platform';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 export const TERMINAL_PICKER_PREFIX = 'term ';
 
@@ -74,10 +75,10 @@ export class ToggleTerminalAction extends TogglePanelAction {
 	constructor(
 		id: string, label: string,
 		@IPanelService panelService: IPanelService,
-		@IPartService partService: IPartService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@ITerminalService private readonly terminalService: ITerminalService
 	) {
-		super(id, label, TERMINAL_PANEL_ID, panelService, partService);
+		super(id, label, TERMINAL_PANEL_ID, panelService, layoutService);
 	}
 
 	public run(event?: any): Promise<any> {
@@ -291,7 +292,7 @@ export class SendSequenceTerminalCommand extends Command {
 		const workspaceContextService = accessor.get(IWorkspaceContextService);
 		const historyService = accessor.get(IHistoryService);
 		const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(Schemas.file);
-		const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) || undefined : undefined;
+		const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
 		const resolvedText = configurationResolverService.resolve(lastActiveWorkspaceRoot, args.text);
 		terminalInstance.sendText(resolvedText, false);
 	}

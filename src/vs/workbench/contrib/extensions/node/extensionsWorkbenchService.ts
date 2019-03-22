@@ -35,7 +35,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IExtensionManifest, ExtensionType, ExtensionIdentifierWithVersion, IExtension as IPlatformExtension } from 'vs/platform/extensions/common/extensions';
-import { isUIExtension } from 'vs/platform/extensions/node/extensionsUtil';
+import { isUIExtension } from 'vs/workbench/services/extensions/node/extensionsUtil';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -442,12 +442,16 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 			});
 	}
 
-	queryGallery(options: IQueryOptions = {}): Promise<IPager<IExtension>> {
+	queryGallery(token: CancellationToken): Promise<IPager<IExtension>>;
+	queryGallery(options: IQueryOptions, token: CancellationToken): Promise<IPager<IExtension>>;
+	queryGallery(arg1: any, arg2?: any): Promise<IPager<IExtension>> {
+		const options: IQueryOptions = CancellationToken.isCancellationToken(arg1) ? {} : arg1;
+		const token: CancellationToken = CancellationToken.isCancellationToken(arg1) ? arg1 : arg2;
 		return this.extensionService.getExtensionsReport()
 			.then(report => {
 				const maliciousSet = getMaliciousExtensionsSet(report);
 
-				return this.galleryService.query(options)
+				return this.galleryService.query(options, token)
 					.then(result => mapPager(result, gallery => this.fromGallery(gallery, maliciousSet)))
 					.then(undefined, err => {
 						if (/No extension gallery service configured/.test(err.message)) {
@@ -589,10 +593,10 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 
 		const promises: Promise<IPager<IExtension>>[] = [];
 		if (ids.length) {
-			promises.push(this.queryGallery({ ids, pageSize: ids.length }));
+			promises.push(this.queryGallery({ ids, pageSize: ids.length }, CancellationToken.None));
 		}
 		if (names.length) {
-			promises.push(this.queryGallery({ names, pageSize: names.length }));
+			promises.push(this.queryGallery({ names, pageSize: names.length }, CancellationToken.None));
 		}
 
 		return Promise.all(promises).then(() => undefined);
@@ -994,7 +998,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 					.then(() => this.open(extension));
 			}
 
-			return this.queryGallery({ names: [extensionId], source: 'uri' }).then(result => {
+			return this.queryGallery({ names: [extensionId], source: 'uri' }, CancellationToken.None).then(result => {
 				if (result.total < 1) {
 					return Promise.resolve(null);
 				}

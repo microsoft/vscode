@@ -21,6 +21,7 @@ import { Choice, Placeholder, SnippetParser, Text, TextmateSnippet } from './sni
 import { ClipboardBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, SelectionBasedVariableResolver, TimeBasedVariableResolver, CommentBasedVariableResolver, WorkspaceBasedVariableResolver } from './snippetVariables';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import * as colors from 'vs/platform/theme/common/colorRegistry';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 registerThemingParticipant((theme, collector) => {
 
@@ -197,10 +198,6 @@ export class OneSnippet {
 			let ranges: Range[] | undefined;
 
 			for (const placeholder of placeholdersWithEqualIndex) {
-				if (placeholder.isFinalTabstop) {
-					// ignore those
-					break;
-				}
 
 				if (!ranges) {
 					ranges = [];
@@ -285,7 +282,7 @@ export class OneSnippet {
 		let result: Range | undefined;
 		const model = this._editor.getModel();
 		this._placeholderDecorations.forEach((decorationId) => {
-			const placeholderRange = model.getDecorationRange(decorationId) || undefined;
+			const placeholderRange = withNullAsUndefined(model.getDecorationRange(decorationId));
 			if (!result) {
 				result = placeholderRange;
 			} else {
@@ -571,6 +568,12 @@ export class SnippetSession {
 			if (allPossibleSelections.size === 0) {
 				// return false if we couldn't associate a selection to
 				// this (the first) snippet
+				return false;
+			}
+
+			if (allPossibleSelections.has(0)) {
+				// selection overlaps with a final tab stop which means
+				// we done
 				return false;
 			}
 

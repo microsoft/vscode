@@ -35,6 +35,7 @@ export default class API {
 	public static readonly v320 = API.fromSimpleString('3.2.0');
 	public static readonly v330 = API.fromSimpleString('3.3.0');
 	public static readonly v333 = API.fromSimpleString('3.3.3');
+	public static readonly v340 = API.fromSimpleString('3.4.0');
 
 
 	public static fromVersionString(versionString: string): API {

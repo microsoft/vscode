@@ -241,6 +241,11 @@
         "category": "Git"
       },
       {
+        "command": "git.branchFrom",
+        "title": "%command.branchFrom%",
+        "category": "Git"
+      },
+      {
         "command": "git.deleteBranch",
         "title": "%command.deleteBranch%",
         "category": "Git"
@@ -318,6 +323,16 @@
       {
         "command": "git.pushWithTagsForce",
         "title": "%command.pushWithTagsForce%",
+        "category": "Git"
+      },
+      {
+        "command": "git.addRemote",
+        "title": "%command.addRemote%",
+        "category": "Git"
+      },
+      {
+        "command": "git.removeRemote",
+        "title": "%command.removeRemote%",
         "category": "Git"
       },
       {
@@ -503,6 +518,10 @@
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
+          "command": "git.branchFrom",
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
           "command": "git.deleteBranch",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
@@ -569,6 +588,14 @@
         {
           "command": "git.pushWithTagsForce",
           "when": "config.git.enabled && config.git.allowForcePush && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.addRemote",
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.removeRemote",
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.sync",

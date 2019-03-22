@@ -138,7 +138,7 @@ export class NewFileAction extends BaseErrorReportingAction {
 		}
 
 		const stat = new ExplorerItem(PLACEHOLDER_URI, folder, false);
-		return folder.fetchChildren(this.fileService).then(() => {
+		return folder.fetchChildren(this.fileService, this.explorerService).then(() => {
 			folder.addChild(stat);
 
 			const onSuccess = (value: string) => {
@@ -206,7 +206,7 @@ export class NewFolderAction extends BaseErrorReportingAction {
 		}
 
 		const stat = new ExplorerItem(PLACEHOLDER_URI, folder, true);
-		return folder.fetchChildren(this.fileService).then(() => {
+		return folder.fetchChildren(this.fileService, this.explorerService).then(() => {
 			folder.addChild(stat);
 
 			const onSuccess = (value: string) => {
@@ -513,7 +513,8 @@ class PasteFileAction extends BaseErrorReportingAction {
 					this.explorerService.setToCopy([], false);
 				}
 				if (!stat.isDirectory) {
-					return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true, preserveFocus: true } });
+					return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true, preserveFocus: true } })
+						.then(types.withNullAsUndefined);
 				}
 
 				return undefined;
@@ -641,7 +642,7 @@ export class GlobalCompareResourcesAction extends Action {
 						override: this.editorService.openEditor({
 							leftResource: activeResource,
 							rightResource: resource
-						}).then(() => undefined)
+						}).then(() => null)
 					};
 				}
 
@@ -1065,7 +1066,7 @@ function getContext(listWidget: ListWidget): IExplorerContext {
 // TODO@isidor these commands are calling into actions due to the complex inheritance action structure.
 // It should be the other way around, that actions call into commands.
 function openExplorerAndRunAction(accessor: ServicesAccessor, constructor: IConstructorSignature1<() => ExplorerItem, Action>): Promise<any> {
-	const instantationService = accessor.get(IInstantiationService);
+	const instantiationService = accessor.get(IInstantiationService);
 	const listService = accessor.get(IListService);
 	const viewletService = accessor.get(IViewletService);
 	const activeViewlet = viewletService.getActiveViewlet();
@@ -1076,10 +1077,10 @@ function openExplorerAndRunAction(accessor: ServicesAccessor, constructor: ICons
 
 	return explorerPromise.then((explorer: ExplorerViewlet) => {
 		const explorerView = explorer.getExplorerView();
-		if (explorerView && explorerView.isBodyVisible()) {
+		if (explorerView && explorerView.isBodyVisible() && listService.lastFocusedList) {
 			explorerView.focus();
 			const { stat } = getContext(listService.lastFocusedList);
-			const action = instantationService.createInstance(constructor, () => stat);
+			const action = instantiationService.createInstance(constructor, () => stat);
 
 			return action.run();
 		}
@@ -1106,13 +1107,20 @@ export const renameHandler = (accessor: ServicesAccessor) => {
 	const listService = accessor.get(IListService);
 	const explorerService = accessor.get(IExplorerService);
 	const textFileService = accessor.get(ITextFileService);
+	if (!listService.lastFocusedList) {
+		return;
+	}
+
 	const { stat } = getContext(listService.lastFocusedList);
+	if (!stat) {
+		return;
+	}
 
 	explorerService.setEditable(stat, {
 		validationMessage: value => validateFileName(stat, value),
 		onFinish: (value, success) => {
 			if (success) {
-				const parentResource = stat.parent.resource;
+				const parentResource = stat.parent!.resource;
 				const targetResource = resources.joinPath(parentResource, value);
 				textFileService.move(stat.resource, targetResource).then(() => refreshIfSeparator(value, explorerService), onUnexpectedError);
 			}
@@ -1122,51 +1130,70 @@ export const renameHandler = (accessor: ServicesAccessor) => {
 };
 
 export const moveFileToTrashHandler = (accessor: ServicesAccessor) => {
-	const instantationService = accessor.get(IInstantiationService);
+	const instantiationService = accessor.get(IInstantiationService);
 	const listService = accessor.get(IListService);
+	if (!listService.lastFocusedList) {
+		return Promise.resolve();
+	}
 	const explorerContext = getContext(listService.lastFocusedList);
 	const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
 
-	const moveFileToTrashAction = instantationService.createInstance(BaseDeleteFileAction, stats, true);
+	const moveFileToTrashAction = instantiationService.createInstance(BaseDeleteFileAction, stats, true);
 	return moveFileToTrashAction.run();
 };
 
 export const deleteFileHandler = (accessor: ServicesAccessor) => {
-	const instantationService = accessor.get(IInstantiationService);
+	const instantiationService = accessor.get(IInstantiationService);
 	const listService = accessor.get(IListService);
+	if (!listService.lastFocusedList) {
+		return Promise.resolve();
+	}
 	const explorerContext = getContext(listService.lastFocusedList);
 	const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
 
-	const deleteFileAction = instantationService.createInstance(BaseDeleteFileAction, stats, false);
+	const deleteFileAction = instantiationService.createInstance(BaseDeleteFileAction, stats, false);
 	return deleteFileAction.run();
 };
 
 export const copyFileHandler = (accessor: ServicesAccessor) => {
 	const listService = accessor.get(IListService);
+	if (!listService.lastFocusedList) {
+		return;
+	}
 	const explorerContext = getContext(listService.lastFocusedList);
 	const explorerService = accessor.get(IExplorerService);
-	const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
-	explorerService.setToCopy(stats, false);
-	pasteShouldMove = false;
+	if (explorerContext.stat) {
+		const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
+		explorerService.setToCopy(stats, false);
+		pasteShouldMove = false;
+	}
 };
 
 export const cutFileHandler = (accessor: ServicesAccessor) => {
 	const listService = accessor.get(IListService);
+	if (!listService.lastFocusedList) {
+		return;
+	}
 	const explorerContext = getContext(listService.lastFocusedList);
 	const explorerService = accessor.get(IExplorerService);
-	const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
-	explorerService.setToCopy(stats, true);
-	pasteShouldMove = true;
+	if (explorerContext.stat) {
+		const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
+		explorerService.setToCopy(stats, true);
+		pasteShouldMove = true;
+	}
 };
 
 export const pasteFileHandler = (accessor: ServicesAccessor) => {
-	const instantationService = accessor.get(IInstantiationService);
+	const instantiationService = accessor.get(IInstantiationService);
 	const listService = accessor.get(IListService);
 	const clipboardService = accessor.get(IClipboardService);
+	if (!listService.lastFocusedList) {
+		return Promise.resolve();
+	}
 	const explorerContext = getContext(listService.lastFocusedList);
 
 	return sequence(resources.distinctParents(clipboardService.readResources(), r => r).map(toCopy => {
-		const pasteFileAction = instantationService.createInstance(PasteFileAction, explorerContext.stat);
+		const pasteFileAction = instantiationService.createInstance(PasteFileAction, explorerContext.stat);
 		return () => pasteFileAction.run(toCopy);
 	}));
 };

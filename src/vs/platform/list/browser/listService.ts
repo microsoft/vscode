@@ -30,6 +30,7 @@ import { ITreeEvent, ITreeRenderer, IAsyncDataSource, IDataSource, ITreeMouseEve
 import { AsyncDataTree, IAsyncDataTreeOptions } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { DataTree, IDataTreeOptions } from 'vs/base/browser/ui/tree/dataTree';
 import { IKeyboardNavigationEventFilter } from 'vs/base/browser/ui/tree/abstractTree';
+import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 
 export type ListWidget = List<any> | PagedList<any> | ITree | ObjectTree<any, any> | DataTree<any, any, any> | AsyncDataTree<any, any, any>;
 
@@ -785,7 +786,8 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IAccessibilityService accessibilityService: IAccessibilityService
 	) {
 		WorkbenchListSupportsKeyboardNavigation.bindTo(contextKeyService);
 
@@ -805,7 +807,8 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 			return automaticKeyboardNavigation;
 		};
 
-		const keyboardNavigation = configurationService.getValue<string>(keyboardNavigationSettingKey);
+		const accessibilityOn = accessibilityService.getAccessibilitySupport() === AccessibilitySupport.Enabled;
+		const keyboardNavigation = accessibilityOn ? 'simple' : configurationService.getValue<string>(keyboardNavigationSettingKey);
 		const horizontalScrolling = typeof options.horizontalScrolling !== 'undefined' ? options.horizontalScrolling : getHorizontalScrollingSetting(configurationService);
 		const openOnSingleClick = useSingleClickToOpen(configurationService);
 		const [workbenchListOptions, workbenchListOptionsDisposable] = toWorkbenchListOptions(options, configurationService, keybindingService);
@@ -839,6 +842,14 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 
 		const interestingContextKeys = new Set();
 		interestingContextKeys.add(WorkbenchListAutomaticKeyboardNavigationKey);
+		const updateKeyboardNavigation = () => {
+			const accessibilityOn = accessibilityService.getAccessibilitySupport() === AccessibilitySupport.Enabled;
+			const keyboardNavigation = accessibilityOn ? 'simple' : configurationService.getValue<string>(keyboardNavigationSettingKey);
+			this.updateOptions({
+				simpleKeyboardNavigation: keyboardNavigation === 'simple',
+				filterOnType: keyboardNavigation === 'filter'
+			});
+		};
 
 		this.disposables.push(
 			this.contextKeyService,
@@ -870,11 +881,7 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 					this.updateOptions({ indent });
 				}
 				if (e.affectsConfiguration(keyboardNavigationSettingKey)) {
-					const keyboardNavigation = configurationService.getValue<string>(keyboardNavigationSettingKey);
-					this.updateOptions({
-						simpleKeyboardNavigation: keyboardNavigation === 'simple',
-						filterOnType: keyboardNavigation === 'filter'
-					});
+					updateKeyboardNavigation();
 				}
 				if (e.affectsConfiguration(automaticKeyboardNavigationSettingKey)) {
 					this.updateOptions({ automaticKeyboardNavigation: getAutomaticKeyboardNavigation() });
@@ -884,7 +891,8 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 				if (e.affectsSome(interestingContextKeys)) {
 					this.updateOptions({ automaticKeyboardNavigation: getAutomaticKeyboardNavigation() });
 				}
-			})
+			}),
+			accessibilityService.onDidChangeAccessibilitySupport(() => updateKeyboardNavigation())
 		);
 	}
 
@@ -918,7 +926,8 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IAccessibilityService accessibilityService: IAccessibilityService
 	) {
 		WorkbenchListSupportsKeyboardNavigation.bindTo(contextKeyService);
 
@@ -938,7 +947,8 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 			return automaticKeyboardNavigation;
 		};
 
-		const keyboardNavigation = configurationService.getValue<string>(keyboardNavigationSettingKey);
+		const accessibilityOn = accessibilityService.getAccessibilitySupport() === AccessibilitySupport.Enabled;
+		const keyboardNavigation = accessibilityOn ? 'simple' : configurationService.getValue<string>(keyboardNavigationSettingKey);
 		const horizontalScrolling = typeof options.horizontalScrolling !== 'undefined' ? options.horizontalScrolling : getHorizontalScrollingSetting(configurationService);
 		const openOnSingleClick = useSingleClickToOpen(configurationService);
 		const [workbenchListOptions, workbenchListOptionsDisposable] = toWorkbenchListOptions(options, configurationService, keybindingService);
@@ -972,6 +982,14 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 
 		const interestingContextKeys = new Set();
 		interestingContextKeys.add(WorkbenchListAutomaticKeyboardNavigationKey);
+		const updateKeyboardNavigation = () => {
+			const accessibilityOn = accessibilityService.getAccessibilitySupport() === AccessibilitySupport.Enabled;
+			const keyboardNavigation = accessibilityOn ? 'simple' : configurationService.getValue<string>(keyboardNavigationSettingKey);
+			this.updateOptions({
+				simpleKeyboardNavigation: keyboardNavigation === 'simple',
+				filterOnType: keyboardNavigation === 'filter'
+			});
+		};
 
 		this.disposables.push(
 			this.contextKeyService,
@@ -1003,11 +1021,7 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 					this.updateOptions({ indent });
 				}
 				if (e.affectsConfiguration(keyboardNavigationSettingKey)) {
-					const keyboardNavigation = configurationService.getValue<string>(keyboardNavigationSettingKey);
-					this.updateOptions({
-						simpleKeyboardNavigation: keyboardNavigation === 'simple',
-						filterOnType: keyboardNavigation === 'filter'
-					});
+					updateKeyboardNavigation();
 				}
 				if (e.affectsConfiguration(automaticKeyboardNavigationSettingKey)) {
 					this.updateOptions({ automaticKeyboardNavigation: getAutomaticKeyboardNavigation() });
@@ -1017,7 +1031,8 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 				if (e.affectsSome(interestingContextKeys)) {
 					this.updateOptions({ automaticKeyboardNavigation: getAutomaticKeyboardNavigation() });
 				}
-			})
+			}),
+			accessibilityService.onDidChangeAccessibilitySupport(() => updateKeyboardNavigation())
 		);
 	}
 
@@ -1046,7 +1061,8 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IAccessibilityService accessibilityService: IAccessibilityService
 	) {
 		WorkbenchListSupportsKeyboardNavigation.bindTo(contextKeyService);
 
@@ -1066,7 +1082,8 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 			return automaticKeyboardNavigation;
 		};
 
-		const keyboardNavigation = configurationService.getValue<string>(keyboardNavigationSettingKey);
+		const accessibilityOn = accessibilityService.getAccessibilitySupport() === AccessibilitySupport.Enabled;
+		const keyboardNavigation = accessibilityOn ? 'simple' : configurationService.getValue<string>(keyboardNavigationSettingKey);
 		const horizontalScrolling = typeof options.horizontalScrolling !== 'undefined' ? options.horizontalScrolling : getHorizontalScrollingSetting(configurationService);
 		const openOnSingleClick = useSingleClickToOpen(configurationService);
 		const [workbenchListOptions, workbenchListOptionsDisposable] = toWorkbenchListOptions(options, configurationService, keybindingService);
@@ -1100,6 +1117,14 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 
 		const interestingContextKeys = new Set();
 		interestingContextKeys.add(WorkbenchListAutomaticKeyboardNavigationKey);
+		const updateKeyboardNavigation = () => {
+			const accessibilityOn = accessibilityService.getAccessibilitySupport() === AccessibilitySupport.Enabled;
+			const keyboardNavigation = accessibilityOn ? 'simple' : configurationService.getValue<string>(keyboardNavigationSettingKey);
+			this.updateOptions({
+				simpleKeyboardNavigation: keyboardNavigation === 'simple',
+				filterOnType: keyboardNavigation === 'filter'
+			});
+		};
 
 		this.disposables.push(
 			this.contextKeyService,
@@ -1131,11 +1156,7 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 					this.updateOptions({ indent });
 				}
 				if (e.affectsConfiguration(keyboardNavigationSettingKey)) {
-					const keyboardNavigation = configurationService.getValue<string>(keyboardNavigationSettingKey);
-					this.updateOptions({
-						simpleKeyboardNavigation: keyboardNavigation === 'simple',
-						filterOnType: keyboardNavigation === 'filter'
-					});
+					updateKeyboardNavigation();
 				}
 				if (e.affectsConfiguration(automaticKeyboardNavigationSettingKey)) {
 					this.updateOptions({ automaticKeyboardNavigation: getAutomaticKeyboardNavigation() });
@@ -1145,7 +1166,8 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 				if (e.affectsSome(interestingContextKeys)) {
 					this.updateOptions({ automaticKeyboardNavigation: getAutomaticKeyboardNavigation() });
 				}
-			})
+			}),
+			accessibilityService.onDidChangeAccessibilitySupport(() => updateKeyboardNavigation())
 		);
 	}
 

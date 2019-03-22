@@ -104,8 +104,8 @@ import { LogStorageAction } from 'vs/platform/storage/node/storageService';
 				windowsService.quit();
 			},
 			when: undefined,
-			primary: KeyMod.CtrlCmd | KeyCode.KEY_Q,
-			win: { primary: undefined }
+			mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_Q },
+			linux: { primary: KeyMod.CtrlCmd | KeyCode.KEY_Q }
 		});
 	})();
 

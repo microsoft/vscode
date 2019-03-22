@@ -126,7 +126,7 @@ suite('Files - FileEditorInput', () => {
 		const input = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/foo/bar/updatefile.js'), undefined);
 
 		return input.resolve().then((resolved: TextFileEditorModel) => {
-			resolved.textEditorModel.setValue('changed');
+			resolved.textEditorModel!.setValue('changed');
 			assert.ok(input.isDirty());
 
 			return input.save().then(() => {
@@ -141,7 +141,7 @@ suite('Files - FileEditorInput', () => {
 		const input = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/foo/bar/updatefile.js'), undefined);
 
 		return input.resolve().then((resolved: TextFileEditorModel) => {
-			resolved.textEditorModel.setValue('changed');
+			resolved.textEditorModel!.setValue('changed');
 			assert.ok(input.isDirty());
 
 			return input.revert().then(() => {

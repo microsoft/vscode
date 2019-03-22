@@ -17,8 +17,7 @@ import { isMacintosh, isLinux } from 'vs/base/common/platform';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IRecentlyOpened } from 'vs/platform/history/common/history';
-import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IRecentlyOpened, isRecentFolder, IRecent, isRecentWorkspace } from 'vs/platform/history/common/history';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { MENUBAR_SELECTION_FOREGROUND, MENUBAR_SELECTION_BACKGROUND, MENUBAR_SELECTION_BORDER, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 import { URI } from 'vs/base/common/uri';
@@ -34,6 +33,7 @@ import { attachMenuStyler } from 'vs/platform/theme/common/styler';
 import { assign } from 'vs/base/common/objects';
 import { mnemonicMenuLabel, unmnemonicLabel } from 'vs/base/common/labels';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 export class MenubarControl extends Disposable {
 
@@ -120,6 +120,9 @@ export class MenubarControl extends Disposable {
 
 		this.menuUpdater = this._register(new RunOnceScheduler(() => this.doUpdateMenubar(false), 200));
 
+		this._onVisibilityChange = this._register(new Emitter<boolean>());
+		this._onFocusStateChange = this._register(new Emitter<boolean>());
+
 		if (isMacintosh || this.currentTitlebarStyleSetting !== 'custom') {
 			for (const topLevelMenuName of Object.keys(this.topLevelMenus)) {
 				const menu = this.topLevelMenus[topLevelMenuName];
@@ -127,15 +130,14 @@ export class MenubarControl extends Disposable {
 					this._register(menu.onDidChange(() => this.updateMenubar()));
 				}
 			}
-
-			this.doUpdateMenubar(true);
 		}
-
-		this._onVisibilityChange = this._register(new Emitter<boolean>());
-		this._onFocusStateChange = this._register(new Emitter<boolean>());
 
 		this.windowService.getRecentlyOpened().then((recentlyOpened) => {
 			this.recentlyOpened = recentlyOpened;
+
+			if (isMacintosh || this.currentTitlebarStyleSetting !== 'custom') {
+				this.doUpdateMenubar(true);
+			}
 		});
 
 		this.notifyExistingLinuxUser();
@@ -348,33 +350,31 @@ export class MenubarControl extends Disposable {
 		return label;
 	}
 
-	private createOpenRecentMenuAction(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI, isFile: boolean): IAction & { uri: URI } {
+	private createOpenRecentMenuAction(recent: IRecent, isFile: boolean): IAction & { uri: URI } {
 
 		let label: string;
 		let uri: URI;
 		let commandId: string;
 		let typeHint: URIType | undefined;
 
-		if (isSingleFolderWorkspaceIdentifier(workspace) && !isFile) {
-			label = this.labelService.getWorkspaceLabel(workspace, { verbose: true });
-			uri = workspace;
+		if (isRecentFolder(recent)) {
+			uri = recent.folderUri;
+			label = recent.label || this.labelService.getWorkspaceLabel(uri, { verbose: true });
 			commandId = 'openRecentFolder';
 			typeHint = 'folder';
-		} else if (isWorkspaceIdentifier(workspace)) {
-			label = this.labelService.getWorkspaceLabel(workspace, { verbose: true });
-			uri = workspace.configPath;
+		} else if (isRecentWorkspace(recent)) {
+			uri = recent.workspace.configPath;
+			label = recent.label || this.labelService.getWorkspaceLabel(recent.workspace, { verbose: true });
 			commandId = 'openRecentWorkspace';
 			typeHint = 'file';
 		} else {
-			uri = workspace;
-			label = this.labelService.getUriLabel(uri);
+			uri = recent.fileUri;
+			label = recent.label || this.labelService.getUriLabel(uri);
 			commandId = 'openRecentFile';
 			typeHint = 'file';
 		}
 
-		label = unmnemonicLabel(label);
-
-		const ret: IAction = new Action(commandId, label, undefined, undefined, (event) => {
+		const ret: IAction = new Action(commandId, unmnemonicLabel(label), undefined, undefined, (event) => {
 			const openInNewWindow = event && ((!isMacintosh && (event.ctrlKey || event.shiftKey)) || (isMacintosh && (event.metaKey || event.altKey)));
 
 			return this.windowService.openWindow([{ uri, typeHint }], {
@@ -540,13 +540,13 @@ export class MenubarControl extends Disposable {
 			const menu = this.topLevelMenus[title];
 			if (firstTime && menu) {
 				this._register(menu.onDidChange(() => {
-					const actions = [];
+					const actions: IAction[] = [];
 					updateActions(menu, actions);
 					this.menubar.updateMenu({ actions: actions, label: mnemonicMenuLabel(this.topLevelTitles[title]) });
 				}));
 			}
 
-			const actions = [];
+			const actions: IAction[] = [];
 			if (menu) {
 				updateActions(menu, actions);
 			}
@@ -568,13 +568,13 @@ export class MenubarControl extends Disposable {
 		// first try to resolve a native accelerator
 		const electronAccelerator = binding.getElectronAccelerator();
 		if (electronAccelerator) {
-			return { label: electronAccelerator, userSettingsLabel: binding.getUserSettingsLabel() || undefined };
+			return { label: electronAccelerator, userSettingsLabel: withNullAsUndefined(binding.getUserSettingsLabel()) };
 		}
 
 		// we need this fallback to support keybindings that cannot show in electron menus (e.g. chords)
 		const acceleratorLabel = binding.getLabel();
 		if (acceleratorLabel) {
-			return { label: acceleratorLabel, isNative: false, userSettingsLabel: binding.getUserSettingsLabel() || undefined };
+			return { label: acceleratorLabel, isNative: false, userSettingsLabel: withNullAsUndefined(binding.getUserSettingsLabel()) };
 		}
 
 		return undefined;

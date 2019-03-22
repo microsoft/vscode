@@ -8,7 +8,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import * as vscode from 'vscode';
 import * as typeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import * as types from 'vs/workbench/api/node/extHostTypes';
-import { IRawColorInfo, WorkspaceEditDto } from 'vs/workbench/api/node/extHost.protocol';
+import { IRawColorInfo, WorkspaceEditDto } from 'vs/workbench/api/common/extHost.protocol';
 import { ISingleEditOperation } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import * as search from 'vs/workbench/contrib/search/common/search';
@@ -200,7 +200,7 @@ export class ExtHostApiCommands {
 			description: 'Execute selection range provider.',
 			args: [
 				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
-				{ name: 'positions', description: 'Positions in a text document', constraint: a => Array.isArray(a) }
+				{ name: 'positions', description: 'Positions in a text document', constraint: Array.isArray }
 			],
 			returns: 'A promise that resolves to an array of ranges.'
 		});
@@ -223,7 +223,7 @@ export class ExtHostApiCommands {
 			description: 'Open a folder or workspace in the current window or new window depending on the newWindow argument. Note that opening in the same window will shutdown the current extension host process and start a new one on the given folder/workspace unless the newWindow parameter is set to true.',
 			args: [
 				{ name: 'uri', description: '(optional) Uri of the folder or workspace file to open. If not provided, a native dialog will ask the user for the folder', constraint: (value: any) => value === undefined || value instanceof URI },
-				{ name: 'newWindow', description: '(optional) Whether to open the folder/workspace in a new window or the same. Defaults to opening in the same window.', constraint: (value: any) => value === undefined || typeof value === 'boolean' }
+				{ name: 'options', description: '(optional) Options. Object with the following properties: `forceNewWindow `: Whether to open the folder/workspace in a new window or the same. Defaults to opening in the same window. `noRecentEntry`: Wheter the opened URI will appear in the \'Open Recent\' list. Defaults to true. Note, for backward compatibility, options can also be of type boolean, representing the `forceNewWindow` setting.', constraint: (value: any) => value === undefined || typeof value === 'object' || typeof value === 'boolean' }
 			]
 		});
 
@@ -263,7 +263,7 @@ export class ExtHostApiCommands {
 	// --- command impl
 
 	private _register(id: string, handler: (...args: any[]) => any, description?: ICommandHandlerDescription): void {
-		let disposable = this._commands.registerCommand(false, id, handler, this, description);
+		const disposable = this._commands.registerCommand(false, id, handler, this, description);
 		this._disposables.push(disposable);
 	}
 
@@ -408,7 +408,7 @@ export class ExtHostApiCommands {
 	}
 
 	private _executeSelectionRangeProvider(resource: URI, positions: types.Position[]): Promise<vscode.SelectionRange[][]> {
-		let pos = positions.map(typeConverters.Position.from);
+		const pos = positions.map(typeConverters.Position.from);
 		const args = {
 			resource,
 			position: pos[0],
@@ -437,22 +437,22 @@ export class ExtHostApiCommands {
 		const args = {
 			resource
 		};
-		return this._commands.executeCommand<modes.DocumentSymbol[]>('_executeDocumentSymbolProvider', args).then(value => {
+		return this._commands.executeCommand<modes.DocumentSymbol[]>('_executeDocumentSymbolProvider', args).then((value): vscode.SymbolInformation[] | undefined => {
 			if (isFalsyOrEmpty(value)) {
 				return undefined;
 			}
 			class MergedInfo extends types.SymbolInformation implements vscode.DocumentSymbol {
 				static to(symbol: modes.DocumentSymbol): MergedInfo {
-					let res = new MergedInfo(
+					const res = new MergedInfo(
 						symbol.name,
 						typeConverters.SymbolKind.to(symbol.kind),
-						symbol.containerName,
+						symbol.containerName || '',
 						new types.Location(resource, typeConverters.Range.to(symbol.range))
 					);
 					res.detail = symbol.detail;
 					res.range = res.location.range;
 					res.selectionRange = typeConverters.Range.to(symbol.selectionRange);
-					res.children = symbol.children && symbol.children.map(MergedInfo.to);
+					res.children = symbol.children ? symbol.children.map(MergedInfo.to) : [];
 					return res;
 				}
 
@@ -460,6 +460,7 @@ export class ExtHostApiCommands {
 				range: vscode.Range;
 				selectionRange: vscode.Range;
 				children: vscode.DocumentSymbol[];
+				containerName: string;
 			}
 			return value.map(MergedInfo.to);
 		});
@@ -474,6 +475,9 @@ export class ExtHostApiCommands {
 		return this._commands.executeCommand<CustomCodeAction[]>('_executeCodeActionProvider', args)
 			.then(tryMapWith(codeAction => {
 				if (codeAction._isSynthetic) {
+					if (!codeAction.command) {
+						throw new Error('Synthetic code actions must have a command');
+					}
 					return this._commands.converter.fromInternal(codeAction.command);
 				} else {
 					const ret = new types.CodeAction(
@@ -497,7 +501,7 @@ export class ExtHostApiCommands {
 			.then(tryMapWith(item => {
 				return new types.CodeLens(
 					typeConverters.Range.to(item.range),
-					this._commands.converter.fromInternal(item.command));
+					item.command ? this._commands.converter.fromInternal(item.command) : undefined);
 			}));
 
 	}

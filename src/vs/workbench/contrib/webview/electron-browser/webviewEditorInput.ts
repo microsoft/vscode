@@ -8,10 +8,9 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { EditorInput, EditorModel, GroupIdentifier, IEditorInput } from 'vs/workbench/common/editor';
-import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
-import * as vscode from 'vscode';
+import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { WebviewEvents, WebviewInputOptions } from './webviewEditorService';
-import { WebviewElement } from './webviewElement';
+import { WebviewElement, WebviewOptions } from './webviewElement';
 
 export class WebviewEditorInput extends EditorInput {
 	private static handlePool = 0;
@@ -75,7 +74,7 @@ export class WebviewEditorInput extends EditorInput {
 		state: any,
 		events: WebviewEvents,
 		extensionLocation: URI | undefined,
-		@IPartService private readonly _partService: IPartService,
+		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 	) {
 		super();
 
@@ -195,7 +194,7 @@ export class WebviewEditorInput extends EditorInput {
 		return this._options;
 	}
 
-	public setOptions(value: vscode.WebviewOptions) {
+	public setOptions(value: WebviewOptions) {
 		this._options = {
 			...this._options,
 			...value
@@ -204,7 +203,8 @@ export class WebviewEditorInput extends EditorInput {
 		if (this._webview) {
 			this._webview.options = {
 				allowScripts: this._options.enableScripts,
-				localResourceRoots: this._options.localResourceRoots
+				localResourceRoots: this._options.localResourceRoots,
+				portMappings: this._options.portMapping,
 			};
 		}
 	}
@@ -221,10 +221,8 @@ export class WebviewEditorInput extends EditorInput {
 		if (!this._container) {
 			this._container = document.createElement('div');
 			this._container.id = `webview-${this._id}`;
-			const part = this._partService.getContainer(Parts.EDITOR_PART);
-			if (part) {
-				part.appendChild(this._container);
-			}
+			const part = this._layoutService.getContainer(Parts.EDITOR_PART);
+			part.appendChild(this._container);
 		}
 		return this._container;
 	}
@@ -317,7 +315,7 @@ export class RevivedWebviewEditorInput extends WebviewEditorInput {
 		events: WebviewEvents,
 		extensionLocation: URI | undefined,
 		public readonly reviver: (input: WebviewEditorInput) => Promise<void>,
-		@IPartService partService: IPartService,
+		@IWorkbenchLayoutService partService: IWorkbenchLayoutService,
 	) {
 		super(viewType, id, name, options, state, events, extensionLocation, partService);
 	}

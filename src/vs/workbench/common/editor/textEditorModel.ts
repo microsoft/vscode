@@ -68,14 +68,14 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 	/**
 	 * Creates the text editor model with the provided value, modeId (can be comma separated for multiple values) and optional resource URL.
 	 */
-	protected createTextEditorModel(value: ITextBufferFactory, resource: URI, modeId?: string): EditorModel {
+	protected createTextEditorModel(value: ITextBufferFactory, resource: URI | undefined, modeId?: string): EditorModel {
 		const firstLineText = this.getFirstLineText(value);
 		const languageSelection = this.getOrCreateMode(this.modeService, modeId, firstLineText);
 
 		return this.doCreateTextEditorModel(value, languageSelection, resource);
 	}
 
-	private doCreateTextEditorModel(value: ITextBufferFactory, languageSelection: ILanguageSelection, resource: URI): EditorModel {
+	private doCreateTextEditorModel(value: ITextBufferFactory, languageSelection: ILanguageSelection, resource: URI | undefined): EditorModel {
 		let model = resource && this.modelService.getModel(resource);
 		if (!model) {
 			model = this.modelService.createModel(value, languageSelection, resource);

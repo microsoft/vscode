@@ -85,7 +85,7 @@ suite('StorageService', () => {
 	test('Migrate Data', async () => {
 		class StorageTestEnvironmentService extends EnvironmentService {
 
-			constructor(private workspaceStorageFolderPath: string, private _extensionsPath) {
+			constructor(private workspaceStorageFolderPath: string, private _extensionsPath: string) {
 				super(parseArgs(process.argv), process.execPath);
 			}
 

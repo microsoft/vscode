@@ -103,6 +103,20 @@ class CreateBranchItem implements QuickPickItem {
 	}
 }
 
+class CreateBranchFromItem implements QuickPickItem {
+
+	constructor(private cc: CommandCenter) { }
+
+	get label(): string { return localize('create branch from', '$(plus) Create new branch from...'); }
+	get description(): string { return ''; }
+
+	get alwaysShow(): boolean { return true; }
+
+	async run(repository: Repository): Promise<void> {
+		await this.cc.branch(repository);
+	}
+}
+
 class HEADItem implements QuickPickItem {
 
 	constructor(private repository: Repository) { }
@@ -1422,9 +1436,10 @@ export class CommandCenter {
 			await repository.checkout(treeish);
 			return true;
 		}
-		const createBranch = new CreateBranchItem(this);
 
-		const picks = [createBranch, ...createCheckoutItems(repository)];
+		const createBranch = new CreateBranchItem(this);
+		const createBranchFrom = new CreateBranchFromItem(this);
+		const picks = [createBranch, createBranchFrom, ...createCheckoutItems(repository)];
 		const placeHolder = localize('select a ref to checkout', 'Select a ref to checkout');
 
 		const quickpick = window.createQuickPick();
@@ -1441,6 +1456,8 @@ export class CommandCenter {
 
 		if (choice === createBranch) {
 			await this._branch(repository, quickpick.value);
+		} else if (choice === createBranchFrom) {
+			await this._branch(repository, quickpick.value, true);
 		} else {
 			await (choice as CheckoutItem).run(repository);
 		}
@@ -1453,7 +1470,12 @@ export class CommandCenter {
 		await this._branch(repository);
 	}
 
-	private async _branch(repository: Repository, defaultName?: string): Promise<void> {
+	@command('git.branchFrom', { repository: true })
+	async branchFrom(repository: Repository): Promise<void> {
+		await this._branch(repository, undefined, true);
+	}
+
+	private async _branch(repository: Repository, defaultName?: string, from = false): Promise<void> {
 		const config = workspace.getConfiguration('git');
 		const branchWhitespaceChar = config.get<string>('branchWhitespaceChar')!;
 		const branchValidationRegex = config.get<string>('branchValidationRegex')!;
@@ -1481,15 +1503,21 @@ export class CommandCenter {
 			return;
 		}
 
-		const picks = [new HEADItem(repository), ...createCheckoutItems(repository)];
-		const placeHolder = localize('select a ref to create a new branch from', 'Select a ref to create the \'{0}\' branch from', branchName);
-		const target = await window.showQuickPick(picks, { placeHolder });
+		let target = 'HEAD';
 
-		if (!target) {
-			return;
+		if (from) {
+			const picks = [new HEADItem(repository), ...createCheckoutItems(repository)];
+			const placeHolder = localize('select a ref to create a new branch from', 'Select a ref to create the \'{0}\' branch from', branchName);
+			const choice = await window.showQuickPick(picks, { placeHolder });
+
+			if (!choice) {
+				return;
+			}
+
+			target = choice.label;
 		}
 
-		await repository.branch(branchName, true, target.label);
+		await repository.branch(branchName, true, target);
 	}
 
 	@command('git.deleteBranch', { repository: true })
@@ -1801,6 +1829,72 @@ export class CommandCenter {
 	@command('git.pushToForce', { repository: true })
 	async pushToForce(repository: Repository): Promise<void> {
 		await this._push(repository, { pushType: PushType.PushTo, forcePush: true });
+	}
+
+	@command('git.addRemote', { repository: true })
+	async addRemote(repository: Repository): Promise<void> {
+		const remotes = repository.remotes;
+
+		const sanitize = (name: string) => {
+			name = name.trim();
+			return name && name.replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$|\[|\]$/g, '-');
+		};
+
+		const resultName = await window.showInputBox({
+			placeHolder: localize('remote name', "Remote name"),
+			prompt: localize('provide remote name', "Please provide a remote name"),
+			ignoreFocusOut: true,
+			validateInput: (name: string) => {
+				if (sanitize(name)) {
+					return null;
+				}
+				return localize('remote name format invalid', "Remote name format invalid");
+			}
+		});
+
+		const name = sanitize(resultName || '');
+
+		if (!name) {
+			return;
+		}
+
+		if (remotes.find(r => r.name === name)) {
+			window.showErrorMessage(localize('remote already exists', "Remote '{0}' already exists.", name));
+			return;
+		}
+
+		const url = await window.showInputBox({
+			placeHolder: localize('remote url', "Remote URL"),
+			prompt: localize('provide remote URL', "Enter URL for remote \"{0}\"", name),
+			ignoreFocusOut: true
+		});
+
+		if (!url) {
+			return;
+		}
+
+		await repository.addRemote(name, url);
+	}
+
+	@command('git.removeRemote', { repository: true })
+	async removeRemote(repository: Repository): Promise<void> {
+		const remotes = repository.remotes;
+
+		if (remotes.length === 0) {
+			window.showErrorMessage(localize('no remotes added', "Your repository has no remotes."));
+			return;
+		}
+
+		const picks = remotes.map(r => r.name);
+		const placeHolder = localize('remove remote', "Pick a remote to remove");
+
+		const remoteName = await window.showQuickPick(picks, { placeHolder });
+
+		if (!remoteName) {
+			return;
+		}
+
+		await repository.removeRemote(remoteName);
 	}
 
 	private async _sync(repository: Repository, rebase: boolean): Promise<void> {

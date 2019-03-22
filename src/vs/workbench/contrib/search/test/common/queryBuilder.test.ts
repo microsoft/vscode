@@ -659,15 +659,22 @@ suite('QueryBuilder', () => {
 						}]
 					}
 				],
-				// TODO @ rob
-				// [
-				// 	'../',
-				// 	{
-				// 		searchPaths: [{
-				// 			searchPath: getUri('foo/')
-				// 		}]
-				// 	}
-				// ]
+				[
+					'../',
+					{
+						searchPaths: [{
+							searchPath: getUri('/foo')
+						}]
+					}
+				],
+				[
+					'..\\bar',
+					{
+						searchPaths: [{
+							searchPath: getUri('/foo/bar')
+						}]
+					}
+				]
 			];
 			cases.forEach(testIncludesDataItem);
 		});

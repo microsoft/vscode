@@ -50,7 +50,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 
 	private compositeSwitcherBar: ActionBar;
 	private compositeOverflowAction: CompositeOverflowActivityAction | null;
-	private compositeOverflowActionItem: CompositeOverflowActivityActionItem | null;
+	private compositeOverflowActionItem: CompositeOverflowActivityActionItem | undefined;
 
 	private model: CompositeBarModel;
 	private visibleComposites: string[];
@@ -265,7 +265,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		}
 	}
 
-	getAction(compositeId): ActivityAction {
+	getAction(compositeId: string): ActivityAction {
 		const item = this.model.findItem(compositeId);
 		return item && item.activityAction;
 	}
@@ -345,7 +345,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 			if (this.compositeOverflowActionItem) {
 				this.compositeOverflowActionItem.dispose();
 			}
-			this.compositeOverflowActionItem = null;
+			this.compositeOverflowActionItem = undefined;
 		}
 
 		// Pull out composites that overflow or got hidden

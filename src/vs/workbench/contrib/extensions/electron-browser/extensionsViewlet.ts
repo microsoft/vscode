@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/extensionsViewlet';
 import { localize } from 'vs/nls';
-import { ThrottledDelayer, timeout } from 'vs/base/common/async';
+import { timeout, Delayer } from 'vs/base/common/async';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -34,7 +34,7 @@ import Severity from 'vs/base/common/severity';
 import { IActivityService, ProgressBadge, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ViewsRegistry, IViewDescriptor } from 'vs/workbench/common/views';
+import { IViewsRegistry, IViewDescriptor, Extensions } from 'vs/workbench/common/views';
 import { ViewContainerViewlet } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -44,7 +44,7 @@ import { getMaliciousExtensionsSet } from 'vs/platform/extensionManagement/commo
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IWindowService } from 'vs/platform/windows/common/windows';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IAddedViewDescriptorRef } from 'vs/workbench/browser/parts/views/views';
 import { ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { Query } from 'vs/workbench/contrib/extensions/common/extensionQuery';
@@ -53,6 +53,7 @@ import { alert } from 'vs/base/browser/ui/aria/aria';
 import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
@@ -105,7 +106,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			viewDescriptors.push(...this.createExtensionsViewDescriptorsForServer(this.extensionManagementServerService.remoteExtensionManagementServer));
 		}
 
-		ViewsRegistry.registerViews(viewDescriptors, VIEW_CONTAINER);
+		Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).registerViews(viewDescriptors, VIEW_CONTAINER);
 	}
 
 	// View used for any kind of searching
@@ -114,7 +115,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		return {
 			id,
 			name: viewIdNameMappings[id],
-			ctor: ExtensionsListView,
+			ctorDescriptor: { ctor: ExtensionsListView },
 			when: ContextKeyExpr.and(ContextKeyExpr.has('searchExtensions'), ContextKeyExpr.not('searchInstalledExtensions'), ContextKeyExpr.not('searchBuiltInExtensions'), ContextKeyExpr.not('recommendedExtensions'), ContextKeyExpr.not('groupByServersContext')),
 			weight: 100
 		};
@@ -127,7 +128,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		return {
 			id,
 			name: viewIdNameMappings[id],
-			ctor: EnabledExtensionsView,
+			ctorDescriptor: { ctor: EnabledExtensionsView },
 			when: ContextKeyExpr.and(ContextKeyExpr.not('searchExtensions'), ContextKeyExpr.has('hasInstalledExtensions')),
 			weight: 40,
 			canToggleVisibility: true,
@@ -142,7 +143,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		return {
 			id,
 			name: viewIdNameMappings[id],
-			ctor: DisabledExtensionsView,
+			ctorDescriptor: { ctor: DisabledExtensionsView },
 			when: ContextKeyExpr.and(ContextKeyExpr.not('searchExtensions'), ContextKeyExpr.has('hasInstalledExtensions')),
 			weight: 10,
 			canToggleVisibility: true,
@@ -158,7 +159,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		return {
 			id,
 			name: viewIdNameMappings[id],
-			ctor: ExtensionsListView,
+			ctorDescriptor: { ctor: ExtensionsListView },
 			when: ContextKeyExpr.and(ContextKeyExpr.not('searchExtensions'), ContextKeyExpr.not('hasInstalledExtensions')),
 			weight: 60,
 			order: 1
@@ -169,7 +170,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		return [{
 			id: `server.extensionsList.${server.authority}`,
 			name: server.label,
-			ctor: GroupByServerExtensionsView,
+			ctorDescriptor: { ctor: GroupByServerExtensionsView },
 			when: ContextKeyExpr.has('groupByServersContext'),
 			weight: 100
 		}];
@@ -183,7 +184,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		return {
 			id,
 			name: viewIdNameMappings[id],
-			ctor: DefaultRecommendedExtensionsView,
+			ctorDescriptor: { ctor: DefaultRecommendedExtensionsView },
 			when: ContextKeyExpr.and(ContextKeyExpr.not('searchExtensions'), ContextKeyExpr.has('defaultRecommendedExtensions')),
 			weight: 40,
 			order: 2,
@@ -198,7 +199,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		return {
 			id,
 			name: viewIdNameMappings[id],
-			ctor: RecommendedExtensionsView,
+			ctorDescriptor: { ctor: RecommendedExtensionsView },
 			when: ContextKeyExpr.has('recommendedExtensions'),
 			weight: 50,
 			canToggleVisibility: true,
@@ -213,7 +214,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		return {
 			id,
 			name: viewIdNameMappings[id],
-			ctor: WorkspaceRecommendedExtensionsView,
+			ctorDescriptor: { ctor: WorkspaceRecommendedExtensionsView },
 			when: ContextKeyExpr.and(ContextKeyExpr.has('recommendedExtensions'), ContextKeyExpr.has('nonEmptyWorkspace')),
 			weight: 50,
 			canToggleVisibility: true,
@@ -226,7 +227,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		return {
 			id,
 			name: viewIdNameMappings[id],
-			ctor: BuiltInExtensionsView,
+			ctorDescriptor: { ctor: BuiltInExtensionsView },
 			when: ContextKeyExpr.has('searchBuiltInExtensions'),
 			weight: 100,
 			canToggleVisibility: true
@@ -238,7 +239,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		return {
 			id,
 			name: viewIdNameMappings[id],
-			ctor: BuiltInThemesExtensionsView,
+			ctorDescriptor: { ctor: BuiltInThemesExtensionsView },
 			when: ContextKeyExpr.has('searchBuiltInExtensions'),
 			weight: 100,
 			canToggleVisibility: true
@@ -250,7 +251,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		return {
 			id,
 			name: viewIdNameMappings[id],
-			ctor: BuiltInBasicsExtensionsView,
+			ctorDescriptor: { ctor: BuiltInBasicsExtensionsView },
 			when: ContextKeyExpr.has('searchBuiltInExtensions'),
 			weight: 100,
 			canToggleVisibility: true
@@ -269,7 +270,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 	private recommendedExtensionsContextKey: IContextKey<boolean>;
 	private defaultRecommendedExtensionsContextKey: IContextKey<boolean>;
 
-	private searchDelayer: ThrottledDelayer<any>;
+	private searchDelayer: Delayer<void>;
 	private root: HTMLElement;
 
 	private searchBox: SuggestEnabledInput;
@@ -280,7 +281,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 	private searchViewletState: object;
 
 	constructor(
-		@IPartService partService: IPartService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IProgressService2 private readonly progressService: IProgressService2,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -296,9 +297,9 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IExtensionService extensionService: IExtensionService
 	) {
-		super(VIEWLET_ID, `${VIEWLET_ID}.state`, true, configurationService, partService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
+		super(VIEWLET_ID, `${VIEWLET_ID}.state`, true, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
 
-		this.searchDelayer = new ThrottledDelayer(500);
+		this.searchDelayer = new Delayer(500);
 		this.nonEmptyWorkspaceContextKey = NonEmptyWorkspaceContext.bindTo(contextKeyService);
 		this.searchExtensionsContextKey = SearchExtensionsContext.bindTo(contextKeyService);
 		this.hasInstalledExtensionsContextKey = HasInstalledExtensionsContext.bindTo(contextKeyService);
@@ -336,13 +337,13 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 
 		this.searchBox = this.instantiationService.createInstance(SuggestEnabledInput, `${VIEWLET_ID}.searchbox`, header, {
 			triggerCharacters: ['@'],
-			sortKey: item => {
+			sortKey: (item: string) => {
 				if (item.indexOf(':') === -1) { return 'a'; }
 				else if (/ext:/.test(item) || /tag:/.test(item)) { return 'b'; }
 				else if (/sort:/.test(item)) { return 'c'; }
 				else { return 'd'; }
 			},
-			provideResults: (query) => Query.suggestions(query)
+			provideResults: (query: string) => Query.suggestions(query)
 		}, placeholder, 'extensions:searchinput', { placeholderText: placeholder, value: searchValue });
 
 		if (this.searchBox.getValue()) {
@@ -447,7 +448,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		super.saveState();
 	}
 
-	private doSearch(): Promise<any> {
+	private doSearch(): Promise<void> {
 		const value = this.normalizedQuery();
 		this.searchExtensionsContextKey.set(!!value);
 		this.searchBuiltInExtensionsContextKey.set(ExtensionsListView.isBuiltInExtensionsQuery(value));
@@ -459,9 +460,9 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 			return this.progress(Promise.all(this.panels.map(view =>
 				(<ExtensionsListView>view).show(this.normalizedQuery())
 					.then(model => this.alertSearchResult(model.length, view.id))
-			)));
+			))).then(() => undefined);
 		}
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 
 	protected onDidAddViews(added: IAddedViewDescriptorRef[]): ViewletPanel[] {
@@ -473,7 +474,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		return addedViews;
 	}
 
-	private alertSearchResult(count: number, viewId: string) {
+	private alertSearchResult(count: number, viewId: string): void {
 		switch (count) {
 			case 0:
 				break;
@@ -525,7 +526,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		return this.progressService.withProgress({ location: ProgressLocation.Extensions }, () => promise);
 	}
 
-	private onError(err: any): void {
+	private onError(err: Error): void {
 		if (isPromiseCanceledError(err)) {
 			return;
 		}
@@ -608,7 +609,7 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 			.then(() => this.loopCheckForMaliciousExtensions());
 	}
 
-	private checkForMaliciousExtensions(): Promise<any> {
+	private checkForMaliciousExtensions(): Promise<void> {
 		return this.extensionsManagementService.getExtensionsReport().then(report => {
 			const maliciousSet = getMaliciousExtensionsSet(report);
 
@@ -629,9 +630,9 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 						);
 					})));
 				} else {
-					return Promise.resolve(null);
+					return Promise.resolve(undefined);
 				}
-			});
+			}).then(() => undefined);
 		}, err => this.logService.error(err));
 	}
 

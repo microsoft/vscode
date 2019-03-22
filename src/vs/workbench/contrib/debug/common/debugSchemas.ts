@@ -13,6 +13,7 @@ import { inputsSchema } from 'vs/workbench/services/configurationResolver/common
 // debuggers extension point
 export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IDebuggerContribution[]>({
 	extensionPoint: 'debuggers',
+	defaultExtensionKind: 'workspace',
 	jsonSchema: {
 		description: nls.localize('vscode.extension.contributes.debuggers', 'Contributes debug adapters.'),
 		type: 'array',

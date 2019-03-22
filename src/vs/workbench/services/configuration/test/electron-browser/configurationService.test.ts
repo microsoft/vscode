@@ -18,7 +18,7 @@ import * as uuid from 'vs/base/common/uuid';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
 import { ISingleFolderWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
-import { ConfigurationEditingErrorCode } from 'vs/workbench/services/configuration/node/configurationEditingService';
+import { ConfigurationEditingErrorCode } from 'vs/workbench/services/configuration/common/configurationEditingService';
 import { IFileService, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationTarget, IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
@@ -30,17 +30,21 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { JSONEditingService } from 'vs/workbench/services/configuration/node/jsonEditingService';
+import { JSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditingService';
 import { createHash } from 'crypto';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
 import { originalFSPath } from 'vs/base/common/resources';
 import { isLinux } from 'vs/base/common/platform';
 import { IWorkspaceIdentifier } from 'vs/workbench/services/configuration/node/configuration';
+import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
+import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-browser/remoteAuthorityResolverService';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 
-	constructor(args: ParsedArgs, _execPath: string, private customAppSettingsHome) {
+	constructor(args: ParsedArgs, _execPath: string, private customAppSettingsHome: string) {
 		super(args, _execPath);
 	}
 
@@ -95,7 +99,7 @@ suite('WorkspaceContextService - Folder', () => {
 				workspaceResource = folderDir;
 				const globalSettingsFile = path.join(parentDir, 'settings.json');
 				const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
-				workspaceContextService = new WorkspaceService(environmentService);
+				workspaceContextService = new WorkspaceService(<IWindowConfiguration>{}, environmentService, new RemoteAgentService(<IWindowConfiguration>{}, environmentService, new RemoteAuthorityResolverService()));
 				return (<WorkspaceService>workspaceContextService).initialize(convertToWorkspacePayload(URI.file(folderDir)));
 			});
 	});
@@ -153,10 +157,12 @@ suite('WorkspaceContextService - Workspace', () => {
 
 				parentResource = parentDir;
 
-				const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, path.join(parentDir, 'settings.json'));
-				const workspaceService = new WorkspaceService(environmentService);
-
 				instantiationService = <TestInstantiationService>workbenchInstantiationService();
+				const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, path.join(parentDir, 'settings.json'));
+				const remoteAgentService = instantiationService.createInstance(RemoteAgentService, {});
+				instantiationService.stub(IRemoteAgentService, remoteAgentService);
+				const workspaceService = new WorkspaceService(<IWindowConfiguration>{}, environmentService, remoteAgentService);
+
 				instantiationService.stub(IWorkspaceContextService, workspaceService);
 				instantiationService.stub(IConfigurationService, workspaceService);
 				instantiationService.stub(IEnvironmentService, environmentService);
@@ -207,10 +213,12 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 
 				parentResource = parentDir;
 
-				const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, path.join(parentDir, 'settings.json'));
-				const workspaceService = new WorkspaceService(environmentService);
-
 				instantiationService = <TestInstantiationService>workbenchInstantiationService();
+				const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, path.join(parentDir, 'settings.json'));
+				const remoteAgentService = instantiationService.createInstance(RemoteAgentService, {});
+				instantiationService.stub(IRemoteAgentService, remoteAgentService);
+				const workspaceService = new WorkspaceService(<IWindowConfiguration>{}, environmentService, remoteAgentService);
+
 				instantiationService.stub(IWorkspaceContextService, workspaceService);
 				instantiationService.stub(IConfigurationService, workspaceService);
 				instantiationService.stub(IEnvironmentService, environmentService);
@@ -346,11 +354,11 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 					done();
 				});
 				const workspace = { folders: [{ path: folders[0].uri.fsPath }, { path: folders[1].uri.fsPath }] };
-				instantiationService.get(IFileService).updateContent(testObject.getWorkspace().configuration, JSON.stringify(workspace, null, '\t'))
+				instantiationService.get(IFileService).updateContent(testObject.getWorkspace().configuration!, JSON.stringify(workspace, null, '\t'))
 					.then(() => {
 						fileChangeEvent.fire(new FileChangesEvent([
 							{
-								resource: testObject.getWorkspace().configuration,
+								resource: testObject.getWorkspace().configuration!,
 								type: FileChangeType.UPDATED
 							}
 						]));
@@ -473,7 +481,9 @@ suite('WorkspaceService - Initialization', () => {
 
 				const instantiationService = <TestInstantiationService>workbenchInstantiationService();
 				const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
-				const workspaceService = new WorkspaceService(environmentService);
+				const remoteAgentService = instantiationService.createInstance(RemoteAgentService, {});
+				instantiationService.stub(IRemoteAgentService, remoteAgentService);
+				const workspaceService = new WorkspaceService(<IWindowConfiguration>{}, environmentService, remoteAgentService);
 				instantiationService.stub(IWorkspaceContextService, workspaceService);
 				instantiationService.stub(IConfigurationService, workspaceService);
 				instantiationService.stub(IEnvironmentService, environmentService);
@@ -728,7 +738,9 @@ suite('WorkspaceConfigurationService - Folder', () => {
 
 				const instantiationService = <TestInstantiationService>workbenchInstantiationService();
 				const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
-				const workspaceService = new WorkspaceService(environmentService);
+				const remoteAgentService = instantiationService.createInstance(RemoteAgentService, {});
+				instantiationService.stub(IRemoteAgentService, remoteAgentService);
+				const workspaceService = new WorkspaceService(<IWindowConfiguration>{}, environmentService, remoteAgentService);
 				instantiationService.stub(IWorkspaceContextService, workspaceService);
 				instantiationService.stub(IConfigurationService, workspaceService);
 				instantiationService.stub(IEnvironmentService, environmentService);
@@ -1014,10 +1026,12 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 
 				parentResource = parentDir;
 
-				environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, path.join(parentDir, 'settings.json'));
-				const workspaceService = new WorkspaceService(environmentService);
-
 				const instantiationService = <TestInstantiationService>workbenchInstantiationService();
+				environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, path.join(parentDir, 'settings.json'));
+				const remoteAgentService = instantiationService.createInstance(RemoteAgentService, {});
+				instantiationService.stub(IRemoteAgentService, remoteAgentService);
+				const workspaceService = new WorkspaceService(<IWindowConfiguration>{}, environmentService, remoteAgentService);
+
 				instantiationService.stub(IWorkspaceContextService, workspaceService);
 				instantiationService.stub(IConfigurationService, workspaceService);
 				instantiationService.stub(IEnvironmentService, environmentService);

@@ -42,11 +42,11 @@ import { IProgressRunner, IProgressService } from 'vs/platform/progress/common/p
 import { ITelemetryInfo, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkbenchState, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import { ILayoutService, IDimension } from 'vs/platform/layout/browser/layoutService';
 
 export class SimpleModel implements IResolvedTextEditorModel {
 
-	private model: ITextModel;
+	private readonly model: ITextModel;
 	private readonly _onDispose: Emitter<void>;
 
 	constructor(model: ITextModel) {
@@ -217,36 +217,11 @@ export class SimpleNotificationService implements INotificationService {
 	}
 }
 
-export class BrowserAccessibilityService implements IAccessibilityService {
-	_serviceBrand: any;
-
-	private _accessibilitySupport = AccessibilitySupport.Unknown;
-	private readonly _onDidChangeAccessibilitySupport = new Emitter<void>();
-	readonly onDidChangeAccessibilitySupport: Event<void> = this._onDidChangeAccessibilitySupport.event;
-
-	alwaysUnderlineAccessKeys(): Promise<boolean> {
-		return Promise.resolve(false);
-	}
-
-	setAccessibilitySupport(accessibilitySupport: AccessibilitySupport): void {
-		if (this._accessibilitySupport === accessibilitySupport) {
-			return;
-		}
-
-		this._accessibilitySupport = accessibilitySupport;
-		this._onDidChangeAccessibilitySupport.fire();
-	}
-
-	getAccessibilitySupport(): AccessibilitySupport {
-		return this._accessibilitySupport;
-	}
-}
-
 export class StandaloneCommandService implements ICommandService {
 	_serviceBrand: any;
 
 	private readonly _instantiationService: IInstantiationService;
-	private _dynamicCommands: { [id: string]: ICommand; };
+	private readonly _dynamicCommands: { [id: string]: ICommand; };
 
 	private readonly _onWillExecuteCommand = new Emitter<ICommandEvent>();
 	public readonly onWillExecuteCommand: Event<ICommandEvent> = this._onWillExecuteCommand.event;
@@ -282,7 +257,7 @@ export class StandaloneCommandService implements ICommandService {
 
 export class StandaloneKeybindingService extends AbstractKeybindingService {
 	private _cachedResolver: KeybindingResolver | null;
-	private _dynamicKeybindings: IKeybindingItem[];
+	private readonly _dynamicKeybindings: IKeybindingItem[];
 
 	constructor(
 		contextKeyService: IContextKeyService,
@@ -305,7 +280,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 		}));
 	}
 
-	public addDynamicKeybinding(commandId: string, _keybinding: number, handler: ICommandHandler, when: ContextKeyExpr | null): IDisposable {
+	public addDynamicKeybinding(commandId: string, _keybinding: number, handler: ICommandHandler, when: ContextKeyExpr | undefined): IDisposable {
 		const keybinding = createKeybinding(_keybinding, OS);
 		if (!keybinding) {
 			throw new Error(`Invalid keybinding`);
@@ -367,7 +342,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 	private _toNormalizedKeybindingItems(items: IKeybindingItem[], isDefault: boolean): ResolvedKeybindingItem[] {
 		let result: ResolvedKeybindingItem[] = [], resultLen = 0;
 		for (const item of items) {
-			const when = (item.when ? item.when.normalize() : null);
+			const when = (item.when ? item.when.normalize() : undefined);
 			const keybinding = item.keybinding;
 
 			if (!keybinding) {
@@ -422,7 +397,7 @@ export class SimpleConfigurationService implements IConfigurationService {
 	private _onDidChangeConfiguration = new Emitter<IConfigurationChangeEvent>();
 	public readonly onDidChangeConfiguration: Event<IConfigurationChangeEvent> = this._onDidChangeConfiguration.event;
 
-	private _configuration: Configuration;
+	private readonly _configuration: Configuration;
 
 	constructor() {
 		this._configuration = new Configuration(new DefaultConfigurationModel(), new ConfigurationModel());
@@ -477,7 +452,7 @@ export class SimpleResourceConfigurationService implements ITextResourceConfigur
 	public readonly onDidChangeConfiguration: Event<IConfigurationChangeEvent>;
 	private readonly _onDidChangeConfigurationEmitter = new Emitter();
 
-	constructor(private configurationService: SimpleConfigurationService) {
+	constructor(private readonly configurationService: SimpleConfigurationService) {
 		this.configurationService.onDidChangeConfiguration((e) => {
 			this._onDidChangeConfigurationEmitter.fire(e);
 		});
@@ -670,4 +645,25 @@ export class SimpleUriLabelService implements ILabelService {
 	public getHostLabel(): string {
 		return '';
 	}
+}
+
+export class SimpleLayoutService implements ILayoutService {
+	_serviceBrand: any;
+
+	public onLayout = Event.None;
+
+	private _dimension: IDimension;
+	get dimension(): IDimension {
+		if (!this._dimension) {
+			this._dimension = dom.getClientArea(window.document.body);
+		}
+
+		return this._dimension;
+	}
+
+	get container(): HTMLElement {
+		return this._container;
+	}
+
+	constructor(private _container: HTMLElement) { }
 }

@@ -19,7 +19,7 @@ import { score } from 'vs/editor/common/modes/languageSelector';
 import * as files from 'vs/platform/files/common/files';
 import pkg from 'vs/platform/product/node/package';
 import product from 'vs/platform/product/node/product';
-import { ExtHostContext, IInitData, IMainContext, MainContext } from 'vs/workbench/api/node/extHost.protocol';
+import { ExtHostContext, IInitData, IMainContext, MainContext } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostApiCommands } from 'vs/workbench/api/node/extHostApiCommands';
 import { ExtHostClipboard } from 'vs/workbench/api/node/extHostClipboard';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
@@ -59,13 +59,14 @@ import { ExtHostUrls } from 'vs/workbench/api/node/extHostUrls';
 import { ExtHostWebviews } from 'vs/workbench/api/node/extHostWebview';
 import { ExtHostWindow } from 'vs/workbench/api/node/extHostWindow';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
-import { IExtensionDescription, throwProposedApiError, checkProposedApiEnabled, nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { ProxyIdentifier } from 'vs/workbench/services/extensions/node/proxyIdentifier';
+import { throwProposedApiError, checkProposedApiEnabled, nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
 import * as vscode from 'vscode';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { originalFSPath } from 'vs/base/common/resources';
 import { CLIServer } from 'vs/workbench/api/node/extHostCLIServer';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription, registry: ExtensionDescriptionRegistry, configProvider: ExtHostConfigProvider): typeof vscode;
@@ -92,7 +93,7 @@ export function createApiFactory(
 	extHostStorage: ExtHostStorage
 ): IExtensionApiFactory {
 
-	let schemeTransformer: ISchemeTransformer | null = null;
+	const schemeTransformer: ISchemeTransformer | null = null;
 
 	// Addressable instances
 	rpcProtocol.set(ExtHostContext.ExtHostLogService, extHostLogService);
@@ -119,7 +120,7 @@ export function createApiFactory(
 	const extHostSCM = rpcProtocol.set(ExtHostContext.ExtHostSCM, new ExtHostSCM(rpcProtocol, extHostCommands, extHostLogService));
 	const extHostComment = rpcProtocol.set(ExtHostContext.ExtHostComments, new ExtHostComments(rpcProtocol, extHostCommands, extHostDocuments));
 	const extHostSearch = rpcProtocol.set(ExtHostContext.ExtHostSearch, new ExtHostSearch(rpcProtocol, schemeTransformer, extHostLogService));
-	const extHostTask = rpcProtocol.set(ExtHostContext.ExtHostTask, new ExtHostTask(rpcProtocol, extHostWorkspace, extHostDocumentsAndEditors, extHostConfiguration));
+	const extHostTask = rpcProtocol.set(ExtHostContext.ExtHostTask, new ExtHostTask(rpcProtocol, extHostWorkspace, extHostDocumentsAndEditors, extHostConfiguration, extHostTerminalService));
 	const extHostWindow = rpcProtocol.set(ExtHostContext.ExtHostWindow, new ExtHostWindow(rpcProtocol));
 	rpcProtocol.set(ExtHostContext.ExtHostExtensionService, extensionService);
 	const extHostProgress = rpcProtocol.set(ExtHostContext.ExtHostProgress, new ExtHostProgress(rpcProtocol.getProxy(MainContext.MainThreadProgress)));
@@ -188,7 +189,7 @@ export function createApiFactory(
 			},
 			registerTextEditorCommand(id: string, callback: (textEditor: vscode.TextEditor, edit: vscode.TextEditorEdit, ...args: any[]) => void, thisArg?: any): vscode.Disposable {
 				return extHostCommands.registerCommand(true, id, (...args: any[]): any => {
-					let activeTextEditor = extHostEditors.getActiveTextEditor();
+					const activeTextEditor = extHostEditors.getActiveTextEditor();
 					if (!activeTextEditor) {
 						console.warn('Cannot execute ' + id + ' because there is no active text editor.');
 						return undefined;
@@ -209,7 +210,7 @@ export function createApiFactory(
 			},
 			registerDiffInformationCommand: proposedApiFunction(extension, (id: string, callback: (diff: vscode.LineChange[], ...args: any[]) => any, thisArg?: any): vscode.Disposable => {
 				return extHostCommands.registerCommand(true, id, async (...args: any[]): Promise<any> => {
-					let activeTextEditor = extHostEditors.getActiveTextEditor();
+					const activeTextEditor = extHostEditors.getActiveTextEditor();
 					if (!activeTextEditor) {
 						console.warn('Cannot execute ' + id + ' because there is no active text editor.');
 						return undefined;
@@ -357,6 +358,10 @@ export function createApiFactory(
 			registerSelectionRangeProvider(selector: vscode.DocumentSelector, provider: vscode.SelectionRangeProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerSelectionRangeProvider(extension, selector, provider);
 			},
+			registerCallHierarchyProvider(selector: vscode.DocumentSelector, provider: vscode.CallHierarchyItemProvider): vscode.Disposable {
+				checkProposedApiEnabled(extension);
+				return extHostLanguageFeatures.registerCallHierarchyProvider(extension, selector, provider);
+			},
 			setLanguageConfiguration: (language: string, configuration: vscode.LanguageConfiguration): vscode.Disposable => {
 				return extHostLanguageFeatures.setLanguageConfiguration(language, configuration);
 			}
@@ -426,13 +431,13 @@ export function createApiFactory(
 			onDidChangeWindowState(listener, thisArg?, disposables?) {
 				return extHostWindow.onDidChangeWindowState(listener, thisArg, disposables);
 			},
-			showInformationMessage(message, first, ...rest) {
+			showInformationMessage(message: string, first: vscode.MessageOptions | string | vscode.MessageItem, ...rest: Array<string | vscode.MessageItem>) {
 				return extHostMessageService.showMessage(extension, Severity.Info, message, first, rest);
 			},
-			showWarningMessage(message, first, ...rest) {
+			showWarningMessage(message: string, first: vscode.MessageOptions | string | vscode.MessageItem, ...rest: Array<string | vscode.MessageItem>) {
 				return extHostMessageService.showMessage(extension, Severity.Warning, message, first, rest);
 			},
-			showErrorMessage(message, first, ...rest) {
+			showErrorMessage(message: string, first: vscode.MessageOptions | string | vscode.MessageItem, ...rest: Array<string | vscode.MessageItem>) {
 				return extHostMessageService.showMessage(extension, Severity.Error, message, first, rest);
 			},
 			showQuickPick(items: any, options: vscode.QuickPickOptions, token?: vscode.CancellationToken): any {
@@ -527,23 +532,23 @@ export function createApiFactory(
 			onDidChangeWorkspaceFolders: function (listener, thisArgs?, disposables?) {
 				return extHostWorkspace.onDidChangeWorkspace(listener, thisArgs, disposables);
 			},
-			asRelativePath: (pathOrUri, includeWorkspace) => {
+			asRelativePath: (pathOrUri, includeWorkspace?) => {
 				return extHostWorkspace.getRelativePath(pathOrUri, includeWorkspace);
 			},
 			findFiles: (include, exclude, maxResults?, token?) => {
-				return extHostWorkspace.findFiles(typeConverters.GlobPattern.from(include), typeConverters.GlobPattern.from(exclude), maxResults, extension.identifier, token);
+				return extHostWorkspace.findFiles(typeConverters.GlobPattern.from(include), typeConverters.GlobPattern.from(withNullAsUndefined(exclude)), maxResults, extension.identifier, token);
 			},
-			findTextInFiles: (query: vscode.TextSearchQuery, optionsOrCallback, callbackOrToken?, token?: vscode.CancellationToken) => {
+			findTextInFiles: (query: vscode.TextSearchQuery, optionsOrCallback: vscode.FindTextInFilesOptions | ((result: vscode.TextSearchResult) => void), callbackOrToken?: vscode.CancellationToken | ((result: vscode.TextSearchResult) => void), token?: vscode.CancellationToken) => {
 				let options: vscode.FindTextInFilesOptions;
 				let callback: (result: vscode.TextSearchResult) => void;
 
 				if (typeof optionsOrCallback === 'object') {
 					options = optionsOrCallback;
-					callback = callbackOrToken;
+					callback = callbackOrToken as (result: vscode.TextSearchResult) => void;
 				} else {
 					options = {};
 					callback = optionsOrCallback;
-					token = callbackOrToken;
+					token = callbackOrToken as vscode.CancellationToken;
 				}
 
 				return extHostWorkspace.findTextInFiles(query, options || {}, callback, extension.identifier, token);
@@ -566,7 +571,7 @@ export function createApiFactory(
 			openTextDocument(uriOrFileNameOrOptions?: vscode.Uri | string | { language?: string; content?: string; }) {
 				let uriPromise: Thenable<URI>;
 
-				let options = uriOrFileNameOrOptions as { language?: string; content?: string; };
+				const options = uriOrFileNameOrOptions as { language?: string; content?: string; };
 				if (typeof uriOrFileNameOrOptions === 'string') {
 					uriPromise = Promise.resolve(URI.file(uriOrFileNameOrOptions));
 				} else if (uriOrFileNameOrOptions instanceof URI) {
@@ -614,18 +619,15 @@ export function createApiFactory(
 			registerFileSystemProvider(scheme, provider, options) {
 				return extHostFileSystem.registerFileSystemProvider(scheme, provider, options);
 			},
-			registerFileSearchProvider: proposedApiFunction(extension, (scheme, provider) => {
+			registerFileSearchProvider: proposedApiFunction(extension, (scheme: string, provider: vscode.FileSearchProvider) => {
 				return extHostSearch.registerFileSearchProvider(scheme, provider);
 			}),
 			registerSearchProvider: proposedApiFunction(extension, () => {
 				// Temp for live share in Insiders
 				return { dispose: () => { } };
 			}),
-			registerTextSearchProvider: proposedApiFunction(extension, (scheme, provider) => {
+			registerTextSearchProvider: proposedApiFunction(extension, (scheme: string, provider: vscode.TextSearchProvider) => {
 				return extHostSearch.registerTextSearchProvider(scheme, provider);
-			}),
-			registerFileIndexProvider: proposedApiFunction(extension, (scheme, provider) => {
-				return extHostSearch.registerFileIndexProvider(scheme, provider);
 			}),
 			registerDocumentCommentProvider: proposedApiFunction(extension, (provider: vscode.DocumentCommentProvider) => {
 				return extHostComment.registerDocumentCommentProvider(extension.identifier, provider);
@@ -639,10 +641,10 @@ export function createApiFactory(
 			registerResourceLabelFormatter: proposedApiFunction(extension, (formatter: vscode.ResourceLabelFormatter) => {
 				return extHostFileSystem.registerResourceLabelFormatter(formatter);
 			}),
-			onDidRenameFile: proposedApiFunction(extension, (listener, thisArg?, disposables?) => {
+			onDidRenameFile: proposedApiFunction(extension, (listener: (e: vscode.FileRenameEvent) => any, thisArg?: any, disposables?: vscode.Disposable[]) => {
 				return extHostFileSystemEvent.onDidRenameFile(listener, thisArg, disposables);
 			}),
-			onWillRenameFile: proposedApiFunction(extension, (listener, thisArg?, disposables?) => {
+			onWillRenameFile: proposedApiFunction(extension, (listener: (e: vscode.FileWillRenameEvent) => any, thisArg?: any, disposables?: vscode.Disposable[]) => {
 				return extHostFileSystemEvent.getOnWillRenameFileEvent(extension)(listener, thisArg, disposables);
 			})
 		};
@@ -650,7 +652,7 @@ export function createApiFactory(
 		// namespace: scm
 		const scm: typeof vscode.scm = {
 			get inputBox() {
-				return extHostSCM.getLastInputBox(extension);
+				return extHostSCM.getLastInputBox(extension)!; // Strict null override - Deprecated api
 			},
 			createSourceControl(id: string, label: string, rootUri?: vscode.Uri) {
 				return extHostSCM.createSourceControl(extension, id, label, rootUri);
@@ -658,8 +660,8 @@ export function createApiFactory(
 		};
 
 		const comment: typeof vscode.comment = {
-			createCommentControl(id: string, label: string) {
-				return extHostComment.createCommentControl(extension, id, label);
+			createCommentController(id: string, label: string) {
+				return extHostComment.createCommentController(extension, id, label);
 			}
 		};
 
@@ -698,8 +700,8 @@ export function createApiFactory(
 			registerDebugAdapterTrackerFactory(debugType: string, factory: vscode.DebugAdapterTrackerFactory) {
 				return extHostDebugService.registerDebugAdapterTrackerFactory(debugType, factory);
 			},
-			startDebugging(folder: vscode.WorkspaceFolder | undefined, nameOrConfig: string | vscode.DebugConfiguration) {
-				return extHostDebugService.startDebugging(folder, nameOrConfig);
+			startDebugging(folder: vscode.WorkspaceFolder | undefined, nameOrConfig: string | vscode.DebugConfiguration, parentSession?: vscode.DebugSession) {
+				return extHostDebugService.startDebugging(folder, nameOrConfig, parentSession);
 			},
 			addBreakpoints(breakpoints: vscode.Breakpoint[]) {
 				return extHostDebugService.addBreakpoints(breakpoints);
@@ -780,6 +782,7 @@ export function createApiFactory(
 			DocumentSymbol: extHostTypes.DocumentSymbol,
 			EndOfLine: extHostTypes.EndOfLine,
 			EventEmitter: Emitter,
+			CustomExecution: extHostTypes.CustomExecution,
 			FileChangeType: extHostTypes.FileChangeType,
 			FileSystemError: extHostTypes.FileSystemError,
 			FileType: files.FileType,
@@ -802,7 +805,6 @@ export function createApiFactory(
 			ResolvedAuthority: extHostTypes.ResolvedAuthority,
 			Selection: extHostTypes.Selection,
 			SelectionRange: extHostTypes.SelectionRange,
-			SelectionRangeKind: extHostTypes.SelectionRangeKind,
 			ShellExecution: extHostTypes.ShellExecution,
 			ShellQuoting: extHostTypes.ShellQuoting,
 			SignatureHelpTriggerKind: extHostTypes.SignatureHelpTriggerKind,
@@ -834,7 +836,9 @@ export function createApiFactory(
 			Uri: URI,
 			ViewColumn: extHostTypes.ViewColumn,
 			WorkspaceEdit: extHostTypes.WorkspaceEdit,
-			// functions
+			// proposed
+			CallHierarchyDirection: extHostTypes.CallHierarchyDirection,
+			CallHierarchyItem: extHostTypes.CallHierarchyItem
 		};
 	};
 }
@@ -862,7 +866,7 @@ class Extension<T> implements vscode.Extension<T> {
 
 	get exports(): T {
 		if (this.packageJSON.api === 'none') {
-			return undefined;
+			return undefined!; // Strict nulloverride - Public api
 		}
 		return <T>this._extensionService.getExtensionExports(this._identifier);
 	}

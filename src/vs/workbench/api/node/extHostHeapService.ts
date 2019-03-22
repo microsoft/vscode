@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtHostHeapServiceShape } from './extHost.protocol';
+import { ExtHostHeapServiceShape } from '../common/extHost.protocol';
 
 export class ExtHostHeapService implements ExtHostHeapServiceShape {
 

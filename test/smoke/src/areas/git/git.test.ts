@@ -27,13 +27,13 @@ export function setup() {
 			await app.workbench.editor.waitForTypeInEditor('app.js', '.foo{}');
 			await app.workbench.editors.saveOpenedFile();
 
-			await app.workbench.quickopen.openFile('index.jade');
-			await app.workbench.editor.waitForTypeInEditor('index.jade', 'hello world');
+			await app.workbench.quickopen.openFile('index.pug');
+			await app.workbench.editor.waitForTypeInEditor('index.pug', 'hello world');
 			await app.workbench.editors.saveOpenedFile();
 
 			await app.workbench.scm.refreshSCMViewlet();
 			await app.workbench.scm.waitForChange('app.js', 'Modified');
-			await app.workbench.scm.waitForChange('index.jade', 'Modified');
+			await app.workbench.scm.waitForChange('index.pug', 'Modified');
 		});
 
 		it('opens diff editor', async function () {
@@ -66,7 +66,7 @@ export function setup() {
 			await app.code.waitForTextContent(SYNC_STATUSBAR, ' 0↓ 1↑');
 
 			await app.workbench.quickopen.runCommand('Git: Stage All Changes');
-			await app.workbench.scm.waitForChange('index.jade', 'Index Modified');
+			await app.workbench.scm.waitForChange('index.pug', 'Index Modified');
 
 			await app.workbench.scm.commit('second commit');
 			await app.code.waitForTextContent(SYNC_STATUSBAR, ' 0↓ 2↑');

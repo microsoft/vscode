@@ -166,10 +166,17 @@ export abstract class Composite extends Component implements IComposite {
 	/**
 	 * For any of the actions returned by this composite, provide an IActionItem in
 	 * cases where the implementor of the composite wants to override the presentation
-	 * of an action. Returns null to indicate that the action is not rendered through
+	 * of an action. Returns undefined to indicate that the action is not rendered through
 	 * an action item.
 	 */
-	getActionItem(action: IAction): IActionItem | null {
+	getActionItem(action: IAction): IActionItem | undefined {
+		return undefined;
+	}
+
+	/**
+	 * Provide a context to be passed to the toolbar.
+	 */
+	getActionsContext(): any {
 		return null;
 	}
 

@@ -13,7 +13,7 @@ import { ProblemMatcher, FileLocationKind, ProblemPattern, ApplyToKind } from 'v
 import { IWorkspaceFolder, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 import * as Tasks from 'vs/workbench/contrib/tasks/common/tasks';
-import { parse, ParseResult, IProblemReporter, ExternalTaskRunnerConfiguration, CustomTask } from 'vs/workbench/contrib/tasks/node/taskConfiguration';
+import { parse, ParseResult, IProblemReporter, ExternalTaskRunnerConfiguration, CustomTask } from 'vs/workbench/contrib/tasks/common/taskConfiguration';
 
 const workspaceFolder: IWorkspaceFolder = new WorkspaceFolder({
 	uri: URI.file('/workspace/folderOne'),

@@ -19,7 +19,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 export class OpenRawDefaultSettingsAction extends Action {
 
 	static readonly ID = 'workbench.action.openRawDefaultSettings';
-	static readonly LABEL = nls.localize('openRawDefaultSettings', "Open Raw Default Settings");
+	static readonly LABEL = nls.localize('openRawDefaultSettings', "Open Default Settings (JSON)");
 
 	constructor(
 		id: string,
@@ -85,6 +85,24 @@ export class OpenGlobalSettingsAction extends Action {
 
 	run(event?: any): Promise<any> {
 		return this.preferencesService.openGlobalSettings();
+	}
+}
+
+export class OpenRemoteSettingsAction extends Action {
+
+	static readonly ID = 'workbench.action.openRemoteSettings';
+	static readonly LABEL = nls.localize('openRemoteSettings', "Open User Settings (Remote)");
+
+	constructor(
+		id: string,
+		label: string,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
+	) {
+		super(id, label);
+	}
+
+	run(event?: any): Promise<any> {
+		return this.preferencesService.openRemoteSettings();
 	}
 }
 

@@ -18,7 +18,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { GlobalNewUntitledFileAction } from 'vs/workbench/contrib/files/browser/fileActions';
 import { OpenFolderAction, OpenFileFolderAction, OpenFileAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { ShowAllCommandsAction } from 'vs/workbench/contrib/quickopen/browser/commandsHandler';
-import { Parts, IPartService, IDimension } from 'vs/workbench/services/part/common/partService';
+import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { StartAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { FindInFilesActionId } from 'vs/workbench/contrib/search/common/constants';
 import { QUICKOPEN_ACTION_ID } from 'vs/workbench/browser/parts/quickopen/quickopen';
@@ -27,6 +27,7 @@ import * as dom from 'vs/base/browser/dom';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { IDimension } from 'vs/platform/layout/browser/layoutService';
 
 const $ = dom.$;
 
@@ -110,7 +111,7 @@ export class WatermarkContribution implements IWorkbenchContribution {
 
 	constructor(
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@IPartService private readonly partService: IPartService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -147,10 +148,7 @@ export class WatermarkContribution implements IWorkbenchContribution {
 	}
 
 	private create(): void {
-		const container = this.partService.getContainer(Parts.EDITOR_PART);
-		if (!container) {
-			throw new Error('Could not find container');
-		}
+		const container = this.layoutService.getContainer(Parts.EDITOR_PART);
 		container.classList.add('has-watermark');
 
 		this.watermark = $('.watermark');
@@ -174,18 +172,23 @@ export class WatermarkContribution implements IWorkbenchContribution {
 		update();
 		dom.prepend(container.firstElementChild as HTMLElement, this.watermark);
 		this.toDispose.push(this.keybindingService.onDidUpdateKeybindings(update));
-		this.toDispose.push(this.editorGroupsService.onDidLayout(({ height }: IDimension) => {
-			container.classList[height <= 478 ? 'add' : 'remove']('max-height-478px');
-		}));
+		this.toDispose.push(this.editorGroupsService.onDidLayout(dimension => this.handleEditorPartSize(container, dimension)));
+		this.handleEditorPartSize(container, this.editorGroupsService.dimension);
+	}
+
+	private handleEditorPartSize(container: HTMLElement, dimension: IDimension): void {
+		if (dimension.height <= 478) {
+			dom.addClass(container, 'max-height-478px');
+		} else {
+			dom.removeClass(container, 'max-height-478px');
+		}
 	}
 
 	private destroy(): void {
 		if (this.watermark) {
 			this.watermark.remove();
-			const container = this.partService.getContainer(Parts.EDITOR_PART);
-			if (container) {
-				container.classList.remove('has-watermark');
-			}
+			const container = this.layoutService.getContainer(Parts.EDITOR_PART);
+			container.classList.remove('has-watermark');
 			this.dispose();
 		}
 	}

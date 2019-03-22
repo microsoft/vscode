@@ -181,7 +181,7 @@ export function hasTrailingPathSeparator(resource: URI): boolean {
 		const fsp = originalFSPath(resource);
 		return fsp.length > extpath.getRoot(fsp).length && fsp[fsp.length - 1] === paths.sep;
 	} else {
-		let p = resource.path;
+		const p = resource.path;
 		return p.length > 1 && p.charCodeAt(p.length - 1) === CharCode.Slash; // ignore the slash at offset 0
 	}
 }
@@ -218,14 +218,15 @@ export function relativePath(from: URI, to: URI): string | undefined {
  * Resolves a absolute or relative path against a base URI.
  */
 export function resolvePath(base: URI, path: string): URI {
-	let resolvedPath: string;
 	if (base.scheme === Schemas.file) {
-		resolvedPath = URI.file(paths.resolve(originalFSPath(base), path)).path;
-	} else {
-		resolvedPath = paths.posix.resolve(base.path, path);
+		const newURI = URI.file(paths.resolve(originalFSPath(base), path));
+		return base.with({
+			authority: newURI.authority,
+			path: newURI.path
+		});
 	}
 	return base.with({
-		path: resolvedPath
+		path: paths.posix.resolve(base.path, path)
 	});
 }
 

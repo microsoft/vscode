@@ -27,9 +27,11 @@ import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorE
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
 import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { coalesce } from 'vs/base/common/arrays';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.
@@ -137,7 +139,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		@IFileService private readonly fileService: IFileService,
 		@IWindowsService private readonly windowService: IWindowsService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IPartService private readonly partService: IPartService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
@@ -803,7 +805,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 				return false;
 			}
 
-			if (this.partService.isRestored() && !this.fileService.canHandleResource(inputResource)) {
+			if (this.layoutService.isRestored() && !this.fileService.canHandleResource(inputResource)) {
 				return false; // make sure to only check this when workbench has restored (for https://github.com/Microsoft/vscode/issues/48275)
 			}
 
@@ -899,7 +901,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 					this.onEditorDispose(input, () => this.removeFromHistory(input), this.editorHistoryListeners);
 				}
 
-				return input || undefined;
+				return withNullAsUndefined(input);
 			}
 		}
 
@@ -971,3 +973,5 @@ export class HistoryService extends Disposable implements IHistoryService {
 		return undefined;
 	}
 }
+
+registerSingleton(IHistoryService, HistoryService);

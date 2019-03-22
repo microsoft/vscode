@@ -149,7 +149,8 @@ export interface ITranslation {
 export interface IExtensionGalleryService {
 	_serviceBrand: any;
 	isEnabled(): boolean;
-	query(options?: IQueryOptions): Promise<IPager<IGalleryExtension>>;
+	query(token: CancellationToken): Promise<IPager<IGalleryExtension>>;
+	query(options: IQueryOptions, token: CancellationToken): Promise<IPager<IGalleryExtension>>;
 	download(extension: IGalleryExtension, operation: InstallOperation): Promise<string>;
 	reportStatistic(publisher: string, name: string, version: string, type: StatisticType): Promise<void>;
 	getReadme(extension: IGalleryExtension, token: CancellationToken): Promise<string>;

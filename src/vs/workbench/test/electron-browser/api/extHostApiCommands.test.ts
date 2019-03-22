@@ -15,15 +15,15 @@ import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFeatures';
-import { MainThreadLanguageFeatures } from 'vs/workbench/api/electron-browser/mainThreadLanguageFeatures';
-import { IHeapService } from 'vs/workbench/api/electron-browser/mainThreadHeapService';
+import { MainThreadLanguageFeatures } from 'vs/workbench/api/browser/mainThreadLanguageFeatures';
+import { IHeapService, NullHeapService } from 'vs/workbench/services/heap/common/heap';
 import { ExtHostApiCommands } from 'vs/workbench/api/node/extHostApiCommands';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
-import { MainThreadCommands } from 'vs/workbench/api/electron-browser/mainThreadCommands';
+import { MainThreadCommands } from 'vs/workbench/api/browser/mainThreadCommands';
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
-import { MainContext, ExtHostContext } from 'vs/workbench/api/node/extHost.protocol';
+import { MainContext, ExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
 import * as vscode from 'vscode';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -67,12 +67,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		{
 			let instantiationService = new TestInstantiationService();
 			rpcProtocol = new TestRPCProtocol();
-			instantiationService.stub(IHeapService, {
-				_serviceBrand: undefined,
-				trackObject(_obj: any) {
-					// nothing
-				}
-			});
+			instantiationService.stub(IHeapService, NullHeapService);
 			instantiationService.stub(ICommandService, {
 				_serviceBrand: undefined,
 				executeCommand(id: string, args: any): any {
@@ -566,7 +561,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 	test('Parameter Hints, back and forth', async () => {
 		disposables.push(extHost.registerSignatureHelpProvider(nullExtensionDescription, defaultSelector, new class implements vscode.SignatureHelpProvider {
-			provideSignatureHelp(_document, _position, _token, context: vscode.SignatureHelpContext): vscode.SignatureHelp {
+			provideSignatureHelp(_document: vscode.TextDocument, _position: vscode.Position, _token: vscode.CancellationToken, context: vscode.SignatureHelpContext): vscode.SignatureHelp {
 				return {
 					activeSignature: 0,
 					activeParameter: 1,
@@ -799,10 +794,9 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		disposables.push(extHost.registerSelectionRangeProvider(nullExtensionDescription, defaultSelector, <vscode.SelectionRangeProvider>{
 			provideSelectionRanges() {
-				return [[
-					new types.SelectionRange(new types.Range(0, 10, 0, 18), types.SelectionRangeKind.Empty),
-					new types.SelectionRange(new types.Range(0, 2, 0, 20), types.SelectionRangeKind.Empty)
-				]];
+				return [
+					new types.SelectionRange(new types.Range(0, 10, 0, 18), new types.SelectionRange(new types.Range(0, 2, 0, 20))),
+				];
 			}
 		}));
 

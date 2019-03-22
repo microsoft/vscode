@@ -8,22 +8,21 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { debounce } from 'vs/base/common/decorators';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { asPromise } from 'vs/base/common/async';
-import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
-import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceSplice, SCMRawResourceSplices, IMainContext, ExtHostSCMShape } from './extHost.protocol';
+import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceSplice, SCMRawResourceSplices, IMainContext, ExtHostSCMShape, CommandDto } from '../common/extHost.protocol';
 import { sortedDiff } from 'vs/base/common/arrays';
 import { comparePaths } from 'vs/base/common/comparers';
 import * as vscode from 'vscode';
 import { ISplice } from 'vs/base/common/sequence';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 type ProviderHandle = number;
 type GroupHandle = number;
 type ResourceStateHandle = number;
 
-function getIconPath(decorations: vscode.SourceControlResourceThemableDecorations) {
+function getIconPath(decorations?: vscode.SourceControlResourceThemableDecorations): string | undefined {
 	if (!decorations) {
 		return undefined;
 	} else if (typeof decorations.iconPath === 'string') {
@@ -60,7 +59,7 @@ function compareResourceStatesDecorations(a: vscode.SourceControlResourceDecorat
 	}
 
 	if (a.tooltip !== b.tooltip) {
-		return (a.tooltip || '').localeCompare(b.tooltip);
+		return (a.tooltip || '').localeCompare(b.tooltip || '');
 	}
 
 	result = compareResourceThemableDecorations(a, b);
@@ -205,7 +204,7 @@ export class ExtHostSCMInputBox implements vscode.SourceControlInputBox {
 		return this._visible;
 	}
 
-	set visible(visible: boolean | undefined) {
+	set visible(visible: boolean) {
 		visible = !!visible;
 		this._visible = visible;
 		this._proxy.$setInputBoxVisibility(this._sourceControlHandle, visible);
@@ -287,7 +286,7 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 			return Promise.resolve(undefined);
 		}
 
-		return asPromise(() => this._commands.executeCommand(command.command, ...command.arguments));
+		return asPromise(() => this._commands.executeCommand(command.command, ...(command.arguments || [])));
 	}
 
 	_takeResourceStateSnapshot(): SCMRawResourceSplice[] {
@@ -309,11 +308,11 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 					this._resourceStatesCommandsMap.set(handle, r.command);
 				}
 
-				if (lightIconPath || darkIconPath) {
+				if (lightIconPath) {
 					icons.push(lightIconPath);
 				}
 
-				if (darkIconPath !== lightIconPath) {
+				if (darkIconPath && (darkIconPath !== lightIconPath)) {
 					icons.push(darkIconPath);
 				}
 
@@ -442,7 +441,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 
 		this._statusBarCommands = statusBarCommands;
 
-		const internal = (statusBarCommands || []).map(c => this._commands.converter.toInternal(c));
+		const internal = (statusBarCommands || []).map(c => this._commands.converter.toInternal(c)) as CommandDto[];
 		this._proxy.$updateSourceControl(this.handle, { statusBarCommands: internal });
 	}
 
@@ -599,14 +598,12 @@ export class ExtHostSCM implements ExtHostSCMShape {
 	}
 
 	// Deprecated
-	getLastInputBox(extension: IExtensionDescription): ExtHostSCMInputBox {
+	getLastInputBox(extension: IExtensionDescription): ExtHostSCMInputBox | undefined {
 		this.logService.trace('ExtHostSCM#getLastInputBox', extension.identifier.value);
 
 		const sourceControls = this._sourceControlsByExtension.get(ExtensionIdentifier.toKey(extension.identifier));
 		const sourceControl = sourceControls && sourceControls[sourceControls.length - 1];
-		const inputBox = sourceControl && sourceControl.inputBox;
-
-		return inputBox;
+		return sourceControl && sourceControl.inputBox;
 	}
 
 	$provideOriginalResource(sourceControlHandle: number, uriComponents: UriComponents, token: CancellationToken): Promise<UriComponents | null> {
@@ -615,11 +612,12 @@ export class ExtHostSCM implements ExtHostSCMShape {
 
 		const sourceControl = this._sourceControls.get(sourceControlHandle);
 
-		if (!sourceControl || !sourceControl.quickDiffProvider) {
+		if (!sourceControl || !sourceControl.quickDiffProvider || !sourceControl.quickDiffProvider.provideOriginalResource) {
 			return Promise.resolve(null);
 		}
 
-		return asPromise(() => sourceControl.quickDiffProvider.provideOriginalResource(uri, token));
+		return asPromise(() => sourceControl.quickDiffProvider!.provideOriginalResource!(uri, token))
+			.then<UriComponents | null>(r => r || null);
 	}
 
 	$onInputBoxValueChange(sourceControlHandle: number, value: string): Promise<void> {

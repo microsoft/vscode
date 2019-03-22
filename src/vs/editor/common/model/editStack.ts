@@ -102,7 +102,7 @@ export interface IUndoRedoResult {
 
 export class EditStack {
 
-	private model: TextModel;
+	private readonly model: TextModel;
 	private currentOpenStackElement: IStackElement | null;
 	private past: IStackElement[];
 	private future: IStackElement[];

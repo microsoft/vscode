@@ -15,7 +15,7 @@ import { IInstantiationService, createDecorator } from 'vs/platform/instantiatio
 import { IExtensionsWorkbenchService, IExtension } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IExtensionService, IExtensionDescription, IExtensionsStatus, IExtensionHostProfile } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, IExtensionsStatus, IExtensionHostProfile } from 'vs/workbench/services/extensions/common/extensions';
 import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { append, $, addClass, toggleClass, Dimension, clearNode } from 'vs/base/browser/dom';
@@ -42,7 +42,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { join } from 'vs/base/common/path';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { ExtensionIdentifier, ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, ExtensionType, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 
 export const IExtensionHostProfileService = createDecorator<IExtensionHostProfileService>('extensionHostProfileService');
@@ -303,7 +303,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 				data.name.textContent = element.marketplaceInfo ? element.marketplaceInfo.displayName : element.description.displayName || '';
 
-				const activationTimes = element.status.activationTimes;
+				const activationTimes = element.status.activationTimes!;
 				let syncTime = activationTimes.codeLoadingTime + activationTimes.activateCallTime;
 				data.activationTime.textContent = activationTimes.startup ? `Startup Activation: ${syncTime}ms` : `Activation: ${syncTime}ms`;
 
@@ -524,7 +524,7 @@ export class ReportExtensionIssueAction extends Action {
 				const data = profiler.rewriteAbsolutePaths({ profile: <any>extension.unresponsiveProfile!.data }, 'pii_removed');
 				profiler.writeProfile(data, path).then(undefined, onUnexpectedError);
 			};
-			message = `:warning: Make sure to **attach** this file from your *home*-directory: \`${path}\` :warning:\n\nFind more details here: https://github.com/Microsoft/vscode/wiki/Explain:-extension-causes-high-cpu-load`;
+			message = `:warning: Make sure to **attach** this file from your *home*-directory:\n:warning:\`${path}\`\n\nFind more details here: https://github.com/Microsoft/vscode/wiki/Explain:-extension-causes-high-cpu-load`;
 
 		} else {
 			// generic

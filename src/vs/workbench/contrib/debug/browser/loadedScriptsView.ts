@@ -29,13 +29,16 @@ import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode, ITreeFilter, TreeVisibility, TreeFilterResult, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { WorkbenchAsyncDataTree, IListService, TreeResourceNavigator2 } from 'vs/platform/list/browser/listService';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { DebugContentProvider } from 'vs/workbench/contrib/debug/browser/debugContentProvider';
+import { WorkbenchAsyncDataTree, TreeResourceNavigator2 } from 'vs/platform/list/browser/listService';
 import { dispose } from 'vs/base/common/lifecycle';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
+import { DebugContentProvider } from 'vs/workbench/contrib/debug/common/debugContentProvider';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 const SMART = true;
+
+// RFC 2396, Appendix A: https://www.ietf.org/rfc/rfc2396.txt
+const URI_SCHEMA_PATTERN = /^[a-zA-Z][a-zA-Z0-9\+\-\.]+:/;
 
 type LoadedScriptsItem = BaseTreeItem;
 
@@ -45,7 +48,7 @@ class BaseTreeItem {
 	private _children: { [key: string]: BaseTreeItem; };
 	private _source: Source;
 
-	constructor(private _parent: BaseTreeItem, private _label: string) {
+	constructor(private _parent: BaseTreeItem | undefined, private _label: string) {
 		this._children = {};
 		this._showedMoreThanOne = false;
 	}
@@ -54,7 +57,7 @@ class BaseTreeItem {
 		return Object.keys(this._children).length === 0;
 	}
 
-	getSession(): IDebugSession {
+	getSession(): IDebugSession | undefined {
 		if (this._parent) {
 			return this._parent.getSession();
 		}
@@ -66,10 +69,12 @@ class BaseTreeItem {
 		this._children = {};
 		if (source.raw && source.raw.sources) {
 			for (const src of source.raw.sources) {
-				const s = new BaseTreeItem(this, src.name);
-				this._children[src.path] = s;
-				const ss = session.getSource(src);
-				s.setSource(session, ss);
+				if (src.name && src.path) {
+					const s = new BaseTreeItem(this, src.name);
+					this._children[src.path] = s;
+					const ss = session.getSource(src);
+					s.setSource(session, ss);
+				}
 			}
 		}
 	}
@@ -111,7 +116,7 @@ class BaseTreeItem {
 	}
 
 	// skips intermediate single-child nodes
-	getParent(): BaseTreeItem {
+	getParent(): BaseTreeItem | undefined {
 		if (this._parent) {
 			if (this._parent.isSkipped()) {
 				return this._parent.getParent();
@@ -161,7 +166,7 @@ class BaseTreeItem {
 	}
 
 	// skips intermediate single-child nodes
-	getHoverLabel(): string {
+	getHoverLabel(): string | undefined {
 		if (this._source && this._parent && this._parent._source) {
 			return this._source.raw.path || this._source.raw.name;
 		}
@@ -192,7 +197,7 @@ class BaseTreeItem {
 		return 0;
 	}
 
-	private oneChild(): BaseTreeItem {
+	private oneChild(): BaseTreeItem | undefined {
 		if (SMART && !this._source && !this._showedMoreThanOne && !(this instanceof RootFolderTreeItem) && !(this instanceof SessionTreeItem)) {
 			const keys = Object.keys(this._children);
 			if (keys.length === 1) {
@@ -216,7 +221,7 @@ class RootFolderTreeItem extends BaseTreeItem {
 
 class RootTreeItem extends BaseTreeItem {
 
-	constructor(private _debugModel: IDebugModel, private _environmentService: IEnvironmentService, private _contextService: IWorkspaceContextService) {
+	constructor(private _debugModel: IDebugModel, private _environmentService: IEnvironmentService, private _contextService: IWorkspaceContextService, private _labelService: ILabelService) {
 		super(undefined, 'Root');
 		this._debugModel.getSessions().forEach(session => {
 			this.add(session);
@@ -224,7 +229,7 @@ class RootTreeItem extends BaseTreeItem {
 	}
 
 	add(session: IDebugSession): SessionTreeItem {
-		return this.createIfNeeded(session.getId(), () => new SessionTreeItem(this, session, this._environmentService, this._contextService));
+		return this.createIfNeeded(session.getId(), () => new SessionTreeItem(this._labelService, this, session, this._environmentService, this._contextService));
 	}
 
 	find(session: IDebugSession): SessionTreeItem {
@@ -239,9 +244,11 @@ class SessionTreeItem extends BaseTreeItem {
 	private _session: IDebugSession;
 	private _initialized: boolean;
 	private _map: Map<string, BaseTreeItem>;
+	private _labelService: ILabelService;
 
-	constructor(parent: BaseTreeItem, session: IDebugSession, private _environmentService: IEnvironmentService, private rootProvider: IWorkspaceContextService) {
+	constructor(labelService: ILabelService, parent: BaseTreeItem, session: IDebugSession, private _environmentService: IEnvironmentService, private rootProvider: IWorkspaceContextService) {
 		super(parent, session.getLabel());
+		this._labelService = labelService;
 		this._initialized = false;
 		this._session = session;
 		this._map = new Map();
@@ -251,7 +258,7 @@ class SessionTreeItem extends BaseTreeItem {
 		return this._session;
 	}
 
-	getHoverLabel(): string {
+	getHoverLabel(): string | undefined {
 		return undefined;
 	}
 
@@ -300,10 +307,17 @@ class SessionTreeItem extends BaseTreeItem {
 
 	addPath(source: Source): void {
 
-		let folder: IWorkspaceFolder;
+		let folder: IWorkspaceFolder | null;
 		let url: string;
 
 		let path = source.raw.path;
+		if (!path) {
+			return;
+		}
+
+		if (this._labelService && URI_SCHEMA_PATTERN.test(path)) {
+			path = this._labelService.getUriLabel(URI.parse(path));
+		}
 
 		const match = SessionTreeItem.URL_REGEXP.exec(path);
 		if (match && match.length === 3) {
@@ -323,7 +337,7 @@ class SessionTreeItem extends BaseTreeItem {
 						path = posix.sep + path;
 					} else {
 						// don't show root folder
-						folder = undefined;
+						folder = null;
 					}
 				} else {
 					// on unix try to tildify absolute paths
@@ -338,7 +352,8 @@ class SessionTreeItem extends BaseTreeItem {
 		let leaf: BaseTreeItem = this;
 		path.split(/[\/\\]/).forEach((segment, i) => {
 			if (i === 0 && folder) {
-				leaf = leaf.createIfNeeded(folder.name, parent => new RootFolderTreeItem(parent, folder));
+				const f = folder;
+				leaf = leaf.createIfNeeded(folder.name, parent => new RootFolderTreeItem(parent, f));
 			} else if (i === 0 && url) {
 				leaf = leaf.createIfNeeded(url, parent => new BaseTreeItem(parent, url));
 			} else {
@@ -347,14 +362,18 @@ class SessionTreeItem extends BaseTreeItem {
 		});
 
 		leaf.setSource(this._session, source);
-		this._map.set(source.raw.path, leaf);
+		if (source.raw.path) {
+			this._map.set(source.raw.path, leaf);
+		}
 	}
 
 	removePath(source: Source): boolean {
-		const leaf = this._map.get(source.raw.path);
-		if (leaf) {
-			leaf.removeFromParent();
-			return true;
+		if (source.raw.path) {
+			const leaf = this._map.get(source.raw.path);
+			if (leaf) {
+				leaf.removeFromParent();
+				return true;
+			}
 		}
 		return false;
 	}
@@ -377,12 +396,11 @@ export class LoadedScriptsView extends ViewletPanel {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextKeyService readonly contextKeyService: IContextKeyService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IDebugService private readonly debugService: IDebugService,
-		@IListService private readonly listService: IListService,
-		@IThemeService private readonly themeService: IThemeService
+		@ILabelService private readonly labelService: ILabelService
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('loadedScriptsSection', "Loaded Scripts Section") }, keybindingService, contextMenuService, configurationService);
 		this.loadedScriptsItemType = CONTEXT_LOADED_SCRIPTS_ITEM_TYPE.bindTo(contextKeyService);
@@ -396,27 +414,26 @@ export class LoadedScriptsView extends ViewletPanel {
 
 		this.filter = new LoadedScriptsFilter();
 
-		const root = new RootTreeItem(this.debugService.getModel(), this.environmentService, this.contextService);
+		const root = new RootTreeItem(this.debugService.getModel(), this.environmentService, this.contextService, this.labelService);
 
 		this.treeLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility } as IResourceLabelsContainer);
 		this.disposables.push(this.treeLabels);
 
-		this.tree = new WorkbenchAsyncDataTree(this.treeContainer, new LoadedScriptsDelegate(),
+		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, this.treeContainer, new LoadedScriptsDelegate(),
 			[new LoadedScriptsRenderer(this.treeLabels)],
 			new LoadedScriptsDataSource(),
 			{
 				identityProvider: {
-					getId: element => element.getId()
+					getId: (element: LoadedScriptsItem) => element.getId()
 				},
 				keyboardNavigationLabelProvider: {
-					getKeyboardNavigationLabel: element => element.getLabel()
+					getKeyboardNavigationLabel: (element: LoadedScriptsItem) => element.getLabel()
 				},
 				filter: this.filter,
 				accessibilityProvider: new LoadedSciptsAccessibilityProvider(),
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'loadedScriptsAriaLabel' }, "Debug Loaded Scripts"),
-			},
-			this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService
-		);
+			}
+		) as WorkbenchAsyncDataTree<LoadedScriptsItem, LoadedScriptsItem, FuzzyScore>;
 
 		this.tree.setInput(root);
 
@@ -519,10 +536,7 @@ class LoadedScriptsDelegate implements IListVirtualDelegate<LoadedScriptsItem> {
 	}
 
 	getTemplateId(element: LoadedScriptsItem): string {
-		if (element instanceof BaseTreeItem) {
-			return LoadedScriptsRenderer.ID;
-		}
-		return undefined;
+		return LoadedScriptsRenderer.ID;
 	}
 }
 
@@ -611,15 +625,11 @@ class LoadedSciptsAccessibilityProvider implements IAccessibilityProvider<Loaded
 			return nls.localize('loadedScriptsSessionAriaLabel', "Session {0}, loaded script, debug", element.getLabel());
 		}
 
-		if (element instanceof BaseTreeItem) {
-			if (element.hasChildren()) {
-				return nls.localize('loadedScriptsFolderAriaLabel', "Folder {0}, loaded script, debug", element.getLabel());
-			} else {
-				return nls.localize('loadedScriptsSourceAriaLabel', "{0}, loaded script, debug", element.getLabel());
-			}
+		if (element.hasChildren()) {
+			return nls.localize('loadedScriptsFolderAriaLabel', "Folder {0}, loaded script, debug", element.getLabel());
+		} else {
+			return nls.localize('loadedScriptsSourceAriaLabel', "{0}, loaded script, debug", element.getLabel());
 		}
-
-		return null;
 	}
 }
 

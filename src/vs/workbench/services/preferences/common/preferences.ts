@@ -132,7 +132,7 @@ export interface IFilterMetadata {
 
 export interface IPreferencesEditorModel<T> {
 	uri?: URI;
-	getPreference(key: string): T | null;
+	getPreference(key: string): T | undefined;
 	dispose(): void;
 }
 
@@ -144,7 +144,7 @@ export interface ISettingsEditorModel extends IPreferencesEditorModel<ISetting> 
 	settingsGroups: ISettingsGroup[];
 	filterSettings(filter: string, groupFilter: IGroupFilter, settingMatcher: ISettingMatcher): ISettingMatch[];
 	findValueMatches(filter: string, setting: ISetting): IRange[];
-	updateResultGroup(id: string, resultGroup: ISearchResultGroup): IFilterResult | null;
+	updateResultGroup(id: string, resultGroup: ISearchResultGroup | undefined): IFilterResult | undefined;
 }
 
 export interface ISettingsEditorOptions extends IEditorOptions {
@@ -201,6 +201,7 @@ export interface IPreferencesService {
 	openRawDefaultSettings(): Promise<IEditor | null>;
 	openSettings(jsonEditor?: boolean): Promise<IEditor | null>;
 	openGlobalSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditor | null>;
+	openRemoteSettings(): Promise<IEditor | null>;
 	openWorkspaceSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditor | null>;
 	openFolderSettings(folder: URI, jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditor | null>;
 	switchSettings(target: ConfigurationTarget, resource: URI, jsonEditor?: boolean): Promise<void>;

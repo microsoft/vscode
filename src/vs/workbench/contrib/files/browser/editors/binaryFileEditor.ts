@@ -57,7 +57,7 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 	private openExternal(resource: URI): void {
 		this.windowsService.openExternal(resource.toString()).then(didOpen => {
 			if (!didOpen) {
-				return this.windowsService.showItemInFolder(resource.fsPath);
+				return this.windowsService.showItemInFolder(resource);
 			}
 
 			return undefined;

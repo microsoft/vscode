@@ -34,7 +34,7 @@ export interface IssueReporterData {
 }
 
 export class IssueReporterModel {
-	private _data: IssueReporterData;
+	private readonly _data: IssueReporterData;
 
 	constructor(initialData?: Partial<IssueReporterData>) {
 		const defaultData = {
@@ -196,7 +196,7 @@ ${this._data.workspaceInfo};
 			return 'Extensions: none' + themeExclusionStr;
 		}
 
-		let tableHeader = `Extension|Author (truncated)|Version
+		const tableHeader = `Extension|Author (truncated)|Version
 ---|---|---`;
 		const table = this._data.enabledNonThemeExtesions.map(e => {
 			return `${e.name}|${e.publisher.substr(0, 3)}|${e.version}`;
@@ -226,7 +226,7 @@ Literal matches: ${this._data.filterResultCount}`;
 			return `No fuzzy results`;
 		}
 
-		let tableHeader = `Setting|Extension|Score
+		const tableHeader = `Setting|Extension|Score
 ---|---|---`;
 		const table = this._data.actualSearchResults.map(setting => {
 			return `${setting.key}|${setting.extensionId}|${String(setting.score).slice(0, 5)}`;

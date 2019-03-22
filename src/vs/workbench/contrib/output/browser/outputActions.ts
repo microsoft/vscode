@@ -8,7 +8,7 @@ import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IAction, Action } from 'vs/base/common/actions';
 import { IOutputService, OUTPUT_PANEL_ID, IOutputChannelRegistry, Extensions as OutputExt, IOutputChannelDescriptor, IFileOutputChannelDescriptor } from 'vs/workbench/contrib/output/common/output';
 import { SelectActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -30,10 +30,10 @@ export class ToggleOutputAction extends TogglePanelAction {
 
 	constructor(
 		id: string, label: string,
-		@IPartService partService: IPartService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IPanelService panelService: IPanelService,
 	) {
-		super(id, label, OUTPUT_PANEL_ID, panelService, partService);
+		super(id, label, OUTPUT_PANEL_ID, panelService, layoutService);
 	}
 }
 
@@ -155,33 +155,30 @@ export class SwitchOutputActionItem extends SelectActionItem {
 	}
 
 	private updateOtions(): void {
+		const groups = groupBy(this.outputService.getChannelDescriptors(), (c1: IOutputChannelDescriptor, c2: IOutputChannelDescriptor) => {
+			if (!c1.log && c2.log) {
+				return -1;
+			}
+			if (c1.log && !c2.log) {
+				return 1;
+			}
+			return 0;
+		});
+		this.outputChannels = groups[0] || [];
+		this.logChannels = groups[1] || [];
+		const showSeparator = this.outputChannels.length && this.logChannels.length;
+		const separatorIndex = showSeparator ? this.outputChannels.length : -1;
+		const options: string[] = [...this.outputChannels.map(c => c.label), ...(showSeparator ? [SwitchOutputActionItem.SEPARATOR] : []), ...this.logChannels.map(c => nls.localize('logChannel', "Log ({0})", c.label))];
+		let selected = 0;
 		const activeChannel = this.outputService.getActiveChannel();
 		if (activeChannel) {
-			const selectedChannel = activeChannel.id;
-			const groups = groupBy(this.outputService.getChannelDescriptors(), (c1: IOutputChannelDescriptor, c2: IOutputChannelDescriptor) => {
-				if (!c1.log && c2.log) {
-					return -1;
-				}
-				if (c1.log && !c2.log) {
-					return 1;
-				}
-				return 0;
-			});
-			this.outputChannels = groups[0] || [];
-			this.logChannels = groups[1] || [];
-			const showSeparator = this.outputChannels.length && this.logChannels.length;
-			const separatorIndex = showSeparator ? this.outputChannels.length : -1;
-			const options: string[] = [...this.outputChannels.map(c => c.label), ...(showSeparator ? [SwitchOutputActionItem.SEPARATOR] : []), ...this.logChannels.map(c => nls.localize('logChannel', "Log ({0})", c.label))];
-			let selected = 0;
-			if (selectedChannel) {
-				selected = this.outputChannels.map(c => c.id).indexOf(selectedChannel);
-				if (selected === -1) {
-					const logChannelIndex = this.logChannels.map(c => c.id).indexOf(selectedChannel);
-					selected = logChannelIndex !== -1 ? separatorIndex + 1 + logChannelIndex : 0;
-				}
+			selected = this.outputChannels.map(c => c.id).indexOf(activeChannel.id);
+			if (selected === -1) {
+				const logChannelIndex = this.logChannels.map(c => c.id).indexOf(activeChannel.id);
+				selected = logChannelIndex !== -1 ? separatorIndex + 1 + logChannelIndex : 0;
 			}
-			this.setOptions(options.map((label, index) => <ISelectOptionItem>{ text: label, isDisabled: (index === separatorIndex ? true : undefined) }), Math.max(0, selected));
 		}
+		this.setOptions(options.map((label, index) => <ISelectOptionItem>{ text: label, isDisabled: (index === separatorIndex ? true : undefined) }), Math.max(0, selected));
 	}
 }
 

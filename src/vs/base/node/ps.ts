@@ -151,7 +151,7 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 						rootItem = processItems.get(rootPid);
 						if (rootItem) {
 							processItems.forEach(item => {
-								let parent = processItems.get(item.ppid);
+								const parent = processItems.get(item.ppid);
 								if (parent) {
 									if (!parent.children) {
 										parent.children = [];
@@ -186,7 +186,7 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 
 					const lines = stdout.toString().split('\n');
 					for (const line of lines) {
-						let matches = PID_CMD.exec(line.trim());
+						const matches = PID_CMD.exec(line.trim());
 						if (matches && matches.length === 6) {
 							addToTree(parseInt(matches[1]), parseInt(matches[2]), matches[5], parseFloat(matches[3]), parseFloat(matches[4]));
 						}

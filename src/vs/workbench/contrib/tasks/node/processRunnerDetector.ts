@@ -14,7 +14,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import * as Tasks from '../common/tasks';
-import * as TaskConfig from './taskConfiguration';
+import * as TaskConfig from '../common/taskConfiguration';
 
 const build = 'build';
 const test = 'test';

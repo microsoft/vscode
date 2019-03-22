@@ -805,7 +805,7 @@ class Trait<T> {
 	onDidModelSplice({ insertedNodes, deletedNodes }: ITreeModelSpliceEvent<T, any>): void {
 		if (!this.identityProvider) {
 			const set = this.createNodeSet();
-			const visit = node => set.delete(node);
+			const visit = (node: ITreeNode<T, any>) => set.delete(node);
 			deletedNodes.forEach(node => dfs(node, visit));
 			this.set(values(set));
 			return;
@@ -816,8 +816,8 @@ class Trait<T> {
 		this.nodes.forEach(node => nodesByIdentity.set(identityProvider.getId(node.element).toString(), node));
 
 		const toDeleteByIdentity = new Map<string, ITreeNode<T, any>>();
-		const toRemoveSetter = node => toDeleteByIdentity.set(identityProvider.getId(node.element).toString(), node);
-		const toRemoveDeleter = node => toDeleteByIdentity.delete(identityProvider.getId(node.element).toString());
+		const toRemoveSetter = (node: ITreeNode<T, any>) => toDeleteByIdentity.set(identityProvider.getId(node.element).toString(), node);
+		const toRemoveDeleter = (node: { element: T; }) => toDeleteByIdentity.delete(identityProvider.getId(node.element).toString());
 		deletedNodes.forEach(node => dfs(node, toRemoveSetter));
 		insertedNodes.forEach(node => dfs(node, toRemoveDeleter));
 
@@ -1021,7 +1021,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		let filter: TypeFilter<T> | undefined;
 
 		if (_options.keyboardNavigationLabelProvider) {
-			filter = new TypeFilter(this, _options.keyboardNavigationLabelProvider, _options.filter as ITreeFilter<T, FuzzyScore>);
+			filter = new TypeFilter(this, _options.keyboardNavigationLabelProvider, _options.filter as any as ITreeFilter<T, FuzzyScore>);
 			_options = { ..._options, filter: filter as ITreeFilter<T, TFilterData> }; // TODO need typescript help here
 			this.disposables.push(filter);
 		}

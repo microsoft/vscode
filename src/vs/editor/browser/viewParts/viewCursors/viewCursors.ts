@@ -28,16 +28,16 @@ export class ViewCursors extends ViewPart {
 
 	private _isVisible: boolean;
 
-	private _domNode: FastDomNode<HTMLElement>;
+	private readonly _domNode: FastDomNode<HTMLElement>;
 
-	private _startCursorBlinkAnimation: TimeoutTimer;
-	private _cursorFlatBlinkInterval: IntervalTimer;
+	private readonly _startCursorBlinkAnimation: TimeoutTimer;
+	private readonly _cursorFlatBlinkInterval: IntervalTimer;
 	private _blinkingEnabled: boolean;
 
 	private _editorHasFocus: boolean;
 
-	private _primaryCursor: ViewCursor;
-	private _secondaryCursors: ViewCursor[];
+	private readonly _primaryCursor: ViewCursor;
+	private readonly _secondaryCursors: ViewCursor[];
 	private _renderData: IViewCursorRenderData[];
 
 	constructor(context: ViewContext) {
@@ -108,15 +108,15 @@ export class ViewCursors extends ViewPart {
 
 		if (this._secondaryCursors.length < secondaryPositions.length) {
 			// Create new cursors
-			let addCnt = secondaryPositions.length - this._secondaryCursors.length;
+			const addCnt = secondaryPositions.length - this._secondaryCursors.length;
 			for (let i = 0; i < addCnt; i++) {
-				let newCursor = new ViewCursor(this._context);
+				const newCursor = new ViewCursor(this._context);
 				this._domNode.domNode.insertBefore(newCursor.getDomNode().domNode, this._primaryCursor.getDomNode().domNode.nextSibling);
 				this._secondaryCursors.push(newCursor);
 			}
 		} else if (this._secondaryCursors.length > secondaryPositions.length) {
 			// Remove some cursors
-			let removeCnt = this._secondaryCursors.length - secondaryPositions.length;
+			const removeCnt = this._secondaryCursors.length - secondaryPositions.length;
 			for (let i = 0; i < removeCnt; i++) {
 				this._domNode.removeChild(this._secondaryCursors[0].getDomNode());
 				this._secondaryCursors.splice(0, 1);
@@ -129,7 +129,7 @@ export class ViewCursors extends ViewPart {
 
 	}
 	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
-		let positions: Position[] = [];
+		const positions: Position[] = [];
 		for (let i = 0, len = e.selections.length; i < len; i++) {
 			positions[i] = e.selections[i].getPosition();
 		}
@@ -169,7 +169,7 @@ export class ViewCursors extends ViewPart {
 		return true;
 	}
 	public onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
-		let shouldRender = (position: Position) => {
+		const shouldRender = (position: Position) => {
 			for (let i = 0, len = e.ranges.length; i < len; i++) {
 				if (e.ranges[i].fromLineNumber <= position.lineNumber && position.lineNumber <= e.ranges[i].toLineNumber) {
 					return true;
@@ -209,11 +209,11 @@ export class ViewCursors extends ViewPart {
 		this._startCursorBlinkAnimation.cancel();
 		this._cursorFlatBlinkInterval.cancel();
 
-		let blinkingStyle = this._getCursorBlinking();
+		const blinkingStyle = this._getCursorBlinking();
 
 		// hidden and solid are special as they involve no animations
-		let isHidden = (blinkingStyle === TextEditorCursorBlinkingStyle.Hidden);
-		let isSolid = (blinkingStyle === TextEditorCursorBlinkingStyle.Solid);
+		const isHidden = (blinkingStyle === TextEditorCursorBlinkingStyle.Hidden);
+		const isSolid = (blinkingStyle === TextEditorCursorBlinkingStyle.Solid);
 
 		if (isHidden) {
 			this._hide();

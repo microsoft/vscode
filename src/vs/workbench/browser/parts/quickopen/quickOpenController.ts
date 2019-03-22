@@ -25,12 +25,12 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditorInput, IWorkbenchEditorConfiguration, IEditorInput } from 'vs/workbench/common/editor';
 import { Component } from 'vs/workbench/common/component';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { QuickOpenHandler, QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions, EditorQuickOpenEntry, CLOSE_ON_FOCUS_LOST_CONFIG, SEARCH_EDITOR_HISTORY, PRESERVE_INPUT_CONFIG } from 'vs/workbench/browser/quickopen';
 import * as errors from 'vs/base/common/errors';
 import { IQuickOpenService, IShowOptions } from 'vs/platform/quickOpen/common/quickOpen';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -50,6 +50,7 @@ import { timeout } from 'vs/base/common/async';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 const HELP_PREFIX = '?';
 
@@ -60,7 +61,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	private static readonly MAX_SHORT_RESPONSE_TIME = 500;
 	private static readonly ID = 'workbench.component.quickopen';
 
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<any>;
 
 	private readonly _onShow: Emitter<void> = this._register(new Emitter<void>());
 	get onShow(): Event<void> { return this._onShow.event; }
@@ -73,7 +74,6 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	private lastInputValue: string;
 	private lastSubmittedInputValue: string;
 	private quickOpenWidget: QuickOpenWidget;
-	private dimension: Dimension;
 	private mapResolvedHandlersToPrefix: { [prefix: string]: Promise<QuickOpenHandler>; } = Object.create(null);
 	private mapContextKeyToContext: { [id: string]: IContextKey<boolean>; } = Object.create(null);
 	private handlerOnOpenCalled: { [prefix: string]: boolean; } = Object.create(null);
@@ -91,7 +91,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IPartService private readonly partService: IPartService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService
@@ -107,8 +107,9 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 
 	private registerListeners(): void {
 		this._register(this.configurationService.onDidChangeConfiguration(() => this.updateConfiguration()));
-		this._register(this.partService.onTitleBarVisibilityChange(() => this.positionQuickOpenWidget()));
+		this._register(this.layoutService.onTitleBarVisibilityChange(() => this.positionQuickOpenWidget()));
 		this._register(browser.onDidChangeZoomLevel(() => this.positionQuickOpenWidget()));
+		this._register(this.layoutService.onLayout(dimension => this.layout(dimension)));
 	}
 
 	private updateConfiguration(): void {
@@ -173,7 +174,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		// Create upon first open
 		if (!this.quickOpenWidget) {
 			this.quickOpenWidget = this._register(new QuickOpenWidget(
-				this.partService.getWorkbenchElement(),
+				this.layoutService.getWorkbenchElement(),
 				{
 					onOk: () => this.onOk(),
 					onCancel: () => { /* ignore */ },
@@ -195,9 +196,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		}
 
 		// Layout
-		if (this.dimension) {
-			this.quickOpenWidget.layout(this.dimension);
-		}
+		this.quickOpenWidget.layout(this.layoutService.dimension);
 
 		// Show quick open with prefix or editor history
 		if (!this.quickOpenWidget.isVisible() || quickNavigateConfiguration) {
@@ -239,7 +238,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	}
 
 	private positionQuickOpenWidget(): void {
-		const titlebarOffset = this.partService.getTitleBarOffset();
+		const titlebarOffset = this.layoutService.getTitleBarOffset();
 
 		if (this.quickOpenWidget) {
 			this.quickOpenWidget.getElement().style.top = `${titlebarOffset}px`;
@@ -482,7 +481,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 
 					// merge history and default handler results
 					const handlerResults = (result && result.entries) || [];
-					this.mergeResults(quickOpenModel, handlerResults, resolvedHandler.getGroupLabel() || undefined);
+					this.mergeResults(quickOpenModel, handlerResults, types.withNullAsUndefined(resolvedHandler.getGroupLabel()));
 				}
 			});
 		});
@@ -529,7 +528,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 				const placeHolderLabel = (typeof canRun === 'string') ? canRun : nls.localize('canNotRunPlaceholder', "This quick open handler can not be used in the current context");
 
 				const model = new QuickOpenModel([new PlaceholderQuickOpenEntry(placeHolderLabel)], this.actionProvider);
-				this.showModel(model, resolvedHandler.getAutoFocus(value, { model, quickNavigateConfiguration: this.quickOpenWidget.getQuickNavigateConfiguration() }), resolvedHandler.getAriaLabel() || undefined);
+				this.showModel(model, resolvedHandler.getAutoFocus(value, { model, quickNavigateConfiguration: this.quickOpenWidget.getQuickNavigateConfiguration() }), types.withNullAsUndefined(resolvedHandler.getAriaLabel()));
 
 				return Promise.resolve(undefined);
 			}
@@ -550,9 +549,9 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 				if (!token.isCancellationRequested) {
 					if (!result || !result.entries.length) {
 						const model = new QuickOpenModel([new PlaceholderQuickOpenEntry(resolvedHandler.getEmptyLabel(value))]);
-						this.showModel(model, resolvedHandler.getAutoFocus(value, { model, quickNavigateConfiguration: this.quickOpenWidget.getQuickNavigateConfiguration() }), resolvedHandler.getAriaLabel() || undefined);
+						this.showModel(model, resolvedHandler.getAutoFocus(value, { model, quickNavigateConfiguration: this.quickOpenWidget.getQuickNavigateConfiguration() }), types.withNullAsUndefined(resolvedHandler.getAriaLabel()));
 					} else {
-						this.showModel(result, resolvedHandler.getAutoFocus(value, { model: result, quickNavigateConfiguration: this.quickOpenWidget.getQuickNavigateConfiguration() }), resolvedHandler.getAriaLabel() || undefined);
+						this.showModel(result, resolvedHandler.getAutoFocus(value, { model: result, quickNavigateConfiguration: this.quickOpenWidget.getQuickNavigateConfiguration() }), types.withNullAsUndefined(resolvedHandler.getAriaLabel()));
 					}
 				}
 			});
@@ -624,9 +623,8 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	}
 
 	layout(dimension: Dimension): void {
-		this.dimension = dimension;
 		if (this.quickOpenWidget) {
-			this.quickOpenWidget.layout(this.dimension);
+			this.quickOpenWidget.layout(dimension);
 		}
 	}
 }
@@ -785,7 +783,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 	}
 
 	getResource(): URI | null {
-		return this.resource || null;
+		return types.withUndefinedAsNull(this.resource);
 	}
 
 	getInput(): IEditorInput | IResourceInput {
@@ -850,7 +848,7 @@ export class RemoveFromEditorHistoryAction extends Action {
 
 			return <IHistoryPickEntry>{
 				input: h,
-				iconClasses: getIconClasses(this.modelService, this.modeService, entry.getResource() || undefined),
+				iconClasses: getIconClasses(this.modelService, this.modeService, types.withNullAsUndefined(entry.getResource())),
 				label: entry.getLabel(),
 				description: entry.getDescription()
 			};
@@ -863,3 +861,5 @@ export class RemoveFromEditorHistoryAction extends Action {
 		});
 	}
 }
+
+registerSingleton(IQuickOpenService, QuickOpenController, true);

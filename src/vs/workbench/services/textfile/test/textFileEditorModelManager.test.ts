@@ -194,11 +194,11 @@ suite('Files - TextFileEditorModelManager', () => {
 			accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: resource1, type: FileChangeType.ADDED }]));
 
 			return manager.loadOrCreate(resource2, { encoding: 'utf8' }).then(model2 => {
-				model1.textEditorModel.setValue('changed');
+				model1.textEditorModel!.setValue('changed');
 				model1.updatePreferredEncoding('utf16');
 
 				return model1.revert().then(() => {
-					model1.textEditorModel.setValue('changed again');
+					model1.textEditorModel!.setValue('changed again');
 
 					return model1.save().then(() => {
 						model1.dispose();
@@ -257,11 +257,11 @@ suite('Files - TextFileEditorModelManager', () => {
 
 		return manager.loadOrCreate(resource1, { encoding: 'utf8' }).then(model1 => {
 			return manager.loadOrCreate(resource2, { encoding: 'utf8' }).then(model2 => {
-				model1.textEditorModel.setValue('changed');
+				model1.textEditorModel!.setValue('changed');
 				model1.updatePreferredEncoding('utf16');
 
 				return model1.revert().then(() => {
-					model1.textEditorModel.setValue('changed again');
+					model1.textEditorModel!.setValue('changed again');
 
 					return model1.save().then(() => {
 						model1.dispose();
@@ -307,7 +307,7 @@ suite('Files - TextFileEditorModelManager', () => {
 		const resource = toResource.call(this, '/path/index_something.txt');
 
 		return manager.loadOrCreate(resource, { encoding: 'utf8' }).then(model => {
-			model.textEditorModel.setValue('make dirty');
+			model.textEditorModel!.setValue('make dirty');
 
 			manager.disposeModel(model as TextFileEditorModel);
 			assert.ok(!model.isDisposed());

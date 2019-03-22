@@ -10,7 +10,7 @@ import { IEditorInput, EditorInput, IEditorIdentifier, ConfirmResult, IEditorCom
 import { QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { EditorQuickOpenEntry, EditorQuickOpenEntryGroup, IEditorQuickOpenEntry, QuickOpenAction } from 'vs/workbench/browser/quickopen';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -188,20 +188,22 @@ export class JoinTwoGroupsAction extends Action {
 	}
 
 	run(context?: IEditorIdentifier): Promise<any> {
-		let sourceGroup: IEditorGroup;
+		let sourceGroup: IEditorGroup | undefined;
 		if (context && typeof context.groupId === 'number') {
 			sourceGroup = this.editorGroupService.getGroup(context.groupId);
 		} else {
 			sourceGroup = this.editorGroupService.activeGroup;
 		}
 
-		const targetGroupDirections = [GroupDirection.RIGHT, GroupDirection.DOWN, GroupDirection.LEFT, GroupDirection.UP];
-		for (const targetGroupDirection of targetGroupDirections) {
-			const targetGroup = this.editorGroupService.findGroup({ direction: targetGroupDirection }, sourceGroup);
-			if (targetGroup && sourceGroup !== targetGroup) {
-				this.editorGroupService.mergeGroup(sourceGroup, targetGroup);
+		if (sourceGroup) {
+			const targetGroupDirections = [GroupDirection.RIGHT, GroupDirection.DOWN, GroupDirection.LEFT, GroupDirection.UP];
+			for (const targetGroupDirection of targetGroupDirections) {
+				const targetGroup = this.editorGroupService.findGroup({ direction: targetGroupDirection }, sourceGroup);
+				if (targetGroup && sourceGroup !== targetGroup) {
+					this.editorGroupService.mergeGroup(sourceGroup, targetGroup);
 
-				return Promise.resolve(true);
+					return Promise.resolve(true);
+				}
 			}
 		}
 
@@ -579,7 +581,7 @@ export class CloseLeftEditorsInGroupAction extends Action {
 	}
 }
 
-function getTarget(editorService: IEditorService, editorGroupService: IEditorGroupsService, context?: IEditorIdentifier): { editor: IEditorInput | null, group: IEditorGroup } {
+function getTarget(editorService: IEditorService, editorGroupService: IEditorGroupsService, context?: IEditorIdentifier): { editor: IEditorInput | null, group: IEditorGroup | undefined } {
 	if (context) {
 		return { editor: context.editor, group: editorGroupService.getGroup(context.groupId) };
 	}
@@ -703,7 +705,7 @@ export class CloseEditorsInOtherGroupsAction extends Action {
 	run(context?: IEditorIdentifier): Promise<any> {
 		const groupToSkip = context ? this.editorGroupService.getGroup(context.groupId) : this.editorGroupService.activeGroup;
 		return Promise.all(this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).map(g => {
-			if (g.id === groupToSkip.id) {
+			if (groupToSkip && g.id === groupToSkip.id) {
 				return Promise.resolve();
 			}
 
@@ -748,16 +750,18 @@ export class BaseMoveGroupAction extends Action {
 	}
 
 	run(context?: IEditorIdentifier): Promise<any> {
-		let sourceGroup: IEditorGroup;
+		let sourceGroup: IEditorGroup | undefined;
 		if (context && typeof context.groupId === 'number') {
 			sourceGroup = this.editorGroupService.getGroup(context.groupId);
 		} else {
 			sourceGroup = this.editorGroupService.activeGroup;
 		}
 
-		const targetGroup = this.findTargetGroup(sourceGroup);
-		if (targetGroup) {
-			this.editorGroupService.moveGroup(sourceGroup, targetGroup, this.direction);
+		if (sourceGroup) {
+			const targetGroup = this.findTargetGroup(sourceGroup);
+			if (targetGroup) {
+				this.editorGroupService.moveGroup(sourceGroup, targetGroup, this.direction);
+			}
 		}
 
 		return Promise.resolve(true);
@@ -882,14 +886,14 @@ export class ResetGroupSizesAction extends Action {
 export class MaximizeGroupAction extends Action {
 
 	static readonly ID = 'workbench.action.maximizeEditor';
-	static readonly LABEL = nls.localize('maximizeEditor', "Maximize Editor Group and Hide Sidebar");
+	static readonly LABEL = nls.localize('maximizeEditor', "Maximize Editor Group and Hide Side Bar");
 
 	constructor(
 		id: string,
 		label: string,
 		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
-		@IPartService private readonly partService: IPartService
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
 		super(id, label);
 	}
@@ -897,7 +901,7 @@ export class MaximizeGroupAction extends Action {
 	run(): Promise<any> {
 		if (this.editorService.activeEditor) {
 			this.editorGroupService.arrangeGroups(GroupsArrangement.MINIMIZE_OTHERS);
-			this.partService.setSideBarHidden(true);
+			this.layoutService.setSideBarHidden(true);
 		}
 
 		return Promise.resolve(false);
@@ -927,7 +931,11 @@ export abstract class BaseNavigateEditorAction extends Action {
 		}
 
 		const group = this.editorGroupService.getGroup(groupId);
-		return group.openEditor(editor);
+		if (group) {
+			return group.openEditor(editor);
+		}
+
+		return Promise.resolve();
 	}
 
 	protected abstract navigate(): IEditorIdentifier | undefined;

@@ -9,7 +9,7 @@ import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { IProcessEnvironment, isMacintosh, isLinux } from 'vs/base/common/platform';
 import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { IRecentlyOpened } from 'vs/platform/history/common/history';
+import { IRecentlyOpened, IRecent } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { ExportData } from 'vs/base/common/performance';
 import { LogLevel } from 'vs/platform/log/common/log';
@@ -117,8 +117,8 @@ export interface IWindowsService {
 	enterWorkspace(windowId: number, path: URI): Promise<IEnterWorkspaceResult | undefined>;
 	toggleFullScreen(windowId: number): Promise<void>;
 	setRepresentedFilename(windowId: number, fileName: string): Promise<void>;
-	addRecentlyOpened(files: URI[]): Promise<void>;
-	removeFromRecentlyOpened(paths: Array<IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | string>): Promise<void>;
+	addRecentlyOpened(recents: IRecent[]): Promise<void>;
+	removeFromRecentlyOpened(paths: URI[]): Promise<void>;
 	clearRecentlyOpened(): Promise<void>;
 	getRecentlyOpened(windowId: number): Promise<IRecentlyOpened>;
 	focusWindow(windowId: number): Promise<void>;
@@ -149,13 +149,13 @@ export interface IWindowsService {
 	toggleSharedProcess(): Promise<void>;
 
 	// Global methods
-	openWindow(windowId: number, uris: IURIToOpen[], options?: IOpenSettings): Promise<void>;
+	openWindow(windowId: number, uris: IURIToOpen[], options: IOpenSettings): Promise<void>;
 	openNewWindow(options?: INewWindowOptions): Promise<void>;
 	showWindow(windowId: number): Promise<void>;
 	getWindows(): Promise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]>;
 	getWindowCount(): Promise<number>;
 	log(severity: string, ...messages: string[]): Promise<void>;
-	showItemInFolder(path: string): Promise<void>;
+	showItemInFolder(path: URI): Promise<void>;
 	getActiveWindowId(): Promise<number | undefined>;
 
 	// This needs to be handled from browser process to prevent
@@ -182,6 +182,8 @@ export interface IOpenSettings {
 	forceOpenWorkspaceAsFile?: boolean;
 	diffMode?: boolean;
 	addMode?: boolean;
+	noRecentEntry?: boolean;
+	waitMarkerFileURI?: URI;
 	args?: ParsedArgs;
 }
 
@@ -190,6 +192,7 @@ export type URIType = 'file' | 'folder';
 export interface IURIToOpen {
 	uri: URI;
 	typeHint?: URIType;
+	label?: string;
 }
 
 export interface IWindowService {
@@ -337,11 +340,12 @@ export interface IPath extends IPathData {
 
 export interface IPathsToWaitFor extends IPathsToWaitForData {
 	paths: IPath[];
+	waitMarkerFileUri: URI;
 }
 
 export interface IPathsToWaitForData {
 	paths: IPathData[];
-	waitMarkerFilePath: string;
+	waitMarkerFileUri: UriComponents;
 }
 
 export interface IPathData {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/task.contribution';
+import 'vs/css!../common/media/task.contribution';
 
 import * as nls from 'vs/nls';
 import * as semver from 'semver';
@@ -58,7 +58,7 @@ import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandler
 
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import Constants from 'vs/workbench/contrib/markers/browser/constants';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -73,14 +73,13 @@ import { ITaskSystem, ITaskResolver, ITaskSummary, TaskExecuteKind, TaskError, T
 import {
 	Task, CustomTask, ConfiguringTask, ContributedTask, InMemoryTask, TaskEvent,
 	TaskEventKind, TaskSet, TaskGroup, GroupType, ExecutionEngine, JsonSchemaVersion, TaskSourceKind,
-	TaskSorter, TaskIdentifier, KeyedTaskIdentifier, TASK_RUNNING_STATE, TaskRunSource
+	TaskSorter, TaskIdentifier, KeyedTaskIdentifier, TASK_RUNNING_STATE, TaskRunSource,
+	KeyedTaskIdentifier as NKeyedTaskIdentifier, TaskDefinition
 } from 'vs/workbench/contrib/tasks/common/tasks';
 import { ITaskService, ITaskProvider, ProblemMatcherRunOptions, CustomizationProperties, TaskFilter, WorkspaceFolderTaskResult } from 'vs/workbench/contrib/tasks/common/taskService';
 import { getTemplates as getTaskTemplates } from 'vs/workbench/contrib/tasks/common/taskTemplates';
 
-import { KeyedTaskIdentifier as NKeyedTaskIdentifier, TaskDefinition } from 'vs/workbench/contrib/tasks/node/tasks';
-
-import * as TaskConfig from '../node/taskConfiguration';
+import * as TaskConfig from '../common/taskConfiguration';
 import { ProcessTaskSystem } from 'vs/workbench/contrib/tasks/node/processTaskSystem';
 import { TerminalTaskSystem } from './terminalTaskSystem';
 import { ProcessRunnerDetector } from 'vs/workbench/contrib/tasks/node/processRunnerDetector';
@@ -119,7 +118,7 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 		@IPanelService private readonly panelService: IPanelService,
 		@IMarkerService private readonly markerService: IMarkerService,
 		@ITaskService private readonly taskService: ITaskService,
-		@IPartService private readonly partService: IPartService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IThemeService themeService: IThemeService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
 	) {
@@ -156,9 +155,9 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 		const info = document.createElement('div');
 		const building = document.createElement('div');
 
-		const errorTitle = n => nls.localize('totalErrors', "{0} Errors", n);
-		const warningTitle = n => nls.localize('totalWarnings', "{0} Warnings", n);
-		const infoTitle = n => nls.localize('totalInfos', "{0} Infos", n);
+		const errorTitle = (n: number) => nls.localize('totalErrors', "{0} Errors", n);
+		const warningTitle = (n: number) => nls.localize('totalWarnings', "{0} Warnings", n);
+		const infoTitle = (n: number) => nls.localize('totalInfos', "{0} Infos", n);
 
 		Dom.addClass(element, 'task-statusbar-item');
 		element.title = nls.localize('problems', "Problems");
@@ -204,14 +203,14 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 		callOnDispose.push(Dom.addDisposableListener(label, 'click', (e: MouseEvent) => {
 			const panel = this.panelService.getActivePanel();
 			if (panel && panel.getId() === Constants.MARKERS_PANEL_ID) {
-				this.partService.setPanelHidden(true);
+				this.layoutService.setPanelHidden(true);
 			} else {
 				this.panelService.openPanel(Constants.MARKERS_PANEL_ID, true);
 			}
 		}));
 
 		const manyProblems = nls.localize('manyProblems', "10K+");
-		const packNumber = n => n > 9999 ? manyProblems : n > 999 ? n.toString().charAt(0) + 'K' : n.toString();
+		const packNumber = (n: number) => n > 9999 ? manyProblems : n > 999 ? n.toString().charAt(0) + 'K' : n.toString();
 		let updateLabel = (stats: MarkerStatistics) => {
 			error.innerHTML = packNumber(stats.errors);
 			error.title = errorIcon.title = errorTitle(stats.errors);
@@ -716,6 +715,13 @@ class TaskService extends Disposable implements ITaskService {
 
 	public registerTaskSystem(key: string, info: TaskSystemInfo): void {
 		this._taskSystemInfos.set(key, info);
+	}
+
+	public extensionCallbackTaskComplete(task: Task, result: number): Promise<void> {
+		if (!this._taskSystem) {
+			return Promise.resolve();
+		}
+		return this._taskSystem.customExecutionComplete(task, result);
 	}
 
 	public getTask(folder: IWorkspaceFolder | string, identifier: string | TaskIdentifier, compareId: boolean = false): Promise<Task | undefined> {
@@ -1765,10 +1771,10 @@ class TaskService extends Disposable implements ITaskService {
 	}
 
 	public configureAction(): Action {
-		let run = () => { this.runConfigureTasks(); return Promise.resolve(undefined); };
+		const thisCapture: TaskService = this;
 		return new class extends Action {
 			constructor() {
-				super(ConfigureTaskAction.ID, ConfigureTaskAction.TEXT, undefined, true, run);
+				super(ConfigureTaskAction.ID, ConfigureTaskAction.TEXT, undefined, true, () => { thisCapture.runConfigureTasks(); return Promise.resolve(undefined); });
 			}
 		};
 	}
@@ -2689,8 +2695,8 @@ let schema: IJSONSchema = {
 	}
 };
 
-import schemaVersion1 from './jsonSchema_v1';
-import schemaVersion2, { updateProblemMatchers } from './jsonSchema_v2';
+import schemaVersion1 from '../common/jsonSchema_v1';
+import schemaVersion2, { updateProblemMatchers } from '../common/jsonSchema_v2';
 schema.definitions = {
 	...schemaVersion1.definitions,
 	...schemaVersion2.definitions,

@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CommentThread, DocumentCommentProvider, CommentThreadChangedEvent, CommentInfo, Comment, CommentReaction, CommentingRanges } from 'vs/editor/common/modes';
+import { CommentThread, DocumentCommentProvider, CommentThreadChangedEvent, CommentInfo, Comment, CommentReaction, CommentingRanges, CommentThread2 } from 'vs/editor/common/modes';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import { keys } from 'vs/base/common/map';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { assign } from 'vs/base/common/objects';
 import { ICommentThreadChangedEvent } from 'vs/workbench/contrib/comments/common/commentModel';
-import { MainThreadCommentControl } from 'vs/workbench/api/electron-browser/mainThreadComments';
+import { MainThreadCommentController } from 'vs/workbench/api/electron-browser/mainThreadComments';
 
 export const ICommentService = createDecorator<ICommentService>('commentService');
 
@@ -44,7 +44,8 @@ export interface ICommentService {
 	setDocumentComments(resource: URI, commentInfos: ICommentInfo[]): void;
 	setWorkspaceComments(owner: string, commentsByResource: CommentThread[]): void;
 	removeWorkspaceComments(owner: string): void;
-	registerCommentControl(owner: string, commentControl: MainThreadCommentControl): void;
+	registerCommentController(owner: string, commentControl: MainThreadCommentController): void;
+	unregisterCommentController(owner: string): void;
 	registerDataProvider(owner: string, commentProvider: DocumentCommentProvider): void;
 	unregisterDataProvider(owner: string): void;
 	updateComments(ownerId: string, event: CommentThreadChangedEvent): void;
@@ -53,6 +54,7 @@ export interface ICommentService {
 	editComment(owner: string, resource: URI, comment: Comment, text: string): Promise<void>;
 	deleteComment(owner: string, resource: URI, comment: Comment): Promise<boolean>;
 	getComments(resource: URI): Promise<(ICommentInfo | null)[]>;
+	getCommentingRanges(resource: URI): Promise<IRange[]>;
 	startDraft(owner: string, resource: URI): void;
 	deleteDraft(owner: string, resource: URI): void;
 	finishDraft(owner: string, resource: URI): void;
@@ -62,9 +64,9 @@ export interface ICommentService {
 	addReaction(owner: string, resource: URI, comment: Comment, reaction: CommentReaction): Promise<void>;
 	deleteReaction(owner: string, resource: URI, comment: Comment, reaction: CommentReaction): Promise<void>;
 	getReactionGroup(owner: string): CommentReaction[] | undefined;
-	setActiveCommentThread(commentThread: CommentThread | null);
-	setInput(input: string);
-	setActiveCommentingRange(range: Range, commentingRangesInfo: CommentingRanges);
+	toggleReaction(owner: string, resource: URI, thread: CommentThread2, comment: Comment, reaction: CommentReaction): Promise<void>;
+	setActiveCommentThread(commentThread: CommentThread | null): void;
+	setInput(input: string): void;
 }
 
 export class CommentService extends Disposable implements ICommentService {
@@ -85,7 +87,7 @@ export class CommentService extends Disposable implements ICommentService {
 	private readonly _onDidUpdateCommentThreads: Emitter<ICommentThreadChangedEvent> = this._register(new Emitter<ICommentThreadChangedEvent>());
 	readonly onDidUpdateCommentThreads: Event<ICommentThreadChangedEvent> = this._onDidUpdateCommentThreads.event;
 
-	private readonly _onDidChangeActiveCommentThread: Emitter<CommentThread> = this._register(new Emitter<CommentThread>());
+	private readonly _onDidChangeActiveCommentThread = this._register(new Emitter<CommentThread | null>());
 	readonly onDidChangeActiveCommentThread: Event<CommentThread | null> = this._onDidChangeActiveCommentThread.event;
 
 	private readonly _onDidChangeInput: Emitter<string> = this._register(new Emitter<string>());
@@ -101,7 +103,7 @@ export class CommentService extends Disposable implements ICommentService {
 
 	private _commentProviders = new Map<string, DocumentCommentProvider>();
 
-	private _commentControls = new Map<string, MainThreadCommentControl>();
+	private _commentControls = new Map<string, MainThreadCommentController>();
 
 	constructor() {
 		super();
@@ -113,11 +115,6 @@ export class CommentService extends Disposable implements ICommentService {
 
 	setInput(input: string) {
 		this._onDidChangeInput.fire(input);
-	}
-
-	setActiveCommentingRange(range: Range, commentingRangesInfo:
-		CommentingRanges) {
-		this._onDidChangeActiveCommentingRange.fire({ range: range, commentingRangesInfo: commentingRangesInfo });
 	}
 
 	setDocumentComments(resource: URI, commentInfos: ICommentInfo[]): void {
@@ -132,9 +129,14 @@ export class CommentService extends Disposable implements ICommentService {
 		this._onDidSetAllCommentThreads.fire({ ownerId: owner, commentThreads: [] });
 	}
 
-	registerCommentControl(owner: string, commentControl: MainThreadCommentControl): void {
+	registerCommentController(owner: string, commentControl: MainThreadCommentController): void {
 		this._commentControls.set(owner, commentControl);
 		this._onDidSetDataProvider.fire();
+	}
+
+	unregisterCommentController(owner: string): void {
+		this._commentControls.delete(owner);
+		this._onDidDeleteDataProvider.fire(owner);
 	}
 
 	registerDataProvider(owner: string, commentProvider: DocumentCommentProvider): void {
@@ -242,11 +244,27 @@ export class CommentService extends Disposable implements ICommentService {
 		}
 	}
 
+	async toggleReaction(owner: string, resource: URI, thread: CommentThread2, comment: Comment, reaction: CommentReaction): Promise<void> {
+		const commentController = this._commentControls.get(owner);
+
+		if (commentController) {
+			return commentController.toggleReaction(resource, thread, comment, reaction, CancellationToken.None);
+		} else {
+			throw new Error('Not supported');
+		}
+	}
+
 	getReactionGroup(owner: string): CommentReaction[] | undefined {
-		const commentProvider = this._commentProviders.get(owner);
+		const commentProvider = this._commentControls.get(owner);
 
 		if (commentProvider) {
-			return commentProvider.reactionGroup;
+			return commentProvider.getReactionGroup();
+		}
+
+		const commentController = this._commentControls.get(owner);
+
+		if (commentController) {
+			return commentController.getReactionGroup();
 		}
 
 		return undefined;
@@ -303,13 +321,25 @@ export class CommentService extends Disposable implements ICommentService {
 			}
 		}
 
-		let ret = await Promise.all(result);
-		for (const owner of keys(this._commentControls)) {
-			const control = this._commentControls.get(owner);
+		let commentControlResult: Promise<ICommentInfo>[] = [];
 
-			ret.push(control.getDocumentComments(resource));
-		}
+		this._commentControls.forEach(control => {
+			commentControlResult.push(control.getDocumentComments(resource, CancellationToken.None));
+		});
+
+		let ret = [...await Promise.all(result), ...await Promise.all(commentControlResult)];
 
 		return ret;
+	}
+
+	async getCommentingRanges(resource: URI): Promise<IRange[]> {
+		let commentControlResult: Promise<IRange[]>[] = [];
+
+		this._commentControls.forEach(control => {
+			commentControlResult.push(control.getCommentingRanges(resource, CancellationToken.None));
+		});
+
+		let ret = await Promise.all(commentControlResult);
+		return ret.reduce((prev, curr) => { prev.push(...curr); return prev; }, []);
 	}
 }

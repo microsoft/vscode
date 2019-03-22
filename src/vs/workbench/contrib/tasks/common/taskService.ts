@@ -74,7 +74,7 @@ export interface ITaskService {
 	getRecentlyUsedTasks(): LinkedMap<string, string>;
 	createSorter(): TaskSorter;
 
-	needsFolderQualification();
+	needsFolderQualification(): boolean;
 	canCustomize(task: ContributedTask | CustomTask): boolean;
 	customize(task: ContributedTask | CustomTask, properties?: {}, openConfig?: boolean): Promise<void>;
 	openConfig(task: CustomTask | undefined): Promise<void>;
@@ -82,4 +82,6 @@ export interface ITaskService {
 	registerTaskProvider(taskProvider: ITaskProvider): IDisposable;
 
 	registerTaskSystem(scheme: string, taskSystemInfo: TaskSystemInfo): void;
+
+	extensionCallbackTaskComplete(task: Task, result: number | undefined): Promise<void>;
 }

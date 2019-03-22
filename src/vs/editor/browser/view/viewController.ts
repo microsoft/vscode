@@ -98,7 +98,7 @@ export class ViewController {
 	}
 
 	private _validateViewColumn(viewPosition: Position): Position {
-		let minColumn = this.viewModel.getLineMinColumn(viewPosition.lineNumber);
+		const minColumn = this.viewModel.getLineMinColumn(viewPosition.lineNumber);
 		if (viewPosition.column < minColumn) {
 			return new Position(viewPosition.lineNumber, minColumn);
 		}

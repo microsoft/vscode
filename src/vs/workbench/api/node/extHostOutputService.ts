@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MainContext, MainThreadOutputServiceShape, IMainContext, ExtHostOutputServiceShape } from './extHost.protocol';
+import { MainContext, MainThreadOutputServiceShape, IMainContext, ExtHostOutputServiceShape } from '../common/extHost.protocol';
 import * as vscode from 'vscode';
 import { URI } from 'vs/base/common/uri';
 import { join } from 'vs/base/common/path';
-import { OutputAppender } from 'vs/workbench/contrib/output/node/outputAppender';
+import { OutputAppender } from 'vs/workbench/services/output/node/outputAppender';
 import { toLocalISOString } from 'vs/base/common/date';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';

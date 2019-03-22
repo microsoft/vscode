@@ -63,16 +63,16 @@ export class Colorizer {
 		// Send out the event to create the mode
 		modeService.triggerMode(language);
 
-		let tokenizationSupport = TokenizationRegistry.get(language);
+		const tokenizationSupport = TokenizationRegistry.get(language);
 		if (tokenizationSupport) {
 			return _colorize(lines, tabSize, tokenizationSupport);
 		}
 
-		let tokenizationSupportPromise = TokenizationRegistry.getPromise(language);
+		const tokenizationSupportPromise = TokenizationRegistry.getPromise(language);
 		if (tokenizationSupportPromise) {
 			// A tokenizer will be registered soon
 			return new Promise<string>((resolve, reject) => {
-				tokenizationSupportPromise!.then(tokenizationSupport => {
+				tokenizationSupportPromise.then(tokenizationSupport => {
 					_colorize(lines, tabSize, tokenizationSupport).then(resolve, reject);
 				}, reject);
 			});

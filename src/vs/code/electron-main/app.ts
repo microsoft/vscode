@@ -31,7 +31,7 @@ import { NullTelemetryService, combinedAppender, LogAppender } from 'vs/platform
 import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
-import { getDelayedChannel, StaticRouter } from 'vs/base/parts/ipc/node/ipc';
+import { getDelayedChannel, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
 import product from 'vs/platform/product/node/product';
 import pkg from 'vs/platform/product/node/package';
 import { ProxyAuthHandler } from 'vs/code/electron-main/auth';
@@ -39,7 +39,7 @@ import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService } from 'vs/platform/history/common/history';
-import { isUndefinedOrNull } from 'vs/base/common/types';
+import { isUndefinedOrNull, withUndefinedAsNull } from 'vs/base/common/types';
 import { KeyboardLayoutMonitor } from 'vs/code/electron-main/keyboard';
 import { URI } from 'vs/base/common/uri';
 import { WorkspacesChannel } from 'vs/platform/workspaces/node/workspacesIpc';
@@ -55,7 +55,7 @@ import { LogLevelSetterChannel } from 'vs/platform/log/node/logIpc';
 import * as errors from 'vs/base/common/errors';
 import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
 import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
-import { connectRemoteAgentManagement, RemoteAgentConnectionContext } from 'vs/platform/remote/node/remoteAgentConnection';
+import { connectRemoteAgentManagement, ManagementPersistentConnection } from 'vs/platform/remote/node/remoteAgentConnection';
 import { IMenubarService } from 'vs/platform/menubar/common/menubar';
 import { MenubarService } from 'vs/platform/menubar/electron-main/menubarService';
 import { MenubarChannel } from 'vs/platform/menubar/node/menubarIpc';
@@ -78,6 +78,7 @@ import { IBackupMainService } from 'vs/platform/backup/common/backup';
 import { HistoryMainService } from 'vs/platform/history/electron-main/historyMainService';
 import { URLService } from 'vs/platform/url/common/urlService';
 import { WorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
+import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
 
 export class CodeApplication extends Disposable {
 
@@ -91,8 +92,8 @@ export class CodeApplication extends Disposable {
 	private sharedProcessClient: Promise<Client>;
 
 	constructor(
-		private mainIpcServer: Server,
-		private userEnv: IProcessEnvironment,
+		private readonly mainIpcServer: Server,
+		private readonly userEnv: IProcessEnvironment,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
@@ -387,7 +388,7 @@ export class CodeApplication extends Disposable {
 		this.logService.info(`Tracing: waiting for windows to get ready...`);
 
 		let recordingStopped = false;
-		const stopRecording = (timeout) => {
+		const stopRecording = (timeout: boolean) => {
 			if (recordingStopped) {
 				return;
 			}
@@ -556,7 +557,7 @@ export class CodeApplication extends Disposable {
 			});
 		}
 
-		// Register the multiple URL handker
+		// Register the multiple URL handler
 		urlService.registerHandler(multiplexURLHandler);
 
 		// Watch Electron URLs and forward them to the UrlService
@@ -573,16 +574,44 @@ export class CodeApplication extends Disposable {
 		const hasCliArgs = hasArgs(args._);
 		const hasFolderURIs = hasArgs(args['folder-uri']);
 		const hasFileURIs = hasArgs(args['file-uri']);
+		const noRecentEntry = args['skip-add-to-recently-opened'] === true;
+		const waitMarkerFileURI = args.wait && args.waitMarkerFilePath ? URI.file(args.waitMarkerFilePath) : undefined;
 
 		if (args['new-window'] && !hasCliArgs && !hasFolderURIs && !hasFileURIs) {
-			return this.windowsMainService.open({ context, cli: args, forceNewWindow: true, forceEmpty: true, initialStartup: true }); // new window if "-n" was used without paths
+			// new window if "-n" was used without paths
+			return this.windowsMainService.open({
+				context,
+				cli: args,
+				forceNewWindow: true,
+				forceEmpty: true,
+				noRecentEntry,
+				waitMarkerFileURI,
+				initialStartup: true
+			});
 		}
 
 		if (macOpenFiles && macOpenFiles.length && !hasCliArgs && !hasFolderURIs && !hasFileURIs) {
-			return this.windowsMainService.open({ context: OpenContext.DOCK, cli: args, urisToOpen: macOpenFiles.map(file => ({ uri: URI.file(file) })), initialStartup: true }); // mac: open-file event received on startup
+			// mac: open-file event received on startup
+			return this.windowsMainService.open({
+				context: OpenContext.DOCK,
+				cli: args,
+				urisToOpen: macOpenFiles.map(file => ({ uri: URI.file(file) })),
+				noRecentEntry,
+				waitMarkerFileURI,
+				initialStartup: true
+			});
 		}
 
-		return this.windowsMainService.open({ context, cli: args, forceNewWindow: args['new-window'] || (!hasCliArgs && args['unity-launch']), diffMode: args.diff, initialStartup: true }); // default: read paths from cli
+		// default: read paths from cli
+		return this.windowsMainService.open({
+			context,
+			cli: args,
+			forceNewWindow: args['new-window'] || (!hasCliArgs && args['unity-launch']),
+			diffMode: args.diff,
+			noRecentEntry,
+			waitMarkerFileURI,
+			initialStartup: true
+		});
 	}
 
 	private afterWindowOpen(accessor: ServicesAccessor): void {
@@ -648,27 +677,28 @@ export class CodeApplication extends Disposable {
 		const isBuilt = this.environmentService.isBuilt;
 
 		class ActiveConnection {
-			private _authority: string;
-			private _client: Promise<Client<RemoteAgentConnectionContext>>;
-			private _disposeRunner: RunOnceScheduler;
+			private readonly _authority: string;
+			private readonly _connection: Promise<ManagementPersistentConnection>;
+			private readonly _disposeRunner: RunOnceScheduler;
 
 			constructor(authority: string, host: string, port: number) {
 				this._authority = authority;
-				this._client = connectRemoteAgentManagement(authority, host, port, `main`, isBuilt);
+				this._connection = connectRemoteAgentManagement(authority, host, port, `main`, isBuilt);
 				this._disposeRunner = new RunOnceScheduler(() => this.dispose(), 5000);
 			}
 
 			dispose(): void {
 				this._disposeRunner.dispose();
 				connectionPool.delete(this._authority);
-				this._client.then((connection) => {
+				this._connection.then((connection) => {
 					connection.dispose();
 				});
 			}
 
-			getClient(): Promise<Client<RemoteAgentConnectionContext>> {
+			async getClient(): Promise<Client<RemoteAgentConnectionContext>> {
 				this._disposeRunner.schedule();
-				return this._client;
+				const connection = await this._connection;
+				return connection.client;
 			}
 		}
 
@@ -686,7 +716,7 @@ export class CodeApplication extends Disposable {
 			this.logService.info('Resolving authority', authority);
 			if (authority.indexOf('+') >= 0) {
 				if (resolvedAuthorities.has(authority)) {
-					return resolvedAuthorities.get(authority) || null;
+					return withUndefinedAsNull(resolvedAuthorities.get(authority));
 				}
 				this.logService.info('Didnot find resolved authority for', authority);
 				return null;
@@ -707,7 +737,7 @@ export class CodeApplication extends Disposable {
 			if (connectionPool.has(uri.authority)) {
 				activeConnection = connectionPool.get(uri.authority);
 			} else {
-				let resolvedAuthority = resolveAuthority(uri.authority);
+				const resolvedAuthority = resolveAuthority(uri.authority);
 				if (!resolvedAuthority) {
 					callback(undefined);
 					return;
