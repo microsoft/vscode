@@ -11,8 +11,8 @@ import { createDecorator, IInstantiationService } from 'vs/platform/instantiatio
 import { GroupIdentifier } from 'vs/workbench/common/editor';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
-import * as vscode from 'vscode';
 import { RevivedWebviewEditorInput, WebviewEditorInput } from './webviewEditorInput';
+import { IWebviewOptions, IWebviewPanelOptions } from 'vs/editor/common/modes';
 
 export const IWebviewEditorService = createDecorator<IWebviewEditorService>('webviewEditorService');
 
@@ -72,10 +72,10 @@ export interface WebviewReviver {
 export interface WebviewEvents {
 	onMessage?(message: any): void;
 	onDispose?(): void;
-	onDidClickLink?(link: URI, options: vscode.WebviewOptions): void;
+	onDidClickLink?(link: URI, options: IWebviewOptions): void;
 }
 
-export interface WebviewInputOptions extends vscode.WebviewOptions, vscode.WebviewPanelOptions {
+export interface WebviewInputOptions extends IWebviewOptions, IWebviewPanelOptions {
 	tryRestoreScrollPosition?: boolean;
 }
 
@@ -85,7 +85,8 @@ export function areWebviewInputOptionsEqual(a: WebviewInputOptions, b: WebviewIn
 		&& a.enableScripts === b.enableScripts
 		&& a.retainContextWhenHidden === b.retainContextWhenHidden
 		&& a.tryRestoreScrollPosition === b.tryRestoreScrollPosition
-		&& (a.localResourceRoots === b.localResourceRoots || (Array.isArray(a.localResourceRoots) && Array.isArray(b.localResourceRoots) && equals(a.localResourceRoots, b.localResourceRoots, (a, b) => a.toString() === b.toString())));
+		&& (a.localResourceRoots === b.localResourceRoots || (Array.isArray(a.localResourceRoots) && Array.isArray(b.localResourceRoots) && equals(a.localResourceRoots, b.localResourceRoots, (a, b) => a.toString() === b.toString())))
+		&& (a.portMapping === b.portMapping || (Array.isArray(a.portMapping) && Array.isArray(b.portMapping) && equals(a.portMapping, b.portMapping, (a, b) => a.from === b.from && a.to === b.to)));
 }
 
 function canRevive(reviver: WebviewReviver, webview: WebviewEditorInput): boolean {
@@ -128,11 +129,11 @@ export class WebviewEditorService implements IWebviewEditorService {
 		viewType: string,
 		title: string,
 		showOptions: ICreateWebViewShowOptions,
-		options: vscode.WebviewOptions,
+		options: IWebviewOptions,
 		extensionLocation: URI | undefined,
 		events: WebviewEvents
 	): WebviewEditorInput {
-		const webviewInput = this._instantiationService.createInstance(WebviewEditorInput, viewType, undefined, title, options, {}, events, extensionLocation, undefined);
+		const webviewInput = this._instantiationService.createInstance(WebviewEditorInput, viewType, undefined, title, options, {}, events, extensionLocation);
 		this._editorService.openEditor(webviewInput, { pinned: true, preserveFocus: showOptions.preserveFocus }, showOptions.group);
 		return webviewInput;
 	}

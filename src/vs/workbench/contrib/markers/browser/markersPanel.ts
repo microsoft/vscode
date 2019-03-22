@@ -628,7 +628,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 				if (keybinding) {
 					return new ActionItem(action, action, { label: true, keybinding: keybinding.getLabel() });
 				}
-				return null;
+				return undefined;
 			},
 			onHide: (wasCancelled?: boolean) => {
 				if (wasCancelled) {
@@ -670,7 +670,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		return this.tree.getFocus()[0];
 	}
 
-	public getActionItem(action: IAction): IActionItem | null {
+	public getActionItem(action: IAction): IActionItem | undefined {
 		if (action.id === MarkersFilterAction.ID) {
 			this.filterInputActionItem = this.instantiationService.createInstance(MarkersFilterActionItem, this.filterAction, this);
 			return this.filterInputActionItem;

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export const LANGUAGE_DEFAULT = 'en';
+const LANGUAGE_DEFAULT = 'en';
 
 let _isWindows = false;
 let _isMacintosh = false;
@@ -119,6 +119,27 @@ export function isRootUser(): boolean {
  * Chinese)
  */
 export const language = _language;
+
+export namespace Language {
+
+	export function value(): string {
+		return language;
+	}
+
+	export function isDefaultVariant(): boolean {
+		if (language.length === 2) {
+			return language === 'en';
+		} else if (language.length >= 3) {
+			return language[0] === 'e' && language[1] === 'n' && language[2] === '-';
+		} else {
+			return false;
+		}
+	}
+
+	export function isDefault(): boolean {
+		return language === 'en';
+	}
+}
 
 /**
  * The OS locale or the locale specified by --locale. The format of

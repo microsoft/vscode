@@ -51,7 +51,7 @@ import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { getDefaultValue } from 'vs/platform/configuration/common/configurationRegistry';
-import { isUndefined } from 'vs/base/common/types';
+import { isUndefined, withUndefinedAsNull } from 'vs/base/common/types';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 
 function renderBody(body: string): string {
@@ -254,7 +254,7 @@ export class ExtensionEditor extends BaseEditor {
 				if (action instanceof ExtensionEditorDropDownAction) {
 					return action.createActionItem();
 				}
-				return null;
+				return undefined;
 			}
 		});
 
@@ -712,7 +712,7 @@ export class ExtensionEditor extends BaseEditor {
 
 			constructor(extension: IExtension, parent?: IExtensionData) {
 				this.extension = extension;
-				this.parent = parent || null;
+				this.parent = withUndefinedAsNull(parent);
 			}
 
 			get hasChildren(): boolean {
@@ -722,7 +722,7 @@ export class ExtensionEditor extends BaseEditor {
 			getChildren(): Promise<IExtensionData[] | null> {
 				if (this.hasChildren) {
 					const names = arrays.distinct(this.extension.extensionPack, e => e.toLowerCase());
-					return extensionsWorkbenchService.queryGallery({ names, pageSize: names.length })
+					return extensionsWorkbenchService.queryGallery({ names, pageSize: names.length }, CancellationToken.None)
 						.then(result => result.firstPage.map(extension => new ExtensionData(extension, this)));
 				}
 				return Promise.resolve(null);

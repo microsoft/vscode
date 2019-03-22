@@ -10,7 +10,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions, IConfigurationRegistry, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { MainThreadConfiguration } from 'vs/workbench/api/electron-browser/mainThreadConfiguration';
+import { MainThreadConfiguration } from 'vs/workbench/api/browser/mainThreadConfiguration';
 import { SingleProxyRPCProtocol } from './testRPCProtocol';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';

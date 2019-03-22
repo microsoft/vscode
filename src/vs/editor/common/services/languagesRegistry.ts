@@ -15,6 +15,7 @@ import { NULL_LANGUAGE_IDENTIFIER, NULL_MODE_ID } from 'vs/editor/common/modes/n
 import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { withUndefinedAsNull } from 'vs/base/common/types';
 
 const hasOwnProperty = Object.prototype.hasOwnProperty;
 
@@ -267,7 +268,7 @@ export class LanguagesRegistry extends Disposable {
 			return null;
 		}
 		const language = this._languages[modeId];
-		return (language.mimetypes[0] || null);
+		return withUndefinedAsNull(language.mimetypes[0]);
 	}
 
 	public extractModeIds(commaSeparatedMimetypesOrCommaSeparatedIds: string | undefined): string[] {

@@ -9,7 +9,7 @@ import * as glob from 'vs/base/common/glob';
 import { IListVirtualDelegate, ListDragOverEffect } from 'vs/base/browser/ui/list/list';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IFileService, FileKind, IFileStat, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
+import { IFileService, FileKind, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, Disposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
@@ -63,10 +63,11 @@ export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | ExplorerItem[], ExplorerItem> {
 
 	constructor(
-		@IProgressService private progressService: IProgressService,
-		@INotificationService private notificationService: INotificationService,
-		@IWorkbenchLayoutService private layoutService: IWorkbenchLayoutService,
-		@IFileService private fileService: IFileService
+		@IProgressService private readonly progressService: IProgressService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IFileService private readonly fileService: IFileService,
+		@IExplorerService private readonly explorerService: IExplorerService
 	) { }
 
 	hasChildren(element: ExplorerItem | ExplorerItem[]): boolean {
@@ -78,7 +79,7 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 			return Promise.resolve(element);
 		}
 
-		const promise = element.fetchChildren(this.fileService).then(undefined, e => {
+		const promise = element.fetchChildren(this.fileService, this.explorerService).then(undefined, e => {
 			// Do not show error for roots since we already use an explorer decoration to notify user
 			if (!(element instanceof ExplorerItem && element.isRoot)) {
 				this.notificationService.error(e);
@@ -636,12 +637,12 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		if (resources && resources.length > 0) {
 
 			// Resolve target to check for name collisions and ask user
-			return this.fileService.resolveFile(target.resource).then((targetStat: IFileStat) => {
+			return this.fileService.resolveFile(target.resource).then(targetStat => {
 
 				// Check for name collisions
 				const targetNames = new Set<string>();
 				if (targetStat.children) {
-					targetStat.children.forEach((child) => {
+					targetStat.children.forEach(child => {
 						targetNames.add(isLinux ? child.name : child.name.toLowerCase());
 					});
 				}

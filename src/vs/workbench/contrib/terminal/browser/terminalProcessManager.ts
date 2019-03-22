@@ -22,10 +22,15 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IProductService } from 'vs/platform/product/common/product';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IRemoteEnvironmentService } from 'vs/workbench/services/remote/common/remoteEnvironmentService';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
+
+/**
+ * The minimum amount of time between latency requests.
+ */
+const LATENCY_MEASURING_INTERVAL = 1000;
 
 /**
  * Holds all state related to the creation and management of terminal processes.
@@ -46,6 +51,9 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	private _process: ITerminalChildProcess | null = null;
 	private _preLaunchInputQueue: string[] = [];
 	private _disposables: IDisposable[] = [];
+	private _latency: number = -1;
+	private _latencyRequest: Promise<number>;
+	private _latencyLastMeasured: number = 0;
 
 	private readonly _onProcessReady = new Emitter<void>();
 	public get onProcessReady(): Event<void> { return this._onProcessReady.event; }
@@ -69,7 +77,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IProductService private readonly _productService: IProductService,
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
-		@IRemoteEnvironmentService private readonly _remoteEnvironmentService: IRemoteEnvironmentService
+		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService
 	) {
 		this.ptyProcessReady = new Promise<void>(c => {
 			this.onProcessReady(() => {
@@ -77,6 +85,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 				c(undefined);
 			});
 		});
+		this.ptyProcessReady.then(async () => await this.getLatency());
 	}
 
 	public dispose(immediate: boolean = false): void {
@@ -114,7 +123,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		this.os = platform.OS;
 		if (launchRemotely) {
 			if (hasRemoteAuthority) {
-				this._remoteEnvironmentService.remoteEnvironment.then(env => {
+				this._remoteAgentService.getEnvironment().then(env => {
 					if (!env) {
 						return;
 					}
@@ -238,6 +247,19 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 			return Promise.resolve('');
 		}
 		return this._process.getCwd();
+	}
+
+	public async getLatency(): Promise<number> {
+		await this.ptyProcessReady;
+		if (!this._process) {
+			return Promise.resolve(0);
+		}
+		if (this._latencyLastMeasured === 0 || this._latencyLastMeasured + LATENCY_MEASURING_INTERVAL < Date.now()) {
+			this._latencyRequest = this._process.getLatency();
+			this._latency = await this._latencyRequest;
+			this._latencyLastMeasured = Date.now();
+		}
+		return Promise.resolve(this._latency);
 	}
 
 	private _onExit(exitCode: number): void {

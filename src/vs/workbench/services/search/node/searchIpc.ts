@@ -11,7 +11,7 @@ export class SearchChannel implements IServerChannel {
 
 	constructor(private service: IRawSearchService) { }
 
-	listen<T>(_, event: string, arg?: any): Event<any> {
+	listen(_: unknown, event: string, arg?: any): Event<any> {
 		switch (event) {
 			case 'fileSearch': return this.service.fileSearch(arg);
 			case 'textSearch': return this.service.textSearch(arg);
@@ -19,7 +19,7 @@ export class SearchChannel implements IServerChannel {
 		throw new Error('Event not found');
 	}
 
-	call(_, command: string, arg?: any): Promise<any> {
+	call(_: unknown, command: string, arg?: any): Promise<any> {
 		switch (command) {
 			case 'clearCache': return this.service.clearCache(arg);
 		}

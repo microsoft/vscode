@@ -176,14 +176,14 @@ suite('Types', () => {
 		types.validateConstraints([undefined], [types.isUndefined]);
 		types.validateConstraints([1], [types.isNumber]);
 
-		function foo() { }
-		types.validateConstraints([new foo()], [foo]);
+		class Foo { }
+		types.validateConstraints([new Foo()], [Foo]);
 
-		function isFoo(f) { }
-		assert.throws(() => types.validateConstraints([new foo()], [isFoo]));
+		function isFoo(f: any) { }
+		assert.throws(() => types.validateConstraints([new Foo()], [isFoo]));
 
-		function isFoo2(f) { return true; }
-		types.validateConstraints([new foo()], [isFoo2]);
+		function isFoo2(f: any) { return true; }
+		types.validateConstraints([new Foo()], [isFoo2]);
 
 		assert.throws(() => types.validateConstraints([1, true], [types.isNumber, types.isString]));
 		assert.throws(() => types.validateConstraints(['2'], [types.isNumber]));
@@ -196,7 +196,7 @@ suite('Types', () => {
 		assert(types.create(zeroConstructor) instanceof zeroConstructor);
 		assert(types.isObject(types.create(zeroConstructor)));
 
-		let manyArgConstructor = function (this: any, foo, bar) {
+		let manyArgConstructor = function (this: any, foo: any, bar: any) {
 			this.foo = foo;
 			this.bar = bar;
 		};

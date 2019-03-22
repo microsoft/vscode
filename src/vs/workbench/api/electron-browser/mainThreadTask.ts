@@ -17,22 +17,21 @@ import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspac
 
 import {
 	ContributedTask, KeyedTaskIdentifier, TaskExecution, Task, TaskEvent, TaskEventKind,
-	PresentationOptions, CommandOptions, CommandConfiguration, RuntimeType, CustomTask, TaskScope, TaskSource, TaskSourceKind, ExtensionTaskSource, RunOptions, TaskSet
+	PresentationOptions, CommandOptions, CommandConfiguration, RuntimeType, CustomTask, TaskScope, TaskSource,
+	TaskSourceKind, ExtensionTaskSource, RunOptions, TaskSet, TaskDefinition
 } from 'vs/workbench/contrib/tasks/common/tasks';
 
 
 import { ResolveSet, ResolvedVariables } from 'vs/workbench/contrib/tasks/common/taskSystem';
 import { ITaskService, TaskFilter, ITaskProvider } from 'vs/workbench/contrib/tasks/common/taskService';
 
-import { TaskDefinition } from 'vs/workbench/contrib/tasks/node/tasks';
-
-import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
-import { ExtHostContext, MainThreadTaskShape, ExtHostTaskShape, MainContext, IExtHostContext } from 'vs/workbench/api/node/extHost.protocol';
+import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
+import { ExtHostContext, MainThreadTaskShape, ExtHostTaskShape, MainContext, IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
 import {
 	TaskDefinitionDTO, TaskExecutionDTO, ProcessExecutionOptionsDTO, TaskPresentationOptionsDTO,
 	ProcessExecutionDTO, ShellExecutionDTO, ShellExecutionOptionsDTO, CustomExecutionDTO, TaskDTO, TaskSourceDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO, TaskSystemInfoDTO,
 	RunOptionsDTO
-} from 'vs/workbench/api/shared/tasks';
+} from 'vs/workbench/api/common/shared/tasks';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 
 namespace TaskExecutionDTO {
@@ -597,7 +596,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 							};
 							for (let i = 0; i < partiallyResolvedVars.length; i++) {
 								const variableName = vars[i].substring(2, vars[i].length - 1);
-								if (values.variables[vars[i]] === vars[i]) {
+								if (resolvedVars && values.variables[vars[i]] === vars[i]) {
 									result.variables.set(variableName, resolvedVars.get(variableName));
 								} else {
 									result.variables.set(variableName, partiallyResolvedVars[i]);

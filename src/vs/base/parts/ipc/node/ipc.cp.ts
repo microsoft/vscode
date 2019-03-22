@@ -10,7 +10,7 @@ import { deepClone, assign } from 'vs/base/common/objects';
 import { Emitter, Event } from 'vs/base/common/event';
 import { createQueuedSender } from 'vs/base/node/processes';
 import { ChannelServer as IPCServer, ChannelClient as IPCClient, IChannelClient } from 'vs/base/parts/ipc/node/ipc';
-import { isRemoteConsoleLog, log } from 'vs/base/node/console';
+import { isRemoteConsoleLog, log } from 'vs/base/common/console';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';

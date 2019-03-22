@@ -5,7 +5,7 @@
 
 import { CancelablePromise } from 'vs/base/common/async';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
@@ -35,7 +35,7 @@ function contextKeyForSupportedActions(kind: CodeActionKind) {
 		new RegExp('(\\s|^)' + escapeRegExpCharacters(kind.value) + '\\b'));
 }
 
-export class QuickFixController implements IEditorContribution {
+export class QuickFixController extends Disposable implements IEditorContribution {
 
 	private static readonly ID = 'editor.contrib.quickFixController';
 
@@ -47,11 +47,11 @@ export class QuickFixController implements IEditorContribution {
 	private readonly _model: CodeActionModel;
 	private readonly _codeActionContextMenu: CodeActionContextMenu;
 	private readonly _lightBulbWidget: LightBulbWidget;
-	private readonly _disposables: IDisposable[] = [];
 
 	private _activeRequest: CancelablePromise<CodeActionSet> | undefined;
 
-	constructor(editor: ICodeEditor,
+	constructor(
+		editor: ICodeEditor,
 		@IMarkerService markerService: IMarkerService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IProgressService progressService: IProgressService,
@@ -60,24 +60,24 @@ export class QuickFixController implements IEditorContribution {
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 	) {
+		super();
+
 		this._editor = editor;
 		this._model = new CodeActionModel(this._editor, markerService, contextKeyService, progressService);
 		this._codeActionContextMenu = new CodeActionContextMenu(editor, contextMenuService, action => this._onApplyCodeAction(action));
-		this._lightBulbWidget = new LightBulbWidget(editor);
+		this._lightBulbWidget = this._register(new LightBulbWidget(editor));
 
 		this._updateLightBulbTitle();
 
-		this._disposables.push(
-			this._codeActionContextMenu.onDidExecuteCodeAction(_ => this._model.trigger({ type: 'auto', filter: {} })),
-			this._lightBulbWidget.onClick(this._handleLightBulbSelect, this),
-			this._model.onDidChangeState(e => this._onDidChangeCodeActionsState(e)),
-			this._keybindingService.onDidUpdateKeybindings(this._updateLightBulbTitle, this)
-		);
+		this._register(this._codeActionContextMenu.onDidExecuteCodeAction(_ => this._model.trigger({ type: 'auto', filter: {} })));
+		this._register(this._lightBulbWidget.onClick(this._handleLightBulbSelect, this));
+		this._register(this._model.onDidChangeState(e => this._onDidChangeCodeActionsState(e)));
+		this._register(this._keybindingService.onDidUpdateKeybindings(this._updateLightBulbTitle, this));
 	}
 
 	public dispose(): void {
+		super.dispose();
 		this._model.dispose();
-		dispose(this._disposables);
 	}
 
 	private _onDidChangeCodeActionsState(newState: CodeActionsState.State): void {

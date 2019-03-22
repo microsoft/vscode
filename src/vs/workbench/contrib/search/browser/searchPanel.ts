@@ -31,7 +31,7 @@ export class SearchPanel extends Panel {
 	}
 
 	create(parent: HTMLElement): void {
-		dom.addClass(parent, 'monaco-panel-view');
+		dom.addClasses(parent, 'monaco-panel-view', 'search-panel');
 		this.searchView.render();
 		dom.append(parent, this.searchView.element);
 		this.searchView.setExpanded(true);
@@ -64,7 +64,7 @@ export class SearchPanel extends Panel {
 		super.saveState();
 	}
 
-	getSearchView(): SearchView | null {
+	getSearchView(): SearchView {
 		return this.searchView;
 	}
 }

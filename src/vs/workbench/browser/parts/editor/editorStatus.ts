@@ -12,7 +12,7 @@ import * as types from 'vs/base/common/types';
 import { URI as uri } from 'vs/base/common/uri';
 import { IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { Action } from 'vs/base/common/actions';
-import { language, LANGUAGE_DEFAULT } from 'vs/base/common/platform';
+import { Language } from 'vs/base/common/platform';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { IFileEditorInput, EncodingMode, IEncodingSupport, toResource, SideBySideEditorInput, IEditor as IBaseEditor, IEditorInput } from 'vs/workbench/common/editor';
 import { IDisposable, combinedDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
@@ -140,43 +140,35 @@ interface StateDelta {
 	indentation?: string;
 	tabFocusMode?: boolean;
 	screenReaderMode?: boolean;
-	metadata?: string | null;
+	metadata?: string | undefined;
 }
 
 class State {
-	private _selectionStatus: string | null | undefined;
-	get selectionStatus(): string | null | undefined { return this._selectionStatus; }
+	private _selectionStatus: string | undefined;
+	get selectionStatus(): string | undefined { return this._selectionStatus; }
 
-	private _mode: string | null | undefined;
-	get mode(): string | null | undefined { return this._mode; }
+	private _mode: string | undefined;
+	get mode(): string | undefined { return this._mode; }
 
-	private _encoding: string | null | undefined;
-	get encoding(): string | null | undefined { return this._encoding; }
+	private _encoding: string | undefined;
+	get encoding(): string | undefined { return this._encoding; }
 
-	private _EOL: string | null | undefined;
-	get EOL(): string | null | undefined { return this._EOL; }
+	private _EOL: string | undefined;
+	get EOL(): string | undefined { return this._EOL; }
 
-	private _indentation: string | null | undefined;
-	get indentation(): string | null | undefined { return this._indentation; }
+	private _indentation: string | undefined;
+	get indentation(): string | undefined { return this._indentation; }
 
-	private _tabFocusMode: boolean | null | undefined;
-	get tabFocusMode(): boolean | null | undefined { return this._tabFocusMode; }
+	private _tabFocusMode: boolean | undefined;
+	get tabFocusMode(): boolean | undefined { return this._tabFocusMode; }
 
-	private _screenReaderMode: boolean | null | undefined;
-	get screenReaderMode(): boolean | null | undefined { return this._screenReaderMode; }
+	private _screenReaderMode: boolean | undefined;
+	get screenReaderMode(): boolean | undefined { return this._screenReaderMode; }
 
-	private _metadata: string | null | undefined;
-	get metadata(): string | null | undefined { return this._metadata; }
+	private _metadata: string | undefined;
+	get metadata(): string | undefined { return this._metadata; }
 
-	constructor() {
-		this._selectionStatus = null;
-		this._mode = null;
-		this._encoding = null;
-		this._EOL = null;
-		this._tabFocusMode = false;
-		this._screenReaderMode = false;
-		this._metadata = null;
-	}
+	constructor() { }
 
 	update(update: StateDelta): StateChange {
 		const change = new StateChange();
@@ -1081,7 +1073,7 @@ class ChangeIndentationAction extends Action {
 			return {
 				id: a.id,
 				label: a.label,
-				detail: (language === LANGUAGE_DEFAULT) ? undefined : a.alias,
+				detail: Language.isDefaultVariant() ? undefined : a.alias,
 				run: () => {
 					activeTextEditorWidget.focus();
 					a.run();
@@ -1173,7 +1165,7 @@ export class ChangeEncodingAction extends Action {
 
 		let saveWithEncodingPick: IQuickPickItem;
 		let reopenWithEncodingPick: IQuickPickItem;
-		if (language === LANGUAGE_DEFAULT) {
+		if (Language.isDefaultVariant()) {
 			saveWithEncodingPick = { label: nls.localize('saveWithEncoding', "Save with Encoding") };
 			reopenWithEncodingPick = { label: nls.localize('reopenWithEncoding', "Reopen with Encoding") };
 		} else {

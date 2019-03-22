@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { toResource, IEditorCommandsContext } from 'vs/workbench/common/editor';
-import { IWindowsService, IWindowService, IURIToOpen, IOpenSettings } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService, IURIToOpen, IOpenSettings, INewWindowOptions } from 'vs/platform/windows/common/windows';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -83,6 +83,11 @@ export const openWindowCommand = (accessor: ServicesAccessor, urisToOpen: IURITo
 	}
 };
 
+export const newWindowCommand = (accessor: ServicesAccessor, options?: INewWindowOptions) => {
+	const windowsService = accessor.get(IWindowsService);
+	windowsService.openNewWindow(options);
+};
+
 function save(
 	resource: URI | null,
 	isSaveAs: boolean,
@@ -119,7 +124,7 @@ function save(
 			let viewStateOfSource: IEditorViewState | null;
 			const activeTextEditorWidget = getCodeEditor(editorService.activeTextEditorWidget);
 			if (activeTextEditorWidget) {
-				const activeResource = toResource(editorService.activeEditor || null, { supportSideBySide: true });
+				const activeResource = toResource(editorService.activeEditor, { supportSideBySide: true });
 				if (activeResource && (fileService.canHandleResource(activeResource) || resource.scheme === Schemas.untitled) && activeResource.toString() === resource.toString()) {
 					viewStateOfSource = activeTextEditorWidget.saveViewState();
 				}

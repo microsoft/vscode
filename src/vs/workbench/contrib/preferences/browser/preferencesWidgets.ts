@@ -424,7 +424,7 @@ export class FolderSettingsActionItem extends BaseActionItem {
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => this.container,
 			getActions: () => this.getDropdownMenuActions(),
-			getActionItem: () => null,
+			getActionItem: () => undefined,
 			onHide: () => {
 				this.anchorElement.blur();
 			}
@@ -495,7 +495,7 @@ export class SettingsTargetsWidget extends Widget {
 			orientation: ActionsOrientation.HORIZONTAL,
 			ariaLabel: localize('settingsSwitcherBarAriaLabel', "Settings Switcher"),
 			animated: false,
-			actionItemProvider: (action: Action) => action.id === 'folderSettings' ? this.folderSettings : null
+			actionItemProvider: (action: Action) => action.id === 'folderSettings' ? this.folderSettings : undefined
 		}));
 
 		this.userSettings = new Action('userSettings', localize('userSettings', "User Settings"), '.settings-tab', true, () => this.updateTarget(ConfigurationTarget.USER));

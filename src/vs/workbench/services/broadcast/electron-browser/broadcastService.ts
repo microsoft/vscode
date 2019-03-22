@@ -3,28 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ipcRenderer as ipc } from 'electron';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWindowService } from 'vs/platform/windows/common/windows';
-
-export const IBroadcastService = createDecorator<IBroadcastService>('broadcastService');
-
-export interface IBroadcast {
-	channel: string;
-	payload: any;
-}
-
-export interface IBroadcastService {
-	_serviceBrand: any;
-
-	onBroadcast: Event<IBroadcast>;
-
-	broadcast(b: IBroadcast): void;
-}
+import { IBroadcastService, IBroadcast } from 'vs/workbench/services/broadcast/common/broadcast';
 
 export class BroadcastService extends Disposable implements IBroadcastService {
 	_serviceBrand: any;
@@ -46,7 +31,7 @@ export class BroadcastService extends Disposable implements IBroadcastService {
 	}
 
 	private registerListeners(): void {
-		ipc.on('vscode:broadcast', (event, b: IBroadcast) => {
+		ipc.on('vscode:broadcast', (event: unknown, b: IBroadcast) => {
 			this.logService.trace(`Received broadcast from main in window ${this.windowId}: `, b);
 
 			this._onBroadcast.fire(b);

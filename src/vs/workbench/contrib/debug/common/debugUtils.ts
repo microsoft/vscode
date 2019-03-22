@@ -4,12 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equalsIgnoreCase } from 'vs/base/common/strings';
-import { IConfig, IDebuggerContribution } from 'vs/workbench/contrib/debug/common/debug';
+import { IConfig, IDebuggerContribution, IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 import { URI as uri } from 'vs/base/common/uri';
 import { isAbsolute } from 'vs/base/common/path';
 import { deepClone } from 'vs/base/common/objects';
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { first } from 'vs/base/common/arrays';
 
 const _formatPIIRegexp = /{([^}]+)}/g;
+
+export function startDebugging(debugService: IDebugService, historyService: IHistoryService, noDebug: boolean, ): Promise<boolean> {
+	const configurationManager = debugService.getConfigurationManager();
+	let launch = configurationManager.selectedConfiguration.launch;
+	if (!launch || launch.getConfigurationNames().length === 0) {
+		const rootUri = historyService.getLastActiveWorkspaceRoot();
+		launch = configurationManager.getLaunch(rootUri);
+		if (!launch || launch.getConfigurationNames().length === 0) {
+			const launches = configurationManager.getLaunches();
+			launch = first(launches, l => !!(l && l.getConfigurationNames().length), launch);
+		}
+
+		configurationManager.selectConfiguration(launch);
+	}
+
+	return debugService.startDebugging(launch, undefined, noDebug);
+}
 
 export function formatPII(value: string, excludePII: boolean, args: { [key: string]: string }): string {
 	return value.replace(_formatPIIRegexp, function (match, group) {

@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { URI } from 'vs/base/common/uri';
 import * as vscode from 'vscode';
-import { MainContext, MainThreadDiagnosticsShape, ExtHostDiagnosticsShape, IMainContext } from './extHost.protocol';
+import { MainContext, MainThreadDiagnosticsShape, ExtHostDiagnosticsShape, IMainContext } from '../common/extHost.protocol';
 import { DiagnosticSeverity } from './extHostTypes';
 import * as converter from './extHostTypeConverters';
 import { mergeSort } from 'vs/base/common/arrays';

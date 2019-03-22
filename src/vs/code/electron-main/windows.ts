@@ -422,7 +422,7 @@ export class WindowsManager implements IWindowsMainService {
 
 		// When run with --wait, make sure we keep the paths to wait for
 		if (fileInputs && openConfig.cli.wait && openConfig.cli.waitMarkerFilePath) {
-			fileInputs.filesToWait = { paths: [...fileInputs.filesToDiff, ...fileInputs.filesToOpen, ...fileInputs.filesToCreate], waitMarkerFilePath: openConfig.cli.waitMarkerFilePath };
+			fileInputs.filesToWait = { paths: [...fileInputs.filesToDiff, ...fileInputs.filesToOpen, ...fileInputs.filesToCreate], waitMarkerFileUri: URI.file(openConfig.cli.waitMarkerFilePath) };
 		}
 
 		//
@@ -489,7 +489,7 @@ export class WindowsManager implements IWindowsMainService {
 
 		// Remember in recent document list (unless this opens for extension development)
 		// Also do not add paths when files are opened for diffing, only if opened individually
-		if (!usedWindows.some(w => w.isExtensionDevelopmentHost) && !openConfig.diffMode && !this.environmentService.skipAddToRecentlyOpened) {
+		if (!usedWindows.some(w => w.isExtensionDevelopmentHost) && !openConfig.diffMode && !openConfig.noRecentEntry) {
 			const recents: IRecent[] = [];
 			for (let pathToOpen of pathsToOpen) {
 				if (pathToOpen.workspace) {
@@ -746,7 +746,7 @@ export class WindowsManager implements IWindowsMainService {
 	private doOpenFilesInExistingWindow(configuration: IOpenConfiguration, window: ICodeWindow, fileInputs?: IFileInputs): ICodeWindow {
 		window.focus(); // make sure window has focus
 
-		const params: { filesToOpen?, filesToCreate?, filesToDiff?, filesToWait?, termProgram?} = {};
+		const params: { filesToOpen?: IPath[], filesToCreate?: IPath[], filesToDiff?: IPath[], filesToWait?: IPathsToWaitFor, termProgram?: string } = {};
 		if (fileInputs) {
 			params.filesToOpen = fileInputs.filesToOpen;
 			params.filesToCreate = fileInputs.filesToCreate;
@@ -1216,7 +1216,7 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		// Open it
-		this.open({ context: openConfig.context, cli: openConfig.cli, forceNewWindow: true, forceEmpty: !cliArgs.length && !folderUris.length && !fileUris.length, userEnv: openConfig.userEnv });
+		this.open({ context: openConfig.context, cli: openConfig.cli, forceNewWindow: true, forceEmpty: !cliArgs.length && !folderUris.length && !fileUris.length, userEnv: openConfig.userEnv, noRecentEntry: true });
 	}
 
 	private openInBrowserWindow(options: IOpenBrowserWindowOptions): ICodeWindow {
@@ -1897,9 +1897,15 @@ class Dialogs {
 	showMessageBox(options: Electron.MessageBoxOptions, window?: ICodeWindow): Promise<IMessageBoxResult> {
 		return this.getDialogQueue(window).queue(() => {
 			return new Promise(resolve => {
-				dialog.showMessageBox(window ? window.win : undefined!, options, (response: number, checkboxChecked: boolean) => {
+				const callback = (response: number, checkboxChecked: boolean) => {
 					resolve({ button: response, checkboxChecked });
-				});
+				};
+
+				if (window) {
+					dialog.showMessageBox(window.win, options, callback);
+				} else {
+					dialog.showMessageBox(options, callback);
+				}
 			});
 		});
 	}
@@ -1916,9 +1922,15 @@ class Dialogs {
 
 		return this.getDialogQueue(window).queue(() => {
 			return new Promise(resolve => {
-				dialog.showSaveDialog(window ? window.win : undefined!, options, path => {
+				const callback = (path: string) => {
 					resolve(normalizePath(path));
-				});
+				};
+
+				if (window) {
+					dialog.showSaveDialog(window.win, options, callback);
+				} else {
+					dialog.showSaveDialog(options, callback);
+				}
 			});
 		});
 	}
@@ -1948,9 +1960,15 @@ class Dialogs {
 
 				// Show dialog and wrap as promise
 				validatePathPromise.then(() => {
-					dialog.showOpenDialog(window ? window.win : undefined!, options, paths => {
+					const callback = (paths: string[]) => {
 						resolve(normalizePaths(paths));
-					});
+					};
+
+					if (window) {
+						dialog.showOpenDialog(window.win, options, callback);
+					} else {
+						dialog.showOpenDialog(options, callback);
+					}
 				});
 			});
 		});

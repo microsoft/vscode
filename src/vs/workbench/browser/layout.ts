@@ -57,7 +57,7 @@ enum Storage {
 	CENTERED_LAYOUT_ENABLED = 'workbench.centerededitorlayout.active',
 }
 
-export class Layout extends Disposable implements IWorkbenchLayoutService {
+export abstract class Layout extends Disposable implements IWorkbenchLayoutService {
 
 	_serviceBrand: ServiceIdentifier<any>;
 
@@ -75,8 +75,6 @@ export class Layout extends Disposable implements IWorkbenchLayoutService {
 
 	private _container: HTMLElement = document.createElement('div');
 	get container(): HTMLElement { return this._container; }
-
-	get hasWorkbench(): boolean { return true; }
 
 	private parts: Map<string, Part> = new Map<string, Part>();
 
@@ -184,15 +182,6 @@ export class Layout extends Disposable implements IWorkbenchLayoutService {
 
 		// State
 		this.initLayoutState(accessor.get(ILifecycleService));
-	}
-
-	protected getPart(key: Parts): Part {
-		const part = this.parts.get(key);
-		if (!part) {
-			throw new Error(`Unknown part ${key}`);
-		}
-
-		return part;
 	}
 
 	private registerLayoutListeners(): void {
@@ -493,6 +482,15 @@ export class Layout extends Disposable implements IWorkbenchLayoutService {
 
 	registerPart(part: Part): void {
 		this.parts.set(part.getId(), part);
+	}
+
+	protected getPart(key: Parts): Part {
+		const part = this.parts.get(key);
+		if (!part) {
+			throw new Error(`Unknown part ${key}`);
+		}
+
+		return part;
 	}
 
 	isRestored(): boolean {
@@ -1138,6 +1136,4 @@ export class Layout extends Disposable implements IWorkbenchLayoutService {
 
 		this.disposed = true;
 	}
-
-	//#endregion
 }

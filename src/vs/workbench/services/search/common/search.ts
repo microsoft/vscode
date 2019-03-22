@@ -48,8 +48,8 @@ export const enum SearchProviderType {
 }
 
 export interface ISearchResultProvider {
-	textSearch(query: ITextQuery, onProgress?: (p: ISearchProgressItem) => void, token?: CancellationToken): Promise<ISearchComplete | undefined>;
-	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete | undefined>;
+	textSearch(query: ITextQuery, onProgress?: (p: ISearchProgressItem) => void, token?: CancellationToken): Promise<ISearchComplete>;
+	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete>;
 	clearCache(cacheKey: string): Promise<void>;
 }
 
@@ -181,13 +181,19 @@ export function resultIsMatch(result: ITextSearchResult): result is ITextSearchM
 	return !!(<ITextSearchMatch>result).preview;
 }
 
-export interface IProgress {
-	total?: number;
-	worked?: number;
+export interface IProgressMessage {
 	message?: string;
 }
 
-export type ISearchProgressItem = IFileMatch | IProgress;
+export type ISearchProgressItem = IFileMatch | IProgressMessage;
+
+export function isFileMatch(p: ISearchProgressItem): p is IFileMatch {
+	return !!(<IFileMatch>p).resource;
+}
+
+export function isProgressMessage(p: ISearchProgressItem): p is IProgressMessage {
+	return !isFileMatch(p);
+}
 
 export interface ISearchCompleteStats {
 	limitHit?: boolean;
@@ -410,14 +416,14 @@ export interface IRawFileMatch {
 }
 
 export interface ISearchEngine<T> {
-	search: (onResult: (matches: T) => void, onProgress: (progress: IProgress) => void, done: (error: Error | null, complete: ISearchEngineSuccess) => void) => void;
+	search: (onResult: (matches: T) => void, onProgress: (progress: IProgressMessage) => void, done: (error: Error | null, complete: ISearchEngineSuccess) => void) => void;
 	cancel: () => void;
 }
 
 export interface ISerializedSearchSuccess {
 	type: 'success';
 	limitHit: boolean;
-	stats: IFileSearchStats | ITextSearchStats | null;
+	stats?: IFileSearchStats | ITextSearchStats;
 }
 
 export interface ISearchEngineSuccess {
@@ -454,14 +460,14 @@ export function isSerializedFileMatch(arg: ISerializedSearchProgressItem): arg i
 }
 
 export interface ISerializedFileMatch {
-	path?: string;
+	path: string;
 	results?: ITextSearchResult[];
 	numMatches?: number;
 }
 
 // Type of the possible values for progress calls from the engine
-export type ISerializedSearchProgressItem = ISerializedFileMatch | ISerializedFileMatch[] | IProgress;
-export type IFileSearchProgressItem = IRawFileMatch | IRawFileMatch[] | IProgress;
+export type ISerializedSearchProgressItem = ISerializedFileMatch | ISerializedFileMatch[] | IProgressMessage;
+export type IFileSearchProgressItem = IRawFileMatch | IRawFileMatch[] | IProgressMessage;
 
 
 export class SerializableFileMatch implements ISerializedFileMatch {

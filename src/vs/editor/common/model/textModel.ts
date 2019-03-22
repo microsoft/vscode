@@ -32,6 +32,7 @@ import { ignoreBracketsInToken } from 'vs/editor/common/modes/supports';
 import { BracketsUtils, RichEditBracket, RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
 import { IStringStream, ITextSnapshot } from 'vs/platform/files/common/files';
 import { ITheme, ThemeColor } from 'vs/platform/theme/common/themeService';
+import { withUndefinedAsNull } from 'vs/base/common/types';
 
 const CHEAP_TOKENIZATION_LENGTH_LIMIT = 2048;
 
@@ -2877,8 +2878,8 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 		this.stickiness = options.stickiness || model.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges;
 		this.zIndex = options.zIndex || 0;
 		this.className = options.className ? cleanClassName(options.className) : null;
-		this.hoverMessage = options.hoverMessage || null;
-		this.glyphMarginHoverMessage = options.glyphMarginHoverMessage || null;
+		this.hoverMessage = withUndefinedAsNull(options.hoverMessage);
+		this.glyphMarginHoverMessage = withUndefinedAsNull(options.glyphMarginHoverMessage);
 		this.isWholeLine = options.isWholeLine || false;
 		this.showIfCollapsed = options.showIfCollapsed || false;
 		this.collapseOnReplaceEdit = options.collapseOnReplaceEdit || false;

@@ -9,7 +9,7 @@ Make sure you are on **Node v10.x**.
 yarn smoketest
 
 # Build
-yarn smoketest --build PATH_TO_BUILD
+yarn smoketest --build PATH_TO_BUILD --stable-build PATH_TO_STABLE_BUILD
 ```
 
 ### Run for a release
@@ -19,7 +19,7 @@ You must always run the smoketest version which matches the release you are test
 ```bash
 git checkout release/1.22
 yarn
-yarn smoketest --build PATH_TO_RELEASE_BUILD
+yarn smoketest --build PATH_TO_RELEASE_BUILD --stable-build PATH_TO_STABLE_BUILD
 ```
 
 ### Debug

@@ -5,7 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { ITextSnapshot, IFileStat, IContent, IFileService, IResourceEncodings, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IStreamContent, IUpdateContentOptions, snapshotToString, ICreateFileOptions, IResourceEncoding } from 'vs/platform/files/common/files';
+import { ITextSnapshot, IFileStat, IContent, IFileService, IResourceEncodings, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IStreamContent, IUpdateContentOptions, snapshotToString, ICreateFileOptions, IResourceEncoding, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { ITextBufferFactory } from 'vs/editor/common/model';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { keys, ResourceMap } from 'vs/base/common/map';
@@ -59,6 +59,8 @@ import { ITextResourcePropertiesService } from 'vs/editor/common/services/resour
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Color, RGBA } from 'vs/base/common/color';
+import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
+import { IRemoteAgentService, IRemoteAgentConnection } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 export const workspaceResource = URI.file(isWindows ? 'C:\\simpleWorkspace' : '/simpleWorkspace');
 
@@ -287,7 +289,9 @@ export class SimpleExtensionGalleryService implements IExtensionGalleryService {
 		return false;
 	}
 
-	query(options?: IQueryOptions): Promise<IPager<IGalleryExtension>> {
+	query(token: CancellationToken): Promise<IPager<IGalleryExtension>>;
+	query(options: IQueryOptions, token: CancellationToken): Promise<IPager<IGalleryExtension>>;
+	query(arg1: any, arg2?: any): Promise<IPager<IGalleryExtension>> {
 		// @ts-ignore
 		return Promise.resolve(undefined);
 	}
@@ -637,25 +641,18 @@ registerSingleton(IProductService, SimpleProductService, true);
 
 //#region Remote Agent
 
-export const IRemoteAgentService = createDecorator<IRemoteAgentService>('remoteAgentService');
-
-export interface IRemoteAgentService {
-	_serviceBrand: any;
-
-	getConnection(): object;
-}
-
 export class SimpleRemoteAgentService implements IRemoteAgentService {
 
 	_serviceBrand: any;
 
-	getConnection(): object {
-		// @ts-ignore
-		return undefined;
+	getConnection(): IRemoteAgentConnection | null {
+		return null;
+	}
+
+	getEnvironment(): Promise<IRemoteAgentEnvironment | null> {
+		return Promise.resolve(null);
 	}
 }
-
-registerSingleton(IRemoteAgentService, SimpleRemoteAgentService);
 
 //#endregion
 
@@ -694,8 +691,9 @@ export class SimpleRemoteFileService implements IFileService {
 	readonly onFileChanges = Event.None;
 	readonly onAfterOperation = Event.None;
 	readonly onDidChangeFileSystemProviderRegistrations = Event.None;
+	readonly onWillActivateFileSystemProvider = Event.None;
 
-	resolveFile(resource: URI, options?: IResolveFileOptions): Promise<IFileStat> {
+	resolveFile(resource: URI, options?: IResolveFileOptions): Promise<IFileStatWithMetadata> {
 		// @ts-ignore
 		return Promise.resolve(fileMap.get(resource));
 	}
@@ -737,12 +735,14 @@ export class SimpleRemoteFileService implements IFileService {
 				// @ts-ignore
 				mtime: content.mtime,
 				// @ts-ignore
-				name: content.name
+				name: content.name,
+				// @ts-ignore
+				size: content.size
 			};
 		});
 	}
 
-	updateContent(resource: URI, value: string | ITextSnapshot, _options?: IUpdateContentOptions): Promise<IFileStat> {
+	updateContent(resource: URI, value: string | ITextSnapshot, _options?: IUpdateContentOptions): Promise<IFileStatWithMetadata> {
 		// @ts-ignore
 		return Promise.resolve(fileMap.get(resource)).then(file => {
 			const content = contentMap.get(resource);
@@ -759,7 +759,7 @@ export class SimpleRemoteFileService implements IFileService {
 		});
 	}
 
-	moveFile(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStat> { return Promise.resolve(null!); }
+	moveFile(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStatWithMetadata> { return Promise.resolve(null!); }
 
 	copyFile(_source: URI, _target: URI, _overwrite?: boolean): Promise<any> {
 		const parent = fileMap.get(dirname(_target));
@@ -772,7 +772,7 @@ export class SimpleRemoteFileService implements IFileService {
 		});
 	}
 
-	createFile(_resource: URI, _content?: string, _options?: ICreateFileOptions): Promise<IFileStat> {
+	createFile(_resource: URI, _content?: string, _options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
 		const parent = fileMap.get(dirname(_resource));
 		if (!parent) {
 			return Promise.reject(new Error(`Unable to create file in ${dirname(_resource).path}`));
@@ -781,9 +781,7 @@ export class SimpleRemoteFileService implements IFileService {
 		return Promise.resolve(createFile(parent, basename(_resource.path)));
 	}
 
-	readFolder(_resource: URI) { return Promise.resolve([]); }
-
-	createFolder(_resource: URI): Promise<IFileStat> {
+	createFolder(_resource: URI): Promise<IFileStatWithMetadata> {
 		const parent = fileMap.get(dirname(_resource));
 		if (!parent) {
 			return Promise.reject(new Error(`Unable to create folder in ${dirname(_resource).path}`));
@@ -792,7 +790,7 @@ export class SimpleRemoteFileService implements IFileService {
 		return Promise.resolve(createFolder(parent, basename(_resource.path)));
 	}
 
-	registerProvider(_scheme: string, _provider) { return { dispose() { } }; }
+	registerProvider() { return { dispose() { } }; }
 
 	activateProvider(_scheme: string): Promise<void> { return Promise.resolve(undefined); }
 
@@ -809,13 +807,14 @@ export class SimpleRemoteFileService implements IFileService {
 	dispose(): void { }
 }
 
-function createFile(parent: IFileStat, name: string, content: string = ''): IFileStat {
-	const file: IFileStat = {
+function createFile(parent: IFileStat, name: string, content: string = ''): IFileStatWithMetadata {
+	const file: IFileStatWithMetadata = {
 		resource: joinPath(parent.resource, name),
 		etag: Date.now().toString(),
 		mtime: Date.now(),
 		isDirectory: false,
-		name
+		name,
+		size: -1
 	};
 
 	// @ts-ignore
@@ -835,13 +834,14 @@ function createFile(parent: IFileStat, name: string, content: string = ''): IFil
 	return file;
 }
 
-function createFolder(parent: IFileStat, name: string): IFileStat {
-	const folder: IFileStat = {
+function createFolder(parent: IFileStat, name: string): IFileStatWithMetadata {
+	const folder: IFileStatWithMetadata = {
 		resource: joinPath(parent.resource, name),
 		etag: Date.now().toString(),
 		mtime: Date.now(),
 		isDirectory: true,
 		name,
+		size: 0,
 		children: []
 	};
 
@@ -861,7 +861,8 @@ function initFakeFileSystem(): void {
 		mtime: Date.now(),
 		isDirectory: true,
 		name: basename(workspaceResource.fsPath),
-		children: []
+		children: [],
+		size: 0
 	};
 
 	fileMap.set(root.resource, root);
@@ -1057,14 +1058,14 @@ export const IRequestService = createDecorator<IRequestService>('requestService'
 export interface IRequestService {
 	_serviceBrand: any;
 
-	request(options, token: CancellationToken): Promise<object>;
+	request(options: any, token: CancellationToken): Promise<object>;
 }
 
 export class SimpleRequestService implements IRequestService {
 
 	_serviceBrand: any;
 
-	request(options, token: CancellationToken): Promise<object> {
+	request(options: any, token: CancellationToken): Promise<object> {
 		return Promise.resolve(Object.create(null));
 	}
 }
@@ -1133,7 +1134,6 @@ export class SimpleSearchService implements ISearchService {
 				}
 
 				// Don't support other resource schemes than files for now
-				// todo@remote
 				// why is that? we should search for resources from other
 				// schemes
 				else if (resource.scheme !== Schemas.file) {

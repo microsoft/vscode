@@ -12,7 +12,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import severity from 'vs/base/common/severity';
 import { isObject, isString, isUndefinedOrNull } from 'vs/base/common/types';
-import { distinct } from 'vs/base/common/arrays';
+import { distinct, lastIndex } from 'vs/base/common/arrays';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import {
 	ITreeElement, IExpression, IExpressionContainer, IDebugSession, IStackFrame, IExceptionBreakpoint, IBreakpoint, IFunctionBreakpoint, IDebugModel, IReplElementSource,
@@ -797,7 +797,17 @@ export class DebugModel implements IDebugModel {
 
 			return true;
 		});
-		this.sessions.push(session);
+
+		let index = -1;
+		if (session.parentSession) {
+			// Make sure that child sessions are placed after the parent session
+			index = lastIndex(this.sessions, s => s.parentSession === session.parentSession || s === session.parentSession);
+		}
+		if (index >= 0) {
+			this.sessions.splice(index + 1, 0, session);
+		} else {
+			this.sessions.push(session);
+		}
 		this._onDidChangeCallStack.fire(undefined);
 	}
 

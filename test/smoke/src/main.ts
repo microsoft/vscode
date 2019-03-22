@@ -13,7 +13,7 @@ import * as mkdirp from 'mkdirp';
 import { ncp } from 'ncp';
 import { Application, Quality, ApplicationOptions } from './application';
 
-// import { setup as setupDataMigrationTests } from './areas/workbench/data-migration.test';
+import { setup as setupDataMigrationTests } from './areas/workbench/data-migration.test';
 import { setup as setupDataLossTests } from './areas/workbench/data-loss.test';
 import { setup as setupDataExplorerTests } from './areas/explorer/explorer.test';
 import { setup as setupDataPreferencesTests } from './areas/preferences/preferences.test';
@@ -113,16 +113,16 @@ function getBuildElectronPath(root: string): string {
 }
 
 let testCodePath = opts.build;
-// let stableCodePath = opts['stable-build'];
+let stableCodePath = opts['stable-build'];
 let electronPath: string;
-// let stablePath: string;
+let stablePath: string | undefined = undefined;
 
 if (testCodePath) {
 	electronPath = getBuildElectronPath(testCodePath);
 
-	// if (stableCodePath) {
-	// 	stablePath = getBuildElectronPath(stableCodePath);
-	// }
+	if (stableCodePath) {
+		stablePath = getBuildElectronPath(stableCodePath);
+	}
 } else {
 	testCodePath = getDevElectronPath();
 	electronPath = testCodePath;
@@ -133,6 +133,10 @@ if (testCodePath) {
 
 if (!fs.existsSync(electronPath || '')) {
 	fail(`Can't find Code at ${electronPath}.`);
+}
+
+if (typeof stablePath === 'string' && !fs.existsSync(stablePath)) {
+	fail(`Can't find Stable Code at ${stablePath}.`);
 }
 
 const userDataDir = path.join(testDataPath, 'd');
@@ -223,9 +227,7 @@ after(async function () {
 	await new Promise((c, e) => rimraf(testDataPath, { maxBusyTries: 10 }, err => err ? e(err) : c()));
 });
 
-// describe('Data Migration', () => {
-// 	setupDataMigrationTests(userDataDir, createApp);
-// });
+setupDataMigrationTests(stableCodePath, testDataPath);
 
 describe('Running Code', () => {
 	before(async function () {

@@ -27,6 +27,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { ITextModel } from 'vs/editor/common/model';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { withUndefinedAsNull, withNullAsUndefined } from 'vs/base/common/types';
 
 export const enum ConfigurationEditingErrorCode {
 
@@ -462,14 +463,14 @@ export class ConfigurationEditingService {
 				// Check for prefix
 				if (config.key === key) {
 					const jsonPath = this.isWorkspaceConfigurationResource(resource) ? [key] : [];
-					return { key: jsonPath[jsonPath.length - 1], jsonPath, value: config.value, resource: resource || undefined, workspaceStandAloneConfigurationKey: key, target };
+					return { key: jsonPath[jsonPath.length - 1], jsonPath, value: config.value, resource: withNullAsUndefined(resource), workspaceStandAloneConfigurationKey: key, target };
 				}
 
 				// Check for prefix.<setting>
 				const keyPrefix = `${key}.`;
 				if (config.key.indexOf(keyPrefix) === 0) {
 					const jsonPath = this.isWorkspaceConfigurationResource(resource) ? [key, config.key.substr(keyPrefix.length)] : [config.key.substr(keyPrefix.length)];
-					return { key: jsonPath[jsonPath.length - 1], jsonPath, value: config.value, resource: resource || undefined, workspaceStandAloneConfigurationKey: key, target };
+					return { key: jsonPath[jsonPath.length - 1], jsonPath, value: config.value, resource: withNullAsUndefined(resource), workspaceStandAloneConfigurationKey: key, target };
 				}
 			}
 		}
@@ -484,10 +485,10 @@ export class ConfigurationEditingService {
 		if (this.isWorkspaceConfigurationResource(resource)) {
 			jsonPath = ['settings', ...jsonPath];
 		}
-		return { key, jsonPath, value: config.value, resource: resource || undefined, target };
+		return { key, jsonPath, value: config.value, resource: withNullAsUndefined(resource), target };
 	}
 
-	private isWorkspaceConfigurationResource(resource: URI | null | undefined): boolean {
+	private isWorkspaceConfigurationResource(resource: URI | null): boolean {
 		const workspace = this.contextService.getWorkspace();
 		return !!(workspace.configuration && resource && workspace.configuration.fsPath === resource.fsPath);
 	}
@@ -504,7 +505,7 @@ export class ConfigurationEditingService {
 
 			if (target === ConfigurationTarget.WORKSPACE) {
 				if (workbenchState === WorkbenchState.WORKSPACE) {
-					return workspace.configuration || null;
+					return withUndefinedAsNull(workspace.configuration);
 				}
 				if (workbenchState === WorkbenchState.FOLDER) {
 					return workspace.folders[0].toResource(relativePath);

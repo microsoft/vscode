@@ -35,9 +35,9 @@ export class WebviewEditorInputFactory implements IEditorInputFactory {
 
 	public serialize(
 		input: WebviewEditorInput
-	): string | null {
+	): string | undefined {
 		if (!this._webviewService.shouldPersist(input)) {
-			return null;
+			return undefined;
 		}
 
 		const data: SerializedWebview = {
@@ -54,7 +54,7 @@ export class WebviewEditorInputFactory implements IEditorInputFactory {
 		try {
 			return JSON.stringify(data);
 		} catch {
-			return null;
+			return undefined;
 		}
 	}
 

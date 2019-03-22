@@ -28,7 +28,7 @@ export class WindowsChannel implements IServerChannel {
 		this.onRecentlyOpenedChange = Event.buffer(service.onRecentlyOpenedChange, true);
 	}
 
-	listen(_, event: string): Event<any> {
+	listen(_: unknown, event: string): Event<any> {
 		switch (event) {
 			case 'onWindowOpen': return this.onWindowOpen;
 			case 'onWindowFocus': return this.onWindowFocus;
@@ -41,7 +41,7 @@ export class WindowsChannel implements IServerChannel {
 		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(_, command: string, arg?: any): Promise<any> {
+	call(_: unknown, command: string, arg?: any): Promise<any> {
 		switch (command) {
 			case 'pickFileFolderAndOpen': return this.service.pickFileFolderAndOpen(arg);
 			case 'pickFileAndOpen': return this.service.pickFileAndOpen(arg);

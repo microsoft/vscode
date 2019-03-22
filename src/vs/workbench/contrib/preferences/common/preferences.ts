@@ -45,7 +45,7 @@ export interface ISearchProvider {
 
 export interface IKeybindingsEditor extends IEditor {
 
-	readonly activeKeybindingEntry: IKeybindingItemEntry;
+	readonly activeKeybindingEntry: IKeybindingItemEntry | null;
 	readonly onDefineWhenExpression: Event<IKeybindingItemEntry>;
 	readonly onLayout: Event<void>;
 

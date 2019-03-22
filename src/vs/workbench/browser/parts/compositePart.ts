@@ -432,14 +432,14 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		this.titleLabel.updateStyles();
 	}
 
-	protected actionItemProvider(action: Action): IActionItem | null {
+	protected actionItemProvider(action: Action): IActionItem | undefined {
 
 		// Check Active Composite
 		if (this.activeComposite) {
 			return this.activeComposite.getActionItem(action);
 		}
 
-		return null;
+		return undefined;
 	}
 
 	protected actionsContextProvider(): any {

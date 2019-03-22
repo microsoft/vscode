@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { MainContext, IMainContext, ExtHostUrlsShape, MainThreadUrlsShape } from './extHost.protocol';
+import { MainContext, IMainContext, ExtHostUrlsShape, MainThreadUrlsShape } from '../common/extHost.protocol';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { onUnexpectedError } from 'vs/base/common/errors';

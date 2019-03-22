@@ -236,7 +236,10 @@ export class MainPanel extends ViewletPanel {
 		const renderer = this.instantiationService.createInstance(ProviderRenderer);
 		const identityProvider = { getId: r => r.provider.id };
 
-		this.list = this.instantiationService.createInstance(WorkbenchList, container, delegate, [renderer], { identityProvider }) as WorkbenchList<ISCMRepository>;
+		this.list = this.instantiationService.createInstance(WorkbenchList, container, delegate, [renderer], {
+			identityProvider,
+			horizontalScrolling: false
+		}) as WorkbenchList<ISCMRepository>;
 
 		renderer.onDidRenderElement(e => this.list.updateWidth(this.viewModel.repositories.indexOf(e)), null, this.disposables);
 		this.list.onSelectionChange(this.onListSelectionChange, this, this.disposables);
@@ -836,7 +839,8 @@ export class RepositoryPanel extends ViewletPanel {
 
 		this.list = this.instantiationService.createInstance(WorkbenchList, this.listContainer, delegate, renderers, {
 			identityProvider: scmResourceIdentityProvider,
-			keyboardNavigationLabelProvider: scmKeyboardNavigationLabelProvider
+			keyboardNavigationLabelProvider: scmKeyboardNavigationLabelProvider,
+			horizontalScrolling: false
 		}) as WorkbenchList<ISCMResourceGroup | ISCMResource>;
 
 		Event.chain(this.list.onDidOpen)
@@ -914,9 +918,9 @@ export class RepositoryPanel extends ViewletPanel {
 		return this.menus.getTitleSecondaryActions();
 	}
 
-	getActionItem(action: IAction): IActionItem | null {
+	getActionItem(action: IAction): IActionItem | undefined {
 		if (!(action instanceof MenuItemAction)) {
-			return null;
+			return undefined;
 		}
 
 		return new ContextAwareMenuItemActionItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
@@ -1217,9 +1221,9 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 		}
 	}
 
-	getActionItem(action: IAction): IActionItem | null {
+	getActionItem(action: IAction): IActionItem | undefined {
 		if (!(action instanceof MenuItemAction)) {
-			return null;
+			return undefined;
 		}
 
 		return new ContextAwareMenuItemActionItem(action, this.keybindingService, this.notificationService, this.contextMenuService);

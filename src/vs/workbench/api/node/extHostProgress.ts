@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ProgressOptions } from 'vscode';
-import { MainThreadProgressShape, ExtHostProgressShape } from './extHost.protocol';
+import { MainThreadProgressShape, ExtHostProgressShape } from '../common/extHost.protocol';
 import { ProgressLocation } from './extHostTypeConverters';
 import { Progress, IProgressStep } from 'vs/platform/progress/common/progress';
 import { localize } from 'vs/nls';

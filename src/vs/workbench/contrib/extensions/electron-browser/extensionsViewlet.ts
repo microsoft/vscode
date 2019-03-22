@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/extensionsViewlet';
 import { localize } from 'vs/nls';
-import { ThrottledDelayer, timeout } from 'vs/base/common/async';
+import { timeout, Delayer } from 'vs/base/common/async';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -270,7 +270,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 	private recommendedExtensionsContextKey: IContextKey<boolean>;
 	private defaultRecommendedExtensionsContextKey: IContextKey<boolean>;
 
-	private searchDelayer: ThrottledDelayer<any>;
+	private searchDelayer: Delayer<void>;
 	private root: HTMLElement;
 
 	private searchBox: SuggestEnabledInput;
@@ -299,7 +299,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 	) {
 		super(VIEWLET_ID, `${VIEWLET_ID}.state`, true, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
 
-		this.searchDelayer = new ThrottledDelayer(500);
+		this.searchDelayer = new Delayer(500);
 		this.nonEmptyWorkspaceContextKey = NonEmptyWorkspaceContext.bindTo(contextKeyService);
 		this.searchExtensionsContextKey = SearchExtensionsContext.bindTo(contextKeyService);
 		this.hasInstalledExtensionsContextKey = HasInstalledExtensionsContext.bindTo(contextKeyService);

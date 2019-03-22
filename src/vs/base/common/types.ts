@@ -93,7 +93,6 @@ export function isUndefinedOrNull(obj: any): obj is undefined | null {
 	return isUndefined(obj) || obj === null;
 }
 
-
 const hasOwnProperty = Object.prototype.hasOwnProperty;
 
 /**
@@ -175,7 +174,7 @@ export function create(ctor: Function, ...args: any[]): any {
 }
 
 // https://stackoverflow.com/a/32235645/1499159
-function isNativeClass(thing): boolean {
+function isNativeClass(thing: any): boolean {
 	return typeof thing === 'function'
 		&& thing.hasOwnProperty('prototype')
 		&& !thing.hasOwnProperty('arguments');

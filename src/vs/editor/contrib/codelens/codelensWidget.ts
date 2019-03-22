@@ -25,7 +25,7 @@ class CodeLensViewZone implements editorBrowser.IViewZone {
 
 	afterLineNumber: number;
 
-	private _lastHeight: number;
+	private _lastHeight?: number;
 	private readonly _onHeight: Function;
 
 	constructor(afterLineNumber: number, onHeight: Function) {

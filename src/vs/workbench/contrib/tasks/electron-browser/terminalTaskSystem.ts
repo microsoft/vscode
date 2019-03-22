@@ -1097,7 +1097,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 	}
 
 	private collectTaskVariables(variables: Set<string>, task: CustomTask | ContributedTask): void {
-		if (task.command) {
+		if (task.command && task.command.name) {
 			this.collectCommandVariables(variables, task.command, task);
 		}
 		this.collectMatcherVariables(variables, task.configurationProperties.problemMatchers);

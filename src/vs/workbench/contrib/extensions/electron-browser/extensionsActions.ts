@@ -1514,7 +1514,7 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 				viewlet.search('@recommended ');
 				viewlet.focus();
 				const names = this.recommendations.map(({ extensionId }) => extensionId);
-				return this.extensionWorkbenchService.queryGallery({ names, source: 'install-all-workspace-recommendations' }).then(pager => {
+				return this.extensionWorkbenchService.queryGallery({ names, source: 'install-all-workspace-recommendations' }, CancellationToken.None).then(pager => {
 					let installPromises: Promise<any>[] = [];
 					let model = new PagedModel(pager);
 					for (let i = 0; i < pager.total; i++) {
@@ -1556,7 +1556,7 @@ export class InstallRecommendedExtensionAction extends Action {
 			.then(viewlet => {
 				viewlet.search('@recommended ');
 				viewlet.focus();
-				return this.extensionWorkbenchService.queryGallery({ names: [this.extensionId], source: 'install-recommendation', pageSize: 1 })
+				return this.extensionWorkbenchService.queryGallery({ names: [this.extensionId], source: 'install-recommendation', pageSize: 1 }, CancellationToken.None)
 					.then(pager => {
 						if (pager && pager.firstPage && pager.firstPage.length) {
 							const extension = pager.firstPage[0];

@@ -446,7 +446,7 @@ export class ExtensionScannerInput {
 
 	constructor(
 		public readonly ourVersion: string,
-		public readonly commit: string | null | undefined,
+		public readonly commit: string | undefined,
 		public readonly locale: string | undefined,
 		public readonly devMode: boolean,
 		public readonly absoluteFolderPath: string,

@@ -13,11 +13,11 @@ export class URLServiceChannel implements IServerChannel {
 
 	constructor(private service: IURLService) { }
 
-	listen<T>(_, event: string): Event<T> {
+	listen<T>(_: unknown, event: string): Event<T> {
 		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(_, command: string, arg?: any): Promise<any> {
+	call(_: unknown, command: string, arg?: any): Promise<any> {
 		switch (command) {
 			case 'open': return this.service.open(URI.revive(arg));
 		}
@@ -45,11 +45,11 @@ export class URLHandlerChannel implements IServerChannel {
 
 	constructor(private handler: IURLHandler) { }
 
-	listen<T>(_, event: string): Event<T> {
+	listen<T>(_: unknown, event: string): Event<T> {
 		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(_, command: string, arg?: any): Promise<any> {
+	call(_: unknown, command: string, arg?: any): Promise<any> {
 		switch (command) {
 			case 'handleURL': return this.handler.handleURL(URI.revive(arg));
 		}

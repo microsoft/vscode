@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { flatten, isNonEmptyArray, mergeSort } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { equals, flatten, isNonEmptyArray, mergeSort } from 'vs/base/common/arrays';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { illegalArgument, isPromiseCanceledError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
 import { registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
@@ -13,7 +13,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel } from 'vs/editor/common/model';
 import { CodeAction, CodeActionContext, CodeActionProviderRegistry, CodeActionTrigger as CodeActionTriggerKind } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { CodeActionKind, CodeActionTrigger, filtersAction, mayIncludeActionsOfKind, CodeActionFilter } from './codeActionTrigger';
+import { CodeActionFilter, CodeActionKind, CodeActionTrigger, filtersAction, mayIncludeActionsOfKind } from './codeActionTrigger';
 
 export class CodeActionSet {
 
@@ -55,8 +55,13 @@ export function getCodeActions(
 		trigger: trigger.type === 'manual' ? CodeActionTriggerKind.Manual : CodeActionTriggerKind.Automatic
 	};
 
-	const promises = getCodeActionProviders(model, filter).map(provider => {
-		return Promise.resolve(provider.provideCodeActions(model, rangeOrSelection, codeActionContext, token)).then(providedCodeActions => {
+	const chainedCancellation = new CancellationTokenSource();
+	token.onCancellationRequested(() => chainedCancellation.cancel());
+
+	const providers = getCodeActionProviders(model, filter);
+
+	const promises = providers.map(provider => {
+		return Promise.resolve(provider.provideCodeActions(model, rangeOrSelection, codeActionContext, chainedCancellation.token)).then(providedCodeActions => {
 			if (!Array.isArray(providedCodeActions)) {
 				return [];
 			}
@@ -71,9 +76,19 @@ export function getCodeActions(
 		});
 	});
 
+	const listener = CodeActionProviderRegistry.onDidChange(() => {
+		const newProviders = CodeActionProviderRegistry.all(model);
+		if (!equals(newProviders, providers)) {
+			chainedCancellation.cancel();
+		}
+	});
+
 	return Promise.all(promises)
 		.then(flatten)
-		.then(actions => new CodeActionSet(actions));
+		.then(actions => new CodeActionSet(actions))
+		.finally(() => {
+			listener.dispose();
+		});
 }
 
 function getCodeActionProviders(

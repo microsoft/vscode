@@ -291,7 +291,7 @@ class DecorationProviderWrapper {
 		}
 	}
 
-	private _fetchData(uri: URI): IDecorationData | undefined | null {
+	private _fetchData(uri: URI): IDecorationData | null {
 
 		// check for pending request and cancel it
 		const pendingRequest = this.data.get(uri.toString());
@@ -319,11 +319,11 @@ class DecorationProviderWrapper {
 			}));
 
 			this.data.set(uri.toString(), request);
-			return undefined;
+			return null;
 		}
 	}
 
-	private _keepItem(uri: URI, data: IDecorationData | null | undefined): IDecorationData | null {
+	private _keepItem(uri: URI, data: IDecorationData | undefined): IDecorationData | null {
 		const deco = data ? data : null;
 		const old = this.data.set(uri.toString(), deco);
 		if (deco || old) {

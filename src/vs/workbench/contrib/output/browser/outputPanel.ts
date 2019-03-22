@@ -75,7 +75,7 @@ export class OutputPanel extends AbstractTextResourceEditor {
 		return this.actions;
 	}
 
-	public getActionItem(action: Action): IActionItem | null {
+	public getActionItem(action: Action): IActionItem | undefined {
 		if (action.id === SwitchOutputAction.ID) {
 			return this.instantiationService.createInstance(SwitchOutputActionItem, action);
 		}
@@ -141,7 +141,7 @@ export class OutputPanel extends AbstractTextResourceEditor {
 	}
 
 	protected createEditor(parent: HTMLElement): void {
-		// First create the scoped instantation service and only then construct the editor using the scoped service
+		// First create the scoped instantiation service and only then construct the editor using the scoped service
 		const scopedContextKeyService = this._register(this.contextKeyService.createScoped(parent));
 		this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]));
 		super.createEditor(parent);

@@ -929,6 +929,8 @@ export interface DocumentFormattingEditProvider {
 	 */
 	readonly extensionId?: ExtensionIdentifier;
 
+	readonly displayName?: string;
+
 	/**
 	 * Provide formatting edits for a whole document.
 	 */
@@ -939,12 +941,12 @@ export interface DocumentFormattingEditProvider {
  * the formatting-feature.
  */
 export interface DocumentRangeFormattingEditProvider {
-
-
 	/**
 	 * @internal
 	 */
 	readonly extensionId?: ExtensionIdentifier;
+
+	readonly displayName?: string;
 
 	/**
 	 * Provide formatting edits for a range in a document.
@@ -1270,6 +1272,7 @@ export interface CommentThread2 {
 	onDidChangeInput: Event<CommentInput | undefined>;
 	acceptInputCommand?: Command;
 	additionalCommands: Command[];
+	deleteCommand?: Command;
 	onDidChangeAcceptInputCommand: Event<Command>;
 	onDidChangeAdditionalCommands: Event<Command[]>;
 	onDidChangeRange: Event<IRange>;
@@ -1285,7 +1288,7 @@ export interface CommentingRanges {
 	readonly resource: URI;
 	ranges: IRange[];
 	newCommentThreadCommand?: Command;
-	newCommentThreadCallback?: (uri: UriComponents, range: IRange) => void;
+	newCommentThreadCallback?: (uri: UriComponents, range: IRange) => Promise<void>;
 }
 
 /**
@@ -1393,6 +1396,24 @@ export interface DocumentCommentProvider {
 export interface WorkspaceCommentProvider {
 	provideWorkspaceComments(token: CancellationToken): Promise<CommentThread[]>;
 	onDidChangeCommentThreads(): Event<CommentThreadChangedEvent>;
+}
+
+/**
+ * @internal
+ */
+export interface IWebviewOptions {
+	readonly enableScripts?: boolean;
+	readonly enableCommandUris?: boolean;
+	readonly localResourceRoots?: ReadonlyArray<URI>;
+	readonly portMapping?: ReadonlyArray<{ port: number, resolvedPort: number }>;
+}
+
+/**
+ * @internal
+ */
+export interface IWebviewPanelOptions {
+	readonly enableFindWidget?: boolean;
+	readonly retainContextWhenHidden?: boolean;
 }
 
 export interface ICodeLensSymbol {
@@ -1546,9 +1567,9 @@ export interface ITokenizationRegistry {
 
 	/**
 	 * Get the tokenization support for a language.
-	 * Returns null if not found.
+	 * Returns `null` if not found.
 	 */
-	get(language: string): ITokenizationSupport;
+	get(language: string): ITokenizationSupport | null;
 
 	/**
 	 * Get the promise of a tokenization support for a language.

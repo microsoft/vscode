@@ -182,6 +182,7 @@ export interface IOpenSettings {
 	forceOpenWorkspaceAsFile?: boolean;
 	diffMode?: boolean;
 	addMode?: boolean;
+	noRecentEntry?: boolean;
 	args?: ParsedArgs;
 }
 
@@ -338,11 +339,12 @@ export interface IPath extends IPathData {
 
 export interface IPathsToWaitFor extends IPathsToWaitForData {
 	paths: IPath[];
+	waitMarkerFileUri: URI;
 }
 
 export interface IPathsToWaitForData {
 	paths: IPathData[];
-	waitMarkerFilePath: string;
+	waitMarkerFileUri: UriComponents;
 }
 
 export interface IPathData {

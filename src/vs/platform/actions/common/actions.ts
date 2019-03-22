@@ -94,6 +94,7 @@ export const enum MenuId {
 	SCMSourceControl,
 	SCMTitle,
 	SearchContext,
+	StatusBarWindowIndicatorMenu,
 	TouchBarContext,
 	ViewItemContext,
 	ViewTitle,

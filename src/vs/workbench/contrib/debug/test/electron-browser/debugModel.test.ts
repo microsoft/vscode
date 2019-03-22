@@ -13,6 +13,10 @@ import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { DebugSession } from 'vs/workbench/contrib/debug/electron-browser/debugSession';
 import { ReplModel } from 'vs/workbench/contrib/debug/common/replModel';
 
+function createMockSession(model: DebugModel, name = 'mockSession', parentSession?: DebugSession | undefined): DebugSession {
+	return new DebugSession({ resolved: { name, type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, parentSession, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!);
+}
+
 suite('Debug - Model', () => {
 	let model: DebugModel;
 	let rawSession: MockRawSession;
@@ -109,7 +113,7 @@ suite('Debug - Model', () => {
 	test('threads simple', () => {
 		const threadId = 1;
 		const threadName = 'firstThread';
-		const session = new DebugSession({ resolved: { name: 'mockSession', type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!);
+		const session = createMockSession(model);
 		model.addSession(session);
 
 		assert.equal(model.getSessions(true).length, 1);
@@ -136,7 +140,7 @@ suite('Debug - Model', () => {
 		const stoppedReason = 'breakpoint';
 
 		// Add the threads
-		const session = new DebugSession({ resolved: { name: 'mockSession', type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!);
+		const session = createMockSession(model);
 		model.addSession(session);
 
 		session['raw'] = <any>rawSession;
@@ -224,7 +228,7 @@ suite('Debug - Model', () => {
 		const runningThreadId = 2;
 		const runningThreadName = 'runningThread';
 		const stoppedReason = 'breakpoint';
-		const session = new DebugSession({ resolved: { name: 'mockSession', type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!);
+		const session = createMockSession(model);
 		model.addSession(session);
 
 		session['raw'] = <any>rawSession;
@@ -338,7 +342,7 @@ suite('Debug - Model', () => {
 	});
 
 	test('repl expressions', () => {
-		const session = new DebugSession({ resolved: { name: 'mockSession', type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!);
+		const session = createMockSession(model);
 		assert.equal(session.getReplElements().length, 0);
 		model.addSession(session);
 
@@ -362,7 +366,7 @@ suite('Debug - Model', () => {
 	});
 
 	test('stack frame get specific source name', () => {
-		const session = new DebugSession({ resolved: { name: 'mockSession', type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!);
+		const session = createMockSession(model);
 		model.addSession(session);
 
 		let firstStackFrame: StackFrame;
@@ -390,10 +394,33 @@ suite('Debug - Model', () => {
 		assert.equal(secondStackFrame.getSpecificSourceName(), '.../x/c/d/internalModule.js');
 	});
 
+	test('debug child sessions are added in correct order', () => {
+		const session = createMockSession(model);
+		model.addSession(session);
+		const secondSession = createMockSession(model, 'mockSession2');
+		model.addSession(secondSession);
+		const firstChild = createMockSession(model, 'firstChild', session);
+		model.addSession(firstChild);
+		const secondChild = createMockSession(model, 'secondChild', session);
+		model.addSession(secondChild);
+		const thirdSession = createMockSession(model, 'mockSession3');
+		model.addSession(thirdSession);
+		const anotherChild = createMockSession(model, 'secondChild', secondSession);
+		model.addSession(anotherChild);
+
+		const sessions = model.getSessions();
+		assert.equal(sessions[0].getId(), session.getId());
+		assert.equal(sessions[1].getId(), firstChild.getId());
+		assert.equal(sessions[2].getId(), secondChild.getId());
+		assert.equal(sessions[3].getId(), secondSession.getId());
+		assert.equal(sessions[4].getId(), anotherChild.getId());
+		assert.equal(sessions[5].getId(), thirdSession.getId());
+	});
+
 	// Repl output
 
 	test('repl output', () => {
-		const session = new DebugSession({ resolved: { name: 'mockSession', type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!);
+		const session = new DebugSession({ resolved: { name: 'mockSession', type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, undefined, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!);
 		const repl = new ReplModel(session);
 		repl.appendToRepl('first line\n', severity.Error);
 		repl.appendToRepl('second line', severity.Error);

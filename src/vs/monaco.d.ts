@@ -5205,6 +5205,7 @@ declare namespace monaco.languages {
 	 * the formatting-feature.
 	 */
 	export interface DocumentFormattingEditProvider {
+		readonly displayName?: string;
 		/**
 		 * Provide formatting edits for a whole document.
 		 */
@@ -5216,6 +5217,7 @@ declare namespace monaco.languages {
 	 * the formatting-feature.
 	 */
 	export interface DocumentRangeFormattingEditProvider {
+		readonly displayName?: string;
 		/**
 		 * Provide formatting edits for a range in a document.
 		 *

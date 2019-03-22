@@ -168,6 +168,8 @@ export class ReviewController implements IEditorContribution {
 	private mouseDownInfo: { lineNumber: number } | null = null;
 	private _commentingRangeSpaceReserved = false;
 	private _computePromise: CancelablePromise<Array<ICommentInfo | null>> | null;
+	private _addInProgress: boolean;
+	private _emptyThreadsToAddQueue: number[] = [];
 	private _computeCommentingRangePromise: CancelablePromise<ICommentInfo[]> | null;
 	private _computeCommentingRangeScheduler: Delayer<Array<ICommentInfo | null>> | null;
 	private _pendingCommentCache: { [key: number]: { [key: string]: string } };
@@ -434,7 +436,8 @@ export class ReviewController implements IEditorContribution {
 				}
 			});
 			added.forEach(thread => {
-				this.displayCommentThread(e.owner, thread, null, draftMode);
+				const pendingCommentText = this._pendingCommentCache[e.owner] && this._pendingCommentCache[e.owner][thread.threadId];
+				this.displayCommentThread(e.owner, thread, pendingCommentText, draftMode);
 				this._commentInfos.filter(info => info.owner === e.owner)[0].threads.push(thread);
 			});
 
@@ -546,25 +549,41 @@ export class ReviewController implements IEditorContribution {
 
 		if (e.target.element.className.indexOf('comment-diff-added') >= 0) {
 			const lineNumber = e.target.position!.lineNumber;
-			this.addCommentAtLine(lineNumber);
+			this.addOrToggleCommentAtLine(lineNumber);
 		}
 	}
 
-	public addOrToggleCommentAtLine(lineNumber: number): void {
-		// The widget's position is undefined until the widget has been displayed, so rely on the glyph position instead
-		const existingCommentsAtLine = this._commentWidgets.filter(widget => widget.getGlyphPosition() === lineNumber);
-		if (existingCommentsAtLine.length) {
-			existingCommentsAtLine.forEach(widget => widget.toggleExpand(lineNumber));
-			return;
+	public async addOrToggleCommentAtLine(lineNumber: number): Promise<void> {
+		// If an add is already in progress, queue the next add and process it after the current one finishes to
+		// prevent empty comment threads from being added to the same line.
+		if (!this._addInProgress) {
+			this._addInProgress = true;
+			// The widget's position is undefined until the widget has been displayed, so rely on the glyph position instead
+			const existingCommentsAtLine = this._commentWidgets.filter(widget => widget.getGlyphPosition() === lineNumber);
+			if (existingCommentsAtLine.length) {
+				existingCommentsAtLine.forEach(widget => widget.toggleExpand(lineNumber));
+				this.processNextThreadToAdd();
+				return;
+			} else {
+				this.addCommentAtLine(lineNumber);
+			}
 		} else {
-			this.addCommentAtLine(lineNumber);
+			this._emptyThreadsToAddQueue.push(lineNumber);
 		}
 	}
 
-	public addCommentAtLine(lineNumber: number): void {
+	private processNextThreadToAdd(): void {
+		this._addInProgress = false;
+		const lineNumber = this._emptyThreadsToAddQueue.shift();
+		if (lineNumber) {
+			this.addOrToggleCommentAtLine(lineNumber);
+		}
+	}
+
+	public addCommentAtLine(lineNumber: number): Promise<void> {
 		const newCommentInfo = this._commentingRangeDecorator.getMatchedCommentAction(lineNumber);
 		if (!newCommentInfo || !this.editor.hasModel()) {
-			return;
+			return Promise.resolve();
 		}
 
 		const { replyCommand, ownerId, extensionId, commentingRangesInfo } = newCommentInfo;
@@ -579,17 +598,26 @@ export class ReviewController implements IEditorContribution {
 					this._commandService.executeCommand(commandId, ...args);
 				}
 			} else if (commentingRangesInfo.newCommentThreadCallback) {
-				commentingRangesInfo.newCommentThreadCallback(this.editor.getModel().uri, range);
+				return commentingRangesInfo.newCommentThreadCallback(this.editor.getModel().uri, range)
+					.then(_ => {
+						this.processNextThreadToAdd();
+					})
+					.catch(e => {
+						this.notificationService.error(nls.localize('commentThreadAddFailure', "Adding a new comment thread failed: {0}.", e.message));
+						this.processNextThreadToAdd();
+					});
 			}
 		} else {
 			const commentInfo = this._commentInfos.filter(info => info.owner === ownerId);
 			if (!commentInfo || !commentInfo.length) {
-				return;
+				return Promise.resolve();
 			}
 
 			const draftMode = commentInfo[0].draftMode;
 			this.addComment(lineNumber, replyCommand, ownerId, extensionId, draftMode, null);
 		}
+
+		return Promise.resolve();
 	}
 
 
@@ -735,8 +763,7 @@ CommandsRegistry.registerCommand({
 		}
 
 		const position = activeEditor.getPosition();
-		controller.addOrToggleCommentAtLine(position.lineNumber);
-		return Promise.resolve();
+		return controller.addOrToggleCommentAtLine(position.lineNumber);
 	}
 });
 

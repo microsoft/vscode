@@ -15,10 +15,10 @@ export class ResolvedKeybindingItem {
 	public readonly bubble: boolean;
 	public readonly command: string | null;
 	public readonly commandArgs: any;
-	public readonly when: ContextKeyExpr | null;
+	public readonly when: ContextKeyExpr | undefined;
 	public readonly isDefault: boolean;
 
-	constructor(resolvedKeybinding: ResolvedKeybinding | null, command: string | null, commandArgs: any, when: ContextKeyExpr | null, isDefault: boolean) {
+	constructor(resolvedKeybinding: ResolvedKeybinding | null, command: string | null, commandArgs: any, when: ContextKeyExpr | undefined, isDefault: boolean) {
 		this.resolvedKeybinding = resolvedKeybinding;
 		this.keypressParts = resolvedKeybinding ? removeElementsAfterNulls(resolvedKeybinding.getDispatchParts()) : [];
 		this.bubble = (command ? command.charCodeAt(0) === CharCode.Caret : false);

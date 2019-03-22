@@ -60,7 +60,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	private _resizeObserver: any;
 	private _onDidClose = new Emitter<ReviewZoneWidget | undefined>();
 	private _onDidCreateThread = new Emitter<ReviewZoneWidget>();
-	private _isCollapsed;
+	private _isCollapsed: boolean;
 	private _collapseAction: Action;
 	private _commentGlyph?: CommentGlyphWidget;
 	private _submitActionsDisposables: IDisposable[];
@@ -200,9 +200,16 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._disposables.push(this._actionbarWidget);
 
 		this._collapseAction = new Action('review.expand', nls.localize('label.collapse', "Collapse"), COLLAPSE_ACTION_CLASS, true, () => {
-			if (this._commentThread.comments.length === 0 && (this._commentThread as modes.CommentThread2).commentThreadHandle === undefined) {
-				this.dispose();
-				return Promise.resolve();
+			if (this._commentThread.comments.length === 0) {
+				if ((this._commentThread as modes.CommentThread2).commentThreadHandle === undefined) {
+					this.dispose();
+					return Promise.resolve();
+				} else {
+					const deleteCommand = (this._commentThread as modes.CommentThread2).deleteCommand;
+					if (deleteCommand) {
+						return this.commandService.executeCommand(deleteCommand.id, ...(deleteCommand.arguments || []));
+					}
+				}
 			}
 
 			this._isCollapsed = true;

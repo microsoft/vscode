@@ -55,7 +55,7 @@ import { LogLevelSetterChannel } from 'vs/platform/log/node/logIpc';
 import * as errors from 'vs/base/common/errors';
 import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
 import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
-import { connectRemoteAgentManagement } from 'vs/platform/remote/node/remoteAgentConnection';
+import { connectRemoteAgentManagement, ManagementPersistentConnection } from 'vs/platform/remote/node/remoteAgentConnection';
 import { IMenubarService } from 'vs/platform/menubar/common/menubar';
 import { MenubarService } from 'vs/platform/menubar/electron-main/menubarService';
 import { MenubarChannel } from 'vs/platform/menubar/node/menubarIpc';
@@ -388,7 +388,7 @@ export class CodeApplication extends Disposable {
 		this.logService.info(`Tracing: waiting for windows to get ready...`);
 
 		let recordingStopped = false;
-		const stopRecording = (timeout) => {
+		const stopRecording = (timeout: boolean) => {
 			if (recordingStopped) {
 				return;
 			}
@@ -574,16 +574,17 @@ export class CodeApplication extends Disposable {
 		const hasCliArgs = hasArgs(args._);
 		const hasFolderURIs = hasArgs(args['folder-uri']);
 		const hasFileURIs = hasArgs(args['file-uri']);
+		const noRecentEntry = args['skip-add-to-recently-opened'] === true;
 
 		if (args['new-window'] && !hasCliArgs && !hasFolderURIs && !hasFileURIs) {
-			return this.windowsMainService.open({ context, cli: args, forceNewWindow: true, forceEmpty: true, initialStartup: true }); // new window if "-n" was used without paths
+			return this.windowsMainService.open({ context, cli: args, forceNewWindow: true, forceEmpty: true, noRecentEntry, initialStartup: true }); // new window if "-n" was used without paths
 		}
 
 		if (macOpenFiles && macOpenFiles.length && !hasCliArgs && !hasFolderURIs && !hasFileURIs) {
-			return this.windowsMainService.open({ context: OpenContext.DOCK, cli: args, urisToOpen: macOpenFiles.map(file => ({ uri: URI.file(file) })), initialStartup: true }); // mac: open-file event received on startup
+			return this.windowsMainService.open({ context: OpenContext.DOCK, cli: args, urisToOpen: macOpenFiles.map(file => ({ uri: URI.file(file) })), noRecentEntry, initialStartup: true }); // mac: open-file event received on startup
 		}
 
-		return this.windowsMainService.open({ context, cli: args, forceNewWindow: args['new-window'] || (!hasCliArgs && args['unity-launch']), diffMode: args.diff, initialStartup: true }); // default: read paths from cli
+		return this.windowsMainService.open({ context, cli: args, forceNewWindow: args['new-window'] || (!hasCliArgs && args['unity-launch']), diffMode: args.diff, noRecentEntry, initialStartup: true }); // default: read paths from cli
 	}
 
 	private afterWindowOpen(accessor: ServicesAccessor): void {
@@ -650,26 +651,27 @@ export class CodeApplication extends Disposable {
 
 		class ActiveConnection {
 			private readonly _authority: string;
-			private readonly _client: Promise<Client<RemoteAgentConnectionContext>>;
+			private readonly _connection: Promise<ManagementPersistentConnection>;
 			private readonly _disposeRunner: RunOnceScheduler;
 
 			constructor(authority: string, host: string, port: number) {
 				this._authority = authority;
-				this._client = connectRemoteAgentManagement(authority, host, port, `main`, isBuilt);
+				this._connection = connectRemoteAgentManagement(authority, host, port, `main`, isBuilt);
 				this._disposeRunner = new RunOnceScheduler(() => this.dispose(), 5000);
 			}
 
 			dispose(): void {
 				this._disposeRunner.dispose();
 				connectionPool.delete(this._authority);
-				this._client.then((connection) => {
+				this._connection.then((connection) => {
 					connection.dispose();
 				});
 			}
 
-			getClient(): Promise<Client<RemoteAgentConnectionContext>> {
+			async getClient(): Promise<Client<RemoteAgentConnectionContext>> {
 				this._disposeRunner.schedule();
-				return this._client;
+				const connection = await this._connection;
+				return connection.client;
 			}
 		}
 

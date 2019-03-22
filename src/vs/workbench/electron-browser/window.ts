@@ -229,7 +229,7 @@ export class ElectronWindow extends Disposable {
 		const filesToWait = this.windowService.getConfiguration().filesToWait;
 		if (filesToWait) {
 			const resourcesToWaitFor = coalesce(filesToWait.paths.map(p => p.fileUri));
-			const waitMarkerFile = URI.file(filesToWait.waitMarkerFilePath);
+			const waitMarkerFile = filesToWait.waitMarkerFileUri;
 			const listenerDispose = this.editorService.onDidCloseEditor(() => this.onEditorClosed(listenerDispose, resourcesToWaitFor, waitMarkerFile));
 
 			this._register(listenerDispose);
@@ -493,7 +493,7 @@ export class ElectronWindow extends Disposable {
 			// are closed that the user wants to wait for. When this happens we delete
 			// the wait marker file to signal to the outside that editing is done.
 			const resourcesToWaitFor = request.filesToWait.paths.map(p => URI.revive(p.fileUri));
-			const waitMarkerFile = URI.file(request.filesToWait.waitMarkerFilePath);
+			const waitMarkerFile = URI.revive(request.filesToWait.waitMarkerFileUri);
 			const unbind = this.editorService.onDidCloseEditor(() => {
 				if (resourcesToWaitFor.every(resource => !this.editorService.isOpen({ resource }))) {
 					unbind.dispose();
