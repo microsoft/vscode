@@ -18,6 +18,8 @@ import { formatDocumentRangeWithProvider, formatDocumentWithProvider, getRealAnd
 import { Range } from 'vs/editor/common/core/range';
 import { showExtensionQuery } from 'vs/workbench/contrib/format/browser/showExtensionQuery';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 interface IIndexedPick extends IQuickPickItem {
 	index: number;
@@ -27,6 +29,26 @@ const openExtensionAction: IQuickInputButton = {
 	tooltip: nls.localize('show.ext', "Show extension..."),
 	iconClass: 'format-show-extension'
 };
+
+function logFormatterTelemetry<T extends { extensionId?: ExtensionIdentifier }>(telemetryService: ITelemetryService, mode: 'document' | 'range', options: T[], pick?: T) {
+
+	function extKey(obj: T): string {
+		return obj.extensionId ? ExtensionIdentifier.toKey(obj.extensionId) : 'unknown';
+	}
+	/*
+	 * __GDPR__
+		"formatterpick" : {
+			"mode" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"extensions" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"pick" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		}
+	 */
+	telemetryService.publicLog('formatterpick', {
+		mode,
+		extensions: options.map(extKey),
+		pick: pick ? extKey(pick) : 'none'
+	});
+}
 
 registerEditorAction(class FormatDocumentMultipleAction extends EditorAction {
 
@@ -56,6 +78,7 @@ registerEditorAction(class FormatDocumentMultipleAction extends EditorAction {
 		const instaService = accessor.get(IInstantiationService);
 		const quickPickService = accessor.get(IQuickInputService);
 		const viewletService = accessor.get(IViewletService);
+		const telemetryService = accessor.get(ITelemetryService);
 		const model = editor.getModel();
 
 		const provider = getRealAndSyntheticDocumentFormattersOrdered(model);
@@ -77,6 +100,8 @@ registerEditorAction(class FormatDocumentMultipleAction extends EditorAction {
 		if (pick) {
 			await instaService.invokeFunction(formatDocumentWithProvider, provider[pick.index], editor, CancellationToken.None);
 		}
+
+		logFormatterTelemetry(telemetryService, 'document', provider, pick && provider[pick.index]);
 	}
 });
 
@@ -108,6 +133,7 @@ registerEditorAction(class FormatSelectionMultipleAction extends EditorAction {
 		const instaService = accessor.get(IInstantiationService);
 		const quickPickService = accessor.get(IQuickInputService);
 		const viewletService = accessor.get(IViewletService);
+		const telemetryService = accessor.get(ITelemetryService);
 		const model = editor.getModel();
 
 		let range: Range = editor.getSelection();
@@ -134,5 +160,7 @@ registerEditorAction(class FormatSelectionMultipleAction extends EditorAction {
 		if (pick) {
 			await instaService.invokeFunction(formatDocumentRangeWithProvider, provider[pick.index], editor, range, CancellationToken.None);
 		}
+
+		logFormatterTelemetry(telemetryService, 'range', provider, pick && provider[pick.index]);
 	}
 });
