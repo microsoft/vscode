@@ -72,12 +72,12 @@ export function handleANSIOutput(text: string, linkDetector: LinkDetector): HTML
 						const isForeground: boolean = (styleCodes[0] === 38);
 
 						if (styleCodes[1] === 5) {
-							calcAndSet8BitColor(styleCodes, isForeground);
+							set8BitColor(styleCodes, isForeground);
 						} else if (styleCodes[1] === 2) {
-							calcAndSet24BitColor(styleCodes, isForeground);
+							set24BitColor(styleCodes, isForeground);
 						}
 					} else {
-						calcAndSetBasicFormatters(styleCodes);
+						setBasicFormatters(styleCodes);
 					}
 
 				} else {
@@ -136,7 +136,7 @@ export function handleANSIOutput(text: string, linkDetector: LinkDetector): HTML
 	 * does not.
 	 * @see {@link https://en.wikipedia.org/wiki/ANSI_escape_code }
 	 */
-	function calcAndSetBasicFormatters(styleCodes: number[]): void {
+	function setBasicFormatters(styleCodes: number[]): void {
 		for (let code of styleCodes) {
 			if (code === 0) {
 				styleNames = [];
@@ -166,7 +166,7 @@ export function handleANSIOutput(text: string, linkDetector: LinkDetector): HTML
 	 * set background color.
 	 * @see {@link https://en.wikipedia.org/wiki/ANSI_escape_code#24-bit }
 	 */
-	function calcAndSet24BitColor(styleCodes: number[], isForeground: boolean): void {
+	function set24BitColor(styleCodes: number[], isForeground: boolean): void {
 		if (styleCodes.length >= 5 &&
 			styleCodes[2] >= 0 && styleCodes[2] <= 255 &&
 			styleCodes[3] >= 0 && styleCodes[3] <= 255 &&
@@ -184,7 +184,7 @@ export function handleANSIOutput(text: string, linkDetector: LinkDetector): HTML
 	 * set background color.
 	 * @see {@link https://en.wikipedia.org/wiki/ANSI_escape_code#8-bit }
 	 */
-	function calcAndSet8BitColor(styleCodes: number[], isForeground: boolean): void {
+	function set8BitColor(styleCodes: number[], isForeground: boolean): void {
 		let colorNumber = styleCodes[2];
 		const color = calcANSI8bitColor(colorNumber);
 
