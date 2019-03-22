@@ -173,10 +173,10 @@ export class Workbench extends Layout {
 		// Layout Service
 		serviceCollection.set(IWorkbenchLayoutService, this);
 
-		//
+		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 		// NOTE: DO NOT ADD ANY OTHER SERVICE INTO THE COLLECTION HERE.
-		// INSTEAD, CONTRIBUTE IT VIA WORKBENCH.MAIN.TS
-		//
+		// CONTRIBUTE IT VIA WORKBENCH.MAIN.TS AND registerSingleton().
+		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 		// All Contributed Services
 		const contributedServices = getServices();
