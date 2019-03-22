@@ -947,6 +947,28 @@ export class LowerCaseAction extends AbstractCaseAction {
 	}
 }
 
+export class CapitalCaseAction extends AbstractCaseAction {
+	constructor() {
+		super({
+			id: 'editor.action.transformToCapitalcase',
+			label: nls.localize('editor.transformToCapitalcase', "Transform to Capitalcase"),
+			alias: 'Transform to Capitalcase',
+			precondition: EditorContextKeys.writable
+		});
+	}
+
+	protected _modifyText(text: string): string {
+		return text.replace(/\S+/g, function (word: string) {
+			// Transform first letter to uppercase and others lowercase.
+			return word
+				.toLocaleLowerCase()
+				.replace(/^./, function (firstLetter: string) {
+					return firstLetter.toLocaleUpperCase();
+				});
+		});
+	}
+}
+
 registerEditorAction(CopyLinesUpAction);
 registerEditorAction(CopyLinesDownAction);
 registerEditorAction(MoveLinesUpAction);
@@ -965,3 +987,4 @@ registerEditorAction(JoinLinesAction);
 registerEditorAction(TransposeAction);
 registerEditorAction(UpperCaseAction);
 registerEditorAction(LowerCaseAction);
+registerEditorAction(CapitalCaseAction);
