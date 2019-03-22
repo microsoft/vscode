@@ -1,8 +1,8 @@
 #!/bin/bash
 
 if [ $# -eq 0 ]; then
-	echo "Pass in a version like ./scripts/generate-vscode-dts.sh 1.30"
-	echo "Failed to generate index.d.ts"
+	echo "Pass in a version like ./scripts/generate-vscode-dts.sh 1.30."
+	echo "Failed to generate index.d.ts."
 	exit 1
 fi
 
