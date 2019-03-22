@@ -596,6 +596,7 @@ export class ReviewController implements IEditorContribution {
 					const args = replyCommand.arguments || [];
 
 					this._commandService.executeCommand(commandId, ...args);
+					this._addInProgress = false;
 				}
 			} else if (commentingRangesInfo.newCommentThreadCallback) {
 				return commentingRangesInfo.newCommentThreadCallback(this.editor.getModel().uri, range)
@@ -610,11 +611,13 @@ export class ReviewController implements IEditorContribution {
 		} else {
 			const commentInfo = this._commentInfos.filter(info => info.owner === ownerId);
 			if (!commentInfo || !commentInfo.length) {
+				this._addInProgress = false;
 				return Promise.resolve();
 			}
 
 			const draftMode = commentInfo[0].draftMode;
 			this.addComment(lineNumber, replyCommand, ownerId, extensionId, draftMode, null);
+			this._addInProgress = false;
 		}
 
 		return Promise.resolve();
