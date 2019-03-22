@@ -43,9 +43,9 @@ suite('ExtHostTreeView', function () {
 	let target: RecordingShape;
 	let onDidChangeTreeNode: Emitter<{ key: string } | undefined>;
 	let onDidChangeTreeNodeWithId: Emitter<{ key: string }>;
-	let tree: object;
-	let labels: object;
-	let nodes: object;
+	let tree: { [key: string]: any };
+	let labels: { [key: string]: string };
+	let nodes: { [key: string]: { key: string } };
 
 	setup(() => {
 		tree = {
@@ -392,7 +392,7 @@ suite('ExtHostTreeView', function () {
 		tree[dupItems['adup1']] = {};
 		tree['d'] = {};
 
-		const bdup1Tree = {};
+		const bdup1Tree: { [key: string]: any } = {};
 		bdup1Tree['h'] = {};
 		bdup1Tree[dupItems['hdup1']] = {};
 		bdup1Tree['j'] = {};
@@ -596,7 +596,7 @@ suite('ExtHostTreeView', function () {
 		}
 
 		if (typeof obj === 'object') {
-			const result = {};
+			const result: { [key: string]: any } = {};
 			for (const key of Object.keys(obj)) {
 				if (obj[key] !== undefined) {
 					result[key] = removeUnsetKeys(obj[key]);

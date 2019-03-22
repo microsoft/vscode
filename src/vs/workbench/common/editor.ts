@@ -388,11 +388,11 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	}
 
 	/**
-	 * Returns a descriptor suitable for telemetry events or null if none is available.
+	 * Returns a descriptor suitable for telemetry events.
 	 *
 	 * Subclasses should extend if they can contribute.
 	 */
-	getTelemetryDescriptor(): object {
+	getTelemetryDescriptor(): { [key: string]: any } {
 		/* __GDPR__FRAGMENT__
 			"EditorTelemetryDescriptor" : {
 				"typeId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
