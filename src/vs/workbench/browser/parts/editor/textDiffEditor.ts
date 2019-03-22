@@ -70,13 +70,12 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 		return nls.localize('textDiffEditor', "Text Diff Editor");
 	}
 
-	reverseColoring() : void	{
+	reverseColoring(): void {
 		this.reverseColor = true;
 	}
 
 	createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): IDiffEditor {
-		if(this.reverseColor === true)
-		{
+		if (this.reverseColor === true) {
 			(configuration as IDiffEditorOptions).reverse = true;
 		}
 

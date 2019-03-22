@@ -745,10 +745,10 @@ export interface IDiffEditorOptions extends IEditorOptions {
 	 */
 	originalEditable?: boolean;
 
- 	/**
+	/**
 	 * Adding option to reverse coloring in diff editor
 	 */
-	reverse?:boolean;
+	reverse?: boolean;
 }
 
 export const enum RenderMinimap {

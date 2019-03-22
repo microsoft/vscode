@@ -1204,7 +1204,7 @@ abstract class DiffEditorWidgetStyle extends Disposable implements IDiffEditorWi
 		return hasChanges;
 	}
 
-	public getEditorsDiffDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, originalWhitespaces: IEditorWhitespace[], modifiedWhitespaces: IEditorWhitespace[], originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor, reverse?:boolean): IEditorsDiffDecorationsWithZones {
+	public getEditorsDiffDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, originalWhitespaces: IEditorWhitespace[], modifiedWhitespaces: IEditorWhitespace[], originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor, reverse?: boolean): IEditorsDiffDecorationsWithZones {
 		// Get view zones
 		modifiedWhitespaces = modifiedWhitespaces.sort((a, b) => {
 			return a.afterLineNumber - b.afterLineNumber;
