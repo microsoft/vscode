@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { Socket } from 'net';
 import { EventEmitter } from 'events';
-import { Protocol, PersistentProtocol } from 'vs/base/parts/ipc/node/ipc.net';
+import { Protocol, PersistentProtocol, NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 import { VSBuffer } from 'vs/base/common/buffer';
 
 class MessageStream {
@@ -126,8 +126,8 @@ suite('IPC, Socket Protocol', () => {
 
 	test('read/write', async () => {
 
-		const a = new Protocol(ether.a);
-		const b = new Protocol(ether.b);
+		const a = new Protocol(new NodeSocket(ether.a));
+		const b = new Protocol(new NodeSocket(ether.b));
 		const bMessages = new MessageStream(b);
 
 		a.send(VSBuffer.fromString('foobarfarboo'));
@@ -144,8 +144,8 @@ suite('IPC, Socket Protocol', () => {
 
 	test('read/write, object data', async () => {
 
-		const a = new Protocol(ether.a);
-		const b = new Protocol(ether.b);
+		const a = new Protocol(new NodeSocket(ether.a));
+		const b = new Protocol(new NodeSocket(ether.b));
 		const bMessages = new MessageStream(b);
 
 		const data = {
@@ -170,9 +170,9 @@ suite('PersistentProtocol reconnection', () => {
 	});
 
 	test('acks get piggybacked with messages', async () => {
-		const a = new PersistentProtocol(ether.a);
+		const a = new PersistentProtocol(new NodeSocket(ether.a));
 		const aMessages = new MessageStream(a);
-		const b = new PersistentProtocol(ether.b);
+		const b = new PersistentProtocol(new NodeSocket(ether.b));
 		const bMessages = new MessageStream(b);
 
 		a.send(VSBuffer.fromString('a1'));

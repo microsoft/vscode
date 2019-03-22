@@ -9,27 +9,64 @@ import { IMessagePassingProtocol, ClientConnectionEvent, IPCServer, IPCClient } 
 import { join } from 'vs/base/common/path';
 import { tmpdir } from 'os';
 import { generateUuid } from 'vs/base/common/uuid';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, dispose } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
 
-// export interface ISocket {
-// 	onData: Event<VSBuffer>;
-// }
+export interface ISocket {
+	onData(listener: (e: VSBuffer) => void): IDisposable;
+	onClose(listener: () => void): IDisposable;
+	onEnd(listener: () => void): IDisposable;
+	write(buffer: VSBuffer): void;
+	end(): void;
+}
 
-// export class NodeSocket implements ISocket {
-// 	private readonly _socket: Socket;
+export class NodeSocket implements ISocket {
+	private readonly _socket: Socket;
 
-// 	constructor(socket: Socket) {
-// 		this._socket = socket;
-// 	}
+	constructor(socket: Socket) {
+		this._socket = socket;
+	}
 
-// 	public onData(listener: (e: VSBuffer) => void): IDisposable {
-// 		this._socket.on('data', listener);
-// 		return {
-// 			dispose: () => this._socket.off('data', listener)
-// 		};
-// 	}
-// }
+	public onData(_listener: (e: VSBuffer) => void): IDisposable {
+		const listener = (buff: Buffer) => _listener(VSBuffer.wrap(buff));
+		this._socket.on('data', listener);
+		return {
+			dispose: () => this._socket.off('data', listener)
+		};
+	}
+
+	public onClose(listener: () => void): IDisposable {
+		this._socket.on('close', listener);
+		return {
+			dispose: () => this._socket.off('close', listener)
+		};
+	}
+
+	public onEnd(listener: () => void): IDisposable {
+		this._socket.on('end', listener);
+		return {
+			dispose: () => this._socket.off('end', listener)
+		};
+	}
+
+	public write(buffer: VSBuffer): void {
+		// return early if socket has been destroyed in the meantime
+		if (this._socket.destroyed) {
+			return;
+		}
+
+		// we ignore the returned value from `write` because we would have to cached the data
+		// anyways and nodejs is already doing that for us:
+		// > https://nodejs.org/api/stream.html#stream_writable_write_chunk_encoding_callback
+		// > However, the false return value is only advisory and the writable stream will unconditionally
+		// > accept and buffer chunk even if it has not not been allowed to drain.
+		this._socket.write(buffer.toBuffer());
+	}
+
+	public end(): void {
+		this._socket.end();
+	}
+}
 
 export function generateRandomPipeName(): string {
 	const randomSuffix = generateUuid();
@@ -169,12 +206,11 @@ class ProtocolMessage {
 	}
 }
 
-class ProtocolReader {
+class ProtocolReader extends Disposable {
 
-	private readonly _socket: Socket;
+	private readonly _socket: ISocket;
 	private _isDisposed: boolean;
 	private readonly _incomingData: ChunkStream;
-	private readonly _socketDataListener: (data: Buffer) => void;
 	public lastReadTime: number;
 
 	private readonly _onMessage = new Emitter<ProtocolMessage>();
@@ -188,12 +224,12 @@ class ProtocolReader {
 		ack: 0
 	};
 
-	constructor(socket: Socket) {
+	constructor(socket: ISocket) {
+		super();
 		this._socket = socket;
 		this._isDisposed = false;
 		this._incomingData = new ChunkStream();
-		this._socketDataListener = (data: Buffer) => this.acceptChunk(VSBuffer.wrap(data));
-		this._socket.on('data', this._socketDataListener);
+		this._register(this._socket.onData(data => this.acceptChunk(data)));
 		this.lastReadTime = Date.now();
 	}
 
@@ -248,19 +284,19 @@ class ProtocolReader {
 
 	public dispose(): void {
 		this._isDisposed = true;
-		this._socket.removeListener('data', this._socketDataListener);
+		super.dispose();
 	}
 }
 
 class ProtocolWriter {
 
 	private _isDisposed: boolean;
-	private readonly _socket: Socket;
+	private readonly _socket: ISocket;
 	private _data: VSBuffer[];
 	private _totalLength: number;
 	public lastWriteTime: number;
 
-	constructor(socket: Socket) {
+	constructor(socket: ISocket) {
 		this._isDisposed = false;
 		this._socket = socket;
 		this._data = [];
@@ -320,16 +356,7 @@ class ProtocolWriter {
 		if (this._totalLength === 0) {
 			return;
 		}
-		// return early if socket has been destroyed in the meantime
-		if (this._socket.destroyed) {
-			return;
-		}
-		// we ignore the returned value from `write` because we would have to cached the data
-		// anyways and nodejs is already doing that for us:
-		// > https://nodejs.org/api/stream.html#stream_writable_write_chunk_encoding_callback
-		// > However, the false return value is only advisory and the writable stream will unconditionally
-		// > accept and buffer chunk even if it has not not been allowed to drain.
-		this._socket.write(this._bufferTake().toBuffer());
+		this._socket.write(this._bufferTake());
 	}
 }
 
@@ -350,13 +377,11 @@ class ProtocolWriter {
  *
  * Only Regular messages are counted, other messages are not counted, nor acknowledged.
  */
-export class Protocol implements IDisposable, IMessagePassingProtocol {
+export class Protocol extends Disposable implements IMessagePassingProtocol {
 
-	private _socket: Socket;
+	private _socket: ISocket;
 	private _socketWriter: ProtocolWriter;
 	private _socketReader: ProtocolReader;
-
-	private _socketCloseListener: () => void;
 
 	private _onMessage = new Emitter<VSBuffer>();
 	readonly onMessage: Event<VSBuffer> = this._onMessage.event;
@@ -364,30 +389,22 @@ export class Protocol implements IDisposable, IMessagePassingProtocol {
 	private _onClose = new Emitter<void>();
 	readonly onClose: Event<void> = this._onClose.event;
 
-	constructor(socket: Socket) {
+	constructor(socket: ISocket) {
+		super();
 		this._socket = socket;
-		this._socketWriter = new ProtocolWriter(this._socket);
-		this._socketReader = new ProtocolReader(this._socket);
+		this._socketWriter = this._register(new ProtocolWriter(this._socket));
+		this._socketReader = this._register(new ProtocolReader(this._socket));
 
-		this._socketReader.onMessage((msg) => {
+		this._register(this._socketReader.onMessage((msg) => {
 			if (msg.type === ProtocolMessageType.Regular) {
 				this._onMessage.fire(msg.data);
 			}
-		});
+		}));
 
-		this._socketCloseListener = () => {
-			this._onClose.fire();
-		};
-		this._socket.once('close', this._socketCloseListener);
+		this._register(this._socket.onClose(() => this._onClose.fire()));
 	}
 
-	dispose(): void {
-		this._socketWriter.dispose();
-		this._socketReader.dispose();
-		this._socket.removeListener('close', this._socketCloseListener);
-	}
-
-	getSocket(): Socket {
+	getSocket(): ISocket {
 		return this._socket;
 	}
 
@@ -402,7 +419,7 @@ export class Server extends IPCServer {
 		const onConnection = Event.fromNodeEventEmitter<Socket>(server, 'connection');
 
 		return Event.map(onConnection, socket => ({
-			protocol: new Protocol(socket),
+			protocol: new Protocol(new NodeSocket(socket)),
 			onDidClientDisconnect: Event.once(Event.fromNodeEventEmitter<void>(socket, 'close'))
 		}));
 	}
@@ -425,7 +442,7 @@ export class Server extends IPCServer {
 
 export class Client<TContext = string> extends IPCClient<TContext> {
 
-	static fromSocket<TContext = string>(socket: Socket, id: TContext): Client<TContext> {
+	static fromSocket<TContext = string>(socket: ISocket, id: TContext): Client<TContext> {
 		return new Client(new Protocol(socket), id);
 	}
 
@@ -464,7 +481,7 @@ export function connect(hook: any, clientId: string): Promise<Client> {
 	return new Promise<Client>((c, e) => {
 		const socket = createConnection(hook, () => {
 			socket.removeListener('error', e);
-			c(Client.fromSocket(socket, clientId));
+			c(Client.fromSocket(new NodeSocket(socket), clientId));
 		});
 
 		socket.once('error', e);
@@ -594,14 +611,10 @@ export class PersistentProtocol {
 	private _outgoingKeepAliveTimeout: NodeJS.Timeout | null;
 	private _incomingKeepAliveTimeout: NodeJS.Timeout | null;
 
-	private _socket: Socket;
+	private _socket: ISocket;
 	private _socketWriter: ProtocolWriter;
 	private _socketReader: ProtocolReader;
-	private _socketReaderListener: IDisposable;
-
-	private readonly _socketCloseListener: () => void;
-	private readonly _socketEndListener: () => void;
-	private readonly _socketErrorListener: (err: any) => void;
+	private _socketDisposables: IDisposable[];
 
 	private _onControlMessage = new Emitter<VSBuffer>();
 	readonly onControlMessage: Event<VSBuffer> = createBufferedEvent(this._onControlMessage.event);
@@ -622,7 +635,7 @@ export class PersistentProtocol {
 		return this._outgoingMsgId - this._outgoingAckId;
 	}
 
-	constructor(socket: Socket, initialChunk: VSBuffer | null = null) {
+	constructor(socket: ISocket, initialChunk: VSBuffer | null = null) {
 		this._isReconnecting = false;
 		this._outgoingUnackMsg = new Queue<ProtocolMessage>();
 		this._outgoingMsgId = 0;
@@ -637,25 +650,15 @@ export class PersistentProtocol {
 		this._outgoingKeepAliveTimeout = null;
 		this._incomingKeepAliveTimeout = null;
 
-		this._socketCloseListener = () => {
-			console.log(`socket triggered close event!`);
-			this._onSocketClose.fire();
-		};
-		this._socketEndListener = () => {
-			// received FIN
-			this._onClose.fire();
-		};
-		this._socketErrorListener = (err) => {
-			console.log(`socket had an error: `, err);
-		};
-
+		this._socketDisposables = [];
 		this._socket = socket;
 		this._socketWriter = new ProtocolWriter(this._socket);
+		this._socketDisposables.push(this._socketWriter);
 		this._socketReader = new ProtocolReader(this._socket);
-		this._socketReaderListener = this._socketReader.onMessage(msg => this._receiveMessage(msg));
-		this._socket.on('close', this._socketCloseListener);
-		this._socket.on('end', this._socketEndListener);
-		this._socket.on('error', this._socketErrorListener);
+		this._socketDisposables.push(this._socketReader);
+		this._socketDisposables.push(this._socketReader.onMessage(msg => this._receiveMessage(msg)));
+		this._socketDisposables.push(this._socket.onClose(() => this._onSocketClose.fire()));
+		this._socketDisposables.push(this._socket.onEnd(() => this._onClose.fire()));
 		if (initialChunk) {
 			this._socketReader.acceptChunk(initialChunk);
 		}
@@ -681,12 +684,7 @@ export class PersistentProtocol {
 			clearTimeout(this._incomingKeepAliveTimeout);
 			this._incomingKeepAliveTimeout = null;
 		}
-		this._socketWriter.dispose();
-		this._socketReader.dispose();
-		this._socketReaderListener.dispose();
-		this._socket.removeListener('close', this._socketCloseListener);
-		this._socket.removeListener('end', this._socketEndListener);
-		this._socket.removeListener('error', this._socketErrorListener);
+		this._socketDisposables = dispose(this._socketDisposables);
 	}
 
 	private _sendKeepAliveCheck(): void {
@@ -731,29 +729,24 @@ export class PersistentProtocol {
 		}, ProtocolConstants.KeepAliveTimeoutTime - timeSinceLastIncomingMsg + 5);
 	}
 
-	public getSocket(): Socket {
+	public getSocket(): ISocket {
 		return this._socket;
 	}
 
-	public beginAcceptReconnection(socket: Socket, initialDataChunk: VSBuffer | null): void {
+	public beginAcceptReconnection(socket: ISocket, initialDataChunk: VSBuffer | null): void {
 		this._isReconnecting = true;
 
-		this._socketWriter.dispose();
-		this._socketReader.dispose();
-		this._socketReaderListener.dispose();
-		this._socket.removeListener('close', this._socketCloseListener);
-		this._socket.removeListener('end', this._socketEndListener);
-		this._socket.removeListener('error', this._socketErrorListener);
+		this._socketDisposables = dispose(this._socketDisposables);
 
 		this._socket = socket;
-
 		this._socketWriter = new ProtocolWriter(this._socket);
+		this._socketDisposables.push(this._socketWriter);
 		this._socketReader = new ProtocolReader(this._socket);
-		this._socketReaderListener = this._socketReader.onMessage(msg => this._receiveMessage(msg));
+		this._socketDisposables.push(this._socketReader);
+		this._socketDisposables.push(this._socketReader.onMessage(msg => this._receiveMessage(msg)));
+		this._socketDisposables.push(this._socket.onClose(() => this._onSocketClose.fire()));
+		this._socketDisposables.push(this._socket.onEnd(() => this._onClose.fire()));
 		this._socketReader.acceptChunk(initialDataChunk);
-		this._socket.on('close', this._socketCloseListener);
-		this._socket.on('end', this._socketEndListener);
-		this._socket.on('error', this._socketErrorListener);
 	}
 
 	public endAcceptReconnection(): void {
