@@ -243,6 +243,34 @@ export interface IFileSystemProvider {
 	write?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number>;
 }
 
+export interface IFileSystemProviderWithFileReadWriteCapability extends IFileSystemProvider {
+	readFile(resource: URI): Promise<Uint8Array>;
+	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void>;
+}
+
+export function hasReadWriteCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileReadWriteCapability {
+	return !!(provider.capabilities & FileSystemProviderCapabilities.FileReadWrite);
+}
+
+export interface IFileSystemProviderWithFileFolderCopyCapability extends IFileSystemProvider {
+	copy(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void>;
+}
+
+export function hasFileFolderCopyCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileFolderCopyCapability {
+	return !!(provider.capabilities & FileSystemProviderCapabilities.FileFolderCopy);
+}
+
+export interface IFileSystemProviderWithOpenReadWriteCloseCapability extends IFileSystemProvider {
+	open(resource: URI, opts: FileOpenOptions): Promise<number>;
+	close(fd: number): Promise<void>;
+	read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number>;
+	write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number>;
+}
+
+export function hasOpenReadWriteCloseCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithOpenReadWriteCloseCapability {
+	return !!(provider.capabilities & FileSystemProviderCapabilities.FileOpenReadWriteClose);
+}
+
 export enum FileSystemProviderErrorCode {
 	FileExists = 'EntryExists',
 	FileNotFound = 'EntryNotFound',

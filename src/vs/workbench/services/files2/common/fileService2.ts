@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, IDisposable, toDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
-import { IFileService, IResolveFileOptions, IResourceEncodings, FileChangesEvent, FileOperationEvent, IFileSystemProviderRegistrationEvent, IFileSystemProvider, IFileStat, IResolveFileResult, IResolveContentOptions, IContent, IStreamContent, ITextSnapshot, IUpdateContentOptions, ICreateFileOptions, IFileSystemProviderActivationEvent, FileOperationError, FileOperationResult, FileOperation, FileSystemProviderCapabilities, FileType, toFileSystemProviderErrorCode, FileSystemProviderErrorCode, IStat, IFileStatWithMetadata, IResolveMetadataFileOptions, etag } from 'vs/platform/files/common/files';
+import { IFileService, IResolveFileOptions, IResourceEncodings, FileChangesEvent, FileOperationEvent, IFileSystemProviderRegistrationEvent, IFileSystemProvider, IFileStat, IResolveFileResult, IResolveContentOptions, IContent, IStreamContent, ITextSnapshot, IUpdateContentOptions, ICreateFileOptions, IFileSystemProviderActivationEvent, FileOperationError, FileOperationResult, FileOperation, FileSystemProviderCapabilities, FileType, toFileSystemProviderErrorCode, FileSystemProviderErrorCode, IStat, IFileStatWithMetadata, IResolveMetadataFileOptions, etag, hasReadWriteCapability, hasFileFolderCopyCapability, hasOpenReadWriteCloseCapability } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
@@ -223,7 +223,7 @@ export class FileService2 extends Disposable implements IFileService {
 						const childResource = joinPath(resource, name);
 						const childStat = resolveMetadata ? await provider.stat(childResource) : { type };
 
-						return this.toFileStat(provider, childResource, childStat, entries.length, resolveMetadata, recurse);
+						return await this.toFileStat(provider, childResource, childStat, entries.length, resolveMetadata, recurse);
 					} catch (error) {
 						this.logService.trace(error);
 
@@ -322,21 +322,19 @@ export class FileService2 extends Disposable implements IFileService {
 
 	//#region Move/Copy/Delete/Create Folder
 
-	moveFile(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata> {
+	async moveFile(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata> {
+
+		// same provider
 		if (source.scheme === target.scheme) {
-			return this.doMoveCopyWithSameProvider(source, target, false /* just move */, overwrite);
+			const provider = this.throwIfFileSystemIsReadonly(await this.withProvider(source));
+
+			await this.doMoveCopy(provider, source, target, false /* just move */, overwrite);
 		}
 
-		return this.doMoveWithDifferentProvider(source, target);
-	}
-
-	private async doMoveWithDifferentProvider(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata> {
-
-		// copy file source => target
-		await this.copyFile(source, target, overwrite);
-
-		// delete source
-		await this.del(source, { recursive: true });
+		// across providers
+		else {
+			await this.doMoveAcrossProviders(source, target);
+		}
 
 		// resolve and send events
 		const fileStat = await this.resolveFile(target, { resolveMetadata: true });
@@ -345,33 +343,47 @@ export class FileService2 extends Disposable implements IFileService {
 		return fileStat;
 	}
 
-	async copyFile(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata> {
-		if (source.scheme === target.scheme) {
-			return this.doCopyWithSameProvider(source, target, overwrite);
-		}
-
-		return this.doCopyWithDifferentProvider(source, target);
-	}
-
-	private async doCopyWithSameProvider(source: URI, target: URI, overwrite: boolean = false): Promise<IFileStatWithMetadata> {
-		const provider = this.throwIfFileSystemIsReadonly(await this.withProvider(source));
-
-		// check if provider supports fast file/folder copy
-		if (provider.capabilities & FileSystemProviderCapabilities.FileFolderCopy && typeof provider.copy === 'function') {
-			return this.doMoveCopyWithSameProvider(source, target, true /* keep copy */, overwrite);
-		}
-
-		return this.joinOnLegacy.then(legacy => legacy.copyFile(source, target, overwrite));
-	}
-
-	private async doCopyWithDifferentProvider(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata> {
-		return this.joinOnLegacy.then(legacy => legacy.copyFile(source, target, overwrite));
-	}
-
-	private async doMoveCopyWithSameProvider(source: URI, target: URI, keepCopy: boolean, overwrite?: boolean): Promise<IFileStatWithMetadata> {
-		const provider = this.throwIfFileSystemIsReadonly(await this.withProvider(source));
+	private async doMoveCopy(provider: IFileSystemProvider, source: URI, target: URI, keepCopy: boolean, overwrite?: boolean): Promise<void> {
 
 		// validation
+		const { exists, isCaseChange } = await this.doValidateMoveCopy(provider, source, target, keepCopy, overwrite);
+
+		// delete as needed
+		if (exists && !isCaseChange) {
+			await this.del(target, { recursive: true });
+		}
+
+		// create parent folders
+		await this.mkdirp(provider, dirname(target));
+
+		// rename/copy source => target
+		if (keepCopy) {
+
+			// check if provider supports fast file/folder copy
+			if (hasFileFolderCopyCapability(provider)) {
+				return provider.copy(source, target, { overwrite: !!overwrite });
+			}
+
+			// otherwise we need to manually copy: via read/write
+			if (hasOpenReadWriteCloseCapability(provider)) {
+				return this.joinOnLegacy.then(legacy => legacy.copyFile(source, target, overwrite)).then(() => undefined);
+			}
+
+			// otherwise we need to manually copy: via readFile/writeFile
+			if (hasReadWriteCapability(provider)) {
+				return provider.writeFile(target, await provider.readFile(source), { create: true, overwrite: !!overwrite });
+			}
+
+			// give up if provider has insufficient capabilities
+			return Promise.reject('Provider neither has FileReadWrite nor FileOpenReadWriteClose capability which is needed to support copy.');
+		} else {
+			return provider.rename(source, target, { overwrite: !!overwrite });
+		}
+	}
+
+	private async doValidateMoveCopy(provider: IFileSystemProvider, source: URI, target: URI, keepCopy: boolean, overwrite?: boolean): Promise<{ exists: boolean, isCaseChange: boolean }> {
+
+		// Check if source is equal or parent to target
 		const isPathCaseSensitive = !!(provider.capabilities & FileSystemProviderCapabilities.PathCaseSensitive);
 		const isCaseChange = isPathCaseSensitive ? false : isEqual(source, target, true /* ignore case */);
 		if (!isCaseChange && isEqualOrParent(target, source, !isPathCaseSensitive)) {
@@ -380,6 +392,8 @@ export class FileService2 extends Disposable implements IFileService {
 
 		const exists = await this.existsFile(target);
 		if (exists && !isCaseChange) {
+
+			// Bail out if target exists and we are not about to overwrite
 			if (!overwrite) {
 				throw new FileOperationError(localize('unableToMoveCopyError2', "Unable to move/copy. File already exists at destination."), FileOperationResult.FILE_MOVE_CONFLICT);
 			}
@@ -389,25 +403,43 @@ export class FileService2 extends Disposable implements IFileService {
 			if (isEqualOrParent(source, target, !isPathCaseSensitive)) {
 				return Promise.reject(new Error(localize('unableToMoveCopyError3', "Unable to move/copy. File would replace folder it is contained in.")));
 			}
-
-			await this.del(target, { recursive: true });
 		}
 
-		// create parent folders
-		await this.mkdirp(provider, dirname(target));
+		return { exists, isCaseChange };
+	}
 
-		// rename/copy source => target
-		if (keepCopy) {
-			await provider.copy!(source, target, { overwrite: !!overwrite });
-		} else {
-			await provider.rename(source, target, { overwrite: !!overwrite });
+	private async doMoveAcrossProviders(source: URI, target: URI, overwrite?: boolean): Promise<void> {
+
+		// copy file source => target
+		await this.copyFile(source, target, overwrite);
+
+		// delete source
+		await this.del(source, { recursive: true });
+	}
+
+	async copyFile(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata> {
+
+		// same provider
+		if (source.scheme === target.scheme) {
+			const provider = this.throwIfFileSystemIsReadonly(await this.withProvider(source));
+
+			await this.doMoveCopy(provider, source, target, true /* mode: copy */, overwrite);
+		}
+
+		// across providers
+		else {
+			await this.doCopyAcrossProviders(source, target);
 		}
 
 		// resolve and send events
 		const fileStat = await this.resolveFile(target, { resolveMetadata: true });
-		this._onAfterOperation.fire(new FileOperationEvent(source, keepCopy ? FileOperation.COPY : FileOperation.MOVE, fileStat));
+		this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.COPY, fileStat));
 
 		return fileStat;
+	}
+
+	private async doCopyAcrossProviders(source: URI, target: URI, overwrite?: boolean): Promise<void> {
+		return this.joinOnLegacy.then(legacy => legacy.copyFile(source, target, overwrite)).then(() => undefined);
 	}
 
 	async createFolder(resource: URI): Promise<IFileStatWithMetadata> {
