@@ -16,8 +16,8 @@ export function handleANSIOutput(text: string, linkDetector: LinkDetector): HTML
 	const textLength: number = text.length;
 
 	let styleNames: string[] = [];
-	let customFgColor: RGBA | null = null;
-	let customBgColor: RGBA | null = null;
+	let customFgColor: RGBA | undefined;
+	let customBgColor: RGBA | undefined;
 	let currentPos: number = 0;
 	let buffer: string = '';
 
@@ -106,23 +106,23 @@ export function handleANSIOutput(text: string, linkDetector: LinkDetector): HTML
 	 * Change the foreground or background color by clearing the current color
 	 * and adding the new one.
 	 * @param newClass If string or number, new class will be
-	 *  `code-(foreground or background)-newClass`. If `null`, no new class
+	 *  `code-(foreground or background)-newClass`. If `undefined`, no new class
 	 * 	will be added.
 	 * @param isForeground If `true`, will change the foreground color, if
 	 * 	`false`, will change the background color.
 	 * @param customColor If provided, this custom color will be used instead of
 	 * 	a class-defined color.
 	 */
-	function changeColor(newClass: string | number | null, isForeground: boolean, customColor?: RGBA | null): void {
+	function changeColor(newClass: string | number | undefined, isForeground: boolean, customColor?: RGBA): void {
 		const colorType = isForeground ? 'foreground' : 'background';
 		styleNames = styleNames.filter(style => !style.match(new RegExp(`^code-${colorType}-(\\d+|custom)$`)));
 		if (newClass) {
 			styleNames.push(`code-${colorType}-${newClass}`);
 		}
 		if (isForeground) {
-			customFgColor = customColor || null;
+			customFgColor = customColor;
 		} else {
-			customBgColor = customColor || null;
+			customBgColor = customColor;
 		}
 	}
 
@@ -151,9 +151,9 @@ export function handleANSIOutput(text: string, linkDetector: LinkDetector): HTML
 			} else if ((code >= 40 && code <= 47) || (code >= 100 && code <= 107)) {
 				changeColor(code, false);
 			} else if (code === 39) {
-				changeColor(null, true);
+				changeColor(undefined, true);
 			} else if (code === 49) {
-				changeColor(null, false);
+				changeColor(undefined, false);
 			}
 		}
 	}
@@ -210,14 +210,16 @@ export function handleANSIOutput(text: string, linkDetector: LinkDetector): HTML
  * @param stringContent The text content to be appended.
  * @param cssClasses The list of CSS styles to apply to the text content.
  * @param linkDetector The {@link LinkDetector} responsible for generating links from {@param stringContent}.
+ * @param customTextColor If provided, will apply custom color with inline style.
+ * @param customBackgroundColor If provided, will apply custom color with inline style.
  */
 export function appendStylizedStringToContainer(
 	root: HTMLElement,
 	stringContent: string,
 	cssClasses: string[],
 	linkDetector: LinkDetector,
-	customTextColor?: RGBA | null,
-	customBackgroundColor?: RGBA | null
+	customTextColor?: RGBA,
+	customBackgroundColor?: RGBA
 ): void {
 	if (!root || !stringContent) {
 		return;
@@ -241,15 +243,15 @@ export function appendStylizedStringToContainer(
 /**
  * Calculate the color from the color set defined in the ANSI 8-bit standard.
  * Standard and high intensity colors are not defined in the standard as specific
- * colors, so these and invalid colors are returned as `null`.
+ * colors, so these and invalid colors return `undefined`.
  * @see {@link https://en.wikipedia.org/wiki/ANSI_escape_code#8-bit } for info.
  * @param colorNumber The number (ranging from 16 to 255) referring to the color
  * desired.
  */
-export function calcANSI8bitColor(colorNumber: number): RGBA | null {
+export function calcANSI8bitColor(colorNumber: number): RGBA | undefined {
 	if (colorNumber % 1 !== 0) {
 		// Should be integer
-		return null;
+		return;
 	} if (colorNumber >= 16 && colorNumber <= 231) {
 		// Converts to one of 216 RGB colors
 		colorNumber -= 16;
@@ -273,6 +275,6 @@ export function calcANSI8bitColor(colorNumber: number): RGBA | null {
 		const colorLevel: number = Math.round(colorNumber / 23 * 255);
 		return new RGBA(colorLevel, colorLevel, colorLevel);
 	} else {
-		return null;
+		return;
 	}
 }
