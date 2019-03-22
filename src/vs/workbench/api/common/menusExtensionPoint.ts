@@ -49,6 +49,15 @@ namespace schema {
 		return undefined;
 	}
 
+	export function isProposedAPI(menuId: MenuId): boolean {
+		switch (menuId) {
+			case MenuId.StatusBarWindowIndicatorMenu:
+			case MenuId.MenubarFileMenu:
+				return true;
+		}
+		return false;
+	}
+
 	export function isValidMenuItems(menu: IUserFriendlyMenuItem[], collector: ExtensionMessageCollector): boolean {
 		if (!Array.isArray(menu)) {
 			collector.error(localize('requirearray', "menu items must be an array"));
@@ -356,6 +365,11 @@ ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyM
 			const menu = schema.parseMenuId(entry.key);
 			if (typeof menu !== 'number') {
 				collector.warn(localize('menuId.invalid', "`{0}` is not a valid menu identifier", entry.key));
+				return;
+			}
+
+			if (schema.isProposedAPI(menu) && !extension.description.enableProposedApi) {
+				collector.error(localize('proposedAPI.invalid', "{0} is a proposed menu identifierand is only available when running out of dev or with the following command line switch: --enable-proposed-api ${extension.identifier.value}", menu));
 				return;
 			}
 
