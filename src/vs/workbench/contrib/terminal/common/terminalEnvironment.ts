@@ -50,6 +50,7 @@ function _mergeEnvironmentValue(env: ITerminalEnvironment, key: string, value: s
 }
 
 export function addTerminalEnvironmentKeys(env: ITerminalEnvironment, version: string | undefined, locale: string | undefined, setLocaleVariables: boolean): void {
+	env['TERM'] = 'xterm-256color';
 	env['TERM_PROGRAM'] = 'vscode';
 	env['TERM_PROGRAM_VERSION'] = version ? version : null;
 	if (setLocaleVariables) {
