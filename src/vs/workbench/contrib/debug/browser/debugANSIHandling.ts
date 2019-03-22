@@ -69,12 +69,12 @@ export function handleANSIOutput(text: string, linkDetector: LinkDetector): HTML
 					if (styleCodes[0] === 38 || styleCodes[0] === 48) {
 						// Advanced color code - can't be combined with formatting codes like simple colors can
 						// Ignores invalid colors and additional info beyond what is necessary
-						const isForeground: boolean = (styleCodes[0] === 38);
+						const colorType = (styleCodes[0] === 38) ? 'foreground' : 'background';
 
 						if (styleCodes[1] === 5) {
-							set8BitColor(styleCodes, isForeground);
+							set8BitColor(styleCodes, colorType);
 						} else if (styleCodes[1] === 2) {
-							set24BitColor(styleCodes, isForeground);
+							set24BitColor(styleCodes, colorType);
 						}
 					} else {
 						setBasicFormatters(styleCodes);
@@ -108,18 +108,17 @@ export function handleANSIOutput(text: string, linkDetector: LinkDetector): HTML
 	 * @param newClass If string or number, new class will be
 	 *  `code-(foreground or background)-newClass`. If `undefined`, no new class
 	 * 	will be added.
-	 * @param isForeground If `true`, will change the foreground color, if
-	 * 	`false`, will change the background color.
+	 * @param colorType If `'foreground'`, will change the foreground color, if
+	 * 	`'background'`, will change the background color.
 	 * @param customColor If provided, this custom color will be used instead of
 	 * 	a class-defined color.
 	 */
-	function changeColor(newClass: string | number | undefined, isForeground: boolean, customColor?: RGBA): void {
-		const colorType = isForeground ? 'foreground' : 'background';
+	function changeColor(newClass: string | number | undefined, colorType: 'foreground' | 'background', customColor?: RGBA): void {
 		styleNames = styleNames.filter(style => !style.match(new RegExp(`^code-${colorType}-(\\d+|custom)$`)));
 		if (newClass) {
 			styleNames.push(`code-${colorType}-${newClass}`);
 		}
-		if (isForeground) {
+		if (colorType === 'foreground') {
 			customFgColor = customColor;
 		} else {
 			customBgColor = customColor;
@@ -147,13 +146,13 @@ export function handleANSIOutput(text: string, linkDetector: LinkDetector): HTML
 			} else if (code === 4) {
 				styleNames.push('code-underline');
 			} else if ((code >= 30 && code <= 37) || (code >= 90 && code <= 97)) {
-				changeColor(code, true);
+				changeColor(code, 'foreground');
 			} else if ((code >= 40 && code <= 47) || (code >= 100 && code <= 107)) {
-				changeColor(code, false);
+				changeColor(code, 'background');
 			} else if (code === 39) {
-				changeColor(undefined, true);
+				changeColor(undefined, 'foreground');
 			} else if (code === 49) {
-				changeColor(undefined, false);
+				changeColor(undefined, 'background');
 			}
 		}
 	}
@@ -162,17 +161,17 @@ export function handleANSIOutput(text: string, linkDetector: LinkDetector): HTML
 	 * Calculate and set styling for complicated 24-bit ANSI color codes.
 	 * @param styleCodes Full list of integer codes that make up the full ANSI
 	 * sequence, including the two defining codes and the three RGB codes.
-	 * @param isForeground If `true`, will set foreground color, if `false`, will
-	 * set background color.
+	 * @param colorType If `'foreground'`, will set foreground color, if
+	 * `'background'`, will set background color.
 	 * @see {@link https://en.wikipedia.org/wiki/ANSI_escape_code#24-bit }
 	 */
-	function set24BitColor(styleCodes: number[], isForeground: boolean): void {
+	function set24BitColor(styleCodes: number[], colorType: 'foreground' | 'background'): void {
 		if (styleCodes.length >= 5 &&
 			styleCodes[2] >= 0 && styleCodes[2] <= 255 &&
 			styleCodes[3] >= 0 && styleCodes[3] <= 255 &&
 			styleCodes[4] >= 0 && styleCodes[4] <= 255) {
 			const customColor = new RGBA(styleCodes[2], styleCodes[3], styleCodes[4]);
-			changeColor('custom', isForeground, customColor);
+			changeColor('custom', colorType, customColor);
 		}
 	}
 
@@ -180,16 +179,16 @@ export function handleANSIOutput(text: string, linkDetector: LinkDetector): HTML
 	 * Calculate and set styling for advanced 8-bit ANSI color codes.
 	 * @param styleCodes Full list of integer codes that make up the ANSI
 	 * sequence, including the two defining codes and the one color code.
-	 * @param isForeground If `true`, will set foreground color, if `false`, will
-	 * set background color.
+	 * @param colorType If `'foreground'`, will set foreground color, if
+	 * `'background'`, will set background color.
 	 * @see {@link https://en.wikipedia.org/wiki/ANSI_escape_code#8-bit }
 	 */
-	function set8BitColor(styleCodes: number[], isForeground: boolean): void {
+	function set8BitColor(styleCodes: number[], colorType: 'foreground' | 'background'): void {
 		let colorNumber = styleCodes[2];
 		const color = calcANSI8bitColor(colorNumber);
 
 		if (color) {
-			changeColor('custom', isForeground, color);
+			changeColor('custom', colorType, color);
 		} else if (colorNumber >= 0 && colorNumber <= 15) {
 			// Need to map to one of the four basic color ranges (30-37, 90-97, 40-47, 100-107)
 			colorNumber += 30;
@@ -197,10 +196,10 @@ export function handleANSIOutput(text: string, linkDetector: LinkDetector): HTML
 				// Bright colors
 				colorNumber += 52;
 			}
-			if (!isForeground) {
+			if (!colorType) {
 				colorNumber += 10;
 			}
-			changeColor(colorNumber, isForeground);
+			changeColor(colorNumber, colorType);
 		}
 	}
 }
