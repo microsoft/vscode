@@ -21,20 +21,19 @@ import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiati
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { CommentThreadCollapsibleState } from 'vs/workbench/api/node/extHostTypes';
-import { ReviewZoneWidget, COMMENTEDITOR_DECORATION_KEY } from 'vs/workbench/contrib/comments/electron-browser/commentThreadWidget';
-import { ICommentService, ICommentInfo } from 'vs/workbench/contrib/comments/electron-browser/commentService';
+import { ReviewZoneWidget, COMMENTEDITOR_DECORATION_KEY } from 'vs/workbench/contrib/comments/browser/commentThreadWidget';
+import { ICommentService, ICommentInfo } from 'vs/workbench/contrib/comments/browser/commentService';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IModelDecorationOptions } from 'vs/editor/common/model';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/common/async';
-import { overviewRulerCommentingRangeForeground } from 'vs/workbench/contrib/comments/electron-browser/commentGlyphWidget';
+import { overviewRulerCommentingRangeForeground } from 'vs/workbench/contrib/comments/browser/commentGlyphWidget';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { STATUS_BAR_ITEM_HOVER_BACKGROUND, STATUS_BAR_ITEM_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ctxCommentEditorFocused, SimpleCommentEditor } from 'vs/workbench/contrib/comments/electron-browser/simpleCommentEditor';
+import { ctxCommentEditorFocused, SimpleCommentEditor } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
 import { onUnexpectedError } from 'vs/base/common/errors';
 
 export const ctxCommentThreadVisible = new RawContextKey<boolean>('commentThreadVisible', false);
@@ -472,7 +471,7 @@ export class ReviewController implements IEditorContribution {
 				endColumn: 0
 			},
 			reply: replyCommand,
-			collapsibleState: CommentThreadCollapsibleState.Expanded,
+			collapsibleState: modes.CommentThreadCollapsibleState.Expanded,
 		}, pendingComment, draftMode);
 
 		this.localToDispose.push(this._newCommentWidget!.onDidClose(e => {
