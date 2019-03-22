@@ -29,6 +29,8 @@ export interface IConfigurationOverrides {
 
 export const enum ConfigurationTarget {
 	USER = 1,
+	USER_LOCAL,
+	USER_REMOTE,
 	WORKSPACE,
 	WORKSPACE_FOLDER,
 	DEFAULT,
@@ -37,6 +39,8 @@ export const enum ConfigurationTarget {
 export function ConfigurationTargetToString(configurationTarget: ConfigurationTarget) {
 	switch (configurationTarget) {
 		case ConfigurationTarget.USER: return 'USER';
+		case ConfigurationTarget.USER_LOCAL: return 'USER_LOCAL';
+		case ConfigurationTarget.USER_REMOTE: return 'USER_REMOTE';
 		case ConfigurationTarget.WORKSPACE: return 'WORKSPACE';
 		case ConfigurationTarget.WORKSPACE_FOLDER: return 'WORKSPACE_FOLDER';
 		case ConfigurationTarget.DEFAULT: return 'DEFAULT';
@@ -88,6 +92,8 @@ export interface IConfigurationService {
 	inspect<T>(key: string, overrides?: IConfigurationOverrides): {
 		default: T,
 		user: T,
+		userLocal?: T,
+		userRemote?: T,
 		workspace?: T,
 		workspaceFolder?: T,
 		memory?: T,
