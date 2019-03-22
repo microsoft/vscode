@@ -740,7 +740,9 @@ class ReplDelegate implements IListVirtualDelegate<IReplElement> {
 	}
 
 	hasDynamicHeight?(element: IReplElement): boolean {
-		return true;
+		const toString = element.toString();
+		// Empty elements should not have dynamic height since they will be invisible
+		return toString.length > 0;
 	}
 }
 
