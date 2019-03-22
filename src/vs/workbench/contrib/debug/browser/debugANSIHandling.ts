@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
+import { RGBA, Color } from 'vs/base/common/color';
 
 /**
  * @param text The content to stylize.
@@ -15,8 +16,8 @@ export function handleANSIOutput(text: string, linkDetector: LinkDetector): HTML
 	const textLength: number = text.length;
 
 	let styleNames: string[] = [];
-	let customFgColor: RGBColor | null = null;
-	let customBgColor: RGBColor | null = null;
+	let customFgColor: RGBA | null = null;
+	let customBgColor: RGBA | null = null;
 	let currentPos: number = 0;
 	let buffer: string = '';
 
@@ -112,7 +113,7 @@ export function handleANSIOutput(text: string, linkDetector: LinkDetector): HTML
 	 * @param customColor If provided, this custom color will be used instead of
 	 * 	a class-defined color.
 	 */
-	function changeColor(newClass: string | number | null, isForeground: boolean, customColor?: RGBColor | null): void {
+	function changeColor(newClass: string | number | null, isForeground: boolean, customColor?: RGBA | null): void {
 		const colorType = isForeground ? 'foreground' : 'background';
 		styleNames = styleNames.filter(style => !style.match(new RegExp(`^code-${colorType}-(\\d+|custom)$`)));
 		if (newClass) {
@@ -170,7 +171,7 @@ export function handleANSIOutput(text: string, linkDetector: LinkDetector): HTML
 			styleCodes[2] >= 0 && styleCodes[2] <= 255 &&
 			styleCodes[3] >= 0 && styleCodes[3] <= 255 &&
 			styleCodes[4] >= 0 && styleCodes[4] <= 255) {
-			const customColor = new RGBColor(styleCodes[2], styleCodes[3], styleCodes[4]);
+			const customColor = new RGBA(styleCodes[2], styleCodes[3], styleCodes[4]);
 			changeColor('custom', isForeground, customColor);
 		}
 	}
@@ -215,8 +216,8 @@ export function appendStylizedStringToContainer(
 	stringContent: string,
 	cssClasses: string[],
 	linkDetector: LinkDetector,
-	customTextColor?: RGBColor | null,
-	customBackgroundColor?: RGBColor | null
+	customTextColor?: RGBA | null,
+	customBackgroundColor?: RGBA | null
 ): void {
 	if (!root || !stringContent) {
 		return;
@@ -226,44 +227,15 @@ export function appendStylizedStringToContainer(
 
 	container.className = cssClasses.join(' ');
 	if (customTextColor) {
-		container.style.color = customTextColor.asCSSString;
+		container.style.color =
+			Color.Format.CSS.formatRGB(new Color(customTextColor));
 	}
 	if (customBackgroundColor) {
-		container.style.backgroundColor = customBackgroundColor.asCSSString;
+		container.style.backgroundColor =
+			Color.Format.CSS.formatRGB(new Color(customBackgroundColor));
 	}
 
 	root.appendChild(container);
-}
-
-/**
- * Class representing a color defined with RGB values.
- */
-export class RGBColor {
-	/** Red level from 0 to 255. */
-	r: number;
-	/** Green level from 0 to 255. */
-	g: number;
-	/** Blue level from 0 to 255. */
-	b: number;
-
-	/**
-	 * Construct a new RGBColor.
-	 * @param r Red level from 0 to 255.
-	 * @param g Green level from 0 to 255.
-	 * @param b Blue level from 0 to 255.
-	 */
-	constructor(r: number, g: number, b: number) {
-		this.r = r;
-		this.g = g;
-		this.b = b;
-	}
-
-	/**
-	 * Get the color as a string for use in CSS rules.
-	 */
-	get asCSSString(): string {
-		return `rgb(${this.r}, ${this.g}, ${this.b})`;
-	}
 }
 
 /**
@@ -274,7 +246,7 @@ export class RGBColor {
  * @param colorNumber The number (ranging from 16 to 255) referring to the color
  * desired.
  */
-export function calcANSI8bitColor(colorNumber: number): RGBColor | null {
+export function calcANSI8bitColor(colorNumber: number): RGBA | null {
 	if (colorNumber % 1 !== 0) {
 		// Should be integer
 		return null;
@@ -294,12 +266,12 @@ export function calcANSI8bitColor(colorNumber: number): RGBColor | null {
 		green = Math.round(green * convFactor);
 		red = Math.round(red * convFactor);
 
-		return new RGBColor(red, green, blue);
+		return new RGBA(red, green, blue);
 	} else if (colorNumber >= 232 && colorNumber <= 255) {
 		// Converts to a grayscale value
 		colorNumber -= 232;
 		const colorLevel: number = Math.round(colorNumber / 23 * 255);
-		return new RGBColor(colorLevel, colorLevel, colorLevel);
+		return new RGBA(colorLevel, colorLevel, colorLevel);
 	} else {
 		return null;
 	}
