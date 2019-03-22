@@ -16,6 +16,9 @@ steps:
 - script: |
     set -e
 
+    # Get snapcraft version
+    snapcraft --version
+
     # Make sure we get latest packages
     sudo apt-get update
     sudo apt-get upgrade -y
