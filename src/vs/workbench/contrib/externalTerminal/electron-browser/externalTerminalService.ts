@@ -287,7 +287,7 @@ export class LinuxExternalTerminalService implements IExternalTerminalService {
 		return new Promise<void>((c, e) => {
 			execPromise.then(exec => {
 				const env = cwd ? { cwd } : undefined;
-				const child = spawner.spawn(exec, env);
+				const child = spawner.spawn(exec, [], env);
 				child.on('error', e);
 				child.on('exit', () => c());
 			});
