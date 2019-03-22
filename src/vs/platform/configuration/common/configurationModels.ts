@@ -37,7 +37,7 @@ export class ConfigurationModel implements IConfigurationModel {
 	}
 
 	isEmpty(): boolean {
-		return this._keys.length === 0 || Object.keys(this._contents).length === 0 || this._overrides.length === 0;
+		return this._keys.length === 0 && Object.keys(this._contents).length === 0 && this._overrides.length === 0;
 	}
 
 	getValue<V>(section: string | undefined): V {
