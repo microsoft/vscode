@@ -32,10 +32,11 @@
 	background-position: left center;
 }
 
-.monaco-workbench .call-hierarchy .monaco-split-view2.horizontal > .split-view-container > .split-view-view{
+.monaco-workbench .call-hierarchy .monaco-split-view2.horizontal > .split-view-container > .split-view-view {
 	/* this is a little bizare.. */
 	height: unset;
 }
-.monaco-workbench .call-hierarchy .tree{
+
+.monaco-workbench .call-hierarchy .tree {
 	height: 100%;
 }
