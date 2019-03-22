@@ -149,7 +149,7 @@ export interface IWindowsService {
 	toggleSharedProcess(): Promise<void>;
 
 	// Global methods
-	openWindow(windowId: number, uris: IURIToOpen[], options?: IOpenSettings): Promise<void>;
+	openWindow(windowId: number, uris: IURIToOpen[], options: IOpenSettings): Promise<void>;
 	openNewWindow(options?: INewWindowOptions): Promise<void>;
 	showWindow(windowId: number): Promise<void>;
 	getWindows(): Promise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]>;
@@ -183,6 +183,7 @@ export interface IOpenSettings {
 	diffMode?: boolean;
 	addMode?: boolean;
 	noRecentEntry?: boolean;
+	waitMarkerFileURI?: URI;
 	args?: ParsedArgs;
 }
 
