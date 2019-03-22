@@ -641,10 +641,10 @@ export function createApiFactory(
 			registerResourceLabelFormatter: proposedApiFunction(extension, (formatter: vscode.ResourceLabelFormatter) => {
 				return extHostFileSystem.registerResourceLabelFormatter(formatter);
 			}),
-			onDidRenameFile: proposedApiFunction(extension, (listener, thisArg?, disposables?) => {
+			onDidRenameFile: proposedApiFunction(extension, (listener: (e: vscode.FileRenameEvent) => any, thisArg?: any, disposables?: vscode.Disposable[]) => {
 				return extHostFileSystemEvent.onDidRenameFile(listener, thisArg, disposables);
 			}),
-			onWillRenameFile: proposedApiFunction(extension, (listener, thisArg?, disposables?) => {
+			onWillRenameFile: proposedApiFunction(extension, (listener: (e: vscode.FileWillRenameEvent) => any, thisArg?: any, disposables?: vscode.Disposable[]) => {
 				return extHostFileSystemEvent.getOnWillRenameFileEvent(extension)(listener, thisArg, disposables);
 			})
 		};
