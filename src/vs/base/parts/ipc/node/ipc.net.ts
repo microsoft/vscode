@@ -5,7 +5,7 @@
 
 import { Socket, Server as NetServer, createConnection, createServer } from 'net';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IMessagePassingProtocol, ClientConnectionEvent, IPCServer, IPCClient } from 'vs/base/parts/ipc/node/ipc';
+import { IMessagePassingProtocol, ClientConnectionEvent, IPCServer, IPCClient } from 'vs/base/parts/ipc/common/ipc';
 import { join } from 'vs/base/common/path';
 import { tmpdir } from 'os';
 import { generateUuid } from 'vs/base/common/uuid';

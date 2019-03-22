@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { IPCServer, ClientConnectionEvent } from 'vs/base/parts/ipc/node/ipc';
+import { IPCServer, ClientConnectionEvent } from 'vs/base/parts/ipc/common/ipc';
 import { Protocol } from 'vs/base/parts/ipc/node/ipc.electron';
 import { ipcMain } from 'electron';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';

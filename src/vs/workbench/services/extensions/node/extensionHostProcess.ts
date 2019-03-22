@@ -7,7 +7,7 @@ import * as nativeWatchdog from 'native-watchdog';
 import * as net from 'net';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
-import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
+import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { PersistentProtocol, ProtocolConstants } from 'vs/base/parts/ipc/node/ipc.net';
 import product from 'vs/platform/product/node/product';
 import { IInitData } from 'vs/workbench/api/common/extHost.protocol';

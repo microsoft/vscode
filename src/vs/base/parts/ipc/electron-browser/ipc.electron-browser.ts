@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { IPCClient } from 'vs/base/parts/ipc/node/ipc';
+import { IPCClient } from 'vs/base/parts/ipc/common/ipc';
 import { Protocol } from 'vs/base/parts/ipc/node/ipc.electron';
 import { ipcRenderer } from 'electron';
 import { IDisposable } from 'vs/base/common/lifecycle';

@@ -18,7 +18,7 @@ import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IRemoteConsoleLog, log, parse } from 'vs/base/common/console';
 import { findFreePort, randomPort } from 'vs/base/node/ports';
-import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
+import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { PersistentProtocol, generateRandomPipeName } from 'vs/base/parts/ipc/node/ipc.net';
 import { IBroadcast, IBroadcastService } from 'vs/workbench/services/broadcast/common/broadcast';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
