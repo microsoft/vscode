@@ -13,6 +13,7 @@ import product from 'vs/platform/product/node/product';
 import { IInitData } from 'vs/workbench/api/common/extHost.protocol';
 import { MessageType, createMessageOfType, isMessageOfType, IExtHostSocketMessage, IExtHostReadyMessage } from 'vs/workbench/services/extensions/node/extensionHostProtocol';
 import { exit, ExtensionHostMain } from 'vs/workbench/services/extensions/node/extensionHostMain';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 // With Electron 2.x and node.js 8.x the "natives" module
 // can cause a native crash (see https://github.com/nodejs/node/issues/19891 and
@@ -58,7 +59,7 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 
 			process.on('message', (msg: IExtHostSocketMessage, handle: net.Socket) => {
 				if (msg && msg.type === 'VSCODE_EXTHOST_IPC_SOCKET') {
-					const initialDataChunk = Buffer.from(msg.initialDataChunk, 'base64');
+					const initialDataChunk = VSBuffer.wrap(Buffer.from(msg.initialDataChunk, 'base64'));
 					if (protocol) {
 						// reconnection case
 						if (disconnectWaitTimer) {

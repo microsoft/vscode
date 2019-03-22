@@ -9,6 +9,7 @@ import { CancelablePromise, createCancelablePromise, timeout } from 'vs/base/com
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 import { IServerChannel, IChannel } from 'vs/base/parts/ipc/common/ipc';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 export const enum RequestType {
 	Promise = 100,
@@ -43,8 +44,8 @@ interface IHandler {
 }
 
 export interface IMessagePassingProtocol {
-	send(buffer: Buffer): void;
-	onMessage: Event<Buffer>;
+	send(buffer: VSBuffer): void;
+	onMessage: Event<VSBuffer>;
 }
 
 enum State {
@@ -99,35 +100,35 @@ export interface IRoutingChannelClient<TContext = string> {
 }
 
 interface IReader {
-	read(bytes: number): Buffer;
+	read(bytes: number): VSBuffer;
 }
 
 interface IWriter {
-	write(buffer: Buffer): void;
+	write(buffer: VSBuffer): void;
 }
 
 class BufferReader implements IReader {
 
 	private pos = 0;
 
-	constructor(private buffer: Buffer) { }
+	constructor(private buffer: VSBuffer) { }
 
-	read(bytes: number): Buffer {
+	read(bytes: number): VSBuffer {
 		const result = this.buffer.slice(this.pos, this.pos + bytes);
-		this.pos += result.length;
+		this.pos += result.byteLength;
 		return result;
 	}
 }
 
 class BufferWriter implements IWriter {
 
-	private buffers: Buffer[] = [];
+	private buffers: VSBuffer[] = [];
 
-	get buffer(): Buffer {
-		return Buffer.concat(this.buffers);
+	get buffer(): VSBuffer {
+		return VSBuffer.concat(this.buffers);
 	}
 
-	write(buffer: Buffer): void {
+	write(buffer: VSBuffer): void {
 		this.buffers.push(buffer);
 	}
 }
@@ -136,39 +137,52 @@ enum DataType {
 	Undefined = 0,
 	String = 1,
 	Buffer = 2,
-	Array = 3,
-	Object = 4
+	VSBuffer = 3,
+	Array = 4,
+	Object = 5
 }
 
-function createSizeBuffer(size: number): Buffer {
-	const result = Buffer.allocUnsafe(4);
-	result.writeUInt32BE(size, 0);
+function createSizeBuffer(size: number): VSBuffer {
+	const result = VSBuffer.alloc(4);
+	result.writeUint32BE(size, 0);
 	return result;
 }
 
 function readSizeBuffer(reader: IReader): number {
-	return reader.read(4).readUInt32BE(0);
+	return reader.read(4).readUint32BE(0);
+}
+
+function createOneByteBuffer(value: number): VSBuffer {
+	const result = VSBuffer.alloc(1);
+	result.writeUint8(value, 0);
+	return result;
 }
 
 const BufferPresets = {
-	Undefined: Buffer.alloc(1, DataType.Undefined),
-	String: Buffer.alloc(1, DataType.String),
-	Buffer: Buffer.alloc(1, DataType.Buffer),
-	Array: Buffer.alloc(1, DataType.Array),
-	Object: Buffer.alloc(1, DataType.Object)
+	Undefined: createOneByteBuffer(DataType.Undefined),
+	String: createOneByteBuffer(DataType.String),
+	Buffer: createOneByteBuffer(DataType.Buffer),
+	VSBuffer: createOneByteBuffer(DataType.VSBuffer),
+	Array: createOneByteBuffer(DataType.Array),
+	Object: createOneByteBuffer(DataType.Object),
 };
 
 function serialize(writer: IWriter, data: any): void {
 	if (typeof data === 'undefined') {
 		writer.write(BufferPresets.Undefined);
 	} else if (typeof data === 'string') {
-		const buffer = Buffer.from(data);
+		const buffer = VSBuffer.fromString(data);
 		writer.write(BufferPresets.String);
-		writer.write(createSizeBuffer(buffer.length));
+		writer.write(createSizeBuffer(buffer.byteLength));
 		writer.write(buffer);
 	} else if (Buffer.isBuffer(data)) {
+		const buffer = VSBuffer.wrap(data);
 		writer.write(BufferPresets.Buffer);
-		writer.write(createSizeBuffer(data.length));
+		writer.write(createSizeBuffer(buffer.byteLength));
+		writer.write(buffer);
+	} else if (data instanceof VSBuffer) {
+		writer.write(BufferPresets.VSBuffer);
+		writer.write(createSizeBuffer(data.byteLength));
 		writer.write(data);
 	} else if (Array.isArray(data)) {
 		writer.write(BufferPresets.Array);
@@ -178,20 +192,21 @@ function serialize(writer: IWriter, data: any): void {
 			serialize(writer, el);
 		}
 	} else {
-		const buffer = Buffer.from(JSON.stringify(data));
+		const buffer = VSBuffer.fromString(JSON.stringify(data));
 		writer.write(BufferPresets.Object);
-		writer.write(createSizeBuffer(buffer.length));
+		writer.write(createSizeBuffer(buffer.byteLength));
 		writer.write(buffer);
 	}
 }
 
 function deserialize(reader: IReader): any {
-	const type = reader.read(1).readUInt8(0);
+	const type = reader.read(1).readUint8(0);
 
 	switch (type) {
 		case DataType.Undefined: return undefined;
 		case DataType.String: return reader.read(readSizeBuffer(reader)).toString();
-		case DataType.Buffer: return reader.read(readSizeBuffer(reader));
+		case DataType.Buffer: return reader.read(readSizeBuffer(reader)).toBuffer();
+		case DataType.VSBuffer: return reader.read(readSizeBuffer(reader));
 		case DataType.Array: {
 			const length = readSizeBuffer(reader);
 			const result: any[] = [];
@@ -241,7 +256,7 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
 		this.sendBuffer(writer.buffer);
 	}
 
-	private sendBuffer(message: Buffer): void {
+	private sendBuffer(message: VSBuffer): void {
 		try {
 			this.protocol.send(message);
 		} catch (err) {
@@ -249,7 +264,7 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
 		}
 	}
 
-	private onRawMessage(message: Buffer): void {
+	private onRawMessage(message: VSBuffer): void {
 		const reader = new BufferReader(message);
 		const header = deserialize(reader);
 		const body = deserialize(reader);
@@ -483,7 +498,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 		this.sendBuffer(writer.buffer);
 	}
 
-	private sendBuffer(message: Buffer): void {
+	private sendBuffer(message: VSBuffer): void {
 		try {
 			this.protocol.send(message);
 		} catch (err) {
@@ -491,7 +506,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 		}
 	}
 
-	private onBuffer(message: Buffer): void {
+	private onBuffer(message: VSBuffer): void {
 		const reader = new BufferReader(message);
 		const header = deserialize(reader);
 		const body = deserialize(reader);

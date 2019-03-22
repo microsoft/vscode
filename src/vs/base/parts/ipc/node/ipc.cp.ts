@@ -14,6 +14,7 @@ import { isRemoteConsoleLog, log } from 'vs/base/common/console';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 /**
  * This implementation doesn't perform well since it uses base64 encoding for buffers.
@@ -26,11 +27,11 @@ export class Server<TContext extends string> extends IPCServer<TContext> {
 			send: r => {
 				try {
 					if (process.send) {
-						process.send(r.toString('base64'));
+						process.send(r.toBuffer().toString('base64'));
 					}
 				} catch (e) { /* not much to do */ }
 			},
-			onMessage: Event.fromNodeEventEmitter(process, 'message', msg => Buffer.from(msg, 'base64'))
+			onMessage: Event.fromNodeEventEmitter(process, 'message', msg => VSBuffer.wrap(Buffer.from(msg, 'base64')))
 		}, ctx);
 
 		process.once('disconnect', () => this.dispose());
@@ -199,7 +200,7 @@ export class Client implements IChannelClient, IDisposable {
 
 			this.child = fork(this.modulePath, args, forkOpts);
 
-			const onMessageEmitter = new Emitter<Buffer>();
+			const onMessageEmitter = new Emitter<VSBuffer>();
 			const onRawMessage = Event.fromNodeEventEmitter(this.child, 'message', msg => msg);
 
 			onRawMessage(msg => {
@@ -211,11 +212,11 @@ export class Client implements IChannelClient, IDisposable {
 				}
 
 				// Anything else goes to the outside
-				onMessageEmitter.fire(Buffer.from(msg, 'base64'));
+				onMessageEmitter.fire(VSBuffer.wrap(Buffer.from(msg, 'base64')));
 			});
 
 			const sender = this.options.useQueue ? createQueuedSender(this.child) : this.child;
-			const send = (r: Buffer) => this.child && this.child.connected && sender.send(r.toString('base64'));
+			const send = (r: VSBuffer) => this.child && this.child.connected && sender.send(r.toBuffer().toString('base64'));
 			const onMessage = onMessageEmitter.event;
 			const protocol = { send, onMessage };
 

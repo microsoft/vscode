@@ -5,6 +5,7 @@
 
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
 import { Event } from 'vs/base/common/event';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 export interface Sender {
 	send(channel: string, msg: Buffer | null): void;
@@ -12,11 +13,11 @@ export interface Sender {
 
 export class Protocol implements IMessagePassingProtocol {
 
-	constructor(private sender: Sender, readonly onMessage: Event<Buffer>) { }
+	constructor(private sender: Sender, readonly onMessage: Event<VSBuffer>) { }
 
-	send(message: Buffer): void {
+	send(message: VSBuffer): void {
 		try {
-			this.sender.send('ipc:message', message);
+			this.sender.send('ipc:message', message.toBuffer());
 		} catch (e) {
 			// systems are going down
 		}

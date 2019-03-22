@@ -36,6 +36,7 @@ import { MessageType, createMessageOfType, isMessageOfType } from 'vs/workbench/
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { parseExtensionDevOptions } from '../common/extensionDevOptions';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 export interface IExtensionHostStarter {
 	readonly onCrashed: Event<[number, string | null]>;
@@ -372,7 +373,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 							// Wait 60s for the initialized message
 							installTimeoutCheck();
 
-							protocol.send(Buffer.from(JSON.stringify(data)));
+							protocol.send(VSBuffer.fromString(JSON.stringify(data)));
 						});
 						return;
 					}

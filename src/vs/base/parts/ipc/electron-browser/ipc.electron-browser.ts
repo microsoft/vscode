@@ -8,13 +8,14 @@ import { IPCClient } from 'vs/base/parts/ipc/node/ipc';
 import { Protocol } from 'vs/base/parts/ipc/node/ipc.electron';
 import { ipcRenderer } from 'electron';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 export class Client extends IPCClient implements IDisposable {
 
 	private protocol: Protocol;
 
 	private static createProtocol(): Protocol {
-		const onMessage = Event.fromNodeEventEmitter<Buffer>(ipcRenderer, 'ipc:message', (_, message: Buffer) => message);
+		const onMessage = Event.fromNodeEventEmitter<VSBuffer>(ipcRenderer, 'ipc:message', (_, message: Buffer) => VSBuffer.wrap(message));
 		ipcRenderer.send('ipc:hello');
 		return new Protocol(ipcRenderer, onMessage);
 	}

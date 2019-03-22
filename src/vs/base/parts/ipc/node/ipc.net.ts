@@ -11,6 +11,26 @@ import { tmpdir } from 'os';
 import * as fs from 'fs';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { VSBuffer } from 'vs/base/common/buffer';
+
+// export interface ISocket {
+// 	onData: Event<VSBuffer>;
+// }
+
+// export class NodeSocket implements ISocket {
+// 	private readonly _socket: Socket;
+
+// 	constructor(socket: Socket) {
+// 		this._socket = socket;
+// 	}
+
+// 	public onData(listener: (e: VSBuffer) => void): IDisposable {
+// 		this._socket.on('data', listener);
+// 		return {
+// 			dispose: () => this._socket.off('data', listener)
+// 		};
+// 	}
+// }
 
 export function generateRandomPipeName(): string {
 	const randomSuffix = generateUuid();
@@ -22,7 +42,7 @@ export function generateRandomPipeName(): string {
 	}
 }
 
-function log(fd: number, msg: string, data?: Buffer): void {
+function log(fd: number, msg: string, data?: VSBuffer): void {
 	const date = new Date();
 	fs.writeSync(fd, `[${date.getHours()}:${date.getMinutes()}:${date.getSeconds()}.${date.getMilliseconds()}] ${msg}\n`);
 	if (data) {
@@ -32,11 +52,17 @@ function log(fd: number, msg: string, data?: Buffer): void {
 	fs.fdatasyncSync(fd);
 }
 
-const EMPTY_BUFFER = Buffer.allocUnsafe(0);
+let emptyBuffer: VSBuffer | null = null;
+function getEmptyBuffer(): VSBuffer {
+	if (!emptyBuffer) {
+		emptyBuffer = VSBuffer.alloc(0);
+	}
+	return emptyBuffer;
+}
 
 class ChunkStream {
 
-	private _chunks: Buffer[];
+	private _chunks: VSBuffer[];
 	private _totalLength: number;
 
 	public get byteLength() {
@@ -48,14 +74,14 @@ class ChunkStream {
 		this._totalLength = 0;
 	}
 
-	public acceptChunk(buff: Buffer) {
+	public acceptChunk(buff: VSBuffer) {
 		this._chunks.push(buff);
 		this._totalLength += buff.byteLength;
 	}
 
-	public read(byteCount: number): Buffer {
+	public read(byteCount: number): VSBuffer {
 		if (byteCount === 0) {
-			return EMPTY_BUFFER;
+			return getEmptyBuffer();
 		}
 
 		if (byteCount > this._totalLength) {
@@ -77,7 +103,7 @@ class ChunkStream {
 			return result;
 		}
 
-		let result = Buffer.allocUnsafe(byteCount);
+		let result = VSBuffer.alloc(byteCount);
 		let resultOffset = 0;
 		while (byteCount > 0) {
 			const chunk = this._chunks[0];
@@ -85,7 +111,8 @@ class ChunkStream {
 				// this chunk will survive
 				this._chunks[0] = chunk.slice(byteCount);
 
-				chunk.copy(result, resultOffset, 0, byteCount);
+				const chunkPart = chunk.slice(0, byteCount);
+				result.set(chunkPart, resultOffset);
 				resultOffset += byteCount;
 				this._totalLength -= byteCount;
 				byteCount -= byteCount;
@@ -93,7 +120,7 @@ class ChunkStream {
 				// this chunk will be entirely read
 				this._chunks.shift();
 
-				chunk.copy(result, resultOffset, 0, chunk.byteLength);
+				result.set(chunk, resultOffset);
 				resultOffset += chunk.byteLength;
 				this._totalLength -= chunk.byteLength;
 				byteCount -= chunk.byteLength;
@@ -153,7 +180,7 @@ class ProtocolMessage {
 		public readonly type: ProtocolMessageType,
 		public readonly id: number,
 		public readonly ack: number,
-		public readonly data: Buffer
+		public readonly data: VSBuffer
 	) {
 		this.writtenTime = 0;
 	}
@@ -186,12 +213,12 @@ class ProtocolReader {
 		this._socket = socket;
 		this._isDisposed = false;
 		this._incomingData = new ChunkStream();
-		this._socketDataListener = (data: Buffer) => this.acceptChunk(data);
+		this._socketDataListener = (data: Buffer) => this.acceptChunk(VSBuffer.wrap(data));
 		this._socket.on('data', this._socketDataListener);
 		this.lastReadTime = Date.now();
 	}
 
-	public acceptChunk(data: Buffer | null): void {
+	public acceptChunk(data: VSBuffer | null): void {
 		if (!data || data.byteLength === 0) {
 			return;
 		}
@@ -209,10 +236,10 @@ class ProtocolReader {
 
 				// save new state => next time will read the body
 				this._state.readHead = false;
-				this._state.readLen = buff.readUInt32BE(9, true);
-				this._state.messageType = <ProtocolMessageType>buff.readUInt8(0, true);
-				this._state.id = buff.readUInt32BE(1, true);
-				this._state.ack = buff.readUInt32BE(5, true);
+				this._state.readLen = buff.readUint32BE(9);
+				this._state.messageType = <ProtocolMessageType>buff.readUint8(0);
+				this._state.id = buff.readUint32BE(1);
+				this._state.ack = buff.readUint32BE(5);
 			} else {
 				// buff is the body
 				const messageType = this._state.messageType;
@@ -236,7 +263,7 @@ class ProtocolReader {
 		}
 	}
 
-	public readEntireBuffer(): Buffer {
+	public readEntireBuffer(): VSBuffer {
 		return this._incomingData.read(this._incomingData.byteLength);
 	}
 
@@ -251,7 +278,7 @@ class ProtocolWriter {
 	private _isDisposed: boolean;
 	private readonly _socket: Socket;
 	private readonly _logFile: number;
-	private _data: Buffer[];
+	private _data: VSBuffer[];
 	private _totalLength: number;
 	public lastWriteTime: number;
 
@@ -285,29 +312,29 @@ class ProtocolWriter {
 		}
 		msg.writtenTime = Date.now();
 		this.lastWriteTime = Date.now();
-		const header = Buffer.allocUnsafe(ProtocolConstants.HeaderLength);
-		header.writeUInt8(msg.type, 0, true);
-		header.writeUInt32BE(msg.id, 1, true);
-		header.writeUInt32BE(msg.ack, 5, true);
-		header.writeUInt32BE(msg.data.length, 9, true);
+		const header = VSBuffer.alloc(ProtocolConstants.HeaderLength);
+		header.writeUint8(msg.type, 0);
+		header.writeUint32BE(msg.id, 1);
+		header.writeUint32BE(msg.ack, 5);
+		header.writeUint32BE(msg.data.byteLength, 9);
 		this._writeSoon(header, msg.data);
 	}
 
-	private _bufferAdd(head: Buffer, body: Buffer): boolean {
+	private _bufferAdd(head: VSBuffer, body: VSBuffer): boolean {
 		const wasEmpty = this._totalLength === 0;
 		this._data.push(head, body);
-		this._totalLength += head.length + body.length;
+		this._totalLength += head.byteLength + body.byteLength;
 		return wasEmpty;
 	}
 
-	private _bufferTake(): Buffer {
-		const ret = Buffer.concat(this._data, this._totalLength);
+	private _bufferTake(): VSBuffer {
+		const ret = VSBuffer.concat(this._data, this._totalLength);
 		this._data.length = 0;
 		this._totalLength = 0;
 		return ret;
 	}
 
-	private _writeSoon(header: Buffer, data: Buffer): void {
+	private _writeSoon(header: VSBuffer, data: VSBuffer): void {
 		if (this._bufferAdd(header, data)) {
 			setImmediate(() => {
 				this._writeNow();
@@ -328,7 +355,7 @@ class ProtocolWriter {
 		// > https://nodejs.org/api/stream.html#stream_writable_write_chunk_encoding_callback
 		// > However, the false return value is only advisory and the writable stream will unconditionally
 		// > accept and buffer chunk even if it has not not been allowed to drain.
-		this._socket.write(this._bufferTake());
+		this._socket.write(this._bufferTake().toBuffer());
 	}
 }
 
@@ -357,8 +384,8 @@ export class Protocol implements IDisposable, IMessagePassingProtocol {
 
 	private _socketCloseListener: () => void;
 
-	private _onMessage = new Emitter<Buffer>();
-	readonly onMessage: Event<Buffer> = this._onMessage.event;
+	private _onMessage = new Emitter<VSBuffer>();
+	readonly onMessage: Event<VSBuffer> = this._onMessage.event;
 
 	private _onClose = new Emitter<void>();
 	readonly onClose: Event<void> = this._onClose.event;
@@ -390,7 +417,7 @@ export class Protocol implements IDisposable, IMessagePassingProtocol {
 		return this._socket;
 	}
 
-	send(buffer: Buffer): void {
+	send(buffer: VSBuffer): void {
 		this._socketWriter.write(new ProtocolMessage(ProtocolMessageType.Regular, 0, 0, buffer));
 	}
 }
@@ -603,11 +630,11 @@ export class PersistentProtocol {
 	private readonly _socketEndListener: () => void;
 	private readonly _socketErrorListener: (err: any) => void;
 
-	private _onControlMessage = new Emitter<Buffer>();
-	readonly onControlMessage: Event<Buffer> = createBufferedEvent(this._onControlMessage.event);
+	private _onControlMessage = new Emitter<VSBuffer>();
+	readonly onControlMessage: Event<VSBuffer> = createBufferedEvent(this._onControlMessage.event);
 
-	private _onMessage = new Emitter<Buffer>();
-	readonly onMessage: Event<Buffer> = createBufferedEvent(this._onMessage.event);
+	private _onMessage = new Emitter<VSBuffer>();
+	readonly onMessage: Event<VSBuffer> = createBufferedEvent(this._onMessage.event);
 
 	private _onClose = new Emitter<void>();
 	readonly onClose: Event<void> = createBufferedEvent(this._onClose.event);
@@ -622,7 +649,7 @@ export class PersistentProtocol {
 		return this._outgoingMsgId - this._outgoingAckId;
 	}
 
-	constructor(socket: Socket, initialChunk: Buffer | null = null, logFileName: string | null = null) {
+	constructor(socket: Socket, initialChunk: VSBuffer | null = null, logFileName: string | null = null) {
 		this._logFile = 0;
 		this._isReconnecting = false;
 		if (logFileName) {
@@ -708,7 +735,7 @@ export class PersistentProtocol {
 			// sufficient time has passed since last message was written,
 			// and no message from our side needed to be sent in the meantime,
 			// so we will send a message containing only a keep alive.
-			const msg = new ProtocolMessage(ProtocolMessageType.KeepAlive, 0, 0, EMPTY_BUFFER);
+			const msg = new ProtocolMessage(ProtocolMessageType.KeepAlive, 0, 0, getEmptyBuffer());
 			this._socketWriter.write(msg);
 			this._sendKeepAliveCheck();
 			return;
@@ -743,7 +770,7 @@ export class PersistentProtocol {
 		return this._socket;
 	}
 
-	public beginAcceptReconnection(socket: Socket, initialDataChunk: Buffer | null): void {
+	public beginAcceptReconnection(socket: Socket, initialDataChunk: VSBuffer | null): void {
 		this._isReconnecting = true;
 
 		this._socketWriter.dispose();
@@ -810,7 +837,7 @@ export class PersistentProtocol {
 		}
 	}
 
-	readEntireBuffer(): Buffer {
+	readEntireBuffer(): VSBuffer {
 		return this._socketReader.readEntireBuffer();
 	}
 
@@ -818,7 +845,7 @@ export class PersistentProtocol {
 		this._socketWriter.flush();
 	}
 
-	send(buffer: Buffer): void {
+	send(buffer: VSBuffer): void {
 		const myId = ++this._outgoingMsgId;
 		this._incomingAckId = this._incomingMsgId;
 		const msg = new ProtocolMessage(ProtocolMessageType.Regular, myId, this._incomingAckId, buffer);
@@ -833,7 +860,7 @@ export class PersistentProtocol {
 	 * Send a message which will not be part of the regular acknowledge flow.
 	 * Use this for early control messages which are repeated in case of reconnection.
 	 */
-	sendControl(buffer: Buffer): void {
+	sendControl(buffer: VSBuffer): void {
 		const msg = new ProtocolMessage(ProtocolMessageType.Control, 0, 0, buffer);
 		this._socketWriter.write(msg);
 	}
@@ -896,7 +923,7 @@ export class PersistentProtocol {
 		}
 
 		this._incomingAckId = this._incomingMsgId;
-		const msg = new ProtocolMessage(ProtocolMessageType.Ack, 0, this._incomingAckId, EMPTY_BUFFER);
+		const msg = new ProtocolMessage(ProtocolMessageType.Ack, 0, this._incomingAckId, getEmptyBuffer());
 		this._socketWriter.write(msg);
 	}
 }
