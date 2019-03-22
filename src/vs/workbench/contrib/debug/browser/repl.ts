@@ -373,7 +373,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		], new ReplDataSource(), {
 				ariaLabel: nls.localize('replAriaLabel', "Read Eval Print Loop Panel"),
 				accessibilityProvider: new ReplAccessibilityProvider(),
-				identityProvider: { getId: element => (<IReplElement>element).getId() },
+				identityProvider: { getId: (element: IReplElement) => element.getId() },
 				mouseSupport: false,
 				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: e => e },
 				horizontalScrolling: false,

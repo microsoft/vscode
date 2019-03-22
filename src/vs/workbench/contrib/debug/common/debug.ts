@@ -168,7 +168,7 @@ export interface IDebugSession extends ITreeElement {
 	removeReplExpressions(): void;
 	addReplExpression(stackFrame: IStackFrame | undefined, name: string): Promise<void>;
 	appendToRepl(data: string | IExpression, severity: severity, source?: IReplElementSource): void;
-	logToRepl(sev: severity, args: any[], frame?: { uri: uri, line: number, column: number });
+	logToRepl(sev: severity, args: any[], frame?: { uri: uri, line: number, column: number }): void;
 
 	// session events
 	readonly onDidEndAdapter: Event<AdapterEndEvent>;
@@ -471,8 +471,8 @@ export interface ICompound {
 export interface IDebugAdapter extends IDisposable {
 	readonly onError: Event<Error>;
 	readonly onExit: Event<number | null>;
-	onRequest(callback: (request: DebugProtocol.Request) => void);
-	onEvent(callback: (event: DebugProtocol.Event) => void);
+	onRequest(callback: (request: DebugProtocol.Request) => void): void;
+	onEvent(callback: (event: DebugProtocol.Event) => void): void;
 	startSession(): Promise<void>;
 	sendMessage(message: DebugProtocol.ProtocolMessage): void;
 	sendResponse(response: DebugProtocol.Response): void;

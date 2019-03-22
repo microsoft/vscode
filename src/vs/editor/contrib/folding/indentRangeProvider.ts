@@ -18,8 +18,6 @@ export const ID_INDENT_PROVIDER = 'indent';
 export class IndentRangeProvider implements RangeProvider {
 	readonly id = ID_INDENT_PROVIDER;
 
-	readonly decorations;
-
 	constructor(private readonly editorModel: ITextModel) {
 	}
 

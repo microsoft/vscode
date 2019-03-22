@@ -212,7 +212,7 @@ function showStartupWarningDialog(message: string, detail: string): void {
 	});
 }
 
-function handleStartupDataDirError(environmentService: IEnvironmentService, error): void {
+function handleStartupDataDirError(environmentService: IEnvironmentService, error: NodeJS.ErrnoException): void {
 	if (error.code === 'EACCES' || error.code === 'EPERM') {
 		showStartupWarningDialog(
 			localize('startupDataDirError', "Unable to write program user data."),

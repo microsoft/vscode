@@ -619,14 +619,14 @@ export function createApiFactory(
 			registerFileSystemProvider(scheme, provider, options) {
 				return extHostFileSystem.registerFileSystemProvider(scheme, provider, options);
 			},
-			registerFileSearchProvider: proposedApiFunction(extension, (scheme, provider) => {
+			registerFileSearchProvider: proposedApiFunction(extension, (scheme: string, provider: vscode.FileSearchProvider) => {
 				return extHostSearch.registerFileSearchProvider(scheme, provider);
 			}),
 			registerSearchProvider: proposedApiFunction(extension, () => {
 				// Temp for live share in Insiders
 				return { dispose: () => { } };
 			}),
-			registerTextSearchProvider: proposedApiFunction(extension, (scheme, provider) => {
+			registerTextSearchProvider: proposedApiFunction(extension, (scheme: string, provider: vscode.TextSearchProvider) => {
 				return extHostSearch.registerTextSearchProvider(scheme, provider);
 			}),
 			registerDocumentCommentProvider: proposedApiFunction(extension, (provider: vscode.DocumentCommentProvider) => {

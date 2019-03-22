@@ -192,7 +192,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 	}
 
 	private async cleanup(exceptVersion: string | null = null): Promise<any> {
-		const filter = exceptVersion ? one => !(new RegExp(`${product.quality}-${exceptVersion}\\.exe$`).test(one)) : () => true;
+		const filter = exceptVersion ? (one: string) => !(new RegExp(`${product.quality}-${exceptVersion}\\.exe$`).test(one)) : () => true;
 
 		const cachePath = await this.cachePath;
 		const versions = await pfs.readdir(cachePath);

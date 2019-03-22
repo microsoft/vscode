@@ -337,13 +337,13 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 
 		this.searchBox = this.instantiationService.createInstance(SuggestEnabledInput, `${VIEWLET_ID}.searchbox`, header, {
 			triggerCharacters: ['@'],
-			sortKey: item => {
+			sortKey: (item: string) => {
 				if (item.indexOf(':') === -1) { return 'a'; }
 				else if (/ext:/.test(item) || /tag:/.test(item)) { return 'b'; }
 				else if (/sort:/.test(item)) { return 'c'; }
 				else { return 'd'; }
 			},
-			provideResults: (query) => Query.suggestions(query)
+			provideResults: (query: string) => Query.suggestions(query)
 		}, placeholder, 'extensions:searchinput', { placeholderText: placeholder, value: searchValue });
 
 		if (this.searchBox.getValue()) {

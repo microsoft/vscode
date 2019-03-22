@@ -320,7 +320,7 @@ class RPCLogger implements IRPCProtocolLogger {
 	private _totalIncoming = 0;
 	private _totalOutgoing = 0;
 
-	private _log(direction: string, totalLength, msgLength: number, req: number, initiator: RequestInitiator, str: string, data: any): void {
+	private _log(direction: string, totalLength: number, msgLength: number, req: number, initiator: RequestInitiator, str: string, data: any): void {
 		data = pretty(data);
 
 		const colorTable = colorTables[initiator];

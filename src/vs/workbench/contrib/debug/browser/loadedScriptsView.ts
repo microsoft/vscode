@@ -424,10 +424,10 @@ export class LoadedScriptsView extends ViewletPanel {
 			new LoadedScriptsDataSource(),
 			{
 				identityProvider: {
-					getId: element => (<LoadedScriptsItem>element).getId()
+					getId: (element: LoadedScriptsItem) => element.getId()
 				},
 				keyboardNavigationLabelProvider: {
-					getKeyboardNavigationLabel: element => (<LoadedScriptsItem>element).getLabel()
+					getKeyboardNavigationLabel: (element: LoadedScriptsItem) => element.getLabel()
 				},
 				filter: this.filter,
 				accessibilityProvider: new LoadedSciptsAccessibilityProvider(),

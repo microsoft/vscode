@@ -252,7 +252,7 @@ class ProtocolWriter {
 	private readonly _socket: Socket;
 	private readonly _logFile: number;
 	private _data: Buffer[];
-	private _totalLength;
+	private _totalLength: number;
 	public lastWriteTime: number;
 
 	constructor(socket: Socket, logFile: number) {

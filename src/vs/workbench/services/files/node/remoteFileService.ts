@@ -407,7 +407,7 @@ export class RemoteFileService extends FileService {
 		return new Promise((resolve, reject) => {
 			readable.pipe(encoder).pipe(target);
 			target.once('error', err => reject(err));
-			target.once('finish', _ => resolve(undefined));
+			target.once('finish', (_: unknown) => resolve(undefined));
 		}).then(_ => {
 			return this.resolveFile(resource, { resolveMetadata: true }) as Promise<IFileStatWithMetadata>;
 		});

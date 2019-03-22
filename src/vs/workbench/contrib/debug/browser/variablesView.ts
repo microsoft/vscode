@@ -76,7 +76,7 @@ export class VariablesView extends ViewletPanel {
 			new VariablesDataSource(), {
 				ariaLabel: nls.localize('variablesAriaTreeLabel', "Debug Variables"),
 				accessibilityProvider: new VariablesAccessibilityProvider(),
-				identityProvider: { getId: element => (<IExpression | IScope>element).getId() },
+				identityProvider: { getId: (element: IExpression | IScope) => element.getId() },
 				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: e => e }
 			}) as WorkbenchAsyncDataTree<IViewModel | IExpression | IScope, IExpression | IScope, FuzzyScore>;
 

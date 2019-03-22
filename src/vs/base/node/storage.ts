@@ -694,7 +694,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 	private prepare(connection: IDatabaseConnection, sql: string, runCallback: (stmt: Statement) => void, errorDetails: () => string): void {
 		const stmt = connection.db.prepare(sql);
 
-		const statementErrorListener = error => {
+		const statementErrorListener = (error: Error) => {
 			this.handleSQLiteError(connection, error, `[storage ${this.name}] prepare(): ${error} (${sql}). Details: ${errorDetails()}`);
 		};
 

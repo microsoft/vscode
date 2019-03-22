@@ -488,7 +488,7 @@ export class Configuration {
 	allKeys(workspace: Workspace | undefined): string[] {
 		let keys = this.keys(workspace);
 		let all = [...keys.default];
-		const addKeys = (keys) => {
+		const addKeys = (keys: string[]) => {
 			for (const key of keys) {
 				if (all.indexOf(key) === -1) {
 					all.push(key);
