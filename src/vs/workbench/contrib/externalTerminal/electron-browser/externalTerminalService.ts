@@ -283,10 +283,10 @@ export class LinuxExternalTerminalService implements IExternalTerminalService {
 	private spawnTerminal(spawner: typeof cp, configuration: IExternalTerminalConfiguration, cwd?: string): Promise<void> {
 		const terminalConfig = configuration.terminal.external;
 		const execPromise = terminalConfig.linuxExec ? Promise.resolve(terminalConfig.linuxExec) : getDefaultTerminalLinuxReady();
-		const env = cwd ? { cwd: cwd } : undefined;
 
 		return new Promise<void>((c, e) => {
 			execPromise.then(exec => {
+				const env = cwd ? { cwd } : undefined;
 				const child = spawner.spawn(exec, env);
 				child.on('error', e);
 				child.on('exit', () => c());
