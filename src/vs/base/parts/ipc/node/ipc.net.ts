@@ -8,7 +8,6 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IMessagePassingProtocol, ClientConnectionEvent, IPCServer, IPCClient } from 'vs/base/parts/ipc/node/ipc';
 import { join } from 'vs/base/common/path';
 import { tmpdir } from 'os';
-import * as fs from 'fs';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -40,16 +39,6 @@ export function generateRandomPipeName(): string {
 		// Mac/Unix: use socket file
 		return join(tmpdir(), `vscode-ipc-${randomSuffix}.sock`);
 	}
-}
-
-function log(fd: number, msg: string, data?: VSBuffer): void {
-	const date = new Date();
-	fs.writeSync(fd, `[${date.getHours()}:${date.getMinutes()}:${date.getSeconds()}.${date.getMilliseconds()}] ${msg}\n`);
-	if (data) {
-		fs.writeSync(fd, data);
-		fs.writeSync(fd, `\n---------------------------------------------------------------------------------------------------------\n`);
-	}
-	fs.fdatasyncSync(fd);
 }
 
 let emptyBuffer: VSBuffer | null = null;
@@ -136,16 +125,6 @@ const enum ProtocolMessageType {
 	Control = 2,
 	Ack = 3,
 	KeepAlive = 4
-}
-
-function ProtocolMessageTypeToString(type: ProtocolMessageType): string {
-	switch (type) {
-		case ProtocolMessageType.None: return 'None';
-		case ProtocolMessageType.Regular: return 'Regular';
-		case ProtocolMessageType.Control: return 'Control';
-		case ProtocolMessageType.Ack: return 'Ack';
-		case ProtocolMessageType.KeepAlive: return 'KeepAlive';
-	}
 }
 
 export const enum ProtocolConstants {
@@ -277,15 +256,13 @@ class ProtocolWriter {
 
 	private _isDisposed: boolean;
 	private readonly _socket: Socket;
-	private readonly _logFile: number;
 	private _data: VSBuffer[];
 	private _totalLength: number;
 	public lastWriteTime: number;
 
-	constructor(socket: Socket, logFile: number) {
+	constructor(socket: Socket) {
 		this._isDisposed = false;
 		this._socket = socket;
-		this._logFile = logFile;
 		this._data = [];
 		this._totalLength = 0;
 		this.lastWriteTime = 0;
@@ -306,9 +283,6 @@ class ProtocolWriter {
 			console.warn(`Cannot write message in a disposed ProtocolWriter`);
 			console.warn(msg);
 			return;
-		}
-		if (this._logFile) {
-			log(this._logFile, `send-${ProtocolMessageTypeToString(msg.type)}-${msg.id}-${msg.ack}-`, msg.data);
 		}
 		msg.writtenTime = Date.now();
 		this.lastWriteTime = Date.now();
@@ -392,7 +366,7 @@ export class Protocol implements IDisposable, IMessagePassingProtocol {
 
 	constructor(socket: Socket) {
 		this._socket = socket;
-		this._socketWriter = new ProtocolWriter(this._socket, 0);
+		this._socketWriter = new ProtocolWriter(this._socket);
 		this._socketReader = new ProtocolReader(this._socket);
 
 		this._socketReader.onMessage((msg) => {
@@ -605,7 +579,6 @@ class Queue<T> {
  */
 export class PersistentProtocol {
 
-	private _logFile: number;
 	private _isReconnecting: boolean;
 
 	private _outgoingUnackMsg: Queue<ProtocolMessage>;
@@ -649,13 +622,8 @@ export class PersistentProtocol {
 		return this._outgoingMsgId - this._outgoingAckId;
 	}
 
-	constructor(socket: Socket, initialChunk: VSBuffer | null = null, logFileName: string | null = null) {
-		this._logFile = 0;
+	constructor(socket: Socket, initialChunk: VSBuffer | null = null) {
 		this._isReconnecting = false;
-		if (logFileName) {
-			console.log(`PersistentProtocol log file: ${logFileName}`);
-			this._logFile = fs.openSync(logFileName, 'a');
-		}
 		this._outgoingUnackMsg = new Queue<ProtocolMessage>();
 		this._outgoingMsgId = 0;
 		this._outgoingAckId = 0;
@@ -682,7 +650,7 @@ export class PersistentProtocol {
 		};
 
 		this._socket = socket;
-		this._socketWriter = new ProtocolWriter(this._socket, this._logFile);
+		this._socketWriter = new ProtocolWriter(this._socket);
 		this._socketReader = new ProtocolReader(this._socket);
 		this._socketReaderListener = this._socketReader.onMessage(msg => this._receiveMessage(msg));
 		this._socket.on('close', this._socketCloseListener);
@@ -712,9 +680,6 @@ export class PersistentProtocol {
 		if (this._incomingKeepAliveTimeout) {
 			clearTimeout(this._incomingKeepAliveTimeout);
 			this._incomingKeepAliveTimeout = null;
-		}
-		if (this._logFile) {
-			fs.closeSync(this._logFile);
 		}
 		this._socketWriter.dispose();
 		this._socketReader.dispose();
@@ -782,7 +747,7 @@ export class PersistentProtocol {
 
 		this._socket = socket;
 
-		this._socketWriter = new ProtocolWriter(this._socket, this._logFile);
+		this._socketWriter = new ProtocolWriter(this._socket);
 		this._socketReader = new ProtocolReader(this._socket);
 		this._socketReaderListener = this._socketReader.onMessage(msg => this._receiveMessage(msg));
 		this._socketReader.acceptChunk(initialDataChunk);
@@ -806,9 +771,6 @@ export class PersistentProtocol {
 	}
 
 	private _receiveMessage(msg: ProtocolMessage): void {
-		if (this._logFile) {
-			log(this._logFile, `recv-${ProtocolMessageTypeToString(msg.type)}-${msg.id}-${msg.ack}-`, msg.data);
-		}
 		if (msg.ack > this._outgoingAckId) {
 			this._outgoingAckId = msg.ack;
 			do {
