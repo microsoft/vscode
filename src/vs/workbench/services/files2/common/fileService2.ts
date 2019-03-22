@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, IDisposable, toDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
-import { IFileService, IResolveFileOptions, IResourceEncodings, FileChangesEvent, FileOperationEvent, IFileSystemProviderRegistrationEvent, IFileSystemProvider, IFileStat, IResolveFileResult, IResolveContentOptions, IContent, IStreamContent, ITextSnapshot, IUpdateContentOptions, ICreateFileOptions, IFileSystemProviderActivationEvent, FileOperationError, FileOperationResult, FileOperation, FileSystemProviderCapabilities, FileType, toFileSystemProviderErrorCode, FileSystemProviderErrorCode, IStat, IFileStatWithMetadata, IResolveMetadataFileOptions, etag, hasReadWriteCapability, hasFileFolderCopyCapability, hasOpenReadWriteCloseCapability } from 'vs/platform/files/common/files';
+import { IFileService, IResolveFileOptions, IResourceEncodings, FileChangesEvent, FileOperationEvent, IFileSystemProviderRegistrationEvent, IFileSystemProvider, IFileStat, IResolveFileResult, IResolveContentOptions, IContent, IStreamContent, ITextSnapshot, IUpdateContentOptions, ICreateFileOptions, IFileSystemProviderActivationEvent, FileOperationError, FileOperationResult, FileOperation, FileSystemProviderCapabilities, FileType, toFileSystemProviderErrorCode, FileSystemProviderErrorCode, IStat, IFileStatWithMetadata, IResolveMetadataFileOptions, etag, hasReadWriteCapability, hasFileFolderCopyCapability, hasOpenReadWriteCloseCapability, toFileOperationResult } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
@@ -279,8 +279,49 @@ export class FileService2 extends Disposable implements IFileService {
 		return this._legacy.encoding;
 	}
 
-	createFile(resource: URI, content?: string, options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
-		return this.joinOnLegacy.then(legacy => legacy.createFile(resource, content, options));
+	async createFile(resource: URI, content?: string, options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
+		const useLegacy = true; // can only disable this when encoding is sorted out
+		if (useLegacy) {
+			return this.joinOnLegacy.then(legacy => legacy.createFile(resource, content, options));
+		}
+
+		const provider = this.throwIfFileSystemIsReadonly(await this.withProvider(resource));
+
+		// validate overwrite
+		const overwrite = !!(options && options.overwrite);
+		if (!overwrite && await this.existsFile(resource)) {
+			throw new FileOperationError(localize('fileExists', "File to create already exists ({0})", resource.toString(true)), FileOperationResult.FILE_MODIFIED_SINCE, options);
+		}
+
+		try {
+
+			// mkdir recursively
+			await this.mkdirp(provider, dirname(resource));
+
+			// create file: buffered
+			if (hasOpenReadWriteCloseCapability(provider)) {
+				// TODO@ben revisit stream support
+				return this.joinOnLegacy.then(legacy => legacy.createFile(resource, content, options));
+			}
+
+			// create file: unbuffered
+			else if (hasReadWriteCapability(provider)) {
+				await provider.writeFile(resource, new Uint8Array(0), { create: true, overwrite });
+			}
+
+			// give up if provider has insufficient capabilities
+			else {
+				return Promise.reject('Provider neither has FileReadWrite nor FileOpenReadWriteClose capability which is needed to support creating a file.');
+			}
+		} catch (error) {
+			throw new FileOperationError(localize('err.create', "Failed to create file {0}", resource.toString(false)), toFileOperationResult(error), options);
+		}
+
+		// events
+		const fileStat = await this.resolveFile(resource, { resolveMetadata: true });
+		this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, fileStat));
+
+		return fileStat;
 	}
 
 	resolveContent(resource: URI, options?: IResolveContentOptions): Promise<IContent> {
@@ -336,17 +377,17 @@ export class FileService2 extends Disposable implements IFileService {
 		// copy source => target
 		if (mode === 'copy') {
 
-			// check if provider supports fast file/folder copy
+			// copy: fast path
 			if (hasFileFolderCopyCapability(provider)) {
 				return provider.copy(source, target, { overwrite: !!overwrite });
 			}
 
-			// otherwise we need to manually copy: via read/write
+			// copy: buffered
 			if (hasOpenReadWriteCloseCapability(provider)) {
 				return this.joinOnLegacy.then(legacy => legacy.copyFile(source, target, overwrite)).then(() => undefined);
 			}
 
-			// otherwise we need to manually copy: via readFile/writeFile
+			// copy: unbuffered
 			if (hasReadWriteCapability(provider)) {
 				return provider.writeFile(target, await provider.readFile(source), { create: true, overwrite: !!overwrite });
 			}
