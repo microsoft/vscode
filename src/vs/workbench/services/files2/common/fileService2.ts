@@ -19,25 +19,34 @@ export class FileService2 extends Disposable implements IFileService {
 
 	//#region TODO@Ben HACKS
 
-	private _impl: IFileService;
+	private _legacy: IFileService | null;
 
-	setImpl(service: IFileService): void {
-		this._impl = this._register(service);
+	setLegacyService(legacy: IFileService): void {
+		this._legacy = this._register(legacy);
 
-		this._register(service.onFileChanges(e => this._onFileChanges.fire(e)));
-		this._register(service.onAfterOperation(e => this._onAfterOperation.fire(e)));
+		this._register(legacy.onFileChanges(e => this._onFileChanges.fire(e)));
+		this._register(legacy.onAfterOperation(e => this._onAfterOperation.fire(e)));
 
 		this.provider.forEach((provider, scheme) => {
-			this._impl.registerProvider(scheme, provider);
+			legacy.registerProvider(scheme, provider);
 		});
+
+		this.joinOnImplResolve(legacy);
 	}
 
 	//#endregion
 
 	_serviceBrand: ServiceIdentifier<any>;
 
+	private joinOnLegacy: Promise<IFileService>;
+	private joinOnImplResolve: (service: IFileService) => void;
+
 	constructor(@ILogService private logService: ILogService) {
 		super();
+
+		this.joinOnLegacy = new Promise(resolve => {
+			this.joinOnImplResolve = resolve;
+		});
 	}
 
 	//#region File System Provider
@@ -56,8 +65,8 @@ export class FileService2 extends Disposable implements IFileService {
 		}
 
 		let legacyDisposal: IDisposable;
-		if (this._impl) {
-			legacyDisposal = this._impl.registerProvider(scheme, provider);
+		if (this._legacy) {
+			legacyDisposal = this._legacy.registerProvider(scheme, provider);
 		} else {
 			legacyDisposal = Disposable.None;
 		}
@@ -285,22 +294,28 @@ export class FileService2 extends Disposable implements IFileService {
 
 	//#region File Reading/Writing
 
-	get encoding(): IResourceEncodings { return this._impl.encoding; }
+	get encoding(): IResourceEncodings {
+		if (!this._legacy) {
+			throw new Error('Legacy file service not ready yet');
+		}
+
+		return this._legacy.encoding;
+	}
 
 	createFile(resource: URI, content?: string, options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
-		return this._impl.createFile(resource, content, options);
+		return this.joinOnLegacy.then(legacy => legacy.createFile(resource, content, options));
 	}
 
 	resolveContent(resource: URI, options?: IResolveContentOptions): Promise<IContent> {
-		return this._impl.resolveContent(resource, options);
+		return this.joinOnLegacy.then(legacy => legacy.resolveContent(resource, options));
 	}
 
 	resolveStreamContent(resource: URI, options?: IResolveContentOptions): Promise<IStreamContent> {
-		return this._impl.resolveStreamContent(resource, options);
+		return this.joinOnLegacy.then(legacy => legacy.resolveStreamContent(resource, options));
 	}
 
 	updateContent(resource: URI, value: string | ITextSnapshot, options?: IUpdateContentOptions): Promise<IFileStatWithMetadata> {
-		return this._impl.updateContent(resource, value, options);
+		return this.joinOnLegacy.then(legacy => legacy.updateContent(resource, value, options));
 	}
 
 	//#endregion
@@ -346,11 +361,11 @@ export class FileService2 extends Disposable implements IFileService {
 			return this.doMoveCopyWithSameProvider(source, target, true /* keep copy */, overwrite);
 		}
 
-		return this._impl.copyFile(source, target, overwrite); // TODO@ben implement properly
+		return this.joinOnLegacy.then(legacy => legacy.copyFile(source, target, overwrite));
 	}
 
 	private async doCopyWithDifferentProvider(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata> {
-		return this._impl.copyFile(source, target, overwrite); // TODO@ben implement properly
+		return this.joinOnLegacy.then(legacy => legacy.copyFile(source, target, overwrite));
 	}
 
 	private async doMoveCopyWithSameProvider(source: URI, target: URI, keepCopy: boolean, overwrite?: boolean): Promise<IFileStatWithMetadata> {
@@ -444,7 +459,8 @@ export class FileService2 extends Disposable implements IFileService {
 
 	async del(resource: URI, options?: { useTrash?: boolean; recursive?: boolean; }): Promise<void> {
 		if (options && options.useTrash) {
-			return this._impl.del(resource, options); //TODO@ben this is https://github.com/Microsoft/vscode/issues/48259
+			//TODO@ben this is https://github.com/Microsoft/vscode/issues/48259
+			return this.joinOnLegacy.then(legacy => legacy.del(resource, options));
 		}
 
 		const provider = this.throwIfFileSystemIsReadonly(await this.withProvider(resource));
@@ -464,11 +480,11 @@ export class FileService2 extends Disposable implements IFileService {
 	get onFileChanges(): Event<FileChangesEvent> { return this._onFileChanges.event; }
 
 	watchFileChanges(resource: URI): void {
-		this._impl.watchFileChanges(resource);
+		this.joinOnLegacy.then(legacy => legacy.watchFileChanges(resource));
 	}
 
 	unwatchFileChanges(resource: URI): void {
-		this._impl.unwatchFileChanges(resource);
+		this.joinOnLegacy.then(legacy => legacy.unwatchFileChanges(resource));
 	}
 
 	//#endregion

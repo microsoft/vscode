@@ -55,7 +55,7 @@ suite('Disk File Service', () => {
 		await copy(sourceDir, testDir);
 
 		const legacyService = new FileService(new TestContextService(new Workspace(testDir, toWorkspaceFolders([{ path: testDir }]))), TestEnvironmentService, new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), new TestStorageService(), new TestNotificationService(), { disableWatcher: true });
-		service.setImpl(legacyService);
+		service.setLegacyService(legacyService);
 	});
 
 	teardown(async () => {
