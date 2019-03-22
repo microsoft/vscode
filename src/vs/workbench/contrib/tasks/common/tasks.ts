@@ -942,7 +942,6 @@ export namespace KeyedTaskIdentifier {
 	}
 	export function create(value: TaskIdentifier): KeyedTaskIdentifier {
 		const resultKey = sortedStringify(value);
-		console.log(resultKey);
 		return { _key: resultKey, type: value.taskType };
 	}
 }
