@@ -83,7 +83,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	private _workspaceIgnoredRecommendations: string[] = [];
 	private _extensionsRecommendationsUrl: string;
 	private _disposables: IDisposable[] = [];
-	public loadWorkspaceConfigPromise: Promise<any>;
+	public loadWorkspaceConfigPromise: Promise<void>;
 	private proactiveRecommendationsFetched: boolean = false;
 
 	private readonly _onRecommendationChange = new Emitter<RecommendationChangeNotification>();
@@ -867,7 +867,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	/**
 	 * If user has any of the tools listed in product.exeBasedExtensionTips, fetch corresponding recommendations
 	 */
-	private fetchExecutableRecommendations(): Promise<any> {
+	private fetchExecutableRecommendations(): Promise<void> {
 		const homeDir = os.homedir();
 		let foundExecutables: Set<string> = new Set<string>();
 
@@ -885,7 +885,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			});
 		};
 
-		let promises: Promise<any>[] = [];
+		let promises: Promise<void>[] = [];
 		// Loop through recommended extensions
 		forEach(product.exeBasedExtensionTips, entry => {
 			if (typeof entry.value !== 'object' || !Array.isArray(entry.value['recommendations'])) {
@@ -909,7 +909,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			}
 		});
 
-		return Promise.all(promises);
+		return Promise.all(promises).then(() => undefined);
 	}
 
 	/**
