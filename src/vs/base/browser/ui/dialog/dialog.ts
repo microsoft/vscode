@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./dialog';
+import * as nls from 'vs/nls';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { $, hide, show, EventHelper, clearNode, removeClasses, addClass } from 'vs/base/browser/dom';
+import { $, hide, show, EventHelper, clearNode, removeClasses, addClass, removeNode } from 'vs/base/browser/dom';
 import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -27,13 +28,15 @@ export interface IDialogStyles {
 
 export class Dialog extends Disposable {
 	private element: HTMLElement | undefined;
+	private modal: HTMLElement | undefined;
 	private buttonsContainer: HTMLElement | undefined;
 	private iconElement: HTMLElement | undefined;
 	private toolbarContainer: HTMLElement | undefined;
 
 	constructor(private container: HTMLElement, private message: string, private buttons: string[], private options: IDialogOptions) {
 		super();
-		this.element = this.container.appendChild($('.dialog-box'));
+		this.modal = this.container.appendChild($('.dialog-modal-block'));
+		this.element = this.modal.appendChild($('.dialog-box'));
 		hide(this.element);
 
 		const buttonsRowElement = this.element.appendChild($('.dialog-buttons-row'));
@@ -55,7 +58,14 @@ export class Dialog extends Disposable {
 
 	async show(): Promise<number> {
 		return new Promise<number>((resolve) => {
+			if (!this.element || !this.buttonsContainer || !this.iconElement || !this.toolbarContainer) {
+				resolve(0);
+				return;
+			}
+
 			clearNode(this.buttonsContainer);
+
+			let focusedButton = 0;
 			const buttonGroup = new ButtonGroup(this.buttonsContainer, this.buttons.length, { title: true });
 			buttonGroup.buttons.forEach((button, index) => {
 				button.label = this.buttons[index];
@@ -67,6 +77,21 @@ export class Dialog extends Disposable {
 			});
 
 			this._register(domEvent(this.element, 'keydown', true)((e: KeyboardEvent) => {
+				const evt = new StandardKeyboardEvent(e);
+				if (evt.equals(KeyCode.Enter)) {
+					return;
+				}
+
+				if ((evt.shiftKey && evt.equals(KeyCode.Tab)) || evt.equals(KeyCode.RightArrow)) {
+					focusedButton = focusedButton + buttonGroup.buttons.length - 1;
+					focusedButton = focusedButton % buttonGroup.buttons.length;
+					buttonGroup.buttons[focusedButton].focus();
+				} else if (evt.equals(KeyCode.Tab) || evt.equals(KeyCode.LeftArrow)) {
+					focusedButton++;
+					focusedButton = focusedButton % buttonGroup.buttons.length;
+					buttonGroup.buttons[focusedButton].focus();
+				}
+
 				EventHelper.stop(e, true);
 			}));
 
@@ -98,7 +123,7 @@ export class Dialog extends Disposable {
 
 			const actionBar = new ActionBar(this.toolbarContainer, {});
 
-			const action = new Action('dialog.close', 'Close Dialog', 'dialog-close-action', true, () => {
+			const action = new Action('dialog.close', nls.localize('dialogClose', "Close Dialog"), 'dialog-close-action', true, () => {
 				resolve(this.options.cancelId || 0);
 				return Promise.resolve();
 			});
@@ -116,12 +141,17 @@ export class Dialog extends Disposable {
 		const fgColor = style.foregroundColor ? `${style.foregroundColor}` : null;
 		const bgColor = style.backgroundColor ? `${style.backgroundColor}` : null;
 
-		this.element.style.color = fgColor;
-		this.element.style.backgroundColor = bgColor;
+		if (this.element) {
+			this.element.style.color = fgColor;
+			this.element.style.backgroundColor = bgColor;
+		}
 	}
 
 	dispose(): void {
 		super.dispose();
-		hide(this.element);
+		if (this.modal) {
+			removeNode(this.modal);
+			this.modal = undefined;
+		}
 	}
 }

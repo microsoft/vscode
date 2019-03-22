@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDialogService, IDialogOptions, IConfirmation, IConfirmationResult } from 'vs/platform/dialogs/common/dialogs';
+import * as nls from 'vs/nls';
+import { IDialogService, IDialogOptions, IConfirmation, IConfirmationResult, DialogType } from 'vs/platform/dialogs/common/dialogs';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { ILogService } from 'vs/platform/log/common/log';
 import Severity from 'vs/base/common/severity';
@@ -11,7 +12,7 @@ import { Dialog } from 'vs/base/browser/ui/dialog/dialog';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachDialogStyler } from 'vs/platform/theme/common/styler';
-import { dispose } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 
 export class DialogService implements IDialogService {
 	_serviceBrand: any;
@@ -22,14 +23,65 @@ export class DialogService implements IDialogService {
 		@IThemeService private readonly themeService: IThemeService
 	) { }
 
-	confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
-		throw new Error('Method not implemented.');
+	// confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
+	// 	this.logService.trace('DialogService#confirm', confirmation.message);
+
+	// 	const { options, buttonIndexMap } = this.massageMessageBoxOptions(this.getConfirmOptions(confirmation));
+
+	// 	return this.windowService.showMessageBox(options).then(result => {
+	// 		return {
+	// 			confirmed: buttonIndexMap[result.button] === 0 ? true : false,
+	// 			checkboxChecked: result.checkboxChecked
+	// 		} as IConfirmationResult;
+	// 	});
+	// }
+
+	async confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
+		this.logService.trace('DialogService#confirm', confirmation.message);
+
+		const buttons: string[] = [];
+		if (confirmation.primaryButton) {
+			buttons.push(confirmation.primaryButton);
+		} else {
+			buttons.push(nls.localize({ key: 'yesButton', comment: ['&& denotes a mnemonic'] }, "&&Yes"));
+		}
+
+		if (confirmation.secondaryButton) {
+			buttons.push(confirmation.secondaryButton);
+		} else if (typeof confirmation.secondaryButton === 'undefined') {
+			buttons.push(nls.localize('cancelButton', "Cancel"));
+		}
+
+		const severity = this.getSeverity(confirmation.type || 'none');
+		const result = await this.show(severity, confirmation.message, buttons, { cancelId: 1, detail: confirmation.detail });
+
+		return { confirmed: result === 0 };
 	}
+
+	private getSeverity(type: DialogType): Severity {
+		switch (type) {
+			case 'error':
+				return Severity.Error;
+			case 'warning':
+				return Severity.Warning;
+			case 'question':
+			case 'info':
+				return Severity.Info;
+			case 'none':
+			default:
+				return Severity.Ignore;
+		}
+	}
+
+	private getDialogType(severity: Severity): DialogType {
+		return (severity === Severity.Info) ? 'question' : (severity === Severity.Error) ? 'error' : (severity === Severity.Warning) ? 'warning' : 'none';
+	}
+
 
 	async show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Promise<number> {
 		this.logService.trace('DialogService#show', message);
 
-		const dialogDisposables = [];
+		const dialogDisposables: IDisposable[] = [];
 		const dialog = new Dialog(
 			this.layoutService.container,
 			message,
@@ -37,8 +89,9 @@ export class DialogService implements IDialogService {
 			{
 				detail: options ? options.detail : undefined,
 				cancelId: options ? options.cancelId : undefined,
-				type: (severity === Severity.Info) ? 'question' : (severity === Severity.Error) ? 'error' : (severity === Severity.Warning) ? 'warning' : 'none'
+				type: this.getDialogType(severity)
 			});
+
 		dialogDisposables.push(dialog);
 		dialogDisposables.push(attachDialogStyler(dialog, this.themeService));
 
@@ -47,7 +100,6 @@ export class DialogService implements IDialogService {
 
 		return choice;
 	}
-
 }
 
 registerSingleton(IDialogService, DialogService, true);

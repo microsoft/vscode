@@ -2,13 +2,21 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+/** Dialog: Modal Block */
+.monaco-workbench .dialog-modal-block {
+	position: fixed;
+	height: 100%;
+	width: 100%;
+	left:0;
+	top:0;
+	z-index: 2000;
+}
 
 /** Dialog: Container */
 .monaco-workbench .dialog-box {
 	position: absolute;
 	display: flex;
 	flex-direction: column-reverse;
-	z-index: 2000;
 	top: 200px;
 	left: 50%;
 	margin-left: -250px;
