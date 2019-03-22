@@ -347,6 +347,6 @@ export const defaultDialogStyles = <IDialogStyleOverrides>{
 };
 
 
-export function attachDialogStyler(widget: IThemable, themeService, style?: IDialogStyleOverrides): IDisposable {
+export function attachDialogStyler(widget: IThemable, themeService: IThemeService, style?: IDialogStyleOverrides): IDisposable {
 	return attachStyler(themeService, { ...defaultDialogStyles, ...style }, widget);
 }
