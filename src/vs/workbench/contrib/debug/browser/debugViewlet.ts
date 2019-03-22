@@ -24,7 +24,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { memoize } from 'vs/base/common/decorators';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { DebugToolBar } from 'vs/workbench/contrib/debug/browser/debugToolBar';
+import { DebugToolbar } from 'vs/workbench/contrib/debug/browser/debugToolbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { IMenu, MenuId, IMenuService, MenuItemAction } from 'vs/platform/actions/common/actions';
@@ -40,7 +40,7 @@ export class DebugViewlet extends ViewContainerViewlet {
 	private progressRunner: IProgressRunner;
 	private breakpointView: ViewletPanel;
 	private panelListeners = new Map<string, IDisposable>();
-	private debugToolBarMenu: IMenu;
+	private debugToolbarMenu: IMenu;
 
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
@@ -110,11 +110,11 @@ export class DebugViewlet extends ViewContainerViewlet {
 			return [this.startAction, this.configureAction, this.toggleReplAction];
 		}
 
-		if (!this.debugToolBarMenu) {
-			this.debugToolBarMenu = this.menuService.createMenu(MenuId.DebugToolBar, this.contextKeyService);
-			this.toDispose.push(this.debugToolBarMenu);
+		if (!this.debugToolbarMenu) {
+			this.debugToolbarMenu = this.menuService.createMenu(MenuId.DebugToolbar, this.contextKeyService);
+			this.toDispose.push(this.debugToolbarMenu);
 		}
-		return DebugToolBar.getActions(this.debugToolBarMenu, this.debugService, this.instantiationService);
+		return DebugToolbar.getActions(this.debugToolbarMenu, this.debugService, this.instantiationService);
 	}
 
 	get showInitialDebugActions(): boolean {
