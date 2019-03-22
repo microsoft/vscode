@@ -1008,7 +1008,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			(experiments || []).forEach(experiment => {
 				const action = experiment.action;
 				if (action && experiment.state === ExperimentState.Run && action.properties && Array.isArray(action.properties.recommendations) && action.properties.recommendationReason) {
-					action.properties.recommendations.forEach(id => {
+					action.properties.recommendations.forEach((id: string) => {
 						this._experimentalRecommendations[id] = action.properties.recommendationReason;
 					});
 				}

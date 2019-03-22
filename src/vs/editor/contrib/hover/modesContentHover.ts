@@ -41,6 +41,7 @@ import { Action } from 'vs/base/common/actions';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 
 const $ = dom.$;
 
@@ -385,10 +386,10 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 					model.guessColorPresentation(color, originalText);
 
 					const updateEditorModel = () => {
-						let textEdits;
-						let newRange;
+						let textEdits: IIdentifiedSingleEditOperation[];
+						let newRange: Range;
 						if (model.presentation.textEdit) {
-							textEdits = [model.presentation.textEdit];
+							textEdits = [model.presentation.textEdit as IIdentifiedSingleEditOperation];
 							newRange = new Range(
 								model.presentation.textEdit.range.startLineNumber,
 								model.presentation.textEdit.range.startColumn,
@@ -405,7 +406,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 						this._editor.executeEdits('colorpicker', textEdits);
 
 						if (model.presentation.additionalTextEdits) {
-							textEdits = [...model.presentation.additionalTextEdits];
+							textEdits = [...model.presentation.additionalTextEdits as IIdentifiedSingleEditOperation[]];
 							this._editor.executeEdits('colorpicker', textEdits);
 							this.hide();
 						}
