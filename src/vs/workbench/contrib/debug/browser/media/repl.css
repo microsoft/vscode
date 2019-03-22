@@ -127,60 +127,125 @@
 .monaco-workbench .repl .repl-tree .output.expression .code-italic	{ font-style: italic; }
 .monaco-workbench .repl .repl-tree .output.expression .code-underline { text-decoration: underline; }
 
-/* Regular and bright color codes are currently treated the same. */
-.monaco-workbench .repl .repl-tree .output.expression .code-foreground-30, .monaco-workbench .repl .repl-tree .output.expression .code-foreground-90	{ color: gray; }
-.monaco-workbench .repl .repl-tree .output.expression .code-foreground-31, .monaco-workbench .repl .repl-tree .output.expression .code-foreground-91	{ color: #BE1717; }
-.monaco-workbench .repl .repl-tree .output.expression .code-foreground-32, .monaco-workbench .repl .repl-tree .output.expression .code-foreground-92	{ color: #338A2F; }
-.monaco-workbench .repl .repl-tree .output.expression .code-foreground-33, .monaco-workbench .repl .repl-tree .output.expression .code-foreground-93	{ color: #BEB817; }
-.monaco-workbench .repl .repl-tree .output.expression .code-foreground-34, .monaco-workbench .repl .repl-tree .output.expression .code-foreground-94	{ color: darkblue; }
-.monaco-workbench .repl .repl-tree .output.expression .code-foreground-35, .monaco-workbench .repl .repl-tree .output.expression .code-foreground-95	{ color: darkmagenta; }
-.monaco-workbench .repl .repl-tree .output.expression .code-foreground-36, .monaco-workbench .repl .repl-tree .output.expression .code-foreground-96	{ color: darkcyan; }
-.monaco-workbench .repl .repl-tree .output.expression .code-foreground-37, .monaco-workbench .repl .repl-tree .output.expression .code-foreground-97	{ color: #BDBDBD; }
+/* #region Default Light Theme */
+/* Regular foreground colors */
+.monaco-workbench .repl .repl-tree .output.expression .code-foreground-30 { color: #000000; }
+.monaco-workbench .repl .repl-tree .output.expression .code-foreground-31 { color: #cd3131; }
+.monaco-workbench .repl .repl-tree .output.expression .code-foreground-32 { color: #00BC00; }
+.monaco-workbench .repl .repl-tree .output.expression .code-foreground-33 { color: #949800; }
+.monaco-workbench .repl .repl-tree .output.expression .code-foreground-34 { color: #0451a5; }
+.monaco-workbench .repl .repl-tree .output.expression .code-foreground-35 { color: #bc05bc; }
+.monaco-workbench .repl .repl-tree .output.expression .code-foreground-36 { color: #0598bc; }
+.monaco-workbench .repl .repl-tree .output.expression .code-foreground-37 { color: #555555; }
 
-.monaco-workbench .repl .repl-tree .output.expression .code-background-40, .monaco-workbench .repl .repl-tree .output.expression .code-background-100 { background-color: gray; }
-.monaco-workbench .repl .repl-tree .output.expression .code-background-41, .monaco-workbench .repl .repl-tree .output.expression .code-background-101 { background-color: #BE1717; }
-.monaco-workbench .repl .repl-tree .output.expression .code-background-42, .monaco-workbench .repl .repl-tree .output.expression .code-background-102 { background-color: #338A2F; }
-.monaco-workbench .repl .repl-tree .output.expression .code-background-43, .monaco-workbench .repl .repl-tree .output.expression .code-background-103 { background-color: #BEB817; }
-.monaco-workbench .repl .repl-tree .output.expression .code-background-44, .monaco-workbench .repl .repl-tree .output.expression .code-background-104 { background-color: darkblue; }
-.monaco-workbench .repl .repl-tree .output.expression .code-background-45, .monaco-workbench .repl .repl-tree .output.expression .code-background-105 { background-color: darkmagenta; }
-.monaco-workbench .repl .repl-tree .output.expression .code-background-46, .monaco-workbench .repl .repl-tree .output.expression .code-background-106 { background-color: darkcyan; }
-.monaco-workbench .repl .repl-tree .output.expression .code-background-47, .monaco-workbench .repl .repl-tree .output.expression .code-background-107 { background-color: #BDBDBD; }
+/* Bright foreground colors  */
+.monaco-workbench .repl .repl-tree .output.expression .code-foreground-90 { color: #666666; }
+.monaco-workbench .repl .repl-tree .output.expression .code-foreground-91 { color: #cd3131; }
+.monaco-workbench .repl .repl-tree .output.expression .code-foreground-92 { color: #14CE14; }
+.monaco-workbench .repl .repl-tree .output.expression .code-foreground-93 { color: #b5ba00; }
+.monaco-workbench .repl .repl-tree .output.expression .code-foreground-94 { color: #0451a5; }
+.monaco-workbench .repl .repl-tree .output.expression .code-foreground-95 { color: #bc05bc; }
+.monaco-workbench .repl .repl-tree .output.expression .code-foreground-96 { color: #0598bc; }
+.monaco-workbench .repl .repl-tree .output.expression .code-foreground-97 { color: #a5a5a5; }
 
-.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-foreground-30, .vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-foreground-90  { color: #A0A0A0; }
-.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-foreground-31, .vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-foreground-91  { color: #A74747; }
-.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-foreground-32, .vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-foreground-92  { color: #348F34; }
-.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-foreground-33, .vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-foreground-93  { color: #5F4C29; }
-.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-foreground-34, .vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-foreground-94  { color: #6286BB; }
-.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-foreground-35, .vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-foreground-95  { color: #914191; }
-.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-foreground-36, .vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-foreground-96  { color: #218D8D; }
-.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-foreground-37, .vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-foreground-97  { color: #707070; }
+/* Regular background colors */
+.monaco-workbench .repl .repl-tree .output.expression .code-background-40 { background-color: #000000; }
+.monaco-workbench .repl .repl-tree .output.expression .code-background-41 { background-color: #cd3131; }
+.monaco-workbench .repl .repl-tree .output.expression .code-background-42 { background-color: #00BC00; }
+.monaco-workbench .repl .repl-tree .output.expression .code-background-43 { background-color: #949800; }
+.monaco-workbench .repl .repl-tree .output.expression .code-background-44 { background-color: #0451a5; }
+.monaco-workbench .repl .repl-tree .output.expression .code-background-45 { background-color: #bc05bc; }
+.monaco-workbench .repl .repl-tree .output.expression .code-background-46 { background-color: #0598bc; }
+.monaco-workbench .repl .repl-tree .output.expression .code-background-47 { background-color: #555555; }
 
-.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-background-40, .vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-background-100 { background-color: #A0A0A0; }
-.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-background-41, .vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-background-101 { background-color: #A74747; }
-.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-background-42, .vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-background-102 { background-color: #348F34; }
-.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-background-43, .vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-background-103 { background-color: #5F4C29; }
-.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-background-44, .vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-background-104 { background-color: #6286BB; }
-.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-background-45, .vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-background-105 { background-color: #914191; }
-.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-background-46, .vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-background-106 { background-color: #218D8D; }
-.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-background-47, .vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-background-107 { background-color: #707070; }
+/* Bright background colors */
+.monaco-workbench .repl .repl-tree .output.expression .code-background-100 { background-color: #666666; }
+.monaco-workbench .repl .repl-tree .output.expression .code-background-101 { background-color: #cd3131; }
+.monaco-workbench .repl .repl-tree .output.expression .code-background-102 { background-color: #14CE14; }
+.monaco-workbench .repl .repl-tree .output.expression .code-background-103 { background-color: #b5ba00; }
+.monaco-workbench .repl .repl-tree .output.expression .code-background-104 { background-color: #0451a5; }
+.monaco-workbench .repl .repl-tree .output.expression .code-background-105 { background-color: #bc05bc; }
+.monaco-workbench .repl .repl-tree .output.expression .code-background-106 { background-color: #0598bc; }
+.monaco-workbench .repl .repl-tree .output.expression .code-background-107 { background-color: #a5a5a5; }
+/* #endregion */
 
-.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-foreground-30, .hc-black .monaco-workbench .repl .repl-tree .output.expression .code-foreground-90	{ color: gray; }
-.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-foreground-31, .hc-black .monaco-workbench .repl .repl-tree .output.expression .code-foreground-91	{ color: #A74747; }
-.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-foreground-32, .hc-black .monaco-workbench .repl .repl-tree .output.expression .code-foreground-92	{ color: #348F34; }
-.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-foreground-33, .hc-black .monaco-workbench .repl .repl-tree .output.expression .code-foreground-93	{ color: #5F4C29; }
-.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-foreground-34, .hc-black .monaco-workbench .repl .repl-tree .output.expression .code-foreground-94	{ color: #6286BB; }
-.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-foreground-35, .hc-black .monaco-workbench .repl .repl-tree .output.expression .code-foreground-95	{ color: #914191; }
-.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-foreground-36, .hc-black .monaco-workbench .repl .repl-tree .output.expression .code-foreground-96	{ color: #218D8D; }
-.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-foreground-37, .hc-black .monaco-workbench .repl .repl-tree .output.expression .code-foreground-97	{ color: #707070; }
+/* #region Default Dark Theme */
+/* Regular foreground colors */
+.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-foreground-30 { color: #000000; }
+.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-foreground-31 { color: #cd3131; }
+.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-foreground-32 { color: #0DBC79; }
+.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-foreground-33 { color: #e5e510; }
+.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-foreground-34 { color: #2472c8; }
+.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-foreground-35 { color: #bc3fbc; }
+.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-foreground-36 { color: #11a8cd; }
+.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-foreground-37 { color: #e5e5e5; }
+/* Bright foreground colors  */
+.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-foreground-90 { color: #666666; }
+.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-foreground-91 { color: #f14c4c; }
+.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-foreground-92 { color: #23d18b; }
+.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-foreground-93 { color: #f5f543; }
+.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-foreground-94 { color: #3b8eea; }
+.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-foreground-95 { color: #d670d6; }
+.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-foreground-96 { color: #29b8db; }
+.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-foreground-97 { color: #e5e5e5; }
+/* Regular background colors */
+.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-background-40 { background-color: #000000; }
+.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-background-41 { background-color: #cd3131; }
+.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-background-42 { background-color: #0DBC79; }
+.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-background-43 { background-color: #e5e510; }
+.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-background-44 { background-color: #2472c8; }
+.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-background-45 { background-color: #bc3fbc; }
+.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-background-46 { background-color: #11a8cd; }
+.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-background-47 { background-color: #e5e5e5; }
+/* Bright background colors */
+.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-background-100 { background-color: #666666; }
+.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-background-101 { background-color: #f14c4c; }
+.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-background-102 { background-color: #23d18b; }
+.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-background-103 { background-color: #f5f543; }
+.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-background-104 { background-color: #3b8eea; }
+.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-background-105 { background-color: #d670d6; }
+.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-background-106 { background-color: #29b8db; }
+.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-background-107 { background-color: #e5e5e5; }
+/* #endregion */
 
-.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-background-40, .hc-black .monaco-workbench .repl .repl-tree .output.expression .code-background-100 { background-color: gray; }
-.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-background-41, .hc-black .monaco-workbench .repl .repl-tree .output.expression .code-background-101 { background-color: #A74747; }
-.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-background-42, .hc-black .monaco-workbench .repl .repl-tree .output.expression .code-background-102 { background-color: #348F34; }
-.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-background-43, .hc-black .monaco-workbench .repl .repl-tree .output.expression .code-background-103 { background-color: #5F4C29; }
-.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-background-44, .hc-black .monaco-workbench .repl .repl-tree .output.expression .code-background-104 { background-color: #6286BB; }
-.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-background-45, .hc-black .monaco-workbench .repl .repl-tree .output.expression .code-background-105 { background-color: #914191; }
-.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-background-46, .hc-black .monaco-workbench .repl .repl-tree .output.expression .code-background-106 { background-color: #218D8D; }
-.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-background-47, .hc-black .monaco-workbench .repl .repl-tree .output.expression .code-background-107 { background-color: #707070; }
+/* #region Default High Contrast Theme */
+/* Regular foreground colors */
+.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-foreground-30 { color: #000000; }
+.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-foreground-31 { color: #cd0000; }
+.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-foreground-32 { color: #00cd00; }
+.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-foreground-33 { color: #cdcd00; }
+.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-foreground-34 { color: #0000ee; }
+.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-foreground-35 { color: #cd00cd; }
+.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-foreground-36 { color: #00cdcd; }
+.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-foreground-37 { color: #e5e5e5; }
+/* Bright foreground colors  */
+.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-foreground-90 { color: #7f7f7f; }
+.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-foreground-91 { color: #ff0000; }
+.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-foreground-92 { color: #00ff00; }
+.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-foreground-93 { color: #ffff00; }
+.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-foreground-94 { color: #5c5cff; }
+.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-foreground-95 { color: #ff00ff; }
+.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-foreground-96 { color: #00ffff; }
+.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-foreground-97 { color: #ffffff; }
+/* Regular background colors */
+.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-background-40 { background-color: #000000; }
+.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-background-41 { background-color: #cd0000; }
+.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-background-42 { background-color: #00cd00; }
+.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-background-43 { background-color: #cdcd00; }
+.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-background-44 { background-color: #0000ee; }
+.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-background-45 { background-color: #cd00cd; }
+.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-background-46 { background-color: #00cdcd; }
+.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-background-47 { background-color: #e5e5e5; }
+/* Bright background colors */
+.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-background-100 { background-color: #7f7f7f; }
+.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-background-101 { background-color: #ff0000; }
+.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-background-102 { background-color: #00ff00; }
+.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-background-103 { background-color: #ffff00; }
+.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-background-104 { background-color: #5c5cff; }
+.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-background-105 { background-color: #ff00ff; }
+.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-background-106 { background-color: #00ffff; }
+.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-background-107 { background-color: #ffffff; }
+/* #endregion */
 
 /* Links */
 .monaco-workbench .repl .repl-tree .output.expression a {
