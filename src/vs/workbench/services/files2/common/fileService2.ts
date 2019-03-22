@@ -8,7 +8,6 @@ import { IFileService, IResolveFileOptions, IResourceEncodings, FileChangesEvent
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { isAbsolutePath, dirname, basename, joinPath, isEqual, isEqualOrParent } from 'vs/base/common/resources';
 import { localize } from 'vs/nls';
 import { TernarySearchTree } from 'vs/base/common/map';
@@ -27,6 +26,10 @@ export class FileService2 extends Disposable implements IFileService {
 
 		this._register(service.onFileChanges(e => this._onFileChanges.fire(e)));
 		this._register(service.onAfterOperation(e => this._onAfterOperation.fire(e)));
+
+		this.provider.forEach((provider, scheme) => {
+			this._impl.registerProvider(scheme, provider);
+		});
 	}
 
 	//#endregion
@@ -482,5 +485,3 @@ export class FileService2 extends Disposable implements IFileService {
 
 	//#endregion
 }
-
-registerSingleton(IFileService, FileService2);

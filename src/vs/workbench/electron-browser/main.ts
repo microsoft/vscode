@@ -43,6 +43,9 @@ import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-brow
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { FileService2 } from 'vs/workbench/services/files2/common/fileService2';
+import { IFileService } from 'vs/platform/files/common/files';
+import { DiskFileSystemProvider } from 'vs/workbench/services/files2/node/diskFileSystemProvider';
 
 class CodeRendererMain extends Disposable {
 
@@ -171,6 +174,12 @@ class CodeRendererMain extends Disposable {
 		// Log
 		const logService = this._register(this.createLogService(mainProcessService, environmentService));
 		serviceCollection.set(ILogService, logService);
+
+		// Files
+		const fileService = new FileService2(logService);
+		serviceCollection.set(IFileService, fileService);
+
+		fileService.registerProvider(Schemas.file, new DiskFileSystemProvider());
 
 		// Remote
 		const remoteAuthorityResolverService = new RemoteAuthorityResolverService();
