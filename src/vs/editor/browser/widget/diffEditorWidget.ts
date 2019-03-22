@@ -61,7 +61,7 @@ interface IEditorsZones {
 }
 
 interface IDiffEditorWidgetStyle {
-	getEditorsDiffDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, originalWhitespaces: IEditorWhitespace[], modifiedWhitespaces: IEditorWhitespace[], originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor): IEditorsDiffDecorationsWithZones;
+	getEditorsDiffDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, originalWhitespaces: IEditorWhitespace[], modifiedWhitespaces: IEditorWhitespace[], originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor, reverse?: boolean): IEditorsDiffDecorationsWithZones;
 	setEnableSplitViewResizing(enableSplitViewResizing: boolean): void;
 	applyColors(theme: ITheme): boolean;
 	layout(): number;
@@ -193,6 +193,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	private readonly _notificationService: INotificationService;
 
 	private readonly _reviewPane: DiffReview;
+	private _options: editorOptions.IDiffEditorOptions;
 
 	constructor(
 		domElement: HTMLElement,
@@ -212,6 +213,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._contextKeyService.createKey('isInDiffEditor', true);
 		this._themeService = themeService;
 		this._notificationService = notificationService;
+		this._options = options;
 
 		this.id = (++DIFF_EDITOR_ID);
 
@@ -927,8 +929,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		let foreignOriginal = this._originalEditorState.getForeignViewZones(this.originalEditor.getWhitespaces());
 		let foreignModified = this._modifiedEditorState.getForeignViewZones(this.modifiedEditor.getWhitespaces());
 
-		let diffDecorations = this._strategy.getEditorsDiffDecorations(lineChanges, this._ignoreTrimWhitespace, this._renderIndicators, foreignOriginal, foreignModified, this.originalEditor, this.modifiedEditor);
-
+		let diffDecorations = this._strategy.getEditorsDiffDecorations(lineChanges, this._ignoreTrimWhitespace, this._renderIndicators, foreignOriginal, foreignModified, this.originalEditor, this.modifiedEditor, this._options.reverse);
 		try {
 			this._currentlyChangingViewZones = true;
 			this._originalEditorState.apply(this.originalEditor, this._originalOverviewRuler, diffDecorations.original, false);
@@ -1203,7 +1204,7 @@ abstract class DiffEditorWidgetStyle extends Disposable implements IDiffEditorWi
 		return hasChanges;
 	}
 
-	public getEditorsDiffDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, originalWhitespaces: IEditorWhitespace[], modifiedWhitespaces: IEditorWhitespace[], originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor): IEditorsDiffDecorationsWithZones {
+	public getEditorsDiffDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, originalWhitespaces: IEditorWhitespace[], modifiedWhitespaces: IEditorWhitespace[], originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor, reverse?:boolean): IEditorsDiffDecorationsWithZones {
 		// Get view zones
 		modifiedWhitespaces = modifiedWhitespaces.sort((a, b) => {
 			return a.afterLineNumber - b.afterLineNumber;
@@ -1211,6 +1212,52 @@ abstract class DiffEditorWidgetStyle extends Disposable implements IDiffEditorWi
 		originalWhitespaces = originalWhitespaces.sort((a, b) => {
 			return a.afterLineNumber - b.afterLineNumber;
 		});
+
+		// if we need to reverse coloring
+		if (reverse === true) {
+			// change lines to be highlighted
+			let revertedLineChanges: editorCommon.ILineChange[] = lineChanges.map(linechange => {
+				return {
+					modifiedStartLineNumber: linechange.originalStartLineNumber,
+					modifiedEndLineNumber: linechange.originalEndLineNumber,
+					originalStartLineNumber: linechange.modifiedStartLineNumber,
+					originalEndLineNumber: linechange.modifiedEndLineNumber,
+					charChanges: (linechange.charChanges) ?
+						linechange.charChanges.map(charchange => {
+							return {
+								originalStartColumn: charchange.modifiedStartColumn,
+								originalEndColumn: charchange.modifiedEndColumn,
+								modifiedStartColumn: charchange.originalStartColumn,
+								modifiedEndColumn: charchange.originalEndColumn,
+								modifiedStartLineNumber: charchange.originalStartLineNumber,
+								modifiedEndLineNumber: charchange.originalEndLineNumber,
+								originalStartLineNumber: charchange.modifiedStartLineNumber,
+								originalEndLineNumber: charchange.modifiedEndLineNumber,
+							};
+						}) : undefined
+				};
+			});
+
+			let zones = this._getViewZones(lineChanges, originalWhitespaces, modifiedWhitespaces, originalEditor, modifiedEditor, renderIndicators);
+
+			// Get decorations & overview ruler zones
+			let modifiedDecorations = this._getOriginalEditorDecorations(revertedLineChanges, ignoreTrimWhitespace, renderIndicators, modifiedEditor, originalEditor);
+			let originalDecorations = this._getModifiedEditorDecorations(revertedLineChanges, ignoreTrimWhitespace, renderIndicators, modifiedEditor, originalEditor);
+
+			return {
+				original: {
+					decorations: originalDecorations.decorations, // change decorations
+					overviewZones: originalDecorations.overviewZones,
+					zones: zones.original
+				},
+				modified: {
+					decorations: modifiedDecorations.decorations,
+					overviewZones: modifiedDecorations.overviewZones,
+					zones: zones.modified
+				}
+			};
+		}
+
 		let zones = this._getViewZones(lineChanges, originalWhitespaces, modifiedWhitespaces, originalEditor, modifiedEditor, renderIndicators);
 
 		// Get decorations & overview ruler zones
