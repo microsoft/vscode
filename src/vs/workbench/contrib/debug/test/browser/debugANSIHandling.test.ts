@@ -10,6 +10,7 @@ import { appendStylizedStringToContainer, handleANSIOutput, calcANSI8bitColor } 
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
+import { Color, RGBA } from 'vs/base/common/color';
 
 suite('Debug - ANSI Handling', () => {
 
@@ -215,8 +216,9 @@ suite('Debug - ANSI Handling', () => {
 
 		// 8-bit advanced colors
 		for (let i = 16; i <= 255; i++) {
-			// This function is tested elsewhere
-			const color = (calcANSI8bitColor(i) as any).asCSSString;
+			const color = Color.Format.CSS.formatRGB(
+				new Color((calcANSI8bitColor(i) as RGBA))
+			);
 
 			// Foreground codes should add custom class and inline style
 			assertSingleSequenceElement('\x1b[38;5;' + i + 'm', (child) => {
@@ -238,7 +240,9 @@ suite('Debug - ANSI Handling', () => {
 
 		// Should ignore any codes after the ones needed to determine color
 		assertSingleSequenceElement('\x1b[48;5;100;42;77;99;4;24m', (child) => {
-			const color = (calcANSI8bitColor(100) as any).asCSSString;
+			const color = Color.Format.CSS.formatRGB(
+				new Color((calcANSI8bitColor(100) as RGBA))
+			);
 			assert(dom.hasClass(child, 'code-background-custom'));
 			assert.equal(1, child.classList.length);
 			assert(child.style.backgroundColor === color);
@@ -449,15 +453,15 @@ suite('Debug - ANSI Handling', () => {
 		// Invalid values
 		// Negative (below range), simple range, decimals
 		for (let i = -10; i <= 15; i += 0.5) {
-			assert(calcANSI8bitColor(i) === null, 'Values less than 16 passed to calcANSI8bitColor should return null.');
+			assert(calcANSI8bitColor(i) === undefined, 'Values less than 16 passed to calcANSI8bitColor should return undefined.');
 		}
 		// In-range range decimals
 		for (let i = 16.5; i < 254; i += 1) {
-			assert(calcANSI8bitColor(i) === null, 'Floats passed to calcANSI8bitColor should return null.');
+			assert(calcANSI8bitColor(i) === undefined, 'Floats passed to calcANSI8bitColor should return undefined.');
 		}
 		// Above range
 		for (let i = 256; i < 300; i += 0.5) {
-			assert(calcANSI8bitColor(i) === null, 'Values grather than 255 passed to calcANSI8bitColor should return null.');
+			assert(calcANSI8bitColor(i) === undefined, 'Values grather than 255 passed to calcANSI8bitColor should return undefined.');
 		}
 
 		// All valid colors
