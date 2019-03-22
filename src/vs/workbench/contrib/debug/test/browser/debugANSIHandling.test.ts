@@ -304,7 +304,6 @@ suite('Debug - ANSI Handling', () => {
 			elementsExpected = assertions.length;
 		}
 		const root: HTMLSpanElement = handleANSIOutput(sequence, linkDetector);
-		console.log(root);
 		assert.equal(elementsExpected, root.children.length);
 		for (let i = 0; i < elementsExpected; i++) {
 			const child: Node = root.children[i];
