@@ -34,6 +34,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { untildify } from 'vs/base/common/labels';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Schemas } from 'vs/base/common/network';
 
 export class FileQuickOpenModel extends QuickOpenModel {
 
@@ -187,7 +188,10 @@ export class OpenFileHandler extends QuickOpenHandler {
 
 	private getAbsolutePathResult(query: IPreparedQuery): Promise<URI | undefined> {
 		if (isAbsolute(query.original)) {
-			const resource = URI.file(query.original);
+			const workspaceFolders = this.contextService.getWorkspace().folders;
+			const resource = workspaceFolders[0] && workspaceFolders[0].uri.scheme !== Schemas.file ?
+				workspaceFolders[0].uri.with({ path: query.original }) :
+				URI.file(query.original);
 
 			return this.fileService.resolveFile(resource).then(stat => stat.isDirectory ? undefined : resource, error => undefined);
 		}
