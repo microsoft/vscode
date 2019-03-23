@@ -235,6 +235,11 @@ export const PANEL_DRAG_AND_DROP_BACKGROUND = registerColor('panel.dropBackgroun
 	hc: Color.white.transparent(0.12)
 }, nls.localize('panelDragAndDropBackground', "Drag and drop feedback color for the panel title items. The color should have transparency so that the panel entries can still shine through. Panels are shown below the editor area and contain views like output and integrated terminal."));
 
+export const PANEL_INPUT_BORDER = registerColor('panelInput.border', {
+	dark: null,
+	light: Color.fromHex('#ddd'),
+	hc: null
+}, nls.localize('panelInputBorder', "Input box border for inputs in the panel."));
 
 // < --- Status --- >
 
