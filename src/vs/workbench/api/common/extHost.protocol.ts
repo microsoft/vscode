@@ -506,7 +506,7 @@ export interface WebviewPanelShowOptions {
 
 export interface MainThreadWebviewsShape extends IDisposable {
 	$createWebviewPanel(handle: WebviewPanelHandle, viewType: string, title: string, showOptions: WebviewPanelShowOptions, options: modes.IWebviewPanelOptions & modes.IWebviewOptions, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): void;
-	$createWebviewCodeInset(handle: WebviewInsetHandle, symbolId: string, options: modes.IWebviewOptions, extensionLocation: UriComponents | undefined): void;
+	$createWebviewCodeInset(handle: WebviewInsetHandle, symbolId: string, options: modes.IWebviewOptions, extensionId: ExtensionIdentifier | undefined, extensionLocation: UriComponents | undefined): void;
 	$disposeWebview(handle: WebviewPanelHandle): void;
 	$reveal(handle: WebviewPanelHandle, showOptions: WebviewPanelShowOptions): void;
 	$setTitle(handle: WebviewPanelHandle, value: string): void;

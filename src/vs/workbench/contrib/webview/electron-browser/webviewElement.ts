@@ -19,6 +19,8 @@ import { DARK, ITheme, IThemeService, LIGHT } from 'vs/platform/theme/common/the
 import { registerFileProtocol, WebviewProtocol } from 'vs/workbench/contrib/webview/electron-browser/webviewProtocols';
 import { areWebviewInputOptionsEqual } from './webviewEditorService';
 import { WebviewFindWidget } from './webviewFindWidget';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export interface WebviewPortMapping {
 	readonly port: number;
@@ -32,7 +34,10 @@ export interface WebviewPortMapping {
 
 export interface WebviewOptions {
 	readonly allowSvgs?: boolean;
-	readonly extensionLocation?: URI;
+	readonly extension?: {
+		readonly location: URI;
+		readonly id?: ExtensionIdentifier;
+	};
 	readonly enableFindWidget?: boolean;
 }
 
@@ -145,9 +150,13 @@ class WebviewPortMappingProvider extends Disposable {
 
 	constructor(
 		session: WebviewSession,
-		mappings: () => ReadonlyArray<WebviewPortMapping>
+		mappings: () => ReadonlyArray<WebviewPortMapping>,
+		extensionId: ExtensionIdentifier | undefined,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super();
+
+		let hasLogged = false;
 
 		session.onBeforeRequest(async (details) => {
 			const uri = URI.parse(details.url);
@@ -157,6 +166,17 @@ class WebviewPortMappingProvider extends Disposable {
 
 			const localhostMatch = /^localhost:(\d+)$/.exec(uri.authority);
 			if (localhostMatch) {
+				if (!hasLogged && extensionId) {
+					hasLogged = true;
+
+					/* __GDPR__
+					"webview.accessLocalhost" : {
+							"extension" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						}
+					*/
+					telemetryService.publicLog('webview.accessLocalhost', { extension: extensionId.value });
+				}
+
 				const port = +localhostMatch[1];
 				for (const mapping of mappings()) {
 					if (mapping.port === port && mapping.port !== mapping.resolvedPort) {
@@ -317,6 +337,7 @@ export class WebviewElement extends Disposable {
 		@IThemeService themeService: IThemeService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IFileService fileService: IFileService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super();
 		this._webview = document.createElement('webview');
@@ -348,15 +369,16 @@ export class WebviewElement extends Disposable {
 
 		this._register(new WebviewProtocolProvider(
 			this._webview,
-			this._options.extensionLocation,
+			this._options.extension ? this._options.extension.location : undefined,
 			() => (this._contentOptions.localResourceRoots || []),
 			environmentService,
 			fileService));
 
 		this._register(new WebviewPortMappingProvider(
 			session,
-			() => (this._contentOptions.portMappings || [])
-		));
+			() => (this._contentOptions.portMappings || []),
+			_options.extension ? _options.extension.id : undefined,
+			telemetryService));
 
 
 		if (!this._options.allowSvgs) {

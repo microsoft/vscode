@@ -94,7 +94,10 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 			mainThreadShowOptions.group = viewColumnToEditorGroup(this._editorGroupService, showOptions.viewColumn);
 		}
 
-		const webview = this._webviewService.createWebview(this.getInternalWebviewId(viewType), title, mainThreadShowOptions, reviveWebviewOptions(options), URI.revive(extensionLocation), this.createWebviewEventDelegate(handle));
+		const webview = this._webviewService.createWebview(this.getInternalWebviewId(viewType), title, mainThreadShowOptions, reviveWebviewOptions(options), {
+			location: URI.revive(extensionLocation),
+			id: extensionId
+		}, this.createWebviewEventDelegate(handle));
 		webview.state = {
 			viewType: viewType,
 			state: undefined
@@ -111,7 +114,13 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		this._telemetryService.publicLog('webviews:createWebviewPanel', { extensionId: extensionId.value });
 	}
 
-	$createWebviewCodeInset(handle: WebviewInsetHandle, symbolId: string, options: IWebviewOptions, extensionLocation: UriComponents): void {
+	$createWebviewCodeInset(
+		handle: WebviewInsetHandle,
+		symbolId: string,
+		options: IWebviewOptions,
+		extensionId: ExtensionIdentifier,
+		extensionLocation: UriComponents
+	): void {
 		// todo@joh main is for the lack of a code-inset service
 		// which we maybe wanna have... this is how it now works
 		// 1) create webview element
@@ -122,7 +131,10 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 			WebviewElement,
 			this._layoutService.getContainer(Parts.EDITOR_PART),
 			{
-				extensionLocation: URI.revive(extensionLocation),
+				extension: {
+					location: URI.revive(extensionLocation),
+					id: extensionId
+				},
 				enableFindWidget: false,
 			},
 			{
