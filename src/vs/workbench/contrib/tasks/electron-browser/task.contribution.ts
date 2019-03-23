@@ -451,6 +451,7 @@ class TaskService extends Disposable implements ITaskService {
 	private _ignoredWorkspaceFolders: IWorkspaceFolder[];
 	private _showIgnoreMessage?: boolean;
 	private _providers: Map<number, ITaskProvider>;
+	private _providerTypes: Map<number, string>;
 	private _taskSystemInfos: Map<string, TaskSystemInfo>;
 
 	private _workspaceTasksPromise?: Promise<Map<string, WorkspaceFolderTaskResult>>;
@@ -495,6 +496,7 @@ class TaskService extends Disposable implements ITaskService {
 		this._taskSystemListener = undefined;
 		this._outputChannel = this.outputService.getChannel(TaskService.OutputChannelId)!;
 		this._providers = new Map<number, ITaskProvider>();
+		this._providerTypes = new Map<number, string>();
 		this._taskSystemInfos = new Map<string, TaskSystemInfo>();
 		this._register(this.contextService.onDidChangeWorkspaceFolders(() => {
 			if (!this._taskSystem && !this._workspaceTasksPromise) {
@@ -699,7 +701,7 @@ class TaskService extends Disposable implements ITaskService {
 		}
 	}
 
-	public registerTaskProvider(provider: ITaskProvider): IDisposable {
+	public registerTaskProvider(provider: ITaskProvider, type: string): IDisposable {
 		if (!provider) {
 			return {
 				dispose: () => { }
@@ -707,9 +709,11 @@ class TaskService extends Disposable implements ITaskService {
 		}
 		let handle = TaskService.nextHandle++;
 		this._providers.set(handle, provider);
+		this._providerTypes.set(handle, type);
 		return {
 			dispose: () => {
 				this._providers.delete(handle);
+				this._providerTypes.delete(handle);
 			}
 		};
 	}
@@ -1426,8 +1430,8 @@ class TaskService extends Disposable implements ITaskService {
 					}
 				}
 			}
-			return this.getWorkspaceTasks().then((customTasks) => {
-				customTasks.forEach((folderTasks, key) => {
+			return this.getWorkspaceTasks().then(async (customTasks) => {
+				await Promise.all(Array.from(customTasks).map(async ([key, folderTasks]) => {
 					let contributed = contributedTasks.get(key);
 					if (!folderTasks.set) {
 						if (contributed) {
@@ -1485,8 +1489,25 @@ class TaskService extends Disposable implements ITaskService {
 							} else {
 								result.add(key, ...folderTasks.set.tasks);
 							}
-							unUsedConfigurations.forEach((value) => {
+
+							await Promise.all(Array.from(unUsedConfigurations).map(async (value) => {
 								let configuringTask = configurations!.byIdentifier[value];
+
+								for (const [handle, provider] of this._providers) {
+									if (configuringTask.type === this._providerTypes.get(handle)) {
+										try {
+											const resolvedTask = await provider.resolveTask(configuringTask);
+											if (resolvedTask) {
+												result.add(key, resolvedTask);
+												return;
+											}
+										}
+										catch (error) {
+											// Ignore?
+										}
+									}
+								}
+
 								this._outputChannel.append(nls.localize(
 									'TaskService.noConfiguration',
 									'Error: The {0} task detection didn\'t contribute a task for the following configuration:\n{1}\nThe task will be ignored.\n',
@@ -1494,13 +1515,13 @@ class TaskService extends Disposable implements ITaskService {
 									JSON.stringify(configuringTask._source.config.element, undefined, 4)
 								));
 								this.showOutput();
-							});
+							}));
 						} else {
 							result.add(key, ...folderTasks.set.tasks);
 							result.add(key, ...contributed);
 						}
 					}
-				});
+				}));
 				return result;
 			}, () => {
 				// If we can't read the tasks.json file provide at least the contributed tasks

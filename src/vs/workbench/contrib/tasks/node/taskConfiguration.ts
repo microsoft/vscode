@@ -7,6 +7,7 @@ import * as nls from 'vs/nls';
 
 import * as Objects from 'vs/base/common/objects';
 import { IStringDictionary } from 'vs/base/common/collections';
+import { IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { Platform } from 'vs/base/common/platform';
 import * as Types from 'vs/base/common/types';
 import * as UUID from 'vs/base/common/uuid';
@@ -24,6 +25,7 @@ import { TaskDefinitionRegistry } from '../common/taskDefinitionRegistry';
 
 import { TaskDefinition } from 'vs/workbench/contrib/tasks/node/tasks';
 import { ConfiguredInput } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
+
 
 export const enum ShellQuoting {
 	/**
@@ -1216,11 +1218,20 @@ namespace ConfigurationProperties {
 		{ property: 'presentation', type: CommandConfiguration.PresentationOptions }, { property: 'problemMatchers' }
 	];
 
-	export function from(this: void, external: ConfigurationProperties, context: ParseContext, includeCommandOptions: boolean): Tasks.ConfigurationProperties | undefined {
+	export function from(this: void, external: ConfigurationProperties, context: ParseContext, includeCommandOptions: boolean, properties?: IJSONSchemaMap): Tasks.ConfigurationProperties | undefined {
 		if (!external) {
 			return undefined;
 		}
 		let result: Tasks.ConfigurationProperties = {};
+
+		if (properties) {
+			for (const propertyName of Object.keys(properties)) {
+				if (external[propertyName] !== undefined) {
+					result[propertyName] = Objects.deepClone(external[propertyName]);
+				}
+			}
+		}
+
 		if (Types.isString(external.taskName)) {
 			result.name = external.taskName;
 		}
@@ -1355,7 +1366,7 @@ namespace ConfiguringTask {
 			RunOptions.fromConfiguration(external.runOptions),
 			{}
 		);
-		let configuration = ConfigurationProperties.from(external, context, true);
+		let configuration = ConfigurationProperties.from(external, context, true, typeDeclaration.properties);
 		if (configuration) {
 			result.configurationProperties = Objects.assign(result.configurationProperties, configuration);
 			if (result.configurationProperties.name) {
