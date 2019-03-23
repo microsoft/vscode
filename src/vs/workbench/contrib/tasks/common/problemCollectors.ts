@@ -16,7 +16,8 @@ import { generateUuid } from 'vs/base/common/uuid';
 
 export const enum ProblemCollectorEventKind {
 	BackgroundProcessingBegins = 'backgroundProcessingBegins',
-	BackgroundProcessingEnds = 'backgroundProcessingEnds'
+	BackgroundProcessingEnds = 'backgroundProcessingEnds',
+	ProblemFound = 'problemFound'
 }
 
 export interface ProblemCollectorEvent {
@@ -280,6 +281,7 @@ export class AbstractProblemCollector implements IDisposable {
 	}
 
 	protected deliverMarkersPerOwnerAndResource(owner: string, resource: string): void {
+		this._onDidStateChange.fire(ProblemCollectorEvent.create(ProblemCollectorEventKind.ProblemFound));
 		let markersPerOwner = this.markers.get(owner);
 		if (!markersPerOwner) {
 			return;

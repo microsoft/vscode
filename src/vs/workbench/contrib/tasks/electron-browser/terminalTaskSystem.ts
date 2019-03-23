@@ -22,6 +22,7 @@ import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/marke
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ProblemMatcher, ProblemMatcherRegistry /*, ProblemPattern, getResource */ } from 'vs/workbench/contrib/tasks/common/problemMatcher';
+import Constants from 'vs/workbench/contrib/markers/browser/constants';
 
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
@@ -31,7 +32,7 @@ import { IOutputService } from 'vs/workbench/contrib/output/common/output';
 import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEventKind } from 'vs/workbench/contrib/tasks/common/problemCollectors';
 import {
 	Task, CustomTask, ContributedTask, RevealKind, CommandOptions, ShellConfiguration, RuntimeType, PanelKind,
-	TaskEvent, TaskEventKind, ShellQuotingOptions, ShellQuoting, CommandString, CommandConfiguration, ExtensionTaskSource, TaskScope
+	TaskEvent, TaskEventKind, ShellQuotingOptions, ShellQuoting, CommandString, CommandConfiguration, ExtensionTaskSource, TaskScope, RevealProblemKind
 } from 'vs/workbench/contrib/tasks/common/tasks';
 import {
 	ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, ITaskResolver,
@@ -42,6 +43,7 @@ import { URI } from 'vs/base/common/uri';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { Schemas } from 'vs/base/common/network';
 import { getWindowsBuildNumber } from 'vs/workbench/contrib/terminal/node/terminal';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 
 interface TerminalData {
 	terminal: ITerminalInstance;
@@ -160,6 +162,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 	private readonly _onDidStateChange: Emitter<TaskEvent>;
 
 	constructor(private terminalService: ITerminalService, private outputService: IOutputService,
+		private panelService: IPanelService,
 		private markerService: IMarkerService, private modelService: IModelService,
 		private configurationResolverService: IConfigurationResolverService,
 		private telemetryService: ITelemetryService,
@@ -521,6 +524,8 @@ export class TerminalTaskSystem implements ITaskSystem {
 								this.terminalService.showPanel(false);
 							}
 						}
+					} else if (event.kind === ProblemCollectorEventKind.ProblemFound) {
+						this.panelService.openPanel(Constants.MARKERS_PANEL_ID, true);
 					}
 				}));
 				watchingProblemMatcher.aboutToStart();
@@ -647,6 +652,10 @@ export class TerminalTaskSystem implements ITaskSystem {
 						this.terminalService.setActiveInstance(terminal);
 						this.terminalService.showPanel(false);
 					}
+					let revealProblem = task.command.presentation!.revealProblem;
+					if (terminal && (revealProblem === RevealProblemKind.OnProblemFound) && (startStopProblemMatcher.numberOfMatches > 0)) {
+						this.panelService.openPanel(Constants.MARKERS_PANEL_ID);
+					}
 					startStopProblemMatcher.done();
 					startStopProblemMatcher.dispose();
 					registeredLinkMatchers.forEach(handle => {
@@ -672,6 +681,9 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}
 		if (!terminal) {
 			return Promise.reject(new Error(`Failed to create terminal for task ${task._label}`));
+		}
+		if (task.command.presentation && (task.command.presentation.revealProblem === RevealProblemKind.Always)) {
+			this.panelService.openPanel(Constants.MARKERS_PANEL_ID);
 		}
 		if (task.command.presentation && (task.command.presentation.reveal === RevealKind.Always)) {
 			this.terminalService.setActiveInstance(terminal);
