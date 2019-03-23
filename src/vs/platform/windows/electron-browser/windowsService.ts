@@ -194,10 +194,6 @@ export class WindowsService implements IWindowsService {
 		return this.channel.call('openNewWindow', options);
 	}
 
-	showWindow(windowId: number): Promise<void> {
-		return this.channel.call('showWindow', windowId);
-	}
-
 	getWindows(): Promise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]> {
 		return this.channel.call<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]>('getWindows').then(result => {
 			for (const win of result) {

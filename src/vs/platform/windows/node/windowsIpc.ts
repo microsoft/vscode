@@ -94,7 +94,6 @@ export class WindowsChannel implements IServerChannel {
 				return this.service.openWindow(arg[0], urisToOpen, options);
 			}
 			case 'openNewWindow': return this.service.openNewWindow(arg);
-			case 'showWindow': return this.service.showWindow(arg);
 			case 'getWindows': return this.service.getWindows();
 			case 'getWindowCount': return this.service.getWindowCount();
 			case 'relaunch': return this.service.relaunch(arg[0]);

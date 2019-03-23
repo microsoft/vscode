@@ -218,7 +218,11 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 	async focusWindow(windowId: number): Promise<void> {
 		this.logService.trace('windowsService#focusWindow', windowId);
 
-		return this.withWindow(windowId, codeWindow => codeWindow.win.focus());
+		if (isMacintosh) {
+			return this.withWindow(windowId, codeWindow => codeWindow.win.show());
+		} else {
+			return this.withWindow(windowId, codeWindow => codeWindow.win.focus());
+		}
 	}
 
 	async closeWindow(windowId: number): Promise<void> {
@@ -298,12 +302,6 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 		this.logService.trace('windowsService#openNewWindow ' + JSON.stringify(options));
 
 		this.windowsMainService.openNewWindow(OpenContext.API, options);
-	}
-
-	async showWindow(windowId: number): Promise<void> {
-		this.logService.trace('windowsService#showWindow', windowId);
-
-		return this.withWindow(windowId, codeWindow => codeWindow.win.show());
 	}
 
 	async getWindows(): Promise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]> {
