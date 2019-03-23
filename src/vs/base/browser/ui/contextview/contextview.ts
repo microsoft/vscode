@@ -118,7 +118,7 @@ export class ContextView extends Disposable {
 		this._register(toDisposable(() => this.setContainer(null)));
 	}
 
-	public setContainer(container: HTMLElement | null): void {
+	setContainer(container: HTMLElement | null): void {
 		if (this.container) {
 			this.toDisposeOnSetContainer = dispose(this.toDisposeOnSetContainer);
 			this.container.removeChild(this.view);
@@ -146,7 +146,7 @@ export class ContextView extends Disposable {
 		}
 	}
 
-	public show(delegate: IDelegate): void {
+	show(delegate: IDelegate): void {
 		if (this.isVisible()) {
 			this.hide();
 		}
@@ -173,7 +173,7 @@ export class ContextView extends Disposable {
 		}
 	}
 
-	public layout(): void {
+	layout(): void {
 		if (!this.isVisible()) {
 			return;
 		}
@@ -258,7 +258,7 @@ export class ContextView extends Disposable {
 		this.view.style.width = 'initial';
 	}
 
-	public hide(data?: any): void {
+	hide(data?: any): void {
 		if (this.delegate && this.delegate.onHide) {
 			this.delegate.onHide(data);
 		}
@@ -287,7 +287,7 @@ export class ContextView extends Disposable {
 		}
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this.hide();
 
 		super.dispose();

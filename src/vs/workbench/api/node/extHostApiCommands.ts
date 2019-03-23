@@ -200,7 +200,7 @@ export class ExtHostApiCommands {
 			description: 'Execute selection range provider.',
 			args: [
 				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
-				{ name: 'positions', description: 'Positions in a text document', constraint: a => Array.isArray(a) }
+				{ name: 'positions', description: 'Positions in a text document', constraint: Array.isArray }
 			],
 			returns: 'A promise that resolves to an array of ranges.'
 		});

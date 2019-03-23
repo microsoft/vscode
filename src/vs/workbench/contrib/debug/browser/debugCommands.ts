@@ -125,7 +125,7 @@ export function registerCommands(): void {
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: STEP_INTO_ID,
-		weight: KeybindingWeight.WorkbenchContrib,
+		weight: KeybindingWeight.WorkbenchContrib + 10, // Have a stronger weight to have priority over full screen when debugging
 		primary: KeyCode.F11,
 		when: CONTEXT_DEBUG_STATE.isEqualTo('stopped'),
 		handler: (accessor: ServicesAccessor, _: string, thread: IThread | undefined) => {

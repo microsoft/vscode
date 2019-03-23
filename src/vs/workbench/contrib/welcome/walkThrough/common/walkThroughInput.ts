@@ -48,7 +48,7 @@ export class WalkThroughInput extends EditorInput {
 
 	private disposables: IDisposable[] = [];
 
-	private promise: Promise<WalkThroughModel> | null;
+	private promise: Promise<WalkThroughModel> | null = null;
 
 	private maxTopScroll = 0;
 	private maxBottomScroll = 0;

@@ -996,8 +996,8 @@ class MultiTracker implements vscode.DebugAdapterTracker {
 }
 
 interface IDapTransport {
-	start(cb: (msg: DebugProtocol.ProtocolMessage) => void, errorcb: (event: DebugProtocol.Event) => void);
-	send(message: DebugProtocol.ProtocolMessage);
+	start(cb: (msg: DebugProtocol.ProtocolMessage) => void, errorcb: (event: DebugProtocol.Event) => void): void;
+	send(message: DebugProtocol.ProtocolMessage): void;
 	stop(): void;
 }
 

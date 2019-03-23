@@ -309,12 +309,12 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		this.replInput.focus();
 	}
 
-	getActionItem(action: IAction): IActionItem | null {
+	getActionItem(action: IAction): IActionItem | undefined {
 		if (action.id === SelectReplAction.ID) {
 			return this.instantiationService.createInstance(SelectReplActionItem, this.selectReplAction);
 		}
 
-		return null;
+		return undefined;
 	}
 
 	getActions(): IAction[] {
@@ -373,9 +373,9 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		], new ReplDataSource(), {
 				ariaLabel: nls.localize('replAriaLabel', "Read Eval Print Loop Panel"),
 				accessibilityProvider: new ReplAccessibilityProvider(),
-				identityProvider: { getId: element => (<IReplElement>element).getId() },
+				identityProvider: { getId: (element: IReplElement) => element.getId() },
 				mouseSupport: false,
-				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: e => e },
+				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IReplElement) => e },
 				horizontalScrolling: false,
 				setRowLineHeight: false,
 				supportDynamicHeights: true
@@ -740,7 +740,8 @@ class ReplDelegate implements IListVirtualDelegate<IReplElement> {
 	}
 
 	hasDynamicHeight?(element: IReplElement): boolean {
-		return true;
+		// Empty elements should not have dynamic height since they will be invisible
+		return element.toString().length > 0;
 	}
 }
 

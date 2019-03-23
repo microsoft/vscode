@@ -19,11 +19,8 @@ import {
 } from 'vs/workbench/contrib/tasks/common/problemMatcher';
 
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-
-import * as Tasks from '../common/tasks';
-import { TaskDefinitionRegistry } from '../common/taskDefinitionRegistry';
-
-import { TaskDefinition } from 'vs/workbench/contrib/tasks/node/tasks';
+import * as Tasks from './tasks';
+import { TaskDefinitionRegistry } from './taskDefinitionRegistry';
 import { ConfiguredInput } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 
 
@@ -934,7 +931,7 @@ namespace CommandConfiguration {
 	}
 
 	function fromBase(this: void, config: BaseCommandConfiguationShape, context: ParseContext): Tasks.CommandConfiguration | undefined {
-		let name: Tasks.CommandString = ShellString.from(config.command)!;
+		let name: Tasks.CommandString | undefined = ShellString.from(config.command);
 		let runtime: Tasks.RuntimeType;
 		if (Types.isString(config.type)) {
 			if (config.type === 'shell' || config.type === 'process') {
@@ -949,7 +946,7 @@ namespace CommandConfiguration {
 		}
 
 		let result: Tasks.CommandConfiguration = {
-			name: name!,
+			name: name,
 			runtime: runtime!,
 			presentation: PresentationOptions.from(config, context)!
 		};
@@ -1202,7 +1199,7 @@ namespace TaskDependency {
 		if (Types.isString(external)) {
 			return { workspaceFolder: context.workspaceFolder, task: external };
 		} else if (TaskIdentifier.is(external)) {
-			return { workspaceFolder: context.workspaceFolder, task: TaskDefinition.createTaskIdentifier(external as Tasks.TaskIdentifier, context.problemReporter) };
+			return { workspaceFolder: context.workspaceFolder, task: Tasks.TaskDefinition.createTaskIdentifier(external as Tasks.TaskIdentifier, context.problemReporter) };
 		} else {
 			return undefined;
 		}
@@ -1343,7 +1340,7 @@ namespace ConfiguringTask {
 			));
 			return undefined;
 		}
-		let taskIdentifier: Tasks.KeyedTaskIdentifier | undefined = TaskDefinition.createTaskIdentifier(identifier, context.problemReporter);
+		let taskIdentifier: Tasks.KeyedTaskIdentifier | undefined = Tasks.TaskDefinition.createTaskIdentifier(identifier, context.problemReporter);
 		if (taskIdentifier === undefined) {
 			context.problemReporter.error(nls.localize(
 				'ConfigurationParser.incorrectType',

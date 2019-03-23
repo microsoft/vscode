@@ -50,7 +50,7 @@ export class KeybindingResolver {
 		}
 	}
 
-	private static _isTargetedForRemoval(defaultKb: ResolvedKeybindingItem, keypressFirstPart: string | null, keypressChordPart: string | null, command: string, when: ContextKeyExpr | null): boolean {
+	private static _isTargetedForRemoval(defaultKb: ResolvedKeybindingItem, keypressFirstPart: string | null, keypressChordPart: string | null, command: string, when: ContextKeyExpr | undefined): boolean {
 		if (defaultKb.command !== command) {
 			return false;
 		}
@@ -172,7 +172,7 @@ export class KeybindingResolver {
 	 * Returns true if it is provable `a` implies `b`.
 	 * **Precondition**: Assumes `a` and `b` are normalized!
 	 */
-	public static whenIsEntirelyIncluded(a: ContextKeyExpr | null, b: ContextKeyExpr | null): boolean {
+	public static whenIsEntirelyIncluded(a: ContextKeyExpr | null | undefined, b: ContextKeyExpr | null | undefined): boolean {
 		if (!b) {
 			return true;
 		}
@@ -304,7 +304,7 @@ export class KeybindingResolver {
 		return null;
 	}
 
-	public static contextMatchesRules(context: IContext, rules: ContextKeyExpr | null): boolean {
+	public static contextMatchesRules(context: IContext, rules: ContextKeyExpr | null | undefined): boolean {
 		if (!rules) {
 			return true;
 		}

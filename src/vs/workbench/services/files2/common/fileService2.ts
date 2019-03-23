@@ -4,15 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, IDisposable, toDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
-import { IFileService, IResolveFileOptions, IResourceEncodings, FileChangesEvent, FileOperationEvent, IFileSystemProviderRegistrationEvent, IFileSystemProvider, IFileStat, IResolveFileResult, IResolveContentOptions, IContent, IStreamContent, ITextSnapshot, IUpdateContentOptions, ICreateFileOptions, IFileSystemProviderActivationEvent, FileOperationError, FileOperationResult, FileOperation, FileSystemProviderCapabilities, FileType, toFileSystemProviderErrorCode, FileSystemProviderErrorCode, IStat } from 'vs/platform/files/common/files';
+import { IFileService, IResolveFileOptions, IResourceEncodings, FileChangesEvent, FileOperationEvent, IFileSystemProviderRegistrationEvent, IFileSystemProvider, IFileStat, IResolveFileResult, IResolveContentOptions, IContent, IStreamContent, ITextSnapshot, IUpdateContentOptions, ICreateFileOptions, IFileSystemProviderActivationEvent, FileOperationError, FileOperationResult, FileOperation, FileSystemProviderCapabilities, FileType, toFileSystemProviderErrorCode, FileSystemProviderErrorCode, IStat, IFileStatWithMetadata, IResolveMetadataFileOptions, etag, hasReadWriteCapability, hasFileFolderCopyCapability, hasOpenReadWriteCloseCapability, toFileOperationResult } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { isAbsolutePath, dirname, basename, joinPath, isEqual } from 'vs/base/common/resources';
+import { isAbsolutePath, dirname, basename, joinPath, isEqual, isEqualOrParent } from 'vs/base/common/resources';
 import { localize } from 'vs/nls';
 import { TernarySearchTree } from 'vs/base/common/map';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
+import { isNonEmptyArray, coalesce } from 'vs/base/common/arrays';
 import { getBaseLabel } from 'vs/base/common/labels';
 import { ILogService } from 'vs/platform/log/common/log';
 
@@ -20,21 +19,34 @@ export class FileService2 extends Disposable implements IFileService {
 
 	//#region TODO@Ben HACKS
 
-	private _impl: IFileService;
+	private _legacy: IFileService | null;
 
-	setImpl(service: IFileService): void {
-		this._impl = this._register(service);
+	setLegacyService(legacy: IFileService): void {
+		this._legacy = this._register(legacy);
 
-		this._register(service.onFileChanges(e => this._onFileChanges.fire(e)));
-		this._register(service.onAfterOperation(e => this._onAfterOperation.fire(e)));
+		this._register(legacy.onFileChanges(e => this._onFileChanges.fire(e)));
+		this._register(legacy.onAfterOperation(e => this._onAfterOperation.fire(e)));
+
+		this.provider.forEach((provider, scheme) => {
+			legacy.registerProvider(scheme, provider);
+		});
+
+		this.joinOnImplResolve(legacy);
 	}
 
 	//#endregion
 
 	_serviceBrand: ServiceIdentifier<any>;
 
+	private joinOnLegacy: Promise<IFileService>;
+	private joinOnImplResolve: (service: IFileService) => void;
+
 	constructor(@ILogService private logService: ILogService) {
 		super();
+
+		this.joinOnLegacy = new Promise(resolve => {
+			this.joinOnImplResolve = resolve;
+		});
 	}
 
 	//#region File System Provider
@@ -53,8 +65,8 @@ export class FileService2 extends Disposable implements IFileService {
 		}
 
 		let legacyDisposal: IDisposable;
-		if (this._impl) {
-			legacyDisposal = this._impl.registerProvider(scheme, provider);
+		if (this._legacy) {
+			legacyDisposal = this._legacy.registerProvider(scheme, provider);
 		} else {
 			legacyDisposal = Disposable.None;
 		}
@@ -108,10 +120,7 @@ export class FileService2 extends Disposable implements IFileService {
 
 		// Assert path is absolute
 		if (!isAbsolutePath(resource)) {
-			throw new FileOperationError(
-				localize('invalidPath', "The path of resource '{0}' must be absolute", resource.toString(true)),
-				FileOperationResult.FILE_INVALID_PATH
-			);
+			throw new FileOperationError(localize('invalidPath', "The path of resource '{0}' must be absolute", resource.toString(true)), FileOperationResult.FILE_INVALID_PATH);
 		}
 
 		// Activate provider
@@ -122,7 +131,7 @@ export class FileService2 extends Disposable implements IFileService {
 		if (!provider) {
 			const err = new Error();
 			err.name = 'ENOPRO';
-			err.message = `no provider for ${resource.toString()}`;
+			err.message = `No provider found for ${resource.toString()}`;
 
 			return Promise.reject(err);
 		}
@@ -137,6 +146,8 @@ export class FileService2 extends Disposable implements IFileService {
 
 	//#region File Metadata Resolving
 
+	async resolveFile(resource: URI, options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
+	async resolveFile(resource: URI, options?: IResolveFileOptions): Promise<IFileStat>;
 	async resolveFile(resource: URI, options?: IResolveFileOptions): Promise<IFileStat> {
 		try {
 			return await this.doResolveFile(resource, options);
@@ -155,20 +166,25 @@ export class FileService2 extends Disposable implements IFileService {
 		}
 	}
 
+	private async doResolveFile(resource: URI, options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
+	private async doResolveFile(resource: URI, options?: IResolveFileOptions): Promise<IFileStat>;
 	private async doResolveFile(resource: URI, options?: IResolveFileOptions): Promise<IFileStat> {
 		const provider = await this.withProvider(resource);
 
 		// leverage a trie to check for recursive resolving
-		const to = options && options.resolveTo;
+		const resolveTo = options && options.resolveTo;
 		const trie = TernarySearchTree.forPaths<true>();
 		trie.set(resource.toString(), true);
-		if (isNonEmptyArray(to)) {
-			to.forEach(uri => trie.set(uri.toString(), true));
+		if (isNonEmptyArray(resolveTo)) {
+			resolveTo.forEach(uri => trie.set(uri.toString(), true));
 		}
+
+		const resolveSingleChildDescendants = !!(options && options.resolveSingleChildDescendants);
+		const resolveMetadata = !!(options && options.resolveMetadata);
 
 		const stat = await provider.stat(resource);
 
-		return await this.toFileStat(provider, resource, stat, undefined, (stat, siblings) => {
+		return await this.toFileStat(provider, resource, stat, undefined, resolveMetadata, (stat, siblings) => {
 
 			// check for recursive resolving
 			if (Boolean(trie.findSuperstr(stat.resource.toString()) || trie.get(stat.resource.toString()))) {
@@ -176,7 +192,7 @@ export class FileService2 extends Disposable implements IFileService {
 			}
 
 			// check for resolving single child folders
-			if (stat.isDirectory && options && options.resolveSingleChildDescendants) {
+			if (stat.isDirectory && resolveSingleChildDescendants) {
 				return siblings === 1;
 			}
 
@@ -184,7 +200,7 @@ export class FileService2 extends Disposable implements IFileService {
 		});
 	}
 
-	private async toFileStat(provider: IFileSystemProvider, resource: URI, stat: IStat, siblings: number | undefined, recurse: (stat: IFileStat, siblings?: number) => boolean): Promise<IFileStat> {
+	private async toFileStat(provider: IFileSystemProvider, resource: URI, stat: IStat, siblings: number | undefined, resolveMetadata: boolean, recurse: (stat: IFileStat, siblings?: number) => boolean): Promise<IFileStat> {
 
 		// convert to file stat
 		const fileStat: IFileStat = {
@@ -195,20 +211,28 @@ export class FileService2 extends Disposable implements IFileService {
 			isReadonly: !!(provider.capabilities & FileSystemProviderCapabilities.Readonly),
 			mtime: stat.mtime,
 			size: stat.size,
-			etag: stat.mtime.toString(29) + stat.size.toString(31),
+			etag: etag(stat.mtime, stat.size)
 		};
 
 		// check to recurse for directories
 		if (fileStat.isDirectory && recurse(fileStat, siblings)) {
 			try {
 				const entries = await provider.readdir(resource);
+				const resolvedEntries = await Promise.all(entries.map(async ([name, type]) => {
+					try {
+						const childResource = joinPath(resource, name);
+						const childStat = resolveMetadata ? await provider.stat(childResource) : { type };
 
-				fileStat.children = await Promise.all(entries.map(async entry => {
-					const childResource = joinPath(resource, entry[0]);
-					const childStat = await provider.stat(childResource);
+						return await this.toFileStat(provider, childResource, childStat, entries.length, resolveMetadata, recurse);
+					} catch (error) {
+						this.logService.trace(error);
 
-					return this.toFileStat(provider, childResource, childStat, entries.length, recurse);
+						return null; // can happen e.g. due to permission errors
+					}
 				}));
+
+				// make sure to get rid of null values that signal a failure to resolve a particular entry
+				fileStat.children = coalesce(resolvedEntries);
 			} catch (error) {
 				this.logService.trace(error);
 
@@ -221,43 +245,23 @@ export class FileService2 extends Disposable implements IFileService {
 		return Promise.resolve(fileStat);
 	}
 
+	async resolveFiles(toResolve: { resource: URI, options?: IResolveFileOptions }[]): Promise<IResolveFileResult[]>;
+	async resolveFiles(toResolve: { resource: URI, options: IResolveMetadataFileOptions }[]): Promise<IResolveFileResult[]>;
 	async resolveFiles(toResolve: { resource: URI; options?: IResolveFileOptions; }[]): Promise<IResolveFileResult[]> {
+		return Promise.all(toResolve.map(async entry => {
+			try {
+				return { stat: await this.doResolveFile(entry.resource, entry.options), success: true };
+			} catch (error) {
+				this.logService.trace(error);
 
-		// soft-groupBy, keep order, don't rearrange/merge groups
-		const groups: Array<typeof toResolve> = [];
-		let group: typeof toResolve | undefined;
-		for (const request of toResolve) {
-			if (!group || group[0].resource.scheme !== request.resource.scheme) {
-				group = [];
-				groups.push(group);
+				return { stat: undefined, success: false };
 			}
-
-			group.push(request);
-		}
-
-		// resolve files
-		const result: IResolveFileResult[] = [];
-		for (const group of groups) {
-			for (const groupEntry of group) {
-				try {
-					const stat = await this.doResolveFile(groupEntry.resource, groupEntry.options);
-					result.push({ stat, success: true });
-				} catch (error) {
-					this.logService.trace(error);
-
-					result.push({ stat: undefined, success: false });
-				}
-			}
-		}
-
-		return result;
+		}));
 	}
 
 	async existsFile(resource: URI): Promise<boolean> {
 		try {
-			await this.resolveFile(resource);
-
-			return true;
+			return !!(await this.resolveFile(resource));
 		} catch (error) {
 			return false;
 		}
@@ -267,44 +271,206 @@ export class FileService2 extends Disposable implements IFileService {
 
 	//#region File Reading/Writing
 
-	get encoding(): IResourceEncodings { return this._impl.encoding; }
+	get encoding(): IResourceEncodings {
+		if (!this._legacy) {
+			throw new Error('Legacy file service not ready yet');
+		}
 
-	createFile(resource: URI, content?: string, options?: ICreateFileOptions): Promise<IFileStat> {
-		return this._impl.createFile(resource, content, options);
+		return this._legacy.encoding;
+	}
+
+	async createFile(resource: URI, content?: string, options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
+		const useLegacy = true; // can only disable this when encoding is sorted out
+		if (useLegacy) {
+			return this.joinOnLegacy.then(legacy => legacy.createFile(resource, content, options));
+		}
+
+		const provider = this.throwIfFileSystemIsReadonly(await this.withProvider(resource));
+
+		// validate overwrite
+		const overwrite = !!(options && options.overwrite);
+		if (!overwrite && await this.existsFile(resource)) {
+			throw new FileOperationError(localize('fileExists', "File to create already exists ({0})", resource.toString(true)), FileOperationResult.FILE_MODIFIED_SINCE, options);
+		}
+
+		try {
+
+			// mkdir recursively
+			await this.mkdirp(provider, dirname(resource));
+
+			// create file: buffered
+			if (hasOpenReadWriteCloseCapability(provider)) {
+				// TODO@ben revisit stream support
+				return this.joinOnLegacy.then(legacy => legacy.createFile(resource, content, options));
+			}
+
+			// create file: unbuffered
+			else if (hasReadWriteCapability(provider)) {
+				await provider.writeFile(resource, new Uint8Array(0), { create: true, overwrite });
+			}
+
+			// give up if provider has insufficient capabilities
+			else {
+				return Promise.reject('Provider neither has FileReadWrite nor FileOpenReadWriteClose capability which is needed to support creating a file.');
+			}
+		} catch (error) {
+			throw new FileOperationError(localize('err.create', "Failed to create file {0}", resource.toString(false)), toFileOperationResult(error), options);
+		}
+
+		// events
+		const fileStat = await this.resolveFile(resource, { resolveMetadata: true });
+		this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, fileStat));
+
+		return fileStat;
 	}
 
 	resolveContent(resource: URI, options?: IResolveContentOptions): Promise<IContent> {
-		return this._impl.resolveContent(resource, options);
+		return this.joinOnLegacy.then(legacy => legacy.resolveContent(resource, options));
 	}
 
 	resolveStreamContent(resource: URI, options?: IResolveContentOptions): Promise<IStreamContent> {
-		return this._impl.resolveStreamContent(resource, options);
+		return this.joinOnLegacy.then(legacy => legacy.resolveStreamContent(resource, options));
 	}
 
-	updateContent(resource: URI, value: string | ITextSnapshot, options?: IUpdateContentOptions): Promise<IFileStat> {
-		return this._impl.updateContent(resource, value, options);
+	updateContent(resource: URI, value: string | ITextSnapshot, options?: IUpdateContentOptions): Promise<IFileStatWithMetadata> {
+		return this.joinOnLegacy.then(legacy => legacy.updateContent(resource, value, options));
 	}
 
 	//#endregion
 
 	//#region Move/Copy/Delete/Create Folder
 
-	moveFile(source: URI, target: URI, overwrite?: boolean): Promise<IFileStat> {
-		return this._impl.moveFile(source, target, overwrite);
+	async moveFile(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata> {
+
+		// same provider
+		if (source.scheme === target.scheme) {
+			const provider = this.throwIfFileSystemIsReadonly(await this.withProvider(source));
+
+			await this.doMoveCopy(provider, source, target, 'move', overwrite);
+		}
+
+		// across providers
+		else {
+			await this.doMoveAcrossProviders(source, target);
+		}
+
+		// resolve and send events
+		const fileStat = await this.resolveFile(target, { resolveMetadata: true });
+		this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.MOVE, fileStat));
+
+		return fileStat;
 	}
 
-	copyFile(source: URI, target: URI, overwrite?: boolean): Promise<IFileStat> {
-		return this._impl.copyFile(source, target, overwrite);
+	private async doMoveCopy(provider: IFileSystemProvider, source: URI, target: URI, mode: 'move' | 'copy', overwrite?: boolean): Promise<void> {
+
+		// validation
+		const { exists, isCaseChange } = await this.doValidateMoveCopy(provider, source, target, overwrite);
+
+		// delete as needed
+		if (exists && !isCaseChange && overwrite) {
+			await this.del(target, { recursive: true });
+		}
+
+		// create parent folders
+		await this.mkdirp(provider, dirname(target));
+
+		// copy source => target
+		if (mode === 'copy') {
+
+			// copy: fast path
+			if (hasFileFolderCopyCapability(provider)) {
+				return provider.copy(source, target, { overwrite: !!overwrite });
+			}
+
+			// copy: buffered
+			if (hasOpenReadWriteCloseCapability(provider)) {
+				return this.joinOnLegacy.then(legacy => legacy.copyFile(source, target, overwrite)).then(() => undefined);
+			}
+
+			// copy: unbuffered
+			if (hasReadWriteCapability(provider)) {
+				return provider.writeFile(target, await provider.readFile(source), { create: true, overwrite: !!overwrite });
+			}
+
+			// give up if provider has insufficient capabilities
+			return Promise.reject('Provider neither has FileReadWrite nor FileOpenReadWriteClose capability which is needed to support copy.');
+		}
+
+		// move source => target
+		else {
+			return provider.rename(source, target, { overwrite: !!overwrite });
+		}
 	}
 
-	async createFolder(resource: URI): Promise<IFileStat> {
+	private async doValidateMoveCopy(provider: IFileSystemProvider, source: URI, target: URI, overwrite?: boolean): Promise<{ exists: boolean, isCaseChange: boolean }> {
+
+		// Check if source is equal or parent to target
+		const isPathCaseSensitive = !!(provider.capabilities & FileSystemProviderCapabilities.PathCaseSensitive);
+		const isCaseChange = isPathCaseSensitive ? false : isEqual(source, target, true /* ignore case */);
+		if (!isCaseChange && isEqualOrParent(target, source, !isPathCaseSensitive)) {
+			return Promise.reject(new Error(localize('unableToMoveCopyError1', "Unable to move/copy when source path is equal or parent of target path")));
+		}
+
+		const exists = await this.existsFile(target);
+		if (exists && !isCaseChange) {
+
+			// Bail out if target exists and we are not about to overwrite
+			if (!overwrite) {
+				throw new FileOperationError(localize('unableToMoveCopyError2', "Unable to move/copy. File already exists at destination."), FileOperationResult.FILE_MOVE_CONFLICT);
+			}
+
+			// Special case: if the target is a parent of the source, we cannot delete
+			// it as it would delete the source as well. In this case we have to throw
+			if (isEqualOrParent(source, target, !isPathCaseSensitive)) {
+				return Promise.reject(new Error(localize('unableToMoveCopyError3', "Unable to move/copy. File would replace folder it is contained in.")));
+			}
+		}
+
+		return { exists, isCaseChange };
+	}
+
+	private async doMoveAcrossProviders(source: URI, target: URI, overwrite?: boolean): Promise<void> {
+
+		// copy file source => target
+		await this.copyFile(source, target, overwrite);
+
+		// delete source
+		await this.del(source, { recursive: true });
+	}
+
+	async copyFile(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata> {
+
+		// same provider
+		if (source.scheme === target.scheme) {
+			const provider = this.throwIfFileSystemIsReadonly(await this.withProvider(source));
+
+			await this.doMoveCopy(provider, source, target, 'copy', overwrite);
+		}
+
+		// across providers
+		else {
+			await this.doCopyAcrossProviders(source, target);
+		}
+
+		// resolve and send events
+		const fileStat = await this.resolveFile(target, { resolveMetadata: true });
+		this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.COPY, fileStat));
+
+		return fileStat;
+	}
+
+	private async doCopyAcrossProviders(source: URI, target: URI, overwrite?: boolean): Promise<void> {
+		return this.joinOnLegacy.then(legacy => legacy.copyFile(source, target, overwrite)).then(() => undefined);
+	}
+
+	async createFolder(resource: URI): Promise<IFileStatWithMetadata> {
 		const provider = this.throwIfFileSystemIsReadonly(await this.withProvider(resource));
 
 		// mkdir recursively
 		await this.mkdirp(provider, resource);
 
 		// events
-		const fileStat = await this.resolveFile(resource);
+		const fileStat = await this.resolveFile(resource, { resolveMetadata: true });
 		this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, fileStat));
 
 		return fileStat;
@@ -318,7 +484,7 @@ export class FileService2 extends Disposable implements IFileService {
 			try {
 				const stat = await provider.stat(directory);
 				if ((stat.type & FileType.Directory) === 0) {
-					throw new Error(`${directory.toString()} exists, but is not a directory`);
+					throw new Error(localize('mkdirExistsError', "{0} exists, but is not a directory", directory.toString()));
 				}
 
 				break; // we have hit a directory that exists -> good
@@ -346,13 +512,23 @@ export class FileService2 extends Disposable implements IFileService {
 
 	async del(resource: URI, options?: { useTrash?: boolean; recursive?: boolean; }): Promise<void> {
 		if (options && options.useTrash) {
-			return this._impl.del(resource, options); //TODO@ben this is https://github.com/Microsoft/vscode/issues/48259
+			//TODO@ben this is https://github.com/Microsoft/vscode/issues/48259
+			return this.joinOnLegacy.then(legacy => legacy.del(resource, options));
 		}
 
 		const provider = this.throwIfFileSystemIsReadonly(await this.withProvider(resource));
 
+		// Validate recursive
+		const recursive = !!(options && options.recursive);
+		if (!recursive && await this.existsFile(resource)) {
+			const stat = await this.resolveFile(resource);
+			if (stat.isDirectory && Array.isArray(stat.children) && stat.children.length > 0) {
+				throw new Error(localize('deleteFailed', "Failed to delete non-empty folder '{0}'.", resource.toString()));
+			}
+		}
+
 		// Delete through provider
-		await provider.delete(resource, { recursive: !!(options && options.recursive) });
+		await provider.delete(resource, { recursive });
 
 		// Events
 		this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.DELETE));
@@ -366,11 +542,11 @@ export class FileService2 extends Disposable implements IFileService {
 	get onFileChanges(): Event<FileChangesEvent> { return this._onFileChanges.event; }
 
 	watchFileChanges(resource: URI): void {
-		this._impl.watchFileChanges(resource);
+		this.joinOnLegacy.then(legacy => legacy.watchFileChanges(resource));
 	}
 
 	unwatchFileChanges(resource: URI): void {
-		this._impl.unwatchFileChanges(resource);
+		this.joinOnLegacy.then(legacy => legacy.unwatchFileChanges(resource));
 	}
 
 	//#endregion
@@ -387,5 +563,3 @@ export class FileService2 extends Disposable implements IFileService {
 
 	//#endregion
 }
-
-registerSingleton(IFileService, FileService2);

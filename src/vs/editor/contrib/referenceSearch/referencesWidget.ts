@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { ISashEvent, IVerticalSashLayoutProvider, Sash } from 'vs/base/browser/ui/sash/sash';
+import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
@@ -29,12 +29,14 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { activeContrastBorder, contrastBorder, registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { PeekViewWidget } from './peekViewWidget';
+import { PeekViewWidget, IPeekViewService } from './peekViewWidget';
 import { FileReferences, OneReference, ReferencesModel } from './referencesModel';
 import { ITreeRenderer, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IAsyncDataTreeOptions } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { FuzzyScore } from 'vs/base/common/filters';
+import { SplitView, Sizing } from 'vs/base/browser/ui/splitview/splitview';
+
 
 class DecorationsManager implements IDisposable {
 
@@ -155,72 +157,6 @@ class DecorationsManager implements IDisposable {
 	}
 }
 
-class VSash {
-
-	private _disposables: IDisposable[] = [];
-	private _sash: Sash;
-	private _ratio: number;
-	private _height: number;
-	private _width: number;
-	private _onDidChangePercentages = new Emitter<VSash>();
-
-	constructor(container: HTMLElement, ratio: number) {
-		this._ratio = ratio;
-		this._sash = new Sash(container, <IVerticalSashLayoutProvider>{
-			getVerticalSashLeft: () => this._width * this._ratio,
-			getVerticalSashHeight: () => this._height
-		});
-
-		// compute the current widget clientX postion since
-		// the sash works with clientX when dragging
-		let clientX: number;
-		this._disposables.push(this._sash.onDidStart((e: ISashEvent) => {
-			clientX = e.startX - (this._width * this.ratio);
-		}));
-
-		this._disposables.push(this._sash.onDidChange((e: ISashEvent) => {
-			// compute the new position of the sash and from that
-			// compute the new ratio that we are using
-			let newLeft = e.currentX - clientX;
-			if (newLeft > 20 && newLeft + 20 < this._width) {
-				this._ratio = newLeft / this._width;
-				this._sash.layout();
-				this._onDidChangePercentages.fire(this);
-			}
-		}));
-	}
-
-	dispose() {
-		this._sash.dispose();
-		this._onDidChangePercentages.dispose();
-		dispose(this._disposables);
-	}
-
-	get onDidChangePercentages() {
-		return this._onDidChangePercentages.event;
-	}
-
-	set width(value: number) {
-		this._width = value;
-		this._sash.layout();
-	}
-
-	set height(value: number) {
-		this._height = value;
-		this._sash.layout();
-	}
-
-	get percentages() {
-		let left = 100 * this._ratio;
-		let right = 100 - left;
-		return [`${left}%`, `${right}%`];
-	}
-
-	get ratio() {
-		return this._ratio;
-	}
-}
-
 export interface LayoutData {
 	ratio: number;
 	heightInLines: number;
@@ -248,14 +184,14 @@ export class ReferenceWidget extends PeekViewWidget {
 
 	private _tree: WorkbenchAsyncDataTree<ReferencesModel | FileReferences, TreeElement, FuzzyScore>;
 	private _treeContainer: HTMLElement;
-	private _sash: VSash;
+	// private _sash: VSash;
+	private _splitView: SplitView;
 	private _preview: ICodeEditor;
 	private _previewModelReference: IReference<ITextEditorModel>;
 	private _previewNotAvailableMessage: TextModel;
 	private _previewContainer: HTMLElement;
 	private _messageContainer: HTMLElement;
-	private height: number | undefined;
-	private width: number | undefined;
+	private _dim: dom.Dimension = { height: 0, width: 0 };
 
 	constructor(
 		editor: ICodeEditor,
@@ -264,13 +200,23 @@ export class ReferenceWidget extends PeekViewWidget {
 		@IThemeService themeService: IThemeService,
 		@ITextModelService private readonly _textModelResolverService: ITextModelService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IPeekViewService private readonly _peekViewService: IPeekViewService,
 		@ILabelService private readonly _uriLabel: ILabelService
 	) {
 		super(editor, { showFrame: false, showArrow: true, isResizeable: true, isAccessible: true });
 
 		this._applyTheme(themeService.getTheme());
 		this._callOnDispose.push(themeService.onThemeChange(this._applyTheme.bind(this)));
+		this._peekViewService.addExclusiveWidget(editor, this);
 		this.create();
+	}
+
+	dispose(): void {
+		this.setModel(undefined);
+		this._callOnDispose = dispose(this._callOnDispose);
+		dispose<IDisposable>(this._preview, this._previewNotAvailableMessage, this._tree, this._previewModelReference);
+		this._splitView.dispose();
+		super.dispose();
 	}
 
 	private _applyTheme(theme: ITheme) {
@@ -282,13 +228,6 @@ export class ReferenceWidget extends PeekViewWidget {
 			primaryHeadingColor: theme.getColor(peekViewTitleForeground),
 			secondaryHeadingColor: theme.getColor(peekViewTitleInfoForeground)
 		});
-	}
-
-	public dispose(): void {
-		this.setModel(undefined);
-		this._callOnDispose = dispose(this._callOnDispose);
-		dispose<IDisposable>(this._preview, this._previewNotAvailableMessage, this._tree, this._sash, this._previewModelReference);
-		super.dispose();
 	}
 
 	get onDidSelectReference(): Event<SelectionEvent> {
@@ -321,6 +260,8 @@ export class ReferenceWidget extends PeekViewWidget {
 		this._messageContainer = dom.append(containerElement, dom.$('div.messages'));
 		dom.hide(this._messageContainer);
 
+		this._splitView = new SplitView(containerElement, { orientation: Orientation.HORIZONTAL });
+
 		// editor
 		this._previewContainer = dom.append(containerElement, dom.$('div.preview.inline'));
 		let options: IEditorOptions = {
@@ -342,25 +283,8 @@ export class ReferenceWidget extends PeekViewWidget {
 		dom.hide(this._previewContainer);
 		this._previewNotAvailableMessage = TextModel.createFromString(nls.localize('missingPreviewMessage', "no preview available"));
 
-		// sash
-		this._sash = new VSash(containerElement, this.layoutData.ratio || 0.8);
-		this._sash.onDidChangePercentages(() => {
-			let [left, right] = this._sash.percentages;
-			this._previewContainer.style.width = left;
-			this._treeContainer.style.width = right;
-			this._preview.layout();
-			this._tree.layout(this.height, this.width && this.width * (1 - this._sash.ratio));
-			this.layoutData.ratio = this._sash.ratio;
-		});
-
 		// tree
 		this._treeContainer = dom.append(containerElement, dom.$('div.ref-tree.inline'));
-
-		const renderers = [
-			this._instantiationService.createInstance(FileReferencesRenderer),
-			this._instantiationService.createInstance(OneReferenceRenderer),
-		];
-
 		const treeOptions: IAsyncDataTreeOptions<TreeElement, FuzzyScore> = {
 			ariaLabel: nls.localize('treeAriaLabel', "References"),
 			keyboardSupport: this._defaultTreeKeyboardSupport,
@@ -368,19 +292,47 @@ export class ReferenceWidget extends PeekViewWidget {
 			keyboardNavigationLabelProvider: this._instantiationService.createInstance(StringRepresentationProvider),
 			identityProvider: new IdentityProvider()
 		};
-
-		const treeDataSource = this._instantiationService.createInstance(DataSource);
-
 		this._tree = this._instantiationService.createInstance<HTMLElement, IListVirtualDelegate<TreeElement>, ITreeRenderer<any, FuzzyScore, any>[], IAsyncDataSource<ReferencesModel | FileReferences, TreeElement>, IAsyncDataTreeOptions<TreeElement, FuzzyScore>, WorkbenchAsyncDataTree<ReferencesModel | FileReferences, TreeElement, FuzzyScore>>(
 			WorkbenchAsyncDataTree,
 			this._treeContainer,
 			new Delegate(),
-			renderers,
-			treeDataSource,
+			[
+				this._instantiationService.createInstance(FileReferencesRenderer),
+				this._instantiationService.createInstance(OneReferenceRenderer),
+			],
+			this._instantiationService.createInstance(DataSource),
 			treeOptions
 		);
-
 		ctxReferenceWidgetSearchTreeFocused.bindTo(this._tree.contextKeyService);
+
+		// split stuff
+		this._splitView.addView({
+			onDidChange: Event.None,
+			element: this._previewContainer,
+			minimumSize: 200,
+			maximumSize: Number.MAX_VALUE,
+			layout: (width) => {
+				this._preview.layout({ height: this._dim.height, width });
+			}
+		}, Sizing.Distribute);
+
+		this._splitView.addView({
+			onDidChange: Event.None,
+			element: this._treeContainer,
+			minimumSize: 100,
+			maximumSize: Number.MAX_VALUE,
+			layout: (width) => {
+				this._treeContainer.style.height = `${this._dim.height}px`;
+				this._treeContainer.style.width = `${width}px`;
+				this._tree.layout(this._dim.height, width);
+			}
+		}, Sizing.Distribute);
+
+		this._splitView.onDidSashChange(() => {
+			if (this._dim.width) {
+				this.layoutData.ratio = this._splitView.getViewSize(0) / this._dim.width;
+			}
+		}, undefined, this._disposables);
 
 		// listen on selection and focus
 		let onEvent = (element: any, kind: 'show' | 'goto' | 'side') => {
@@ -428,36 +380,18 @@ export class ReferenceWidget extends PeekViewWidget {
 		dom.hide(this._treeContainer);
 	}
 
-	protected _doLayoutBody(heightInPixel: number, widthInPixel: number): void {
-		super._doLayoutBody(heightInPixel, widthInPixel);
-
-		this.height = heightInPixel;
-		this.width = widthInPixel;
-
-		const height = heightInPixel + 'px';
-		this._sash.height = heightInPixel;
-		this._sash.width = widthInPixel;
-
-		// set height/width
-		const [left, right] = this._sash.percentages;
-		this._previewContainer.style.height = height;
-		this._previewContainer.style.width = left;
-		this._treeContainer.style.height = height;
-		this._treeContainer.style.width = right;
-		// forward
-		this._tree.layout(heightInPixel, widthInPixel * (1 - this._sash.ratio));
-		this._preview.layout();
-
-		// store layout data
-		this.layoutData = {
-			heightInLines: this._viewZone ? this._viewZone.heightInLines : 0,
-			ratio: this._sash.ratio
-		};
+	protected _onWidth(width: number) {
+		if (this._dim) {
+			this._doLayoutBody(this._dim.height, width);
+		}
 	}
 
-	public _onWidth(widthInPixel: number): void {
-		this._sash.width = widthInPixel;
-		this._preview.layout();
+	protected _doLayoutBody(heightInPixel: number, widthInPixel: number): void {
+		super._doLayoutBody(heightInPixel, widthInPixel);
+		this._dim = { height: heightInPixel, width: widthInPixel };
+		this.layoutData.heightInLines = this._viewZone ? this._viewZone.heightInLines : this.layoutData.heightInLines;
+		this._splitView.layout(widthInPixel);
+		this._splitView.resizeView(0, widthInPixel * this.layoutData.ratio);
 	}
 
 	public setSelection(selection: OneReference): Promise<any> {
@@ -522,8 +456,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		dom.addClass(this.container, 'results-loaded');
 		dom.show(this._treeContainer);
 		dom.show(this._previewContainer);
-		this._preview.layout();
-		this._tree.layout();
+		this._splitView.layout(this._dim.width);
 		this.focus();
 
 		// pick input and a reference to begin with

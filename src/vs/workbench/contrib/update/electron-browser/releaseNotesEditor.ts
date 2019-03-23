@@ -209,7 +209,7 @@ export class ReleaseNotesManager {
 
 		renderer.code = (code, lang) => {
 			const modeId = this._modeService.getModeIdForLanguageName(lang);
-			return `<code>${tokenizeToString(code, modeId ? TokenizationRegistry.get(modeId) : undefined)}</code>`;
+			return `<code>${tokenizeToString(code, modeId ? TokenizationRegistry.get(modeId)! : undefined)}</code>`;
 		};
 		return renderer;
 	}

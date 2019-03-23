@@ -186,7 +186,8 @@ class ExtHostTreeView<T> extends Disposable {
 			this._register(this.dataProvider.onDidChangeTreeData(element => this._onDidChangeData.fire({ message: false, element })));
 		}
 
-		let refreshingPromise, promiseCallback;
+		let refreshingPromise: Promise<void> | null;
+		let promiseCallback: () => void;
 		this._register(Event.debounce<TreeData<T>, { message: boolean, elements: (T | Root)[] }>(this._onDidChangeData.event, (result, current) => {
 			if (!result) {
 				result = { message: false, elements: [] };
@@ -195,7 +196,7 @@ class ExtHostTreeView<T> extends Disposable {
 				if (!refreshingPromise) {
 					// New refresh has started
 					refreshingPromise = new Promise(c => promiseCallback = c);
-					this.refreshPromise = this.refreshPromise.then(() => refreshingPromise);
+					this.refreshPromise = this.refreshPromise.then(() => refreshingPromise!);
 				}
 				result.elements.push(current.element);
 			}

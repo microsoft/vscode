@@ -153,7 +153,7 @@ export class FileIconThemeStore {
 		});
 	}
 
-	public findThemeDataByParentLocation(parentLocation: URI | undefined): any {
+	public findThemeDataByParentLocation(parentLocation: URI | undefined): Promise<FileIconThemeData[]> {
 		if (parentLocation) {
 			return this.getFileIconThemes().then(allThemes => {
 				return allThemes.filter(t => t.location && resources.isEqualOrParent(t.location, parentLocation));

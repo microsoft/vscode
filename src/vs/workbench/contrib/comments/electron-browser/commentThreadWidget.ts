@@ -60,7 +60,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	private _resizeObserver: any;
 	private _onDidClose = new Emitter<ReviewZoneWidget | undefined>();
 	private _onDidCreateThread = new Emitter<ReviewZoneWidget>();
-	private _isCollapsed;
+	private _isCollapsed: boolean;
 	private _collapseAction: Action;
 	private _commentGlyph?: CommentGlyphWidget;
 	private _submitActionsDisposables: IDisposable[];

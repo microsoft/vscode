@@ -280,7 +280,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 		}));
 	}
 
-	public addDynamicKeybinding(commandId: string, _keybinding: number, handler: ICommandHandler, when: ContextKeyExpr | null): IDisposable {
+	public addDynamicKeybinding(commandId: string, _keybinding: number, handler: ICommandHandler, when: ContextKeyExpr | undefined): IDisposable {
 		const keybinding = createKeybinding(_keybinding, OS);
 		if (!keybinding) {
 			throw new Error(`Invalid keybinding`);
@@ -342,7 +342,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 	private _toNormalizedKeybindingItems(items: IKeybindingItem[], isDefault: boolean): ResolvedKeybindingItem[] {
 		let result: ResolvedKeybindingItem[] = [], resultLen = 0;
 		for (const item of items) {
-			const when = (item.when ? item.when.normalize() : null);
+			const when = (item.when ? item.when.normalize() : undefined);
 			const keybinding = item.keybinding;
 
 			if (!keybinding) {
@@ -663,10 +663,6 @@ export class SimpleLayoutService implements ILayoutService {
 
 	get container(): HTMLElement {
 		return this._container;
-	}
-
-	get hasWorkbench(): boolean {
-		return false;
 	}
 
 	constructor(private _container: HTMLElement) { }

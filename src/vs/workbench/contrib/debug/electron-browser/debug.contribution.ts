@@ -275,8 +275,8 @@ const registerDebugToolbarItem = (id: string, title: string, icon: string, order
 	});
 };
 
-registerDebugToolbarItem(CONTINUE_ID, continueLabel, 'continue', 10, CONTEXT_DEBUG_STATE.notEqualsTo('running'));
-registerDebugToolbarItem(PAUSE_ID, pauseLabel, 'pause', 10, CONTEXT_DEBUG_STATE.isEqualTo('running'));
+registerDebugToolbarItem(CONTINUE_ID, continueLabel, 'continue', 10, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
+registerDebugToolbarItem(PAUSE_ID, pauseLabel, 'pause', 10, CONTEXT_DEBUG_STATE.notEqualsTo('stopped'), CONTEXT_DEBUG_STATE.isEqualTo('running'));
 registerDebugToolbarItem(STOP_ID, stopLabel, 'stop', 70, CONTEXT_FOCUSED_SESSION_IS_ATTACH.toNegated());
 registerDebugToolbarItem(DISCONNECT_ID, disconnectLabel, 'disconnect', 70, CONTEXT_FOCUSED_SESSION_IS_ATTACH);
 registerDebugToolbarItem(STEP_OVER_ID, stepOverLabel, 'step-over', 20, undefined, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
@@ -524,7 +524,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
 // Touch Bar
 if (isMacintosh) {
 
-	const registerTouchBarEntry = (id: string, title: string, order, when: ContextKeyExpr, icon: string) => {
+	const registerTouchBarEntry = (id: string, title: string, order: number, when: ContextKeyExpr, icon: string) => {
 		MenuRegistry.appendMenuItem(MenuId.TouchBarContext, {
 			command: {
 				id, title, iconLocation: { dark: URI.parse(require.toUrl(`vs/workbench/contrib/debug/electron-browser/media/${icon}`)) }

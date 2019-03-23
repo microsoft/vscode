@@ -421,8 +421,8 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		// When run with --wait, make sure we keep the paths to wait for
-		if (fileInputs && openConfig.cli.wait && openConfig.cli.waitMarkerFilePath) {
-			fileInputs.filesToWait = { paths: [...fileInputs.filesToDiff, ...fileInputs.filesToOpen, ...fileInputs.filesToCreate], waitMarkerFileUri: URI.file(openConfig.cli.waitMarkerFilePath) };
+		if (fileInputs && openConfig.waitMarkerFileURI) {
+			fileInputs.filesToWait = { paths: [...fileInputs.filesToDiff, ...fileInputs.filesToOpen, ...fileInputs.filesToCreate], waitMarkerFileUri: openConfig.waitMarkerFileURI };
 		}
 
 		//
@@ -489,7 +489,7 @@ export class WindowsManager implements IWindowsMainService {
 
 		// Remember in recent document list (unless this opens for extension development)
 		// Also do not add paths when files are opened for diffing, only if opened individually
-		if (!usedWindows.some(w => w.isExtensionDevelopmentHost) && !openConfig.diffMode && !this.environmentService.skipAddToRecentlyOpened) {
+		if (!usedWindows.some(w => w.isExtensionDevelopmentHost) && !openConfig.diffMode && !openConfig.noRecentEntry) {
 			const recents: IRecent[] = [];
 			for (let pathToOpen of pathsToOpen) {
 				if (pathToOpen.workspace) {
@@ -506,8 +506,9 @@ export class WindowsManager implements IWindowsMainService {
 		// If we got started with --wait from the CLI, we need to signal to the outside when the window
 		// used for the edit operation is closed or loaded to a different folder so that the waiting
 		// process can continue. We do this by deleting the waitMarkerFilePath.
-		if (openConfig.context === OpenContext.CLI && openConfig.cli.wait && openConfig.cli.waitMarkerFilePath && usedWindows.length === 1 && usedWindows[0]) {
-			this.waitForWindowCloseOrLoad(usedWindows[0].id).then(() => fs.unlink(openConfig.cli.waitMarkerFilePath!, _error => undefined));
+		const waitMarkerFileURI = openConfig.waitMarkerFileURI;
+		if (openConfig.context === OpenContext.CLI && waitMarkerFileURI && usedWindows.length === 1 && usedWindows[0]) {
+			this.waitForWindowCloseOrLoad(usedWindows[0].id).then(() => fs.unlink(waitMarkerFileURI.fsPath, _error => undefined));
 		}
 
 		return usedWindows;
@@ -746,7 +747,7 @@ export class WindowsManager implements IWindowsMainService {
 	private doOpenFilesInExistingWindow(configuration: IOpenConfiguration, window: ICodeWindow, fileInputs?: IFileInputs): ICodeWindow {
 		window.focus(); // make sure window has focus
 
-		const params: { filesToOpen?, filesToCreate?, filesToDiff?, filesToWait?, termProgram?} = {};
+		const params: { filesToOpen?: IPath[], filesToCreate?: IPath[], filesToDiff?: IPath[], filesToWait?: IPathsToWaitFor, termProgram?: string } = {};
 		if (fileInputs) {
 			params.filesToOpen = fileInputs.filesToOpen;
 			params.filesToCreate = fileInputs.filesToCreate;
@@ -1216,7 +1217,16 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		// Open it
-		this.open({ context: openConfig.context, cli: openConfig.cli, forceNewWindow: true, forceEmpty: !cliArgs.length && !folderUris.length && !fileUris.length, userEnv: openConfig.userEnv });
+		const openArgs: IOpenConfiguration = {
+			context: openConfig.context,
+			cli: openConfig.cli,
+			forceNewWindow: true,
+			forceEmpty: !cliArgs.length && !folderUris.length && !fileUris.length,
+			userEnv: openConfig.userEnv,
+			noRecentEntry: true,
+			waitMarkerFileURI: openConfig.waitMarkerFileURI
+		};
+		this.open(openArgs);
 	}
 
 	private openInBrowserWindow(options: IOpenBrowserWindowOptions): ICodeWindow {
@@ -1897,9 +1907,15 @@ class Dialogs {
 	showMessageBox(options: Electron.MessageBoxOptions, window?: ICodeWindow): Promise<IMessageBoxResult> {
 		return this.getDialogQueue(window).queue(() => {
 			return new Promise(resolve => {
-				dialog.showMessageBox(window ? window.win : undefined!, options, (response: number, checkboxChecked: boolean) => {
+				const callback = (response: number, checkboxChecked: boolean) => {
 					resolve({ button: response, checkboxChecked });
-				});
+				};
+
+				if (window) {
+					dialog.showMessageBox(window.win, options, callback);
+				} else {
+					dialog.showMessageBox(options, callback);
+				}
 			});
 		});
 	}
@@ -1916,9 +1932,15 @@ class Dialogs {
 
 		return this.getDialogQueue(window).queue(() => {
 			return new Promise(resolve => {
-				dialog.showSaveDialog(window ? window.win : undefined!, options, path => {
+				const callback = (path: string) => {
 					resolve(normalizePath(path));
-				});
+				};
+
+				if (window) {
+					dialog.showSaveDialog(window.win, options, callback);
+				} else {
+					dialog.showSaveDialog(options, callback);
+				}
 			});
 		});
 	}
@@ -1948,9 +1970,15 @@ class Dialogs {
 
 				// Show dialog and wrap as promise
 				validatePathPromise.then(() => {
-					dialog.showOpenDialog(window ? window.win : undefined!, options, paths => {
+					const callback = (paths: string[]) => {
 						resolve(normalizePaths(paths));
-					});
+					};
+
+					if (window) {
+						dialog.showOpenDialog(window.win, options, callback);
+					} else {
+						dialog.showOpenDialog(options, callback);
+					}
 				});
 			});
 		});

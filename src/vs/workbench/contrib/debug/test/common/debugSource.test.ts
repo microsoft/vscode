@@ -40,7 +40,7 @@ suite('Debug - Source', () => {
 	});
 
 	test('get encoded debug data', () => {
-		const checkData = (uri: uri, expectedName, expectedPath, expectedSourceReference, expectedSessionId) => {
+		const checkData = (uri: uri, expectedName: string, expectedPath: string, expectedSourceReference: number | undefined, expectedSessionId?: number) => {
 			let { name, path, sourceReference, sessionId } = Source.getEncodedDebugData(uri);
 			assert.equal(name, expectedName);
 			assert.equal(path, expectedPath);

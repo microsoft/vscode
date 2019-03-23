@@ -9,7 +9,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Counter } from 'vs/base/common/numbers';
 import { URI, setUriThrowOnMissingScheme } from 'vs/base/common/uri';
 import { IURITransformer } from 'vs/base/common/uriIpc';
-import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
+import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { IEnvironment, IInitData, MainContext, MainThreadConsoleShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';

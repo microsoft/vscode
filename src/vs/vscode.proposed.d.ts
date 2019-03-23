@@ -1378,4 +1378,35 @@ declare module 'vscode' {
 		group?: string;
 	}
 	//#endregion
+
+	//#region Webview Port mapping— mjbvz
+	/**
+	 * Defines a port mapping used for localhost inside the webview.
+	 */
+	export interface WebviewPortMapping {
+		/**
+		 * Localhost port to remap inside the webview.
+		 */
+		readonly port: number;
+
+		/**
+		 * Destination port. The `port` is resolved to this port.
+		 */
+		readonly resolvedPort: number;
+	}
+
+	export interface WebviewOptions {
+		/**
+		 * Mappings of localhost ports used inside the webview.
+		 *
+		 * Port mapping allow webviews to transparently define how localhost ports are resolved. This can be used
+		 * to allow using a static localhost port inside the webview that is resolved to random port that a service is
+		 * running on.
+		 *
+		 * If a webview accesses localhost content, we recomend that you specify port mappings even if
+		 * the `from` and `to` ports are the same.
+		 */
+		readonly portMapping?: ReadonlyArray<WebviewPortMapping>;
+	}
+	//#endregion
 }

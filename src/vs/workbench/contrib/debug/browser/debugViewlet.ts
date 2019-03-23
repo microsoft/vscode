@@ -63,6 +63,7 @@ export class DebugViewlet extends ViewContainerViewlet {
 		super(VIEWLET_ID, `${VIEWLET_ID}.state`, false, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
 
 		this._register(this.debugService.onDidChangeState(state => this.onDebugServiceStateChange(state)));
+		this._register(this.debugService.onDidNewSession(() => this.updateToolBar()));
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateTitleArea()));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('debug.toolBarLocation')) {
@@ -129,7 +130,7 @@ export class DebugViewlet extends ViewContainerViewlet {
 		return [this.selectAndStartAction, this.configureAction, this.toggleReplAction];
 	}
 
-	getActionItem(action: IAction): IActionItem | null {
+	getActionItem(action: IAction): IActionItem | undefined {
 		if (action.id === StartAction.ID) {
 			this.startDebugActionItem = this.instantiationService.createInstance(StartDebugActionItem, null, action);
 			return this.startDebugActionItem;
@@ -141,7 +142,7 @@ export class DebugViewlet extends ViewContainerViewlet {
 			return new MenuItemActionItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
 		}
 
-		return null;
+		return undefined;
 	}
 
 	focusView(id: string): void {
@@ -160,6 +161,10 @@ export class DebugViewlet extends ViewContainerViewlet {
 			this.progressRunner = this.progressService.show(true);
 		}
 
+		this.updateToolBar();
+	}
+
+	private updateToolBar(): void {
 		if (this.configurationService.getValue<IDebugConfiguration>('debug').toolBarLocation === 'docked') {
 			this.updateTitleArea();
 		}

@@ -123,7 +123,7 @@ registerEditorAction(class extends EditorAction {
 			alias: 'Call Hierarchy',
 			menuOpts: {
 				group: 'navigation',
-				order: 111
+				order: 1.48
 			},
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,

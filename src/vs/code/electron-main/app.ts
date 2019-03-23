@@ -31,7 +31,7 @@ import { NullTelemetryService, combinedAppender, LogAppender } from 'vs/platform
 import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
-import { getDelayedChannel, StaticRouter } from 'vs/base/parts/ipc/node/ipc';
+import { getDelayedChannel, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
 import product from 'vs/platform/product/node/product';
 import pkg from 'vs/platform/product/node/package';
 import { ProxyAuthHandler } from 'vs/code/electron-main/auth';
@@ -388,7 +388,7 @@ export class CodeApplication extends Disposable {
 		this.logService.info(`Tracing: waiting for windows to get ready...`);
 
 		let recordingStopped = false;
-		const stopRecording = (timeout) => {
+		const stopRecording = (timeout: boolean) => {
 			if (recordingStopped) {
 				return;
 			}
@@ -574,16 +574,44 @@ export class CodeApplication extends Disposable {
 		const hasCliArgs = hasArgs(args._);
 		const hasFolderURIs = hasArgs(args['folder-uri']);
 		const hasFileURIs = hasArgs(args['file-uri']);
+		const noRecentEntry = args['skip-add-to-recently-opened'] === true;
+		const waitMarkerFileURI = args.wait && args.waitMarkerFilePath ? URI.file(args.waitMarkerFilePath) : undefined;
 
 		if (args['new-window'] && !hasCliArgs && !hasFolderURIs && !hasFileURIs) {
-			return this.windowsMainService.open({ context, cli: args, forceNewWindow: true, forceEmpty: true, initialStartup: true }); // new window if "-n" was used without paths
+			// new window if "-n" was used without paths
+			return this.windowsMainService.open({
+				context,
+				cli: args,
+				forceNewWindow: true,
+				forceEmpty: true,
+				noRecentEntry,
+				waitMarkerFileURI,
+				initialStartup: true
+			});
 		}
 
 		if (macOpenFiles && macOpenFiles.length && !hasCliArgs && !hasFolderURIs && !hasFileURIs) {
-			return this.windowsMainService.open({ context: OpenContext.DOCK, cli: args, urisToOpen: macOpenFiles.map(file => ({ uri: URI.file(file) })), initialStartup: true }); // mac: open-file event received on startup
+			// mac: open-file event received on startup
+			return this.windowsMainService.open({
+				context: OpenContext.DOCK,
+				cli: args,
+				urisToOpen: macOpenFiles.map(file => ({ uri: URI.file(file) })),
+				noRecentEntry,
+				waitMarkerFileURI,
+				initialStartup: true
+			});
 		}
 
-		return this.windowsMainService.open({ context, cli: args, forceNewWindow: args['new-window'] || (!hasCliArgs && args['unity-launch']), diffMode: args.diff, initialStartup: true }); // default: read paths from cli
+		// default: read paths from cli
+		return this.windowsMainService.open({
+			context,
+			cli: args,
+			forceNewWindow: args['new-window'] || (!hasCliArgs && args['unity-launch']),
+			diffMode: args.diff,
+			noRecentEntry,
+			waitMarkerFileURI,
+			initialStartup: true
+		});
 	}
 
 	private afterWindowOpen(accessor: ServicesAccessor): void {

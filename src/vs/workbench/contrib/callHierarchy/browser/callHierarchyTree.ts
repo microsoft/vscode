@@ -12,6 +12,7 @@ import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { symbolKindToCssClass, Location } from 'vs/editor/common/modes';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Range } from 'vs/editor/common/core/range';
+import { hash } from 'vs/base/common/hash';
 
 export class Call {
 	constructor(
@@ -52,7 +53,7 @@ export class SingleDirectionDataSource implements IAsyncDataSource<CallHierarchy
 
 export class IdentityProvider implements IIdentityProvider<Call> {
 	getId(element: Call): { toString(): string; } {
-		return element.item._id;
+		return hash(element.item.uri.toString(), hash(JSON.stringify(element.item.range)));
 	}
 }
 

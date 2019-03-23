@@ -71,7 +71,7 @@ abstract class TerminalLauncher implements ITerminalLauncher {
 		return this.runInTerminal0(args.title!, args.cwd, args.args, args.env || {}, config);
 	}
 
-	abstract runInTerminal0(title: string, dir: string, args: string[], envVars: env.IProcessEnvironment | {}, config): Promise<number | undefined>;
+	abstract runInTerminal0(title: string, dir: string, args: string[], envVars: env.IProcessEnvironment | {}, config: ITerminalSettings): Promise<number | undefined>;
 }
 
 class WinTerminalService extends TerminalLauncher {

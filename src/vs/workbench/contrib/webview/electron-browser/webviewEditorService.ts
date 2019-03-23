@@ -7,11 +7,12 @@ import { equals } from 'vs/base/common/arrays';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { values } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
+import { IWebviewOptions, IWebviewPanelOptions } from 'vs/editor/common/modes';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
-import * as vscode from 'vscode';
 import { RevivedWebviewEditorInput, WebviewEditorInput } from './webviewEditorInput';
 
 export const IWebviewEditorService = createDecorator<IWebviewEditorService>('webviewEditorService');
@@ -29,7 +30,10 @@ export interface IWebviewEditorService {
 		title: string,
 		showOptions: ICreateWebViewShowOptions,
 		options: WebviewInputOptions,
-		extensionLocation: URI | undefined,
+		extension: undefined | {
+			location: URI,
+			id: ExtensionIdentifier
+		},
 		events: WebviewEvents
 	): WebviewEditorInput;
 
@@ -40,7 +44,10 @@ export interface IWebviewEditorService {
 		iconPath: { light: URI, dark: URI } | undefined,
 		state: any,
 		options: WebviewInputOptions,
-		extensionLocation: URI | undefined,
+		extension: undefined | {
+			readonly location: URI,
+			readonly id?: ExtensionIdentifier
+		},
 		group: number | undefined
 	): WebviewEditorInput;
 
@@ -72,10 +79,10 @@ export interface WebviewReviver {
 export interface WebviewEvents {
 	onMessage?(message: any): void;
 	onDispose?(): void;
-	onDidClickLink?(link: URI, options: vscode.WebviewOptions): void;
+	onDidClickLink?(link: URI, options: IWebviewOptions): void;
 }
 
-export interface WebviewInputOptions extends vscode.WebviewOptions, vscode.WebviewPanelOptions {
+export interface WebviewInputOptions extends IWebviewOptions, IWebviewPanelOptions {
 	tryRestoreScrollPosition?: boolean;
 }
 
@@ -85,7 +92,8 @@ export function areWebviewInputOptionsEqual(a: WebviewInputOptions, b: WebviewIn
 		&& a.enableScripts === b.enableScripts
 		&& a.retainContextWhenHidden === b.retainContextWhenHidden
 		&& a.tryRestoreScrollPosition === b.tryRestoreScrollPosition
-		&& (a.localResourceRoots === b.localResourceRoots || (Array.isArray(a.localResourceRoots) && Array.isArray(b.localResourceRoots) && equals(a.localResourceRoots, b.localResourceRoots, (a, b) => a.toString() === b.toString())));
+		&& (a.localResourceRoots === b.localResourceRoots || (Array.isArray(a.localResourceRoots) && Array.isArray(b.localResourceRoots) && equals(a.localResourceRoots, b.localResourceRoots, (a, b) => a.toString() === b.toString())))
+		&& (a.portMapping === b.portMapping || (Array.isArray(a.portMapping) && Array.isArray(b.portMapping) && equals(a.portMapping, b.portMapping, (a, b) => a.from === b.from && a.to === b.to)));
 }
 
 function canRevive(reviver: WebviewReviver, webview: WebviewEditorInput): boolean {
@@ -128,11 +136,14 @@ export class WebviewEditorService implements IWebviewEditorService {
 		viewType: string,
 		title: string,
 		showOptions: ICreateWebViewShowOptions,
-		options: vscode.WebviewOptions,
-		extensionLocation: URI | undefined,
+		options: IWebviewOptions,
+		extension: undefined | {
+			location: URI,
+			id: ExtensionIdentifier
+		},
 		events: WebviewEvents
 	): WebviewEditorInput {
-		const webviewInput = this._instantiationService.createInstance(WebviewEditorInput, viewType, undefined, title, options, {}, events, extensionLocation, undefined);
+		const webviewInput = this._instantiationService.createInstance(WebviewEditorInput, viewType, undefined, title, options, {}, events, extension);
 		this._editorService.openEditor(webviewInput, { pinned: true, preserveFocus: showOptions.preserveFocus }, showOptions.group);
 		return webviewInput;
 	}
@@ -159,10 +170,13 @@ export class WebviewEditorService implements IWebviewEditorService {
 		iconPath: { light: URI, dark: URI } | undefined,
 		state: any,
 		options: WebviewInputOptions,
-		extensionLocation: URI,
+		extension: undefined | {
+			readonly location: URI,
+			readonly id?: ExtensionIdentifier
+		},
 		group: number | undefined,
 	): WebviewEditorInput {
-		const webviewInput = this._instantiationService.createInstance(RevivedWebviewEditorInput, viewType, id, title, options, state, {}, extensionLocation, async (webview: WebviewEditorInput): Promise<void> => {
+		const webviewInput = this._instantiationService.createInstance(RevivedWebviewEditorInput, viewType, id, title, options, state, {}, extension, async (webview: WebviewEditorInput): Promise<void> => {
 			const didRevive = await this.tryRevive(webview);
 			if (didRevive) {
 				return Promise.resolve(undefined);

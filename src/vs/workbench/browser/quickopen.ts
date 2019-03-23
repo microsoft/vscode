@@ -214,7 +214,7 @@ class QuickOpenRegistry implements IQuickOpenRegistry {
 	}
 
 	getQuickOpenHandler(text: string): QuickOpenHandlerDescriptor | null {
-		return text ? arrays.first<QuickOpenHandlerDescriptor>(this.handlers, h => strings.startsWith(text, h.prefix), null) : null;
+		return text ? (arrays.first<QuickOpenHandlerDescriptor>(this.handlers, h => strings.startsWith(text, h.prefix)) || null) : null;
 	}
 
 	getDefaultQuickOpenHandler(): QuickOpenHandlerDescriptor {
@@ -280,7 +280,7 @@ export class EditorQuickOpenEntry extends QuickOpenEntry implements IEditorQuick
 					opts = EditorOptions.create(openOptions);
 				}
 
-				this.editorService.openEditor(input, opts || undefined, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+				this.editorService.openEditor(input, types.withNullAsUndefined(opts), sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 			} else {
 				const resourceInput = <IResourceInput>input;
 

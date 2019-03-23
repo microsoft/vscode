@@ -640,9 +640,9 @@ export class EditorGroup extends Disposable {
 		let serializedEditors: ISerializedEditorInput[] = [];
 		let serializablePreviewIndex: number | undefined;
 		this.editors.forEach(e => {
-			let factory = registry.getEditorInputFactory(e.getTypeId());
+			const factory = registry.getEditorInputFactory(e.getTypeId());
 			if (factory) {
-				let value = factory.serialize(e);
+				const value = factory.serialize(e);
 				if (typeof value === 'string') {
 					serializedEditors.push({ id: e.getTypeId(), value });
 					serializableEditors.push(e);

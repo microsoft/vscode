@@ -21,7 +21,7 @@ export class MoveLinesCommand implements ICommand {
 	private readonly _autoIndent: boolean;
 
 	private _selectionId: string;
-	private _moveEndPositionDown: boolean;
+	private _moveEndPositionDown?: boolean;
 	private _moveEndLineSelectionShrink: boolean;
 
 	constructor(selection: Selection, isMovingDown: boolean, autoIndent: boolean) {

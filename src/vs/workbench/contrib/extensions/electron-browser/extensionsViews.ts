@@ -161,12 +161,14 @@ export class ExtensionsListView extends ViewletPanel {
 			case 'name': options = assign(options, { sortBy: SortBy.Title }); break;
 		}
 
-		const successCallback = model => {
+		const successCallback = (model: IPagedModel<IExtension>) => {
 			this.queryRequest = null;
 			this.setModel(model);
 			return model;
 		};
-		const errorCallback = e => {
+
+
+		const errorCallback = (e: Error) => {
 			const model = new PagedModel([]);
 			if (!isPromiseCanceledError(e)) {
 				this.queryRequest = null;
@@ -176,10 +178,9 @@ export class ExtensionsListView extends ViewletPanel {
 			return this.list ? this.list.model : model;
 		};
 
-		const isLocalQuery = ExtensionsListView.isInstalledExtensionsQuery(query) || /@builtin/.test(query);
-		const request = createCancelablePromise(token => (isLocalQuery ? this.queryLocal(parsedQuery, options) : this.queryGallery(parsedQuery, options, token)).then(successCallback).catch(errorCallback));
+		const request = createCancelablePromise(token => this.query(parsedQuery, options, token).then(successCallback).catch(errorCallback));
 		this.queryRequest = { query, request };
-		return request.then(successCallback).catch(errorCallback);
+		return request;
 	}
 
 	count(): number {
@@ -211,6 +212,36 @@ export class ExtensionsListView extends ViewletPanel {
 				});
 			}
 		}
+	}
+
+	private async query(query: Query, options: IQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
+		const idRegex = /@id:(([a-z0-9A-Z][a-z0-9\-A-Z]*)\.([a-z0-9A-Z][a-z0-9\-A-Z]*))/g;
+		const ids: string[] = [];
+		let idMatch;
+		while ((idMatch = idRegex.exec(query.value)) !== null) {
+			const name = idMatch[1];
+			ids.push(name);
+		}
+		if (ids.length) {
+			return this.queryByIds(ids, options, token);
+		}
+		if (ExtensionsListView.isInstalledExtensionsQuery(query.value) || /@builtin/.test(query.value)) {
+			return this.queryLocal(query, options);
+		}
+		return this.queryGallery(query, options, token);
+	}
+
+	private async queryByIds(ids: string[], options: IQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
+		const idsSet: Set<string> = ids.reduce((result, id) => { result.add(id.toLowerCase()); return result; }, new Set<string>());
+		const result = (await this.extensionsWorkbenchService.queryLocal())
+			.filter(e => idsSet.has(e.identifier.id.toLowerCase()));
+
+		if (result.length) {
+			return this.getPagedModel(this.sortExtensions(result, options));
+		}
+
+		return this.extensionsWorkbenchService.queryGallery({ names: ids, source: 'queryById' }, token)
+			.then(pager => this.getPagedModel(pager));
 	}
 
 	private async queryLocal(query: Query, options: IQueryOptions): Promise<IPagedModel<IExtension>> {
@@ -343,21 +374,6 @@ export class ExtensionsListView extends ViewletPanel {
 		const hasUserDefinedSortOrder = options.sortBy !== undefined;
 		if (!hasUserDefinedSortOrder && !query.value.trim()) {
 			options.sortBy = SortBy.InstallCount;
-		}
-
-		let value = query.value;
-
-		const idRegex = /@id:(([a-z0-9A-Z][a-z0-9\-A-Z]*)\.([a-z0-9A-Z][a-z0-9\-A-Z]*))/g;
-		let idMatch;
-		const names: string[] = [];
-		while ((idMatch = idRegex.exec(value)) !== null) {
-			const name = idMatch[1];
-			names.push(name);
-		}
-
-		if (names.length) {
-			return this.extensionsWorkbenchService.queryGallery({ names, source: 'queryById' }, token)
-				.then(pager => this.getPagedModel(pager));
 		}
 
 		if (ExtensionsListView.isWorkspaceRecommendedExtensionsQuery(query.value)) {
@@ -531,7 +547,7 @@ export class ExtensionsListView extends ViewletPanel {
 				return Promise.all([othersPromise, workspacePromise])
 					.then(([others, workspaceRecommendations]) => {
 						fileBasedRecommendations = fileBasedRecommendations.filter(x => workspaceRecommendations.every(({ extensionId }) => x.extensionId !== extensionId));
-						others = others.filter(x => x => workspaceRecommendations.every(({ extensionId }) => x.extensionId !== extensionId));
+						others = others.filter(x => workspaceRecommendations.every(({ extensionId }) => x.extensionId !== extensionId));
 
 						const names = this.getTrimmedRecommendations(local, value, fileBasedRecommendations, others, []);
 						const recommendationsWithReason = this.tipsService.getAllRecommendationsWithReason();

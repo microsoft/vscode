@@ -272,7 +272,7 @@ class Widget {
 
 	public setPosition(position: IPosition | null | undefined, range: IRange | null | undefined, preference: ContentWidgetPositionPreference[] | null | undefined): void {
 		this._setPosition(position, range);
-		this._preference = preference || null;
+		this._preference = withUndefinedAsNull(preference);
 		this._cachedDomNodeClientWidth = -1;
 		this._cachedDomNodeClientHeight = -1;
 	}

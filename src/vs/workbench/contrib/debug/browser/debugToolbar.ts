@@ -95,7 +95,7 @@ export class DebugToolbar extends Themable implements IWorkbenchContribution {
 					return new MenuItemActionItem(action, this.keybindingService, this.notificationService, contextMenuService);
 				}
 
-				return null;
+				return undefined;
 			}
 		}));
 

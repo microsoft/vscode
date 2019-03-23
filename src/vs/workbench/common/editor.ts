@@ -187,13 +187,13 @@ export interface IEditorInputFactory {
 	 * Returns a string representation of the provided editor input that contains enough information
 	 * to deserialize back to the original editor input from the deserialize() method.
 	 */
-	serialize(editorInput: EditorInput): string | null;
+	serialize(editorInput: EditorInput): string | undefined;
 
 	/**
 	 * Returns an editor input from the provided serialized form of the editor input. This form matches
 	 * the value returned from the serialize() method.
 	 */
-	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput | null;
+	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput | undefined;
 }
 
 export interface IUntitledResourceInput extends IBaseResourceInput {
@@ -388,11 +388,11 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	}
 
 	/**
-	 * Returns a descriptor suitable for telemetry events or null if none is available.
+	 * Returns a descriptor suitable for telemetry events.
 	 *
 	 * Subclasses should extend if they can contribute.
 	 */
-	getTelemetryDescriptor(): object {
+	getTelemetryDescriptor(): { [key: string]: any } {
 		/* __GDPR__FRAGMENT__
 			"EditorTelemetryDescriptor" : {
 				"typeId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }

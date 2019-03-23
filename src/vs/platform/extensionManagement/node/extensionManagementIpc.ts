@@ -44,7 +44,7 @@ export class ExtensionManagementChannel implements IServerChannel {
 		this.onDidUninstallExtension = Event.buffer(service.onDidUninstallExtension, true);
 	}
 
-	listen(context, event: string): Event<any> {
+	listen(context: any, event: string): Event<any> {
 		const uriTransformer = this.getUriTransformer(context);
 		switch (event) {
 			case 'onInstallExtension': return this.onInstallExtension;
@@ -56,7 +56,7 @@ export class ExtensionManagementChannel implements IServerChannel {
 		throw new Error('Invalid listen');
 	}
 
-	call(context, command: string, args?: any): Promise<any> {
+	call(context: any, command: string, args?: any): Promise<any> {
 		const uriTransformer: IURITransformer | null = this.getUriTransformer(context);
 		switch (command) {
 			case 'zip': return this.service.zip(transformIncomingExtension(args[0], uriTransformer)).then(uri => transformOutgoingURI(uri, uriTransformer));

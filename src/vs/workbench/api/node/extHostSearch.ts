@@ -8,7 +8,7 @@ import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as extfs from 'vs/base/node/extfs';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IFileQuery, IFolderQuery, IRawFileQuery, IRawQuery, IRawTextQuery, ISearchCompleteStats, ITextQuery, isSerializedFileMatch } from 'vs/workbench/services/search/common/search';
+import { IFileQuery, IFolderQuery, IRawFileQuery, IRawQuery, IRawTextQuery, ISearchCompleteStats, ITextQuery, isSerializedFileMatch, ISerializedSearchProgressItem } from 'vs/workbench/services/search/common/search';
 import { FileSearchManager } from 'vs/workbench/services/search/node/fileSearchManager';
 import { SearchService } from 'vs/workbench/services/search/node/rawSearchService';
 import { RipgrepSearchProvider } from 'vs/workbench/services/search/node/ripgrepSearchProvider';
@@ -107,7 +107,7 @@ export class ExtHostSearch implements ExtHostSearchShape {
 	}
 
 	private doInternalFileSearch(handle: number, session: number, rawQuery: IFileQuery, token: CancellationToken): Promise<ISearchCompleteStats> {
-		const onResult = (ev) => {
+		const onResult = (ev: ISerializedSearchProgressItem) => {
 			if (isSerializedFileMatch(ev)) {
 				ev = [ev];
 			}

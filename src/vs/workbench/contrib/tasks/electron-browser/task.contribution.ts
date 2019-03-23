@@ -73,14 +73,13 @@ import { ITaskSystem, ITaskResolver, ITaskSummary, TaskExecuteKind, TaskError, T
 import {
 	Task, CustomTask, ConfiguringTask, ContributedTask, InMemoryTask, TaskEvent,
 	TaskEventKind, TaskSet, TaskGroup, GroupType, ExecutionEngine, JsonSchemaVersion, TaskSourceKind,
-	TaskSorter, TaskIdentifier, KeyedTaskIdentifier, TASK_RUNNING_STATE, TaskRunSource
+	TaskSorter, TaskIdentifier, KeyedTaskIdentifier, TASK_RUNNING_STATE, TaskRunSource,
+	KeyedTaskIdentifier as NKeyedTaskIdentifier, TaskDefinition
 } from 'vs/workbench/contrib/tasks/common/tasks';
 import { ITaskService, ITaskProvider, ProblemMatcherRunOptions, CustomizationProperties, TaskFilter, WorkspaceFolderTaskResult } from 'vs/workbench/contrib/tasks/common/taskService';
 import { getTemplates as getTaskTemplates } from 'vs/workbench/contrib/tasks/common/taskTemplates';
 
-import { KeyedTaskIdentifier as NKeyedTaskIdentifier, TaskDefinition } from 'vs/workbench/contrib/tasks/node/tasks';
-
-import * as TaskConfig from '../node/taskConfiguration';
+import * as TaskConfig from '../common/taskConfiguration';
 import { ProcessTaskSystem } from 'vs/workbench/contrib/tasks/node/processTaskSystem';
 import { TerminalTaskSystem } from './terminalTaskSystem';
 import { ProcessRunnerDetector } from 'vs/workbench/contrib/tasks/node/processRunnerDetector';
@@ -156,9 +155,9 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 		const info = document.createElement('div');
 		const building = document.createElement('div');
 
-		const errorTitle = n => nls.localize('totalErrors', "{0} Errors", n);
-		const warningTitle = n => nls.localize('totalWarnings', "{0} Warnings", n);
-		const infoTitle = n => nls.localize('totalInfos', "{0} Infos", n);
+		const errorTitle = (n: number) => nls.localize('totalErrors', "{0} Errors", n);
+		const warningTitle = (n: number) => nls.localize('totalWarnings', "{0} Warnings", n);
+		const infoTitle = (n: number) => nls.localize('totalInfos', "{0} Infos", n);
 
 		Dom.addClass(element, 'task-statusbar-item');
 		element.title = nls.localize('problems', "Problems");
@@ -211,7 +210,7 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 		}));
 
 		const manyProblems = nls.localize('manyProblems', "10K+");
-		const packNumber = n => n > 9999 ? manyProblems : n > 999 ? n.toString().charAt(0) + 'K' : n.toString();
+		const packNumber = (n: number) => n > 9999 ? manyProblems : n > 999 ? n.toString().charAt(0) + 'K' : n.toString();
 		let updateLabel = (stats: MarkerStatistics) => {
 			error.innerHTML = packNumber(stats.errors);
 			error.title = errorIcon.title = errorTitle(stats.errors);

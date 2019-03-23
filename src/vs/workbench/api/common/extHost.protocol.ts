@@ -328,8 +328,8 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerDocumentHighlightProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$registerReferenceSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$registerQuickFixSupport(handle: number, selector: ISerializedDocumentFilter[], supportedKinds?: string[]): void;
-	$registerDocumentFormattingSupport(handle: number, selector: ISerializedDocumentFilter[], extensionId: ExtensionIdentifier): void;
-	$registerRangeFormattingSupport(handle: number, selector: ISerializedDocumentFilter[], extensionId: ExtensionIdentifier): void;
+	$registerDocumentFormattingSupport(handle: number, selector: ISerializedDocumentFilter[], extensionId: ExtensionIdentifier, displayName: string): void;
+	$registerRangeFormattingSupport(handle: number, selector: ISerializedDocumentFilter[], extensionId: ExtensionIdentifier, displayName: string): void;
 	$registerOnTypeFormattingSupport(handle: number, selector: ISerializedDocumentFilter[], autoFormatTriggerCharacters: string[], extensionId: ExtensionIdentifier): void;
 	$registerNavigateTypeSupport(handle: number): void;
 	$registerRenameSupport(handle: number, selector: ISerializedDocumentFilter[], supportsResolveInitialValues: boolean): void;
@@ -504,27 +504,16 @@ export interface WebviewPanelShowOptions {
 	readonly preserveFocus?: boolean;
 }
 
-export interface IWebviewPanelOptions {
-	readonly enableFindWidget?: boolean;
-	readonly retainContextWhenHidden?: boolean;
-}
-
-export interface IWebviewOptions {
-	readonly enableScripts?: boolean;
-	readonly enableCommandUris?: boolean;
-	readonly localResourceRoots?: ReadonlyArray<UriComponents>;
-}
-
 export interface MainThreadWebviewsShape extends IDisposable {
-	$createWebviewPanel(handle: WebviewPanelHandle, viewType: string, title: string, showOptions: WebviewPanelShowOptions, options: IWebviewPanelOptions & IWebviewOptions, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): void;
-	$createWebviewCodeInset(handle: WebviewInsetHandle, symbolId: string, options: IWebviewOptions, extensionLocation: UriComponents | undefined): void;
+	$createWebviewPanel(handle: WebviewPanelHandle, viewType: string, title: string, showOptions: WebviewPanelShowOptions, options: modes.IWebviewPanelOptions & modes.IWebviewOptions, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): void;
+	$createWebviewCodeInset(handle: WebviewInsetHandle, symbolId: string, options: modes.IWebviewOptions, extensionId: ExtensionIdentifier | undefined, extensionLocation: UriComponents | undefined): void;
 	$disposeWebview(handle: WebviewPanelHandle): void;
 	$reveal(handle: WebviewPanelHandle, showOptions: WebviewPanelShowOptions): void;
 	$setTitle(handle: WebviewPanelHandle, value: string): void;
 	$setIconPath(handle: WebviewPanelHandle, value: { light: UriComponents, dark: UriComponents } | undefined): void;
 
 	$setHtml(handle: WebviewPanelHandle | WebviewInsetHandle, value: string): void;
-	$setOptions(handle: WebviewPanelHandle | WebviewInsetHandle, options: IWebviewOptions): void;
+	$setOptions(handle: WebviewPanelHandle | WebviewInsetHandle, options: modes.IWebviewOptions): void;
 	$postMessage(handle: WebviewPanelHandle | WebviewInsetHandle, value: any): Promise<boolean>;
 
 	$registerSerializer(viewType: string): void;
@@ -541,7 +530,7 @@ export interface ExtHostWebviewsShape {
 	$onMessage(handle: WebviewPanelHandle, message: any): void;
 	$onDidChangeWebviewPanelViewState(handle: WebviewPanelHandle, newState: WebviewPanelViewState): void;
 	$onDidDisposeWebviewPanel(handle: WebviewPanelHandle): Promise<void>;
-	$deserializeWebviewPanel(newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, state: any, position: EditorViewColumn, options: IWebviewOptions): Promise<void>;
+	$deserializeWebviewPanel(newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, state: any, position: EditorViewColumn, options: modes.IWebviewOptions): Promise<void>;
 }
 
 export interface MainThreadUrlsShape extends IDisposable {
@@ -679,7 +668,7 @@ export interface MainThreadDebugServiceShape extends IDisposable {
 	$acceptDAExit(handle: number, code: number | undefined, signal: string | undefined): void;
 	$registerDebugConfigurationProvider(type: string, hasProvideMethod: boolean, hasResolveMethod: boolean, hasProvideDaMethod: boolean, handle: number): Promise<void>;
 	$registerDebugAdapterDescriptorFactory(type: string, handle: number): Promise<void>;
-	$registerDebugAdapterTrackerFactory(type: string, handle: number);
+	$registerDebugAdapterTrackerFactory(type: string, handle: number): Promise<any>;
 	$unregisterDebugConfigurationProvider(handle: number): void;
 	$unregisterDebugAdapterDescriptorFactory(handle: number): void;
 	$unregisterDebugAdapterTrackerFactory(handle: number): void;

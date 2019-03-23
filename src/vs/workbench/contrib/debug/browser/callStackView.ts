@@ -109,7 +109,7 @@ export class CallStackView extends ViewletPanel {
 				accessibilityProvider: new CallStackAccessibilityProvider(),
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'callStackAriaLabel' }, "Debug Call Stack"),
 				identityProvider: {
-					getId: element => {
+					getId: (element: CallStackItem) => {
 						if (typeof element === 'string') {
 							return element;
 						}
@@ -117,11 +117,11 @@ export class CallStackView extends ViewletPanel {
 							return `showMore ${element[0].getId()}`;
 						}
 
-						return (<IStackFrame | IThread | IDebugSession | ThreadAndSessionIds>element).getId();
+						return element.getId();
 					}
 				},
 				keyboardNavigationLabelProvider: {
-					getKeyboardNavigationLabel: e => {
+					getKeyboardNavigationLabel: (e: CallStackItem) => {
 						if (isDebugSession(e)) {
 							return e.getLabel();
 						}
@@ -170,7 +170,7 @@ export class CallStackView extends ViewletPanel {
 				focusStackFrame(undefined, undefined, element);
 			}
 			if (element instanceof ThreadAndSessionIds) {
-				const session = this.debugService.getModel().getSessions().filter(p => p.getId() === element.sessionId).pop();
+				const session = this.debugService.getModel().getSession(element.sessionId);
 				const thread = session && session.getThread(element.threadId);
 				if (thread) {
 					(<Thread>thread).fetchCallStack()

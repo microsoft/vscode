@@ -102,6 +102,7 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 		this._widget = this._instantiationService.createInstance(ReferenceWidget, this._editor, this._defaultTreeKeyboardSupport, data);
 		this._widget.setTitle(nls.localize('labelLoading', "Loading..."));
 		this._widget.show(range);
+
 		this._disposables.push(this._widget.onDidClose(() => {
 			modelPromise.cancel();
 			if (this._widget) {

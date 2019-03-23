@@ -34,7 +34,7 @@ export class ExplorerService implements IExplorerService {
 	private _onDidChangeRoots = new Emitter<void>();
 	private _onDidChangeItem = new Emitter<ExplorerItem | undefined>();
 	private _onDidChangeEditable = new Emitter<ExplorerItem>();
-	private _onDidSelectItem = new Emitter<{ item?: ExplorerItem, reveal?: boolean }>();
+	private _onDidSelectResource = new Emitter<{ resource?: URI, reveal?: boolean }>();
 	private _onDidCopyItems = new Emitter<{ items: ExplorerItem[], cut: boolean, previouslyCutItems: ExplorerItem[] | undefined }>();
 	private disposables: IDisposable[] = [];
 	private editable: { stat: ExplorerItem, data: IEditableData } | undefined;
@@ -68,8 +68,8 @@ export class ExplorerService implements IExplorerService {
 		return this._onDidChangeEditable.event;
 	}
 
-	get onDidSelectItem(): Event<{ item?: ExplorerItem, reveal?: boolean }> {
-		return this._onDidSelectItem.event;
+	get onDidSelectResource(): Event<{ resource?: URI, reveal?: boolean }> {
+		return this._onDidSelectResource.event;
 	}
 
 	get onDidCopyItems(): Event<{ items: ExplorerItem[], cut: boolean, previouslyCutItems: ExplorerItem[] | undefined }> {
@@ -142,12 +142,12 @@ export class ExplorerService implements IExplorerService {
 	select(resource: URI, reveal?: boolean): Promise<void> {
 		const fileStat = this.findClosest(resource);
 		if (fileStat) {
-			this._onDidSelectItem.fire({ item: fileStat, reveal });
+			this._onDidSelectResource.fire({ resource: fileStat.resource, reveal });
 			return Promise.resolve(undefined);
 		}
 
 		// Stat needs to be resolved first and then revealed
-		const options: IResolveFileOptions = { resolveTo: [resource] };
+		const options: IResolveFileOptions = { resolveTo: [resource], resolveMetadata: false };
 		const workspaceFolder = this.contextService.getWorkspaceFolder(resource);
 		const rootUri = workspaceFolder ? workspaceFolder.uri : this.roots[0].resource;
 		const root = this.roots.filter(r => r.resource.toString() === rootUri.toString()).pop()!;
@@ -161,7 +161,7 @@ export class ExplorerService implements IExplorerService {
 			this._onDidChangeItem.fire(item ? item.parent : undefined);
 
 			// Select and Reveal
-			this._onDidSelectItem.fire({ item: item || undefined, reveal });
+			this._onDidSelectResource.fire({ resource: item ? item.resource : undefined, reveal });
 		}, () => {
 			root.isError = true;
 			this._onDidChangeItem.fire(root);
@@ -192,7 +192,8 @@ export class ExplorerService implements IExplorerService {
 				// Add the new file to its parent (Model)
 				parents.forEach(p => {
 					// We have to check if the parent is resolved #29177
-					const thenable: Promise<IFileStat | undefined> = p.isDirectoryResolved ? Promise.resolve(undefined) : this.fileService.resolveFile(p.resource);
+					const resolveMetadata = this.sortOrder === `modified`;
+					const thenable: Promise<IFileStat | undefined> = p.isDirectoryResolved ? Promise.resolve(undefined) : this.fileService.resolveFile(p.resource, { resolveMetadata });
 					thenable.then(stat => {
 						if (stat) {
 							const modelStat = ExplorerItem.create(stat, p.parent);
@@ -357,10 +358,10 @@ export class ExplorerService implements IExplorerService {
 	private onConfigurationUpdated(configuration: IFilesConfiguration, event?: IConfigurationChangeEvent): void {
 		const configSortOrder = configuration && configuration.explorer && configuration.explorer.sortOrder || 'default';
 		if (this._sortOrder !== configSortOrder) {
-			const shouldFire = this._sortOrder !== undefined;
+			const shouldRefresh = this._sortOrder !== undefined;
 			this._sortOrder = configSortOrder;
-			if (shouldFire) {
-				this._onDidChangeRoots.fire();
+			if (shouldRefresh) {
+				this.refresh();
 			}
 		}
 	}

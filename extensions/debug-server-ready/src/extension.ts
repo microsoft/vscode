@@ -136,13 +136,20 @@ class ServerReadyDetector extends vscode.Disposable {
 				vscode.env.openExternal(vscode.Uri.parse(uri));
 				break;
 			case 'debugWithChrome':
-				vscode.debug.startDebugging(session.workspaceFolder, {
-					type: 'chrome',
-					name: 'Chrome Debug',
-					request: 'launch',
-					url: uri,
-					webRoot: args.webRoot || WEB_ROOT
-				}, session);
+
+				const chrome = vscode.extensions.getExtension('msjsdiag.debugger-for-chrome');
+				if (chrome) {
+					vscode.debug.startDebugging(session.workspaceFolder, {
+						type: 'chrome',
+						name: 'Chrome Debug',
+						request: 'launch',
+						url: uri,
+						webRoot: args.webRoot || WEB_ROOT
+					}, session);
+				} else {
+					const errMsg = localize('server.ready.chrome.not.installed', "The action 'debugWithChrome' requires the '{0}'", 'Debugger for Chrome');
+					vscode.window.showErrorMessage(errMsg, { modal: true }).then(_ => undefined);
+				}
 				break;
 			default:
 				// not supported

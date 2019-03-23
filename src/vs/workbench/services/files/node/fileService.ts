@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as crypto from 'crypto';
 import * as assert from 'assert';
-import { isParent, FileOperation, FileOperationEvent, IContent, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IUpdateContentOptions, FileChangeType, FileChangesEvent, ICreateFileOptions, IContentData, ITextSnapshot, IFilesConfiguration, IFileSystemProviderRegistrationEvent, IFileSystemProvider, ILegacyFileService } from 'vs/platform/files/common/files';
+import { isParent, FileOperation, FileOperationEvent, IContent, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IUpdateContentOptions, FileChangeType, FileChangesEvent, ICreateFileOptions, IContentData, ITextSnapshot, IFilesConfiguration, IFileSystemProviderRegistrationEvent, IFileSystemProvider, ILegacyFileService, IFileStatWithMetadata, IFileService, IResolveMetadataFileOptions } from 'vs/platform/files/common/files';
 import { MAX_FILE_SIZE, MAX_HEAP_SIZE } from 'vs/platform/files/node/fileConstants';
 import { isEqualOrParent } from 'vs/base/common/extpath';
 import { ResourceMap } from 'vs/base/common/map';
@@ -42,13 +42,14 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import product from 'vs/platform/product/node/product';
 import { IEncodingOverride, ResourceEncodings } from 'vs/workbench/services/files/node/encoding';
 import { createReadableOfSnapshot } from 'vs/workbench/services/files/node/streams';
+import { withUndefinedAsNull } from 'vs/base/common/types';
 
 export interface IFileServiceTestOptions {
 	disableWatcher?: boolean;
 	encodingOverride?: IEncodingOverride[];
 }
 
-export class FileService extends Disposable implements ILegacyFileService {
+export class FileService extends Disposable implements ILegacyFileService, IFileService {
 
 	_serviceBrand: any;
 
@@ -206,7 +207,7 @@ export class FileService extends Disposable implements ILegacyFileService {
 	}
 
 	registerProvider(scheme: string, provider: IFileSystemProvider): IDisposable {
-		throw new Error('not implemented');
+		return Disposable.None;
 	}
 
 	activateProvider(scheme: string): Promise<void> {
@@ -228,6 +229,7 @@ export class FileService extends Disposable implements ILegacyFileService {
 					etag: streamContent.etag,
 					encoding: streamContent.encoding,
 					isReadonly: streamContent.isReadonly,
+					size: streamContent.size,
 					value: ''
 				};
 
@@ -279,6 +281,7 @@ export class FileService extends Disposable implements ILegacyFileService {
 			result.name = stat.name;
 			result.mtime = stat.mtime;
 			result.etag = stat.etag;
+			result.size = stat.size;
 
 			// Return early if resource is a directory
 			if (stat.isDirectory) {
@@ -462,7 +465,7 @@ export class FileService extends Disposable implements ILegacyFileService {
 					}
 				};
 
-				let currentPosition: number | null = (options && options.position) || null;
+				let currentPosition: number | null = withUndefinedAsNull(options && options.position);
 
 				const readChunk = () => {
 					fs.read(fd, chunkBuffer, 0, chunkBuffer.length, currentPosition, (err, bytesRead) => {
@@ -531,7 +534,7 @@ export class FileService extends Disposable implements ILegacyFileService {
 		});
 	}
 
-	updateContent(resource: uri, value: string | ITextSnapshot, options: IUpdateContentOptions = Object.create(null)): Promise<IFileStat> {
+	updateContent(resource: uri, value: string | ITextSnapshot, options: IUpdateContentOptions = Object.create(null)): Promise<IFileStatWithMetadata> {
 		if (options.writeElevated) {
 			return this.doUpdateContentElevated(resource, value, options);
 		}
@@ -539,7 +542,7 @@ export class FileService extends Disposable implements ILegacyFileService {
 		return this.doUpdateContent(resource, value, options);
 	}
 
-	private doUpdateContent(resource: uri, value: string | ITextSnapshot, options: IUpdateContentOptions = Object.create(null)): Promise<IFileStat> {
+	private doUpdateContent(resource: uri, value: string | ITextSnapshot, options: IUpdateContentOptions = Object.create(null)): Promise<IFileStatWithMetadata> {
 		const absolutePath = this.toAbsolutePath(resource);
 
 		// 1.) check file for writing
@@ -650,7 +653,7 @@ export class FileService extends Disposable implements ILegacyFileService {
 		});
 	}
 
-	private doUpdateContentElevated(resource: uri, value: string | ITextSnapshot, options: IUpdateContentOptions = Object.create(null)): Promise<IFileStat> {
+	private doUpdateContentElevated(resource: uri, value: string | ITextSnapshot, options: IUpdateContentOptions = Object.create(null)): Promise<IFileStatWithMetadata> {
 		const absolutePath = this.toAbsolutePath(resource);
 
 		// 1.) check file for writing
@@ -712,7 +715,7 @@ export class FileService extends Disposable implements ILegacyFileService {
 		});
 	}
 
-	createFile(resource: uri, content: string = '', options: ICreateFileOptions = Object.create(null)): Promise<IFileStat> {
+	createFile(resource: uri, content: string = '', options: ICreateFileOptions = Object.create(null)): Promise<IFileStatWithMetadata> {
 		const absolutePath = this.toAbsolutePath(resource);
 
 		let checkFilePromise: Promise<boolean>;
@@ -805,15 +808,15 @@ export class FileService extends Disposable implements ILegacyFileService {
 		));
 	}
 
-	moveFile(source: uri, target: uri, overwrite?: boolean): Promise<IFileStat> {
+	moveFile(source: uri, target: uri, overwrite?: boolean): Promise<IFileStatWithMetadata> {
 		return this.moveOrCopyFile(source, target, false, !!overwrite);
 	}
 
-	copyFile(source: uri, target: uri, overwrite?: boolean): Promise<IFileStat> {
+	copyFile(source: uri, target: uri, overwrite?: boolean): Promise<IFileStatWithMetadata> {
 		return this.moveOrCopyFile(source, target, true, !!overwrite);
 	}
 
-	private moveOrCopyFile(source: uri, target: uri, keepCopy: boolean, overwrite: boolean): Promise<IFileStat> {
+	private moveOrCopyFile(source: uri, target: uri, keepCopy: boolean, overwrite: boolean): Promise<IFileStatWithMetadata> {
 		const sourcePath = this.toAbsolutePath(source);
 		const targetPath = this.toAbsolutePath(target);
 
@@ -821,7 +824,7 @@ export class FileService extends Disposable implements ILegacyFileService {
 		return this.doMoveOrCopyFile(sourcePath, targetPath, keepCopy, overwrite).then(() => {
 
 			// 2.) resolve
-			return this.resolve(target).then(result => {
+			return this.resolve(target, { resolveMetadata: true }).then(result => {
 
 				// Events (unless it was a no-op because paths are identical)
 				if (sourcePath !== targetPath) {
@@ -945,6 +948,8 @@ export class FileService extends Disposable implements ILegacyFileService {
 		return paths.normalize(resource.fsPath);
 	}
 
+	private resolve(resource: uri, options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
+	private resolve(resource: uri, options?: IResolveFileOptions): Promise<IFileStat>;
 	private resolve(resource: uri, options: IResolveFileOptions = Object.create(null)): Promise<IFileStat> {
 		return this.toStatResolver(resource).then(model => model.resolve(options));
 	}
@@ -1083,6 +1088,8 @@ export class FileService extends Disposable implements ILegacyFileService {
 
 	// Tests only
 
+	resolveFile(resource: uri, options?: IResolveFileOptions): Promise<IFileStat>;
+	resolveFile(resource: uri, options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
 	resolveFile(resource: uri, options?: IResolveFileOptions): Promise<IFileStat> {
 		return this.resolve(resource, options);
 	}
@@ -1092,14 +1099,14 @@ export class FileService extends Disposable implements ILegacyFileService {
 			.then(stat => ({ stat, success: true }), error => ({ stat: undefined, success: false }))));
 	}
 
-	createFolder(resource: uri): Promise<IFileStat> {
+	createFolder(resource: uri): Promise<IFileStatWithMetadata> {
 
 		// 1.) Create folder
 		const absolutePath = this.toAbsolutePath(resource);
 		return pfs.mkdirp(absolutePath).then(() => {
 
 			// 2.) Resolve
-			return this.resolve(resource).then(result => {
+			return this.resolve(resource, { resolveMetadata: true }).then(result => {
 
 				// Events
 				this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, result));

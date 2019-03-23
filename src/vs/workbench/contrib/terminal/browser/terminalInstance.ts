@@ -422,11 +422,13 @@ export class TerminalInstance implements ITerminalInstance {
 		if (this._shellLaunchConfig.initialText) {
 			this._xterm.writeln(this._shellLaunchConfig.initialText);
 		}
-		this._xterm.winptyCompatInit();
 		this._xterm.on('linefeed', () => this._onLineFeed());
 		this._xterm.on('key', (key, ev) => this._onKey(key, ev));
 
 		if (this._processManager) {
+			if (this._processManager.os === platform.OperatingSystem.Windows) {
+				this._xterm.winptyCompatInit();
+			}
 			this._processManager.onProcessData(data => this._onProcessData(data));
 			this._xterm.on('data', data => this._processManager!.write(data));
 			// TODO: How does the cwd work on detached processes?
@@ -893,9 +895,12 @@ export class TerminalInstance implements ITerminalInstance {
 
 		if (platform.isWindows) {
 			this._processManager.ptyProcessReady.then(() => {
+				if (this._processManager!.remoteAuthority) {
+					return;
+				}
 				this._xtermReadyPromise.then(() => {
 					if (!this._isDisposed) {
-						this._terminalInstanceService.createWindowsShellHelper(this._processManager!.shellProcessId, this, this._xterm);
+						this._windowsShellHelper = this._terminalInstanceService.createWindowsShellHelper(this._processManager!.shellProcessId, this, this._xterm);
 					}
 				});
 			});

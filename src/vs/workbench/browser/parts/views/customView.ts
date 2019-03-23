@@ -87,8 +87,8 @@ export class CustomTreeViewPanel extends ViewletPanel {
 		return [...this.treeView.getSecondaryActions()];
 	}
 
-	getActionItem(action: IAction): IActionItem | null {
-		return action instanceof MenuItemAction ? new ContextAwareMenuItemActionItem(action, this.keybindingService, this.notificationService, this.contextMenuService) : null;
+	getActionItem(action: IAction): IActionItem | undefined {
+		return action instanceof MenuItemAction ? new ContextAwareMenuItemActionItem(action, this.keybindingService, this.notificationService, this.contextMenuService) : undefined;
 	}
 
 	getOptimalWidth(): number {
@@ -378,7 +378,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 	}
 
 	private createTree() {
-		const actionItemProvider = (action: IAction) => action instanceof MenuItemAction ? this.instantiationService.createInstance(ContextAwareMenuItemActionItem, action) : null;
+		const actionItemProvider = (action: IAction) => action instanceof MenuItemAction ? this.instantiationService.createInstance(ContextAwareMenuItemActionItem, action) : undefined;
 		const menus = this._register(this.instantiationService.createInstance(TreeMenus, this.id));
 		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels, this));
 		const dataSource = this.instantiationService.createInstance(TreeDataSource, this, <T>(task: Promise<T>) => this.progressService.withProgress({ location: this.viewContainer.id }, () => task));
@@ -814,7 +814,7 @@ class TreeController extends WorkbenchTreeController {
 				if (keybinding) {
 					return new ActionItem(action, action, { label: true, keybinding: keybinding.getLabel() });
 				}
-				return null;
+				return undefined;
 			},
 
 			onHide: (wasCancelled?: boolean) => {

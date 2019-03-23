@@ -22,7 +22,7 @@ import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configur
 import { LIGHT, DARK, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
 import { colorThemeSchemaId } from 'vs/workbench/services/themes/common/colorThemeSchema';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 
 export class SelectColorThemeAction extends Action {
 
@@ -45,19 +45,20 @@ export class SelectColorThemeAction extends Action {
 		return this.themeService.getColorThemes().then(themes => {
 			const currentTheme = this.themeService.getColorTheme();
 
-			const picks: QuickPickInput[] = ([] as QuickPickInput[]).concat(
-				toEntries(themes.filter(t => t.type === LIGHT), localize('themes.category.light', "light themes")),
-				toEntries(themes.filter(t => t.type === DARK), localize('themes.category.dark', "dark themes")),
-				toEntries(themes.filter(t => t.type === HIGH_CONTRAST), localize('themes.category.hc', "high contrast themes")),
-				configurationEntries(this.extensionGalleryService, localize('installColorThemes', "Install Additional Color Themes..."))
-			);
+			const picks: QuickPickInput<ThemeItem>[] = [
+				...toEntries(themes.filter(t => t.type === LIGHT), localize('themes.category.light', "light themes")),
+				...toEntries(themes.filter(t => t.type === DARK), localize('themes.category.dark', "dark themes")),
+				...toEntries(themes.filter(t => t.type === HIGH_CONTRAST), localize('themes.category.hc', "high contrast themes")),
+				...configurationEntries(this.extensionGalleryService, localize('installColorThemes', "Install Additional Color Themes..."))
+			];
 
-			const selectTheme = (theme, applyTheme: boolean) => {
+			const selectTheme = (theme: ThemeItem, applyTheme: boolean) => {
+				let themeId = theme.id;
 				if (typeof theme.id === 'undefined') { // 'pick in marketplace' entry
 					if (applyTheme) {
 						openExtensionViewlet(this.viewletService, 'category:themes ');
 					}
-					theme = currentTheme;
+					themeId = currentTheme.id;
 				}
 				let target: ConfigurationTarget | undefined = undefined;
 				if (applyTheme) {
@@ -65,7 +66,7 @@ export class SelectColorThemeAction extends Action {
 					target = typeof confValue.workspace !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
 				}
 
-				this.themeService.setColorTheme(theme.id, target).then(undefined,
+				this.themeService.setColorTheme(themeId, target).then(undefined,
 					err => {
 						onUnexpectedError(err);
 						this.themeService.setColorTheme(currentTheme.id, undefined);
@@ -74,12 +75,13 @@ export class SelectColorThemeAction extends Action {
 			};
 
 			const placeHolder = localize('themes.selectTheme', "Select Color Theme (Up/Down Keys to Preview)");
-			const autoFocusIndex = firstIndex(picks, p => p.type !== 'separator' && p.id === currentTheme.id);
+			const autoFocusIndex = firstIndex(picks, p => isItem(p) && p.id === currentTheme.id);
+			const activeItem: ThemeItem = picks[autoFocusIndex] as ThemeItem;
 			const delayer = new Delayer<void>(100);
-			const chooseTheme = theme => delayer.trigger(() => selectTheme(theme || currentTheme, true), 0);
-			const tryTheme = theme => delayer.trigger(() => selectTheme(theme, false));
+			const chooseTheme = (theme: ThemeItem) => delayer.trigger(() => selectTheme(theme || currentTheme, true), 0);
+			const tryTheme = (theme: ThemeItem) => delayer.trigger(() => selectTheme(theme, false));
 
-			return this.quickInputService.pick(picks, { placeHolder, activeItem: picks[autoFocusIndex], onDidFocus: tryTheme })
+			return this.quickInputService.pick(picks, { placeHolder, activeItem, onDidFocus: tryTheme })
 				.then(chooseTheme);
 		});
 	}
@@ -107,25 +109,26 @@ class SelectIconThemeAction extends Action {
 		return this.themeService.getFileIconThemes().then(themes => {
 			const currentTheme = this.themeService.getFileIconTheme();
 
-			let picks: QuickPickInput[] = [{ id: '', label: localize('noIconThemeLabel', 'None'), description: localize('noIconThemeDesc', 'Disable file icons') }];
+			let picks: QuickPickInput<ThemeItem>[] = [{ id: '', label: localize('noIconThemeLabel', 'None'), description: localize('noIconThemeDesc', 'Disable file icons') }];
 			picks = picks.concat(
 				toEntries(themes),
 				configurationEntries(this.extensionGalleryService, localize('installIconThemes', "Install Additional File Icon Themes..."))
 			);
 
-			const selectTheme = (theme, applyTheme: boolean) => {
+			const selectTheme = (theme: ThemeItem, applyTheme: boolean) => {
+				let themeId = theme.id;
 				if (typeof theme.id === 'undefined') { // 'pick in marketplace' entry
 					if (applyTheme) {
 						openExtensionViewlet(this.viewletService, 'tag:icon-theme ');
 					}
-					theme = currentTheme;
+					themeId = currentTheme.id;
 				}
 				let target: ConfigurationTarget | undefined = undefined;
 				if (applyTheme) {
 					let confValue = this.configurationService.inspect(ICON_THEME_SETTING);
 					target = typeof confValue.workspace !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
 				}
-				this.themeService.setFileIconTheme(theme && theme.id, target).then(undefined,
+				this.themeService.setFileIconTheme(themeId, target).then(undefined,
 					err => {
 						onUnexpectedError(err);
 						this.themeService.setFileIconTheme(currentTheme.id, undefined);
@@ -134,18 +137,19 @@ class SelectIconThemeAction extends Action {
 			};
 
 			const placeHolder = localize('themes.selectIconTheme', "Select File Icon Theme");
-			const autoFocusIndex = firstIndex(picks, p => p.type !== 'separator' && p.id === currentTheme.id);
+			const autoFocusIndex = firstIndex(picks, p => isItem(p) && p.id === currentTheme.id);
+			const activeItem: ThemeItem = picks[autoFocusIndex] as ThemeItem;
 			const delayer = new Delayer<void>(100);
-			const chooseTheme = theme => delayer.trigger(() => selectTheme(theme || currentTheme, true), 0);
-			const tryTheme = theme => delayer.trigger(() => selectTheme(theme, false));
+			const chooseTheme = (theme: ThemeItem) => delayer.trigger(() => selectTheme(theme || currentTheme, true), 0);
+			const tryTheme = (theme: ThemeItem) => delayer.trigger(() => selectTheme(theme, false));
 
-			return this.quickInputService.pick(picks, { placeHolder, activeItem: picks[autoFocusIndex], onDidFocus: tryTheme })
+			return this.quickInputService.pick(picks, { placeHolder, activeItem, onDidFocus: tryTheme })
 				.then(chooseTheme);
 		});
 	}
 }
 
-function configurationEntries(extensionGalleryService: IExtensionGalleryService, label: string): QuickPickInput[] {
+function configurationEntries(extensionGalleryService: IExtensionGalleryService, label: string): QuickPickInput<ThemeItem>[] {
 	if (extensionGalleryService.isEnabled()) {
 		return [
 			{
@@ -154,7 +158,7 @@ function configurationEntries(extensionGalleryService: IExtensionGalleryService,
 			{
 				id: undefined,
 				label: label,
-				alwaysShow: true,
+				alwaysShow: true
 			}
 		];
 	}
@@ -169,11 +173,21 @@ function openExtensionViewlet(viewletService: IViewletService, query: string) {
 		}
 	});
 }
+interface ThemeItem {
+	id: string | undefined;
+	label: string;
+	description?: string;
+	alwaysShow?: boolean;
+}
 
-function toEntries(themes: Array<IColorTheme | IFileIconTheme>, label?: string) {
-	const toEntry = theme => <IQuickPickItem>{ id: theme.id, label: theme.label, description: theme.description };
-	const sorter = (t1: IQuickPickItem, t2: IQuickPickItem) => t1.label.localeCompare(t2.label);
-	let entries: QuickPickInput[] = themes.map(toEntry).sort(sorter);
+function isItem(i: QuickPickInput<ThemeItem>): i is ThemeItem {
+	return i['type'] !== 'separatpr';
+}
+
+function toEntries(themes: Array<IColorTheme | IFileIconTheme>, label?: string): QuickPickInput<ThemeItem>[] {
+	const toEntry = (theme: IColorTheme): ThemeItem => ({ id: theme.id, label: theme.label, description: theme.description });
+	const sorter = (t1: ThemeItem, t2: ThemeItem) => t1.label.localeCompare(t2.label);
+	let entries: QuickPickInput<ThemeItem>[] = themes.map(toEntry).sort(sorter);
 	if (entries.length > 0 && label) {
 		entries.unshift({ type: 'separator', label });
 	}

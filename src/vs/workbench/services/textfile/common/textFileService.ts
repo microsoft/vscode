@@ -109,16 +109,16 @@ export class TextFileService extends Disposable implements ITextFileService {
 	resolveTextContent(resource: URI, options?: IResolveContentOptions): Promise<IRawTextContent> {
 		return this.fileService.resolveStreamContent(resource, options).then(streamContent => {
 			return createTextBufferFactoryFromStream(streamContent.value).then(res => {
-				const r: IRawTextContent = {
+				return {
 					resource: streamContent.resource,
 					name: streamContent.name,
 					mtime: streamContent.mtime,
 					etag: streamContent.etag,
 					encoding: streamContent.encoding,
 					isReadonly: streamContent.isReadonly,
+					size: streamContent.size,
 					value: res
-				};
-				return r;
+				} as IRawTextContent;
 			});
 		});
 	}
