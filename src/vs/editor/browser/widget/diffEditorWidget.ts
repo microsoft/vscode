@@ -1214,7 +1214,7 @@ abstract class DiffEditorWidgetStyle extends Disposable implements IDiffEditorWi
 		});
 
 		// if we need to reverse coloring
-		if (reverse === true) {
+		if (reverse) {
 			// change lines to be highlighted
 			let revertedLineChanges: editorCommon.ILineChange[] = lineChanges.map(linechange => {
 				return {

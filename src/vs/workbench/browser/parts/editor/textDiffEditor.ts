@@ -75,7 +75,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 	}
 
 	createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): IDiffEditor {
-		if (this.reverseColor === true) {
+		if (this.reverseColor) {
 			(configuration as IDiffEditorOptions).reverse = true;
 		}
 
