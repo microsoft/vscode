@@ -172,26 +172,26 @@ export function activate(context: ExtensionContext) {
 				let range = new Range(new Position(pos.line, match2[1].length), pos);
 				let snippetProposal = new CompletionItem('HTML sample', CompletionItemKind.Snippet);
 				snippetProposal.range = range;
-				const content = ["<!DOCTYPE html>",
-					"<html>",
-					"<head>",
-					"\t<meta charset=\"utf-8\">",
-					"\t<meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\">",
-					"\t<title>${1:Page Title}</title>",
-					"\t<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">",
-					"\t<link rel=\"stylesheet\" type=\"text/css\" media=\"screen\" href=\"${2:main.css}\">",
-					"\t<script src=\"${3:main.js}\"></script>",
-					"</head>",
-					"<body>",
-					"\t$0",
-					"</body>",
-					"</html>"].join('\n');
+				const content = ['<!DOCTYPE html>',
+					'<html>',
+					'<head>',
+					'\t<meta charset=\'utf-8\'>',
+					'\t<meta http-equiv=\'X-UA-Compatible\' content=\'IE=edge\'>',
+					'\t<title>${1:Page Title}</title>',
+					'\t<meta name=\'viewport\' content=\'width=device-width, initial-scale=1\'>',
+					'\t<link rel=\'stylesheet\' type=\'text/css\' media=\'screen\' href=\'${2:main.css}\'>',
+					'\t<script src=\'${3:main.js}\'></script>',
+					'</head>',
+					'<body>',
+					'\t$0',
+					'</body>',
+					'</html>'].join('\n');
 				snippetProposal.insertText = new SnippetString(content);
 				snippetProposal.documentation = localize('folding.html', 'Simple HTML5 starting point');
 				snippetProposal.filterText = match2[2];
 				snippetProposal.sortText = 'za';
 				results.push(snippetProposal);
-			};
+			}
 			return results;
 		}
 	});
