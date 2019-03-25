@@ -30,9 +30,7 @@ import { FileServiceBasedUserConfiguration, NodeBasedUserConfiguration } from 'v
 
 export class LocalUserConfiguration extends Disposable {
 
-	private readonly userConfigurationResource: URI;
 	private userConfiguration: NodeBasedUserConfiguration | FileServiceBasedUserConfiguration;
-	private changeDisposable: IDisposable = Disposable.None;
 
 	private readonly _onDidChangeConfiguration: Emitter<ConfigurationModel> = this._register(new Emitter<ConfigurationModel>());
 	public readonly onDidChangeConfiguration: Event<ConfigurationModel> = this._onDidChangeConfiguration.event;
@@ -41,9 +39,8 @@ export class LocalUserConfiguration extends Disposable {
 		environmentService: IEnvironmentService
 	) {
 		super();
-		this.userConfigurationResource = URI.file(environmentService.appSettingsPath);
 		this.userConfiguration = this._register(new NodeBasedUserConfiguration(environmentService.appSettingsPath));
-		this.changeDisposable = this._register(this.userConfiguration.onDidChangeConfiguration(configurationModel => this._onDidChangeConfiguration.fire(configurationModel)));
+		this._register(this.userConfiguration.onDidChangeConfiguration(configurationModel => this._onDidChangeConfiguration.fire(configurationModel)));
 	}
 
 	initialize(): Promise<ConfigurationModel> {
@@ -55,12 +52,6 @@ export class LocalUserConfiguration extends Disposable {
 	}
 
 	async adopt(fileService: IFileService): Promise<ConfigurationModel | null> {
-		// if (this.userConfiguration instanceof NodeBasedUserConfiguration) {
-		// 	this.userConfiguration.dispose();
-		// 	dispose(this.changeDisposable);
-		// 	this.userConfiguration = this._register(new FileServiceBasedUserConfiguration(this.userConfigurationResource, fileService));
-		// 	this.changeDisposable = this._register(this.userConfiguration.onDidChangeConfiguration(configurationModel => this._onDidChangeConfiguration.fire(configurationModel)));
-		// }
 		return null;
 	}
 }
