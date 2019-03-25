@@ -48,6 +48,11 @@ interface ILayoutInfo {
 
 type Tree<I, E> = WorkbenchDataTree<I, E, FuzzyScore> | WorkbenchAsyncDataTree<I, E, FuzzyScore>;
 
+export interface SelectEvent {
+	target: any;
+	browserEvent: UIEvent;
+}
+
 export abstract class BreadcrumbsPicker {
 
 	protected readonly _disposables = new Array<IDisposable>();
@@ -58,11 +63,11 @@ export abstract class BreadcrumbsPicker {
 	protected _fakeEvent = new UIEvent('fakeEvent');
 	protected _layoutInfo: ILayoutInfo;
 
-	private readonly _onDidPickElement = new Emitter<{ target: any, payload: any }>();
-	readonly onDidPickElement: Event<{ target: any, payload: any }> = this._onDidPickElement.event;
+	private readonly _onDidPickElement = new Emitter<SelectEvent>();
+	readonly onDidPickElement: Event<SelectEvent> = this._onDidPickElement.event;
 
-	private readonly _onDidFocusElement = new Emitter<{ target: any, payload: any }>();
-	readonly onDidFocusElement: Event<{ target: any, payload: any }> = this._onDidFocusElement.event;
+	private readonly _onDidFocusElement = new Emitter<SelectEvent>();
+	readonly onDidFocusElement: Event<SelectEvent> = this._onDidFocusElement.event;
 
 	constructor(
 		parent: HTMLElement,
@@ -106,18 +111,18 @@ export abstract class BreadcrumbsPicker {
 
 		this._disposables.push(this._tree.onDidChangeSelection(e => {
 			if (e.browserEvent !== this._fakeEvent) {
-				const target = this._getTargetFromEvent(e.elements[0], e.browserEvent);
+				const target = this._getTargetFromEvent(e.elements[0]);
 				if (target) {
 					setTimeout(_ => {// need to debounce here because this disposes the tree and the tree doesn't like to be disposed on click
-						this._onDidPickElement.fire({ target, payload: undefined });
+						this._onDidPickElement.fire({ target, browserEvent: e.browserEvent || new UIEvent('fake') });
 					}, 0);
 				}
 			}
 		}));
 		this._disposables.push(this._tree.onDidChangeFocus(e => {
-			const target = this._getTargetFromEvent(e.elements[0], e.browserEvent);
+			const target = this._getTargetFromEvent(e.elements[0]);
 			if (target) {
-				this._onDidFocusElement.fire({ target, payload: undefined });
+				this._onDidFocusElement.fire({ target, browserEvent: e.browserEvent || new UIEvent('fake') });
 			}
 		}));
 		this._disposables.push(this._tree.onDidChangeContentHeight(() => {
@@ -155,9 +160,13 @@ export abstract class BreadcrumbsPicker {
 
 	}
 
+	get useAltAsMultipleSelectionModifier() {
+		return this._tree.useAltAsMultipleSelectionModifier;
+	}
+
 	protected abstract _setInput(element: BreadcrumbElement): Promise<void>;
 	protected abstract _createTree(container: HTMLElement): Tree<any, any>;
-	protected abstract _getTargetFromEvent(element: any, payload: UIEvent | undefined): any | undefined;
+	protected abstract _getTargetFromEvent(element: any): any | undefined;
 }
 
 //#region - Files
@@ -425,7 +434,7 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 		});
 	}
 
-	protected _getTargetFromEvent(element: any, _payload: any): any | undefined {
+	protected _getTargetFromEvent(element: any): any | undefined {
 		// todo@joh
 		if (element && !IWorkspaceFolder.isIWorkspaceFolder(element) && !(element as IFileStat).isDirectory) {
 			return new FileElement((element as IFileStat).resource, FileKind.FILE);

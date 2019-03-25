@@ -18,8 +18,9 @@ import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IRemoteConsoleLog, log, parse } from 'vs/base/common/console';
 import { findFreePort, randomPort } from 'vs/base/node/ports';
-import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
-import { PersistentProtocol, generateRandomPipeName } from 'vs/base/parts/ipc/node/ipc.net';
+import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
+import { PersistentProtocol } from 'vs/base/parts/ipc/common/ipc.net';
+import { generateRandomPipeName, NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 import { IBroadcast, IBroadcastService } from 'vs/workbench/services/broadcast/common/broadcast';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { EXTENSION_ATTACH_BROADCAST_CHANNEL, EXTENSION_CLOSE_EXTHOST_BROADCAST_CHANNEL, EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_RELOAD_BROADCAST_CHANNEL, EXTENSION_TERMINATE_BROADCAST_CHANNEL } from 'vs/platform/extensions/common/extensionHost';
@@ -36,6 +37,7 @@ import { MessageType, createMessageOfType, isMessageOfType } from 'vs/workbench/
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { parseExtensionDevOptions } from '../common/extensionDevOptions';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 export interface IExtensionHostStarter {
 	readonly onCrashed: Event<[number, string | null]>;
@@ -339,7 +341,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 				// using a buffered message protocol here because between now
 				// and the first time a `then` executes some messages might be lost
 				// unless we immediately register a listener for `onMessage`.
-				resolve(new PersistentProtocol(this._extensionHostConnection));
+				resolve(new PersistentProtocol(new NodeSocket(this._extensionHostConnection)));
 			});
 
 		}).then((protocol) => {
@@ -372,7 +374,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 							// Wait 60s for the initialized message
 							installTimeoutCheck();
 
-							protocol.send(Buffer.from(JSON.stringify(data)));
+							protocol.send(VSBuffer.fromString(JSON.stringify(data)));
 						});
 						return;
 					}

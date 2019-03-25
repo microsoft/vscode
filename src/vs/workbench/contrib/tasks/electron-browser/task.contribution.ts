@@ -870,7 +870,7 @@ class TaskService extends Disposable implements ITaskService {
 		});
 	}
 
-	public run(task: Task | undefined, options?: ProblemMatcherRunOptions): Promise<ITaskSummary> {
+	public run(task: Task | undefined, options?: ProblemMatcherRunOptions, runSource: TaskRunSource = TaskRunSource.System): Promise<ITaskSummary> {
 		if (!task) {
 			throw new TaskError(Severity.Info, nls.localize('TaskServer.noTask', 'Task to execute is undefined'), TaskErrors.TaskNotFound);
 		}
@@ -886,7 +886,14 @@ class TaskService extends Disposable implements ITaskService {
 				});
 			}
 			return this.executeTask(task, resolver);
-		}).then(value => value, (error) => {
+		}).then((value) => {
+			if (runSource === TaskRunSource.User) {
+				this.getWorkspaceTasks().then(workspaceTasks => {
+					RunAutomaticTasks.promptForPermission(this, this.storageService, this.notificationService, workspaceTasks);
+				});
+			}
+			return value;
+		}, (error) => {
 			this.handleError(error);
 			return Promise.reject(error);
 		});
@@ -1548,11 +1555,6 @@ class TaskService extends Disposable implements ITaskService {
 			return this._workspaceTasksPromise;
 		}
 		this.updateWorkspaceTasks(runSource);
-		if (runSource === TaskRunSource.User) {
-			this._workspaceTasksPromise!.then(workspaceFolderTasks => {
-				RunAutomaticTasks.promptForPermission(this, this.storageService, this.notificationService, workspaceFolderTasks);
-			});
-		}
 		return this._workspaceTasksPromise!;
 	}
 
@@ -2049,7 +2051,7 @@ class TaskService extends Disposable implements ITaskService {
 					if (task === null) {
 						this.runConfigureTasks();
 					} else {
-						this.run(task, { attachProblemMatcher: true }).then(undefined, reason => {
+						this.run(task, { attachProblemMatcher: true }, TaskRunSource.User).then(undefined, reason => {
 							// eat the error, it has already been surfaced to the user and we don't care about it here
 						});
 					}

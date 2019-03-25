@@ -7,6 +7,7 @@ import { Emitter } from 'vs/base/common/event';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { EditorInput, EditorModel, GroupIdentifier, IEditorInput } from 'vs/workbench/common/editor';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { WebviewEvents, WebviewInputOptions } from './webviewEditorService';
@@ -63,7 +64,10 @@ export class WebviewEditorInput extends EditorInput {
 	private _scrollYPercentage: number = 0;
 	private _state: any;
 
-	public readonly extensionLocation: URI | undefined;
+	public readonly extension?: {
+		readonly location: URI;
+		readonly id: ExtensionIdentifier;
+	};
 	private readonly _id: number;
 
 	constructor(
@@ -73,7 +77,10 @@ export class WebviewEditorInput extends EditorInput {
 		options: WebviewInputOptions,
 		state: any,
 		events: WebviewEvents,
-		extensionLocation: URI | undefined,
+		extension: undefined | {
+			readonly location: URI;
+			readonly id: ExtensionIdentifier;
+		},
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 	) {
 		super();
@@ -89,7 +96,7 @@ export class WebviewEditorInput extends EditorInput {
 		this._options = options;
 		this._events = events;
 		this._state = state;
-		this.extensionLocation = extensionLocation;
+		this.extension = extension;
 	}
 
 	public getTypeId(): string {
@@ -313,11 +320,14 @@ export class RevivedWebviewEditorInput extends WebviewEditorInput {
 		options: WebviewInputOptions,
 		state: any,
 		events: WebviewEvents,
-		extensionLocation: URI | undefined,
+		extension: undefined | {
+			readonly location: URI;
+			readonly id: ExtensionIdentifier
+		},
 		public readonly reviver: (input: WebviewEditorInput) => Promise<void>,
 		@IWorkbenchLayoutService partService: IWorkbenchLayoutService,
 	) {
-		super(viewType, id, name, options, state, events, extensionLocation, partService);
+		super(viewType, id, name, options, state, events, extension, partService);
 	}
 
 	public async resolve(): Promise<IEditorModel> {

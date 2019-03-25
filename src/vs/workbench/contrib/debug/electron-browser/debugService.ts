@@ -137,7 +137,7 @@ export class DebugService implements IDebugService {
 		this.lifecycleService.onShutdown(this.dispose, this);
 
 		this.toDispose.push(this.broadcastService.onBroadcast(broadcast => {
-			const session = this.model.getSessions(true).filter(s => s.getId() === broadcast.payload.debugId).pop();
+			const session = this.model.getSession(broadcast.payload.debugId, true);
 			if (session) {
 				switch (broadcast.channel) {
 

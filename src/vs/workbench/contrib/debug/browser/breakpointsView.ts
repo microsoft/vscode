@@ -76,7 +76,7 @@ export class BreakpointsView extends ViewletPanel {
 		], {
 				identityProvider: { getId: (element: IEnablement) => element.getId() },
 				multipleSelectionSupport: false,
-				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: e => e }
+				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IEnablement) => e }
 			}) as WorkbenchList<IEnablement>;
 
 		CONTEXT_BREAKPOINTS_FOCUSED.bindTo(this.list.contextKeyService);

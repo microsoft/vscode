@@ -520,7 +520,7 @@ export class RemoteFileDialog {
 		}
 
 		if (this.fallbackListItem) {
-			sorted.unshift(this.fallbackListItem);
+			sorted.push(this.fallbackListItem);
 		}
 		return sorted;
 	}

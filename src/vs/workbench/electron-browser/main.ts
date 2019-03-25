@@ -12,7 +12,7 @@ import { ElectronWindow } from 'vs/workbench/electron-browser/window';
 import { setZoomLevel, setZoomFactor, setFullscreen } from 'vs/base/browser/browser';
 import { domContentLoaded, addDisposableListener, EventType, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { isLinux, isMacintosh, isWindows, OperatingSystem } from 'vs/base/common/platform';
 import { URI as uri } from 'vs/base/common/uri';
 import { WorkspaceService, DefaultConfigurationExportHelper } from 'vs/workbench/services/configuration/node/configurationService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -43,6 +43,11 @@ import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-brow
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { FileService2 } from 'vs/workbench/services/files2/common/fileService2';
+import { IFileService } from 'vs/platform/files/common/files';
+import { DiskFileSystemProvider } from 'vs/workbench/services/files2/electron-browser/diskFileSystemProvider';
+import { IChannel } from 'vs/base/parts/ipc/common/ipc';
+import { REMOTE_FILE_SYSTEM_CHANNEL_NAME, RemoteExtensionsFileSystemProvider } from 'vs/platform/remote/node/remoteAgentFileSystemChannel';
 
 class CodeRendererMain extends Disposable {
 
@@ -172,14 +177,31 @@ class CodeRendererMain extends Disposable {
 		const logService = this._register(this.createLogService(mainProcessService, environmentService));
 		serviceCollection.set(ILogService, logService);
 
+		// Files
+		const fileService = new FileService2(logService);
+		serviceCollection.set(IFileService, fileService);
+
+		fileService.registerProvider(Schemas.file, new DiskFileSystemProvider());
+
 		// Remote
 		const remoteAuthorityResolverService = new RemoteAuthorityResolverService();
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
 		const remoteAgentService = new RemoteAgentService(this.configuration, environmentService, remoteAuthorityResolverService);
 		serviceCollection.set(IRemoteAgentService, remoteAgentService);
 
+		const connection = remoteAgentService.getConnection();
+		if (connection) {
+			const channel = connection.getChannel<IChannel>(REMOTE_FILE_SYSTEM_CHANNEL_NAME);
+			const fileSystemProvider = new RemoteExtensionsFileSystemProvider(channel);
+			fileService.registerProvider('vscode-remote', fileSystemProvider);
+			remoteAgentService.getEnvironment().then(remoteAgentEnvironment => {
+				const isCaseSensitive = !!(remoteAgentEnvironment && remoteAgentEnvironment.os === OperatingSystem.Linux);
+				fileSystemProvider.setCaseSensitive(isCaseSensitive);
+			});
+		}
+
 		return this.resolveWorkspaceInitializationPayload(environmentService).then(payload => Promise.all([
-			this.createWorkspaceService(payload, environmentService, logService).then(service => {
+			this.createWorkspaceService(payload, environmentService, remoteAgentService, logService).then(service => {
 
 				// Workspace
 				serviceCollection.set(IWorkspaceContextService, service);
@@ -270,8 +292,8 @@ class CodeRendererMain extends Disposable {
 		}, error => onUnexpectedError(error));
 	}
 
-	private createWorkspaceService(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService, logService: ILogService): Promise<WorkspaceService> {
-		const workspaceService = new WorkspaceService(environmentService);
+	private createWorkspaceService(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService, remoteAgentService: IRemoteAgentService, logService: ILogService): Promise<WorkspaceService> {
+		const workspaceService = new WorkspaceService(this.configuration, environmentService, remoteAgentService);
 
 		return workspaceService.initialize(payload).then(() => workspaceService, error => {
 			onUnexpectedError(error);

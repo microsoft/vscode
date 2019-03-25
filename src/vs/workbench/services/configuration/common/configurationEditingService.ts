@@ -28,6 +28,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { withUndefinedAsNull, withNullAsUndefined } from 'vs/base/common/types';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 export const enum ConfigurationEditingErrorCode {
 
@@ -120,6 +121,7 @@ export class ConfigurationEditingService {
 	public _serviceBrand: any;
 
 	private queue: Queue<void>;
+	private remoteSettingsResource: URI | null;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -130,9 +132,15 @@ export class ConfigurationEditingService {
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
-		@IEditorService private readonly editorService: IEditorService
+		@IEditorService private readonly editorService: IEditorService,
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService
 	) {
 		this.queue = new Queue<void>();
+		remoteAgentService.getEnvironment().then(environment => {
+			if (environment) {
+				this.remoteSettingsResource = environment.appSettingsPath;
+			}
+		});
 	}
 
 	writeConfiguration(target: ConfigurationTarget, value: IConfigurationValue, options: IConfigurationEditingOptions = {}): Promise<void> {
@@ -458,7 +466,7 @@ export class ConfigurationEditingService {
 		if (config.key) {
 			const standaloneConfigurationKeys = Object.keys(WORKSPACE_STANDALONE_CONFIGURATIONS);
 			for (const key of standaloneConfigurationKeys) {
-				const resource = this.getConfigurationFileResource(target, WORKSPACE_STANDALONE_CONFIGURATIONS[key], overrides.resource);
+				const resource = this.getConfigurationFileResource(target, config, WORKSPACE_STANDALONE_CONFIGURATIONS[key], overrides.resource);
 
 				// Check for prefix
 				if (config.key === key) {
@@ -478,10 +486,10 @@ export class ConfigurationEditingService {
 		let key = config.key;
 		let jsonPath = overrides.overrideIdentifier ? [keyFromOverrideIdentifier(overrides.overrideIdentifier), key] : [key];
 		if (target === ConfigurationTarget.USER) {
-			return { key, jsonPath, value: config.value, resource: URI.file(this.environmentService.appSettingsPath), target };
+			return { key, jsonPath, value: config.value, resource: withNullAsUndefined(this.getConfigurationFileResource(target, config, '', null)), target };
 		}
 
-		const resource = this.getConfigurationFileResource(target, FOLDER_SETTINGS_PATH, overrides.resource);
+		const resource = this.getConfigurationFileResource(target, config, FOLDER_SETTINGS_PATH, overrides.resource);
 		if (this.isWorkspaceConfigurationResource(resource)) {
 			jsonPath = ['settings', ...jsonPath];
 		}
@@ -493,8 +501,17 @@ export class ConfigurationEditingService {
 		return !!(workspace.configuration && resource && workspace.configuration.fsPath === resource.fsPath);
 	}
 
-	private getConfigurationFileResource(target: ConfigurationTarget, relativePath: string, resource: URI | null | undefined): URI | null {
+	private getConfigurationFileResource(target: ConfigurationTarget, config: IConfigurationValue, relativePath: string, resource: URI | null | undefined): URI | null {
+		if (target === ConfigurationTarget.USER_LOCAL) {
+			return URI.file(this.environmentService.appSettingsPath);
+		}
+		if (target === ConfigurationTarget.USER_REMOTE) {
+			return this.remoteSettingsResource;
+		}
 		if (target === ConfigurationTarget.USER) {
+			if (this.configurationService.inspect(config.key).userRemote !== undefined) {
+				return this.remoteSettingsResource;
+			}
 			return URI.file(this.environmentService.appSettingsPath);
 		}
 

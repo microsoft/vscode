@@ -50,8 +50,8 @@ import '../browser/mainThreadTreeViews';
 import '../browser/mainThreadUrls';
 import '../browser/mainThreadWindow';
 import '../browser/mainThreadWorkspace';
-import './mainThreadComments';
-import './mainThreadTask';
+import '../browser/mainThreadComments';
+import '../browser/mainThreadTask';
 import './mainThreadWebview';
 import 'vs/workbench/api/node/apiCommands';
 

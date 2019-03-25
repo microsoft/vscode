@@ -571,7 +571,8 @@
 		"duplicate-imports": true,
 		"no-new-buffer": true,
 		"translation-remind": true,
-		"no-standalone-editor": true
+		"no-standalone-editor": true,
+		"no-nls-in-standalone-editor": true
 	},
 	"defaultSeverity": "warning"
 }

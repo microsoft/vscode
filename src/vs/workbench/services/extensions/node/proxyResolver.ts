@@ -457,7 +457,7 @@ async function readCaCertificates() {
 }
 
 function readWindowsCaCertificates() {
-	const winCA = require.__$__nodeRequire<any>('win-ca-lib');
+	const winCA = require.__$__nodeRequire<any>('vscode-windows-ca-certs');
 
 	let ders: any[] = [];
 	const store = winCA();
@@ -515,7 +515,7 @@ async function readLinuxCaCertificates() {
 	return undefined;
 }
 
-function derToPem(blob) {
+function derToPem(blob: Buffer) {
 	const lines = ['-----BEGIN CERTIFICATE-----'];
 	const der = blob.toString('base64');
 	for (let i = 0; i < der.length; i += 64) {

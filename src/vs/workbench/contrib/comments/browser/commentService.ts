@@ -13,7 +13,7 @@ import { keys } from 'vs/base/common/map';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { assign } from 'vs/base/common/objects';
 import { ICommentThreadChangedEvent } from 'vs/workbench/contrib/comments/common/commentModel';
-import { MainThreadCommentController } from 'vs/workbench/api/electron-browser/mainThreadComments';
+import { MainThreadCommentController } from 'vs/workbench/api/browser/mainThreadComments';
 
 export const ICommentService = createDecorator<ICommentService>('commentService');
 
@@ -65,8 +65,8 @@ export interface ICommentService {
 	deleteReaction(owner: string, resource: URI, comment: Comment, reaction: CommentReaction): Promise<void>;
 	getReactionGroup(owner: string): CommentReaction[] | undefined;
 	toggleReaction(owner: string, resource: URI, thread: CommentThread2, comment: Comment, reaction: CommentReaction): Promise<void>;
-	setActiveCommentThread(commentThread: CommentThread | null);
-	setInput(input: string);
+	setActiveCommentThread(commentThread: CommentThread | null): void;
+	setInput(input: string): void;
 }
 
 export class CommentService extends Disposable implements ICommentService {

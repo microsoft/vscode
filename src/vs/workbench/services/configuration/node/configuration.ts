@@ -25,7 +25,154 @@ import { extname, join } from 'vs/base/common/path';
 import { equals } from 'vs/base/common/objects';
 import { Schemas } from 'vs/base/common/network';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IConfigurationModel } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationModel, compare } from 'vs/platform/configuration/common/configuration';
+import { FileServiceBasedUserConfiguration, NodeBasedUserConfiguration } from 'vs/platform/configuration/node/configuration';
+
+export class LocalUserConfiguration extends Disposable {
+
+	private readonly userConfigurationResource: URI;
+	private userConfiguration: NodeBasedUserConfiguration | FileServiceBasedUserConfiguration;
+	private changeDisposable: IDisposable = Disposable.None;
+
+	private readonly _onDidChangeConfiguration: Emitter<ConfigurationModel> = this._register(new Emitter<ConfigurationModel>());
+	public readonly onDidChangeConfiguration: Event<ConfigurationModel> = this._onDidChangeConfiguration.event;
+
+	constructor(
+		environmentService: IEnvironmentService
+	) {
+		super();
+		this.userConfigurationResource = URI.file(environmentService.appSettingsPath);
+		this.userConfiguration = this._register(new NodeBasedUserConfiguration(environmentService.appSettingsPath));
+		this.changeDisposable = this._register(this.userConfiguration.onDidChangeConfiguration(configurationModel => this._onDidChangeConfiguration.fire(configurationModel)));
+	}
+
+	initialize(): Promise<ConfigurationModel> {
+		return this.userConfiguration.initialize();
+	}
+
+	reload(): Promise<ConfigurationModel> {
+		return this.userConfiguration.reload();
+	}
+
+	async adopt(fileService: IFileService): Promise<ConfigurationModel | null> {
+		if (this.userConfiguration instanceof NodeBasedUserConfiguration) {
+			this.userConfiguration.dispose();
+			dispose(this.changeDisposable);
+			this.userConfiguration = this._register(new FileServiceBasedUserConfiguration(this.userConfigurationResource, fileService));
+			this.changeDisposable = this._register(this.userConfiguration.onDidChangeConfiguration(configurationModel => this._onDidChangeConfiguration.fire(configurationModel)));
+		}
+		return null;
+	}
+}
+
+export class RemoteUserConfiguration extends Disposable {
+
+	private readonly _cachedConfiguration: CachedUserConfiguration;
+	private _userConfiguration: FileServiceBasedUserConfiguration | CachedUserConfiguration;
+
+	private readonly _onDidChangeConfiguration: Emitter<ConfigurationModel> = this._register(new Emitter<ConfigurationModel>());
+	public readonly onDidChangeConfiguration: Event<ConfigurationModel> = this._onDidChangeConfiguration.event;
+
+	constructor(
+		remoteAuthority: string,
+		environmentService: IEnvironmentService
+	) {
+		super();
+		this._userConfiguration = this._cachedConfiguration = new CachedUserConfiguration(remoteAuthority, environmentService);
+	}
+
+	initialize(): Promise<ConfigurationModel> {
+		return this._userConfiguration.initialize();
+	}
+
+	reload(): Promise<ConfigurationModel> {
+		return this._userConfiguration.reload();
+	}
+
+	async adopt(configurationResource: URI | null, fileService: IFileService): Promise<ConfigurationModel | null> {
+		if (this._userConfiguration instanceof CachedUserConfiguration) {
+			const oldConfigurationModel = this._userConfiguration.getConfigurationModel();
+			let newConfigurationModel = new ConfigurationModel();
+			if (configurationResource) {
+				this._userConfiguration = new FileServiceBasedUserConfiguration(configurationResource, fileService);
+				this._register(this._userConfiguration.onDidChangeConfiguration(configurationModel => this.onDidUserConfigurationChange(configurationModel)));
+				newConfigurationModel = await this._userConfiguration.initialize();
+			}
+			const { added, updated, removed } = compare(oldConfigurationModel, newConfigurationModel);
+			if (added.length > 0 || updated.length > 0 || removed.length > 0) {
+				this.updateCache(newConfigurationModel);
+				return newConfigurationModel;
+			}
+		}
+		return null;
+	}
+
+	private onDidUserConfigurationChange(configurationModel: ConfigurationModel): void {
+		this.updateCache(configurationModel);
+		this._onDidChangeConfiguration.fire(configurationModel);
+	}
+
+	private updateCache(configurationModel: ConfigurationModel): Promise<void> {
+		return this._cachedConfiguration.updateConfiguration(configurationModel);
+	}
+}
+
+class CachedUserConfiguration extends Disposable {
+
+	private readonly _onDidChange: Emitter<ConfigurationModel> = this._register(new Emitter<ConfigurationModel>());
+	readonly onDidChange: Event<ConfigurationModel> = this._onDidChange.event;
+
+	private readonly cachedFolderPath: string;
+	private readonly cachedConfigurationPath: string;
+	private configurationModel: ConfigurationModel;
+
+	constructor(
+		remoteAuthority: string,
+		private environmentService: IEnvironmentService
+	) {
+		super();
+		this.cachedFolderPath = join(this.environmentService.userDataPath, 'CachedConfigurations', 'user', remoteAuthority);
+		this.cachedConfigurationPath = join(this.cachedFolderPath, 'configuration.json');
+		this.configurationModel = new ConfigurationModel();
+	}
+
+	getConfigurationModel(): ConfigurationModel {
+		return this.configurationModel;
+	}
+
+	initialize(): Promise<ConfigurationModel> {
+		return this.reload();
+	}
+
+	reload(): Promise<ConfigurationModel> {
+		return pfs.readFile(this.cachedConfigurationPath)
+			.then(content => content.toString(), () => '')
+			.then(content => {
+				try {
+					const parsed: IConfigurationModel = JSON.parse(content);
+					this.configurationModel = new ConfigurationModel(parsed.contents, parsed.keys, parsed.overrides);
+				} catch (e) {
+				}
+				return this.configurationModel;
+			});
+	}
+
+	updateConfiguration(configurationModel: ConfigurationModel): Promise<void> {
+		const raw = JSON.stringify(configurationModel.toJSON());
+		return this.createCachedFolder().then(created => {
+			if (created) {
+				return configurationModel.keys.length ? pfs.writeFile(this.cachedConfigurationPath, raw) : pfs.rimraf(this.cachedFolderPath);
+			}
+			return undefined;
+		});
+	}
+
+	private createCachedFolder(): Promise<boolean> {
+		return Promise.resolve(pfs.exists(this.cachedFolderPath))
+			.then(undefined, () => false)
+			.then(exists => exists ? exists : pfs.mkdirp(this.cachedFolderPath).then(() => true, () => false));
+	}
+}
 
 export interface IWorkspaceIdentifier {
 	id: string;

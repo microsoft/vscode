@@ -285,16 +285,15 @@ export class ExplorerView extends ViewletPanel {
 				accessibilityProvider: new ExplorerAccessibilityProvider(),
 				ariaLabel: nls.localize('treeAriaLabel', "Files Explorer"),
 				identityProvider: {
-					getId: stat => (<ExplorerItem>stat).resource
+					getId: (stat: ExplorerItem) => stat.resource
 				},
 				keyboardNavigationLabelProvider: {
-					getKeyboardNavigationLabel: stat => {
-						const item = <ExplorerItem>stat;
-						if (this.explorerService.isEditable(item)) {
+					getKeyboardNavigationLabel: (stat: ExplorerItem) => {
+						if (this.explorerService.isEditable(stat)) {
 							return undefined;
 						}
 
-						return item.name;
+						return stat.name;
 					}
 				},
 				multipleSelectionSupport: true,

@@ -23,7 +23,7 @@ suite('Experimental Prompts', () => {
 	let experimentalPrompt: ExperimentalPrompts;
 	let onExperimentEnabledEvent: Emitter<IExperiment>;
 
-	let storageData = {};
+	let storageData: { [key: string]: any } = {};
 	const promptText = 'Hello there! Can you see this?';
 	const experiment: IExperiment =
 	{

@@ -88,6 +88,24 @@ export class OpenGlobalSettingsAction extends Action {
 	}
 }
 
+export class OpenRemoteSettingsAction extends Action {
+
+	static readonly ID = 'workbench.action.openRemoteSettings';
+	static readonly LABEL = nls.localize('openRemoteSettings', "Open User Settings (Remote)");
+
+	constructor(
+		id: string,
+		label: string,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
+	) {
+		super(id, label);
+	}
+
+	run(event?: any): Promise<any> {
+		return this.preferencesService.openRemoteSettings();
+	}
+}
+
 export class OpenGlobalKeybindingsAction extends Action {
 
 	static readonly ID = 'workbench.action.openGlobalKeybindings';

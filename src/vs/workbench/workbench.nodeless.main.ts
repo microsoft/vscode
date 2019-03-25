@@ -97,6 +97,8 @@ import { IHeapService, NullHeapService } from 'vs/workbench/services/heap/common
 import { IBroadcastService, NullBroadcastService } from 'vs/workbench/services/broadcast/common/broadcast';
 
 import 'vs/workbench/browser/nodeless.simpleservices';
+import 'vs/platform/dialogs/browser/dialogService';
+
 
 import 'vs/workbench/services/bulkEdit/browser/bulkEditService';
 // import 'vs/workbench/services/integrity/node/integrityService';
@@ -239,7 +241,7 @@ import 'vs/workbench/contrib/scm/browser/scmViewlet';
 import 'vs/workbench/contrib/markers/browser/markers.contribution';
 
 // Comments
-// import 'vs/workbench/contrib/comments/electron-browser/comments.contribution';
+// import 'vs/workbench/contrib/comments/browser/comments.contribution';
 
 // URL Support
 import 'vs/workbench/contrib/url/common/url.contribution';

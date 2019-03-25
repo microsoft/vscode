@@ -149,9 +149,8 @@ export interface IWindowsService {
 	toggleSharedProcess(): Promise<void>;
 
 	// Global methods
-	openWindow(windowId: number, uris: IURIToOpen[], options?: IOpenSettings): Promise<void>;
+	openWindow(windowId: number, uris: IURIToOpen[], options: IOpenSettings): Promise<void>;
 	openNewWindow(options?: INewWindowOptions): Promise<void>;
-	showWindow(windowId: number): Promise<void>;
 	getWindows(): Promise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]>;
 	getWindowCount(): Promise<number>;
 	log(severity: string, ...messages: string[]): Promise<void>;
@@ -183,6 +182,7 @@ export interface IOpenSettings {
 	diffMode?: boolean;
 	addMode?: boolean;
 	noRecentEntry?: boolean;
+	waitMarkerFileURI?: URI;
 	args?: ParsedArgs;
 }
 
@@ -228,7 +228,6 @@ export interface IWindowService {
 	unmaximizeWindow(): Promise<void>;
 	minimizeWindow(): Promise<void>;
 	onWindowTitleDoubleClick(): Promise<void>;
-	show(): Promise<void>;
 	showMessageBox(options: MessageBoxOptions): Promise<IMessageBoxResult>;
 	showSaveDialog(options: SaveDialogOptions): Promise<string>;
 	showOpenDialog(options: OpenDialogOptions): Promise<string[]>;

@@ -7,12 +7,14 @@ import * as nativeWatchdog from 'native-watchdog';
 import * as net from 'net';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
-import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
-import { PersistentProtocol, ProtocolConstants } from 'vs/base/parts/ipc/node/ipc.net';
+import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
+import { PersistentProtocol, ProtocolConstants } from 'vs/base/parts/ipc/common/ipc.net';
+import { NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 import product from 'vs/platform/product/node/product';
 import { IInitData } from 'vs/workbench/api/common/extHost.protocol';
 import { MessageType, createMessageOfType, isMessageOfType, IExtHostSocketMessage, IExtHostReadyMessage } from 'vs/workbench/services/extensions/node/extensionHostProtocol';
 import { exit, ExtensionHostMain } from 'vs/workbench/services/extensions/node/extensionHostMain';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 // With Electron 2.x and node.js 8.x the "natives" module
 // can cause a native crash (see https://github.com/nodejs/node/issues/19891 and
@@ -58,18 +60,18 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 
 			process.on('message', (msg: IExtHostSocketMessage, handle: net.Socket) => {
 				if (msg && msg.type === 'VSCODE_EXTHOST_IPC_SOCKET') {
-					const initialDataChunk = Buffer.from(msg.initialDataChunk, 'base64');
+					const initialDataChunk = VSBuffer.wrap(Buffer.from(msg.initialDataChunk, 'base64'));
 					if (protocol) {
 						// reconnection case
 						if (disconnectWaitTimer) {
 							clearTimeout(disconnectWaitTimer);
 							disconnectWaitTimer = null;
 						}
-						protocol.beginAcceptReconnection(handle, initialDataChunk);
+						protocol.beginAcceptReconnection(new NodeSocket(handle), initialDataChunk);
 						protocol.endAcceptReconnection();
 					} else {
 						clearTimeout(timer);
-						protocol = new PersistentProtocol(handle, initialDataChunk);
+						protocol = new PersistentProtocol(new NodeSocket(handle), initialDataChunk);
 						protocol.onClose(() => onTerminate());
 						resolve(protocol);
 
@@ -99,7 +101,7 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 
 			const socket = net.createConnection(pipeName, () => {
 				socket.removeListener('error', reject);
-				resolve(new PersistentProtocol(socket));
+				resolve(new PersistentProtocol(new NodeSocket(socket)));
 			});
 			socket.once('error', reject);
 

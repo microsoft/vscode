@@ -125,6 +125,7 @@ export interface IOpenConfiguration {
 	readonly cli: ParsedArgs;
 	readonly userEnv?: IProcessEnvironment;
 	readonly urisToOpen?: IURIToOpen[];
+	readonly waitMarkerFileURI?: URI;
 	readonly preferNewWindow?: boolean;
 	readonly forceNewWindow?: boolean;
 	readonly forceNewTabbedWindow?: boolean;

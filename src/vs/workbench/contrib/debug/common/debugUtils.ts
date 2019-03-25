@@ -199,7 +199,7 @@ function convertPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePath: (toDA: 
 					fixSourcePath(true, (<DebugProtocol.GotoTargetsArguments>request.arguments).source);
 					break;
 				case 'launchVSCode':
-					request.arguments.args.forEach(arg => fixSourcePath(false, arg));
+					request.arguments.args.forEach((arg: PathContainer | undefined) => fixSourcePath(false, arg));
 					break;
 				default:
 					break;

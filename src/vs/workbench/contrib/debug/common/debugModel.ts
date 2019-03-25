@@ -778,6 +778,13 @@ export class DebugModel implements IDebugModel {
 		return 'root';
 	}
 
+	getSession(sessionId: string | undefined, includeInactive = false): IDebugSession | undefined {
+		if (sessionId) {
+			return this.getSessions(includeInactive).filter(s => s.getId() === sessionId).pop();
+		}
+		return undefined;
+	}
+
 	getSessions(includeInactive = false): IDebugSession[] {
 		// By default do not return inactive sesions.
 		// However we are still holding onto inactive sessions due to repl and debug service session revival (eh scenario)

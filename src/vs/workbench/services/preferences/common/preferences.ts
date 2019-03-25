@@ -201,6 +201,7 @@ export interface IPreferencesService {
 	openRawDefaultSettings(): Promise<IEditor | null>;
 	openSettings(jsonEditor?: boolean): Promise<IEditor | null>;
 	openGlobalSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditor | null>;
+	openRemoteSettings(): Promise<IEditor | null>;
 	openWorkspaceSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditor | null>;
 	openFolderSettings(folder: URI, jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditor | null>;
 	switchSettings(target: ConfigurationTarget, resource: URI, jsonEditor?: boolean): Promise<void>;
