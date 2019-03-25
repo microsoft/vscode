@@ -6,7 +6,8 @@
 import * as assert from 'assert';
 import { Socket } from 'net';
 import { EventEmitter } from 'events';
-import { Protocol, PersistentProtocol, NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
+import { Protocol, PersistentProtocol } from 'vs/base/parts/ipc/common/ipc.net';
+import { NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 import { VSBuffer } from 'vs/base/common/buffer';
 
 class MessageStream {
