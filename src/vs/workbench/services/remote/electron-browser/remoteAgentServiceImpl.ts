@@ -7,7 +7,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IChannel, IServerChannel, getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client } from 'vs/base/parts/ipc/common/ipc.net';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { connectRemoteAgentManagement, IConnectionOptions } from 'vs/platform/remote/node/remoteAgentConnection';
+import { connectRemoteAgentManagement, IConnectionOptions } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { IRemoteAgentConnection, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
@@ -19,6 +19,7 @@ import { RemoteExtensionEnvironmentChannelClient } from 'vs/workbench/services/r
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { localize } from 'vs/nls';
 import product from 'vs/platform/product/node/product';
+import { nodeWebSocketFactory } from 'vs/platform/remote/node/nodeWebSocketFactory';
 
 export class RemoteAgentService extends Disposable implements IRemoteAgentService {
 
@@ -90,6 +91,7 @@ class RemoteAgentConnection extends Disposable implements IRemoteAgentConnection
 		const options: IConnectionOptions = {
 			isBuilt: this._environmentService.isBuilt,
 			commit: product.commit,
+			webSocketFactory: nodeWebSocketFactory,
 			addressProvider: {
 				getAddress: async () => {
 					const { host, port } = await this._remoteAuthorityResolverService.resolveAuthority(this.remoteAuthority);

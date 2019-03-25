@@ -56,7 +56,7 @@ import { LogLevelSetterChannel } from 'vs/platform/log/node/logIpc';
 import * as errors from 'vs/base/common/errors';
 import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
 import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
-import { connectRemoteAgentManagement, ManagementPersistentConnection, IConnectionOptions } from 'vs/platform/remote/node/remoteAgentConnection';
+import { connectRemoteAgentManagement, ManagementPersistentConnection, IConnectionOptions } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IMenubarService } from 'vs/platform/menubar/common/menubar';
 import { MenubarService } from 'vs/platform/menubar/electron-main/menubarService';
 import { MenubarChannel } from 'vs/platform/menubar/node/menubarIpc';
@@ -80,6 +80,7 @@ import { HistoryMainService } from 'vs/platform/history/electron-main/historyMai
 import { URLService } from 'vs/platform/url/common/urlService';
 import { WorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
+import { nodeWebSocketFactory } from 'vs/platform/remote/node/nodeWebSocketFactory';
 
 export class CodeApplication extends Disposable {
 
@@ -687,6 +688,7 @@ export class CodeApplication extends Disposable {
 				const options: IConnectionOptions = {
 					isBuilt: isBuilt,
 					commit: product.commit,
+					webSocketFactory: nodeWebSocketFactory,
 					addressProvider: {
 						getAddress: () => {
 							return Promise.resolve({ host, port });
