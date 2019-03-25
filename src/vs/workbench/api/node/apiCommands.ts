@@ -13,6 +13,8 @@ import { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGro
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IWindowsService, IOpenSettings } from 'vs/platform/windows/common/windows';
 import { IDownloadService } from 'vs/platform/download/common/download';
+import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { IRecent } from 'vs/platform/history/common/history';
 
 // -----------------------------------------------------------------
 // The following commands are registered on both sides separately.
@@ -140,6 +142,29 @@ export class RemoveFromRecentlyOpenedAPICommand {
 	}
 }
 CommandsRegistry.registerCommand(RemoveFromRecentlyOpenedAPICommand.ID, adjustHandler(RemoveFromRecentlyOpenedAPICommand.execute));
+
+interface RecentEntry {
+	uri: URI;
+	type: 'workspace' | 'folder' | 'file';
+	label?: string;
+}
+
+CommandsRegistry.registerCommand('_workbench.addToRecentlyOpened', async function (accessor: ServicesAccessor, recentEntry: RecentEntry) {
+	const windowsService = accessor.get(IWindowsService);
+	const workspacesService = accessor.get(IWorkspacesService);
+	let recent: IRecent | undefined = undefined;
+	const uri = recentEntry.uri;
+	const label = recentEntry.label;
+	if (recentEntry.type === 'workspace') {
+		const workspace = await workspacesService.getWorkspaceIdentifier(uri);
+		recent = { workspace, label };
+	} else if (recentEntry.type === 'folder') {
+		recent = { folderUri: uri, label };
+	} else {
+		recent = { fileUri: uri, label };
+	}
+	return windowsService.addRecentlyOpened([recent]);
+});
 
 export class SetEditorLayoutAPICommand {
 	public static ID = 'vscode.setEditorLayout';
