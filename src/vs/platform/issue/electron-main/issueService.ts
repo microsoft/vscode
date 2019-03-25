@@ -215,7 +215,9 @@ export class IssueService implements IIssueService {
 	}
 
 	public getSystemStatus(): Promise<string> {
-		return Promise.resolve('To be filled in'); // todo
+		return this.launchService.getMainProcessInfo().then(info => {
+			return this.diagnosticsService.getDiagnostics(info);
+		});
 	}
 
 	private getWindowPosition(parentWindow: BrowserWindow, defaultWidth: number, defaultHeight: number): IWindowState {
