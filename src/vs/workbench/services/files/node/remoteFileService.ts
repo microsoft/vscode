@@ -445,63 +445,6 @@ export class RemoteFileService extends FileService {
 		}
 	}
 
-	copyFile(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata> {
-		if (source.scheme === target.scheme && source.scheme === Schemas.file) {
-			return super.copyFile(source, target, overwrite);
-		}
-
-		return this._withProvider(target).then(RemoteFileService._throwIfFileSystemIsReadonly).then(provider => {
-
-			if (source.scheme === target.scheme && (provider.capabilities & FileSystemProviderCapabilities.FileFolderCopy)) {
-				// good: provider supports copy withing scheme
-				return provider.copy!(source, target, { overwrite: !!overwrite }).then(() => {
-					return this.resolveFile(target, { resolveMetadata: true });
-				}).then(fileStat => {
-					this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.COPY, fileStat));
-					return fileStat;
-				}, err => {
-					const result = toFileOperationResult(err);
-					if (result === FileOperationResult.FILE_MOVE_CONFLICT) {
-						throw new FileOperationError(localize('fileMoveConflict', "Unable to move/copy. File already exists at destination."), result);
-					}
-					throw err;
-				});
-			}
-
-			const prepare = overwrite
-				? Promise.resolve(this.del(target, { recursive: true }).catch(_err => { /*ignore*/ }))
-				: Promise.resolve();
-
-			// todo@ben, can only copy text files
-			// https://github.com/Microsoft/vscode/issues/41543
-			return prepare.then(() => {
-				return this.resolveContent(source, { acceptTextOnly: true }).then(content => {
-					return this._withProvider(target).then(provider => {
-						return this._writeFile(
-							provider, target,
-							new StringSnapshot(content.value),
-							content.encoding,
-							{ create: true, overwrite: !!overwrite }
-						).then(fileStat => {
-							this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.COPY, fileStat));
-							return fileStat;
-						});
-					}, err => {
-						const result = toFileOperationResult(err);
-						if (result === FileOperationResult.FILE_MOVE_CONFLICT) {
-							throw new FileOperationError(localize('fileMoveConflict', "Unable to move/copy. File already exists at destination."), result);
-						} else if (err instanceof Error && err.name === 'ENOPRO') {
-							// file scheme
-							return super.updateContent(target, content.value, { encoding: content.encoding });
-						} else {
-							return Promise.reject(err);
-						}
-					});
-				});
-			});
-		});
-	}
-
 	private _activeWatches = new Map<string, { unwatch: Promise<IDisposable>, count: number }>();
 
 	watchFileChanges(resource: URI, opts: IWatchOptions = { recursive: false, excludes: [] }): void {

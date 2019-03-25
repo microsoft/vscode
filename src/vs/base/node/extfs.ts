@@ -371,10 +371,10 @@ export interface IWriteFileOptions {
 }
 
 let canFlush = true;
-export function writeFileAndFlush(path: string, data: string | Buffer | NodeJS.ReadableStream, options: IWriteFileOptions, callback: (error?: Error) => void): void {
+export function writeFileAndFlush(path: string, data: string | Buffer | NodeJS.ReadableStream | Uint8Array, options: IWriteFileOptions, callback: (error?: Error) => void): void {
 	options = ensureOptions(options);
 
-	if (typeof data === 'string' || Buffer.isBuffer(data)) {
+	if (typeof data === 'string' || Buffer.isBuffer(data) || data instanceof Uint8Array) {
 		doWriteFileAndFlush(path, data, options, callback);
 	} else {
 		doWriteFileStreamAndFlush(path, data, options, callback);
@@ -472,9 +472,9 @@ function doWriteFileStreamAndFlush(path: string, reader: NodeJS.ReadableStream, 
 // not in some cache.
 //
 // See https://github.com/nodejs/node/blob/v5.10.0/lib/fs.js#L1194
-function doWriteFileAndFlush(path: string, data: string | Buffer, options: IWriteFileOptions, callback: (error?: Error) => void): void {
+function doWriteFileAndFlush(path: string, data: string | Buffer | Uint8Array, options: IWriteFileOptions, callback: (error?: Error) => void): void {
 	if (options.encoding) {
-		data = encode(data, options.encoding.charset, { addBOM: options.encoding.addBOM });
+		data = encode(data instanceof Uint8Array ? Buffer.from(data) : data, options.encoding.charset, { addBOM: options.encoding.addBOM });
 	}
 
 	if (!canFlush) {

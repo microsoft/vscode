@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, IDisposable, toDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
-import { IFileService, IResolveFileOptions, IResourceEncodings, FileChangesEvent, FileOperationEvent, IFileSystemProviderRegistrationEvent, IFileSystemProvider, IFileStat, IResolveFileResult, IResolveContentOptions, IContent, IStreamContent, ITextSnapshot, IUpdateContentOptions, ICreateFileOptions, IFileSystemProviderActivationEvent, FileOperationError, FileOperationResult, FileOperation, FileSystemProviderCapabilities, FileType, toFileSystemProviderErrorCode, FileSystemProviderErrorCode, IStat, IFileStatWithMetadata, IResolveMetadataFileOptions, etag, hasReadWriteCapability, hasFileFolderCopyCapability, hasOpenReadWriteCloseCapability, toFileOperationResult } from 'vs/platform/files/common/files';
+import { IFileService, IResolveFileOptions, IResourceEncodings, FileChangesEvent, FileOperationEvent, IFileSystemProviderRegistrationEvent, IFileSystemProvider, IFileStat, IResolveFileResult, IResolveContentOptions, IContent, IStreamContent, ITextSnapshot, IUpdateContentOptions, ICreateFileOptions, IFileSystemProviderActivationEvent, FileOperationError, FileOperationResult, FileOperation, FileSystemProviderCapabilities, FileType, toFileSystemProviderErrorCode, FileSystemProviderErrorCode, IStat, IFileStatWithMetadata, IResolveMetadataFileOptions, etag, hasReadWriteCapability, hasFileFolderCopyCapability, hasOpenReadWriteCloseCapability, toFileOperationResult, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadWriteCapability } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
@@ -289,8 +289,13 @@ export class FileService2 extends Disposable implements IFileService {
 
 		// validate overwrite
 		const overwrite = !!(options && options.overwrite);
-		if (!overwrite && await this.existsFile(resource)) {
-			throw new FileOperationError(localize('fileExists', "File to create already exists ({0})", resource.toString(true)), FileOperationResult.FILE_MODIFIED_SINCE, options);
+		if (await this.existsFile(resource)) {
+			if (!overwrite) {
+				throw new FileOperationError(localize('fileExists', "File to create already exists ({0})", resource.toString(true)), FileOperationResult.FILE_MODIFIED_SINCE, options);
+			}
+
+			// delete otherwise
+			await this.del(resource, { recursive: true });
 		}
 
 		try {
@@ -300,13 +305,12 @@ export class FileService2 extends Disposable implements IFileService {
 
 			// create file: buffered
 			if (hasOpenReadWriteCloseCapability(provider)) {
-				// TODO@ben revisit stream support
-				return this.joinOnLegacy.then(legacy => legacy.createFile(resource, content, options));
+				await this.doWriteBuffered(provider, resource, new TextEncoder().encode(content));
 			}
 
 			// create file: unbuffered
 			else if (hasReadWriteCapability(provider)) {
-				await provider.writeFile(resource, new Uint8Array(0), { create: true, overwrite });
+				await this.doWriteUnbuffered(provider, resource, new TextEncoder().encode(content), overwrite);
 			}
 
 			// give up if provider has insufficient capabilities
@@ -341,18 +345,11 @@ export class FileService2 extends Disposable implements IFileService {
 	//#region Move/Copy/Delete/Create Folder
 
 	async moveFile(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata> {
+		const sourceProvider = this.throwIfFileSystemIsReadonly(await this.withProvider(source));
+		const targetProvider = this.throwIfFileSystemIsReadonly(await this.withProvider(target));
 
-		// same provider
-		if (source.scheme === target.scheme) {
-			const provider = this.throwIfFileSystemIsReadonly(await this.withProvider(source));
-
-			await this.doMoveCopy(provider, source, target, 'move', overwrite);
-		}
-
-		// across providers
-		else {
-			await this.doMoveAcrossProviders(source, target);
-		}
+		// move
+		await this.doMoveCopy(sourceProvider, source, targetProvider, target, 'move', overwrite);
 
 		// resolve and send events
 		const fileStat = await this.resolveFile(target, { resolveMetadata: true });
@@ -361,10 +358,24 @@ export class FileService2 extends Disposable implements IFileService {
 		return fileStat;
 	}
 
-	private async doMoveCopy(provider: IFileSystemProvider, source: URI, target: URI, mode: 'move' | 'copy', overwrite?: boolean): Promise<void> {
+	async copyFile(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata> {
+		const sourceProvider = await this.withProvider(source);
+		const targetProvider = this.throwIfFileSystemIsReadonly(await this.withProvider(target));
+
+		// copy
+		await this.doMoveCopy(sourceProvider, source, targetProvider, target, 'copy', overwrite);
+
+		// resolve and send events
+		const fileStat = await this.resolveFile(target, { resolveMetadata: true });
+		this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.COPY, fileStat));
+
+		return fileStat;
+	}
+
+	private async doMoveCopy(sourceProvider: IFileSystemProvider, source: URI, targetProvider: IFileSystemProvider, target: URI, mode: 'move' | 'copy', overwrite?: boolean): Promise<void> {
 
 		// validation
-		const { exists, isCaseChange } = await this.doValidateMoveCopy(provider, source, target, overwrite);
+		const { exists, isCaseChange } = await this.doValidateMoveCopy(sourceProvider, source, targetProvider, target, overwrite);
 
 		// delete as needed
 		if (exists && !isCaseChange && overwrite) {
@@ -372,45 +383,106 @@ export class FileService2 extends Disposable implements IFileService {
 		}
 
 		// create parent folders
-		await this.mkdirp(provider, dirname(target));
+		await this.mkdirp(targetProvider, dirname(target));
 
 		// copy source => target
 		if (mode === 'copy') {
 
-			// copy: fast path
-			if (hasFileFolderCopyCapability(provider)) {
-				return provider.copy(source, target, { overwrite: !!overwrite });
+			// same provider with fast copy: leverage copy() functionality
+			if (sourceProvider === targetProvider && hasFileFolderCopyCapability(sourceProvider)) {
+				return sourceProvider.copy(source, target, { overwrite: !!overwrite });
 			}
 
-			// copy: buffered
-			if (hasOpenReadWriteCloseCapability(provider)) {
-				return this.joinOnLegacy.then(legacy => legacy.copyFile(source, target, overwrite)).then(() => undefined);
+			// otherwise, ensure we got the capabilities to do this
+			if (
+				!(hasOpenReadWriteCloseCapability(sourceProvider) || hasReadWriteCapability(sourceProvider)) ||
+				!(hasOpenReadWriteCloseCapability(targetProvider) || hasReadWriteCapability(targetProvider))
+			) {
+				return Promise.reject('Provider neither has FileReadWrite nor FileOpenReadWriteClose capability which is needed to support copy.');
 			}
 
-			// copy: unbuffered
-			if (hasReadWriteCapability(provider)) {
-				return provider.writeFile(target, await provider.readFile(source), { create: true, overwrite: !!overwrite });
+			// when copying via buffer/unbuffered, we have to manually
+			// traverse the source if it is a folder and not a file
+			const sourceFile = await this.resolveFile(source);
+			if (sourceFile.isDirectory) {
+				return this.doCopyFolder(sourceProvider, sourceFile, targetProvider, target, overwrite);
+			} else {
+				return this.doCopyFile(sourceProvider, source, targetProvider, target, overwrite);
 			}
-
-			// give up if provider has insufficient capabilities
-			return Promise.reject('Provider neither has FileReadWrite nor FileOpenReadWriteClose capability which is needed to support copy.');
 		}
 
 		// move source => target
 		else {
-			return provider.rename(source, target, { overwrite: !!overwrite });
+
+			// same provider: leverage rename() functionality
+			if (sourceProvider === targetProvider) {
+				return sourceProvider.rename(source, target, { overwrite: !!overwrite });
+			}
+
+			// across providers: copy to target & delete at source
+			else {
+				await this.doMoveCopy(sourceProvider, source, targetProvider, target, 'copy', overwrite);
+
+				return this.del(source, { recursive: true });
+			}
 		}
 	}
 
-	private async doValidateMoveCopy(provider: IFileSystemProvider, source: URI, target: URI, overwrite?: boolean): Promise<{ exists: boolean, isCaseChange: boolean }> {
+	private async doCopyFile(sourceProvider: IFileSystemProvider, source: URI, targetProvider: IFileSystemProvider, target: URI, overwrite?: boolean): Promise<void> {
 
-		// Check if source is equal or parent to target
-		const isPathCaseSensitive = !!(provider.capabilities & FileSystemProviderCapabilities.PathCaseSensitive);
-		const isCaseChange = isPathCaseSensitive ? false : isEqual(source, target, true /* ignore case */);
-		if (!isCaseChange && isEqualOrParent(target, source, !isPathCaseSensitive)) {
-			return Promise.reject(new Error(localize('unableToMoveCopyError1', "Unable to move/copy when source path is equal or parent of target path")));
+		// copy: source (buffered) => target (buffered)
+		if (hasOpenReadWriteCloseCapability(sourceProvider) && hasOpenReadWriteCloseCapability(targetProvider)) {
+			return this.doPipeBuffered(sourceProvider, source, targetProvider, target);
 		}
 
+		// copy: source (buffered) => target (unbuffered)
+		if (hasOpenReadWriteCloseCapability(sourceProvider) && hasReadWriteCapability(targetProvider)) {
+			return this.doPipeBufferedToUnbuffered(sourceProvider, source, targetProvider, target, !!overwrite);
+		}
+
+		// copy: source (unbuffered) => target (buffered)
+		if (hasReadWriteCapability(sourceProvider) && hasOpenReadWriteCloseCapability(targetProvider)) {
+			return this.doPipeUnbufferedToBuffered(sourceProvider, source, targetProvider, target);
+		}
+
+		// copy: source (unbuffered) => target (unbuffered)
+		if (hasReadWriteCapability(sourceProvider) && hasReadWriteCapability(targetProvider)) {
+			return this.doPipeUnbuffered(sourceProvider, source, targetProvider, target, !!overwrite);
+		}
+	}
+
+	private async doCopyFolder(sourceProvider: IFileSystemProvider, sourceFolder: IFileStat, targetProvider: IFileSystemProvider, targetFolder: URI, overwrite?: boolean): Promise<void> {
+
+		// create folder in target
+		await targetProvider.mkdir(targetFolder);
+
+		// create children in target
+		if (Array.isArray(sourceFolder.children)) {
+			await Promise.all(sourceFolder.children.map(async sourceChild => {
+				const targetChild = joinPath(targetFolder, sourceChild.name);
+				if (sourceChild.isDirectory) {
+					return this.doCopyFolder(sourceProvider, await this.resolveFile(sourceChild.resource), targetProvider, targetChild, overwrite);
+				} else {
+					return this.doCopyFile(sourceProvider, sourceChild.resource, targetProvider, targetChild, overwrite);
+				}
+			}));
+		}
+	}
+
+	private async doValidateMoveCopy(sourceProvider: IFileSystemProvider, source: URI, targetProvider: IFileSystemProvider, target: URI, overwrite?: boolean): Promise<{ exists: boolean, isCaseChange: boolean }> {
+		let isCaseChange = false;
+		let isPathCaseSensitive = false;
+
+		// Check if source is equal or parent to target (requires providers to be the same)
+		if (sourceProvider === targetProvider) {
+			const isPathCaseSensitive = !!(sourceProvider.capabilities & FileSystemProviderCapabilities.PathCaseSensitive);
+			isCaseChange = isPathCaseSensitive ? false : isEqual(source, target, true /* ignore case */);
+			if (!isCaseChange && isEqualOrParent(target, source, !isPathCaseSensitive)) {
+				return Promise.reject(new Error(localize('unableToMoveCopyError1', "Unable to move/copy when source path is equal or parent of target path")));
+			}
+		}
+
+		// Extra checks if target exists and this is not a rename
 		const exists = await this.existsFile(target);
 		if (exists && !isCaseChange) {
 
@@ -421,46 +493,12 @@ export class FileService2 extends Disposable implements IFileService {
 
 			// Special case: if the target is a parent of the source, we cannot delete
 			// it as it would delete the source as well. In this case we have to throw
-			if (isEqualOrParent(source, target, !isPathCaseSensitive)) {
+			if (sourceProvider === targetProvider && isEqualOrParent(source, target, !isPathCaseSensitive)) {
 				return Promise.reject(new Error(localize('unableToMoveCopyError3', "Unable to move/copy. File would replace folder it is contained in.")));
 			}
 		}
 
 		return { exists, isCaseChange };
-	}
-
-	private async doMoveAcrossProviders(source: URI, target: URI, overwrite?: boolean): Promise<void> {
-
-		// copy file source => target
-		await this.copyFile(source, target, overwrite);
-
-		// delete source
-		await this.del(source, { recursive: true });
-	}
-
-	async copyFile(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata> {
-
-		// same provider
-		if (source.scheme === target.scheme) {
-			const provider = this.throwIfFileSystemIsReadonly(await this.withProvider(source));
-
-			await this.doMoveCopy(provider, source, target, 'copy', overwrite);
-		}
-
-		// across providers
-		else {
-			await this.doCopyAcrossProviders(source, target);
-		}
-
-		// resolve and send events
-		const fileStat = await this.resolveFile(target, { resolveMetadata: true });
-		this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.COPY, fileStat));
-
-		return fileStat;
-	}
-
-	private async doCopyAcrossProviders(source: URI, target: URI, overwrite?: boolean): Promise<void> {
-		return this.joinOnLegacy.then(legacy => legacy.copyFile(source, target, overwrite)).then(() => undefined);
 	}
 
 	async createFolder(resource: URI): Promise<IFileStatWithMetadata> {
@@ -552,6 +590,110 @@ export class FileService2 extends Disposable implements IFileService {
 	//#endregion
 
 	//#region Helpers
+
+	private async doWriteBuffered(provider: IFileSystemProviderWithOpenReadWriteCloseCapability, resource: URI, buffer: Uint8Array): Promise<void> {
+
+		// Open handle
+		const handle = await provider.open(resource, { create: true });
+
+		// write into handle until all bytes from buffer have been written
+		await this.doWriteBuffer(provider, handle, buffer, buffer.byteLength, 0, 0);
+
+		// Close handle
+		return provider.close(handle);
+	}
+
+	private async doWriteBuffer(provider: IFileSystemProviderWithOpenReadWriteCloseCapability, handle: number, buffer: Uint8Array, length: number, posInFile: number, posInBuffer: number): Promise<void> {
+		let totalBytesWritten = 0;
+		while (totalBytesWritten < length) {
+			const bytesWritten = await provider.write(handle, posInFile + totalBytesWritten, buffer, posInBuffer + totalBytesWritten, length - totalBytesWritten);
+			totalBytesWritten += bytesWritten;
+		}
+	}
+
+	private async doWriteUnbuffered(provider: IFileSystemProviderWithFileReadWriteCapability, resource: URI, buffer: Uint8Array, overwrite: boolean): Promise<void> {
+		return provider.writeFile(resource, buffer, { create: true, overwrite });
+	}
+
+	private async doPipeBuffered(sourceProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, source: URI, targetProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, target: URI): Promise<void> {
+
+		// Open handles
+		const sourceHandle = await sourceProvider.open(source, { create: false });
+		const targetHandle = await targetProvider.open(target, { create: true });
+
+		const buffer = new Uint8Array(8 * 1024);
+
+		let posInFile = 0;
+		let posInBuffer = 0;
+		let bytesRead = 0;
+		do {
+			// read from source (sourceHandle) at current position (posInFile) into buffer (buffer) at
+			// buffer position (posInBuffer) up to the size of the buffer (buffer.byteLength).
+			bytesRead = await sourceProvider.read(sourceHandle, posInFile, buffer, posInBuffer, buffer.byteLength - posInBuffer);
+
+			// write into target (targetHandle) at current position (posInFile) from buffer (buffer) at
+			// buffer position (posInBuffer) all bytes we read (bytesRead).
+			await this.doWriteBuffer(targetProvider, targetHandle, buffer, bytesRead, posInFile, posInBuffer);
+
+			posInFile += bytesRead;
+			posInBuffer += bytesRead;
+
+			// when buffer full, fill it again from the beginning
+			if (posInBuffer === buffer.length) {
+				posInBuffer = 0;
+			}
+		} while (bytesRead > 0);
+
+		// Close handles
+		return Promise.all([
+			sourceProvider.close(sourceHandle),
+			targetProvider.close(targetHandle)
+		]).then(() => undefined);
+	}
+
+	private async doPipeUnbuffered(sourceProvider: IFileSystemProviderWithFileReadWriteCapability, source: URI, targetProvider: IFileSystemProviderWithFileReadWriteCapability, target: URI, overwrite: boolean): Promise<void> {
+		return targetProvider.writeFile(target, await sourceProvider.readFile(source), { create: true, overwrite });
+	}
+
+	private async doPipeUnbufferedToBuffered(sourceProvider: IFileSystemProviderWithFileReadWriteCapability, source: URI, targetProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, target: URI): Promise<void> {
+
+		// Open handle
+		const targetHandle = await targetProvider.open(target, { create: true });
+
+		// Read entire buffer from source and write buffered
+		const buffer = await sourceProvider.readFile(source);
+		await this.doWriteBuffer(targetProvider, targetHandle, buffer, buffer.byteLength, 0, 0);
+
+		// Close handle
+		return targetProvider.close(targetHandle);
+	}
+
+	private async doPipeBufferedToUnbuffered(sourceProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, source: URI, targetProvider: IFileSystemProviderWithFileReadWriteCapability, target: URI, overwrite: boolean): Promise<void> {
+
+		// Determine file size
+		const size = (await this.resolveFile(source, { resolveMetadata: true })).size;
+
+		// Open handle
+		const sourceHandle = await sourceProvider.open(source, { create: false });
+
+		const buffer = new Uint8Array(size);
+
+		let pos = 0;
+		let bytesRead = 0;
+		do {
+			// read from source (sourceHandle) at current position (posInFile) into buffer (buffer) at
+			// buffer position (posInBuffer) up to the size of the buffer (buffer.byteLength).
+			bytesRead = await sourceProvider.read(sourceHandle, pos, buffer, pos, buffer.byteLength - pos);
+
+			pos += bytesRead;
+		} while (bytesRead > 0);
+
+		// Write buffer into target at once
+		await this.doWriteUnbuffered(targetProvider, target, buffer, overwrite);
+
+		// Close handle
+		return sourceProvider.close(sourceHandle);
+	}
 
 	private throwIfFileSystemIsReadonly(provider: IFileSystemProvider): IFileSystemProvider {
 		if (provider.capabilities & FileSystemProviderCapabilities.Readonly) {

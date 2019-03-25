@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mkdir } from 'fs';
+import { mkdir, open, close, read, write } from 'fs';
 import { tmpdir } from 'os';
 import { promisify } from 'util';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
@@ -131,20 +131,61 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 		}
 	}
 
-	open(resource: URI, opts: FileOpenOptions): Promise<number> {
-		throw new Error('Method not implemented.');
+	async open(resource: URI, opts: FileOpenOptions): Promise<number> {
+		try {
+			const filePath = this.toFilePath(resource);
+
+			let mode: string;
+			if (opts.create) {
+				// we take this as a hint that the file is opened for writing
+				// as such we use 'w' to truncate an existing or create the
+				// file otherwise. we do not allow reading.
+				mode = 'w';
+			} else {
+				// otherwise we assume the file is opened for reading
+				// as such we use 'r' to neither truncate, nor create
+				// the file.
+				mode = 'r';
+			}
+
+			return await promisify(open)(filePath, mode);
+		} catch (error) {
+			throw this.toFileSystemProviderError(error);
+		}
 	}
 
-	close(fd: number): Promise<void> {
-		throw new Error('Method not implemented.');
+	async close(fd: number): Promise<void> {
+		try {
+			return await promisify(close)(fd);
+		} catch (error) {
+			throw this.toFileSystemProviderError(error);
+		}
 	}
 
-	read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
-		throw new Error('Method not implemented.');
+	async read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
+		try {
+			const result = await promisify(read)(fd, data, offset, length, pos);
+			if (typeof result === 'number') {
+				return result; // node.d.ts fail
+			}
+
+			return result.bytesRead;
+		} catch (error) {
+			throw this.toFileSystemProviderError(error);
+		}
 	}
 
-	write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
-		throw new Error('Method not implemented.');
+	async write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
+		try {
+			const result = await promisify(write)(fd, data, offset, length, pos);
+			if (typeof result === 'number') {
+				return result; // node.d.ts fail
+			}
+
+			return result.bytesWritten;
+		} catch (error) {
+			throw this.toFileSystemProviderError(error);
+		}
 	}
 
 	//#endregion
