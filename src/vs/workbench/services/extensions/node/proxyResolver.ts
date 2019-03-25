@@ -457,7 +457,7 @@ async function readCaCertificates() {
 }
 
 function readWindowsCaCertificates() {
-	const winCA = require.__$__nodeRequire<any>('win-ca-lib');
+	const winCA = require.__$__nodeRequire<any>('vscode-windows-ca-certs');
 
 	let ders: any[] = [];
 	const store = winCA();
