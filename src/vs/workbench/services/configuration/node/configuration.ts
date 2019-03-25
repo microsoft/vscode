@@ -13,7 +13,7 @@ import * as collections from 'vs/base/common/collections';
 import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler, Delayer } from 'vs/base/common/async';
 import { FileChangeType, FileChangesEvent, IContent, IFileService } from 'vs/platform/files/common/files';
-import { ConfigurationModel, ConfigurationModelParser } from 'vs/platform/configuration/common/configurationModels';
+import { ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { WorkspaceConfigurationModelParser, FolderSettingsModelParser, StandaloneConfigurationModelParser } from 'vs/workbench/services/configuration/common/configurationModels';
 import { FOLDER_SETTINGS_PATH, TASKS_CONFIGURATION_KEY, FOLDER_SETTINGS_NAME, LAUNCH_CONFIGURATION_KEY } from 'vs/workbench/services/configuration/common/configuration';
 import { IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
@@ -26,14 +26,52 @@ import { equals } from 'vs/base/common/objects';
 import { Schemas } from 'vs/base/common/network';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationModel, compare } from 'vs/platform/configuration/common/configuration';
+import { FileServiceBasedUserConfiguration, NodeBasedUserConfiguration } from 'vs/platform/configuration/node/configuration';
+
+export class LocalUserConfiguration extends Disposable {
+
+	private readonly userConfigurationResource: URI;
+	private userConfiguration: NodeBasedUserConfiguration | FileServiceBasedUserConfiguration;
+	private changeDisposable: IDisposable = Disposable.None;
+
+	private readonly _onDidChangeConfiguration: Emitter<ConfigurationModel> = this._register(new Emitter<ConfigurationModel>());
+	public readonly onDidChangeConfiguration: Event<ConfigurationModel> = this._onDidChangeConfiguration.event;
+
+	constructor(
+		environmentService: IEnvironmentService
+	) {
+		super();
+		this.userConfigurationResource = URI.file(environmentService.appSettingsPath);
+		this.userConfiguration = this._register(new NodeBasedUserConfiguration(environmentService.appSettingsPath));
+		this.changeDisposable = this._register(this.userConfiguration.onDidChangeConfiguration(configurationModel => this._onDidChangeConfiguration.fire(configurationModel)));
+	}
+
+	initialize(): Promise<ConfigurationModel> {
+		return this.userConfiguration.initialize();
+	}
+
+	reload(): Promise<ConfigurationModel> {
+		return this.userConfiguration.reload();
+	}
+
+	async adopt(fileService: IFileService): Promise<ConfigurationModel | null> {
+		if (this.userConfiguration instanceof NodeBasedUserConfiguration) {
+			this.userConfiguration.dispose();
+			dispose(this.changeDisposable);
+			this.userConfiguration = this._register(new FileServiceBasedUserConfiguration(this.userConfigurationResource, fileService));
+			this.changeDisposable = this._register(this.userConfiguration.onDidChangeConfiguration(configurationModel => this._onDidChangeConfiguration.fire(configurationModel)));
+		}
+		return null;
+	}
+}
 
 export class RemoteUserConfiguration extends Disposable {
 
 	private readonly _cachedConfiguration: CachedUserConfiguration;
 	private _userConfiguration: FileServiceBasedUserConfiguration | CachedUserConfiguration;
 
-	private readonly _onDidUpdateConfiguration: Emitter<ConfigurationModel> = this._register(new Emitter<ConfigurationModel>());
-	public readonly onDidChangeConfiguration: Event<ConfigurationModel> = this._onDidUpdateConfiguration.event;
+	private readonly _onDidChangeConfiguration: Emitter<ConfigurationModel> = this._register(new Emitter<ConfigurationModel>());
+	public readonly onDidChangeConfiguration: Event<ConfigurationModel> = this._onDidChangeConfiguration.event;
 
 	constructor(
 		remoteAuthority: string,
@@ -43,8 +81,12 @@ export class RemoteUserConfiguration extends Disposable {
 		this._userConfiguration = this._cachedConfiguration = new CachedUserConfiguration(remoteAuthority, environmentService);
 	}
 
-	load(): Promise<ConfigurationModel> {
-		return this._userConfiguration.loadConfiguration();
+	initialize(): Promise<ConfigurationModel> {
+		return this._userConfiguration.initialize();
+	}
+
+	reload(): Promise<ConfigurationModel> {
+		return this._userConfiguration.reload();
 	}
 
 	async adopt(configurationResource: URI | null, fileService: IFileService): Promise<ConfigurationModel | null> {
@@ -52,9 +94,9 @@ export class RemoteUserConfiguration extends Disposable {
 			const oldConfigurationModel = this._userConfiguration.getConfigurationModel();
 			let newConfigurationModel = new ConfigurationModel();
 			if (configurationResource) {
-				this._userConfiguration = new FileServiceBasedUserConfiguration(configurationResource, oldConfigurationModel, fileService);
-				this._register(this._userConfiguration.onDidChange(configurationModel => this.onDidUserConfigurationChange(configurationModel)));
-				newConfigurationModel = await this._userConfiguration.loadConfiguration();
+				this._userConfiguration = new FileServiceBasedUserConfiguration(configurationResource, fileService);
+				this._register(this._userConfiguration.onDidChangeConfiguration(configurationModel => this.onDidUserConfigurationChange(configurationModel)));
+				newConfigurationModel = await this._userConfiguration.initialize();
 			}
 			const { added, updated, removed } = compare(oldConfigurationModel, newConfigurationModel);
 			if (added.length > 0 || updated.length > 0 || removed.length > 0) {
@@ -67,58 +109,11 @@ export class RemoteUserConfiguration extends Disposable {
 
 	private onDidUserConfigurationChange(configurationModel: ConfigurationModel): void {
 		this.updateCache(configurationModel);
-		this._onDidUpdateConfiguration.fire(configurationModel);
+		this._onDidChangeConfiguration.fire(configurationModel);
 	}
 
 	private updateCache(configurationModel: ConfigurationModel): Promise<void> {
 		return this._cachedConfiguration.updateConfiguration(configurationModel);
-	}
-}
-
-class FileServiceBasedUserConfiguration extends Disposable {
-
-	private readonly reloadConfigurationScheduler: RunOnceScheduler;
-	protected readonly _onDidChange: Emitter<ConfigurationModel> = this._register(new Emitter<ConfigurationModel>());
-	readonly onDidChange: Event<ConfigurationModel> = this._onDidChange.event;
-
-	constructor(
-		private readonly configurationResource: URI,
-		private configurationModel: ConfigurationModel,
-		private readonly fileService: IFileService
-	) {
-		super();
-
-		this._register(fileService.onFileChanges(e => this.handleFileEvents(e)));
-		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.loadConfiguration().then(configurationModel => this._onDidChange.fire(configurationModel)), 50));
-		this.fileService.watchFileChanges(this.configurationResource);
-		this._register(toDisposable(() => this.fileService.unwatchFileChanges(this.configurationResource)));
-	}
-
-	loadConfiguration(): Promise<ConfigurationModel> {
-		return this.fileService.resolveContent(this.configurationResource)
-			.then(content => content.value, e => {
-				errors.onUnexpectedError(e);
-				return '';
-			}).then(content => {
-				const parser = new ConfigurationModelParser(this.configurationResource.toString());
-				parser.parse(content);
-				this.configurationModel = parser.configurationModel;
-				return this.configurationModel;
-			});
-	}
-
-	private handleFileEvents(event: FileChangesEvent): void {
-		const events = event.changes;
-
-		let affectedByChanges = false;
-		// Find changes that affect workspace file
-		for (let i = 0, len = events.length; i < len && !affectedByChanges; i++) {
-			affectedByChanges = resources.isEqual(this.configurationResource, events[i].resource);
-		}
-
-		if (affectedByChanges) {
-			this.reloadConfigurationScheduler.schedule();
-		}
 	}
 }
 
@@ -145,7 +140,11 @@ class CachedUserConfiguration extends Disposable {
 		return this.configurationModel;
 	}
 
-	loadConfiguration(): Promise<ConfigurationModel> {
+	initialize(): Promise<ConfigurationModel> {
+		return this.reload();
+	}
+
+	reload(): Promise<ConfigurationModel> {
 		return pfs.readFile(this.cachedConfigurationPath)
 			.then(content => content.toString(), () => '')
 			.then(content => {
