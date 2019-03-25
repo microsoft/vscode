@@ -9,15 +9,22 @@ import { join } from 'path';
 
 export class Rule extends Lint.Rules.AbstractRule {
 	public apply(sourceFile: ts.SourceFile): Lint.RuleFailure[] {
-		if (/vs(\/|\\)editor/.test(sourceFile.fileName)) {
-			// the vs/editor folder is allowed to use the standalone editor
-			return [];
+		console.log(sourceFile.fileName);
+		if (
+			/vs(\/|\\)editor(\/|\\)standalone(\/|\\)/.test(sourceFile.fileName)
+			|| /vs(\/|\\)editor(\/|\\)common(\/|\\)standalone(\/|\\)/.test(sourceFile.fileName)
+			|| /vs(\/|\\)editor(\/|\\)editor.api/.test(sourceFile.fileName)
+			|| /vs(\/|\\)editor(\/|\\)editor.main/.test(sourceFile.fileName)
+			|| /vs(\/|\\)editor(\/|\\)editor.worker/.test(sourceFile.fileName)
+		) {
+			return this.applyWithWalker(new NoNlsInStandaloneEditorRuleWalker(sourceFile, this.getOptions()));
 		}
-		return this.applyWithWalker(new NoStandaloneEditorRuleWalker(sourceFile, this.getOptions()));
+
+		return [];
 	}
 }
 
-class NoStandaloneEditorRuleWalker extends Lint.RuleWalker {
+class NoNlsInStandaloneEditorRuleWalker extends Lint.RuleWalker {
 
 	constructor(file: ts.SourceFile, opts: Lint.IOptions) {
 		super(file, opts);
@@ -53,13 +60,9 @@ class NoStandaloneEditorRuleWalker extends Lint.RuleWalker {
 		}
 
 		if (
-			/vs(\/|\\)editor(\/|\\)standalone(\/|\\)/.test(path)
-			|| /vs(\/|\\)editor(\/|\\)common(\/|\\)standalone(\/|\\)/.test(path)
-			|| /vs(\/|\\)editor(\/|\\)editor.api/.test(path)
-			|| /vs(\/|\\)editor(\/|\\)editor.main/.test(path)
-			|| /vs(\/|\\)editor(\/|\\)editor.worker/.test(path)
+			/vs(\/|\\)nls/.test(path)
 		) {
-			this.addFailure(this.createFailure(node.getStart(), node.getWidth(), `Not allowed to import standalone editor modules. See https://github.com/Microsoft/vscode/wiki/Code-Organization`));
+			this.addFailure(this.createFailure(node.getStart(), node.getWidth(), `Not allowed to import vs/nls in standalone editor modules. Use standaloneStrings.ts`));
 		}
 	}
 }
