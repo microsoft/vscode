@@ -153,10 +153,6 @@ export class WindowService extends Disposable implements IWindowService {
 		return this.windowsService.setDocumentEdited(this.windowId, flag);
 	}
 
-	show(): Promise<void> {
-		return this.windowsService.showWindow(this.windowId);
-	}
-
 	showMessageBox(options: Electron.MessageBoxOptions): Promise<IMessageBoxResult> {
 		return this.windowsService.showMessageBox(this.windowId, options);
 	}
