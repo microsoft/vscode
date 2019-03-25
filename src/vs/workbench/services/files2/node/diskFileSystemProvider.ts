@@ -47,8 +47,15 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 		try {
 			const { stat, isSymbolicLink } = await statLink(this.toFilePath(resource)); // cannot use fs.stat() here to support links properly
 
+			let type: number;
+			if (isSymbolicLink) {
+				type = FileType.SymbolicLink | (stat.isDirectory() ? FileType.Directory : FileType.File);
+			} else {
+				type = stat.isFile() ? FileType.File : stat.isDirectory() ? FileType.Directory : FileType.Unknown;
+			}
+
 			return {
-				type: isSymbolicLink ? FileType.SymbolicLink : stat.isFile() ? FileType.File : stat.isDirectory() ? FileType.Directory : FileType.Unknown,
+				type,
 				ctime: stat.ctime.getTime(),
 				mtime: stat.mtime.getTime(),
 				size: stat.size
