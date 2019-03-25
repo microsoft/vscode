@@ -7,7 +7,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IChannel, IServerChannel, getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client } from 'vs/base/parts/ipc/common/ipc.net';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { connectRemoteAgentManagement } from 'vs/platform/remote/node/remoteAgentConnection';
+import { connectRemoteAgentManagement, IConnectionOptions } from 'vs/platform/remote/node/remoteAgentConnection';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { IRemoteAgentConnection, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
@@ -18,6 +18,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { RemoteExtensionEnvironmentChannelClient } from 'vs/workbench/services/remote/node/remoteAgentEnvironmentChannel';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { localize } from 'vs/nls';
+import product from 'vs/platform/product/node/product';
 
 export class RemoteAgentService extends Disposable implements IRemoteAgentService {
 
@@ -86,8 +87,17 @@ class RemoteAgentConnection extends Disposable implements IRemoteAgentConnection
 	}
 
 	private async _createConnection(): Promise<Client<RemoteAgentConnectionContext>> {
-		const resolvedAuthority = await this._remoteAuthorityResolverService.resolveAuthority(this.remoteAuthority);
-		const connection = await connectRemoteAgentManagement(this.remoteAuthority, resolvedAuthority.host, resolvedAuthority.port, `renderer`, this._environmentService.isBuilt);
+		const options: IConnectionOptions = {
+			isBuilt: this._environmentService.isBuilt,
+			commit: product.commit,
+			addressProvider: {
+				getAddress: async () => {
+					const { host, port } = await this._remoteAuthorityResolverService.resolveAuthority(this.remoteAuthority);
+					return { host, port };
+				}
+			}
+		};
+		const connection = await connectRemoteAgentManagement(options, this.remoteAuthority, `renderer`);
 		this._register(connection);
 		return connection.client;
 	}

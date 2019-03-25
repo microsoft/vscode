@@ -15,12 +15,34 @@ export interface IRemoteExtensionHostStartParams {
 	updatePort?: boolean;
 }
 
-export async function connectRemoteAgentManagement(remoteAuthority: string, host: string, port: number, clientId: string, isBuilt: boolean): Promise<ManagementPersistentConnection> {
+export interface IConnectionOptions {
+	isBuilt: boolean;
+	commit: string | undefined;
+	addressProvider: IAddressProvider;
+}
+
+export interface IAddress {
+	host: string;
+	port: number;
+}
+
+export interface IAddressProvider {
+	getAddress(): Promise<IAddress>;
+}
+
+export async function connectRemoteAgentManagement(options: IConnectionOptions, remoteAuthority: string, clientId: string): Promise<ManagementPersistentConnection> {
 	throw new Error(`Not implemented`);
 }
 
-export async function connectRemoteAgentExtensionHost(host: string, port: number, startArguments: IRemoteExtensionHostStartParams, isBuilt: boolean): Promise<ExtensionHostPersistentConnection> {
+export async function connectRemoteAgentExtensionHost(options: IConnectionOptions, startArguments: IRemoteExtensionHostStartParams): Promise<ExtensionHostPersistentConnection> {
 	throw new Error(`Not implemented`);
+}
+
+export async function createRemoteTunnel(options: IConnectionOptions, tunnelRemotePort: number): Promise<RemoteTunnel> {
+	throw new Error(`Not implemented`);
+}
+
+export class RemoteTunnel extends Disposable {
 }
 
 abstract class PersistentConnection extends Disposable {

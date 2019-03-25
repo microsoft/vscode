@@ -56,7 +56,7 @@ import { LogLevelSetterChannel } from 'vs/platform/log/node/logIpc';
 import * as errors from 'vs/base/common/errors';
 import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
 import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
-import { connectRemoteAgentManagement, ManagementPersistentConnection } from 'vs/platform/remote/node/remoteAgentConnection';
+import { connectRemoteAgentManagement, ManagementPersistentConnection, IConnectionOptions } from 'vs/platform/remote/node/remoteAgentConnection';
 import { IMenubarService } from 'vs/platform/menubar/common/menubar';
 import { MenubarService } from 'vs/platform/menubar/electron-main/menubarService';
 import { MenubarChannel } from 'vs/platform/menubar/node/menubarIpc';
@@ -684,7 +684,16 @@ export class CodeApplication extends Disposable {
 
 			constructor(authority: string, host: string, port: number) {
 				this._authority = authority;
-				this._connection = connectRemoteAgentManagement(authority, host, port, `main`, isBuilt);
+				const options: IConnectionOptions = {
+					isBuilt: isBuilt,
+					commit: product.commit,
+					addressProvider: {
+						getAddress: () => {
+							return Promise.resolve({ host, port });
+						}
+					}
+				};
+				this._connection = connectRemoteAgentManagement(options, authority, `main`);
 				this._disposeRunner = new RunOnceScheduler(() => this.dispose(), 5000);
 			}
 
