@@ -654,6 +654,8 @@ export class SimpleRemoteAgentService implements IRemoteAgentService {
 	}
 }
 
+registerSingleton(IRemoteAgentService, SimpleRemoteAgentService);
+
 //#endregion
 
 //#region Remote Authority Resolver
