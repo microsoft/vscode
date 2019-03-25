@@ -214,6 +214,10 @@ export class IssueService implements IIssueService {
 		});
 	}
 
+	public getSystemStatus(): Promise<string> {
+		return Promise.resolve('To be filled in'); // todo
+	}
+
 	private getWindowPosition(parentWindow: BrowserWindow, defaultWidth: number, defaultHeight: number): IWindowState {
 		// We want the new window to open on the same display that the parent is in
 		let displayToUse: Electron.Display | undefined;
