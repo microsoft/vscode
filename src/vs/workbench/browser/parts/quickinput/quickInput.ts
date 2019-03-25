@@ -463,8 +463,8 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		this.update();
 	}
 
-	public insertText(text: string) {
-		this.ui.inputBox.insertText(text);
+	public inputHasFocus(): boolean {
+		return this.ui.inputBox.hasFocus();
 	}
 
 	onDidChangeSelection = this.onDidChangeSelectionEmitter.event;

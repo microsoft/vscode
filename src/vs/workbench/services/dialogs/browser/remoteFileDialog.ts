@@ -362,8 +362,10 @@ export class RemoteFileDialog {
 					this.filePickBox.activeItems = [item];
 					const insertValue = itemBasename.substr(inputBasename.length);
 					this.autoComplete = value + insertValue;
-					this.filePickBox.insertText(insertValue);
-					this.filePickBox.valueSelection = [value.length, this.filePickBox.value.length];
+					if (this.filePickBox.inputHasFocus()) {
+						document.execCommand('insertText', false, insertValue);
+						this.filePickBox.valueSelection = [value.length, this.filePickBox.value.length];
+					}
 					hasMatch = true;
 					break;
 				}
