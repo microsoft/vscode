@@ -34,7 +34,8 @@ namespace schema {
 			case 'explorer/context': return MenuId.ExplorerContext;
 			case 'editor/title/context': return MenuId.EditorTitleContext;
 			case 'debug/callstack/context': return MenuId.DebugCallStackContext;
-			case 'debug/toolbar': return MenuId.DebugToolbar;
+			case 'debug/toolbar': return MenuId.DebugToolBar;
+			case 'debug/toolBar': return MenuId.DebugToolBar;
 			case 'menuBar/file': return MenuId.MenubarFileMenu;
 			case 'scm/title': return MenuId.SCMTitle;
 			case 'scm/sourceControl': return MenuId.SCMSourceControl;
@@ -147,8 +148,8 @@ namespace schema {
 				type: 'array',
 				items: menuItem
 			},
-			'debug/toolbar': {
-				description: localize('menus.debugToolbar', "The debug toolbar menu"),
+			'debug/toolBar': {
+				description: localize('menus.debugToolBar', "The debug toolbar menu"),
 				type: 'array',
 				items: menuItem
 			},

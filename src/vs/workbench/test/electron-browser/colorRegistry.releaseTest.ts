@@ -9,7 +9,7 @@ import { editorMarkerNavigationError } from 'vs/editor/contrib/gotoError/gotoErr
 import { overviewRulerModifiedForeground } from 'vs/workbench/contrib/scm/browser/dirtydiffDecorator';
 import { STATUS_BAR_DEBUGGING_BACKGROUND } from 'vs/workbench/contrib/debug/browser/statusbarColorProvider';
 import { debugExceptionWidgetBackground } from 'vs/workbench/contrib/debug/browser/exceptionWidget';
-import { debugToolBarBackground } from 'vs/workbench/contrib/debug/browser/debugToolbar';
+import { debugToolBarBackground } from 'vs/workbench/contrib/debug/browser/debugToolBar';
 import { buttonBackground } from 'vs/workbench/contrib/welcome/page/browser/welcomePage';
 import { embeddedEditorBackground } from 'vs/workbench/contrib/welcome/walkThrough/browser/walkThroughPart';
 import { request, asText } from 'vs/base/node/request';
