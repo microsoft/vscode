@@ -3,14 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { DocumentRangeFormattingEditProviderRegistry } from 'vs/editor/common/modes';
 import * as nls from 'vs/nls';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputService, IQuickPickItem, IQuickInputButton } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -55,15 +53,9 @@ registerEditorAction(class FormatDocumentMultipleAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.formatDocument.multiple',
-			label: nls.localize('formatDocument.label.multiple', "Format Document..."),
+			label: nls.localize('formatDocument.label.multiple', "Format Document With..."),
 			alias: 'Format Document...',
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasMultipleDocumentFormattingProvider),
-			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_F,
-				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I },
-				weight: KeybindingWeight.EditorContrib,
-			},
 			menuOpts: {
 				group: '1_modification',
 				order: 1.3
@@ -110,14 +102,9 @@ registerEditorAction(class FormatSelectionMultipleAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.formatSelection.multiple',
-			label: nls.localize('formatSelection.label.multiple', "Format Selection..."),
+			label: nls.localize('formatSelection.label.multiple', "Format Selection With..."),
 			alias: 'Format Code...',
 			precondition: ContextKeyExpr.and(ContextKeyExpr.and(EditorContextKeys.writable), EditorContextKeys.hasMultipleDocumentSelectionFormattingProvider),
-			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_F),
-				weight: KeybindingWeight.EditorContrib
-			},
 			menuOpts: {
 				when: ContextKeyExpr.and(EditorContextKeys.hasNonEmptySelection),
 				group: '1_modification',

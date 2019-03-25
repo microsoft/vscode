@@ -22,6 +22,9 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { FormattingEdit } from 'vs/editor/contrib/format/formattingEdit';
 import * as nls from 'vs/nls';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 export function alertFormattingEdits(edits: ISingleEditOperation[]): void {
 
@@ -81,6 +84,32 @@ export function getRealAndSyntheticDocumentFormattersOrdered(model: ITextModel):
 		});
 	}
 	return result;
+}
+
+export async function formatDocumentRangeWithFirstProvider(
+	accessor: ServicesAccessor,
+	editorOrModel: ITextModel | IActiveCodeEditor,
+	range: Range,
+	token: CancellationToken
+): Promise<boolean> {
+
+	const instaService = accessor.get(IInstantiationService);
+	const statusBarService = accessor.get(IStatusbarService);
+	const labelService = accessor.get(ILabelService);
+
+	const model = isCodeEditor(editorOrModel) ? editorOrModel.getModel() : editorOrModel;
+	const [best, ...rest] = DocumentRangeFormattingEditProviderRegistry.ordered(model);
+	if (!best) {
+		return false;
+	}
+	const ret = await instaService.invokeFunction(formatDocumentRangeWithProvider, best, editorOrModel, range, token);
+	if (rest.length > 0) {
+		statusBarService.setStatusMessage(
+			nls.localize('random.pick', "$(tasklist) Formatted '{0}' with '{1}'", labelService.getUriLabel(model.uri, { relative: true }), best.displayName),
+			5 * 1000
+		);
+	}
+	return ret;
 }
 
 export async function formatDocumentRangeWithProvider(
@@ -150,6 +179,31 @@ export async function formatDocumentRangeWithProvider(
 	}
 
 	return true;
+}
+
+export async function formatDocumentWithFirstProvider(
+	accessor: ServicesAccessor,
+	editorOrModel: ITextModel | IActiveCodeEditor,
+	token: CancellationToken
+): Promise<boolean> {
+
+	const instaService = accessor.get(IInstantiationService);
+	const statusBarService = accessor.get(IStatusbarService);
+	const labelService = accessor.get(ILabelService);
+
+	const model = isCodeEditor(editorOrModel) ? editorOrModel.getModel() : editorOrModel;
+	const [best, ...rest] = getRealAndSyntheticDocumentFormattersOrdered(model);
+	if (!best) {
+		return false;
+	}
+	const ret = await instaService.invokeFunction(formatDocumentWithProvider, best, editorOrModel, token);
+	if (rest.length > 0) {
+		statusBarService.setStatusMessage(
+			nls.localize('random.pick', "$(tasklist) Formatted '{0}' with '{1}'", labelService.getUriLabel(model.uri, { relative: true }), best.displayName),
+			5 * 1000
+		);
+	}
+	return ret;
 }
 
 export async function formatDocumentWithProvider(

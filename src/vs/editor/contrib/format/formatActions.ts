@@ -16,7 +16,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { DocumentRangeFormattingEditProviderRegistry, OnTypeFormattingEditProviderRegistry } from 'vs/editor/common/modes';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { getOnTypeFormattingEdits, formatDocumentWithProvider, formatDocumentRangeWithProvider, alertFormattingEdits, getRealAndSyntheticDocumentFormattersOrdered } from 'vs/editor/contrib/format/format';
+import { getOnTypeFormattingEdits, alertFormattingEdits, formatDocumentRangeWithFirstProvider, formatDocumentWithFirstProvider } from 'vs/editor/contrib/format/format';
 import { FormattingEdit } from 'vs/editor/contrib/format/formattingEdit';
 import * as nls from 'vs/nls';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
@@ -211,12 +211,7 @@ class FormatOnPaste implements editorCommon.IEditorContribution {
 		if (this.editor.getSelections().length > 1) {
 			return;
 		}
-		const provider = DocumentRangeFormattingEditProviderRegistry.ordered(this.editor.getModel());
-		if (provider.length !== 1) {
-			// print status in n>1 case?
-			return;
-		}
-		this._instantiationService.invokeFunction(formatDocumentRangeWithProvider, provider[0], this.editor, range, CancellationToken.None).catch(onUnexpectedError);
+		this._instantiationService.invokeFunction(formatDocumentRangeWithFirstProvider, this.editor, range, CancellationToken.None).catch(onUnexpectedError);
 	}
 }
 
@@ -227,7 +222,7 @@ class FormatDocumentAction extends EditorAction {
 			id: 'editor.action.formatDocument',
 			label: nls.localize('formatDocument.label', "Format Document"),
 			alias: 'Format Document',
-			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasDocumentFormattingProvider, EditorContextKeys.hasMultipleDocumentFormattingProvider.toNegated()),
+			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasDocumentFormattingProvider),
 			kbOpts: {
 				kbExpr: ContextKeyExpr.and(EditorContextKeys.editorTextFocus, EditorContextKeys.hasDocumentFormattingProvider),
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_F,
@@ -243,14 +238,9 @@ class FormatDocumentAction extends EditorAction {
 	}
 
 	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		if (!editor.hasModel()) {
-			return;
-		}
-		const instaService = accessor.get(IInstantiationService);
-		const model = editor.getModel();
-		const [provider] = getRealAndSyntheticDocumentFormattersOrdered(model);
-		if (provider) {
-			await instaService.invokeFunction(formatDocumentWithProvider, provider, editor, CancellationToken.None);
+		if (editor.hasModel()) {
+			const instaService = accessor.get(IInstantiationService);
+			await instaService.invokeFunction(formatDocumentWithFirstProvider, editor, CancellationToken.None);
 		}
 	}
 }
@@ -262,7 +252,7 @@ class FormatSelectionAction extends EditorAction {
 			id: 'editor.action.formatSelection',
 			label: nls.localize('formatSelection.label', "Format Selection"),
 			alias: 'Format Code',
-			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasDocumentSelectionFormattingProvider, EditorContextKeys.hasMultipleDocumentSelectionFormattingProvider.toNegated()),
+			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasDocumentSelectionFormattingProvider),
 			kbOpts: {
 				kbExpr: ContextKeyExpr.and(EditorContextKeys.editorTextFocus, EditorContextKeys.hasDocumentSelectionFormattingProvider),
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_F),
@@ -281,14 +271,12 @@ class FormatSelectionAction extends EditorAction {
 			return;
 		}
 		const instaService = accessor.get(IInstantiationService);
-		const [best] = DocumentRangeFormattingEditProviderRegistry.ordered(editor.getModel());
-		if (best) {
-			let range: Range = editor.getSelection();
-			if (range.isEmpty()) {
-				range = new Range(range.startLineNumber, 1, range.startLineNumber, editor.getModel().getLineMaxColumn(range.startLineNumber));
-			}
-			await instaService.invokeFunction(formatDocumentRangeWithProvider, best, editor, range, CancellationToken.None);
+		const model = editor.getModel();
+		let range: Range = editor.getSelection();
+		if (range.isEmpty()) {
+			range = new Range(range.startLineNumber, 1, range.startLineNumber, model.getLineMaxColumn(range.startLineNumber));
 		}
+		await instaService.invokeFunction(formatDocumentRangeWithFirstProvider, editor, range, CancellationToken.None);
 	}
 }
 
