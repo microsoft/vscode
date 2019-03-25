@@ -14,37 +14,37 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { ISocket, Protocol, Client } from 'vs/base/parts/ipc/common/ipc.net';
 
 export class NodeSocket implements ISocket {
-	private readonly _socket: Socket;
+	public readonly socket: Socket;
 
 	constructor(socket: Socket) {
-		this._socket = socket;
+		this.socket = socket;
 	}
 
 	public onData(_listener: (e: VSBuffer) => void): IDisposable {
 		const listener = (buff: Buffer) => _listener(VSBuffer.wrap(buff));
-		this._socket.on('data', listener);
+		this.socket.on('data', listener);
 		return {
-			dispose: () => this._socket.off('data', listener)
+			dispose: () => this.socket.off('data', listener)
 		};
 	}
 
 	public onClose(listener: () => void): IDisposable {
-		this._socket.on('close', listener);
+		this.socket.on('close', listener);
 		return {
-			dispose: () => this._socket.off('close', listener)
+			dispose: () => this.socket.off('close', listener)
 		};
 	}
 
 	public onEnd(listener: () => void): IDisposable {
-		this._socket.on('end', listener);
+		this.socket.on('end', listener);
 		return {
-			dispose: () => this._socket.off('end', listener)
+			dispose: () => this.socket.off('end', listener)
 		};
 	}
 
 	public write(buffer: VSBuffer): void {
 		// return early if socket has been destroyed in the meantime
-		if (this._socket.destroyed) {
+		if (this.socket.destroyed) {
 			return;
 		}
 
@@ -53,11 +53,11 @@ export class NodeSocket implements ISocket {
 		// > https://nodejs.org/api/stream.html#stream_writable_write_chunk_encoding_callback
 		// > However, the false return value is only advisory and the writable stream will unconditionally
 		// > accept and buffer chunk even if it has not not been allowed to drain.
-		this._socket.write(buffer.toBuffer());
+		this.socket.write(<Buffer>buffer.buffer);
 	}
 
 	public end(): void {
-		this._socket.end();
+		this.socket.end();
 	}
 }
 

@@ -7,6 +7,9 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IMessagePassingProtocol, IPCClient } from 'vs/base/parts/ipc/common/ipc';
 import { IDisposable, Disposable, dispose } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
+import * as platform from 'vs/base/common/platform';
+
+declare var process: any;
 
 export interface ISocket {
 	onData(listener: (e: VSBuffer) => void): IDisposable;
@@ -284,7 +287,7 @@ class ProtocolWriter {
 
 	private _writeSoon(header: VSBuffer, data: VSBuffer): void {
 		if (this._bufferAdd(header, data)) {
-			setImmediate(() => {
+			platform.setImmediate(() => {
 				this._writeNow();
 			});
 		}
@@ -402,7 +405,11 @@ function createBufferedEvent<T>(source: Event<T>): Event<T> {
 			// it is important to deliver these messages after this call, but before
 			// other messages have a chance to be received (to guarantee in order delivery)
 			// that's why we're using here nextTick and not other types of timeouts
-			process.nextTick(deliverMessages);
+			if (typeof process !== 'undefined') {
+				process.nextTick(deliverMessages);
+			} else {
+				platform.setImmediate(deliverMessages);
+			}
 		},
 		onLastListenerRemove: () => {
 			hasListeners = false;
@@ -484,15 +491,15 @@ export class PersistentProtocol {
 	private _outgoingUnackMsg: Queue<ProtocolMessage>;
 	private _outgoingMsgId: number;
 	private _outgoingAckId: number;
-	private _outgoingAckTimeout: NodeJS.Timeout | null;
+	private _outgoingAckTimeout: any | null;
 
 	private _incomingMsgId: number;
 	private _incomingAckId: number;
 	private _incomingMsgLastTime: number;
-	private _incomingAckTimeout: NodeJS.Timeout | null;
+	private _incomingAckTimeout: any | null;
 
-	private _outgoingKeepAliveTimeout: NodeJS.Timeout | null;
-	private _incomingKeepAliveTimeout: NodeJS.Timeout | null;
+	private _outgoingKeepAliveTimeout: any | null;
+	private _incomingKeepAliveTimeout: any | null;
 
 	private _socket: ISocket;
 	private _socketWriter: ProtocolWriter;

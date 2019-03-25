@@ -17,7 +17,7 @@ export class Protocol implements IMessagePassingProtocol {
 
 	send(message: VSBuffer): void {
 		try {
-			this.sender.send('ipc:message', message.toBuffer());
+			this.sender.send('ipc:message', (<Buffer>message.buffer));
 		} catch (e) {
 			// systems are going down
 		}
