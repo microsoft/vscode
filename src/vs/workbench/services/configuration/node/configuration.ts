@@ -55,12 +55,12 @@ export class LocalUserConfiguration extends Disposable {
 	}
 
 	async adopt(fileService: IFileService): Promise<ConfigurationModel | null> {
-		if (this.userConfiguration instanceof NodeBasedUserConfiguration) {
-			this.userConfiguration.dispose();
-			dispose(this.changeDisposable);
-			this.userConfiguration = this._register(new FileServiceBasedUserConfiguration(this.userConfigurationResource, fileService));
-			this.changeDisposable = this._register(this.userConfiguration.onDidChangeConfiguration(configurationModel => this._onDidChangeConfiguration.fire(configurationModel)));
-		}
+		// if (this.userConfiguration instanceof NodeBasedUserConfiguration) {
+		// 	this.userConfiguration.dispose();
+		// 	dispose(this.changeDisposable);
+		// 	this.userConfiguration = this._register(new FileServiceBasedUserConfiguration(this.userConfigurationResource, fileService));
+		// 	this.changeDisposable = this._register(this.userConfiguration.onDidChangeConfiguration(configurationModel => this._onDidChangeConfiguration.fire(configurationModel)));
+		// }
 		return null;
 	}
 }
