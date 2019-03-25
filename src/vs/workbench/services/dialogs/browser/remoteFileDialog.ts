@@ -47,6 +47,7 @@ export class RemoteFileDialog {
 	private userValue: string;
 	private scheme: string = REMOTE_HOST_SCHEME;
 	private shouldOverwriteFile: boolean = false;
+	private autoComplete: string;
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
@@ -222,18 +223,21 @@ export class RemoteFileDialog {
 			});
 
 			this.filePickBox.onDidChangeValue(async value => {
-				if (value !== this.userValue) {
-					this.filePickBox.validationMessage = undefined;
-					this.shouldOverwriteFile = false;
-					const trimmedPickBoxValue = ((this.filePickBox.value.length > 1) && this.endsWithSlash(this.filePickBox.value)) ? this.filePickBox.value.substr(0, this.filePickBox.value.length - 1) : this.filePickBox.value;
-					const valueUri = this.remoteUriFrom(trimmedPickBoxValue);
-					if (!resources.isEqual(this.currentFolder, valueUri, true)) {
-						await this.tryUpdateItems(value, this.remoteUriFrom(this.filePickBox.value));
+				// onDidChangeValue can also be triggered by the auto complete, so if it looks like the auto complete, don't do anything
+				if (!this.autoComplete || (value !== this.autoComplete)) {
+					if (value !== this.userValue) {
+						this.filePickBox.validationMessage = undefined;
+						this.shouldOverwriteFile = false;
+						const trimmedPickBoxValue = ((this.filePickBox.value.length > 1) && this.endsWithSlash(this.filePickBox.value)) ? this.filePickBox.value.substr(0, this.filePickBox.value.length - 1) : this.filePickBox.value;
+						const valueUri = this.remoteUriFrom(trimmedPickBoxValue);
+						if (!resources.isEqual(this.currentFolder, valueUri, true)) {
+							await this.tryUpdateItems(value, this.remoteUriFrom(this.filePickBox.value));
+						}
+						this.setActiveItems(value);
+						this.userValue = value;
+					} else {
+						this.filePickBox.activeItems = [];
 					}
-					this.setActiveItems(value);
-					this.userValue = value;
-				} else {
-					this.filePickBox.activeItems = [];
 				}
 			});
 			this.filePickBox.onDidHide(() => {
@@ -356,8 +360,12 @@ export class RemoteFileDialog {
 				const itemBasename = (item.label === '..') ? item.label : resources.basename(item.uri);
 				if ((itemBasename.length >= inputBasename.length) && (itemBasename.substr(0, inputBasename.length).toLowerCase() === inputBasename.toLowerCase())) {
 					this.filePickBox.activeItems = [item];
-					this.filePickBox.value = this.filePickBox.value + itemBasename.substr(inputBasename.length);
-					this.filePickBox.valueSelection = [value.length, this.filePickBox.value.length];
+					const insertValue = itemBasename.substr(inputBasename.length);
+					this.autoComplete = value + insertValue;
+					if (this.filePickBox.inputHasFocus()) {
+						document.execCommand('insertText', false, insertValue);
+						this.filePickBox.valueSelection = [value.length, this.filePickBox.value.length];
+					}
 					hasMatch = true;
 					break;
 				}
