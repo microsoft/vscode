@@ -888,7 +888,8 @@ export interface TaskEvent {
 }
 
 export const enum TaskRunSource {
-	User, // Default
+	System,
+	User,
 	FolderOpen,
 	ConfigurationChange
 }
