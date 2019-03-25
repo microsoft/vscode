@@ -19,8 +19,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { inputValidationErrorBorder } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ICommentService } from 'vs/workbench/contrib/comments/electron-browser/commentService';
-import { SimpleCommentEditor } from 'vs/workbench/contrib/comments/electron-browser/simpleCommentEditor';
+import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
+import { SimpleCommentEditor } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { Emitter, Event } from 'vs/base/common/event';

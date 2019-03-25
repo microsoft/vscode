@@ -13,7 +13,7 @@ import { keys } from 'vs/base/common/map';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { assign } from 'vs/base/common/objects';
 import { ICommentThreadChangedEvent } from 'vs/workbench/contrib/comments/common/commentModel';
-import { MainThreadCommentController } from 'vs/workbench/api/electron-browser/mainThreadComments';
+import { MainThreadCommentController } from 'vs/workbench/api/browser/mainThreadComments';
 
 export const ICommentService = createDecorator<ICommentService>('commentService');
 
