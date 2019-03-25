@@ -403,13 +403,6 @@ export class SearchService extends Disposable implements ISearchService {
 	}
 
 	private matches(resource: uri, query: ITextQuery): boolean {
-		// includes
-		if (query.includePattern) {
-			if (resource.scheme !== Schemas.file) {
-				return false; // if we match on file patterns, we have to ignore non file resources
-			}
-		}
-
 		return pathIncludedInQuery(query, resource.fsPath);
 	}
 
