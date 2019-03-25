@@ -116,6 +116,12 @@ export class FileService2 extends Disposable implements IFileService {
 		return this.provider.has(resource.scheme);
 	}
 
+	async hasCapability(resource: URI, capability: FileSystemProviderCapabilities): Promise<boolean> {
+		const provider = await this.withProvider(resource);
+
+		return !!(provider.capabilities & capability);
+	}
+
 	private async withProvider(resource: URI): Promise<IFileSystemProvider> {
 
 		// Assert path is absolute

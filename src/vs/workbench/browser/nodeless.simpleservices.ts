@@ -5,7 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { ITextSnapshot, IFileStat, IContent, IFileService, IResourceEncodings, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IStreamContent, IUpdateContentOptions, snapshotToString, ICreateFileOptions, IResourceEncoding, IFileStatWithMetadata } from 'vs/platform/files/common/files';
+import { ITextSnapshot, IFileStat, IContent, IFileService, IResourceEncodings, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IStreamContent, IUpdateContentOptions, snapshotToString, ICreateFileOptions, IResourceEncoding, IFileStatWithMetadata, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { ITextBufferFactory } from 'vs/editor/common/model';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { keys, ResourceMap } from 'vs/base/common/map';
@@ -795,6 +795,8 @@ export class SimpleRemoteFileService implements IFileService {
 	activateProvider(_scheme: string): Promise<void> { return Promise.resolve(undefined); }
 
 	canHandleResource(resource: URI): boolean { return resource.scheme === 'file'; }
+
+	hasCapability(resource: URI, capability: FileSystemProviderCapabilities): Promise<boolean> { return Promise.resolve(false); }
 
 	del(_resource: URI, _options?: { useTrash?: boolean, recursive?: boolean }): Promise<void> { return Promise.resolve(); }
 
