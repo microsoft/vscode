@@ -133,7 +133,7 @@ export class FileService2 extends Disposable implements IFileService {
 			err.name = 'ENOPRO';
 			err.message = `No provider found for ${resource.toString()}`;
 
-			return Promise.reject(err);
+			throw err;
 		}
 
 		return provider;
@@ -549,12 +549,13 @@ export class FileService2 extends Disposable implements IFileService {
 	}
 
 	async del(resource: URI, options?: { useTrash?: boolean; recursive?: boolean; }): Promise<void> {
-		if (options && options.useTrash) {
-			//TODO@ben this is https://github.com/Microsoft/vscode/issues/48259
-			return this.joinOnLegacy.then(legacy => legacy.del(resource, options));
-		}
-
 		const provider = this.throwIfFileSystemIsReadonly(await this.withProvider(resource));
+
+		// Validate trash support
+		const useTrash = !!(options && options.useTrash);
+		if (useTrash && !(provider.capabilities & FileSystemProviderCapabilities.Trash)) {
+			throw new Error(localize('err.trash', "Provider does not support trash."));
+		}
 
 		// Validate recursive
 		const recursive = !!(options && options.recursive);
@@ -566,7 +567,7 @@ export class FileService2 extends Disposable implements IFileService {
 		}
 
 		// Delete through provider
-		await provider.delete(resource, { recursive });
+		await provider.delete(resource, { recursive, useTrash });
 
 		// Events
 		this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.DELETE));

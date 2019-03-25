@@ -188,6 +188,7 @@ export interface FileOpenOptions {
 
 export interface FileDeleteOptions {
 	recursive: boolean;
+	useTrash: boolean;
 }
 
 export enum FileType {
@@ -215,7 +216,9 @@ export const enum FileSystemProviderCapabilities {
 	FileFolderCopy = 1 << 3,
 
 	PathCaseSensitive = 1 << 10,
-	Readonly = 1 << 11
+	Readonly = 1 << 11,
+
+	Trash = 1 << 12
 }
 
 export interface IFileSystemProvider {
@@ -1130,8 +1133,6 @@ export interface ILegacyFileService {
 	updateContent(resource: URI, value: string | ITextSnapshot, options?: IUpdateContentOptions): Promise<IFileStat>;
 
 	createFile(resource: URI, content?: string, options?: ICreateFileOptions): Promise<IFileStat>;
-
-	del(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): Promise<void>;
 
 	watchFileChanges(resource: URI): void;
 

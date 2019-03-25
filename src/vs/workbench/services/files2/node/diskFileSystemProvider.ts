@@ -23,7 +23,7 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 
 	onDidChangeCapabilities: Event<void> = Event.None;
 
-	private _capabilities: FileSystemProviderCapabilities;
+	protected _capabilities: FileSystemProviderCapabilities;
 	get capabilities(): FileSystemProviderCapabilities {
 		if (!this._capabilities) {
 			this._capabilities =
@@ -204,17 +204,21 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 		try {
 			const filePath = this.toFilePath(resource);
 
-			if (opts.recursive) {
-				await del(filePath, tmpdir());
-			} else {
-				await unlink(filePath);
-			}
+			await this.doDelete(filePath, opts);
 		} catch (error) {
 			if (error.code === 'ENOENT') {
 				return Promise.resolve(); // tolerate that the file might not exist
 			}
 
 			throw this.toFileSystemProviderError(error);
+		}
+	}
+
+	protected async doDelete(filePath: string, opts: FileDeleteOptions): Promise<void> {
+		if (opts.recursive) {
+			await del(filePath, tmpdir());
+		} else {
+			await unlink(filePath);
 		}
 	}
 
@@ -261,7 +265,7 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 				throw createFileSystemProviderError(new Error('File at target already exists'), FileSystemProviderErrorCode.FileExists);
 			}
 
-			await this.delete(to, { recursive: true });
+			await this.delete(to, { recursive: true, useTrash: false });
 		}
 	}
 
@@ -280,7 +284,7 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 
 	//#region Helpers
 
-	private toFilePath(resource: URI): string {
+	protected toFilePath(resource: URI): string {
 		return normalize(resource.fsPath);
 	}
 

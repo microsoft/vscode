@@ -431,20 +431,6 @@ export class RemoteFileService extends FileService {
 		});
 	}
 
-	// --- delete
-
-	del(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): Promise<void> {
-		if (resource.scheme === Schemas.file) {
-			return super.del(resource, options);
-		} else {
-			return this._withProvider(resource).then(RemoteFileService._throwIfFileSystemIsReadonly).then(provider => {
-				return provider.delete(resource, { recursive: !!(options && options.recursive) }).then(() => {
-					this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.DELETE));
-				});
-			});
-		}
-	}
-
 	private _activeWatches = new Map<string, { unwatch: Promise<IDisposable>, count: number }>();
 
 	watchFileChanges(resource: URI, opts: IWatchOptions = { recursive: false, excludes: [] }): void {
