@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IWindowsService, IURIToOpen } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IURIToOpen, IOpenSettings } from 'vs/platform/windows/common/windows';
 import { reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { URI } from 'vs/base/common/uri';
 import { IRecent, isRecentFile, isRecentFolder } from 'vs/platform/history/common/history';
@@ -86,7 +86,13 @@ export class WindowsChannel implements IServerChannel {
 			case 'minimizeWindow': return this.service.minimizeWindow(arg);
 			case 'onWindowTitleDoubleClick': return this.service.onWindowTitleDoubleClick(arg);
 			case 'setDocumentEdited': return this.service.setDocumentEdited(arg[0], arg[1]);
-			case 'openWindow': return this.service.openWindow(arg[0], arg[1] ? (<IURIToOpen[]>arg[1]).map(r => { r.uri = URI.revive(r.uri); return r; }) : arg[1], arg[2]);
+			case 'openWindow': {
+				const urisToOpen: IURIToOpen[] = arg[1];
+				const options: IOpenSettings = arg[2];
+				urisToOpen.forEach(r => { r.uri = URI.revive(r.uri); return r; });
+				options.waitMarkerFileURI = options.waitMarkerFileURI && URI.revive(options.waitMarkerFileURI);
+				return this.service.openWindow(arg[0], urisToOpen, options);
+			}
 			case 'openNewWindow': return this.service.openNewWindow(arg);
 			case 'showWindow': return this.service.showWindow(arg);
 			case 'getWindows': return this.service.getWindows();

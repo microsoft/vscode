@@ -131,13 +131,14 @@ export class Configuration extends BaseConfiguration {
 
 	constructor(
 		defaults: ConfigurationModel,
-		user: ConfigurationModel,
+		localUser: ConfigurationModel,
+		remoteUser: ConfigurationModel,
 		workspaceConfiguration: ConfigurationModel,
 		folders: ResourceMap<ConfigurationModel>,
 		memoryConfiguration: ConfigurationModel,
 		memoryConfigurationByResource: ResourceMap<ConfigurationModel>,
 		private readonly _workspace?: Workspace) {
-		super(defaults, user, workspaceConfiguration, folders, memoryConfiguration, memoryConfigurationByResource);
+		super(defaults, localUser, remoteUser, workspaceConfiguration, folders, memoryConfiguration, memoryConfigurationByResource);
 	}
 
 	getValue(key: string | undefined, overrides: IConfigurationOverrides = {}): any {
@@ -164,17 +165,26 @@ export class Configuration extends BaseConfiguration {
 		return super.keys(this._workspace);
 	}
 
-	compareAndUpdateUserConfiguration(user: ConfigurationModel): ConfigurationChangeEvent {
-		const { added, updated, removed } = compare(this.user, user);
+	compareAndUpdateLocalUserConfiguration(user: ConfigurationModel): ConfigurationChangeEvent {
+		const { added, updated, removed } = compare(this.localUserConfiguration, user);
 		let changedKeys = [...added, ...updated, ...removed];
 		if (changedKeys.length) {
-			super.updateUserConfiguration(user);
+			super.updateLocalUserConfiguration(user);
+		}
+		return new ConfigurationChangeEvent().change(changedKeys);
+	}
+
+	compareAndUpdateRemoteUserConfiguration(user: ConfigurationModel): ConfigurationChangeEvent {
+		const { added, updated, removed } = compare(this.remoteUserConfiguration, user);
+		let changedKeys = [...added, ...updated, ...removed];
+		if (changedKeys.length) {
+			super.updateRemoteUserConfiguration(user);
 		}
 		return new ConfigurationChangeEvent().change(changedKeys);
 	}
 
 	compareAndUpdateWorkspaceConfiguration(workspaceConfiguration: ConfigurationModel): ConfigurationChangeEvent {
-		const { added, updated, removed } = compare(this.workspace, workspaceConfiguration);
+		const { added, updated, removed } = compare(this.workspaceConfiguration, workspaceConfiguration);
 		let changedKeys = [...added, ...updated, ...removed];
 		if (changedKeys.length) {
 			super.updateWorkspaceConfiguration(workspaceConfiguration);
@@ -183,7 +193,7 @@ export class Configuration extends BaseConfiguration {
 	}
 
 	compareAndUpdateFolderConfiguration(resource: URI, folderConfiguration: ConfigurationModel): ConfigurationChangeEvent {
-		const currentFolderConfiguration = this.folders.get(resource);
+		const currentFolderConfiguration = this.folderConfigurations.get(resource);
 		if (currentFolderConfiguration) {
 			const { added, updated, removed } = compare(currentFolderConfiguration, folderConfiguration);
 			let changedKeys = [...added, ...updated, ...removed];
@@ -202,7 +212,7 @@ export class Configuration extends BaseConfiguration {
 			// Do not remove workspace configuration
 			return new ConfigurationChangeEvent();
 		}
-		const folderConfig = this.folders.get(folder);
+		const folderConfig = this.folderConfigurations.get(folder);
 		if (!folderConfig) {
 			throw new Error('Unknown folder');
 		}

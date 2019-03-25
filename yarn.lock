@@ -9454,10 +9454,10 @@ vscode-windows-registry@1.0.1:
   dependencies:
     nan "^2.12.1"
 
-vscode-xterm@3.13.0-beta1:
-  version "3.13.0-beta1"
-  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.13.0-beta1.tgz#c1f4d90fe201f7e3afe7e7e0835f0b093a09afd5"
-  integrity sha512-NxWVk+q5cbHpbLFME+RfQ2RmJdR95lxjnhZEkXgHPOkmblzoHxRsZY9yF85Zfl5oNaiLMre9OwuhkHAZBQX8vg==
+vscode-xterm@3.13.0-beta2:
+  version "3.13.0-beta2"
+  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.13.0-beta2.tgz#4517a96ef30d8a8d6f27c60bfc374a405811ee6e"
+  integrity sha512-9iu3oxpFbyUzsAPYeipMSaI7I/nY4WHlpq2kJXXzibZAO9l7pVFBxFR9H0gfDBVn1+fMJsLIzRWGX9lKC83lfQ==
 
 vso-node-api@6.1.2-preview:
   version "6.1.2-preview"

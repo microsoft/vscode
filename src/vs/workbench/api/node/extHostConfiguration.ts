@@ -263,7 +263,7 @@ export class ExtHostConfigProvider {
 			result.set(URI.parse(key), ExtHostConfigProvider.parseConfigurationModel(data.folders[key]));
 			return result;
 		}, new ResourceMap<ConfigurationModel>());
-		return new Configuration(defaultConfiguration, userConfiguration, workspaceConfiguration, folders, new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), false);
+		return new Configuration(defaultConfiguration, userConfiguration, new ConfigurationModel(), workspaceConfiguration, folders, new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), false);
 	}
 
 	private static parseConfigurationModel(model: IConfigurationModel): ConfigurationModel {

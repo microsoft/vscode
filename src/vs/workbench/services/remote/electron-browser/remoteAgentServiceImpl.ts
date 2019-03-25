@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { getDelayedChannel } from 'vs/base/parts/ipc/node/ipc';
+import { IChannel, IServerChannel, getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client } from 'vs/base/parts/ipc/node/ipc.net';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { connectRemoteAgentManagement } from 'vs/platform/remote/node/remoteAgentConnection';
@@ -13,7 +13,6 @@ import { IRemoteAgentConnection, IRemoteAgentService } from 'vs/workbench/servic
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { RemoteAgentConnectionContext, IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { RemoteExtensionEnvironmentChannelClient } from 'vs/workbench/services/remote/node/remoteAgentEnvironmentChannel';

@@ -2,7 +2,8 @@
 	"compilerOptions": {
 		"module": "amd",
 		"moduleResolution": "node",
-		"noImplicitAny": false,
+		"noImplicitAny": true,
+		"suppressImplicitAnyIndexErrors": true,
 		"target": "es5",
 		"experimentalDecorators": true,
 		"noImplicitReturns": true,

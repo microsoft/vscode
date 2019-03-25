@@ -67,7 +67,8 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 		@INotificationService private readonly notificationService: INotificationService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IFileService private readonly fileService: IFileService,
-		@IExplorerService private readonly explorerService: IExplorerService
+		@IExplorerService private readonly explorerService: IExplorerService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
 	) { }
 
 	hasChildren(element: ExplorerItem | ExplorerItem[]): boolean {
@@ -80,8 +81,17 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 		}
 
 		const promise = element.fetchChildren(this.fileService, this.explorerService).then(undefined, e => {
-			// Do not show error for roots since we already use an explorer decoration to notify user
-			if (!(element instanceof ExplorerItem && element.isRoot)) {
+
+			if (element instanceof ExplorerItem && element.isRoot) {
+				if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
+					// Single folder create a dummy explorer item to show error
+					const placeholder = new ExplorerItem(element.resource, undefined, false);
+					placeholder.isError = true;
+
+					return [placeholder];
+				}
+			} else {
+				// Do not show error for roots since we already use an explorer decoration to notify user
 				this.notificationService.error(e);
 			}
 

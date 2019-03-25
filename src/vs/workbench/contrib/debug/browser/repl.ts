@@ -375,7 +375,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 				accessibilityProvider: new ReplAccessibilityProvider(),
 				identityProvider: { getId: (element: IReplElement) => element.getId() },
 				mouseSupport: false,
-				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: e => e },
+				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IReplElement) => e },
 				horizontalScrolling: false,
 				setRowLineHeight: false,
 				supportDynamicHeights: true
@@ -740,7 +740,8 @@ class ReplDelegate implements IListVirtualDelegate<IReplElement> {
 	}
 
 	hasDynamicHeight?(element: IReplElement): boolean {
-		return true;
+		// Empty elements should not have dynamic height since they will be invisible
+		return element.toString().length > 0;
 	}
 }
 

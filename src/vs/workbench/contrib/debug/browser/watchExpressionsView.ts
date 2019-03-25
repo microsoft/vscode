@@ -64,7 +64,7 @@ export class WatchExpressionsView extends ViewletPanel {
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'watchAriaTreeLabel' }, "Debug Watch Expressions"),
 				accessibilityProvider: new WatchExpressionsAccessibilityProvider(),
 				identityProvider: { getId: (element: IExpression) => element.getId() },
-				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: e => e },
+				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IExpression) => e },
 				dnd: new WatchExpressionsDragAndDrop(this.debugService),
 			}) as WorkbenchAsyncDataTree<IDebugService | IExpression, IExpression, FuzzyScore>;
 

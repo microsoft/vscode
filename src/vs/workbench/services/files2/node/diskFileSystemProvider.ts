@@ -10,10 +10,12 @@ import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, FileSystemProviderErrorCode, createFileSystemProviderError, FileSystemProviderError } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
-import { isLinux } from 'vs/base/common/platform';
-import { statLink, readdir, unlink, del, move, copy } from 'vs/base/node/pfs';
+import { isLinux, isWindows } from 'vs/base/common/platform';
+import { statLink, readdir, unlink, del, move, copy, readFile, writeFile, fileExists, truncate } from 'vs/base/node/pfs';
 import { normalize } from 'vs/base/common/path';
 import { joinPath } from 'vs/base/common/resources';
+import { isEqual } from 'vs/base/common/extpath';
+import { retry } from 'vs/base/common/async';
 
 export class DiskFileSystemProvider extends Disposable implements IFileSystemProvider {
 
@@ -78,12 +80,55 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 
 	//#region File Reading/Writing
 
-	readFile(resource: URI): Promise<Uint8Array> {
-		throw new Error('Method not implemented.');
+	async readFile(resource: URI): Promise<Uint8Array> {
+		try {
+			const filePath = this.toFilePath(resource);
+
+			return await readFile(filePath);
+		} catch (error) {
+			throw this.toFileSystemProviderError(error);
+		}
 	}
 
-	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
-		throw new Error('Method not implemented.');
+	async writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
+		try {
+			const filePath = this.toFilePath(resource);
+
+			// Validate target
+			const exists = await fileExists(filePath);
+			if (exists && !opts.overwrite) {
+				throw createFileSystemProviderError(new Error('File already exists'), FileSystemProviderErrorCode.FileExists);
+			} else if (!exists && !opts.create) {
+				throw createFileSystemProviderError(new Error('File does not exist'), FileSystemProviderErrorCode.FileNotFound);
+			}
+
+			if (exists && isWindows) {
+				try {
+					// On Windows and if the file exists, we use a different strategy of saving the file
+					// by first truncating the file and then writing with r+ mode. This helps to save hidden files on Windows
+					// (see https://github.com/Microsoft/vscode/issues/931) and prevent removing alternate data streams
+					// (see https://github.com/Microsoft/vscode/issues/6363)
+					await truncate(filePath, 0);
+
+					// We heard from one user that fs.truncate() succeeds, but the save fails (https://github.com/Microsoft/vscode/issues/61310)
+					// In that case, the file is now entirely empty and the contents are gone. This can happen if an external file watcher is
+					// installed that reacts on the truncate and keeps the file busy right after. Our workaround is to retry to save after a
+					// short timeout, assuming that the file is free to write then.
+					await retry(() => writeFile(filePath, content, { flag: 'r+' }), 100 /* ms delay */, 3 /* retries */);
+				} catch (error) {
+					// we heard from users that fs.truncate() fails (https://github.com/Microsoft/vscode/issues/59561)
+					// in that case we simply save the file without truncating first (same as macOS and Linux)
+					await writeFile(filePath, content);
+				}
+			}
+
+			// macOS/Linux: just write directly
+			else {
+				await writeFile(filePath, content);
+			}
+		} catch (error) {
+			throw this.toFileSystemProviderError(error);
+		}
 	}
 
 	open(resource: URI, opts: FileOpenOptions): Promise<number> {
@@ -137,6 +182,10 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 			const fromFilePath = this.toFilePath(from);
 			const toFilePath = this.toFilePath(to);
 
+			// Ensure target does not exist
+			await this.validateTargetDeleted(from, to, opts && opts.overwrite);
+
+			// Move
 			await move(fromFilePath, toFilePath);
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
@@ -148,9 +197,30 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 			const fromFilePath = this.toFilePath(from);
 			const toFilePath = this.toFilePath(to);
 
-			return copy(fromFilePath, toFilePath);
+			// Ensure target does not exist
+			await this.validateTargetDeleted(from, to, opts && opts.overwrite);
+
+			// Copy
+			await copy(fromFilePath, toFilePath);
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
+		}
+	}
+
+	private async validateTargetDeleted(from: URI, to: URI, overwrite?: boolean): Promise<void> {
+		const fromFilePath = this.toFilePath(from);
+		const toFilePath = this.toFilePath(to);
+
+		const isPathCaseSensitive = !!(this.capabilities & FileSystemProviderCapabilities.PathCaseSensitive);
+		const isCaseChange = isPathCaseSensitive ? false : isEqual(fromFilePath, toFilePath, true /* ignore case */);
+
+		// handle existing target (unless this is a case change)
+		if (!isCaseChange && await fileExists(toFilePath)) {
+			if (!overwrite) {
+				throw createFileSystemProviderError(new Error('File at target already exists'), FileSystemProviderErrorCode.FileExists);
+			}
+
+			await this.delete(to, { recursive: true });
 		}
 	}
 

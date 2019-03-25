@@ -132,6 +132,9 @@
 			"linux": {
 				"runtimeExecutable": "${workspaceFolder}/scripts/code.sh"
 			},
+			"env": {
+				"VSCODE_EXTHOST_WILL_SEND_SOCKET": null
+			},
 			"breakOnLoad": false,
 			"urlFilter": "*workbench.html*",
 			"runtimeArgs": [

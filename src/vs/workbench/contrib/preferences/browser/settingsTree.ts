@@ -995,6 +995,9 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 			}
 		}));
 
+		toDispose.push(DOM.addDisposableListener(titleElement, DOM.EventType.MOUSE_ENTER, e => container.classList.add('mouseover')));
+		toDispose.push(DOM.addDisposableListener(titleElement, DOM.EventType.MOUSE_LEAVE, e => container.classList.remove('mouseover')));
+
 		return template;
 	}
 

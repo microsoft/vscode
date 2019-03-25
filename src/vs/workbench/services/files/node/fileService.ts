@@ -207,7 +207,7 @@ export class FileService extends Disposable implements ILegacyFileService, IFile
 	}
 
 	registerProvider(scheme: string, provider: IFileSystemProvider): IDisposable {
-		throw new Error('not implemented');
+		return Disposable.None;
 	}
 
 	activateProvider(scheme: string): Promise<void> {

@@ -8,8 +8,8 @@ import { app, dialog } from 'electron';
 import { assign } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import product from 'vs/platform/product/node/product';
-import { parseMainProcessArgv, createWaitMarkerFile } from 'vs/platform/environment/node/argvHelper';
-import { addArg } from 'vs/platform/environment/node/argv';
+import { parseMainProcessArgv } from 'vs/platform/environment/node/argvHelper';
+import { addArg, createWaitMarkerFile } from 'vs/platform/environment/node/argv';
 import { mkdirp } from 'vs/base/node/pfs';
 import { validatePaths } from 'vs/code/node/paths';
 import { LifecycleService, ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
@@ -357,20 +357,13 @@ function main(): void {
 	// Note: we are not doing this if the wait marker has been already
 	// added as argument. This can happen if Code was started from CLI.
 	if (args.wait && !args.waitMarkerFilePath) {
-		createWaitMarkerFile(args.verbose).then(waitMarkerFilePath => {
-			if (waitMarkerFilePath) {
-				addArg(process.argv, '--waitMarkerFilePath', waitMarkerFilePath);
-				args.waitMarkerFilePath = waitMarkerFilePath;
-			}
-
-			startup(args);
-		});
+		const waitMarkerFilePath = createWaitMarkerFile(args.verbose);
+		if (waitMarkerFilePath) {
+			addArg(process.argv, '--waitMarkerFilePath', waitMarkerFilePath);
+			args.waitMarkerFilePath = waitMarkerFilePath;
+		}
 	}
-
-	// Otherwise just startup normally
-	else {
-		startup(args);
-	}
+	startup(args);
 }
 
 main();

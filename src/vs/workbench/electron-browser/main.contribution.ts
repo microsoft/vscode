@@ -25,9 +25,6 @@ import { SupportsWorkspacesContext, IsMacContext, HasMacNativeTabsContext, IsDev
 import { NoEditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/common/editor';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { LogStorageAction } from 'vs/platform/storage/node/storageService';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { DiskFileSystemSupport } from 'vs/workbench/services/files2/node/diskFileSystemSupport';
 
 // Actions
 (function registerActions(): void {
@@ -689,11 +686,4 @@ import { DiskFileSystemSupport } from 'vs/workbench/services/files2/node/diskFil
 			}
 		}
 	});
-})();
-
-// Disk File System
-(function registerFileSystem(): void {
-	const registry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-
-	registry.registerWorkbenchContribution(DiskFileSystemSupport, LifecyclePhase.Starting);
 })();

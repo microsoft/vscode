@@ -7,6 +7,8 @@ import * as minimist from 'minimist';
 import * as os from 'os';
 import { localize } from 'vs/nls';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
+import { join } from 'path';
+import { writeFileSync } from 'fs';
 
 /**
  * This code is also used by standalone cli's. Avoid adding any other dependencies.
@@ -253,4 +255,21 @@ export function addArg(argv: string[], ...args: string[]): string[] {
 	}
 
 	return argv;
+}
+
+export function createWaitMarkerFile(verbose?: boolean): string | undefined {
+	const randomWaitMarkerPath = join(os.tmpdir(), Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 10));
+
+	try {
+		writeFileSync(randomWaitMarkerPath, '');
+		if (verbose) {
+			console.log(`Marker file for --wait created: ${randomWaitMarkerPath}`);
+		}
+		return randomWaitMarkerPath;
+	} catch (err) {
+		if (verbose) {
+			console.error(`Failed to create marker file for --wait: ${err}`);
+		}
+		return undefined;
+	}
 }

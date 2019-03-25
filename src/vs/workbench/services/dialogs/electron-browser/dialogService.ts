@@ -10,10 +10,14 @@ import { isLinux, isWindows } from 'vs/base/common/platform';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { IDialogService, IConfirmation, IConfirmationResult, IDialogOptions } from 'vs/platform/dialogs/common/dialogs';
+import { DialogService as HTMLDialogService } from 'vs/platform/dialogs/browser/dialogService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { DialogChannel } from 'vs/platform/dialogs/node/dialogIpc';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 interface IMassagedMessageBoxOptions {
 
@@ -31,6 +35,38 @@ interface IMassagedMessageBoxOptions {
 }
 
 export class DialogService implements IDialogService {
+	_serviceBrand: any;
+
+	private impl: IDialogService;
+
+	constructor(
+		@IConfigurationService configurationService: IConfigurationService,
+		@ILogService logService: ILogService,
+		@ILayoutService layoutService: ILayoutService,
+		@IThemeService themeService: IThemeService,
+		@IWindowService windowService: IWindowService,
+		@ISharedProcessService sharedProcessService: ISharedProcessService
+	) {
+
+		// Use HTML based dialogs
+		if (configurationService.getValue('workbench.dialogs.customEnabled') === true) {
+			this.impl = new HTMLDialogService(logService, layoutService, themeService);
+		}
+		// Electron dialog service
+		else {
+			this.impl = new NativeDialogService(windowService, logService, sharedProcessService);
+		}
+	}
+
+	confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
+		return this.impl.confirm(confirmation);
+	}
+	show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions | undefined): Promise<number> {
+		return this.impl.show(severity, message, buttons, options);
+	}
+}
+
+class NativeDialogService implements IDialogService {
 
 	_serviceBrand: any;
 

@@ -71,7 +71,7 @@ export class WindowsExternalTerminalService implements IExternalTerminalService 
 		});
 	}
 
-	private spawnTerminal(spawner, configuration: IExternalTerminalConfiguration, command: string, cwd?: string): Promise<void> {
+	private spawnTerminal(spawner: typeof cp, configuration: IExternalTerminalConfiguration, command: string, cwd?: string): Promise<void> {
 		const terminalConfig = configuration.terminal.external;
 		const exec = terminalConfig.windowsExec || getDefaultTerminalWindows();
 		const spawnType = this.getSpawnType(exec);
@@ -84,7 +84,7 @@ export class WindowsExternalTerminalService implements IExternalTerminalService 
 		// cmder ignores the environment cwd and instead opts to always open in %USERPROFILE%
 		// unless otherwise specified
 		if (spawnType === WinSpawnType.CMDER) {
-			spawner.spawn(exec, [cwd]);
+			spawner.spawn(exec, cwd ? [cwd] : undefined);
 			return Promise.resolve(undefined);
 		}
 
@@ -192,12 +192,16 @@ export class MacExternalTerminalService implements IExternalTerminalService {
 		});
 	}
 
-	private spawnTerminal(spawner, configuration: IExternalTerminalConfiguration, cwd?: string): Promise<void> {
+	private spawnTerminal(spawner: typeof cp, configuration: IExternalTerminalConfiguration, cwd?: string): Promise<void> {
 		const terminalConfig = configuration.terminal.external;
 		const terminalApp = terminalConfig.osxExec || DEFAULT_TERMINAL_OSX;
 
 		return new Promise<void>((c, e) => {
-			const child = spawner.spawn('/usr/bin/open', ['-a', terminalApp, cwd]);
+			const args = ['-a', terminalApp];
+			if (cwd) {
+				args.push(cwd);
+			}
+			const child = spawner.spawn('/usr/bin/open', args);
 			child.on('error', e);
 			child.on('exit', () => c());
 		});
@@ -276,13 +280,13 @@ export class LinuxExternalTerminalService implements IExternalTerminalService {
 		});
 	}
 
-	private spawnTerminal(spawner, configuration: IExternalTerminalConfiguration, cwd?: string): Promise<void> {
+	private spawnTerminal(spawner: typeof cp, configuration: IExternalTerminalConfiguration, cwd?: string): Promise<void> {
 		const terminalConfig = configuration.terminal.external;
 		const execPromise = terminalConfig.linuxExec ? Promise.resolve(terminalConfig.linuxExec) : getDefaultTerminalLinuxReady();
-		const env = cwd ? { cwd: cwd } : undefined;
 
 		return new Promise<void>((c, e) => {
 			execPromise.then(exec => {
+				const env = cwd ? { cwd } : undefined;
 				const child = spawner.spawn(exec, [], env);
 				child.on('error', e);
 				child.on('exit', () => c());

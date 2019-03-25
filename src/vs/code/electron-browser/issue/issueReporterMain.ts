@@ -16,7 +16,7 @@ import * as os from 'os';
 import { debounce } from 'vs/base/common/decorators';
 import * as platform from 'vs/base/common/platform';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { getDelayedChannel } from 'vs/base/parts/ipc/node/ipc';
+import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
 import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IWindowConfiguration, IWindowsService } from 'vs/platform/windows/common/windows';

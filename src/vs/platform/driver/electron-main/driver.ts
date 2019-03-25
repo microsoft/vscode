@@ -8,7 +8,7 @@ import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import { serve as serveNet } from 'vs/base/parts/ipc/node/ipc.net';
 import { combinedDisposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IPCServer, StaticRouter } from 'vs/base/parts/ipc/node/ipc';
+import { IPCServer, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
 import { SimpleKeybinding, KeyCode } from 'vs/base/common/keyCodes';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { OS } from 'vs/base/common/platform';

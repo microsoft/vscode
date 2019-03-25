@@ -97,6 +97,8 @@ import { IHeapService, NullHeapService } from 'vs/workbench/services/heap/common
 import { IBroadcastService, NullBroadcastService } from 'vs/workbench/services/broadcast/common/broadcast';
 
 import 'vs/workbench/browser/nodeless.simpleservices';
+import 'vs/platform/dialogs/browser/dialogService';
+
 
 import 'vs/workbench/services/bulkEdit/browser/bulkEditService';
 // import 'vs/workbench/services/integrity/node/integrityService';

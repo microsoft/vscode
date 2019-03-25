@@ -91,10 +91,10 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 	}
 
 	private onDidChangeUserConfiguration(userConfigurationModel: ConfigurationModel): void {
-		const { added, updated, removed } = compare(this._configuration.user, userConfigurationModel);
+		const { added, updated, removed } = compare(this._configuration.localUserConfiguration, userConfigurationModel);
 		const changedKeys = [...added, ...updated, ...removed];
 		if (changedKeys.length) {
-			this._configuration.updateUserConfiguration(userConfigurationModel);
+			this._configuration.updateLocalUserConfiguration(userConfigurationModel);
 			this.trigger(changedKeys, ConfigurationTarget.USER);
 		}
 	}
@@ -113,7 +113,7 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 			case ConfigurationTarget.DEFAULT:
 				return this._configuration.defaults.contents;
 			case ConfigurationTarget.USER:
-				return this._configuration.user.contents;
+				return this._configuration.localUserConfiguration.contents;
 		}
 		return {};
 	}

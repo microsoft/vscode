@@ -1211,7 +1211,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		const webviewHandle = Math.random();
 		const webview = new ExtHostWebview(webviewHandle, this._webviewProxy, { enableScripts: true });
 		return this._withAdapter(handle, CodeInsetAdapter, async (adapter, extension) => {
-			await this._webviewProxy.$createWebviewCodeInset(webviewHandle, symbol.id, { enableCommandUris: true, enableScripts: true }, extension ? extension.extensionLocation : undefined);
+			await this._webviewProxy.$createWebviewCodeInset(webviewHandle, symbol.id, { enableCommandUris: true, enableScripts: true }, extension ? extension.identifier : undefined, extension ? extension.extensionLocation : undefined);
 			return adapter.resolveCodeInset(symbol, webview, token);
 		}, symbol);
 	}

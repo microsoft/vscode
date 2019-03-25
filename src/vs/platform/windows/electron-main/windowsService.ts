@@ -273,7 +273,7 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 		});
 	}
 
-	async openWindow(windowId: number, urisToOpen: IURIToOpen[], options: IOpenSettings = {}): Promise<void> {
+	async openWindow(windowId: number, urisToOpen: IURIToOpen[], options: IOpenSettings): Promise<void> {
 		this.logService.trace('windowsService#openWindow');
 		if (!urisToOpen || !urisToOpen.length) {
 			return undefined;
@@ -289,7 +289,8 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 			forceOpenWorkspaceAsFile: options.forceOpenWorkspaceAsFile,
 			diffMode: options.diffMode,
 			addMode: options.addMode,
-			noRecentEntry: options.noRecentEntry
+			noRecentEntry: options.noRecentEntry,
+			waitMarkerFileURI: options.waitMarkerFileURI
 		});
 	}
 
