@@ -290,7 +290,7 @@ export class RemoteFileService extends FileService {
 						options
 					);
 				}
-				if (fileStat.etag === options.etag) {
+				if (typeof options.etag === 'string' && fileStat.etag === options.etag) {
 					throw new FileOperationError(
 						localize('fileNotModifiedError', "File not modified since"),
 						FileOperationResult.FILE_NOT_MODIFIED_SINCE,
