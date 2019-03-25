@@ -9,7 +9,6 @@ const Lint = require("tslint");
 const path_1 = require("path");
 class Rule extends Lint.Rules.AbstractRule {
     apply(sourceFile) {
-        console.log(sourceFile.fileName);
         if (/vs(\/|\\)editor(\/|\\)standalone(\/|\\)/.test(sourceFile.fileName)
             || /vs(\/|\\)editor(\/|\\)common(\/|\\)standalone(\/|\\)/.test(sourceFile.fileName)
             || /vs(\/|\\)editor(\/|\\)editor.api/.test(sourceFile.fileName)
