@@ -196,7 +196,7 @@ export function handleANSIOutput(text: string, linkDetector: LinkDetector): HTML
 				// Bright colors
 				colorNumber += 52;
 			}
-			if (!colorType) {
+			if (colorType === 'background') {
 				colorNumber += 10;
 			}
 			changeColor(colorNumber, colorType);
