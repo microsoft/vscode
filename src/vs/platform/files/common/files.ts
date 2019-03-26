@@ -285,30 +285,31 @@ export enum FileSystemProviderErrorCode {
 	FileNotADirectory = 'EntryNotADirectory',
 	FileIsADirectory = 'EntryIsADirectory',
 	NoPermissions = 'NoPermissions',
-	Unavailable = 'Unavailable'
+	Unavailable = 'Unavailable',
+	Unknown = 'Unknown'
 }
 
 export class FileSystemProviderError extends Error {
 
-	constructor(message: string, public readonly code?: FileSystemProviderErrorCode) {
+	constructor(message: string, public readonly code: FileSystemProviderErrorCode) {
 		super(message);
 	}
 }
 
-export function createFileSystemProviderError(error: Error, code?: FileSystemProviderErrorCode): FileSystemProviderError {
+export function createFileSystemProviderError(error: Error, code: FileSystemProviderErrorCode): FileSystemProviderError {
 	const providerError = new FileSystemProviderError(error.toString(), code);
-	markAsFileSystemProviderError(providerError);
+	markAsFileSystemProviderError(providerError, code);
 
 	return providerError;
 }
 
-export function markAsFileSystemProviderError(error: Error, code?: FileSystemProviderErrorCode): Error {
+export function markAsFileSystemProviderError(error: Error, code: FileSystemProviderErrorCode): Error {
 	error.name = code ? `${code} (FileSystemError)` : `FileSystemError`;
 
 	return error;
 }
 
-export function toFileSystemProviderErrorCode(error: Error): FileSystemProviderErrorCode | undefined {
+export function toFileSystemProviderErrorCode(error: Error): FileSystemProviderErrorCode {
 
 	// FileSystemProviderError comes with the code
 	if (error instanceof FileSystemProviderError) {
@@ -319,7 +320,7 @@ export function toFileSystemProviderErrorCode(error: Error): FileSystemProviderE
 	// went through the markAsFileSystemProviderError() method
 	const match = /^(.+) \(FileSystemError\)$/.exec(error.name);
 	if (!match) {
-		return undefined;
+		return FileSystemProviderErrorCode.Unknown;
 	}
 
 	switch (match[1]) {
@@ -331,7 +332,7 @@ export function toFileSystemProviderErrorCode(error: Error): FileSystemProviderE
 		case FileSystemProviderErrorCode.Unavailable: return FileSystemProviderErrorCode.Unavailable;
 	}
 
-	return undefined;
+	return FileSystemProviderErrorCode.Unknown;
 }
 
 export function toFileOperationResult(error: Error): FileOperationResult {

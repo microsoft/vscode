@@ -300,7 +300,7 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 			return error; // avoid double conversion
 		}
 
-		let code: FileSystemProviderErrorCode | undefined = undefined;
+		let code: FileSystemProviderErrorCode;
 		switch (error.code) {
 			case 'ENOENT':
 				code = FileSystemProviderErrorCode.FileNotFound;
@@ -315,6 +315,8 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 			case 'EACCESS':
 				code = FileSystemProviderErrorCode.NoPermissions;
 				break;
+			default:
+				code = FileSystemProviderErrorCode.Unknown;
 		}
 
 		return createFileSystemProviderError(error, code);
