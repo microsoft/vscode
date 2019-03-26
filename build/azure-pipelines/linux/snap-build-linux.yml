@@ -16,6 +16,9 @@ steps:
 - script: |
     set -e
 
+    # Get snapcraft version
+    snapcraft --version
+
     # Make sure we get latest packages
     sudo apt-get update
     sudo apt-get upgrade -y
@@ -38,7 +41,7 @@ steps:
     PACKAGEJSON="$(ls $SNAP_ROOT/code*/usr/share/code*/resources/app/package.json)"
     VERSION=$(node -p "require(\"$PACKAGEJSON\").version")
     SNAP_PATH="$SNAP_ROOT/$SNAP_FILENAME"
-    (cd $SNAP_ROOT/code-* && snapcraft snap --output "$SNAP_PATH")
+    (cd $SNAP_ROOT/code-* && sudo snapcraft snap --output "$SNAP_PATH")
 
     # Publish snap package
     AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" \
