@@ -81,6 +81,10 @@ export class QuickInputBox {
 		this.inputBox.setEnabled(enabled);
 	}
 
+	hasFocus(): boolean {
+		return this.inputBox.hasFocus();
+	}
+
 	setAttribute(name: string, value: string) {
 		this.inputBox.inputElement.setAttribute(name, value);
 	}

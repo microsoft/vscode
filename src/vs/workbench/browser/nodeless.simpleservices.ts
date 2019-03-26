@@ -1810,7 +1810,7 @@ export class SimpleWorkspacesService implements IWorkspacesService {
 
 	_serviceBrand: any;
 
-	createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[]): Promise<IWorkspaceIdentifier> {
+	createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[], remoteAuthority?: string): Promise<IWorkspaceIdentifier> {
 		// @ts-ignore
 		return Promise.resolve(undefined);
 	}

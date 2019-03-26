@@ -15,7 +15,7 @@ export interface IRemoteAgentService {
 	_serviceBrand: any;
 
 	getConnection(): IRemoteAgentConnection | null;
-	getEnvironment(): Promise<IRemoteAgentEnvironment | null>;
+	getEnvironment(bail?: boolean): Promise<IRemoteAgentEnvironment | null>;
 }
 
 export interface IRemoteAgentConnection {

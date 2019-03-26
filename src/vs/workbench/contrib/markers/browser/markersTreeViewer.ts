@@ -318,7 +318,7 @@ class MarkerWidget extends Disposable {
 		dom.toggleClass(messageContainer, 'multiline', multiline);
 
 		let lastLineElement = messageContainer;
-		for (let index = 0; index < lines.length; index++) {
+		for (let index = 0; index < (multiline ? lines.length : 1); index++) {
 			lastLineElement = dom.append(messageContainer, dom.$('.marker-message-line'));
 			const highlightedLabel = new HighlightedLabel(lastLineElement, false);
 			highlightedLabel.set(lines[index], lineMatches[index]);

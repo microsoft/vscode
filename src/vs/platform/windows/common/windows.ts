@@ -84,6 +84,7 @@ export interface SaveDialogOptions {
 
 export interface INewWindowOptions {
 	remoteAuthority?: string;
+	reuseWindow?: boolean;
 }
 
 export interface IDevToolsOptions {

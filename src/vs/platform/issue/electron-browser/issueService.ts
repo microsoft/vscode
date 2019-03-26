@@ -25,4 +25,8 @@ export class IssueService implements IIssueService {
 	openProcessExplorer(data: ProcessExplorerData): Promise<void> {
 		return this.channel.call('openProcessExplorer', data);
 	}
+
+	getSystemStatus(): Promise<string> {
+		return this.channel.call('getSystemStatus');
+	}
 }

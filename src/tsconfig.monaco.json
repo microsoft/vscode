@@ -34,7 +34,6 @@
 		"vs/platform/*/browser/*"
 	],
 	"exclude": [
-		"node_modules/*",
-		"vs/base/common/buffer.ts"
+		"node_modules/*"
 	]
 }

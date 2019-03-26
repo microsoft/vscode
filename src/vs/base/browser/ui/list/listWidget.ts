@@ -7,7 +7,7 @@ import 'vs/css!./list';
 import { localize } from 'vs/nls';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { isNumber } from 'vs/base/common/types';
-import { range, firstIndex } from 'vs/base/common/arrays';
+import { range, firstIndex, binarySearch } from 'vs/base/common/arrays';
 import { memoize } from 'vs/base/common/decorators';
 import * as DOM from 'vs/base/browser/dom';
 import * as platform from 'vs/base/common/platform';
@@ -107,10 +107,8 @@ class TraitRenderer<T> implements IListRenderer<T, ITraitTemplateData>
 
 class Trait<T> implements ISpliceable<boolean>, IDisposable {
 
-	/**
-	 * Sorted indexes which have this trait.
-	 */
-	private indexes: number[];
+	private indexes: number[] = [];
+	private sortedIndexes: number[] = [];
 
 	private _onChange = new Emitter<ITraitChangeEvent>();
 	get onChange(): Event<ITraitChangeEvent> { return this._onChange.event; }
@@ -122,21 +120,19 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 		return new TraitRenderer<T>(this);
 	}
 
-	constructor(private _trait: string) {
-		this.indexes = [];
-	}
+	constructor(private _trait: string) { }
 
 	splice(start: number, deleteCount: number, elements: boolean[]): void {
 		const diff = elements.length - deleteCount;
 		const end = start + deleteCount;
 		const indexes = [
-			...this.indexes.filter(i => i < start),
+			...this.sortedIndexes.filter(i => i < start),
 			...elements.map((hasTrait, i) => hasTrait ? i + start : -1).filter(i => i !== -1),
-			...this.indexes.filter(i => i >= end).map(i => i + diff)
+			...this.sortedIndexes.filter(i => i >= end).map(i => i + diff)
 		];
 
 		this.renderer.splice(start, deleteCount, elements.length);
-		this.set(indexes);
+		this._set(indexes, indexes);
 	}
 
 	renderIndex(index: number, container: HTMLElement): void {
@@ -154,10 +150,17 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 	 * @return The old indexes which had this trait.
 	 */
 	set(indexes: number[], browserEvent?: UIEvent): number[] {
-		const result = this.indexes;
-		this.indexes = indexes;
+		return this._set(indexes, [...indexes].sort(numericSort), browserEvent);
+	}
 
-		const toRender = disjunction(result, indexes);
+	private _set(indexes: number[], sortedIndexes: number[], browserEvent?: UIEvent): number[] {
+		const result = this.indexes;
+		const sortedResult = this.sortedIndexes;
+
+		this.indexes = indexes;
+		this.sortedIndexes = sortedIndexes;
+
+		const toRender = disjunction(sortedResult, indexes);
 		this.renderer.renderIndexes(toRender);
 
 		this._onChange.fire({ indexes, browserEvent });
@@ -169,7 +172,7 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 	}
 
 	contains(index: number): boolean {
-		return this.indexes.some(i => i === index);
+		return binarySearch(this.sortedIndexes, index, numericSort) >= 0;
 	}
 
 	dispose() {
@@ -1334,7 +1337,6 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 			}
 		}
 
-		indexes = indexes.sort(numericSort);
 		this.selection.set(indexes, browserEvent);
 	}
 
@@ -1353,7 +1355,6 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 			}
 		}
 
-		indexes = indexes.sort(numericSort);
 		this.focus.set(indexes, browserEvent);
 	}
 

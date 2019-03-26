@@ -9,6 +9,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { FileChangeType, FileDeleteOptions, FileOverwriteOptions, FileSystemProviderCapabilities, FileType, FileWriteOptions, IFileChange, IFileSystemProvider, IStat, IWatchOptions } from 'vs/platform/files/common/files';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 export const REMOTE_FILE_SYSTEM_CHANNEL_NAME = 'remotefilesystem';
 
@@ -71,20 +72,17 @@ export class RemoteExtensionsFileSystemProvider extends Disposable implements IF
 
 	// --- forwarding calls
 
-	private static _asBuffer(data: Uint8Array): Buffer {
-		return Buffer.isBuffer(data) ? data : Buffer.from(data.buffer, data.byteOffset, data.byteLength);
-	}
-
 	stat(resource: URI): Promise<IStat> {
 		return this._channel.call('stat', [resource]);
 	}
 
-	readFile(resource: URI): Promise<Uint8Array> {
-		return this._channel.call('readFile', [resource]);
+	async readFile(resource: URI): Promise<Uint8Array> {
+		const buff = <VSBuffer>await this._channel.call('readFile', [resource]);
+		return buff.buffer;
 	}
 
 	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
-		const contents = RemoteExtensionsFileSystemProvider._asBuffer(content);
+		const contents = VSBuffer.wrap(content);
 		return this._channel.call('writeFile', [resource, contents, opts]);
 	}
 

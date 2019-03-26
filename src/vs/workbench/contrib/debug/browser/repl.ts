@@ -452,7 +452,10 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	private onContextMenu(e: ITreeContextMenuEvent<IReplElement>): void {
 		const actions: IAction[] = [];
 		actions.push(new Action('debug.replCopy', nls.localize('copy', "Copy"), undefined, true, () => {
-			this.clipboardService.writeText(window.getSelection().toString());
+			const nativeSelection = window.getSelection();
+			if (nativeSelection) {
+				this.clipboardService.writeText(nativeSelection.toString());
+			}
 			return Promise.resolve();
 		}));
 		actions.push(new Action('workbench.debug.action.copyAll', nls.localize('copyAll', "Copy All"), undefined, true, () => {

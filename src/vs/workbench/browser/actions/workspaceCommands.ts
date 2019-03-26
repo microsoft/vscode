@@ -70,7 +70,7 @@ CommandsRegistry.registerCommand({
 			}
 
 			// Add and show Files Explorer viewlet
-			return workspaceEditingService.addFolders(folders.map(folder => ({ uri: folder })))
+			return workspaceEditingService.addFolders(folders.map(folder => ({ uri: resources.removeTrailingPathSeparator(folder) })))
 				.then(() => viewletService.openViewlet(viewletService.getDefaultViewletId(), true))
 				.then(() => undefined);
 		});

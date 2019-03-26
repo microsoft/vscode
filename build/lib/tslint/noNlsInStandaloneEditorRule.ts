@@ -9,7 +9,6 @@ import { join } from 'path';
 
 export class Rule extends Lint.Rules.AbstractRule {
 	public apply(sourceFile: ts.SourceFile): Lint.RuleFailure[] {
-		console.log(sourceFile.fileName);
 		if (
 			/vs(\/|\\)editor(\/|\\)standalone(\/|\\)/.test(sourceFile.fileName)
 			|| /vs(\/|\\)editor(\/|\\)common(\/|\\)standalone(\/|\\)/.test(sourceFile.fileName)
