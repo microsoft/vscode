@@ -11,7 +11,7 @@ import { isObject } from 'vs/base/common/types';
 import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
 import { IJSONSchema, IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IConfig, IDebuggerContribution, IDebugAdapterExecutable, INTERNAL_CONSOLE_OPTIONS_SCHEMA, IConfigurationManager, IDebugAdapter, ITerminalSettings, IDebugger, IDebugSession, IAdapterDescriptor, IDebugAdapterServer } from 'vs/workbench/contrib/debug/common/debug';
+import { IConfig, IDebuggerContribution, IDebugAdapterExecutable, INTERNAL_CONSOLE_OPTIONS_SCHEMA, IConfigurationManager, IDebugAdapter, ITerminalSettings, IDebugger, IDebugSession, IAdapterDescriptor, IDebugAdapterServer, IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IOutputService } from 'vs/workbench/contrib/output/common/output';
@@ -187,8 +187,11 @@ export class Debugger implements IDebugger {
 	}
 
 	private inExtHost(): boolean {
-		/*
 		const debugConfigs = this.configurationService.getValue<IDebugConfiguration>('debug');
+		if (typeof debugConfigs.extensionHostDebugAdapter === 'boolean') {
+			return debugConfigs.extensionHostDebugAdapter;
+		}
+		/*
 		return !!debugConfigs.extensionHostDebugAdapter
 			|| this.configurationManager.needsToRunInExtHost(this.type)
 			|| (!!this.mainExtensionDescription && this.mainExtensionDescription.extensionLocation.scheme !== 'file');
