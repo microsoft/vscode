@@ -181,7 +181,7 @@ class CodeRendererMain extends Disposable {
 		const fileService = new FileService2(logService);
 		serviceCollection.set(IFileService, fileService);
 
-		fileService.registerProvider(Schemas.file, new DiskFileSystemProvider());
+		fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(logService));
 
 		// Remote
 		const remoteAuthorityResolverService = new RemoteAuthorityResolverService();

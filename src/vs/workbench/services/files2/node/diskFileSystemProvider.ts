@@ -16,8 +16,13 @@ import { normalize } from 'vs/base/common/path';
 import { joinPath } from 'vs/base/common/resources';
 import { isEqual } from 'vs/base/common/extpath';
 import { retry } from 'vs/base/common/async';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class DiskFileSystemProvider extends Disposable implements IFileSystemProvider {
+
+	constructor(private logService: ILogService) {
+		super();
+	}
 
 	//#region File Capabilities
 
@@ -73,8 +78,12 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 			for (let i = 0; i < children.length; i++) {
 				const child = children[i];
 
-				const stat = await this.stat(joinPath(resource, child));
-				result.push([child, stat.type]);
+				try {
+					const stat = await this.stat(joinPath(resource, child));
+					result.push([child, stat.type]);
+				} catch (error) {
+					this.logService.trace(error); // ignore errors for individual entries that can arise from permission denied
+				}
 			}
 
 			return result;
@@ -123,6 +132,8 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 					// short timeout, assuming that the file is free to write then.
 					await retry(() => writeFile(filePath, content, { flag: 'r+' }), 100 /* ms delay */, 3 /* retries */);
 				} catch (error) {
+					this.logService.trace(error);
+
 					// we heard from users that fs.truncate() fails (https://github.com/Microsoft/vscode/issues/59561)
 					// in that case we simply save the file without truncating first (same as macOS and Linux)
 					await writeFile(filePath, content);

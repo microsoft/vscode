@@ -72,13 +72,15 @@ suite('Disk File Service', () => {
 	let disposables: IDisposable[] = [];
 
 	setup(async () => {
-		service = new FileService2(new NullLogService());
+		const logService = new NullLogService();
+
+		service = new FileService2(logService);
 		disposables.push(service);
 
-		fileProvider = new TestDiskFileSystemProvider();
+		fileProvider = new TestDiskFileSystemProvider(logService);
 		service.registerProvider(Schemas.file, fileProvider);
 
-		testProvider = new TestDiskFileSystemProvider();
+		testProvider = new TestDiskFileSystemProvider(logService);
 		service.registerProvider(testSchema, testProvider);
 
 		const id = generateUuid();
@@ -334,6 +336,18 @@ suite('Disk File Service', () => {
 		const resolved = await service.resolveFile(link);
 		assert.equal(resolved.isDirectory, false);
 		assert.equal(resolved.isSymbolicLink, true);
+	});
+
+	test('resolveFile - invalid symbolic link does not break', async () => {
+		if (isWindows) {
+			return; // only for unix systems
+		}
+
+		await promisify(exec)('ln -s foo bar', { cwd: testDir });
+
+		const resolved = await service.resolveFile(URI.file(testDir));
+		assert.equal(resolved.isDirectory, true);
+		assert.equal(resolved.children!.length, 8);
 	});
 
 	test('deleteFile', async () => {
