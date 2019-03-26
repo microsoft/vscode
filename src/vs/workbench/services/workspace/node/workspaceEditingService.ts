@@ -245,8 +245,8 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		if (path && !this.isValidTargetWorkspacePath(path)) {
 			return Promise.reject(null);
 		}
-
-		const untitledWorkspace = await this.workspaceService.createUntitledWorkspace(folders);
+		const remoteAuthority = this.windowService.getConfiguration().remoteAuthority;
+		const untitledWorkspace = await this.workspaceService.createUntitledWorkspace(folders, remoteAuthority);
 		if (path) {
 			await this.saveWorkspaceAs(untitledWorkspace, path);
 		} else {
