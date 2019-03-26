@@ -17,8 +17,10 @@ import { URI } from 'vs/base/common/uri';
 import { existsSync, statSync, readdirSync, readFileSync } from 'fs';
 import { FileOperation, FileOperationEvent, IFileStat, FileOperationResult, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { NullLogService } from 'vs/platform/log/common/log';
-import { isLinux } from 'vs/base/common/platform';
+import { isLinux, isWindows } from 'vs/base/common/platform';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { promisify } from 'util';
+import { exec } from 'child_process';
 
 function getByName(root: IFileStat, name: string): IFileStat | null {
 	if (root.children === undefined) {
@@ -305,6 +307,33 @@ suite('Disk File Service', () => {
 		const r2 = (res[1].stat!);
 		assert.equal(r2.children!.length, 4);
 		assert.equal(r2.name, 'deep');
+	});
+
+	test('resolveFile - folder symbolic link', async () => {
+		if (isWindows) {
+			return; // only for unix systems
+		}
+
+		const link = URI.file(join(testDir, 'deep-link'));
+		await promisify(exec)(`ln -s deep ${basename(link.fsPath)}`, { cwd: testDir });
+
+		const resolved = await service.resolveFile(link);
+		assert.equal(resolved.children!.length, 4);
+		assert.equal(resolved.isDirectory, true);
+		assert.equal(resolved.isSymbolicLink, true);
+	});
+
+	test('resolveFile - file symbolic link', async () => {
+		if (isWindows) {
+			return; // only for unix systems
+		}
+
+		const link = URI.file(join(testDir, 'lorem.txt-linked'));
+		await promisify(exec)(`ln -s lorem.txt ${basename(link.fsPath)}`, { cwd: testDir });
+
+		const resolved = await service.resolveFile(link);
+		assert.equal(resolved.isDirectory, false);
+		assert.equal(resolved.isSymbolicLink, true);
 	});
 
 	test('deleteFile', async () => {
