@@ -890,7 +890,8 @@ export class TerminalTaskSystem implements ITaskSystem {
 			this.currentTask.shellLaunchConfig = {
 				isRendererOnly: true,
 				waitOnExit,
-				name: this.createTerminalName(task)
+				name: this.createTerminalName(task),
+				initialText: task.command.presentation && task.command.presentation.echo ? `\x1b[1m> Executing task: ${task._label} <\x1b[0m\n` : undefined
 			};
 		} else {
 			let resolvedResult: { command: CommandString, args: CommandString[] } = this.resolveCommandAndArgs(resolver, task.command);
