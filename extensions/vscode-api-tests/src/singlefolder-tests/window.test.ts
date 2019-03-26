@@ -435,18 +435,19 @@ suite('window namespace tests', () => {
 		return unexpected;
 	});
 
-	test('showQuickPick, keep selection (Microsoft/vscode-azure-account#67)', async function () {
-		const picks = window.showQuickPick([
-			{ label: 'eins' },
-			{ label: 'zwei', picked: true },
-			{ label: 'drei', picked: true }
-		], {
-				canPickMany: true
-			});
-		await new Promise(resolve => setTimeout(resolve, 10)); // Allow UI to update.
-		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
-		assert.deepStrictEqual((await picks)!.map(pick => pick.label), ['zwei', 'drei']);
-	});
+	// TODO@chrmarti Disabled due to flaky behaviour (https://github.com/Microsoft/vscode/issues/70887)
+	// test('showQuickPick, keep selection (Microsoft/vscode-azure-account#67)', async function () {
+	// 	const picks = window.showQuickPick([
+	// 		{ label: 'eins' },
+	// 		{ label: 'zwei', picked: true },
+	// 		{ label: 'drei', picked: true }
+	// 	], {
+	// 			canPickMany: true
+	// 		});
+	// 	await new Promise(resolve => setTimeout(resolve, 10)); // Allow UI to update.
+	// 	await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+	// 	assert.deepStrictEqual((await picks)!.map(pick => pick.label), ['zwei', 'drei']);
+	// });
 
 	test('showQuickPick, undefined on cancel', function () {
 		const source = new CancellationTokenSource();
