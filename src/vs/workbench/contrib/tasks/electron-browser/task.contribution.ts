@@ -1421,6 +1421,7 @@ class TaskService extends Disposable implements ITaskService {
 		}).then((contributedTaskSets) => {
 			let result: TaskMap = new TaskMap();
 			let contributedTasks: TaskMap = new TaskMap();
+
 			for (let set of contributedTaskSets) {
 				for (let task of set.tasks) {
 					let workspaceFolder = task.getWorkspaceFolder();
@@ -1429,8 +1430,10 @@ class TaskService extends Disposable implements ITaskService {
 					}
 				}
 			}
+
 			return this.getWorkspaceTasks().then(async (customTasks) => {
-				await Promise.all(Array.from(customTasks).map(async ([key, folderTasks]) => {
+				const customTasksKeyValuePairs = Array.from(customTasks);
+				const customTasksPromises = customTasksKeyValuePairs.map(async ([key, folderTasks]) => {
 					let contributed = contributedTasks.get(key);
 					if (!folderTasks.set) {
 						if (contributed) {
@@ -1489,7 +1492,9 @@ class TaskService extends Disposable implements ITaskService {
 								result.add(key, ...folderTasks.set.tasks);
 							}
 
-							await Promise.all(Array.from(unUsedConfigurations).map(async (value) => {
+							const unUsedConfigurationsAsArray = Array.from(unUsedConfigurations);
+
+							const unUsedConfigurationPromises = unUsedConfigurationsAsArray.map(async (value) => {
 								let configuringTask = configurations!.byIdentifier[value];
 
 								for (const [handle, provider] of this._providers) {
@@ -1514,13 +1519,18 @@ class TaskService extends Disposable implements ITaskService {
 									JSON.stringify(configuringTask._source.config.element, undefined, 4)
 								));
 								this.showOutput();
-							}));
+							});
+
+							await Promise.all(unUsedConfigurationPromises);
 						} else {
 							result.add(key, ...folderTasks.set.tasks);
 							result.add(key, ...contributed);
 						}
 					}
-				}));
+				});
+
+				await Promise.all(customTasksPromises);
+
 				return result;
 			}, () => {
 				// If we can't read the tasks.json file provide at least the contributed tasks
