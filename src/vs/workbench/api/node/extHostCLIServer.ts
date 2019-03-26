@@ -22,6 +22,10 @@ export interface OpenCommandPipeArgs {
 	waitMarkerFilePath?: string;
 }
 
+export interface StatusPipeArgs {
+	type: 'status';
+}
+
 export class CLIServer {
 
 	private _server: http.Server;
@@ -68,10 +72,13 @@ export class CLIServer {
 		req.setEncoding('utf8');
 		req.on('data', (d: string) => chunks.push(d));
 		req.on('end', () => {
-			const data: OpenCommandPipeArgs | any = JSON.parse(chunks.join(''));
+			const data: OpenCommandPipeArgs | StatusPipeArgs | any = JSON.parse(chunks.join(''));
 			switch (data.type) {
 				case 'open':
 					this.open(data, res);
+					break;
+				case 'status':
+					this.getStatus(data, res);
 					break;
 				default:
 					res.writeHead(404);
@@ -101,6 +108,23 @@ export class CLIServer {
 		}
 		res.writeHead(200);
 		res.end();
+	}
+
+	private async getStatus(data: StatusPipeArgs, res: http.ServerResponse) {
+		try {
+			const status = await this._commands.executeCommand('_issues.getSystemStatus');
+			res.writeHead(200);
+			res.write(status);
+			res.end();
+		} catch (err) {
+			res.writeHead(500);
+			res.write(String(err), err => {
+				if (err) {
+					console.error(err);
+				}
+			});
+			res.end();
+		}
 	}
 
 	dispose(): void {

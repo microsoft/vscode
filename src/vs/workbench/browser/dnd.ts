@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { hasWorkspaceFileExtension, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
 import { normalize } from 'vs/base/common/path';
 import { basename } from 'vs/base/common/resources';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -29,6 +29,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IRecentFile } from 'vs/platform/history/common/history';
+import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 
 export interface IDraggedResource {
 	resource: URI;
@@ -154,12 +155,12 @@ export class ResourcesDropHandler {
 		@IFileService private readonly fileService: IFileService,
 		@IWindowsService private readonly windowsService: IWindowsService,
 		@IWindowService private readonly windowService: IWindowService,
-		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IBackupFileService private readonly backupFileService: IBackupFileService,
 		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService
 	) {
 	}
 
@@ -284,26 +285,13 @@ export class ResourcesDropHandler {
 			// Pass focus to window
 			this.windowService.focusWindow();
 
-			let workspacesToOpen: Promise<IURIToOpen[]> | undefined;
-
 			// Open in separate windows if we drop workspaces or just one folder
 			if (workspaces.length > 0 || folders.length === 1) {
-				workspacesToOpen = Promise.resolve([...workspaces, ...folders]);
+				return this.windowService.openWindow([...workspaces, ...folders], { forceReuseWindow: true }).then(_ => true);
 			}
 
-			// Multiple folders: Create new workspace with folders and open
-			else if (folders.length > 1) {
-				workspacesToOpen = this.workspacesService.createUntitledWorkspace(folders).then(workspace => [<IURIToOpen>{ uri: workspace.configPath, typeHint: 'file' }]);
-			}
-
-			// Open
-			if (workspacesToOpen) {
-				workspacesToOpen.then(workspaces => {
-					this.windowService.openWindow(workspaces, { forceReuseWindow: true });
-				});
-			}
-
-			return true;
+			// folders.length > 1: Multiple folders: Create new workspace with folders and open
+			return this.workspaceEditingService.createAndEnterWorkspace(folders).then(_ => true);
 		});
 	}
 }

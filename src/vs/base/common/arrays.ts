@@ -364,6 +364,18 @@ export function distinct<T>(array: ReadonlyArray<T>, keyFn?: (t: T) => string): 
 	});
 }
 
+export function distinctES6<T>(array: ReadonlyArray<T>): T[] {
+	const seen = new Set<T>();
+	return array.filter(element => {
+		if (seen.has(element)) {
+			return false;
+		}
+
+		seen.add(element);
+		return true;
+	});
+}
+
 export function uniqueFilter<T>(keyFn: (t: T) => string): (t: T) => boolean {
 	const seen: { [key: string]: boolean; } = Object.create(null);
 

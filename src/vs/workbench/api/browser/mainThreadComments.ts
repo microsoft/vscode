@@ -11,14 +11,14 @@ import { keys } from 'vs/base/common/map';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ExtHostCommentsShape, ExtHostContext, IExtHostContext, MainContext, MainThreadCommentsShape, CommentProviderFeatures } from '../common/extHost.protocol';
 
-import { ICommentService, ICommentInfo } from 'vs/workbench/contrib/comments/electron-browser/commentService';
-import { COMMENTS_PANEL_ID, CommentsPanel, COMMENTS_PANEL_TITLE } from 'vs/workbench/contrib/comments/electron-browser/commentsPanel';
+import { ICommentService, ICommentInfo } from 'vs/workbench/contrib/comments/browser/commentService';
+import { COMMENTS_PANEL_ID, CommentsPanel, COMMENTS_PANEL_TITLE } from 'vs/workbench/contrib/comments/browser/commentsPanel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ICommentsConfiguration } from 'vs/workbench/contrib/comments/electron-browser/comments.contribution';
+import { ICommentsConfiguration } from 'vs/workbench/contrib/comments/browser/comments.contribution';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { PanelRegistry, Extensions as PanelExtensions, PanelDescriptor } from 'vs/workbench/browser/panel';

@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.33.0",
-  "distro": "ef073d0669d00835b9ad8399061b606646f7cc95",
+  "distro": "2e258131c64c1031263b770f9ac9ad007541f172",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -144,7 +144,7 @@
   },
   "optionalDependencies": {
     "vscode-windows-registry": "1.0.1",
-    "win-ca-lib": "https://github.com/chrmarti/win-ca/releases/download/v2.4.1-lib-test/win-ca-lib-2.4.1.tgz",
+    "vscode-windows-ca-certs": "0.1.0",
     "windows-foreground-love": "0.1.0",
     "windows-mutex": "0.2.1",
     "windows-process-tree": "0.2.3"

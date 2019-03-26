@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { connect as connectNet, Client } from 'vs/base/parts/ipc/node/ipc.net';
+import { Client } from 'vs/base/parts/ipc/common/ipc.net';
+import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Event } from 'vs/base/common/event';

@@ -45,9 +45,9 @@ import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browse
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { FileService2 } from 'vs/workbench/services/files2/common/fileService2';
 import { IFileService } from 'vs/platform/files/common/files';
-import { DiskFileSystemProvider } from 'vs/workbench/services/files2/node/diskFileSystemProvider';
+import { DiskFileSystemProvider } from 'vs/workbench/services/files2/electron-browser/diskFileSystemProvider';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { REMOTE_FILE_SYSTEM_CHANNEL_NAME, RemoteExtensionsFileSystemProvider } from 'vs/platform/remote/node/remoteAgentFileSystemChannel';
+import { REMOTE_FILE_SYSTEM_CHANNEL_NAME, RemoteExtensionsFileSystemProvider } from 'vs/platform/remote/common/remoteAgentFileSystemChannel';
 
 class CodeRendererMain extends Disposable {
 

@@ -1026,6 +1026,8 @@ export class TestFileService implements IFileService {
 		return resource.scheme === 'file';
 	}
 
+	hasCapability(resource: URI, capability: FileSystemProviderCapabilities): Promise<boolean> { return Promise.resolve(false); }
+
 	del(_resource: URI, _options?: { useTrash?: boolean, recursive?: boolean }): Promise<void> {
 		return Promise.resolve();
 	}
@@ -1238,10 +1240,6 @@ export class TestWindowService implements IWindowService {
 		return Promise.resolve();
 	}
 
-	show(): Promise<void> {
-		return Promise.resolve();
-	}
-
 	showMessageBox(_options: Electron.MessageBoxOptions): Promise<IMessageBoxResult> {
 		return Promise.resolve({ button: 0 });
 	}
@@ -1436,10 +1434,6 @@ export class TestWindowsService implements IWindowsService {
 	}
 
 	openNewWindow(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	showWindow(_windowId: number): Promise<void> {
 		return Promise.resolve();
 	}
 

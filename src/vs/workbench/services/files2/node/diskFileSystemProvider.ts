@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mkdir } from 'fs';
+import { mkdir, open, close, read, write } from 'fs';
 import { tmpdir } from 'os';
 import { promisify } from 'util';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
@@ -23,7 +23,7 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 
 	onDidChangeCapabilities: Event<void> = Event.None;
 
-	private _capabilities: FileSystemProviderCapabilities;
+	protected _capabilities: FileSystemProviderCapabilities;
 	get capabilities(): FileSystemProviderCapabilities {
 		if (!this._capabilities) {
 			this._capabilities =
@@ -47,8 +47,15 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 		try {
 			const { stat, isSymbolicLink } = await statLink(this.toFilePath(resource)); // cannot use fs.stat() here to support links properly
 
+			let type: number;
+			if (isSymbolicLink) {
+				type = FileType.SymbolicLink | (stat.isDirectory() ? FileType.Directory : FileType.File);
+			} else {
+				type = stat.isFile() ? FileType.File : stat.isDirectory() ? FileType.Directory : FileType.Unknown;
+			}
+
 			return {
-				type: isSymbolicLink ? FileType.SymbolicLink : stat.isFile() ? FileType.File : stat.isDirectory() ? FileType.Directory : FileType.Unknown,
+				type,
 				ctime: stat.ctime.getTime(),
 				mtime: stat.mtime.getTime(),
 				size: stat.size
@@ -131,20 +138,61 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 		}
 	}
 
-	open(resource: URI, opts: FileOpenOptions): Promise<number> {
-		throw new Error('Method not implemented.');
+	async open(resource: URI, opts: FileOpenOptions): Promise<number> {
+		try {
+			const filePath = this.toFilePath(resource);
+
+			let mode: string;
+			if (opts.create) {
+				// we take this as a hint that the file is opened for writing
+				// as such we use 'w' to truncate an existing or create the
+				// file otherwise. we do not allow reading.
+				mode = 'w';
+			} else {
+				// otherwise we assume the file is opened for reading
+				// as such we use 'r' to neither truncate, nor create
+				// the file.
+				mode = 'r';
+			}
+
+			return await promisify(open)(filePath, mode);
+		} catch (error) {
+			throw this.toFileSystemProviderError(error);
+		}
 	}
 
-	close(fd: number): Promise<void> {
-		throw new Error('Method not implemented.');
+	async close(fd: number): Promise<void> {
+		try {
+			return await promisify(close)(fd);
+		} catch (error) {
+			throw this.toFileSystemProviderError(error);
+		}
 	}
 
-	read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
-		throw new Error('Method not implemented.');
+	async read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
+		try {
+			const result = await promisify(read)(fd, data, offset, length, pos);
+			if (typeof result === 'number') {
+				return result; // node.d.ts fail
+			}
+
+			return result.bytesRead;
+		} catch (error) {
+			throw this.toFileSystemProviderError(error);
+		}
 	}
 
-	write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
-		throw new Error('Method not implemented.');
+	async write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
+		try {
+			const result = await promisify(write)(fd, data, offset, length, pos);
+			if (typeof result === 'number') {
+				return result; // node.d.ts fail
+			}
+
+			return result.bytesWritten;
+		} catch (error) {
+			throw this.toFileSystemProviderError(error);
+		}
 	}
 
 	//#endregion
@@ -163,17 +211,21 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 		try {
 			const filePath = this.toFilePath(resource);
 
-			if (opts.recursive) {
-				await del(filePath, tmpdir());
-			} else {
-				await unlink(filePath);
-			}
+			await this.doDelete(filePath, opts);
 		} catch (error) {
 			if (error.code === 'ENOENT') {
 				return Promise.resolve(); // tolerate that the file might not exist
 			}
 
 			throw this.toFileSystemProviderError(error);
+		}
+	}
+
+	protected async doDelete(filePath: string, opts: FileDeleteOptions): Promise<void> {
+		if (opts.recursive) {
+			await del(filePath, tmpdir());
+		} else {
+			await unlink(filePath);
 		}
 	}
 
@@ -220,7 +272,7 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 				throw createFileSystemProviderError(new Error('File at target already exists'), FileSystemProviderErrorCode.FileExists);
 			}
 
-			await this.delete(to, { recursive: true });
+			await this.delete(to, { recursive: true, useTrash: false });
 		}
 	}
 
@@ -239,7 +291,7 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 
 	//#region Helpers
 
-	private toFilePath(resource: URI): string {
+	protected toFilePath(resource: URI): string {
 		return normalize(resource.fsPath);
 	}
 
@@ -248,7 +300,7 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 			return error; // avoid double conversion
 		}
 
-		let code: FileSystemProviderErrorCode | undefined = undefined;
+		let code: FileSystemProviderErrorCode;
 		switch (error.code) {
 			case 'ENOENT':
 				code = FileSystemProviderErrorCode.FileNotFound;
@@ -263,6 +315,8 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 			case 'EACCESS':
 				code = FileSystemProviderErrorCode.NoPermissions;
 				break;
+			default:
+				code = FileSystemProviderErrorCode.Unknown;
 		}
 
 		return createFileSystemProviderError(error, code);

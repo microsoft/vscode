@@ -45,6 +45,7 @@ export interface IPickAndOpenOptions {
 	forceNewWindow?: boolean;
 	defaultUri?: URI;
 	telemetryExtraData?: ITelemetryData;
+	availableFileSystems?: string[];
 }
 
 export interface ISaveDialogOptions {

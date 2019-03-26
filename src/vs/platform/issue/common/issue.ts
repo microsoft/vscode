@@ -89,4 +89,5 @@ export interface IIssueService {
 	_serviceBrand: any;
 	openReporter(data: IssueReporterData): Promise<void>;
 	openProcessExplorer(data: ProcessExplorerData): Promise<void>;
+	getSystemStatus(): Promise<string>;
 }

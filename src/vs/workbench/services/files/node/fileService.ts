@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as crypto from 'crypto';
 import * as assert from 'assert';
-import { isParent, FileOperation, FileOperationEvent, IContent, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IUpdateContentOptions, FileChangeType, FileChangesEvent, ICreateFileOptions, IContentData, ITextSnapshot, IFilesConfiguration, IFileSystemProviderRegistrationEvent, IFileSystemProvider, ILegacyFileService, IFileStatWithMetadata, IFileService, IResolveMetadataFileOptions } from 'vs/platform/files/common/files';
+import { isParent, FileOperation, FileOperationEvent, IContent, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IUpdateContentOptions, FileChangeType, FileChangesEvent, ICreateFileOptions, IContentData, ITextSnapshot, IFilesConfiguration, IFileSystemProviderRegistrationEvent, IFileSystemProvider, ILegacyFileService, IFileStatWithMetadata, IFileService, IResolveMetadataFileOptions, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { MAX_FILE_SIZE, MAX_HEAP_SIZE } from 'vs/platform/files/node/fileConstants';
 import { isEqualOrParent } from 'vs/base/common/extpath';
 import { ResourceMap } from 'vs/base/common/map';
@@ -216,6 +216,10 @@ export class FileService extends Disposable implements ILegacyFileService, IFile
 
 	canHandleResource(resource: uri): boolean {
 		return resource.scheme === Schemas.file;
+	}
+
+	hasCapability(resource: uri, capability: FileSystemProviderCapabilities): Promise<boolean> {
+		return Promise.resolve(false);
 	}
 
 	resolveContent(resource: uri, options?: IResolveContentOptions): Promise<IContent> {

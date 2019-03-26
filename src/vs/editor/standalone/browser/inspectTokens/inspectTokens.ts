@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./inspectTokens';
-import * as nls from 'vs/nls';
 import { CharCode } from 'vs/base/common/charCode';
 import { Color } from 'vs/base/common/color';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -21,6 +20,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
 import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
 import { HIGH_CONTRAST, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { InspectTokensNLS } from 'vs/editor/common/standaloneStrings';
 
 
 class InspectTokensController extends Disposable implements IEditorContribution {
@@ -82,7 +82,7 @@ class InspectTokens extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.inspectTokens',
-			label: nls.localize('inspectTokens', "Developer: Inspect Tokens"),
+			label: InspectTokensNLS.inspectTokensAction,
 			alias: 'Developer: Inspect Tokens',
 			precondition: null
 		});

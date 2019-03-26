@@ -14,7 +14,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { ITreeModel, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent, ITreeFilter, ITreeNavigator, ICollapseStateChangeEvent, ITreeDragAndDrop, TreeDragOverBubble, TreeVisibility, TreeFilterResult, ITreeModelSpliceEvent } from 'vs/base/browser/ui/tree/tree';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { IDragAndDropData, StaticDND, DragAndDropData } from 'vs/base/browser/dnd';
-import { range, equals } from 'vs/base/common/arrays';
+import { range, equals, distinctES6 } from 'vs/base/common/arrays';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { domEvent } from 'vs/base/browser/event';
 import { fuzzyScore, FuzzyScore } from 'vs/base/common/filters';
@@ -924,7 +924,7 @@ class TreeNodeList<T, TFilterData, TRef> extends List<ITreeNode<T, TFilterData>>
 		const additionalSelection: number[] = [];
 
 		elements.forEach((node, index) => {
-			if (this.selectionTrait.has(node)) {
+			if (this.focusTrait.has(node)) {
 				additionalFocus.push(start + index);
 			}
 
@@ -934,11 +934,11 @@ class TreeNodeList<T, TFilterData, TRef> extends List<ITreeNode<T, TFilterData>>
 		});
 
 		if (additionalFocus.length > 0) {
-			super.setFocus([...super.getFocus(), ...additionalFocus]);
+			super.setFocus(distinctES6([...super.getFocus(), ...additionalFocus]));
 		}
 
 		if (additionalSelection.length > 0) {
-			super.setSelection([...super.getSelection(), ...additionalSelection]);
+			super.setSelection(distinctES6([...super.getSelection(), ...additionalSelection]));
 		}
 	}
 

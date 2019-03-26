@@ -189,6 +189,9 @@ const BufferPresets = {
 	Object: createOneByteBuffer(DataType.Object),
 };
 
+declare var Buffer: any;
+const hasBuffer = (typeof Buffer !== 'undefined');
+
 function serialize(writer: IWriter, data: any): void {
 	if (typeof data === 'undefined') {
 		writer.write(BufferPresets.Undefined);
@@ -197,7 +200,7 @@ function serialize(writer: IWriter, data: any): void {
 		writer.write(BufferPresets.String);
 		writer.write(createSizeBuffer(buffer.byteLength));
 		writer.write(buffer);
-	} else if (Buffer.isBuffer(data)) {
+	} else if (hasBuffer && Buffer.isBuffer(data)) {
 		const buffer = VSBuffer.wrap(data);
 		writer.write(BufferPresets.Buffer);
 		writer.write(createSizeBuffer(buffer.byteLength));
@@ -227,7 +230,7 @@ function deserialize(reader: IReader): any {
 	switch (type) {
 		case DataType.Undefined: return undefined;
 		case DataType.String: return reader.read(readSizeBuffer(reader)).toString();
-		case DataType.Buffer: return reader.read(readSizeBuffer(reader)).toBuffer();
+		case DataType.Buffer: return reader.read(readSizeBuffer(reader)).buffer;
 		case DataType.VSBuffer: return reader.read(readSizeBuffer(reader));
 		case DataType.Array: {
 			const length = readSizeBuffer(reader);

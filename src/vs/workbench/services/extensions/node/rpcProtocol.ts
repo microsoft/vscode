@@ -529,7 +529,7 @@ class MessageBuffer {
 	public readBuffer(): Buffer {
 		const buffLength = this._buff.readUint32BE(this._offset); this._offset += 4;
 		const buff = this._buff.slice(this._offset, this._offset + buffLength); this._offset += buffLength;
-		return buff.toBuffer();
+		return <Buffer>buff.buffer;
 	}
 
 	public static sizeVSBuffer(buff: VSBuffer): number {

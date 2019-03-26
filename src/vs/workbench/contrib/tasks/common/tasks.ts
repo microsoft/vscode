@@ -891,7 +891,8 @@ export interface TaskEvent {
 }
 
 export const enum TaskRunSource {
-	User, // Default
+	System,
+	User,
 	FolderOpen,
 	ConfigurationChange
 }
@@ -935,7 +936,7 @@ export namespace KeyedTaskIdentifier {
 		for (let position in keys) {
 			let stringified = literal[keys[position]];
 			if (stringified instanceof Object) {
-				stringified = sortedStringify(test);
+				stringified = sortedStringify(stringified);
 			} else if (typeof stringified === 'string') {
 				stringified = stringified.replace(/,/g, ',,');
 			}

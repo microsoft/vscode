@@ -33,7 +33,7 @@
 
 .vs .monaco-action-bar .markers-panel-action-filter .monaco-inputbox {
 	height: 25px;
-	border: 1px solid #ddd;
+	border: 1px solid transparent;
 }
 
 .markers-panel-action-filter > .markers-panel-filter-controls {
@@ -160,7 +160,7 @@
 
 .markers-panel .monaco-tl-contents .marker-icon {
 	height: 22px;
-	flex: 0 0 16px;
+	width: 16px;
 }
 
 .markers-panel .marker-icon.warning {

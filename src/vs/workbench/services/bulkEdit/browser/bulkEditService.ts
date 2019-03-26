@@ -15,7 +15,7 @@ import { isResourceFileEdit, isResourceTextEdit, ResourceFileEdit, ResourceTextE
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { localize } from 'vs/nls';
-import { IFileService } from 'vs/platform/files/common/files';
+import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { emptyProgressRunner, IProgress, IProgressRunner } from 'vs/platform/progress/common/progress';
@@ -326,7 +326,12 @@ export class BulkEdit {
 			} else if (!edit.newUri && edit.oldUri) {
 				// delete file
 				if (!options.ignoreIfNotExists || await this._fileService.existsFile(edit.oldUri)) {
-					await this._textFileService.delete(edit.oldUri, { useTrash: this._configurationService.getValue<boolean>('files.enableTrash'), recursive: options.recursive });
+					let useTrash = this._configurationService.getValue<boolean>('files.enableTrash');
+					if (useTrash && !(await this._fileService.hasCapability(edit.oldUri, FileSystemProviderCapabilities.Trash))) {
+						useTrash = false; // not supported by provider
+					}
+
+					await this._textFileService.delete(edit.oldUri, { useTrash, recursive: options.recursive });
 				}
 
 			} else if (edit.newUri && !edit.oldUri) {

@@ -3,13 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+declare var Buffer: any;
+const hasBuffer = (typeof Buffer !== 'undefined');
+
 export class VSBuffer {
 
 	public static alloc(byteLength: number): VSBuffer {
-		return new VSBuffer(Buffer.allocUnsafe(byteLength));
+		if (hasBuffer) {
+			return new VSBuffer(Buffer.allocUnsafe(byteLength));
+		} else {
+			return new VSBuffer(new Uint8Array(byteLength));
+		}
 	}
 
-	public static wrap(actual: Buffer): VSBuffer {
+	public static wrap(actual: Uint8Array): VSBuffer {
 		return new VSBuffer(actual);
 	}
 
@@ -36,45 +43,40 @@ export class VSBuffer {
 		return ret;
 	}
 
-	private readonly _actual: Buffer;
+	public readonly buffer: Uint8Array;
 	public readonly byteLength: number;
 
-	private constructor(buffer: Buffer) {
-		this._actual = buffer;
-		this.byteLength = this._actual.byteLength;
-	}
-
-	public toBuffer(): Buffer {
-		// TODO@Alex: deprecate this usage
-		return this._actual;
+	private constructor(buffer: Uint8Array) {
+		this.buffer = buffer;
+		this.byteLength = this.buffer.byteLength;
 	}
 
 	public toString(): string {
-		return this._actual.toString();
+		return this.buffer.toString();
 	}
 
 	public slice(start?: number, end?: number): VSBuffer {
-		return new VSBuffer(this._actual.slice(start, end));
+		return new VSBuffer(this.buffer.slice(start, end));
 	}
 
 	public set(array: VSBuffer, offset?: number): void {
-		this._actual.set(array._actual, offset);
+		this.buffer.set(array.buffer, offset);
 	}
 
 	public readUint32BE(offset: number): number {
-		return readUint32BE(this._actual, offset);
+		return readUint32BE(this.buffer, offset);
 	}
 
 	public writeUint32BE(value: number, offset: number): void {
-		writeUint32BE(this._actual, value, offset);
+		writeUint32BE(this.buffer, value, offset);
 	}
 
 	public readUint8(offset: number): number {
-		return readUint8(this._actual, offset);
+		return readUint8(this.buffer, offset);
 	}
 
 	public writeUint8(value: number, offset: number): void {
-		writeUint8(this._actual, value, offset);
+		writeUint8(this.buffer, value, offset);
 	}
 
 }
