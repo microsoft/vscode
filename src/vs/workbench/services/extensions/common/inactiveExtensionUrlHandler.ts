@@ -23,6 +23,7 @@ const FIVE_MINUTES = 5 * 60 * 1000;
 const THIRTY_SECONDS = 30 * 1000;
 const URL_TO_HANDLE = 'extensionUrlHandler.urlToHandle';
 
+
 function isExtensionId(value: string): boolean {
 	return /^[a-z0-9][a-z0-9\-]*\.[a-z0-9][a-z0-9\-]*$/i.test(value);
 }
@@ -77,7 +78,7 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 	}
 
 	async handleURL(uri: URI, confirmed?: boolean): Promise<boolean> {
-		if (!isExtensionId(uri.authority)) {
+		if (!isExtensionId(uri.authority) || uri.scheme === `https` || uri.scheme === `http`) {
 			return false;
 		}
 
