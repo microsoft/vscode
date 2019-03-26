@@ -21,3 +21,5 @@ export const IsDevelopmentContext = new RawContextKey<boolean>('isDevelopment', 
 export const WorkbenchStateContext = new RawContextKey<string>('workbenchState', undefined);
 
 export const WorkspaceFolderCountContext = new RawContextKey<number>('workspaceFolderCount', 0);
+
+export const RemoteFileDialogContext = new RawContextKey<boolean>('remoteFileDialogVisible', false);

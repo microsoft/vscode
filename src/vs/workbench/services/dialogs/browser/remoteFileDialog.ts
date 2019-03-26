@@ -22,6 +22,8 @@ import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { Schemas } from 'vs/base/common/network';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { RemoteFileDialogContext } from 'vs/workbench/common/contextkeys';
 
 interface FileQuickPickItem extends IQuickPickItem {
 	uri: URI;
@@ -48,6 +50,7 @@ export class RemoteFileDialog {
 	private scheme: string = REMOTE_HOST_SCHEME;
 	private shouldOverwriteFile: boolean = false;
 	private autoComplete: string;
+	private contextKey: IContextKey<boolean>;
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
@@ -61,9 +64,11 @@ export class RemoteFileDialog {
 		@IModeService private readonly modeService: IModeService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
+		@IContextKeyService contextKeyService: IContextKeyService
 
 	) {
 		this.remoteAuthority = this.windowService.getConfiguration().remoteAuthority;
+		this.contextKey = RemoteFileDialogContext.bindTo(contextKeyService);
 	}
 
 	public async showOpenDialog(options: IOpenDialogOptions = {}): Promise<IURIToOpen[] | undefined> {
@@ -245,10 +250,12 @@ export class RemoteFileDialog {
 				if (!isResolving) {
 					resolve(undefined);
 				}
+				this.contextKey.set(false);
 				this.filePickBox.dispose();
 			});
 
 			this.filePickBox.show();
+			this.contextKey.set(true);
 			this.updateItems(homedir, trailing);
 			if (trailing) {
 				this.filePickBox.valueSelection = [this.filePickBox.value.length - trailing.length, this.filePickBox.value.length - ext.length];
