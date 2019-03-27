@@ -429,7 +429,6 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 	private toDispose: IDisposable[];
 	private dropEnabled: boolean;
-	private isCopy: boolean;
 
 	constructor(
 		@INotificationService private notificationService: INotificationService,
@@ -550,7 +549,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	}
 
 	getDragURI(element: ExplorerItem): string | null {
-		if (this.explorerService.isEditable(element) || (!this.isCopy && element.isReadonly)) {
+		if (this.explorerService.isEditable(element)) {
 			return null;
 		}
 
@@ -566,7 +565,6 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	}
 
 	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
-		this.isCopy = (originalEvent.ctrlKey && !isMacintosh) || (originalEvent.altKey && isMacintosh);
 		const items = (data as ElementsDragAndDropData<ExplorerItem>).elements;
 		if (items && items.length && originalEvent.dataTransfer) {
 			// Apply some datatransfer types to allow for dragging the element outside of the application
@@ -599,7 +597,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		}
 		// In-Explorer DND (Move/Copy file)
 		else {
-			this.handleExplorerDrop(data, target);
+			this.handleExplorerDrop(data, target, originalEvent);
 		}
 	}
 
@@ -714,14 +712,15 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		return Promise.resolve(undefined);
 	}
 
-	private handleExplorerDrop(data: IDragAndDropData, target: ExplorerItem): Promise<void> {
+	private handleExplorerDrop(data: IDragAndDropData, target: ExplorerItem, originalEvent: DragEvent): Promise<void> {
 		const elementsData = (data as ElementsDragAndDropData<ExplorerItem>).elements;
 		const items = distinctParents(elementsData, s => s.resource);
+		const isCopy = (originalEvent.ctrlKey && !isMacintosh) || (originalEvent.altKey && isMacintosh);
 
 		let confirmPromise: Promise<IConfirmationResult>;
 
 		// Handle confirm setting
-		const confirmDragAndDrop = !this.isCopy && this.configurationService.getValue<boolean>(FileDragAndDrop.CONFIRM_DND_SETTING_KEY);
+		const confirmDragAndDrop = !isCopy && this.configurationService.getValue<boolean>(FileDragAndDrop.CONFIRM_DND_SETTING_KEY);
 		if (confirmDragAndDrop) {
 			confirmPromise = this.dialogService.confirm({
 				message: items.length > 1 && items.every(s => s.isRoot) ? localize('confirmRootsMove', "Are you sure you want to change the order of multiple root folders in your workspace?")
@@ -749,7 +748,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			return updateConfirmSettingsPromise.then(() => {
 				if (res.confirmed) {
 					const rootDropPromise = this.doHandleRootDrop(items.filter(s => s.isRoot), target);
-					return Promise.all(items.filter(s => !s.isRoot).map(source => this.doHandleExplorerDrop(source, target, this.isCopy)).concat(rootDropPromise)).then(() => undefined);
+					return Promise.all(items.filter(s => !s.isRoot).map(source => this.doHandleExplorerDrop(source, target, isCopy)).concat(rootDropPromise)).then(() => undefined);
 				}
 
 				return Promise.resolve(undefined);
@@ -805,6 +804,10 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 		// Otherwise move
 		const targetResource = joinPath(target.resource, source.name);
+		if (source.isReadonly) {
+			// Do not allow moving readonly items
+			return Promise.resolve();
+		}
 
 		return this.textFileService.move(source.resource, targetResource).then(undefined, error => {
 
