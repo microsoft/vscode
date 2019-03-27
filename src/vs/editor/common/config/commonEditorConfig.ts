@@ -688,8 +688,8 @@ const editorConfiguration: IConfigurationNode = {
 			type: 'number',
 			default: EDITOR_DEFAULTS.contribInfo.suggest.maxVisibleSuggestions,
 			minimum: 1,
-			maximum: 12,
-			description: nls.localize('suggest.maxVisibleSuggestions', "Controls how many suggestions IntelliSense will show before showing a scrollbar.")
+			maximum: 15,
+			description: nls.localize('suggest.maxVisibleSuggestions', "Controls how many suggestions IntelliSense will show before showing a scrollbar (maximum 15).")
 		},
 		'editor.suggest.filteredTypes': {
 			type: 'object',
