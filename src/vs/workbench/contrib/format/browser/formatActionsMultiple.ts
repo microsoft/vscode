@@ -9,7 +9,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { DocumentRangeFormattingEditProviderRegistry, DocumentFormattingEditProvider, DocumentRangeFormattingEditProvider } from 'vs/editor/common/modes';
 import * as nls from 'vs/nls';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IQuickInputService, IQuickPickItem, IQuickInputButton } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { formatDocumentRangeWithProvider, formatDocumentWithProvider, getRealAndSyntheticDocumentFormattersOrdered, FormattingConflicts, FormattingMode } from 'vs/editor/contrib/format/format';
@@ -26,6 +26,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ITextModel } from 'vs/editor/common/model';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IModeService } from 'vs/editor/common/services/modeService';
+
+type FormattingEditProvider = DocumentFormattingEditProvider | DocumentRangeFormattingEditProvider;
 
 class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 
@@ -58,11 +60,11 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 		}
 	}
 
-	private static _maybeQuotes(s: string): string {
+	static _maybeQuotes(s: string): string {
 		return s.match(/\s/) ? `'${s}'` : s;
 	}
 
-	private async _selectFormatter<T extends DocumentFormattingEditProvider | DocumentRangeFormattingEditProvider>(formatter: T[], document: ITextModel, mode: FormattingMode): Promise<T | undefined> {
+	private async _selectFormatter<T extends FormattingEditProvider>(formatter: T[], document: ITextModel, mode: FormattingMode): Promise<T | undefined> {
 
 		const defaultFormatterId = this._configService.getValue<string>(DefaultFormatter.configName, {
 			resource: document.uri,
@@ -99,7 +101,7 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 		});
 	}
 
-	private async _pickAndPersistDefaultFormatter<T extends DocumentFormattingEditProvider | DocumentRangeFormattingEditProvider>(formatter: T[], document: ITextModel): Promise<T | undefined> {
+	private async _pickAndPersistDefaultFormatter<T extends FormattingEditProvider>(formatter: T[], document: ITextModel): Promise<T | undefined> {
 		const picks = formatter.map((formatter, index) => {
 			return <IIndexedPick>{
 				index,
@@ -143,11 +145,6 @@ interface IIndexedPick extends IQuickPickItem {
 	index: number;
 }
 
-const openExtensionAction: IQuickInputButton = {
-	tooltip: nls.localize('show.ext', "Show extension..."),
-	iconClass: 'format-show-extension'
-};
-
 function logFormatterTelemetry<T extends { extensionId?: ExtensionIdentifier }>(telemetryService: ITelemetryService, mode: 'document' | 'range', options: T[], pick?: T) {
 
 	function extKey(obj: T): string {
@@ -166,6 +163,47 @@ function logFormatterTelemetry<T extends { extensionId?: ExtensionIdentifier }>(
 		extensions: options.map(extKey),
 		pick: pick ? extKey(pick) : 'none'
 	});
+}
+
+async function showFormatterPick(accessor: ServicesAccessor, model: ITextModel, formatters: FormattingEditProvider[]): Promise<number | undefined> {
+	const quickPickService = accessor.get(IQuickInputService);
+	const configService = accessor.get(IConfigurationService);
+	const modeService = accessor.get(IModeService);
+
+	const overrides = { resource: model.uri, overrideIdentifier: model.getModeId() };
+	const defaultFormatter = configService.getValue<string>(DefaultFormatter.configName, overrides);
+
+	const picks = formatters.map((provider, index) => {
+		return <IIndexedPick>{
+			index,
+			label: provider.displayName || '',
+			description: ExtensionIdentifier.equals(provider.extensionId, defaultFormatter) ? nls.localize('def', "(default)") : undefined,
+		};
+	});
+
+	const configurePick: IQuickPickItem = {
+		label: nls.localize('config', "Configure default formatter...")
+	};
+
+	const pick = await quickPickService.pick([...picks, { type: 'separator' }, configurePick], { placeHolder: nls.localize('format.placeHolder', "Select a formatter") });
+	if (!pick) {
+		// dismissed
+		return undefined;
+
+	} else if (pick === configurePick) {
+		// config default
+		const langName = modeService.getLanguageName(model.getModeId()) || model.getModeId();
+		const pick = await quickPickService.pick(picks, { placeHolder: nls.localize('select', "Select a default formatter for {0}-files", DefaultFormatter._maybeQuotes(langName)) });
+		if (pick && formatters[pick.index].extensionId) {
+			configService.updateValue(DefaultFormatter.configName, formatters[pick.index].extensionId!.value, overrides);
+		}
+		return undefined;
+
+	} else {
+		// picked one
+		return (<IIndexedPick>pick).index;
+	}
+
 }
 
 registerEditorAction(class FormatDocumentMultipleAction extends EditorAction {
@@ -188,34 +226,14 @@ registerEditorAction(class FormatDocumentMultipleAction extends EditorAction {
 			return;
 		}
 		const instaService = accessor.get(IInstantiationService);
-		const quickPickService = accessor.get(IQuickInputService);
 		const telemetryService = accessor.get(ITelemetryService);
-		const configService = accessor.get(IConfigurationService);
-
 		const model = editor.getModel();
-		const defaultFormatter = configService.getValue<string>(DefaultFormatter.configName, {
-			resource: model.uri,
-			overrideIdentifier: model.getModeId()
-		});
-
 		const provider = getRealAndSyntheticDocumentFormattersOrdered(model);
-		const picks = provider.map((provider, index) => {
-			return <IIndexedPick>{
-				index,
-				label: provider.displayName || '',
-				description: ExtensionIdentifier.equals(provider.extensionId, defaultFormatter) ? nls.localize('def', "(default)") : undefined,
-				buttons: [openExtensionAction]
-			};
-		});
-
-		const pick = await quickPickService.pick(picks, {
-			placeHolder: nls.localize('format.placeHolder', "Select a formatter")
-		});
+		const pick = await instaService.invokeFunction(showFormatterPick, model, provider);
 		if (pick) {
-			await instaService.invokeFunction(formatDocumentWithProvider, provider[pick.index], editor, CancellationToken.None);
+			await instaService.invokeFunction(formatDocumentWithProvider, provider[pick], editor, CancellationToken.None);
 		}
-
-		logFormatterTelemetry(telemetryService, 'document', provider, pick && provider[pick.index]);
+		logFormatterTelemetry(telemetryService, 'document', provider, typeof pick === 'number' && provider[pick] || undefined);
 	}
 });
 
@@ -240,38 +258,20 @@ registerEditorAction(class FormatSelectionMultipleAction extends EditorAction {
 			return;
 		}
 		const instaService = accessor.get(IInstantiationService);
-		const quickPickService = accessor.get(IQuickInputService);
 		const telemetryService = accessor.get(ITelemetryService);
-		const configService = accessor.get(IConfigurationService);
 
 		const model = editor.getModel();
-		const defaultFormatter = configService.getValue<string>(DefaultFormatter.configName, {
-			resource: model.uri,
-			overrideIdentifier: model.getModeId()
-		});
-
 		let range: Range = editor.getSelection();
 		if (range.isEmpty()) {
 			range = new Range(range.startLineNumber, 1, range.startLineNumber, model.getLineMaxColumn(range.startLineNumber));
 		}
 
 		const provider = DocumentRangeFormattingEditProviderRegistry.ordered(model);
-		const picks = provider.map((provider, index) => {
-			return <IIndexedPick>{
-				index,
-				label: provider.displayName || '',
-				description: ExtensionIdentifier.equals(provider.extensionId, defaultFormatter) ? nls.localize('def', "(default)") : undefined,
-				buttons: [openExtensionAction]
-			};
-		});
-
-		const pick = await quickPickService.pick(picks, {
-			placeHolder: nls.localize('format.placeHolder', "Select a formatter")
-		});
+		const pick = await instaService.invokeFunction(showFormatterPick, model, provider);
 		if (pick) {
-			await instaService.invokeFunction(formatDocumentRangeWithProvider, provider[pick.index], editor, range, CancellationToken.None);
+			await instaService.invokeFunction(formatDocumentRangeWithProvider, provider[pick], editor, range, CancellationToken.None);
 		}
 
-		logFormatterTelemetry(telemetryService, 'range', provider, pick && provider[pick.index]);
+		logFormatterTelemetry(telemetryService, 'range', provider, typeof pick === 'number' && provider[pick] || undefined);
 	}
 });
