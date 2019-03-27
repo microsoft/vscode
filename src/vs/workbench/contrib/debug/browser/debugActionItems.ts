@@ -214,6 +214,10 @@ export class FocusSessionActionItem extends SelectActionItem {
 		this.update();
 	}
 
+	protected getActionContext(_: string, index: number): any {
+		return this.debugService.getModel().getSessions()[index];
+	}
+
 	private update() {
 		const session = this.debugService.getViewModel().focusedSession;
 		const sessions = this.getSessions();

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { RunOnceScheduler, ignoreErrors } from 'vs/base/common/async';
+import { RunOnceScheduler, ignoreErrors, sequence } from 'vs/base/common/async';
 import * as dom from 'vs/base/browser/dom';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDebugService, State, IStackFrame, IDebugSession, IThread, CONTEXT_CALLSTACK_ITEM_TYPE, IDebugModel } from 'vs/workbench/contrib/debug/common/debug';
@@ -28,6 +28,7 @@ import { TreeResourceNavigator2, WorkbenchAsyncDataTree } from 'vs/platform/list
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
+import { Event } from 'vs/base/common/event';
 
 const $ = dom.$;
 
@@ -193,7 +194,8 @@ export class CallStackView extends ViewletPanel {
 				this.onCallStackChangeScheduler.schedule();
 			}
 		}));
-		this.disposables.push(this.debugService.getViewModel().onDidFocusStackFrame(() => {
+		const onCallStackChange = Event.any<any>(this.debugService.getViewModel().onDidFocusStackFrame, this.debugService.getViewModel().onDidFocusSession);
+		this.disposables.push(onCallStackChange(() => {
 			if (this.ignoreFocusStackFrameEvent) {
 				return;
 			}
@@ -253,11 +255,20 @@ export class CallStackView extends ViewletPanel {
 				updateSelectionAndReveal(session);
 			}
 		} else {
-			const expansionsPromise = ignoreErrors(this.tree.expand(thread.session))
-				.then(() => ignoreErrors(this.tree.expand(thread)));
-			if (stackFrame) {
-				expansionsPromise.then(() => updateSelectionAndReveal(stackFrame));
+			const expandPromises = [() => ignoreErrors(this.tree.expand(thread))];
+			let s: IDebugSession | undefined = thread.session;
+			while (s) {
+				const sessionToExpand = s;
+				expandPromises.push(() => ignoreErrors(this.tree.expand(sessionToExpand)));
+				s = s.parentSession;
 			}
+
+			sequence(expandPromises.reverse()).then(() => {
+				const toReveal = stackFrame || session;
+				if (toReveal) {
+					updateSelectionAndReveal(toReveal);
+				}
+			});
 		}
 	}
 
