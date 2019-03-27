@@ -2608,7 +2608,6 @@ declare namespace monaco.editor {
 		lineNumbers?: 'on' | 'off' | 'relative' | 'interval' | ((lineNumber: number) => string);
 		/**
 		 * Render last line number when the file ends with a newline.
-		 * Defaults to true on Windows/Mac and to false on Linux.
 		*/
 		renderFinalNewline?: boolean;
 		/**
