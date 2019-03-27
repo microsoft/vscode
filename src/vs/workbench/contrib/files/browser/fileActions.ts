@@ -94,7 +94,6 @@ export class BaseErrorReportingAction extends Action {
 	}
 }
 
-const PLACEHOLDER_URI = URI.file('');
 function refreshIfSeparator(value: string, explorerService: IExplorerService): void {
 	if (value && ((value.indexOf('/') >= 0) || (value.indexOf('\\') >= 0))) {
 		// New input contains separator, multiple resources will get created workaround for #68204
@@ -137,7 +136,7 @@ export class NewFileAction extends BaseErrorReportingAction {
 			return Promise.reject(new Error('Parent folder is readonly.'));
 		}
 
-		const stat = new NewExplorerItem(PLACEHOLDER_URI, folder, false);
+		const stat = new NewExplorerItem(folder, false);
 		return folder.fetchChildren(this.fileService, this.explorerService).then(() => {
 			folder.addChild(stat);
 
@@ -205,7 +204,7 @@ export class NewFolderAction extends BaseErrorReportingAction {
 			return Promise.reject(new Error('Parent folder is readonly.'));
 		}
 
-		const stat = new NewExplorerItem(PLACEHOLDER_URI, folder, true);
+		const stat = new NewExplorerItem(folder, true);
 		return folder.fetchChildren(this.fileService, this.explorerService).then(() => {
 			folder.addChild(stat);
 

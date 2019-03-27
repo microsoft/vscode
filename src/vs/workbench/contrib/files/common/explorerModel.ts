@@ -368,4 +368,8 @@ export class ExplorerItem {
 	}
 }
 
-export class NewExplorerItem extends ExplorerItem { }
+export class NewExplorerItem extends ExplorerItem {
+	constructor(parent: ExplorerItem, isDirectory: boolean) {
+		super(URI.file(''), parent, isDirectory);
+	}
+}
