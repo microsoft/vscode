@@ -582,8 +582,14 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		else if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
 			const list = focused;
 			const fakeKeyboardEvent = getSelectionKeyboardEvent('keydown', false);
-			list.setSelection(list.getFocus(), fakeKeyboardEvent);
-			list.open(list.getFocus(), fakeKeyboardEvent);
+			const focus = list.getFocus();
+
+			if (focus.length > 0) {
+				list.toggleCollapsed(focus[0]);
+			}
+
+			list.setSelection(focus, fakeKeyboardEvent);
+			list.open(focus, fakeKeyboardEvent);
 		}
 
 		// Tree
