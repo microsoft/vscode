@@ -1401,7 +1401,8 @@ export class InternalEditorOptions {
 				&& a.localityBonus === b.localityBonus
 				&& a.shareSuggestSelections === b.shareSuggestSelections
 				&& a.showIcons === b.showIcons
-				&& a.maxVisibleSuggestions === b.maxVisibleSuggestions;
+				&& a.maxVisibleSuggestions === b.maxVisibleSuggestions
+				&& objects.equals(a.filteredTypes, b.filteredTypes);
 		}
 	}
 
