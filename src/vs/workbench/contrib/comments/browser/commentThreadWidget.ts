@@ -291,8 +291,10 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 		// Move comment glyph widget and show position if the line has changed.
 		const lineNumber = this._commentThread.range.startLineNumber;
+		let shouldMoveWidget = false;
 		if (this._commentGlyph) {
 			if (this._commentGlyph.getPosition().position!.lineNumber !== lineNumber) {
+				shouldMoveWidget = true;
 				this._commentGlyph.setLineNumber(lineNumber);
 			}
 		}
@@ -301,7 +303,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			this.createReplyButton();
 		}
 
-		if (!this._isCollapsed) {
+		if (shouldMoveWidget && !this._isCollapsed) {
 			this.show({ lineNumber, column: 1 }, 2);
 		}
 	}
@@ -451,13 +453,15 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			this._disposables.push((this._commentThread as modes.CommentThread2).onDidChangeRange(range => {
 				// Move comment glyph widget and show position if the line has changed.
 				const lineNumber = this._commentThread.range.startLineNumber;
+				let shouldMoveWidget = false;
 				if (this._commentGlyph) {
 					if (this._commentGlyph.getPosition().position!.lineNumber !== lineNumber) {
+						shouldMoveWidget = true;
 						this._commentGlyph.setLineNumber(lineNumber);
 					}
 				}
 
-				if (!this._isCollapsed) {
+				if (shouldMoveWidget && !this._isCollapsed) {
 					this.show({ lineNumber, column: 1 }, 2);
 				}
 			}));
