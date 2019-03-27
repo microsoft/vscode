@@ -205,10 +205,6 @@ export function del(path: string, tmpFolder: string, callback: (error: Error | n
 
 				// do the heavy deletion outside the callers callback
 				rmRecursive(pathInTemp, error => {
-					if (error) {
-						console.error(error);
-					}
-
 					if (done) {
 						done(error);
 					}

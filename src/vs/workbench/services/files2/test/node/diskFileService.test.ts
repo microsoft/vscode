@@ -12,15 +12,13 @@ import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { generateUuid } from 'vs/base/common/uuid';
 import { join, basename, dirname, posix } from 'vs/base/common/path';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
-import { copy, del } from 'vs/base/node/pfs';
+import { copy, del, symlink } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { existsSync, statSync, readdirSync, readFileSync } from 'fs';
 import { FileOperation, FileOperationEvent, IFileStat, FileOperationResult, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { promisify } from 'util';
-import { exec } from 'child_process';
 
 function getByName(root: IFileStat, name: string): IFileStat | null {
 	if (root.children === undefined) {
@@ -312,12 +310,8 @@ suite('Disk File Service', () => {
 	});
 
 	test('resolveFile - folder symbolic link', async () => {
-		if (isWindows) {
-			return; // only for unix systems
-		}
-
 		const link = URI.file(join(testDir, 'deep-link'));
-		await promisify(exec)(`ln -s deep ${basename(link.fsPath)}`, { cwd: testDir });
+		await symlink(join(testDir, 'deep'), link.fsPath, 'junction');
 
 		const resolved = await service.resolveFile(link);
 		assert.equal(resolved.children!.length, 4);
@@ -327,11 +321,11 @@ suite('Disk File Service', () => {
 
 	test('resolveFile - file symbolic link', async () => {
 		if (isWindows) {
-			return; // only for unix systems
+			return;
 		}
 
 		const link = URI.file(join(testDir, 'lorem.txt-linked'));
-		await promisify(exec)(`ln -s lorem.txt ${basename(link.fsPath)}`, { cwd: testDir });
+		await symlink(join(testDir, 'lorem.txt'), link.fsPath);
 
 		const resolved = await service.resolveFile(link);
 		assert.equal(resolved.isDirectory, false);
@@ -339,11 +333,8 @@ suite('Disk File Service', () => {
 	});
 
 	test('resolveFile - invalid symbolic link does not break', async () => {
-		if (isWindows) {
-			return; // only for unix systems
-		}
-
-		await promisify(exec)('ln -s foo bar', { cwd: testDir });
+		const link = URI.file(join(testDir, 'foo'));
+		await symlink(link.fsPath, join(testDir, 'bar'), 'junction');
 
 		const resolved = await service.resolveFile(URI.file(testDir));
 		assert.equal(resolved.isDirectory, true);
