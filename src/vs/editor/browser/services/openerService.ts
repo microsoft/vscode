@@ -43,7 +43,6 @@ export class OpenerService implements IOpenerService {
 			const handled = await opener.open(resource, options);
 			if (handled) {
 				return true;
-
 			}
 		}
 		// use default openers
