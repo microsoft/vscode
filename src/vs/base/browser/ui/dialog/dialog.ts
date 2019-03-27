@@ -89,7 +89,7 @@ export class Dialog extends Disposable {
 
 			this._register(domEvent(this.element, 'keydown', true)((e: KeyboardEvent) => {
 				const evt = new StandardKeyboardEvent(e);
-				if (evt.equals(KeyCode.Enter)) {
+				if (evt.equals(KeyCode.Enter) || evt.equals(KeyCode.Space)) {
 					return;
 				}
 
