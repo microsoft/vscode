@@ -27,6 +27,10 @@ function isExtensionId(value: string): boolean {
 	return /^[a-z0-9][a-z0-9\-]*\.[a-z0-9][a-z0-9\-]*$/i.test(value);
 }
 
+function isHyperTextLink(value: string): boolean {
+	return value === 'https' || value === 'http';
+}
+
 export const IExtensionUrlHandler = createDecorator<IExtensionUrlHandler>('inactiveExtensionUrlHandler');
 
 export interface IExtensionUrlHandler {
@@ -77,7 +81,7 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 	}
 
 	async handleURL(uri: URI, confirmed?: boolean): Promise<boolean> {
-		if (!isExtensionId(uri.authority) || uri.scheme === `https` || uri.scheme === `http`) {
+		if (!isExtensionId(uri.authority) || isHyperTextLink(uri.scheme)) {
 			return false;
 		}
 
