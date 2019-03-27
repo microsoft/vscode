@@ -487,7 +487,7 @@ suite('Disk File Service', () => {
 		assert.equal(existsSync(source.fsPath), false);
 		assert.ok(event!);
 		assert.equal(event!.resource.fsPath, source.fsPath);
-		assert.equal(event!.operation, FileOperation.MOVE);
+		assert.equal(event!.operation, FileOperation.COPY);
 		assert.equal(event!.target!.resource.fsPath, renamed.resource.fsPath);
 
 		const targetContents = readFileSync(target.fsPath);
@@ -574,7 +574,7 @@ suite('Disk File Service', () => {
 		assert.equal(existsSync(source.fsPath), false);
 		assert.ok(event!);
 		assert.equal(event!.resource.fsPath, source.fsPath);
-		assert.equal(event!.operation, FileOperation.MOVE);
+		assert.equal(event!.operation, FileOperation.COPY);
 		assert.equal(event!.target!.resource.fsPath, renamed.resource.fsPath);
 
 		const targetChildren = readdirSync(target.fsPath);
