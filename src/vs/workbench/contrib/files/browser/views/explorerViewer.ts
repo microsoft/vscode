@@ -781,7 +781,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				rootsToMove.push(data);
 			}
 		}
-		if (!targetIndex) {
+		if (targetIndex === undefined) {
 			targetIndex = workspaceCreationData.length;
 		}
 
