@@ -8146,10 +8146,10 @@ sparkles@^1.0.0:
   resolved "https://registry.yarnpkg.com/sparkles/-/sparkles-1.0.0.tgz#1acbbfb592436d10bbe8f785b7cc6f82815012c3"
   integrity sha1-Gsu/tZJDbRC76PeFt8xvgoFQEsM=
 
-spdlog@0.7.2:
-  version "0.7.2"
-  resolved "https://registry.yarnpkg.com/spdlog/-/spdlog-0.7.2.tgz#9298753d7694b9ee9bbfd7e01ea1e4c6ace1e64d"
-  integrity sha512-rHfWCaWMD4NindDnql6rc6kn7Bs8JR92jhiUpCl3D6v+jYcQ6GozMLig0RliOOR8st5mU+IHLZnr15fBys5x/Q==
+spdlog@0.8.1:
+  version "0.8.1"
+  resolved "https://registry.yarnpkg.com/spdlog/-/spdlog-0.8.1.tgz#dfb3f3422ab3efe32be79e4769b95440ed72699f"
+  integrity sha512-W0s8IOXpn86md+8PJ4mJeB/22thykzH5YaNc3Rgnql4x4/zFIhvNiEx6/a1arnqvmJF0HtRO0Ehlswg0WcwTLQ==
   dependencies:
     bindings "^1.3.0"
     mkdirp "^0.5.1"

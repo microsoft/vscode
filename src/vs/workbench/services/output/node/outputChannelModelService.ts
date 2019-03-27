@@ -198,8 +198,8 @@ class DelegatedOutputChannelModel extends Disposable implements IOutputChannelMo
 			outputChannelModel = this.instantiationService.createInstance(BufferredOutputChannel, modelUri, mimeType);
 		}
 		this._register(outputChannelModel);
-		outputChannelModel.onDidAppendedContent(() => this._onDidAppendedContent.fire());
-		outputChannelModel.onDispose(() => this._onDispose.fire());
+		this._register(outputChannelModel.onDidAppendedContent(() => this._onDidAppendedContent.fire()));
+		this._register(outputChannelModel.onDispose(() => this._onDispose.fire()));
 		return outputChannelModel;
 	}
 
