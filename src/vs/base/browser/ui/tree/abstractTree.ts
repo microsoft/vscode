@@ -24,6 +24,7 @@ import { disposableTimeout } from 'vs/base/common/async';
 import { isMacintosh } from 'vs/base/common/platform';
 import { values } from 'vs/base/common/map';
 import { clamp } from 'vs/base/common/numbers';
+import { ScrollEvent } from 'vs/base/common/scrollable';
 
 function asTreeDragAndDropData<T, TFilterData>(data: IDragAndDropData): IDragAndDropData {
 	if (data instanceof ElementsDragAndDropData) {
@@ -971,7 +972,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	private focusNavigationFilter: ((node: ITreeNode<T, TFilterData>) => boolean) | undefined;
 	protected disposables: IDisposable[] = [];
 
-	get onDidScroll(): Event<void> { return this.view.onDidScroll; }
+	get onDidScroll(): Event<ScrollEvent> { return this.view.onDidScroll; }
 
 	get onDidChangeFocus(): Event<ITreeEvent<T>> { return this.eventBufferer.wrapEvent(this.focus.onDidChange); }
 	get onDidChangeSelection(): Event<ITreeEvent<T>> { return this.eventBufferer.wrapEvent(this.selection.onDidChange); }
