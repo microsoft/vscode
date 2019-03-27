@@ -9,7 +9,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { $, hide, show, EventHelper, clearNode, removeClasses, addClass, removeNode } from 'vs/base/browser/dom';
 import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Color } from 'vs/base/common/color';
 import { ButtonGroup, IButtonStyles } from 'vs/base/browser/ui/button/button';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -94,7 +94,7 @@ export class Dialog extends Disposable {
 				}
 
 				if (this.buttonGroup) {
-					if ((evt.shiftKey && evt.equals(KeyCode.Tab)) || evt.equals(KeyCode.LeftArrow)) {
+					if (evt.equals(KeyMod.Shift | KeyCode.Tab) || evt.equals(KeyCode.LeftArrow)) {
 						focusedButton = focusedButton + this.buttonGroup.buttons.length - 1;
 						focusedButton = focusedButton % this.buttonGroup.buttons.length;
 						this.buttonGroup.buttons[focusedButton].focus();
