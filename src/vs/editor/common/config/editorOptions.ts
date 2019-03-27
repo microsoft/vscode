@@ -936,7 +936,7 @@ export interface InternalEditorHoverOptions {
 }
 
 export interface InternalGoToLocationOptions {
-	readonly many: 'peek' | 'revealAndPeek' | 'reveal';
+	readonly multiple: 'peek' | 'revealAndPeek' | 'reveal';
 }
 
 export interface InternalSuggestOptions {
@@ -1411,7 +1411,7 @@ export class InternalEditorOptions {
 		} else if (!a || !b) {
 			return false;
 		} else {
-			return a.many === b.many;
+			return a.multiple === b.multiple;
 		}
 	}
 
@@ -1954,7 +1954,7 @@ export class EditorOptionsValidator {
 	private static _santizeGotoLocationOpts(opts: IEditorOptions, defaults: InternalGoToLocationOptions): InternalGoToLocationOptions {
 		const gotoOpts = opts.gotoLocation || {};
 		return {
-			many: _stringSet<'peek' | 'revealAndPeek' | 'reveal'>(gotoOpts.many, defaults.many, ['peek', 'revealAndPeek', 'reveal'])
+			multiple: _stringSet<'peek' | 'revealAndPeek' | 'reveal'>(gotoOpts.many, defaults.multiple, ['peek', 'revealAndPeek', 'reveal'])
 		};
 	}
 
@@ -2719,7 +2719,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 			filteredTypes: Object.create(null)
 		},
 		gotoLocation: {
-			many: 'peek'
+			multiple: 'peek'
 		},
 		selectionHighlight: true,
 		occurrencesHighlight: true,

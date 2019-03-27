@@ -3208,7 +3208,7 @@ declare namespace monaco.editor {
 	}
 
 	export interface InternalGoToLocationOptions {
-		readonly many: 'peek' | 'revealAndPeek' | 'reveal';
+		readonly multiple: 'peek' | 'revealAndPeek' | 'reveal';
 	}
 
 	export interface InternalSuggestOptions {
