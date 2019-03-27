@@ -178,6 +178,12 @@ export class ComposedTreeDelegate<T, N extends { element: T }> implements IListV
 	hasDynamicHeight(element: N): boolean {
 		return !!this.delegate.hasDynamicHeight && this.delegate.hasDynamicHeight(element.element);
 	}
+
+	setDynamicHeight(element: N, height: number): void {
+		if (this.delegate.setDynamicHeight) {
+			this.delegate.setDynamicHeight(element.element, height);
+		}
+	}
 }
 
 interface ITreeListTemplateData<T> {
