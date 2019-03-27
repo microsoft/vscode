@@ -310,8 +310,12 @@ suite('Disk File Service', () => {
 	});
 
 	test('resolveFile - folder symbolic link', async () => {
+		if (isWindows) {
+			return; // not happy
+		}
+
 		const link = URI.file(join(testDir, 'deep-link'));
-		await symlink(join(testDir, 'deep'), link.fsPath, 'junction');
+		await symlink(join(testDir, 'deep'), link.fsPath);
 
 		const resolved = await service.resolveFile(link);
 		assert.equal(resolved.children!.length, 4);
@@ -321,7 +325,7 @@ suite('Disk File Service', () => {
 
 	test('resolveFile - file symbolic link', async () => {
 		if (isWindows) {
-			return;
+			return; // not happy
 		}
 
 		const link = URI.file(join(testDir, 'lorem.txt-linked'));
@@ -333,8 +337,12 @@ suite('Disk File Service', () => {
 	});
 
 	test('resolveFile - invalid symbolic link does not break', async () => {
+		if (isWindows) {
+			return; // not happy
+		}
+
 		const link = URI.file(join(testDir, 'foo'));
-		await symlink(link.fsPath, join(testDir, 'bar'), 'junction');
+		await symlink(link.fsPath, join(testDir, 'bar'));
 
 		const resolved = await service.resolveFile(URI.file(testDir));
 		assert.equal(resolved.isDirectory, true);
