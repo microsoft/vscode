@@ -90,7 +90,7 @@ export class Dialog extends Disposable {
 				}));
 			});
 
-			this._register(domEvent(this.element, 'keydown', true)((e: KeyboardEvent) => {
+			this._register(domEvent(window, 'keydown', true)((e: KeyboardEvent) => {
 				const evt = new StandardKeyboardEvent(e);
 				if (evt.equals(KeyCode.Enter) || evt.equals(KeyCode.Space)) {
 					return;
@@ -111,7 +111,7 @@ export class Dialog extends Disposable {
 				EventHelper.stop(e, true);
 			}));
 
-			this._register(domEvent(this.element, 'keyup', true)((e: KeyboardEvent) => {
+			this._register(domEvent(window, 'keyup', true)((e: KeyboardEvent) => {
 				EventHelper.stop(e, true);
 				const evt = new StandardKeyboardEvent(e);
 
