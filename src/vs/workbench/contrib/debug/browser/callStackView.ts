@@ -46,6 +46,7 @@ export class CallStackView extends ViewletPanel {
 	private dataSource: CallStackDataSource;
 	private tree: WorkbenchAsyncDataTree<CallStackItem | IDebugModel, CallStackItem, FuzzyScore>;
 	private contributedContextMenu: IMenu;
+	private parentSessionToExpand = new Set<IDebugSession>();
 
 	constructor(
 		private options: IViewletViewOptions,
@@ -81,7 +82,11 @@ export class CallStackView extends ViewletPanel {
 
 			this.needsRefresh = false;
 			this.dataSource.deemphasizedStackFramesToShow = [];
-			this.tree.updateChildren().then(() => this.updateTreeSelection());
+			this.tree.updateChildren().then(() => {
+				this.parentSessionToExpand.forEach(s => this.tree.expand(s));
+				this.parentSessionToExpand.clear();
+				this.updateTreeSelection();
+			});
 		}, 50);
 	}
 
@@ -216,6 +221,13 @@ export class CallStackView extends ViewletPanel {
 		this.disposables.push(this.onDidChangeBodyVisibility(visible => {
 			if (visible && this.needsRefresh) {
 				this.onCallStackChangeScheduler.schedule();
+			}
+		}));
+
+		this.disposables.push(this.debugService.onDidNewSession(s => {
+			if (s.parentSession) {
+				// Auto expand sessions that have sub sessions
+				this.parentSessionToExpand.add(s.parentSession);
 			}
 		}));
 	}
