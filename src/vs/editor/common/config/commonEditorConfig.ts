@@ -829,7 +829,7 @@ const editorConfiguration: IConfigurationNode = {
 			}
 		},
 		'editor.gotoLocation.multiple': {
-			description: nls.localize('editor.gotoLocation.multiple', "Controls the behaviour of 'go to'-commands, like go to definition, when multiple target locations exist."),
+			description: nls.localize('editor.gotoLocation.multiple', "Controls the behavior of 'Go To' commands, like Go To Definition, when multiple target locations exist."),
 			type: 'string',
 			enum: ['peek', 'revealAndPeek', 'reveal'],
 			default: EDITOR_DEFAULTS.contribInfo.gotoLocation.multiple,
