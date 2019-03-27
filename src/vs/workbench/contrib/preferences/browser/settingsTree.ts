@@ -1220,7 +1220,16 @@ export class SettingsTreeFilter implements ITreeFilter<SettingsTreeElement> {
 }
 
 class SettingsTreeDelegate implements IListVirtualDelegate<SettingsTreeGroupChild> {
-	getHeight(element: SettingsTreeElement): number {
+
+	private heightCache = new WeakMap<SettingsTreeGroupChild, number>();
+
+	getHeight(element: SettingsTreeGroupChild): number {
+		const cachedHeight = this.heightCache.get(element);
+
+		if (typeof cachedHeight === 'number') {
+			return cachedHeight;
+		}
+
 		if (element instanceof SettingsTreeGroupElement) {
 			if (element.isFirstGroup) {
 				return 31;
@@ -1272,6 +1281,10 @@ class SettingsTreeDelegate implements IListVirtualDelegate<SettingsTreeGroupChil
 
 	hasDynamicHeight(element: SettingsTreeGroupElement | SettingsTreeSettingElement | SettingsTreeNewExtensionsElement): boolean {
 		return !(element instanceof SettingsTreeGroupElement);
+	}
+
+	setDynamicHeight(element: SettingsTreeGroupChild, height: number): void {
+		this.heightCache.set(element, height);
 	}
 }
 

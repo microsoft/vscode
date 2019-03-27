@@ -1096,6 +1096,11 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		}
 
 		item.size = row.domNode!.offsetHeight;
+
+		if (this.virtualDelegate.setDynamicHeight) {
+			this.virtualDelegate.setDynamicHeight(item.element, item.size);
+		}
+
 		item.lastDynamicHeightWidth = this.renderWidth;
 		this.rowsContainer.removeChild(row.domNode!);
 		this.cache.release(row);
