@@ -16,6 +16,7 @@
 	display: inherit;
 	text-align: center;
 	padding-top: 3em;
+	height: 100%;
 }
 
 .monaco-workbench .action-label.calls-to {
