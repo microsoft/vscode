@@ -26,6 +26,7 @@ export interface IDialogStyles extends IButtonStyles {
 	dialogForeground?: Color;
 	dialogBackground?: Color;
 	dialogShadow?: Color;
+	dialogBorder?: Color;
 }
 
 export class Dialog extends Disposable {
@@ -161,11 +162,13 @@ export class Dialog extends Disposable {
 			const fgColor = style.dialogForeground ? `${style.dialogForeground}` : null;
 			const bgColor = style.dialogBackground ? `${style.dialogBackground}` : null;
 			const shadowColor = style.dialogShadow ? `0 0px 8px ${style.dialogShadow}` : null;
+			const border = style.dialogBorder ? `1px solid ${style.dialogBorder}` : null;
 
 			if (this.element) {
 				this.element.style.color = fgColor;
 				this.element.style.backgroundColor = bgColor;
 				this.element.style.boxShadow = shadowColor;
+				this.element.style.border = border;
 
 				if (this.buttonGroup) {
 					this.buttonGroup.buttons.forEach(button => button.style(style));
