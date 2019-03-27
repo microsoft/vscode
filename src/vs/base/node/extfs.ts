@@ -304,12 +304,12 @@ export function mv(source: string, target: string, callback: (error: Error | nul
 			return callback(err);
 		}
 
-		fs.stat(target, (error, stat) => {
+		fs.lstat(target, (error, stat) => {
 			if (error) {
 				return callback(error);
 			}
 
-			if (stat.isDirectory()) {
+			if (stat.isDirectory() || stat.isSymbolicLink()) {
 				return callback(null);
 			}
 
