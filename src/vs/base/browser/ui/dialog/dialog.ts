@@ -49,12 +49,14 @@ export class Dialog extends Disposable {
 		const messageRowElement = this.element.appendChild($('.dialog-message-row'));
 		this.iconElement = messageRowElement.appendChild($('.dialog-icon'));
 		const messageContainer = messageRowElement.appendChild($('.dialog-message-container'));
-		const messageElement = messageContainer.appendChild($('.dialog-message'));
-		messageElement.innerText = this.message;
+
 		if (this.options.detail) {
-			const messageDetailElement = messageContainer.appendChild($('.dialog-message-detail'));
-			messageDetailElement.innerText = this.options.detail;
+			const messageElement = messageContainer.appendChild($('.dialog-message'));
+			messageElement.innerText = this.message;
 		}
+
+		const messageDetailElement = messageContainer.appendChild($('.dialog-message-detail'));
+		messageDetailElement.innerText = this.options.detail ? this.options.detail : message;
 
 		const toolbarRowElement = this.element.appendChild($('.dialog-toolbar-row'));
 		this.toolbarContainer = toolbarRowElement.appendChild($('.dialog-toolbar'));
