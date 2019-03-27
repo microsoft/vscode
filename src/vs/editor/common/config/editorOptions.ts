@@ -222,7 +222,7 @@ export interface IGotoLocationOptions {
 	/**
 	 * Control how goto-command work when having multiple results.
 	 */
-	many?: 'peek' | 'revealAndPeek' | 'reveal';
+	multiple?: 'peek' | 'gotoAndPeek' | 'goto';
 }
 
 /**
@@ -936,7 +936,7 @@ export interface InternalEditorHoverOptions {
 }
 
 export interface InternalGoToLocationOptions {
-	readonly many: 'peek' | 'revealAndPeek' | 'reveal';
+	readonly multiple: 'peek' | 'gotoAndPeek' | 'goto';
 }
 
 export interface InternalSuggestOptions {
@@ -1401,7 +1401,8 @@ export class InternalEditorOptions {
 				&& a.localityBonus === b.localityBonus
 				&& a.shareSuggestSelections === b.shareSuggestSelections
 				&& a.showIcons === b.showIcons
-				&& a.maxVisibleSuggestions === b.maxVisibleSuggestions;
+				&& a.maxVisibleSuggestions === b.maxVisibleSuggestions
+				&& objects.equals(a.filteredTypes, b.filteredTypes);
 		}
 	}
 
@@ -1411,7 +1412,7 @@ export class InternalEditorOptions {
 		} else if (!a || !b) {
 			return false;
 		} else {
-			return a.many === b.many;
+			return a.multiple === b.multiple;
 		}
 	}
 
@@ -1946,7 +1947,7 @@ export class EditorOptionsValidator {
 			localityBonus: _boolean(suggestOpts.localityBonus, defaults.localityBonus),
 			shareSuggestSelections: _boolean(suggestOpts.shareSuggestSelections, defaults.shareSuggestSelections),
 			showIcons: _boolean(suggestOpts.showIcons, defaults.showIcons),
-			maxVisibleSuggestions: _clampedInt(suggestOpts.maxVisibleSuggestions, defaults.maxVisibleSuggestions, 1, 12),
+			maxVisibleSuggestions: _clampedInt(suggestOpts.maxVisibleSuggestions, defaults.maxVisibleSuggestions, 1, 15),
 			filteredTypes: isObject(suggestOpts.filteredTypes) ? suggestOpts.filteredTypes : Object.create(null)
 		};
 	}
@@ -1954,7 +1955,7 @@ export class EditorOptionsValidator {
 	private static _santizeGotoLocationOpts(opts: IEditorOptions, defaults: InternalGoToLocationOptions): InternalGoToLocationOptions {
 		const gotoOpts = opts.gotoLocation || {};
 		return {
-			many: _stringSet<'peek' | 'revealAndPeek' | 'reveal'>(gotoOpts.many, defaults.many, ['peek', 'revealAndPeek', 'reveal'])
+			multiple: _stringSet<'peek' | 'gotoAndPeek' | 'goto'>(gotoOpts.multiple, defaults.multiple, ['peek', 'gotoAndPeek', 'goto'])
 		};
 	}
 
@@ -2719,7 +2720,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 			filteredTypes: Object.create(null)
 		},
 		gotoLocation: {
-			many: 'peek'
+			multiple: 'peek'
 		},
 		selectionHighlight: true,
 		occurrencesHighlight: true,

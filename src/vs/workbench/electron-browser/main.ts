@@ -12,7 +12,7 @@ import { ElectronWindow } from 'vs/workbench/electron-browser/window';
 import { setZoomLevel, setZoomFactor, setFullscreen } from 'vs/base/browser/browser';
 import { domContentLoaded, addDisposableListener, EventType, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { isLinux, isMacintosh, isWindows, OperatingSystem } from 'vs/base/common/platform';
+import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { URI as uri } from 'vs/base/common/uri';
 import { WorkspaceService, DefaultConfigurationExportHelper } from 'vs/workbench/services/configuration/node/configurationService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -48,6 +48,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { DiskFileSystemProvider } from 'vs/workbench/services/files2/electron-browser/diskFileSystemProvider';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME, RemoteExtensionsFileSystemProvider } from 'vs/platform/remote/common/remoteAgentFileSystemChannel';
+import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 
 class CodeRendererMain extends Disposable {
 
@@ -177,27 +178,23 @@ class CodeRendererMain extends Disposable {
 		const logService = this._register(this.createLogService(mainProcessService, environmentService));
 		serviceCollection.set(ILogService, logService);
 
+		// Remote
+		const remoteAuthorityResolverService = new RemoteAuthorityResolverService();
+		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
+
+		const remoteAgentService = new RemoteAgentService(this.configuration, environmentService, remoteAuthorityResolverService);
+		serviceCollection.set(IRemoteAgentService, remoteAgentService);
+
 		// Files
 		const fileService = new FileService2(logService);
 		serviceCollection.set(IFileService, fileService);
 
 		fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(logService));
 
-		// Remote
-		const remoteAuthorityResolverService = new RemoteAuthorityResolverService();
-		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
-		const remoteAgentService = new RemoteAgentService(this.configuration, environmentService, remoteAuthorityResolverService);
-		serviceCollection.set(IRemoteAgentService, remoteAgentService);
-
 		const connection = remoteAgentService.getConnection();
 		if (connection) {
 			const channel = connection.getChannel<IChannel>(REMOTE_FILE_SYSTEM_CHANNEL_NAME);
-			const fileSystemProvider = new RemoteExtensionsFileSystemProvider(channel);
-			fileService.registerProvider('vscode-remote', fileSystemProvider);
-			remoteAgentService.getEnvironment().then(remoteAgentEnvironment => {
-				const isCaseSensitive = !!(remoteAgentEnvironment && remoteAgentEnvironment.os === OperatingSystem.Linux);
-				fileSystemProvider.setCaseSensitive(isCaseSensitive);
-			});
+			fileService.registerProvider(REMOTE_HOST_SCHEME, new RemoteExtensionsFileSystemProvider(channel, remoteAgentService.getEnvironment()));
 		}
 
 		return this.resolveWorkspaceInitializationPayload(environmentService).then(payload => Promise.all([

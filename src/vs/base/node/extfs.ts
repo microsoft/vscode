@@ -205,10 +205,6 @@ export function del(path: string, tmpFolder: string, callback: (error: Error | n
 
 				// do the heavy deletion outside the callers callback
 				rmRecursive(pathInTemp, error => {
-					if (error) {
-						console.error(error);
-					}
-
 					if (done) {
 						done(error);
 					}
@@ -308,12 +304,12 @@ export function mv(source: string, target: string, callback: (error: Error | nul
 			return callback(err);
 		}
 
-		fs.stat(target, (error, stat) => {
+		fs.lstat(target, (error, stat) => {
 			if (error) {
 				return callback(error);
 			}
 
-			if (stat.isDirectory()) {
+			if (stat.isDirectory() || stat.isSymbolicLink()) {
 				return callback(null);
 			}
 

@@ -10,7 +10,6 @@ import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { symbolKindToCssClass, Location } from 'vs/editor/common/modes';
-import { ILabelService } from 'vs/platform/label/common/label';
 import { Range } from 'vs/editor/common/core/range';
 import { hash } from 'vs/base/common/hash';
 
@@ -67,10 +66,6 @@ export class CallRenderer implements ITreeRenderer<Call, FuzzyScore, CallRenderi
 
 	templateId: string = CallRenderer.id;
 
-	constructor(
-		@ILabelService private readonly _labelService: ILabelService,
-	) { }
-
 	renderTemplate(container: HTMLElement): CallRenderingTemplate {
 		const iconLabel = new IconLabel(container, { supportHighlights: true });
 		return { iconLabel };
@@ -78,11 +73,10 @@ export class CallRenderer implements ITreeRenderer<Call, FuzzyScore, CallRenderi
 
 	renderElement(node: ITreeNode<Call, FuzzyScore>, _index: number, template: CallRenderingTemplate): void {
 		const { element, filterData } = node;
-		const detail = element.item.detail || this._labelService.getUriLabel(element.item.uri, { relative: true });
 
 		template.iconLabel.setLabel(
 			element.item.name,
-			detail,
+			element.item.detail,
 			{
 				labelEscapeNewLines: true,
 				matches: createMatches(filterData),

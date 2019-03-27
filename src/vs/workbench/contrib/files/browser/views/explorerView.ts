@@ -68,7 +68,6 @@ export class ExplorerView extends ViewletPanel {
 	// Refresh is needed on the initial explorer open
 	private shouldRefresh = true;
 	private dragHandler: DelayedDragHandler;
-	private decorationProvider: ExplorerDecorationsProvider;
 	private autoReveal = false;
 
 	constructor(
@@ -99,9 +98,9 @@ export class ExplorerView extends ViewletPanel {
 		this.readonlyContext = ExplorerResourceReadonlyContext.bindTo(contextKeyService);
 		this.rootContext = ExplorerRootContext.bindTo(contextKeyService);
 
-		this.decorationProvider = new ExplorerDecorationsProvider(this.explorerService, contextService);
-		decorationService.registerDecorationsProvider(this.decorationProvider);
-		this.disposables.push(this.decorationProvider);
+		const decorationProvider = new ExplorerDecorationsProvider(this.explorerService, contextService);
+		decorationService.registerDecorationsProvider(decorationProvider);
+		this.disposables.push(decorationProvider);
 		this.disposables.push(this.resourceContext);
 	}
 

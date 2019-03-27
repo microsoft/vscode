@@ -366,6 +366,7 @@ class CustomExecutionData implements IDisposable {
 	}
 
 	public dispose(): void {
+		this._cancellationSource = undefined;
 		dispose(this._disposables);
 	}
 

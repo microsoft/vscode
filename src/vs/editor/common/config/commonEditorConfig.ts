@@ -688,8 +688,8 @@ const editorConfiguration: IConfigurationNode = {
 			type: 'number',
 			default: EDITOR_DEFAULTS.contribInfo.suggest.maxVisibleSuggestions,
 			minimum: 1,
-			maximum: 12,
-			description: nls.localize('suggest.maxVisibleSuggestions', "Controls how many suggestions IntelliSense will show before showing a scrollbar.")
+			maximum: 15,
+			description: nls.localize('suggest.maxVisibleSuggestions', "Controls how many suggestions IntelliSense will show before showing a scrollbar (maximum 15).")
 		},
 		'editor.suggest.filteredTypes': {
 			type: 'object',
@@ -828,15 +828,15 @@ const editorConfiguration: IConfigurationNode = {
 				},
 			}
 		},
-		'editor.gotoLocation.many': {
-			description: nls.localize('editor.gotoLocation.many', "Controls the behaviour of 'go to'-commands, like go to definition, when multiple target locations exist."),
+		'editor.gotoLocation.multiple': {
+			description: nls.localize('editor.gotoLocation.multiple', "Controls the behavior of 'Go To' commands, like Go To Definition, when multiple target locations exist."),
 			type: 'string',
-			enum: ['peek', 'revealAndPeek', 'reveal'],
-			default: 'peek',
+			enum: ['peek', 'gotoAndPeek', 'goto'],
+			default: EDITOR_DEFAULTS.contribInfo.gotoLocation.multiple,
 			enumDescriptions: [
-				nls.localize('editor.gotoLocation.many.peek', 'Show peek view of the results at the request location'),
-				nls.localize('editor.gotoLocation.many.revealAndPeek', 'Reveal the first result and show peek view at its location'),
-				nls.localize('editor.gotoLocation.many.reveal', 'Reveal the first result and ignore others')
+				nls.localize('editor.gotoLocation.multiple.peek', 'Show peek view of the results (default)'),
+				nls.localize('editor.gotoLocation.multiple.gotoAndPeek', 'Go to the primary result and show a peek view'),
+				nls.localize('editor.gotoLocation.multiple.goto', 'Go to the primary result and ignore others')
 			]
 		},
 		'editor.selectionHighlight': {

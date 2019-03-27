@@ -689,7 +689,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	async submitComment(): Promise<void> {
 		const activeComment = this.getActiveComment();
 		if (activeComment instanceof ReviewZoneWidget) {
-			if ((this._commentThread as modes.CommentThread2).commentThreadHandle) {
+			if ((this._commentThread as modes.CommentThread2).commentThreadHandle !== undefined) {
 				let commentThread = this._commentThread as modes.CommentThread2;
 
 				if (commentThread.acceptInputCommand) {

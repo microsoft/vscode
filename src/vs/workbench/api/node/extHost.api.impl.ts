@@ -474,7 +474,7 @@ export function createApiFactory(
 			createWebviewPanel(viewType: string, title: string, showOptions: vscode.ViewColumn | { viewColumn: vscode.ViewColumn, preserveFocus?: boolean }, options: vscode.WebviewPanelOptions & vscode.WebviewOptions): vscode.WebviewPanel {
 				return extHostWebviews.createWebviewPanel(extension, viewType, title, showOptions, options);
 			},
-			createTerminal(nameOrOptions?: vscode.TerminalOptions | string, shellPath?: string, shellArgs?: string[]): vscode.Terminal {
+			createTerminal(nameOrOptions?: vscode.TerminalOptions | string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal {
 				if (typeof nameOrOptions === 'object') {
 					return extHostTerminalService.createTerminalFromOptions(<vscode.TerminalOptions>nameOrOptions);
 				}

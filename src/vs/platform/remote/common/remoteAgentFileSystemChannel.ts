@@ -10,6 +10,8 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { FileChangeType, FileDeleteOptions, FileOverwriteOptions, FileSystemProviderCapabilities, FileType, FileWriteOptions, IFileChange, IFileSystemProvider, IStat, IWatchOptions } from 'vs/platform/files/common/files';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
+import { OperatingSystem } from 'vs/base/common/platform';
 
 export const REMOTE_FILE_SYSTEM_CHANNEL_NAME = 'remotefilesystem';
 
@@ -30,12 +32,13 @@ export class RemoteExtensionsFileSystemProvider extends Disposable implements IF
 	private readonly _onDidChangeCapabilities = this._register(new Emitter<void>());
 	readonly onDidChangeCapabilities: Event<void> = this._onDidChangeCapabilities.event;
 
-	constructor(channel: IChannel) {
+	constructor(channel: IChannel, environment: Promise<IRemoteAgentEnvironment | null>) {
 		super();
 		this._session = generateUuid();
 		this._channel = channel;
 
 		this.setCaseSensitive(true);
+		environment.then(remoteAgentEnvironment => this.setCaseSensitive(!!(remoteAgentEnvironment && remoteAgentEnvironment.os === OperatingSystem.Linux)));
 
 		this._channel.listen<IFileChangeDto[]>('filechange', [this._session])((events) => {
 			this._onDidChange.fire(events.map(RemoteExtensionsFileSystemProvider._createFileChange));
