@@ -28,7 +28,7 @@ function ensureDOMFocus(widget: ListWidget | undefined): void {
 	}
 }
 
-function focusDown(accessor: ServicesAccessor, arg2?: number, loop: boolean = true): void {
+function focusDown(accessor: ServicesAccessor, arg2?: number, loop: boolean = false): void {
 	const focused = accessor.get(IListService).lastFocusedList;
 	const count = typeof arg2 === 'number' ? arg2 : 1;
 
@@ -165,7 +165,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
-function focusUp(accessor: ServicesAccessor, arg2?: number, loop: boolean = true): void {
+function focusUp(accessor: ServicesAccessor, arg2?: number, loop: boolean = false): void {
 	const focused = accessor.get(IListService).lastFocusedList;
 	const count = typeof arg2 === 'number' ? arg2 : 1;
 
