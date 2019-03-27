@@ -16,7 +16,6 @@ import { IEditorContribution, IModelChangedEvent } from 'vs/editor/common/editor
 import { IRange, Range } from 'vs/editor/common/core/range';
 import * as modes from 'vs/editor/common/modes';
 import { peekViewResultsBackground, peekViewResultsSelectionBackground, peekViewTitleBackground } from 'vs/editor/contrib/referenceSearch/referencesWidget';
-import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { editorForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -35,8 +34,6 @@ import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/c
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ctxCommentEditorFocused, SimpleCommentEditor } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
 import { onUnexpectedError } from 'vs/base/common/errors';
-
-export const ctxCommentThreadVisible = new RawContextKey<boolean>('commentThreadVisible', false);
 
 export const ID = 'editor.contrib.review';
 
@@ -161,7 +158,6 @@ export class ReviewController implements IEditorContribution {
 	private editor: ICodeEditor;
 	private _newCommentWidget?: ReviewZoneWidget;
 	private _commentWidgets: ReviewZoneWidget[];
-	private _commentThreadVisible: IContextKey<boolean>;
 	private _commentInfos: ICommentInfo[];
 	private _commentingRangeDecorator: CommentingRangeDecorator;
 	private mouseDownInfo: { lineNumber: number } | null = null;
@@ -176,7 +172,6 @@ export class ReviewController implements IEditorContribution {
 
 	constructor(
 		editor: ICodeEditor,
-		@IContextKeyService readonly contextKeyService: IContextKeyService,
 		@ICommentService private readonly commentService: ICommentService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -193,7 +188,6 @@ export class ReviewController implements IEditorContribution {
 		this._pendingNewCommentCache = {};
 		this._computePromise = null;
 
-		this._commentThreadVisible = ctxCommentThreadVisible.bindTo(contextKeyService);
 		this._commentingRangeDecorator = new CommentingRangeDecorator();
 
 		this.globalToDispose.push(this.commentService.onDidDeleteDataProvider(ownerId => {
@@ -458,7 +452,6 @@ export class ReviewController implements IEditorContribution {
 		}
 
 		// add new comment
-		this._commentThreadVisible.set(true);
 		this._newCommentWidget = this.instantiationService.createInstance(ReviewZoneWidget, this.editor, ownerId, {
 			extensionId: extensionId,
 			threadId: null,
@@ -687,8 +680,6 @@ export class ReviewController implements IEditorContribution {
 	}
 
 	public closeWidget(): void {
-		this._commentThreadVisible.reset();
-
 		if (this._newCommentWidget) {
 			this._newCommentWidget.dispose();
 			this._newCommentWidget = undefined;
@@ -783,12 +774,17 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'closeReviewPanel',
+	id: 'workbench.action.hideComment',
 	weight: KeybindingWeight.EditorContrib,
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape],
-	when: ctxCommentThreadVisible,
-	handler: closeReviewPanel
+	when: ctxCommentEditorFocused,
+	handler: (accessor, args) => {
+		const activeCodeEditor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
+		if (activeCodeEditor instanceof SimpleCommentEditor) {
+			activeCodeEditor.getParentThread().collapse();
+		}
+	}
 });
 
 export function getActiveEditor(accessor: ServicesAccessor): IActiveCodeEditor | null {
@@ -808,21 +804,6 @@ export function getActiveEditor(accessor: ServicesAccessor): IActiveCodeEditor |
 
 	return activeTextEditorWidget;
 }
-
-function closeReviewPanel(accessor: ServicesAccessor, args: any) {
-	const outerEditor = getActiveEditor(accessor);
-	if (!outerEditor) {
-		return;
-	}
-
-	const controller = ReviewController.get(outerEditor);
-	if (!controller) {
-		return;
-	}
-
-	controller.closeWidget();
-}
-
 
 registerThemingParticipant((theme, collector) => {
 	const peekViewBackground = theme.getColor(peekViewResultsBackground);
