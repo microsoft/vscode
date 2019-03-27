@@ -222,7 +222,7 @@ export interface IGotoLocationOptions {
 	/**
 	 * Control how goto-command work when having multiple results.
 	 */
-	many?: 'peek' | 'revealAndPeek' | 'reveal';
+	multiple?: 'peek' | 'gotoAndPeek' | 'goto';
 }
 
 /**
@@ -936,7 +936,7 @@ export interface InternalEditorHoverOptions {
 }
 
 export interface InternalGoToLocationOptions {
-	readonly multiple: 'peek' | 'revealAndPeek' | 'reveal';
+	readonly multiple: 'peek' | 'gotoAndPeek' | 'goto';
 }
 
 export interface InternalSuggestOptions {
@@ -1954,7 +1954,7 @@ export class EditorOptionsValidator {
 	private static _santizeGotoLocationOpts(opts: IEditorOptions, defaults: InternalGoToLocationOptions): InternalGoToLocationOptions {
 		const gotoOpts = opts.gotoLocation || {};
 		return {
-			multiple: _stringSet<'peek' | 'revealAndPeek' | 'reveal'>(gotoOpts.many, defaults.multiple, ['peek', 'revealAndPeek', 'reveal'])
+			multiple: _stringSet<'peek' | 'gotoAndPeek' | 'goto'>(gotoOpts.multiple, defaults.multiple, ['peek', 'gotoAndPeek', 'goto'])
 		};
 	}
 

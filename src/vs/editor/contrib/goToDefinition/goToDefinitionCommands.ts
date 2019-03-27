@@ -137,7 +137,7 @@ export class DefinitionAction extends EditorAction {
 			const next = model.nearestReference(editor.getModel().uri, editor.getPosition());
 			if (next) {
 				const targetEditor = await this._openReference(editor, editorService, next, this._configuration.openToSide);
-				if (targetEditor && model.references.length > 1 && gotoLocation.multiple === 'revealAndPeek') {
+				if (targetEditor && model.references.length > 1 && gotoLocation.multiple === 'gotoAndPeek') {
 					this._openInPeek(editorService, targetEditor, model);
 				} else {
 					model.dispose();

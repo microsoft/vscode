@@ -831,12 +831,12 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.gotoLocation.multiple': {
 			description: nls.localize('editor.gotoLocation.multiple', "Controls the behavior of 'Go To' commands, like Go To Definition, when multiple target locations exist."),
 			type: 'string',
-			enum: ['peek', 'revealAndPeek', 'reveal'],
+			enum: ['peek', 'gotoAndPeek', 'goto'],
 			default: EDITOR_DEFAULTS.contribInfo.gotoLocation.multiple,
 			enumDescriptions: [
-				nls.localize('editor.gotoLocation.multiple.peek', 'Show peek view of the results at the request location'),
-				nls.localize('editor.gotoLocation.multiple.revealAndPeek', 'Reveal the first result and show peek view at its location'),
-				nls.localize('editor.gotoLocation.multiple.reveal', 'Reveal the first result and ignore others')
+				nls.localize('editor.gotoLocation.multiple.peek', 'Show peek view of the results (default)'),
+				nls.localize('editor.gotoLocation.multiple.gotoAndPeek', 'Go to the first result and show a peek view'),
+				nls.localize('editor.gotoLocation.multiple.goto', 'Go to the first result and ignore others')
 			]
 		},
 		'editor.selectionHighlight': {

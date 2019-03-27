@@ -2565,7 +2565,7 @@ declare namespace monaco.editor {
 		/**
 		 * Control how goto-command work when having multiple results.
 		 */
-		many?: 'peek' | 'revealAndPeek' | 'reveal';
+		multiple?: 'peek' | 'gotoAndPeek' | 'goto';
 	}
 
 	/**
@@ -3208,7 +3208,7 @@ declare namespace monaco.editor {
 	}
 
 	export interface InternalGoToLocationOptions {
-		readonly multiple: 'peek' | 'revealAndPeek' | 'reveal';
+		readonly multiple: 'peek' | 'gotoAndPeek' | 'goto';
 	}
 
 	export interface InternalSuggestOptions {
