@@ -85,7 +85,8 @@ export class FileDialogService implements IFileDialogService {
 	}
 
 	private shouldUseSimplified(schema: string): boolean {
-		return (schema !== Schemas.file) || (this.configurationService.getValue('workbench.dialogs.useSimplified') === 'true');
+		const setting = this.configurationService.getValue('workbench.dialogs.useSimplified');
+		return (schema !== Schemas.file) || ((setting === 'true') || (setting === true));
 	}
 
 	private ensureFileSchema(schema: string): string[] {
