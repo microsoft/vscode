@@ -641,11 +641,12 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		// to give the PH process a chance to flush any outstanding console
 		// messages to the main process, we delay the exit() by some time
 		setTimeout(() => {
-			if (!!this._initData.environment.extensionTestsLocationURI) {
-				// If extension tests are running, give the exit code to the renderer
+			// If extension tests are running, give the exit code to the renderer
+			if (this._initData.remoteAuthority && !!this._initData.environment.extensionTestsLocationURI) {
 				this._mainThreadExtensionsProxy.$onExtensionHostExit(code);
 				return;
 			}
+
 			this._nativeExit(code);
 		}, 500);
 	}
