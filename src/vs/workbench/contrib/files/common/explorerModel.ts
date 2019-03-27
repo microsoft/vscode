@@ -367,3 +367,5 @@ export class ExplorerItem {
 		return null;
 	}
 }
+
+export class NewExplorerItem extends ExplorerItem { }
