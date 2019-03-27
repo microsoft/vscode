@@ -37,7 +37,7 @@ import { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
+import { ExplorerItem, NewExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ResourceLabels, IResourceLabelsContainer } from 'vs/workbench/browser/labels';
 import { createFileIconThemableTreeContainerScope } from 'vs/workbench/browser/parts/views/views';
@@ -281,7 +281,13 @@ export class ExplorerView extends ViewletPanel {
 				accessibilityProvider: new ExplorerAccessibilityProvider(),
 				ariaLabel: nls.localize('treeAriaLabel', "Files Explorer"),
 				identityProvider: {
-					getId: (stat: ExplorerItem) => stat.resource
+					getId: (stat: ExplorerItem) => {
+						if (stat instanceof NewExplorerItem) {
+							return `new:${stat.resource}`;
+						}
+
+						return stat.resource;
+					}
 				},
 				keyboardNavigationLabelProvider: {
 					getKeyboardNavigationLabel: (stat: ExplorerItem) => {
