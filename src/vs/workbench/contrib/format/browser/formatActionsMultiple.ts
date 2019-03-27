@@ -78,6 +78,9 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 				// good -> formatter configured and available
 				return defaultFormatter;
 			}
+		} else if (formatter.length === 1) {
+			// ok -> nothing configured but only one formatter available
+			return formatter[0];
 		}
 
 		const langName = this._modeService.getLanguageName(document.getModeId()) || document.getModeId();

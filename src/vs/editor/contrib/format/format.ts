@@ -105,11 +105,12 @@ export abstract class FormattingConflicts {
 	}
 
 	static async select<T extends (DocumentFormattingEditProvider | DocumentRangeFormattingEditProvider)>(formatter: T[], document: ITextModel, mode: FormattingMode): Promise<T | undefined> {
-		if (formatter.length > 1) {
-			const { value: selector } = FormattingConflicts._selectors.iterator().next();
-			if (selector) {
-				return await selector(formatter, document, mode);
-			}
+		if (formatter.length === 0) {
+			return undefined;
+		}
+		const { value: selector } = FormattingConflicts._selectors.iterator().next();
+		if (selector) {
+			return await selector(formatter, document, mode);
 		}
 		return formatter[0];
 	}
