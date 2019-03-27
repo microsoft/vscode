@@ -205,9 +205,9 @@ export enum FileType {
 
 export interface IStat {
 	type: FileType;
-	mtime?: number;
-	ctime?: number;
-	size?: number;
+	mtime: number;
+	ctime: number;
+	size: number;
 }
 
 export interface IWatchOptions {
