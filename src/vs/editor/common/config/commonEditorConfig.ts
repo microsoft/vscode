@@ -65,6 +65,7 @@ const hasOwnProperty = Object.hasOwnProperty;
 
 export abstract class CommonEditorConfiguration extends Disposable implements editorCommon.IConfiguration {
 
+	public readonly isSimpleWidget: boolean;
 	protected _rawOptions: editorOptions.IEditorOptions;
 	protected _validatedOptions: editorOptions.IValidatedEditorOptions;
 	public editor: editorOptions.InternalEditorOptions;
@@ -74,8 +75,10 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 	private _onDidChange = this._register(new Emitter<editorOptions.IConfigurationChangedEvent>());
 	public readonly onDidChange: Event<editorOptions.IConfigurationChangedEvent> = this._onDidChange.event;
 
-	constructor(options: editorOptions.IEditorOptions) {
+	constructor(isSimpleWidget: boolean, options: editorOptions.IEditorOptions) {
 		super();
+
+		this.isSimpleWidget = isSimpleWidget;
 
 		// Do a "deep clone of sorts" on the incoming options
 		this._rawOptions = objects.mixin({}, options || {});
@@ -122,7 +125,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 	private _computeInternalOptions(): editorOptions.InternalEditorOptions {
 		const opts = this._validatedOptions;
 		const partialEnv = this._getEnvConfiguration();
-		const bareFontInfo = BareFontInfo.createFromRawSettings(this._rawOptions, partialEnv.zoomLevel);
+		const bareFontInfo = BareFontInfo.createFromRawSettings(this._rawOptions, partialEnv.zoomLevel, this.isSimpleWidget);
 		const env: editorOptions.IEnvironmentalOptions = {
 			outerWidth: partialEnv.outerWidth,
 			outerHeight: partialEnv.outerHeight,
