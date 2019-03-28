@@ -206,7 +206,7 @@ export function handleANSIOutput(text: string, linkDetector: LinkDetector, theme
 			if (colorType === 'background') {
 				colorNumber += 10;
 			}
-			changeColor(colorNumber, colorType);
+			setBasicColor(colorNumber);
 		}
 	}
 
