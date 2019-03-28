@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 
-const knownSchemes = ['http:', 'https:', 'file:', 'mailto:', 'data:', 'vscode-resource:'];
+const knownSchemes = ['http:', 'https:', 'file:', 'mailto:', 'data:', 'vscode:', 'vscode-resource:'];
 
 export function getUriForLinkWithKnownExternalScheme(
 	link: string,
