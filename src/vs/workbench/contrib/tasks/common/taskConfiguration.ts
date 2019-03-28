@@ -92,7 +92,7 @@ export interface PresentationOptionsConfig {
 	reveal?: string;
 
 	/**
-	 * Controls whether the problems pane is revealed when running this task or not.
+	 * Controls whether the problems panel is revealed when running this task or not.
 	 * Defaults to `RevealKind.Never`.
 	 */
 	revealProblem?: string;

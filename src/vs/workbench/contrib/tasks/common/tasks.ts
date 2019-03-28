@@ -150,18 +150,18 @@ export namespace RevealKind {
 
 export enum RevealProblemKind {
 	/**
-	 * Never reveals the problems pane when this task is executed.
+	 * Never reveals the problems panel when this task is executed.
 	 */
 	Never = 1,
 
 
 	/**
-	 * Only reveals the problems pane if a problem is found.
+	 * Only reveals the problems panel if a problem is found.
 	 */
 	OnProblemFound = 2,
 
 	/**
-	 * Never reveals the problems pane when this task is executed.
+	 * Never reveals the problems panel when this task is executed.
 	 */
 	Always = 3
 }
