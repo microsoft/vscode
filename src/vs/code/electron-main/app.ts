@@ -14,7 +14,8 @@ import { getShellEnvironment } from 'vs/code/node/shellEnv';
 import { IUpdateService } from 'vs/platform/update/common/update';
 import { UpdateChannel } from 'vs/platform/update/node/updateIpc';
 import { Server as ElectronIPCServer } from 'vs/base/parts/ipc/electron-main/ipc.electron-main';
-import { Server, connect, Client } from 'vs/base/parts/ipc/node/ipc.net';
+import { Client } from 'vs/base/parts/ipc/common/ipc.net';
+import { Server, connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { SharedProcess } from 'vs/code/electron-main/sharedProcess';
 import { LaunchService, LaunchChannel, ILaunchService } from 'vs/platform/launch/electron-main/launchService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -55,7 +56,7 @@ import { LogLevelSetterChannel } from 'vs/platform/log/node/logIpc';
 import * as errors from 'vs/base/common/errors';
 import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
 import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
-import { connectRemoteAgentManagement, ManagementPersistentConnection } from 'vs/platform/remote/node/remoteAgentConnection';
+import { connectRemoteAgentManagement, ManagementPersistentConnection, IConnectionOptions } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IMenubarService } from 'vs/platform/menubar/common/menubar';
 import { MenubarService } from 'vs/platform/menubar/electron-main/menubarService';
 import { MenubarChannel } from 'vs/platform/menubar/node/menubarIpc';
@@ -67,7 +68,7 @@ import { homedir } from 'os';
 import { join, sep } from 'vs/base/common/path';
 import { localize } from 'vs/nls';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
-import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from 'vs/platform/remote/node/remoteAgentFileSystemChannel';
+import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from 'vs/platform/remote/common/remoteAgentFileSystemChannel';
 import { ResolvedAuthority } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { SnapUpdateService } from 'vs/platform/update/electron-main/updateService.snap';
 import { IStorageMainService, StorageMainService } from 'vs/platform/storage/node/storageMainService';
@@ -79,6 +80,7 @@ import { HistoryMainService } from 'vs/platform/history/electron-main/historyMai
 import { URLService } from 'vs/platform/url/common/urlService';
 import { WorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
+import { nodeWebSocketFactory } from 'vs/platform/remote/node/nodeWebSocketFactory';
 
 export class CodeApplication extends Disposable {
 
@@ -683,7 +685,17 @@ export class CodeApplication extends Disposable {
 
 			constructor(authority: string, host: string, port: number) {
 				this._authority = authority;
-				this._connection = connectRemoteAgentManagement(authority, host, port, `main`, isBuilt);
+				const options: IConnectionOptions = {
+					isBuilt: isBuilt,
+					commit: product.commit,
+					webSocketFactory: nodeWebSocketFactory,
+					addressProvider: {
+						getAddress: () => {
+							return Promise.resolve({ host, port });
+						}
+					}
+				};
+				this._connection = connectRemoteAgentManagement(options, authority, `main`);
 				this._disposeRunner = new RunOnceScheduler(() => this.dispose(), 5000);
 			}
 

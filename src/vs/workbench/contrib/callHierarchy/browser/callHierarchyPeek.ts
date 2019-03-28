@@ -157,6 +157,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		addClass(message, 'message');
 		parent.appendChild(message);
 		this._message = message;
+		this._message.tabIndex = 0;
 
 		const container = document.createElement('div');
 		addClass(container, 'results');
@@ -340,6 +341,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		this.setMetaTitle('');
 		this._message.innerText = message;
 		this._show();
+		this._message.focus();
 	}
 
 	async showItem(item: CallHierarchyItem): Promise<void> {

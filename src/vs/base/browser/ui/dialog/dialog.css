@@ -10,17 +10,16 @@
 	left:0;
 	top:0;
 	z-index: 2000;
+	display: flex;
+	justify-content: center;
+	align-items: center;
 }
 
 /** Dialog: Container */
 .monaco-workbench .dialog-box {
-	position: absolute;
 	display: flex;
 	flex-direction: column-reverse;
-	top: 200px;
-	left: 50%;
-	margin-left: -250px;
-	width: 500px;
+	min-width: 500px;
 	min-height: 75px;
 	padding: 5px;
 }

@@ -58,7 +58,7 @@ class ServerReadyDetector extends vscode.Disposable {
 	private constructor(private session: vscode.DebugSession) {
 		super(() => this.internalDispose());
 
-		this.regexp = new RegExp(session.configuration.serverReadyAction.pattern || PATTERN);
+		this.regexp = new RegExp(session.configuration.serverReadyAction.pattern || PATTERN, 'i');
 	}
 
 	private internalDispose() {
@@ -198,8 +198,18 @@ function startTrackerForType(context: vscode.ExtensionContext, type: string) {
 				let runInTerminalRequestSeq: number | undefined;
 				return {
 					onDidSendMessage: m => {
-						if (m.type === 'event' && m.event === 'output' && m.body.output) {
-							detector.detectPattern(m.body.output);
+						if (m.type === 'event' && m.event === 'output' && m.body) {
+							switch (m.body.category) {
+								case 'console':
+								case 'stderr':
+								case 'stdout':
+									if (m.body.output) {
+										detector.detectPattern(m.body.output);
+									}
+									break;
+								default:
+									break;
+							}
 						}
 						if (m.type === 'request' && m.command === 'runInTerminal' && m.arguments) {
 							if (m.arguments.kind === 'integrated') {

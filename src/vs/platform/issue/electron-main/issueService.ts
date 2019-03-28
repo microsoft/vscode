@@ -214,6 +214,12 @@ export class IssueService implements IIssueService {
 		});
 	}
 
+	public getSystemStatus(): Promise<string> {
+		return this.launchService.getMainProcessInfo().then(info => {
+			return this.diagnosticsService.getDiagnostics(info);
+		});
+	}
+
 	private getWindowPosition(parentWindow: BrowserWindow, defaultWidth: number, defaultHeight: number): IWindowState {
 		// We want the new window to open on the same display that the parent is in
 		let displayToUse: Electron.Display | undefined;

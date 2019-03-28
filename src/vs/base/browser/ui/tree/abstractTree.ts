@@ -14,7 +14,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { ITreeModel, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent, ITreeFilter, ITreeNavigator, ICollapseStateChangeEvent, ITreeDragAndDrop, TreeDragOverBubble, TreeVisibility, TreeFilterResult, ITreeModelSpliceEvent } from 'vs/base/browser/ui/tree/tree';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { IDragAndDropData, StaticDND, DragAndDropData } from 'vs/base/browser/dnd';
-import { range, equals } from 'vs/base/common/arrays';
+import { range, equals, distinctES6 } from 'vs/base/common/arrays';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { domEvent } from 'vs/base/browser/event';
 import { fuzzyScore, FuzzyScore } from 'vs/base/common/filters';
@@ -24,6 +24,7 @@ import { disposableTimeout } from 'vs/base/common/async';
 import { isMacintosh } from 'vs/base/common/platform';
 import { values } from 'vs/base/common/map';
 import { clamp } from 'vs/base/common/numbers';
+import { ScrollEvent } from 'vs/base/common/scrollable';
 
 function asTreeDragAndDropData<T, TFilterData>(data: IDragAndDropData): IDragAndDropData {
 	if (data instanceof ElementsDragAndDropData) {
@@ -176,6 +177,12 @@ export class ComposedTreeDelegate<T, N extends { element: T }> implements IListV
 
 	hasDynamicHeight(element: N): boolean {
 		return !!this.delegate.hasDynamicHeight && this.delegate.hasDynamicHeight(element.element);
+	}
+
+	setDynamicHeight(element: N, height: number): void {
+		if (this.delegate.setDynamicHeight) {
+			this.delegate.setDynamicHeight(element.element, height);
+		}
 	}
 }
 
@@ -502,7 +509,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 			.map(e => new StandardKeyboardEvent(e))
 			.filter(this.keyboardNavigationEventFilter || (() => true))
 			.filter(() => this.automaticKeyboardNavigation || this.triggered)
-			.filter(e => isPrintableCharEvent(e) || ((this.pattern.length > 0 || this.triggered) && ((e.keyCode === KeyCode.Escape || e.keyCode === KeyCode.Backspace) && !e.altKey && !e.ctrlKey && !e.metaKey) || (e.keyCode === KeyCode.Backspace && (isMacintosh ? e.altKey : e.ctrlKey) && !e.shiftKey)))
+			.filter(e => isPrintableCharEvent(e) || ((this.pattern.length > 0 || this.triggered) && ((e.keyCode === KeyCode.Escape || e.keyCode === KeyCode.Backspace) && !e.altKey && !e.ctrlKey && !e.metaKey) || (e.keyCode === KeyCode.Backspace && (isMacintosh ? (e.altKey && !e.metaKey) : e.ctrlKey) && !e.shiftKey)))
 			.forEach(e => { e.stopPropagation(); e.preventDefault(); })
 			.event;
 
@@ -924,7 +931,7 @@ class TreeNodeList<T, TFilterData, TRef> extends List<ITreeNode<T, TFilterData>>
 		const additionalSelection: number[] = [];
 
 		elements.forEach((node, index) => {
-			if (this.selectionTrait.has(node)) {
+			if (this.focusTrait.has(node)) {
 				additionalFocus.push(start + index);
 			}
 
@@ -934,11 +941,11 @@ class TreeNodeList<T, TFilterData, TRef> extends List<ITreeNode<T, TFilterData>>
 		});
 
 		if (additionalFocus.length > 0) {
-			super.setFocus([...super.getFocus(), ...additionalFocus]);
+			super.setFocus(distinctES6([...super.getFocus(), ...additionalFocus]));
 		}
 
 		if (additionalSelection.length > 0) {
-			super.setSelection([...super.getSelection(), ...additionalSelection]);
+			super.setSelection(distinctES6([...super.getSelection(), ...additionalSelection]));
 		}
 	}
 
@@ -971,7 +978,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	private focusNavigationFilter: ((node: ITreeNode<T, TFilterData>) => boolean) | undefined;
 	protected disposables: IDisposable[] = [];
 
-	get onDidScroll(): Event<void> { return this.view.onDidScroll; }
+	get onDidScroll(): Event<ScrollEvent> { return this.view.onDidScroll; }
 
 	get onDidChangeFocus(): Event<ITreeEvent<T>> { return this.eventBufferer.wrapEvent(this.focus.onDidChange); }
 	get onDidChangeSelection(): Event<ITreeEvent<T>> { return this.eventBufferer.wrapEvent(this.selection.onDidChange); }

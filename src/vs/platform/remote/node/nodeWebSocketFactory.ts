@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .format-show-extension {
-	background-image: url('configure.svg');
-}
+import { IWebSocketFactory, IConnectCallback } from 'vs/platform/remote/common/remoteAgentConnection';
 
-.vs-dark .monaco-workbench .format-show-extension,
-.hc-black .monaco-workbench .format-show-extension {
-	background-image: url('configure-inverse.svg');
-}
+export const nodeWebSocketFactory = new class implements IWebSocketFactory {
+	connect(host: string, port: number, query: string, callback: IConnectCallback): void {
+		throw new Error(`Not implemented`);
+	}
+};

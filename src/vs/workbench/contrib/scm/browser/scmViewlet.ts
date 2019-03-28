@@ -1181,6 +1181,10 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 			this.viewsModel.setVisible(MainPanel.ID, false);
 		}
 
+		if (repositoryCount === 1) {
+			this.viewsModel.setVisible(this.viewDescriptors[0].id, true);
+		}
+
 		toggleClass(this.el, 'empty', repositoryCount === 0);
 		this.repositoryCount = repositoryCount;
 	}

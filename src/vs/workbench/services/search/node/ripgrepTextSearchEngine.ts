@@ -140,6 +140,10 @@ export function rgErrorMsgForDisplay(msg: string): Maybe<SearchError> {
 		return new SearchError(firstLine.charAt(0).toUpperCase() + firstLine.substr(1), SearchErrorCode.invalidLiteral);
 	}
 
+	if (startsWith(firstLine, 'PCRE2: error compiling pattern')) {
+		return new SearchError(firstLine, SearchErrorCode.regexParseError);
+	}
+
 	return undefined;
 }
 

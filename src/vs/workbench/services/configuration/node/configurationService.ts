@@ -28,9 +28,8 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import product from 'vs/platform/product/node/product';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ConfigurationEditingService } from 'vs/workbench/services/configuration/common/configurationEditingService';
-import { WorkspaceConfiguration, FolderConfiguration, RemoteUserConfiguration } from 'vs/workbench/services/configuration/node/configuration';
+import { WorkspaceConfiguration, FolderConfiguration, RemoteUserConfiguration, LocalUserConfiguration } from 'vs/workbench/services/configuration/node/configuration';
 import { JSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditingService';
-import { UserConfiguration } from 'vs/platform/configuration/node/configuration';
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { localize } from 'vs/nls';
 import { isEqual, dirname } from 'vs/base/common/resources';
@@ -47,7 +46,7 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 	private completeWorkspaceBarrier: Barrier;
 	private _configuration: Configuration;
 	private defaultConfiguration: DefaultConfigurationModel;
-	private localUserConfiguration: UserConfiguration;
+	private localUserConfiguration: LocalUserConfiguration;
 	private remoteUserConfiguration: RemoteUserConfiguration | null = null;
 	private workspaceConfiguration: WorkspaceConfiguration;
 	private cachedFolderConfigs: ResourceMap<FolderConfiguration>;
@@ -75,13 +74,13 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 
 		this.completeWorkspaceBarrier = new Barrier();
 		this.defaultConfiguration = new DefaultConfigurationModel();
-		this.localUserConfiguration = this._register(new UserConfiguration(environmentService.appSettingsPath));
+		this.localUserConfiguration = this._register(new LocalUserConfiguration(environmentService));
+		this._register(this.localUserConfiguration.onDidChangeConfiguration(userConfiguration => this.onLocalUserConfigurationChanged(userConfiguration)));
 		if (configuration.remoteAuthority) {
 			this.remoteUserConfiguration = this._register(new RemoteUserConfiguration(configuration.remoteAuthority, environmentService));
 			this._register(this.remoteUserConfiguration.onDidChangeConfiguration(userConfiguration => this.onRemoteUserConfigurationChanged(userConfiguration)));
 		}
 		this.workspaceConfiguration = this._register(new WorkspaceConfiguration(environmentService));
-		this._register(this.localUserConfiguration.onDidChangeConfiguration(userConfiguration => this.onLocalUserConfigurationChanged(userConfiguration)));
 		this._register(this.workspaceConfiguration.onDidUpdateConfiguration(() => this.onWorkspaceConfigurationChanged()));
 
 		this._register(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidSchemaChange(e => this.registerConfigurationSchemas()));
@@ -296,6 +295,7 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 	acquireFileService(fileService: IFileService): void {
 		this.fileService = fileService;
 		const changedWorkspaceFolders: IWorkspaceFolder[] = [];
+		this.localUserConfiguration.adopt(fileService);
 		Promise.all([this.workspaceConfiguration.adopt(fileService), ...this.cachedFolderConfigs.values()
 			.map(folderConfiguration => folderConfiguration.adopt(fileService)
 				.then(result => {
@@ -446,12 +446,12 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 	}
 
 	private initializeUserConfiguration(): Promise<{ local: ConfigurationModel, remote: ConfigurationModel }> {
-		return Promise.all([this.localUserConfiguration.initialize(), this.remoteUserConfiguration ? this.remoteUserConfiguration.load() : Promise.resolve(new ConfigurationModel())])
+		return Promise.all([this.localUserConfiguration.initialize(), this.remoteUserConfiguration ? this.remoteUserConfiguration.initialize() : Promise.resolve(new ConfigurationModel())])
 			.then(([local, remote]) => ({ local, remote }));
 	}
 
 	private reloadUserConfiguration(key?: string): Promise<{ local: ConfigurationModel, remote: ConfigurationModel }> {
-		return Promise.all([this.localUserConfiguration.reload(), this.remoteUserConfiguration ? this.remoteUserConfiguration.load() : Promise.resolve(new ConfigurationModel())])
+		return Promise.all([this.localUserConfiguration.reload(), this.remoteUserConfiguration ? this.remoteUserConfiguration.reload() : Promise.resolve(new ConfigurationModel())])
 			.then(([local, remote]) => ({ local, remote }));
 	}
 
@@ -645,7 +645,13 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 			.then(() => {
 				switch (target) {
 					case ConfigurationTarget.USER:
-						return this.reloadUserConfiguration().then(_ => Promise.resolve());
+						return this.reloadUserConfiguration()
+							.then(({ local, remote }) => {
+								this.onLocalUserConfigurationChanged(local);
+								if (this.remoteUserConfiguration) {
+									this.onRemoteUserConfigurationChanged(remote);
+								}
+							});
 					case ConfigurationTarget.WORKSPACE:
 						return this.reloadWorkspaceConfiguration();
 					case ConfigurationTarget.WORKSPACE_FOLDER:

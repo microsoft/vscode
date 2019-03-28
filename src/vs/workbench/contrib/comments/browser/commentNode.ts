@@ -19,8 +19,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { inputValidationErrorBorder } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ICommentService } from 'vs/workbench/contrib/comments/electron-browser/commentService';
-import { SimpleCommentEditor } from 'vs/workbench/contrib/comments/electron-browser/simpleCommentEditor';
+import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
+import { SimpleCommentEditor } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -144,7 +144,7 @@ export class CommentNode extends Disposable {
 		let reactionGroup = this.commentService.getReactionGroup(this.owner);
 		if (reactionGroup && reactionGroup.length) {
 			let commentThread = this.commentThread as modes.CommentThread2;
-			if (commentThread.commentThreadHandle) {
+			if (commentThread.commentThreadHandle !== undefined) {
 				let toggleReactionAction = this.createReactionPicker2();
 				actions.push(toggleReactionAction);
 			} else {
@@ -327,7 +327,7 @@ export class CommentNode extends Disposable {
 			let action = new ReactionAction(`reaction.${reaction.label}`, `${reaction.label}`, reaction.hasReacted && reaction.canEdit ? 'active' : '', reaction.canEdit, async () => {
 				try {
 					let commentThread = this.commentThread as modes.CommentThread2;
-					if (commentThread.commentThreadHandle) {
+					if (commentThread.commentThreadHandle !== undefined) {
 						await this.commentService.toggleReaction(this.owner, this.resource, this.commentThread as modes.CommentThread2, this.comment, reaction);
 					} else {
 						if (reaction.hasReacted) {
@@ -360,7 +360,7 @@ export class CommentNode extends Disposable {
 		let reactionGroup = this.commentService.getReactionGroup(this.owner);
 		if (reactionGroup && reactionGroup.length) {
 			let commentThread = this.commentThread as modes.CommentThread2;
-			if (commentThread.commentThreadHandle) {
+			if (commentThread.commentThreadHandle !== undefined) {
 				let toggleReactionAction = this.createReactionPicker2();
 				this._reactionsActionBar.push(toggleReactionAction, { label: false, icon: true });
 			} else {
@@ -386,7 +386,7 @@ export class CommentNode extends Disposable {
 		this._commentEditor.setSelection(new Selection(lastLine, lastColumn, lastLine, lastColumn));
 
 		let commentThread = this.commentThread as modes.CommentThread2;
-		if (commentThread.commentThreadHandle) {
+		if (commentThread.commentThreadHandle !== undefined) {
 			commentThread.input = {
 				uri: this._commentEditor.getModel()!.uri,
 				value: this.comment.body.value

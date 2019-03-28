@@ -9,6 +9,9 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { FileChangeType, FileDeleteOptions, FileOverwriteOptions, FileSystemProviderCapabilities, FileType, FileWriteOptions, IFileChange, IFileSystemProvider, IStat, IWatchOptions } from 'vs/platform/files/common/files';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
+import { OperatingSystem } from 'vs/base/common/platform';
 
 export const REMOTE_FILE_SYSTEM_CHANNEL_NAME = 'remotefilesystem';
 
@@ -29,12 +32,13 @@ export class RemoteExtensionsFileSystemProvider extends Disposable implements IF
 	private readonly _onDidChangeCapabilities = this._register(new Emitter<void>());
 	readonly onDidChangeCapabilities: Event<void> = this._onDidChangeCapabilities.event;
 
-	constructor(channel: IChannel) {
+	constructor(channel: IChannel, environment: Promise<IRemoteAgentEnvironment | null>) {
 		super();
 		this._session = generateUuid();
 		this._channel = channel;
 
 		this.setCaseSensitive(true);
+		environment.then(remoteAgentEnvironment => this.setCaseSensitive(!!(remoteAgentEnvironment && remoteAgentEnvironment.os === OperatingSystem.Linux)));
 
 		this._channel.listen<IFileChangeDto[]>('filechange', [this._session])((events) => {
 			this._onDidChange.fire(events.map(RemoteExtensionsFileSystemProvider._createFileChange));
@@ -71,20 +75,17 @@ export class RemoteExtensionsFileSystemProvider extends Disposable implements IF
 
 	// --- forwarding calls
 
-	private static _asBuffer(data: Uint8Array): Buffer {
-		return Buffer.isBuffer(data) ? data : Buffer.from(data.buffer, data.byteOffset, data.byteLength);
-	}
-
 	stat(resource: URI): Promise<IStat> {
 		return this._channel.call('stat', [resource]);
 	}
 
-	readFile(resource: URI): Promise<Uint8Array> {
-		return this._channel.call('readFile', [resource]);
+	async readFile(resource: URI): Promise<Uint8Array> {
+		const buff = <VSBuffer>await this._channel.call('readFile', [resource]);
+		return buff.buffer;
 	}
 
 	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
-		const contents = RemoteExtensionsFileSystemProvider._asBuffer(content);
+		const contents = VSBuffer.wrap(content);
 		return this._channel.call('writeFile', [resource, contents, opts]);
 	}
 

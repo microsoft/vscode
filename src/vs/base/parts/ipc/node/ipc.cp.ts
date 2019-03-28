@@ -26,7 +26,7 @@ export class Server<TContext extends string> extends IPCServer<TContext> {
 			send: r => {
 				try {
 					if (process.send) {
-						process.send(r.toBuffer().toString('base64'));
+						process.send((<Buffer>r.buffer).toString('base64'));
 					}
 				} catch (e) { /* not much to do */ }
 			},
@@ -215,7 +215,7 @@ export class Client implements IChannelClient, IDisposable {
 			});
 
 			const sender = this.options.useQueue ? createQueuedSender(this.child) : this.child;
-			const send = (r: VSBuffer) => this.child && this.child.connected && sender.send(r.toBuffer().toString('base64'));
+			const send = (r: VSBuffer) => this.child && this.child.connected && sender.send((<Buffer>r.buffer).toString('base64'));
 			const onMessage = onMessageEmitter.event;
 			const protocol = { send, onMessage };
 

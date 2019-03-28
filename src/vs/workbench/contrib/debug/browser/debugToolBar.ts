@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/debugToolbar';
+import 'vs/css!./media/debugToolBar';
 import * as errors from 'vs/base/common/errors';
 import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
@@ -46,14 +46,14 @@ export const debugToolBarBorder = registerColor('debugToolBar.border', {
 	hc: null
 }, localize('debugToolBarBorder', "Debug toolbar border color."));
 
-export class DebugToolbar extends Themable implements IWorkbenchContribution {
+export class DebugToolBar extends Themable implements IWorkbenchContribution {
 
 	private $el: HTMLElement;
 	private dragArea: HTMLElement;
 	private actionBar: ActionBar;
 	private activeActions: IAction[];
 	private updateScheduler: RunOnceScheduler;
-	private debugToolbarMenu: IMenu;
+	private debugToolBarMenu: IMenu;
 
 	private isVisible: boolean;
 	private isBuilt: boolean;
@@ -81,8 +81,8 @@ export class DebugToolbar extends Themable implements IWorkbenchContribution {
 		this.dragArea = dom.append(this.$el, dom.$('div.drag-area'));
 
 		const actionBarContainer = dom.append(this.$el, dom.$('div.action-bar-container'));
-		this.debugToolbarMenu = menuService.createMenu(MenuId.DebugToolbar, contextKeyService);
-		this.toDispose.push(this.debugToolbarMenu);
+		this.debugToolBarMenu = menuService.createMenu(MenuId.DebugToolBar, contextKeyService);
+		this.toDispose.push(this.debugToolBarMenu);
 
 		this.activeActions = [];
 		this.actionBar = this._register(new ActionBar(actionBarContainer, {
@@ -106,7 +106,7 @@ export class DebugToolbar extends Themable implements IWorkbenchContribution {
 				return this.hide();
 			}
 
-			const actions = DebugToolbar.getActions(this.debugToolbarMenu, this.debugService, this.instantiationService);
+			const actions = DebugToolBar.getActions(this.debugToolBarMenu, this.debugService, this.instantiationService);
 			if (!arrays.equals(actions, this.activeActions, (first, second) => first.id === second.id)) {
 				this.actionBar.clear();
 				this.actionBar.push(actions, { icon: true, label: false });

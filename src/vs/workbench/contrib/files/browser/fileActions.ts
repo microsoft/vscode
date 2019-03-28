@@ -42,7 +42,7 @@ import { Constants } from 'vs/editor/common/core/uint';
 import { CLOSE_EDITORS_AND_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { coalesce } from 'vs/base/common/arrays';
 import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
+import { ExplorerItem, NewExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { sequence } from 'vs/base/common/async';
 
@@ -94,7 +94,6 @@ export class BaseErrorReportingAction extends Action {
 	}
 }
 
-const PLACEHOLDER_URI = URI.file('');
 function refreshIfSeparator(value: string, explorerService: IExplorerService): void {
 	if (value && ((value.indexOf('/') >= 0) || (value.indexOf('\\') >= 0))) {
 		// New input contains separator, multiple resources will get created workaround for #68204
@@ -137,7 +136,7 @@ export class NewFileAction extends BaseErrorReportingAction {
 			return Promise.reject(new Error('Parent folder is readonly.'));
 		}
 
-		const stat = new ExplorerItem(PLACEHOLDER_URI, folder, false);
+		const stat = new NewExplorerItem(folder, false);
 		return folder.fetchChildren(this.fileService, this.explorerService).then(() => {
 			folder.addChild(stat);
 
@@ -205,7 +204,7 @@ export class NewFolderAction extends BaseErrorReportingAction {
 			return Promise.reject(new Error('Parent folder is readonly.'));
 		}
 
-		const stat = new ExplorerItem(PLACEHOLDER_URI, folder, true);
+		const stat = new NewExplorerItem(folder, true);
 		return folder.fetchChildren(this.fileService, this.explorerService).then(() => {
 			folder.addChild(stat);
 

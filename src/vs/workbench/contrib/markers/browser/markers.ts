@@ -61,15 +61,16 @@ export class ActivityUpdater extends Disposable implements IWorkbenchContributio
 
 	constructor(
 		@IActivityService private readonly activityService: IActivityService,
-		@IMarkersWorkbenchService private readonly markersWorkbenchService: IMarkersWorkbenchService
+		@IMarkerService private readonly markerService: IMarkerService
 	) {
 		super();
-		this._register(this.markersWorkbenchService.markersModel.onDidChange(() => this.updateBadge()));
+		this._register(this.markerService.onMarkerChanged(() => this.updateBadge()));
 		this.updateBadge();
 	}
 
 	private updateBadge(): void {
-		const total = this.markersWorkbenchService.markersModel.resourceMarkers.reduce((r, rm) => r + rm.markers.length, 0);
+		const { errors, warnings, infos } = this.markerService.getStatistics();
+		const total = errors + warnings + infos;
 		const message = localize('totalProblems', 'Total {0} Problems', total);
 		this.activityService.showActivity(Constants.MARKERS_PANEL_ID, new NumberBadge(total, () => message));
 	}

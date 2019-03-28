@@ -119,8 +119,8 @@ registerEditorAction(class extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.showCallHierarchy',
-			label: localize('title', "Call Hierarchy"),
-			alias: 'Call Hierarchy',
+			label: localize('title', "Peek Call Hierarchy"),
+			alias: 'Peek Call Hierarchy',
 			menuOpts: {
 				group: 'navigation',
 				order: 1.48

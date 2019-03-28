@@ -74,12 +74,6 @@
           "meta.tag string.quoted": "other"
         }
       }
-    ],
-    "snippets": [
-      {
-        "language": "html",
-        "path": "./snippets/html.snippets.json"
-      }
     ]
   }
 }

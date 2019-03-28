@@ -80,7 +80,7 @@ export class BareFontInfo {
 		fontSize?: number | string;
 		lineHeight?: number | string;
 		letterSpacing?: number | string;
-	}, zoomLevel: number): BareFontInfo {
+	}, zoomLevel: number, ignoreEditorZoom: boolean = false): BareFontInfo {
 
 		let fontFamily = _string(opts.fontFamily, EDITOR_FONT_DEFAULTS.fontFamily);
 		let fontWeight = _string(opts.fontWeight, EDITOR_FONT_DEFAULTS.fontWeight);
@@ -105,7 +105,7 @@ export class BareFontInfo {
 		let letterSpacing = safeParseFloat(opts.letterSpacing, 0);
 		letterSpacing = clamp(letterSpacing, MINIMUM_LETTER_SPACING, MAXIMUM_LETTER_SPACING);
 
-		let editorZoomLevelMultiplier = 1 + (EditorZoom.getZoomLevel() * 0.1);
+		let editorZoomLevelMultiplier = 1 + (ignoreEditorZoom ? 0 : EditorZoom.getZoomLevel() * 0.1);
 		fontSize *= editorZoomLevelMultiplier;
 		lineHeight *= editorZoomLevelMultiplier;
 

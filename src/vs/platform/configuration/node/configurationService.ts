@@ -11,14 +11,14 @@ import { DefaultConfigurationModel, Configuration, ConfigurationChangeEvent, Con
 import { Event, Emitter } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { UserConfiguration } from 'vs/platform/configuration/node/configuration';
+import { NodeBasedUserConfiguration } from 'vs/platform/configuration/node/configuration';
 
 export class ConfigurationService extends Disposable implements IConfigurationService, IDisposable {
 
 	_serviceBrand: any;
 
 	private _configuration: Configuration;
-	private userConfiguration: UserConfiguration;
+	private userConfiguration: NodeBasedUserConfiguration;
 
 	private readonly _onDidChangeConfiguration: Emitter<IConfigurationChangeEvent> = this._register(new Emitter<IConfigurationChangeEvent>());
 	readonly onDidChangeConfiguration: Event<IConfigurationChangeEvent> = this._onDidChangeConfiguration.event;
@@ -28,7 +28,7 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 	) {
 		super();
 
-		this.userConfiguration = this._register(new UserConfiguration(environmentService.appSettingsPath));
+		this.userConfiguration = this._register(new NodeBasedUserConfiguration(environmentService.appSettingsPath));
 
 		// Initialize
 		const defaults = new DefaultConfigurationModel();

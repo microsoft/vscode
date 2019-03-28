@@ -149,7 +149,19 @@ export function registerCommands(): void {
 		primary: KeyCode.F6,
 		when: CONTEXT_DEBUG_STATE.isEqualTo('running'),
 		handler: (accessor: ServicesAccessor, _: string, thread: IThread | undefined) => {
-			getThreadAndRun(accessor, thread, thread => thread.pause());
+			const debugService = accessor.get(IDebugService);
+			if (!(thread instanceof Thread)) {
+				thread = debugService.getViewModel().focusedThread;
+				if (!thread) {
+					const session = debugService.getViewModel().focusedSession;
+					const threads = session && session.getAllThreads();
+					thread = threads && threads.length ? threads[0] : undefined;
+				}
+			}
+
+			if (thread) {
+				thread.pause().then(undefined, onUnexpectedError);
+			}
 		}
 	});
 

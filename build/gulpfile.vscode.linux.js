@@ -200,11 +200,17 @@ function prepareSnapPackage(arch) {
 
 	return function () {
 		const desktop = gulp.src('resources/linux/code.desktop', { base: '.' })
+			.pipe(rename(`usr/share/applications/${product.applicationName}.desktop`));
+
+		const desktopUrlHandler = gulp.src('resources/linux/code-url-handler.desktop', { base: '.' })
+			.pipe(rename(`usr/share/applications/${product.applicationName}-url-handler.desktop`));
+
+		const desktops = es.merge(desktop, desktopUrlHandler)
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
 			.pipe(replace('@@NAME_SHORT@@', product.nameShort))
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(replace('@@ICON@@', `/usr/share/pixmaps/${product.linuxIconName}.png`))
-			.pipe(rename(`usr/share/applications/${product.applicationName}.desktop`));
+			.pipe(replace('@@URLPROTOCOL@@', product.urlProtocol));
 
 		const icon = gulp.src('resources/linux/code.png', { base: '.' })
 			.pipe(rename(`usr/share/pixmaps/${product.linuxIconName}.png`));
@@ -220,7 +226,7 @@ function prepareSnapPackage(arch) {
 		const electronLaunch = gulp.src('resources/linux/snap/electron-launch', { base: '.' })
 			.pipe(rename('electron-launch'));
 
-		const all = es.merge(desktop, icon, code, snapcraft, electronLaunch);
+		const all = es.merge(desktops, icon, code, snapcraft, electronLaunch);
 
 		return all.pipe(vfs.dest(destination));
 	};

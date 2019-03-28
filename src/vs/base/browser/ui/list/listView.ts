@@ -191,15 +191,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	readonly onDidChangeContentHeight: Event<number> = Event.latch(this._onDidChangeContentHeight.event);
 	get contentHeight(): number { return this.rangeMap.size; }
 
-	readonly onDidScroll: Event<void>;
-
-	// private _onDragStart = new Emitter<{ element: T, uri: string, event: DragEvent }>();
-	// readonly onDragStart = this._onDragStart.event;
-
-	// readonly onDragOver: Event<IListDragEvent<T>>;
-	// readonly onDragLeave: Event<void>;
-	// readonly onDrop: Event<IListDragEvent<T>>;
-	// readonly onDragEnd: Event<void>;
+	get onDidScroll(): Event<ScrollEvent> { return this.scrollableElement.onScroll; }
 
 	constructor(
 		container: HTMLElement,
@@ -253,7 +245,6 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		this.disposables = [this.rangeMap, this.gesture, this.scrollableElement, this.cache];
 
-		this.onDidScroll = Event.signal(this.scrollableElement.onScroll);
 		this.scrollableElement.onScroll(this.onScroll, this, this.disposables);
 		domEvent(this.rowsContainer, TouchEventType.Change)(this.onTouchChange, this, this.disposables);
 
@@ -1105,6 +1096,11 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		}
 
 		item.size = row.domNode!.offsetHeight;
+
+		if (this.virtualDelegate.setDynamicHeight) {
+			this.virtualDelegate.setDynamicHeight(item.element, item.size);
+		}
+
 		item.lastDynamicHeightWidth = this.renderWidth;
 		this.rowsContainer.removeChild(row.domNode!);
 		this.cache.release(row);

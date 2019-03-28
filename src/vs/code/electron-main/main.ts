@@ -142,7 +142,10 @@ function setupIPC(accessor: ServicesAccessor): Promise<Server> {
 					if (environmentService.args.status) {
 						return service.getMainProcessInfo().then(info => {
 							return instantiationService.invokeFunction(accessor => {
-								return accessor.get(IDiagnosticsService).printDiagnostics(info).then(() => Promise.reject(new ExpectedError()));
+								return accessor.get(IDiagnosticsService).getDiagnostics(info).then(diagnostics => {
+									console.log(diagnostics);
+									return Promise.reject(new ExpectedError());
+								});
 							});
 						});
 					}

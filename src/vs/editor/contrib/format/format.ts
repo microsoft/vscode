@@ -22,6 +22,9 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { FormattingEdit } from 'vs/editor/contrib/format/formattingEdit';
 import * as nls from 'vs/nls';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { LinkedList } from 'vs/base/common/linkedList';
 
 export function alertFormattingEdits(edits: ISingleEditOperation[]): void {
 
@@ -81,6 +84,53 @@ export function getRealAndSyntheticDocumentFormattersOrdered(model: ITextModel):
 		});
 	}
 	return result;
+}
+
+export const enum FormattingMode {
+	Explicit = 1,
+	Silent = 2
+}
+
+export interface IFormattingEditProviderSelector {
+	<T extends (DocumentFormattingEditProvider | DocumentRangeFormattingEditProvider)>(formatter: T[], document: ITextModel, mode: FormattingMode): Promise<T | undefined>;
+}
+
+export abstract class FormattingConflicts {
+
+	private static readonly _selectors = new LinkedList<IFormattingEditProviderSelector>();
+
+	static setFormatterSelector(selector: IFormattingEditProviderSelector): IDisposable {
+		const remove = FormattingConflicts._selectors.unshift(selector);
+		return { dispose: remove };
+	}
+
+	static async select<T extends (DocumentFormattingEditProvider | DocumentRangeFormattingEditProvider)>(formatter: T[], document: ITextModel, mode: FormattingMode): Promise<T | undefined> {
+		if (formatter.length === 0) {
+			return undefined;
+		}
+		const { value: selector } = FormattingConflicts._selectors.iterator().next();
+		if (selector) {
+			return await selector(formatter, document, mode);
+		}
+		return formatter[0];
+	}
+}
+
+export async function formatDocumentRangeWithSelectedProvider(
+	accessor: ServicesAccessor,
+	editorOrModel: ITextModel | IActiveCodeEditor,
+	range: Range,
+	mode: FormattingMode,
+	token: CancellationToken
+): Promise<void> {
+
+	const instaService = accessor.get(IInstantiationService);
+	const model = isCodeEditor(editorOrModel) ? editorOrModel.getModel() : editorOrModel;
+	const provider = DocumentRangeFormattingEditProviderRegistry.ordered(model);
+	const selected = await FormattingConflicts.select(provider, model, mode);
+	if (selected) {
+		await instaService.invokeFunction(formatDocumentRangeWithProvider, selected, editorOrModel, range, token);
+	}
 }
 
 export async function formatDocumentRangeWithProvider(
@@ -150,6 +200,22 @@ export async function formatDocumentRangeWithProvider(
 	}
 
 	return true;
+}
+
+export async function formatDocumentWithSelectedProvider(
+	accessor: ServicesAccessor,
+	editorOrModel: ITextModel | IActiveCodeEditor,
+	mode: FormattingMode,
+	token: CancellationToken
+): Promise<void> {
+
+	const instaService = accessor.get(IInstantiationService);
+	const model = isCodeEditor(editorOrModel) ? editorOrModel.getModel() : editorOrModel;
+	const provider = getRealAndSyntheticDocumentFormattersOrdered(model);
+	const selected = await FormattingConflicts.select(provider, model, mode);
+	if (selected) {
+		await instaService.invokeFunction(formatDocumentWithProvider, selected, editorOrModel, token);
+	}
 }
 
 export async function formatDocumentWithProvider(
