@@ -26,6 +26,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ITextModel } from 'vs/editor/common/model';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 type FormattingEditProvider = DocumentFormattingEditProvider | DocumentRangeFormattingEditProvider;
 
@@ -41,7 +43,9 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 		@IConfigurationService private readonly _configService: IConfigurationService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
-		@IModeService private readonly _modeService: IModeService
+		@IModeService private readonly _modeService: IModeService,
+		@IStatusbarService private readonly _statusbarService: IStatusbarService,
+		@ILabelService private readonly _labelService: ILabelService,
 	) {
 		super();
 		this._register(this._extensionService.onDidChangeExtensions(this._updateConfigValues, this));
@@ -76,7 +80,20 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 		if (defaultFormatterId) {
 			// good -> formatter configured
 			const [defaultFormatter] = formatter.filter(formatter => ExtensionIdentifier.equals(formatter.extensionId, defaultFormatterId));
-			return defaultFormatter; // this is the formatter or undefined
+			if (defaultFormatter) {
+				// formatter available
+				return defaultFormatter;
+
+			} else {
+				// formatter gone
+				const extension = await this._extensionService.getExtension(defaultFormatterId);
+				const label = this._labelService.getUriLabel(document.uri, { relative: true });
+				const message = extension
+					? nls.localize('miss', "Extension '{0}' cannot format '{1}'", extension.displayName || extension.name, label)
+					: nls.localize('gone', "Extension '{0}' is configured as formatter but not available", defaultFormatterId);
+				this._statusbarService.setStatusMessage(message, 4000);
+				return undefined;
+			}
 
 		} else if (formatter.length === 1) {
 			// ok -> nothing configured but only one formatter available
