@@ -334,64 +334,37 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		);
 	}
 
-	enterWorkspace(path: URI): Promise<void> {
+	async enterWorkspace(path: URI): Promise<void> {
 		if (!!this.environmentService.extensionTestsLocationURI) {
 			return Promise.reject(new Error('Entering a new workspace is not possible in tests.'));
 		}
 
+		const workspace = await this.workspaceService.getWorkspaceIdentifier(path);
+		// Settings migration (only if we come from a folder workspace)
+		if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
+			await this.migrateWorkspaceSettings(workspace);
+		}
+		const workspaceImpl = this.contextService as WorkspaceService;
+		await workspaceImpl.initialize(workspace);
+
 		// Restart extension host if first root folder changed (impact on deprecated workspace.rootPath API)
 		// Stop the extension host first to give extensions most time to shutdown
 		this.extensionService.stopExtensionHost();
-		let extensionHostStarted: boolean = false;
 
-		const startExtensionHost = () => {
-			if (this.windowService.getConfiguration().remoteAuthority) {
-				this.windowService.reloadWindow(); // TODO aeschli: workaround until restarting works
+		const result = await this.windowService.enterWorkspace(path);
+		if (result) {
+			await this.migrateStorage(result.workspace);
+			// Reinitialize backup service
+			if (this.backupFileService instanceof BackupFileService) {
+				this.backupFileService.initialize(result.backupPath!);
 			}
+		}
 
+		if (this.windowService.getConfiguration().remoteAuthority) {
+			this.windowService.reloadWindow(); // TODO aeschli: workaround until restarting works
+		} else {
 			this.extensionService.startExtensionHost();
-			extensionHostStarted = true;
-		};
-
-		return this.windowService.enterWorkspace(path).then(result => {
-
-			// Migrate storage and settings if we are to enter a workspace
-			if (result) {
-				return this.migrate(result.workspace).then(() => {
-
-					// Reinitialize backup service
-					if (this.backupFileService instanceof BackupFileService) {
-						this.backupFileService.initialize(result.backupPath!);
-					}
-
-					// Reinitialize configuration service
-					const workspaceImpl = this.contextService as WorkspaceService;
-					return workspaceImpl.initialize(result.workspace, startExtensionHost);
-				});
-			}
-
-			return Promise.resolve();
-		}).then(undefined, error => {
-			if (!extensionHostStarted) {
-				startExtensionHost(); // start the extension host if not started
-			}
-
-			return Promise.reject(error);
-		});
-	}
-
-	private migrate(toWorkspace: IWorkspaceIdentifier): Promise<void> {
-
-		// Storage migration
-		return this.migrateStorage(toWorkspace).then(() => {
-
-			// Settings migration (only if we come from a folder workspace)
-			if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
-				return this.migrateWorkspaceSettings(toWorkspace);
-			}
-
-			return undefined;
-		});
+		}
 	}
 
 	private migrateStorage(toWorkspace: IWorkspaceIdentifier): Promise<void> {
