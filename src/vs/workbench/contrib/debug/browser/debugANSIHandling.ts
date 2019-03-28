@@ -139,22 +139,27 @@ export function handleANSIOutput(text: string, linkDetector: LinkDetector, theme
 	 */
 	function setBasicFormatters(styleCodes: number[]): void {
 		for (let code of styleCodes) {
-			if (code === 0) {
-				styleNames = [];
-			} else if (code === 1) {
-				styleNames.push('code-bold');
-			} else if (code === 3) {
-				styleNames.push('code-italic');
-			} else if (code === 4) {
-				styleNames.push('code-underline');
-			} else if ((code >= 30 && code <= 37) || (code >= 90 && code <= 97)) {
-				changeColor(code, 'foreground');
-			} else if ((code >= 40 && code <= 47) || (code >= 100 && code <= 107)) {
-				changeColor(code, 'background');
-			} else if (code === 39) {
-				changeColor(undefined, 'foreground');
-			} else if (code === 49) {
-				changeColor(undefined, 'background');
+			switch (code) {
+				case 0:
+					styleNames = [];
+					break;
+				case 1:
+					styleNames.push('code-bold');
+					break;
+				case 3:
+					styleNames.push('code-italic');
+					break;
+				case 4:
+					styleNames.push('code-underline');
+					break;
+				case 39:
+					changeColor(undefined, 'foreground');
+					break;
+				case 49:
+					changeColor(undefined, 'background');
+					break;
+				default:
+					setBasicColor(code);
 			}
 		}
 	}
