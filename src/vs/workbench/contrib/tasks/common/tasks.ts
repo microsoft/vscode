@@ -169,14 +169,14 @@ export enum RevealProblemKind {
 export namespace RevealProblemKind {
 	export function fromString(this: void, value: string): RevealProblemKind {
 		switch (value.toLowerCase()) {
+			case 'always':
+				return RevealProblemKind.Always;
 			case 'never':
 				return RevealProblemKind.Never;
 			case 'onproblem':
 				return RevealProblemKind.OnProblem;
-			case 'always':
-				return RevealProblemKind.Always;
 			default:
-				return RevealProblemKind.Always;
+				return RevealProblemKind.OnProblem;
 		}
 	}
 }
@@ -224,7 +224,7 @@ export interface PresentationOptions {
 
 	/**
 	 * Controls whether the problems pane is revealed when running this task or not.
-	 * Defaults to `RevealProblemKind.Never`.
+	 * Defaults to `RevealProblemKind.OnProblem`.
 	 */
 	revealProblem: RevealProblemKind;
 
@@ -264,7 +264,7 @@ export interface PresentationOptions {
 
 export namespace PresentationOptions {
 	export const defaults: PresentationOptions = {
-		echo: true, reveal: RevealKind.Always, revealProblem: RevealProblemKind.Never, focus: false, panel: PanelKind.Shared, showReuseMessage: true, clear: false
+		echo: true, reveal: RevealKind.Always, revealProblem: RevealProblemKind.OnProblem, focus: false, panel: PanelKind.Shared, showReuseMessage: true, clear: false
 	};
 }
 
