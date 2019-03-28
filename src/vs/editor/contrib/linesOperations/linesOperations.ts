@@ -947,12 +947,12 @@ export class LowerCaseAction extends AbstractCaseAction {
 	}
 }
 
-export class CapitalCaseAction extends AbstractCaseAction {
+export class TitleCaseAction extends AbstractCaseAction {
 	constructor() {
 		super({
-			id: 'editor.action.transformToCapitalcase',
-			label: nls.localize('editor.transformToCapitalcase', "Transform to Capitalcase"),
-			alias: 'Transform to Capitalcase',
+			id: 'editor.action.transformToTitlecase',
+			label: nls.localize('editor.transformToTitlecase', "Transform to Title Case"),
+			alias: 'Transform to Title Case',
 			precondition: EditorContextKeys.writable
 		});
 	}
@@ -987,4 +987,4 @@ registerEditorAction(JoinLinesAction);
 registerEditorAction(TransposeAction);
 registerEditorAction(UpperCaseAction);
 registerEditorAction(LowerCaseAction);
-registerEditorAction(CapitalCaseAction);
+registerEditorAction(TitleCaseAction);
