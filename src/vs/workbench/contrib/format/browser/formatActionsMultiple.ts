@@ -55,8 +55,10 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 		DefaultFormatter.extensionIds.length = 0;
 		DefaultFormatter.extensionDescriptions.length = 0;
 		for (const extension of extensions) {
-			DefaultFormatter.extensionIds.push(extension.identifier.value);
-			DefaultFormatter.extensionDescriptions.push(extension.description || '');
+			if (extension.main) {
+				DefaultFormatter.extensionIds.push(extension.identifier.value);
+				DefaultFormatter.extensionDescriptions.push(extension.description || '');
+			}
 		}
 	}
 
