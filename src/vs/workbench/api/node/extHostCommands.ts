@@ -8,7 +8,7 @@ import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands
 import * as extHostTypes from 'vs/workbench/api/node/extHostTypes';
 import * as extHostTypeConverter from 'vs/workbench/api/node/extHostTypeConverters';
 import { cloneAndChange } from 'vs/base/common/objects';
-import { MainContext, MainThreadCommandsShape, ExtHostCommandsShape, ObjectIdentifier, IMainContext, CommandDto } from './extHost.protocol';
+import { MainContext, MainThreadCommandsShape, ExtHostCommandsShape, ObjectIdentifier, IMainContext, CommandDto } from '../common/extHost.protocol';
 import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import * as modes from 'vs/editor/common/modes';
@@ -22,7 +22,7 @@ import { URI } from 'vs/base/common/uri';
 interface CommandHandler {
 	callback: Function;
 	thisArg: any;
-	description: ICommandHandlerDescription;
+	description?: ICommandHandlerDescription;
 }
 
 export interface ArgumentProcessor {
@@ -148,17 +148,17 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 				try {
 					validateConstraint(args[i], description.args[i].constraint);
 				} catch (err) {
-					return Promise.reject(new Error(`Running the contributed command:'${id}' failed. Illegal argument '${description.args[i].name}' - ${description.args[i].description}`));
+					return Promise.reject(new Error(`Running the contributed command: '${id}' failed. Illegal argument '${description.args[i].name}' - ${description.args[i].description}`));
 				}
 			}
 		}
 
 		try {
-			let result = callback.apply(thisArg, args);
+			const result = callback.apply(thisArg, args);
 			return Promise.resolve(result);
 		} catch (err) {
 			this._logService.error(err, id);
-			return Promise.reject(new Error(`Running the contributed command:'${id}' failed.`));
+			return Promise.reject(new Error(`Running the contributed command: '${id}' failed.`));
 		}
 	}
 
@@ -211,6 +211,9 @@ export class CommandsConverter {
 		this._commands.registerCommand(true, this._delegatingCommandId, this._executeConvertedCommand, this);
 	}
 
+	toInternal(command: vscode.Command): CommandDto;
+	toInternal(command: undefined): undefined;
+	toInternal(command: vscode.Command | undefined): CommandDto | undefined;
 	toInternal(command: vscode.Command | undefined): CommandDto | undefined {
 
 		if (!command) {
@@ -241,11 +244,7 @@ export class CommandsConverter {
 		return result;
 	}
 
-	fromInternal(command: modes.Command | undefined): vscode.Command | undefined {
-
-		if (!command) {
-			return undefined;
-		}
+	fromInternal(command: modes.Command): vscode.Command {
 
 		const id = ObjectIdentifier.of(command);
 		if (typeof id === 'number') {

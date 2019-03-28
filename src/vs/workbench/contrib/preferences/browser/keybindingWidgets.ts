@@ -31,14 +31,14 @@ export interface KeybindingsSearchOptions extends SearchOptions {
 
 export class KeybindingsSearchWidget extends SearchWidget {
 
-	private _firstPart: ResolvedKeybinding;
-	private _chordPart: ResolvedKeybinding;
+	private _firstPart: ResolvedKeybinding | null;
+	private _chordPart: ResolvedKeybinding | null;
 	private _inputValue: string;
 
 	private recordDisposables: IDisposable[] = [];
 
-	private _onKeybinding = this._register(new Emitter<[ResolvedKeybinding, ResolvedKeybinding]>());
-	readonly onKeybinding: Event<[ResolvedKeybinding, ResolvedKeybinding]> = this._onKeybinding.event;
+	private _onKeybinding = this._register(new Emitter<[ResolvedKeybinding | null, ResolvedKeybinding | null]>());
+	readonly onKeybinding: Event<[ResolvedKeybinding | null, ResolvedKeybinding | null]> = this._onKeybinding.event;
 
 	private _onEnter = this._register(new Emitter<void>());
 	readonly onEnter: Event<void> = this._onEnter.event;
@@ -125,7 +125,7 @@ export class KeybindingsSearchWidget extends SearchWidget {
 
 		let value = '';
 		if (this._firstPart) {
-			value = this._firstPart.getUserSettingsLabel();
+			value = (this._firstPart.getUserSettingsLabel() || '');
 		}
 		if (this._chordPart) {
 			value = value + ' ' + this._chordPart.getUserSettingsLabel();
@@ -153,11 +153,11 @@ export class DefineKeybindingWidget extends Widget {
 
 	private _onHide = this._register(new Emitter<void>());
 
-	private _onDidChange = this._register(new Emitter<String>());
-	onDidChange: Event<String> = this._onDidChange.event;
+	private _onDidChange = this._register(new Emitter<string>());
+	onDidChange: Event<string> = this._onDidChange.event;
 
-	private _onShowExistingKeybindings = this._register(new Emitter<String>());
-	readonly onShowExistingKeybidings: Event<String> = this._onShowExistingKeybindings.event;
+	private _onShowExistingKeybindings = this._register(new Emitter<string | null>());
+	readonly onShowExistingKeybidings: Event<string | null> = this._onShowExistingKeybindings.event;
 
 	constructor(
 		parent: HTMLElement,
@@ -175,9 +175,9 @@ export class DefineKeybindingWidget extends Widget {
 		return this._domNode.domNode;
 	}
 
-	define(): Promise<string> {
+	define(): Promise<string | null> {
 		this._keybindingInputWidget.clear();
-		return new Promise<string>((c) => {
+		return new Promise<string | null>((c) => {
 			if (!this._isVisible) {
 				this._isVisible = true;
 				this._domNode.setDisplay('block');
@@ -251,7 +251,7 @@ export class DefineKeybindingWidget extends Widget {
 		this._showExistingKeybindingsNode = dom.append(this._domNode.domNode, dom.$('.existing'));
 	}
 
-	private onKeybinding(keybinding: [ResolvedKeybinding, ResolvedKeybinding]): void {
+	private onKeybinding(keybinding: [ResolvedKeybinding | null, ResolvedKeybinding | null]): void {
 		const [firstPart, chordPart] = keybinding;
 		this._firstPart = firstPart;
 		this._chordPart = chordPart;
@@ -268,8 +268,8 @@ export class DefineKeybindingWidget extends Widget {
 		}
 	}
 
-	private getUserSettingsLabel(): string {
-		let label = null;
+	private getUserSettingsLabel(): string | null {
+		let label: string | null = null;
 		if (this._firstPart) {
 			label = this._firstPart.getUserSettingsLabel();
 			if (this._chordPart) {
@@ -326,8 +326,10 @@ export class DefineKeybindingOverlayWidget extends Disposable implements IOverla
 		super.dispose();
 	}
 
-	start(): Promise<string> {
-		this._editor.revealPositionInCenterIfOutsideViewport(this._editor.getPosition(), ScrollType.Smooth);
+	start(): Promise<string | null> {
+		if (this._editor.hasModel()) {
+			this._editor.revealPositionInCenterIfOutsideViewport(this._editor.getPosition(), ScrollType.Smooth);
+		}
 		const layoutInfo = this._editor.getLayoutInfo();
 		this._widget.layout(new dom.Dimension(layoutInfo.width, layoutInfo.height));
 		return this._widget.define();

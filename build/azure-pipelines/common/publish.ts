@@ -6,7 +6,6 @@
 'use strict';
 
 import * as fs from 'fs';
-import { execSync } from 'child_process';
 import { Readable } from 'stream';
 import * as crypto from 'crypto';
 import * as azure from 'azure-storage';
@@ -152,9 +151,13 @@ async function publish(commit: string, quality: string, platform: string, type: 
 
 	const queuedBy = process.env['BUILD_QUEUEDBY']!;
 	const sourceBranch = process.env['BUILD_SOURCEBRANCH']!;
-	const isReleased = quality === 'insider'
-		&& /^master$|^refs\/heads\/master$/.test(sourceBranch)
-		&& /Project Collection Service Accounts|Microsoft.VisualStudio.Services.TFS/.test(queuedBy);
+	const isReleased = (
+		// Insiders: nightly build from master
+		(quality === 'insider' && /^master$|^refs\/heads\/master$/.test(sourceBranch) && /Project Collection Service Accounts|Microsoft.VisualStudio.Services.TFS/.test(queuedBy)) ||
+
+		// Exploration: any build from electron-4.0.x branch
+		(quality === 'exploration' && /^electron-4.0.x$|^refs\/heads\/electron-4.0.x$/.test(sourceBranch))
+	);
 
 	console.log('Publishing...');
 	console.log('Quality:', quality);
@@ -270,12 +273,18 @@ function main(): void {
 		return;
 	}
 
+	const commit = process.env['BUILD_SOURCEVERSION'];
+
+	if (!commit) {
+		console.warn('Skipping publish due to missing BUILD_SOURCEVERSION');
+		return;
+	}
+
 	const opts = minimist<PublishOptions>(process.argv.slice(2), {
 		boolean: ['upload-only']
 	});
 
 	const [quality, platform, type, name, version, _isUpdate, file] = opts._;
-	const commit = execSync('git rev-parse HEAD', { encoding: 'utf8' }).trim();
 
 	publish(commit, quality, platform, type, name, version, _isUpdate, file, opts).catch(err => {
 		console.error(err);

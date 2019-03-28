@@ -24,10 +24,11 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { PanelView, IPanelViewOptions, IPanelOptions, Panel } from 'vs/base/browser/ui/splitview/panelview';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IView } from 'vs/workbench/common/views';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 export interface IPanelColors extends IColorMapping {
 	dropBackground?: ColorIdentifier;
@@ -127,7 +128,7 @@ export abstract class ViewletPanel extends Panel implements IView {
 			orientation: ActionsOrientation.HORIZONTAL,
 			actionItemProvider: action => this.getActionItem(action),
 			ariaLabel: nls.localize('viewToolbarAriaLabel', "{0} actions", this.title),
-			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id) || undefined,
+			getKeyBinding: action => withNullAsUndefined(this.keybindingService.lookupKeybinding(action.id)),
 			actionRunner: this.actionRunner
 		});
 
@@ -173,8 +174,8 @@ export abstract class ViewletPanel extends Panel implements IView {
 		return [];
 	}
 
-	getActionItem(action: IAction): IActionItem | null {
-		return null;
+	getActionItem(action: IAction): IActionItem | undefined {
+		return undefined;
 	}
 
 	getActionsContext(): any {
@@ -221,13 +222,13 @@ export class PanelViewlet extends Viewlet {
 		id: string,
 		private options: IViewsViewletOptions,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IPartService partService: IPartService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService
 	) {
-		super(id, configurationService, partService, telemetryService, themeService, storageService);
+		super(id, configurationService, layoutService, telemetryService, themeService, storageService);
 	}
 
 	create(parent: HTMLElement): void {
@@ -281,7 +282,7 @@ export class PanelViewlet extends Viewlet {
 		return [];
 	}
 
-	getActionItem(action: IAction): IActionItem | null {
+	getActionItem(action: IAction): IActionItem | undefined {
 		if (this.isSingleView()) {
 			return this.panelItems[0].panel.getActionItem(action);
 		}

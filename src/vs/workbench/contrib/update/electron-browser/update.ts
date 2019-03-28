@@ -512,7 +512,7 @@ export class UpdateContribution implements IGlobalActivity {
 			this.storageService.store('update/updateNotificationTime', currentMillis, StorageScope.GLOBAL);
 		}
 
-		const updateNotificationMillis = this.storageService.getInteger('update/updateNotificationTime', StorageScope.GLOBAL, currentMillis);
+		const updateNotificationMillis = this.storageService.getNumber('update/updateNotificationTime', StorageScope.GLOBAL, currentMillis);
 		const diffDays = (currentMillis - updateNotificationMillis) / (1000 * 60 * 60 * 24);
 
 		return diffDays > 5;
@@ -571,7 +571,7 @@ export class UpdateContribution implements IGlobalActivity {
 				return new Action('update.updating', nls.localize('installingUpdate', "Installing Update..."), undefined, false);
 
 			case StateType.Ready:
-				return new Action('update.restart', nls.localize('restartToUpdate', "Restart to Update..."), undefined, true, () =>
+				return new Action('update.restart', nls.localize('restartToUpdate', "Restart to Update"), undefined, true, () =>
 					this.updateService.quitAndInstall());
 		}
 	}

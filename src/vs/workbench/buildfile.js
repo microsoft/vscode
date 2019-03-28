@@ -5,18 +5,20 @@
 'use strict';
 
 function createModuleDescription(name, exclude) {
-	var result = {};
-	var excludes = ['vs/css', 'vs/nls'];
+	const result = {};
+
+	let excludes = ['vs/css', 'vs/nls'];
 	result.name = name;
 	if (Array.isArray(exclude) && exclude.length > 0) {
 		excludes = excludes.concat(exclude);
 	}
 	result.exclude = excludes;
+
 	return result;
 }
 
 exports.collectModules = function () {
-	var modules = [
+	return [
 		createModuleDescription('vs/workbench/contrib/output/common/outputLinkComputer', ['vs/base/common/worker/simpleWorker', 'vs/editor/common/services/editorSimpleWorker']),
 
 		createModuleDescription('vs/workbench/contrib/debug/node/telemetryApp', []),
@@ -28,6 +30,4 @@ exports.collectModules = function () {
 
 		createModuleDescription('vs/workbench/services/extensions/node/extensionHostProcess', []),
 	];
-
-	return modules;
 };

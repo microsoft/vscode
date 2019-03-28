@@ -34,12 +34,13 @@ export class ExplorerService implements IExplorerService {
 	private _onDidChangeRoots = new Emitter<void>();
 	private _onDidChangeItem = new Emitter<ExplorerItem | undefined>();
 	private _onDidChangeEditable = new Emitter<ExplorerItem>();
-	private _onDidSelectItem = new Emitter<{ item?: ExplorerItem, reveal?: boolean }>();
+	private _onDidSelectResource = new Emitter<{ resource?: URI, reveal?: boolean }>();
 	private _onDidCopyItems = new Emitter<{ items: ExplorerItem[], cut: boolean, previouslyCutItems: ExplorerItem[] | undefined }>();
 	private disposables: IDisposable[] = [];
-	private editableStats = new Map<ExplorerItem, IEditableData>();
+	private editable: { stat: ExplorerItem, data: IEditableData } | undefined;
 	private _sortOrder: SortOrder;
 	private cutItems: ExplorerItem[] | undefined;
+	private fileSystemProviderSchemes = new Set<string>();
 
 	constructor(
 		@IFileService private fileService: IFileService,
@@ -68,8 +69,8 @@ export class ExplorerService implements IExplorerService {
 		return this._onDidChangeEditable.event;
 	}
 
-	get onDidSelectItem(): Event<{ item?: ExplorerItem, reveal?: boolean }> {
-		return this._onDidSelectItem.event;
+	get onDidSelectResource(): Event<{ resource?: URI, reveal?: boolean }> {
+		return this._onDidSelectResource.event;
 	}
 
 	get onDidCopyItems(): Event<{ items: ExplorerItem[], cut: boolean, previouslyCutItems: ExplorerItem[] | undefined }> {
@@ -98,7 +99,14 @@ export class ExplorerService implements IExplorerService {
 		this.disposables.push(this.fileService.onAfterOperation(e => this.onFileOperation(e)));
 		this.disposables.push(this.fileService.onFileChanges(e => this.onFileChanges(e)));
 		this.disposables.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IFilesConfiguration>())));
-		this.disposables.push(this.fileService.onDidChangeFileSystemProviderRegistrations(() => this._onDidChangeItem.fire(undefined)));
+		this.disposables.push(this.fileService.onDidChangeFileSystemProviderRegistrations(e => {
+			if (e.added && this.fileSystemProviderSchemes.has(e.scheme)) {
+				// A file system provider got re-registered, we should update all file stats since they might change (got read-only)
+				this._onDidChangeItem.fire(undefined);
+			} else {
+				this.fileSystemProviderSchemes.add(e.scheme);
+			}
+		}));
 		this.disposables.push(model.onDidChangeRoots(() => this._onDidChangeRoots.fire()));
 
 		return model;
@@ -112,11 +120,10 @@ export class ExplorerService implements IExplorerService {
 
 	setEditable(stat: ExplorerItem, data: IEditableData | null): void {
 		if (!data) {
-			this.editableStats.delete(stat);
+			this.editable = undefined;
 		} else {
-			this.editableStats.set(stat, data);
+			this.editable = { stat, data };
 		}
-
 		this._onDidChangeEditable.fire(stat);
 	}
 
@@ -133,22 +140,22 @@ export class ExplorerService implements IExplorerService {
 	}
 
 	getEditableData(stat: ExplorerItem): IEditableData | undefined {
-		return this.editableStats.get(stat);
+		return this.editable && this.editable.stat === stat ? this.editable.data : undefined;
 	}
 
-	isEditable(stat: ExplorerItem): boolean {
-		return this.editableStats.has(stat);
+	isEditable(stat: ExplorerItem | undefined): boolean {
+		return !!this.editable && (this.editable.stat === stat || !stat);
 	}
 
 	select(resource: URI, reveal?: boolean): Promise<void> {
 		const fileStat = this.findClosest(resource);
 		if (fileStat) {
-			this._onDidSelectItem.fire({ item: fileStat, reveal });
+			this._onDidSelectResource.fire({ resource: fileStat.resource, reveal });
 			return Promise.resolve(undefined);
 		}
 
 		// Stat needs to be resolved first and then revealed
-		const options: IResolveFileOptions = { resolveTo: [resource] };
+		const options: IResolveFileOptions = { resolveTo: [resource], resolveMetadata: false };
 		const workspaceFolder = this.contextService.getWorkspaceFolder(resource);
 		const rootUri = workspaceFolder ? workspaceFolder.uri : this.roots[0].resource;
 		const root = this.roots.filter(r => r.resource.toString() === rootUri.toString()).pop()!;
@@ -162,7 +169,7 @@ export class ExplorerService implements IExplorerService {
 			this._onDidChangeItem.fire(item ? item.parent : undefined);
 
 			// Select and Reveal
-			this._onDidSelectItem.fire({ item: item || undefined, reveal });
+			this._onDidSelectResource.fire({ resource: item ? item.resource : undefined, reveal });
 		}, () => {
 			root.isError = true;
 			this._onDidChangeItem.fire(root);
@@ -193,7 +200,8 @@ export class ExplorerService implements IExplorerService {
 				// Add the new file to its parent (Model)
 				parents.forEach(p => {
 					// We have to check if the parent is resolved #29177
-					const thenable: Promise<IFileStat | undefined> = p.isDirectoryResolved ? Promise.resolve(undefined) : this.fileService.resolveFile(p.resource);
+					const resolveMetadata = this.sortOrder === `modified`;
+					const thenable: Promise<IFileStat | undefined> = p.isDirectoryResolved ? Promise.resolve(undefined) : this.fileService.resolveFile(p.resource, { resolveMetadata });
 					thenable.then(stat => {
 						if (stat) {
 							const modelStat = ExplorerItem.create(stat, p.parent);
@@ -358,10 +366,10 @@ export class ExplorerService implements IExplorerService {
 	private onConfigurationUpdated(configuration: IFilesConfiguration, event?: IConfigurationChangeEvent): void {
 		const configSortOrder = configuration && configuration.explorer && configuration.explorer.sortOrder || 'default';
 		if (this._sortOrder !== configSortOrder) {
-			const shouldFire = this._sortOrder !== undefined;
+			const shouldRefresh = this._sortOrder !== undefined;
 			this._sortOrder = configSortOrder;
-			if (shouldFire) {
-				this._onDidChangeRoots.fire();
+			if (shouldRefresh) {
+				this.refresh();
 			}
 		}
 	}

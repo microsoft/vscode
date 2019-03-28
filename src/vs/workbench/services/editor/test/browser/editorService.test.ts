@@ -52,7 +52,7 @@ export class TestEditorInput extends EditorInput implements IFileEditorInput {
 	resolve(): Promise<IEditorModel> { return !this.fails ? Promise.resolve(null) : Promise.reject(new Error('fails')); }
 	matches(other: TestEditorInput): boolean { return other && other.resource && this.resource.toString() === other.resource.toString() && other instanceof TestEditorInput; }
 	setEncoding(encoding: string) { }
-	getEncoding(): string { return null; }
+	getEncoding(): string { return null!; }
 	setPreferredEncoding(encoding: string) { }
 	getResource(): URI { return this.resource; }
 	setForceOpenAsBinary(): void { }
@@ -76,7 +76,7 @@ suite('Editor service', () => {
 	test('basics', function () {
 		const partInstantiator = workbenchInstantiationService();
 
-		const part = partInstantiator.createInstance(EditorPart, 'id', false);
+		const part = partInstantiator.createInstance(EditorPart);
 		part.create(document.createElement('div'));
 		part.layout(400, 300);
 
@@ -120,7 +120,7 @@ suite('Editor service', () => {
 				assert.equal(visibleEditorChangeEventCounter, 1);
 
 				// Close input
-				return editor.group!.closeEditor(input).then(() => {
+				return editor!.group!.closeEditor(input).then(() => {
 					assert.equal(didCloseEditorListenerCounter, 1);
 					assert.equal(activeEditorChangeEventCounter, 2);
 					assert.equal(visibleEditorChangeEventCounter, 2);
@@ -149,7 +149,7 @@ suite('Editor service', () => {
 	test('openEditors() / replaceEditors()', function () {
 		const partInstantiator = workbenchInstantiationService();
 
-		const part = partInstantiator.createInstance(EditorPart, 'id', false);
+		const part = partInstantiator.createInstance(EditorPart);
 		part.create(document.createElement('div'));
 		part.layout(400, 300);
 
@@ -290,7 +290,7 @@ suite('Editor service', () => {
 	test('close editor does not dispose when editor opened in other group', function () {
 		const partInstantiator = workbenchInstantiationService();
 
-		const part = partInstantiator.createInstance(EditorPart, 'id', false);
+		const part = partInstantiator.createInstance(EditorPart);
 		part.create(document.createElement('div'));
 		part.layout(400, 300);
 
@@ -329,7 +329,7 @@ suite('Editor service', () => {
 	test('open to the side', function () {
 		const partInstantiator = workbenchInstantiationService();
 
-		const part = partInstantiator.createInstance(EditorPart, 'id', false);
+		const part = partInstantiator.createInstance(EditorPart);
 		part.create(document.createElement('div'));
 		part.layout(400, 300);
 
@@ -347,13 +347,13 @@ suite('Editor service', () => {
 				return service.openEditor(input1, { pinned: true, preserveFocus: true }, SIDE_GROUP).then(editor => {
 					assert.equal(part.activeGroup, rootGroup);
 					assert.equal(part.count, 2);
-					assert.equal(editor.group, part.groups[1]);
+					assert.equal(editor!.group, part.groups[1]);
 
 					// Open to the side uses existing neighbour group if any
 					return service.openEditor(input2, { pinned: true, preserveFocus: true }, SIDE_GROUP).then(editor => {
 						assert.equal(part.activeGroup, rootGroup);
 						assert.equal(part.count, 2);
-						assert.equal(editor.group, part.groups[1]);
+						assert.equal(editor!.group, part.groups[1]);
 					});
 				});
 			});
@@ -363,7 +363,7 @@ suite('Editor service', () => {
 	test('active editor change / visible editor change events', async function () {
 		const partInstantiator = workbenchInstantiationService();
 
-		const part = partInstantiator.createInstance(EditorPart, 'id', false);
+		const part = partInstantiator.createInstance(EditorPart);
 		part.create(document.createElement('div'));
 		part.layout(400, 300);
 
@@ -403,7 +403,7 @@ suite('Editor service', () => {
 
 		// 1.) open, open same, open other, close
 		let editor = await service.openEditor(input, { pinned: true });
-		const group = editor.group!;
+		const group = editor!.group!;
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
 
@@ -573,7 +573,7 @@ suite('Editor service', () => {
 	test('openEditor returns NULL when opening fails or is inactive', async function () {
 		const partInstantiator = workbenchInstantiationService();
 
-		const part = partInstantiator.createInstance(EditorPart, 'id', false);
+		const part = partInstantiator.createInstance(EditorPart);
 		part.create(document.createElement('div'));
 		part.layout(400, 300);
 

@@ -9,8 +9,7 @@ import * as nls from 'vs/nls';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWindowService, MessageBoxOptions, IWindowsService } from 'vs/platform/windows/common/windows';
 import { IJSONEditingService, JSONEditingError, JSONEditingErrorCode } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, isWorkspaceIdentifier, toWorkspaceIdentifier, IWorkspacesService, rewriteWorkspaceFileForNewLocation } from 'vs/platform/workspaces/common/workspaces';
-import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
+import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, IWorkspacesService, rewriteWorkspaceFileForNewLocation, WORKSPACE_FILTER } from 'vs/platform/workspaces/common/workspaces';
 import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { StorageService } from 'vs/platform/storage/node/storageService';
@@ -21,11 +20,17 @@ import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { BackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { distinct } from 'vs/base/common/arrays';
-import { isLinux } from 'vs/base/common/platform';
-import { isEqual, basename } from 'vs/base/common/resources';
+import { isLinux, isWindows, isMacintosh } from 'vs/base/common/platform';
+import { isEqual, basename, isEqualOrParent, getComparisonKey } from 'vs/base/common/resources';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
+import { IFileDialogService, IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { mnemonicButtonLabel } from 'vs/base/common/labels';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 export class WorkspaceEditingService implements IWorkspaceEditingService {
 
@@ -35,7 +40,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		@IJSONEditingService private readonly jsonEditingService: IJSONEditingService,
 		@IWorkspaceContextService private readonly contextService: WorkspaceService,
 		@IWindowService private readonly windowService: IWindowService,
-		@IWorkspaceConfigurationService private readonly workspaceConfigurationService: IWorkspaceConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IBackupFileService private readonly backupFileService: IBackupFileService,
@@ -44,8 +49,98 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		@IFileService private readonly fileSystemService: IFileService,
 		@IWindowsService private readonly windowsService: IWindowsService,
 		@IWorkspacesService private readonly workspaceService: IWorkspacesService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@ILifecycleService readonly lifecycleService: ILifecycleService,
+		@ILabelService readonly labelService: ILabelService
 	) {
+
+		lifecycleService.onBeforeShutdown(async e => {
+			const saveOperation = this.saveUntitedBeforeShutdown(e.reason);
+			if (saveOperation) {
+				e.veto(saveOperation);
+			}
+		});
+
+	}
+
+	private saveUntitedBeforeShutdown(reason: ShutdownReason): Promise<boolean> | undefined {
+		if (reason !== ShutdownReason.LOAD && reason !== ShutdownReason.CLOSE) {
+			return undefined; // only interested when window is closing or loading
+		}
+		const workspaceIdentifier = this.getCurrentWorkspaceIdentifier();
+		if (!workspaceIdentifier || !isEqualOrParent(workspaceIdentifier.configPath, this.environmentService.untitledWorkspacesHome)) {
+			return undefined; // only care about untitled workspaces to ask for saving
+		}
+
+		return this.windowsService.getWindowCount().then(windowCount => {
+			if (reason === ShutdownReason.CLOSE && !isMacintosh && windowCount === 1) {
+				return false; // Windows/Linux: quits when last window is closed, so do not ask then
+			}
+			enum ConfirmResult {
+				SAVE,
+				DONT_SAVE,
+				CANCEL
+			}
+
+			const save = { label: mnemonicButtonLabel(nls.localize('save', "Save")), result: ConfirmResult.SAVE };
+			const dontSave = { label: mnemonicButtonLabel(nls.localize('doNotSave', "Don't Save")), result: ConfirmResult.DONT_SAVE };
+			const cancel = { label: nls.localize('cancel', "Cancel"), result: ConfirmResult.CANCEL };
+
+			const buttons: { label: string; result: ConfirmResult; }[] = [];
+			if (isWindows) {
+				buttons.push(save, dontSave, cancel);
+			} else if (isLinux) {
+				buttons.push(dontSave, cancel, save);
+			} else {
+				buttons.push(save, cancel, dontSave);
+			}
+
+			const message = nls.localize('saveWorkspaceMessage', "Do you want to save your workspace configuration as a file?");
+			const detail = nls.localize('saveWorkspaceDetail', "Save your workspace if you plan to open it again.");
+			const cancelId = buttons.indexOf(cancel);
+
+			return this.dialogService.show(Severity.Warning, message, buttons.map(button => button.label), { detail, cancelId }).then(res => {
+				switch (buttons[res].result) {
+
+					// Cancel: veto unload
+					case ConfirmResult.CANCEL:
+						return true;
+
+					// Don't Save: delete workspace
+					case ConfirmResult.DONT_SAVE:
+						this.workspaceService.deleteUntitledWorkspace(workspaceIdentifier);
+						return false;
+
+					// Save: save workspace, but do not veto unload
+					case ConfirmResult.SAVE: {
+						return this.pickNewWorkspacePath().then(newWorkspacePath => {
+							if (newWorkspacePath) {
+								return this.saveWorkspaceAs(workspaceIdentifier, newWorkspacePath).then(_ => {
+									return this.workspaceService.getWorkspaceIdentifier(newWorkspacePath).then(newWorkspaceIdentifier => {
+										const label = this.labelService.getWorkspaceLabel(newWorkspaceIdentifier, { verbose: true });
+										this.windowsService.addRecentlyOpened([{ label, workspace: newWorkspaceIdentifier }]);
+										this.workspaceService.deleteUntitledWorkspace(workspaceIdentifier);
+										return false;
+									});
+								}, () => false);
+							}
+							return true; // keep veto if no target was provided
+						});
+					}
+				}
+			});
+		});
+	}
+
+	pickNewWorkspacePath(): Promise<URI | undefined> {
+		return this.fileDialogService.showSaveDialog({
+			saveLabel: mnemonicButtonLabel(nls.localize('save', "Save")),
+			title: nls.localize('saveWorkspace', "Save Workspace"),
+			filters: WORKSPACE_FILTER,
+			defaultUri: this.fileDialogService.defaultWorkspacePath()
+		});
 	}
 
 	updateFolders(index: number, deleteCount?: number, foldersToAdd?: IWorkspaceFolderCreationData[], donotNotifyError?: boolean): Promise<void> {
@@ -110,7 +205,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		if (state !== WorkbenchState.WORKSPACE) {
 			let newWorkspaceFolders = this.contextService.getWorkspace().folders.map(folder => ({ uri: folder.uri } as IWorkspaceFolderCreationData));
 			newWorkspaceFolders.splice(typeof index === 'number' ? index : newWorkspaceFolders.length, 0, ...foldersToAdd);
-			newWorkspaceFolders = distinct(newWorkspaceFolders, folder => isLinux ? folder.uri.toString() : folder.uri.toString().toLowerCase());
+			newWorkspaceFolders = distinct(newWorkspaceFolders, folder => getComparisonKey(folder.uri));
 
 			if (state === WorkbenchState.EMPTY && newWorkspaceFolders.length === 0 || state === WorkbenchState.FOLDER && newWorkspaceFolders.length === 1) {
 				return Promise.resolve(); // return if the operation is a no-op for the current state
@@ -150,8 +245,8 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		if (path && !this.isValidTargetWorkspacePath(path)) {
 			return Promise.reject(null);
 		}
-
-		const untitledWorkspace = await this.workspaceService.createUntitledWorkspace(folders);
+		const remoteAuthority = this.windowService.getConfiguration().remoteAuthority;
+		const untitledWorkspace = await this.workspaceService.createUntitledWorkspace(folders, remoteAuthority);
 		if (path) {
 			await this.saveWorkspaceAs(untitledWorkspace, path);
 		} else {
@@ -164,11 +259,11 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		if (!this.isValidTargetWorkspacePath(path)) {
 			return Promise.reject(null);
 		}
-		const currentWorkspaceIdentifier = toWorkspaceIdentifier(this.contextService.getWorkspace());
-		if (!isWorkspaceIdentifier(currentWorkspaceIdentifier)) {
+		const workspaceIdentifier = this.getCurrentWorkspaceIdentifier();
+		if (!workspaceIdentifier) {
 			return Promise.reject(null);
 		}
-		await this.saveWorkspaceAs(currentWorkspaceIdentifier, path);
+		await this.saveWorkspaceAs(workspaceIdentifier, path);
 
 		return this.enterWorkspace(path);
 	}
@@ -316,16 +411,26 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	private doCopyWorkspaceSettings(toWorkspace: IWorkspaceIdentifier, filter?: (config: IConfigurationPropertySchema) => boolean): Promise<void> {
 		const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
 		const targetWorkspaceConfiguration = {};
-		for (const key of this.workspaceConfigurationService.keys().workspace) {
+		for (const key of this.configurationService.keys().workspace) {
 			if (configurationProperties[key]) {
 				if (filter && !filter(configurationProperties[key])) {
 					continue;
 				}
 
-				targetWorkspaceConfiguration[key] = this.workspaceConfigurationService.inspect(key).workspace;
+				targetWorkspaceConfiguration[key] = this.configurationService.inspect(key).workspace;
 			}
 		}
 
 		return this.jsonEditingService.write(toWorkspace.configPath, { key: 'settings', value: targetWorkspaceConfiguration }, true);
 	}
+
+	private getCurrentWorkspaceIdentifier(): IWorkspaceIdentifier | undefined {
+		const workspace = this.contextService.getWorkspace();
+		if (workspace && workspace.configuration) {
+			return { id: workspace.id, configPath: workspace.configuration };
+		}
+		return undefined;
+	}
 }
+
+registerSingleton(IWorkspaceEditingService, WorkspaceEditingService, true);

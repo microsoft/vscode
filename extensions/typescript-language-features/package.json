@@ -705,7 +705,7 @@
     "problemPatterns": [
       {
         "name": "tsc",
-        "regexp": "^([^\\s].*)[\\(:](\\d+)[,:](\\d+)(?:\\):\\s+|\\s+-\\s+)(error|warning|info)\\s+(TS\\d+)\\s*:\\s*(.*)$",
+        "regexp": "^([^\\s].*)[\\(:](\\d+)[,:](\\d+)(?:\\):\\s+|\\s+-\\s+)(error|warning|info)\\s+TS(\\d+)\\s*:\\s*(.*)$",
         "file": 1,
         "line": 2,
         "column": 3,

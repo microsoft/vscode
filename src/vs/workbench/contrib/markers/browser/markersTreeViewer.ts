@@ -36,10 +36,9 @@ import { fillResourceDataTransfers } from 'vs/workbench/browser/dnd';
 import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/common/async';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { Range } from 'vs/editor/common/core/range';
-import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
+import { getCodeActions, CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
 import { ITextModel } from 'vs/editor/common/model';
-import { CodeAction } from 'vs/editor/common/modes';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
@@ -67,7 +66,7 @@ export class MarkersTreeAccessibilityProvider implements IAccessibilityProvider<
 
 	constructor(@ILabelService private readonly labelService: ILabelService) { }
 
-	public getAriaLabel(element: TreeElement): string {
+	public getAriaLabel(element: TreeElement): string | null {
 		if (element instanceof ResourceMarkers) {
 			const path = this.labelService.getUriLabel(element.resource, { relative: true }) || element.resource.fsPath;
 			return Messages.MARKERS_TREE_ARIA_LABEL_RESOURCE(element.markers.length, element.name, paths.dirname(path));
@@ -254,7 +253,7 @@ class MarkerWidget extends Disposable {
 	) {
 		super();
 		this.actionBar = this._register(new ActionBar(dom.append(parent, dom.$('.actions')), {
-			actionItemProvider: (action) => action.id === QuickFixAction.ID ? instantiationService.createInstance(QuickFixActionItem, action) : null
+			actionItemProvider: (action) => action.id === QuickFixAction.ID ? instantiationService.createInstance(QuickFixActionItem, action) : undefined
 		}));
 		this.icon = dom.append(parent, dom.$('.icon'));
 		this.multilineActionbar = this._register(new ActionBar(dom.append(parent, dom.$('.multiline-actions'))));
@@ -262,7 +261,7 @@ class MarkerWidget extends Disposable {
 		this._register(toDisposable(() => this.disposables = dispose(this.disposables)));
 	}
 
-	render(element: Marker, filterData: MarkerFilterData): void {
+	render(element: Marker, filterData: MarkerFilterData | undefined): void {
 		this.actionBar.clear();
 		this.multilineActionbar.clear();
 		if (this.disposables.length) {
@@ -310,7 +309,7 @@ class MarkerWidget extends Disposable {
 		this.multilineActionbar.push([action], { icon: true, label: false });
 	}
 
-	private renderMessageAndDetails(element: Marker, filterData: MarkerFilterData) {
+	private renderMessageAndDetails(element: Marker, filterData: MarkerFilterData | undefined) {
 		const { marker, lines } = element;
 		const viewState = this.markersViewModel.getViewModel(element);
 		const multiline = !viewState || viewState.multiline;
@@ -319,7 +318,7 @@ class MarkerWidget extends Disposable {
 		dom.toggleClass(messageContainer, 'multiline', multiline);
 
 		let lastLineElement = messageContainer;
-		for (let index = 0; index < lines.length; index++) {
+		for (let index = 0; index < (multiline ? lines.length : 1); index++) {
 			lastLineElement = dom.append(messageContainer, dom.$('.marker-message-line'));
 			const highlightedLabel = new HighlightedLabel(lastLineElement, false);
 			highlightedLabel.set(lines[index], lineMatches[index]);
@@ -330,7 +329,7 @@ class MarkerWidget extends Disposable {
 		this.renderDetails(marker, filterData, multiline ? lastLineElement : this.messageAndDetailsContainer);
 	}
 
-	private renderDetails(marker: IMarker, filterData: MarkerFilterData, parent: HTMLElement): void {
+	private renderDetails(marker: IMarker, filterData: MarkerFilterData | undefined, parent: HTMLElement): void {
 		dom.addClass(parent, 'details-container');
 		const sourceMatches = filterData && filterData.sourceMatches || [];
 		const codeMatches = filterData && filterData.codeMatches || [];
@@ -493,7 +492,7 @@ export class MarkerViewModel extends Disposable {
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	private modelPromise: CancelablePromise<ITextModel> | null = null;
-	private codeActionsPromise: CancelablePromise<CodeAction[]> | null = null;
+	private codeActionsPromise: CancelablePromise<CodeActionSet> | null = null;
 
 	constructor(
 		private readonly marker: Marker,
@@ -548,16 +547,17 @@ export class MarkerViewModel extends Disposable {
 	}
 
 	private async setQuickFixes(waitForModel: boolean): Promise<void> {
-		const quickFixes = await this.getQuickFixes(waitForModel);
-		this.quickFixAction.quickFixes = quickFixes;
+		const codeActions = await this.getCodeActions(waitForModel);
+		this.quickFixAction.quickFixes = codeActions ? this.toActions(codeActions) : [];
+		this.quickFixAction.autoFixable(!!codeActions && codeActions.hasAutoFix);
 	}
 
-	private getCodeActions(waitForModel: boolean): Promise<CodeAction[] | null> {
+	private getCodeActions(waitForModel: boolean): Promise<CodeActionSet | null> {
 		if (this.codeActionsPromise !== null) {
 			return this.codeActionsPromise;
 		}
 		return this.getModel(waitForModel)
-			.then(model => {
+			.then<CodeActionSet | null>(model => {
 				if (model) {
 					if (!this.codeActionsPromise) {
 						this.codeActionsPromise = createCancelablePromise(cancellationToken => {
@@ -570,8 +570,8 @@ export class MarkerViewModel extends Disposable {
 			});
 	}
 
-	private toActions(codeActions: CodeAction[]): IAction[] {
-		return codeActions.map(codeAction => new Action(
+	private toActions(codeActions: CodeActionSet): IAction[] {
+		return codeActions.actions.map(codeAction => new Action(
 			codeAction.command ? codeAction.command.id : codeAction.title,
 			codeAction.title,
 			undefined,
@@ -629,7 +629,7 @@ export class MarkersViewModel extends Disposable {
 
 	private bulkUpdate: boolean = false;
 
-	private hoveredMarker: Marker;
+	private hoveredMarker: Marker | null;
 	private hoverDelayer: Delayer<void> = new Delayer<void>(300);
 
 	constructor(

@@ -59,6 +59,10 @@ export function lstat(path: string): Promise<fs.Stats> {
 	return nfcall(fs.lstat, path);
 }
 
+export function move(oldPath: string, newPath: string): Promise<void> {
+	return nfcall(extfs.mv, oldPath, newPath);
+}
+
 export function rename(oldPath: string, newPath: string): Promise<void> {
 	return nfcall(fs.rename, oldPath, newPath);
 }

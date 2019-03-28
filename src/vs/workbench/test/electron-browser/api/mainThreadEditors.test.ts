@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/electron-browser/mainThreadDocumentsAndEditors';
+import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/browser/mainThreadDocumentsAndEditors';
 import { SingleProxyRPCProtocol, TestRPCProtocol } from './testRPCProtocol';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { ExtHostDocumentsAndEditorsShape, ExtHostContext, ExtHostDocumentsShape } from 'vs/workbench/api/node/extHost.protocol';
+import { ExtHostDocumentsAndEditorsShape, ExtHostContext, ExtHostDocumentsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import { Event } from 'vs/base/common/event';
-import { MainThreadTextEditors } from 'vs/workbench/api/electron-browser/mainThreadEditors';
+import { MainThreadTextEditors } from 'vs/workbench/api/browser/mainThreadEditors';
 import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
@@ -23,7 +23,7 @@ import { TestFileService, TestEditorService, TestEditorGroupsService, TestEnviro
 import { ResourceTextEdit } from 'vs/editor/common/modes';
 import { BulkEditService } from 'vs/workbench/services/bulkEdit/browser/bulkEditService';
 import { NullLogService } from 'vs/platform/log/common/log';
-import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
+import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IReference, ImmortalReference } from 'vs/base/common/lifecycle';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
@@ -73,9 +73,9 @@ suite('MainThreadEditors', () => {
 		const workbenchEditorService = new TestEditorService();
 		const editorGroupService = new TestEditorGroupsService();
 		const textModelService = new class extends mock<ITextModelService>() {
-			createModelReference(resource: URI): Promise<IReference<ITextEditorModel>> {
-				const textEditorModel: ITextEditorModel = new class extends mock<ITextEditorModel>() {
-					textEditorModel = modelService.getModel(resource);
+			createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
+				const textEditorModel = new class extends mock<IResolvedTextEditorModel>() {
+					textEditorModel = modelService.getModel(resource)!;
 				};
 				textEditorModel.isReadonly = () => false;
 				return Promise.resolve(new ImmortalReference(textEditorModel));
@@ -100,10 +100,10 @@ suite('MainThreadEditors', () => {
 			textFileService,
 			workbenchEditorService,
 			codeEditorService,
-			null,
+			null!,
 			fileService,
-			null,
-			null,
+			null!,
+			null!,
 			editorGroupService,
 			bulkEditService,
 			new class extends mock<IPanelService>() implements IPanelService {

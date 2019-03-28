@@ -21,7 +21,7 @@ import * as uuid from 'vs/base/common/uuid';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
-import { ConfigurationEditingService, ConfigurationEditingError, ConfigurationEditingErrorCode } from 'vs/workbench/services/configuration/node/configurationEditingService';
+import { ConfigurationEditingService, ConfigurationEditingError, ConfigurationEditingErrorCode } from 'vs/workbench/services/configuration/common/configurationEditingService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { WORKSPACE_STANDALONE_CONFIGURATIONS } from 'vs/workbench/services/configuration/common/configuration';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
@@ -36,6 +36,9 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CommandService } from 'vs/workbench/services/commands/common/commandService';
 import { URI } from 'vs/base/common/uri';
 import { createHash } from 'crypto';
+import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 
@@ -99,7 +102,9 @@ suite('ConfigurationEditingService', () => {
 		instantiationService = <TestInstantiationService>workbenchInstantiationService();
 		const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
 		instantiationService.stub(IEnvironmentService, environmentService);
-		const workspaceService = new WorkspaceService(environmentService);
+		const remoteAgentService = instantiationService.createInstance(RemoteAgentService, {});
+		instantiationService.stub(IRemoteAgentService, remoteAgentService);
+		const workspaceService = new WorkspaceService(<IWindowConfiguration>{}, environmentService, remoteAgentService);
 		instantiationService.stub(IWorkspaceContextService, workspaceService);
 		return workspaceService.initialize(noWorkspace ? { id: '' } : { folder: URI.file(workspaceDir), id: createHash('md5').update(URI.file(workspaceDir).toString()).digest('hex') }).then(() => {
 			instantiationService.stub(IConfigurationService, workspaceService);

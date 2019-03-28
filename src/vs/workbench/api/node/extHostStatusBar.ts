@@ -6,7 +6,7 @@
 import { StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/platform/statusbar/common/statusbar';
 import { StatusBarAlignment as ExtHostStatusBarAlignment, Disposable, ThemeColor } from './extHostTypes';
 import { StatusBarItem, StatusBarAlignment } from 'vscode';
-import { MainContext, MainThreadStatusBarShape, IMainContext } from './extHost.protocol';
+import { MainContext, MainThreadStatusBarShape, IMainContext } from '../common/extHost.protocol';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export class ExtHostStatusBarEntry implements StatusBarItem {
@@ -14,7 +14,7 @@ export class ExtHostStatusBarEntry implements StatusBarItem {
 
 	private _id: number;
 	private _alignment: number;
-	private _priority: number;
+	private _priority?: number;
 	private _disposed: boolean;
 	private _visible: boolean;
 
@@ -26,9 +26,9 @@ export class ExtHostStatusBarEntry implements StatusBarItem {
 	private _timeoutHandle: any;
 	private _proxy: MainThreadStatusBarShape;
 
-	private _extensionId: ExtensionIdentifier;
+	private _extensionId?: ExtensionIdentifier;
 
-	constructor(proxy: MainThreadStatusBarShape, extensionId: ExtensionIdentifier, alignment: ExtHostStatusBarAlignment = ExtHostStatusBarAlignment.Left, priority?: number) {
+	constructor(proxy: MainThreadStatusBarShape, extensionId: ExtensionIdentifier | undefined, alignment: ExtHostStatusBarAlignment = ExtHostStatusBarAlignment.Left, priority?: number) {
 		this._id = ExtHostStatusBarEntry.ID_GEN++;
 		this._proxy = proxy;
 		this._alignment = alignment;
@@ -44,7 +44,7 @@ export class ExtHostStatusBarEntry implements StatusBarItem {
 		return this._alignment;
 	}
 
-	public get priority(): number {
+	public get priority(): number | undefined {
 		return this._priority;
 	}
 
@@ -139,7 +139,7 @@ class StatusBarMessage {
 		this._update();
 
 		return new Disposable(() => {
-			let idx = this._messages.indexOf(data);
+			const idx = this._messages.indexOf(data);
 			if (idx >= 0) {
 				this._messages.splice(idx, 1);
 				this._update();
@@ -167,13 +167,13 @@ export class ExtHostStatusBar {
 		this._statusMessage = new StatusBarMessage(this);
 	}
 
-	createStatusBarEntry(extensionId: ExtensionIdentifier, alignment?: ExtHostStatusBarAlignment, priority?: number): StatusBarItem {
+	createStatusBarEntry(extensionId: ExtensionIdentifier | undefined, alignment?: ExtHostStatusBarAlignment, priority?: number): StatusBarItem {
 		return new ExtHostStatusBarEntry(this._proxy, extensionId, alignment, priority);
 	}
 
 	setStatusBarMessage(text: string, timeoutOrThenable?: number | Thenable<any>): Disposable {
 
-		let d = this._statusMessage.setMessage(text);
+		const d = this._statusMessage.setMessage(text);
 		let handle: any;
 
 		if (typeof timeoutOrThenable === 'number') {

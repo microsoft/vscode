@@ -75,7 +75,7 @@ export class OutputPanel extends AbstractTextResourceEditor {
 		return this.actions;
 	}
 
-	public getActionItem(action: Action): IActionItem {
+	public getActionItem(action: Action): IActionItem | undefined {
 		if (action.id === SwitchOutputAction.ID) {
 			return this.instantiationService.createInstance(SwitchOutputActionItem, action);
 		}
@@ -141,7 +141,7 @@ export class OutputPanel extends AbstractTextResourceEditor {
 	}
 
 	protected createEditor(parent: HTMLElement): void {
-		// First create the scoped instantation service and only then construct the editor using the scoped service
+		// First create the scoped instantiation service and only then construct the editor using the scoped service
 		const scopedContextKeyService = this._register(this.contextKeyService.createScoped(parent));
 		this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]));
 		super.createEditor(parent);
@@ -154,11 +154,14 @@ export class OutputPanel extends AbstractTextResourceEditor {
 				return;
 			}
 
-			const newPositionLine = e.position.lineNumber;
-			const lastLine = codeEditor.getModel().getLineCount();
-			const newLockState = lastLine !== newPositionLine;
-			const lockAction = this.actions.filter((action) => action.id === ToggleOrSetOutputScrollLockAction.ID)[0];
-			lockAction.run(newLockState);
+			const model = codeEditor.getModel();
+			if (model) {
+				const newPositionLine = e.position.lineNumber;
+				const lastLine = model.getLineCount();
+				const newLockState = lastLine !== newPositionLine;
+				const lockAction = this.actions.filter((action) => action.id === ToggleOrSetOutputScrollLockAction.ID)[0];
+				lockAction.run(newLockState);
+			}
 		});
 	}
 

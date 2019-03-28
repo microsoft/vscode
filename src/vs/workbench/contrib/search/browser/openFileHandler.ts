@@ -3,37 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as errors from 'vs/base/common/errors';
-import * as nls from 'vs/nls';
-import { isAbsolute } from 'vs/base/common/path';
-import * as objects from 'vs/base/common/objects';
-import { defaultGenerator } from 'vs/base/common/idGenerator';
-import { URI } from 'vs/base/common/uri';
-import { basename, dirname } from 'vs/base/common/resources';
 import { IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import * as errors from 'vs/base/common/errors';
+import { defaultGenerator } from 'vs/base/common/idGenerator';
+import { untildify } from 'vs/base/common/labels';
+import { Schemas } from 'vs/base/common/network';
+import * as objects from 'vs/base/common/objects';
+import { isAbsolute } from 'vs/base/common/path';
+import { basename, dirname } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
+import { QuickOpenEntry, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import { IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
+import { IPreparedQuery, prepareQuery } from 'vs/base/parts/quickopen/common/quickOpenScorer';
+import { IRange } from 'vs/editor/common/core/range';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
-import { QuickOpenEntry, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import { QuickOpenHandler, EditorQuickOpenEntry } from 'vs/workbench/browser/quickopen';
-import { QueryBuilder, IFileQueryBuilderOptions } from 'vs/workbench/contrib/search/common/queryBuilder';
-import { EditorInput, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
-import { IResourceInput } from 'vs/platform/editor/common/editor';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ISearchService, IFileSearchStats, IFileQuery, ISearchComplete } from 'vs/workbench/services/search/common/search';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IRange } from 'vs/editor/common/core/range';
+import { IFileService } from 'vs/platform/files/common/files';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { EditorQuickOpenEntry, QuickOpenHandler } from 'vs/workbench/browser/quickopen';
+import { EditorInput, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
+import { IFileQueryBuilderOptions, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/contrib/search/common/search';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { prepareQuery, IPreparedQuery } from 'vs/base/parts/quickopen/common/quickOpenScorer';
-import { IFileService } from 'vs/platform/files/common/files';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { untildify } from 'vs/base/common/labels';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { IFileQuery, IFileSearchStats, ISearchComplete, ISearchService } from 'vs/workbench/services/search/common/search';
+import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 
 export class FileQuickOpenModel extends QuickOpenModel {
 
@@ -142,9 +143,6 @@ export class OpenFileHandler extends QuickOpenHandler {
 			return Promise.resolve(new FileQuickOpenModel([]));
 		}
 
-		// Untildify file pattern
-		query.value = untildify(query.value, this.environmentService.userHome);
-
 		// Do find results
 		return this.doFindResults(query, token, this.cacheState.cacheKey, maxSortedResults);
 	}
@@ -186,10 +184,16 @@ export class OpenFileHandler extends QuickOpenHandler {
 	}
 
 	private getAbsolutePathResult(query: IPreparedQuery): Promise<URI | undefined> {
-		if (isAbsolute(query.original)) {
-			const resource = URI.file(query.original);
+		const detildifiedQuery = untildify(query.original, this.environmentService.userHome);
+		if (isAbsolute(detildifiedQuery)) {
+			const workspaceFolders = this.contextService.getWorkspace().folders;
+			const resource = workspaceFolders[0] && workspaceFolders[0].uri.scheme !== Schemas.file ?
+				workspaceFolders[0].uri.with({ path: detildifiedQuery }) :
+				URI.file(detildifiedQuery);
 
-			return this.fileService.resolveFile(resource).then(stat => stat.isDirectory ? undefined : resource, error => undefined);
+			return this.fileService.resolveFile(resource).then(
+				stat => stat.isDirectory ? undefined : resource,
+				error => undefined);
 		}
 
 		return Promise.resolve(undefined);

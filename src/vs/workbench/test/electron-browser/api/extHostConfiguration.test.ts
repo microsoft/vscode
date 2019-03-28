@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { ExtHostConfigProvider } from 'vs/workbench/api/node/extHostConfiguration';
-import { MainThreadConfigurationShape, IConfigurationInitData } from 'vs/workbench/api/node/extHost.protocol';
+import { MainThreadConfigurationShape, IConfigurationInitData } from 'vs/workbench/api/common/extHost.protocol';
 import { ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { TestRPCProtocol } from './testRPCProtocol';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
@@ -56,7 +56,7 @@ suite('ExtHostConfiguration', function () {
 
 		assert.equal(extHostConfig.getConfiguration('search.exclude')['**/node_modules'], true);
 		assert.equal(extHostConfig.getConfiguration('search.exclude').get('**/node_modules'), true);
-		assert.equal(extHostConfig.getConfiguration('search').get('exclude')!['**/node_modules'], true);
+		assert.equal(extHostConfig.getConfiguration('search').get<any>('exclude')['**/node_modules'], true);
 
 		assert.equal(extHostConfig.getConfiguration('search.exclude').has('**/node_modules'), true);
 		assert.equal(extHostConfig.getConfiguration('search').has('exclude.**/node_modules'), true);
@@ -111,7 +111,7 @@ suite('ExtHostConfiguration', function () {
 		});
 
 		let testObject = all.getConfiguration();
-		let actual = testObject.get('farboo')!;
+		let actual = testObject.get<any>('farboo')!;
 		actual['nested']['config1'] = 41;
 		assert.equal(41, actual['nested']['config1']);
 		actual['farboo1'] = 'newValue';
@@ -190,7 +190,7 @@ suite('ExtHostConfiguration', function () {
 			'config4': ''
 		}), JSON.stringify(actual));
 
-		actual = testObject.get('workbench')!['colorCustomizations']!;
+		actual = testObject.get<any>('workbench')!['colorCustomizations']!;
 		actual['statusBar.background'] = 'anothervalue';
 		assert.deepEqual(JSON.stringify({
 			'statusBar.foreground': 'somevalue',

@@ -26,7 +26,7 @@ suite('KeybindingResolver', () => {
 			resolvedKeybinding,
 			command,
 			commandArgs,
-			when ? when.normalize() : null,
+			when ? when.normalize() : undefined,
 			isDefault
 		);
 	}

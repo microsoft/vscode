@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
+import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IURLService } from 'vs/platform/url/common/url';
 import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
@@ -70,11 +70,11 @@ export class LaunchChannel implements IServerChannel {
 
 	constructor(private service: ILaunchService) { }
 
-	listen<T>(_, event: string): Event<T> {
+	listen<T>(_: unknown, event: string): Event<T> {
 		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(_, command: string, arg: any): Promise<any> {
+	call(_: unknown, command: string, arg: any): Promise<any> {
 		switch (command) {
 			case 'start':
 				const { args, userEnv } = arg as IStartArguments;
@@ -163,9 +163,11 @@ export class LaunchService implements ILaunchService {
 		const context = !!userEnv['VSCODE_CLI'] ? OpenContext.CLI : OpenContext.DESKTOP;
 		let usedWindows: ICodeWindow[] = [];
 
+		const waitMarkerFileURI = args.wait && args.waitMarkerFilePath ? URI.file(args.waitMarkerFilePath) : undefined;
+
 		// Special case extension development
 		if (!!args.extensionDevelopmentPath) {
-			this.windowsMainService.openExtensionDevelopmentHostWindow(args.extensionDevelopmentPath, { context, cli: args, userEnv });
+			this.windowsMainService.openExtensionDevelopmentHostWindow(args.extensionDevelopmentPath, { context, cli: args, userEnv, waitMarkerFileURI });
 		}
 
 		// Start without file/folder arguments
@@ -199,7 +201,14 @@ export class LaunchService implements ILaunchService {
 			}
 
 			if (openNewWindow) {
-				usedWindows = this.windowsMainService.open({ context, cli: args, userEnv, forceNewWindow: true, forceEmpty: true });
+				usedWindows = this.windowsMainService.open({
+					context,
+					cli: args,
+					userEnv,
+					forceNewWindow: true,
+					forceEmpty: true,
+					waitMarkerFileURI
+				});
 			} else {
 				usedWindows = [this.windowsMainService.focusLastActive(args, context)];
 			}
@@ -215,17 +224,19 @@ export class LaunchService implements ILaunchService {
 				preferNewWindow: !args['reuse-window'] && !args.wait,
 				forceReuseWindow: args['reuse-window'],
 				diffMode: args.diff,
-				addMode: args.add
+				addMode: args.add,
+				noRecentEntry: !!args['skip-add-to-recently-opened'],
+				waitMarkerFileURI
 			});
 		}
 
 		// If the other instance is waiting to be killed, we hook up a window listener if one window
 		// is being used and only then resolve the startup promise which will kill this second instance.
 		// In addition, we poll for the wait marker file to be deleted to return.
-		if (args.wait && args.waitMarkerFilePath && usedWindows.length === 1 && usedWindows[0]) {
+		if (waitMarkerFileURI && usedWindows.length === 1 && usedWindows[0]) {
 			return Promise.race([
 				this.windowsMainService.waitForWindowCloseOrLoad(usedWindows[0].id),
-				whenDeleted(args.waitMarkerFilePath)
+				whenDeleted(waitMarkerFileURI.fsPath)
 			]).then(() => undefined, () => undefined);
 		}
 

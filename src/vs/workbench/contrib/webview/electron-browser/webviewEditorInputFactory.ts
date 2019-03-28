@@ -8,6 +8,7 @@ import { IEditorInputFactory } from 'vs/workbench/common/editor';
 import { WebviewEditorInput } from './webviewEditorInput';
 import { IWebviewEditorService, WebviewInputOptions } from './webviewEditorService';
 import { URI, UriComponents } from 'vs/base/common/uri';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 interface SerializedIconPath {
 	light: string | UriComponents;
@@ -20,8 +21,10 @@ interface SerializedWebview {
 	readonly title: string;
 	readonly options: WebviewInputOptions;
 	readonly extensionLocation: string | UriComponents | undefined;
+	readonly extensionId: string | undefined;
 	readonly state: any;
 	readonly iconPath: SerializedIconPath | undefined;
+	readonly group?: number;
 }
 
 export class WebviewEditorInputFactory implements IEditorInputFactory {
@@ -34,15 +37,9 @@ export class WebviewEditorInputFactory implements IEditorInputFactory {
 
 	public serialize(
 		input: WebviewEditorInput
-	): string | null {
-		// Has no state, don't revive
-		if (!input.state) {
-			return null;
-		}
-
-		// Only attempt revival if we may have a reviver
-		if (!this._webviewService.canRevive(input) && !input.reviver) {
-			return null;
+	): string | undefined {
+		if (!this._webviewService.shouldPersist(input)) {
+			return undefined;
 		}
 
 		const data: SerializedWebview = {
@@ -50,15 +47,17 @@ export class WebviewEditorInputFactory implements IEditorInputFactory {
 			id: input.getId(),
 			title: input.getName(),
 			options: input.options,
-			extensionLocation: input.extensionLocation,
+			extensionLocation: input.extension ? input.extension.location : undefined,
+			extensionId: input.extension ? input.extension.id.value : undefined,
 			state: input.state,
 			iconPath: input.iconPath ? { light: input.iconPath.light, dark: input.iconPath.dark, } : undefined,
+			group: input.group
 		};
 
 		try {
 			return JSON.stringify(data);
 		} catch {
-			return null;
+			return undefined;
 		}
 	}
 
@@ -68,8 +67,12 @@ export class WebviewEditorInputFactory implements IEditorInputFactory {
 	): WebviewEditorInput {
 		const data: SerializedWebview = JSON.parse(serializedEditorInput);
 		const extensionLocation = reviveUri(data.extensionLocation);
+		const extensionId = data.extensionId ? new ExtensionIdentifier(data.extensionId) : undefined;
 		const iconPath = reviveIconPath(data.iconPath);
-		return this._webviewService.reviveWebview(data.viewType, data.id, data.title, iconPath, data.state, data.options, extensionLocation);
+		return this._webviewService.reviveWebview(data.viewType, data.id, data.title, iconPath, data.state, data.options, extensionLocation ? {
+			location: extensionLocation,
+			id: extensionId
+		} : undefined, data.group);
 	}
 }
 function reviveIconPath(data: SerializedIconPath | undefined) {

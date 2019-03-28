@@ -455,15 +455,15 @@ connection.onFoldingRanges((params, token) => {
 	}, null, `Error while computing folding regions for ${params.textDocument.uri}`, token);
 });
 
-connection.onRequest('$/textDocument/selectionRange', async (params, token) => {
+connection.onRequest('$/textDocument/selectionRanges', async (params, token) => {
 	return runSafe(() => {
 		const document = documents.get(params.textDocument.uri);
-		const position: Position = params.position;
+		const positions: Position[] = params.positions;
 
 		if (document) {
 			const htmlMode = languageModes.getMode('html');
-			if (htmlMode && htmlMode.doSelection) {
-				return htmlMode.doSelection(document, position);
+			if (htmlMode && htmlMode.getSelectionRanges) {
+				return htmlMode.getSelectionRanges(document, positions);
 			}
 		}
 		return Promise.resolve(null);

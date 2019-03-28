@@ -63,7 +63,7 @@ const DefaultOptions = {
 	setRowLineHeight: true,
 	supportDynamicHeights: false,
 	dnd: {
-		getDragElements(e) { return [e]; },
+		getDragElements<T>(e: T) { return [e]; },
 		getDragURI() { return null; },
 		onDragStart(): void { },
 		onDragOver() { return false; },
@@ -191,15 +191,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	readonly onDidChangeContentHeight: Event<number> = Event.latch(this._onDidChangeContentHeight.event);
 	get contentHeight(): number { return this.rangeMap.size; }
 
-	readonly onDidScroll: Event<void>;
-
-	// private _onDragStart = new Emitter<{ element: T, uri: string, event: DragEvent }>();
-	// readonly onDragStart = this._onDragStart.event;
-
-	// readonly onDragOver: Event<IListDragEvent<T>>;
-	// readonly onDragLeave: Event<void>;
-	// readonly onDrop: Event<IListDragEvent<T>>;
-	// readonly onDragEnd: Event<void>;
+	get onDidScroll(): Event<ScrollEvent> { return this.scrollableElement.onScroll; }
 
 	constructor(
 		container: HTMLElement,
@@ -253,7 +245,6 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		this.disposables = [this.rangeMap, this.gesture, this.scrollableElement, this.cache];
 
-		this.onDidScroll = Event.signal(this.scrollableElement.onScroll);
 		this.scrollableElement.onScroll(this.onScroll, this, this.disposables);
 		domEvent(this.rowsContainer, TouchEventType.Change)(this.onTouchChange, this, this.disposables);
 
@@ -445,6 +436,15 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	get firstVisibleIndex(): number {
 		const range = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
+		const firstElTop = this.rangeMap.positionAt(range.start);
+		const nextElTop = this.rangeMap.positionAt(range.start + 1);
+		if (nextElTop !== -1) {
+			const firstElMidpoint = (nextElTop - firstElTop) / 2 + firstElTop;
+			if (firstElMidpoint < this.scrollTop) {
+				return range.start + 1;
+			}
+		}
+
 		return range.start;
 	}
 
@@ -786,6 +786,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	private onDragOver(event: IListDragEvent<T>): boolean {
+		event.browserEvent.preventDefault(); // needed so that the drop event fires (https://stackoverflow.com/questions/21339924/drop-event-not-firing-in-chrome)
+
 		this.onDragLeaveTimeout.dispose();
 
 		if (StaticDND.CurrentDragAndDropData && StaticDND.CurrentDragAndDropData.getData() === 'vscode-ui') {
@@ -1094,6 +1096,11 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		}
 
 		item.size = row.domNode!.offsetHeight;
+
+		if (this.virtualDelegate.setDynamicHeight) {
+			this.virtualDelegate.setDynamicHeight(item.element, item.size);
+		}
+
 		item.lastDynamicHeightWidth = this.renderWidth;
 		this.rowsContainer.removeChild(row.domNode!);
 		this.cache.release(row);

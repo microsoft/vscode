@@ -205,10 +205,6 @@ export function del(path: string, tmpFolder: string, callback: (error: Error | n
 
 				// do the heavy deletion outside the callers callback
 				rmRecursive(pathInTemp, error => {
-					if (error) {
-						console.error(error);
-					}
-
 					if (done) {
 						done(error);
 					}
@@ -219,7 +215,7 @@ export function del(path: string, tmpFolder: string, callback: (error: Error | n
 }
 
 function rmRecursive(path: string, callback: (error: Error | null) => void): void {
-	if (path === '\\' || path === '/') {
+	if (path === paths.win32.sep || path === paths.posix.sep) {
 		return callback(new Error('Will not delete root!'));
 	}
 
@@ -277,6 +273,10 @@ function rmRecursive(path: string, callback: (error: Error | null) => void): voi
 }
 
 export function delSync(path: string): void {
+	if (path === paths.win32.sep || path === paths.posix.sep) {
+		throw new Error('Will not delete root!');
+	}
+
 	try {
 		const stat = fs.lstatSync(path);
 		if (stat.isDirectory() && !stat.isSymbolicLink()) {
@@ -304,12 +304,12 @@ export function mv(source: string, target: string, callback: (error: Error | nul
 			return callback(err);
 		}
 
-		fs.stat(target, (error, stat) => {
+		fs.lstat(target, (error, stat) => {
 			if (error) {
 				return callback(error);
 			}
 
-			if (stat.isDirectory()) {
+			if (stat.isDirectory() || stat.isSymbolicLink()) {
 				return callback(null);
 			}
 
@@ -367,10 +367,10 @@ export interface IWriteFileOptions {
 }
 
 let canFlush = true;
-export function writeFileAndFlush(path: string, data: string | Buffer | NodeJS.ReadableStream, options: IWriteFileOptions, callback: (error?: Error) => void): void {
+export function writeFileAndFlush(path: string, data: string | Buffer | NodeJS.ReadableStream | Uint8Array, options: IWriteFileOptions, callback: (error?: Error) => void): void {
 	options = ensureOptions(options);
 
-	if (typeof data === 'string' || Buffer.isBuffer(data)) {
+	if (typeof data === 'string' || Buffer.isBuffer(data) || data instanceof Uint8Array) {
 		doWriteFileAndFlush(path, data, options, callback);
 	} else {
 		doWriteFileStreamAndFlush(path, data, options, callback);
@@ -468,9 +468,9 @@ function doWriteFileStreamAndFlush(path: string, reader: NodeJS.ReadableStream, 
 // not in some cache.
 //
 // See https://github.com/nodejs/node/blob/v5.10.0/lib/fs.js#L1194
-function doWriteFileAndFlush(path: string, data: string | Buffer, options: IWriteFileOptions, callback: (error?: Error) => void): void {
+function doWriteFileAndFlush(path: string, data: string | Buffer | Uint8Array, options: IWriteFileOptions, callback: (error?: Error) => void): void {
 	if (options.encoding) {
-		data = encode(data, options.encoding.charset, { addBOM: options.encoding.addBOM });
+		data = encode(data instanceof Uint8Array ? Buffer.from(data) : data, options.encoding.charset, { addBOM: options.encoding.addBOM });
 	}
 
 	if (!canFlush) {

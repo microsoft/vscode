@@ -22,6 +22,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { WordSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/wordSelections';
 import { BracketSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/bracketSelections';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { onUnexpectedExternalError } from 'vs/base/common/errors';
 
 class SelectionRanges {
 
@@ -237,7 +238,7 @@ export function provideSelectionRanges(model: ITextModel, positions: Position[],
 					}
 				}
 			}
-		}));
+		}, onUnexpectedExternalError));
 	}
 
 	return Promise.all(work).then(() => {

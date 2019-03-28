@@ -152,7 +152,7 @@ export function asText(context: IRequestContext): Promise<string | null> {
 			return c(null);
 		}
 
-		let buffer: string[] = [];
+		const buffer: string[] = [];
 		context.stream.on('data', (d: string) => buffer.push(d));
 		context.stream.on('end', () => c(buffer.join('')));
 		context.stream.on('error', e);

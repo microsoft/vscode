@@ -7,11 +7,11 @@ import { Emitter } from 'vs/base/common/event';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { EditorInput, EditorModel, GroupIdentifier, IEditorInput } from 'vs/workbench/common/editor';
-import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
-import * as vscode from 'vscode';
-import { WebviewEvents, WebviewInputOptions, WebviewReviver } from './webviewEditorService';
-import { WebviewElement } from './webviewElement';
+import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
+import { WebviewEvents, WebviewInputOptions } from './webviewEditorService';
+import { WebviewElement, WebviewOptions } from './webviewElement';
 
 export class WebviewEditorInput extends EditorInput {
 	private static handlePool = 0;
@@ -64,9 +64,10 @@ export class WebviewEditorInput extends EditorInput {
 	private _scrollYPercentage: number = 0;
 	private _state: any;
 
-	private _revived: boolean = false;
-
-	public readonly extensionLocation: URI | undefined;
+	public readonly extension?: {
+		readonly location: URI;
+		readonly id: ExtensionIdentifier;
+	};
 	private readonly _id: number;
 
 	constructor(
@@ -76,9 +77,11 @@ export class WebviewEditorInput extends EditorInput {
 		options: WebviewInputOptions,
 		state: any,
 		events: WebviewEvents,
-		extensionLocation: URI | undefined,
-		public readonly reviver: WebviewReviver | undefined,
-		@IPartService private readonly _partService: IPartService,
+		extension: undefined | {
+			readonly location: URI;
+			readonly id: ExtensionIdentifier;
+		},
+		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 	) {
 		super();
 
@@ -93,7 +96,7 @@ export class WebviewEditorInput extends EditorInput {
 		this._options = options;
 		this._events = events;
 		this._state = state;
-		this.extensionLocation = extensionLocation;
+		this.extension = extension;
 	}
 
 	public getTypeId(): string {
@@ -198,7 +201,7 @@ export class WebviewEditorInput extends EditorInput {
 		return this._options;
 	}
 
-	public setOptions(value: vscode.WebviewOptions) {
+	public setOptions(value: WebviewOptions) {
 		this._options = {
 			...this._options,
 			...value
@@ -207,16 +210,13 @@ export class WebviewEditorInput extends EditorInput {
 		if (this._webview) {
 			this._webview.options = {
 				allowScripts: this._options.enableScripts,
-				localResourceRoots: this._options.localResourceRoots
+				localResourceRoots: this._options.localResourceRoots,
+				portMappings: this._options.portMapping,
 			};
 		}
 	}
 
 	public resolve(): Promise<IEditorModel> {
-		if (this.reviver && !this._revived) {
-			this._revived = true;
-			return this.reviver.reviveWebview(this).then(() => new EditorModel());
-		}
 		return Promise.resolve(new EditorModel());
 	}
 
@@ -228,10 +228,8 @@ export class WebviewEditorInput extends EditorInput {
 		if (!this._container) {
 			this._container = document.createElement('div');
 			this._container.id = `webview-${this._id}`;
-			const part = this._partService.getContainer(Parts.EDITOR_PART);
-			if (part) {
-				part.appendChild(this._container);
-			}
+			const part = this._layoutService.getContainer(Parts.EDITOR_PART);
+			part.appendChild(this._container);
 		}
 		return this._container;
 	}
@@ -308,5 +306,35 @@ export class WebviewEditorInput extends EditorInput {
 
 	public updateGroup(group: GroupIdentifier): void {
 		this._group = group;
+	}
+}
+
+
+export class RevivedWebviewEditorInput extends WebviewEditorInput {
+	private _revived: boolean = false;
+
+	constructor(
+		viewType: string,
+		id: number | undefined,
+		name: string,
+		options: WebviewInputOptions,
+		state: any,
+		events: WebviewEvents,
+		extension: undefined | {
+			readonly location: URI;
+			readonly id: ExtensionIdentifier
+		},
+		public readonly reviver: (input: WebviewEditorInput) => Promise<void>,
+		@IWorkbenchLayoutService partService: IWorkbenchLayoutService,
+	) {
+		super(viewType, id, name, options, state, events, extension, partService);
+	}
+
+	public async resolve(): Promise<IEditorModel> {
+		if (!this._revived) {
+			this._revived = true;
+			await this.reviver(this);
+		}
+		return super.resolve();
 	}
 }

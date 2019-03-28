@@ -11,6 +11,7 @@ export interface IListVirtualDelegate<T> {
 	getHeight(element: T): number;
 	getTemplateId(element: T): string;
 	hasDynamicHeight?(element: T): boolean;
+	setDynamicHeight?(element: T, height: number): void;
 }
 
 export interface IListRenderer<T, TTemplateData> {
@@ -55,7 +56,7 @@ export interface IListContextMenuEvent<T> {
 	browserEvent: UIEvent;
 	element: T | undefined;
 	index: number | undefined;
-	anchor: HTMLElement | { x: number; y: number; } | undefined;
+	anchor: HTMLElement | { x: number; y: number; };
 }
 
 export interface IIdentityProvider<T> {

@@ -235,6 +235,11 @@ export const PANEL_DRAG_AND_DROP_BACKGROUND = registerColor('panel.dropBackgroun
 	hc: Color.white.transparent(0.12)
 }, nls.localize('panelDragAndDropBackground', "Drag and drop feedback color for the panel title items. The color should have transparency so that the panel entries can still shine through. Panels are shown below the editor area and contain views like output and integrated terminal."));
 
+export const PANEL_INPUT_BORDER = registerColor('panelInput.border', {
+	dark: null,
+	light: Color.fromHex('#ddd'),
+	hc: null
+}, nls.localize('panelInputBorder', "Input box border for inputs in the panel."));
 
 // < --- Status --- >
 
@@ -287,15 +292,15 @@ export const STATUS_BAR_ITEM_HOVER_BACKGROUND = registerColor('statusBarItem.hov
 }, nls.localize('statusBarItemHoverBackground', "Status bar item background color when hovering. The status bar is shown in the bottom of the window."));
 
 export const STATUS_BAR_PROMINENT_ITEM_BACKGROUND = registerColor('statusBarItem.prominentBackground', {
-	dark: '#388A34',
-	light: '#388A34',
-	hc: '#3883A4'
+	dark: Color.black.transparent(0.5),
+	light: Color.black.transparent(0.5),
+	hc: Color.black.transparent(0.5),
 }, nls.localize('statusBarProminentItemBackground', "Status bar prominent items background color. Prominent items stand out from other status bar entries to indicate importance. Change mode `Toggle Tab Key Moves Focus` from command palette to see an example. The status bar is shown in the bottom of the window."));
 
 export const STATUS_BAR_PROMINENT_ITEM_HOVER_BACKGROUND = registerColor('statusBarItem.prominentHoverBackground', {
-	dark: '#369432',
-	light: '#369432',
-	hc: '#369432'
+	dark: Color.black.transparent(0.3),
+	light: Color.black.transparent(0.3),
+	hc: Color.black.transparent(0.3),
 }, nls.localize('statusBarProminentItemHoverBackground', "Status bar prominent items background color when hovering. Prominent items stand out from other status bar entries to indicate importance. Change mode `Toggle Tab Key Moves Focus` from command palette to see an example. The status bar is shown in the bottom of the window."));
 
 export const STATUS_BAR_HOST_NAME_BACKGROUND = registerColor('statusBarItem.hostBackground', {

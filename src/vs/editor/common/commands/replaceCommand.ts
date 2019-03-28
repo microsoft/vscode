@@ -98,9 +98,9 @@ export class ReplaceCommandWithOffsetCursorState implements ICommand {
 
 export class ReplaceCommandThatPreservesSelection implements ICommand {
 
-	private _range: Range;
-	private _text: string;
-	private _initialSelection: Selection;
+	private readonly _range: Range;
+	private readonly _text: string;
+	private readonly _initialSelection: Selection;
 	private _selectionId: string;
 
 	constructor(editRange: Range, text: string, initialSelection: Selection) {

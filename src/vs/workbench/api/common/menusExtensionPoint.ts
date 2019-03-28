@@ -34,17 +34,29 @@ namespace schema {
 			case 'explorer/context': return MenuId.ExplorerContext;
 			case 'editor/title/context': return MenuId.EditorTitleContext;
 			case 'debug/callstack/context': return MenuId.DebugCallStackContext;
-			case 'debug/toolbar': return MenuId.DebugToolbar;
+			case 'debug/toolbar': return MenuId.DebugToolBar;
+			case 'debug/toolBar': return MenuId.DebugToolBar;
+			case 'menuBar/file': return MenuId.MenubarFileMenu;
 			case 'scm/title': return MenuId.SCMTitle;
 			case 'scm/sourceControl': return MenuId.SCMSourceControl;
 			case 'scm/resourceGroup/context': return MenuId.SCMResourceGroupContext;
 			case 'scm/resourceState/context': return MenuId.SCMResourceContext;
 			case 'scm/change/title': return MenuId.SCMChangeContext;
+			case 'statusBar/windowIndicator': return MenuId.StatusBarWindowIndicatorMenu;
 			case 'view/title': return MenuId.ViewTitle;
 			case 'view/item/context': return MenuId.ViewItemContext;
 		}
 
 		return undefined;
+	}
+
+	export function isProposedAPI(menuId: MenuId): boolean {
+		switch (menuId) {
+			case MenuId.StatusBarWindowIndicatorMenu:
+			case MenuId.MenubarFileMenu:
+				return true;
+		}
+		return false;
 	}
 
 	export function isValidMenuItems(menu: IUserFriendlyMenuItem[], collector: ExtensionMessageCollector): boolean {
@@ -136,8 +148,8 @@ namespace schema {
 				type: 'array',
 				items: menuItem
 			},
-			'debug/toolbar': {
-				description: localize('menus.debugToolbar', "The debug toolbar menu"),
+			'debug/toolBar': {
+				description: localize('menus.debugToolBar', "The debug toolbar menu"),
 				type: 'array',
 				items: menuItem
 			},
@@ -354,6 +366,11 @@ ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyM
 			const menu = schema.parseMenuId(entry.key);
 			if (typeof menu !== 'number') {
 				collector.warn(localize('menuId.invalid', "`{0}` is not a valid menu identifier", entry.key));
+				return;
+			}
+
+			if (schema.isProposedAPI(menu) && !extension.description.enableProposedApi) {
+				collector.error(localize('proposedAPI.invalid', "{0} is a proposed menu identifier and is only available when running out of dev or with the following command line switch: --enable-proposed-api {1}", entry.key, extension.description.identifier.value));
 				return;
 			}
 

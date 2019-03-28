@@ -25,13 +25,14 @@ import { DefinitionAction, DefinitionActionConfig } from './goToDefinitionComman
 import { ClickLinkGesture, ClickLinkMouseEvent, ClickLinkKeyboardEvent } from 'vs/editor/contrib/goToDefinition/clickLinkGesture';
 import { IWordAtPosition, IModelDeltaDecoration, ITextModel, IFoundBracket } from 'vs/editor/common/model';
 import { Position } from 'vs/editor/common/core/position';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorContribution {
 
 	private static readonly ID = 'editor.contrib.gotodefinitionwithmouse';
 	static MAX_SOURCE_PREVIEW_LINES = 8;
 
-	private editor: ICodeEditor;
+	private readonly editor: ICodeEditor;
 	private toUnhook: IDisposable[];
 	private decorations: string[];
 	private currentWordUnderMouse: IWordAtPosition | null;
@@ -51,7 +52,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 		this.toUnhook.push(linkGesture);
 
 		this.toUnhook.push(linkGesture.onMouseMoveOrRelevantKeyDown(([mouseEvent, keyboardEvent]) => {
-			this.startFindDefinition(mouseEvent, keyboardEvent || undefined);
+			this.startFindDefinition(mouseEvent, withNullAsUndefined(keyboardEvent));
 		}));
 
 		this.toUnhook.push(linkGesture.onExecute((mouseEvent: ClickLinkMouseEvent) => {

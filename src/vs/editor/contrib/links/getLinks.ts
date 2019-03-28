@@ -15,7 +15,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 export class Link implements ILink {
 
 	private _link: ILink;
-	private _provider: LinkProvider;
+	private readonly _provider: LinkProvider;
 
 	constructor(link: ILink, provider: LinkProvider) {
 		this._link = link;

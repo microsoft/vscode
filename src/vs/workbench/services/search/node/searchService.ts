@@ -14,21 +14,22 @@ import { Schemas } from 'vs/base/common/network';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI as uri } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
-import { getNextTickChannel } from 'vs/base/parts/ipc/node/ipc';
+import { getNextTickChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client, IIPCOptions } from 'vs/base/parts/ipc/node/ipc.cp';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDebugParams, IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IFileService } from 'vs/platform/files/common/files';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { deserializeSearchError, FileMatch, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IProgress, ISearchComplete, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, ITextQuery, pathIncludedInQuery, QueryType, SearchError, SearchErrorCode, SearchProviderType, ISearchConfiguration } from 'vs/workbench/services/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { deserializeSearchError, FileMatch, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, IRawSearchService, ISearchComplete, ISearchConfiguration, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, isSerializedSearchComplete, isSerializedSearchSuccess, ITextQuery, pathIncludedInQuery, QueryType, SearchError, SearchErrorCode, SearchProviderType, isFileMatch, isProgressMessage } from 'vs/workbench/services/search/common/search';
 import { addContextToEditorMatches, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { IRawSearchService, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, isSerializedSearchComplete, isSerializedSearchSuccess } from './search';
 import { SearchChannelClient } from './searchIpc';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class SearchService extends Disposable implements ISearchService {
 	_serviceBrand: any;
@@ -36,7 +37,6 @@ export class SearchService extends Disposable implements ISearchService {
 	private diskSearch: DiskSearch;
 	private readonly fileSearchProviders = new Map<string, ISearchResultProvider>();
 	private readonly textSearchProviders = new Map<string, ISearchResultProvider>();
-	private readonly fileIndexProviders = new Map<string, ISearchResultProvider>();
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -46,7 +46,8 @@ export class SearchService extends Disposable implements ISearchService {
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
-		@IExtensionService private readonly extensionService: IExtensionService
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		super();
 		this.diskSearch = this.instantiationService.createInstance(DiskSearch, !environmentService.isBuilt || environmentService.verbose, environmentService.debugSearch);
@@ -58,8 +59,6 @@ export class SearchService extends Disposable implements ISearchService {
 			list = this.fileSearchProviders;
 		} else if (type === SearchProviderType.text) {
 			list = this.textSearchProviders;
-		} else if (type === SearchProviderType.fileIndex) {
-			list = this.fileIndexProviders;
 		} else {
 			throw new Error('Unknown SearchProviderType');
 		}
@@ -79,18 +78,18 @@ export class SearchService extends Disposable implements ISearchService {
 			arrays.coalesce(localResults.values()).forEach(onProgress);
 		}
 
-		const onProviderProgress = progress => {
-			if (progress.resource) {
+		const onProviderProgress = (progress: ISearchProgressItem) => {
+			if (isFileMatch(progress)) {
 				// Match
 				if (!localResults.has(progress.resource) && onProgress) { // don't override local results
 					onProgress(progress);
 				}
 			} else if (onProgress) {
 				// Progress
-				onProgress(<IProgress>progress);
+				onProgress(<IProgressMessage>progress);
 			}
 
-			if (progress.message) {
+			if (isProgressMessage(progress)) {
 				this.logService.debug('SearchService#search', progress.message);
 			}
 		};
@@ -143,7 +142,7 @@ export class SearchService extends Disposable implements ISearchService {
 				return <ISearchComplete>{
 					limitHit: completes[0] && completes[0].limitHit,
 					stats: completes[0].stats,
-					results: arrays.flatten(completes.map(c => c.results))
+					results: arrays.flatten(completes.map((c: ISearchComplete) => c.results))
 				};
 			});
 
@@ -179,9 +178,9 @@ export class SearchService extends Disposable implements ISearchService {
 
 		const fqs = this.groupFolderQueriesByScheme(query);
 		keys(fqs).forEach(scheme => {
-			const schemeFQs = fqs.get(scheme);
+			const schemeFQs = fqs.get(scheme)!;
 			const provider = query.type === QueryType.File ?
-				this.fileSearchProviders.get(scheme) || this.fileIndexProviders.get(scheme) :
+				this.fileSearchProviders.get(scheme) :
 				this.textSearchProviders.get(scheme);
 
 			if (!provider && scheme === 'file') {
@@ -229,7 +228,7 @@ export class SearchService extends Disposable implements ISearchService {
 			const endToEndTime = e2eSW.elapsed();
 			this.logService.trace(`SearchService#search: ${endToEndTime}ms`);
 			const searchError = deserializeSearchError(err.message);
-			this.sendTelemetry(query, endToEndTime, null, searchError);
+			this.sendTelemetry(query, endToEndTime, undefined, searchError);
 
 			throw searchError;
 		});
@@ -355,8 +354,8 @@ export class SearchService extends Disposable implements ISearchService {
 		}
 	}
 
-	private getLocalResults(query: ITextQuery): ResourceMap<IFileMatch> {
-		const localResults = new ResourceMap<IFileMatch>();
+	private getLocalResults(query: ITextQuery): ResourceMap<IFileMatch | null> {
+		const localResults = new ResourceMap<IFileMatch | null>();
 
 		if (query.type === QueryType.Text) {
 			const models = this.modelService.getModels();
@@ -377,11 +376,8 @@ export class SearchService extends Disposable implements ISearchService {
 					}
 				}
 
-				// Don't support other resource schemes than files for now
-				// todo@remote
-				// why is that? we should search for resources from other
-				// schemes
-				else if (resource.scheme !== Schemas.file) {
+				// Block walkthrough, webview, etc.
+				else if (!this.fileService.canHandleResource(resource)) {
 					return;
 				}
 
@@ -390,7 +386,7 @@ export class SearchService extends Disposable implements ISearchService {
 				}
 
 				// Use editor API to find matches
-				const matches = model.findMatches(query.contentPattern.pattern, false, query.contentPattern.isRegExp, query.contentPattern.isCaseSensitive, query.contentPattern.isWordMatch ? query.contentPattern.wordSeparators : null, false, query.maxResults);
+				const matches = model.findMatches(query.contentPattern.pattern, false, !!query.contentPattern.isRegExp, !!query.contentPattern.isCaseSensitive, query.contentPattern.isWordMatch ? query.contentPattern.wordSeparators! : null, false, query.maxResults);
 				if (matches.length) {
 					const fileMatch = new FileMatch(resource);
 					localResults.set(resource, fileMatch);
@@ -407,20 +403,12 @@ export class SearchService extends Disposable implements ISearchService {
 	}
 
 	private matches(resource: uri, query: ITextQuery): boolean {
-		// includes
-		if (query.includePattern) {
-			if (resource.scheme !== Schemas.file) {
-				return false; // if we match on file patterns, we have to ignore non file resources
-			}
-		}
-
 		return pathIncludedInQuery(query, resource.fsPath);
 	}
 
 	clearCache(cacheKey: string): Promise<void> {
 		const clearPs = [
 			this.diskSearch,
-			...values(this.fileIndexProviders),
 			...values(this.fileSearchProviders)
 		].map(provider => provider && provider.clearCache(cacheKey));
 
@@ -502,7 +490,7 @@ export class DiskSearch implements ISearchResultProvider {
 				let event: Event<ISerializedSearchProgressItem | ISerializedSearchComplete>;
 				event = this.raw.fileSearch(query);
 
-				const onProgress = (p: IProgress) => {
+				const onProgress = (p: IProgressMessage) => {
 					if (p.message) {
 						// Should only be for logs
 						this.logService.debug('SearchService#search', p.message);
@@ -566,7 +554,7 @@ export class DiskSearch implements ISearchResultProvider {
 
 					// Progress
 					else if (onProgress) {
-						onProgress(<IProgress>ev);
+						onProgress(<IProgressMessage>ev);
 					}
 				}
 			});
@@ -586,3 +574,5 @@ export class DiskSearch implements ISearchResultProvider {
 		return this.raw.clearCache(cacheKey);
 	}
 }
+
+registerSingleton(ISearchService, SearchService, true);

@@ -8,7 +8,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Action } from 'vs/base/common/actions';
 import { IEditorGroupsService, GroupDirection, GroupLocation, IFindGroupScope } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IPartService, Parts, Position as PartPosition } from 'vs/workbench/services/part/common/partService';
+import { IWorkbenchLayoutService, Parts, Position as PartPosition } from 'vs/workbench/services/layout/browser/layoutService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IPanel } from 'vs/workbench/common/panel';
@@ -22,19 +22,19 @@ abstract class BaseNavigationAction extends Action {
 		label: string,
 		@IEditorGroupsService protected editorGroupService: IEditorGroupsService,
 		@IPanelService protected panelService: IPanelService,
-		@IPartService protected partService: IPartService,
+		@IWorkbenchLayoutService protected layoutService: IWorkbenchLayoutService,
 		@IViewletService protected viewletService: IViewletService
 	) {
 		super(id, label);
 	}
 
 	run(): Promise<any> {
-		const isEditorFocus = this.partService.hasFocus(Parts.EDITOR_PART);
-		const isPanelFocus = this.partService.hasFocus(Parts.PANEL_PART);
-		const isSidebarFocus = this.partService.hasFocus(Parts.SIDEBAR_PART);
+		const isEditorFocus = this.layoutService.hasFocus(Parts.EDITOR_PART);
+		const isPanelFocus = this.layoutService.hasFocus(Parts.PANEL_PART);
+		const isSidebarFocus = this.layoutService.hasFocus(Parts.SIDEBAR_PART);
 
-		const isSidebarPositionLeft = this.partService.getSideBarPosition() === PartPosition.LEFT;
-		const isPanelPositionDown = this.partService.getPanelPosition() === PartPosition.BOTTOM;
+		const isSidebarPositionLeft = this.layoutService.getSideBarPosition() === PartPosition.LEFT;
+		const isPanelPositionDown = this.layoutService.getPanelPosition() === PartPosition.BOTTOM;
 
 		if (isEditorFocus) {
 			return this.navigateOnEditorFocus(isSidebarPositionLeft, isPanelPositionDown);
@@ -64,7 +64,7 @@ abstract class BaseNavigationAction extends Action {
 	}
 
 	protected navigateToPanel(): IPanel | boolean {
-		if (!this.partService.isVisible(Parts.PANEL_PART)) {
+		if (!this.layoutService.isVisible(Parts.PANEL_PART)) {
 			return false;
 		}
 
@@ -74,7 +74,7 @@ abstract class BaseNavigationAction extends Action {
 	}
 
 	protected navigateToSidebar(): Promise<IViewlet | boolean> {
-		if (!this.partService.isVisible(Parts.SIDEBAR_PART)) {
+		if (!this.layoutService.isVisible(Parts.SIDEBAR_PART)) {
 			return Promise.resolve(false);
 		}
 
@@ -118,10 +118,10 @@ class NavigateLeftAction extends BaseNavigationAction {
 		label: string,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IPanelService panelService: IPanelService,
-		@IPartService partService: IPartService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IViewletService viewletService: IViewletService
 	) {
-		super(id, label, editorGroupService, panelService, partService, viewletService);
+		super(id, label, editorGroupService, panelService, layoutService, viewletService);
 	}
 
 	protected navigateOnEditorFocus(isSidebarPositionLeft: boolean, _isPanelPositionDown: boolean): Promise<boolean | IViewlet> {
@@ -168,10 +168,10 @@ class NavigateRightAction extends BaseNavigationAction {
 		label: string,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IPanelService panelService: IPanelService,
-		@IPartService partService: IPartService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IViewletService viewletService: IViewletService
 	) {
-		super(id, label, editorGroupService, panelService, partService, viewletService);
+		super(id, label, editorGroupService, panelService, layoutService, viewletService);
 	}
 
 	protected navigateOnEditorFocus(isSidebarPositionLeft: boolean, isPanelPositionDown: boolean): Promise<boolean | IViewlet | IPanel> {
@@ -218,10 +218,10 @@ class NavigateUpAction extends BaseNavigationAction {
 		label: string,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IPanelService panelService: IPanelService,
-		@IPartService partService: IPartService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IViewletService viewletService: IViewletService
 	) {
-		super(id, label, editorGroupService, panelService, partService, viewletService);
+		super(id, label, editorGroupService, panelService, layoutService, viewletService);
 	}
 
 	protected navigateOnEditorFocus(_isSidebarPositionLeft: boolean, _isPanelPositionDown: boolean): Promise<boolean> {
@@ -247,10 +247,10 @@ class NavigateDownAction extends BaseNavigationAction {
 		label: string,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IPanelService panelService: IPanelService,
-		@IPartService partService: IPartService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IViewletService viewletService: IViewletService
 	) {
-		super(id, label, editorGroupService, panelService, partService, viewletService);
+		super(id, label, editorGroupService, panelService, layoutService, viewletService);
 	}
 
 	protected navigateOnEditorFocus(_isSidebarPositionLeft: boolean, isPanelPositionDown: boolean): Promise<boolean | IPanel> {

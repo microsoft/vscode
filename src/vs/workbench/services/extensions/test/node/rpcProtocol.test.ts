@@ -6,23 +6,24 @@
 import * as assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
-import { ProxyIdentifier } from 'vs/workbench/services/extensions/node/proxyIdentifier';
+import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
+import { ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 suite('RPCProtocol', () => {
 
 	class MessagePassingProtocol implements IMessagePassingProtocol {
 		private _pair: MessagePassingProtocol;
 
-		private readonly _onMessage = new Emitter<Buffer>();
-		public readonly onMessage: Event<Buffer> = this._onMessage.event;
+		private readonly _onMessage = new Emitter<VSBuffer>();
+		public readonly onMessage: Event<VSBuffer> = this._onMessage.event;
 
 		public setPair(other: MessagePassingProtocol) {
 			this._pair = other;
 		}
 
-		public send(buffer: Buffer): void {
+		public send(buffer: VSBuffer): void {
 			process.nextTick(() => {
 				this._pair._onMessage.fire(buffer);
 			});

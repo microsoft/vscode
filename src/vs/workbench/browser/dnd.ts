@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { hasWorkspaceFileExtension, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
 import { normalize } from 'vs/base/common/path';
 import { basename } from 'vs/base/common/resources';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -28,6 +28,8 @@ import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/co
 import { Disposable } from 'vs/base/common/lifecycle';
 import { addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IRecentFile } from 'vs/platform/history/common/history';
+import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 
 export interface IDraggedResource {
 	resource: URI;
@@ -153,16 +155,16 @@ export class ResourcesDropHandler {
 		@IFileService private readonly fileService: IFileService,
 		@IWindowsService private readonly windowsService: IWindowsService,
 		@IWindowService private readonly windowService: IWindowService,
-		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IBackupFileService private readonly backupFileService: IBackupFileService,
 		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService
 	) {
 	}
 
-	handleDrop(event: DragEvent, resolveTargetGroup: () => IEditorGroup, afterDrop: (targetGroup: IEditorGroup) => void, targetIndex?: number): void {
+	handleDrop(event: DragEvent, resolveTargetGroup: () => IEditorGroup | undefined, afterDrop: (targetGroup: IEditorGroup | undefined) => void, targetIndex?: number): void {
 		const untitledOrFileResources = extractResources(event).filter(r => this.fileService.canHandleResource(r.resource) || r.resource.scheme === Schemas.untitled);
 		if (!untitledOrFileResources.length) {
 			return;
@@ -178,9 +180,9 @@ export class ResourcesDropHandler {
 				}
 
 				// Add external ones to recently open list unless dropped resource is a workspace
-				const filesToAddToHistory = untitledOrFileResources.filter(d => d.isExternal && d.resource.scheme === Schemas.file).map(d => d.resource);
-				if (filesToAddToHistory.length) {
-					this.windowsService.addRecentlyOpened(filesToAddToHistory);
+				const recents: IRecentFile[] = untitledOrFileResources.filter(d => d.isExternal && d.resource.scheme === Schemas.file).map(d => ({ fileUri: d.resource }));
+				if (recents.length) {
+					this.windowsService.addRecentlyOpened(recents);
 				}
 
 				const editors: IResourceEditor[] = untitledOrFileResources.map(untitledOrFileResource => ({
@@ -235,10 +237,10 @@ export class ResourcesDropHandler {
 		}
 
 		// Resolve the contents of the dropped dirty resource from source
-		return this.backupFileService.resolveBackupContent(droppedDirtyEditor.backupResource).then(content => {
+		return this.backupFileService.resolveBackupContent(droppedDirtyEditor.backupResource!).then(content => {
 
 			// Set the contents of to the resource to the target
-			return this.backupFileService.backupResource(droppedDirtyEditor.resource, content.create(this.getDefaultEOL()).createSnapshot(true));
+			return this.backupFileService.backupResource(droppedDirtyEditor.resource, content!.create(this.getDefaultEOL()).createSnapshot(true));
 		}).then(() => false, () => false /* ignore any error */);
 	}
 
@@ -283,26 +285,13 @@ export class ResourcesDropHandler {
 			// Pass focus to window
 			this.windowService.focusWindow();
 
-			let workspacesToOpen: Promise<IURIToOpen[]> | undefined;
-
 			// Open in separate windows if we drop workspaces or just one folder
 			if (workspaces.length > 0 || folders.length === 1) {
-				workspacesToOpen = Promise.resolve([...workspaces, ...folders]);
+				return this.windowService.openWindow([...workspaces, ...folders], { forceReuseWindow: true }).then(_ => true);
 			}
 
-			// Multiple folders: Create new workspace with folders and open
-			else if (folders.length > 1) {
-				workspacesToOpen = this.workspacesService.createUntitledWorkspace(folders).then(workspace => [<IURIToOpen>{ uri: workspace.configPath, typeHint: 'file' }]);
-			}
-
-			// Open
-			if (workspacesToOpen) {
-				workspacesToOpen.then(workspaces => {
-					this.windowService.openWindow(workspaces, { forceReuseWindow: true });
-				});
-			}
-
-			return true;
+			// folders.length > 1: Multiple folders: Create new workspace with folders and open
+			return this.workspaceEditingService.createAndEnterWorkspace(folders).then(_ => true);
 		});
 	}
 }
@@ -447,6 +436,8 @@ export class DragAndDropObserver extends Disposable {
 		}));
 
 		this._register(addDisposableListener(this.element, EventType.DRAG_OVER, (e: DragEvent) => {
+			e.preventDefault(); // needed so that the drop event fires (https://stackoverflow.com/questions/21339924/drop-event-not-firing-in-chrome)
+
 			if (this.callbacks.onDragOver) {
 				this.callbacks.onDragOver(e);
 			}

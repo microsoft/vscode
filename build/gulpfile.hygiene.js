@@ -42,7 +42,8 @@ const indentationFilter = [
 
 	// except specific files
 	'!ThirdPartyNotices.txt',
-	'!LICENSE.txt',
+	'!LICENSE.{txt,rtf}',
+	'!LICENSES.chromium.html',
 	'!**/LICENSE',
 	'!src/vs/nls.js',
 	'!src/vs/nls.build.js',
@@ -81,7 +82,7 @@ const indentationFilter = [
 	'!src/typings/**/*.d.ts',
 	'!extensions/**/*.d.ts',
 	'!**/*.{svg,exe,png,bmp,scpt,bat,cmd,cur,ttf,woff,eot,md,ps1,template,yaml,yml,d.ts.recipe,ico,icns}',
-	'!build/{lib,tslintRules}/**/*.js',
+	'!build/{lib,tslintRules,download}/**/*.js',
 	'!build/**/*.sh',
 	'!build/azure-pipelines/**/*.js',
 	'!build/azure-pipelines/**/*.config',
@@ -228,7 +229,7 @@ function hygiene(some) {
 			let formatted = result.dest.replace(/\r\n/gm, '\n');
 
 			if (original !== formatted) {
-				console.error('File not formatted:', file.relative);
+				console.error("File not formatted. Run the 'Format Document' command to fix it:", file.relative);
 				errorCount++;
 			}
 			cb(null, file);

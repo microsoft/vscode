@@ -20,10 +20,9 @@ import { IRawFileMatch2, resultIsMatch } from 'vs/workbench/services/search/comm
 import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { Range, RelativePattern } from 'vs/workbench/api/node/extHostTypes';
 import { ITextQueryBuilderOptions } from 'vs/workbench/contrib/search/common/queryBuilder';
-import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import * as vscode from 'vscode';
-import { ExtHostWorkspaceShape, IWorkspaceData, MainThreadMessageServiceShape, MainThreadWorkspaceShape, IMainContext, MainContext, IStaticWorkspaceData } from './extHost.protocol';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtHostWorkspaceShape, IWorkspaceData, MainThreadMessageServiceShape, MainThreadWorkspaceShape, IMainContext, MainContext, IStaticWorkspaceData } from '../common/extHost.protocol';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Barrier } from 'vs/base/common/async';
 
 export interface IExtHostWorkspaceProvider {
@@ -321,10 +320,10 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		return folders[0].uri.fsPath;
 	}
 
-	getRelativePath(pathOrUri: string | vscode.Uri, includeWorkspace?: boolean): string | undefined {
+	getRelativePath(pathOrUri: string | vscode.Uri, includeWorkspace?: boolean): string {
 
 		let resource: URI | undefined;
-		let path: string | undefined;
+		let path: string = '';
 		if (typeof pathOrUri === 'string') {
 			resource = URI.file(pathOrUri);
 			path = pathOrUri;
@@ -354,7 +353,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		if (includeWorkspace && folder.name) {
 			result = `${folder.name}/${result}`;
 		}
-		return result;
+		return result!;
 	}
 
 	private trySetWorkspaceFolders(folders: vscode.WorkspaceFolder[]): void {
@@ -389,7 +388,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 
 	// --- search ---
 
-	findFiles(include: string | RelativePattern, exclude: vscode.GlobPattern, maxResults: number, extensionId: ExtensionIdentifier, token: vscode.CancellationToken = CancellationToken.None): Promise<vscode.Uri[]> {
+	findFiles(include: string | RelativePattern | undefined, exclude: vscode.GlobPattern | undefined, maxResults: number | undefined, extensionId: ExtensionIdentifier, token: vscode.CancellationToken = CancellationToken.None): Promise<vscode.Uri[]> {
 		this._logService.trace(`extHostWorkspace#findFiles: fileSearch, extension: ${extensionId.value}, entryPoint: findFiles`);
 
 		let includePattern: string | undefined;
@@ -405,7 +404,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			}
 		}
 
-		let excludePatternOrDisregardExcludes: string | false = false;
+		let excludePatternOrDisregardExcludes: string | false | undefined = undefined;
 		if (exclude === null) {
 			excludePatternOrDisregardExcludes = false;
 		} else if (exclude) {
@@ -459,7 +458,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			excludePattern: options.exclude ? globPatternToString(options.exclude) : undefined
 		};
 
-		let isCanceled = false;
+		const isCanceled = false;
 
 		this._activeSearchCallbacks[requestId] = p => {
 			if (isCanceled) {

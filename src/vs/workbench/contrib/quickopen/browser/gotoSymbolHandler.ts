@@ -289,7 +289,7 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 	}
 
 	getInput(): IEditorInput | null {
-		return this.editorService.activeEditor || null;
+		return types.withUndefinedAsNull(this.editorService.activeEditor);
 	}
 
 	getOptions(pinned?: boolean): ITextEditorOptions {

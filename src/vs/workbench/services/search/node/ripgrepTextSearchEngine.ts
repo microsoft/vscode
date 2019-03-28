@@ -140,6 +140,10 @@ export function rgErrorMsgForDisplay(msg: string): Maybe<SearchError> {
 		return new SearchError(firstLine.charAt(0).toUpperCase() + firstLine.substr(1), SearchErrorCode.invalidLiteral);
 	}
 
+	if (startsWith(firstLine, 'PCRE2: error compiling pattern')) {
+		return new SearchError(firstLine, SearchErrorCode.regexParseError);
+	}
+
 	return undefined;
 }
 
@@ -165,10 +169,11 @@ export class RipgrepParser extends EventEmitter {
 	}
 
 
-	on(event: 'result', listener: (result: vscode.TextSearchResult) => void);
-	on(event: 'hitLimit', listener: () => void);
-	on(event: string, listener: (...args: any[]) => void) {
+	on(event: 'result', listener: (result: vscode.TextSearchResult) => void): this;
+	on(event: 'hitLimit', listener: () => void): this;
+	on(event: string, listener: (...args: any[]) => void): this {
 		super.on(event, listener);
+		return this;
 	}
 
 	handleData(data: Buffer | string): void {

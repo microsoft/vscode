@@ -8,8 +8,8 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as crypto from 'crypto';
 import * as assert from 'assert';
-import { isParent, FileOperation, FileOperationEvent, IContent, IFileService, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IUpdateContentOptions, FileChangeType, FileChangesEvent, ICreateFileOptions, IContentData, ITextSnapshot, IFilesConfiguration, IFileSystemProviderRegistrationEvent, IFileSystemProvider } from 'vs/platform/files/common/files';
-import { MAX_FILE_SIZE, MAX_HEAP_SIZE } from 'vs/platform/files/node/files';
+import { isParent, FileOperation, FileOperationEvent, IContent, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IUpdateContentOptions, FileChangeType, FileChangesEvent, ICreateFileOptions, IContentData, ITextSnapshot, IFilesConfiguration, IFileSystemProviderRegistrationEvent, IFileSystemProvider, ILegacyFileService, IFileStatWithMetadata, IFileService, IResolveMetadataFileOptions, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
+import { MAX_FILE_SIZE, MAX_HEAP_SIZE } from 'vs/platform/files/node/fileConstants';
 import { isEqualOrParent } from 'vs/base/common/extpath';
 import { ResourceMap } from 'vs/base/common/map';
 import * as arrays from 'vs/base/common/arrays';
@@ -22,7 +22,7 @@ import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
 import { IDisposable, toDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import * as pfs from 'vs/base/node/pfs';
-import * as encoding from 'vs/base/node/encoding';
+import { detectEncodingFromBuffer, decodeStream, detectEncodingByBOM, UTF8 } from 'vs/base/node/encoding';
 import * as flow from 'vs/base/node/flow';
 import { FileWatcher as UnixWatcherService } from 'vs/workbench/services/files/node/watcher/unix/watcherService';
 import { FileWatcher as WindowsWatcherService } from 'vs/workbench/services/files/node/watcher/win32/watcherService';
@@ -42,13 +42,14 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import product from 'vs/platform/product/node/product';
 import { IEncodingOverride, ResourceEncodings } from 'vs/workbench/services/files/node/encoding';
 import { createReadableOfSnapshot } from 'vs/workbench/services/files/node/streams';
+import { withUndefinedAsNull } from 'vs/base/common/types';
 
 export interface IFileServiceTestOptions {
 	disableWatcher?: boolean;
 	encodingOverride?: IEncodingOverride[];
 }
 
-export class FileService extends Disposable implements IFileService {
+export class FileService extends Disposable implements ILegacyFileService, IFileService {
 
 	_serviceBrand: any;
 
@@ -70,7 +71,9 @@ export class FileService extends Disposable implements IFileService {
 	protected readonly _onDidChangeFileSystemProviderRegistrations = this._register(new Emitter<IFileSystemProviderRegistrationEvent>());
 	get onDidChangeFileSystemProviderRegistrations(): Event<IFileSystemProviderRegistrationEvent> { return this._onDidChangeFileSystemProviderRegistrations.event; }
 
-	private activeWorkspaceFileChangeWatcher: IDisposable;
+	readonly onWillActivateFileSystemProvider = Event.None;
+
+	private activeWorkspaceFileChangeWatcher: IDisposable | null;
 	private activeFileChangesWatchers: ResourceMap<{ unwatch: Function, count: number }>;
 	private fileChangesWatchDelayer: ThrottledDelayer<void>;
 	private undeliveredRawFileChangesEvents: IRawFileChange[];
@@ -204,7 +207,7 @@ export class FileService extends Disposable implements IFileService {
 	}
 
 	registerProvider(scheme: string, provider: IFileSystemProvider): IDisposable {
-		throw new Error('not implemented');
+		return Disposable.None;
 	}
 
 	activateProvider(scheme: string): Promise<void> {
@@ -215,17 +218,8 @@ export class FileService extends Disposable implements IFileService {
 		return resource.scheme === Schemas.file;
 	}
 
-	resolveFile(resource: uri, options?: IResolveFileOptions): Promise<IFileStat> {
-		return this.resolve(resource, options);
-	}
-
-	resolveFiles(toResolve: { resource: uri, options?: IResolveFileOptions }[]): Promise<IResolveFileResult[]> {
-		return Promise.all(toResolve.map(resourceAndOptions => this.resolve(resourceAndOptions.resource, resourceAndOptions.options)
-			.then(stat => ({ stat, success: true }), error => ({ stat: undefined, success: false }))));
-	}
-
-	existsFile(resource: uri): Promise<boolean> {
-		return this.resolveFile(resource).then(() => true, () => false);
+	hasCapability(resource: uri, capability: FileSystemProviderCapabilities): Promise<boolean> {
+		return Promise.resolve(false);
 	}
 
 	resolveContent(resource: uri, options?: IResolveContentOptions): Promise<IContent> {
@@ -239,6 +233,7 @@ export class FileService extends Disposable implements IFileService {
 					etag: streamContent.etag,
 					encoding: streamContent.encoding,
 					isReadonly: streamContent.isReadonly,
+					size: streamContent.size,
 					value: ''
 				};
 
@@ -262,7 +257,7 @@ export class FileService extends Disposable implements IFileService {
 			));
 		}
 
-		const result: IStreamContent = {
+		const result: Partial<IStreamContent> = {
 			resource: undefined,
 			name: undefined,
 			mtime: undefined,
@@ -290,6 +285,7 @@ export class FileService extends Disposable implements IFileService {
 			result.name = stat.name;
 			result.mtime = stat.mtime;
 			result.etag = stat.etag;
+			result.size = stat.size;
 
 			// Return early if resource is a directory
 			if (stat.isDirectory) {
@@ -311,7 +307,7 @@ export class FileService extends Disposable implements IFileService {
 
 			// Return early if file is too large to load
 			if (typeof stat.size === 'number') {
-				if (stat.size > Math.max(parseInt(this.environmentService.args['max-memory']) * 1024 * 1024 || 0, MAX_HEAP_SIZE)) {
+				if (stat.size > Math.max(typeof this.environmentService.args['max-memory'] === 'string' ? parseInt(this.environmentService.args['max-memory']) * 1024 * 1024 || 0 : 0, MAX_HEAP_SIZE)) {
 					return onStatError(new FileOperationError(
 						nls.localize('fileTooLargeForHeapError', "To open a file of this size, you need to restart VS Code and allow it to use more memory"),
 						FileOperationResult.FILE_EXCEED_MEMORY_LIMIT
@@ -391,17 +387,17 @@ export class FileService extends Disposable implements IFileService {
 		});
 	}
 
-	private fillInContents(content: IStreamContent, resource: uri, options: IResolveContentOptions, token: CancellationToken): Promise<void> {
+	private fillInContents(content: Partial<IStreamContent>, resource: uri, options: IResolveContentOptions | undefined, token: CancellationToken): Promise<void> {
 		return this.resolveFileData(resource, options, token).then(data => {
 			content.encoding = data.encoding;
 			content.value = data.stream;
 		});
 	}
 
-	private resolveFileData(resource: uri, options: IResolveContentOptions, token: CancellationToken): Promise<IContentData> {
+	private resolveFileData(resource: uri, options: IResolveContentOptions | undefined, token: CancellationToken): Promise<IContentData> {
 		const chunkBuffer = Buffer.allocUnsafe(64 * 1024);
 
-		const result: IContentData = {
+		const result: Partial<IContentData> = {
 			encoding: undefined,
 			stream: undefined
 		};
@@ -473,7 +469,7 @@ export class FileService extends Disposable implements IFileService {
 					}
 				};
 
-				let currentPosition: number = (options && options.position) || null;
+				let currentPosition: number | null = withUndefinedAsNull(options && options.position);
 
 				const readChunk = () => {
 					fs.read(fd, chunkBuffer, 0, chunkBuffer.length, currentPosition, (err, bytesRead) => {
@@ -485,7 +481,7 @@ export class FileService extends Disposable implements IFileService {
 							currentPosition += bytesRead;
 						}
 
-						if (totalBytesRead > Math.max(parseInt(this.environmentService.args['max-memory']) * 1024 * 1024 || 0, MAX_HEAP_SIZE)) {
+						if (totalBytesRead > Math.max(typeof this.environmentService.args['max-memory'] === 'number' ? parseInt(this.environmentService.args['max-memory']) * 1024 * 1024 || 0 : 0, MAX_HEAP_SIZE)) {
 							finish(new FileOperationError(
 								nls.localize('fileTooLargeForHeapError', "To open a file of this size, you need to restart VS Code and allow it to use more memory"),
 								FileOperationResult.FILE_EXCEED_MEMORY_LIMIT
@@ -510,7 +506,7 @@ export class FileService extends Disposable implements IFileService {
 						} else {
 							// when receiving the first chunk of data we need to create the
 							// decoding stream which is then used to drive the string stream.
-							Promise.resolve(encoding.detectEncodingFromBuffer(
+							Promise.resolve(detectEncodingFromBuffer(
 								{ buffer: chunkBuffer, bytesRead },
 								(options && options.autoGuessEncoding) || this.textResourceConfigurationService.getValue(resource, 'files.autoGuessEncoding')
 							)).then(detected => {
@@ -524,8 +520,8 @@ export class FileService extends Disposable implements IFileService {
 
 								} else {
 									result.encoding = this._encoding.getReadEncoding(resource, options, detected);
-									result.stream = decoder = encoding.decodeStream(result.encoding);
-									resolve(result);
+									result.stream = decoder = decodeStream(result.encoding);
+									resolve(result as IContentData);
 									handleChunk(bytesRead);
 								}
 							}).then(undefined, err => {
@@ -542,7 +538,7 @@ export class FileService extends Disposable implements IFileService {
 		});
 	}
 
-	updateContent(resource: uri, value: string | ITextSnapshot, options: IUpdateContentOptions = Object.create(null)): Promise<IFileStat> {
+	updateContent(resource: uri, value: string | ITextSnapshot, options: IUpdateContentOptions = Object.create(null)): Promise<IFileStatWithMetadata> {
 		if (options.writeElevated) {
 			return this.doUpdateContentElevated(resource, value, options);
 		}
@@ -550,7 +546,7 @@ export class FileService extends Disposable implements IFileService {
 		return this.doUpdateContent(resource, value, options);
 	}
 
-	private doUpdateContent(resource: uri, value: string | ITextSnapshot, options: IUpdateContentOptions = Object.create(null)): Promise<IFileStat> {
+	private doUpdateContent(resource: uri, value: string | ITextSnapshot, options: IUpdateContentOptions = Object.create(null)): Promise<IFileStatWithMetadata> {
 		const absolutePath = this.toAbsolutePath(resource);
 
 		// 1.) check file for writing
@@ -564,20 +560,20 @@ export class FileService extends Disposable implements IFileService {
 
 			// 2.) create parents as needed
 			return createParentsPromise.then(() => {
-				const encodingToWrite = this._encoding.getWriteEncoding(resource, options.encoding);
+				const { encoding, hasBOM } = this._encoding.getWriteEncoding(resource, options.encoding);
 				let addBomPromise: Promise<boolean> = Promise.resolve(false);
 
-				// UTF_16 BE and LE as well as UTF_8 with BOM always have a BOM
-				if (encodingToWrite === encoding.UTF16be || encodingToWrite === encoding.UTF16le || encodingToWrite === encoding.UTF8_with_bom) {
-					addBomPromise = Promise.resolve(true);
+				// Some encodings come with a BOM automatically
+				if (hasBOM) {
+					addBomPromise = Promise.resolve(hasBOM);
 				}
 
 				// Existing UTF-8 file: check for options regarding BOM
-				else if (exists && encodingToWrite === encoding.UTF8) {
+				else if (exists && encoding === UTF8) {
 					if (options.overwriteEncoding) {
 						addBomPromise = Promise.resolve(false); // if we are to overwrite the encoding, we do not preserve it if found
 					} else {
-						addBomPromise = encoding.detectEncodingByBOM(absolutePath).then(enc => enc === encoding.UTF8); // otherwise preserve it if found
+						addBomPromise = detectEncodingByBOM(absolutePath).then(enc => enc === UTF8); // otherwise preserve it if found
 					}
 				}
 
@@ -586,7 +582,7 @@ export class FileService extends Disposable implements IFileService {
 
 					// 4.) set contents and resolve
 					if (!exists || !isWindows) {
-						return this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encodingToWrite);
+						return this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encoding);
 					}
 
 					// On Windows and if the file exists, we use a different strategy of saving the file
@@ -599,7 +595,7 @@ export class FileService extends Disposable implements IFileService {
 						return pfs.truncate(absolutePath, 0).then(() => {
 
 							// 5.) set contents (with r+ mode) and resolve
-							return this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encodingToWrite, { flag: 'r+' }).then(undefined, error => {
+							return this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encoding, { flag: 'r+' }).then(undefined, error => {
 								if (this.environmentService.verbose) {
 									console.error(`Truncate succeeded, but save failed (${error}), retrying after 100ms`);
 								}
@@ -608,7 +604,7 @@ export class FileService extends Disposable implements IFileService {
 								// In that case, the file is now entirely empty and the contents are gone. This can happen if an external file watcher is
 								// installed that reacts on the truncate and keeps the file busy right after. Our workaround is to retry to save after a
 								// short timeout, assuming that the file is free to write then.
-								return timeout(100).then(() => this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encodingToWrite, { flag: 'r+' }));
+								return timeout(100).then(() => this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encoding, { flag: 'r+' }));
 							});
 						}, error => {
 							if (this.environmentService.verbose) {
@@ -617,7 +613,7 @@ export class FileService extends Disposable implements IFileService {
 
 							// we heard from users that fs.truncate() fails (https://github.com/Microsoft/vscode/issues/59561)
 							// in that case we simply save the file without truncating first (same as macOS and Linux)
-							return this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encodingToWrite);
+							return this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encoding);
 						});
 					}
 				});
@@ -636,9 +632,10 @@ export class FileService extends Disposable implements IFileService {
 	}
 
 	private doSetContentsAndResolve(resource: uri, absolutePath: string, value: string | ITextSnapshot, addBOM: boolean, encodingToWrite: string, options?: { mode?: number; flag?: string; }): Promise<IFileStat> {
+
 		// Configure encoding related options as needed
 		const writeFileOptions: extfs.IWriteFileOptions = options ? options : Object.create(null);
-		if (addBOM || encodingToWrite !== encoding.UTF8) {
+		if (addBOM || encodingToWrite !== UTF8) {
 			writeFileOptions.encoding = {
 				charset: encodingToWrite,
 				addBOM
@@ -660,14 +657,14 @@ export class FileService extends Disposable implements IFileService {
 		});
 	}
 
-	private doUpdateContentElevated(resource: uri, value: string | ITextSnapshot, options: IUpdateContentOptions = Object.create(null)): Promise<IFileStat> {
+	private doUpdateContentElevated(resource: uri, value: string | ITextSnapshot, options: IUpdateContentOptions = Object.create(null)): Promise<IFileStatWithMetadata> {
 		const absolutePath = this.toAbsolutePath(resource);
 
 		// 1.) check file for writing
 		return this.checkFileBeforeWriting(absolutePath, options, options.overwriteReadonly /* ignore readonly if we overwrite readonly, this is handled via sudo later */).then(exists => {
 			const writeOptions: IUpdateContentOptions = objects.assign(Object.create(null), options);
 			writeOptions.writeElevated = false;
-			writeOptions.encoding = this._encoding.getWriteEncoding(resource, options.encoding);
+			writeOptions.encoding = this._encoding.getWriteEncoding(resource, options.encoding).encoding;
 
 			// 2.) write to a temporary file to be able to copy over later
 			const tmpPath = paths.join(os.tmpdir(), `code-elevated-${Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 6)}`);
@@ -722,7 +719,7 @@ export class FileService extends Disposable implements IFileService {
 		});
 	}
 
-	createFile(resource: uri, content: string = '', options: ICreateFileOptions = Object.create(null)): Promise<IFileStat> {
+	createFile(resource: uri, content: string = '', options: ICreateFileOptions = Object.create(null)): Promise<IFileStatWithMetadata> {
 		const absolutePath = this.toAbsolutePath(resource);
 
 		let checkFilePromise: Promise<boolean>;
@@ -744,29 +741,6 @@ export class FileService extends Disposable implements IFileService {
 
 			// Create file
 			return this.updateContent(resource, content).then(result => {
-
-				// Events
-				this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, result));
-
-				return result;
-			});
-		});
-	}
-
-	readFolder(resource: uri): Promise<string[]> {
-		const absolutePath = this.toAbsolutePath(resource);
-
-		return pfs.readdir(absolutePath);
-	}
-
-	createFolder(resource: uri): Promise<IFileStat> {
-
-		// 1.) Create folder
-		const absolutePath = this.toAbsolutePath(resource);
-		return pfs.mkdirp(absolutePath).then(() => {
-
-			// 2.) Resolve
-			return this.resolve(resource).then(result => {
 
 				// Events
 				this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, result));
@@ -838,15 +812,15 @@ export class FileService extends Disposable implements IFileService {
 		));
 	}
 
-	moveFile(source: uri, target: uri, overwrite?: boolean): Promise<IFileStat> {
+	moveFile(source: uri, target: uri, overwrite?: boolean): Promise<IFileStatWithMetadata> {
 		return this.moveOrCopyFile(source, target, false, !!overwrite);
 	}
 
-	copyFile(source: uri, target: uri, overwrite?: boolean): Promise<IFileStat> {
+	copyFile(source: uri, target: uri, overwrite?: boolean): Promise<IFileStatWithMetadata> {
 		return this.moveOrCopyFile(source, target, true, !!overwrite);
 	}
 
-	private moveOrCopyFile(source: uri, target: uri, keepCopy: boolean, overwrite: boolean): Promise<IFileStat> {
+	private moveOrCopyFile(source: uri, target: uri, keepCopy: boolean, overwrite: boolean): Promise<IFileStatWithMetadata> {
 		const sourcePath = this.toAbsolutePath(source);
 		const targetPath = this.toAbsolutePath(target);
 
@@ -854,7 +828,7 @@ export class FileService extends Disposable implements IFileService {
 		return this.doMoveOrCopyFile(sourcePath, targetPath, keepCopy, overwrite).then(() => {
 
 			// 2.) resolve
-			return this.resolve(target).then(result => {
+			return this.resolve(target, { resolveMetadata: true }).then(result => {
 
 				// Events (unless it was a no-op because paths are identical)
 				if (sourcePath !== targetPath) {
@@ -978,6 +952,8 @@ export class FileService extends Disposable implements IFileService {
 		return paths.normalize(resource.fsPath);
 	}
 
+	private resolve(resource: uri, options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
+	private resolve(resource: uri, options?: IResolveFileOptions): Promise<IFileStat>;
 	private resolve(resource: uri, options: IResolveFileOptions = Object.create(null)): Promise<IFileStat> {
 		return this.toStatResolver(resource).then(model => model.resolve(options));
 	}
@@ -1106,6 +1082,47 @@ export class FileService extends Disposable implements IFileService {
 		this.activeFileChangesWatchers.forEach(watcher => watcher.unwatch());
 		this.activeFileChangesWatchers.clear();
 	}
+
+
+
+
+
+
+
+
+	// Tests only
+
+	resolveFile(resource: uri, options?: IResolveFileOptions): Promise<IFileStat>;
+	resolveFile(resource: uri, options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
+	resolveFile(resource: uri, options?: IResolveFileOptions): Promise<IFileStat> {
+		return this.resolve(resource, options);
+	}
+
+	resolveFiles(toResolve: { resource: uri, options?: IResolveFileOptions }[]): Promise<IResolveFileResult[]> {
+		return Promise.all(toResolve.map(resourceAndOptions => this.resolve(resourceAndOptions.resource, resourceAndOptions.options)
+			.then(stat => ({ stat, success: true }), error => ({ stat: undefined, success: false }))));
+	}
+
+	createFolder(resource: uri): Promise<IFileStatWithMetadata> {
+
+		// 1.) Create folder
+		const absolutePath = this.toAbsolutePath(resource);
+		return pfs.mkdirp(absolutePath).then(() => {
+
+			// 2.) Resolve
+			return this.resolve(resource, { resolveMetadata: true }).then(result => {
+
+				// Events
+				this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, result));
+
+				return result;
+			});
+		});
+	}
+
+	existsFile(resource: uri): Promise<boolean> {
+		return this.resolveFile(resource).then(() => true, () => false);
+	}
 }
 
 function etag(stat: fs.Stats): string;
@@ -1168,16 +1185,18 @@ export class StatResolver {
 			let absoluteTargetPaths: string[] | null = null;
 			if (options && options.resolveTo) {
 				absoluteTargetPaths = [];
-				options.resolveTo.forEach(resource => {
+				for (const resource of options.resolveTo) {
 					absoluteTargetPaths.push(resource.fsPath);
-				});
+				}
 			}
 
 			return new Promise<IFileStat>(resolve => {
 
 				// Load children
-				this.resolveChildren(this.resource.fsPath, absoluteTargetPaths, options && options.resolveSingleChildDescendants, children => {
-					children = arrays.coalesce(children); // we don't want those null children (could be permission denied when reading a child)
+				this.resolveChildren(this.resource.fsPath, absoluteTargetPaths, !!(options && options.resolveSingleChildDescendants), children => {
+					if (children) {
+						children = arrays.coalesce(children); // we don't want those null children (could be permission denied when reading a child)
+					}
 					fileStat.children = children || [];
 
 					resolve(fileStat);
@@ -1186,7 +1205,7 @@ export class StatResolver {
 		}
 	}
 
-	private resolveChildren(absolutePath: string, absoluteTargetPaths: string[], resolveSingleChildDescendants: boolean, callback: (children: IFileStat[]) => void): void {
+	private resolveChildren(absolutePath: string, absoluteTargetPaths: string[] | null, resolveSingleChildDescendants: boolean, callback: (children: IFileStat[] | null) => void): void {
 		extfs.readdir(absolutePath, (error: Error, files: string[]) => {
 			if (error) {
 				if (this.errorLogger) {
@@ -1197,7 +1216,7 @@ export class StatResolver {
 			}
 
 			// for each file in the folder
-			flow.parallel(files, (file: string, clb: (error: Error, children: IFileStat) => void) => {
+			flow.parallel(files, (file: string, clb: (error: Error | null, children: IFileStat | null) => void) => {
 				const fileResource = uri.file(paths.resolve(absolutePath, file));
 				let fileStat: fs.Stats;
 				let isSymbolicLink = false;
@@ -1257,7 +1276,9 @@ export class StatResolver {
 						// Continue resolving children based on condition
 						if (resolveFolderChildren) {
 							$this.resolveChildren(fileResource.fsPath, absoluteTargetPaths, resolveSingleChildDescendants, children => {
-								children = arrays.coalesce(children);  // we don't want those null children
+								if (children) {
+									children = arrays.coalesce(children);  // we don't want those null children
+								}
 								childStat.children = children || [];
 
 								clb(null, childStat);

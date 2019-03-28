@@ -16,7 +16,9 @@ export class DelayedDragHandler extends Disposable {
 	constructor(container: HTMLElement, callback: () => void) {
 		super();
 
-		this._register(addDisposableListener(container, 'dragover', () => {
+		this._register(addDisposableListener(container, 'dragover', e => {
+			e.preventDefault(); // needed so that the drop event fires (https://stackoverflow.com/questions/21339924/drop-event-not-firing-in-chrome)
+
 			if (!this.timeout) {
 				this.timeout = setTimeout(() => {
 					callback();

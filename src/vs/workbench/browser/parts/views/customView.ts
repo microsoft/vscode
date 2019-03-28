@@ -13,7 +13,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ContextAwareMenuItemActionItem, fillInActionBarActions, fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IViewsService, ITreeView, ITreeItem, TreeItemCollapsibleState, ITreeViewDataProvider, TreeViewItemHandleArg, ITreeViewDescriptor, ViewsRegistry, ViewContainer, ITreeItemLabel } from 'vs/workbench/common/views';
+import { IViewsService, ITreeView, ITreeItem, TreeItemCollapsibleState, ITreeViewDataProvider, TreeViewItemHandleArg, ITreeViewDescriptor, IViewsRegistry, ViewContainer, ITreeItemLabel, Extensions } from 'vs/workbench/common/views';
 import { IViewletViewOptions, FileIconThemableWorkbenchTree } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -43,6 +43,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IMarkdownRenderResult } from 'vs/editor/contrib/markdown/markdownRenderer';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 export class CustomTreeViewPanel extends ViewletPanel {
 
@@ -57,7 +58,7 @@ export class CustomTreeViewPanel extends ViewletPanel {
 		@IViewsService viewsService: IViewsService,
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: options.title }, keybindingService, contextMenuService, configurationService);
-		const { treeView } = (<ITreeViewDescriptor>ViewsRegistry.getView(options.id));
+		const { treeView } = (<ITreeViewDescriptor>Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).getView(options.id));
 		this.treeView = treeView;
 		this.treeView.onDidChangeActions(() => this.updateActions(), this, this.disposables);
 		this.disposables.push(toDisposable(() => this.treeView.setVisibility(false)));
@@ -86,8 +87,8 @@ export class CustomTreeViewPanel extends ViewletPanel {
 		return [...this.treeView.getSecondaryActions()];
 	}
 
-	getActionItem(action: IAction): IActionItem | null {
-		return action instanceof MenuItemAction ? new ContextAwareMenuItemActionItem(action, this.keybindingService, this.notificationService, this.contextMenuService) : null;
+	getActionItem(action: IAction): IActionItem | undefined {
+		return action instanceof MenuItemAction ? new ContextAwareMenuItemActionItem(action, this.keybindingService, this.notificationService, this.contextMenuService) : undefined;
 	}
 
 	getOptimalWidth(): number {
@@ -163,9 +164,9 @@ class TitleMenus implements IDisposable {
 class Root implements ITreeItem {
 	label = { label: 'root' };
 	handle = '0';
-	parentHandle = null;
+	parentHandle: string | undefined = undefined;
 	collapsibleState = TreeItemCollapsibleState.Expanded;
-	children = undefined;
+	children: ITreeItem[] | undefined = undefined;
 }
 
 const noDataProviderMessage = localize('no-dataprovider', "There is no data provider registered that can provide view data.");
@@ -190,7 +191,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 	private menus: TitleMenus;
 
 	private markdownRenderer: MarkdownRenderer;
-	private markdownResult: IMarkdownRenderResult;
+	private markdownResult: IMarkdownRenderResult | null;
 
 	private readonly _onDidExpandItem: Emitter<ITreeItem> = this._register(new Emitter<ITreeItem>());
 	readonly onDidExpandItem: Event<ITreeItem> = this._onDidExpandItem.event;
@@ -234,7 +235,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 				this.markdownResult.dispose();
 			}
 		}));
-		this._register(ViewsRegistry.onDidChangeContainer(({ views, from, to }) => {
+		this._register(Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).onDidChangeContainer(({ views, from, to }) => {
 			if (from === this.viewContainer && views.some(v => v.id === this.id)) {
 				this.viewContainer = to;
 			}
@@ -242,15 +243,15 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		this.create();
 	}
 
-	private _dataProvider: ITreeViewDataProvider;
-	get dataProvider(): ITreeViewDataProvider {
+	private _dataProvider: ITreeViewDataProvider | null;
+	get dataProvider(): ITreeViewDataProvider | null {
 		return this._dataProvider;
 	}
 
-	set dataProvider(dataProvider: ITreeViewDataProvider) {
+	set dataProvider(dataProvider: ITreeViewDataProvider | null) {
 		if (dataProvider) {
 			this._dataProvider = new class implements ITreeViewDataProvider {
-				getChildren(node?: ITreeItem): Promise<ITreeItem[]> {
+				getChildren(node: ITreeItem): Promise<ITreeItem[]> {
 					if (node && node.children) {
 						return Promise.resolve(node.children);
 					}
@@ -461,7 +462,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 				this.elementsToRefresh = [];
 			}
 			for (const element of elements) {
-				element.children = null; // reset children
+				element.children = undefined; // reset children
 			}
 			if (this.isVisible) {
 				return this.doRefresh(elements);
@@ -676,7 +677,7 @@ class TreeRenderer implements IRenderer {
 
 	renderElement(tree: ITree, node: ITreeItem, templateId: string, templateData: ITreeExplorerTemplateData): void {
 		const resource = node.resourceUri ? URI.revive(node.resourceUri) : null;
-		const treeItemLabel: ITreeItemLabel = node.label ? node.label : resource ? { label: basename(resource) } : undefined;
+		const treeItemLabel: ITreeItemLabel | undefined = node.label ? node.label : resource ? { label: basename(resource) } : undefined;
 		const description = isString(node.description) ? node.description : resource && node.description === true ? this.labelService.getUriLabel(dirname(resource), { relative: true }) : undefined;
 		const label = treeItemLabel ? treeItemLabel.label : undefined;
 		const matches = treeItemLabel && treeItemLabel.highlights ? treeItemLabel.highlights.map(([start, end]) => ({ start, end })) : undefined;
@@ -813,7 +814,7 @@ class TreeController extends WorkbenchTreeController {
 				if (keybinding) {
 					return new ActionItem(action, action, { label: true, keybinding: keybinding.getLabel() });
 				}
-				return null;
+				return undefined;
 			},
 
 			onHide: (wasCancelled?: boolean) => {
@@ -872,7 +873,7 @@ class TreeMenus extends Disposable implements IDisposable {
 		return this.getActions(MenuId.ViewItemContext, { key: 'viewItem', value: element.contextValue }).secondary;
 	}
 
-	private getActions(menuId: MenuId, context: { key: string, value: string }): { primary: IAction[]; secondary: IAction[]; } {
+	private getActions(menuId: MenuId, context: { key: string, value?: string }): { primary: IAction[]; secondary: IAction[]; } {
 		const contextKeyService = this.contextKeyService.createScoped();
 		contextKeyService.createKey('view', this.id);
 		contextKeyService.createKey(context.key, context.value);

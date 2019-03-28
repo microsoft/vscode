@@ -33,7 +33,7 @@ export interface KeybindingLabelOptions {
 export class KeybindingLabel {
 
 	private domNode: HTMLElement;
-	private keybinding: ResolvedKeybinding | undefined;
+	private keybinding: ResolvedKeybinding | null | undefined;
 	private matches: Matches | undefined;
 	private didEverRender: boolean;
 
@@ -47,7 +47,7 @@ export class KeybindingLabel {
 		return this.domNode;
 	}
 
-	set(keybinding: ResolvedKeybinding | undefined, matches?: Matches) {
+	set(keybinding: ResolvedKeybinding | null | undefined, matches?: Matches) {
 		if (this.didEverRender && this.keybinding === keybinding && KeybindingLabel.areSame(this.matches, matches)) {
 			return;
 		}

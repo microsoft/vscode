@@ -34,7 +34,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
-import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
+import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -51,7 +51,7 @@ import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { getDefaultValue } from 'vs/platform/configuration/common/configurationRegistry';
-import { isUndefined } from 'vs/base/common/types';
+import { isUndefined, withUndefinedAsNull } from 'vs/base/common/types';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 
 function renderBody(body: string): string {
@@ -89,8 +89,8 @@ function removeEmbeddedSVGs(documentContent: string): string {
 
 class NavBar {
 
-	private _onChange = new Emitter<{ id: string, focus: boolean }>();
-	get onChange(): Event<{ id: string, focus: boolean }> { return this._onChange.event; }
+	private _onChange = new Emitter<{ id: string | null, focus: boolean }>();
+	get onChange(): Event<{ id: string | null, focus: boolean }> { return this._onChange.event; }
 
 	private currentId: string | null = null;
 	private actions: Action[];
@@ -197,7 +197,7 @@ export class ExtensionEditor extends BaseEditor {
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IOpenerService private readonly openerService: IOpenerService,
-		@IPartService private readonly partService: IPartService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IExtensionTipsService private readonly extensionTipsService: IExtensionTipsService,
 		@IStorageService storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
@@ -254,7 +254,7 @@ export class ExtensionEditor extends BaseEditor {
 				if (action instanceof ExtensionEditorDropDownAction) {
 					return action.createActionItem();
 				}
-				return null;
+				return undefined;
 			}
 		});
 
@@ -532,7 +532,7 @@ export class ExtensionEditor extends BaseEditor {
 			.then(removeEmbeddedSVGs)
 			.then(body => {
 				const wbeviewElement = this.instantiationService.createInstance(WebviewElement,
-					this.partService.getContainer(Parts.EDITOR_PART),
+					this.layoutService.getContainer(Parts.EDITOR_PART),
 					{
 						enableFindWidget: true,
 					},
@@ -564,17 +564,21 @@ export class ExtensionEditor extends BaseEditor {
 	}
 
 	private openReadme(): Promise<IActiveElement> {
-		return this.openMarkdown(this.extensionReadme.get(), localize('noReadme', "No README available."));
+		return this.openMarkdown(this.extensionReadme!.get(), localize('noReadme', "No README available."));
 	}
 
 	private openChangelog(): Promise<IActiveElement> {
-		return this.openMarkdown(this.extensionChangelog.get(), localize('noChangelog', "No Changelog available."));
+		return this.openMarkdown(this.extensionChangelog!.get(), localize('noChangelog', "No Changelog available."));
 	}
 
 	private openContributions(): Promise<IActiveElement> {
 		const content = $('div', { class: 'subcontent', tabindex: '0' });
-		return this.loadContents(() => this.extensionManifest.get())
+		return this.loadContents(() => this.extensionManifest!.get())
 			.then(manifest => {
+				if (!manifest) {
+					return content;
+				}
+
 				const scrollableContent = new DomScrollableElement(content, {});
 
 				const layout = () => scrollableContent.scanDomNode();
@@ -619,7 +623,7 @@ export class ExtensionEditor extends BaseEditor {
 			return Promise.resolve(this.content);
 		}
 
-		return this.loadContents(() => this.extensionDependencies.get())
+		return this.loadContents(() => this.extensionDependencies!.get())
 			.then<IActiveElement, IActiveElement>(extensionDependencies => {
 				if (extensionDependencies) {
 					const content = $('div', { class: 'subcontent' });
@@ -708,7 +712,7 @@ export class ExtensionEditor extends BaseEditor {
 
 			constructor(extension: IExtension, parent?: IExtensionData) {
 				this.extension = extension;
-				this.parent = parent || null;
+				this.parent = withUndefinedAsNull(parent);
 			}
 
 			get hasChildren(): boolean {
@@ -718,7 +722,7 @@ export class ExtensionEditor extends BaseEditor {
 			getChildren(): Promise<IExtensionData[] | null> {
 				if (this.hasChildren) {
 					const names = arrays.distinct(this.extension.extensionPack, e => e.toLowerCase());
-					return extensionsWorkbenchService.queryGallery({ names, pageSize: names.length })
+					return extensionsWorkbenchService.queryGallery({ names, pageSize: names.length }, CancellationToken.None)
 						.then(result => result.firstPage.map(extension => new ExtensionData(extension, this)));
 				}
 				return Promise.resolve(null);

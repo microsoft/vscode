@@ -34,7 +34,7 @@ CommandsRegistry.registerCommand({
 
 CommandsRegistry.registerCommand({
 	id: '_files.pickFolderAndOpen',
-	handler: (accessor: ServicesAccessor, forceNewWindow: boolean) => accessor.get(IFileDialogService).pickFolderAndOpen({ forceNewWindow })
+	handler: (accessor: ServicesAccessor, options: { forceNewWindow: boolean }) => accessor.get(IFileDialogService).pickFolderAndOpen(options)
 });
 
 CommandsRegistry.registerCommand({
@@ -70,7 +70,7 @@ CommandsRegistry.registerCommand({
 			}
 
 			// Add and show Files Explorer viewlet
-			return workspaceEditingService.addFolders(folders.map(folder => ({ uri: folder })))
+			return workspaceEditingService.addFolders(folders.map(folder => ({ uri: resources.removeTrailingPathSeparator(folder) })))
 				.then(() => viewletService.openViewlet(viewletService.getDefaultViewletId(), true))
 				.then(() => undefined);
 		});

@@ -18,7 +18,38 @@ import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeE
 import { IOptions, IStyles, ZoneWidget } from 'vs/editor/contrib/zoneWidget/zoneWidget';
 import * as nls from 'vs/nls';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ServicesAccessor, createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+
+
+export const IPeekViewService = createDecorator<IPeekViewService>('IPeekViewService');
+export interface IPeekViewService {
+	_serviceBrand: any;
+	addExclusiveWidget(editor: ICodeEditor, widget: PeekViewWidget): void;
+}
+
+registerSingleton(IPeekViewService, class implements IPeekViewService {
+	_serviceBrand: any;
+
+	private _widgets = new Map<ICodeEditor, { widget: PeekViewWidget, listener: IDisposable }>();
+
+	addExclusiveWidget(editor: ICodeEditor, widget: PeekViewWidget): void {
+		const existing = this._widgets.get(editor);
+		if (existing) {
+			existing.listener.dispose();
+			existing.widget.dispose();
+		}
+		const remove = () => {
+			const data = this._widgets.get(editor);
+			if (data && data.widget === widget) {
+				data.listener.dispose();
+				this._widgets.delete(editor);
+			}
+		};
+		this._widgets.set(editor, { widget, listener: widget.onDidClose(remove) });
+	}
+});
 
 export namespace PeekContext {
 	export const inPeekEditor = new RawContextKey<boolean>('inReferenceSearchEditor', true);

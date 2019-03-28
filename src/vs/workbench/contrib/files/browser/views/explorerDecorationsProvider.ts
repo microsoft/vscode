@@ -36,10 +36,6 @@ export class ExplorerDecorationsProvider implements IDecorationsProvider {
 		return this._onDidChange.event;
 	}
 
-	changed(uris: URI[]): void {
-		this._onDidChange.fire(uris);
-	}
-
 	provideDecorations(resource: URI): IDecorationData | undefined {
 		const fileStat = this.explorerService.findClosest(resource);
 		if (fileStat && fileStat.isRoot && fileStat.isError) {

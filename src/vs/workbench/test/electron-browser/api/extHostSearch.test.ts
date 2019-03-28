@@ -11,7 +11,7 @@ import { joinPath } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as extfs from 'vs/base/node/extfs';
 import { IFileMatch, IFileQuery, IPatternInfo, IRawFileMatch2, ISearchCompleteStats, ISearchQuery, ITextQuery, QueryType, resultIsMatch } from 'vs/workbench/services/search/common/search';
-import { MainContext, MainThreadSearchShape } from 'vs/workbench/api/node/extHost.protocol';
+import { MainContext, MainThreadSearchShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostSearch } from 'vs/workbench/api/node/extHostSearch';
 import { Range } from 'vs/workbench/api/node/extHostTypes';
 import { extensionResultIsMatch } from 'vs/workbench/services/search/node/textSearchManager';
@@ -30,10 +30,6 @@ class MockMainThreadSearch implements MainThreadSearchShape {
 	results: Array<UriComponents | IRawFileMatch2> = [];
 
 	$registerFileSearchProvider(handle: number, scheme: string): void {
-		this.lastHandle = handle;
-	}
-
-	$registerFileIndexProvider(handle: number, scheme: string): void {
 		this.lastHandle = handle;
 	}
 
@@ -185,7 +181,7 @@ suite('ExtHostSearch', () => {
 			const reportedResults = [
 				joinPath(rootFolderA, 'file1.ts'),
 				joinPath(rootFolderA, 'file2.ts'),
-				joinPath(rootFolderA, 'file3.ts')
+				joinPath(rootFolderA, 'subfolder/file3.ts')
 			];
 
 			await registerTestFileSearchProvider({
@@ -590,7 +586,7 @@ suite('ExtHostSearch', () => {
 			const reportedResults = [
 				joinPath(fancySchemeFolderA, 'file1.ts'),
 				joinPath(fancySchemeFolderA, 'file2.ts'),
-				joinPath(fancySchemeFolderA, 'file3.ts'),
+				joinPath(fancySchemeFolderA, 'subfolder/file3.ts'),
 
 			];
 

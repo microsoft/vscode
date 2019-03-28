@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getNextTickChannel } from 'vs/base/parts/ipc/node/ipc';
+import { getNextTickChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 import { toFileChangesEvent, IRawFileChange } from 'vs/workbench/services/files/node/watcher/common';
 import { WatcherChannelClient } from 'vs/workbench/services/files/node/watcher/nsfw/watcherIpc';

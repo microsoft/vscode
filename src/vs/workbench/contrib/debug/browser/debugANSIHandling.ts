@@ -56,7 +56,7 @@ export function handleANSIOutput(text: string, linkDetector: LinkDetector): HTML
 					* Certain ranges that are matched here do not contain real graphics rendition sequences. For
 					* the sake of having a simpler expression, they have been included anyway.
 					*/
-				if (ansiSequence.match(/^(?:[349][0-7]|10[0-7]|[01]|4|[34]9)(?:;(?:[349][0-7]|10[0-7]|[01]|4|[34]9))*;?m$/)) {
+				if (ansiSequence.match(/^(?:[349][0-7]|10[0-7]|[013]|4|[34]9)(?:;(?:[349][0-7]|10[0-7]|[013]|4|[34]9))*;?m$/)) {
 
 					const styleCodes: number[] = ansiSequence.slice(0, -1)	// Remove final 'm' character.
 						.split(';')					// Separate style codes.
@@ -68,18 +68,24 @@ export function handleANSIOutput(text: string, linkDetector: LinkDetector): HTML
 							styleNames = [];
 						} else if (code === 1) {
 							styleNames.push('code-bold');
+						} else if (code === 3) {
+							styleNames.push('code-italic');
 						} else if (code === 4) {
 							styleNames.push('code-underline');
-						} else if ((code >= 30 && code <= 37) || (code >= 90 && code <= 97)) {
-							styleNames.push('code-foreground-' + code);
-						} else if (code === 39) {
-							// Remove all foreground colour codes
+						} else if (code === 39 || (code >= 30 && code <= 37) || (code >= 90 && code <= 97)) {
+							// Remove all previous foreground colour codes
 							styleNames = styleNames.filter(style => !style.match(/^code-foreground-\d+$/));
-						} else if ((code >= 40 && code <= 47) || (code >= 100 && code <= 107)) {
-							styleNames.push('code-background-' + code);
-						} else if (code === 49) {
-							// Remove all background colour codes
+
+							if (code !== 39) {
+								styleNames.push('code-foreground-' + code);
+							}
+						} else if (code === 49 || (code >= 40 && code <= 47) || (code >= 100 && code <= 107)) {
+							// Remove all previous background colour codes
 							styleNames = styleNames.filter(style => !style.match(/^code-background-\d+$/));
+
+							if (code !== 49) {
+								styleNames.push('code-background-' + code);
+							}
 						}
 					}
 

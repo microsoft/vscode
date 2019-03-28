@@ -16,13 +16,15 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { KeyCode, ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { withNullAsUndefined } from 'vs/base/common/types';
+import { asArray } from 'vs/base/common/arrays';
 
 const $ = DOM.$;
 
 export interface IMenuBarOptions {
 	enableMnemonics?: boolean;
 	visibility?: string;
-	getKeybinding?: (action: IAction) => ResolvedKeybinding;
+	getKeybinding?: (action: IAction) => ResolvedKeybinding | undefined;
 	alwaysOnMnemonics?: boolean;
 }
 
@@ -86,7 +88,7 @@ export class MenuBar extends Disposable {
 	constructor(private container: HTMLElement, private options: IMenuBarOptions = {}) {
 		super();
 
-		this.container.attributes['role'] = 'menubar';
+		this.container.setAttribute('role', 'menubar');
 
 		this.menuCache = [];
 		this.mnemonics = new Map<string, number>();
@@ -151,7 +153,12 @@ export class MenuBar extends Disposable {
 		this._register(DOM.addDisposableListener(this.container, DOM.EventType.FOCUS_OUT, (e) => {
 			let event = e as FocusEvent;
 
-			if (!event.relatedTarget || !this.container.contains(event.relatedTarget as HTMLElement)) {
+			// We are losing focus and there is no related target, e.g. webview case
+			if (!event.relatedTarget) {
+				this.setUnfocusedState();
+			}
+			// We are losing focus and there is a target, reset focusToReturn value as not to redirect
+			else if (event.relatedTarget && !this.container.contains(event.relatedTarget as HTMLElement)) {
 				this.focusToReturn = undefined;
 				this.setUnfocusedState();
 			}
@@ -178,7 +185,7 @@ export class MenuBar extends Disposable {
 	}
 
 	push(arg: MenuBarMenu | MenuBarMenu[]): void {
-		const menus: MenuBarMenu[] = !Array.isArray(arg) ? [arg] : arg;
+		const menus: MenuBarMenu[] = asArray(arg);
 
 		menus.forEach((menuBarMenu) => {
 			const menuIndex = this.menuCache.length;
@@ -852,7 +859,7 @@ export class MenuBar extends Disposable {
 			getKeyBinding: this.options.getKeybinding,
 			actionRunner: this.actionRunner,
 			enableMnemonics: this.options.alwaysOnMnemonics || (this.mnemonicsInUse && this.options.enableMnemonics),
-			ariaLabel: customMenu.buttonElement.attributes['aria-label'].value
+			ariaLabel: withNullAsUndefined(customMenu.buttonElement.getAttribute('aria-label'))
 		};
 
 		let menuWidget = this._register(new Menu(menuHolder, customMenu.actions, menuOptions));
@@ -952,6 +959,16 @@ class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 
 		this._subscriptions.push(domEvent(document.body, 'mousedown', true)(e => {
 			this._keyStatus.lastKeyPressed = undefined;
+		}));
+
+		this._subscriptions.push(domEvent(document.body, 'mouseup', true)(e => {
+			this._keyStatus.lastKeyPressed = undefined;
+		}));
+
+		this._subscriptions.push(domEvent(document.body, 'mousemove', true)(e => {
+			if (e.buttons) {
+				this._keyStatus.lastKeyPressed = undefined;
+			}
 		}));
 
 		this._subscriptions.push(domEvent(window, 'blur')(e => {
