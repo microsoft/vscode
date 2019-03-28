@@ -41,7 +41,7 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 		@IConfigurationService private readonly _configService: IConfigurationService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
-		@IModeService private readonly _modeService: IModeService,
+		@IModeService private readonly _modeService: IModeService
 	) {
 		super();
 		this._register(this._extensionService.onDidChangeExtensions(this._updateConfigValues, this));
@@ -73,30 +73,27 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 
 		if (defaultFormatterId) {
 			// good -> formatter configured
-			const [defaultFormatter] = formatter.filter(formatter => formatter.extensionId && ExtensionIdentifier.equals(formatter.extensionId, defaultFormatterId));
-			if (defaultFormatter) {
-				// good -> formatter configured and available
-				return defaultFormatter;
-			}
+			const [defaultFormatter] = formatter.filter(formatter => ExtensionIdentifier.equals(formatter.extensionId, defaultFormatterId));
+			return defaultFormatter; // this is the formatter or undefined
+
 		} else if (formatter.length === 1) {
 			// ok -> nothing configured but only one formatter available
 			return formatter[0];
 		}
 
 		const langName = this._modeService.getLanguageName(document.getModeId()) || document.getModeId();
-		const message = defaultFormatterId
-			? nls.localize('config.bad', "The configured default formatter is not available. Select a different default formatter to continue.")
-			: nls.localize('config.needed', "There are multiple formatters for {0}-files. Select a default formatter to continue.", DefaultFormatter._maybeQuotes(langName));
+		const silent = mode === FormattingMode.Silent;
+		const message = nls.localize('config.needed', "There are multiple formatters for {0}-files. Select a default formatter to continue.", DefaultFormatter._maybeQuotes(langName));
 
 		return new Promise<T | undefined>((resolve, reject) => {
 			this._notificationService.prompt(
 				Severity.Info,
 				message,
 				[{ label: nls.localize('do.config', "Configure..."), run: () => this._pickAndPersistDefaultFormatter(formatter, document).then(resolve, reject) }],
-				{ silent: mode === FormattingMode.Silent, onCancel: resolve }
+				{ silent, onCancel: resolve }
 			);
 
-			if (mode === FormattingMode.Silent) {
+			if (silent) {
 				// don't wait when formatting happens without interaction
 				// but pick some formatter...
 				resolve(formatter[0]);
@@ -136,7 +133,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	overridable: true,
 	properties: {
 		[DefaultFormatter.configName]: {
-			description: nls.localize('formatter.default', "Defines a default formatter takes precedence over all other formatter settings. Must be the identifier of an extension contributing a formatter."),
+			description: nls.localize('formatter.default', "Defines a default formatter which takes precedence over all other formatter settings. Must be the identifier of an extension contributing a formatter."),
 			type: 'string',
 			enum: DefaultFormatter.extensionIds,
 			markdownEnumDescriptions: DefaultFormatter.extensionDescriptions
