@@ -16,7 +16,8 @@ import { hash } from 'vs/base/common/hash';
 export class Call {
 	constructor(
 		readonly item: CallHierarchyItem,
-		readonly locations: Location[]
+		readonly locations: Location[],
+		readonly parent: Call | undefined
 	) { }
 }
 
@@ -39,20 +40,20 @@ export class SingleDirectionDataSource implements IAsyncDataSource<CallHierarchy
 				if (!calls) {
 					return [];
 				}
-				return calls.map(([item, locations]) => new Call(item, locations));
+				return calls.map(([item, locations]) => new Call(item, locations, element));
 			} catch {
 				return [];
 			}
 		} else {
 			// 'root'
-			return [new Call(element, [{ uri: element.uri, range: Range.lift(element.range).collapseToStart() }])];
+			return [new Call(element, [{ uri: element.uri, range: Range.lift(element.range).collapseToStart() }], undefined)];
 		}
 	}
 }
 
 export class IdentityProvider implements IIdentityProvider<Call> {
 	getId(element: Call): { toString(): string; } {
-		return hash(element.item.uri.toString(), hash(JSON.stringify(element.item.range)));
+		return hash(element.item.uri.toString(), hash(JSON.stringify(element.item.range))).toString() + (element.parent ? this.getId(element.parent) : '');
 	}
 }
 
