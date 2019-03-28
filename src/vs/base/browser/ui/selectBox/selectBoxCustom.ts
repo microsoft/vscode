@@ -848,11 +848,14 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 
 		this.selectionDetailsPane.innerText = '';
 		const selectedIndex = e.indexes[0];
-		const description = this.options[selectedIndex].description;
-		const descriptionIsMarkdown = this.options[selectedIndex].descriptionIsMarkdown;
+		if (!selectedIndex) {
+			return;
+		}
+		const description = (typeof this.options[selectedIndex].description === 'string') ? this.options[selectedIndex].description : null;
+		const descriptionIsMarkdown = (typeof this.options[selectedIndex].descriptionIsMarkdown === 'boolean') ? this.options[selectedIndex].descriptionIsMarkdown : false;
 
-		if (typeof description === 'string') {
-			if (!!descriptionIsMarkdown) {
+		if (!!description) {
+			if (descriptionIsMarkdown) {
 				this.selectionDetailsPane.appendChild(this.renderDescriptionMarkdown(description));
 			} else {
 				this.selectionDetailsPane.innerText = description;
