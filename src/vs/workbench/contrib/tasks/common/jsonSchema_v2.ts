@@ -109,7 +109,7 @@ const presentation: IJSONSchema = {
 				nls.localize('JsonSchema.tasks.presentation.revealProblem.never', 'Never reveals the problems panel when this task is executed.'),
 			],
 			default: 'never',
-			description: nls.localize('JsonSchema.tasks.presentation.revealProblem', 'Controls whether the problems panel is revealed when running this task or not. Default is \"never\".')
+			description: nls.localize('JsonSchema.tasks.presentation.revealProblem', 'Controls whether the problems panel is revealed when running this task or not. Takes precedence over option \"reveal\". Default is \"never\".')
 		},
 		reveal: {
 			type: 'string',
@@ -120,7 +120,7 @@ const presentation: IJSONSchema = {
 				nls.localize('JsonSchema.tasks.presentation.reveal.never', 'Never reveals the terminal when this task is executed.'),
 			],
 			default: 'always',
-			description: nls.localize('JsonSchema.tasks.presentation.reveals', 'Controls whether the panel running the task is revealed or not. Default is \"always\".')
+			description: nls.localize('JsonSchema.tasks.presentation.reveals', 'Controls whether the panel running the task is revealed or not. May be overridden by option \"revealProblem\". Default is \"always\".')
 		},
 		panel: {
 			type: 'string',
