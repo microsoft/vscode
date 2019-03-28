@@ -202,7 +202,7 @@ async function showFormatterPick(accessor: ServicesAccessor, model: ITextModel, 
 	});
 
 	const configurePick: IQuickPickItem = {
-		label: nls.localize('config', "Configure default formatter...")
+		label: nls.localize('config', "Configure Default Formatter...")
 	};
 
 	const pick = await quickPickService.pick([...picks, { type: 'separator' }, configurePick], { placeHolder: nls.localize('format.placeHolder', "Select a formatter") });
