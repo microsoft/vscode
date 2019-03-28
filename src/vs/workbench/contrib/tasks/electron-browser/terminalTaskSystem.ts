@@ -517,15 +517,18 @@ export class TerminalTaskSystem implements ITaskSystem {
 						eventCounter--;
 						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Inactive, task));
 						if (eventCounter === 0) {
-							let reveal = task.command.presentation!.reveal;
-							if ((reveal === RevealKind.Silent) && (watchingProblemMatcher.numberOfMatches > 0) && watchingProblemMatcher.maxMarkerSeverity &&
+							if ((watchingProblemMatcher.numberOfMatches > 0) && watchingProblemMatcher.maxMarkerSeverity &&
 								(watchingProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error)) {
-								this.terminalService.setActiveInstance(terminal!);
-								this.terminalService.showPanel(false);
+								let reveal = task.command.presentation!.reveal;
+								let revealProblem = task.command.presentation!.revealProblem;
+								if (revealProblem === RevealProblemKind.OnProblem) {
+									this.panelService.openPanel(Constants.MARKERS_PANEL_ID, true);
+								} else if (reveal === RevealKind.Silent) {
+									this.terminalService.setActiveInstance(terminal!);
+									this.terminalService.showPanel(false);
+								}
 							}
 						}
-					} else if (event.kind === ProblemCollectorEventKind.ProblemFound) {
-						this.panelService.openPanel(Constants.MARKERS_PANEL_ID, true);
 					}
 				}));
 				watchingProblemMatcher.aboutToStart();
@@ -647,14 +650,15 @@ export class TerminalTaskSystem implements ITaskSystem {
 						}
 					}
 					let reveal = task.command.presentation!.reveal;
-					if (terminal && (reveal === RevealKind.Silent) && ((exitCode !== 0) || (startStopProblemMatcher.numberOfMatches > 0) && startStopProblemMatcher.maxMarkerSeverity &&
+					let revealProblem = task.command.presentation!.revealProblem;
+					let revealProblemPanel = terminal && (revealProblem === RevealProblemKind.OnProblem) && (startStopProblemMatcher.numberOfMatches > 0);
+					if (revealProblemPanel) {
+						this.panelService.openPanel(Constants.MARKERS_PANEL_ID);
+					}
+					if (terminal && !revealProblemPanel && (reveal === RevealKind.Silent) && ((exitCode !== 0) || (startStopProblemMatcher.numberOfMatches > 0) && startStopProblemMatcher.maxMarkerSeverity &&
 						(startStopProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error))) {
 						this.terminalService.setActiveInstance(terminal);
 						this.terminalService.showPanel(false);
-					}
-					let revealProblem = task.command.presentation!.revealProblem;
-					if (terminal && (revealProblem === RevealProblemKind.OnProblem) && (startStopProblemMatcher.numberOfMatches > 0)) {
-						this.panelService.openPanel(Constants.MARKERS_PANEL_ID);
 					}
 					startStopProblemMatcher.done();
 					startStopProblemMatcher.dispose();
@@ -682,10 +686,11 @@ export class TerminalTaskSystem implements ITaskSystem {
 		if (!terminal) {
 			return Promise.reject(new Error(`Failed to create terminal for task ${task._label}`));
 		}
-		if (task.command.presentation && (task.command.presentation.revealProblem === RevealProblemKind.Always)) {
+		let showProblemPanel = task.command.presentation && (task.command.presentation.revealProblem === RevealProblemKind.Always);
+		if (showProblemPanel) {
 			this.panelService.openPanel(Constants.MARKERS_PANEL_ID);
 		}
-		if (task.command.presentation && (task.command.presentation.reveal === RevealKind.Always)) {
+		if (task.command.presentation && !showProblemPanel && (task.command.presentation.reveal === RevealKind.Always)) {
 			this.terminalService.setActiveInstance(terminal);
 			this.terminalService.showPanel(task.command.presentation.focus);
 		}
