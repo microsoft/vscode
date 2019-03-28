@@ -312,7 +312,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 			this._proxy.$onDidChangeWebviewPanelViewState(newActiveWebview.handle, {
 				active: true,
 				visible: true,
-				position: editorGroupToViewColumn(this._editorGroupService, newActiveWebview.input.group || ACTIVE_GROUP)
+				position: editorGroupToViewColumn(this._editorGroupService, newActiveWebview.input.group || 0)
 			});
 			return;
 		}
@@ -324,7 +324,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 				this._proxy.$onDidChangeWebviewPanelViewState(this._activeWebview, {
 					active: false,
 					visible: this._editorService.visibleControls.some(editor => !!editor.input && editor.input.matches(oldActiveWebview)),
-					position: editorGroupToViewColumn(this._editorGroupService, oldActiveWebview.group || ACTIVE_GROUP),
+					position: editorGroupToViewColumn(this._editorGroupService, oldActiveWebview.group || 0),
 				});
 			}
 		}
