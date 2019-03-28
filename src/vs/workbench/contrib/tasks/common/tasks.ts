@@ -158,7 +158,7 @@ export enum RevealProblemKind {
 	/**
 	 * Only reveals the problems panel if a problem is found.
 	 */
-	OnProblemFound = 2,
+	OnProblem = 2,
 
 	/**
 	 * Never reveals the problems panel when this task is executed.
@@ -171,8 +171,8 @@ export namespace RevealProblemKind {
 		switch (value.toLowerCase()) {
 			case 'never':
 				return RevealProblemKind.Never;
-			case 'onproblemfound':
-				return RevealProblemKind.OnProblemFound;
+			case 'onproblem':
+				return RevealProblemKind.OnProblem;
 			case 'always':
 				return RevealProblemKind.Always;
 			default:

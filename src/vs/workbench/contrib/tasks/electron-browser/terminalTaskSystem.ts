@@ -653,7 +653,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 						this.terminalService.showPanel(false);
 					}
 					let revealProblem = task.command.presentation!.revealProblem;
-					if (terminal && (revealProblem === RevealProblemKind.OnProblemFound) && (startStopProblemMatcher.numberOfMatches > 0)) {
+					if (terminal && (revealProblem === RevealProblemKind.OnProblem) && (startStopProblemMatcher.numberOfMatches > 0)) {
 						this.panelService.openPanel(Constants.MARKERS_PANEL_ID);
 					}
 					startStopProblemMatcher.done();

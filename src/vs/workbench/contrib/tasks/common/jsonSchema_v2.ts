@@ -102,10 +102,10 @@ const presentation: IJSONSchema = {
 		},
 		revealProblem: {
 			type: 'string',
-			enum: ['always', 'onProblemFound', 'never'],
+			enum: ['always', 'onProblem', 'never'],
 			enumDescriptions: [
 				nls.localize('JsonSchema.tasks.presentation.revealProblem.always', 'Always reveals the problems panel when this task is executed.'),
-				nls.localize('JsonSchema.tasks.presentation.revealProblem.onProblemFound', 'Only reveals the problems panel if a problem is found.'),
+				nls.localize('JsonSchema.tasks.presentation.revealProblem.onProblem', 'Only reveals the problems panel if a problem is found.'),
 				nls.localize('JsonSchema.tasks.presentation.revealProblem.never', 'Never reveals the problems panel when this task is executed.'),
 			],
 			default: 'never',
