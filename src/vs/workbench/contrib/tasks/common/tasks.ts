@@ -123,7 +123,9 @@ export enum RevealKind {
 
 	/**
 	 * Only brings the terminal to front if a problem is detected executing the task
-	 * (e.g. the task couldn't be started because).
+	 * e.g. the task couldn't be started,
+	 * the task ended with an exit code other than zero,
+	 * or the problem matcher finding an error.
 	 */
 	Silent = 2,
 
