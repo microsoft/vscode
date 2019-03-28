@@ -107,23 +107,20 @@ export function handleANSIOutput(text: string, linkDetector: LinkDetector, theme
 	/**
 	 * Change the foreground or background color by clearing the current color
 	 * and adding the new one.
-	 * @param newClass If string or number, new class will be
-	 *  `code-(foreground or background)-newClass`. If `undefined`, no new class
-	 * 	will be added.
 	 * @param colorType If `'foreground'`, will change the foreground color, if
 	 * 	`'background'`, will change the background color.
-	 * @param customColor If provided, this custom color will be used instead of
-	 * 	a class-defined color.
+	 * @param customColor Color to change to. If `undefined` or not provided,
+	 * will clear current color without adding a new one.
 	 */
-	function changeColor(newClass: string | number | undefined, colorType: 'foreground' | 'background', customColor?: RGBA): void {
-		styleNames = styleNames.filter(style => !style.match(new RegExp(`^code-${colorType}-(\\d+|custom)$`)));
-		if (newClass) {
-			styleNames.push(`code-${colorType}-${newClass}`);
-		}
+	function changeColor(colorType: 'foreground' | 'background', customColor?: RGBA | undefined): void {
 		if (colorType === 'foreground') {
 			customFgColor = customColor;
-		} else {
+		} else if (colorType === 'background') {
 			customBgColor = customColor;
+		}
+		styleNames = styleNames.filter(style => style === `code-${colorType}-colored`);
+		if (customColor !== undefined) {
+			styleNames.push(`code-${colorType}-colored`);
 		}
 	}
 
@@ -142,6 +139,8 @@ export function handleANSIOutput(text: string, linkDetector: LinkDetector, theme
 			switch (code) {
 				case 0:
 					styleNames = [];
+					customFgColor = undefined;
+					customBgColor = undefined;
 					break;
 				case 1:
 					styleNames.push('code-bold');
@@ -153,10 +152,10 @@ export function handleANSIOutput(text: string, linkDetector: LinkDetector, theme
 					styleNames.push('code-underline');
 					break;
 				case 39:
-					changeColor(undefined, 'foreground');
+					changeColor('foreground', undefined);
 					break;
 				case 49:
-					changeColor(undefined, 'background');
+					changeColor('background', undefined);
 					break;
 				default:
 					setBasicColor(code);
@@ -178,7 +177,7 @@ export function handleANSIOutput(text: string, linkDetector: LinkDetector, theme
 			styleCodes[3] >= 0 && styleCodes[3] <= 255 &&
 			styleCodes[4] >= 0 && styleCodes[4] <= 255) {
 			const customColor = new RGBA(styleCodes[2], styleCodes[3], styleCodes[4]);
-			changeColor('custom', colorType, customColor);
+			changeColor(colorType, customColor);
 		}
 	}
 
@@ -195,7 +194,7 @@ export function handleANSIOutput(text: string, linkDetector: LinkDetector, theme
 		const color = calcANSI8bitColor(colorNumber);
 
 		if (color) {
-			changeColor('custom', colorType, color);
+			changeColor(colorType, color);
 		} else if (colorNumber >= 0 && colorNumber <= 15) {
 			// Need to map to one of the four basic color ranges (30-37, 90-97, 40-47, 100-107)
 			colorNumber += 30;
@@ -241,7 +240,7 @@ export function handleANSIOutput(text: string, linkDetector: LinkDetector, theme
 			const colorName = ansiColorIdentifiers[colorIndex];
 			const color = theme.getColor(colorName);
 			if (color) {
-				changeColor(styleCode, colorType, color.rgba)
+				changeColor(colorType, color.rgba)
 			}
 		}
 	}
