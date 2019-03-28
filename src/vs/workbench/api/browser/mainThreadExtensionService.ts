@@ -94,7 +94,7 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 		} else {
 			this._notificationService.notify({
 				severity: Severity.Error,
-				message: localize('disabledDep', "Cannot activate extension '{0}' because it depends on extension '{1}', which is disabled. Would you like to enable the extension and reload the window?", extName, missingInstalledDependency.displayName),
+				message: localize('disabledDep', "Cannot activate the '{0}' extension because it depends on the '{1}' extension, which is disabled. Would you like to enable the extension and reload the window?", extName, missingInstalledDependency.displayName),
 				actions: {
 					primary: [new Action('enable', localize('enable dep', "Enable and Reload"), '', true,
 						() => this._extensionsWorkbenchService.setEnablement([missingInstalledDependency], missingInstalledDependency.enablementState === EnablementState.Disabled ? EnablementState.Enabled : EnablementState.WorkspaceEnabled)
@@ -118,7 +118,7 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 				}
 			});
 		} else {
-			this._notificationService.error(localize('unknownDep', "Cannot activate extension '{0}' because it depends on an unknown extension '{1}'.", extName, missingDependency));
+			this._notificationService.error(localize('unknownDep', "Cannot activate the '{0}' extension because it depends on an unknown '{1}' extension .", extName, missingDependency));
 		}
 	}
 
