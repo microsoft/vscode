@@ -225,6 +225,10 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 
 			await this.doDelete(filePath, opts);
 		} catch (error) {
+			if (error.code === 'ENOENT') {
+				return Promise.resolve(); // tolerate that the file might not exist
+			}
+
 			throw this.toFileSystemProviderError(error);
 		}
 	}
