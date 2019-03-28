@@ -109,17 +109,17 @@ export function handleANSIOutput(text: string, linkDetector: LinkDetector, theme
 	 * and adding the new one.
 	 * @param colorType If `'foreground'`, will change the foreground color, if
 	 * 	`'background'`, will change the background color.
-	 * @param customColor Color to change to. If `undefined` or not provided,
+	 * @param color Color to change to. If `undefined` or not provided,
 	 * will clear current color without adding a new one.
 	 */
-	function changeColor(colorType: 'foreground' | 'background', customColor?: RGBA | undefined): void {
+	function changeColor(colorType: 'foreground' | 'background', color?: RGBA | undefined): void {
 		if (colorType === 'foreground') {
-			customFgColor = customColor;
+			customFgColor = color;
 		} else if (colorType === 'background') {
-			customBgColor = customColor;
+			customBgColor = color;
 		}
 		styleNames = styleNames.filter(style => style === `code-${colorType}-colored`);
-		if (customColor !== undefined) {
+		if (color !== undefined) {
 			styleNames.push(`code-${colorType}-colored`);
 		}
 	}
