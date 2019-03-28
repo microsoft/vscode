@@ -86,7 +86,7 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 		if (missingInstalledDependency.enablementState === EnablementState.Enabled || missingInstalledDependency.enablementState === EnablementState.WorkspaceEnabled) {
 			this._notificationService.notify({
 				severity: Severity.Error,
-				message: localize('reload window', "Cannot activate extension '{0}' because it depends on extension '{1}', which is not loaded. Would you like to reload the window to load the extension?", extName, missingInstalledDependency.displayName),
+				message: localize('reload window', "Cannot activate the '{0}' extension because it depends on the '{1}' extension, which is not loaded. Would you like to reload the window to load the extension?", extName, missingInstalledDependency.displayName),
 				actions: {
 					primary: [new Action('reload', localize('reload', "Reload Window"), '', true, () => this._windowService.reloadWindow())]
 				}
@@ -110,7 +110,7 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 		if (dependencyExtension) {
 			this._notificationService.notify({
 				severity: Severity.Error,
-				message: localize('uninstalledDep', "Cannot activate extension '{0}' because it depends on extension '{1}', which is not installed. Would you like to install the extension and reload the window?", extName, dependencyExtension.displayName),
+				message: localize('uninstalledDep', "Cannot activate the '{0}' extension because it depends on the '{1}' extension, which is not installed. Would you like to install the extension and reload the window?", extName, dependencyExtension.displayName),
 				actions: {
 					primary: [new Action('install', localize('install missing dep', "Install and Reload"), '', true,
 						() => this._extensionsWorkbenchService.install(dependencyExtension)
