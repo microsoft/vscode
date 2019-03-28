@@ -5,12 +5,14 @@
 
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { RGBA, Color } from 'vs/base/common/color';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ansiColorIdentifiers } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 
 /**
  * @param text The content to stylize.
  * @returns An {@link HTMLSpanElement} that contains the potentially stylized text.
  */
-export function handleANSIOutput(text: string, linkDetector: LinkDetector): HTMLSpanElement {
+export function handleANSIOutput(text: string, linkDetector: LinkDetector, themeService: IThemeService): HTMLSpanElement {
 
 	const root: HTMLSpanElement = document.createElement('span');
 	const textLength: number = text.length;
@@ -200,6 +202,42 @@ export function handleANSIOutput(text: string, linkDetector: LinkDetector): HTML
 				colorNumber += 10;
 			}
 			changeColor(colorNumber, colorType);
+		}
+	}
+
+	/**
+	 * Calculate and set styling for basic bright and dark ANSI color codes. Uses
+	 * theme colors if available. Automatically distinguishes between foreground
+	 * and background colors; does not support color-clearing codes 39 and 49.
+	 * @param styleCode Integer color code on one of the following ranges:
+	 * [30-37, 90-97, 40-47, 100-107]. If not on one of these ranges, will do
+	 * nothing.
+	 */
+	function setBasicColor(styleCode: number): void {
+		const theme = themeService.getTheme();
+		let colorType: 'foreground' | 'background' | undefined;
+		let colorIndex: number | undefined;
+
+		if (styleCode >= 30 && styleCode <= 37) {
+			colorIndex = styleCode - 30;
+			colorType = 'foreground';
+		} else if (styleCode >= 90 && styleCode <= 97) {
+			colorIndex = (styleCode - 90) + 8; // High-intensity (bright)
+			colorType = 'foreground';
+		} else if (styleCode >= 40 && styleCode <= 47) {
+			colorIndex = styleCode - 40;
+			colorType = 'background';
+		} else if (styleCode >= 100 && styleCode <= 107) {
+			colorIndex = (styleCode - 100) + 8; // High-intensity (bright)
+			colorType = 'background';
+		}
+
+		if (colorIndex && colorType) {
+			const colorName = ansiColorIdentifiers[colorIndex];
+			const color = theme.getColor(colorName);
+			if (color) {
+				changeColor(styleCode, colorType, color.rgba)
+			}
 		}
 	}
 }

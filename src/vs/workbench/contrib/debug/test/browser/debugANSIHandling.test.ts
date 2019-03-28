@@ -11,10 +11,12 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { Color, RGBA } from 'vs/base/common/color';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 suite('Debug - ANSI Handling', () => {
 
 	let linkDetector: LinkDetector;
+	let themeService: IThemeService;
 
 	/**
 	 * Instantiate a {@link LinkDetector} for use by the functions being tested.
@@ -61,7 +63,7 @@ suite('Debug - ANSI Handling', () => {
 	 * @returns An {@link HTMLSpanElement} that contains the stylized text.
 	 */
 	function getSequenceOutput(sequence: string): HTMLSpanElement {
-		const root: HTMLSpanElement = handleANSIOutput(sequence, linkDetector);
+		const root: HTMLSpanElement = handleANSIOutput(sequence, linkDetector, themeService);
 		assert.equal(1, root.children.length);
 		const child: Node = root.lastChild!;
 		if (child instanceof HTMLSpanElement) {
@@ -307,7 +309,7 @@ suite('Debug - ANSI Handling', () => {
 		if (elementsExpected === undefined) {
 			elementsExpected = assertions.length;
 		}
-		const root: HTMLSpanElement = handleANSIOutput(sequence, linkDetector);
+		const root: HTMLSpanElement = handleANSIOutput(sequence, linkDetector, themeService);
 		assert.equal(elementsExpected, root.children.length);
 		for (let i = 0; i < elementsExpected; i++) {
 			const child: Node = root.children[i];
