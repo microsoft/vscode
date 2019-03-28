@@ -12,10 +12,12 @@ import { EventEmitter } from 'events';
 import iconv = require('iconv-lite');
 import * as filetype from 'file-type';
 import { assign, groupBy, denodeify, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent } from './util';
-import { CancellationToken, Uri } from 'vscode';
+import { CancellationToken, Uri, Progress } from 'vscode';
+import * as nls from 'vscode-nls';
 import { detectEncoding } from './encoding';
 import { Ref, RefType, Branch, Remote, GitErrorCodes, LogOptions, Change, Status } from './api/git';
 
+const localize = nls.loadMessageBundle();
 const readfile = denodeify<string, string | null, string>(fs.readFile);
 
 export interface IGit {
@@ -159,9 +161,10 @@ export interface SpawnOptions extends cp.SpawnOptions {
 	encoding?: string;
 	log?: boolean;
 	cancellationToken?: CancellationToken;
+	progress?: Progress<{ message?: string, increment: number }>;
 }
 
-async function exec(child: cp.ChildProcess, cancellationToken?: CancellationToken): Promise<IExecutionResult<Buffer>> {
+async function exec(child: cp.ChildProcess, cancellationToken?: CancellationToken, progress?: Progress<{ message?: string, increment: number }>): Promise<IExecutionResult<Buffer>> {
 	if (!child.stdout || !child.stderr) {
 		throw new GitError({ message: 'Failed to get stdout or stderr from git process.' });
 	}
@@ -182,6 +185,9 @@ async function exec(child: cp.ChildProcess, cancellationToken?: CancellationToke
 		disposables.push(toDisposable(() => ee.removeListener(name, fn)));
 	};
 
+	const cloneProgressOutput = ['Receiving objects', 'Resolving deltas'];
+	let prevInc = 0;
+
 	let result = Promise.all<any>([
 		new Promise<number>((c, e) => {
 			once(child, 'error', cpErrorHandler(e));
@@ -194,7 +200,27 @@ async function exec(child: cp.ChildProcess, cancellationToken?: CancellationToke
 		}),
 		new Promise<string>(c => {
 			const buffers: Buffer[] = [];
-			on(child.stderr, 'data', (b: Buffer) => buffers.push(b));
+			on(child.stderr, 'data', (b: Buffer) => {
+				buffers.push(b);
+				const s = b.toString();
+
+				// Check for git clone progress reporting
+				cloneProgressOutput.forEach(cloneOutput => {
+					if (s.startsWith(cloneOutput)) {
+						const idx = s.indexOf('%');
+						const inc = parseInt(s.slice(idx - 3, idx));
+
+						if (progress) {
+							progress.report({
+								message: localize(cloneOutput.toLowerCase(), cloneOutput) + ': ' + inc + '%',
+								increment: inc - prevInc
+							});
+
+							prevInc = inc;
+						}
+					}
+				});
+			});
 			once(child.stderr, 'close', () => c(Buffer.concat(buffers).toString('utf8')));
 		})
 	]) as Promise<[number, Buffer, string]>;
@@ -335,7 +361,7 @@ export class Git {
 		return;
 	}
 
-	async clone(url: string, parentPath: string, cancellationToken?: CancellationToken): Promise<string> {
+	async clone(url: string, parentPath: string, progress: Progress<{ message?: string, increment: number }>, cancellationToken?: CancellationToken): Promise<string> {
 		let baseFolderName = decodeURI(url).replace(/^.*\//, '').replace(/\.git$/, '') || 'repository';
 		let folderName = baseFolderName;
 		let folderPath = path.join(parentPath, folderName);
@@ -349,7 +375,7 @@ export class Git {
 		await mkdirp(parentPath);
 
 		try {
-			await this.exec(parentPath, ['clone', url.includes(' ') ? encodeURI(url) : url, folderPath], { cancellationToken });
+			await this.exec(parentPath, ['clone', url.includes(' ') ? encodeURI(url) : url, folderPath, '--progress'], { cancellationToken, progress });
 		} catch (err) {
 			if (err.stderr) {
 				err.stderr = err.stderr.replace(/^Cloning.+$/m, '').trim();
@@ -388,7 +414,7 @@ export class Git {
 			child.stdin.end(options.input, 'utf8');
 		}
 
-		const bufferResult = await exec(child, options.cancellationToken);
+		const bufferResult = await exec(child, options.cancellationToken, options.progress);
 
 		if (options.log !== false && bufferResult.stderr.length > 0) {
 			this.log(`${bufferResult.stderr}\n`);
