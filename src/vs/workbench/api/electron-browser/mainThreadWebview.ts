@@ -250,7 +250,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 				}
 
 				try {
-					await this._proxy.$deserializeWebviewPanel(handle, viewType, webview.getTitle(), state, editorGroupToViewColumn(this._editorGroupService, webview.group || ACTIVE_GROUP), webview.options);
+					await this._proxy.$deserializeWebviewPanel(handle, viewType, webview.getTitle(), state, editorGroupToViewColumn(this._editorGroupService, webview.group || 0), webview.options);
 				} catch (error) {
 					onUnexpectedError(error);
 					webview.html = MainThreadWebviews.getDeserializationFailedContents(viewType);
