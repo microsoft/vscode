@@ -625,6 +625,11 @@ declare module 'vscode' {
 		 * An [event](#Event) that fires when the log level has changed.
 		 */
 		export const onDidChangeLogLevel: Event<LogLevel>;
+
+		/**
+		 * The url protocol of the editor, like 'vscode', 'vscode-insiders'.
+		 */
+		export const urlProtocol: string;
 	}
 
 	//#endregion
