@@ -69,7 +69,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 					if (openWithReadme) {
 						return Promise.all(contextService.getWorkspace().folders.map(folder => {
 							const folderUri = folder.uri;
-							return fileService.resolveFile(folderUri)
+							return fileService.resolve(folderUri)
 								.then(folder => {
 									const files = folder.children ? folder.children.map(child => child.name) : [];
 

@@ -607,7 +607,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		const droppedResources = extractResources(originalEvent, true);
 
 		// Check for dropped external files to be folders
-		return this.fileService.resolveFiles(droppedResources).then(result => {
+		return this.fileService.resolveAll(droppedResources).then(result => {
 
 			// Pass focus to window
 			this.windowService.focusWindow();
@@ -648,7 +648,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		if (resources && resources.length > 0) {
 
 			// Resolve target to check for name collisions and ask user
-			return this.fileService.resolveFile(target.resource).then(targetStat => {
+			return this.fileService.resolve(target.resource).then(targetStat => {
 
 				// Check for name collisions
 				const targetNames = new Set<string>();
@@ -694,7 +694,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 							return revertPromise.then(() => {
 								const copyTarget = joinPath(target.resource, basename(sourceFile));
-								return this.fileService.copyFile(sourceFile, copyTarget, true).then(stat => {
+								return this.fileService.copy(sourceFile, copyTarget, true).then(stat => {
 
 									// if we only add one file, just open it directly
 									if (resources.length === 1) {
@@ -794,7 +794,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		// Reuse duplicate action if user copies
 		if (isCopy) {
 
-			return this.fileService.copyFile(source.resource, findValidPasteFileTarget(target, { resource: source.resource, isDirectory: source.isDirectory, allowOverwirte: false })).then(stat => {
+			return this.fileService.copy(source.resource, findValidPasteFileTarget(target, { resource: source.resource, isDirectory: source.isDirectory, allowOverwirte: false })).then(stat => {
 				if (!stat.isDirectory) {
 					return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } }).then(() => undefined);
 				}

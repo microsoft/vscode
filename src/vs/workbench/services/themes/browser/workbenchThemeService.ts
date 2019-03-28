@@ -394,12 +394,12 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 		if (this.fileService && !resources.isEqual(newTheme.location, this.watchedColorThemeLocation)) {
 			if (this.watchedColorThemeLocation) {
-				this.fileService.unwatchFileChanges(this.watchedColorThemeLocation);
+				this.fileService.unwatch(this.watchedColorThemeLocation);
 				this.watchedColorThemeLocation = undefined;
 			}
 			if (newTheme.location && (newTheme.watch || !!this.environmentService.extensionDevelopmentLocationURI)) {
 				this.watchedColorThemeLocation = newTheme.location;
-				this.fileService.watchFileChanges(this.watchedColorThemeLocation);
+				this.fileService.watch(this.watchedColorThemeLocation);
 			}
 		}
 
@@ -512,12 +512,12 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 		if (this.fileService && !resources.isEqual(iconThemeData.location, this.watchedIconThemeLocation)) {
 			if (this.watchedIconThemeLocation) {
-				this.fileService.unwatchFileChanges(this.watchedIconThemeLocation);
+				this.fileService.unwatch(this.watchedIconThemeLocation);
 				this.watchedIconThemeLocation = undefined;
 			}
 			if (iconThemeData.location && (iconThemeData.watch || !!this.environmentService.extensionDevelopmentLocationURI)) {
 				this.watchedIconThemeLocation = iconThemeData.location;
-				this.fileService.watchFileChanges(this.watchedIconThemeLocation);
+				this.fileService.watch(this.watchedIconThemeLocation);
 			}
 		}
 

@@ -98,7 +98,7 @@ suite('Disk File Service', () => {
 		let event: FileOperationEvent | undefined;
 		disposables.push(service.onAfterOperation(e => event = e));
 
-		const parent = await service.resolveFile(URI.file(testDir));
+		const parent = await service.resolve(URI.file(testDir));
 
 		const newFolderResource = URI.file(join(parent.resource.fsPath, 'newFolder'));
 
@@ -119,7 +119,7 @@ suite('Disk File Service', () => {
 		disposables.push(service.onAfterOperation(e => event = e));
 
 		const multiFolderPaths = ['a', 'couple', 'of', 'folders'];
-		const parent = await service.resolveFile(URI.file(testDir));
+		const parent = await service.resolve(URI.file(testDir));
 
 		const newFolderResource = URI.file(join(parent.resource.fsPath, ...multiFolderPaths));
 
@@ -136,26 +136,26 @@ suite('Disk File Service', () => {
 		assert.equal(event!.target!.isDirectory, true);
 	});
 
-	test('existsFile', async () => {
-		let exists = await service.existsFile(URI.file(testDir));
+	test('exists', async () => {
+		let exists = await service.exists(URI.file(testDir));
 		assert.equal(exists, true);
 
-		exists = await service.existsFile(URI.file(testDir + 'something'));
+		exists = await service.exists(URI.file(testDir + 'something'));
 		assert.equal(exists, false);
 	});
 
-	test('resolveFile', async () => {
-		const resolved = await service.resolveFile(URI.file(testDir), { resolveTo: [URI.file(join(testDir, 'deep'))] });
+	test('resolve', async () => {
+		const resolved = await service.resolve(URI.file(testDir), { resolveTo: [URI.file(join(testDir, 'deep'))] });
 		assert.equal(resolved.children!.length, 8);
 
 		const deep = (getByName(resolved, 'deep')!);
 		assert.equal(deep.children!.length, 4);
 	});
 
-	test('resolveFile - directory', async () => {
+	test('resolve - directory', async () => {
 		const testsElements = ['examples', 'other', 'index.html', 'site.css'];
 
-		const result = await service.resolveFile(URI.file(getPathFromAmdModule(require, './fixtures/resolver')));
+		const result = await service.resolve(URI.file(getPathFromAmdModule(require, './fixtures/resolver')));
 
 		assert.ok(result);
 		assert.ok(result.children);
@@ -185,10 +185,10 @@ suite('Disk File Service', () => {
 		});
 	});
 
-	test('resolveFile - directory - with metadata', async () => {
+	test('resolve - directory - with metadata', async () => {
 		const testsElements = ['examples', 'other', 'index.html', 'site.css'];
 
-		const result = await service.resolveFile(URI.file(getPathFromAmdModule(require, './fixtures/resolver')), { resolveMetadata: true });
+		const result = await service.resolve(URI.file(getPathFromAmdModule(require, './fixtures/resolver')), { resolveMetadata: true });
 
 		assert.ok(result);
 		assert.ok(result.children);
@@ -220,9 +220,9 @@ suite('Disk File Service', () => {
 		});
 	});
 
-	test('resolveFile - directory - resolveTo single directory', async () => {
+	test('resolve - directory - resolveTo single directory', async () => {
 		const resolverFixturesPath = getPathFromAmdModule(require, './fixtures/resolver');
-		const result = await service.resolveFile(URI.file(resolverFixturesPath), { resolveTo: [URI.file(join(resolverFixturesPath, 'other/deep'))] });
+		const result = await service.resolve(URI.file(resolverFixturesPath), { resolveTo: [URI.file(join(resolverFixturesPath, 'other/deep'))] });
 
 		assert.ok(result);
 		assert.ok(result.children);
@@ -244,7 +244,7 @@ suite('Disk File Service', () => {
 
 	test('resolve directory - resolveTo multiple directories', async () => {
 		const resolverFixturesPath = getPathFromAmdModule(require, './fixtures/resolver');
-		const result = await service.resolveFile(URI.file(resolverFixturesPath), {
+		const result = await service.resolve(URI.file(resolverFixturesPath), {
 			resolveTo: [
 				URI.file(join(resolverFixturesPath, 'other/deep')),
 				URI.file(join(resolverFixturesPath, 'examples'))
@@ -276,7 +276,7 @@ suite('Disk File Service', () => {
 
 	test('resolve directory - resolveSingleChildFolders', async () => {
 		const resolverFixturesPath = getPathFromAmdModule(require, './fixtures/resolver/other');
-		const result = await service.resolveFile(URI.file(resolverFixturesPath), { resolveSingleChildDescendants: true });
+		const result = await service.resolve(URI.file(resolverFixturesPath), { resolveSingleChildDescendants: true });
 
 		assert.ok(result);
 		assert.ok(result.children);
@@ -292,8 +292,8 @@ suite('Disk File Service', () => {
 		assert.equal(deep!.children!.length, 4);
 	});
 
-	test('resolveFiles', async () => {
-		const res = await service.resolveFiles([
+	test('resolves', async () => {
+		const res = await service.resolveAll([
 			{ resource: URI.file(testDir), options: { resolveTo: [URI.file(join(testDir, 'deep'))] } },
 			{ resource: URI.file(join(testDir, 'deep')) }
 		]);
@@ -309,7 +309,7 @@ suite('Disk File Service', () => {
 		assert.equal(r2.name, 'deep');
 	});
 
-	test('resolveFile - folder symbolic link', async () => {
+	test('resolve - folder symbolic link', async () => {
 		if (isWindows) {
 			return; // not happy
 		}
@@ -317,13 +317,13 @@ suite('Disk File Service', () => {
 		const link = URI.file(join(testDir, 'deep-link'));
 		await symlink(join(testDir, 'deep'), link.fsPath);
 
-		const resolved = await service.resolveFile(link);
+		const resolved = await service.resolve(link);
 		assert.equal(resolved.children!.length, 4);
 		assert.equal(resolved.isDirectory, true);
 		assert.equal(resolved.isSymbolicLink, true);
 	});
 
-	test('resolveFile - file symbolic link', async () => {
+	test('resolve - file symbolic link', async () => {
 		if (isWindows) {
 			return; // not happy
 		}
@@ -331,12 +331,12 @@ suite('Disk File Service', () => {
 		const link = URI.file(join(testDir, 'lorem.txt-linked'));
 		await symlink(join(testDir, 'lorem.txt'), link.fsPath);
 
-		const resolved = await service.resolveFile(link);
+		const resolved = await service.resolve(link);
 		assert.equal(resolved.isDirectory, false);
 		assert.equal(resolved.isSymbolicLink, true);
 	});
 
-	test('resolveFile - invalid symbolic link does not break', async () => {
+	test('resolve - invalid symbolic link does not break', async () => {
 		if (isWindows) {
 			return; // not happy
 		}
@@ -344,7 +344,7 @@ suite('Disk File Service', () => {
 		const link = URI.file(join(testDir, 'foo'));
 		await symlink(link.fsPath, join(testDir, 'bar'));
 
-		const resolved = await service.resolveFile(URI.file(testDir));
+		const resolved = await service.resolve(URI.file(testDir));
 		assert.equal(resolved.isDirectory, true);
 		assert.equal(resolved.children!.length, 8);
 	});
@@ -354,7 +354,7 @@ suite('Disk File Service', () => {
 		disposables.push(service.onAfterOperation(e => event = e));
 
 		const resource = URI.file(join(testDir, 'deep', 'conway.js'));
-		const source = await service.resolveFile(resource);
+		const source = await service.resolve(resource);
 
 		await service.del(source.resource);
 
@@ -369,7 +369,7 @@ suite('Disk File Service', () => {
 		disposables.push(service.onAfterOperation(e => event = e));
 
 		const resource = URI.file(join(testDir, 'deep'));
-		const source = await service.resolveFile(resource);
+		const source = await service.resolve(resource);
 
 		await service.del(source.resource, { recursive: true });
 
@@ -381,7 +381,7 @@ suite('Disk File Service', () => {
 
 	test('deleteFolder (non recursive)', async () => {
 		const resource = URI.file(join(testDir, 'deep'));
-		const source = await service.resolveFile(resource);
+		const source = await service.resolve(resource);
 		try {
 			await service.del(source.resource);
 
@@ -392,7 +392,7 @@ suite('Disk File Service', () => {
 		}
 	});
 
-	test('moveFile', async () => {
+	test('move', async () => {
 		let event: FileOperationEvent;
 		disposables.push(service.onAfterOperation(e => event = e));
 
@@ -401,7 +401,7 @@ suite('Disk File Service', () => {
 
 		const target = URI.file(join(dirname(source.fsPath), 'other.html'));
 
-		const renamed = await service.moveFile(source, target);
+		const renamed = await service.move(source, target);
 
 		assert.equal(existsSync(renamed.resource.fsPath), true);
 		assert.equal(existsSync(source.fsPath), false);
@@ -416,56 +416,56 @@ suite('Disk File Service', () => {
 		assert.equal(sourceContents.toString(), targetContents.toString());
 	});
 
-	test('moveFile - across providers (buffered => buffered)', async () => {
+	test('move - across providers (buffered => buffered)', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 		setCapabilities(testProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 
 		await testMoveAcrossProviders();
 	});
 
-	test('moveFile - across providers (unbuffered => unbuffered)', async () => {
+	test('move - across providers (unbuffered => unbuffered)', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
 		setCapabilities(testProvider, FileSystemProviderCapabilities.FileReadWrite);
 
 		await testMoveAcrossProviders();
 	});
 
-	test('moveFile - across providers (buffered => unbuffered)', async () => {
+	test('move - across providers (buffered => unbuffered)', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 		setCapabilities(testProvider, FileSystemProviderCapabilities.FileReadWrite);
 
 		await testMoveAcrossProviders();
 	});
 
-	test('moveFile - across providers (unbuffered => buffered)', async () => {
+	test('move - across providers (unbuffered => buffered)', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
 		setCapabilities(testProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 
 		await testMoveAcrossProviders();
 	});
 
-	test('moveFile - across providers - large (buffered => buffered)', async () => {
+	test('move - across providers - large (buffered => buffered)', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 		setCapabilities(testProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 
 		await testMoveAcrossProviders('lorem.txt');
 	});
 
-	test('moveFile - across providers - large (unbuffered => unbuffered)', async () => {
+	test('move - across providers - large (unbuffered => unbuffered)', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
 		setCapabilities(testProvider, FileSystemProviderCapabilities.FileReadWrite);
 
 		await testMoveAcrossProviders('lorem.txt');
 	});
 
-	test('moveFile - across providers - large (buffered => unbuffered)', async () => {
+	test('move - across providers - large (buffered => unbuffered)', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 		setCapabilities(testProvider, FileSystemProviderCapabilities.FileReadWrite);
 
 		await testMoveAcrossProviders('lorem.txt');
 	});
 
-	test('moveFile - across providers - large (unbuffered => buffered)', async () => {
+	test('move - across providers - large (unbuffered => buffered)', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
 		setCapabilities(testProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 
@@ -481,7 +481,7 @@ suite('Disk File Service', () => {
 
 		const target = URI.file(join(dirname(source.fsPath), 'other.html')).with({ scheme: testSchema });
 
-		const renamed = await service.moveFile(source, target);
+		const renamed = await service.move(source, target);
 
 		assert.equal(existsSync(renamed.resource.fsPath), true);
 		assert.equal(existsSync(source.fsPath), false);
@@ -496,7 +496,7 @@ suite('Disk File Service', () => {
 		assert.equal(sourceContents.toString(), targetContents.toString());
 	}
 
-	test('moveFile - multi folder', async () => {
+	test('move - multi folder', async () => {
 		let event: FileOperationEvent;
 		disposables.push(service.onAfterOperation(e => event = e));
 
@@ -505,7 +505,7 @@ suite('Disk File Service', () => {
 
 		const source = URI.file(join(testDir, 'index.html'));
 
-		const renamed = await service.moveFile(source, URI.file(join(dirname(source.fsPath), renameToPath)));
+		const renamed = await service.move(source, URI.file(join(dirname(source.fsPath), renameToPath)));
 
 		assert.equal(existsSync(renamed.resource.fsPath), true);
 		assert.equal(existsSync(source.fsPath), false);
@@ -515,13 +515,13 @@ suite('Disk File Service', () => {
 		assert.equal(event!.target!.resource.fsPath, renamed.resource.fsPath);
 	});
 
-	test('moveFile - directory', async () => {
+	test('move - directory', async () => {
 		let event: FileOperationEvent;
 		disposables.push(service.onAfterOperation(e => event = e));
 
 		const source = URI.file(join(testDir, 'deep'));
 
-		const renamed = await service.moveFile(source, URI.file(join(dirname(source.fsPath), 'deeper')));
+		const renamed = await service.move(source, URI.file(join(dirname(source.fsPath), 'deeper')));
 
 		assert.equal(existsSync(renamed.resource.fsPath), true);
 		assert.equal(existsSync(source.fsPath), false);
@@ -531,28 +531,28 @@ suite('Disk File Service', () => {
 		assert.equal(event!.target!.resource.fsPath, renamed.resource.fsPath);
 	});
 
-	test('moveFile - directory - across providers (buffered => buffered)', async () => {
+	test('move - directory - across providers (buffered => buffered)', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 		setCapabilities(testProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 
 		await testMoveFolderAcrossProviders();
 	});
 
-	test('moveFile - directory - across providers (unbuffered => unbuffered)', async () => {
+	test('move - directory - across providers (unbuffered => unbuffered)', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
 		setCapabilities(testProvider, FileSystemProviderCapabilities.FileReadWrite);
 
 		await testMoveFolderAcrossProviders();
 	});
 
-	test('moveFile - directory - across providers (buffered => unbuffered)', async () => {
+	test('move - directory - across providers (buffered => unbuffered)', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 		setCapabilities(testProvider, FileSystemProviderCapabilities.FileReadWrite);
 
 		await testMoveFolderAcrossProviders();
 	});
 
-	test('moveFile - directory - across providers (unbuffered => buffered)', async () => {
+	test('move - directory - across providers (unbuffered => buffered)', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
 		setCapabilities(testProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 
@@ -568,7 +568,7 @@ suite('Disk File Service', () => {
 
 		const target = URI.file(join(dirname(source.fsPath), 'deeper')).with({ scheme: testSchema });
 
-		const renamed = await service.moveFile(source, target);
+		const renamed = await service.move(source, target);
 
 		assert.equal(existsSync(renamed.resource.fsPath), true);
 		assert.equal(existsSync(source.fsPath), false);
@@ -584,14 +584,14 @@ suite('Disk File Service', () => {
 		}
 	}
 
-	test('moveFile - MIX CASE', async () => {
+	test('move - MIX CASE', async () => {
 		let event: FileOperationEvent;
 		disposables.push(service.onAfterOperation(e => event = e));
 
 		const source = URI.file(join(testDir, 'index.html'));
-		await service.resolveFile(source);
+		await service.resolve(source);
 
-		const renamed = await service.moveFile(source, URI.file(join(dirname(source.fsPath), 'INDEX.html')));
+		const renamed = await service.move(source, URI.file(join(dirname(source.fsPath), 'INDEX.html')));
 
 		assert.equal(existsSync(renamed.resource.fsPath), true);
 		assert.equal(basename(renamed.resource.fsPath), 'INDEX.html');
@@ -601,33 +601,33 @@ suite('Disk File Service', () => {
 		assert.equal(event!.target!.resource.fsPath, renamed.resource.fsPath);
 	});
 
-	test('moveFile - source parent of target', async () => {
+	test('move - source parent of target', async () => {
 		let event: FileOperationEvent;
 		disposables.push(service.onAfterOperation(e => event = e));
 
-		await service.resolveFile(URI.file(join(testDir, 'index.html')));
+		await service.resolve(URI.file(join(testDir, 'index.html')));
 		try {
-			await service.moveFile(URI.file(testDir), URI.file(join(testDir, 'binary.txt')));
+			await service.move(URI.file(testDir), URI.file(join(testDir, 'binary.txt')));
 		} catch (e) {
 			assert.ok(e);
 			assert.ok(!event!);
 		}
 	});
 
-	test('moveFile - FILE_MOVE_CONFLICT', async () => {
+	test('move - FILE_MOVE_CONFLICT', async () => {
 		let event: FileOperationEvent;
 		disposables.push(service.onAfterOperation(e => event = e));
 
-		const source = await service.resolveFile(URI.file(join(testDir, 'index.html')));
+		const source = await service.resolve(URI.file(join(testDir, 'index.html')));
 		try {
-			await service.moveFile(source.resource, URI.file(join(testDir, 'binary.txt')));
+			await service.move(source.resource, URI.file(join(testDir, 'binary.txt')));
 		} catch (e) {
 			assert.equal(e.fileOperationResult, FileOperationResult.FILE_MOVE_CONFLICT);
 			assert.ok(!event!);
 		}
 	});
 
-	test('moveFile - overwrite folder with file', async () => {
+	test('move - overwrite folder with file', async () => {
 		let createEvent: FileOperationEvent;
 		let moveEvent: FileOperationEvent;
 		let deleteEvent: FileOperationEvent;
@@ -641,12 +641,12 @@ suite('Disk File Service', () => {
 			}
 		}));
 
-		const parent = await service.resolveFile(URI.file(testDir));
+		const parent = await service.resolve(URI.file(testDir));
 		const folderResource = URI.file(join(parent.resource.fsPath, 'conway.js'));
 		const f = await service.createFolder(folderResource);
 		const source = URI.file(join(testDir, 'deep', 'conway.js'));
 
-		const moved = await service.moveFile(source, f.resource, true);
+		const moved = await service.move(source, f.resource, true);
 
 		assert.equal(existsSync(moved.resource.fsPath), true);
 		assert.ok(statSync(moved.resource.fsPath).isFile);
@@ -658,32 +658,32 @@ suite('Disk File Service', () => {
 		assert.equal(deleteEvent!.resource.fsPath, folderResource.fsPath);
 	});
 
-	test('copyFile', async () => {
-		await doTestCopyFile();
+	test('copy', async () => {
+		await doTestCopy();
 	});
 
-	test('copyFile - unbuffered (FileSystemProviderCapabilities.FileReadWrite)', async () => {
+	test('copy - unbuffered (FileSystemProviderCapabilities.FileReadWrite)', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
 
-		await doTestCopyFile();
+		await doTestCopy();
 	});
 
-	test('copyFile - unbuffered large (FileSystemProviderCapabilities.FileReadWrite)', async () => {
+	test('copy - unbuffered large (FileSystemProviderCapabilities.FileReadWrite)', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
 
-		await doTestCopyFile('lorem.txt');
+		await doTestCopy('lorem.txt');
 	});
 
-	test('copyFile - buffered (FileSystemProviderCapabilities.FileOpenReadWriteClose)', async () => {
+	test('copy - buffered (FileSystemProviderCapabilities.FileOpenReadWriteClose)', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 
-		await doTestCopyFile();
+		await doTestCopy();
 	});
 
-	test('copyFile - buffered large (FileSystemProviderCapabilities.FileOpenReadWriteClose)', async () => {
+	test('copy - buffered large (FileSystemProviderCapabilities.FileOpenReadWriteClose)', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 
-		await doTestCopyFile('lorem.txt');
+		await doTestCopy('lorem.txt');
 	});
 
 	function setCapabilities(provider: TestDiskFileSystemProvider, capabilities: FileSystemProviderCapabilities): void {
@@ -693,14 +693,14 @@ suite('Disk File Service', () => {
 		}
 	}
 
-	async function doTestCopyFile(sourceName: string = 'index.html') {
+	async function doTestCopy(sourceName: string = 'index.html') {
 		let event: FileOperationEvent;
 		disposables.push(service.onAfterOperation(e => event = e));
 
-		const source = await service.resolveFile(URI.file(join(testDir, sourceName)));
+		const source = await service.resolve(URI.file(join(testDir, sourceName)));
 		const target = URI.file(join(testDir, 'other.html'));
 
-		const copied = await service.copyFile(source.resource, target);
+		const copied = await service.copy(source.resource, target);
 
 		assert.equal(existsSync(copied.resource.fsPath), true);
 		assert.equal(existsSync(source.resource.fsPath), true);
@@ -716,7 +716,7 @@ suite('Disk File Service', () => {
 		assert.equal(sourceContents.toString(), targetContents.toString());
 	}
 
-	test('copyFile - overwrite folder with file', async () => {
+	test('copy - overwrite folder with file', async () => {
 		let createEvent: FileOperationEvent;
 		let copyEvent: FileOperationEvent;
 		let deleteEvent: FileOperationEvent;
@@ -730,12 +730,12 @@ suite('Disk File Service', () => {
 			}
 		}));
 
-		const parent = await service.resolveFile(URI.file(testDir));
+		const parent = await service.resolve(URI.file(testDir));
 		const folderResource = URI.file(join(parent.resource.fsPath, 'conway.js'));
 		const f = await service.createFolder(folderResource);
 		const source = URI.file(join(testDir, 'deep', 'conway.js'));
 
-		const copied = await service.copyFile(source, f.resource, true);
+		const copied = await service.copy(source, f.resource, true);
 
 		assert.equal(existsSync(copied.resource.fsPath), true);
 		assert.ok(statSync(copied.resource.fsPath).isFile);
@@ -747,28 +747,28 @@ suite('Disk File Service', () => {
 		assert.equal(deleteEvent!.resource.fsPath, folderResource.fsPath);
 	});
 
-	test('copyFile - MIX CASE', async () => {
-		const source = await service.resolveFile(URI.file(join(testDir, 'index.html')));
-		const renamed = await service.moveFile(source.resource, URI.file(join(dirname(source.resource.fsPath), 'CONWAY.js')));
+	test('copy - MIX CASE', async () => {
+		const source = await service.resolve(URI.file(join(testDir, 'index.html')));
+		const renamed = await service.move(source.resource, URI.file(join(dirname(source.resource.fsPath), 'CONWAY.js')));
 		assert.equal(existsSync(renamed.resource.fsPath), true);
 		assert.ok(readdirSync(testDir).some(f => f === 'CONWAY.js'));
 
-		const source_1 = await service.resolveFile(URI.file(join(testDir, 'deep', 'conway.js')));
+		const source_1 = await service.resolve(URI.file(join(testDir, 'deep', 'conway.js')));
 		const targetParent = URI.file(testDir);
 		const target = targetParent.with({ path: posix.join(targetParent.path, posix.basename(source_1.resource.path)) });
 
-		const res = await service.copyFile(source_1.resource, target, true);
+		const res = await service.copy(source_1.resource, target, true);
 		assert.equal(existsSync(res.resource.fsPath), true);
 		assert.ok(readdirSync(testDir).some(f => f === 'conway.js'));
 	});
 
-	test('copyFile - same file should throw', async () => {
-		const source = await service.resolveFile(URI.file(join(testDir, 'index.html')));
+	test('copy - same file should throw', async () => {
+		const source = await service.resolve(URI.file(join(testDir, 'index.html')));
 		const targetParent = URI.file(dirname(source.resource.fsPath));
 		const target = targetParent.with({ path: posix.join(targetParent.path, posix.basename(source.resource.path)) });
 
 		try {
-			await service.copyFile(source.resource, target, true);
+			await service.copy(source.resource, target, true);
 		} catch (error) {
 			assert.ok(error);
 		}

@@ -369,13 +369,13 @@ class FileServiceBasedWorkspaceConfiguration extends AbstractWorkspaceConfigurat
 
 	private watchWorkspaceConfigurationFile(): void {
 		if (this.workspaceConfig) {
-			this.fileService.watchFileChanges(this.workspaceConfig);
+			this.fileService.watch(this.workspaceConfig);
 		}
 	}
 
 	private unWatchWorkspaceConfigurtionFile(): void {
 		if (this.workspaceConfig) {
-			this.fileService.unwatchFileChanges(this.workspaceConfig);
+			this.fileService.unwatch(this.workspaceConfig);
 		}
 	}
 
@@ -638,7 +638,7 @@ export class FileServiceBasedFolderConfiguration extends AbstractFolderConfigura
 
 	private doLoadFolderConfigurationContents(): Promise<Array<{ resource: URI, value: string }>> {
 		const workspaceFilePathToConfiguration: { [relativeWorkspacePath: string]: Promise<IContent | undefined> } = Object.create(null);
-		const bulkContentFetchromise = Promise.resolve(this.fileService.resolveFile(this.folderConfigurationPath))
+		const bulkContentFetchromise = Promise.resolve(this.fileService.resolve(this.folderConfigurationPath))
 			.then(stat => {
 				if (stat.isDirectory && stat.children) {
 					stat.children

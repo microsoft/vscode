@@ -82,7 +82,7 @@ export class TerminalService extends BrowserTerminalService implements ITerminal
 			const interval = setInterval(() => {
 				if (!running) {
 					running = true;
-					this._fileService.existsFile(path).then(exists => {
+					this._fileService.exists(path).then(exists => {
 						running = false;
 
 						if (!exists) {

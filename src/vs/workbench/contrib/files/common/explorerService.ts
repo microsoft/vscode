@@ -151,7 +151,7 @@ export class ExplorerService implements IExplorerService {
 		const workspaceFolder = this.contextService.getWorkspaceFolder(resource);
 		const rootUri = workspaceFolder ? workspaceFolder.uri : this.roots[0].resource;
 		const root = this.roots.filter(r => r.resource.toString() === rootUri.toString()).pop()!;
-		return this.fileService.resolveFile(rootUri, options).then(stat => {
+		return this.fileService.resolve(rootUri, options).then(stat => {
 
 			// Convert to model
 			const modelStat = ExplorerItem.create(stat, undefined, options.resolveTo);
@@ -193,7 +193,7 @@ export class ExplorerService implements IExplorerService {
 				parents.forEach(p => {
 					// We have to check if the parent is resolved #29177
 					const resolveMetadata = this.sortOrder === `modified`;
-					const thenable: Promise<IFileStat | undefined> = p.isDirectoryResolved ? Promise.resolve(undefined) : this.fileService.resolveFile(p.resource, { resolveMetadata });
+					const thenable: Promise<IFileStat | undefined> = p.isDirectoryResolved ? Promise.resolve(undefined) : this.fileService.resolve(p.resource, { resolveMetadata });
 					thenable.then(stat => {
 						if (stat) {
 							const modelStat = ExplorerItem.create(stat, p.parent);

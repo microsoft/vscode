@@ -196,7 +196,7 @@ export function getHashedRemotesFromConfig(text: string, stripEndingDotGit: bool
 export function getHashedRemotesFromUri(workspaceUri: URI, fileService: IFileService, stripEndingDotGit: boolean = false): Promise<string[]> {
 	const path = workspaceUri.path;
 	const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/.git/config` });
-	return fileService.existsFile(uri).then(exists => {
+	return fileService.exists(uri).then(exists => {
 		if (!exists) {
 			return [];
 		}
@@ -364,7 +364,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			return Promise.resolve(tags);
 		}
 
-		return this.fileService.resolveFiles(folders.map(resource => ({ resource }))).then((files: IResolveFileResult[]) => {
+		return this.fileService.resolveAll(folders.map(resource => ({ resource }))).then((files: IResolveFileResult[]) => {
 			const names = (<IFileStat[]>[]).concat(...files.map(result => result.success ? (result.stat!.children || []) : [])).map(c => c.name);
 			const nameSet = names.reduce((s, n) => s.add(n.toLowerCase()), new Set());
 
@@ -437,7 +437,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			function getFilePromises(filename: string, fileService: IFileService, contentHandler: (content: IContent) => void): Promise<void>[] {
 				return !nameSet.has(filename) ? [] : (folders as URI[]).map(workspaceUri => {
 					const uri = workspaceUri.with({ path: `${workspaceUri.path !== '/' ? workspaceUri.path : ''}/${filename}` });
-					return fileService.existsFile(uri).then(exists => {
+					return fileService.exists(uri).then(exists => {
 						if (!exists) {
 							return undefined;
 						}
@@ -620,7 +620,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		Promise.all<string[]>(workspaceUris.map(workspaceUri => {
 			const path = workspaceUri.path;
 			const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/.git/config` });
-			return this.fileService.existsFile(uri).then(exists => {
+			return this.fileService.exists(uri).then(exists => {
 				if (!exists) {
 					return [];
 				}
@@ -666,7 +666,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			const path = workspaceUri.path;
 			return workspaceUri.with({ path: `${path !== '/' ? path : ''}/node_modules` });
 		});
-		return this.fileService.resolveFiles(uris.map(resource => ({ resource }))).then(
+		return this.fileService.resolveAll(uris.map(resource => ({ resource }))).then(
 			results => {
 				const names = (<IFileStat[]>[]).concat(...results.map(result => result.success ? (result.stat!.children || []) : [])).map(c => c.name);
 				const referencesAzure = WorkspaceStats.searchArray(names, /azure/i);
@@ -689,7 +689,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		return Promise.all(workspaceUris.map(workspaceUri => {
 			const path = workspaceUri.path;
 			const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/pom.xml` });
-			return this.fileService.existsFile(uri).then(exists => {
+			return this.fileService.exists(uri).then(exists => {
 				if (!exists) {
 					return false;
 				}

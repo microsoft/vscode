@@ -161,7 +161,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 						return true;
 					}
 
-					return this.fileService.existsFile(this.resource).then(exists => !exists);
+					return this.fileService.exists(this.resource).then(exists => !exists);
 				});
 			} else {
 				checkOrphanedPromise = Promise.resolve(false);

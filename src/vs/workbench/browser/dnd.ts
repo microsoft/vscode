@@ -269,7 +269,7 @@ export class ResourcesDropHandler {
 			}
 
 			// Check for Folder
-			return this.fileService.resolveFile(fileOnDiskResource).then(stat => {
+			return this.fileService.resolve(fileOnDiskResource).then(stat => {
 				if (stat.isDirectory) {
 					workspaceResources.folders.push({ uri: stat.resource, typeHint: 'folder' });
 				}

@@ -70,7 +70,7 @@ export interface IFileService {
 
 	/**
 	 * Allows to listen for file changes. The event will fire for every file within the opened workspace
-	 * (if any) as well as all files that have been watched explicitly using the #watchFileChanges() API.
+	 * (if any) as well as all files that have been watched explicitly using the #watch() API.
 	 */
 	readonly onFileChanges: Event<FileChangesEvent>;
 
@@ -80,7 +80,7 @@ export interface IFileService {
 	readonly onAfterOperation: Event<FileOperationEvent>;
 
 	/**
-	 * Resolve the properties of a file identified by the resource.
+	 * Resolve the properties of a file/folder identified by the resource.
 	 *
 	 * If the optional parameter "resolveTo" is specified in options, the stat service is asked
 	 * to provide a stat object that should contain the full graph of folders up to all of the
@@ -93,20 +93,20 @@ export interface IFileService {
 	 * If the optional parameter "resolveMetadata" is specified in options,
 	 * the stat will contain metadata information such as size, mtime and etag.
 	 */
-	resolveFile(resource: URI, options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
-	resolveFile(resource: URI, options?: IResolveFileOptions): Promise<IFileStat>;
+	resolve(resource: URI, options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
+	resolve(resource: URI, options?: IResolveFileOptions): Promise<IFileStat>;
 
 	/**
-	 * Same as resolveFile but supports resolving multiple resources in parallel.
+	 * Same as resolve() but supports resolving multiple resources in parallel.
 	 * If one of the resolve targets fails to resolve returns a fake IFileStat instead of making the whole call fail.
 	 */
-	resolveFiles(toResolve: { resource: URI, options: IResolveMetadataFileOptions }[]): Promise<IResolveFileResult[]>;
-	resolveFiles(toResolve: { resource: URI, options?: IResolveFileOptions }[]): Promise<IResolveFileResult[]>;
+	resolveAll(toResolve: { resource: URI, options: IResolveMetadataFileOptions }[]): Promise<IResolveFileResult[]>;
+	resolveAll(toResolve: { resource: URI, options?: IResolveFileOptions }[]): Promise<IResolveFileResult[]>;
 
 	/**
-	 * Finds out if a file identified by the resource exists.
+	 * Finds out if a file/folder identified by the resource exists.
 	 */
-	existsFile(resource: URI): Promise<boolean>;
+	exists(resource: URI): Promise<boolean>;
 
 	/**
 	 * Resolve the contents of a file identified by the resource.
@@ -128,18 +128,18 @@ export interface IFileService {
 	updateContent(resource: URI, value: string | ITextSnapshot, options?: IUpdateContentOptions): Promise<IFileStatWithMetadata>;
 
 	/**
-	 * Moves the file to a new path identified by the resource.
+	 * Moves the file/folder to a new path identified by the resource.
 	 *
 	 * The optional parameter overwrite can be set to replace an existing file at the location.
 	 */
-	moveFile(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata>;
+	move(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata>;
 
 	/**
-	 * Copies the file to a path identified by the resource.
+	 * Copies the file/folder to a path identified by the resource.
 	 *
 	 * The optional parameter overwrite can be set to replace an existing file at the location.
 	 */
-	copyFile(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata>;
+	copy(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata>;
 
 	/**
 	 * Creates a new file with the given path. The returned promise
@@ -165,12 +165,12 @@ export interface IFileService {
 	/**
 	 * Allows to start a watcher that reports file change events on the provided resource.
 	 */
-	watchFileChanges(resource: URI): void;
+	watch(resource: URI): void;
 
 	/**
 	 * Allows to stop a watcher on the provided resource or absolute fs path.
 	 */
-	unwatchFileChanges(resource: URI): void;
+	unwatch(resource: URI): void;
 
 	/**
 	 * Frees up any resources occupied by this service.
@@ -1135,7 +1135,7 @@ export interface ILegacyFileService {
 
 	createFile(resource: URI, content?: string, options?: ICreateFileOptions): Promise<IFileStat>;
 
-	watchFileChanges(resource: URI): void;
+	watch(resource: URI): void;
 
-	unwatchFileChanges(resource: URI): void;
+	unwatch(resource: URI): void;
 }

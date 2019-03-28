@@ -718,7 +718,7 @@ export class TextFileService extends Disposable implements ITextFileService {
 			}
 
 			// Otherwise we can only copy
-			return this.fileService.copyFile(resource, target).then(() => true);
+			return this.fileService.copy(resource, target).then(() => true);
 		}).then(result => {
 
 			// Return early if the operation was not running
@@ -748,7 +748,7 @@ export class TextFileService extends Disposable implements ITextFileService {
 
 		// Otherwise create the target file empty if it does not exist already and resolve it from there
 		else {
-			targetModelResolver = this.fileService.existsFile(target).then<any>(exists => {
+			targetModelResolver = this.fileService.exists(target).then<any>(exists => {
 				targetExists = exists;
 
 				// create target model adhoc if file does not exist yet
@@ -964,7 +964,7 @@ export class TextFileService extends Disposable implements ITextFileService {
 					return this.revertAll(dirtySourceModels.map(dirtySourceModel => dirtySourceModel.getResource()), { soft: true }).then(() => {
 
 						// Rename to target
-						return this.fileService.moveFile(source, target, overwrite).then(() => {
+						return this.fileService.move(source, target, overwrite).then(() => {
 
 							// Load models that were dirty before
 							return Promise.all(dirtyTargetModels.map(dirtyTargetModel => this.models.loadOrCreate(dirtyTargetModel))).then(() => undefined);

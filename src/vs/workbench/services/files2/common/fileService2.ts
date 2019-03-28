@@ -152,9 +152,9 @@ export class FileService2 extends Disposable implements IFileService {
 
 	//#region File Metadata Resolving
 
-	async resolveFile(resource: URI, options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
-	async resolveFile(resource: URI, options?: IResolveFileOptions): Promise<IFileStat>;
-	async resolveFile(resource: URI, options?: IResolveFileOptions): Promise<IFileStat> {
+	async resolve(resource: URI, options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
+	async resolve(resource: URI, options?: IResolveFileOptions): Promise<IFileStat>;
+	async resolve(resource: URI, options?: IResolveFileOptions): Promise<IFileStat> {
 		try {
 			return await this.doResolveFile(resource, options);
 		} catch (error) {
@@ -251,9 +251,9 @@ export class FileService2 extends Disposable implements IFileService {
 		return Promise.resolve(fileStat);
 	}
 
-	async resolveFiles(toResolve: { resource: URI, options?: IResolveFileOptions }[]): Promise<IResolveFileResult[]>;
-	async resolveFiles(toResolve: { resource: URI, options: IResolveMetadataFileOptions }[]): Promise<IResolveFileResultWithMetadata[]>;
-	async resolveFiles(toResolve: { resource: URI; options?: IResolveFileOptions; }[]): Promise<IResolveFileResult[]> {
+	async resolveAll(toResolve: { resource: URI, options?: IResolveFileOptions }[]): Promise<IResolveFileResult[]>;
+	async resolveAll(toResolve: { resource: URI, options: IResolveMetadataFileOptions }[]): Promise<IResolveFileResultWithMetadata[]>;
+	async resolveAll(toResolve: { resource: URI; options?: IResolveFileOptions; }[]): Promise<IResolveFileResult[]> {
 		return Promise.all(toResolve.map(async entry => {
 			try {
 				return { stat: await this.doResolveFile(entry.resource, entry.options), success: true };
@@ -265,9 +265,9 @@ export class FileService2 extends Disposable implements IFileService {
 		}));
 	}
 
-	async existsFile(resource: URI): Promise<boolean> {
+	async exists(resource: URI): Promise<boolean> {
 		try {
-			return !!(await this.resolveFile(resource));
+			return !!(await this.resolve(resource));
 		} catch (error) {
 			return false;
 		}
@@ -295,7 +295,7 @@ export class FileService2 extends Disposable implements IFileService {
 
 		// validate overwrite
 		const overwrite = !!(options && options.overwrite);
-		if (await this.existsFile(resource)) {
+		if (await this.exists(resource)) {
 			if (!overwrite) {
 				throw new FileOperationError(localize('fileExists', "File to create already exists ({0})", resource.toString(true)), FileOperationResult.FILE_MODIFIED_SINCE, options);
 			}
@@ -328,7 +328,7 @@ export class FileService2 extends Disposable implements IFileService {
 		}
 
 		// events
-		const fileStat = await this.resolveFile(resource, { resolveMetadata: true });
+		const fileStat = await this.resolve(resource, { resolveMetadata: true });
 		this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, fileStat));
 
 		return fileStat;
@@ -350,7 +350,7 @@ export class FileService2 extends Disposable implements IFileService {
 
 	//#region Move/Copy/Delete/Create Folder
 
-	async moveFile(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata> {
+	async move(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata> {
 		const sourceProvider = this.throwIfFileSystemIsReadonly(await this.withProvider(source));
 		const targetProvider = this.throwIfFileSystemIsReadonly(await this.withProvider(target));
 
@@ -358,13 +358,13 @@ export class FileService2 extends Disposable implements IFileService {
 		const mode = await this.doMoveCopy(sourceProvider, source, targetProvider, target, 'move', overwrite);
 
 		// resolve and send events
-		const fileStat = await this.resolveFile(target, { resolveMetadata: true });
+		const fileStat = await this.resolve(target, { resolveMetadata: true });
 		this._onAfterOperation.fire(new FileOperationEvent(source, mode === 'move' ? FileOperation.MOVE : FileOperation.COPY, fileStat));
 
 		return fileStat;
 	}
 
-	async copyFile(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata> {
+	async copy(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata> {
 		const sourceProvider = await this.withProvider(source);
 		const targetProvider = this.throwIfFileSystemIsReadonly(await this.withProvider(target));
 
@@ -372,7 +372,7 @@ export class FileService2 extends Disposable implements IFileService {
 		const mode = await this.doMoveCopy(sourceProvider, source, targetProvider, target, 'copy', overwrite);
 
 		// resolve and send events
-		const fileStat = await this.resolveFile(target, { resolveMetadata: true });
+		const fileStat = await this.resolve(target, { resolveMetadata: true });
 		this._onAfterOperation.fire(new FileOperationEvent(source, mode === 'copy' ? FileOperation.COPY : FileOperation.MOVE, fileStat));
 
 		return fileStat;
@@ -409,7 +409,7 @@ export class FileService2 extends Disposable implements IFileService {
 
 			// when copying via buffer/unbuffered, we have to manually
 			// traverse the source if it is a folder and not a file
-			const sourceFile = await this.resolveFile(source);
+			const sourceFile = await this.resolve(source);
 			if (sourceFile.isDirectory) {
 				return this.doCopyFolder(sourceProvider, sourceFile, targetProvider, target, overwrite).then(() => mode);
 			} else {
@@ -467,7 +467,7 @@ export class FileService2 extends Disposable implements IFileService {
 			await Promise.all(sourceFolder.children.map(async sourceChild => {
 				const targetChild = joinPath(targetFolder, sourceChild.name);
 				if (sourceChild.isDirectory) {
-					return this.doCopyFolder(sourceProvider, await this.resolveFile(sourceChild.resource), targetProvider, targetChild, overwrite);
+					return this.doCopyFolder(sourceProvider, await this.resolve(sourceChild.resource), targetProvider, targetChild, overwrite);
 				} else {
 					return this.doCopyFile(sourceProvider, sourceChild.resource, targetProvider, targetChild, overwrite);
 				}
@@ -489,7 +489,7 @@ export class FileService2 extends Disposable implements IFileService {
 		}
 
 		// Extra checks if target exists and this is not a rename
-		const exists = await this.existsFile(target);
+		const exists = await this.exists(target);
 		if (exists && !isCaseChange) {
 
 			// Bail out if target exists and we are not about to overwrite
@@ -514,7 +514,7 @@ export class FileService2 extends Disposable implements IFileService {
 		await this.mkdirp(provider, resource);
 
 		// events
-		const fileStat = await this.resolveFile(resource, { resolveMetadata: true });
+		const fileStat = await this.resolve(resource, { resolveMetadata: true });
 		this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, fileStat));
 
 		return fileStat;
@@ -565,8 +565,8 @@ export class FileService2 extends Disposable implements IFileService {
 
 		// Validate recursive
 		const recursive = !!(options && options.recursive);
-		if (!recursive && await this.existsFile(resource)) {
-			const stat = await this.resolveFile(resource);
+		if (!recursive && await this.exists(resource)) {
+			const stat = await this.resolve(resource);
 			if (stat.isDirectory && Array.isArray(stat.children) && stat.children.length > 0) {
 				throw new Error(localize('deleteFailed', "Failed to delete non-empty folder '{0}'.", resource.toString()));
 			}
@@ -586,12 +586,12 @@ export class FileService2 extends Disposable implements IFileService {
 	private _onFileChanges: Emitter<FileChangesEvent> = this._register(new Emitter<FileChangesEvent>());
 	get onFileChanges(): Event<FileChangesEvent> { return this._onFileChanges.event; }
 
-	watchFileChanges(resource: URI): void {
-		this.joinOnLegacy.then(legacy => legacy.watchFileChanges(resource));
+	watch(resource: URI): void {
+		this.joinOnLegacy.then(legacy => legacy.watch(resource));
 	}
 
-	unwatchFileChanges(resource: URI): void {
-		this.joinOnLegacy.then(legacy => legacy.unwatchFileChanges(resource));
+	unwatch(resource: URI): void {
+		this.joinOnLegacy.then(legacy => legacy.unwatch(resource));
 	}
 
 	//#endregion
@@ -690,7 +690,7 @@ export class FileService2 extends Disposable implements IFileService {
 	private async doPipeBufferedToUnbuffered(sourceProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, source: URI, targetProvider: IFileSystemProviderWithFileReadWriteCapability, target: URI, overwrite: boolean): Promise<void> {
 
 		// Determine file size
-		const size = (await this.resolveFile(source, { resolveMetadata: true })).size;
+		const size = (await this.resolve(source, { resolveMetadata: true })).size;
 
 		// Open handle
 		const sourceHandle = await sourceProvider.open(source, { create: false });

@@ -2318,7 +2318,7 @@ class TaskService extends Disposable implements ITaskService {
 		let openTaskFile = (workspaceFolder: IWorkspaceFolder): void => {
 			let resource = workspaceFolder.toResource('.vscode/tasks.json');
 			let configFileCreated = false;
-			this.fileService.resolveFile(resource).then((stat) => stat, () => undefined).then((stat) => {
+			this.fileService.resolve(resource).then((stat) => stat, () => undefined).then((stat) => {
 				if (stat) {
 					return stat.resource;
 				}
@@ -2375,7 +2375,7 @@ class TaskService extends Disposable implements ITaskService {
 		}
 
 		let stats = this.contextService.getWorkspace().folders.map<Promise<IFileStat | undefined>>((folder) => {
-			return this.fileService.resolveFile(folder.toResource('.vscode/tasks.json')).then(stat => stat, () => undefined);
+			return this.fileService.resolve(folder.toResource('.vscode/tasks.json')).then(stat => stat, () => undefined);
 		});
 
 		let createLabel = nls.localize('TaskService.createJsonFile', 'Create tasks.json file from template');

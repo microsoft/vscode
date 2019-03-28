@@ -140,18 +140,18 @@ class WorkspaceWatchLogic extends Disposable {
 			}
 		}
 		this._watches.set(resource.toString(), resource);
-		this._fileService.watchFileChanges(resource, { recursive: true, excludes });
+		this._fileService.watch(resource, { recursive: true, excludes });
 	}
 
 	private _unwatchWorkspace(resource: URI) {
 		if (this._watches.has(resource.toString())) {
-			this._fileService.unwatchFileChanges(resource);
+			this._fileService.unwatch(resource);
 			this._watches.delete(resource.toString());
 		}
 	}
 
 	private _unwatchWorkspaces() {
-		this._watches.forEach(uri => this._fileService.unwatchFileChanges(uri));
+		this._watches.forEach(uri => this._fileService.unwatch(uri));
 		this._watches.clear();
 	}
 }
@@ -223,11 +223,11 @@ export class RemoteFileService extends FileService {
 		});
 	}
 
-	resolveFile(resource: URI, options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
-	resolveFile(resource: URI, options?: IResolveFileOptions): Promise<IFileStat>;
-	resolveFile(resource: URI, options?: IResolveFileOptions): Promise<IFileStat> {
+	resolve(resource: URI, options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
+	resolve(resource: URI, options?: IResolveFileOptions): Promise<IFileStat>;
+	resolve(resource: URI, options?: IResolveFileOptions): Promise<IFileStat> {
 		if (resource.scheme === Schemas.file) {
-			return super.resolveFile(resource, options);
+			return super.resolve(resource, options);
 		} else {
 			return this._doResolveFiles([{ resource, options }]).then(data => {
 				if (data.length !== 1 || !data[0].success) {
@@ -279,7 +279,7 @@ export class RemoteFileService extends FileService {
 	private _readFile(resource: URI, options: IResolveContentOptions = Object.create(null)): Promise<IStreamContent> {
 		return this._withProvider(resource).then(provider => {
 
-			return this.resolveFile(resource).then(fileStat => {
+			return this.resolve(resource).then(fileStat => {
 
 				if (fileStat.isDirectory) {
 					// todo@joh cannot copy a folder
@@ -409,7 +409,7 @@ export class RemoteFileService extends FileService {
 			target.once('error', err => reject(err));
 			target.once('finish', (_: unknown) => resolve(undefined));
 		}).then(_ => {
-			return this.resolveFile(resource, { resolveMetadata: true }) as Promise<IFileStatWithMetadata>;
+			return this.resolve(resource, { resolveMetadata: true }) as Promise<IFileStatWithMetadata>;
 		});
 	}
 
@@ -433,9 +433,9 @@ export class RemoteFileService extends FileService {
 
 	private _activeWatches = new Map<string, { unwatch: Promise<IDisposable>, count: number }>();
 
-	watchFileChanges(resource: URI, opts: IWatchOptions = { recursive: false, excludes: [] }): void {
+	watch(resource: URI, opts: IWatchOptions = { recursive: false, excludes: [] }): void {
 		if (resource.scheme === Schemas.file) {
-			return super.watchFileChanges(resource);
+			return super.watch(resource);
 		}
 
 		const key = resource.toString();
@@ -455,9 +455,9 @@ export class RemoteFileService extends FileService {
 		});
 	}
 
-	unwatchFileChanges(resource: URI): void {
+	unwatch(resource: URI): void {
 		if (resource.scheme === Schemas.file) {
-			return super.unwatchFileChanges(resource);
+			return super.unwatch(resource);
 		}
 		let entry = this._activeWatches.get(resource.toString());
 		if (entry && --entry.count === 0) {

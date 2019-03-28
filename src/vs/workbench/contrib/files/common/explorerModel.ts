@@ -249,7 +249,7 @@ export class ExplorerItem {
 			// Resolve metadata only when the mtime is needed since this can be expensive
 			// Mtime is only used when the sort order is 'modified'
 			const resolveMetadata = explorerService.sortOrder === 'modified';
-			promise = fileService.resolveFile(this.resource, { resolveSingleChildDescendants: true, resolveMetadata }).then(stat => {
+			promise = fileService.resolve(this.resource, { resolveSingleChildDescendants: true, resolveMetadata }).then(stat => {
 				const resolved = ExplorerItem.create(stat, this);
 				ExplorerItem.mergeLocalWithDisk(resolved, this);
 				this._isDirectoryResolved = true;

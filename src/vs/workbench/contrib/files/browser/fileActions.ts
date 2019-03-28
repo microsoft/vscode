@@ -492,7 +492,7 @@ class PasteFileAction extends BaseErrorReportingAction {
 			throw new Error(nls.localize('fileIsAncestor', "File to paste is an ancestor of the destination folder"));
 		}
 
-		return this.fileService.resolveFile(fileToPaste).then(fileToPasteStat => {
+		return this.fileService.resolve(fileToPaste).then(fileToPasteStat => {
 
 			// Find target
 			let target: ExplorerItem;
@@ -505,7 +505,7 @@ class PasteFileAction extends BaseErrorReportingAction {
 			const targetFile = findValidPasteFileTarget(target, { resource: fileToPaste, isDirectory: fileToPasteStat.isDirectory, allowOverwirte: pasteShouldMove });
 
 			// Copy File
-			const promise = pasteShouldMove ? this.fileService.moveFile(fileToPaste, targetFile) : this.fileService.copyFile(fileToPaste, targetFile);
+			const promise = pasteShouldMove ? this.fileService.move(fileToPaste, targetFile) : this.fileService.copy(fileToPaste, targetFile);
 			return promise.then<ITextEditor | undefined>(stat => {
 				if (pasteShouldMove) {
 					// Cut is done. Make sure to clear cut state.

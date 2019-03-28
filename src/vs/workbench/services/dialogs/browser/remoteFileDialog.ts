@@ -87,7 +87,7 @@ export class RemoteFileDialog {
 
 		return this.pickResource().then(async fileFolderUri => {
 			if (fileFolderUri) {
-				const stat = await this.fileService.resolveFile(fileFolderUri);
+				const stat = await this.fileService.resolve(fileFolderUri);
 				return <IURIToOpen[]>[{ uri: fileFolderUri, typeHint: stat.isDirectory ? 'folder' : 'file' }];
 
 			}
@@ -163,7 +163,7 @@ export class RemoteFileDialog {
 		let ext: string = resources.extname(homedir);
 		if (this.options.defaultUri) {
 			try {
-				stat = await this.fileService.resolveFile(this.options.defaultUri);
+				stat = await this.fileService.resolve(this.options.defaultUri);
 			} catch (e) {
 				// The file or folder doesn't exist
 			}
@@ -296,8 +296,8 @@ export class RemoteFileDialog {
 		let stat: IFileStat | undefined;
 		let statDirname: IFileStat | undefined;
 		try {
-			statDirname = await this.fileService.resolveFile(inputUriDirname);
-			stat = await this.fileService.resolveFile(inputUri);
+			statDirname = await this.fileService.resolve(inputUriDirname);
+			stat = await this.fileService.resolve(inputUri);
 		} catch (e) {
 			// do nothing
 		}
@@ -339,7 +339,7 @@ export class RemoteFileDialog {
 		if (this.endsWithSlash(value) || (!resources.isEqual(this.currentFolder, resources.dirname(valueUri), true) && resources.isEqualOrParent(this.currentFolder, resources.dirname(valueUri), true))) {
 			let stat: IFileStat | undefined;
 			try {
-				stat = await this.fileService.resolveFile(valueUri);
+				stat = await this.fileService.resolve(valueUri);
 			} catch (e) {
 				// do nothing
 			}
@@ -350,7 +350,7 @@ export class RemoteFileDialog {
 				if (!resources.isEqual(this.currentFolder, inputUriDirname, true)) {
 					let statWithoutTrailing: IFileStat | undefined;
 					try {
-						statWithoutTrailing = await this.fileService.resolveFile(inputUriDirname);
+						statWithoutTrailing = await this.fileService.resolve(inputUriDirname);
 					} catch (e) {
 						// do nothing
 					}
@@ -391,8 +391,8 @@ export class RemoteFileDialog {
 		let stat: IFileStat | undefined;
 		let statDirname: IFileStat | undefined;
 		try {
-			statDirname = await this.fileService.resolveFile(resources.dirname(uri));
-			stat = await this.fileService.resolveFile(uri);
+			statDirname = await this.fileService.resolve(resources.dirname(uri));
+			stat = await this.fileService.resolve(uri);
 		} catch (e) {
 			// do nothing
 		}
@@ -513,7 +513,7 @@ export class RemoteFileDialog {
 
 		const backDir = this.createBackItem(currentFolder);
 		try {
-			const folder = await this.fileService.resolveFile(currentFolder);
+			const folder = await this.fileService.resolve(currentFolder);
 			const fileNames = folder.children ? folder.children.map(child => child.name) : [];
 			const items = await Promise.all(fileNames.map(fileName => this.createItem(fileName, currentFolder)));
 			for (let item of items) {
@@ -562,7 +562,7 @@ export class RemoteFileDialog {
 	private async createItem(filename: string, parent: URI): Promise<FileQuickPickItem | undefined> {
 		let fullPath = resources.joinPath(parent, filename);
 		try {
-			const stat = await this.fileService.resolveFile(fullPath);
+			const stat = await this.fileService.resolve(fullPath);
 			if (stat.isDirectory) {
 				filename = this.basenameWithTrailingSlash(fullPath);
 				return { label: filename, uri: fullPath, isFolder: true, iconClasses: getIconClasses(this.modelService, this.modeService, fullPath || undefined, FileKind.FOLDER) };

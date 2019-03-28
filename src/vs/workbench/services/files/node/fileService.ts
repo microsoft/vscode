@@ -280,7 +280,7 @@ export class FileService extends Disposable implements ILegacyFileService, IFile
 			return Promise.reject(error);
 		};
 
-		const statsPromise = this.resolveFile(resource).then(stat => {
+		const statsPromise = this.resolve(resource).then(stat => {
 			result.resource = stat.resource;
 			result.name = stat.name;
 			result.mtime = stat.mtime;
@@ -812,11 +812,11 @@ export class FileService extends Disposable implements ILegacyFileService, IFile
 		));
 	}
 
-	moveFile(source: uri, target: uri, overwrite?: boolean): Promise<IFileStatWithMetadata> {
+	move(source: uri, target: uri, overwrite?: boolean): Promise<IFileStatWithMetadata> {
 		return this.moveOrCopyFile(source, target, false, !!overwrite);
 	}
 
-	copyFile(source: uri, target: uri, overwrite?: boolean): Promise<IFileStatWithMetadata> {
+	copy(source: uri, target: uri, overwrite?: boolean): Promise<IFileStatWithMetadata> {
 		return this.moveOrCopyFile(source, target, true, !!overwrite);
 	}
 
@@ -828,7 +828,7 @@ export class FileService extends Disposable implements ILegacyFileService, IFile
 		return this.doMoveOrCopyFile(sourcePath, targetPath, keepCopy, overwrite).then(() => {
 
 			// 2.) resolve
-			return this.resolve(target, { resolveMetadata: true }).then(result => {
+			return this.doResolve(target, { resolveMetadata: true }).then(result => {
 
 				// Events (unless it was a no-op because paths are identical)
 				if (sourcePath !== targetPath) {
@@ -952,9 +952,9 @@ export class FileService extends Disposable implements ILegacyFileService, IFile
 		return paths.normalize(resource.fsPath);
 	}
 
-	private resolve(resource: uri, options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
-	private resolve(resource: uri, options?: IResolveFileOptions): Promise<IFileStat>;
-	private resolve(resource: uri, options: IResolveFileOptions = Object.create(null)): Promise<IFileStat> {
+	private doResolve(resource: uri, options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
+	private doResolve(resource: uri, options?: IResolveFileOptions): Promise<IFileStat>;
+	private doResolve(resource: uri, options: IResolveFileOptions = Object.create(null)): Promise<IFileStat> {
 		return this.toStatResolver(resource).then(model => model.resolve(options));
 	}
 
@@ -966,7 +966,7 @@ export class FileService extends Disposable implements ILegacyFileService, IFile
 		});
 	}
 
-	watchFileChanges(resource: uri): void {
+	watch(resource: uri): void {
 		assert.ok(resource && resource.scheme === Schemas.file, `Invalid resource for watching: ${resource}`);
 
 		// Check for existing watcher first
@@ -1000,11 +1000,11 @@ export class FileService extends Disposable implements ILegacyFileService, IFile
 
 				// Wait a bit and try to install watcher again, assuming that the file was renamed quickly ("Atomic Save")
 				setTimeout(() => {
-					this.existsFile(resource).then(exists => {
+					this.exists(resource).then(exists => {
 
 						// File still exists, so reapply the watcher
 						if (exists) {
-							this.watchFileChanges(resource);
+							this.watch(resource);
 						}
 
 						// File seems to be really gone, so emit a deleted event
@@ -1063,7 +1063,7 @@ export class FileService extends Disposable implements ILegacyFileService, IFile
 		});
 	}
 
-	unwatchFileChanges(resource: uri): void {
+	unwatch(resource: uri): void {
 		const watcher = this.activeFileChangesWatchers.get(resource);
 		if (watcher && --watcher.count === 0) {
 			watcher.unwatch();
@@ -1092,14 +1092,14 @@ export class FileService extends Disposable implements ILegacyFileService, IFile
 
 	// Tests only
 
-	resolveFile(resource: uri, options?: IResolveFileOptions): Promise<IFileStat>;
-	resolveFile(resource: uri, options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
-	resolveFile(resource: uri, options?: IResolveFileOptions): Promise<IFileStat> {
-		return this.resolve(resource, options);
+	resolve(resource: uri, options?: IResolveFileOptions): Promise<IFileStat>;
+	resolve(resource: uri, options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
+	resolve(resource: uri, options?: IResolveFileOptions): Promise<IFileStat> {
+		return this.doResolve(resource, options);
 	}
 
-	resolveFiles(toResolve: { resource: uri, options?: IResolveFileOptions }[]): Promise<IResolveFileResult[]> {
-		return Promise.all(toResolve.map(resourceAndOptions => this.resolve(resourceAndOptions.resource, resourceAndOptions.options)
+	resolveAll(toResolve: { resource: uri, options?: IResolveFileOptions }[]): Promise<IResolveFileResult[]> {
+		return Promise.all(toResolve.map(resourceAndOptions => this.doResolve(resourceAndOptions.resource, resourceAndOptions.options)
 			.then(stat => ({ stat, success: true }), error => ({ stat: undefined, success: false }))));
 	}
 
@@ -1110,7 +1110,7 @@ export class FileService extends Disposable implements ILegacyFileService, IFile
 		return pfs.mkdirp(absolutePath).then(() => {
 
 			// 2.) Resolve
-			return this.resolve(resource, { resolveMetadata: true }).then(result => {
+			return this.doResolve(resource, { resolveMetadata: true }).then(result => {
 
 				// Events
 				this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, result));
@@ -1120,8 +1120,8 @@ export class FileService extends Disposable implements ILegacyFileService, IFile
 		});
 	}
 
-	existsFile(resource: uri): Promise<boolean> {
-		return this.resolveFile(resource).then(() => true, () => false);
+	exists(resource: uri): Promise<boolean> {
+		return this.resolve(resource).then(() => true, () => false);
 	}
 }
 

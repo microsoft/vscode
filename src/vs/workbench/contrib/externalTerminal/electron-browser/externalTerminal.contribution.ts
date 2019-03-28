@@ -90,7 +90,7 @@ CommandsRegistry.registerCommand({
 		const terminalService = accessor.get(IExternalTerminalService);
 		const resources = getMultiSelectedResources(resource, accessor.get(IListService), editorService);
 
-		return fileService.resolveFiles(resources.map(r => ({ resource: r }))).then(stats => {
+		return fileService.resolveAll(resources.map(r => ({ resource: r }))).then(stats => {
 			const directoriesToOpen = distinct(stats.filter(data => data.success).map(({ stat }) => stat!.isDirectory ? stat!.resource.fsPath : paths.dirname(stat!.resource.fsPath)));
 			return directoriesToOpen.map(dir => {
 				if (configurationService.getValue<IExternalTerminalConfiguration>().terminal.explorerKind === 'integrated') {
