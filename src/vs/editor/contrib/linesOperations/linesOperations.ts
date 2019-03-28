@@ -886,6 +886,8 @@ export abstract class AbstractCaseAction extends EditorAction {
 			return;
 		}
 
+		let wordSeparators = editor.getConfiguration().wordSeparators;
+
 		let commands: ICommand[] = [];
 
 		for (let i = 0, len = selections.length; i < len; i++) {
@@ -900,12 +902,12 @@ export abstract class AbstractCaseAction extends EditorAction {
 
 				let wordRange = new Range(cursor.lineNumber, word.startColumn, cursor.lineNumber, word.endColumn);
 				let text = model.getValueInRange(wordRange);
-				commands.push(new ReplaceCommandThatPreservesSelection(wordRange, this._modifyText(text),
+				commands.push(new ReplaceCommandThatPreservesSelection(wordRange, this._modifyText(text, wordSeparators),
 					new Selection(cursor.lineNumber, cursor.column, cursor.lineNumber, cursor.column)));
 
 			} else {
 				let text = model.getValueInRange(selection);
-				commands.push(new ReplaceCommandThatPreservesSelection(selection, this._modifyText(text), selection));
+				commands.push(new ReplaceCommandThatPreservesSelection(selection, this._modifyText(text, wordSeparators), selection));
 			}
 		}
 
@@ -914,7 +916,7 @@ export abstract class AbstractCaseAction extends EditorAction {
 		editor.pushUndoStop();
 	}
 
-	protected abstract _modifyText(text: string): string;
+	protected abstract _modifyText(text: string, wordSeparators: string): string;
 }
 
 export class UpperCaseAction extends AbstractCaseAction {
@@ -927,7 +929,7 @@ export class UpperCaseAction extends AbstractCaseAction {
 		});
 	}
 
-	protected _modifyText(text: string): string {
+	protected _modifyText(text: string, wordSeparators: string): string {
 		return text.toLocaleUpperCase();
 	}
 }
@@ -942,7 +944,7 @@ export class LowerCaseAction extends AbstractCaseAction {
 		});
 	}
 
-	protected _modifyText(text: string): string {
+	protected _modifyText(text: string, wordSeparators: string): string {
 		return text.toLocaleLowerCase();
 	}
 }
@@ -957,15 +959,30 @@ export class TitleCaseAction extends AbstractCaseAction {
 		});
 	}
 
-	protected _modifyText(text: string): string {
-		return text.replace(/\S+/g, function (word: string) {
-			// Transform first letter to uppercase and others lowercase.
-			return word
-				.toLocaleLowerCase()
-				.replace(/^./, function (firstLetter: string) {
-					return firstLetter.toLocaleUpperCase();
-				});
-		});
+	protected _modifyText(text: string, wordSeparators: string): string {
+		const separators = '\r\n\t ' + wordSeparators;
+		const excludedChars = separators.split('');
+
+		let title = '';
+		let startUpperCase = true;
+
+		for (let i = 0; i < text.length; i++) {
+			let currentChar = text[i];
+
+			if (excludedChars.indexOf(currentChar) >= 0) {
+				startUpperCase = true;
+
+				title += currentChar;
+			} else if (startUpperCase) {
+				startUpperCase = false;
+
+				title += currentChar.toLocaleUpperCase();
+			} else {
+				title += currentChar.toLocaleLowerCase();
+			}
+		}
+
+		return title;
 	}
 }
 
