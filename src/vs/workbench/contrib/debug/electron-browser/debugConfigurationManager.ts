@@ -601,8 +601,8 @@ class Launch extends AbstractLaunch implements ILaunch {
 					revealIfVisible: true
 				},
 			}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(editor => ({ editor, created })));
-		}, (error) => {
-			throw new Error(nls.localize('DebugConfig.failed', "Unable to create 'launch.json' file inside the '.vscode' folder ({0}).", error));
+		}, (error: Error) => {
+			throw new Error(nls.localize('DebugConfig.failed', "Unable to create 'launch.json' file inside the '.vscode' folder ({0}).", error.message));
 		});
 	}
 }
