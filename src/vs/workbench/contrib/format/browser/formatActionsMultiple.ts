@@ -137,6 +137,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		[DefaultFormatter.configName]: {
 			description: nls.localize('formatter.default', "Defines a default formatter which takes precedence over all other formatter settings. Must be the identifier of an extension contributing a formatter."),
 			type: 'string',
+			default: null,
 			enum: DefaultFormatter.extensionIds,
 			markdownEnumDescriptions: DefaultFormatter.extensionDescriptions
 		}
