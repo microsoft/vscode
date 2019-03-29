@@ -9,7 +9,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Handler } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { DeleteAllLeftAction, DeleteAllRightAction, IndentLinesAction, InsertLineAfterAction, InsertLineBeforeAction, JoinLinesAction, LowerCaseAction, SortLinesAscendingAction, SortLinesDescendingAction, TransposeAction, UpperCaseAction, DeleteLinesAction } from 'vs/editor/contrib/linesOperations/linesOperations';
+import { TitleCaseAction, DeleteAllLeftAction, DeleteAllRightAction, IndentLinesAction, InsertLineAfterAction, InsertLineBeforeAction, JoinLinesAction, LowerCaseAction, SortLinesAscendingAction, SortLinesDescendingAction, TransposeAction, UpperCaseAction, DeleteLinesAction } from 'vs/editor/contrib/linesOperations/linesOperations';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
@@ -529,6 +529,7 @@ suite('Editor Contrib - Line Operations', () => {
 				let model = editor.getModel()!;
 				let uppercaseAction = new UpperCaseAction();
 				let lowercaseAction = new LowerCaseAction();
+				let titlecaseAction = new TitleCaseAction();
 
 				editor.setSelection(new Selection(1, 1, 1, 12));
 				uppercaseAction.run(null!, editor);
@@ -550,15 +551,63 @@ suite('Editor Contrib - Line Operations', () => {
 				assert.equal(model.getLineContent(1), 'hello world', '007');
 				assert.deepEqual(editor.getSelection()!.toString(), new Selection(1, 4, 1, 4).toString(), '008');
 
+				editor.setSelection(new Selection(1, 1, 1, 12));
+				titlecaseAction.run(null!, editor);
+				assert.equal(model.getLineContent(1), 'Hello World', '009');
+				assert.deepEqual(editor.getSelection()!.toString(), new Selection(1, 1, 1, 12).toString(), '010');
+
 				editor.setSelection(new Selection(2, 1, 2, 6));
 				uppercaseAction.run(null!, editor);
-				assert.equal(model.getLineContent(2), 'ÖÇŞĞÜ', '009');
-				assert.deepEqual(editor.getSelection()!.toString(), new Selection(2, 1, 2, 6).toString(), '010');
+				assert.equal(model.getLineContent(2), 'ÖÇŞĞÜ', '011');
+				assert.deepEqual(editor.getSelection()!.toString(), new Selection(2, 1, 2, 6).toString(), '012');
 
 				editor.setSelection(new Selection(2, 1, 2, 6));
 				lowercaseAction.run(null!, editor);
-				assert.equal(model.getLineContent(2), 'öçşğü', '011');
-				assert.deepEqual(editor.getSelection()!.toString(), new Selection(2, 1, 2, 6).toString(), '012');
+				assert.equal(model.getLineContent(2), 'öçşğü', '013');
+				assert.deepEqual(editor.getSelection()!.toString(), new Selection(2, 1, 2, 6).toString(), '014');
+
+				editor.setSelection(new Selection(2, 1, 2, 6));
+				titlecaseAction.run(null!, editor);
+				assert.equal(model.getLineContent(2), 'Öçşğü', '015');
+				assert.deepEqual(editor.getSelection()!.toString(), new Selection(2, 1, 2, 6).toString(), '016');
+			}
+		);
+
+		withTestCodeEditor(
+			[
+				'foO baR BaZ',
+				'foO\'baR\'BaZ',
+				'foO[baR]BaZ',
+				'foO`baR~BaZ',
+				'foO^baR%BaZ',
+				'foO$baR!BaZ'
+			], {}, (editor) => {
+				let model = editor.getModel()!;
+				let titlecaseAction = new TitleCaseAction();
+
+				editor.setSelection(new Selection(1, 1, 1, 12));
+				titlecaseAction.run(null!, editor);
+				assert.equal(model.getLineContent(1), 'Foo Bar Baz');
+
+				editor.setSelection(new Selection(2, 1, 2, 12));
+				titlecaseAction.run(null!, editor);
+				assert.equal(model.getLineContent(2), 'Foo\'Bar\'Baz');
+
+				editor.setSelection(new Selection(3, 1, 3, 12));
+				titlecaseAction.run(null!, editor);
+				assert.equal(model.getLineContent(3), 'Foo[Bar]Baz');
+
+				editor.setSelection(new Selection(4, 1, 4, 12));
+				titlecaseAction.run(null!, editor);
+				assert.equal(model.getLineContent(4), 'Foo`Bar~Baz');
+
+				editor.setSelection(new Selection(5, 1, 5, 12));
+				titlecaseAction.run(null!, editor);
+				assert.equal(model.getLineContent(5), 'Foo^Bar%Baz');
+
+				editor.setSelection(new Selection(6, 1, 6, 12));
+				titlecaseAction.run(null!, editor);
+				assert.equal(model.getLineContent(6), 'Foo$Bar!Baz');
 			}
 		);
 
