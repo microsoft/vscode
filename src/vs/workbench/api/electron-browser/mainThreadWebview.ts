@@ -200,9 +200,9 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 			return;
 		}
 
-		const targetGroup = this._editorGroupService.getGroup(viewColumnToEditorGroup(this._editorGroupService, showOptions.viewColumn));
+		const targetGroup = this._editorGroupService.getGroup(viewColumnToEditorGroup(this._editorGroupService, showOptions.viewColumn)) || this._editorGroupService.getGroup(webview.group || 0);
 		if (targetGroup) {
-			this._webviewService.revealWebview(webview, targetGroup || this._editorGroupService.getGroup(webview.group || ACTIVE_GROUP), !!showOptions.preserveFocus);
+			this._webviewService.revealWebview(webview, targetGroup, !!showOptions.preserveFocus);
 		}
 	}
 
