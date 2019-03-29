@@ -11,35 +11,30 @@ import { MarkdownContributionProvider as MarkdownContributionProvider } from './
 import { Slugifier } from './slugify';
 import { SkinnyTextDocument } from './tableOfContentsProvider';
 import { getUriForLinkWithKnownExternalScheme } from './util/links';
+import { MarkdownPreviewConfiguration } from './features/previewConfig';
 
 const UNICODE_NEWLINE_REGEX = /\u2028|\u2029/g;
-
-interface MarkdownItConfig {
-	readonly breaks: boolean;
-	readonly linkify: boolean;
-}
 
 class TokenCache {
 	private cachedDocument?: {
 		readonly uri: vscode.Uri;
 		readonly version: number;
-		readonly config: MarkdownItConfig;
+		readonly config: MarkdownPreviewConfiguration;
 	};
 	private tokens?: Token[];
 
-	public tryGetCached(document: SkinnyTextDocument, config: MarkdownItConfig): Token[] | undefined {
+	public tryGetCached(document: SkinnyTextDocument, config: MarkdownPreviewConfiguration): Token[] | undefined {
 		if (this.cachedDocument
 			&& this.cachedDocument.uri.toString() === document.uri.toString()
 			&& this.cachedDocument.version === document.version
-			&& this.cachedDocument.config.breaks === config.breaks
-			&& this.cachedDocument.config.linkify === config.linkify
+			&& this.cachedDocument.config.isEqualTo(config)
 		) {
 			return this.tokens;
 		}
 		return undefined;
 	}
 
-	public update(document: SkinnyTextDocument, config: MarkdownItConfig, tokens: Token[]) {
+	public update(document: SkinnyTextDocument, config: MarkdownPreviewConfiguration, tokens: Token[]) {
 		this.cachedDocument = {
 			uri: document.uri,
 			version: document.version,
@@ -66,7 +61,7 @@ export class MarkdownEngine {
 		});
 	}
 
-	private async getEngine(config: MarkdownItConfig): Promise<MarkdownIt> {
+	private async getEngine(config: MarkdownPreviewConfiguration): Promise<MarkdownIt> {
 		if (!this.md) {
 			this.md = import('markdown-it').then(async markdownIt => {
 				let md: MarkdownIt = markdownIt(await getMarkdownOptions(() => md));
@@ -115,7 +110,7 @@ export class MarkdownEngine {
 
 	private tokenize(
 		document: SkinnyTextDocument,
-		config: MarkdownItConfig,
+		config: MarkdownPreviewConfiguration,
 		engine: MarkdownIt
 	): Token[] {
 		const cached = this._tokenCache.tryGetCached(document, config);
@@ -133,7 +128,7 @@ export class MarkdownEngine {
 	}
 
 	public async render(document: SkinnyTextDocument): Promise<string> {
-		const config = this.getConfig(document.uri);
+		const config = MarkdownPreviewConfiguration.getForResource(document.uri);
 		const engine = await this.getEngine(config);
 		return engine.renderer.render(this.tokenize(document, config, engine), {
 			...(engine as any).options,
@@ -142,17 +137,9 @@ export class MarkdownEngine {
 	}
 
 	public async parse(document: SkinnyTextDocument): Promise<Token[]> {
-		const config = this.getConfig(document.uri);
+		const config = MarkdownPreviewConfiguration.getForResource(document.uri);
 		const engine = await this.getEngine(config);
 		return this.tokenize(document, config, engine);
-	}
-
-	private getConfig(resource: vscode.Uri): MarkdownItConfig {
-		const config = vscode.workspace.getConfiguration('markdown', resource);
-		return {
-			breaks: config.get<boolean>('preview.breaks', false),
-			linkify: config.get<boolean>('preview.linkify', true)
-		};
 	}
 
 	private addLineNumberRenderer(md: any, ruleName: string): void {

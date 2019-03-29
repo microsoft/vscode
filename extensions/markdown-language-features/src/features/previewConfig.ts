@@ -12,7 +12,8 @@ export class MarkdownPreviewConfiguration {
 
 	public readonly scrollBeyondLastLine: boolean;
 	public readonly wordWrap: boolean;
-	public readonly lineBreaks: boolean;
+	public readonly breaks: boolean;
+	public readonly linkify: boolean;
 	public readonly doubleClickToSwitchToEditor: boolean;
 	public readonly scrollEditorWithPreview: boolean;
 	public readonly scrollPreviewWithEditor: boolean;
@@ -22,8 +23,10 @@ export class MarkdownPreviewConfiguration {
 	public readonly fontSize: number;
 	public readonly fontFamily: string | undefined;
 	public readonly styles: string[];
+	public readonly zoomLevel: number;
 
 	private constructor(resource: vscode.Uri) {
+		const windowConfig = vscode.workspace.getConfiguration('window', resource);
 		const editorConfig = vscode.workspace.getConfiguration('editor', resource);
 		const markdownConfig = vscode.workspace.getConfiguration('markdown', resource);
 		const markdownEditorConfig = vscode.workspace.getConfiguration('[markdown]', resource);
@@ -35,9 +38,12 @@ export class MarkdownPreviewConfiguration {
 			this.wordWrap = markdownEditorConfig['editor.wordWrap'] !== 'off';
 		}
 
+		this.zoomLevel = windowConfig.get<number>('zoomLevel', 0);
+
 		this.scrollPreviewWithEditor = !!markdownConfig.get<boolean>('preview.scrollPreviewWithEditor', true);
 		this.scrollEditorWithPreview = !!markdownConfig.get<boolean>('preview.scrollEditorWithPreview', true);
-		this.lineBreaks = !!markdownConfig.get<boolean>('preview.breaks', false);
+		this.breaks = !!markdownConfig.get<boolean>('preview.breaks', false);
+		this.linkify = !!markdownConfig.get<boolean>('preview.linkify', false);
 		this.doubleClickToSwitchToEditor = !!markdownConfig.get<boolean>('preview.doubleClickToSwitchToEditor', true);
 		this.markEditorSelection = !!markdownConfig.get<boolean>('preview.markEditorSelection', true);
 
@@ -46,6 +52,19 @@ export class MarkdownPreviewConfiguration {
 		this.lineHeight = Math.max(0.6, +markdownConfig.get<number>('preview.lineHeight', NaN));
 
 		this.styles = markdownConfig.get<string[]>('styles', []);
+
+		const markdownItPluginsConfigurations = vscode.extensions.all
+			.filter(this._isMarkdownItPlugin)
+			.map(this._getExtensionConfigurationProperties)
+			.reduce((accConfig, config) => [...accConfig, ...config], []);
+
+		markdownItPluginsConfigurations.forEach(configProperty => {
+			const section = configProperty.split('.')[0];
+			const configuration = configProperty.split('.').slice(1).join('.');
+
+			this[configProperty] = vscode.workspace.getConfiguration(section, resource).get(configuration);
+		});
+
 	}
 
 	public isEqualTo(otherConfig: MarkdownPreviewConfiguration) {
@@ -68,6 +87,16 @@ export class MarkdownPreviewConfiguration {
 		}
 
 		return true;
+	}
+
+	private _isMarkdownItPlugin(extension: vscode.Extension<any>): boolean {
+		const contributes = extension.packageJSON.contributes;
+		return contributes && contributes['markdown.markdownItPlugins'];
+	}
+
+	private _getExtensionConfigurationProperties(extension: vscode.Extension<any>): string[] {
+		const configuration = extension.packageJSON.contributes.configuration;
+		return configuration && configuration.properties ? Object.keys(configuration.properties) : [];
 	}
 
 	[key: string]: any;
