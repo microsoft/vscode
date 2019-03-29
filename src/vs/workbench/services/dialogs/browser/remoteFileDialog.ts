@@ -98,7 +98,7 @@ export class RemoteFileDialog {
 	public async showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
 		this.scheme = this.getScheme(options.defaultUri, options.availableFileSystems);
 		this.requiresTrailing = true;
-		const newOptions = await this.getOptions(options);
+		const newOptions = await this.getOptions(options, true);
 		if (!newOptions) {
 			return Promise.resolve(undefined);
 		}
@@ -114,14 +114,18 @@ export class RemoteFileDialog {
 		});
 	}
 
-	private async getOptions(options: ISaveDialogOptions | IOpenDialogOptions): Promise<IOpenDialogOptions | undefined> {
+	private async getOptions(options: ISaveDialogOptions | IOpenDialogOptions, isSave: boolean = false): Promise<IOpenDialogOptions | undefined> {
 		let defaultUri = options.defaultUri;
-		if (!defaultUri) {
+		const filename = (defaultUri && isSave && (resources.dirname(defaultUri).path === '/')) ? resources.basename(defaultUri) : undefined;
+		if (!defaultUri || filename) {
 			const env = await this.remoteAgentService.getEnvironment();
 			if (env) {
 				defaultUri = env.userHome;
 			} else {
 				defaultUri = URI.from({ scheme: this.scheme, path: this.environmentService.userHome });
+			}
+			if (filename) {
+				defaultUri = resources.joinPath(defaultUri, filename);
 			}
 		}
 		if ((this.scheme !== Schemas.file) && !this.fileService.canHandleResource(defaultUri)) {
