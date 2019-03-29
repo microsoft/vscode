@@ -111,12 +111,12 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 	private onFileOperation(e: FileOperationEvent): void {
 
 		// Handle moves specially when file is opened
-		if (e.operation === FileOperation.MOVE && e.target) {
+		if (e.isOperation(FileOperation.MOVE)) {
 			this.handleMovedFileInOpenedEditors(e.resource, e.target.resource);
 		}
 
 		// Handle deletes
-		if (e.operation === FileOperation.DELETE || e.operation === FileOperation.MOVE) {
+		if (e.isOperation(FileOperation.DELETE) || e.isOperation(FileOperation.MOVE)) {
 			this.handleDeletes(e.resource, false, e.target ? e.target.resource : undefined);
 		}
 	}

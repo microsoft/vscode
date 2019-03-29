@@ -371,19 +371,14 @@ export const enum FileOperation {
 
 export class FileOperationEvent {
 
-	constructor(private _resource: URI, private _operation: FileOperation, private _target?: IFileStatWithMetadata) {
-	}
+	constructor(resource: URI, operation: FileOperation.DELETE);
+	constructor(resource: URI, operation: FileOperation.CREATE | FileOperation.MOVE | FileOperation.COPY, target: IFileStatWithMetadata);
+	constructor(public readonly resource: URI, public readonly operation: FileOperation, public readonly target?: IFileStatWithMetadata) { }
 
-	get resource(): URI {
-		return this._resource;
-	}
-
-	get target(): IFileStat | undefined {
-		return this._target;
-	}
-
-	get operation(): FileOperation {
-		return this._operation;
+	isOperation(operation: FileOperation.DELETE): boolean;
+	isOperation(operation: FileOperation.MOVE | FileOperation.COPY | FileOperation.CREATE): this is { readonly target: IFileStatWithMetadata };
+	isOperation(operation: FileOperation): boolean {
+		return this.operation === operation;
 	}
 }
 
