@@ -236,7 +236,7 @@ export function handleANSIOutput(text: string, linkDetector: LinkDetector, theme
 			colorType = 'background';
 		}
 
-		if (colorIndex && colorType) {
+		if (colorIndex !== undefined && colorType) {
 			const colorName = ansiColorIdentifiers[colorIndex];
 			const color = theme.getColor(colorName);
 			if (color) {
