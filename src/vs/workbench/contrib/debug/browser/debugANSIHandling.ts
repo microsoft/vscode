@@ -248,7 +248,7 @@ export function handleANSIOutput(text: string, linkDetector: LinkDetector, theme
 			const colorName = ansiColorIdentifiers[colorIndex];
 			const color = theme.getColor(colorName);
 			if (color) {
-				changeColor(colorType, color.rgba)
+				changeColor(colorType, color.rgba);
 			}
 		}
 	}
