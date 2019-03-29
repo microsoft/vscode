@@ -575,6 +575,44 @@ suite('Editor Contrib - Line Operations', () => {
 
 		withTestCodeEditor(
 			[
+				'foO baR BaZ',
+				'foO\'baR\'BaZ',
+				'foO[baR]BaZ',
+				'foO`baR~BaZ',
+				'foO^baR%BaZ',
+				'foO$baR!BaZ'
+			], {}, (editor) => {
+				let model = editor.getModel()!;
+				let titlecaseAction = new TitleCaseAction();
+
+				editor.setSelection(new Selection(1, 1, 1, 12));
+				titlecaseAction.run(null!, editor);
+				assert.equal(model.getLineContent(1), 'Foo Bar Baz');
+
+				editor.setSelection(new Selection(2, 1, 2, 12));
+				titlecaseAction.run(null!, editor);
+				assert.equal(model.getLineContent(2), 'Foo\'Bar\'Baz');
+
+				editor.setSelection(new Selection(3, 1, 3, 12));
+				titlecaseAction.run(null!, editor);
+				assert.equal(model.getLineContent(3), 'Foo[Bar]Baz');
+
+				editor.setSelection(new Selection(4, 1, 4, 12));
+				titlecaseAction.run(null!, editor);
+				assert.equal(model.getLineContent(4), 'Foo`Bar~Baz');
+
+				editor.setSelection(new Selection(5, 1, 5, 12));
+				titlecaseAction.run(null!, editor);
+				assert.equal(model.getLineContent(5), 'Foo^Bar%Baz');
+
+				editor.setSelection(new Selection(6, 1, 6, 12));
+				titlecaseAction.run(null!, editor);
+				assert.equal(model.getLineContent(6), 'Foo$Bar!Baz');
+			}
+		);
+
+		withTestCodeEditor(
+			[
 				'',
 				'   '
 			], {}, (editor) => {
