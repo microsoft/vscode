@@ -11,6 +11,7 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { Delayer } from 'vs/base/common/async';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
+import { IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBox';
 import { SimpleButton } from 'vs/editor/contrib/find/findWidget';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -44,6 +45,18 @@ export abstract class SimpleFindWidget extends Widget {
 		this._findInput = this._register(new ContextScopedFindInput(null, this._contextViewService, {
 			label: NLS_FIND_INPUT_LABEL,
 			placeholder: NLS_FIND_INPUT_PLACEHOLDER,
+			validation: (value: string): InputBoxMessage | null => {
+				if (value.length === 0 || !this._findInput.getRegex()) {
+					return null;
+				}
+				try {
+					/* tslint:disable-next-line:no-unused-expression */
+					new RegExp(value);
+					return null;
+				} catch (e) {
+					return { content: e.message };
+				}
+			}
 		}, contextKeyService, showOptionButtons));
 
 		// Find History with update delayer
