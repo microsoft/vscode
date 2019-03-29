@@ -137,28 +137,36 @@ export function handleANSIOutput(text: string, linkDetector: LinkDetector, theme
 	function setBasicFormatters(styleCodes: number[]): void {
 		for (let code of styleCodes) {
 			switch (code) {
-				case 0:
+				case 0: {
 					styleNames = [];
 					customFgColor = undefined;
 					customBgColor = undefined;
 					break;
-				case 1:
+				}
+				case 1: {
 					styleNames.push('code-bold');
 					break;
-				case 3:
+				}
+				case 3: {
 					styleNames.push('code-italic');
 					break;
-				case 4:
+				}
+				case 4: {
 					styleNames.push('code-underline');
 					break;
-				case 39:
+				}
+				case 39: {
 					changeColor('foreground', undefined);
 					break;
-				case 49:
+				}
+				case 49: {
 					changeColor('background', undefined);
 					break;
-				default:
+				}
+				default: {
 					setBasicColor(code);
+					break;
+				}
 			}
 		}
 	}
