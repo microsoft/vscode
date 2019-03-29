@@ -1,4 +1,4 @@
-// Type definitions for Electron 4.0.7
+// Type definitions for Electron 4.1.2
 // Project: http://electronjs.org/
 // Definitions by: The Electron Team <https://github.com/electron/electron>
 // Definitions: https://github.com/electron/electron-typescript-definitions
@@ -2559,8 +2559,10 @@ declare namespace Electron {
 		 */
 		addExtraParameter(key: string, value: string): void;
 		/**
-		 * Returns the date and ID of the last crash report. If no crash reports have been
-		 * sent or the crash reporter has not been started, null is returned.
+		 * Returns the date and ID of the last crash report. Only crash reports that have
+		 * been uploaded will be returned; even if a crash report is present on disk it
+		 * will not be returned until it is uploaded. In the case that there are no
+		 * uploaded reports, null is returned.
 		 */
 		getLastCrashReport(): CrashReport;
 		/**
