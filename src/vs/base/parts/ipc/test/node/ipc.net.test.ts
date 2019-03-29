@@ -6,12 +6,14 @@
 import * as assert from 'assert';
 import { Socket } from 'net';
 import { EventEmitter } from 'events';
-import { Protocol, PersistentProtocol } from 'vs/base/parts/ipc/node/ipc.net';
+import { Protocol, PersistentProtocol } from 'vs/base/parts/ipc/common/ipc.net';
+import { NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 class MessageStream {
 
-	private _currentComplete: ((data: Buffer) => void) | null;
-	private _messages: Buffer[];
+	private _currentComplete: ((data: VSBuffer) => void) | null;
+	private _messages: VSBuffer[];
 
 	constructor(x: Protocol | PersistentProtocol) {
 		this._currentComplete = null;
@@ -36,8 +38,8 @@ class MessageStream {
 		complete(msg);
 	}
 
-	public waitForOne(): Promise<Buffer> {
-		return new Promise<Buffer>((complete) => {
+	public waitForOne(): Promise<VSBuffer> {
+		return new Promise<VSBuffer>((complete) => {
 			this._currentComplete = complete;
 			this._trigger();
 		});
@@ -53,6 +55,9 @@ class EtherStream extends EventEmitter {
 	}
 
 	write(data: Buffer, cb?: Function): boolean {
+		if (!Buffer.isBuffer(data)) {
+			throw new Error(`Invalid data`);
+		}
 		this._ether.write(this._name, data);
 		return true;
 	}
@@ -122,26 +127,26 @@ suite('IPC, Socket Protocol', () => {
 
 	test('read/write', async () => {
 
-		const a = new Protocol(ether.a);
-		const b = new Protocol(ether.b);
+		const a = new Protocol(new NodeSocket(ether.a));
+		const b = new Protocol(new NodeSocket(ether.b));
 		const bMessages = new MessageStream(b);
 
-		a.send(Buffer.from('foobarfarboo'));
+		a.send(VSBuffer.fromString('foobarfarboo'));
 		const msg1 = await bMessages.waitForOne();
 		assert.equal(msg1.toString(), 'foobarfarboo');
 
-		const buffer = Buffer.allocUnsafe(1);
-		buffer.writeInt8(123, 0);
+		const buffer = VSBuffer.alloc(1);
+		buffer.writeUint8(123, 0);
 		a.send(buffer);
 		const msg2 = await bMessages.waitForOne();
-		assert.equal(msg2.readInt8(0), 123);
+		assert.equal(msg2.readUint8(0), 123);
 	});
 
 
 	test('read/write, object data', async () => {
 
-		const a = new Protocol(ether.a);
-		const b = new Protocol(ether.b);
+		const a = new Protocol(new NodeSocket(ether.a));
+		const b = new Protocol(new NodeSocket(ether.b));
 		const bMessages = new MessageStream(b);
 
 		const data = {
@@ -151,7 +156,7 @@ suite('IPC, Socket Protocol', () => {
 			data: 'Hello World'.split('')
 		};
 
-		a.send(Buffer.from(JSON.stringify(data)));
+		a.send(VSBuffer.fromString(JSON.stringify(data)));
 		const msg = await bMessages.waitForOne();
 		assert.deepEqual(JSON.parse(msg.toString()), data);
 	});
@@ -166,20 +171,20 @@ suite('PersistentProtocol reconnection', () => {
 	});
 
 	test('acks get piggybacked with messages', async () => {
-		const a = new PersistentProtocol(ether.a);
+		const a = new PersistentProtocol(new NodeSocket(ether.a));
 		const aMessages = new MessageStream(a);
-		const b = new PersistentProtocol(ether.b);
+		const b = new PersistentProtocol(new NodeSocket(ether.b));
 		const bMessages = new MessageStream(b);
 
-		a.send(Buffer.from('a1'));
+		a.send(VSBuffer.fromString('a1'));
 		assert.equal(a.unacknowledgedCount, 1);
 		assert.equal(b.unacknowledgedCount, 0);
 
-		a.send(Buffer.from('a2'));
+		a.send(VSBuffer.fromString('a2'));
 		assert.equal(a.unacknowledgedCount, 2);
 		assert.equal(b.unacknowledgedCount, 0);
 
-		a.send(Buffer.from('a3'));
+		a.send(VSBuffer.fromString('a3'));
 		assert.equal(a.unacknowledgedCount, 3);
 		assert.equal(b.unacknowledgedCount, 0);
 
@@ -198,7 +203,7 @@ suite('PersistentProtocol reconnection', () => {
 		assert.equal(a.unacknowledgedCount, 3);
 		assert.equal(b.unacknowledgedCount, 0);
 
-		b.send(Buffer.from('b1'));
+		b.send(VSBuffer.fromString('b1'));
 		assert.equal(a.unacknowledgedCount, 3);
 		assert.equal(b.unacknowledgedCount, 1);
 
@@ -207,7 +212,7 @@ suite('PersistentProtocol reconnection', () => {
 		assert.equal(a.unacknowledgedCount, 0);
 		assert.equal(b.unacknowledgedCount, 1);
 
-		a.send(Buffer.from('a4'));
+		a.send(VSBuffer.fromString('a4'));
 		assert.equal(a.unacknowledgedCount, 1);
 		assert.equal(b.unacknowledgedCount, 1);
 

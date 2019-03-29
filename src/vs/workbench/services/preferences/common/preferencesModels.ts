@@ -959,7 +959,7 @@ class SettingsContentBuilder {
 	}
 
 	private pushSettingDescription(setting: ISetting, indent: string): void {
-		const fixSettingLink = line => line.replace(/`#(.*)#`/g, (match, settingName) => `\`${settingName}\``);
+		const fixSettingLink = (line: string) => line.replace(/`#(.*)#`/g, (match, settingName) => `\`${settingName}\``);
 
 		setting.descriptionRanges = [];
 		const descriptionPreValue = indent + '// ';
@@ -1050,33 +1050,33 @@ export function createValidator(prop: IConfigurationPropertySchema): (value: any
 		const numericValidations: Validator<number>[] = isNumeric ? [
 			{
 				enabled: exclusiveMax !== undefined && (prop.maximum === undefined || exclusiveMax <= prop.maximum),
-				isValid: (value => value < exclusiveMax!),
+				isValid: ((value: number) => value < exclusiveMax!),
 				message: nls.localize('validations.exclusiveMax', "Value must be strictly less than {0}.", exclusiveMax)
 			},
 			{
 				enabled: exclusiveMin !== undefined && (prop.minimum === undefined || exclusiveMin >= prop.minimum),
-				isValid: (value => value > exclusiveMin!),
+				isValid: ((value: number) => value > exclusiveMin!),
 				message: nls.localize('validations.exclusiveMin', "Value must be strictly greater than {0}.", exclusiveMin)
 			},
 
 			{
 				enabled: prop.maximum !== undefined && (exclusiveMax === undefined || exclusiveMax > prop.maximum),
-				isValid: (value => value <= prop.maximum!),
+				isValid: ((value: number) => value <= prop.maximum!),
 				message: nls.localize('validations.max', "Value must be less than or equal to {0}.", prop.maximum)
 			},
 			{
 				enabled: prop.minimum !== undefined && (exclusiveMin === undefined || exclusiveMin < prop.minimum),
-				isValid: (value => value >= prop.minimum!),
+				isValid: ((value: number) => value >= prop.minimum!),
 				message: nls.localize('validations.min', "Value must be greater than or equal to {0}.", prop.minimum)
 			},
 			{
 				enabled: prop.multipleOf !== undefined,
-				isValid: (value => value % prop.multipleOf! === 0),
+				isValid: ((value: number) => value % prop.multipleOf! === 0),
 				message: nls.localize('validations.multipleOf', "Value must be a multiple of {0}.", prop.multipleOf)
 			},
 			{
 				enabled: isIntegral,
-				isValid: (value => value % 1 === 0),
+				isValid: ((value: number) => value % 1 === 0),
 				message: nls.localize('validations.expectedInteger', "Value must be an integer.")
 			},
 		].filter(validation => validation.enabled) : [];
@@ -1084,17 +1084,17 @@ export function createValidator(prop: IConfigurationPropertySchema): (value: any
 		const stringValidations: Validator<string>[] = [
 			{
 				enabled: prop.maxLength !== undefined,
-				isValid: (value => value.length <= prop.maxLength!),
+				isValid: ((value: { length: number; }) => value.length <= prop.maxLength!),
 				message: nls.localize('validations.maxLength', "Value must be {0} or fewer characters long.", prop.maxLength)
 			},
 			{
 				enabled: prop.minLength !== undefined,
-				isValid: (value => value.length >= prop.minLength!),
+				isValid: ((value: { length: number; }) => value.length >= prop.minLength!),
 				message: nls.localize('validations.minLength', "Value must be {0} or more characters long.", prop.minLength)
 			},
 			{
 				enabled: patternRegex !== undefined,
-				isValid: (value => patternRegex!.test(value)),
+				isValid: ((value: string) => patternRegex!.test(value)),
 				message: prop.patternErrorMessage || nls.localize('validations.regex', "Value must match regex `{0}`.", prop.pattern)
 			},
 		].filter(validation => validation.enabled);

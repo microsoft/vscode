@@ -98,7 +98,7 @@ export class WindowService extends Disposable implements IWindowService {
 		return this.windowsService.enterWorkspace(this.windowId, path);
 	}
 
-	openWindow(uris: IURIToOpen[], options?: IOpenSettings): Promise<void> {
+	openWindow(uris: IURIToOpen[], options: IOpenSettings = {}): Promise<void> {
 		if (!!this.configuration.remoteAuthority) {
 			uris.forEach(u => u.label = u.label || this.getRecentLabel(u, !!(options && options.forceOpenWorkspaceAsFile)));
 		}
@@ -151,10 +151,6 @@ export class WindowService extends Disposable implements IWindowService {
 
 	setDocumentEdited(flag: boolean): Promise<void> {
 		return this.windowsService.setDocumentEdited(this.windowId, flag);
-	}
-
-	show(): Promise<void> {
-		return this.windowsService.showWindow(this.windowId);
 	}
 
 	showMessageBox(options: Electron.MessageBoxOptions): Promise<IMessageBoxResult> {

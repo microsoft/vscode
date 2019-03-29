@@ -42,7 +42,7 @@ import { Constants } from 'vs/editor/common/core/uint';
 import { CLOSE_EDITORS_AND_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { coalesce } from 'vs/base/common/arrays';
 import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
+import { ExplorerItem, NewExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { sequence } from 'vs/base/common/async';
 
@@ -94,7 +94,6 @@ export class BaseErrorReportingAction extends Action {
 	}
 }
 
-const PLACEHOLDER_URI = URI.file('');
 function refreshIfSeparator(value: string, explorerService: IExplorerService): void {
 	if (value && ((value.indexOf('/') >= 0) || (value.indexOf('\\') >= 0))) {
 		// New input contains separator, multiple resources will get created workaround for #68204
@@ -137,8 +136,8 @@ export class NewFileAction extends BaseErrorReportingAction {
 			return Promise.reject(new Error('Parent folder is readonly.'));
 		}
 
-		const stat = new ExplorerItem(PLACEHOLDER_URI, folder, false);
-		return folder.fetchChildren(this.fileService).then(() => {
+		const stat = new NewExplorerItem(folder, false);
+		return folder.fetchChildren(this.fileService, this.explorerService).then(() => {
 			folder.addChild(stat);
 
 			const onSuccess = (value: string) => {
@@ -205,8 +204,8 @@ export class NewFolderAction extends BaseErrorReportingAction {
 			return Promise.reject(new Error('Parent folder is readonly.'));
 		}
 
-		const stat = new ExplorerItem(PLACEHOLDER_URI, folder, true);
-		return folder.fetchChildren(this.fileService).then(() => {
+		const stat = new NewExplorerItem(folder, true);
+		return folder.fetchChildren(this.fileService, this.explorerService).then(() => {
 			folder.addChild(stat);
 
 			const onSuccess = (value: string) => {
@@ -493,7 +492,7 @@ class PasteFileAction extends BaseErrorReportingAction {
 			throw new Error(nls.localize('fileIsAncestor', "File to paste is an ancestor of the destination folder"));
 		}
 
-		return this.fileService.resolveFile(fileToPaste).then(fileToPasteStat => {
+		return this.fileService.resolve(fileToPaste).then(fileToPasteStat => {
 
 			// Find target
 			let target: ExplorerItem;
@@ -506,7 +505,7 @@ class PasteFileAction extends BaseErrorReportingAction {
 			const targetFile = findValidPasteFileTarget(target, { resource: fileToPaste, isDirectory: fileToPasteStat.isDirectory, allowOverwirte: pasteShouldMove });
 
 			// Copy File
-			const promise = pasteShouldMove ? this.fileService.moveFile(fileToPaste, targetFile) : this.fileService.copyFile(fileToPaste, targetFile);
+			const promise = pasteShouldMove ? this.fileService.move(fileToPaste, targetFile) : this.fileService.copy(fileToPaste, targetFile);
 			return promise.then<ITextEditor | undefined>(stat => {
 				if (pasteShouldMove) {
 					// Cut is done. Make sure to clear cut state.

@@ -416,7 +416,7 @@ export abstract class TerminalService implements ITerminalService {
 			return Promise.resolve(null);
 		}
 		const current = potentialPaths.shift();
-		return this._fileService.existsFile(URI.file(current!)).then(exists => {
+		return this._fileService.exists(URI.file(current!)).then(exists => {
 			if (!exists) {
 				return this._validateShellPaths(label, potentialPaths);
 			}

@@ -178,7 +178,7 @@ export class Delayer<T> implements IDisposable {
 	private timeout: any;
 	private completionPromise: Promise<any> | null;
 	private doResolve: ((value?: any | Promise<any>) => void) | null;
-	private doReject: (err: any) => void;
+	private doReject?: (err: any) => void;
 	private task: ITask<T | Promise<T>> | null;
 
 	constructor(public defaultDelay: number) {
@@ -222,7 +222,7 @@ export class Delayer<T> implements IDisposable {
 		this.cancelTimeout();
 
 		if (this.completionPromise) {
-			this.doReject(errors.canceled());
+			this.doReject!(errors.canceled());
 			this.completionPromise = null;
 		}
 	}
@@ -282,7 +282,7 @@ export class Barrier {
 
 	private _isOpen: boolean;
 	private _promise: Promise<boolean>;
-	private _completePromise: (v: boolean) => void;
+	private _completePromise!: (v: boolean) => void;
 
 	constructor() {
 		this._isOpen = false;
@@ -731,8 +731,8 @@ export class IdleValue<T> {
 	private readonly _executor: () => void;
 	private readonly _handle: IDisposable;
 
-	private _didRun: boolean;
-	private _value: T;
+	private _didRun: boolean = false;
+	private _value?: T;
 	private _error: any;
 
 	constructor(executor: () => T) {
@@ -760,8 +760,24 @@ export class IdleValue<T> {
 		if (this._error) {
 			throw this._error;
 		}
-		return this._value;
+		return this._value!;
 	}
 }
 
 //#endregion
+
+export async function retry<T>(task: ITask<Promise<T>>, delay: number, retries: number): Promise<T> {
+	let lastError: Error | undefined;
+
+	for (let i = 0; i < retries; i++) {
+		try {
+			return await task();
+		} catch (error) {
+			lastError = error;
+
+			await timeout(delay);
+		}
+	}
+
+	return Promise.reject(lastError);
+}

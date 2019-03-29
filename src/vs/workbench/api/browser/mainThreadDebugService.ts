@@ -227,7 +227,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 
 	private getSession(sessionId: DebugSessionUUID | undefined): IDebugSession | undefined {
 		if (sessionId) {
-			return this.debugService.getModel().getSessions(true).filter(s => s.getId() === sessionId).pop();
+			return this.debugService.getModel().getSession(sessionId, true);
 		}
 		return undefined;
 	}
@@ -243,7 +243,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	}
 
 	public $customDebugAdapterRequest(sessionId: DebugSessionUUID, request: string, args: any): Promise<any> {
-		const session = this.debugService.getModel().getSessions(true).filter(s => s.getId() === sessionId).pop();
+		const session = this.debugService.getModel().getSession(sessionId, true);
 		if (session) {
 			return session.customRequest(request, args).then(response => {
 				if (response && response.success) {

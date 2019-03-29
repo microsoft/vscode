@@ -181,7 +181,7 @@ suite('ExtHostSearch', () => {
 			const reportedResults = [
 				joinPath(rootFolderA, 'file1.ts'),
 				joinPath(rootFolderA, 'file2.ts'),
-				joinPath(rootFolderA, 'file3.ts')
+				joinPath(rootFolderA, 'subfolder/file3.ts')
 			];
 
 			await registerTestFileSearchProvider({
@@ -586,7 +586,7 @@ suite('ExtHostSearch', () => {
 			const reportedResults = [
 				joinPath(fancySchemeFolderA, 'file1.ts'),
 				joinPath(fancySchemeFolderA, 'file2.ts'),
-				joinPath(fancySchemeFolderA, 'file3.ts'),
+				joinPath(fancySchemeFolderA, 'subfolder/file3.ts'),
 
 			];
 

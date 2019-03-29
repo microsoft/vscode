@@ -10,12 +10,16 @@ import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IOpenerService, IOpener } from 'vs/platform/opener/common/opener';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { LinkedList } from 'vs/base/common/linkedList';
 
 export class OpenerService implements IOpenerService {
 
 	_serviceBrand: any;
+
+	private readonly _opener = new LinkedList<IOpener>();
 
 	constructor(
 		@ICodeEditorService private readonly _editorService: ICodeEditorService,
@@ -24,14 +28,30 @@ export class OpenerService implements IOpenerService {
 		//
 	}
 
-	open(resource: URI, options?: { openToSide?: boolean }): Promise<boolean> {
+	registerOpener(opener: IOpener): IDisposable {
+		const remove = this._opener.push(opener);
+		return { dispose: remove };
+	}
 
-		const { scheme, path, query, fragment } = resource;
-
-		if (!scheme) {
-			// no scheme ?!?
+	async open(resource: URI, options?: { openToSide?: boolean }): Promise<boolean> {
+		// no scheme ?!?
+		if (!resource.scheme) {
 			return Promise.resolve(false);
 		}
+		// check with contributed openers
+		for (const opener of this._opener.toArray()) {
+			const handled = await opener.open(resource, options);
+			if (handled) {
+				return true;
+			}
+		}
+		// use default openers
+		return this._doOpen(resource, options);
+	}
+
+	private _doOpen(resource: URI, options?: { openToSide?: boolean }): Promise<boolean> {
+
+		const { scheme, path, query, fragment } = resource;
 
 		if (equalsIgnoreCase(scheme, Schemas.http) || equalsIgnoreCase(scheme, Schemas.https) || equalsIgnoreCase(scheme, Schemas.mailto)) {
 			// open http or default mail application

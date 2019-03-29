@@ -431,7 +431,7 @@ suite('Glob', () => {
 
 	test('expression support (single)', function () {
 		let siblings = ['test.html', 'test.txt', 'test.ts', 'test.js'];
-		let hasSibling = name => siblings.indexOf(name) !== -1;
+		let hasSibling = (name: string) => siblings.indexOf(name) !== -1;
 
 		// { "**/*.js": { "when": "$(basename).ts" } }
 		let expression: glob.IExpression = {
@@ -467,7 +467,7 @@ suite('Glob', () => {
 
 	test('expression support (multiple)', function () {
 		let siblings = ['test.html', 'test.txt', 'test.ts', 'test.js'];
-		let hasSibling = name => siblings.indexOf(name) !== -1;
+		let hasSibling = (name: string) => siblings.indexOf(name) !== -1;
 
 		// { "**/*.js": { "when": "$(basename).ts" } }
 		let expression: glob.IExpression = {
@@ -717,7 +717,7 @@ suite('Glob', () => {
 		};
 
 		let siblings = ['foo.ts', 'foo.js', 'foo', 'bar'];
-		let hasSibling = name => siblings.indexOf(name) !== -1;
+		let hasSibling = (name: string) => siblings.indexOf(name) !== -1;
 
 		assert.strictEqual(glob.match(expr, 'bar', hasSibling), '**/bar');
 		assert.strictEqual(glob.match(expr, 'foo', hasSibling), null);
@@ -774,7 +774,7 @@ suite('Glob', () => {
 
 		let expr = { '**/*.js': { when: '$(basename).ts' } };
 		let siblings = ['foo.ts', 'foo.js'];
-		let hasSibling = name => siblings.indexOf(name) !== -1;
+		let hasSibling = (name: string) => siblings.indexOf(name) !== -1;
 
 		assert.strictEqual(glob.parse(expr)('bar/baz.js', 'baz.js', hasSibling), null);
 		assert.strictEqual(glob.parse(expr)('bar/foo.js', 'foo.js', hasSibling), '**/*.js');
@@ -818,7 +818,7 @@ suite('Glob', () => {
 			]);
 
 		const siblings = ['baz', 'baz.zip', 'nope'];
-		const hasSibling = name => siblings.indexOf(name) !== -1;
+		const hasSibling = (name: string) => siblings.indexOf(name) !== -1;
 		testOptimizationForBasenames({
 			'**/foo/**': { when: '$(basename).zip' },
 			'**/bar/**': true
@@ -924,7 +924,7 @@ suite('Glob', () => {
 			]);
 
 		const siblings = ['baz', 'baz.zip', 'nope'];
-		let hasSibling = name => siblings.indexOf(name) !== -1;
+		let hasSibling = (name: string) => siblings.indexOf(name) !== -1;
 		testOptimizationForPaths({
 			'**/foo/123/**': { when: '$(basename).zip' },
 			'**/bar/123/**': true

@@ -36,6 +36,10 @@ export class ConfigurationModel implements IConfigurationModel {
 		return this.checkAndFreeze(this._keys);
 	}
 
+	isEmpty(): boolean {
+		return this._keys.length === 0 && Object.keys(this._contents).length === 0 && this._overrides.length === 0;
+	}
+
 	getValue<V>(section: string | undefined): V {
 		return section ? getConfigurationValue<any>(this.contents, section) : this.contents;
 	}
@@ -283,7 +287,8 @@ export class Configuration {
 
 	constructor(
 		private _defaultConfiguration: ConfigurationModel,
-		private _userConfiguration: ConfigurationModel,
+		private _localUserConfiguration: ConfigurationModel,
+		private _remoteUserConfiguration: ConfigurationModel = new ConfigurationModel(),
 		private _workspaceConfiguration: ConfigurationModel = new ConfigurationModel(),
 		private _folderConfigurations: ResourceMap<ConfigurationModel> = new ResourceMap<ConfigurationModel>(),
 		private _memoryConfiguration: ConfigurationModel = new ConfigurationModel(),
@@ -322,6 +327,8 @@ export class Configuration {
 	inspect<C>(key: string, overrides: IConfigurationOverrides, workspace: Workspace | undefined): {
 		default: C,
 		user: C,
+		userLocal?: C,
+		userRemote?: C,
 		workspace?: C,
 		workspaceFolder?: C
 		memory?: C
@@ -332,7 +339,9 @@ export class Configuration {
 		const memoryConfigurationModel = overrides.resource ? this._memoryConfigurationByResource.get(overrides.resource) || this._memoryConfiguration : this._memoryConfiguration;
 		return {
 			default: overrides.overrideIdentifier ? this._defaultConfiguration.freeze().override(overrides.overrideIdentifier).getValue(key) : this._defaultConfiguration.freeze().getValue(key),
-			user: overrides.overrideIdentifier ? this._userConfiguration.freeze().override(overrides.overrideIdentifier).getValue(key) : this._userConfiguration.freeze().getValue(key),
+			user: overrides.overrideIdentifier ? this.userConfiguration.freeze().override(overrides.overrideIdentifier).getValue(key) : this.userConfiguration.freeze().getValue(key),
+			userLocal: overrides.overrideIdentifier ? this.localUserConfiguration.freeze().override(overrides.overrideIdentifier).getValue(key) : this.localUserConfiguration.freeze().getValue(key),
+			userRemote: overrides.overrideIdentifier ? this.remoteUserConfiguration.freeze().override(overrides.overrideIdentifier).getValue(key) : this.remoteUserConfiguration.freeze().getValue(key),
 			workspace: workspace ? overrides.overrideIdentifier ? this._workspaceConfiguration.freeze().override(overrides.overrideIdentifier).getValue(key) : this._workspaceConfiguration.freeze().getValue(key) : undefined, //Check on workspace exists or not because _workspaceConfiguration is never null
 			workspaceFolder: folderConfigurationModel ? overrides.overrideIdentifier ? folderConfigurationModel.freeze().override(overrides.overrideIdentifier).getValue(key) : folderConfigurationModel.freeze().getValue(key) : undefined,
 			memory: overrides.overrideIdentifier ? memoryConfigurationModel.override(overrides.overrideIdentifier).getValue(key) : memoryConfigurationModel.getValue(key),
@@ -349,7 +358,7 @@ export class Configuration {
 		const folderConfigurationModel = this.getFolderConfigurationModelForResource(undefined, workspace);
 		return {
 			default: this._defaultConfiguration.freeze().keys,
-			user: this._userConfiguration.freeze().keys,
+			user: this.userConfiguration.freeze().keys,
 			workspace: this._workspaceConfiguration.freeze().keys,
 			workspaceFolder: folderConfigurationModel ? folderConfigurationModel.freeze().keys : []
 		};
@@ -361,8 +370,16 @@ export class Configuration {
 		this._foldersConsolidatedConfigurations.clear();
 	}
 
-	updateUserConfiguration(userConfiguration: ConfigurationModel): void {
-		this._userConfiguration = userConfiguration;
+	updateLocalUserConfiguration(localUserConfiguration: ConfigurationModel): void {
+		this._localUserConfiguration = localUserConfiguration;
+		this._userConfiguration = null;
+		this._workspaceConsolidatedConfiguration = null;
+		this._foldersConsolidatedConfigurations.clear();
+	}
+
+	updateRemoteUserConfiguration(remoteUserConfiguration: ConfigurationModel): void {
+		this._remoteUserConfiguration = remoteUserConfiguration;
+		this._userConfiguration = null;
 		this._workspaceConsolidatedConfiguration = null;
 		this._foldersConsolidatedConfigurations.clear();
 	}
@@ -379,7 +396,7 @@ export class Configuration {
 	}
 
 	deleteFolderConfiguration(resource: URI): void {
-		this.folders.delete(resource);
+		this.folderConfigurations.delete(resource);
 		this._foldersConsolidatedConfigurations.delete(resource);
 	}
 
@@ -387,15 +404,30 @@ export class Configuration {
 		return this._defaultConfiguration;
 	}
 
-	get user(): ConfigurationModel {
+	private _userConfiguration: ConfigurationModel | null;
+	get userConfiguration(): ConfigurationModel {
+		if (!this._userConfiguration) {
+			this._userConfiguration = this._remoteUserConfiguration.isEmpty() ? this._localUserConfiguration : this._localUserConfiguration.merge(this._remoteUserConfiguration);
+			if (this._freeze) {
+				this._userConfiguration.freeze();
+			}
+		}
 		return this._userConfiguration;
 	}
 
-	get workspace(): ConfigurationModel {
+	get localUserConfiguration(): ConfigurationModel {
+		return this._localUserConfiguration;
+	}
+
+	get remoteUserConfiguration(): ConfigurationModel {
+		return this._remoteUserConfiguration;
+	}
+
+	get workspaceConfiguration(): ConfigurationModel {
 		return this._workspaceConfiguration;
 	}
 
-	protected get folders(): ResourceMap<ConfigurationModel> {
+	protected get folderConfigurations(): ResourceMap<ConfigurationModel> {
 		return this._folderConfigurations;
 	}
 
@@ -423,7 +455,7 @@ export class Configuration {
 
 	private getWorkspaceConsolidatedConfiguration(): ConfigurationModel {
 		if (!this._workspaceConsolidatedConfiguration) {
-			this._workspaceConsolidatedConfiguration = this._defaultConfiguration.merge(this._userConfiguration, this._workspaceConfiguration, this._memoryConfiguration);
+			this._workspaceConsolidatedConfiguration = this._defaultConfiguration.merge(this.userConfiguration, this._workspaceConfiguration, this._memoryConfiguration);
 			if (this._freeze) {
 				this._workspaceConfiguration = this._workspaceConfiguration.freeze();
 			}
@@ -453,7 +485,7 @@ export class Configuration {
 		if (workspace && resource) {
 			const root = workspace.getFolder(resource);
 			if (root) {
-				return this._folderConfigurations.get(root.uri) || null;
+				return types.withUndefinedAsNull(this._folderConfigurations.get(root.uri));
 			}
 		}
 		return null;
@@ -467,9 +499,9 @@ export class Configuration {
 				keys: this._defaultConfiguration.keys
 			},
 			user: {
-				contents: this._userConfiguration.contents,
-				overrides: this._userConfiguration.overrides,
-				keys: this._userConfiguration.keys
+				contents: this.userConfiguration.contents,
+				overrides: this.userConfiguration.overrides,
+				keys: this.userConfiguration.keys
 			},
 			workspace: {
 				contents: this._workspaceConfiguration.contents,
@@ -488,7 +520,7 @@ export class Configuration {
 	allKeys(workspace: Workspace | undefined): string[] {
 		let keys = this.keys(workspace);
 		let all = [...keys.default];
-		const addKeys = (keys) => {
+		const addKeys = (keys: string[]) => {
 			for (const key of keys) {
 				if (all.indexOf(key) === -1) {
 					all.push(key);
@@ -497,8 +529,8 @@ export class Configuration {
 		};
 		addKeys(keys.user);
 		addKeys(keys.workspace);
-		for (const resource of this.folders.keys()) {
-			addKeys(this.folders.get(resource)!.keys);
+		for (const resource of this.folderConfigurations.keys()) {
+			addKeys(this.folderConfigurations.get(resource)!.keys);
 		}
 		return all;
 	}

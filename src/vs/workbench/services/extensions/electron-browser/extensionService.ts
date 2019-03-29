@@ -5,6 +5,7 @@
 
 import * as nls from 'vs/nls';
 import * as path from 'vs/base/common/path';
+import { ipcRenderer as ipc } from 'electron';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Barrier, runWhenIdle } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -33,6 +34,7 @@ import { ExtensionIdentifier, IExtension, ExtensionType, IExtensionDescription }
 import { Schemas } from 'vs/base/common/network';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
+import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
 
 const hasOwnProperty = Object.hasOwnProperty;
 const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
@@ -839,6 +841,19 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		}
 		this._extensionHostExtensionRuntimeErrors.get(extensionKey)!.push(err);
 		this._onDidChangeExtensionsStatus.fire([extensionId]);
+	}
+
+	public _onExtensionHostExit(code: number): void {
+		// Expected development extension termination: When the extension host goes down we also shutdown the window
+		const devOpts = parseExtensionDevOptions(this._environmentService);
+		if (!devOpts.isExtensionDevTestFromCli) {
+			this._windowService.closeWindow();
+		}
+
+		// When CLI testing make sure to exit with proper exit code
+		else {
+			ipc.send('vscode:exit', code);
+		}
 	}
 }
 

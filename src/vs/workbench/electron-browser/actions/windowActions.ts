@@ -253,7 +253,7 @@ export abstract class BaseSwitchWindow extends Action {
 			});
 		}).then(pick => {
 			if (pick) {
-				this.windowsService.showWindow(pick.payload);
+				this.windowsService.focusWindow(pick.payload);
 			}
 		});
 	}

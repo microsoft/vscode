@@ -6,16 +6,18 @@
 import * as assert from 'assert';
 import { FileService2 } from 'vs/workbench/services/files2/common/fileService2';
 import { URI } from 'vs/base/common/uri';
-import { IFileSystemProviderRegistrationEvent } from 'vs/platform/files/common/files';
+import { IFileSystemProviderRegistrationEvent, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { NullFileSystemProvider } from 'vs/workbench/test/workbenchTestServices';
+import { NullLogService } from 'vs/platform/log/common/log';
 
 suite('File Service 2', () => {
 
 	test('provider registration', async () => {
-		const service = new FileService2();
+		const service = new FileService2(new NullLogService());
+		const resource = URI.parse('test://foo/bar');
 
-		assert.equal(service.canHandleResource(URI.parse('test://foo/bar')), false);
+		assert.equal(service.canHandleResource(resource), false);
 
 		const registrations: IFileSystemProviderRegistrationEvent[] = [];
 		service.onDidChangeFileSystemProviderRegistrations(e => {
@@ -38,7 +40,7 @@ suite('File Service 2', () => {
 
 		await service.activateProvider('test');
 
-		assert.equal(service.canHandleResource(URI.parse('test://foo/bar')), true);
+		assert.equal(service.canHandleResource(resource), true);
 
 		assert.equal(registrations.length, 1);
 		assert.equal(registrations[0].scheme, 'test');
@@ -48,9 +50,12 @@ suite('File Service 2', () => {
 		await service.activateProvider('test');
 		assert.equal(callCount, 2); // activation is called again
 
+		assert.equal(await service.hasCapability(resource, FileSystemProviderCapabilities.Readonly), true);
+		assert.equal(await service.hasCapability(resource, FileSystemProviderCapabilities.FileOpenReadWriteClose), false);
+
 		registrationDisposable!.dispose();
 
-		assert.equal(service.canHandleResource(URI.parse('test://foo/bar')), false);
+		assert.equal(service.canHandleResource(resource), false);
 
 		assert.equal(registrations.length, 2);
 		assert.equal(registrations[1].scheme, 'test');

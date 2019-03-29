@@ -26,7 +26,7 @@ export interface IDiagnosticsService {
 	formatEnvironment(info: IMainProcessInfo): string;
 	getPerformanceInfo(info: IMainProcessInfo): Promise<PerformanceInfo>;
 	getSystemInfo(info: IMainProcessInfo): SystemInfo;
-	printDiagnostics(info: IMainProcessInfo): Promise<any>;
+	getDiagnostics(info: IMainProcessInfo): Promise<string>;
 }
 
 export interface VersionInfo {
@@ -156,28 +156,29 @@ export class DiagnosticsService implements IDiagnosticsService {
 		return systemInfo;
 	}
 
-	printDiagnostics(info: IMainProcessInfo): Promise<any> {
+	getDiagnostics(info: IMainProcessInfo): Promise<string> {
+		const output: string[] = [];
 		return listProcesses(info.mainPID).then(rootProcess => {
 
 			// Environment Info
-			console.log('');
-			console.log(this.formatEnvironment(info));
+			output.push('');
+			output.push(this.formatEnvironment(info));
 
 			// Process List
-			console.log('');
-			console.log(this.formatProcessList(info, rootProcess));
+			output.push('');
+			output.push(this.formatProcessList(info, rootProcess));
 
 			// Workspace Stats
 			const workspaceStatPromises: Promise<void>[] = [];
 			if (info.windows.some(window => window.folderURIs && window.folderURIs.length > 0)) {
-				console.log('');
-				console.log('Workspace Stats: ');
+				output.push('');
+				output.push('Workspace Stats: ');
 				info.windows.forEach(window => {
 					if (window.folderURIs.length === 0) {
 						return;
 					}
 
-					console.log(`|  Window (${window.title})`);
+					output.push(`|  Window (${window.title})`);
 
 					window.folderURIs.forEach(uriComponents => {
 						const folderUri = URI.revive(uriComponents);
@@ -188,22 +189,24 @@ export class DiagnosticsService implements IDiagnosticsService {
 								if (stats.maxFilesReached) {
 									countMessage = `more than ${countMessage}`;
 								}
-								console.log(`|    Folder (${basename(folder)}): ${countMessage}`);
-								console.log(this.formatWorkspaceStats(stats));
+								output.push(`|    Folder (${basename(folder)}): ${countMessage}`);
+								output.push(this.formatWorkspaceStats(stats));
 
 							}).catch(error => {
-								console.log(`|      Error: Unable to collect workspace stats for folder ${folder} (${error.toString()})`);
+								output.push(`|      Error: Unable to collect workspace stats for folder ${folder} (${error.toString()})`);
 							}));
 						} else {
-							console.log(`|    Folder (${folderUri.toString()}): Workspace stats not available.`);
+							output.push(`|    Folder (${folderUri.toString()}): Workspace stats not available.`);
 						}
 					});
 				});
 			}
 
 			return Promise.all(workspaceStatPromises).then(() => {
-				console.log('');
-				console.log('');
+				output.push('');
+				output.push('');
+
+				return output.join('\n');
 			});
 		});
 	}
@@ -340,7 +343,7 @@ function asSortedItems(map: Map<string, number>): WorkspaceStatItem[] {
 // 					const errors: ParseError[] = [];
 // 					const json = parse(contents.toString(), errors);
 // 					if (errors.length) {
-// 						console.log(`Unable to parse ${launchConfig}`);
+// 						output.push(`Unable to parse ${launchConfig}`);
 // 						return resolve([]);
 // 					}
 
@@ -391,7 +394,7 @@ function collectWorkspaceStats(folder: string, filter: string[]): Promise<Worksp
 
 	const MAX_FILES = 20000;
 
-	function walk(dir: string, filter: string[], token, done: (allFiles: string[]) => void): void {
+	function walk(dir: string, filter: string[], token: { count: any; maxReached: any; }, done: (allFiles: string[]) => void): void {
 		let results: string[] = [];
 		readdir(dir, async (err, files) => {
 			// Ignore folders that can't be read

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as arrays from 'vs/base/common/arrays';
-import { isArray } from 'vs/base/common/types';
+import { isArray, withUndefinedAsNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -262,11 +262,11 @@ export class SettingsTreeModel {
 	}
 
 	getElementById(id: string): SettingsTreeElement | null {
-		return this._treeElementsById.get(id) || null;
+		return withUndefinedAsNull(this._treeElementsById.get(id));
 	}
 
 	getElementsByName(name: string): SettingsTreeSettingElement[] | null {
-		return this._treeElementsBySettingName.get(name) || null;
+		return withUndefinedAsNull(this._treeElementsBySettingName.get(name));
 	}
 
 	updateElementsByName(name: string): void {
@@ -378,7 +378,7 @@ function wordifyKey(key: string): string {
 }
 
 function trimCategoryForGroup(category: string, groupId: string): string {
-	const doTrim = forward => {
+	const doTrim = (forward: boolean) => {
 		const parts = groupId.split('.');
 		while (parts.length) {
 			const reg = new RegExp(`^${parts.join('\\.')}(\\.|$)`, 'i');

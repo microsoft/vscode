@@ -64,7 +64,7 @@ suite('WorkspacesMainService', () => {
 		return pfs.del(untitledWorkspacesHomePath, os.tmpdir());
 	});
 
-	function assertPathEquals(p1: string, p2): void {
+	function assertPathEquals(p1: string, p2: string): void {
 		if (isWindows) {
 			p1 = normalizeDriveLetter(p1);
 			p2 = normalizeDriveLetter(p2);

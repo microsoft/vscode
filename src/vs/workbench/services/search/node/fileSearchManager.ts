@@ -136,10 +136,10 @@ class FileSearchEngine {
 
 					if (results) {
 						results.forEach(result => {
-							const relativePath = path.relative(fq.folder.fsPath, result.fsPath);
+							const relativePath = path.posix.relative(fq.folder.path, result.path);
 
 							if (noSiblingsClauses) {
-								const basename = path.basename(result.fsPath);
+								const basename = path.basename(result.path);
 								this.matchFile(onResult, { base: fq.folder, relativePath, basename });
 
 								return;
@@ -344,7 +344,7 @@ export class FileSearchManager {
 			engine.cancel();
 		});
 
-		const _onResult = match => {
+		const _onResult = (match: IInternalFileMatch) => {
 			if (match) {
 				batch.push(match);
 				if (batchSize > 0 && batch.length >= batchSize) {

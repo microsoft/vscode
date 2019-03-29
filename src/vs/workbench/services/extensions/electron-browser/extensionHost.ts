@@ -12,16 +12,16 @@ import { timeout } from 'vs/base/common/async';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
 import * as objects from 'vs/base/common/objects';
 import { isWindows } from 'vs/base/common/platform';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { IRemoteConsoleLog, log, parse } from 'vs/base/node/console';
+import { IRemoteConsoleLog, log, parse } from 'vs/base/common/console';
 import { findFreePort, randomPort } from 'vs/base/node/ports';
-import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
-import { PersistentProtocol, generateRandomPipeName } from 'vs/base/parts/ipc/node/ipc.net';
-import { IBroadcast, IBroadcastService } from 'vs/workbench/services/broadcast/electron-browser/broadcastService';
+import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
+import { PersistentProtocol } from 'vs/base/parts/ipc/common/ipc.net';
+import { generateRandomPipeName, NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
+import { IBroadcast, IBroadcastService } from 'vs/workbench/services/broadcast/common/broadcast';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { EXTENSION_ATTACH_BROADCAST_CHANNEL, EXTENSION_CLOSE_EXTHOST_BROADCAST_CHANNEL, EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_RELOAD_BROADCAST_CHANNEL, EXTENSION_TERMINATE_BROADCAST_CHANNEL } from 'vs/platform/extensions/common/extensionHost';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -36,34 +36,14 @@ import { IInitData } from 'vs/workbench/api/common/extHost.protocol';
 import { MessageType, createMessageOfType, isMessageOfType } from 'vs/workbench/services/extensions/node/extensionHostProtocol';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { parseExtensionDevOptions } from '../common/extensionDevOptions';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 export interface IExtensionHostStarter {
 	readonly onCrashed: Event<[number, string | null]>;
 	start(): Promise<IMessagePassingProtocol> | null;
 	getInspectPort(): number | undefined;
 	dispose(): void;
-}
-
-export interface IExtensionDevOptions {
-	readonly isExtensionDevHost: boolean;
-	readonly isExtensionDevDebug: boolean;
-	readonly isExtensionDevDebugBrk: boolean;
-	readonly isExtensionDevTestFromCli: boolean;
-}
-export function parseExtensionDevOptions(environmentService: IEnvironmentService): IExtensionDevOptions {
-	// handle extension host lifecycle a bit special when we know we are developing an extension that runs inside
-	let isExtensionDevHost = environmentService.isExtensionDevelopment;
-	const extDevLoc = environmentService.extensionDevelopmentLocationURI;
-	const debugOk = !extDevLoc || extDevLoc.scheme === Schemas.file;
-	let isExtensionDevDebug = debugOk && typeof environmentService.debugExtensionHost.port === 'number';
-	let isExtensionDevDebugBrk = debugOk && !!environmentService.debugExtensionHost.break;
-	let isExtensionDevTestFromCli = isExtensionDevHost && !!environmentService.extensionTestsLocationURI && !environmentService.debugExtensionHost.break;
-	return {
-		isExtensionDevHost,
-		isExtensionDevDebug,
-		isExtensionDevDebugBrk,
-		isExtensionDevTestFromCli,
-	};
 }
 
 export class ExtensionHostProcessWorker implements IExtensionHostStarter {
@@ -87,7 +67,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 	private _inspectPort: number;
 	private _extensionHostProcess: ChildProcess | null;
 	private _extensionHostConnection: Socket | null;
-	private _messageProtocol: Promise<IMessagePassingProtocol> | null;
+	private _messageProtocol: Promise<PersistentProtocol> | null;
 
 	constructor(
 		private readonly _autoStart: boolean,
@@ -336,9 +316,9 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		});
 	}
 
-	private _tryExtHostHandshake(): Promise<IMessagePassingProtocol> {
+	private _tryExtHostHandshake(): Promise<PersistentProtocol> {
 
-		return new Promise<IMessagePassingProtocol>((resolve, reject) => {
+		return new Promise<PersistentProtocol>((resolve, reject) => {
 
 			// Wait for the extension host to connect to our named pipe
 			// and wrap the socket in the message passing protocol
@@ -361,14 +341,14 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 				// using a buffered message protocol here because between now
 				// and the first time a `then` executes some messages might be lost
 				// unless we immediately register a listener for `onMessage`.
-				resolve(new PersistentProtocol(this._extensionHostConnection));
+				resolve(new PersistentProtocol(new NodeSocket(this._extensionHostConnection)));
 			});
 
 		}).then((protocol) => {
 
 			// 1) wait for the incoming `ready` event and send the initialization data.
 			// 2) wait for the incoming `initialized` event.
-			return new Promise<IMessagePassingProtocol>((resolve, reject) => {
+			return new Promise<PersistentProtocol>((resolve, reject) => {
 
 				let timeoutHandle: NodeJS.Timer;
 				const installTimeoutCheck = () => {
@@ -394,7 +374,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 							// Wait 60s for the initialized message
 							installTimeoutCheck();
 
-							protocol.send(Buffer.from(JSON.stringify(data)));
+							protocol.send(VSBuffer.fromString(JSON.stringify(data)));
 						});
 						return;
 					}
@@ -543,6 +523,8 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 			// Send the extension host a request to terminate itself
 			// (graceful termination)
 			protocol.send(createMessageOfType(MessageType.Terminate));
+
+			protocol.dispose();
 
 			// Give the extension host 10s, after which we will
 			// try to kill the process and release any resources

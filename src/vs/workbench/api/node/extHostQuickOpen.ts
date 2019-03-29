@@ -175,13 +175,13 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 	// ---- QuickInput
 
 	createQuickPick<T extends QuickPickItem>(extensionId: ExtensionIdentifier, enableProposedApi: boolean): QuickPick<T> {
-		const session = new ExtHostQuickPick(this._proxy, extensionId, enableProposedApi, () => this._sessions.delete(session._id));
+		const session: ExtHostQuickPick<T> = new ExtHostQuickPick(this._proxy, extensionId, enableProposedApi, () => this._sessions.delete(session._id));
 		this._sessions.set(session._id, session);
 		return session;
 	}
 
 	createInputBox(extensionId: ExtensionIdentifier): InputBox {
-		const session = new ExtHostInputBox(this._proxy, extensionId, () => this._sessions.delete(session._id));
+		const session: ExtHostInputBox = new ExtHostInputBox(this._proxy, extensionId, () => this._sessions.delete(session._id));
 		this._sessions.set(session._id, session);
 		return session;
 	}
@@ -379,7 +379,7 @@ class ExtHostQuickInput implements QuickInput {
 		this._onDidAcceptEmitter.fire();
 	}
 
-	_fireDidChangeValue(value) {
+	_fireDidChangeValue(value: string) {
 		this._value = value;
 		this._onDidChangeValueEmitter.fire(value);
 	}

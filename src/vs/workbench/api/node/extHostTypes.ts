@@ -1058,15 +1058,15 @@ export class CodeAction {
 export class CodeActionKind {
 	private static readonly sep = '.';
 
-	public static Empty;
-	public static QuickFix;
-	public static Refactor;
-	public static RefactorExtract;
-	public static RefactorInline;
-	public static RefactorRewrite;
-	public static Source;
-	public static SourceOrganizeImports;
-	public static SourceFixAll;
+	public static Empty: CodeActionKind;
+	public static QuickFix: CodeActionKind;
+	public static Refactor: CodeActionKind;
+	public static RefactorExtract: CodeActionKind;
+	public static RefactorInline: CodeActionKind;
+	public static RefactorRewrite: CodeActionKind;
+	public static Source: CodeActionKind;
+	public static SourceOrganizeImports: CodeActionKind;
+	public static SourceFixAll: CodeActionKind;
 
 	constructor(
 		public readonly value: string
@@ -2206,12 +2206,12 @@ export class FileSystemError extends Error {
 		return new FileSystemError(messageOrUri, FileSystemProviderErrorCode.Unavailable, FileSystemError.Unavailable);
 	}
 
-	constructor(uriOrMessage?: string | URI, code?: string, terminator?: Function) {
+	constructor(uriOrMessage?: string | URI, code: FileSystemProviderErrorCode = FileSystemProviderErrorCode.Unknown, terminator?: Function) {
 		super(URI.isUri(uriOrMessage) ? uriOrMessage.toString(true) : uriOrMessage);
 
 		// mark the error as file system provider error so that
 		// we can extract the error code on the receiving side
-		markAsFileSystemProviderError(this);
+		markAsFileSystemProviderError(this, code);
 
 		// workaround when extending builtin objects and when compiling to ES5, see:
 		// https://github.com/Microsoft/TypeScript-wiki/blob/master/Breaking-Changes.md#extending-built-ins-like-error-array-and-map-may-no-longer-work

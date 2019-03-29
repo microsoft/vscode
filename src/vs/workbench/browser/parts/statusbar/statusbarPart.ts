@@ -6,7 +6,7 @@
 import 'vs/css!./media/statusbarpart';
 import * as nls from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { dispose, IDisposable, toDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable, toDisposable, combinedDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -49,6 +49,8 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	private statusMsgDispose: IDisposable;
 	private styleElement: HTMLStyleElement;
 
+	private pendingEntries: { entry: IStatusbarEntry, alignment: StatusbarAlignment, priority: number, disposable: IDisposable }[] = [];
+
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
@@ -66,6 +68,18 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	}
 
 	addEntry(entry: IStatusbarEntry, alignment: StatusbarAlignment, priority: number = 0): IDisposable {
+
+		// As long as we have not been created into a container yet, record all entries
+		// that are pending so that they can get created at a later point
+		if (!this.element) {
+			const pendingEntry = { entry, alignment, priority, disposable: Disposable.None };
+			this.pendingEntries.push(pendingEntry);
+
+			return toDisposable(() => {
+				this.pendingEntries = this.pendingEntries.filter(e => e !== pendingEntry);
+				pendingEntry.disposable.dispose();
+			});
+		}
 
 		// Render entry in status bar
 		const el = this.doCreateStatusItem(alignment, priority, entry.showBeak ? 'has-beak' : undefined);
@@ -144,6 +158,14 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 			this._register(item.render(el));
 			this.element.appendChild(el);
+		}
+
+		// Fill in pending entries if any
+		while (this.pendingEntries.length) {
+			const entry = this.pendingEntries.shift();
+			if (entry) {
+				entry.disposable = this.addEntry(entry.entry, entry.alignment, entry.priority);
+			}
 		}
 
 		return this.element;

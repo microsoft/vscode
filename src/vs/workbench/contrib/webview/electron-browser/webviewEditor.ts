@@ -245,6 +245,7 @@ export class WebviewEditor extends BaseEditor {
 		webview.update(input.html, {
 			allowScripts: input.options.enableScripts,
 			localResourceRoots: input.options.localResourceRoots || this.getDefaultLocalResourceRoots(),
+			portMappings: input.options.portMapping,
 		}, !!input.options.retainContextWhenHidden);
 
 		if (this._webviewContent) {
@@ -256,9 +257,9 @@ export class WebviewEditor extends BaseEditor {
 
 	private getDefaultLocalResourceRoots(): URI[] {
 		const rootPaths = this._contextService.getWorkspace().folders.map(x => x.uri);
-		const extensionLocation = (this.input as WebviewEditorInput).extensionLocation;
-		if (extensionLocation) {
-			rootPaths.push(extensionLocation);
+		const extension = (this.input as WebviewEditorInput).extension;
+		if (extension) {
+			rootPaths.push(extension.location);
 		}
 		return rootPaths;
 	}
@@ -282,7 +283,7 @@ export class WebviewEditor extends BaseEditor {
 				this._layoutService.getContainer(Parts.EDITOR_PART),
 				{
 					allowSvgs: true,
-					extensionLocation: input.extensionLocation,
+					extension: input.extension,
 					enableFindWidget: input.options.enableFindWidget
 				},
 				{});

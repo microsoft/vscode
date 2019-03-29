@@ -309,7 +309,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	private static INPUT_BOX_ARIA_LABEL = localize('quickInputBox.ariaLabel', "Type to narrow down results.");
 
 	private _value = '';
-	private _placeholder;
+	private _placeholder: string;
 	private onDidChangeValueEmitter = new Emitter<string>();
 	private onDidAcceptEmitter = new Emitter<void>();
 	private _items: Array<T | IQuickPickSeparator> = [];
@@ -463,6 +463,10 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		this.update();
 	}
 
+	public inputHasFocus(): boolean {
+		return this.visible ? this.ui.inputBox.hasFocus() : false;
+	}
+
 	onDidChangeSelection = this.onDidChangeSelectionEmitter.event;
 
 	onDidTriggerItemButton = this.onDidTriggerItemButtonEmitter.event;
@@ -499,6 +503,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 							if (this.canSelectMany) {
 								this.ui.list.domFocus();
 							}
+							event.preventDefault();
 							break;
 						case KeyCode.UpArrow:
 							if (this.ui.list.getFocusedElements().length) {
@@ -509,6 +514,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 							if (this.canSelectMany) {
 								this.ui.list.domFocus();
 							}
+							event.preventDefault();
 							break;
 						case KeyCode.PageDown:
 							if (this.ui.list.getFocusedElements().length) {
@@ -519,6 +525,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 							if (this.canSelectMany) {
 								this.ui.list.domFocus();
 							}
+							event.preventDefault();
 							break;
 						case KeyCode.PageUp:
 							if (this.ui.list.getFocusedElements().length) {
@@ -529,6 +536,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 							if (this.canSelectMany) {
 								this.ui.list.domFocus();
 							}
+							event.preventDefault();
 							break;
 					}
 				}),

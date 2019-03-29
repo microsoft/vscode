@@ -44,7 +44,7 @@ export class MainThreadSearch implements MainThreadSearchShape {
 		this._searchProvider.delete(handle);
 	}
 
-	$handleFileMatch(handle: number, session, data: UriComponents[]): void {
+	$handleFileMatch(handle: number, session: number, data: UriComponents[]): void {
 		const provider = this._searchProvider.get(handle);
 		if (!provider) {
 			throw new Error('Got result for unknown provider');
@@ -53,7 +53,7 @@ export class MainThreadSearch implements MainThreadSearchShape {
 		provider.handleFindMatch(session, data);
 	}
 
-	$handleTextMatch(handle: number, session, data: IRawFileMatch2[]): void {
+	$handleTextMatch(handle: number, session: number, data: IRawFileMatch2[]): void {
 		const provider = this._searchProvider.get(handle);
 		if (!provider) {
 			throw new Error('Got result for unknown provider');

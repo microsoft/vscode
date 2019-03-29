@@ -205,7 +205,7 @@ export class EditorBreadcrumbsModel {
 		let chain: Array<OutlineGroup | OutlineElement> = [];
 		while (item) {
 			chain.push(item);
-			let parent = item.parent;
+			let parent: any = item.parent;
 			if (parent instanceof OutlineModel) {
 				break;
 			}

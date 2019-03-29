@@ -203,8 +203,8 @@ export class MarkerController implements editorCommon.IEditorContribution {
 	}
 
 	private readonly _editor: ICodeEditor;
-	private _model: MarkerModel | null;
-	private _widget: MarkerNavigationWidget | null;
+	private _model: MarkerModel | null = null;
+	private _widget: MarkerNavigationWidget | null = null;
 	private readonly _widgetVisible: IContextKey<boolean>;
 	private _disposeOnClose: IDisposable[] = [];
 

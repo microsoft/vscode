@@ -14,7 +14,8 @@ import { getShellEnvironment } from 'vs/code/node/shellEnv';
 import { IUpdateService } from 'vs/platform/update/common/update';
 import { UpdateChannel } from 'vs/platform/update/node/updateIpc';
 import { Server as ElectronIPCServer } from 'vs/base/parts/ipc/electron-main/ipc.electron-main';
-import { Server, connect, Client } from 'vs/base/parts/ipc/node/ipc.net';
+import { Client } from 'vs/base/parts/ipc/common/ipc.net';
+import { Server, connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { SharedProcess } from 'vs/code/electron-main/sharedProcess';
 import { LaunchService, LaunchChannel, ILaunchService } from 'vs/platform/launch/electron-main/launchService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -31,7 +32,7 @@ import { NullTelemetryService, combinedAppender, LogAppender } from 'vs/platform
 import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
-import { getDelayedChannel, StaticRouter } from 'vs/base/parts/ipc/node/ipc';
+import { getDelayedChannel, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
 import product from 'vs/platform/product/node/product';
 import pkg from 'vs/platform/product/node/package';
 import { ProxyAuthHandler } from 'vs/code/electron-main/auth';
@@ -55,7 +56,7 @@ import { LogLevelSetterChannel } from 'vs/platform/log/node/logIpc';
 import * as errors from 'vs/base/common/errors';
 import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
 import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
-import { connectRemoteAgentManagement, ManagementPersistentConnection } from 'vs/platform/remote/node/remoteAgentConnection';
+import { connectRemoteAgentManagement, ManagementPersistentConnection, IConnectionOptions } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IMenubarService } from 'vs/platform/menubar/common/menubar';
 import { MenubarService } from 'vs/platform/menubar/electron-main/menubarService';
 import { MenubarChannel } from 'vs/platform/menubar/node/menubarIpc';
@@ -67,7 +68,7 @@ import { homedir } from 'os';
 import { join, sep } from 'vs/base/common/path';
 import { localize } from 'vs/nls';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
-import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from 'vs/platform/remote/node/remoteAgentFileSystemChannel';
+import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from 'vs/platform/remote/common/remoteAgentFileSystemChannel';
 import { ResolvedAuthority } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { SnapUpdateService } from 'vs/platform/update/electron-main/updateService.snap';
 import { IStorageMainService, StorageMainService } from 'vs/platform/storage/node/storageMainService';
@@ -79,6 +80,7 @@ import { HistoryMainService } from 'vs/platform/history/electron-main/historyMai
 import { URLService } from 'vs/platform/url/common/urlService';
 import { WorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
+import { nodeWebSocketFactory } from 'vs/platform/remote/node/nodeWebSocketFactory';
 
 export class CodeApplication extends Disposable {
 
@@ -388,7 +390,7 @@ export class CodeApplication extends Disposable {
 		this.logService.info(`Tracing: waiting for windows to get ready...`);
 
 		let recordingStopped = false;
-		const stopRecording = (timeout) => {
+		const stopRecording = (timeout: boolean) => {
 			if (recordingStopped) {
 				return;
 			}
@@ -574,16 +576,44 @@ export class CodeApplication extends Disposable {
 		const hasCliArgs = hasArgs(args._);
 		const hasFolderURIs = hasArgs(args['folder-uri']);
 		const hasFileURIs = hasArgs(args['file-uri']);
+		const noRecentEntry = args['skip-add-to-recently-opened'] === true;
+		const waitMarkerFileURI = args.wait && args.waitMarkerFilePath ? URI.file(args.waitMarkerFilePath) : undefined;
 
 		if (args['new-window'] && !hasCliArgs && !hasFolderURIs && !hasFileURIs) {
-			return this.windowsMainService.open({ context, cli: args, forceNewWindow: true, forceEmpty: true, initialStartup: true }); // new window if "-n" was used without paths
+			// new window if "-n" was used without paths
+			return this.windowsMainService.open({
+				context,
+				cli: args,
+				forceNewWindow: true,
+				forceEmpty: true,
+				noRecentEntry,
+				waitMarkerFileURI,
+				initialStartup: true
+			});
 		}
 
 		if (macOpenFiles && macOpenFiles.length && !hasCliArgs && !hasFolderURIs && !hasFileURIs) {
-			return this.windowsMainService.open({ context: OpenContext.DOCK, cli: args, urisToOpen: macOpenFiles.map(file => ({ uri: URI.file(file) })), initialStartup: true }); // mac: open-file event received on startup
+			// mac: open-file event received on startup
+			return this.windowsMainService.open({
+				context: OpenContext.DOCK,
+				cli: args,
+				urisToOpen: macOpenFiles.map(file => ({ uri: URI.file(file) })),
+				noRecentEntry,
+				waitMarkerFileURI,
+				initialStartup: true
+			});
 		}
 
-		return this.windowsMainService.open({ context, cli: args, forceNewWindow: args['new-window'] || (!hasCliArgs && args['unity-launch']), diffMode: args.diff, initialStartup: true }); // default: read paths from cli
+		// default: read paths from cli
+		return this.windowsMainService.open({
+			context,
+			cli: args,
+			forceNewWindow: args['new-window'] || (!hasCliArgs && args['unity-launch']),
+			diffMode: args.diff,
+			noRecentEntry,
+			waitMarkerFileURI,
+			initialStartup: true
+		});
 	}
 
 	private afterWindowOpen(accessor: ServicesAccessor): void {
@@ -655,7 +685,17 @@ export class CodeApplication extends Disposable {
 
 			constructor(authority: string, host: string, port: number) {
 				this._authority = authority;
-				this._connection = connectRemoteAgentManagement(authority, host, port, `main`, isBuilt);
+				const options: IConnectionOptions = {
+					isBuilt: isBuilt,
+					commit: product.commit,
+					webSocketFactory: nodeWebSocketFactory,
+					addressProvider: {
+						getAddress: () => {
+							return Promise.resolve({ host, port });
+						}
+					}
+				};
+				this._connection = connectRemoteAgentManagement(options, authority, `main`);
 				this._disposeRunner = new RunOnceScheduler(() => this.dispose(), 5000);
 			}
 

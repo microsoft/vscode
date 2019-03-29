@@ -7,7 +7,7 @@ import * as errors from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
-import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
+import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ExtHostCustomersRegistry } from 'vs/workbench/api/common/extHostCustomers';
@@ -320,7 +320,7 @@ class RPCLogger implements IRPCProtocolLogger {
 	private _totalIncoming = 0;
 	private _totalOutgoing = 0;
 
-	private _log(direction: string, totalLength, msgLength: number, req: number, initiator: RequestInitiator, str: string, data: any): void {
+	private _log(direction: string, totalLength: number, msgLength: number, req: number, initiator: RequestInitiator, str: string, data: any): void {
 		data = pretty(data);
 
 		const colorTable = colorTables[initiator];

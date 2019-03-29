@@ -21,7 +21,7 @@ import * as types from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import * as extfs from 'vs/base/node/extfs';
 import * as flow from 'vs/base/node/flow';
-import { IFileQuery, IFolderQuery, IProgress, ISearchEngineStats, IRawFileMatch, ISearchEngine, ISearchEngineSuccess } from 'vs/workbench/services/search/common/search';
+import { IFileQuery, IFolderQuery, IProgressMessage, ISearchEngineStats, IRawFileMatch, ISearchEngine, ISearchEngineSuccess } from 'vs/workbench/services/search/common/search';
 import { spawnRipgrepCmd } from './ripgrepFileSearch';
 
 interface IDirectoryEntry {
@@ -106,7 +106,7 @@ export class FileWalker {
 		this.isCanceled = true;
 	}
 
-	walk(folderQueries: IFolderQuery[], extraFiles: URI[], onResult: (result: IRawFileMatch) => void, onMessage: (message: IProgress) => void, done: (error: Error | null, isLimitHit: boolean) => void): void {
+	walk(folderQueries: IFolderQuery[], extraFiles: URI[], onResult: (result: IRawFileMatch) => void, onMessage: (message: IProgressMessage) => void, done: (error: Error | null, isLimitHit: boolean) => void): void {
 		this.fileWalkSW = StopWatch.create(false);
 
 		// Support that the file pattern is a full path to a file that exists
@@ -154,7 +154,7 @@ export class FileWalker {
 		}
 	}
 
-	private cmdTraversal(folderQuery: IFolderQuery, onResult: (result: IRawFileMatch) => void, onMessage: (message: IProgress) => void, cb: (err?: Error) => void): void {
+	private cmdTraversal(folderQuery: IFolderQuery, onResult: (result: IRawFileMatch) => void, onMessage: (message: IProgressMessage) => void, cb: (err?: Error) => void): void {
 		const rootFolder = folderQuery.folder.fsPath;
 		const isMac = platform.isMacintosh;
 		let cmd: childProcess.ChildProcess;
@@ -285,7 +285,7 @@ export class FileWalker {
 		});
 	}
 
-	private collectStdout(cmd: childProcess.ChildProcess, encoding: string, onMessage: (message: IProgress) => void, cb: (err: Error | null, stdout?: string, last?: boolean) => void): void {
+	private collectStdout(cmd: childProcess.ChildProcess, encoding: string, onMessage: (message: IProgressMessage) => void, cb: (err: Error | null, stdout?: string, last?: boolean) => void): void {
 		let onData = (err: Error | null, stdout?: string, last?: boolean) => {
 			if (err || last) {
 				onData = () => { };
@@ -590,7 +590,7 @@ export class Engine implements ISearchEngine<IRawFileMatch> {
 		this.walker = new FileWalker(config);
 	}
 
-	search(onResult: (result: IRawFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISearchEngineSuccess) => void): void {
+	search(onResult: (result: IRawFileMatch) => void, onProgress: (progress: IProgressMessage) => void, done: (error: Error, complete: ISearchEngineSuccess) => void): void {
 		this.walker.walk(this.folderQueries, this.extraFiles, onResult, onProgress, (err: Error, isLimitHit: boolean) => {
 			done(err, {
 				limitHit: isLimitHit,

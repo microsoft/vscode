@@ -252,7 +252,7 @@ export abstract class AbstractContextKeyService implements IContextKeyService {
 		return new ScopedContextKeyService(this, this._onDidChangeContextKey, domNode);
 	}
 
-	public contextMatchesRules(rules: ContextKeyExpr | null): boolean {
+	public contextMatchesRules(rules: ContextKeyExpr | undefined): boolean {
 		if (this._isDisposed) {
 			throw new Error(`AbstractContextKeyService has been disposed`);
 		}

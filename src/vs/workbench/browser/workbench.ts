@@ -82,7 +82,7 @@ export class Workbench extends Layout {
 
 		// Inform user about loading issues from the loader
 		(<any>window).require.config({
-			onError: err => {
+			onError: (err: { errorCode: string; }) => {
 				if (err.errorCode === 'load') {
 					onUnexpectedError(new Error(localize('loaderErrorNative', "Failed to load a required file. Please restart the application to try again. Details: {0}", JSON.stringify(err))));
 				}
@@ -173,10 +173,10 @@ export class Workbench extends Layout {
 		// Layout Service
 		serviceCollection.set(IWorkbenchLayoutService, this);
 
-		//
+		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 		// NOTE: DO NOT ADD ANY OTHER SERVICE INTO THE COLLECTION HERE.
-		// INSTEAD, CONTRIBUTE IT VIA WORKBENCH.MAIN.TS
-		//
+		// CONTRIBUTE IT VIA WORKBENCH.MAIN.TS AND registerSingleton().
+		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 		// All Contributed Services
 		const contributedServices = getServices();
@@ -192,8 +192,8 @@ export class Workbench extends Layout {
 
 			// TODO@Ben legacy file service
 			const fileService = accessor.get(IFileService) as any;
-			if (typeof fileService.setImpl === 'function') {
-				fileService.setImpl(accessor.get(ILegacyFileService));
+			if (typeof fileService.setLegacyService === 'function') {
+				fileService.setLegacyService(accessor.get(ILegacyFileService));
 			}
 
 			// TODO@Sandeep debt around cyclic dependencies

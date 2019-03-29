@@ -42,7 +42,7 @@ suite('RipgrepTextSearchEngine', () => {
 	});
 
 	test('fixRegexCRMatchingWhitespaceClass', () => {
-		function testFixRegexCRMatchingWhitespaceClass([inputReg, isMultiline, testStr, shouldMatch]): void {
+		function testFixRegexCRMatchingWhitespaceClass([inputReg, isMultiline, testStr, shouldMatch]: [string, boolean, string, boolean]): void {
 			const fixed = fixRegexCRMatchingWhitespaceClass(inputReg, isMultiline);
 			const reg = new RegExp(fixed);
 			assert.equal(reg.test(testStr), shouldMatch, `${inputReg} => ${reg}, ${testStr}, ${shouldMatch}`);
@@ -66,7 +66,7 @@ suite('RipgrepTextSearchEngine', () => {
 	});
 
 	test('fixRegexCRMatchingNonWordClass', () => {
-		function testRegexCRMatchingNonWordClass([inputReg, isMultiline, testStr, shouldMatch]): void {
+		function testRegexCRMatchingNonWordClass([inputReg, isMultiline, testStr, shouldMatch]: [string, boolean, string, boolean]): void {
 			const fixed = fixRegexCRMatchingNonWordClass(inputReg, isMultiline);
 			const reg = new RegExp(fixed);
 			assert.equal(reg.test(testStr), shouldMatch, `${inputReg} => ${reg}, ${testStr}, ${shouldMatch}`);
@@ -90,7 +90,7 @@ suite('RipgrepTextSearchEngine', () => {
 	});
 
 	test('fixRegexNewline', () => {
-		function testFixRegexNewline([inputReg, testStr, shouldMatch]): void {
+		function testFixRegexNewline([inputReg, testStr, shouldMatch]: [string, string, boolean]): void {
 			const fixed = fixRegexNewline(inputReg);
 			const reg = new RegExp(fixed);
 			assert.equal(reg.test(testStr), shouldMatch, `${inputReg} => ${reg}, ${testStr}, ${shouldMatch}`);
@@ -111,7 +111,7 @@ suite('RipgrepTextSearchEngine', () => {
 	});
 
 	test('fixNewline', () => {
-		function testFixNewline([inputReg, testStr, shouldMatch = true]): void {
+		function testFixNewline([inputReg, testStr, shouldMatch = true]: [string, string, boolean]): void {
 			const fixed = fixNewline(inputReg);
 			const reg = new RegExp(fixed);
 			assert.equal(reg.test(testStr), shouldMatch, `${inputReg} => ${reg}, ${testStr}, ${shouldMatch}`);

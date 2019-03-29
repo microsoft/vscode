@@ -6,7 +6,6 @@
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import * as perf from 'vs/base/common/performance';
-import { sequence } from 'vs/base/common/async';
 import { Action, IAction } from 'vs/base/common/actions';
 import { memoize } from 'vs/base/common/decorators';
 import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, IExplorerService, ExplorerResourceCut } from 'vs/workbench/contrib/files/common/files';
@@ -38,7 +37,7 @@ import { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
+import { ExplorerItem, NewExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ResourceLabels, IResourceLabelsContainer } from 'vs/workbench/browser/labels';
 import { createFileIconThemableTreeContainerScope } from 'vs/workbench/browser/parts/views/views';
@@ -46,9 +45,9 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IAsyncDataTreeViewState } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { isMacintosh } from 'vs/base/common/platform';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { isEqualOrParent } from 'vs/base/common/resources';
+import { values } from 'vs/base/common/map';
+import { first } from 'vs/base/common/arrays';
 import { withNullAsUndefined } from 'vs/base/common/types';
 
 export class ExplorerView extends ViewletPanel {
@@ -66,7 +65,6 @@ export class ExplorerView extends ViewletPanel {
 	// Refresh is needed on the initial explorer open
 	private shouldRefresh = true;
 	private dragHandler: DelayedDragHandler;
-	private decorationProvider: ExplorerDecorationsProvider;
 	private autoReveal = false;
 
 	constructor(
@@ -97,9 +95,9 @@ export class ExplorerView extends ViewletPanel {
 		this.readonlyContext = ExplorerResourceReadonlyContext.bindTo(contextKeyService);
 		this.rootContext = ExplorerRootContext.bindTo(contextKeyService);
 
-		this.decorationProvider = new ExplorerDecorationsProvider(this.explorerService, contextService);
-		decorationService.registerDecorationsProvider(this.decorationProvider);
-		this.disposables.push(this.decorationProvider);
+		const decorationProvider = new ExplorerDecorationsProvider(this.explorerService, contextService);
+		decorationService.registerDecorationsProvider(decorationProvider);
+		this.disposables.push(decorationProvider);
 		this.disposables.push(this.resourceContext);
 	}
 
@@ -188,7 +186,7 @@ export class ExplorerView extends ViewletPanel {
 				this.tree.domFocus();
 			}
 		}));
-		this.disposables.push(this.explorerService.onDidSelectItem(e => this.onSelectItem(e.item, e.reveal)));
+		this.disposables.push(this.explorerService.onDidSelectResource(e => this.onSelectResource(e.resource, e.reveal)));
 		this.disposables.push(this.explorerService.onDidCopyItems(e => this.onCopyItems(e.items, e.cut, e.previouslyCutItems)));
 
 		// Update configuration
@@ -283,16 +281,21 @@ export class ExplorerView extends ViewletPanel {
 				accessibilityProvider: new ExplorerAccessibilityProvider(),
 				ariaLabel: nls.localize('treeAriaLabel', "Files Explorer"),
 				identityProvider: {
-					getId: stat => (<ExplorerItem>stat).resource
+					getId: (stat: ExplorerItem) => {
+						if (stat instanceof NewExplorerItem) {
+							return `new:${stat.resource}`;
+						}
+
+						return stat.resource;
+					}
 				},
 				keyboardNavigationLabelProvider: {
-					getKeyboardNavigationLabel: stat => {
-						const item = <ExplorerItem>stat;
-						if (this.explorerService.isEditable(item)) {
+					getKeyboardNavigationLabel: (stat: ExplorerItem) => {
+						if (this.explorerService.isEditable(stat)) {
 							return undefined;
 						}
 
-						return item.name;
+						return stat.name;
 					}
 				},
 				multipleSelectionSupport: true,
@@ -337,17 +340,6 @@ export class ExplorerView extends ViewletPanel {
 		}));
 
 		this.disposables.push(this.tree.onContextMenu(e => this.onContextMenu(e)));
-		this.disposables.push(this.tree.onKeyDown(e => {
-			const event = new StandardKeyboardEvent(e);
-			const toggleCollapsed = isMacintosh ? (event.keyCode === KeyCode.DownArrow && event.metaKey) : event.keyCode === KeyCode.Enter;
-			if (toggleCollapsed && !this.explorerService.isEditable(undefined)) {
-				const focus = this.tree.getFocus();
-				if (focus.length === 1 && focus[0].isDirectory) {
-					this.tree.toggleCollapsed(focus[0]);
-				}
-			}
-		}));
-
 
 		// save view state on shutdown
 		this.storageService.onWillSaveState(() => {
@@ -507,27 +499,27 @@ export class ExplorerView extends ViewletPanel {
 		return withNullAsUndefined(toResource(input, { supportSideBySide: true }));
 	}
 
-	private onSelectItem(fileStat: ExplorerItem | undefined, reveal = this.autoReveal): Promise<void> {
-		if (!fileStat || !this.isBodyVisible() || this.tree.getInput() === fileStat) {
-			return Promise.resolve(undefined);
+	private async onSelectResource(resource: URI | undefined, reveal = this.autoReveal): Promise<void> {
+		if (!resource || !this.isBodyVisible()) {
+			return;
 		}
 
 		// Expand all stats in the parent chain
-		const toExpand: ExplorerItem[] = [];
-		let parent = fileStat.parent;
-		while (parent) {
-			toExpand.push(parent);
-			parent = parent.parent;
+		let item: ExplorerItem | undefined = this.explorerService.roots.filter(i => isEqualOrParent(resource, i.resource))[0];
+
+		while (item && item.resource.toString() !== resource.toString()) {
+			await this.tree.expand(item);
+			item = first(values(item.children), i => isEqualOrParent(resource, i.resource));
 		}
 
-		return sequence(toExpand.reverse().map(s => () => this.tree.expand(s))).then(() => {
+		if (item && item.parent) {
 			if (reveal) {
-				this.tree.reveal(fileStat, 0.5);
+				this.tree.reveal(item, 0.5);
 			}
 
-			this.tree.setFocus([fileStat]);
-			this.tree.setSelection([fileStat]);
-		});
+			this.tree.setFocus([item]);
+			this.tree.setSelection([item]);
+		}
 	}
 
 	private onCopyItems(stats: ExplorerItem[], cut: boolean, previousCut: ExplorerItem[] | undefined): void {

@@ -174,8 +174,8 @@ export abstract class ViewletPanel extends Panel implements IView {
 		return [];
 	}
 
-	getActionItem(action: IAction): IActionItem | null {
-		return null;
+	getActionItem(action: IAction): IActionItem | undefined {
+		return undefined;
 	}
 
 	getActionsContext(): any {
@@ -282,7 +282,7 @@ export class PanelViewlet extends Viewlet {
 		return [];
 	}
 
-	getActionItem(action: IAction): IActionItem | null {
+	getActionItem(action: IAction): IActionItem | undefined {
 		if (this.isSingleView()) {
 			return this.panelItems[0].panel.getActionItem(action);
 		}

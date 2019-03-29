@@ -93,8 +93,12 @@ import { ContextViewService } from 'vs/platform/contextview/browser/contextViewS
 // import { MenubarService } from 'vs/platform/menubar/electron-browser/menubarService';
 // import { IURLService } from 'vs/platform/url/common/url';
 // import { RelayURLService } from 'vs/platform/url/electron-browser/urlService';
+import { IHeapService, NullHeapService } from 'vs/workbench/services/heap/common/heap';
+import { IBroadcastService, NullBroadcastService } from 'vs/workbench/services/broadcast/common/broadcast';
 
 import 'vs/workbench/browser/nodeless.simpleservices';
+import 'vs/platform/dialogs/browser/dialogService';
+
 
 import 'vs/workbench/services/bulkEdit/browser/bulkEditService';
 // import 'vs/workbench/services/integrity/node/integrityService';
@@ -135,7 +139,7 @@ import 'vs/workbench/services/label/common/labelService';
 // import 'vs/workbench/services/extensions/electron-browser/extensionManagementServerService';
 // import 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import 'vs/workbench/services/notification/common/notificationService';
-import 'vs/workbench/services/remote/common/remoteEnvironmentService';
+
 
 
 registerSingleton(IMenuService, MenuService, true);
@@ -157,7 +161,6 @@ registerSingleton(IContextViewService, ContextViewService, true);
 // registerSingleton(ILifecycleService, LifecycleService);
 // registerSingleton(ILocalizationsService, LocalizationsService);
 // registerSingleton(ISharedProcessService, SharedProcessService, true);
-// registerSingleton(IRemoteAuthorityResolverService, RemoteAuthorityResolverService, true);
 // registerSingleton(ITelemetryService, TelemetryService);
 // registerSingleton(IProductService, ProductService, true);
 // registerSingleton(IWindowsService, WindowsService);
@@ -166,6 +169,8 @@ registerSingleton(IContextViewService, ContextViewService, true);
 // registerSingleton(IWorkspacesService, WorkspacesService);
 // registerSingleton(IMenubarService, MenubarService);
 // registerSingleton(IURLService, RelayURLService);
+registerSingleton(IHeapService, NullHeapService);
+registerSingleton(IBroadcastService, NullBroadcastService);
 
 registerSingleton(IContextMenuService, ContextMenuService);
 
@@ -236,7 +241,7 @@ import 'vs/workbench/contrib/scm/browser/scmViewlet';
 import 'vs/workbench/contrib/markers/browser/markers.contribution';
 
 // Comments
-// import 'vs/workbench/contrib/comments/electron-browser/comments.contribution';
+// import 'vs/workbench/contrib/comments/browser/comments.contribution';
 
 // URL Support
 import 'vs/workbench/contrib/url/common/url.contribution';

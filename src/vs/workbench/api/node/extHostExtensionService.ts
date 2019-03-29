@@ -640,7 +640,15 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	private _gracefulExit(code: number): void {
 		// to give the PH process a chance to flush any outstanding console
 		// messages to the main process, we delay the exit() by some time
-		setTimeout(() => this._nativeExit(code), 500);
+		setTimeout(() => {
+			// If extension tests are running, give the exit code to the renderer
+			if (this._initData.remoteAuthority && !!this._initData.environment.extensionTestsLocationURI) {
+				this._mainThreadExtensionsProxy.$onExtensionHostExit(code);
+				return;
+			}
+
+			this._nativeExit(code);
+		}, 500);
 	}
 
 	private _startExtensionHost(): Promise<void> {

@@ -929,6 +929,8 @@ export interface DocumentFormattingEditProvider {
 	 */
 	readonly extensionId?: ExtensionIdentifier;
 
+	readonly displayName?: string;
+
 	/**
 	 * Provide formatting edits for a whole document.
 	 */
@@ -939,12 +941,12 @@ export interface DocumentFormattingEditProvider {
  * the formatting-feature.
  */
 export interface DocumentRangeFormattingEditProvider {
-
-
 	/**
 	 * @internal
 	 */
 	readonly extensionId?: ExtensionIdentifier;
+
+	readonly displayName?: string;
 
 	/**
 	 * Provide formatting edits for a range in a document.
@@ -1396,6 +1398,24 @@ export interface WorkspaceCommentProvider {
 	onDidChangeCommentThreads(): Event<CommentThreadChangedEvent>;
 }
 
+/**
+ * @internal
+ */
+export interface IWebviewOptions {
+	readonly enableScripts?: boolean;
+	readonly enableCommandUris?: boolean;
+	readonly localResourceRoots?: ReadonlyArray<URI>;
+	readonly portMapping?: ReadonlyArray<{ port: number, resolvedPort: number }>;
+}
+
+/**
+ * @internal
+ */
+export interface IWebviewPanelOptions {
+	readonly enableFindWidget?: boolean;
+	readonly retainContextWhenHidden?: boolean;
+}
+
 export interface ICodeLensSymbol {
 	range: IRange;
 	id?: string;
@@ -1547,9 +1567,9 @@ export interface ITokenizationRegistry {
 
 	/**
 	 * Get the tokenization support for a language.
-	 * Returns null if not found.
+	 * Returns `null` if not found.
 	 */
-	get(language: string): ITokenizationSupport;
+	get(language: string): ITokenizationSupport | null;
 
 	/**
 	 * Get the promise of a tokenization support for a language.

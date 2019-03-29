@@ -11,9 +11,11 @@ import { localize } from 'vs/nls';
 import { FileFilter } from 'vs/platform/windows/common/windows';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 
+export type DialogType = 'none' | 'info' | 'error' | 'question' | 'warning';
+
 export interface IConfirmation {
 	title?: string;
-	type?: 'none' | 'info' | 'error' | 'question' | 'warning';
+	type?: DialogType;
 	message: string;
 	detail?: string;
 	primaryButton?: string;
@@ -43,6 +45,7 @@ export interface IPickAndOpenOptions {
 	forceNewWindow?: boolean;
 	defaultUri?: URI;
 	telemetryExtraData?: ITelemetryData;
+	availableFileSystems?: string[];
 }
 
 export interface ISaveDialogOptions {

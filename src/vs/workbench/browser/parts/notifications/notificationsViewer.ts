@@ -227,7 +227,7 @@ export class NotificationRenderer implements IListRenderer<INotificationViewItem
 						return item;
 					}
 
-					return null;
+					return undefined;
 				},
 				actionRunner: this.actionRunner
 			}

@@ -14,18 +14,27 @@ import { ColorExtensionPoint } from 'vs/workbench/services/themes/common/colorEx
 import { LanguageConfigurationFileHandler } from 'vs/workbench/contrib/codeEditor/browser/languageConfigurationExtensionPoint';
 
 // --- mainThread participants
-import 'vs/workbench/api/node/apiCommands';
 import '../browser/mainThreadClipboard';
 import '../browser/mainThreadCommands';
 import '../browser/mainThreadConfiguration';
+import '../browser/mainThreadConsole';
 import '../browser/mainThreadDebugService';
 import '../browser/mainThreadDecorations';
 import '../browser/mainThreadDiagnostics';
 import '../browser/mainThreadDialogs';
 import '../browser/mainThreadDocumentContentProviders';
+import '../browser/mainThreadDocuments';
+import '../browser/mainThreadDocumentsAndEditors';
+import '../browser/mainThreadEditor';
+import '../browser/mainThreadEditors';
 import '../browser/mainThreadErrors';
+import '../browser/mainThreadExtensionService';
 import '../browser/mainThreadFileSystem';
 import '../browser/mainThreadFileSystemEventService';
+import '../browser/mainThreadHeapService';
+import '../browser/mainThreadLanguageFeatures';
+import '../browser/mainThreadLanguages';
+import '../browser/mainThreadLogService';
 import '../browser/mainThreadMessageService';
 import '../browser/mainThreadOutputService';
 import '../browser/mainThreadProgress';
@@ -35,25 +44,16 @@ import '../browser/mainThreadSCM';
 import '../browser/mainThreadSearch';
 import '../browser/mainThreadStatusBar';
 import '../browser/mainThreadStorage';
-import './mainThreadComments';
-import './mainThreadConsole';
-import './mainThreadDocuments';
-import './mainThreadDocumentsAndEditors';
-import './mainThreadEditor';
-import './mainThreadEditors';
-import './mainThreadExtensionService';
-import './mainThreadHeapService';
-import './mainThreadLanguageFeatures';
-import '../browser/mainThreadLanguages';
-import '../browser/mainThreadLogService';
-import './mainThreadTask';
 import '../browser/mainThreadTelemetry';
 import '../browser/mainThreadTerminalService';
 import '../browser/mainThreadTreeViews';
-import './mainThreadUrls';
-import './mainThreadWebview';
+import '../browser/mainThreadUrls';
 import '../browser/mainThreadWindow';
 import '../browser/mainThreadWorkspace';
+import '../browser/mainThreadComments';
+import '../browser/mainThreadTask';
+import './mainThreadWebview';
+import 'vs/workbench/api/node/apiCommands';
 
 export class ExtensionPoints implements IWorkbenchContribution {
 

@@ -160,7 +160,7 @@ class OutputFileListener extends Disposable {
 	}
 
 	private doWatch(): Promise<void> {
-		return this.fileService.resolveFile(this.file)
+		return this.fileService.resolve(this.file, { resolveMetadata: true })
 			.then(stat => {
 				if (stat.etag !== this.etag) {
 					this.etag = stat.etag;
@@ -279,7 +279,7 @@ class FileOutputChannelModel extends AbstractFileOutputChannelModel implements I
 	}
 }
 
-class BufferredOutputChannel extends Disposable implements IOutputChannelModel {
+export class BufferredOutputChannel extends Disposable implements IOutputChannelModel {
 
 	readonly file: URI | null = null;
 	scrollLock: boolean = false;

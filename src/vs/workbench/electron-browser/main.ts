@@ -39,6 +39,16 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { registerWindowDriver } from 'vs/platform/driver/electron-browser/driver';
 import { IMainProcessService, MainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
+import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-browser/remoteAuthorityResolverService';
+import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { FileService2 } from 'vs/workbench/services/files2/common/fileService2';
+import { IFileService } from 'vs/platform/files/common/files';
+import { DiskFileSystemProvider } from 'vs/workbench/services/files2/electron-browser/diskFileSystemProvider';
+import { IChannel } from 'vs/base/parts/ipc/common/ipc';
+import { REMOTE_FILE_SYSTEM_CHANNEL_NAME, RemoteExtensionsFileSystemProvider } from 'vs/platform/remote/common/remoteAgentFileSystemChannel';
+import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 
 class CodeRendererMain extends Disposable {
 
@@ -168,8 +178,27 @@ class CodeRendererMain extends Disposable {
 		const logService = this._register(this.createLogService(mainProcessService, environmentService));
 		serviceCollection.set(ILogService, logService);
 
+		// Remote
+		const remoteAuthorityResolverService = new RemoteAuthorityResolverService();
+		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
+
+		const remoteAgentService = new RemoteAgentService(this.configuration, environmentService, remoteAuthorityResolverService);
+		serviceCollection.set(IRemoteAgentService, remoteAgentService);
+
+		// Files
+		const fileService = new FileService2(logService);
+		serviceCollection.set(IFileService, fileService);
+
+		fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(logService));
+
+		const connection = remoteAgentService.getConnection();
+		if (connection) {
+			const channel = connection.getChannel<IChannel>(REMOTE_FILE_SYSTEM_CHANNEL_NAME);
+			fileService.registerProvider(REMOTE_HOST_SCHEME, new RemoteExtensionsFileSystemProvider(channel, remoteAgentService.getEnvironment()));
+		}
+
 		return this.resolveWorkspaceInitializationPayload(environmentService).then(payload => Promise.all([
-			this.createWorkspaceService(payload, environmentService, logService).then(service => {
+			this.createWorkspaceService(payload, environmentService, remoteAgentService, logService).then(service => {
 
 				// Workspace
 				serviceCollection.set(IWorkspaceContextService, service);
@@ -260,8 +289,8 @@ class CodeRendererMain extends Disposable {
 		}, error => onUnexpectedError(error));
 	}
 
-	private createWorkspaceService(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService, logService: ILogService): Promise<WorkspaceService> {
-		const workspaceService = new WorkspaceService(environmentService);
+	private createWorkspaceService(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService, remoteAgentService: IRemoteAgentService, logService: ILogService): Promise<WorkspaceService> {
+		const workspaceService = new WorkspaceService(this.configuration, environmentService, remoteAgentService);
 
 		return workspaceService.initialize(payload).then(() => workspaceService, error => {
 			onUnexpectedError(error);

@@ -7,10 +7,24 @@ import { generateRandomPipeName } from 'vs/base/parts/ipc/node/ipc.net';
 import * as http from 'http';
 import * as fs from 'fs';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
-import { IURIToOpen, URIType } from 'vs/platform/windows/common/windows';
+import { IURIToOpen, URIType, IOpenSettings } from 'vs/platform/windows/common/windows';
 import { URI } from 'vs/base/common/uri';
 import { hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
 
+export interface OpenCommandPipeArgs {
+	type: 'open';
+	fileURIs?: string[];
+	folderURIs: string[];
+	forceNewWindow?: boolean;
+	diffMode?: boolean;
+	addMode?: boolean;
+	forceReuseWindow?: boolean;
+	waitMarkerFilePath?: string;
+}
+
+export interface StatusPipeArgs {
+	type: 'status';
+}
 
 export class CLIServer {
 
@@ -41,7 +55,7 @@ export class CLIServer {
 
 		return this._ipcHandlePath;
 	}
-	private collectURIToOpen(strs: string[], typeHint: URIType, result: IURIToOpen[]): void {
+	private collectURIToOpen(strs: string[] | undefined, typeHint: URIType, result: IURIToOpen[]): void {
 		if (Array.isArray(strs)) {
 			for (const s of strs) {
 				try {
@@ -58,10 +72,13 @@ export class CLIServer {
 		req.setEncoding('utf8');
 		req.on('data', (d: string) => chunks.push(d));
 		req.on('end', () => {
-			const data = JSON.parse(chunks.join(''));
+			const data: OpenCommandPipeArgs | StatusPipeArgs | any = JSON.parse(chunks.join(''));
 			switch (data.type) {
 				case 'open':
 					this.open(data, res);
+					break;
+				case 'status':
+					this.getStatus(data, res);
 					break;
 				default:
 					res.writeHead(404);
@@ -76,8 +93,8 @@ export class CLIServer {
 		});
 	}
 
-	private open(data: any, res: http.ServerResponse) {
-		let { fileURIs, folderURIs, forceNewWindow, diffMode, addMode, forceReuseWindow } = data;
+	private open(data: OpenCommandPipeArgs, res: http.ServerResponse) {
+		let { fileURIs, folderURIs, forceNewWindow, diffMode, addMode, forceReuseWindow, waitMarkerFilePath } = data;
 		if (folderURIs && folderURIs.length || fileURIs && fileURIs.length) {
 			const urisToOpen: IURIToOpen[] = [];
 			this.collectURIToOpen(folderURIs, 'folder', urisToOpen);
@@ -85,10 +102,29 @@ export class CLIServer {
 			if (!forceReuseWindow && urisToOpen.some(o => o.typeHint === 'folder' || (o.typeHint === 'file' && hasWorkspaceFileExtension(o.uri.path)))) {
 				forceNewWindow = true;
 			}
-			this._commands.executeCommand('_files.windowOpen', urisToOpen, { forceNewWindow, diffMode, addMode, forceReuseWindow });
+			const waitMarkerFileURI = waitMarkerFilePath ? URI.file(waitMarkerFilePath) : undefined;
+			const windowOpenArgs: IOpenSettings = { forceNewWindow, diffMode, addMode, forceReuseWindow, waitMarkerFileURI };
+			this._commands.executeCommand('_files.windowOpen', urisToOpen, windowOpenArgs);
 		}
 		res.writeHead(200);
 		res.end();
+	}
+
+	private async getStatus(data: StatusPipeArgs, res: http.ServerResponse) {
+		try {
+			const status = await this._commands.executeCommand('_issues.getSystemStatus');
+			res.writeHead(200);
+			res.write(status);
+			res.end();
+		} catch (err) {
+			res.writeHead(500);
+			res.write(String(err), err => {
+				if (err) {
+					console.error(err);
+				}
+			});
+			res.end();
+		}
 	}
 
 	dispose(): void {

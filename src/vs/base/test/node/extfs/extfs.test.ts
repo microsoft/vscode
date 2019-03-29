@@ -17,7 +17,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 const ignore = () => { };
 
-const mkdirp = (path: string, mode: number, callback: (error) => void) => {
+const mkdirp = (path: string, mode: number, callback: (error: any) => void) => {
 	extfs.mkdirp(path, mode).then(() => callback(null), error => callback(error));
 };
 
@@ -246,41 +246,40 @@ suite('Extfs', () => {
 	});
 
 	test('writeFileAndFlush (string)', function (done) {
-		const id = uuid.generateUuid();
-		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
-		const newDir = path.join(parentDir, 'extfs', id);
-		const testFile = path.join(newDir, 'flushed.txt');
+		const smallData = 'Hello World';
+		const bigData = (new Array(100 * 1024)).join('Large String\n');
 
-		mkdirp(newDir, 493, error => {
-			if (error) {
-				return done(error);
-			}
+		testWriteFileAndFlush(smallData, smallData, bigData, bigData, done);
+	});
 
-			assert.ok(fs.existsSync(newDir));
+	test('writeFileAndFlush (Buffer)', function (done) {
+		const smallData = 'Hello World';
+		const bigData = (new Array(100 * 1024)).join('Large String\n');
 
-			extfs.writeFileAndFlush(testFile, 'Hello World', null!, error => {
-				if (error) {
-					return done(error);
-				}
+		testWriteFileAndFlush(Buffer.from(smallData), smallData, Buffer.from(bigData), bigData, done);
+	});
 
-				assert.equal(fs.readFileSync(testFile), 'Hello World');
+	test('writeFileAndFlush (UInt8Array)', function (done) {
+		const smallData = 'Hello World';
+		const bigData = (new Array(100 * 1024)).join('Large String\n');
 
-				const largeString = (new Array(100 * 1024)).join('Large String\n');
-
-				extfs.writeFileAndFlush(testFile, largeString, null!, error => {
-					if (error) {
-						return done(error);
-					}
-
-					assert.equal(fs.readFileSync(testFile), largeString);
-
-					extfs.del(parentDir, os.tmpdir(), done, ignore);
-				});
-			});
-		});
+		testWriteFileAndFlush(new TextEncoder().encode(smallData), smallData, new TextEncoder().encode(bigData), bigData, done);
 	});
 
 	test('writeFileAndFlush (stream)', function (done) {
+		const smallData = 'Hello World';
+		const bigData = (new Array(100 * 1024)).join('Large String\n');
+
+		testWriteFileAndFlush(toReadable(smallData), smallData, toReadable(bigData), bigData, done);
+	});
+
+	function testWriteFileAndFlush(
+		smallData: string | Buffer | NodeJS.ReadableStream | Uint8Array,
+		smallDataValue: string,
+		bigData: string | Buffer | NodeJS.ReadableStream | Uint8Array,
+		bigDataValue: string,
+		done: (error: Error | null) => void
+	): void {
 		const id = uuid.generateUuid();
 		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
 		const newDir = path.join(parentDir, 'extfs', id);
@@ -293,27 +292,25 @@ suite('Extfs', () => {
 
 			assert.ok(fs.existsSync(newDir));
 
-			extfs.writeFileAndFlush(testFile, toReadable('Hello World'), null!, error => {
+			extfs.writeFileAndFlush(testFile, smallData, null!, error => {
 				if (error) {
 					return done(error);
 				}
 
-				assert.equal(fs.readFileSync(testFile), 'Hello World');
+				assert.equal(fs.readFileSync(testFile), smallDataValue);
 
-				const largeString = (new Array(100 * 1024)).join('Large String\n');
-
-				extfs.writeFileAndFlush(testFile, toReadable(largeString), null!, error => {
+				extfs.writeFileAndFlush(testFile, bigData, null!, error => {
 					if (error) {
 						return done(error);
 					}
 
-					assert.equal(fs.readFileSync(testFile), largeString);
+					assert.equal(fs.readFileSync(testFile), bigDataValue);
 
 					extfs.del(parentDir, os.tmpdir(), done, ignore);
 				});
 			});
 		});
-	});
+	}
 
 	test('writeFileAndFlush (file stream)', function (done) {
 		const id = uuid.generateUuid();

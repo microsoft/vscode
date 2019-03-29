@@ -12,6 +12,7 @@ import { values } from 'vs/base/common/map';
 import { memoize } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Hasher } from 'vs/base/common/hash';
+import { withUndefinedAsNull } from 'vs/base/common/types';
 
 function compareUris(a: URI, b: URI) {
 	const astr = a.toString();
@@ -138,7 +139,7 @@ export class MarkersModel {
 	}
 
 	getResourceMarkers(resource: URI): ResourceMarkers | null {
-		return this.resourcesByUri.get(resource.toString()) || null;
+		return withUndefinedAsNull(this.resourcesByUri.get(resource.toString()));
 	}
 
 	setResourceMarkers(resource: URI, rawMarkers: IMarker[]): void {

@@ -104,7 +104,8 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 	readonly onInputDidChange: Event<string | undefined> = this._onInputDidChange.event;
 
 	private disposables: IDisposable[] = [];
-	private inputWidget: CodeEditorWidget;
+	private readonly inputWidget: CodeEditorWidget;
+	private readonly inputModel: ITextModel;
 	private stylingContainer: HTMLDivElement;
 	private placeholderText: HTMLDivElement;
 
@@ -136,7 +137,8 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		this.disposables.push(this.inputWidget);
 
 		let scopeHandle = uri.parse(resourceHandle);
-		this.inputWidget.setModel(modelService.createModel('', null, scopeHandle, true));
+		this.inputModel = modelService.createModel('', null, scopeHandle, true);
+		this.inputWidget.setModel(this.inputModel);
 
 		this.disposables.push(this.inputWidget.onDidPaste(() => this.setValue(this.getValue()))); // setter cleanses
 
@@ -203,7 +205,7 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 
 	public setValue(val: string) {
 		val = val.replace(/\s/g, ' ');
-		const fullRange = new Range(1, 1, 1, this.getValue().length + 1);
+		const fullRange = this.inputModel.getFullModelRange();
 		this.inputWidget.executeEdits('suggestEnabledInput.setValue', [EditOperation.replace(fullRange, val)]);
 		this.inputWidget.setScrollTop(0);
 		this.inputWidget.setPosition(new Position(1, val.length + 1));

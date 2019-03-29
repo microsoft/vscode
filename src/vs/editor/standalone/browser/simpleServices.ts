@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import * as strings from 'vs/base/common/strings';
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -43,6 +43,7 @@ import { ITelemetryInfo, ITelemetryService } from 'vs/platform/telemetry/common/
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkbenchState, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ILayoutService, IDimension } from 'vs/platform/layout/browser/layoutService';
+import { SimpleServicesNLS } from 'vs/editor/common/standaloneStrings';
 
 export class SimpleModel implements IResolvedTextEditorModel {
 
@@ -280,7 +281,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 		}));
 	}
 
-	public addDynamicKeybinding(commandId: string, _keybinding: number, handler: ICommandHandler, when: ContextKeyExpr | null): IDisposable {
+	public addDynamicKeybinding(commandId: string, _keybinding: number, handler: ICommandHandler, when: ContextKeyExpr | undefined): IDisposable {
 		const keybinding = createKeybinding(_keybinding, OS);
 		if (!keybinding) {
 			throw new Error(`Invalid keybinding`);
@@ -342,7 +343,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 	private _toNormalizedKeybindingItems(items: IKeybindingItem[], isDefault: boolean): ResolvedKeybindingItem[] {
 		let result: ResolvedKeybindingItem[] = [], resultLen = 0;
 		for (const item of items) {
-			const when = (item.when ? item.when.normalize() : null);
+			const when = (item.when ? item.when.normalize() : undefined);
 			const keybinding = item.keybinding;
 
 			if (!keybinding) {
@@ -612,7 +613,7 @@ export class SimpleBulkEditService implements IBulkEditService {
 
 		return Promise.resolve({
 			selection: undefined,
-			ariaSummary: localize('summary', 'Made {0} edits in {1} files', totalEdits, totalFiles)
+			ariaSummary: strings.format(SimpleServicesNLS.bulkEditServiceSummary, totalEdits, totalFiles)
 		});
 	}
 }
@@ -663,10 +664,6 @@ export class SimpleLayoutService implements ILayoutService {
 
 	get container(): HTMLElement {
 		return this._container;
-	}
-
-	get hasWorkbench(): boolean {
-		return false;
 	}
 
 	constructor(private _container: HTMLElement) { }

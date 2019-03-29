@@ -148,7 +148,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 				try {
 					validateConstraint(args[i], description.args[i].constraint);
 				} catch (err) {
-					return Promise.reject(new Error(`Running the contributed command:'${id}' failed. Illegal argument '${description.args[i].name}' - ${description.args[i].description}`));
+					return Promise.reject(new Error(`Running the contributed command: '${id}' failed. Illegal argument '${description.args[i].name}' - ${description.args[i].description}`));
 				}
 			}
 		}
@@ -158,7 +158,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 			return Promise.resolve(result);
 		} catch (err) {
 			this._logService.error(err, id);
-			return Promise.reject(new Error(`Running the contributed command:'${id}' failed.`));
+			return Promise.reject(new Error(`Running the contributed command: '${id}' failed.`));
 		}
 	}
 

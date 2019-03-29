@@ -34,6 +34,7 @@ import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { isWindows } from 'vs/base/common/platform';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 export const TERMINAL_PICKER_PREFIX = 'term ';
 
@@ -291,7 +292,7 @@ export class SendSequenceTerminalCommand extends Command {
 		const workspaceContextService = accessor.get(IWorkspaceContextService);
 		const historyService = accessor.get(IHistoryService);
 		const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(Schemas.file);
-		const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) || undefined : undefined;
+		const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
 		const resolvedText = configurationResolverService.resolve(lastActiveWorkspaceRoot, args.text);
 		terminalInstance.sendText(resolvedText, false);
 	}

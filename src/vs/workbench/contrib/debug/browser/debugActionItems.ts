@@ -214,10 +214,22 @@ export class FocusSessionActionItem extends SelectActionItem {
 		this.update();
 	}
 
+	protected getActionContext(_: string, index: number): any {
+		return this.debugService.getModel().getSessions()[index];
+	}
+
 	private update() {
 		const session = this.debugService.getViewModel().focusedSession;
 		const sessions = this.getSessions();
-		const names = sessions.map(s => s.getLabel());
+		const names = sessions.map(s => {
+			const label = s.getLabel();
+			if (s.parentSession) {
+				// Indent child sessions so they look like children
+				return `\u00A0\u00A0${label}`;
+			}
+
+			return label;
+		});
 		this.setOptions(names.map(data => <ISelectOptionItem>{ text: data }), session ? sessions.indexOf(session) : undefined);
 	}
 

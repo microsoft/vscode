@@ -93,7 +93,7 @@ class CreateBranchItem implements QuickPickItem {
 
 	constructor(private cc: CommandCenter) { }
 
-	get label(): string { return localize('create branch', '$(plus) Create new branch'); }
+	get label(): string { return localize('create branch', '$(plus) Create new branch...'); }
 	get description(): string { return ''; }
 
 	get alwaysShow(): boolean { return true; }

@@ -8,8 +8,8 @@ import { app, dialog } from 'electron';
 import { assign } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import product from 'vs/platform/product/node/product';
-import { parseMainProcessArgv, createWaitMarkerFile } from 'vs/platform/environment/node/argvHelper';
-import { addArg } from 'vs/platform/environment/node/argv';
+import { parseMainProcessArgv } from 'vs/platform/environment/node/argvHelper';
+import { addArg, createWaitMarkerFile } from 'vs/platform/environment/node/argv';
 import { mkdirp } from 'vs/base/node/pfs';
 import { validatePaths } from 'vs/code/node/paths';
 import { LifecycleService, ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
@@ -142,7 +142,10 @@ function setupIPC(accessor: ServicesAccessor): Promise<Server> {
 					if (environmentService.args.status) {
 						return service.getMainProcessInfo().then(info => {
 							return instantiationService.invokeFunction(accessor => {
-								return accessor.get(IDiagnosticsService).printDiagnostics(info).then(() => Promise.reject(new ExpectedError()));
+								return accessor.get(IDiagnosticsService).getDiagnostics(info).then(diagnostics => {
+									console.log(diagnostics);
+									return Promise.reject(new ExpectedError());
+								});
 							});
 						});
 					}
@@ -212,7 +215,7 @@ function showStartupWarningDialog(message: string, detail: string): void {
 	});
 }
 
-function handleStartupDataDirError(environmentService: IEnvironmentService, error): void {
+function handleStartupDataDirError(environmentService: IEnvironmentService, error: NodeJS.ErrnoException): void {
 	if (error.code === 'EACCES' || error.code === 'EPERM') {
 		showStartupWarningDialog(
 			localize('startupDataDirError', "Unable to write program user data."),
@@ -357,20 +360,13 @@ function main(): void {
 	// Note: we are not doing this if the wait marker has been already
 	// added as argument. This can happen if Code was started from CLI.
 	if (args.wait && !args.waitMarkerFilePath) {
-		createWaitMarkerFile(args.verbose).then(waitMarkerFilePath => {
-			if (waitMarkerFilePath) {
-				addArg(process.argv, '--waitMarkerFilePath', waitMarkerFilePath);
-				args.waitMarkerFilePath = waitMarkerFilePath;
-			}
-
-			startup(args);
-		});
+		const waitMarkerFilePath = createWaitMarkerFile(args.verbose);
+		if (waitMarkerFilePath) {
+			addArg(process.argv, '--waitMarkerFilePath', waitMarkerFilePath);
+			args.waitMarkerFilePath = waitMarkerFilePath;
+		}
 	}
-
-	// Otherwise just startup normally
-	else {
-		startup(args);
-	}
+	startup(args);
 }
 
 main();

@@ -253,7 +253,7 @@ class MarkerWidget extends Disposable {
 	) {
 		super();
 		this.actionBar = this._register(new ActionBar(dom.append(parent, dom.$('.actions')), {
-			actionItemProvider: (action) => action.id === QuickFixAction.ID ? instantiationService.createInstance(QuickFixActionItem, action) : null
+			actionItemProvider: (action) => action.id === QuickFixAction.ID ? instantiationService.createInstance(QuickFixActionItem, action) : undefined
 		}));
 		this.icon = dom.append(parent, dom.$('.icon'));
 		this.multilineActionbar = this._register(new ActionBar(dom.append(parent, dom.$('.multiline-actions'))));
@@ -318,7 +318,7 @@ class MarkerWidget extends Disposable {
 		dom.toggleClass(messageContainer, 'multiline', multiline);
 
 		let lastLineElement = messageContainer;
-		for (let index = 0; index < lines.length; index++) {
+		for (let index = 0; index < (multiline ? lines.length : 1); index++) {
 			lastLineElement = dom.append(messageContainer, dom.$('.marker-message-line'));
 			const highlightedLabel = new HighlightedLabel(lastLineElement, false);
 			highlightedLabel.set(lines[index], lineMatches[index]);

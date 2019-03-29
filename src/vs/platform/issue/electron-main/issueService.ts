@@ -72,7 +72,7 @@ export class IssueService implements IIssueService {
 			}
 		});
 
-		ipcMain.on('vscode:workbenchCommand', (_: unknown, commandInfo) => {
+		ipcMain.on('vscode:workbenchCommand', (_: unknown, commandInfo: { id: any; from: any; args: any; }) => {
 			const { id, from, args } = commandInfo;
 
 			let parentWindow: BrowserWindow | null;
@@ -92,7 +92,7 @@ export class IssueService implements IIssueService {
 			}
 		});
 
-		ipcMain.on('vscode:openExternal', (_: unknown, arg) => {
+		ipcMain.on('vscode:openExternal', (_: unknown, arg: string) => {
 			this.windowsService.openExternal(arg);
 		});
 
@@ -211,6 +211,12 @@ export class IssueService implements IIssueService {
 			if (this._processExplorerWindow) {
 				this._processExplorerWindow.focus();
 			}
+		});
+	}
+
+	public getSystemStatus(): Promise<string> {
+		return this.launchService.getMainProcessInfo().then(info => {
+			return this.diagnosticsService.getDiagnostics(info);
 		});
 	}
 

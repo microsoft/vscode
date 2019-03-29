@@ -11,7 +11,7 @@ import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibi
 export class TestConfiguration extends CommonEditorConfiguration {
 
 	constructor(opts: IEditorOptions) {
-		super(opts);
+		super(false, opts);
 		this._recomputeOptions();
 	}
 

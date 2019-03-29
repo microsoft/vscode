@@ -36,12 +36,26 @@ declare module 'vscode' {
 
 	export interface CallHierarchyItemProvider {
 
+		/**
+		 * Given a document and position compute a call hierarchy item. This is justed as
+		 * anchor for call hierarchy and then `resolveCallHierarchyItem` is being called.
+		 */
 		provideCallHierarchyItem(
 			document: TextDocument,
 			postion: Position,
 			token: CancellationToken
 		): ProviderResult<CallHierarchyItem>;
 
+		/**
+		 * Resolve a call hierarchy item, e.g. compute all calls from or to a function.
+		 * The result is an array of item/location-tuples. The location in the returned tuples
+		 * is always relative to the "caller" with the caller either being the provided item or
+		 * the returned item.
+		 *
+		 * @param item A call hierarchy item previously returned from `provideCallHierarchyItem` or `resolveCallHierarchyItem`
+		 * @param direction Resolve calls from a function or calls to a function
+		 * @param token A cancellation token
+		 */
 		resolveCallHierarchyItem(
 			item: CallHierarchyItem,
 			direction: CallHierarchyDirection,
@@ -573,22 +587,6 @@ declare module 'vscode' {
 	//#endregion
 
 	//#region André: debug
-
-	export namespace debug {
-
-		/**
-		 * Start debugging by using either a named launch or named compound configuration,
-		 * or by directly passing a [DebugConfiguration](#DebugConfiguration).
-		 * The named configurations are looked up in '.vscode/launch.json' found in the given folder.
-		 * Before debugging starts, all unsaved files are saved and the launch configurations are brought up-to-date.
-		 * Folder specific variables used in the configuration (e.g. '${workspaceFolder}') are resolved against the given folder.
-		 * @param folder The [workspace folder](#WorkspaceFolder) for looking up named configurations and resolving variables or `undefined` for a non-folder setup.
-		 * @param nameOrConfiguration Either the name of a debug or compound configuration or a [DebugConfiguration](#DebugConfiguration) object.
-		 * @param parent If specified the newly created debug session is registered as a "child" session of a "parent" debug session.
-		 * @return A thenable that resolves when debugging could be successfully started.
-		 */
-		export function startDebugging(folder: WorkspaceFolder | undefined, nameOrConfiguration: string | DebugConfiguration, parentSession?: DebugSession): Thenable<boolean>;
-	}
 
 	// deprecated
 
@@ -1376,6 +1374,37 @@ declare module 'vscode' {
 		 * Controls whether the task is executed in a specific terminal group using split panes.
 		 */
 		group?: string;
+	}
+	//#endregion
+
+	//#region Webview Port mapping— mjbvz
+	/**
+	 * Defines a port mapping used for localhost inside the webview.
+	 */
+	export interface WebviewPortMapping {
+		/**
+		 * Localhost port to remap inside the webview.
+		 */
+		readonly port: number;
+
+		/**
+		 * Destination port. The `port` is resolved to this port.
+		 */
+		readonly resolvedPort: number;
+	}
+
+	export interface WebviewOptions {
+		/**
+		 * Mappings of localhost ports used inside the webview.
+		 *
+		 * Port mapping allow webviews to transparently define how localhost ports are resolved. This can be used
+		 * to allow using a static localhost port inside the webview that is resolved to random port that a service is
+		 * running on.
+		 *
+		 * If a webview accesses localhost content, we recomend that you specify port mappings even if
+		 * the `from` and `to` ports are the same.
+		 */
+		readonly portMapping?: ReadonlyArray<WebviewPortMapping>;
 	}
 	//#endregion
 }

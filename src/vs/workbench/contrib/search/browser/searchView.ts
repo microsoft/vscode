@@ -1200,7 +1200,7 @@ export class SearchView extends ViewletPanel {
 		// Validate folderQueries
 		const folderQueriesExistP =
 			query.folderQueries.map(fq => {
-				return this.fileService.existsFile(fq.folder);
+				return this.fileService.exists(fq.folder);
 			});
 
 		return Promise.resolve(folderQueriesExistP).then(existResults => {
