@@ -1848,7 +1848,14 @@ class TaskService extends Disposable implements ITaskService {
 
 	private canRunCommand(): boolean {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
-			this.notificationService.info(nls.localize('TaskService.noWorkspace', 'Tasks are only available on a workspace folder.'));
+			this.notificationService.prompt(
+				Severity.Info,
+				nls.localize('TaskService.noWorkspace', "Tasks are only available on a workspace folder. Please follow the link to learn about Tasks."),
+				[{
+					label: nls.localize('learnTasks', "Tasks"),
+					run: () => window.open('https://code.visualstudio.com/docs/editor/tasks')
+				}]
+			);
 			return false;
 		}
 		return true;
