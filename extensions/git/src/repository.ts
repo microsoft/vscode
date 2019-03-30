@@ -543,6 +543,10 @@ export class Repository implements Disposable {
 		return this.repository.root;
 	}
 
+	get isRawRootPath(): boolean {
+		return this.repository.isRawRootPath;
+	}
+
 	private isRepositoryHuge = false;
 	private didWarnAboutLimit = false;
 	private isFreshRepository: boolean | undefined = undefined;

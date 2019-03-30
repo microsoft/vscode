@@ -164,11 +164,32 @@ export class Model {
 	private onDidChangeConfiguration(): void {
 		const possibleRepositoryFolders = (workspace.workspaceFolders || [])
 			.filter(folder => workspace.getConfiguration('git', folder.uri).get<boolean>('enabled') === true)
-			.filter(folder => !this.getOpenRepository(folder.uri));
+			.filter(folder => {
+				const repo = this.getOpenRepository(folder.uri);
+				const useRawRootPath = workspace.getConfiguration('git', folder.uri)
+					.get<boolean>('useRawRootPath');
+				return (
+					!repo
+					|| (repo.repository.isRawRootPath !== useRawRootPath)
+				);
+			});
 
 		const openRepositoriesToDispose = this.openRepositories
 			.map(repository => ({ repository, root: Uri.file(repository.repository.root) }))
-			.filter(({ root }) => workspace.getConfiguration('git', root).get<boolean>('enabled') !== true)
+			.filter(({ root }) => {
+				const isEnabled = workspace.getConfiguration('git', root)
+					.get<boolean>('enabled');
+				const useRawRootPath = workspace.getConfiguration('git', root)
+					.get<boolean>('useRawRootPath');
+				const repo = this.getOpenRepository(root.fsPath);
+				return (
+					repo
+					&& (
+						(repo.repository.isRawRootPath !== useRawRootPath)
+						|| !isEnabled
+					)
+				);
+			})
 			.map(({ repository }) => repository);
 
 		possibleRepositoryFolders.forEach(p => this.openRepository(p.uri.fsPath));
@@ -232,7 +253,10 @@ export class Model {
 				return;
 			}
 
-			const repository = new Repository(this.git.open(repositoryRoot), this.globalState);
+			const repository = new Repository(
+				this.git.open(repositoryRoot, config.useRawRootPath ? path : undefined),
+				this.globalState
+			);
 
 			this.open(repository);
 		} catch (err) {

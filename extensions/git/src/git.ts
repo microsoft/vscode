@@ -326,8 +326,8 @@ export class Git {
 		this.env = options.env || {};
 	}
 
-	open(repository: string): Repository {
-		return new Repository(this, repository);
+	open(repository: string, rawpath?: string): Repository {
+		return new Repository(this, repository, rawpath);
 	}
 
 	async init(repository: string): Promise<void> {
@@ -645,7 +645,8 @@ export class Repository {
 
 	constructor(
 		private _git: Git,
-		private repositoryRoot: string
+		private repositoryRoot: string,
+		private repositoryRawRoot?: string
 	) { }
 
 	get git(): Git {
@@ -653,7 +654,13 @@ export class Repository {
 	}
 
 	get root(): string {
-		return this.repositoryRoot;
+		return this.repositoryRawRoot ?
+			this.repositoryRawRoot :
+			this.repositoryRoot;
+	}
+
+	get isRawRootPath(): boolean {
+		return typeof this.repositoryRawRoot === 'string';
 	}
 
 	// TODO@Joao: rename to exec
