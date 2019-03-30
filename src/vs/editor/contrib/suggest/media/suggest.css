@@ -99,7 +99,7 @@
 
 /** Icon styles **/
 
-.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .close,
+.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .close > .cross,
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .readMore {
 	opacity: 0.6;
 	background-position: center center;
@@ -109,16 +109,22 @@
 }
 
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .close {
-	background-image: url('./close.svg');
+	display: flex;
+	justify-content: center;
+	align-items: center;
 	float: right;
 	margin-right: 5px;
+}
+
+.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .close > .cross {
+	background-image: url('./close.svg');
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .readMore {
 	background-image: url('./info.svg');
 }
 
-.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .close:hover,
+.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .close > .cross:hover,
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .readMore:hover {
 	opacity: 1;
 }
@@ -296,8 +302,8 @@
 
 /* High Contrast and Dark Theming */
 
-.monaco-editor.vs-dark .suggest-widget .details > .monaco-scrollable-element > .body > .header > .close,
-.monaco-editor.hc-black .suggest-widget .details > .monaco-scrollable-element > .body > .header > .close {
+.monaco-editor.vs-dark .suggest-widget .details > .monaco-scrollable-element > .body > .header > .close > .cross,
+.monaco-editor.hc-black .suggest-widget .details > .monaco-scrollable-element > .body > .header > .close > .cross {
 	background-image: url('./close-dark.svg');
 }
 

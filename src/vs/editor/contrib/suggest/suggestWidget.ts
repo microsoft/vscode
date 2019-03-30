@@ -231,6 +231,7 @@ class SuggestionDetails {
 
 	private el: HTMLElement;
 	private close: HTMLElement;
+	private cross: HTMLElement;
 	private scrollbar: DomScrollableElement;
 	private body: HTMLElement;
 	private header: HTMLElement;
@@ -261,7 +262,8 @@ class SuggestionDetails {
 
 		this.header = append(this.body, $('.header'));
 		this.close = append(this.header, $('span.close'));
-		this.close.title = nls.localize('readLess', "Read less...{0}", this.triggerKeybindingLabel);
+		this.cross = append(this.close, $('span.cross'));
+		this.cross.title = nls.localize('readLess', "Read less...{0}", this.triggerKeybindingLabel);
 		this.type = append(this.header, $('p.type'));
 
 		this.docs = append(this.body, $('p.docs'));
@@ -312,11 +314,11 @@ class SuggestionDetails {
 
 		this.el.style.height = this.header.offsetHeight + this.docs.offsetHeight + (this.borderWidth * 2) + 'px';
 
-		this.close.onmousedown = e => {
+		this.cross.onmousedown = e => {
 			e.preventDefault();
 			e.stopPropagation();
 		};
-		this.close.onclick = e => {
+		this.cross.onclick = e => {
 			e.preventDefault();
 			e.stopPropagation();
 			this.widget.toggleDetails();
@@ -371,12 +373,16 @@ class SuggestionDetails {
 		const fontWeight = configuration.fontInfo.fontWeight;
 		const fontSizePx = `${fontSize}px`;
 		const lineHeightPx = `${lineHeight}px`;
+		const sizeCross = `${lineHeight / 2}px`;
 
 		this.el.style.fontSize = fontSizePx;
 		this.el.style.fontWeight = fontWeight;
 		this.type.style.fontFamily = fontFamily;
 		this.close.style.height = lineHeightPx;
 		this.close.style.width = lineHeightPx;
+		this.cross.style.width = sizeCross;
+		this.cross.style.height = sizeCross;
+		this.cross.style.backgroundSize = lineHeightPx;
 	}
 
 	dispose(): void {
