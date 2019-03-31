@@ -263,6 +263,11 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('terminal.integrated.windowsEnableConpty', "Whether to use ConPTY for Windows terminal process communication (requires Windows 10 build number 18309+). Winpty will be used if this is false."),
 			type: 'boolean',
 			default: true
+		},
+		'terminal.integrated.experimentalRefreshOnResume': {
+			description: nls.localize('terminal.integrated.experimentalRefreshOnResume', "An experimental setting that will refresh the terminal renderer when the system is resumed."),
+			type: 'boolean',
+			default: false
 		}
 	}
 });

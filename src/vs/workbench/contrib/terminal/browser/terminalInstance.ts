@@ -764,6 +764,14 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public forceRedraw(): void {
+		if (this._configHelper.config.experimentalRefreshOnResume) {
+			if (this._xterm.getOption('rendererType') !== 'dom') {
+				this._xterm.setOption('rendererType', 'dom');
+				// Do this asynchronously to clear our the texture atlas as all terminals will not
+				// be using canvas
+				setTimeout(() => this._xterm.setOption('rendererType', 'canvas'), 0);
+			}
+		}
 		this._xterm.refresh(0, this._xterm.rows - 1);
 	}
 
@@ -788,6 +796,7 @@ export class TerminalInstance implements ITerminalInstance {
 	public paste(): void {
 		this.focus();
 		document.execCommand('paste');
+		this.forceRedraw();
 	}
 
 	public write(text: string): void {
