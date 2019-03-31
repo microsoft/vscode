@@ -848,7 +848,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 
 		this.selectionDetailsPane.innerText = '';
 		const selectedIndex = e.indexes[0];
-		if (!selectedIndex || !!this.options[selectedIndex]) {
+		if (!selectedIndex || !this.options[selectedIndex]) {
 			return;
 		}
 
