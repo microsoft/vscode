@@ -138,7 +138,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				// want to enforce that Code stays in the foreground. This triggers a disable_hidden_
 				// flag that Electron provides via patch:
 				// https://github.com/electron/libchromiumcontent/blob/master/patches/common/chromium/disable_hidden.patch
-				backgroundThrottling: false
+				backgroundThrottling: false,
+				nativeWindowOpen: true
 			}
 		};
 
@@ -179,6 +180,23 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Create the browser window.
 		this._win = new BrowserWindow(options);
+
+		this._win.webContents.on('new-window', (event, url, frameName, disposition, options) => {
+			// if (frameName === 'modal') {
+				// open window as modal
+				event.preventDefault();
+				//@ts-ignore
+				Object.assign(options, {
+					modal: true,
+					parent: this._win,
+					width: 100,
+					height: 100
+				});
+				//@ts-ignore
+				event.newGuest = new BrowserWindow(options);
+			// }
+		});
+
 		this._id = this._win.id;
 
 		if (isMacintosh && useCustomTitleStyle) {

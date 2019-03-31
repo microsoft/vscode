@@ -6256,6 +6256,11 @@ once@1.x, once@^1.3.0, once@^1.3.1, once@^1.3.2, once@^1.4.0:
   dependencies:
     wrappy "1"
 
+one-time@0.0.4:
+  version "0.0.4"
+  resolved "https://registry.yarnpkg.com/one-time/-/one-time-0.0.4.tgz#f8cdf77884826fe4dff93e3a9cc37b1e4480742e"
+  integrity sha1-+M33eISCb+Tf+T46nMN7HkSAdC4=
+
 onetime@^1.0.0:
   version "1.1.0"
   resolved "https://registry.yarnpkg.com/onetime/-/onetime-1.1.0.tgz#a1f7838f8314c516f05ecefcbc4ccfe04b4ed789"
@@ -7815,6 +7820,13 @@ sax@>=0.6.0, sax@^1.2.4, sax@~1.2.1:
   version "1.2.4"
   resolved "https://registry.yarnpkg.com/sax/-/sax-1.2.4.tgz#2816234e2378bddc4e5354fab5caa895df7100d9"
   integrity sha512-NqVDv9TpANUjFm0N8uM5GxL36UgKi9/atZw+x7YFnQ8ckwFGKrl4xX4yWtrey3UJm5nP1kUbnYgLopqWNSRhWw==
+
+say@^0.15.0:
+  version "0.15.0"
+  resolved "https://registry.yarnpkg.com/say/-/say-0.15.0.tgz#ca0d7b88a06cfc485aaa82287b263c31a0d33e75"
+  integrity sha512-X/vJ/ETDUnU0WZVJ1HA6AHzJJzT0PvFuZyThJ76wkqwsgcgvqJVH3tf+EqHdDBgANdYUEEmqzYo6I31cvT08pQ==
+  dependencies:
+    one-time "0.0.4"
 
 schema-utils@^0.4.4, schema-utils@^0.4.5:
   version "0.4.7"

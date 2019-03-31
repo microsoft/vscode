@@ -486,6 +486,106 @@ export class TextAreaInput extends Disposable {
 
 	private _ensureClipboardGetsEditorSelection(e: ClipboardEvent): void {
 		const copyPlainText = this._host.getPlainTextToCopy();
+
+		// SNIPPET COPYING BEGINNING
+		console.log(copyPlainText); // on copy
+
+		//@ts-ignore
+		function closeHandler() {
+			dialog.style.display = 'none';
+		}
+
+		//@ts-ignore
+		function saveHandler() {
+			//@ts-ignore
+			var title = document.getElementById("inpTitle")!.value;
+			//@ts-ignore
+			var desc = document.getElementById("inpDesc")!.value;
+
+			var data = JSON.stringify({
+				"sections": [
+					{
+						"contents": copyPlainText,
+						"name": title ? title : ""
+					}
+				],
+				"description": desc ? desc : ""
+			});
+
+			var xhr = new XMLHttpRequest();
+			xhr.withCredentials = true;
+
+			xhr.addEventListener("readystatechange", function () {
+				if (this.readyState === 4) {
+					console.log(this.responseText);
+				}
+			});
+
+
+			xhr.open("POST", "https://api.paste.ee/v1/pastes");
+			xhr.setRequestHeader("Content-Type", "application/json");
+			xhr.setRequestHeader("X-Auth-Token", "acaL4WWYqOgpCebAqpijFO0WPec7eZiECPbYGqu4a");
+			xhr.setRequestHeader("Cache-Control", "no-cache");
+
+			xhr.onreadystatechange = function() { // Call a function when the state changes.
+				if (this.readyState === XMLHttpRequest.DONE) {
+					// Request finished. Do processing here.
+					const link = JSON.parse(xhr.response).link;
+					if (window.confirm(`Link saved to ${link}. If you click "ok" you would be redirected.`))
+					{
+						window.open(link, '_blank');
+					}
+				}
+			};
+
+			xhr.send(data);
+
+			// SNIPPET COPYING END
+		}
+
+		var dialog = document.createElement("div");
+		//@ts-ignore
+		dialog.style.position = 'fixed';
+		dialog.style.width = '300px';
+		dialog.style.height = '0px';
+		dialog.style.background = 'black';
+		dialog.style.left = '50%';
+		dialog.style.top = '50%';
+		dialog.style.transform = 'translate(-50%, -50%)';
+		dialog.style.boxShadow = "3px 3px 3px 1px rgba(0,0,0,0.27)";
+		dialog.style.zIndex = "9999";
+		dialog.style.display = 'flex';
+		dialog.style.flexDirection = 'column';
+		dialog.style.color = 'white';
+		dialog.style.margin = '2em';
+		dialog.style.transition = '300ms ease all';
+		dialog.style.justifyContent = 'center';
+		dialog.style.alignItems = 'center';
+
+		setTimeout(() => dialog.style.height = '300px', 1);
+
+		var saveButton = document.createElement('span');
+		saveButton.innerHTML = '<button id="saveButton" style="margin: 1em">save snippet</button>';
+		saveButton.addEventListener('click', saveHandler);
+
+		var closeButton = document.createElement('span');
+		closeButton.innerHTML = '<button id="closeButton" style="margin: 1em">cancel</button>';
+		closeButton.addEventListener('click', closeHandler);
+
+		dialog.innerHTML = `
+		<h1>Snippet title</h1>
+		<input id="inpTitle" type="text" />
+		<h1>Description</h1>
+		<input id="inpDesc" type="text" />
+		`;
+
+		//@ts-ignore
+		dialog.appendChild(saveButton);
+		dialog.appendChild(closeButton);
+
+		var currentDiv = document.getElementById("monaco-parts-splash");
+		document.body.insertBefore(dialog, currentDiv);
+
 		if (!ClipboardEventUtils.canUseTextData(e)) {
 			// Looks like an old browser. The strategy is to place the text
 			// we'd like to be copied to the clipboard in the textarea and select it.
