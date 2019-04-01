@@ -16,6 +16,9 @@ export const KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE = new RawContextKey<
 
 export const IWebviewService = createDecorator<IWebviewService>('webviewService');
 
+/**
+ * Handles the creation of webview elements.
+ */
 export interface IWebviewService {
 	_serviceBrand: any;
 
@@ -82,7 +85,4 @@ export interface Webview {
 
 	showFind(): void;
 	hideFind(): void;
-	find(value: string, previous: boolean): void;
-	startFind(value: string): void;
-	stopFind(keepSelection?: boolean): void;
 }
