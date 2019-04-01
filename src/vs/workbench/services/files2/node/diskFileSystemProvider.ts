@@ -6,7 +6,7 @@
 import { mkdir, open, close, read, write } from 'fs';
 import { promisify } from 'util';
 import { IDisposable, Disposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, FileSystemProviderErrorCode, createFileSystemProviderError, FileSystemProviderError, FileChangeType } from 'vs/platform/files/common/files';
+import { IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, FileSystemProviderErrorCode, createFileSystemProviderError, FileSystemProviderError, FileChangeType, isParent } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { isLinux, isWindows } from 'vs/base/common/platform';
@@ -14,9 +14,10 @@ import { statLink, readdir, unlink, move, copy, readFile, writeFile, fileExists,
 import { normalize, basename, dirname } from 'vs/base/common/path';
 import { joinPath } from 'vs/base/common/resources';
 import { isEqual } from 'vs/base/common/extpath';
-import { retry } from 'vs/base/common/async';
-import { ILogService } from 'vs/platform/log/common/log';
+import { retry, ThrottledDelayer } from 'vs/base/common/async';
+import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { localize } from 'vs/nls';
+import { ResourceMap } from 'vs/base/common/map';
 
 export class DiskFileSystemProvider extends Disposable implements IFileSystemProvider {
 
@@ -306,6 +307,9 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 	private _onDidChangeFile: Emitter<IFileChange[]> = this._register(new Emitter<IFileChange[]>());
 	get onDidChangeFile(): Event<IFileChange[]> { return this._onDidChangeFile.event; }
 
+	private fileChangesDelayer: ThrottledDelayer<void> = new ThrottledDelayer<void>(50);
+	private fileChangesBuffer: IFileChange[] = [];
+
 	watch(resource: URI, opts: IWatchOptions): IDisposable {
 		if (opts.recursive) {
 			return this.watchRecursive(resource, opts);
@@ -328,19 +332,49 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 			}
 
 			disposable = watchNonRecursive({ path: resource.fsPath, isDirectory: fileStat.type === FileType.Directory }, (eventType: 'change' | 'delete', path: string) => {
-
-				// Logging
-				this.logService.trace(`[File Watcher (node.js)] ${eventType === 'change' ? '[CHANGED]' : '[DELETED]'} ${path}`);
-
-				// Emit as event
-				this._onDidChangeFile.fire([{
+				this.onFileChange({
 					type: eventType === 'change' ? FileChangeType.UPDATED : FileChangeType.DELETED,
 					resource: URI.file(path)
-				}]);
+				});
 			}, error => this.logService.error(error));
 		});
 
 		return toDisposable(() => dispose(disposable));
+	}
+
+	private onFileChange(event: IFileChange): void {
+
+		// Add to buffer
+		this.fileChangesBuffer.push(event);
+
+		// Logging
+		if (this.logService.getLevel() === LogLevel.Trace) {
+			this.logService.trace(`[File Watcher (node.js)] ${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.resource.fsPath}`);
+		}
+
+		// Handle emit through delayer to accommodate for bulk changes and thus reduce spam
+		this.fileChangesDelayer.trigger(() => {
+			const buffer = this.fileChangesBuffer;
+			this.fileChangesBuffer = [];
+
+			// Event normalization
+			const normalizer = new FileChangeEventNormalizer();
+			for (const event of buffer) {
+				normalizer.processEvent(event);
+			}
+
+			const normalizedEvents = normalizer.normalize();
+			if (this.logService.getLevel() === LogLevel.Trace) {
+				normalizedEvents.forEach(event => {
+					this.logService.trace(`[File Watcher (node.js)] >> normalized ${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.resource.fsPath}`);
+				});
+			}
+
+			// Fire
+			this._onDidChangeFile.fire(normalizedEvents);
+
+			return Promise.resolve();
+		});
 	}
 
 	//#endregion
@@ -379,4 +413,77 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 	}
 
 	//#endregion
+}
+
+class FileChangeEventNormalizer {
+	private normalized: IFileChange[] = [];
+	private mapPathToChange: ResourceMap<IFileChange> = new ResourceMap();
+
+	processEvent(event: IFileChange): void {
+		const existingEvent = this.mapPathToChange.get(event.resource);
+
+		// Event path already exists
+		if (existingEvent) {
+			const currentChangeType = existingEvent.type;
+			const newChangeType = event.type;
+
+			// ignore CREATE followed by DELETE in one go
+			if (currentChangeType === FileChangeType.ADDED && newChangeType === FileChangeType.DELETED) {
+				this.mapPathToChange.delete(event.resource);
+				this.normalized.splice(this.normalized.indexOf(existingEvent), 1);
+			}
+
+			// flatten DELETE followed by CREATE into CHANGE
+			else if (currentChangeType === FileChangeType.DELETED && newChangeType === FileChangeType.ADDED) {
+				existingEvent.type = FileChangeType.UPDATED;
+			}
+
+			// Do nothing. Keep the created event
+			else if (currentChangeType === FileChangeType.ADDED && newChangeType === FileChangeType.UPDATED) { }
+
+			// Otherwise apply change type
+			else {
+				existingEvent.type = newChangeType;
+			}
+		}
+
+		// Otherwise store it
+		else {
+			this.normalized.push(event);
+			this.mapPathToChange.set(event.resource, event);
+		}
+	}
+
+	normalize(): IFileChange[] {
+		const addedChangeEvents: IFileChange[] = [];
+		const deletedPaths: string[] = [];
+
+		// This algorithm will remove all DELETE events up to the root folder
+		// that got deleted if any. This ensures that we are not producing
+		// DELETE events for each file inside a folder that gets deleted.
+		//
+		// 1.) split ADD/CHANGE and DELETED events
+		// 2.) sort short deleted paths to the top
+		// 3.) for each DELETE, check if there is a deleted parent and ignore the event in that case
+		return this.normalized.filter(e => {
+			if (e.type !== FileChangeType.DELETED) {
+				addedChangeEvents.push(e);
+
+				return false; // remove ADD / CHANGE
+			}
+
+			return true; // keep DELETE
+		}).sort((e1, e2) => {
+			return e1.resource.fsPath.length - e2.resource.fsPath.length; // shortest path first
+		}).filter(e => {
+			if (deletedPaths.some(d => isParent(e.resource.fsPath, d, !isLinux /* ignorecase */))) {
+				return false; // DELETE is ignored if parent is deleted already
+			}
+
+			// otherwise mark as deleted
+			deletedPaths.push(e.resource.fsPath);
+
+			return true;
+		}).concat(addedChangeEvents);
+	}
 }
