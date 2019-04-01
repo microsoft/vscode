@@ -5,17 +5,12 @@
 
 import * as fs from 'fs';
 import * as paths from 'vs/base/common/path';
-import { nfcall } from 'vs/base/common/async';
 import { normalizeNFC } from 'vs/base/common/normalization';
 import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import * as uuid from 'vs/base/common/uuid';
 import { encode, encodeStream } from 'vs/base/node/encoding';
-import * as flow from 'vs/base/node/flow';
-import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable, toDisposable, Disposable } from 'vs/base/common/lifecycle';
-
-const loop = flow.loop;
 
 export function readdirSync(path: string): string[] {
 	// Mac: uses NFD unicode form on disk, but we want NFC
@@ -61,115 +56,6 @@ export function statLink(path: string, callback: (error: Error | null, statAndIs
 		} else {
 			callback(null, { stat: lstat, isSymbolicLink: false });
 		}
-	});
-}
-
-export function copy(source: string, target: string, callback: (error: Error | null) => void, copiedSourcesIn?: { [path: string]: boolean }): void {
-	const copiedSources = copiedSourcesIn ? copiedSourcesIn : Object.create(null);
-
-	fs.stat(source, (error, stat) => {
-		if (error) {
-			return callback(error);
-		}
-
-		if (!stat.isDirectory()) {
-			return doCopyFile(source, target, stat.mode & 511, callback);
-		}
-
-		if (copiedSources[source]) {
-			return callback(null); // escape when there are cycles (can happen with symlinks)
-		}
-
-		copiedSources[source] = true; // remember as copied
-
-		const proceed = function () {
-			readdir(source, (err, files) => {
-				loop(files, (file: string, clb: (error: Error | null, result: string[]) => void) => {
-					copy(paths.join(source, file), paths.join(target, file), (error: Error) => clb(error, []), copiedSources);
-				}, callback);
-			});
-		};
-
-		mkdirp(target, stat.mode & 511).then(proceed, proceed);
-	});
-}
-
-function doCopyFile(source: string, target: string, mode: number, callback: (error: Error) => void): void {
-	const reader = fs.createReadStream(source);
-	const writer = fs.createWriteStream(target, { mode });
-
-	let finished = false;
-	const finish = (error?: Error) => {
-		if (!finished) {
-			finished = true;
-
-			// in error cases, pass to callback
-			if (error) {
-				callback(error);
-			}
-
-			// we need to explicitly chmod because of https://github.com/nodejs/node/issues/1104
-			else {
-				fs.chmod(target, mode, callback);
-			}
-		}
-	};
-
-	// handle errors properly
-	reader.once('error', error => finish(error));
-	writer.once('error', error => finish(error));
-
-	// we are done (underlying fd has been closed)
-	writer.once('close', () => finish());
-
-	// start piping
-	reader.pipe(writer);
-}
-
-export function mkdirp(path: string, mode?: number, token?: CancellationToken): Promise<boolean> {
-	const mkdir = (): Promise<null> => {
-		return nfcall(fs.mkdir, path, mode).then(undefined, (mkdirErr: NodeJS.ErrnoException) => {
-
-			// ENOENT: a parent folder does not exist yet
-			if (mkdirErr.code === 'ENOENT') {
-				return Promise.reject(mkdirErr);
-			}
-
-			// Any other error: check if folder exists and
-			// return normally in that case if its a folder
-			return nfcall(fs.stat, path).then((stat: fs.Stats) => {
-				if (!stat.isDirectory()) {
-					return Promise.reject(new Error(`'${path}' exists and is not a directory.`));
-				}
-
-				return null;
-			}, statErr => {
-				return Promise.reject(mkdirErr); // bubble up original mkdir error
-			});
-		});
-	};
-
-	// stop at root
-	if (path === paths.dirname(path)) {
-		return Promise.resolve(true);
-	}
-
-	// recursively mkdir
-	return mkdir().then(undefined, (err: NodeJS.ErrnoException) => {
-
-		// Respect cancellation
-		if (token && token.isCancellationRequested) {
-			return Promise.resolve(false);
-		}
-
-		// ENOENT: a parent folder does not exist yet, continue
-		// to create the parent folder and then try again.
-		if (err.code === 'ENOENT') {
-			return mkdirp(paths.dirname(path), mode).then(mkdir);
-		}
-
-		// Any other error
-		return Promise.reject(err);
 	});
 }
 
@@ -292,69 +178,6 @@ export function delSync(path: string): void {
 
 		throw err;
 	}
-}
-
-export function mv(source: string, target: string, callback: (error: Error | null) => void): void {
-	if (source === target) {
-		return callback(null);
-	}
-
-	function updateMtime(err: Error | null): void {
-		if (err) {
-			return callback(err);
-		}
-
-		fs.lstat(target, (error, stat) => {
-			if (error) {
-				return callback(error);
-			}
-
-			if (stat.isDirectory() || stat.isSymbolicLink()) {
-				return callback(null);
-			}
-
-			fs.open(target, 'a', null, (err: Error, fd: number) => {
-				if (err) {
-					return callback(err);
-				}
-
-				fs.futimes(fd, stat.atime, new Date(), (err: Error) => {
-					if (err) {
-						return callback(err);
-					}
-
-					fs.close(fd, callback);
-				});
-			});
-		});
-	}
-
-	// Try native rename()
-	fs.rename(source, target, (err: NodeJS.ErrnoException) => {
-		if (!err) {
-			return updateMtime(null);
-		}
-
-		// In two cases we fallback to classic copy and delete:
-		//
-		// 1.) The EXDEV error indicates that source and target are on different devices
-		// In this case, fallback to using a copy() operation as there is no way to
-		// rename() between different devices.
-		//
-		// 2.) The user tries to rename a file/folder that ends with a dot. This is not
-		// really possible to move then, at least on UNC devices.
-		if (err && source.toLowerCase() !== target.toLowerCase() && err.code === 'EXDEV' || strings.endsWith(source, '.')) {
-			return copy(source, target, (err: Error) => {
-				if (err) {
-					return callback(err);
-				}
-
-				rmRecursive(source, updateMtime);
-			});
-		}
-
-		return callback(err);
-	});
 }
 
 export interface IWriteFileOptions {

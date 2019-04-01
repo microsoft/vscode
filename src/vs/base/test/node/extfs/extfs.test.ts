@@ -12,13 +12,13 @@ import { canNormalize } from 'vs/base/common/normalization';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import * as uuid from 'vs/base/common/uuid';
 import * as extfs from 'vs/base/node/extfs';
+import * as pfs from 'vs/base/node/pfs';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 const ignore = () => { };
 
 const mkdirp = (path: string, mode: number, callback: (error: any) => void) => {
-	extfs.mkdirp(path, mode).then(() => callback(null), error => callback(error));
+	pfs.mkdirp(path, mode).then(() => callback(null), error => callback(error));
 };
 
 const chunkSize = 64 * 1024;
@@ -54,22 +54,6 @@ function toReadable(value: string, throwError?: boolean): Readable {
 }
 
 suite('Extfs', () => {
-
-	test('mkdirp', function (done) {
-		const id = uuid.generateUuid();
-		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
-		const newDir = path.join(parentDir, 'extfs', id);
-
-		mkdirp(newDir, 493, error => {
-			if (error) {
-				return done(error);
-			}
-
-			assert.ok(fs.existsSync(newDir));
-
-			extfs.del(parentDir, os.tmpdir(), done, ignore);
-		}); // 493 = 0755
-	});
 
 	test('stat link', function (done) {
 		if (isWindows) {
@@ -162,63 +146,6 @@ suite('Extfs', () => {
 			assert.ok(!fs.existsSync(newDir));
 			done();
 		}); // 493 = 0755
-	});
-
-	test('copy, move and delete', function (done) {
-		const id = uuid.generateUuid();
-		const id2 = uuid.generateUuid();
-		const sourceDir = getPathFromAmdModule(require, './fixtures');
-		const parentDir = path.join(os.tmpdir(), 'vsctests', 'extfs');
-		const targetDir = path.join(parentDir, id);
-		const targetDir2 = path.join(parentDir, id2);
-
-		extfs.copy(sourceDir, targetDir, error => {
-			if (error) {
-				return done(error);
-			}
-
-			assert.ok(fs.existsSync(targetDir));
-			assert.ok(fs.existsSync(path.join(targetDir, 'index.html')));
-			assert.ok(fs.existsSync(path.join(targetDir, 'site.css')));
-			assert.ok(fs.existsSync(path.join(targetDir, 'examples')));
-			assert.ok(fs.statSync(path.join(targetDir, 'examples')).isDirectory());
-			assert.ok(fs.existsSync(path.join(targetDir, 'examples', 'small.jxs')));
-
-			extfs.mv(targetDir, targetDir2, error => {
-				if (error) {
-					return done(error);
-				}
-
-				assert.ok(!fs.existsSync(targetDir));
-				assert.ok(fs.existsSync(targetDir2));
-				assert.ok(fs.existsSync(path.join(targetDir2, 'index.html')));
-				assert.ok(fs.existsSync(path.join(targetDir2, 'site.css')));
-				assert.ok(fs.existsSync(path.join(targetDir2, 'examples')));
-				assert.ok(fs.statSync(path.join(targetDir2, 'examples')).isDirectory());
-				assert.ok(fs.existsSync(path.join(targetDir2, 'examples', 'small.jxs')));
-
-				extfs.mv(path.join(targetDir2, 'index.html'), path.join(targetDir2, 'index_moved.html'), error => {
-					if (error) {
-						return done(error);
-					}
-
-					assert.ok(!fs.existsSync(path.join(targetDir2, 'index.html')));
-					assert.ok(fs.existsSync(path.join(targetDir2, 'index_moved.html')));
-
-					extfs.del(parentDir, os.tmpdir(), error => {
-						if (error) {
-							return done(error);
-						}
-					}, error => {
-						if (error) {
-							return done(error);
-						}
-						assert.ok(!fs.existsSync(parentDir));
-						done();
-					});
-				});
-			});
-		});
 	});
 
 	test('readdir', function (done) {
@@ -554,23 +481,6 @@ suite('Extfs', () => {
 				assert.ok(!error);
 			}
 			assert.ok(realpath!);
-
-			extfs.del(parentDir, os.tmpdir(), done, ignore);
-		});
-	});
-
-	test('mkdirp cancellation', (done) => {
-		const id = uuid.generateUuid();
-		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
-		const newDir = path.join(parentDir, 'extfs', id);
-
-		const source = new CancellationTokenSource();
-
-		const mkdirpPromise = extfs.mkdirp(newDir, 493, source.token);
-		source.cancel();
-
-		return mkdirpPromise.then(res => {
-			assert.equal(res, false);
 
 			extfs.del(parentDir, os.tmpdir(), done, ignore);
 		});

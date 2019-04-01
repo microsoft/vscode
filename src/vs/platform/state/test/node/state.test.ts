@@ -9,6 +9,7 @@ import * as path from 'vs/base/common/path';
 import * as extfs from 'vs/base/node/extfs';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { FileStorage } from 'vs/platform/state/node/stateService';
+import { mkdirp } from 'vs/base/node/pfs';
 
 suite('StateService', () => {
 	const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'stateservice');
@@ -19,7 +20,7 @@ suite('StateService', () => {
 	});
 
 	test('Basics', () => {
-		return extfs.mkdirp(parentDir).then(() => {
+		return mkdirp(parentDir).then(() => {
 			extfs.writeFileAndFlushSync(storageFile, '');
 
 			let service = new FileStorage(storageFile, () => null);

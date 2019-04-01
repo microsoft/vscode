@@ -319,14 +319,14 @@ function createServices(args: ParsedArgs, bufferLogService: BufferLogService): I
 function initServices(environmentService: IEnvironmentService, stateService: StateService): Promise<unknown> {
 
 	// Ensure paths for environment service exist
-	const environmentServiceInitialization = Promise.all<boolean | undefined>([
+	const environmentServiceInitialization = Promise.all<void | undefined>([
 		environmentService.extensionsPath,
 		environmentService.nodeCachedDataDir,
 		environmentService.logsPath,
 		environmentService.globalStorageHome,
 		environmentService.workspaceStorageHome,
 		environmentService.backupHome
-	].map((path): undefined | Promise<boolean> => path ? mkdirp(path) : undefined));
+	].map((path): undefined | Promise<void> => path ? mkdirp(path) : undefined));
 
 	// State service
 	const stateServiceInitialization = stateService.init();

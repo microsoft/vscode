@@ -85,7 +85,7 @@ suite('ConfigurationEditingService', () => {
 			.then(() => setUpServices());
 	});
 
-	async function setUpWorkspace(): Promise<boolean> {
+	async function setUpWorkspace(): Promise<void> {
 		const id = uuid.generateUuid();
 		parentDir = path.join(os.tmpdir(), 'vsctests', id);
 		workspaceDir = path.join(parentDir, 'workspaceconfig', id);

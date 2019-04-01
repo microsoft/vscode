@@ -101,7 +101,7 @@ suite('KeybindingsEditing', () => {
 		});
 	});
 
-	async function setUpWorkspace(): Promise<boolean> {
+	async function setUpWorkspace(): Promise<void> {
 		testDir = path.join(os.tmpdir(), 'vsctests', uuid.generateUuid());
 		return await mkdirp(testDir, 493);
 	}
