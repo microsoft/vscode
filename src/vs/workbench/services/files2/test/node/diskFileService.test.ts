@@ -14,7 +14,7 @@ import { join, basename, dirname, posix } from 'vs/base/common/path';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { copy, rimraf, symlink, RimRafMode } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
-import { existsSync, statSync, readdirSync, readFileSync, writeFileSync, renameSync, unlinkSync, mkdirSync } from 'fs';
+import { existsSync, statSync, readdirSync, readFileSync, writeFileSync, renameSync, unlinkSync } from 'fs';
 import { FileOperation, FileOperationEvent, IFileStat, FileOperationResult, FileSystemProviderCapabilities, FileChangeType } from 'vs/platform/files/common/files';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { isLinux, isWindows } from 'vs/base/common/platform';
@@ -825,24 +825,24 @@ suite('Disk File Service', () => {
 		}, 100);
 	});
 
-	test('watch - folder (non recursive)', done => {
-		const watchDir = join(testDir, 'watch3');
-		mkdirSync(watchDir);
-		const watcherDisposable = service.watch(URI.file(watchDir));
+	// test('watch - folder (non recursive)', done => {
+	// 	const watchDir = join(testDir, 'watch3');
+	// 	mkdirSync(watchDir);
+	// 	const watcherDisposable = service.watch(URI.file(watchDir));
 
-		const listenerDisposable = service.onFileChanges(event => {
-			watcherDisposable.dispose();
-			listenerDisposable.dispose();
+	// 	const listenerDisposable = service.onFileChanges(event => {
+	// 		watcherDisposable.dispose();
+	// 		listenerDisposable.dispose();
 
-			assert.equal(event.changes.length, 1);
-			assert.equal(event.changes[0].type, FileChangeType.UPDATED);
-			assert.equal(event.changes[0].resource.fsPath, join(watchDir, 'index.html'));
+	// 		assert.equal(event.changes.length, 1);
+	// 		assert.equal(event.changes[0].type, FileChangeType.UPDATED);
+	// 		assert.equal(event.changes[0].resource.fsPath, join(watchDir, 'index.html'));
 
-			done();
-		});
+	// 		done();
+	// 	});
 
-		setTimeout(() => {
-			writeFileSync(join(watchDir, 'index.html'), 'Changes');
-		}, 100);
-	});
+	// 	setTimeout(() => {
+	// 		writeFileSync(join(watchDir, 'index.html'), 'Changes');
+	// 	}, 100);
+	// });
 });
