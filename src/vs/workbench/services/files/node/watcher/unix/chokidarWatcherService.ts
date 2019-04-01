@@ -247,7 +247,7 @@ export class ChokidarWatcherService implements IWatcherService {
 			}
 		});
 
-		chokidarWatcher.on('error', (error: Error) => {
+		chokidarWatcher.on('error', (error: NodeJS.ErrnoException) => {
 			if (error) {
 
 				// Specially handle ENOSPC errors that can happen when
@@ -255,7 +255,7 @@ export class ChokidarWatcherService implements IWatcherService {
 				// we are running into a limit. We only want to warn
 				// once in this case to avoid log spam.
 				// See https://github.com/Microsoft/vscode/issues/7950
-				if ((<any>error).code === 'ENOSPC') {
+				if (error.code === 'ENOSPC') {
 					if (!this.enospcErrorLogged) {
 						this.enospcErrorLogged = true;
 						this.stop();

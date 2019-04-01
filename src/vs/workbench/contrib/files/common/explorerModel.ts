@@ -244,7 +244,7 @@ export class ExplorerItem {
 	}
 
 	fetchChildren(fileService: IFileService, explorerService: IExplorerService): Promise<ExplorerItem[]> {
-		let promise: Promise<any> = Promise.resolve(undefined);
+		let promise: Promise<unknown> = Promise.resolve(undefined);
 		if (!this._isDirectoryResolved) {
 			// Resolve metadata only when the mtime is needed since this can be expensive
 			// Mtime is only used when the sort order is 'modified'

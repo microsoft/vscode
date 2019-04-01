@@ -69,7 +69,7 @@ export class FileStorage {
 		return res;
 	}
 
-	setItem(key: string, data: any): void {
+	setItem(key: string, data?: object | string | number | boolean | undefined | null): void {
 
 		// Remove an item when it is undefined or null
 		if (isUndefinedOrNull(data)) {
@@ -136,7 +136,7 @@ export class StateService implements IStateService {
 		return this.fileStorage.getItem(key, defaultValue);
 	}
 
-	setItem(key: string, data: any): void {
+	setItem(key: string, data?: object | string | number | boolean | undefined | null): void {
 		this.fileStorage.setItem(key, data);
 	}
 

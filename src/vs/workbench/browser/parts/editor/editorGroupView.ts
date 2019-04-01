@@ -1223,10 +1223,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 
 		// Filter: direction (left / right)
-		else if (hasDirection) {
+		else if (hasDirection && filter.except) {
 			editorsToClose = (filter.direction === CloseDirection.LEFT) ?
-				editorsToClose.slice(0, this._group.indexOf(filter.except as EditorInput)) :
-				editorsToClose.slice(this._group.indexOf(filter.except as EditorInput) + 1);
+				editorsToClose.slice(0, this._group.indexOf(filter.except)) :
+				editorsToClose.slice(this._group.indexOf(filter.except) + 1);
 		}
 
 		// Filter: except

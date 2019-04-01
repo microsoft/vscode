@@ -13,7 +13,7 @@ import { setZoomLevel, setZoomFactor, setFullscreen } from 'vs/base/browser/brow
 import { domContentLoaded, addDisposableListener, EventType, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { URI as uri } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { WorkspaceService, DefaultConfigurationExportHelper } from 'vs/workbench/services/configuration/node/configurationService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -24,7 +24,7 @@ import { IWindowConfiguration, IWindowService } from 'vs/platform/windows/common
 import { WindowService } from 'vs/platform/windows/electron-browser/windowService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { webFrame } from 'electron';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, IMultiFolderWorkspaceInitializationPayload, IEmptyWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload, reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { ISingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload, reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { ConsoleLogService, MultiplexLogService, ILogService } from 'vs/platform/log/common/log';
 import { StorageService } from 'vs/platform/storage/node/storageService';
@@ -82,7 +82,7 @@ class CodeRendererMain extends Disposable {
 
 	private reviveUris() {
 		if (this.configuration.folderUri) {
-			this.configuration.folderUri = uri.revive(this.configuration.folderUri);
+			this.configuration.folderUri = URI.revive(this.configuration.folderUri);
 		}
 		if (this.configuration.workspace) {
 			this.configuration.workspace = reviveWorkspaceIdentifier(this.configuration.workspace);
@@ -94,13 +94,13 @@ class CodeRendererMain extends Disposable {
 			if (Array.isArray(paths)) {
 				paths.forEach(path => {
 					if (path.fileUri) {
-						path.fileUri = uri.revive(path.fileUri);
+						path.fileUri = URI.revive(path.fileUri);
 					}
 				});
 			}
 		});
 		if (filesToWait) {
-			filesToWait.waitMarkerFileUri = uri.revive(filesToWait.waitMarkerFileUri);
+			filesToWait.waitMarkerFileUri = URI.revive(filesToWait.waitMarkerFileUri);
 		}
 	}
 
@@ -223,7 +223,7 @@ class CodeRendererMain extends Disposable {
 
 		// Multi-root workspace
 		if (this.configuration.workspace) {
-			return Promise.resolve(this.configuration.workspace as IMultiFolderWorkspaceInitializationPayload);
+			return Promise.resolve(this.configuration.workspace);
 		}
 
 		// Single-folder workspace
@@ -245,7 +245,7 @@ class CodeRendererMain extends Disposable {
 					return Promise.reject(new Error('Unexpected window configuration without backupPath'));
 				}
 
-				payload = { id } as IEmptyWorkspaceInitializationPayload;
+				payload = { id };
 			}
 
 			return payload;
@@ -259,7 +259,7 @@ class CodeRendererMain extends Disposable {
 			return Promise.resolve({ id: createHash('md5').update(folderUri.toString()).digest('hex'), folder: folderUri });
 		}
 
-		function computeLocalDiskFolderId(folder: uri, stat: fs.Stats): string {
+		function computeLocalDiskFolderId(folder: URI, stat: fs.Stats): string {
 			let ctime: number | undefined;
 			if (isLinux) {
 				ctime = stat.ino; // Linux: birthtime is ctime, so we cannot use it! We use the ino instead!
@@ -281,11 +281,11 @@ class CodeRendererMain extends Disposable {
 		// For local: ensure path is absolute and exists
 		const sanitizedFolderPath = sanitizeFilePath(folderUri.fsPath, process.env['VSCODE_CWD'] || process.cwd());
 		return stat(sanitizedFolderPath).then(stat => {
-			const sanitizedFolderUri = uri.file(sanitizedFolderPath);
+			const sanitizedFolderUri = URI.file(sanitizedFolderPath);
 			return {
 				id: computeLocalDiskFolderId(sanitizedFolderUri, stat),
 				folder: sanitizedFolderUri
-			} as ISingleFolderWorkspaceInitializationPayload;
+			};
 		}, error => onUnexpectedError(error));
 	}
 

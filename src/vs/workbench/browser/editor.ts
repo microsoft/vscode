@@ -16,7 +16,7 @@ export interface IEditorDescriptor {
 	getId(): string;
 	getName(): string;
 
-	describes(obj: any): boolean;
+	describes(obj: unknown): boolean;
 }
 
 export interface IEditorRegistry {
@@ -76,7 +76,7 @@ export class EditorDescriptor implements IEditorDescriptor {
 		return this.name;
 	}
 
-	describes(obj: any): boolean {
+	describes(obj: unknown): boolean {
 		return obj instanceof BaseEditor && (<BaseEditor>obj).getId() === this.id;
 	}
 }
@@ -88,7 +88,7 @@ class EditorRegistry implements IEditorRegistry {
 
 	registerEditor(descriptor: EditorDescriptor, editorInputDescriptor: SyncDescriptor<EditorInput>): void;
 	registerEditor(descriptor: EditorDescriptor, editorInputDescriptor: SyncDescriptor<EditorInput>[]): void;
-	registerEditor(descriptor: EditorDescriptor, editorInputDescriptor: any): void {
+	registerEditor(descriptor: EditorDescriptor, editorInputDescriptor: SyncDescriptor<EditorInput> | SyncDescriptor<EditorInput>[]): void {
 
 		// Support both non-array and array parameter
 		let inputDescriptors: SyncDescriptor<EditorInput>[] = [];

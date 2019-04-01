@@ -101,7 +101,7 @@ export class GlobalStorageDatabaseChannel extends Disposable implements IServerC
 		const items = new Map<Key, Value>();
 		events.forEach(event => items.set(event.key, this.storageMainService.get(event.key)));
 
-		return { items: mapToSerializable(items) } as ISerializableItemsChangeEvent;
+		return { items: mapToSerializable(items) };
 	}
 
 	listen(_: unknown, event: string): Event<any> {
@@ -120,7 +120,7 @@ export class GlobalStorageDatabaseChannel extends Disposable implements IServerC
 
 			case 'updateItems': {
 				return this.whenReady.then(() => {
-					const items = arg as ISerializableUpdateRequest;
+					const items: ISerializableUpdateRequest = arg;
 					if (items.insert) {
 						for (const [key, value] of items.insert) {
 							this.storageMainService.store(key, value);

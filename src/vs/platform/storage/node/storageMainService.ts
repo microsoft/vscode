@@ -57,7 +57,7 @@ export interface IStorageMainService {
 	 * Store a string value under the given key to storage. The value will
 	 * be converted to a string.
 	 */
-	store(key: string, value: any): void;
+	store(key: string, value: string | boolean | number | undefined | null): void;
 
 	/**
 	 * Delete an element stored under the provided key from storage.
@@ -109,7 +109,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 		return {
 			logTrace: (this.logService.getLevel() === LogLevel.Trace) ? msg => this.logService.trace(msg) : undefined,
 			logError: error => this.logService.error(error)
-		} as ISQLiteStorageDatabaseLoggingOptions;
+		};
 	}
 
 	initialize(): Promise<void> {
@@ -160,7 +160,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 		return this.storage.getNumber(key, fallbackValue);
 	}
 
-	store(key: string, value: any): Promise<void> {
+	store(key: string, value: string | boolean | number | undefined | null): Promise<void> {
 		return this.storage.set(key, value);
 	}
 

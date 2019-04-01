@@ -65,7 +65,7 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 				ctime: stat.ctime.getTime(),
 				mtime: stat.mtime.getTime(),
 				size: stat.size
-			} as IStat;
+			};
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
 		}

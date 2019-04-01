@@ -176,7 +176,7 @@ export class StorageService extends Disposable implements IStorageService {
 		return this.getStorage(scope).getNumber(key, fallbackValue);
 	}
 
-	store(key: string, value: string | boolean | number, scope: StorageScope): void {
+	store(key: string, value: string | boolean | number | undefined | null, scope: StorageScope): void {
 		this.getStorage(scope).set(key, value);
 	}
 

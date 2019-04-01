@@ -330,7 +330,7 @@ export function mv(source: string, target: string, callback: (error: Error | nul
 	}
 
 	// Try native rename()
-	fs.rename(source, target, (err: Error) => {
+	fs.rename(source, target, (err: NodeJS.ErrnoException) => {
 		if (!err) {
 			return updateMtime(null);
 		}
@@ -343,7 +343,7 @@ export function mv(source: string, target: string, callback: (error: Error | nul
 		//
 		// 2.) The user tries to rename a file/folder that ends with a dot. This is not
 		// really possible to move then, at least on UNC devices.
-		if (err && source.toLowerCase() !== target.toLowerCase() && ((<any>err).code === 'EXDEV') || strings.endsWith(source, '.')) {
+		if (err && source.toLowerCase() !== target.toLowerCase() && err.code === 'EXDEV' || strings.endsWith(source, '.')) {
 			return copy(source, target, (err: Error) => {
 				if (err) {
 					return callback(err);

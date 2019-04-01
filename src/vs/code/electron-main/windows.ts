@@ -219,7 +219,7 @@ export class WindowsManager implements IWindowsMainService {
 	private registerListeners(): void {
 
 		// React to workbench ready events from windows
-		ipc.on('vscode:workbenchReady', (event: any, windowId: number) => {
+		ipc.on('vscode:workbenchReady', (event: Electron.Event, windowId: number) => {
 			this.logService.trace('IPC#vscode-workbenchReady');
 
 			const win = this.getWindowById(windowId);
@@ -975,7 +975,7 @@ export class WindowsManager implements IWindowsMainService {
 			restoreWindows = 'all'; // always reopen all windows when an update was applied
 		} else {
 			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
-			restoreWindows = ((windowConfig && windowConfig.restoreWindows) || 'one') as RestoreWindowsSetting;
+			restoreWindows = ((windowConfig && windowConfig.restoreWindows) || 'one');
 
 			if (['all', 'folders', 'one', 'none'].indexOf(restoreWindows) === -1) {
 				restoreWindows = 'one';
@@ -1452,7 +1452,7 @@ export class WindowsManager implements IWindowsMainService {
 		// Compute x/y based on display bounds
 		// Note: important to use Math.round() because Electron does not seem to be too happy about
 		// display coordinates that are not absolute numbers.
-		let state = defaultWindowState() as INewWindowState;
+		let state = defaultWindowState();
 		state.x = Math.round(displayToUse.bounds.x + (displayToUse.bounds.width / 2) - (state.width! / 2));
 		state.y = Math.round(displayToUse.bounds.y + (displayToUse.bounds.height / 2) - (state.height! / 2));
 
@@ -1482,7 +1482,7 @@ export class WindowsManager implements IWindowsMainService {
 			state = this.ensureNoOverlap(state);
 		}
 
-		state.hasDefaultState = true; // flag as default state
+		(state as INewWindowState).hasDefaultState = true; // flag as default state
 
 		return state;
 	}
@@ -1730,36 +1730,34 @@ export class WindowsManager implements IWindowsMainService {
 	}
 
 	private doPickAndOpen(options: INativeOpenDialogOptions, pickFolders: boolean, pickFiles: boolean): void {
-		const internalOptions = options as IInternalNativeOpenDialogOptions;
+		(options as IInternalNativeOpenDialogOptions).pickFolders = pickFolders;
+		(options as IInternalNativeOpenDialogOptions).pickFiles = pickFiles;
 
-		internalOptions.pickFolders = pickFolders;
-		internalOptions.pickFiles = pickFiles;
-
-		const dialogOptions: OpenDialogOptions = internalOptions.dialogOptions || Object.create(null);
-		internalOptions.dialogOptions = dialogOptions;
-
-		if (!internalOptions.dialogOptions.title) {
+		// Ensure dialog options
+		const dialogOptions: OpenDialogOptions = options.dialogOptions || Object.create(null);
+		options.dialogOptions = dialogOptions;
+		if (!dialogOptions.title) {
 			if (pickFolders && pickFiles) {
-				internalOptions.dialogOptions.title = localize('open', "Open");
+				dialogOptions.title = localize('open', "Open");
 			} else if (pickFolders) {
-				internalOptions.dialogOptions.title = localize('openFolder', "Open Folder");
+				dialogOptions.title = localize('openFolder', "Open Folder");
 			} else {
-				internalOptions.dialogOptions.title = localize('openFile', "Open File");
+				dialogOptions.title = localize('openFile', "Open File");
 			}
 		}
 
-		if (!internalOptions.telemetryEventName) {
+		if (!options.telemetryEventName) {
 			if (pickFolders && pickFiles) {
 				// __GDPR__TODO__ classify event
-				internalOptions.telemetryEventName = 'openFileFolder';
+				options.telemetryEventName = 'openFileFolder';
 			} else if (pickFolders) {
-				internalOptions.telemetryEventName = 'openFolder';
+				options.telemetryEventName = 'openFolder';
 			} else {
-				internalOptions.telemetryEventName = 'openFile';
+				options.telemetryEventName = 'openFile';
 			}
 		}
 
-		this.dialogs.pickAndOpen(internalOptions);
+		this.dialogs.pickAndOpen(options);
 	}
 
 	showMessageBox(options: Electron.MessageBoxOptions, win?: ICodeWindow): Promise<IMessageBoxResult> {
@@ -1801,8 +1799,8 @@ class Dialogs {
 
 	private static readonly workingDirPickerStorageKey = 'pickerWorkingDir';
 
-	private readonly mapWindowToDialogQueue: Map<number, Queue<any>>;
-	private readonly noWindowDialogQueue: Queue<any>;
+	private readonly mapWindowToDialogQueue: Map<number, Queue<void>>;
+	private readonly noWindowDialogQueue: Queue<void>;
 
 	constructor(
 		private readonly environmentService: IEnvironmentService,
@@ -1810,8 +1808,8 @@ class Dialogs {
 		private readonly stateService: IStateService,
 		private readonly windowsMainService: IWindowsMainService,
 	) {
-		this.mapWindowToDialogQueue = new Map<number, Queue<any>>();
-		this.noWindowDialogQueue = new Queue<any>();
+		this.mapWindowToDialogQueue = new Map<number, Queue<void>>();
+		this.noWindowDialogQueue = new Queue<void>();
 	}
 
 	pickAndOpen(options: INativeOpenDialogOptions): void {

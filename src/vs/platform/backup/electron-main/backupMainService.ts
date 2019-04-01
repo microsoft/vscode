@@ -435,7 +435,7 @@ export class BackupMainService implements IBackupMainService {
 			folderURIWorkspaces: this.folderWorkspaces.map(f => f.toString()),
 			emptyWorkspaceInfos: this.emptyWorkspaces,
 			emptyWorkspaces: this.emptyWorkspaces.map(info => info.backupFolder)
-		} as IBackupWorkspacesFormat;
+		};
 	}
 
 	private getRandomEmptyWindowId(): string {

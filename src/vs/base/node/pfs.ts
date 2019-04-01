@@ -108,8 +108,8 @@ export function writeFile(path: string, data: string, options?: extfs.IWriteFile
 export function writeFile(path: string, data: Buffer, options?: extfs.IWriteFileOptions): Promise<void>;
 export function writeFile(path: string, data: Uint8Array, options?: extfs.IWriteFileOptions): Promise<void>;
 export function writeFile(path: string, data: NodeJS.ReadableStream, options?: extfs.IWriteFileOptions): Promise<void>;
-export function writeFile(path: string, data: any, options?: extfs.IWriteFileOptions): Promise<void>;
-export function writeFile(path: string, data: any, options?: extfs.IWriteFileOptions): any {
+export function writeFile(path: string, data: string | Buffer | NodeJS.ReadableStream | Uint8Array, options?: extfs.IWriteFileOptions): Promise<void>;
+export function writeFile(path: string, data: string | Buffer | NodeJS.ReadableStream | Uint8Array, options?: extfs.IWriteFileOptions): Promise<void> {
 	const queueKey = toQueueKey(path);
 
 	return ensureWriteFileQueue(queueKey).queue(() => nfcall(extfs.writeFileAndFlush, path, data, options));

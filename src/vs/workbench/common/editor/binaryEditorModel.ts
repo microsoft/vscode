@@ -72,7 +72,7 @@ export class BinaryEditorModel extends EditorModel {
 		return this.etag;
 	}
 
-	load(): Promise<EditorModel> {
+	load(): Promise<BinaryEditorModel> {
 
 		// Make sure to resolve up to date stat for file resources
 		if (this.fileService.canHandleResource(this.resource)) {

@@ -21,7 +21,7 @@ export function getResourceForCommand(resource: URI | object | undefined, listSe
 
 	let list = listService.lastFocusedList;
 	if (list && list.getHTMLElement() === document.activeElement) {
-		let focus: any;
+		let focus: unknown;
 		if (list instanceof List) {
 			const focused = list.getFocusedElements();
 			if (focused.length) {
