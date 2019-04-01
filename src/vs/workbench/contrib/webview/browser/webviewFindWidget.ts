@@ -33,16 +33,11 @@ export class WebviewFindWidget extends SimpleFindWidget {
 
 	public hide() {
 		super.hide();
-		if (this._delegate) {
-			this._delegate.stopFind(true);
-			this._delegate.focus();
-		}
+		this._delegate.stopFind(true);
+		this._delegate.focus();
 	}
 
 	public onInputChanged() {
-		if (!this._delegate) {
-			return;
-		}
 		const val = this.inputValue;
 		if (val) {
 			this._delegate.startFind(val);
