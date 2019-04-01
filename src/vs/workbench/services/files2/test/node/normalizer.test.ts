@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-
 import * as platform from 'vs/base/common/platform';
 import { FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
 import { URI as uri } from 'vs/base/common/uri';
-import { IRawFileChange, toFileChangesEvent, normalize } from 'vs/workbench/services/files/node/watcher/common';
+import { IRawFileChange, toFileChangesEvent, normalizeFileChanges } from 'vs/workbench/services/files2/node/watcher/normalizer';
 import { Event, Emitter } from 'vs/base/common/event';
 
 class TestFileWatcher {
@@ -18,18 +17,18 @@ class TestFileWatcher {
 		this._onFileChanges = new Emitter<FileChangesEvent>();
 	}
 
-	public get onFileChanges(): Event<FileChangesEvent> {
+	get onFileChanges(): Event<FileChangesEvent> {
 		return this._onFileChanges.event;
 	}
 
-	public report(changes: IRawFileChange[]): void {
+	report(changes: IRawFileChange[]): void {
 		this.onRawFileEvents(changes);
 	}
 
 	private onRawFileEvents(events: IRawFileChange[]): void {
 
 		// Normalize
-		let normalizedEvents = normalize(events);
+		let normalizedEvents = normalizeFileChanges(events);
 
 		// Emit through event emitter
 		if (normalizedEvents.length > 0) {
@@ -44,9 +43,9 @@ enum Path {
 	UNC
 }
 
-suite('Watcher', () => {
+suite('Normalizer', () => {
 
-	test('watching - simple add/update/delete', function (done: () => void) {
+	test('simple add/update/delete', function (done: () => void) {
 		const watch = new TestFileWatcher();
 
 		const added = uri.file('/users/data/src/added.txt');
@@ -74,7 +73,7 @@ suite('Watcher', () => {
 
 	let pathSpecs = platform.isWindows ? [Path.WINDOWS, Path.UNC] : [Path.UNIX];
 	pathSpecs.forEach((p) => {
-		test('watching - delete only reported for top level folder (' + p + ')', function (done: () => void) {
+		test('delete only reported for top level folder (' + p + ')', function (done: () => void) {
 			const watch = new TestFileWatcher();
 
 			const deletedFolderA = uri.file(p === Path.UNIX ? '/users/data/src/todelete1' : p === Path.WINDOWS ? 'C:\\users\\data\\src\\todelete1' : '\\\\localhost\\users\\data\\src\\todelete1');
@@ -115,7 +114,7 @@ suite('Watcher', () => {
 		});
 	});
 
-	test('watching - event normalization: ignore CREATE followed by DELETE', function (done: () => void) {
+	test('event normalization: ignore CREATE followed by DELETE', function (done: () => void) {
 		const watch = new TestFileWatcher();
 
 		const created = uri.file('/users/data/src/related');
@@ -140,7 +139,7 @@ suite('Watcher', () => {
 		watch.report(raw);
 	});
 
-	test('watching - event normalization: flatten DELETE followed by CREATE into CHANGE', function (done: () => void) {
+	test('event normalization: flatten DELETE followed by CREATE into CHANGE', function (done: () => void) {
 		const watch = new TestFileWatcher();
 
 		const deleted = uri.file('/users/data/src/related');
@@ -166,7 +165,7 @@ suite('Watcher', () => {
 		watch.report(raw);
 	});
 
-	test('watching - event normalization: ignore UPDATE when CREATE received', function (done: () => void) {
+	test('event normalization: ignore UPDATE when CREATE received', function (done: () => void) {
 		const watch = new TestFileWatcher();
 
 		const created = uri.file('/users/data/src/related');
@@ -193,7 +192,7 @@ suite('Watcher', () => {
 		watch.report(raw);
 	});
 
-	test('watching - event normalization: apply DELETE', function (done: () => void) {
+	test('event normalization: apply DELETE', function (done: () => void) {
 		const watch = new TestFileWatcher();
 
 		const updated = uri.file('/users/data/src/related');

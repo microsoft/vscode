@@ -6,7 +6,7 @@
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IWatcherRequest, IWatcherService, IWatcherOptions, IWatchError } from './watcher';
 import { Event } from 'vs/base/common/event';
-import { IRawFileChange } from 'vs/workbench/services/files/node/watcher/common';
+import { IRawFileChange } from 'vs/workbench/services/files2/node/watcher/normalizer';
 
 export class WatcherChannel implements IServerChannel {
 

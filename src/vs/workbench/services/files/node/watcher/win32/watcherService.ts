@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRawFileChange, toFileChangesEvent } from 'vs/workbench/services/files/node/watcher/common';
+import { IRawFileChange, toFileChangesEvent } from 'vs/workbench/services/files2/node/watcher/normalizer';
 import { OutOfProcessWin32FolderWatcher } from 'vs/workbench/services/files/node/watcher/win32/csharpWatcherService';
 import { FileChangesEvent } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';

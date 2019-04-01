@@ -14,7 +14,7 @@ import { ThrottledDelayer } from 'vs/base/common/async';
 import { normalizeNFC } from 'vs/base/common/normalization';
 import { realcaseSync } from 'vs/base/node/extpath';
 import { isMacintosh } from 'vs/base/common/platform';
-import * as watcherCommon from 'vs/workbench/services/files/node/watcher/common';
+import { IRawFileChange, normalizeFileChanges } from 'vs/workbench/services/files2/node/watcher/normalizer';
 import { IWatcherRequest, IWatcherService, IWatcherOptions, IWatchError } from 'vs/workbench/services/files/node/watcher/unix/watcher';
 import { Emitter, Event } from 'vs/base/common/event';
 
@@ -46,10 +46,10 @@ export class ChokidarWatcherService implements IWatcherService {
 	private spamWarningLogged: boolean;
 	private enospcErrorLogged: boolean;
 
-	private _onWatchEvent = new Emitter<watcherCommon.IRawFileChange[] | IWatchError>();
+	private _onWatchEvent = new Emitter<IRawFileChange[] | IWatchError>();
 	readonly onWatchEvent = this._onWatchEvent.event;
 
-	public watch(options: IWatcherOptions & IChockidarWatcherOptions): Event<watcherCommon.IRawFileChange[] | IWatchError> {
+	public watch(options: IWatcherOptions & IChockidarWatcherOptions): Event<IRawFileChange[] | IWatchError> {
 		this._verboseLogging = options.verboseLogging;
 		this._pollingInterval = options.pollingInterval;
 		this._watchers = Object.create(null);
@@ -139,7 +139,7 @@ export class ChokidarWatcherService implements IWatcherService {
 			console.error('Watcher is not using native fsevents library and is falling back to unefficient polling.');
 		}
 
-		let undeliveredFileEvents: watcherCommon.IRawFileChange[] = [];
+		let undeliveredFileEvents: IRawFileChange[] = [];
 		let fileEventDelayer: ThrottledDelayer<undefined> | null = new ThrottledDelayer(ChokidarWatcherService.FS_EVENT_DELAY);
 
 		const watcher: IWatcher = {
@@ -232,7 +232,7 @@ export class ChokidarWatcherService implements IWatcherService {
 					undeliveredFileEvents = [];
 
 					// Broadcast to clients normalized
-					const res = watcherCommon.normalize(events);
+					const res = normalizeFileChanges(events);
 					this._onWatchEvent.fire(res);
 
 					// Logging

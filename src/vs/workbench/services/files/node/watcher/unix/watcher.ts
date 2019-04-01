@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { IRawFileChange } from 'vs/workbench/services/files/node/watcher/common';
+import { IRawFileChange } from 'vs/workbench/services/files2/node/watcher/normalizer';
 
 export interface IWatcherRequest {
 	basePath: string;

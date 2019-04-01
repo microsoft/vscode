@@ -7,13 +7,11 @@ import * as assert from 'assert';
 import * as os from 'os';
 import * as path from 'vs/base/common/path';
 import * as pfs from 'vs/base/node/pfs';
-
 import { normalizeRoots, ChokidarWatcherService } from '../chokidarWatcherService';
 import { IWatcherRequest } from '../watcher';
-
 import * as platform from 'vs/base/common/platform';
 import { Delayer } from 'vs/base/common/async';
-import { IRawFileChange } from 'vs/workbench/services/files/node/watcher/common';
+import { IRawFileChange } from 'vs/workbench/services/files2/node/watcher/normalizer';
 import { FileChangeType } from 'vs/platform/files/common/files';
 
 function newRequest(basePath: string, ignored: string[] = []): IWatcherRequest {
