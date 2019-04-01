@@ -124,11 +124,11 @@ export class WebviewEditor extends BaseEditor {
 	}
 
 	public reload() {
-		this.withWebviewElement(webview => webview.reload());
+		this.withWebview(webview => webview.reload());
 	}
 
 	public layout(_dimension: DOM.Dimension): void {
-		this.withWebviewElement(webview => {
+		this.withWebview(webview => {
 			this.doUpdateContainer();
 			webview.layout();
 		});
@@ -145,34 +145,34 @@ export class WebviewEditor extends BaseEditor {
 				}
 			});
 		}
-		this.withWebviewElement(webview => webview.focus());
+		this.withWebview(webview => webview.focus());
 	}
 
 	public selectAll(): void {
-		this.withWebviewElement(webview => webview.selectAll());
+		this.withWebview(webview => webview.selectAll());
 	}
 
 	public copy(): void {
-		this.withWebviewElement(webview => webview.copy());
+		this.withWebview(webview => webview.copy());
 	}
 
 	public paste(): void {
-		this.withWebviewElement(webview => webview.paste());
+		this.withWebview(webview => webview.paste());
 	}
 
 	public cut(): void {
-		this.withWebviewElement(webview => webview.cut());
+		this.withWebview(webview => webview.cut());
 	}
 
 	public undo(): void {
-		this.withWebviewElement(webview => webview.undo());
+		this.withWebview(webview => webview.undo());
 	}
 
 	public redo(): void {
-		this.withWebviewElement(webview => webview.redo());
+		this.withWebview(webview => webview.redo());
 	}
 
-	private withWebviewElement(f: (element: Webview) => void): void {
+	private withWebview(f: (element: Webview) => void): void {
 		if (this._webview) {
 			f(this._webview);
 		}
