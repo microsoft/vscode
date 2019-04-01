@@ -49,10 +49,18 @@ export class DefaultPreferencesEditorInput extends ResourceEditorInput {
 	}
 }
 
+export interface IKeybindingsEditorSearchOptions {
+	searchValue: string;
+	recordKeybindings: boolean;
+	sortByPrecedence: boolean;
+}
+
 export class KeybindingsEditorInput extends EditorInput {
 
 	static readonly ID: string = 'workbench.input.keybindings';
 	readonly keybindingsModel: KeybindingsEditorModel;
+
+	searchOptions: IKeybindingsEditorSearchOptions | null;
 
 	constructor(@IInstantiationService instantiationService: IInstantiationService) {
 		super();
