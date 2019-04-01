@@ -585,7 +585,7 @@ export class FileService2 extends Disposable implements IFileService {
 	private _onFileChanges: Emitter<FileChangesEvent> = this._register(new Emitter<FileChangesEvent>());
 	get onFileChanges(): Event<FileChangesEvent> { return this._onFileChanges.event; }
 
-	private activeWatches = new Map<string, { disposable: IDisposable, count: number }>();
+	private activeWatchers = new Map<string, { disposable: IDisposable, count: number }>();
 
 	watch(resource: URI, options: IWatchOptions = { recursive: false, excludes: [] }): IDisposable {
 		let watchDisposable: IDisposable = Disposable.None;
@@ -601,23 +601,23 @@ export class FileService2 extends Disposable implements IFileService {
 		const key = this.toWatchKey(provider, resource, options);
 
 		// Only start watching if we are the first for the given key
-		const entry = this.activeWatches.get(key) || { count: 0, disposable: provider.watch(resource, options) };
-		if (!this.activeWatches.has(key)) {
-			this.activeWatches.set(key, entry);
+		const watcher = this.activeWatchers.get(key) || { count: 0, disposable: provider.watch(resource, options) };
+		if (!this.activeWatchers.has(key)) {
+			this.activeWatchers.set(key, watcher);
 		}
 
 		// Increment usage counter
-		entry.count += 1;
+		watcher.count += 1;
 
 		return toDisposable(() => {
 
 			// Unref
-			entry.count--;
+			watcher.count--;
 
 			// Dispose only when last user is reached
-			if (entry.count === 0) {
-				dispose(entry.disposable);
-				this.activeWatches.delete(key);
+			if (watcher.count === 0) {
+				dispose(watcher.disposable);
+				this.activeWatchers.delete(key);
 			}
 		});
 	}
@@ -635,8 +635,8 @@ export class FileService2 extends Disposable implements IFileService {
 	dispose(): void {
 		super.dispose();
 
-		this.activeWatches.forEach(watcher => dispose(watcher.disposable));
-		this.activeWatches.clear();
+		this.activeWatchers.forEach(watcher => dispose(watcher.disposable));
+		this.activeWatchers.clear();
 	}
 
 	//#endregion

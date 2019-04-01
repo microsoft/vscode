@@ -8,13 +8,12 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as crypto from 'crypto';
 import * as assert from 'assert';
-import { isParent, FileOperation, FileOperationEvent, IContent, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IUpdateContentOptions, FileChangeType, FileChangesEvent, ICreateFileOptions, IContentData, ITextSnapshot, IFilesConfiguration, IFileSystemProviderRegistrationEvent, IFileSystemProvider, ILegacyFileService, IFileStatWithMetadata, IFileService, IResolveMetadataFileOptions, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
+import { isParent, FileOperation, FileOperationEvent, IContent, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IUpdateContentOptions, FileChangesEvent, ICreateFileOptions, IContentData, ITextSnapshot, IFilesConfiguration, IFileSystemProviderRegistrationEvent, IFileSystemProvider, ILegacyFileService, IFileStatWithMetadata, IFileService, IResolveMetadataFileOptions, FileSystemProviderCapabilities, IWatchOptions } from 'vs/platform/files/common/files';
 import { MAX_FILE_SIZE, MAX_HEAP_SIZE } from 'vs/platform/files/node/fileConstants';
 import { isEqualOrParent } from 'vs/base/common/extpath';
-import { ResourceMap } from 'vs/base/common/map';
 import * as arrays from 'vs/base/common/arrays';
 import * as objects from 'vs/base/common/objects';
-import { ThrottledDelayer, timeout } from 'vs/base/common/async';
+import { timeout } from 'vs/base/common/async';
 import { URI as uri } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
@@ -24,7 +23,6 @@ import * as pfs from 'vs/base/node/pfs';
 import { detectEncodingFromBuffer, decodeStream, detectEncodingByBOM, UTF8 } from 'vs/base/node/encoding';
 import { FileWatcher as UnixWatcherService } from 'vs/workbench/services/files/node/watcher/unix/watcherService';
 import { FileWatcher as WindowsWatcherService } from 'vs/workbench/services/files/node/watcher/win32/watcherService';
-import { toFileChangesEvent, normalize, IRawFileChange } from 'vs/workbench/services/files/node/watcher/common';
 import { Event, Emitter } from 'vs/base/common/event';
 import { FileWatcher as NsfwWatcherService } from 'vs/workbench/services/files/node/watcher/nsfw/watcherService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
@@ -89,9 +87,6 @@ export class FileService extends Disposable implements ILegacyFileService, IFile
 
 	_serviceBrand: any;
 
-	private static readonly FS_EVENT_DELAY = 50; // aggregate and only emit events when changes have stopped for this duration (in ms)
-	private static readonly FS_REWATCH_DELAY = 300; // delay to rewatch a file that was renamed or deleted (in ms)
-
 	private static readonly NET_VERSION_ERROR = 'System.MissingMethodException';
 	private static readonly NET_VERSION_ERROR_IGNORE_KEY = 'ignoreNetVersionError';
 
@@ -110,9 +105,6 @@ export class FileService extends Disposable implements ILegacyFileService, IFile
 	readonly onWillActivateFileSystemProvider = Event.None;
 
 	private activeWorkspaceFileChangeWatcher: IDisposable | null;
-	private activeFileChangesWatchers: ResourceMap<{ unwatch: Function, count: number }>;
-	private fileChangesWatchDelayer: ThrottledDelayer<void>;
-	private undeliveredRawFileChangesEvents: IRawFileChange[];
 
 	private _encoding: ResourceEncodings;
 
@@ -127,10 +119,6 @@ export class FileService extends Disposable implements ILegacyFileService, IFile
 		private options: IFileServiceTestOptions = Object.create(null)
 	) {
 		super();
-
-		this.activeFileChangesWatchers = new ResourceMap<{ unwatch: Function, count: number }>();
-		this.fileChangesWatchDelayer = new ThrottledDelayer<void>(FileService.FS_EVENT_DELAY);
-		this.undeliveredRawFileChangesEvents = [];
 
 		this._encoding = new ResourceEncodings(textResourceConfigurationService, environmentService, contextService, this.options.encodingOverride);
 
@@ -1002,113 +990,6 @@ export class FileService extends Disposable implements ILegacyFileService, IFile
 		});
 	}
 
-	watch(resource: uri): IDisposable {
-		assert.ok(resource && resource.scheme === Schemas.file, `Invalid resource for watching: ${resource}`);
-
-		// Check for existing watcher first
-		const entry = this.activeFileChangesWatchers.get(resource);
-		if (entry) {
-			entry.count += 1;
-
-			return Disposable.None;
-		}
-
-		// Create or get watcher for provided path
-		const fsPath = resource.fsPath;
-		const fsName = paths.basename(resource.fsPath);
-
-		const watcherDisposable = pfs.watch(fsPath, (eventType: string, filename: string) => {
-			const renamedOrDeleted = ((filename && filename !== fsName) || eventType === 'rename');
-
-			// The file was either deleted or renamed. Many tools apply changes to files in an
-			// atomic way ("Atomic Save") by first renaming the file to a temporary name and then
-			// renaming it back to the original name. Our watcher will detect this as a rename
-			// and then stops to work on Mac and Linux because the watcher is applied to the
-			// inode and not the name. The fix is to detect this case and trying to watch the file
-			// again after a certain delay.
-			// In addition, we send out a delete event if after a timeout we detect that the file
-			// does indeed not exist anymore.
-			if (renamedOrDeleted) {
-
-				// Very important to dispose the watcher which now points to a stale inode
-				watcherDisposable.dispose();
-				this.activeFileChangesWatchers.delete(resource);
-
-				// Wait a bit and try to install watcher again, assuming that the file was renamed quickly ("Atomic Save")
-				setTimeout(() => {
-					this.exists(resource).then(exists => {
-
-						// File still exists, so reapply the watcher
-						if (exists) {
-							this.watch(resource);
-						}
-
-						// File seems to be really gone, so emit a deleted event
-						else {
-							this.onRawFileChange({
-								type: FileChangeType.DELETED,
-								path: fsPath
-							});
-						}
-					});
-				}, FileService.FS_REWATCH_DELAY);
-			}
-
-			// Handle raw file change
-			this.onRawFileChange({
-				type: FileChangeType.UPDATED,
-				path: fsPath
-			});
-		}, (error: string) => this.handleError(error));
-
-		// Remember in map
-		this.activeFileChangesWatchers.set(resource, {
-			count: 1,
-			unwatch: () => watcherDisposable.dispose()
-		});
-
-		return watcherDisposable;
-	}
-
-	private onRawFileChange(event: IRawFileChange): void {
-
-		// add to bucket of undelivered events
-		this.undeliveredRawFileChangesEvents.push(event);
-
-		if (this.environmentService.verbose) {
-			console.log('%c[File Watcher (node.js)]%c', 'color: blue', 'color: black', `${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.path}`);
-		}
-
-		// handle emit through delayer to accommodate for bulk changes
-		this.fileChangesWatchDelayer.trigger(() => {
-			const buffer = this.undeliveredRawFileChangesEvents;
-			this.undeliveredRawFileChangesEvents = [];
-
-			// Normalize
-			const normalizedEvents = normalize(buffer);
-
-			// Logging
-			if (this.environmentService.verbose) {
-				normalizedEvents.forEach(r => {
-					console.log('%c[File Watcher (node.js)]%c >> normalized', 'color: blue', 'color: black', `${r.type === FileChangeType.ADDED ? '[ADDED]' : r.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${r.path}`);
-				});
-			}
-
-			// Emit
-			this._onFileChanges.fire(toFileChangesEvent(normalizedEvents));
-
-			return Promise.resolve();
-		});
-	}
-
-	unwatch(resource: uri): void {
-		const watcher = this.activeFileChangesWatchers.get(resource);
-		if (watcher && --watcher.count === 0) {
-			watcher.unwatch();
-			this.activeFileChangesWatchers.delete(resource);
-		}
-	}
-
 	dispose(): void {
 		super.dispose();
 
@@ -1116,12 +997,13 @@ export class FileService extends Disposable implements ILegacyFileService, IFile
 			this.activeWorkspaceFileChangeWatcher.dispose();
 			this.activeWorkspaceFileChangeWatcher = null;
 		}
-
-		this.activeFileChangesWatchers.forEach(watcher => watcher.unwatch());
-		this.activeFileChangesWatchers.clear();
 	}
 
 	// Tests only
+
+	watch(resource: uri, opts?: IWatchOptions | undefined): IDisposable {
+		return Disposable.None;
+	}
 
 	resolve(resource: uri, options?: IResolveFileOptions): Promise<IFileStat>;
 	resolve(resource: uri, options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;

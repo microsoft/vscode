@@ -14,8 +14,8 @@ import { join, basename, dirname, posix } from 'vs/base/common/path';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { copy, rimraf, symlink, RimRafMode } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
-import { existsSync, statSync, readdirSync, readFileSync } from 'fs';
-import { FileOperation, FileOperationEvent, IFileStat, FileOperationResult, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
+import { existsSync, statSync, readdirSync, readFileSync, writeFileSync, renameSync, unlinkSync, mkdirSync } from 'fs';
+import { FileOperation, FileOperationEvent, IFileStat, FileOperationResult, FileSystemProviderCapabilities, FileChangeType } from 'vs/platform/files/common/files';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -76,10 +76,12 @@ suite('Disk File Service', () => {
 		disposables.push(service);
 
 		fileProvider = new TestDiskFileSystemProvider(logService);
-		service.registerProvider(Schemas.file, fileProvider);
+		disposables.push(service.registerProvider(Schemas.file, fileProvider));
+		disposables.push(fileProvider);
 
 		testProvider = new TestDiskFileSystemProvider(logService);
-		service.registerProvider(testSchema, testProvider);
+		disposables.push(service.registerProvider(testSchema, testProvider));
+		disposables.push(testProvider);
 
 		const id = generateUuid();
 		testDir = join(parentDir, id);
@@ -772,5 +774,75 @@ suite('Disk File Service', () => {
 		} catch (error) {
 			assert.ok(error);
 		}
+	});
+
+	test('watch - file', done => {
+		const toWatch = URI.file(join(testDir, 'index-watch1.html'));
+		writeFileSync(toWatch.fsPath, 'Init');
+
+		const watcherDisposable = service.watch(toWatch);
+
+		const listenerDisposable = service.onFileChanges(event => {
+			watcherDisposable.dispose();
+			listenerDisposable.dispose();
+
+			assert.equal(event.changes.length, 1);
+			assert.equal(event.changes[0].type, FileChangeType.UPDATED);
+			assert.equal(event.changes[0].resource.fsPath, toWatch.fsPath);
+
+			done();
+		});
+
+		setTimeout(() => {
+			writeFileSync(toWatch.fsPath, 'Changes');
+		}, 100);
+	});
+
+	test('watch - file (support atomic save)', function (done) {
+		const toWatch = URI.file(join(testDir, 'index-watch2.html'));
+		writeFileSync(toWatch.fsPath, 'Init');
+
+		const watcherDisposable = service.watch(toWatch);
+
+		const listenerDisposable = service.onFileChanges(event => {
+			watcherDisposable.dispose();
+			listenerDisposable.dispose();
+
+			assert.equal(event.changes.length, 1);
+			assert.equal(event.changes[0].type, FileChangeType.UPDATED);
+			assert.equal(event.changes[0].resource.fsPath, toWatch.fsPath);
+
+			done();
+		});
+
+		setTimeout(() => {
+			// Simulate atomic save by deleting the file, creating it under different name
+			// and then replacing the previously deleted file with those contents
+			const renamed = `${toWatch.fsPath}.bak`;
+			unlinkSync(toWatch.fsPath);
+			writeFileSync(renamed, 'Changes');
+			renameSync(renamed, toWatch.fsPath);
+		}, 100);
+	});
+
+	test('watch - folder (non recursive)', done => {
+		const watchDir = join(testDir, 'watch3');
+		mkdirSync(watchDir);
+		const watcherDisposable = service.watch(URI.file(watchDir));
+
+		const listenerDisposable = service.onFileChanges(event => {
+			watcherDisposable.dispose();
+			listenerDisposable.dispose();
+
+			assert.equal(event.changes.length, 1);
+			assert.equal(event.changes[0].type, FileChangeType.UPDATED);
+			assert.equal(event.changes[0].resource.fsPath, join(watchDir, 'index.html'));
+
+			done();
+		});
+
+		setTimeout(() => {
+			writeFileSync(join(watchDir, 'index.html'), 'Changes');
+		}, 100);
 	});
 });

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { join, dirname } from 'vs/base/common/path';
+import { join, dirname, basename } from 'vs/base/common/path';
 import { Queue } from 'vs/base/common/async';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -15,7 +15,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { isRootOrDriveLetter } from 'vs/base/common/extpath';
 import { generateUuid } from 'vs/base/common/uuid';
 import { normalizeNFC } from 'vs/base/common/normalization';
-import { toDisposable, Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { toDisposable, Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { encode, encodeStream } from 'vs/base/node/encoding';
 
 export enum RimRafMode {
@@ -673,37 +673,78 @@ export async function mkdirp(path: string, mode?: number, token?: CancellationTo
 	}
 }
 
-export function watch(path: string, onChange: (type: string, path?: string) => void, onError: (error: string) => void): IDisposable {
+export function watchNonRecursive(file: { path: string, isDirectory: boolean }, onChange: (type: 'change' | 'delete', path: string) => void, onError: (error: string) => void): IDisposable {
+	let watcherDisposable: IDisposable = Disposable.None;
+
 	try {
-		const watcher = fs.watch(path);
+		const originalFileName = basename(file.path);
 
-		watcher.on('change', (type, raw) => {
-			let file: string | undefined;
-			if (raw) { // https://github.com/Microsoft/vscode/issues/38191
-				file = raw.toString();
-				if (platform.isMacintosh) {
-					// Mac: uses NFD unicode form on disk, but we want NFC
-					// See also https://github.com/nodejs/node/issues/2165
-					file = normalizeNFC(file);
-				}
-			}
-
-			onChange(type, file);
-		});
-
-		watcher.on('error', (code: number, signal: string) => onError(`Failed to watch ${path} for changes (${code}, ${signal})`));
-
-		return toDisposable(() => {
+		const watcher = fs.watch(file.path);
+		watcherDisposable = toDisposable(() => {
 			watcher.removeAllListeners();
 			watcher.close();
 		});
+
+		watcher.on('error', (code: number, signal: string) => onError(`Failed to watch ${file.path} for changes using fs.watch() (${code}, ${signal})`));
+
+		watcher.on('change', (type, raw) => {
+
+			// Normalize file name
+			let changedFileName: string | undefined;
+			if (raw) { // https://github.com/Microsoft/vscode/issues/38191
+				changedFileName = raw.toString();
+				if (platform.isMacintosh) {
+					// Mac: uses NFD unicode form on disk, but we want NFC
+					// See also https://github.com/nodejs/node/issues/2165
+					changedFileName = normalizeNFC(changedFileName);
+				}
+			}
+
+			if (!changedFileName || (type !== 'change' && type !== 'rename')) {
+				return; // ignore unexpected events
+			}
+
+			if (!file.isDirectory && (type === 'rename' || changedFileName !== originalFileName)) {
+				// The file was either deleted or renamed. Many tools apply changes to files in an
+				// atomic way ("Atomic Save") by first renaming the file to a temporary name and then
+				// renaming it back to the original name. Our watcher will detect this as a rename
+				// and then stops to work on Mac and Linux because the watcher is applied to the
+				// inode and not the name. The fix is to detect this case and trying to watch the file
+				// again after a certain delay.
+				// In addition, we send out a delete event if after a timeout we detect that the file
+				// does indeed not exist anymore.
+
+				// Very important to dispose the watcher which now points to a stale inode
+				dispose(watcherDisposable);
+				watcherDisposable = Disposable.None;
+
+				// Wait a bit and try to install watcher again, assuming that the file was renamed quickly ("Atomic Save")
+				setTimeout(async () => {
+
+					// File still exists, so reapply the watcher
+					if (await exists(file.path)) {
+						watcherDisposable = watchNonRecursive(file, onChange, onError);
+					}
+
+					// File seems to be really gone, so emit a deleted event
+					else {
+						onChange('delete', file.path);
+					}
+				}, 300);
+			}
+
+			// Send as event
+			// File: use the path directly in the event
+			// Folder: join the given file name with the parent path
+			onChange('change', file.isDirectory ? join(file.path, changedFileName) : file.path);
+		});
 	} catch (error) {
-		fs.exists(path, exists => {
+		fs.exists(file.path, exists => {
 			if (exists) {
-				onError(`Failed to watch ${path} for changes (${error.toString()})`);
+				onError(`Failed to watch ${file.path} for changes using fs.watch() (${error.toString()})`);
 			}
 		});
 	}
 
-	return Disposable.None;
+	return toDisposable(() => dispose(watcherDisposable));
 }

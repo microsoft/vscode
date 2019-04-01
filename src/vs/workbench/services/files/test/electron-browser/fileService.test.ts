@@ -8,7 +8,7 @@ import * as path from 'vs/base/common/path';
 import * as os from 'os';
 import * as assert from 'assert';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
-import { FileOperation, FileOperationEvent, FileChangesEvent, FileOperationResult, FileOperationError } from 'vs/platform/files/common/files';
+import { FileOperation, FileOperationEvent, FileOperationResult, FileOperationError } from 'vs/platform/files/common/files';
 import { URI as uri } from 'vs/base/common/uri';
 import * as uuid from 'vs/base/common/uuid';
 import * as pfs from 'vs/base/node/pfs';
@@ -346,23 +346,6 @@ suite('FileService', () => {
 		return service.resolveContent(resource, { encoding: 'superduper' }).then(c => {
 			assert.equal(c.encoding, 'utf8');
 		});
-	});
-
-	test('watch', function (done) {
-		const toWatch = uri.file(path.join(testDir, 'index.html'));
-
-		service.watch(toWatch);
-
-		service.onFileChanges((e: FileChangesEvent) => {
-			assert.ok(e);
-
-			service.unwatch(toWatch);
-			done();
-		});
-
-		setTimeout(() => {
-			fs.writeFileSync(toWatch.fsPath, 'Changes');
-		}, 100);
 	});
 
 	// test('watch - support atomic save', function (done) {

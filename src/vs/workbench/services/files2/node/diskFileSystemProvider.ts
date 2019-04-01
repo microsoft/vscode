@@ -5,12 +5,12 @@
 
 import { mkdir, open, close, read, write } from 'fs';
 import { promisify } from 'util';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, FileSystemProviderErrorCode, createFileSystemProviderError, FileSystemProviderError } from 'vs/platform/files/common/files';
+import { IDisposable, Disposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, FileSystemProviderErrorCode, createFileSystemProviderError, FileSystemProviderError, FileChangeType } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { isLinux, isWindows } from 'vs/base/common/platform';
-import { statLink, readdir, unlink, move, copy, readFile, writeFile, fileExists, truncate, rimraf, RimRafMode } from 'vs/base/node/pfs';
+import { statLink, readdir, unlink, move, copy, readFile, writeFile, fileExists, truncate, rimraf, RimRafMode, watchNonRecursive } from 'vs/base/node/pfs';
 import { normalize, basename, dirname } from 'vs/base/common/path';
 import { joinPath } from 'vs/base/common/resources';
 import { isEqual } from 'vs/base/common/extpath';
@@ -307,7 +307,40 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 	get onDidChangeFile(): Event<IFileChange[]> { return this._onDidChangeFile.event; }
 
 	watch(resource: URI, opts: IWatchOptions): IDisposable {
+		if (opts.recursive) {
+			return this.watchRecursive(resource, opts);
+		}
+
+		return this.watchNonRecursive(resource); // TODO@ben ideally the same watcher can be used in both cases
+	}
+
+	private watchRecursive(resource: URI, opts: IWatchOptions): IDisposable {
 		throw new Error('Method not implemented.');
+	}
+
+	private watchNonRecursive(resource: URI): IDisposable {
+		let disposed = false;
+		let disposable = toDisposable(() => disposed = true);
+
+		this.stat(resource).then(fileStat => {
+			if (disposed) {
+				return;
+			}
+
+			disposable = watchNonRecursive({ path: resource.fsPath, isDirectory: fileStat.type === FileType.Directory }, (eventType: 'change' | 'delete', path: string) => {
+
+				// Logging
+				this.logService.trace(`[File Watcher (node.js)] ${eventType === 'change' ? '[CHANGED]' : '[DELETED]'} ${path}`);
+
+				// Emit as event
+				this._onDidChangeFile.fire([{
+					type: eventType === 'change' ? FileChangeType.UPDATED : FileChangeType.DELETED,
+					resource: URI.file(path)
+				}]);
+			}, error => this.logService.error(error));
+		});
+
+		return toDisposable(() => dispose(disposable));
 	}
 
 	//#endregion
