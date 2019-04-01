@@ -11,7 +11,7 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { EditorInput, EditorModel, GroupIdentifier, IEditorInput } from 'vs/workbench/common/editor';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { WebviewEvents, WebviewInputOptions } from './webviewEditorService';
-import { WebviewElement, WebviewOptions } from './webviewElement';
+import { Webview, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webviewService';
 
 export class WebviewEditorInput extends EditorInput {
 	private static handlePool = 0;
@@ -57,7 +57,7 @@ export class WebviewEditorInput extends EditorInput {
 	private _currentWebviewHtml: string = '';
 	public _events: WebviewEvents | undefined;
 	private _container?: HTMLElement;
-	private _webview: WebviewElement | undefined;
+	private _webview?: Webview;
 	private _webviewOwner: any;
 	private _webviewDisposables: IDisposable[] = [];
 	private _group?: GroupIdentifier;
@@ -234,11 +234,11 @@ export class WebviewEditorInput extends EditorInput {
 		return this._container;
 	}
 
-	public get webview(): WebviewElement | undefined {
+	public get webview(): Webview | undefined {
 		return this._webview;
 	}
 
-	public set webview(value: WebviewElement | undefined) {
+	public set webview(value: Webview | undefined) {
 		this._webviewDisposables = dispose(this._webviewDisposables);
 
 		this._webview = value;
@@ -272,6 +272,7 @@ export class WebviewEditorInput extends EditorInput {
 	}
 
 	public claimWebview(owner: any) {
+
 		this._webviewOwner = owner;
 	}
 

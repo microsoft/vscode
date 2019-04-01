@@ -5,13 +5,13 @@
 
 import { SimpleFindWidget } from 'vs/editor/contrib/find/simpleFindWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { WebviewElement } from './webviewElement';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { Webview } from 'vs/workbench/contrib/webview/browser/webviewService';
 
 export class WebviewFindWidget extends SimpleFindWidget {
 
 	constructor(
-		private _webview: WebviewElement | undefined,
+		private _webview: Webview | undefined,
 		@IContextViewService contextViewService: IContextViewService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
@@ -29,7 +29,7 @@ export class WebviewFindWidget extends SimpleFindWidget {
 		}
 		const val = this.inputValue;
 		if (val) {
-			this._webview.find(val, { findNext: true, forward: !previous });
+			this._webview.find(val, previous);
 		}
 	}
 

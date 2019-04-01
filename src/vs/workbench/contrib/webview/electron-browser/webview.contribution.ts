@@ -14,13 +14,15 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { Extensions as EditorInputExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
-import { WebviewEditorInputFactory } from 'vs/workbench/contrib/webview/electron-browser/webviewEditorInputFactory';
-import { HideWebViewEditorFindCommand, OpenWebviewDeveloperToolsAction, ReloadWebviewAction, ShowWebViewEditorFindWidgetCommand, SelectAllWebviewEditorCommand, CopyWebviewEditorCommand, PasteWebviewEditorCommand, CutWebviewEditorCommand, UndoWebviewEditorCommand, RedoWebviewEditorCommand } from './webviewCommands';
-import { WebviewEditor, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE } from './webviewEditor';
-import { WebviewEditorInput } from './webviewEditorInput';
-import { IWebviewEditorService, WebviewEditorService } from './webviewEditorService';
+import { WebviewEditorInputFactory } from 'vs/workbench/contrib/webview/browser/webviewEditorInputFactory';
+import { HideWebViewEditorFindCommand, OpenWebviewDeveloperToolsAction, ReloadWebviewAction, ShowWebViewEditorFindWidgetCommand, SelectAllWebviewEditorCommand, CopyWebviewEditorCommand, PasteWebviewEditorCommand, CutWebviewEditorCommand, UndoWebviewEditorCommand, RedoWebviewEditorCommand } from '../browser/webviewCommands';
+import { WebviewEditor, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE } from '../browser/webviewEditor';
+import { WebviewEditorInput } from '../browser/webviewEditorInput';
+import { IWebviewEditorService, WebviewEditorService } from '../browser/webviewEditorService';
 import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
 import { isMacintosh } from 'vs/base/common/platform';
+import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webviewService';
+import { WebviewService } from 'vs/workbench/contrib/webview/electron-browser/webviewService';
 
 (Registry.as<IEditorRegistry>(EditorExtensions.Editors)).registerEditor(new EditorDescriptor(
 	WebviewEditor,
@@ -33,6 +35,7 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 	WebviewEditorInputFactory);
 
 registerSingleton(IWebviewEditorService, WebviewEditorService, true);
+registerSingleton(IWebviewService, WebviewService, true);
 
 
 const webviewDeveloperCategory = localize('developer', "Developer");
