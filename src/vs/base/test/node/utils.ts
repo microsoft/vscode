@@ -23,6 +23,6 @@ export function testFile(folder: string, file: string): Promise<ITestFileResult>
 		return {
 			testFile,
 			cleanUp: () => rimraf(parentDir, RimRafMode.MOVE)
-		} as ITestFileResult;
+		};
 	});
 }

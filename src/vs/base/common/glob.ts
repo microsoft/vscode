@@ -512,7 +512,7 @@ function listToMap(list: string[]) {
 	return map;
 }
 
-export function isRelativePattern(obj: any): obj is IRelativePattern {
+export function isRelativePattern(obj: unknown): obj is IRelativePattern {
 	const rp = obj as IRelativePattern;
 
 	return rp && typeof rp.base === 'string' && typeof rp.pattern === 'string';

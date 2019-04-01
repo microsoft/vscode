@@ -243,7 +243,7 @@ export function buffer(zipPath: string, filePath: string): Promise<Buffer> {
 		return new Promise<Buffer>((c, e) => {
 			const buffers: Buffer[] = [];
 			stream.once('error', e);
-			stream.on('data', b => buffers.push(b as Buffer));
+			stream.on('data', (b: Buffer) => buffers.push(b));
 			stream.on('end', () => c(Buffer.concat(buffers)));
 		});
 	});
