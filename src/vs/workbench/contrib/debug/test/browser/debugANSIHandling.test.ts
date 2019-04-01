@@ -12,6 +12,7 @@ import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestSe
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { Color, RGBA } from 'vs/base/common/color';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 
 suite('Debug - ANSI Handling', () => {
 
@@ -19,11 +20,12 @@ suite('Debug - ANSI Handling', () => {
 	let themeService: IThemeService;
 
 	/**
-	 * Instantiate a {@link LinkDetector} for use by the functions being tested.
+	 * Instantiate services for use by the functions being tested.
 	 */
 	setup(() => {
 		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService();
 		linkDetector = instantiationService.createInstance(LinkDetector);
+		themeService = new TestThemeService();
 	});
 
 	test('appendStylizedStringToContainer', () => {
