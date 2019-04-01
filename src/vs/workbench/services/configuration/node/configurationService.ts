@@ -284,10 +284,10 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 		return this._configuration.keys();
 	}
 
-	initialize(arg: IWorkspaceInitializationPayload, postInitialisationTask: () => void = () => null): Promise<any> {
+	initialize(arg: IWorkspaceInitializationPayload): Promise<any> {
 		mark('willInitWorkspaceService');
 		return this.createWorkspace(arg)
-			.then(workspace => this.updateWorkspaceAndInitializeConfiguration(workspace, postInitialisationTask)).then(() => {
+			.then(workspace => this.updateWorkspaceAndInitializeConfiguration(workspace)).then(() => {
 				mark('didInitWorkspaceService');
 			});
 	}
@@ -382,7 +382,7 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 		}
 	}
 
-	private updateWorkspaceAndInitializeConfiguration(workspace: Workspace, postInitialisationTask: () => void): Promise<void> {
+	private updateWorkspaceAndInitializeConfiguration(workspace: Workspace): Promise<void> {
 		const hasWorkspaceBefore = !!this.workspace;
 		let previousState: WorkbenchState;
 		let previousWorkspacePath: string | undefined;
@@ -398,8 +398,6 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 		}
 
 		return this.initializeConfiguration().then(() => {
-
-			postInitialisationTask(); // Post initialisation task should be run before triggering events.
 
 			// Trigger changes after configuration initialization so that configuration is up to date.
 			if (hasWorkspaceBefore) {

@@ -40,6 +40,7 @@ export class ExplorerService implements IExplorerService {
 	private editable: { stat: ExplorerItem, data: IEditableData } | undefined;
 	private _sortOrder: SortOrder;
 	private cutItems: ExplorerItem[] | undefined;
+	private fileSystemProviderSchemes = new Set<string>();
 
 	constructor(
 		@IFileService private fileService: IFileService,
@@ -98,7 +99,14 @@ export class ExplorerService implements IExplorerService {
 		this.disposables.push(this.fileService.onAfterOperation(e => this.onFileOperation(e)));
 		this.disposables.push(this.fileService.onFileChanges(e => this.onFileChanges(e)));
 		this.disposables.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IFilesConfiguration>())));
-		this.disposables.push(this.fileService.onDidChangeFileSystemProviderRegistrations(() => this._onDidChangeItem.fire(undefined)));
+		this.disposables.push(this.fileService.onDidChangeFileSystemProviderRegistrations(e => {
+			if (e.added && this.fileSystemProviderSchemes.has(e.scheme)) {
+				// A file system provider got re-registered, we should update all file stats since they might change (got read-only)
+				this._onDidChangeItem.fire(undefined);
+			} else {
+				this.fileSystemProviderSchemes.add(e.scheme);
+			}
+		}));
 		this.disposables.push(model.onDidChangeRoots(() => this._onDidChangeRoots.fire()));
 
 		return model;
