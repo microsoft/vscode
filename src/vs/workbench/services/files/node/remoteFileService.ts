@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, Disposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
@@ -12,7 +12,7 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/res
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FileWriteOptions, FileSystemProviderCapabilities, IContent, ICreateFileOptions, IFileSystemProvider, IFilesConfiguration, IResolveContentOptions, IStreamContent, ITextSnapshot, IUpdateContentOptions, StringSnapshot, ILegacyFileService, IFileService, toFileOperationResult, IFileStatWithMetadata } from 'vs/platform/files/common/files';
+import { FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FileWriteOptions, FileSystemProviderCapabilities, IContent, ICreateFileOptions, IFileSystemProvider, IResolveContentOptions, IStreamContent, ITextSnapshot, IUpdateContentOptions, StringSnapshot, ILegacyFileService, IFileService, toFileOperationResult, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -20,78 +20,6 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { FileService } from 'vs/workbench/services/files/node/fileService';
 import { createReadableOfProvider, createReadableOfSnapshot, createWritableOfProvider } from 'vs/workbench/services/files/node/streams';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-
-class WorkspaceWatchLogic extends Disposable {
-
-	private _watches = new Map<string, IDisposable>();
-
-	constructor(
-		private _fileService: IFileService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
-	) {
-		super();
-
-		this._refresh();
-
-		this._register(this._contextService.onDidChangeWorkspaceFolders(e => {
-			for (const removed of e.removed) {
-				this._unwatchWorkspace(removed.uri);
-			}
-			for (const added of e.added) {
-				this._watchWorkspace(added.uri);
-			}
-		}));
-		this._register(this._contextService.onDidChangeWorkbenchState(e => {
-			this._refresh();
-		}));
-		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('files.watcherExclude')) {
-				this._refresh();
-			}
-		}));
-	}
-
-	dispose(): void {
-		this._unwatchWorkspaces();
-		super.dispose();
-	}
-
-	private _refresh(): void {
-		this._unwatchWorkspaces();
-		for (const folder of this._contextService.getWorkspace().folders) {
-			if (folder.uri.scheme !== Schemas.file) {
-				this._watchWorkspace(folder.uri);
-			}
-		}
-	}
-
-	private _watchWorkspace(resource: URI) {
-		let excludes: string[] = [];
-		let config = this._configurationService.getValue<IFilesConfiguration>({ resource });
-		if (config.files && config.files.watcherExclude) {
-			for (const key in config.files.watcherExclude) {
-				if (config.files.watcherExclude[key] === true) {
-					excludes.push(key);
-				}
-			}
-		}
-		const disposable = this._fileService.watch(resource, { recursive: true, excludes });
-		this._watches.set(resource.toString(), disposable);
-	}
-
-	private _unwatchWorkspace(resource: URI) {
-		if (this._watches.has(resource.toString())) {
-			dispose(this._watches.get(resource.toString()));
-			this._watches.delete(resource.toString());
-		}
-	}
-
-	private _unwatchWorkspaces() {
-		this._watches.forEach(disposable => dispose(disposable));
-		this._watches.clear();
-	}
-}
 
 export class RemoteFileService extends FileService {
 
@@ -118,7 +46,6 @@ export class RemoteFileService extends FileService {
 		);
 
 		this._provider = new Map<string, IFileSystemProvider>();
-		this._register(new WorkspaceWatchLogic(this, configurationService, contextService));
 	}
 
 	registerProvider(scheme: string, provider: IFileSystemProvider): IDisposable {
