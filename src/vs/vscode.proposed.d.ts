@@ -1400,7 +1400,7 @@ declare module 'vscode' {
 		 * running on.
 		 *
 		 * If a webview accesses localhost content, we recomend that you specify port mappings even if
-		 * the `from` and `to` ports are the same.
+		 * the `port` and `resolvedPort` ports are the same.
 		 */
 		readonly portMapping?: ReadonlyArray<WebviewPortMapping>;
 	}
