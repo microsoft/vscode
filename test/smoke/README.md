@@ -5,6 +5,10 @@ Make sure you are on **Node v10.x**.
 ### Run
 
 ```bash
+# Compile
+cd test/smoke
+yarn compile
+
 # Dev
 yarn smoketest
 
