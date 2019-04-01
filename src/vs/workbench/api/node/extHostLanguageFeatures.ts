@@ -15,7 +15,7 @@ import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHostCommands';
 import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
 import { asPromise } from 'vs/base/common/async';
-import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IMainContext, IdObject, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, ISerializedLanguageConfiguration, WorkspaceSymbolDto, SuggestResultDto, WorkspaceSymbolsDto, SuggestionDto, CodeActionDto, ISerializedDocumentFilter, WorkspaceEditDto, ISerializedSignatureHelpProviderMetadata, LinkDto, CodeLensDto, MainThreadWebviewsShape, CodeInsetDto } from '../common/extHost.protocol';
+import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IMainContext, IdObject, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, ISerializedLanguageConfiguration, WorkspaceSymbolDto, SuggestResultDto, WorkspaceSymbolsDto, CodeActionDto, ISerializedDocumentFilter, WorkspaceEditDto, ISerializedSignatureHelpProviderMetadata, LinkDto, CodeLensDto, MainThreadWebviewsShape, CodeInsetDto, SuggestDataDto } from '../common/extHost.protocol';
 import { regExpLeadsToEndlessLoop, regExpFlags } from 'vs/base/common/strings';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range as EditorRange } from 'vs/editor/common/core/range';
@@ -637,15 +637,18 @@ class SuggestAdapter {
 		const doc = this._documents.getDocument(resource);
 		const pos = typeConvert.Position.to(position);
 
-		return asPromise<vscode.CompletionItem[] | vscode.CompletionList | null | undefined>(
-			() => this._provider.provideCompletionItems(doc, pos, token, typeConvert.CompletionContext.to(context))
-		).then(value => {
+		return asPromise(() => this._provider.provideCompletionItems(doc, pos, token, typeConvert.CompletionContext.to(context))).then(value => {
 
 			const _id = this._idPool++;
 
+			// the default text edit range
+			const wordRangeBeforePos = (doc.getWordRangeAtPosition(pos) as Range || new Range(pos, pos))
+				.with({ end: pos });
+
 			const result: SuggestResultDto = {
-				_id,
-				suggestions: [],
+				x: _id,
+				b: [],
+				a: typeConvert.Range.from(wordRangeBeforePos),
 			};
 
 			let list: CompletionList;
@@ -658,54 +661,45 @@ class SuggestAdapter {
 
 			} else {
 				list = value;
-				result.incomplete = list.isIncomplete;
+				result.c = list.isIncomplete;
 			}
 
-			// the default text edit range
-			const wordRangeBeforePos = (doc.getWordRangeAtPosition(pos) as Range || new Range(pos, pos))
-				.with({ end: pos });
-
 			for (let i = 0; i < list.items.length; i++) {
-				const suggestion = this._convertCompletionItem(list.items[i], pos, wordRangeBeforePos, i, _id);
+				const suggestion = this._convertCompletionItem2(list.items[i], pos, i, _id);
 				// check for bad completion item
 				// for the converter did warn
 				if (suggestion) {
-					result.suggestions.push(suggestion);
+					result.b.push(suggestion);
 				}
 			}
-			this._cache.set(_id, list.items);
+
+			if (SuggestAdapter.supportsResolving(this._provider)) {
+				this._cache.set(_id, list.items);
+			}
 
 			return result;
 		});
 	}
 
-	resolveCompletionItem(resource: URI, position: IPosition, suggestion: modes.CompletionItem, token: CancellationToken): Promise<modes.CompletionItem> {
+	resolveCompletionItem(_resource: URI, position: IPosition, id: number, pid: number, token: CancellationToken): Promise<SuggestDataDto | undefined> {
 
 		if (typeof this._provider.resolveCompletionItem !== 'function') {
-			return Promise.resolve(suggestion);
+			return Promise.resolve(undefined);
 		}
 
-		const { _parentId, _id } = (<SuggestionDto>suggestion);
-		const item = this._cache.has(_parentId) ? this._cache.get(_parentId)![_id] : undefined;
+		const item = this._cache.has(pid) ? this._cache.get(pid)![id] : undefined;
 		if (!item) {
-			return Promise.resolve(suggestion);
+			return Promise.resolve(undefined);
 		}
 
 		return asPromise(() => this._provider.resolveCompletionItem!(item, token)).then(resolvedItem => {
 
 			if (!resolvedItem) {
-				return suggestion;
+				return undefined;
 			}
 
-			const doc = this._documents.getDocument(resource);
 			const pos = typeConvert.Position.to(position);
-			const wordRangeBeforePos = (doc.getWordRangeAtPosition(pos) as Range || new Range(pos, pos)).with({ end: pos });
-			const newSuggestion = this._convertCompletionItem(resolvedItem, pos, wordRangeBeforePos, _id, _parentId);
-			if (newSuggestion) {
-				mixin(suggestion, newSuggestion, true);
-			}
-
-			return suggestion;
+			return this._convertCompletionItem2(resolvedItem, pos, id, pid);
 		});
 	}
 
@@ -713,60 +707,52 @@ class SuggestAdapter {
 		this._cache.delete(id);
 	}
 
-	private _convertCompletionItem(item: vscode.CompletionItem, position: vscode.Position, defaultRange: vscode.Range, _id: number, _parentId: number): SuggestionDto | undefined {
+	private _convertCompletionItem2(item: vscode.CompletionItem, position: vscode.Position, id: number, pid: number): SuggestDataDto | undefined {
 		if (typeof item.label !== 'string' || item.label.length === 0) {
 			console.warn('INVALID text edit -> must have at least a label');
 			return undefined;
 		}
 
-		const result: SuggestionDto = {
+		const result: SuggestDataDto = {
 			//
-			_id,
-			_parentId,
+			x: id,
+			y: pid,
 			//
-			label: item.label,
-			kind: typeConvert.CompletionItemKind.from(item.kind),
-			detail: item.detail,
-			documentation: typeof item.documentation === 'undefined' ? undefined : typeConvert.MarkdownString.fromStrict(item.documentation),
-			filterText: item.filterText,
-			sortText: item.sortText,
-			preselect: item.preselect,
-			//
-			range: undefined!, // populated below
-			insertText: undefined!, // populated below
-			insertTextRules: item.keepWhitespace ? modes.CompletionItemInsertTextRule.KeepWhitespace : 0,
-			additionalTextEdits: item.additionalTextEdits && item.additionalTextEdits.map(typeConvert.TextEdit.from),
-			command: this._commands.toInternal(item.command),
-			commitCharacters: item.commitCharacters
+			a: item.label,
+			b: typeConvert.CompletionItemKind.from(item.kind),
+			c: item.detail,
+			d: typeof item.documentation === 'undefined' ? undefined : typeConvert.MarkdownString.fromStrict(item.documentation),
+			e: item.sortText,
+			f: item.filterText,
+			g: item.preselect,
+			i: item.keepWhitespace ? modes.CompletionItemInsertTextRule.KeepWhitespace : 0,
+			k: item.commitCharacters,
+			l: item.additionalTextEdits && item.additionalTextEdits.map(typeConvert.TextEdit.from),
+			m: this._commands.toInternal(item.command),
 		};
 
 		// 'insertText'-logic
 		if (item.textEdit) {
-			result.insertText = item.textEdit.newText;
+			result.h = item.textEdit.newText;
 
 		} else if (typeof item.insertText === 'string') {
-			result.insertText = item.insertText;
+			result.h = item.insertText;
 
 		} else if (item.insertText instanceof SnippetString) {
-			result.insertText = item.insertText.value;
-			result.insertTextRules! |= modes.CompletionItemInsertTextRule.InsertAsSnippet;
-
-		} else {
-			result.insertText = item.label;
+			result.h = item.insertText.value;
+			result.i! |= modes.CompletionItemInsertTextRule.InsertAsSnippet;
 		}
 
 		// 'overwrite[Before|After]'-logic
-		let range: vscode.Range;
+		let range: vscode.Range | undefined;
 		if (item.textEdit) {
 			range = item.textEdit.range;
 		} else if (item.range) {
 			range = item.range;
-		} else {
-			range = defaultRange;
 		}
-		result.range = typeConvert.Range.from(range);
+		result.j = typeConvert.Range.from(range);
 
-		if (!range.isSingleLine || range.start.line !== position.line) {
+		if (range && (!range.isSingleLine || range.start.line !== position.line)) {
 			console.warn('INVALID text edit -> must be single line and on the same line');
 			return undefined;
 		}
@@ -1387,8 +1373,8 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._withAdapter(handle, SuggestAdapter, adapter => adapter.provideCompletionItems(URI.revive(resource), position, context, token), undefined);
 	}
 
-	$resolveCompletionItem(handle: number, resource: UriComponents, position: IPosition, suggestion: modes.CompletionItem, token: CancellationToken): Promise<modes.CompletionItem> {
-		return this._withAdapter(handle, SuggestAdapter, adapter => adapter.resolveCompletionItem(URI.revive(resource), position, suggestion, token), suggestion);
+	$resolveCompletionItem(handle: number, resource: UriComponents, position: IPosition, id: number, pid: number, token: CancellationToken): Promise<SuggestDataDto | undefined> {
+		return this._withAdapter(handle, SuggestAdapter, adapter => adapter.resolveCompletionItem(URI.revive(resource), position, id, pid, token), undefined);
 	}
 
 	$releaseCompletionItems(handle: number, id: number): void {
