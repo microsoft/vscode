@@ -14,7 +14,6 @@ import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import * as extfs from 'vs/base/node/extfs';
 import { TestTextFileService, TestTextResourceConfigurationService, workbenchInstantiationService, TestLifecycleService, TestEnvironmentService, TestStorageService } from 'vs/workbench/test/workbenchTestServices';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import * as uuid from 'vs/base/common/uuid';
@@ -30,7 +29,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { mkdirp } from 'vs/base/node/pfs';
+import { mkdirp, rimraf, RimRafMode } from 'vs/base/node/pfs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CommandService } from 'vs/workbench/services/commands/common/commandService';
@@ -85,7 +84,7 @@ suite('ConfigurationEditingService', () => {
 			.then(() => setUpServices());
 	});
 
-	async function setUpWorkspace(): Promise<boolean> {
+	async function setUpWorkspace(): Promise<void> {
 		const id = uuid.generateUuid();
 		parentDir = path.join(os.tmpdir(), 'vsctests', id);
 		workspaceDir = path.join(parentDir, 'workspaceconfig', id);
@@ -134,7 +133,7 @@ suite('ConfigurationEditingService', () => {
 	function clearWorkspace(): Promise<void> {
 		return new Promise<void>((c, e) => {
 			if (parentDir) {
-				extfs.del(parentDir, os.tmpdir(), () => c(undefined), () => c(undefined));
+				rimraf(parentDir, RimRafMode.MOVE).then(c, c);
 			} else {
 				c(undefined);
 			}

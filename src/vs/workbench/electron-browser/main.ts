@@ -12,8 +12,8 @@ import { ElectronWindow } from 'vs/workbench/electron-browser/window';
 import { setZoomLevel, setZoomFactor, setFullscreen } from 'vs/base/browser/browser';
 import { domContentLoaded, addDisposableListener, EventType, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { isLinux, isMacintosh, isWindows, OperatingSystem } from 'vs/base/common/platform';
-import { URI as uri } from 'vs/base/common/uri';
+import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { URI } from 'vs/base/common/uri';
 import { WorkspaceService, DefaultConfigurationExportHelper } from 'vs/workbench/services/configuration/node/configurationService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -24,13 +24,13 @@ import { IWindowConfiguration, IWindowService } from 'vs/platform/windows/common
 import { WindowService } from 'vs/platform/windows/electron-browser/windowService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { webFrame } from 'electron';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, IMultiFolderWorkspaceInitializationPayload, IEmptyWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload, reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { ISingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload, reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { ConsoleLogService, MultiplexLogService, ILogService } from 'vs/platform/log/common/log';
 import { StorageService } from 'vs/platform/storage/node/storageService';
 import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/node/logIpc';
 import { Schemas } from 'vs/base/common/network';
-import { sanitizeFilePath } from 'vs/base/node/extfs';
+import { sanitizeFilePath } from 'vs/base/common/extpath';
 import { basename } from 'vs/base/common/path';
 import { GlobalStorageDatabaseChannelClient } from 'vs/platform/storage/node/storageIpc';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -48,6 +48,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { DiskFileSystemProvider } from 'vs/workbench/services/files2/electron-browser/diskFileSystemProvider';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME, RemoteExtensionsFileSystemProvider } from 'vs/platform/remote/common/remoteAgentFileSystemChannel';
+import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 
 class CodeRendererMain extends Disposable {
 
@@ -81,7 +82,7 @@ class CodeRendererMain extends Disposable {
 
 	private reviveUris() {
 		if (this.configuration.folderUri) {
-			this.configuration.folderUri = uri.revive(this.configuration.folderUri);
+			this.configuration.folderUri = URI.revive(this.configuration.folderUri);
 		}
 		if (this.configuration.workspace) {
 			this.configuration.workspace = reviveWorkspaceIdentifier(this.configuration.workspace);
@@ -93,13 +94,13 @@ class CodeRendererMain extends Disposable {
 			if (Array.isArray(paths)) {
 				paths.forEach(path => {
 					if (path.fileUri) {
-						path.fileUri = uri.revive(path.fileUri);
+						path.fileUri = URI.revive(path.fileUri);
 					}
 				});
 			}
 		});
 		if (filesToWait) {
-			filesToWait.waitMarkerFileUri = uri.revive(filesToWait.waitMarkerFileUri);
+			filesToWait.waitMarkerFileUri = URI.revive(filesToWait.waitMarkerFileUri);
 		}
 	}
 
@@ -177,27 +178,23 @@ class CodeRendererMain extends Disposable {
 		const logService = this._register(this.createLogService(mainProcessService, environmentService));
 		serviceCollection.set(ILogService, logService);
 
+		// Remote
+		const remoteAuthorityResolverService = new RemoteAuthorityResolverService();
+		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
+
+		const remoteAgentService = new RemoteAgentService(this.configuration, environmentService, remoteAuthorityResolverService);
+		serviceCollection.set(IRemoteAgentService, remoteAgentService);
+
 		// Files
 		const fileService = new FileService2(logService);
 		serviceCollection.set(IFileService, fileService);
 
-		fileService.registerProvider(Schemas.file, new DiskFileSystemProvider());
-
-		// Remote
-		const remoteAuthorityResolverService = new RemoteAuthorityResolverService();
-		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
-		const remoteAgentService = new RemoteAgentService(this.configuration, environmentService, remoteAuthorityResolverService);
-		serviceCollection.set(IRemoteAgentService, remoteAgentService);
+		fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(logService));
 
 		const connection = remoteAgentService.getConnection();
 		if (connection) {
 			const channel = connection.getChannel<IChannel>(REMOTE_FILE_SYSTEM_CHANNEL_NAME);
-			const fileSystemProvider = new RemoteExtensionsFileSystemProvider(channel);
-			fileService.registerProvider('vscode-remote', fileSystemProvider);
-			remoteAgentService.getEnvironment().then(remoteAgentEnvironment => {
-				const isCaseSensitive = !!(remoteAgentEnvironment && remoteAgentEnvironment.os === OperatingSystem.Linux);
-				fileSystemProvider.setCaseSensitive(isCaseSensitive);
-			});
+			fileService.registerProvider(REMOTE_HOST_SCHEME, new RemoteExtensionsFileSystemProvider(channel, remoteAgentService.getEnvironment()));
 		}
 
 		return this.resolveWorkspaceInitializationPayload(environmentService).then(payload => Promise.all([
@@ -226,7 +223,7 @@ class CodeRendererMain extends Disposable {
 
 		// Multi-root workspace
 		if (this.configuration.workspace) {
-			return Promise.resolve(this.configuration.workspace as IMultiFolderWorkspaceInitializationPayload);
+			return Promise.resolve(this.configuration.workspace);
 		}
 
 		// Single-folder workspace
@@ -248,7 +245,7 @@ class CodeRendererMain extends Disposable {
 					return Promise.reject(new Error('Unexpected window configuration without backupPath'));
 				}
 
-				payload = { id } as IEmptyWorkspaceInitializationPayload;
+				payload = { id };
 			}
 
 			return payload;
@@ -262,7 +259,7 @@ class CodeRendererMain extends Disposable {
 			return Promise.resolve({ id: createHash('md5').update(folderUri.toString()).digest('hex'), folder: folderUri });
 		}
 
-		function computeLocalDiskFolderId(folder: uri, stat: fs.Stats): string {
+		function computeLocalDiskFolderId(folder: URI, stat: fs.Stats): string {
 			let ctime: number | undefined;
 			if (isLinux) {
 				ctime = stat.ino; // Linux: birthtime is ctime, so we cannot use it! We use the ino instead!
@@ -284,11 +281,11 @@ class CodeRendererMain extends Disposable {
 		// For local: ensure path is absolute and exists
 		const sanitizedFolderPath = sanitizeFilePath(folderUri.fsPath, process.env['VSCODE_CWD'] || process.cwd());
 		return stat(sanitizedFolderPath).then(stat => {
-			const sanitizedFolderUri = uri.file(sanitizedFolderPath);
+			const sanitizedFolderUri = URI.file(sanitizedFolderPath);
 			return {
 				id: computeLocalDiskFolderId(sanitizedFolderUri, stat),
 				folder: sanitizedFolderUri
-			} as ISingleFolderWorkspaceInitializationPayload;
+			};
 		}, error => onUnexpectedError(error));
 	}
 

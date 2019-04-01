@@ -215,7 +215,7 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 
 	private _handleUntitledScheme(uri: URI): Promise<boolean> {
 		const asFileUri = uri.with({ scheme: Schemas.file });
-		return this._fileService.resolveFile(asFileUri).then(stats => {
+		return this._fileService.resolve(asFileUri).then(stats => {
 			// don't create a new file ontop of an existing file
 			return Promise.reject(new Error('file already exists on disk'));
 		}, err => {

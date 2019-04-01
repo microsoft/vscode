@@ -91,7 +91,6 @@ export class OpenGlobalSettingsAction extends Action {
 export class OpenRemoteSettingsAction extends Action {
 
 	static readonly ID = 'workbench.action.openRemoteSettings';
-	static readonly LABEL = nls.localize('openRemoteSettings', "Open User Settings (Remote)");
 
 	constructor(
 		id: string,

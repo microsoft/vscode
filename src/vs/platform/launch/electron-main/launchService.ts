@@ -302,6 +302,6 @@ export class LaunchService implements ILaunchService {
 			pid: win.webContents.getOSProcessId(),
 			title: win.getTitle(),
 			folderURIs
-		} as IWindowInfo;
+		};
 	}
 }

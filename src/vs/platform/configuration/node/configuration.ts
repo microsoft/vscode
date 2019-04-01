@@ -70,8 +70,8 @@ export class FileServiceBasedUserConfiguration extends Disposable {
 
 		this._register(fileService.onFileChanges(e => this.handleFileEvents(e)));
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.reload().then(configurationModel => this._onDidChangeConfiguration.fire(configurationModel)), 50));
-		this.fileService.watchFileChanges(this.configurationResource);
-		this._register(toDisposable(() => this.fileService.unwatchFileChanges(this.configurationResource)));
+		this.fileService.watch(this.configurationResource);
+		this._register(toDisposable(() => this.fileService.unwatch(this.configurationResource)));
 	}
 
 	initialize(): Promise<ConfigurationModel> {

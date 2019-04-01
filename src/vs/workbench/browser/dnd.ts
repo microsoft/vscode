@@ -79,7 +79,7 @@ export function extractResources(e: DragEvent, externalOnly?: boolean): Array<ID
 			const rawEditorsData = e.dataTransfer.getData(CodeDataTransfers.EDITORS);
 			if (rawEditorsData) {
 				try {
-					const draggedEditors = JSON.parse(rawEditorsData) as ISerializedDraggedEditor[];
+					const draggedEditors: ISerializedDraggedEditor[] = JSON.parse(rawEditorsData);
 					draggedEditors.forEach(draggedEditor => {
 						resources.push({ resource: URI.parse(draggedEditor.resource), backupResource: draggedEditor.backupResource ? URI.parse(draggedEditor.backupResource) : undefined, viewState: draggedEditor.viewState, isExternal: false });
 					});
@@ -105,7 +105,7 @@ export function extractResources(e: DragEvent, externalOnly?: boolean): Array<ID
 		// Check for native file transfer
 		if (e.dataTransfer && e.dataTransfer.files) {
 			for (let i = 0; i < e.dataTransfer.files.length; i++) {
-				const file = e.dataTransfer.files[i] as { path: string };
+				const file = e.dataTransfer.files[i];
 				if (file && file.path && !resources.some(r => r.resource.fsPath === file.path) /* prevent duplicates */) {
 					try {
 						resources.push({ resource: URI.file(file.path), isExternal: true });
@@ -120,7 +120,7 @@ export function extractResources(e: DragEvent, externalOnly?: boolean): Array<ID
 		const rawCodeFiles = e.dataTransfer.getData(CodeDataTransfers.FILES);
 		if (rawCodeFiles) {
 			try {
-				const codeFiles = JSON.parse(rawCodeFiles) as string[];
+				const codeFiles: string[] = JSON.parse(rawCodeFiles);
 				codeFiles.forEach(codeFile => {
 					if (!resources.some(r => r.resource.fsPath === codeFile) /* prevent duplicates */) {
 						resources.push({ resource: URI.file(codeFile), isExternal: true });
@@ -269,7 +269,7 @@ export class ResourcesDropHandler {
 			}
 
 			// Check for Folder
-			return this.fileService.resolveFile(fileOnDiskResource).then(stat => {
+			return this.fileService.resolve(fileOnDiskResource).then(stat => {
 				if (stat.isDirectory) {
 					workspaceResources.folders.push({ uri: stat.resource, typeHint: 'folder' });
 				}

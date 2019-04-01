@@ -160,7 +160,7 @@
 
 .markers-panel .monaco-tl-contents .marker-icon {
 	height: 22px;
-	flex: 0 0 16px;
+	width: 16px;
 }
 
 .markers-panel .marker-icon.warning {

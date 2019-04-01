@@ -272,12 +272,12 @@ export class DropdownMenuActionItem extends BaseActionItem {
 	private contextMenuProvider: IContextMenuProvider;
 	private actionItemProvider?: IActionItemProvider;
 	private keybindings?: (action: IAction) => ResolvedKeybinding | undefined;
-	private clazz: string;
+	private clazz: string | undefined;
 	private anchorAlignmentProvider: (() => AnchorAlignment) | undefined;
 
-	constructor(action: IAction, menuActions: IAction[], contextMenuProvider: IContextMenuProvider, actionItemProvider: IActionItemProvider | undefined, actionRunner: IActionRunner, keybindings: ((action: IAction) => ResolvedKeybinding | undefined) | undefined, clazz: string, anchorAlignmentProvider?: () => AnchorAlignment);
-	constructor(action: IAction, actionProvider: IActionProvider, contextMenuProvider: IContextMenuProvider, actionItemProvider: IActionItemProvider | undefined, actionRunner: IActionRunner, keybindings: ((action: IAction) => ResolvedKeybinding) | undefined, clazz: string, anchorAlignmentProvider?: () => AnchorAlignment);
-	constructor(action: IAction, menuActionsOrProvider: any, contextMenuProvider: IContextMenuProvider, actionItemProvider: IActionItemProvider | undefined, actionRunner: IActionRunner, keybindings: ((action: IAction) => ResolvedKeybinding | undefined) | undefined, clazz: string, anchorAlignmentProvider?: () => AnchorAlignment) {
+	constructor(action: IAction, menuActions: IAction[], contextMenuProvider: IContextMenuProvider, actionItemProvider: IActionItemProvider | undefined, actionRunner: IActionRunner, keybindings: ((action: IAction) => ResolvedKeybinding | undefined) | undefined, clazz: string | undefined, anchorAlignmentProvider?: () => AnchorAlignment);
+	constructor(action: IAction, actionProvider: IActionProvider, contextMenuProvider: IContextMenuProvider, actionItemProvider: IActionItemProvider | undefined, actionRunner: IActionRunner, keybindings: ((action: IAction) => ResolvedKeybinding) | undefined, clazz: string | undefined, anchorAlignmentProvider?: () => AnchorAlignment);
+	constructor(action: IAction, menuActionsOrProvider: any, contextMenuProvider: IContextMenuProvider, actionItemProvider: IActionItemProvider | undefined, actionRunner: IActionRunner, keybindings: ((action: IAction) => ResolvedKeybinding | undefined) | undefined, clazz: string | undefined, anchorAlignmentProvider?: () => AnchorAlignment) {
 		super(null, action);
 
 		this.menuActionsOrProvider = menuActionsOrProvider;
@@ -292,7 +292,9 @@ export class DropdownMenuActionItem extends BaseActionItem {
 	render(container: HTMLElement): void {
 		const labelRenderer: ILabelRenderer = (el: HTMLElement): IDisposable | null => {
 			this.element = append(el, $('a.action-label.icon'));
-			addClasses(this.element, this.clazz);
+			if (this.clazz) {
+				addClasses(this.element, this.clazz);
+			}
 
 			this.element.tabIndex = 0;
 			this.element.setAttribute('role', 'button');

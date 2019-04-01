@@ -363,11 +363,11 @@ const searchInFolderCommand: ICommandHandler = (accessor, resource?: URI) => {
 	const panelService = accessor.get(IPanelService);
 	const fileService = accessor.get(IFileService);
 	const configurationService = accessor.get(IConfigurationService);
-	const resources = resource && getMultiSelectedResources(resource, listService, accessor.get(IEditorService));
+	const resources = getMultiSelectedResources(resource, listService, accessor.get(IEditorService));
 
 	return openSearchView(viewletService, panelService, configurationService, true).then(searchView => {
 		if (resources && resources.length && searchView) {
-			return fileService.resolveFiles(resources.map(resource => ({ resource }))).then(results => {
+			return fileService.resolveAll(resources.map(resource => ({ resource }))).then(results => {
 				const folders: URI[] = [];
 
 				results.forEach(result => {

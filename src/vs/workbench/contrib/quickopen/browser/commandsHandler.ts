@@ -19,7 +19,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
-import { registerEditorAction, EditorAction, IEditorCommandMenuOptions } from 'vs/editor/browser/editorExtensions';
+import { registerEditorAction, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { LRUCache } from 'vs/base/common/map';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -145,7 +145,7 @@ export class ShowAllCommandsAction extends Action {
 		super(id, label);
 	}
 
-	run(context?: any): Promise<void> {
+	run(): Promise<void> {
 		const config = <IWorkbenchQuickOpenConfiguration>this.configurationService.getValue();
 		const restoreInput = config.workbench && config.workbench.commandPalette && config.workbench.commandPalette.preserveInput === true;
 
@@ -174,7 +174,7 @@ export class ClearCommandHistoryAction extends Action {
 		super(id, label);
 	}
 
-	run(context?: any): Promise<void> {
+	run(): Promise<void> {
 		const commandHistoryLength = resolveCommandHistory(this.configurationService);
 		if (commandHistoryLength > 0) {
 			commandHistory = new LRUCache<string, number>(commandHistoryLength);
@@ -196,7 +196,7 @@ class CommandPaletteEditorAction extends EditorAction {
 			menuOpts: {
 				group: 'z_commands',
 				order: 1
-			} as IEditorCommandMenuOptions
+			}
 		});
 	}
 

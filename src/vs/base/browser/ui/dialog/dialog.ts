@@ -9,7 +9,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { $, hide, show, EventHelper, clearNode, removeClasses, addClass, removeNode } from 'vs/base/browser/dom';
 import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Color } from 'vs/base/common/color';
 import { ButtonGroup, IButtonStyles } from 'vs/base/browser/ui/button/button';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -26,6 +26,7 @@ export interface IDialogStyles extends IButtonStyles {
 	dialogForeground?: Color;
 	dialogBackground?: Color;
 	dialogShadow?: Color;
+	dialogBorder?: Color;
 }
 
 export class Dialog extends Disposable {
@@ -49,12 +50,14 @@ export class Dialog extends Disposable {
 		const messageRowElement = this.element.appendChild($('.dialog-message-row'));
 		this.iconElement = messageRowElement.appendChild($('.dialog-icon'));
 		const messageContainer = messageRowElement.appendChild($('.dialog-message-container'));
-		const messageElement = messageContainer.appendChild($('.dialog-message'));
-		messageElement.innerText = this.message;
+
 		if (this.options.detail) {
-			const messageDetailElement = messageContainer.appendChild($('.dialog-message-detail'));
-			messageDetailElement.innerText = this.options.detail;
+			const messageElement = messageContainer.appendChild($('.dialog-message'));
+			messageElement.innerText = this.message;
 		}
+
+		const messageDetailElement = messageContainer.appendChild($('.dialog-message-detail'));
+		messageDetailElement.innerText = this.options.detail ? this.options.detail : message;
 
 		const toolbarRowElement = this.element.appendChild($('.dialog-toolbar-row'));
 		this.toolbarContainer = toolbarRowElement.appendChild($('.dialog-toolbar'));
@@ -87,14 +90,14 @@ export class Dialog extends Disposable {
 				}));
 			});
 
-			this._register(domEvent(this.element, 'keydown', true)((e: KeyboardEvent) => {
+			this._register(domEvent(window, 'keydown', true)((e: KeyboardEvent) => {
 				const evt = new StandardKeyboardEvent(e);
-				if (evt.equals(KeyCode.Enter)) {
+				if (evt.equals(KeyCode.Enter) || evt.equals(KeyCode.Space)) {
 					return;
 				}
 
 				if (this.buttonGroup) {
-					if ((evt.shiftKey && evt.equals(KeyCode.Tab)) || evt.equals(KeyCode.LeftArrow)) {
+					if (evt.equals(KeyMod.Shift | KeyCode.Tab) || evt.equals(KeyCode.LeftArrow)) {
 						focusedButton = focusedButton + this.buttonGroup.buttons.length - 1;
 						focusedButton = focusedButton % this.buttonGroup.buttons.length;
 						this.buttonGroup.buttons[focusedButton].focus();
@@ -108,7 +111,7 @@ export class Dialog extends Disposable {
 				EventHelper.stop(e, true);
 			}));
 
-			this._register(domEvent(this.element, 'keyup', true)((e: KeyboardEvent) => {
+			this._register(domEvent(window, 'keyup', true)((e: KeyboardEvent) => {
 				EventHelper.stop(e, true);
 				const evt = new StandardKeyboardEvent(e);
 
@@ -159,11 +162,13 @@ export class Dialog extends Disposable {
 			const fgColor = style.dialogForeground ? `${style.dialogForeground}` : null;
 			const bgColor = style.dialogBackground ? `${style.dialogBackground}` : null;
 			const shadowColor = style.dialogShadow ? `0 0px 8px ${style.dialogShadow}` : null;
+			const border = style.dialogBorder ? `1px solid ${style.dialogBorder}` : null;
 
 			if (this.element) {
 				this.element.style.color = fgColor;
 				this.element.style.backgroundColor = bgColor;
 				this.element.style.boxShadow = shadowColor;
+				this.element.style.border = border;
 
 				if (this.buttonGroup) {
 					this.buttonGroup.buttons.forEach(button => button.style(style));

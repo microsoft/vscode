@@ -45,7 +45,7 @@ export class PanelRegistry extends CompositeRegistry<Panel> {
 	 * Returns an array of registered panels known to the platform.
 	 */
 	getPanels(): PanelDescriptor[] {
-		return this.getComposites() as PanelDescriptor[];
+		return this.getComposites();
 	}
 
 	/**

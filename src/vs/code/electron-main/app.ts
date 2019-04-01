@@ -53,7 +53,7 @@ import { IIssueService } from 'vs/platform/issue/common/issue';
 import { IssueChannel } from 'vs/platform/issue/node/issueIpc';
 import { IssueService } from 'vs/platform/issue/electron-main/issueService';
 import { LogLevelSetterChannel } from 'vs/platform/log/node/logIpc';
-import * as errors from 'vs/base/common/errors';
+import { setUnexpectedErrorHandler, onUnexpectedError } from 'vs/base/common/errors';
 import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
 import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
 import { connectRemoteAgentManagement, ManagementPersistentConnection, IConnectionOptions } from 'vs/platform/remote/common/remoteAgentConnection';
@@ -114,9 +114,9 @@ export class CodeApplication extends Disposable {
 	private registerListeners(): void {
 
 		// We handle uncaught exceptions here to prevent electron from opening a dialog to the user
-		errors.setUnexpectedErrorHandler(err => this.onUnexpectedError(err));
+		setUnexpectedErrorHandler(err => this.onUnexpectedError(err));
 		process.on('uncaughtException', err => this.onUnexpectedError(err));
-		process.on('unhandledRejection', (reason: any, promise: Promise<any>) => errors.onUnexpectedError(reason));
+		process.on('unhandledRejection', (reason: unknown) => onUnexpectedError(reason));
 
 		// Contextmenu via IPC support
 		registerContextMenuListener();
@@ -141,7 +141,7 @@ export class CodeApplication extends Disposable {
 
 		// Security related measures (https://electronjs.org/docs/tutorial/security)
 		// DO NOT CHANGE without consulting the documentation
-		app.on('web-contents-created', (event: any, contents) => {
+		app.on('web-contents-created', (event: Electron.Event, contents) => {
 			contents.on('will-attach-webview', (event: Electron.Event, webPreferences, params) => {
 
 				const isValidWebviewSource = (source: string): boolean => {
@@ -190,7 +190,7 @@ export class CodeApplication extends Disposable {
 		});
 
 		let macOpenFileURIs: IURIToOpen[] = [];
-		let runningTimeout: any = null;
+		let runningTimeout: NodeJS.Timeout | null = null;
 		app.on('open-file', (event: Event, path: string) => {
 			this.logService.trace('App#open-file: ', path);
 			event.preventDefault();
@@ -245,7 +245,7 @@ export class CodeApplication extends Disposable {
 			});
 		});
 
-		ipc.on('vscode:broadcast', (event: Event, windowId: number, broadcast: { channel: string; payload: any; }) => {
+		ipc.on('vscode:broadcast', (event: Event, windowId: number, broadcast: { channel: string; payload: object; }) => {
 			if (this.windowsMainService && broadcast.channel && !isUndefinedOrNull(broadcast.payload)) {
 				this.logService.trace('IPC#vscode:broadcast', broadcast.channel, broadcast.payload);
 
@@ -290,7 +290,7 @@ export class CodeApplication extends Disposable {
 		}
 	}
 
-	private onBroadcast(event: string, payload: any): void {
+	private onBroadcast(event: string, payload: object): void {
 
 		// Theme changes
 		if (event === 'vscode:changeColorTheme' && typeof payload === 'string') {
@@ -571,7 +571,7 @@ export class CodeApplication extends Disposable {
 		this.windowsMainService.ready(this.userEnv);
 
 		// Open our first window
-		const macOpenFiles = (<any>global).macOpenFiles as string[];
+		const macOpenFiles: string[] = (<any>global).macOpenFiles;
 		const context = !!process.env['VSCODE_CLI'] ? OpenContext.CLI : OpenContext.DESKTOP;
 		const hasCliArgs = hasArgs(args._);
 		const hasFolderURIs = hasArgs(args['folder-uri']);
@@ -715,7 +715,7 @@ export class CodeApplication extends Disposable {
 		}
 
 		const resolvedAuthorities = new Map<string, ResolvedAuthority>();
-		ipc.on('vscode:remoteAuthorityResolved', (event: any, data: ResolvedAuthority) => {
+		ipc.on('vscode:remoteAuthorityResolved', (event: Electron.Event, data: ResolvedAuthority) => {
 			this.logService.info('Received resolved authority', data.authority);
 			resolvedAuthorities.set(data.authority, data);
 			// Make sure to close and remove any existing connections
@@ -769,7 +769,7 @@ export class CodeApplication extends Disposable {
 					callback(undefined);
 				}
 			} catch (err) {
-				errors.onUnexpectedError(err);
+				onUnexpectedError(err);
 				callback(undefined);
 			}
 		});

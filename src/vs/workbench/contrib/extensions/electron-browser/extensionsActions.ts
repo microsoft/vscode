@@ -2528,7 +2528,7 @@ export class OpenExtensionsFolderAction extends Action {
 	run(): Promise<void> {
 		const extensionsHome = URI.file(this.environmentService.extensionsPath);
 
-		return Promise.resolve(this.fileService.resolveFile(extensionsHome)).then(file => {
+		return Promise.resolve(this.fileService.resolve(extensionsHome)).then(file => {
 			let itemToShow: URI;
 			if (file.children && file.children.length > 0) {
 				itemToShow = file.children[0].resource;

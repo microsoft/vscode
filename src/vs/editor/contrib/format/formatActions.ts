@@ -16,7 +16,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { DocumentRangeFormattingEditProviderRegistry, OnTypeFormattingEditProviderRegistry } from 'vs/editor/common/modes';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { getOnTypeFormattingEdits, alertFormattingEdits, formatDocumentRangeWithFirstProvider, formatDocumentWithFirstProvider } from 'vs/editor/contrib/format/format';
+import { getOnTypeFormattingEdits, alertFormattingEdits, formatDocumentRangeWithSelectedProvider, formatDocumentWithSelectedProvider, FormattingMode } from 'vs/editor/contrib/format/format';
 import { FormattingEdit } from 'vs/editor/contrib/format/formattingEdit';
 import * as nls from 'vs/nls';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
@@ -211,7 +211,7 @@ class FormatOnPaste implements editorCommon.IEditorContribution {
 		if (this.editor.getSelections().length > 1) {
 			return;
 		}
-		this._instantiationService.invokeFunction(formatDocumentRangeWithFirstProvider, this.editor, range, CancellationToken.None).catch(onUnexpectedError);
+		this._instantiationService.invokeFunction(formatDocumentRangeWithSelectedProvider, this.editor, range, FormattingMode.Silent, CancellationToken.None).catch(onUnexpectedError);
 	}
 }
 
@@ -240,7 +240,7 @@ class FormatDocumentAction extends EditorAction {
 	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		if (editor.hasModel()) {
 			const instaService = accessor.get(IInstantiationService);
-			await instaService.invokeFunction(formatDocumentWithFirstProvider, editor, CancellationToken.None);
+			await instaService.invokeFunction(formatDocumentWithSelectedProvider, editor, FormattingMode.Explicit, CancellationToken.None);
 		}
 	}
 }
@@ -276,7 +276,7 @@ class FormatSelectionAction extends EditorAction {
 		if (range.isEmpty()) {
 			range = new Range(range.startLineNumber, 1, range.startLineNumber, model.getLineMaxColumn(range.startLineNumber));
 		}
-		await instaService.invokeFunction(formatDocumentRangeWithFirstProvider, editor, range, CancellationToken.None);
+		await instaService.invokeFunction(formatDocumentRangeWithSelectedProvider, editor, range, FormattingMode.Explicit, CancellationToken.None);
 	}
 }
 

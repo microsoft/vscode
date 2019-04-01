@@ -11,7 +11,7 @@ import * as glob from 'vs/base/common/glob';
 import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { toCanonicalName } from 'vs/base/node/encoding';
-import * as extfs from 'vs/base/node/extfs';
+import * as pfs from 'vs/base/node/pfs';
 import { IExtendedExtensionSearchOptions, IFileMatch, IFolderQuery, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchResult, QueryGlobTester, resolvePatternsForProvider } from 'vs/workbench/services/search/common/search';
 import * as vscode from 'vscode';
 
@@ -22,7 +22,7 @@ export class TextSearchManager {
 	private isLimitHit: boolean;
 	private resultCount = 0;
 
-	constructor(private query: ITextQuery, private provider: vscode.TextSearchProvider, private _extfs: typeof extfs = extfs) {
+	constructor(private query: ITextQuery, private provider: vscode.TextSearchProvider, private _pfs: typeof pfs = pfs) {
 	}
 
 	search(onProgress: (matches: IFileMatch[]) => void, token: CancellationToken): Promise<ISearchCompleteStats> {
@@ -159,15 +159,7 @@ export class TextSearchManager {
 	}
 
 	private readdir(dirname: string): Promise<string[]> {
-		return new Promise((resolve, reject) => {
-			this._extfs.readdir(dirname, (err, files) => {
-				if (err) {
-					return reject(err);
-				}
-
-				resolve(files);
-			});
-		});
+		return this._pfs.readdir(dirname);
 	}
 
 	private getSearchOptionsForFolder(fq: IFolderQuery<URI>): vscode.TextSearchOptions {

@@ -40,7 +40,7 @@ import { diffInserted, diffInsertedOutline, diffRemoved, diffRemovedOutline, edi
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { OpenFileFolderAction, OpenFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
-import { ResourceLabels, IResourceLabelsContainer } from 'vs/workbench/browser/labels';
+import { ResourceLabels } from 'vs/workbench/browser/labels';
 import { IEditor } from 'vs/workbench/common/editor';
 import { ExcludePatternInputWidget, PatternInputWidget } from 'vs/workbench/contrib/search/browser/patternInputWidget';
 import { CancelSearchAction, ClearSearchResultsAction, CollapseDeepestExpandedLevelAction, RefreshAction } from 'vs/workbench/contrib/search/browser/searchActions';
@@ -625,7 +625,7 @@ export class SearchView extends ViewletPanel {
 			}
 		};
 
-		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility } as IResourceLabelsContainer));
+		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility }));
 		this.tree = this._register(<WorkbenchObjectTree<RenderableMatch, any>>this.instantiationService.createInstance(WorkbenchObjectTree,
 			this.resultsElement,
 			delegate,
@@ -1200,7 +1200,7 @@ export class SearchView extends ViewletPanel {
 		// Validate folderQueries
 		const folderQueriesExistP =
 			query.folderQueries.map(fq => {
-				return this.fileService.existsFile(fq.folder);
+				return this.fileService.exists(fq.folder);
 			});
 
 		return Promise.resolve(folderQueriesExistP).then(existResults => {

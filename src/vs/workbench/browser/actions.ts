@@ -17,14 +17,14 @@ export class ActionBarContributor {
 	/**
 	 * Returns true if this contributor has actions for the given context.
 	 */
-	hasActions(context: any): boolean {
+	hasActions(context: unknown): boolean {
 		return false;
 	}
 
 	/**
 	 * Returns an array of primary actions in the given context.
 	 */
-	getActions(context: any): IAction[] {
+	getActions(context: unknown): IAction[] {
 		return [];
 	}
 }
@@ -46,14 +46,14 @@ export const Scope = {
 export class ContributableActionProvider implements IActionProvider {
 	private readonly registry: IActionBarRegistry = Registry.as<IActionBarRegistry>(Extensions.Actionbar);
 
-	private toContext(tree: ITree, element: any): any {
+	private toContext(tree: ITree, element: unknown): unknown {
 		return {
 			viewer: tree,
 			element: element
 		};
 	}
 
-	hasActions(tree: ITree, element: any): boolean {
+	hasActions(tree: ITree, element: unknown): boolean {
 		const context = this.toContext(tree, element);
 
 		const contributors = this.registry.getActionBarContributors(Scope.VIEWER);
@@ -66,7 +66,7 @@ export class ContributableActionProvider implements IActionProvider {
 		return false;
 	}
 
-	getActions(tree: ITree, element: any): IAction[] {
+	getActions(tree: ITree, element: unknown): IAction[] {
 		const actions: IAction[] = [];
 		const context = this.toContext(tree, element);
 

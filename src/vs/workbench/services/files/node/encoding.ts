@@ -5,7 +5,7 @@
 
 import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 import * as encoding from 'vs/base/node/encoding';
-import { URI as uri } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IResolveContentOptions, isParent, IResourceEncodings, IResourceEncoding } from 'vs/platform/files/common/files';
 import { isLinux } from 'vs/base/common/platform';
 import { extname } from 'vs/base/common/path';
@@ -16,7 +16,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { joinPath } from 'vs/base/common/resources';
 
 export interface IEncodingOverride {
-	parent?: uri;
+	parent?: URI;
 	extension?: string;
 	encoding: string;
 }
@@ -49,7 +49,7 @@ export class ResourceEncodings extends Disposable implements IResourceEncodings 
 		}));
 	}
 
-	getReadEncoding(resource: uri, options: IResolveContentOptions | undefined, detected: encoding.IDetectedEncodingResult): string {
+	getReadEncoding(resource: URI, options: IResolveContentOptions | undefined, detected: encoding.IDetectedEncodingResult): string {
 		let preferredEncoding: string | undefined;
 
 		// Encoding passed in as option
@@ -78,7 +78,7 @@ export class ResourceEncodings extends Disposable implements IResourceEncodings 
 		return this.getEncodingForResource(resource, preferredEncoding);
 	}
 
-	getWriteEncoding(resource: uri, preferredEncoding?: string): IResourceEncoding {
+	getWriteEncoding(resource: URI, preferredEncoding?: string): IResourceEncoding {
 		const resourceEncoding = this.getEncodingForResource(resource, preferredEncoding);
 
 		return {
@@ -87,7 +87,7 @@ export class ResourceEncodings extends Disposable implements IResourceEncodings 
 		};
 	}
 
-	private getEncodingForResource(resource: uri, preferredEncoding?: string): string {
+	private getEncodingForResource(resource: URI, preferredEncoding?: string): string {
 		let fileEncoding: string;
 
 		const override = this.getEncodingOverride(resource);
@@ -110,7 +110,7 @@ export class ResourceEncodings extends Disposable implements IResourceEncodings 
 		const encodingOverride: IEncodingOverride[] = [];
 
 		// Global settings
-		encodingOverride.push({ parent: uri.file(this.environmentService.appSettingsHome), encoding: encoding.UTF8 });
+		encodingOverride.push({ parent: URI.file(this.environmentService.appSettingsHome), encoding: encoding.UTF8 });
 
 		// Workspace files
 		encodingOverride.push({ extension: WORKSPACE_EXTENSION, encoding: encoding.UTF8 });
@@ -123,7 +123,7 @@ export class ResourceEncodings extends Disposable implements IResourceEncodings 
 		return encodingOverride;
 	}
 
-	private getEncodingOverride(resource: uri): string | null {
+	private getEncodingOverride(resource: URI): string | null {
 		if (resource && this.encodingOverride && this.encodingOverride.length) {
 			for (const override of this.encodingOverride) {
 

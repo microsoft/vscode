@@ -9,7 +9,7 @@ import * as objects from 'vs/base/common/objects';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as json from 'vs/base/common/json';
-import * as extfs from 'vs/base/node/extfs';
+import { watch } from 'vs/base/node/pfs';
 import { isWindows } from 'vs/base/common/platform';
 
 export interface IConfigurationChangeEvent<T> {
@@ -61,15 +61,15 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 		this.initAsync();
 	}
 
-	public get path(): string {
+	get path(): string {
 		return this._path;
 	}
 
-	public get hasParseErrors(): boolean {
+	get hasParseErrors(): boolean {
 		return this.parseErrors && this.parseErrors.length > 0;
 	}
 
-	public get onDidUpdateConfiguration(): Event<IConfigurationChangeEvent<T>> {
+	get onDidUpdateConfiguration(): Event<IConfigurationChangeEvent<T>> {
 		return this._onDidUpdateConfiguration.event;
 	}
 
@@ -149,7 +149,7 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 			return; // avoid watchers that will never get disposed by checking for being disposed
 		}
 
-		this.disposables.push(extfs.watch(path,
+		this.disposables.push(watch(path,
 			(type, file) => this.onConfigFileChange(type, file, isParentFolder),
 			(error: string) => this.options.onError(error)
 		));
@@ -179,7 +179,7 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 		this.timeoutHandle = global.setTimeout(() => this.reload(), this.options.changeBufferDelay || 0);
 	}
 
-	public reload(callback?: (config: T) => void): void {
+	reload(callback?: (config: T) => void): void {
 		this.loadAsync(currentConfig => {
 			if (!objects.equals(currentConfig, this.cache)) {
 				this.updateCache(currentConfig);
@@ -193,7 +193,7 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 		});
 	}
 
-	public getConfig(): T {
+	getConfig(): T {
 		this.ensureLoaded();
 
 		return this.cache;
@@ -205,7 +205,7 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 		}
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this.disposed = true;
 		this.disposables = dispose(this.disposables);
 	}

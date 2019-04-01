@@ -242,7 +242,7 @@ class BackupFileServiceImpl implements IBackupFileService {
 			const backupResource = this.toBackupResource(resource);
 
 			return this.ioOperationQueues.queueFor(backupResource).queue(() => {
-				return pfs.del(backupResource.fsPath).then(() => model.remove(backupResource));
+				return pfs.rimraf(backupResource.fsPath, pfs.RimRafMode.MOVE).then(() => model.remove(backupResource));
 			});
 		});
 	}
@@ -251,7 +251,7 @@ class BackupFileServiceImpl implements IBackupFileService {
 		this.isShuttingDown = true;
 
 		return this.ready.then(model => {
-			return pfs.del(this.backupWorkspacePath).then(() => model.clear());
+			return pfs.rimraf(this.backupWorkspacePath, pfs.RimRafMode.MOVE).then(() => model.clear());
 		});
 	}
 

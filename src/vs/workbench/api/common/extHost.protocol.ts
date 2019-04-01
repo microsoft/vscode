@@ -854,14 +854,30 @@ export class IdObject {
 	}
 }
 
-export interface SuggestionDto extends modes.CompletionItem {
-	_id: number;
-	_parentId: number;
+export interface SuggestDataDto {
+	a/* label */: string;
+	b/* kind */: modes.CompletionItemKind;
+	c/* detail */?: string;
+	d/* documentation */?: string | IMarkdownString;
+	e/* sortText */?: string;
+	f/* filterText */?: string;
+	g/* preselect */?: boolean;
+	h/* insertText */?: string;
+	i/* insertTextRules */?: modes.CompletionItemInsertTextRule;
+	j/* range */?: IRange;
+	k/* commitCharacters */?: string[];
+	l/* additionalTextEdits */?: ISingleEditOperation[];
+	m/* command */?: modes.Command;
+	// not-standard
+	x: number;
+	y: number;
 }
 
-export interface SuggestResultDto extends IdObject {
-	suggestions: SuggestionDto[];
-	incomplete?: boolean;
+export interface SuggestResultDto {
+	x: number;
+	a: IRange;
+	b: SuggestDataDto[];
+	c?: boolean;
 }
 
 export interface LocationDto {
@@ -982,7 +998,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideRenameEdits(handle: number, resource: UriComponents, position: IPosition, newName: string, token: CancellationToken): Promise<WorkspaceEditDto | undefined>;
 	$resolveRenameLocation(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.RenameLocation | undefined>;
 	$provideCompletionItems(handle: number, resource: UriComponents, position: IPosition, context: modes.CompletionContext, token: CancellationToken): Promise<SuggestResultDto | undefined>;
-	$resolveCompletionItem(handle: number, resource: UriComponents, position: IPosition, suggestion: modes.CompletionItem, token: CancellationToken): Promise<modes.CompletionItem>;
+	$resolveCompletionItem(handle: number, resource: UriComponents, position: IPosition, id: number, pid: number, token: CancellationToken): Promise<SuggestDataDto | undefined>;
 	$releaseCompletionItems(handle: number, id: number): void;
 	$provideSignatureHelp(handle: number, resource: UriComponents, position: IPosition, context: modes.SignatureHelpContext, token: CancellationToken): Promise<modes.SignatureHelp | undefined>;
 	$provideDocumentLinks(handle: number, resource: UriComponents, token: CancellationToken): Promise<LinkDto[] | undefined>;

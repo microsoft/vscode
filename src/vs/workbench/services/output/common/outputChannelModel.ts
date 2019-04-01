@@ -17,7 +17,7 @@ import { isNumber } from 'vs/base/common/types';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { binarySearch } from 'vs/base/common/arrays';
-import { toUint8ArrayBuffer } from 'vs/base/common/uint';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 export interface IOutputChannelModel extends IDisposable {
 	readonly onDidAppendedContent: Event<void>;
@@ -160,7 +160,7 @@ class OutputFileListener extends Disposable {
 	}
 
 	private doWatch(): Promise<void> {
-		return this.fileService.resolveFile(this.file, { resolveMetadata: true })
+		return this.fileService.resolve(this.file, { resolveMetadata: true })
 			.then(stat => {
 				if (stat.etag !== this.etag) {
 					this.etag = stat.etag;
@@ -259,10 +259,7 @@ class FileOutputChannelModel extends AbstractFileOutputChannelModel implements I
 	}
 
 	protected getByteLength(str: string): number {
-		if (typeof Buffer !== 'undefined') {
-			return Buffer.from(str).byteLength;
-		}
-		return toUint8ArrayBuffer(str).byteLength;
+		return VSBuffer.fromString(str).byteLength;
 	}
 
 	update(size?: number): void {
@@ -279,7 +276,7 @@ class FileOutputChannelModel extends AbstractFileOutputChannelModel implements I
 	}
 }
 
-class BufferredOutputChannel extends Disposable implements IOutputChannelModel {
+export class BufferredOutputChannel extends Disposable implements IOutputChannelModel {
 
 	readonly file: URI | null = null;
 	scrollLock: boolean = false;

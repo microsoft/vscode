@@ -293,7 +293,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadTerminalService);
 	}
 
-	public createTerminal(name?: string, shellPath?: string, shellArgs?: string[]): vscode.Terminal {
+	public createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal {
 		const terminal = new ExtHostTerminal(this._proxy, name);
 		terminal.create(shellPath, shellArgs);
 		this._terminals.push(terminal);

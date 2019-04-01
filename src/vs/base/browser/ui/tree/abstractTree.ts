@@ -24,6 +24,7 @@ import { disposableTimeout } from 'vs/base/common/async';
 import { isMacintosh } from 'vs/base/common/platform';
 import { values } from 'vs/base/common/map';
 import { clamp } from 'vs/base/common/numbers';
+import { ScrollEvent } from 'vs/base/common/scrollable';
 
 function asTreeDragAndDropData<T, TFilterData>(data: IDragAndDropData): IDragAndDropData {
 	if (data instanceof ElementsDragAndDropData) {
@@ -176,6 +177,12 @@ export class ComposedTreeDelegate<T, N extends { element: T }> implements IListV
 
 	hasDynamicHeight(element: N): boolean {
 		return !!this.delegate.hasDynamicHeight && this.delegate.hasDynamicHeight(element.element);
+	}
+
+	setDynamicHeight(element: N, height: number): void {
+		if (this.delegate.setDynamicHeight) {
+			this.delegate.setDynamicHeight(element.element, height);
+		}
 	}
 }
 
@@ -502,7 +509,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 			.map(e => new StandardKeyboardEvent(e))
 			.filter(this.keyboardNavigationEventFilter || (() => true))
 			.filter(() => this.automaticKeyboardNavigation || this.triggered)
-			.filter(e => isPrintableCharEvent(e) || ((this.pattern.length > 0 || this.triggered) && ((e.keyCode === KeyCode.Escape || e.keyCode === KeyCode.Backspace) && !e.altKey && !e.ctrlKey && !e.metaKey) || (e.keyCode === KeyCode.Backspace && (isMacintosh ? e.altKey : e.ctrlKey) && !e.shiftKey)))
+			.filter(e => isPrintableCharEvent(e) || ((this.pattern.length > 0 || this.triggered) && ((e.keyCode === KeyCode.Escape || e.keyCode === KeyCode.Backspace) && !e.altKey && !e.ctrlKey && !e.metaKey) || (e.keyCode === KeyCode.Backspace && (isMacintosh ? (e.altKey && !e.metaKey) : e.ctrlKey) && !e.shiftKey)))
 			.forEach(e => { e.stopPropagation(); e.preventDefault(); })
 			.event;
 
@@ -971,7 +978,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	private focusNavigationFilter: ((node: ITreeNode<T, TFilterData>) => boolean) | undefined;
 	protected disposables: IDisposable[] = [];
 
-	get onDidScroll(): Event<void> { return this.view.onDidScroll; }
+	get onDidScroll(): Event<ScrollEvent> { return this.view.onDidScroll; }
 
 	get onDidChangeFocus(): Event<ITreeEvent<T>> { return this.eventBufferer.wrapEvent(this.focus.onDidChange); }
 	get onDidChangeSelection(): Event<ITreeEvent<T>> { return this.eventBufferer.wrapEvent(this.selection.onDidChange); }

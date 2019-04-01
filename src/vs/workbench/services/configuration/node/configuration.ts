@@ -17,7 +17,6 @@ import { ConfigurationModel } from 'vs/platform/configuration/common/configurati
 import { WorkspaceConfigurationModelParser, FolderSettingsModelParser, StandaloneConfigurationModelParser } from 'vs/workbench/services/configuration/common/configurationModels';
 import { FOLDER_SETTINGS_PATH, TASKS_CONFIGURATION_KEY, FOLDER_SETTINGS_NAME, LAUNCH_CONFIGURATION_KEY } from 'vs/workbench/services/configuration/common/configuration';
 import { IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
-import * as extfs from 'vs/base/node/extfs';
 import { JSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditingService';
 import { WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
@@ -369,13 +368,13 @@ class FileServiceBasedWorkspaceConfiguration extends AbstractWorkspaceConfigurat
 
 	private watchWorkspaceConfigurationFile(): void {
 		if (this.workspaceConfig) {
-			this.fileService.watchFileChanges(this.workspaceConfig);
+			this.fileService.watch(this.workspaceConfig);
 		}
 	}
 
 	private unWatchWorkspaceConfigurtionFile(): void {
 		if (this.workspaceConfig) {
-			this.fileService.unwatchFileChanges(this.workspaceConfig);
+			this.fileService.unwatch(this.workspaceConfig);
 		}
 	}
 
@@ -599,22 +598,18 @@ export class NodeBasedFolderConfiguration extends AbstractFolderConfiguration {
 	}
 
 	private resolveStat(resource: URI): Promise<{ resource: URI, isDirectory?: boolean, children?: { resource: URI; }[] }> {
-		return new Promise<{ resource: URI, isDirectory?: boolean, children?: { resource: URI; }[] }>((c, e) => {
-			extfs.readdir(resource.fsPath, (error, children) => {
-				if (error) {
-					if ((<any>error).code === 'ENOTDIR') {
-						c({ resource });
-					} else {
-						e(error);
-					}
-				} else {
-					c({
-						resource,
-						isDirectory: true,
-						children: children.map(child => { return { resource: resources.joinPath(resource, child) }; })
-					});
-				}
-			});
+		return pfs.readdir(resource.fsPath).then(children => {
+			return {
+				resource,
+				isDirectory: true,
+				children: children.map(child => { return { resource: resources.joinPath(resource, child) }; })
+			};
+		}, error => {
+			if ((<any>error).code === 'ENOTDIR') {
+				return Promise.resolve({ resource });
+			} else {
+				return Promise.reject(error);
+			}
 		});
 	}
 }
@@ -638,7 +633,7 @@ export class FileServiceBasedFolderConfiguration extends AbstractFolderConfigura
 
 	private doLoadFolderConfigurationContents(): Promise<Array<{ resource: URI, value: string }>> {
 		const workspaceFilePathToConfiguration: { [relativeWorkspacePath: string]: Promise<IContent | undefined> } = Object.create(null);
-		const bulkContentFetchromise = Promise.resolve(this.fileService.resolveFile(this.folderConfigurationPath))
+		const bulkContentFetchromise = Promise.resolve(this.fileService.resolve(this.folderConfigurationPath))
 			.then(stat => {
 				if (stat.isDirectory && stat.children) {
 					stat.children

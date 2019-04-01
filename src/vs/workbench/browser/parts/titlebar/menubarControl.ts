@@ -458,7 +458,7 @@ export class MenubarControl extends Disposable {
 				return new Action('update.updating', nls.localize('installingUpdate', "Installing Update..."), undefined, false);
 
 			case StateType.Ready:
-				return new Action('update.restart', nls.localize({ key: 'restartToUpdate', comment: ['&& denotes a mnemonic'] }, "Restart to &&Update..."), undefined, true, () =>
+				return new Action('update.restart', nls.localize({ key: 'restartToUpdate', comment: ['&& denotes a mnemonic'] }, "Restart to &&Update"), undefined, true, () =>
 					this.updateService.quitAndInstall());
 		}
 	}

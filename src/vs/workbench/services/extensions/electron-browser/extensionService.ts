@@ -34,6 +34,7 @@ import { ExtensionIdentifier, IExtension, ExtensionType, IExtensionDescription }
 import { Schemas } from 'vs/base/common/network';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
+import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
 
 const hasOwnProperty = Object.hasOwnProperty;
 const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
@@ -843,7 +844,16 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	}
 
 	public _onExtensionHostExit(code: number): void {
-		ipc.send('vscode:exit', code);
+		// Expected development extension termination: When the extension host goes down we also shutdown the window
+		const devOpts = parseExtensionDevOptions(this._environmentService);
+		if (!devOpts.isExtensionDevTestFromCli) {
+			this._windowService.closeWindow();
+		}
+
+		// When CLI testing make sure to exit with proper exit code
+		else {
+			ipc.send('vscode:exit', code);
+		}
 	}
 }
 

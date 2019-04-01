@@ -111,12 +111,12 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 	private onFileOperation(e: FileOperationEvent): void {
 
 		// Handle moves specially when file is opened
-		if (e.operation === FileOperation.MOVE && e.target) {
+		if (e.isOperation(FileOperation.MOVE)) {
 			this.handleMovedFileInOpenedEditors(e.resource, e.target.resource);
 		}
 
 		// Handle deletes
-		if (e.operation === FileOperation.DELETE || e.operation === FileOperation.MOVE) {
+		if (e.isOperation(FileOperation.DELETE) || e.isOperation(FileOperation.MOVE)) {
 			this.handleDeletes(e.resource, false, e.target ? e.target.resource : undefined);
 		}
 	}
@@ -171,7 +171,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 				// flag.
 				let checkExists: Promise<boolean>;
 				if (isExternal) {
-					checkExists = timeout(100).then(() => this.fileService.existsFile(resource));
+					checkExists = timeout(100).then(() => this.fileService.exists(resource));
 				} else {
 					checkExists = Promise.resolve(false);
 				}
@@ -352,7 +352,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 		// Handle no longer visible out of workspace resources
 		this.activeOutOfWorkspaceWatchers.forEach(resource => {
 			if (!visibleOutOfWorkspacePaths.get(resource)) {
-				this.fileService.unwatchFileChanges(resource);
+				this.fileService.unwatch(resource);
 				this.activeOutOfWorkspaceWatchers.delete(resource);
 			}
 		});
@@ -360,7 +360,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 		// Handle newly visible out of workspace resources
 		visibleOutOfWorkspacePaths.forEach(resource => {
 			if (!this.activeOutOfWorkspaceWatchers.get(resource)) {
-				this.fileService.watchFileChanges(resource);
+				this.fileService.watch(resource);
 				this.activeOutOfWorkspaceWatchers.set(resource, resource);
 			}
 		});
@@ -370,7 +370,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 		super.dispose();
 
 		// Dispose watchers if any
-		this.activeOutOfWorkspaceWatchers.forEach(resource => this.fileService.unwatchFileChanges(resource));
+		this.activeOutOfWorkspaceWatchers.forEach(resource => this.fileService.unwatch(resource));
 		this.activeOutOfWorkspaceWatchers.clear();
 	}
 }

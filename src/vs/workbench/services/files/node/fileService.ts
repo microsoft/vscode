@@ -14,8 +14,7 @@ import { isEqualOrParent } from 'vs/base/common/extpath';
 import { ResourceMap } from 'vs/base/common/map';
 import * as arrays from 'vs/base/common/arrays';
 import * as objects from 'vs/base/common/objects';
-import * as extfs from 'vs/base/node/extfs';
-import { nfcall, ThrottledDelayer, timeout } from 'vs/base/common/async';
+import { ThrottledDelayer, timeout } from 'vs/base/common/async';
 import { URI as uri } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
@@ -23,7 +22,6 @@ import { IDisposable, toDisposable, Disposable } from 'vs/base/common/lifecycle'
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import * as pfs from 'vs/base/node/pfs';
 import { detectEncodingFromBuffer, decodeStream, detectEncodingByBOM, UTF8 } from 'vs/base/node/encoding';
-import * as flow from 'vs/base/node/flow';
 import { FileWatcher as UnixWatcherService } from 'vs/workbench/services/files/node/watcher/unix/watcherService';
 import { FileWatcher as WindowsWatcherService } from 'vs/workbench/services/files/node/watcher/win32/watcherService';
 import { toFileChangesEvent, normalize, IRawFileChange } from 'vs/workbench/services/files/node/watcher/common';
@@ -43,10 +41,48 @@ import product from 'vs/platform/product/node/product';
 import { IEncodingOverride, ResourceEncodings } from 'vs/workbench/services/files/node/encoding';
 import { createReadableOfSnapshot } from 'vs/workbench/services/files/node/streams';
 import { withUndefinedAsNull } from 'vs/base/common/types';
+import { normalizeNFC } from 'vs/base/common/normalization';
 
 export interface IFileServiceTestOptions {
 	disableWatcher?: boolean;
 	encodingOverride?: IEncodingOverride[];
+}
+
+interface IStatAndLink {
+	stat: fs.Stats;
+	isSymbolicLink: boolean;
+}
+
+function statLink(path: string, callback: (error: Error | null, statAndIsLink: IStatAndLink | null) => void): void {
+	fs.lstat(path, (error, lstat) => {
+		if (error || lstat.isSymbolicLink()) {
+			fs.stat(path, (error, stat) => {
+				if (error) {
+					return callback(error, null);
+				}
+
+				callback(null, { stat, isSymbolicLink: lstat && lstat.isSymbolicLink() });
+			});
+		} else {
+			callback(null, { stat: lstat, isSymbolicLink: false });
+		}
+	});
+}
+
+function readdir(path: string, callback: (error: Error | null, files: string[]) => void): void {
+	// Mac: uses NFD unicode form on disk, but we want NFC
+	// See also https://github.com/nodejs/node/issues/2165
+	if (isMacintosh) {
+		return fs.readdir(path, (error, children) => {
+			if (error) {
+				return callback(error, []);
+			}
+
+			return callback(null, children.map(c => normalizeNFC(c)));
+		});
+	}
+
+	return fs.readdir(path, callback);
 }
 
 export class FileService extends Disposable implements ILegacyFileService, IFileService {
@@ -280,7 +316,7 @@ export class FileService extends Disposable implements ILegacyFileService, IFile
 			return Promise.reject(error);
 		};
 
-		const statsPromise = this.resolveFile(resource).then(stat => {
+		const statsPromise = this.resolve(resource).then(stat => {
 			result.resource = stat.resource;
 			result.name = stat.name;
 			result.mtime = stat.mtime;
@@ -634,7 +670,7 @@ export class FileService extends Disposable implements ILegacyFileService, IFile
 	private doSetContentsAndResolve(resource: uri, absolutePath: string, value: string | ITextSnapshot, addBOM: boolean, encodingToWrite: string, options?: { mode?: number; flag?: string; }): Promise<IFileStat> {
 
 		// Configure encoding related options as needed
-		const writeFileOptions: extfs.IWriteFileOptions = options ? options : Object.create(null);
+		const writeFileOptions: pfs.IWriteFileOptions = options ? options : Object.create(null);
 		if (addBOM || encodingToWrite !== UTF8) {
 			writeFileOptions.encoding = {
 				charset: encodingToWrite,
@@ -695,7 +731,7 @@ export class FileService extends Disposable implements ILegacyFileService, IFile
 				}).then(() => {
 
 					// 3.) delete temp file
-					return pfs.del(tmpPath, os.tmpdir()).then(() => {
+					return pfs.rimraf(tmpPath, pfs.RimRafMode.MOVE).then(() => {
 
 						// 4.) resolve again
 						return this.resolve(resource);
@@ -812,11 +848,11 @@ export class FileService extends Disposable implements ILegacyFileService, IFile
 		));
 	}
 
-	moveFile(source: uri, target: uri, overwrite?: boolean): Promise<IFileStatWithMetadata> {
+	move(source: uri, target: uri, overwrite?: boolean): Promise<IFileStatWithMetadata> {
 		return this.moveOrCopyFile(source, target, false, !!overwrite);
 	}
 
-	copyFile(source: uri, target: uri, overwrite?: boolean): Promise<IFileStatWithMetadata> {
+	copy(source: uri, target: uri, overwrite?: boolean): Promise<IFileStatWithMetadata> {
 		return this.moveOrCopyFile(source, target, true, !!overwrite);
 	}
 
@@ -828,7 +864,7 @@ export class FileService extends Disposable implements ILegacyFileService, IFile
 		return this.doMoveOrCopyFile(sourcePath, targetPath, keepCopy, overwrite).then(() => {
 
 			// 2.) resolve
-			return this.resolve(target, { resolveMetadata: true }).then(result => {
+			return this.doResolve(target, { resolveMetadata: true }).then(result => {
 
 				// Events (unless it was a no-op because paths are identical)
 				if (sourcePath !== targetPath) {
@@ -875,9 +911,9 @@ export class FileService extends Disposable implements ILegacyFileService, IFile
 
 					// 4.) copy/move
 					if (keepCopy) {
-						return nfcall(extfs.copy, sourcePath, targetPath);
+						return pfs.copy(sourcePath, targetPath);
 					} else {
-						return nfcall(extfs.mv, sourcePath, targetPath);
+						return pfs.move(sourcePath, targetPath);
 					}
 				});
 			});
@@ -929,7 +965,7 @@ export class FileService extends Disposable implements ILegacyFileService, IFile
 		}
 
 		return assertNonRecursiveDelete.then(() => {
-			return pfs.del(absolutePath, os.tmpdir()).then(() => {
+			return pfs.rimraf(absolutePath, pfs.RimRafMode.MOVE).then(() => {
 
 				// Events
 				this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.DELETE));
@@ -952,9 +988,9 @@ export class FileService extends Disposable implements ILegacyFileService, IFile
 		return paths.normalize(resource.fsPath);
 	}
 
-	private resolve(resource: uri, options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
-	private resolve(resource: uri, options?: IResolveFileOptions): Promise<IFileStat>;
-	private resolve(resource: uri, options: IResolveFileOptions = Object.create(null)): Promise<IFileStat> {
+	private doResolve(resource: uri, options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
+	private doResolve(resource: uri, options?: IResolveFileOptions): Promise<IFileStat>;
+	private doResolve(resource: uri, options: IResolveFileOptions = Object.create(null)): Promise<IFileStat> {
 		return this.toStatResolver(resource).then(model => model.resolve(options));
 	}
 
@@ -966,7 +1002,7 @@ export class FileService extends Disposable implements ILegacyFileService, IFile
 		});
 	}
 
-	watchFileChanges(resource: uri): void {
+	watch(resource: uri): void {
 		assert.ok(resource && resource.scheme === Schemas.file, `Invalid resource for watching: ${resource}`);
 
 		// Check for existing watcher first
@@ -981,7 +1017,7 @@ export class FileService extends Disposable implements ILegacyFileService, IFile
 		const fsPath = resource.fsPath;
 		const fsName = paths.basename(resource.fsPath);
 
-		const watcherDisposable = extfs.watch(fsPath, (eventType: string, filename: string) => {
+		const watcherDisposable = pfs.watch(fsPath, (eventType: string, filename: string) => {
 			const renamedOrDeleted = ((filename && filename !== fsName) || eventType === 'rename');
 
 			// The file was either deleted or renamed. Many tools apply changes to files in an
@@ -1000,11 +1036,11 @@ export class FileService extends Disposable implements ILegacyFileService, IFile
 
 				// Wait a bit and try to install watcher again, assuming that the file was renamed quickly ("Atomic Save")
 				setTimeout(() => {
-					this.existsFile(resource).then(exists => {
+					this.exists(resource).then(exists => {
 
 						// File still exists, so reapply the watcher
 						if (exists) {
-							this.watchFileChanges(resource);
+							this.watch(resource);
 						}
 
 						// File seems to be really gone, so emit a deleted event
@@ -1063,7 +1099,7 @@ export class FileService extends Disposable implements ILegacyFileService, IFile
 		});
 	}
 
-	unwatchFileChanges(resource: uri): void {
+	unwatch(resource: uri): void {
 		const watcher = this.activeFileChangesWatchers.get(resource);
 		if (watcher && --watcher.count === 0) {
 			watcher.unwatch();
@@ -1092,14 +1128,14 @@ export class FileService extends Disposable implements ILegacyFileService, IFile
 
 	// Tests only
 
-	resolveFile(resource: uri, options?: IResolveFileOptions): Promise<IFileStat>;
-	resolveFile(resource: uri, options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
-	resolveFile(resource: uri, options?: IResolveFileOptions): Promise<IFileStat> {
-		return this.resolve(resource, options);
+	resolve(resource: uri, options?: IResolveFileOptions): Promise<IFileStat>;
+	resolve(resource: uri, options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
+	resolve(resource: uri, options?: IResolveFileOptions): Promise<IFileStat> {
+		return this.doResolve(resource, options);
 	}
 
-	resolveFiles(toResolve: { resource: uri, options?: IResolveFileOptions }[]): Promise<IResolveFileResult[]> {
-		return Promise.all(toResolve.map(resourceAndOptions => this.resolve(resourceAndOptions.resource, resourceAndOptions.options)
+	resolveAll(toResolve: { resource: uri, options?: IResolveFileOptions }[]): Promise<IResolveFileResult[]> {
+		return Promise.all(toResolve.map(resourceAndOptions => this.doResolve(resourceAndOptions.resource, resourceAndOptions.options)
 			.then(stat => ({ stat, success: true }), error => ({ stat: undefined, success: false }))));
 	}
 
@@ -1110,7 +1146,7 @@ export class FileService extends Disposable implements ILegacyFileService, IFile
 		return pfs.mkdirp(absolutePath).then(() => {
 
 			// 2.) Resolve
-			return this.resolve(resource, { resolveMetadata: true }).then(result => {
+			return this.doResolve(resource, { resolveMetadata: true }).then(result => {
 
 				// Events
 				this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, result));
@@ -1120,8 +1156,8 @@ export class FileService extends Disposable implements ILegacyFileService, IFile
 		});
 	}
 
-	existsFile(resource: uri): Promise<boolean> {
-		return this.resolveFile(resource).then(() => true, () => false);
+	exists(resource: uri): Promise<boolean> {
+		return this.resolve(resource).then(() => true, () => false);
 	}
 }
 
@@ -1139,6 +1175,187 @@ function etag(arg1: any, arg2?: any): string {
 	}
 
 	return `"${crypto.createHash('sha1').update(String(size) + String(mtime)).digest('hex')}"`;
+}
+
+/**
+ * Executes the given function (fn) over the given array of items (list) in parallel and returns the resulting errors and results as
+ * array to the callback (callback). The resulting errors and results are evaluated by calling the provided callback function.
+ */
+function parallel<T, E>(list: T[], fn: (item: T, callback: (err: Error | null, result: E | null) => void) => void, callback: (err: Array<Error | null> | null, result: E[]) => void): void {
+	const results = new Array(list.length);
+	const errors = new Array<Error | null>(list.length);
+	let didErrorOccur = false;
+	let doneCount = 0;
+
+	if (list.length === 0) {
+		return callback(null, []);
+	}
+
+	list.forEach((item, index) => {
+		fn(item, (error, result) => {
+			if (error) {
+				didErrorOccur = true;
+				results[index] = null;
+				errors[index] = error;
+			} else {
+				results[index] = result;
+				errors[index] = null;
+			}
+
+			if (++doneCount === list.length) {
+				return callback(didErrorOccur ? errors : null, results);
+			}
+		});
+	});
+}
+
+/**
+ * Executes the given function (fn) over the given array of items (param) in sequential order and returns the first occurred error or the result as
+ * array to the callback (callback). The resulting errors and results are evaluated by calling the provided callback function. The first param can
+ * either be a function that returns an array of results to loop in async fashion or be an array of items already.
+ */
+function loop<T, E>(param: (callback: (error: Error, result: T[]) => void) => void, fn: (item: T, callback: (error: Error | null, result: E | null) => void, index: number, total: number) => void, callback: (error: Error | null, result: E[] | null) => void): void;
+function loop<T, E>(param: T[], fn: (item: T, callback: (error: Error | null, result: E | null) => void, index: number, total: number) => void, callback: (error: Error | null, result: E[] | null) => void): void;
+function loop<E>(param: any, fn: (item: any, callback: (error: Error | null, result: E | null) => void, index: number, total: number) => void, callback: (error: Error | null, result: E[] | null) => void): void {
+
+	// Assert
+	assert.ok(param, 'Missing first parameter');
+	assert.ok(typeof (fn) === 'function', 'Second parameter must be a function that is called for each element');
+	assert.ok(typeof (callback) === 'function', 'Third parameter must be a function that is called on error and success');
+
+	// Param is function, execute to retrieve array
+	if (typeof (param) === 'function') {
+		try {
+			param((error: Error, result: E[]) => {
+				if (error) {
+					callback(error, null);
+				} else {
+					loop(result, fn, callback);
+				}
+			});
+		} catch (error) {
+			callback(error, null);
+		}
+	}
+
+	// Expect the param to be an array and loop over it
+	else {
+		const results: E[] = [];
+
+		const looper: (i: number) => void = function (i: number): void {
+
+			// Still work to do
+			if (i < param.length) {
+
+				// Execute function on array element
+				try {
+					fn(param[i], (error: any, result: E) => {
+
+						// A method might only send a boolean value as return value (e.g. fs.exists), support this case gracefully
+						if (error === true || error === false) {
+							result = error;
+							error = null;
+						}
+
+						// Quit looping on error
+						if (error) {
+							callback(error, null);
+						}
+
+						// Otherwise push result on stack and continue looping
+						else {
+							if (result) { //Could be that provided function is not returning a result
+								results.push(result);
+							}
+
+							process.nextTick(() => {
+								looper(i + 1);
+							});
+						}
+					}, i, param.length);
+				} catch (error) {
+					callback(error, null);
+				}
+			}
+
+			// Done looping, pass back results too callback function
+			else {
+				callback(null, results);
+			}
+		};
+
+		// Start looping with first element in array
+		looper(0);
+	}
+}
+
+function Sequence(sequences: { (...param: any[]): void; }[]): void {
+
+	// Assert
+	assert.ok(sequences.length > 1, 'Need at least one error handler and one function to process sequence');
+	sequences.forEach((sequence) => {
+		assert.ok(typeof (sequence) === 'function');
+	});
+
+	// Execute in Loop
+	const errorHandler = sequences.splice(0, 1)[0]; //Remove error handler
+	let sequenceResult: any = null;
+
+	loop(sequences, (sequence, clb) => {
+		const sequenceFunction = function (error: any, result: any): void {
+
+			// A method might only send a boolean value as return value (e.g. fs.exists), support this case gracefully
+			if (error === true || error === false) {
+				result = error;
+				error = null;
+			}
+
+			// Handle Error and Result
+			if (error) {
+				clb(error, null);
+			} else {
+				sequenceResult = result; //Remember result of sequence
+				clb(null, null); //Don't pass on result to Looper as we are not aggregating it
+			}
+		};
+
+		// We call the sequence function setting "this" to be the callback we define here
+		// and we pass in the "sequenceResult" as first argument. Doing all this avoids having
+		// to pass in a callback to the sequence because the callback is already "this".
+		try {
+			sequence.call(sequenceFunction, sequenceResult);
+		} catch (error) {
+			clb(error, null);
+		}
+	}, (error, result) => {
+		if (error) {
+			errorHandler(error);
+		}
+	});
+}
+
+/**
+ * Takes a variable list of functions to execute in sequence. The first function must be the error handler and the
+ * following functions can do arbitrary work. "this" must be used as callback value for async functions to continue
+ * through the sequence:
+ * 	sequence(
+ * 		function errorHandler(error) {
+ * 			clb(error, null);
+ * 		},
+ *
+ * 		function doSomethingAsync() {
+ * 			fs.doAsync(path, this);
+ * 		},
+ *
+ * 		function done(result) {
+ * 			clb(null, result);
+ * 		}
+ * 	);
+ */
+function sequence(errorHandler: (error: Error) => void, ...sequences: Function[]): void;
+function sequence(sequences: Function[]): void;
+function sequence(sequences: any): void {
+	Sequence((Array.isArray(sequences)) ? sequences : Array.prototype.slice.call(arguments));
 }
 
 export class StatResolver {
@@ -1206,7 +1423,7 @@ export class StatResolver {
 	}
 
 	private resolveChildren(absolutePath: string, absoluteTargetPaths: string[] | null, resolveSingleChildDescendants: boolean, callback: (children: IFileStat[] | null) => void): void {
-		extfs.readdir(absolutePath, (error: Error, files: string[]) => {
+		readdir(absolutePath, (error: Error, files: string[]) => {
 			if (error) {
 				if (this.errorLogger) {
 					this.errorLogger(error);
@@ -1216,13 +1433,13 @@ export class StatResolver {
 			}
 
 			// for each file in the folder
-			flow.parallel(files, (file: string, clb: (error: Error | null, children: IFileStat | null) => void) => {
+			parallel(files, (file: string, clb: (error: Error | null, children: IFileStat | null) => void) => {
 				const fileResource = uri.file(paths.resolve(absolutePath, file));
 				let fileStat: fs.Stats;
 				let isSymbolicLink = false;
 				const $this = this;
 
-				flow.sequence(
+				sequence(
 					function onError(error: Error): void {
 						if ($this.errorLogger) {
 							$this.errorLogger(error);
@@ -1232,15 +1449,15 @@ export class StatResolver {
 					},
 
 					function stat(this: any): void {
-						extfs.statLink(fileResource.fsPath, this);
+						statLink(fileResource.fsPath, this);
 					},
 
-					function countChildren(this: any, statAndLink: extfs.IStatAndLink): void {
+					function countChildren(this: any, statAndLink: IStatAndLink): void {
 						fileStat = statAndLink.stat;
 						isSymbolicLink = statAndLink.isSymbolicLink;
 
 						if (fileStat.isDirectory()) {
-							extfs.readdir(fileResource.fsPath, (error, result) => {
+							readdir(fileResource.fsPath, (error, result) => {
 								this(null, result ? result.length : 0);
 							});
 						} else {

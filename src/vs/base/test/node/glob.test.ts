@@ -455,7 +455,7 @@ suite('Glob', () => {
 
 		expression = {
 			'**/*.js': {
-			}
+			} as any
 		};
 
 		assert.strictEqual('**/*.js', glob.match(expression, 'test.js', hasSibling));
@@ -474,7 +474,7 @@ suite('Glob', () => {
 			'**/*.js': { when: '$(basename).ts' },
 			'**/*.as': true,
 			'**/*.foo': false,
-			'**/*.bananas': { bananas: true }
+			'**/*.bananas': { bananas: true } as any
 		};
 
 		assert.strictEqual('**/*.js', glob.match(expression, 'test.js', hasSibling));
@@ -691,7 +691,7 @@ suite('Glob', () => {
 	});
 
 	test('expression with other falsy value', function () {
-		let expr = { '**/*.js': 0 };
+		let expr = { '**/*.js': 0 } as any;
 
 		assert.strictEqual(glob.match(expr, 'foo.js'), '**/*.js');
 	});

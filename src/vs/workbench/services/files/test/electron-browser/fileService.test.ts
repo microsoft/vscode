@@ -39,7 +39,7 @@ suite('FileService', () => {
 
 	teardown(() => {
 		service.dispose();
-		return pfs.del(parentDir, os.tmpdir());
+		return pfs.rimraf(parentDir, pfs.RimRafMode.MOVE);
 	});
 
 	test('createFile', () => {
@@ -348,15 +348,15 @@ suite('FileService', () => {
 		});
 	});
 
-	test('watchFileChanges', function (done) {
+	test('watch', function (done) {
 		const toWatch = uri.file(path.join(testDir, 'index.html'));
 
-		service.watchFileChanges(toWatch);
+		service.watch(toWatch);
 
 		service.onFileChanges((e: FileChangesEvent) => {
 			assert.ok(e);
 
-			service.unwatchFileChanges(toWatch);
+			service.unwatch(toWatch);
 			done();
 		});
 
@@ -365,15 +365,15 @@ suite('FileService', () => {
 		}, 100);
 	});
 
-	// test('watchFileChanges - support atomic save', function (done) {
+	// test('watch - support atomic save', function (done) {
 	// 	const toWatch = uri.file(path.join(testDir, 'index.html'));
 
-	// 	service.watchFileChanges(toWatch);
+	// 	service.watch(toWatch);
 
 	// 	service.onFileChanges((e: FileChangesEvent) => {
 	// 		assert.ok(e);
 
-	// 		service.unwatchFileChanges(toWatch);
+	// 		service.unwatch(toWatch);
 	// 		done();
 	// 	});
 

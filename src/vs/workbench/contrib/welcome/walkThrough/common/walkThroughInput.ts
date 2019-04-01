@@ -123,7 +123,7 @@ export class WalkThroughInput extends EditorInput {
 		return this.promise;
 	}
 
-	matches(otherInput: any): boolean {
+	matches(otherInput: unknown): boolean {
 		if (super.matches(otherInput) === true) {
 			return true;
 		}

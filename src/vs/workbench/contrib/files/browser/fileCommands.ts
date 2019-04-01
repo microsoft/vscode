@@ -270,7 +270,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 		// Set side input
 		if (resources.length) {
-			return fileService.resolveFiles(resources.map(resource => ({ resource }))).then(resolved => {
+			return fileService.resolveAll(resources.map(resource => ({ resource }))).then(resolved => {
 				const editors = resolved.filter(r => r.stat && r.success && !r.stat.isDirectory).map(r => ({
 					resource: r.stat!.resource
 				}));

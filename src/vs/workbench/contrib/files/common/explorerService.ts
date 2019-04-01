@@ -40,6 +40,7 @@ export class ExplorerService implements IExplorerService {
 	private editable: { stat: ExplorerItem, data: IEditableData } | undefined;
 	private _sortOrder: SortOrder;
 	private cutItems: ExplorerItem[] | undefined;
+	private fileSystemProviderSchemes = new Set<string>();
 
 	constructor(
 		@IFileService private fileService: IFileService,
@@ -98,7 +99,14 @@ export class ExplorerService implements IExplorerService {
 		this.disposables.push(this.fileService.onAfterOperation(e => this.onFileOperation(e)));
 		this.disposables.push(this.fileService.onFileChanges(e => this.onFileChanges(e)));
 		this.disposables.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IFilesConfiguration>())));
-		this.disposables.push(this.fileService.onDidChangeFileSystemProviderRegistrations(() => this._onDidChangeItem.fire(undefined)));
+		this.disposables.push(this.fileService.onDidChangeFileSystemProviderRegistrations(e => {
+			if (e.added && this.fileSystemProviderSchemes.has(e.scheme)) {
+				// A file system provider got re-registered, we should update all file stats since they might change (got read-only)
+				this._onDidChangeItem.fire(undefined);
+			} else {
+				this.fileSystemProviderSchemes.add(e.scheme);
+			}
+		}));
 		this.disposables.push(model.onDidChangeRoots(() => this._onDidChangeRoots.fire()));
 
 		return model;
@@ -151,7 +159,7 @@ export class ExplorerService implements IExplorerService {
 		const workspaceFolder = this.contextService.getWorkspaceFolder(resource);
 		const rootUri = workspaceFolder ? workspaceFolder.uri : this.roots[0].resource;
 		const root = this.roots.filter(r => r.resource.toString() === rootUri.toString()).pop()!;
-		return this.fileService.resolveFile(rootUri, options).then(stat => {
+		return this.fileService.resolve(rootUri, options).then(stat => {
 
 			// Convert to model
 			const modelStat = ExplorerItem.create(stat, undefined, options.resolveTo);
@@ -182,8 +190,8 @@ export class ExplorerService implements IExplorerService {
 
 	private onFileOperation(e: FileOperationEvent): void {
 		// Add
-		if (e.operation === FileOperation.CREATE || e.operation === FileOperation.COPY) {
-			const addedElement = e.target!;
+		if (e.isOperation(FileOperation.CREATE) || e.isOperation(FileOperation.COPY)) {
+			const addedElement = e.target;
 			const parentResource = dirname(addedElement.resource)!;
 			const parents = this.model.findAll(parentResource);
 
@@ -193,7 +201,7 @@ export class ExplorerService implements IExplorerService {
 				parents.forEach(p => {
 					// We have to check if the parent is resolved #29177
 					const resolveMetadata = this.sortOrder === `modified`;
-					const thenable: Promise<IFileStat | undefined> = p.isDirectoryResolved ? Promise.resolve(undefined) : this.fileService.resolveFile(p.resource, { resolveMetadata });
+					const thenable: Promise<IFileStat | undefined> = p.isDirectoryResolved ? Promise.resolve(undefined) : this.fileService.resolve(p.resource, { resolveMetadata });
 					thenable.then(stat => {
 						if (stat) {
 							const modelStat = ExplorerItem.create(stat, p.parent);
@@ -212,9 +220,9 @@ export class ExplorerService implements IExplorerService {
 		}
 
 		// Move (including Rename)
-		else if (e.operation === FileOperation.MOVE) {
+		else if (e.isOperation(FileOperation.MOVE)) {
 			const oldResource = e.resource;
-			const newElement = e.target!;
+			const newElement = e.target;
 			const oldParentResource = dirname(oldResource);
 			const newParentResource = dirname(newElement.resource);
 
@@ -246,7 +254,7 @@ export class ExplorerService implements IExplorerService {
 		}
 
 		// Delete
-		else if (e.operation === FileOperation.DELETE) {
+		else if (e.isOperation(FileOperation.DELETE)) {
 			const modelElements = this.model.findAll(e.resource);
 			modelElements.forEach(element => {
 				if (element.parent) {

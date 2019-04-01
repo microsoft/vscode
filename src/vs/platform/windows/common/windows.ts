@@ -16,6 +16,7 @@ import { LogLevel } from 'vs/platform/log/common/log';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 
 export const IWindowsService = createDecorator<IWindowsService>('windowsService');
 
@@ -425,31 +426,31 @@ export interface IRunKeybindingInWindowRequest {
 export class ActiveWindowManager implements IDisposable {
 
 	private disposables: IDisposable[] = [];
-	private firstActiveWindowIdPromise: Promise<any> | null;
-	private _activeWindowId: number | undefined;
+	private firstActiveWindowIdPromise: CancelablePromise<number | undefined> | undefined;
+	private activeWindowId: number | undefined;
 
 	constructor(@IWindowsService windowsService: IWindowsService) {
 		const onActiveWindowChange = Event.latch(Event.any(windowsService.onWindowOpen, windowsService.onWindowFocus));
 		onActiveWindowChange(this.setActiveWindow, this, this.disposables);
 
-		this.firstActiveWindowIdPromise = windowsService.getActiveWindowId()
-			.then(id => (typeof this._activeWindowId === 'undefined') && this.setActiveWindow(id));
+		this.firstActiveWindowIdPromise = createCancelablePromise(_ => windowsService.getActiveWindowId());
+		this.firstActiveWindowIdPromise
+			.then(id => this.activeWindowId = id)
+			.finally(this.firstActiveWindowIdPromise = undefined);
 	}
 
 	private setActiveWindow(windowId: number | undefined) {
 		if (this.firstActiveWindowIdPromise) {
-			this.firstActiveWindowIdPromise = null;
+			this.firstActiveWindowIdPromise.cancel();
+			this.firstActiveWindowIdPromise = undefined;
 		}
 
-		this._activeWindowId = windowId;
+		this.activeWindowId = windowId;
 	}
 
-	getActiveClientId(): Promise<string> {
-		if (this.firstActiveWindowIdPromise) {
-			return this.firstActiveWindowIdPromise;
-		}
-
-		return Promise.resolve(`window:${this._activeWindowId}`);
+	async getActiveClientId(): Promise<string | undefined> {
+		const id = this.firstActiveWindowIdPromise ? (await this.firstActiveWindowIdPromise) : this.activeWindowId;
+		return `window:${id}`;
 	}
 
 	dispose() {

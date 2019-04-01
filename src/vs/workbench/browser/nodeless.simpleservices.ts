@@ -695,16 +695,16 @@ export class SimpleRemoteFileService implements IFileService {
 	readonly onDidChangeFileSystemProviderRegistrations = Event.None;
 	readonly onWillActivateFileSystemProvider = Event.None;
 
-	resolveFile(resource: URI, options?: IResolveFileOptions): Promise<IFileStatWithMetadata> {
+	resolve(resource: URI, options?: IResolveFileOptions): Promise<IFileStatWithMetadata> {
 		// @ts-ignore
 		return Promise.resolve(fileMap.get(resource));
 	}
 
-	resolveFiles(toResolve: { resource: URI, options?: IResolveFileOptions }[]): Promise<IResolveFileResult[]> {
-		return Promise.all(toResolve.map(resourceAndOption => this.resolveFile(resourceAndOption.resource, resourceAndOption.options))).then(stats => stats.map(stat => ({ stat, success: true })));
+	resolveAll(toResolve: { resource: URI, options?: IResolveFileOptions }[]): Promise<IResolveFileResult[]> {
+		return Promise.all(toResolve.map(resourceAndOption => this.resolve(resourceAndOption.resource, resourceAndOption.options))).then(stats => stats.map(stat => ({ stat, success: true })));
 	}
 
-	existsFile(resource: URI): Promise<boolean> {
+	exists(resource: URI): Promise<boolean> {
 		return Promise.resolve(fileMap.has(resource));
 	}
 
@@ -761,9 +761,9 @@ export class SimpleRemoteFileService implements IFileService {
 		});
 	}
 
-	moveFile(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStatWithMetadata> { return Promise.resolve(null!); }
+	move(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStatWithMetadata> { return Promise.resolve(null!); }
 
-	copyFile(_source: URI, _target: URI, _overwrite?: boolean): Promise<any> {
+	copy(_source: URI, _target: URI, _overwrite?: boolean): Promise<any> {
 		const parent = fileMap.get(dirname(_target));
 		if (!parent) {
 			return Promise.resolve(undefined);
@@ -802,9 +802,9 @@ export class SimpleRemoteFileService implements IFileService {
 
 	del(_resource: URI, _options?: { useTrash?: boolean, recursive?: boolean }): Promise<void> { return Promise.resolve(); }
 
-	watchFileChanges(_resource: URI): void { }
+	watch(_resource: URI): void { }
 
-	unwatchFileChanges(_resource: URI): void { }
+	unwatch(_resource: URI): void { }
 
 	getWriteEncoding(_resource: URI): IResourceEncoding { return { encoding: 'utf8', hasBOM: false }; }
 

@@ -841,6 +841,11 @@ registerEditorAction(AcceptReplInputAction);
 registerEditorAction(ReplCopyAllAction);
 
 class SelectReplActionItem extends FocusSessionActionItem {
+
+	protected getActionContext(_: string, index: number): any {
+		return this.debugService.getModel().getSessions(true)[index];
+	}
+
 	protected getSessions(): ReadonlyArray<IDebugSession> {
 		return this.debugService.getModel().getSessions(true).filter(s => !sessionsToIgnore.has(s));
 	}
@@ -858,8 +863,7 @@ class SelectReplAction extends Action {
 		super(id, label);
 	}
 
-	run(sessionName: string): Promise<any> {
-		const session = this.debugService.getModel().getSessions(true).filter(p => p.getLabel() === sessionName).pop();
+	run(session: IDebugSession): Promise<any> {
 		// If session is already the focused session we need to manualy update the tree since view model will not send a focused change event
 		if (session && session.state !== State.Inactive && session !== this.debugService.getViewModel().focusedSession) {
 			this.debugService.focusStackFrame(undefined, undefined, session, true);

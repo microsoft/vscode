@@ -929,9 +929,9 @@ export class TestFileService implements IFileService {
 		this._onAfterOperation.fire(event);
 	}
 
-	resolveFile(resource: URI, _options?: IResolveFileOptions): Promise<IFileStat>;
-	resolveFile(resource: URI, _options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
-	resolveFile(resource: URI, _options?: IResolveFileOptions): Promise<IFileStat> {
+	resolve(resource: URI, _options?: IResolveFileOptions): Promise<IFileStat>;
+	resolve(resource: URI, _options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
+	resolve(resource: URI, _options?: IResolveFileOptions): Promise<IFileStat> {
 		return Promise.resolve({
 			resource,
 			etag: Date.now().toString(),
@@ -943,11 +943,11 @@ export class TestFileService implements IFileService {
 		});
 	}
 
-	resolveFiles(toResolve: { resource: URI, options?: IResolveFileOptions }[]): Promise<IResolveFileResult[]> {
-		return Promise.all(toResolve.map(resourceAndOption => this.resolveFile(resourceAndOption.resource, resourceAndOption.options))).then(stats => stats.map(stat => ({ stat, success: true })));
+	resolveAll(toResolve: { resource: URI, options?: IResolveFileOptions }[]): Promise<IResolveFileResult[]> {
+		return Promise.all(toResolve.map(resourceAndOption => this.resolve(resourceAndOption.resource, resourceAndOption.options))).then(stats => stats.map(stat => ({ stat, success: true })));
 	}
 
-	existsFile(_resource: URI): Promise<boolean> {
+	exists(_resource: URI): Promise<boolean> {
 		return Promise.resolve(true);
 	}
 
@@ -996,11 +996,11 @@ export class TestFileService implements IFileService {
 		}));
 	}
 
-	moveFile(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStatWithMetadata> {
+	move(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStatWithMetadata> {
 		return Promise.resolve(null!);
 	}
 
-	copyFile(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStatWithMetadata> {
+	copy(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStatWithMetadata> {
 		throw new Error('not implemented');
 	}
 
@@ -1032,10 +1032,10 @@ export class TestFileService implements IFileService {
 		return Promise.resolve();
 	}
 
-	watchFileChanges(_resource: URI): void {
+	watch(_resource: URI): void {
 	}
 
-	unwatchFileChanges(_resource: URI): void {
+	unwatch(_resource: URI): void {
 	}
 
 	getWriteEncoding(_resource: URI): IResourceEncoding {

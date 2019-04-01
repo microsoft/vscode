@@ -354,7 +354,7 @@ class StatusBarEntryItem implements IStatusbarItem {
 		return combinedDisposable(disposable);
 	}
 
-	private executeCommand(id: string, args?: any[]) {
+	private executeCommand(id: string, args?: unknown[]) {
 		args = args || [];
 
 		// Maintain old behaviour of always focusing the editor here

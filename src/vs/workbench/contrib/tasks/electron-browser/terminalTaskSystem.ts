@@ -458,7 +458,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		const resolvedVariables = this.resolveVariablesFromSet(this.currentTask.systemInfo, this.currentTask.workspaceFolder!, task, variables);
 
 		return resolvedVariables.then((resolvedVariables) => {
-			if (resolvedVariables) {
+			if (resolvedVariables && task.command && task.command.runtime) {
 				this.currentTask.resolvedVariables = resolvedVariables;
 				return this.executeInTerminal(task, trigger, new VariableResolver(this.currentTask.workspaceFolder!, this.currentTask.systemInfo, resolvedVariables.variables, this.configurationResolverService));
 			} else {
@@ -890,7 +890,8 @@ export class TerminalTaskSystem implements ITaskSystem {
 			this.currentTask.shellLaunchConfig = {
 				isRendererOnly: true,
 				waitOnExit,
-				name: this.createTerminalName(task)
+				name: this.createTerminalName(task),
+				initialText: task.command.presentation && task.command.presentation.echo ? `\x1b[1m> Executing task: ${task._label} <\x1b[0m\n` : undefined
 			};
 		} else {
 			let resolvedResult: { command: CommandString, args: CommandString[] } = this.resolveCommandAndArgs(resolver, task.command);

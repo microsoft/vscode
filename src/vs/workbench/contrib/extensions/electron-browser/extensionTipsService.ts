@@ -335,7 +335,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	private resolveWorkspaceFolderExtensionConfig(workspaceFolder: IWorkspaceFolder): Promise<IExtensionsConfigContent | null> {
 		const extensionsJsonUri = workspaceFolder.toResource(EXTENSIONS_CONFIG);
 
-		return Promise.resolve(this.fileService.resolveFile(extensionsJsonUri)
+		return Promise.resolve(this.fileService.resolve(extensionsJsonUri)
 			.then(() => this.fileService.resolveContent(extensionsJsonUri))
 			.then(content => <IExtensionsConfigContent>json.parse(content.value), err => null));
 	}

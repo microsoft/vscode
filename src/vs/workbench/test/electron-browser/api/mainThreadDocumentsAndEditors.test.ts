@@ -90,7 +90,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 	test('Model#add', () => {
 		deltas.length = 0;
 
-		modelService.createModel('farboo', null, null);
+		modelService.createModel('farboo', null);
 
 		assert.equal(deltas.length, 1);
 		const [delta] = deltas;
@@ -105,7 +105,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 	test('ignore huge model', function () {
 		this.timeout(1000 * 60); // increase timeout for this one test
 
-		const model = modelService.createModel(hugeModelString, null, null);
+		const model = modelService.createModel(hugeModelString, null);
 		assert.ok(model.isTooLargeForSyncing());
 
 		assert.equal(deltas.length, 1);
@@ -120,7 +120,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 	test('ignore simple widget model', function () {
 		this.timeout(1000 * 60); // increase timeout for this one test
 
-		const model = modelService.createModel('test', null, null, true);
+		const model = modelService.createModel('test', null, undefined, true);
 		assert.ok(model.isForSimpleWidget);
 
 		assert.equal(deltas.length, 1);
@@ -135,7 +135,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 	test('ignore huge model from editor', function () {
 		this.timeout(1000 * 60); // increase timeout for this one test
 
-		const model = modelService.createModel(hugeModelString, null, null);
+		const model = modelService.createModel(hugeModelString, null);
 		const editor = myCreateTestCodeEditor(model);
 
 		assert.equal(deltas.length, 1);
@@ -161,7 +161,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 	test('editor with model', () => {
 		deltas.length = 0;
 
-		const model = modelService.createModel('farboo', null, null);
+		const model = modelService.createModel('farboo', null);
 		const editor = myCreateTestCodeEditor(model);
 
 		assert.equal(deltas.length, 2);
@@ -182,8 +182,8 @@ suite('MainThreadDocumentsAndEditors', () => {
 	});
 
 	test('editor with dispos-ed/-ing model', () => {
-		modelService.createModel('foobar', null, null);
-		const model = modelService.createModel('farboo', null, null);
+		modelService.createModel('foobar', null);
+		const model = modelService.createModel('farboo', null);
 		const editor = myCreateTestCodeEditor(model);
 
 		// ignore things until now

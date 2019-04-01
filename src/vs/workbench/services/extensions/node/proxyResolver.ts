@@ -287,7 +287,7 @@ function createPatchedModules(configProvider: ExtHostConfigProvider, resolveProx
 	};
 	configProvider.onDidChangeConfiguration(e => {
 		certSetting.config = !!configProvider.getConfiguration('http')
-			.get<string>('systemCertificates');
+			.get<boolean>('systemCertificates');
 	});
 
 	return {
@@ -332,9 +332,10 @@ function patches(originals: typeof http | typeof https, resolveProxy: ReturnType
 				return original.apply(null, arguments as unknown as any[]);
 			}
 
+			const optionsPatched = options.agent instanceof ProxyAgent;
 			const config = onRequest && ((<any>options)._vscodeProxySupport || /* LS */ (<any>options)._vscodeSystemProxy) || proxySetting.config;
-			const useProxySettings = (config === 'override' || config === 'on' && !options.agent) && !(options.agent instanceof ProxyAgent);
-			const useSystemCertificates = certSetting.config && originals === https && !(options as https.RequestOptions).ca;
+			const useProxySettings = !optionsPatched && (config === 'override' || config === 'on' && !options.agent);
+			const useSystemCertificates = !optionsPatched && certSetting.config && originals === https && !(options as https.RequestOptions).ca;
 
 			if (useProxySettings || useSystemCertificates) {
 				if (url) {

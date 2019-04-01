@@ -11,8 +11,9 @@ import { OutputAppender } from 'vs/workbench/services/output/node/outputAppender
 import { toLocalISOString } from 'vs/base/common/date';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { dirExists, mkdirp } from 'vs/base/node/pfs';
 
-export abstract class AbstractExtHostOutputChannel extends Disposable implements vscode.OutputChannel {
+abstract class AbstractExtHostOutputChannel extends Disposable implements vscode.OutputChannel {
 
 	readonly _id: Promise<string>;
 	private readonly _name: string;
@@ -83,7 +84,7 @@ export abstract class AbstractExtHostOutputChannel extends Disposable implements
 	}
 }
 
-export class ExtHostPushOutputChannel extends AbstractExtHostOutputChannel {
+class ExtHostPushOutputChannel extends AbstractExtHostOutputChannel {
 
 	constructor(name: string, proxy: MainThreadOutputServiceShape) {
 		super(name, false, undefined, proxy);
@@ -96,17 +97,13 @@ export class ExtHostPushOutputChannel extends AbstractExtHostOutputChannel {
 	}
 }
 
-export class ExtHostOutputChannelBackedByFile extends AbstractExtHostOutputChannel {
+class ExtHostOutputChannelBackedByFile extends AbstractExtHostOutputChannel {
 
-	private static _namePool = 1;
 	private _appender: OutputAppender;
 
-	constructor(name: string, outputDir: string, proxy: MainThreadOutputServiceShape) {
-		const fileName = `${ExtHostOutputChannelBackedByFile._namePool++}-${name}`;
-		const file = URI.file(join(outputDir, `${fileName}.log`));
-
-		super(name, false, file, proxy);
-		this._appender = new OutputAppender(fileName, file.fsPath);
+	constructor(name: string, appender: OutputAppender, proxy: MainThreadOutputServiceShape) {
+		super(name, false, URI.file(appender.file), proxy);
+		this._appender = appender;
 	}
 
 	append(value: string): void {
@@ -131,7 +128,7 @@ export class ExtHostOutputChannelBackedByFile extends AbstractExtHostOutputChann
 	}
 }
 
-export class ExtHostLogFileOutputChannel extends AbstractExtHostOutputChannel {
+class ExtHostLogFileOutputChannel extends AbstractExtHostOutputChannel {
 
 	constructor(name: string, file: URI, proxy: MainThreadOutputServiceShape) {
 		super(name, true, file, proxy);
@@ -142,15 +139,31 @@ export class ExtHostLogFileOutputChannel extends AbstractExtHostOutputChannel {
 	}
 }
 
+let namePool = 1;
+async function createExtHostOutputChannel(name: string, outputDirPromise: Promise<string>, proxy: MainThreadOutputServiceShape): Promise<AbstractExtHostOutputChannel> {
+	try {
+		const outputDir = await outputDirPromise;
+		const fileName = `${namePool++}-${name}`;
+		const file = URI.file(join(outputDir, `${fileName}.log`));
+		const appender = new OutputAppender(fileName, file.fsPath);
+		return new ExtHostOutputChannelBackedByFile(name, appender, proxy);
+	} catch (error) {
+		// Do not crash if logger cannot be created
+		console.log(error);
+		return new ExtHostPushOutputChannel(name, proxy);
+	}
+}
+
 export class ExtHostOutputService implements ExtHostOutputServiceShape {
 
+	private readonly _outputDir: Promise<string>;
 	private _proxy: MainThreadOutputServiceShape;
-	private _outputDir: string;
 	private _channels: Map<string, AbstractExtHostOutputChannel> = new Map<string, AbstractExtHostOutputChannel>();
 	private _visibleChannelDisposable: IDisposable;
 
 	constructor(logsLocation: URI, mainContext: IMainContext) {
-		this._outputDir = join(logsLocation.fsPath, `output_logging_${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}`);
+		const outputDirPath = join(logsLocation.fsPath, `output_logging_${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}`);
+		this._outputDir = dirExists(outputDirPath).then(exists => exists ? exists : mkdirp(outputDirPath).then(() => true)).then(() => outputDirPath);
 		this._proxy = mainContext.getProxy(MainContext.MainThreadOutputService);
 	}
 
@@ -167,23 +180,32 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 	}
 
 	createOutputChannel(name: string): vscode.OutputChannel {
-		const channel = this._createOutputChannel(name);
-		channel._id.then(id => this._channels.set(id, channel));
-		return channel;
-	}
-
-	private _createOutputChannel(name: string): AbstractExtHostOutputChannel {
 		name = name.trim();
 		if (!name) {
 			throw new Error('illegal argument `name`. must not be falsy');
 		} else {
-			// Do not crash if logger cannot be created
-			try {
-				return new ExtHostOutputChannelBackedByFile(name, this._outputDir, this._proxy);
-			} catch (error) {
-				console.log(error);
-				return new ExtHostPushOutputChannel(name, this._proxy);
-			}
+			const extHostOutputChannel = createExtHostOutputChannel(name, this._outputDir, this._proxy);
+			extHostOutputChannel.then(channel => channel._id.then(id => this._channels.set(id, channel)));
+			return <vscode.OutputChannel>{
+				append(value: string): void {
+					extHostOutputChannel.then(channel => channel.append(value));
+				},
+				appendLine(value: string): void {
+					extHostOutputChannel.then(channel => channel.appendLine(value));
+				},
+				clear(): void {
+					extHostOutputChannel.then(channel => channel.clear());
+				},
+				show(columnOrPreserveFocus?: vscode.ViewColumn | boolean, preserveFocus?: boolean): void {
+					extHostOutputChannel.then(channel => channel.show(columnOrPreserveFocus, preserveFocus));
+				},
+				hide(): void {
+					extHostOutputChannel.then(channel => channel.hide());
+				},
+				dispose(): void {
+					extHostOutputChannel.then(channel => channel.dispose());
+				}
+			};
 		}
 	}
 

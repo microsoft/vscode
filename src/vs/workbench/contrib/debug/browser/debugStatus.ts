@@ -21,7 +21,7 @@ export class DebugStatus extends Themable implements IStatusbarItem {
 	private statusBarItem: HTMLElement;
 	private label: HTMLElement;
 	private icon: HTMLElement;
-	private showInStatusBar: string;
+	private showInStatusBar: 'never' | 'always' | 'onFirstSessionStart';
 
 	constructor(
 		@IQuickOpenService private readonly quickOpenService: IQuickOpenService,
@@ -36,6 +36,10 @@ export class DebugStatus extends Themable implements IStatusbarItem {
 		this._register(this.debugService.onDidChangeState(state => {
 			if (state !== State.Inactive && this.showInStatusBar === 'onFirstSessionStart') {
 				this.doRender();
+			} else {
+				if (this.showInStatusBar !== 'never') {
+					this.updateStyles();
+				}
 			}
 		}));
 		this.showInStatusBar = configurationService.getValue<IDebugConfiguration>('debug').showInStatusBar;
@@ -53,7 +57,6 @@ export class DebugStatus extends Themable implements IStatusbarItem {
 	}
 
 	protected updateStyles(): void {
-		super.updateStyles();
 		if (this.icon) {
 			if (isStatusbarInDebugMode(this.debugService)) {
 				this.icon.style.backgroundColor = this.getColor(STATUS_BAR_DEBUGGING_FOREGROUND);

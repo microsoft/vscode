@@ -324,7 +324,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	protected _createConfiguration(options: editorOptions.IEditorOptions, accessibilityService: IAccessibilityService): editorCommon.IConfiguration {
-		return new Configuration(options, this._domElement, accessibilityService);
+		return new Configuration(this.isSimpleWidget, options, this._domElement, accessibilityService);
 	}
 
 	public getId(): string {

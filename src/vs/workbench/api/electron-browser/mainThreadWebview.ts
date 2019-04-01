@@ -200,9 +200,9 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 			return;
 		}
 
-		const targetGroup = this._editorGroupService.getGroup(viewColumnToEditorGroup(this._editorGroupService, showOptions.viewColumn));
+		const targetGroup = this._editorGroupService.getGroup(viewColumnToEditorGroup(this._editorGroupService, showOptions.viewColumn)) || this._editorGroupService.getGroup(webview.group || 0);
 		if (targetGroup) {
-			this._webviewService.revealWebview(webview, targetGroup || this._editorGroupService.getGroup(webview.group || ACTIVE_GROUP), !!showOptions.preserveFocus);
+			this._webviewService.revealWebview(webview, targetGroup, !!showOptions.preserveFocus);
 		}
 	}
 
@@ -250,7 +250,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 				}
 
 				try {
-					await this._proxy.$deserializeWebviewPanel(handle, viewType, webview.getTitle(), state, editorGroupToViewColumn(this._editorGroupService, webview.group || ACTIVE_GROUP), webview.options);
+					await this._proxy.$deserializeWebviewPanel(handle, viewType, webview.getTitle(), state, editorGroupToViewColumn(this._editorGroupService, webview.group || 0), webview.options);
 				} catch (error) {
 					onUnexpectedError(error);
 					webview.html = MainThreadWebviews.getDeserializationFailedContents(viewType);
@@ -312,7 +312,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 			this._proxy.$onDidChangeWebviewPanelViewState(newActiveWebview.handle, {
 				active: true,
 				visible: true,
-				position: editorGroupToViewColumn(this._editorGroupService, newActiveWebview.input.group || ACTIVE_GROUP)
+				position: editorGroupToViewColumn(this._editorGroupService, newActiveWebview.input.group || 0)
 			});
 			return;
 		}
@@ -324,7 +324,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 				this._proxy.$onDidChangeWebviewPanelViewState(this._activeWebview, {
 					active: false,
 					visible: this._editorService.visibleControls.some(editor => !!editor.input && editor.input.matches(oldActiveWebview)),
-					position: editorGroupToViewColumn(this._editorGroupService, oldActiveWebview.group || ACTIVE_GROUP),
+					position: editorGroupToViewColumn(this._editorGroupService, oldActiveWebview.group || 0),
 				});
 			}
 		}

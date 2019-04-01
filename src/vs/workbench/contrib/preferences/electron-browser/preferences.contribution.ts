@@ -38,6 +38,10 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { DefaultPreferencesEditorInput, KeybindingsEditorInput, PreferencesEditorInput, SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { ExplorerRootContext, ExplorerFolderContext } from 'vs/workbench/contrib/files/common/files';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IWindowService } from 'vs/platform/windows/common/windows';
+import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 
 registerSingleton(IPreferencesSearchService, PreferencesSearchService, true);
 
@@ -372,7 +376,10 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
-		@IWorkspaceContextService private readonly workpsaceContextService: IWorkspaceContextService
+		@IWorkspaceContextService private readonly workpsaceContextService: IWorkspaceContextService,
+		@ILabelService labelService: ILabelService,
+		@IExtensionService extensionService: IExtensionService,
+		@IWindowService windowService: IWindowService
 	) {
 		super();
 		MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
@@ -405,10 +412,27 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			order: 1
 		});
 
-
 		this.updatePreferencesEditorMenuItem();
 		this._register(workpsaceContextService.onDidChangeWorkbenchState(() => this.updatePreferencesEditorMenuItem()));
 		this._register(workpsaceContextService.onDidChangeWorkspaceFolders(() => this.updatePreferencesEditorMenuItemForWorkspaceFolders()));
+
+		extensionService.whenInstalledExtensionsRegistered()
+			.then(() => {
+				const remoteAuthority = windowService.getConfiguration().remoteAuthority;
+				const hostLabel = labelService.getHostLabel(REMOTE_HOST_SCHEME, remoteAuthority) || remoteAuthority;
+				const label = nls.localize('openRemoteSettings', "Open User Settings ({0})", hostLabel);
+				CommandsRegistry.registerCommand(OpenRemoteSettingsAction.ID, serviceAccessor => {
+					serviceAccessor.get(IInstantiationService).createInstance(OpenRemoteSettingsAction, OpenRemoteSettingsAction.ID, label).run();
+				});
+				MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+					command: {
+						id: OpenRemoteSettingsAction.ID,
+						title: { value: label, original: `Preferences: Open User Settings (${hostLabel})` },
+						category: nls.localize('preferencesCategory', "Preferences")
+					},
+					when: IsRemoteContext
+				});
+			});
 	}
 
 	private updatePreferencesEditorMenuItem() {
@@ -551,18 +575,6 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	},
 	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR),
 	group: '1_keyboard_preferences_actions'
-});
-
-CommandsRegistry.registerCommand(OpenRemoteSettingsAction.ID, serviceAccessor => {
-	serviceAccessor.get(IInstantiationService).createInstance(OpenRemoteSettingsAction, OpenRemoteSettingsAction.ID, OpenRemoteSettingsAction.LABEL).run();
-});
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-	command: {
-		id: OpenRemoteSettingsAction.ID,
-		title: { value: OpenRemoteSettingsAction.LABEL, original: 'Preferences: Open Remote Settings' },
-		category: nls.localize('preferencesCategory', "Preferences")
-	},
-	when: IsRemoteContext
 });
 
 abstract class SettingsCommand extends Command {

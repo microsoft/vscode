@@ -34,7 +34,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { distinct } from 'vs/base/common/arrays';
+import { distinct, coalesce } from 'vs/base/common/arrays';
 import { IExperimentService, IExperiment, ExperimentActionType } from 'vs/workbench/contrib/experiments/node/experimentService';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
@@ -118,7 +118,7 @@ export class ExtensionsListView extends ViewletPanel {
 			horizontalScrolling: false
 		}) as WorkbenchPagedList<IExtension>;
 		this.list.onContextMenu(e => this.onContextMenu(e), this, this.disposables);
-		this.list.onFocusChange(e => extensionsViewState.onFocusChange(e.elements), this, this.disposables);
+		this.list.onFocusChange(e => extensionsViewState.onFocusChange(coalesce(e.elements)), this, this.disposables);
 		this.disposables.push(this.list);
 		this.disposables.push(extensionsViewState);
 

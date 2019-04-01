@@ -9,7 +9,7 @@ import * as path from 'vs/base/common/path';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as uuid from 'vs/base/common/uuid';
-import { mkdirp } from 'vs/base/node/pfs';
+import { mkdirp, rimraf, RimRafMode } from 'vs/base/node/pfs';
 import {
 	IExtensionGalleryService, IGalleryExtensionAssets, IGalleryExtension, IExtensionManagementService,
 	IExtensionEnablementService, DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier
@@ -28,7 +28,6 @@ import { URI } from 'vs/base/common/uri';
 import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { IFileService } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
-import * as extfs from 'vs/base/node/extfs';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IPager } from 'vs/base/common/paging';
 import { assign } from 'vs/base/common/objects';
@@ -255,7 +254,7 @@ suite('ExtensionsTipsService Test', () => {
 	teardown(done => {
 		(<ExtensionTipsService>testObject).dispose();
 		if (parentResource) {
-			extfs.del(parentResource, os.tmpdir(), () => { }, done);
+			rimraf(parentResource, RimRafMode.MOVE).then(done, done);
 		} else {
 			done();
 		}

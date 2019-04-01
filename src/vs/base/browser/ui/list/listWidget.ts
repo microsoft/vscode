@@ -20,7 +20,7 @@ import { IListVirtualDelegate, IListRenderer, IListEvent, IListContextMenuEvent,
 import { ListView, IListViewOptions, IListViewDragAndDrop, IAriaSetProvider } from './listView';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { CombinedSpliceable } from 'vs/base/browser/ui/list/splice';
 import { clamp } from 'vs/base/common/numbers';
@@ -1112,7 +1112,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		return Event.map(this._onPin.event, indexes => this.toListEvent({ indexes }));
 	}
 
-	get onDidScroll(): Event<void> { return this.view.onDidScroll; }
+	get onDidScroll(): Event<ScrollEvent> { return this.view.onDidScroll; }
 	get onMouseClick(): Event<IListMouseEvent<T>> { return this.view.onMouseClick; }
 	get onMouseDblClick(): Event<IListMouseEvent<T>> { return this.view.onMouseDblClick; }
 	get onMouseMiddleClick(): Event<IListMouseEvent<T>> { return this.view.onMouseMiddleClick; }

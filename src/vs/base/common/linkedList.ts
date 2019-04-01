@@ -6,19 +6,24 @@
 import { Iterator, IteratorResult, FIN } from 'vs/base/common/iterator';
 
 class Node<E> {
+
+	static readonly Undefined = new Node<any>(undefined);
+
 	element: E;
-	next: Node<E> | undefined;
-	prev: Node<E> | undefined;
+	next: Node<E>;
+	prev: Node<E>;
 
 	constructor(element: E) {
 		this.element = element;
+		this.next = Node.Undefined;
+		this.prev = Node.Undefined;
 	}
 }
 
 export class LinkedList<E> {
 
-	private _first: Node<E> | undefined;
-	private _last: Node<E> | undefined;
+	private _first: Node<E> = Node.Undefined;
+	private _last: Node<E> = Node.Undefined;
 	private _size: number = 0;
 
 	get size(): number {
@@ -26,12 +31,12 @@ export class LinkedList<E> {
 	}
 
 	isEmpty(): boolean {
-		return !this._first;
+		return this._first === Node.Undefined;
 	}
 
 	clear(): void {
-		this._first = undefined;
-		this._last = undefined;
+		this._first = Node.Undefined;
+		this._last = Node.Undefined;
 		this._size = 0;
 	}
 
@@ -45,7 +50,7 @@ export class LinkedList<E> {
 
 	private _insert(element: E, atTheEnd: boolean): () => void {
 		const newNode = new Node(element);
-		if (!this._first) {
+		if (this._first === Node.Undefined) {
 			this._first = newNode;
 			this._last = newNode;
 
@@ -69,7 +74,7 @@ export class LinkedList<E> {
 
 
 	shift(): E | undefined {
-		if (!this._first) {
+		if (this._first === Node.Undefined) {
 			return undefined;
 		} else {
 			const res = this._first.element;
@@ -79,7 +84,7 @@ export class LinkedList<E> {
 	}
 
 	pop(): E | undefined {
-		if (!this._last) {
+		if (this._last === Node.Undefined) {
 			return undefined;
 		} else {
 			const res = this._last.element;
@@ -89,32 +94,32 @@ export class LinkedList<E> {
 	}
 
 	private _remove(node: Node<E>): void {
-		let candidate: Node<E> | undefined = this._first;
-		while (candidate instanceof Node) {
+		let candidate: Node<E> = this._first;
+		while (candidate !== Node.Undefined) {
 			if (candidate !== node) {
 				candidate = candidate.next;
 				continue;
 			}
-			if (candidate.prev && candidate.next) {
+			if (candidate.prev !== Node.Undefined && candidate.next !== Node.Undefined) {
 				// middle
 				const anchor = candidate.prev;
 				anchor.next = candidate.next;
 				candidate.next.prev = anchor;
 
-			} else if (!candidate.prev && !candidate.next) {
+			} else if (candidate.prev === Node.Undefined && candidate.next === Node.Undefined) {
 				// only node
-				this._first = undefined;
-				this._last = undefined;
+				this._first = Node.Undefined;
+				this._last = Node.Undefined;
 
-			} else if (!candidate.next) {
+			} else if (candidate.next === Node.Undefined) {
 				// last
 				this._last = this._last!.prev!;
-				this._last.next = undefined;
+				this._last.next = Node.Undefined;
 
-			} else if (!candidate.prev) {
+			} else if (candidate.prev === Node.Undefined) {
 				// first
 				this._first = this._first!.next!;
-				this._first.prev = undefined;
+				this._first.prev = Node.Undefined;
 			}
 
 			// done
@@ -128,7 +133,7 @@ export class LinkedList<E> {
 		let node = this._first;
 		return {
 			next(): IteratorResult<E> {
-				if (!node) {
+				if (node === Node.Undefined) {
 					return FIN;
 				}
 
@@ -145,7 +150,7 @@ export class LinkedList<E> {
 
 	toArray(): E[] {
 		const result: E[] = [];
-		for (let node = this._first; node instanceof Node; node = node.next) {
+		for (let node = this._first; node !== Node.Undefined; node = node.next) {
 			result.push(node.element);
 		}
 		return result;

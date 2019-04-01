@@ -113,7 +113,6 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 		'--skip-release-notes',
 		'--sticky-quickopen',
 		'--disable-telemetry',
-		'--disable-extensions',
 		'--disable-updates',
 		'--disable-crash-reporter',
 		`--extensions-dir=${options.extensionsPath}`,

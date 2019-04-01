@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.33.0",
-  "distro": "2e258131c64c1031263b770f9ac9ad007541f172",
+  "version": "1.34.0",
+  "distro": "a894897d1e36accf1e29a77c604922c78fc0c50d",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -40,7 +40,7 @@
     "native-watchdog": "1.0.0",
     "node-pty": "0.8.1",
     "semver": "^5.5.0",
-    "spdlog": "0.7.2",
+    "spdlog": "0.8.1",
     "sudo-prompt": "8.2.0",
     "v8-inspect-profiler": "^0.0.20",
     "vscode-chokidar": "1.6.5",

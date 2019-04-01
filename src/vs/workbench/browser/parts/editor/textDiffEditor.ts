@@ -227,7 +227,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 
 	private isFileBinaryError(error: Error[]): boolean;
 	private isFileBinaryError(error: Error): boolean;
-	private isFileBinaryError(error: any): boolean {
+	private isFileBinaryError(error: Error | Error[]): boolean {
 		if (types.isArray(error)) {
 			const errors = <Error[]>error;
 			return errors.some(e => this.isFileBinaryError(e));

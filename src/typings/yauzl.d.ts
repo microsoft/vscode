@@ -40,9 +40,10 @@ declare module 'yauzl' {
 	}
 
 	export interface IOptions {
-		autoClose: boolean;
+		autoClose?: boolean;
+		lazyEntries?: boolean;
 	}
 
 	export function open(path: string, callback: (err?: Error, zipfile?: ZipFile) => void): void;
-	export function open(path: string, options: IOptions, callback: (err?: Error, zipfile?: ZipFile) => void): void;
+	export function open(path: string, options: IOptions | undefined, callback: (err?: Error, zipfile?: ZipFile) => void): void;
 }

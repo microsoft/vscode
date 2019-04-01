@@ -68,7 +68,7 @@ export class EditorControl extends Disposable {
 		const control = this.doShowEditorControl(descriptor);
 
 		// Set input
-		return this.doSetInput(control, editor, withUndefinedAsNull(options)).then((editorChanged => (({ control, editorChanged } as IOpenEditorResult))));
+		return this.doSetInput(control, editor, withUndefinedAsNull(options)).then((editorChanged => (({ control, editorChanged }))));
 	}
 
 	private doShowEditorControl(descriptor: IEditorDescriptor): BaseEditor {

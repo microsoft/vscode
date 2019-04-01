@@ -233,11 +233,9 @@ export class ToggleEditorVisibilityAction extends Action {
 
 		return Promise.resolve();
 	}
-
 }
 
 registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleEditorVisibilityAction, ToggleEditorVisibilityAction.ID, ToggleEditorVisibilityAction.LABEL), 'View: Toggle Editor Area Visibility', viewCategory, ContextKeyExpr.equals('config.workbench.useExperimentalGridLayout', true));
-
 
 export class ToggleSidebarVisibilityAction extends Action {
 

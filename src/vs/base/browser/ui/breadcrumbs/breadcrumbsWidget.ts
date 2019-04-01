@@ -334,7 +334,7 @@ export class BreadcrumbsWidget {
 
 	private _onClick(event: IMouseEvent): void {
 		for (let el: HTMLElement | null = event.target; el; el = el.parentElement) {
-			let idx = this._nodes.indexOf(el as any);
+			let idx = this._nodes.indexOf(el as HTMLDivElement);
 			if (idx >= 0) {
 				this._focus(idx, event);
 				this._select(idx, event);

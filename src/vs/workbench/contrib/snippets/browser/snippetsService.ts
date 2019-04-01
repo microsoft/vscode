@@ -121,11 +121,11 @@ function watch(service: IFileService, resource: URI, callback: (type: FileChange
 			}
 		}
 	});
-	service.watchFileChanges(resource);
+	service.watch(resource);
 	return {
 		dispose() {
 			listener.dispose();
-			service.unwatchFileChanges(resource);
+			service.unwatch(resource);
 		}
 	};
 }
@@ -277,7 +277,7 @@ class SnippetsService implements ISnippetsService {
 	private _initWorkspaceFolderSnippets(workspace: IWorkspace, bucket: IDisposable[]): Promise<any> {
 		let promises = workspace.folders.map(folder => {
 			const snippetFolder = folder.toResource('.vscode');
-			return this._fileService.existsFile(snippetFolder).then(value => {
+			return this._fileService.exists(snippetFolder).then(value => {
 				if (value) {
 					this._initFolderSnippets(SnippetSource.Workspace, snippetFolder, bucket);
 				} else {
@@ -305,7 +305,7 @@ class SnippetsService implements ISnippetsService {
 			if (type === FileChangeType.DELETED) {
 				return Promise.resolve();
 			}
-			return this._fileService.resolveFile(folder).then(stat => {
+			return this._fileService.resolve(folder).then(stat => {
 				for (const entry of stat.children || []) {
 					disposables.push(this._addSnippetFile(entry.resource, source));
 				}

@@ -265,7 +265,7 @@ export interface IResolvedTextFileEditorModel extends ITextFileEditorModel {
 export interface IWillMoveEvent {
 	oldResource: URI;
 	newResource: URI;
-	waitUntil(p: Promise<any>): void;
+	waitUntil(p: Promise<unknown>): void;
 }
 
 export interface ITextFileService extends IDisposable {

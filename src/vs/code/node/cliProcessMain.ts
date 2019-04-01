@@ -76,7 +76,7 @@ export class Main {
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService
 	) { }
 
-	async run(argv: ParsedArgs): Promise<any> {
+	async run(argv: ParsedArgs): Promise<void> {
 		if (argv['install-source']) {
 			await this.setInstallSource(argv['install-source']);
 
@@ -95,11 +95,11 @@ export class Main {
 		}
 	}
 
-	private setInstallSource(installSource: string): Promise<any> {
+	private setInstallSource(installSource: string): Promise<void> {
 		return writeFile(this.environmentService.installSourcePath, installSource.slice(0, 30));
 	}
 
-	private async listExtensions(showVersions: boolean): Promise<any> {
+	private async listExtensions(showVersions: boolean): Promise<void> {
 		const extensions = await this.extensionManagementService.getInstalled(ExtensionType.User);
 		extensions.forEach(e => console.log(getId(e.manifest, showVersions)));
 	}
@@ -227,7 +227,7 @@ export class Main {
 		}
 	}
 
-	private async uninstallExtension(extensions: string[]): Promise<any> {
+	private async uninstallExtension(extensions: string[]): Promise<void> {
 		async function getExtensionId(extensionDescription: string): Promise<string> {
 			if (!/\.vsix$/i.test(extensionDescription)) {
 				return extensionDescription;

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import * as arrays from 'vs/base/common/arrays';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { IFilesConfiguration } from 'vs/platform/files/common/files';
@@ -107,7 +107,7 @@ export interface IUntitledEditorService {
 
 export class UntitledEditorService extends Disposable implements IUntitledEditorService {
 
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<any>;
 
 	private mapResourceToInput = new ResourceMap<UntitledEditorInput>();
 	private mapResourceToAssociatedFilePath = new ResourceMap<boolean>();

@@ -11,8 +11,7 @@ import * as json from 'vs/base/common/json';
 import { ChordKeybinding, KeyCode, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { OS } from 'vs/base/common/platform';
 import * as uuid from 'vs/base/common/uuid';
-import * as extfs from 'vs/base/node/extfs';
-import { mkdirp } from 'vs/base/node/pfs';
+import { mkdirp, rimraf, RimRafMode } from 'vs/base/node/pfs';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -101,7 +100,7 @@ suite('KeybindingsEditing', () => {
 		});
 	});
 
-	async function setUpWorkspace(): Promise<boolean> {
+	async function setUpWorkspace(): Promise<void> {
 		testDir = path.join(os.tmpdir(), 'vsctests', uuid.generateUuid());
 		return await mkdirp(testDir, 493);
 	}
@@ -109,7 +108,7 @@ suite('KeybindingsEditing', () => {
 	teardown(() => {
 		return new Promise<void>((c, e) => {
 			if (testDir) {
-				extfs.del(testDir, os.tmpdir(), () => c(undefined), () => c(undefined));
+				rimraf(testDir, RimRafMode.MOVE).then(c, c);
 			} else {
 				c(undefined);
 			}

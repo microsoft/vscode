@@ -426,15 +426,22 @@ export class TerminalInstance implements ITerminalInstance {
 		this._xterm.on('key', (key, ev) => this._onKey(key, ev));
 
 		if (this._processManager) {
-			if (this._processManager.os === platform.OperatingSystem.Windows) {
-				this._xterm.winptyCompatInit();
-			}
 			this._processManager.onProcessData(data => this._onProcessData(data));
 			this._xterm.on('data', data => this._processManager!.write(data));
 			// TODO: How does the cwd work on detached processes?
-			this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._xterm, platform.platform, this._processManager);
 			this.processReady.then(async () => {
 				this._linkHandler.processCwd = await this._processManager!.getInitialCwd();
+			});
+			// Init winpty compat and link handler after process creation as they rely on the
+			// underlying process OS
+			this._processManager.onProcessReady(() => {
+				if (!this._processManager) {
+					return;
+				}
+				if (this._processManager.os === platform.OperatingSystem.Windows) {
+					this._xterm.winptyCompatInit();
+				}
+				this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._xterm, platform.platform, this._processManager);
 			});
 		}
 		this._xterm.on('focus', () => this._onFocus.fire(this));
@@ -579,7 +586,7 @@ export class TerminalInstance implements ITerminalInstance {
 
 			if (this._processManager) {
 				this._widgetManager = new TerminalWidgetManager(this._wrapperElement);
-				this._linkHandler.setWidgetManager(this._widgetManager);
+				this._processManager.onProcessReady(() => this._linkHandler.setWidgetManager(this._widgetManager));
 			}
 
 			const computedStyle = window.getComputedStyle(this._container);
@@ -757,6 +764,14 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public forceRedraw(): void {
+		if (this._configHelper.config.experimentalRefreshOnResume) {
+			if (this._xterm.getOption('rendererType') !== 'dom') {
+				this._xterm.setOption('rendererType', 'dom');
+				// Do this asynchronously to clear our the texture atlas as all terminals will not
+				// be using canvas
+				setTimeout(() => this._xterm.setOption('rendererType', 'canvas'), 0);
+			}
+		}
 		this._xterm.refresh(0, this._xterm.rows - 1);
 	}
 
@@ -954,7 +969,7 @@ export class TerminalInstance implements ITerminalInstance {
 			if (typeof this._shellLaunchConfig.waitOnExit === 'string') {
 				let message = this._shellLaunchConfig.waitOnExit;
 				// Bold the message and add an extra new line to make it stand out from the rest of the output
-				message = `\n\x1b[1m${message}\x1b[0m`;
+				message = `\r\n\x1b[1m${message}\x1b[0m`;
 				this._xterm.writeln(message);
 			}
 			// Disable all input if the terminal is exiting and listen for next keypress

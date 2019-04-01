@@ -176,7 +176,7 @@ export abstract class Composite extends Component implements IComposite {
 	/**
 	 * Provide a context to be passed to the toolbar.
 	 */
-	getActionsContext(): any {
+	getActionsContext(): unknown {
 		return null;
 	}
 

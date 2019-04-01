@@ -109,7 +109,7 @@ suite('WorkspaceContextService - Folder', () => {
 			(<WorkspaceService>workspaceContextService).dispose();
 		}
 		if (parentResource) {
-			return pfs.del(parentResource, os.tmpdir());
+			return pfs.rimraf(parentResource, pfs.RimRafMode.MOVE);
 		}
 		return undefined;
 	});
@@ -179,7 +179,7 @@ suite('WorkspaceContextService - Workspace', () => {
 			(<WorkspaceService>testObject).dispose();
 		}
 		if (parentResource) {
-			return pfs.del(parentResource, os.tmpdir());
+			return pfs.rimraf(parentResource, pfs.RimRafMode.MOVE);
 		}
 		return undefined;
 	});
@@ -244,7 +244,7 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 			(<WorkspaceService>testObject).dispose();
 		}
 		if (parentResource) {
-			return pfs.del(parentResource, os.tmpdir());
+			return pfs.rimraf(parentResource, pfs.RimRafMode.MOVE);
 		}
 		return undefined;
 	});
@@ -505,7 +505,7 @@ suite('WorkspaceService - Initialization', () => {
 			(<WorkspaceService>testObject).dispose();
 		}
 		if (parentResource) {
-			return pfs.del(parentResource, os.tmpdir());
+			return pfs.rimraf(parentResource, pfs.RimRafMode.MOVE);
 		}
 		return undefined;
 	});
@@ -762,7 +762,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 			(<WorkspaceService>testObject).dispose();
 		}
 		if (parentResource) {
-			return pfs.del(parentResource, os.tmpdir());
+			return pfs.rimraf(parentResource, pfs.RimRafMode.MOVE);
 		}
 		return undefined;
 	});
@@ -1057,7 +1057,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 			(<WorkspaceService>testObject).dispose();
 		}
 		if (parentResource) {
-			return pfs.del(parentResource, os.tmpdir());
+			return pfs.rimraf(parentResource, pfs.RimRafMode.MOVE);
 		}
 		return undefined;
 	});

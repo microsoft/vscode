@@ -17,7 +17,7 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { VIEWLET_ID, IExplorerService } from 'vs/workbench/contrib/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService, AutoSaveConfiguration } from 'vs/platform/files/common/files';
-import { toResource, IUntitledResourceInput, ITextEditor } from 'vs/workbench/common/editor';
+import { toResource, ITextEditor } from 'vs/workbench/common/editor';
 import { ExplorerViewlet } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
@@ -42,7 +42,7 @@ import { Constants } from 'vs/editor/common/core/uint';
 import { CLOSE_EDITORS_AND_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { coalesce } from 'vs/base/common/arrays';
 import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
+import { ExplorerItem, NewExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { sequence } from 'vs/base/common/async';
 
@@ -94,7 +94,6 @@ export class BaseErrorReportingAction extends Action {
 	}
 }
 
-const PLACEHOLDER_URI = URI.file('');
 function refreshIfSeparator(value: string, explorerService: IExplorerService): void {
 	if (value && ((value.indexOf('/') >= 0) || (value.indexOf('\\') >= 0))) {
 		// New input contains separator, multiple resources will get created workaround for #68204
@@ -137,7 +136,7 @@ export class NewFileAction extends BaseErrorReportingAction {
 			return Promise.reject(new Error('Parent folder is readonly.'));
 		}
 
-		const stat = new ExplorerItem(PLACEHOLDER_URI, folder, false);
+		const stat = new NewExplorerItem(folder, false);
 		return folder.fetchChildren(this.fileService, this.explorerService).then(() => {
 			folder.addChild(stat);
 
@@ -205,7 +204,7 @@ export class NewFolderAction extends BaseErrorReportingAction {
 			return Promise.reject(new Error('Parent folder is readonly.'));
 		}
 
-		const stat = new ExplorerItem(PLACEHOLDER_URI, folder, true);
+		const stat = new NewExplorerItem(folder, true);
 		return folder.fetchChildren(this.fileService, this.explorerService).then(() => {
 			folder.addChild(stat);
 
@@ -253,7 +252,7 @@ export class GlobalNewUntitledFileAction extends Action {
 	}
 
 	public run(): Promise<any> {
-		return this.editorService.openEditor({ options: { pinned: true } } as IUntitledResourceInput); // untitled are always pinned
+		return this.editorService.openEditor({ options: { pinned: true } }); // untitled are always pinned
 	}
 }
 
@@ -331,7 +330,7 @@ class BaseDeleteFileAction extends BaseErrorReportingAction {
 
 			// Check if we need to ask for confirmation at all
 			if (this.skipConfirm || (this.useTrash && this.configurationService.getValue<boolean>(BaseDeleteFileAction.CONFIRM_DELETE_SETTING_KEY) === false)) {
-				confirmDeletePromise = Promise.resolve({ confirmed: true } as IConfirmationResult);
+				confirmDeletePromise = Promise.resolve({ confirmed: true });
 			}
 
 			// Confirm for moving to trash
@@ -493,7 +492,7 @@ class PasteFileAction extends BaseErrorReportingAction {
 			throw new Error(nls.localize('fileIsAncestor', "File to paste is an ancestor of the destination folder"));
 		}
 
-		return this.fileService.resolveFile(fileToPaste).then(fileToPasteStat => {
+		return this.fileService.resolve(fileToPaste).then(fileToPasteStat => {
 
 			// Find target
 			let target: ExplorerItem;
@@ -506,7 +505,7 @@ class PasteFileAction extends BaseErrorReportingAction {
 			const targetFile = findValidPasteFileTarget(target, { resource: fileToPaste, isDirectory: fileToPasteStat.isDirectory, allowOverwirte: pasteShouldMove });
 
 			// Copy File
-			const promise = pasteShouldMove ? this.fileService.moveFile(fileToPaste, targetFile) : this.fileService.copyFile(fileToPaste, targetFile);
+			const promise = pasteShouldMove ? this.fileService.move(fileToPaste, targetFile) : this.fileService.copy(fileToPaste, targetFile);
 			return promise.then<ITextEditor | undefined>(stat => {
 				if (pasteShouldMove) {
 					// Cut is done. Make sure to clear cut state.
