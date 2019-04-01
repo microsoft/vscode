@@ -588,12 +588,20 @@ export class FileService2 extends Disposable implements IFileService {
 	private activeWatchers = new Map<string, { disposable: IDisposable, count: number }>();
 
 	watch(resource: URI, options: IWatchOptions = { recursive: false, excludes: [] }): IDisposable {
-		let watchDisposable: IDisposable = Disposable.None;
+		let watchDisposed = false;
+		let watchDisposable = toDisposable(() => watchDisposed = true);
 
-		// Watch and wire in disposable which is async
-		this.doWatch(resource, options).then(disposable => watchDisposable = disposable);
+		// Watch and wire in disposable which is async but
+		// check if we got disposed meanwhile and forward
+		this.doWatch(resource, options).then(disposable => {
+			if (watchDisposed) {
+				dispose(disposable);
+			} else {
+				watchDisposable = disposable;
+			}
+		}, error => this.logService.error(error));
 
-		return toDisposable(() => watchDisposable.dispose());
+		return toDisposable(() => dispose(watchDisposable));
 	}
 
 	async doWatch(resource: URI, options: IWatchOptions): Promise<IDisposable> {
