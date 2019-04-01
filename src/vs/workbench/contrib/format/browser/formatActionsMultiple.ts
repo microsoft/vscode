@@ -20,7 +20,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, toExtension } from 'vs/workbench/services/extensions/common/extensions';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITextModel } from 'vs/editor/common/model';
@@ -28,6 +28,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 type FormattingEditProvider = DocumentFormattingEditProvider | DocumentRangeFormattingEditProvider;
 
@@ -40,6 +41,7 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 
 	constructor(
 		@IExtensionService private readonly _extensionService: IExtensionService,
+		@IExtensionEnablementService private readonly _extensionEnablementService: IExtensionEnablementService,
 		@IConfigurationService private readonly _configService: IConfigurationService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
@@ -83,18 +85,17 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 			if (defaultFormatter) {
 				// formatter available
 				return defaultFormatter;
+			}
 
-			} else {
-				// formatter gone
-				const extension = await this._extensionService.getExtension(defaultFormatterId);
+			// bad -> formatter gone
+			const extension = await this._extensionService.getExtension(defaultFormatterId);
+			if (extension && this._extensionEnablementService.isEnabled(toExtension(extension))) {
+				// formatter does not target this file
 				const label = this._labelService.getUriLabel(document.uri, { relative: true });
-				const message = extension
-					? nls.localize('miss', "Extension '{0}' cannot format '{1}'", extension.displayName || extension.name, label)
-					: nls.localize('gone', "Extension '{0}' is configured as formatter but not available", defaultFormatterId);
+				const message = nls.localize('miss', "Extension '{0}' cannot format '{1}'", extension.displayName || extension.name, label);
 				this._statusbarService.setStatusMessage(message, 4000);
 				return undefined;
 			}
-
 		} else if (formatter.length === 1) {
 			// ok -> nothing configured but only one formatter available
 			return formatter[0];
@@ -102,7 +103,9 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 
 		const langName = this._modeService.getLanguageName(document.getModeId()) || document.getModeId();
 		const silent = mode === FormattingMode.Silent;
-		const message = nls.localize('config.needed', "There are multiple formatters for {0}-files. Select a default formatter to continue.", DefaultFormatter._maybeQuotes(langName));
+		const message = !defaultFormatterId
+			? nls.localize('config.needed', "There are multiple formatters for {0}-files. Select a default formatter to continue.", DefaultFormatter._maybeQuotes(langName))
+			: nls.localize('config.bad', "Extension '{0}' is configured as formatter but not available. Select a different default formatter to continue.", defaultFormatterId);
 
 		return new Promise<T | undefined>((resolve, reject) => {
 			this._notificationService.prompt(
