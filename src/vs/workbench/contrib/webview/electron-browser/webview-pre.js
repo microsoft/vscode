@@ -163,10 +163,6 @@
 	};
 
 	document.addEventListener('DOMContentLoaded', () => {
-		ipcRenderer.on('baseUrl', (_event, value) => {
-			initData.baseUrl = value;
-		});
-
 		ipcRenderer.on('styles', (_event, variables, activeTheme) => {
 			initData.styles = variables;
 			initData.activeTheme = activeTheme;
@@ -201,13 +197,6 @@
 					a.title = a.getAttribute('href');
 				}
 			});
-
-			// set base-url if applicable
-			if (initData.baseUrl && newDocument.head.getElementsByTagName('base').length === 0) {
-				const baseElement = newDocument.createElement('base');
-				baseElement.href = initData.baseUrl;
-				newDocument.head.appendChild(baseElement);
-			}
 
 			// apply default script
 			if (options.allowScripts) {

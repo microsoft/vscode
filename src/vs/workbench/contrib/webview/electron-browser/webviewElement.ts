@@ -515,10 +515,6 @@ export class WebviewElement extends Disposable implements Webview {
 		});
 	}
 
-	public set baseUrl(value: string) {
-		this._send('baseUrl', value);
-	}
-
 	public focus(): void {
 		this._webview.focus();
 		this._send('focus');
