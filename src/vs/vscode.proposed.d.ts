@@ -627,7 +627,7 @@ declare module 'vscode' {
 		export const onDidChangeLogLevel: Event<LogLevel>;
 
 		/**
-		 * The custom uri scheme the editor registers to in system, like 'vscode', 'vscode-insiders'.
+		 * The custom uri scheme the editor registers to in the operating system, like 'vscode', 'vscode-insiders'.
 		 */
 		export const uriScheme: string;
 	}
