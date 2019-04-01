@@ -1043,6 +1043,34 @@ export class SearchView extends ViewletPanel {
 		this.onQueryChanged(true);
 	}
 
+	searchReplace(query?: string, replace?: string, triggerSearch?: boolean, caseSensitive?: boolean, wholeWords?: boolean, regex?: boolean, filesToInclude?: string, filesToExclude?: string): void {
+		if (caseSensitive !== undefined && caseSensitive !== null) {
+			this.searchWidget.searchInput.setCaseSensitive(caseSensitive);
+		}
+		if (wholeWords !== undefined && wholeWords !== null) {
+			this.searchWidget.searchInput.setWholeWords(wholeWords);
+		}
+		if (regex !== undefined && regex !== null) {
+			this.searchWidget.searchInput.setRegex(regex);
+		}
+		if (filesToInclude !== undefined && filesToInclude !== null) {
+			this.searchIncludePattern.setValue(String(filesToInclude));
+		}
+		if (filesToExclude !== undefined && filesToExclude !== null) {
+			this.searchExcludePattern.setValue(String(filesToExclude));
+		}
+		if (query !== undefined && query !== null) {
+			this.searchWidget.searchInput.setValue(query);
+		}
+		if (replace !== undefined && replace !== null) {
+			this.searchWidget.replaceInput.value = replace;
+		}
+
+		if (triggerSearch !== undefined && triggerSearch !== null && triggerSearch) {
+			this.onQueryChanged(true);
+		}
+	}
+
 	toggleQueryDetails(moveFocus = true, show?: boolean, skipLayout?: boolean, reverse?: boolean): void {
 		const cls = 'more';
 		show = typeof show === 'undefined' ? !dom.hasClass(this.queryDetails, cls) : Boolean(show);

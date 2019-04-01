@@ -161,18 +161,27 @@ export abstract class FindOrReplaceInFilesAction extends Action {
 	}
 }
 
-export class FindInFilesAction extends FindOrReplaceInFilesAction {
-
-	static readonly LABEL = nls.localize('findInFiles', "Find in Files");
-
-	constructor(id: string, label: string,
-		@IViewletService viewletService: IViewletService,
-		@IPanelService panelService: IPanelService,
-		@IConfigurationService configurationService: IConfigurationService
-	) {
-		super(id, label, viewletService, panelService, configurationService, /*expandSearchReplaceWidget=*/false);
-	}
-}
+export const FindInFilesCommand: ICommandHandler = (accessor,
+	query?: string,
+	replace?: string,
+	triggerSearch?: boolean,
+	filesToInclude?: string,
+	filesToExclude?: string,
+	isRegex?: boolean,
+	isCaseSensitive?: boolean,
+	matchWholeWord?: boolean) => {
+	const viewletService = accessor.get(IViewletService);
+	const panelService = accessor.get(IPanelService);
+	const configurationService = accessor.get(IConfigurationService);
+	openSearchView(viewletService, panelService, configurationService, false).then(openedView => {
+		if (openedView) {
+			const searchAndReplaceWidget = openedView.searchAndReplaceWidget;
+			searchAndReplaceWidget.toggleReplace(!(replace === undefined || replace === null));
+			openedView.searchReplace(query, replace, triggerSearch, isCaseSensitive, matchWholeWord, isRegex, filesToInclude, filesToExclude);
+			openedView.searchAndReplaceWidget.focus(undefined, false, false);
+		}
+	});
+};
 
 export class OpenSearchViewletAction extends FindOrReplaceInFilesAction {
 
