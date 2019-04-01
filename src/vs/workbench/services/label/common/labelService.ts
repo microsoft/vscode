@@ -182,13 +182,15 @@ export class LabelService implements ILabelService {
 		}
 
 		// Workspace: Saved
-		const filename = basename(workspace.configPath);
-		const workspaceName = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
+		let filename = basename(workspace.configPath);
+		if (endsWith(filename, WORKSPACE_EXTENSION)) {
+			filename = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
+		}
 		let label;
 		if (options && options.verbose) {
-			label = localize('workspaceNameVerbose', "{0} (Workspace)", this.getUriLabel(joinPath(dirname(workspace.configPath), workspaceName)));
+			label = localize('workspaceNameVerbose', "{0} (Workspace)", this.getUriLabel(joinPath(dirname(workspace.configPath), filename)));
 		} else {
-			label = localize('workspaceName', "{0} (Workspace)", workspaceName);
+			label = localize('workspaceName', "{0} (Workspace)", filename);
 		}
 		return this.appendWorkspaceSuffix(label, workspace.configPath);
 	}
