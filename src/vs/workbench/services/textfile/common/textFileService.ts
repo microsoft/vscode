@@ -292,7 +292,7 @@ export class TextFileService extends Disposable implements ITextFileService {
 	}
 
 	private backupBeforeShutdown(dirtyToBackup: URI[], textFileEditorModelManager: ITextFileEditorModelManager, reason: ShutdownReason): Promise<IBackupResult> {
-		return this.windowsService.getWindowCount().then(windowCount => {
+		return this.windowsService.getWindowCount().then<IBackupResult>(windowCount => {
 
 			// When quit is requested skip the confirm callback and attempt to backup all workspaces.
 			// When quit is not requested the confirm callback should be shown when the window being
