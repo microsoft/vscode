@@ -262,7 +262,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 					if (devThemes.length) {
 						return this.setFileIconTheme(devThemes[0].id, ConfigurationTarget.MEMORY);
 					} else {
-						return this.setFileIconTheme(theme && theme.id, undefined);
+						return this.setFileIconTheme(theme && theme.id || DEFAULT_ICON_THEME_SETTING_VALUE, undefined);
 					}
 				});
 			}),
@@ -285,7 +285,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 				let iconThemeSetting = this.configurationService.getValue<string | null>(ICON_THEME_SETTING);
 				if (iconThemeSetting !== this.currentIconTheme.settingsId) {
 					this.iconThemeStore.findThemeBySettingsId(iconThemeSetting).then(theme => {
-						this.setFileIconTheme(theme && theme.id, undefined);
+						this.setFileIconTheme(theme && theme.id || DEFAULT_ICON_THEME_SETTING_VALUE, undefined);
 					});
 				}
 			}
