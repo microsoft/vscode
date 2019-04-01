@@ -6,9 +6,8 @@
 import * as assert from 'assert';
 import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { Range } from 'vs/workbench/services/search/node/ripgrepSearchUtils';
 import { fixRegexCRMatchingNonWordClass, fixRegexCRMatchingWhitespaceClass, fixRegexEndingPattern, fixRegexNewline, IRgMatch, IRgMessage, RipgrepParser, unicodeEscapesToPCRE2, fixNewline } from 'vs/workbench/services/search/node/ripgrepTextSearchEngine';
-import { TextSearchResult } from 'vscode';
+import { Range, TextSearchResult } from 'vs/workbench/services/search/common/searchExtTypes';
 
 suite('RipgrepTextSearchEngine', () => {
 	test('unicodeEscapesToPCRE2', async () => {

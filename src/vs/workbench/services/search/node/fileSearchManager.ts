@@ -11,7 +11,7 @@ import * as resources from 'vs/base/common/resources';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI } from 'vs/base/common/uri';
 import { IFileMatch, IFileSearchProviderStats, IFolderQuery, ISearchCompleteStats, IFileQuery, QueryGlobTester, resolvePatternsForProvider } from 'vs/workbench/services/search/common/search';
-import * as vscode from 'vscode';
+import { FileSearchProvider, FileSearchOptions } from 'vs/workbench/services/search/common/searchExtTypes';
 
 export interface IInternalFileMatch {
 	base: URI;
@@ -45,7 +45,7 @@ class FileSearchEngine {
 
 	private globalExcludePattern?: glob.ParsedExpression;
 
-	constructor(private config: IFileQuery, private provider: vscode.FileSearchProvider, private sessionToken?: CancellationToken) {
+	constructor(private config: IFileQuery, private provider: FileSearchProvider, private sessionToken?: CancellationToken) {
 		this.filePattern = config.filePattern;
 		this.includePattern = config.includePattern && glob.parse(config.includePattern);
 		this.maxResults = config.maxResults || undefined;
@@ -172,7 +172,7 @@ class FileSearchEngine {
 		});
 	}
 
-	private getSearchOptionsForFolder(fq: IFolderQuery<URI>): vscode.FileSearchOptions {
+	private getSearchOptionsForFolder(fq: IFolderQuery<URI>): FileSearchOptions {
 		const includes = resolvePatternsForProvider(this.config.includePattern, fq.includePattern);
 		const excludes = resolvePatternsForProvider(this.config.excludePattern, fq.excludePattern);
 
@@ -283,7 +283,7 @@ export class FileSearchManager {
 
 	private readonly sessions = new Map<string, CancellationTokenSource>();
 
-	fileSearch(config: IFileQuery, provider: vscode.FileSearchProvider, onBatch: (matches: IFileMatch[]) => void, token: CancellationToken): Promise<ISearchCompleteStats> {
+	fileSearch(config: IFileQuery, provider: FileSearchProvider, onBatch: (matches: IFileMatch[]) => void, token: CancellationToken): Promise<ISearchCompleteStats> {
 		const sessionTokenSource = this.getSessionTokenSource(config.cacheKey);
 		const engine = new FileSearchEngine(config, provider, sessionTokenSource && sessionTokenSource.token);
 

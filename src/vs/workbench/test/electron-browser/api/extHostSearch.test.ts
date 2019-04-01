@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import * as assert from 'assert';
 import { mapArrayOrNot } from 'vs/base/common/arrays';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -10,11 +11,10 @@ import { dispose } from 'vs/base/common/lifecycle';
 import { joinPath } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
-import { IFileMatch, IFileQuery, IPatternInfo, IRawFileMatch2, ISearchCompleteStats, ISearchQuery, ITextQuery, QueryType, resultIsMatch } from 'vs/workbench/services/search/common/search';
 import { MainContext, MainThreadSearchShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostSearch } from 'vs/workbench/api/node/extHostSearch';
 import { Range } from 'vs/workbench/api/node/extHostTypes';
-import { extensionResultIsMatch } from 'vs/workbench/services/search/node/textSearchManager';
+import { IFileMatch, IFileQuery, IPatternInfo, IRawFileMatch2, ISearchCompleteStats, ISearchQuery, ITextQuery, QueryType, resultIsMatch } from 'vs/workbench/services/search/common/search';
 import { TestRPCProtocol } from 'vs/workbench/test/electron-browser/api/testRPCProtocol';
 import { TestLogService } from 'vs/workbench/test/workbenchTestServices';
 import * as vscode from 'vscode';
@@ -56,6 +56,10 @@ class MockMainThreadSearch implements MainThreadSearchShape {
 }
 
 let mockPFS: Partial<typeof pfs>;
+
+export function extensionResultIsMatch(data: vscode.TextSearchResult): data is vscode.TextSearchMatch {
+	return !!(<vscode.TextSearchMatch>data).preview;
+}
 
 suite('ExtHostSearch', () => {
 	async function registerTestTextSearchProvider(provider: vscode.TextSearchProvider, scheme = 'file'): Promise<void> {
