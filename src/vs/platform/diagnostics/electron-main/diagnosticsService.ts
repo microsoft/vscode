@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IMainProcessInfo } from 'vs/platform/launch/electron-main/launchService';
+import { IMainProcessInfo, ILaunchService } from 'vs/platform/launch/electron-main/launchService';
 import { ProcessItem, listProcesses } from 'vs/base/node/ps';
 import product from 'vs/platform/product/node/product';
 import pkg from 'vs/platform/product/node/package';
@@ -23,10 +23,9 @@ export const IDiagnosticsService = createDecorator<IDiagnosticsService>(ID);
 export interface IDiagnosticsService {
 	_serviceBrand: any;
 
-	formatEnvironment(info: IMainProcessInfo): string;
-	getPerformanceInfo(info: IMainProcessInfo): Promise<PerformanceInfo>;
-	getSystemInfo(info: IMainProcessInfo): SystemInfo;
-	getDiagnostics(info: IMainProcessInfo): Promise<string>;
+	getPerformanceInfo(launchService: ILaunchService): Promise<PerformanceInfo>;
+	getSystemInfo(launchService: ILaunchService): Promise<SystemInfo>;
+	getDiagnostics(launchService: ILaunchService): Promise<string>;
 }
 
 export interface VersionInfo {
@@ -83,55 +82,19 @@ export class DiagnosticsService implements IDiagnosticsService {
 		return output.join('\n');
 	}
 
-	getPerformanceInfo(info: IMainProcessInfo): Promise<PerformanceInfo> {
-		return listProcesses(info.mainPID).then(rootProcess => {
-			const workspaceInfoMessages: string[] = [];
-
-			// Workspace Stats
-			const workspaceStatPromises: Promise<void>[] = [];
-			if (info.windows.some(window => window.folderURIs && window.folderURIs.length > 0)) {
-				info.windows.forEach(window => {
-					if (window.folderURIs.length === 0) {
-						return;
-					}
-
-					workspaceInfoMessages.push(`|  Window (${window.title})`);
-
-					window.folderURIs.forEach(uriComponents => {
-						const folderUri = URI.revive(uriComponents);
-						if (folderUri.scheme === 'file') {
-							const folder = folderUri.fsPath;
-							workspaceStatPromises.push(collectWorkspaceStats(folder, ['node_modules', '.git']).then(async stats => {
-
-								let countMessage = `${stats.fileCount} files`;
-								if (stats.maxFilesReached) {
-									countMessage = `more than ${countMessage}`;
-								}
-								workspaceInfoMessages.push(`|    Folder (${basename(folder)}): ${countMessage}`);
-								workspaceInfoMessages.push(this.formatWorkspaceStats(stats));
-							}));
-						} else {
-							workspaceInfoMessages.push(`|    Folder (${folderUri.toString()}): RPerformance stats not available.`);
-						}
-					});
-				});
-			}
-
-			return Promise.all(workspaceStatPromises).then(() => {
-				return {
-					processInfo: this.formatProcessList(info, rootProcess),
-					workspaceInfo: workspaceInfoMessages.join('\n')
-				};
-			}).catch(error => {
-				return {
-					processInfo: this.formatProcessList(info, rootProcess),
-					workspaceInfo: `Unable to calculate workspace stats: ${error}`
-				};
-			});
+	async getPerformanceInfo(launchService: ILaunchService): Promise<PerformanceInfo> {
+		const info = await launchService.getMainProcessInfo();
+		return Promise.all<ProcessItem, string>([listProcesses(info.mainPID), this.formatWorkspaceMetadata(info)]).then(result => {
+			const [rootProcess, workspaceInfo] = result;
+			return {
+				processInfo: this.formatProcessList(info, rootProcess),
+				workspaceInfo
+			};
 		});
 	}
 
-	getSystemInfo(info: IMainProcessInfo): SystemInfo {
+	async getSystemInfo(launchService: ILaunchService): Promise<SystemInfo> {
+		const info = await launchService.getMainProcessInfo();
 		const MB = 1024 * 1024;
 		const GB = 1024 * MB;
 
@@ -152,13 +115,13 @@ export class DiagnosticsService implements IDiagnosticsService {
 			systemInfo['Load (avg)'] = `${os.loadavg().map(l => Math.round(l)).join(', ')}`;
 		}
 
-
-		return systemInfo;
+		return Promise.resolve(systemInfo);
 	}
 
-	getDiagnostics(info: IMainProcessInfo): Promise<string> {
+	async getDiagnostics(launchService: ILaunchService): Promise<string> {
 		const output: string[] = [];
-		return listProcesses(info.mainPID).then(rootProcess => {
+		const info = await launchService.getMainProcessInfo();
+		return listProcesses(info.mainPID).then(async rootProcess => {
 
 			// Environment Info
 			output.push('');
@@ -169,45 +132,16 @@ export class DiagnosticsService implements IDiagnosticsService {
 			output.push(this.formatProcessList(info, rootProcess));
 
 			// Workspace Stats
-			const workspaceStatPromises: Promise<void>[] = [];
 			if (info.windows.some(window => window.folderURIs && window.folderURIs.length > 0)) {
 				output.push('');
 				output.push('Workspace Stats: ');
-				info.windows.forEach(window => {
-					if (window.folderURIs.length === 0) {
-						return;
-					}
-
-					output.push(`|  Window (${window.title})`);
-
-					window.folderURIs.forEach(uriComponents => {
-						const folderUri = URI.revive(uriComponents);
-						if (folderUri.scheme === 'file') {
-							const folder = folderUri.fsPath;
-							workspaceStatPromises.push(collectWorkspaceStats(folder, ['node_modules', '.git']).then(async stats => {
-								let countMessage = `${stats.fileCount} files`;
-								if (stats.maxFilesReached) {
-									countMessage = `more than ${countMessage}`;
-								}
-								output.push(`|    Folder (${basename(folder)}): ${countMessage}`);
-								output.push(this.formatWorkspaceStats(stats));
-
-							}).catch(error => {
-								output.push(`|      Error: Unable to collect workspace stats for folder ${folder} (${error.toString()})`);
-							}));
-						} else {
-							output.push(`|    Folder (${folderUri.toString()}): Workspace stats not available.`);
-						}
-					});
-				});
+				output.push(await this.formatWorkspaceMetadata(info));
 			}
 
-			return Promise.all(workspaceStatPromises).then(() => {
-				output.push('');
-				output.push('');
+			output.push('');
+			output.push('');
 
-				return output.join('\n');
-			});
+			return output.join('\n');
 		});
 	}
 
@@ -266,6 +200,43 @@ export class DiagnosticsService implements IDiagnosticsService {
 		const longestFeatureName = Math.max(...Object.keys(gpuFeatures).map(feature => feature.length));
 		// Make columns aligned by adding spaces after feature name
 		return Object.keys(gpuFeatures).map(feature => `${feature}:  ${repeat(' ', longestFeatureName - feature.length)}  ${gpuFeatures[feature]}`).join('\n                  ');
+	}
+
+	private formatWorkspaceMetadata(info: IMainProcessInfo): Promise<string> {
+		const output: string[] = [];
+		const workspaceStatPromises: Promise<void>[] = [];
+
+		info.windows.forEach(window => {
+			if (window.folderURIs.length === 0) {
+				return;
+			}
+
+			output.push(`|  Window (${window.title})`);
+
+			window.folderURIs.forEach(uriComponents => {
+				const folderUri = URI.revive(uriComponents);
+				if (folderUri.scheme === 'file') {
+					const folder = folderUri.fsPath;
+					workspaceStatPromises.push(collectWorkspaceStats(folder, ['node_modules', '.git']).then(stats => {
+						let countMessage = `${stats.fileCount} files`;
+						if (stats.maxFilesReached) {
+							countMessage = `more than ${countMessage}`;
+						}
+						output.push(`|    Folder (${basename(folder)}): ${countMessage}`);
+						output.push(this.formatWorkspaceStats(stats));
+
+					}).catch(error => {
+						output.push(`|      Error: Unable to collect workspace stats for folder ${folder} (${error.toString()})`);
+					}));
+				} else {
+					output.push(`|    Folder (${folderUri.toString()}): Workspace stats not available.`);
+				}
+			});
+		});
+
+		return Promise.all(workspaceStatPromises)
+			.then(_ => output.join('\n'))
+			.catch(e => `Unable to collect workspace stats: ${e}`);
 	}
 
 	private formatProcessList(info: IMainProcessInfo, rootProcess: ProcessItem): string {

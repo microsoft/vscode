@@ -140,12 +140,10 @@ function setupIPC(accessor: ServicesAccessor): Promise<Server> {
 
 					// Process Info
 					if (environmentService.args.status) {
-						return service.getMainProcessInfo().then(info => {
-							return instantiationService.invokeFunction(accessor => {
-								return accessor.get(IDiagnosticsService).getDiagnostics(info).then(diagnostics => {
-									console.log(diagnostics);
-									return Promise.reject(new ExpectedError());
-								});
+						return instantiationService.invokeFunction(accessor => {
+							return accessor.get(IDiagnosticsService).getDiagnostics(service).then(diagnostics => {
+								console.log(diagnostics);
+								return Promise.reject(new ExpectedError());
 							});
 						});
 					}
