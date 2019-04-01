@@ -21,7 +21,7 @@ import { areWebviewInputOptionsEqual } from '../browser/webviewEditorService';
 import { WebviewFindWidget } from '../browser/webviewFindWidget';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { WebviewContentOptions, WebviewPortMapping, WebviewOptions, Webview } from 'vs/workbench/contrib/webview/browser/webviewService';
+import { WebviewContentOptions, WebviewPortMapping, WebviewOptions, Webview } from 'vs/workbench/contrib/webview/common/webview';
 
 
 interface IKeydownEvent {

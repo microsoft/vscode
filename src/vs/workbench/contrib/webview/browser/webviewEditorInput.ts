@@ -11,7 +11,7 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { EditorInput, EditorModel, GroupIdentifier, IEditorInput } from 'vs/workbench/common/editor';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { WebviewEvents, WebviewInputOptions } from './webviewEditorService';
-import { Webview, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webviewService';
+import { Webview, WebviewOptions } from 'vs/workbench/contrib/webview/common/webview';
 
 export class WebviewEditorInput extends EditorInput {
 	private static handlePool = 0;

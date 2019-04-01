@@ -6,7 +6,7 @@
 import { SimpleFindWidget } from 'vs/editor/contrib/find/simpleFindWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { Webview } from 'vs/workbench/contrib/webview/browser/webviewService';
+import { Webview } from 'vs/workbench/contrib/webview/common/webview';
 
 export class WebviewFindWidget extends SimpleFindWidget {
 

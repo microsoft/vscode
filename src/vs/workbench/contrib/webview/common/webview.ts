@@ -7,6 +7,12 @@ import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+
+/**
+ * Set when the find widget in a webview is visible.
+ */
+export const KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE = new RawContextKey<boolean>('webviewFindWidgetVisible', false);
 
 export const IWebviewService = createDecorator<IWebviewService>('webviewService');
 
@@ -18,7 +24,6 @@ export interface IWebviewService {
 		contentOptions: WebviewContentOptions,
 	): Webview;
 }
-
 
 export interface WebviewPortMapping {
 	readonly port: number;
@@ -66,8 +71,6 @@ export interface Webview {
 	focus(): void;
 	dispose(): void;
 
-	showFind(): void;
-	hideFind(): void;
 
 	reload(): void;
 	selectAll(): void;
@@ -77,6 +80,8 @@ export interface Webview {
 	undo(): void;
 	redo(): void;
 
+	showFind(): void;
+	hideFind(): void;
 	find(value: string, previous: boolean): void;
 	startFind(value: string): void;
 	stopFind(keepSelection?: boolean): void;

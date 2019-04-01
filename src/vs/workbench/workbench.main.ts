@@ -233,6 +233,7 @@ import 'vs/workbench/contrib/comments/browser/comments.contribution';
 import 'vs/workbench/contrib/url/common/url.contribution';
 
 // Webview
+import 'vs/workbench/contrib/webview/browser/webview.contribution';
 import 'vs/workbench/contrib/webview/electron-browser/webview.contribution';
 
 // Extensions Management
