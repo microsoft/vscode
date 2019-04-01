@@ -72,7 +72,7 @@ export class WebviewEditorInput extends EditorInput {
 
 	constructor(
 		public readonly viewType: string,
-		id: number | undefined,
+		id: number,
 		name: string,
 		options: WebviewInputOptions,
 		state: any,
@@ -85,12 +85,8 @@ export class WebviewEditorInput extends EditorInput {
 	) {
 		super();
 
-		if (typeof id === 'number') {
-			this._id = id;
-			WebviewEditorInput.handlePool = Math.max(id, WebviewEditorInput.handlePool) + 1;
-		} else {
-			this._id = WebviewEditorInput.handlePool++;
-		}
+		this._id = id;
+		WebviewEditorInput.handlePool = Math.max(id, WebviewEditorInput.handlePool) + 1;
 
 		this._name = name;
 		this._options = options;
@@ -316,7 +312,7 @@ export class RevivedWebviewEditorInput extends WebviewEditorInput {
 
 	constructor(
 		viewType: string,
-		id: number | undefined,
+		id: number,
 		name: string,
 		options: WebviewInputOptions,
 		state: any,
@@ -325,7 +321,7 @@ export class RevivedWebviewEditorInput extends WebviewEditorInput {
 			readonly location: URI;
 			readonly id: ExtensionIdentifier
 		},
-		public readonly reviver: (input: WebviewEditorInput) => Promise<void>,
+		private readonly reviver: (input: WebviewEditorInput) => Promise<void>,
 		@IWorkbenchLayoutService partService: IWorkbenchLayoutService,
 	) {
 		super(viewType, id, name, options, state, events, extension, partService);
