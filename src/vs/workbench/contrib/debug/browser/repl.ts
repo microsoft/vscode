@@ -142,6 +142,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			this.updateTitleArea();
 		}));
 		this._register(this.themeService.onThemeChange(() => {
+			this.refreshReplElements(false);
 			if (this.isVisible()) {
 				this.updateInputDecoration();
 			}
