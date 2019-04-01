@@ -265,9 +265,15 @@ export class ReviewController implements IEditorContribution {
 		if (commentThreadWidget.length === 1) {
 			commentThreadWidget[0].reveal(commentId);
 		} else if (fetchOnceIfNotExist) {
-			this.beginCompute().then(_ => {
-				this.revealCommentThread(threadId, commentId, false);
-			});
+			if (this._computePromise) {
+				this._computePromise.then(_ => {
+					this.revealCommentThread(threadId, commentId, false);
+				});
+			} else {
+				this.beginCompute().then(_ => {
+					this.revealCommentThread(threadId, commentId, false);
+				});
+			}
 		}
 	}
 
