@@ -14,7 +14,6 @@ import { isEqualOrParent } from 'vs/base/common/extpath';
 import { ResourceMap } from 'vs/base/common/map';
 import * as arrays from 'vs/base/common/arrays';
 import * as objects from 'vs/base/common/objects';
-import * as extfs from 'vs/base/node/extfs';
 import { ThrottledDelayer, timeout } from 'vs/base/common/async';
 import { URI as uri } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
@@ -42,10 +41,48 @@ import product from 'vs/platform/product/node/product';
 import { IEncodingOverride, ResourceEncodings } from 'vs/workbench/services/files/node/encoding';
 import { createReadableOfSnapshot } from 'vs/workbench/services/files/node/streams';
 import { withUndefinedAsNull } from 'vs/base/common/types';
+import { normalizeNFC } from 'vs/base/common/normalization';
 
 export interface IFileServiceTestOptions {
 	disableWatcher?: boolean;
 	encodingOverride?: IEncodingOverride[];
+}
+
+interface IStatAndLink {
+	stat: fs.Stats;
+	isSymbolicLink: boolean;
+}
+
+function statLink(path: string, callback: (error: Error | null, statAndIsLink: IStatAndLink | null) => void): void {
+	fs.lstat(path, (error, lstat) => {
+		if (error || lstat.isSymbolicLink()) {
+			fs.stat(path, (error, stat) => {
+				if (error) {
+					return callback(error, null);
+				}
+
+				callback(null, { stat, isSymbolicLink: lstat && lstat.isSymbolicLink() });
+			});
+		} else {
+			callback(null, { stat: lstat, isSymbolicLink: false });
+		}
+	});
+}
+
+function readdir(path: string, callback: (error: Error | null, files: string[]) => void): void {
+	// Mac: uses NFD unicode form on disk, but we want NFC
+	// See also https://github.com/nodejs/node/issues/2165
+	if (isMacintosh) {
+		return fs.readdir(path, (error, children) => {
+			if (error) {
+				return callback(error, []);
+			}
+
+			return callback(null, children.map(c => normalizeNFC(c)));
+		});
+	}
+
+	return fs.readdir(path, callback);
 }
 
 export class FileService extends Disposable implements ILegacyFileService, IFileService {
@@ -633,7 +670,7 @@ export class FileService extends Disposable implements ILegacyFileService, IFile
 	private doSetContentsAndResolve(resource: uri, absolutePath: string, value: string | ITextSnapshot, addBOM: boolean, encodingToWrite: string, options?: { mode?: number; flag?: string; }): Promise<IFileStat> {
 
 		// Configure encoding related options as needed
-		const writeFileOptions: extfs.IWriteFileOptions = options ? options : Object.create(null);
+		const writeFileOptions: pfs.IWriteFileOptions = options ? options : Object.create(null);
 		if (addBOM || encodingToWrite !== UTF8) {
 			writeFileOptions.encoding = {
 				charset: encodingToWrite,
@@ -694,7 +731,7 @@ export class FileService extends Disposable implements ILegacyFileService, IFile
 				}).then(() => {
 
 					// 3.) delete temp file
-					return pfs.del(tmpPath, os.tmpdir()).then(() => {
+					return pfs.rimraf(tmpPath, pfs.RimRafMode.MOVE).then(() => {
 
 						// 4.) resolve again
 						return this.resolve(resource);
@@ -928,7 +965,7 @@ export class FileService extends Disposable implements ILegacyFileService, IFile
 		}
 
 		return assertNonRecursiveDelete.then(() => {
-			return pfs.del(absolutePath, os.tmpdir()).then(() => {
+			return pfs.rimraf(absolutePath, pfs.RimRafMode.MOVE).then(() => {
 
 				// Events
 				this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.DELETE));
@@ -980,7 +1017,7 @@ export class FileService extends Disposable implements ILegacyFileService, IFile
 		const fsPath = resource.fsPath;
 		const fsName = paths.basename(resource.fsPath);
 
-		const watcherDisposable = extfs.watch(fsPath, (eventType: string, filename: string) => {
+		const watcherDisposable = pfs.watch(fsPath, (eventType: string, filename: string) => {
 			const renamedOrDeleted = ((filename && filename !== fsName) || eventType === 'rename');
 
 			// The file was either deleted or renamed. Many tools apply changes to files in an
@@ -1386,7 +1423,7 @@ export class StatResolver {
 	}
 
 	private resolveChildren(absolutePath: string, absoluteTargetPaths: string[] | null, resolveSingleChildDescendants: boolean, callback: (children: IFileStat[] | null) => void): void {
-		extfs.readdir(absolutePath, (error: Error, files: string[]) => {
+		readdir(absolutePath, (error: Error, files: string[]) => {
 			if (error) {
 				if (this.errorLogger) {
 					this.errorLogger(error);
@@ -1412,15 +1449,15 @@ export class StatResolver {
 					},
 
 					function stat(this: any): void {
-						extfs.statLink(fileResource.fsPath, this);
+						statLink(fileResource.fsPath, this);
 					},
 
-					function countChildren(this: any, statAndLink: extfs.IStatAndLink): void {
+					function countChildren(this: any, statAndLink: IStatAndLink): void {
 						fileStat = statAndLink.stat;
 						isSymbolicLink = statAndLink.isSymbolicLink;
 
 						if (fileStat.isDirectory()) {
-							extfs.readdir(fileResource.fsPath, (error, result) => {
+							readdir(fileResource.fsPath, (error, result) => {
 								this(null, result ? result.length : 0);
 							});
 						} else {

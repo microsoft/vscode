@@ -6,10 +6,9 @@
 import { IWorkspacesMainService, IWorkspaceIdentifier, hasWorkspaceFileExtension, UNTITLED_WORKSPACE_NAME, IResolvedWorkspace, IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, IUntitledWorkspaceInfo, getStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { join, dirname } from 'vs/base/common/path';
-import { mkdirp, writeFile } from 'vs/base/node/pfs';
-import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'fs';
+import { mkdirp, writeFile, rimrafSync, readdirSync, writeFileSync } from 'vs/base/node/pfs';
+import { readFileSync, existsSync, mkdirSync } from 'fs';
 import { isLinux } from 'vs/base/common/platform';
-import { delSync, readdirSync, writeFileAndFlushSync } from 'vs/base/node/extfs';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 import { createHash } from 'crypto';
@@ -126,7 +125,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 			mkdirSync(configPathDir);
 		}
 
-		writeFileAndFlushSync(configPath, JSON.stringify(storedWorkspace, null, '\t'));
+		writeFileSync(configPath, JSON.stringify(storedWorkspace, null, '\t'));
 
 		return workspace;
 	}
@@ -176,8 +175,9 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 	private doDeleteUntitledWorkspaceSync(workspace: IWorkspaceIdentifier): void {
 		const configPath = originalFSPath(workspace.configPath);
 		try {
+
 			// Delete Workspace
-			delSync(dirname(configPath));
+			rimrafSync(dirname(configPath));
 
 			// Mark Workspace Storage to be deleted
 			const workspaceStoragePath = join(this.environmentService.workspaceStorageHome, workspace.id);

@@ -12,7 +12,7 @@ import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { generateUuid } from 'vs/base/common/uuid';
 import { join, basename, dirname, posix } from 'vs/base/common/path';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
-import { copy, del, symlink } from 'vs/base/node/pfs';
+import { copy, rimraf, symlink, RimRafMode } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { existsSync, statSync, readdirSync, readFileSync } from 'fs';
 import { FileOperation, FileOperationEvent, IFileStat, FileOperationResult, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
@@ -91,7 +91,7 @@ suite('Disk File Service', () => {
 	teardown(async () => {
 		disposables = dispose(disposables);
 
-		await del(parentDir, tmpdir());
+		await rimraf(parentDir, RimRafMode.MOVE);
 	});
 
 	test('createFolder', async () => {

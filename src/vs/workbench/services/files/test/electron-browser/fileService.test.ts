@@ -39,7 +39,7 @@ suite('FileService', () => {
 
 	teardown(() => {
 		service.dispose();
-		return pfs.del(parentDir, os.tmpdir());
+		return pfs.rimraf(parentDir, pfs.RimRafMode.MOVE);
 	});
 
 	test('createFile', () => {

@@ -14,7 +14,7 @@ import { ThrottledDelayer } from 'vs/base/common/async';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { normalizeNFC } from 'vs/base/common/normalization';
 import { Event, Emitter } from 'vs/base/common/event';
-import { realcaseSync, realpathSync } from 'vs/base/node/extfs';
+import { realcaseSync, realpathSync } from 'vs/base/node/extpath';
 
 const nsfwActionToRawChangeType: { [key: number]: number } = [];
 nsfwActionToRawChangeType[nsfw.actions.CREATED] = FileChangeType.ADDED;

@@ -30,6 +30,7 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { Schemas } from 'vs/base/common/network';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { realpath } from 'vs/base/node/extpath';
 
 class ExtensionMemento implements IExtensionMemento {
 
@@ -316,7 +317,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 				if (!ext.main) {
 					return undefined;
 				}
-				return pfs.realpath(ext.extensionLocation.fsPath).then(value => tree.set(URI.file(value).fsPath, ext));
+				return realpath(ext.extensionLocation.fsPath).then(value => tree.set(URI.file(value).fsPath, ext));
 			});
 			this._extensionPathIndex = Promise.all(extensions).then(() => tree);
 		}
@@ -733,13 +734,13 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 			if (!extensionDescription) {
 				return;
 			}
-			const realpath = await pfs.realpath(extensionDescription.extensionLocation.fsPath);
-			trie.delete(URI.file(realpath).fsPath);
+			const realpathValue = await realpath(extensionDescription.extensionLocation.fsPath);
+			trie.delete(URI.file(realpathValue).fsPath);
 		}));
 
 		await Promise.all(toAdd.map(async (extensionDescription) => {
-			const realpath = await pfs.realpath(extensionDescription.extensionLocation.fsPath);
-			trie.set(URI.file(realpath).fsPath, extensionDescription);
+			const realpathValue = await realpath(extensionDescription.extensionLocation.fsPath);
+			trie.set(URI.file(realpathValue).fsPath, extensionDescription);
 		}));
 
 		this._registry.deltaExtensions(toAdd, toRemove);

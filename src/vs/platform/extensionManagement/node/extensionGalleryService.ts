@@ -18,8 +18,7 @@ import pkg from 'vs/platform/product/node/package';
 import product from 'vs/platform/product/node/product';
 import { isEngineValid } from 'vs/platform/extensions/node/extensionValidator';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { readFile } from 'vs/base/node/pfs';
-import { writeFileAndFlushSync } from 'vs/base/node/extfs';
+import { writeFileSync, readFile } from 'vs/base/node/pfs';
 import { generateUuid, isUUID } from 'vs/base/common/uuid';
 import { values } from 'vs/base/common/map';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -848,7 +847,7 @@ export function resolveMarketplaceHeaders(environmentService: IEnvironmentServic
 			if (!uuid) {
 				uuid = generateUuid();
 				try {
-					writeFileAndFlushSync(marketplaceMachineIdFile, uuid);
+					writeFileSync(marketplaceMachineIdFile, uuid);
 				} catch (error) {
 					//noop
 				}

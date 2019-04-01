@@ -6,11 +6,10 @@
 import * as path from 'vs/base/common/path';
 import * as fs from 'fs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { writeFileAndFlushSync } from 'vs/base/node/extfs';
+import { writeFileSync, readFile } from 'vs/base/node/pfs';
 import { isUndefined, isUndefinedOrNull } from 'vs/base/common/types';
 import { IStateService } from 'vs/platform/state/common/state';
 import { ILogService } from 'vs/platform/log/common/log';
-import { readFile } from 'vs/base/node/pfs';
 
 export class FileStorage {
 
@@ -103,7 +102,7 @@ export class FileStorage {
 		}
 
 		try {
-			writeFileAndFlushSync(this.dbPath, serializedDatabase); // permission issue can happen here
+			writeFileSync(this.dbPath, serializedDatabase); // permission issue can happen here
 			this.lastFlushedSerializedDatabase = serializedDatabase;
 		} catch (error) {
 			this.onError(error);

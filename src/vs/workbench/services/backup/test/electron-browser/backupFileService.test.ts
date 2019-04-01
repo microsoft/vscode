@@ -73,7 +73,7 @@ suite('BackupFileService', () => {
 		service = new TestBackupFileService(workspaceResource, backupHome, workspacesJsonPath);
 
 		// Delete any existing backups completely and then re-create it.
-		return pfs.del(backupHome, os.tmpdir()).then(() => {
+		return pfs.rimraf(backupHome, pfs.RimRafMode.MOVE).then(() => {
 			return pfs.mkdirp(backupHome).then(() => {
 				return pfs.writeFile(workspacesJsonPath, '');
 			});
@@ -81,7 +81,7 @@ suite('BackupFileService', () => {
 	});
 
 	teardown(() => {
-		return pfs.del(backupHome, os.tmpdir());
+		return pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);
 	});
 
 	suite('hashPath', () => {

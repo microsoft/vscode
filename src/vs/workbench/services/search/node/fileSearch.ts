@@ -19,7 +19,7 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import * as strings from 'vs/base/common/strings';
 import * as types from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import * as extfs from 'vs/base/node/extfs';
+import { readdir } from 'vs/base/node/pfs';
 import { IFileQuery, IFolderQuery, IProgressMessage, ISearchEngineStats, IRawFileMatch, ISearchEngine, ISearchEngineSuccess } from 'vs/workbench/services/search/common/search';
 import { spawnRipgrepCmd } from './ripgrepFileSearch';
 
@@ -516,12 +516,14 @@ export class FileWalker {
 							this.walkedPaths[realpath] = true; // remember as walked
 
 							// Continue walking
-							return extfs.readdir(currentAbsolutePath, (error: Error, children: string[]): void => {
-								if (error || this.isCanceled || this.isLimitHit) {
+							return readdir(currentAbsolutePath).then(children => {
+								if (this.isCanceled || this.isLimitHit) {
 									return clb(null);
 								}
 
 								this.doWalk(folderQuery, currentRelativePath, children, onResult, err => clb(err || null));
+							}, error => {
+								clb(null);
 							});
 						});
 					}

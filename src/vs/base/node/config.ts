@@ -9,7 +9,7 @@ import * as objects from 'vs/base/common/objects';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as json from 'vs/base/common/json';
-import * as extfs from 'vs/base/node/extfs';
+import { watch } from 'vs/base/node/pfs';
 import { isWindows } from 'vs/base/common/platform';
 
 export interface IConfigurationChangeEvent<T> {
@@ -149,7 +149,7 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 			return; // avoid watchers that will never get disposed by checking for being disposed
 		}
 
-		this.disposables.push(extfs.watch(path,
+		this.disposables.push(watch(path,
 			(type, file) => this.onConfigFileChange(type, file, isParentFolder),
 			(error: string) => this.options.onError(error)
 		));
