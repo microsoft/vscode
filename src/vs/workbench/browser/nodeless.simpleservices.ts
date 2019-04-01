@@ -802,9 +802,7 @@ export class SimpleRemoteFileService implements IFileService {
 
 	del(_resource: URI, _options?: { useTrash?: boolean, recursive?: boolean }): Promise<void> { return Promise.resolve(); }
 
-	watch(_resource: URI): void { }
-
-	unwatch(_resource: URI): void { }
+	watch(_resource: URI): IDisposable { return Disposable.None; }
 
 	getWriteEncoding(_resource: URI): IResourceEncoding { return { encoding: 'utf8', hasBOM: false }; }
 

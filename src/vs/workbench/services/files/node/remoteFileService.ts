@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, dispose } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
@@ -12,7 +12,7 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/res
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FileWriteOptions, FileSystemProviderCapabilities, IContent, ICreateFileOptions, IFileSystemProvider, IFilesConfiguration, IResolveContentOptions, IStreamContent, ITextSnapshot, IUpdateContentOptions, StringSnapshot, IWatchOptions, ILegacyFileService, IFileService, toFileOperationResult, IFileStatWithMetadata } from 'vs/platform/files/common/files';
+import { FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FileWriteOptions, FileSystemProviderCapabilities, IContent, ICreateFileOptions, IFileSystemProvider, IFilesConfiguration, IResolveContentOptions, IStreamContent, ITextSnapshot, IUpdateContentOptions, StringSnapshot, ILegacyFileService, IFileService, toFileOperationResult, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -23,10 +23,10 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 class WorkspaceWatchLogic extends Disposable {
 
-	private _watches = new Map<string, URI>();
+	private _watches = new Map<string, IDisposable>();
 
 	constructor(
-		private _fileService: RemoteFileService,
+		private _fileService: IFileService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 	) {
@@ -76,19 +76,19 @@ class WorkspaceWatchLogic extends Disposable {
 				}
 			}
 		}
-		this._watches.set(resource.toString(), resource);
-		this._fileService.watch(resource, { recursive: true, excludes });
+		const disposable = this._fileService.watch(resource, { recursive: true, excludes });
+		this._watches.set(resource.toString(), disposable);
 	}
 
 	private _unwatchWorkspace(resource: URI) {
 		if (this._watches.has(resource.toString())) {
-			this._fileService.unwatch(resource);
+			dispose(this._watches.get(resource.toString()));
 			this._watches.delete(resource.toString());
 		}
 	}
 
 	private _unwatchWorkspaces() {
-		this._watches.forEach(uri => this._fileService.unwatch(uri));
+		this._watches.forEach(disposable => dispose(disposable));
 		this._watches.clear();
 	}
 }
@@ -308,41 +308,6 @@ export class RemoteFileService extends FileService {
 			content.value.on('error', reject);
 			content.value.on('end', () => resolve(result));
 		});
-	}
-
-	private _activeWatches = new Map<string, { unwatch: Promise<IDisposable>, count: number }>();
-
-	watch(resource: URI, opts: IWatchOptions = { recursive: false, excludes: [] }): void {
-		if (resource.scheme === Schemas.file) {
-			return super.watch(resource);
-		}
-
-		const key = resource.toString();
-		const entry = this._activeWatches.get(key);
-		if (entry) {
-			entry.count += 1;
-			return;
-		}
-
-		this._activeWatches.set(key, {
-			count: 1,
-			unwatch: this._withProvider(resource).then(provider => {
-				return provider.watch(resource, opts);
-			}, _err => {
-				return { dispose() { } };
-			})
-		});
-	}
-
-	unwatch(resource: URI): void {
-		if (resource.scheme === Schemas.file) {
-			return super.unwatch(resource);
-		}
-		let entry = this._activeWatches.get(resource.toString());
-		if (entry && --entry.count === 0) {
-			entry.unwatch.then(dispose);
-			this._activeWatches.delete(resource.toString());
-		}
 	}
 }
 

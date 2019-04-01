@@ -114,20 +114,16 @@ namespace snippetExt {
 }
 
 function watch(service: IFileService, resource: URI, callback: (type: FileChangeType, resource: URI) => any): IDisposable {
-	let listener = service.onFileChanges(e => {
-		for (const change of e.changes) {
-			if (resources.isEqualOrParent(change.resource, resource)) {
-				callback(change.type, change.resource);
+	return combinedDisposable([
+		service.watch(resource),
+		service.onFileChanges(e => {
+			for (const change of e.changes) {
+				if (resources.isEqualOrParent(change.resource, resource)) {
+					callback(change.type, change.resource);
+				}
 			}
-		}
-	});
-	service.watch(resource);
-	return {
-		dispose() {
-			listener.dispose();
-			service.unwatch(resource);
-		}
-	};
+		})
+	]);
 }
 
 class SnippetsService implements ISnippetsService {

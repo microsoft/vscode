@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ConfigurationModelParser, ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { ConfigWatcher } from 'vs/base/node/config';
@@ -70,8 +70,7 @@ export class FileServiceBasedUserConfiguration extends Disposable {
 
 		this._register(fileService.onFileChanges(e => this.handleFileEvents(e)));
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.reload().then(configurationModel => this._onDidChangeConfiguration.fire(configurationModel)), 50));
-		this.fileService.watch(this.configurationResource);
-		this._register(toDisposable(() => this.fileService.unwatch(this.configurationResource)));
+		this._register(this.fileService.watch(this.configurationResource));
 	}
 
 	initialize(): Promise<ConfigurationModel> {

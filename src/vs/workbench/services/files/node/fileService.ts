@@ -1002,7 +1002,7 @@ export class FileService extends Disposable implements ILegacyFileService, IFile
 		});
 	}
 
-	watch(resource: uri): void {
+	watch(resource: uri): IDisposable {
 		assert.ok(resource && resource.scheme === Schemas.file, `Invalid resource for watching: ${resource}`);
 
 		// Check for existing watcher first
@@ -1010,7 +1010,7 @@ export class FileService extends Disposable implements ILegacyFileService, IFile
 		if (entry) {
 			entry.count += 1;
 
-			return;
+			return Disposable.None;
 		}
 
 		// Create or get watcher for provided path
@@ -1066,6 +1066,8 @@ export class FileService extends Disposable implements ILegacyFileService, IFile
 			count: 1,
 			unwatch: () => watcherDisposable.dispose()
 		});
+
+		return watcherDisposable;
 	}
 
 	private onRawFileChange(event: IRawFileChange): void {
@@ -1118,13 +1120,6 @@ export class FileService extends Disposable implements ILegacyFileService, IFile
 		this.activeFileChangesWatchers.forEach(watcher => watcher.unwatch());
 		this.activeFileChangesWatchers.clear();
 	}
-
-
-
-
-
-
-
 
 	// Tests only
 

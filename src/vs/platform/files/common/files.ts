@@ -164,14 +164,9 @@ export interface IFileService {
 	del(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): Promise<void>;
 
 	/**
-	 * Allows to start a watcher that reports file change events on the provided resource.
+	 * Allows to start a watcher that reports file/folder change events on the provided resource.
 	 */
-	watch(resource: URI): void;
-
-	/**
-	 * Allows to stop a watcher on the provided resource or absolute fs path.
-	 */
-	unwatch(resource: URI): void;
+	watch(resource: URI, opts?: IWatchOptions): IDisposable;
 
 	/**
 	 * Frees up any resources occupied by this service.
@@ -1135,8 +1130,4 @@ export interface ILegacyFileService {
 	updateContent(resource: URI, value: string | ITextSnapshot, options?: IUpdateContentOptions): Promise<IFileStat>;
 
 	createFile(resource: URI, content?: string, options?: ICreateFileOptions): Promise<IFileStat>;
-
-	watch(resource: URI): void;
-
-	unwatch(resource: URI): void;
 }

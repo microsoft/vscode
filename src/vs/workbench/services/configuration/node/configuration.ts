@@ -10,7 +10,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import * as pfs from 'vs/base/node/pfs';
 import * as errors from 'vs/base/common/errors';
 import * as collections from 'vs/base/common/collections';
-import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler, Delayer } from 'vs/base/common/async';
 import { FileChangeType, FileChangesEvent, IContent, IFileService } from 'vs/platform/files/common/files';
 import { ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
@@ -355,6 +355,8 @@ class NodeBasedWorkspaceConfiguration extends AbstractWorkspaceConfiguration {
 class FileServiceBasedWorkspaceConfiguration extends AbstractWorkspaceConfiguration {
 
 	private workspaceConfig: URI | null = null;
+	private workspaceConfigWatcher: IDisposable;
+
 	private readonly reloadConfigurationScheduler: RunOnceScheduler;
 
 	constructor(private fileService: IFileService, from?: IWorkspaceConfiguration) {
@@ -362,27 +364,22 @@ class FileServiceBasedWorkspaceConfiguration extends AbstractWorkspaceConfigurat
 		this.workspaceConfig = from && from.workspaceIdentifier ? from.workspaceIdentifier.configPath : null;
 		this._register(fileService.onFileChanges(e => this.handleWorkspaceFileEvents(e)));
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this._onDidChange.fire(), 50));
-		this.watchWorkspaceConfigurationFile();
-		this._register(toDisposable(() => this.unWatchWorkspaceConfigurtionFile()));
+		this.workspaceConfigWatcher = this.watchWorkspaceConfigurationFile();
 	}
 
-	private watchWorkspaceConfigurationFile(): void {
+	private watchWorkspaceConfigurationFile(): IDisposable {
 		if (this.workspaceConfig) {
-			this.fileService.watch(this.workspaceConfig);
+			return this.fileService.watch(this.workspaceConfig);
 		}
-	}
 
-	private unWatchWorkspaceConfigurtionFile(): void {
-		if (this.workspaceConfig) {
-			this.fileService.unwatch(this.workspaceConfig);
-		}
+		return Disposable.None;
 	}
 
 	protected loadWorkspaceConfigurationContents(workspaceIdentifier: IWorkspaceIdentifier): Promise<string> {
 		if (!(this.workspaceConfig && resources.isEqual(this.workspaceConfig, workspaceIdentifier.configPath))) {
-			this.unWatchWorkspaceConfigurtionFile();
+			this.workspaceConfigWatcher = dispose(this.workspaceConfigWatcher);
 			this.workspaceConfig = workspaceIdentifier.configPath;
-			this.watchWorkspaceConfigurationFile();
+			this.workspaceConfigWatcher = this.watchWorkspaceConfigurationFile();
 		}
 		return this.fileService.resolveContent(this.workspaceConfig)
 			.then(content => content.value, e => {
@@ -405,6 +402,12 @@ class FileServiceBasedWorkspaceConfiguration extends AbstractWorkspaceConfigurat
 				this.reloadConfigurationScheduler.schedule();
 			}
 		}
+	}
+
+	dispose(): void {
+		super.dispose();
+
+		this.workspaceConfigWatcher = dispose(this.workspaceConfigWatcher);
 	}
 }
 
