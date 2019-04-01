@@ -22,10 +22,10 @@ function getDefinitions<T>(
 	const provider = registry.ordered(model);
 
 	// get results
-	const promises = provider.map((provider): Promise<LocationLink | LocationLink[] | null | undefined> => {
+	const promises = provider.map((provider): Promise<LocationLink | LocationLink[] | undefined> => {
 		return Promise.resolve(provide(provider, model, position)).then(undefined, err => {
 			onUnexpectedExternalError(err);
-			return null;
+			return undefined;
 		});
 	});
 	return Promise.all(promises)

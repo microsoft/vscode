@@ -61,15 +61,15 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 		this.initAsync();
 	}
 
-	public get path(): string {
+	get path(): string {
 		return this._path;
 	}
 
-	public get hasParseErrors(): boolean {
+	get hasParseErrors(): boolean {
 		return this.parseErrors && this.parseErrors.length > 0;
 	}
 
-	public get onDidUpdateConfiguration(): Event<IConfigurationChangeEvent<T>> {
+	get onDidUpdateConfiguration(): Event<IConfigurationChangeEvent<T>> {
 		return this._onDidUpdateConfiguration.event;
 	}
 
@@ -179,7 +179,7 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 		this.timeoutHandle = global.setTimeout(() => this.reload(), this.options.changeBufferDelay || 0);
 	}
 
-	public reload(callback?: (config: T) => void): void {
+	reload(callback?: (config: T) => void): void {
 		this.loadAsync(currentConfig => {
 			if (!objects.equals(currentConfig, this.cache)) {
 				this.updateCache(currentConfig);
@@ -193,7 +193,7 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 		});
 	}
 
-	public getConfig(): T {
+	getConfig(): T {
 		this.ensureLoaded();
 
 		return this.cache;
@@ -205,7 +205,7 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 		}
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this.disposed = true;
 		this.disposables = dispose(this.disposables);
 	}

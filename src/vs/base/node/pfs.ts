@@ -5,7 +5,7 @@
 
 import * as extfs from 'vs/base/node/extfs';
 import { join, dirname } from 'vs/base/common/path';
-import { nfcall, Queue } from 'vs/base/common/async';
+import { Queue } from 'vs/base/common/async';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as platform from 'vs/base/common/platform';
@@ -15,53 +15,61 @@ import { promisify } from 'util';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
 export function readdir(path: string): Promise<string[]> {
-	return nfcall(extfs.readdir, path);
+	return promisify(extfs.readdir)(path);
 }
 
 export function exists(path: string): Promise<boolean> {
-	return new Promise(c => fs.exists(path, c));
+	return promisify(fs.exists)(path);
 }
 
-export function chmod(path: string, mode: number): Promise<boolean> {
-	return nfcall(fs.chmod, path, mode);
+export function chmod(path: string, mode: number): Promise<void> {
+	return promisify(fs.chmod)(path, mode);
 }
 
-export function rimraf(path: string): Promise<void> {
-	return lstat(path).then(stat => {
+export async function rimraf(path: string): Promise<void> {
+	try {
+		const stat = await lstat(path);
+
+		// Folder delete (recursive) - NOT for symbolic links though!
 		if (stat.isDirectory() && !stat.isSymbolicLink()) {
-			return readdir(path)
-				.then(children => Promise.all(children.map(child => rimraf(join(path, child)))))
-				.then(() => rmdir(path));
-		} else {
+			const children = await readdir(path);
+
+			await Promise.all(children.map(child => rimraf(join(path, child))));
+
+			await promisify(fs.rmdir)(path);
+		}
+
+		// Single file delete
+		else {
 			return unlink(path);
 		}
-	}, (err: NodeJS.ErrnoException) => {
-		if (err.code === 'ENOENT') {
-			return undefined;
+	} catch (error) {
+		if (error.code !== 'ENOENT') {
+			throw error;
 		}
-
-		return Promise.reject(err);
-	});
+	}
 }
 
 export function realpath(path: string): Promise<string> {
-	return nfcall(extfs.realpath, path);
+	return promisify(extfs.realpath)(path);
 }
 
 export function stat(path: string): Promise<fs.Stats> {
-	return nfcall(fs.stat, path);
+	return promisify(fs.stat)(path);
 }
 
 export function statLink(path: string): Promise<{ stat: fs.Stats, isSymbolicLink: boolean }> {
-	return nfcall(extfs.statLink, path);
+	return new Promise((resolve, reject) => {
+		extfs.statLink(path, (error, result) => error ? reject(error) : resolve(result!));
+	});
 }
 
 export function lstat(path: string): Promise<fs.Stats> {
-	return nfcall(fs.lstat, path);
+	return promisify(fs.lstat)(path);
 }
 
 export function rename(oldPath: string, newPath: string): Promise<void> {
-	return nfcall(fs.rename, oldPath, newPath);
+	return promisify(fs.rename)(oldPath, newPath);
 }
 
 export function renameIgnoreError(oldPath: string, newPath: string): Promise<void> {
@@ -70,30 +78,26 @@ export function renameIgnoreError(oldPath: string, newPath: string): Promise<voi
 	});
 }
 
-export function rmdir(path: string): Promise<void> {
-	return nfcall(fs.rmdir, path);
-}
-
 export function unlink(path: string): Promise<void> {
-	return nfcall(fs.unlink, path);
+	return promisify(fs.unlink)(path);
 }
 
 export function symlink(target: string, path: string, type?: string): Promise<void> {
-	return nfcall<void>(fs.symlink, target, path, type);
+	return promisify(fs.symlink)(target, path, type);
 }
 
 export function readlink(path: string): Promise<string> {
-	return nfcall<string>(fs.readlink, path);
+	return promisify(fs.readlink)(path);
 }
 
 export function truncate(path: string, len: number): Promise<void> {
-	return nfcall(fs.truncate, path, len);
+	return promisify(fs.truncate)(path, len);
 }
 
 export function readFile(path: string): Promise<Buffer>;
 export function readFile(path: string, encoding: string): Promise<string>;
 export function readFile(path: string, encoding?: string): Promise<Buffer | string> {
-	return nfcall(fs.readFile, path, encoding);
+	return promisify(fs.readFile)(path, encoding);
 }
 
 // According to node.js docs (https://nodejs.org/docs/v6.5.0/api/fs.html#fs_fs_writefile_file_data_options_callback)
@@ -109,7 +113,11 @@ export function writeFile(path: string, data: string | Buffer | NodeJS.ReadableS
 export function writeFile(path: string, data: string | Buffer | NodeJS.ReadableStream | Uint8Array, options?: extfs.IWriteFileOptions): Promise<void> {
 	const queueKey = toQueueKey(path);
 
-	return ensureWriteFileQueue(queueKey).queue(() => nfcall(extfs.writeFileAndFlush, path, data, options));
+	return ensureWriteFileQueue(queueKey).queue(() => {
+		return new Promise((resolve, reject) => {
+			extfs.writeFileAndFlush(path, data, options, error => error ? reject(error) : resolve());
+		});
+	});
 }
 
 function toQueueKey(path: string): string {
@@ -137,43 +145,51 @@ function ensureWriteFileQueue(queueKey: string): Queue<void> {
 	return writeFileQueue;
 }
 
-/**
-* Read a dir and return only subfolders
-*/
-export function readDirsInDir(dirPath: string): Promise<string[]> {
-	return readdir(dirPath).then(children => {
-		return Promise.all(children.map(c => dirExists(join(dirPath, c)))).then(exists => {
-			return children.filter((_, i) => exists[i]);
-		});
-	});
-}
+export async function readDirsInDir(dirPath: string): Promise<string[]> {
+	const children = await readdir(dirPath);
+	const directories: string[] = [];
 
-/**
-* `path` exists and is a directory
-*/
-export function dirExists(path: string): Promise<boolean> {
-	return stat(path).then(stat => stat.isDirectory(), () => false);
-}
-
-/**
-* `path` exists and is a file.
-*/
-export function fileExists(path: string): Promise<boolean> {
-	return stat(path).then(stat => stat.isFile(), () => false);
-}
-
-/**
- * Deletes a path from disk.
- */
-let _tmpDir: string | null = null;
-function getTmpDir(): string {
-	if (!_tmpDir) {
-		_tmpDir = os.tmpdir();
+	for (const child of children) {
+		if (await dirExists(join(dirPath, child))) {
+			directories.push(child);
+		}
 	}
-	return _tmpDir;
+
+	return directories;
 }
+
+export async function dirExists(path: string): Promise<boolean> {
+	try {
+		const fileStat = await stat(path);
+
+		return fileStat.isDirectory();
+	} catch (error) {
+		return false;
+	}
+}
+
+export async function fileExists(path: string): Promise<boolean> {
+	try {
+		const fileStat = await stat(path);
+
+		return fileStat.isFile();
+	} catch (error) {
+		return false;
+	}
+}
+
+let tmpDir: string | null = null;
+function getTmpDir(): string {
+	if (!tmpDir) {
+		tmpDir = os.tmpdir();
+	}
+	return tmpDir;
+}
+
 export function del(path: string, tmp = getTmpDir()): Promise<void> {
-	return nfcall(extfs.del, path, tmp);
+	return new Promise((resolve, reject) => {
+		extfs.del(path, tmp, error => error ? reject(error) : resolve());
+	});
 }
 
 export function whenDeleted(path: string): Promise<void> {

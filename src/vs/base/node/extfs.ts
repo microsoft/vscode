@@ -195,7 +195,7 @@ interface IEnsuredWriteFileOptions extends IWriteFileOptions {
 }
 
 let canFlush = true;
-export function writeFileAndFlush(path: string, data: string | Buffer | NodeJS.ReadableStream | Uint8Array, options: IWriteFileOptions, callback: (error?: Error) => void): void {
+export function writeFileAndFlush(path: string, data: string | Buffer | NodeJS.ReadableStream | Uint8Array, options: IWriteFileOptions | undefined, callback: (error?: Error) => void): void {
 	const ensuredOptions = ensureWriteOptions(options);
 
 	if (typeof data === 'string' || Buffer.isBuffer(data) || data instanceof Uint8Array) {

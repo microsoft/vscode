@@ -191,4 +191,26 @@ suite('PFS', () => {
 
 		return pfs.del(parentDir, os.tmpdir());
 	});
+
+	test('readDirsInDir', async () => {
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'extfs', id);
+
+		await pfs.mkdirp(newDir, 493);
+
+		fs.mkdirSync(path.join(newDir, 'somefolder1'));
+		fs.mkdirSync(path.join(newDir, 'somefolder2'));
+		fs.mkdirSync(path.join(newDir, 'somefolder3'));
+		fs.writeFileSync(path.join(newDir, 'somefile.txt'), 'Contents');
+		fs.writeFileSync(path.join(newDir, 'someOtherFile.txt'), 'Contents');
+
+		const result = await pfs.readDirsInDir(newDir);
+		assert.equal(result.length, 3);
+		assert.ok(result.indexOf('somefolder1') !== -1);
+		assert.ok(result.indexOf('somefolder2') !== -1);
+		assert.ok(result.indexOf('somefolder3') !== -1);
+
+		await pfs.rimraf(newDir);
+	});
 });
