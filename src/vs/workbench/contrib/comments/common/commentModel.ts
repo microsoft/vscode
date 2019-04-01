@@ -41,12 +41,12 @@ export class ResourceWithCommentThreads {
 	constructor(resource: URI, commentThreads: CommentThread[]) {
 		this.id = resource.toString();
 		this.resource = resource;
-		this.commentThreads = commentThreads.filter(thread => thread.comments.length).map(thread => ResourceWithCommentThreads.createCommentNode(resource, thread));
+		this.commentThreads = commentThreads.filter(thread => thread.comments && thread.comments.length).map(thread => ResourceWithCommentThreads.createCommentNode(resource, thread));
 	}
 
 	public static createCommentNode(resource: URI, commentThread: CommentThread): CommentNode {
 		const { threadId, comments, range } = commentThread;
-		const commentNodes: CommentNode[] = comments.map(comment => new CommentNode(threadId!, resource, comment, range));
+		const commentNodes: CommentNode[] = comments!.map(comment => new CommentNode(threadId!, resource, comment, range));
 		if (commentNodes.length > 1) {
 			commentNodes[0].replies = commentNodes.slice(1, commentNodes.length);
 		}
@@ -107,7 +107,7 @@ export class CommentsModel {
 			const existingResource = threadsForOwner.filter(resourceWithThreads => resourceWithThreads.resource.toString() === thread.resource);
 			if (existingResource.length) {
 				const resource = existingResource[0];
-				if (thread.comments.length) {
+				if (thread.comments && thread.comments.length) {
 					resource.commentThreads.push(ResourceWithCommentThreads.createCommentNode(resource.resource, thread));
 				}
 			} else {
