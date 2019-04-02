@@ -9,6 +9,22 @@
 	// @ts-ignore
 	const ipcRenderer = require('electron').ipcRenderer;
 
+	/**
+	 * @param {string} channel
+	 * @param {*} data
+	 */
+	const postMessageToHost = (channel, data) => {
+		ipcRenderer.sendToHost(channel, data);
+	};
+
+	/**
+	 * @param {string} channel
+	 * @param {*} handler
+	 */
+	const onHostMessage = (channel, handler) => {
+		ipcRenderer.on(channel, handler);
+	};
+
 	const registerVscodeResourceScheme = (function () {
 		let hasRegistered = false;
 		return () => {
@@ -111,7 +127,7 @@
 						scrollTarget.scrollIntoView();
 					}
 				} else {
-					ipcRenderer.sendToHost('did-click-link', node.href);
+					postMessageToHost('did-click-link', node.href);
 				}
 				event.preventDefault();
 				break;
@@ -124,7 +140,7 @@
 	 * @param {KeyboardEvent} e
 	 */
 	const handleInnerKeydown = (e) => {
-		ipcRenderer.sendToHost('did-keydown', {
+		postMessageToHost('did-keydown', {
 			key: e.key,
 			keyCode: e.keyCode,
 			code: e.code,
@@ -137,7 +153,7 @@
 	};
 
 	const onMessage = (message) => {
-		ipcRenderer.sendToHost(message.data.command, message.data.data);
+		postMessageToHost(message.data.command, message.data.data);
 	};
 
 	let isHandlingScroll = false;
@@ -154,7 +170,7 @@
 		isHandlingScroll = true;
 		window.requestAnimationFrame(() => {
 			try {
-				ipcRenderer.sendToHost('did-scroll', progress);
+				postMessageToHost('did-scroll', progress);
 			} catch (e) {
 				// noop
 			}
@@ -163,7 +179,7 @@
 	};
 
 	document.addEventListener('DOMContentLoaded', () => {
-		ipcRenderer.on('styles', (_event, variables, activeTheme) => {
+		onHostMessage('styles', (_event, variables, activeTheme) => {
 			initData.styles = variables;
 			initData.activeTheme = activeTheme;
 
@@ -176,7 +192,7 @@
 		});
 
 		// propagate focus
-		ipcRenderer.on('focus', () => {
+		onHostMessage('focus', () => {
 			const target = getActiveFrame();
 			if (target) {
 				target.contentWindow.focus();
@@ -184,7 +200,7 @@
 		});
 
 		// update iframe-contents
-		ipcRenderer.on('content', (_event, data) => {
+		onHostMessage('content', (_event, data) => {
 			const options = data.options;
 
 			registerVscodeResourceScheme();
@@ -288,7 +304,7 @@
 			newFrame.contentWindow.addEventListener('keydown', handleInnerKeydown);
 			newFrame.contentWindow.onbeforeunload = () => {
 				if (isInDevelopmentMode) { // Allow reloads while developing a webview
-					ipcRenderer.sendToHost('do-reload');
+					postMessageToHost('do-reload');
 					return false;
 				}
 
@@ -350,11 +366,11 @@
 			newFrame.contentDocument.write(newDocument.documentElement.innerHTML);
 			newFrame.contentDocument.close();
 
-			ipcRenderer.sendToHost('did-set-content');
+			postMessageToHost('did-set-content');
 		});
 
 		// Forward message to the embedded iframe
-		ipcRenderer.on('message', (_event, data) => {
+		onHostMessage('message', (_event, data) => {
 			const pending = getPendingFrame();
 			if (!pending) {
 				const target = getActiveFrame();
@@ -366,24 +382,24 @@
 			pendingMessages.push(data);
 		});
 
-		ipcRenderer.on('initial-scroll-position', (_event, progress) => {
+		onHostMessage('initial-scroll-position', (_event, progress) => {
 			initData.initialScrollProgress = progress;
 		});
 
-		ipcRenderer.on('devtools-opened', () => {
+		onHostMessage('devtools-opened', () => {
 			isInDevelopmentMode = true;
 		});
 
 		trackFocus({
-			onFocus: () => { ipcRenderer.sendToHost('did-focus'); },
-			onBlur: () => { ipcRenderer.sendToHost('did-blur'); }
+			onFocus: () => postMessageToHost('did-focus'),
+			onBlur: () => postMessageToHost('did-blur')
 		});
 
 		// Forward messages from the embedded iframe
 		window.onmessage = onMessage;
 
 		// signal ready
-		ipcRenderer.sendToHost('webview-ready', process.pid);
+		postMessageToHost('webview-ready', process.pid);
 	});
 
 	const defaultCssRules = `
