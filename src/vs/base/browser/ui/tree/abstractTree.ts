@@ -818,18 +818,32 @@ class Trait<T> {
 			return;
 		}
 
-		const identityProvider = this.identityProvider;
-		const nodesByIdentity = new Map<string, ITreeNode<T, any>>();
-		this.nodes.forEach(node => nodesByIdentity.set(identityProvider.getId(node.element).toString(), node));
+		const deletedNodesIdSet = new Set<string>();
+		const deletedNodesVisitor = (node: ITreeNode<T, any>) => deletedNodesIdSet.add(this.identityProvider!.getId(node.element).toString());
+		deletedNodes.forEach(node => dfs(node, deletedNodesVisitor));
 
-		const toDeleteByIdentity = new Map<string, ITreeNode<T, any>>();
-		const toRemoveSetter = (node: ITreeNode<T, any>) => toDeleteByIdentity.set(identityProvider.getId(node.element).toString(), node);
-		const toRemoveDeleter = (node: { element: T; }) => toDeleteByIdentity.delete(identityProvider.getId(node.element).toString());
-		deletedNodes.forEach(node => dfs(node, toRemoveSetter));
-		insertedNodes.forEach(node => dfs(node, toRemoveDeleter));
+		const insertedNodesMap = new Map<string, ITreeNode<T, any>>();
+		const insertedNodesVisitor = (node: ITreeNode<T, any>) => insertedNodesMap.set(this.identityProvider!.getId(node.element).toString(), node);
+		insertedNodes.forEach(node => dfs(node, insertedNodesVisitor));
 
-		toDeleteByIdentity.forEach((_, id) => nodesByIdentity.delete(id));
-		this.set(values(nodesByIdentity));
+		const nodes: ITreeNode<T, any>[] = [];
+
+		for (const node of this.nodes) {
+			const id = this.identityProvider.getId(node.element).toString();
+			const wasDeleted = deletedNodesIdSet.has(id);
+
+			if (!wasDeleted) {
+				nodes.push(node);
+			} else {
+				const insertedNode = insertedNodesMap.get(id);
+
+				if (insertedNode) {
+					nodes.push(insertedNode);
+				}
+			}
+		}
+
+		this.set(nodes);
 	}
 
 	private createNodeSet(): Set<ITreeNode<T, any>> {
