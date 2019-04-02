@@ -48,6 +48,11 @@ export function resolveCommonProperties(commit: string | undefined, version: str
 		}
 	});
 
+	if (process.platform === 'linux' && process.env.SNAP && process.env.SNAP_REVISION) {
+		// __GDPR__COMMON__ "common.nodeArch" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+		result['common.snap'] = 'true';
+	}
+
 	return readFile(installSourcePath, 'utf8').then(contents => {
 
 		// __GDPR__COMMON__ "common.source" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
