@@ -4,52 +4,45 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SimpleFindWidget } from 'vs/editor/contrib/find/simpleFindWidget';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { WebviewElement } from './webviewElement';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+
+export interface WebviewFindDelegate {
+	find(value: string, previous: boolean): void;
+	startFind(value: string): void;
+	stopFind(keepSelection?: boolean): void;
+	focus(): void;
+}
 
 export class WebviewFindWidget extends SimpleFindWidget {
 
 	constructor(
-		private _webview: WebviewElement | undefined,
+		private readonly _delegate: WebviewFindDelegate,
 		@IContextViewService contextViewService: IContextViewService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super(contextViewService, contextKeyService);
 	}
 
-	dispose() {
-		this._webview = undefined;
-		super.dispose();
-	}
-
 	public find(previous: boolean) {
-		if (!this._webview) {
-			return;
-		}
 		const val = this.inputValue;
 		if (val) {
-			this._webview.find(val, { findNext: true, forward: !previous });
+			this._delegate.find(val, previous);
 		}
 	}
 
 	public hide() {
 		super.hide();
-		if (this._webview) {
-			this._webview.stopFind(true);
-			this._webview.focus();
-		}
+		this._delegate.stopFind(true);
+		this._delegate.focus();
 	}
 
 	public onInputChanged() {
-		if (!this._webview) {
-			return;
-		}
 		const val = this.inputValue;
 		if (val) {
-			this._webview.startFind(val);
+			this._delegate.startFind(val);
 		} else {
-			this._webview.stopFind(false);
+			this._delegate.stopFind(false);
 		}
 	}
 

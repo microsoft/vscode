@@ -8,8 +8,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -17,19 +16,15 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions } from 'vs/workbench/common/editor';
-import { WebviewEditorInput } from 'vs/workbench/contrib/webview/electron-browser/webviewEditorInput';
+import { WebviewEditorInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
+import { IWebviewService, Webview, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE } from 'vs/workbench/contrib/webview/common/webview';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { WebviewElement } from './webviewElement';
-
-/**  A context key that is set when the find widget in a webview is visible. */
-export const KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE = new RawContextKey<boolean>('webviewFindWidgetVisible', false);
 
 
 export class WebviewEditor extends BaseEditor {
 
-	protected _webview: WebviewElement | undefined;
+	protected _webview: Webview | undefined;
 	protected findWidgetVisible: IContextKey<boolean>;
 
 	public static readonly ID = 'WebviewEditor';
@@ -50,9 +45,8 @@ export class WebviewEditor extends BaseEditor {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IContextKeyService private _contextKeyService: IContextKeyService,
-		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
+		@IWebviewService private readonly _webviewService: IWebviewService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IWindowService private readonly _windowService: IWindowService,
 		@IStorageService storageService: IStorageService
@@ -130,11 +124,11 @@ export class WebviewEditor extends BaseEditor {
 	}
 
 	public reload() {
-		this.withWebviewElement(webview => webview.reload());
+		this.withWebview(webview => webview.reload());
 	}
 
 	public layout(_dimension: DOM.Dimension): void {
-		this.withWebviewElement(webview => {
+		this.withWebview(webview => {
 			this.doUpdateContainer();
 			webview.layout();
 		});
@@ -151,34 +145,34 @@ export class WebviewEditor extends BaseEditor {
 				}
 			});
 		}
-		this.withWebviewElement(webview => webview.focus());
+		this.withWebview(webview => webview.focus());
 	}
 
 	public selectAll(): void {
-		this.withWebviewElement(webview => webview.selectAll());
+		this.withWebview(webview => webview.selectAll());
 	}
 
 	public copy(): void {
-		this.withWebviewElement(webview => webview.copy());
+		this.withWebview(webview => webview.copy());
 	}
 
 	public paste(): void {
-		this.withWebviewElement(webview => webview.paste());
+		this.withWebview(webview => webview.paste());
 	}
 
 	public cut(): void {
-		this.withWebviewElement(webview => webview.cut());
+		this.withWebview(webview => webview.cut());
 	}
 
 	public undo(): void {
-		this.withWebviewElement(webview => webview.undo());
+		this.withWebview(webview => webview.undo());
 	}
 
 	public redo(): void {
-		this.withWebviewElement(webview => webview.redo());
+		this.withWebview(webview => webview.redo());
 	}
 
-	private withWebviewElement(f: (element: WebviewElement) => void): void {
+	private withWebview(f: (element: Webview) => void): void {
 		if (this._webview) {
 			f(this._webview);
 		}
@@ -264,7 +258,7 @@ export class WebviewEditor extends BaseEditor {
 		return rootPaths;
 	}
 
-	private getWebview(input: WebviewEditorInput): WebviewElement {
+	private getWebview(input: WebviewEditorInput): Webview {
 		if (this._webview) {
 			return this._webview;
 		}
@@ -279,14 +273,12 @@ export class WebviewEditor extends BaseEditor {
 				this.findWidgetVisible = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE.bindTo(this._contextKeyService);
 			}
 
-			this._webview = this._instantiationService.createInstance(WebviewElement,
-				this._layoutService.getContainer(Parts.EDITOR_PART),
+			this._webview = this._webviewService.createWebview(
 				{
 					allowSvgs: true,
 					extension: input.extension,
 					enableFindWidget: input.options.enableFindWidget
-				},
-				{});
+				}, {});
 			this._webview.mountTo(this._webviewContent);
 			input.webview = this._webview;
 

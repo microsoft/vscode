@@ -11,7 +11,7 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { EditorInput, EditorModel, GroupIdentifier, IEditorInput } from 'vs/workbench/common/editor';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { WebviewEvents, WebviewInputOptions } from './webviewEditorService';
-import { WebviewElement, WebviewOptions } from './webviewElement';
+import { Webview, WebviewOptions } from 'vs/workbench/contrib/webview/common/webview';
 
 export class WebviewEditorInput extends EditorInput {
 	private static handlePool = 0;
@@ -57,7 +57,7 @@ export class WebviewEditorInput extends EditorInput {
 	private _currentWebviewHtml: string = '';
 	public _events: WebviewEvents | undefined;
 	private _container?: HTMLElement;
-	private _webview: WebviewElement | undefined;
+	private _webview?: Webview;
 	private _webviewOwner: any;
 	private _webviewDisposables: IDisposable[] = [];
 	private _group?: GroupIdentifier;
@@ -72,7 +72,7 @@ export class WebviewEditorInput extends EditorInput {
 
 	constructor(
 		public readonly viewType: string,
-		id: number | undefined,
+		id: number,
 		name: string,
 		options: WebviewInputOptions,
 		state: any,
@@ -85,12 +85,8 @@ export class WebviewEditorInput extends EditorInput {
 	) {
 		super();
 
-		if (typeof id === 'number') {
-			this._id = id;
-			WebviewEditorInput.handlePool = Math.max(id, WebviewEditorInput.handlePool) + 1;
-		} else {
-			this._id = WebviewEditorInput.handlePool++;
-		}
+		this._id = id;
+		WebviewEditorInput.handlePool = Math.max(id, WebviewEditorInput.handlePool) + 1;
 
 		this._name = name;
 		this._options = options;
@@ -234,11 +230,11 @@ export class WebviewEditorInput extends EditorInput {
 		return this._container;
 	}
 
-	public get webview(): WebviewElement | undefined {
+	public get webview(): Webview | undefined {
 		return this._webview;
 	}
 
-	public set webview(value: WebviewElement | undefined) {
+	public set webview(value: Webview | undefined) {
 		this._webviewDisposables = dispose(this._webviewDisposables);
 
 		this._webview = value;
@@ -272,6 +268,7 @@ export class WebviewEditorInput extends EditorInput {
 	}
 
 	public claimWebview(owner: any) {
+
 		this._webviewOwner = owner;
 	}
 
@@ -315,7 +312,7 @@ export class RevivedWebviewEditorInput extends WebviewEditorInput {
 
 	constructor(
 		viewType: string,
-		id: number | undefined,
+		id: number,
 		name: string,
 		options: WebviewInputOptions,
 		state: any,
@@ -324,7 +321,7 @@ export class RevivedWebviewEditorInput extends WebviewEditorInput {
 			readonly location: URI;
 			readonly id: ExtensionIdentifier
 		},
-		public readonly reviver: (input: WebviewEditorInput) => Promise<void>,
+		private readonly reviver: (input: WebviewEditorInput) => Promise<void>,
 		@IWorkbenchLayoutService partService: IWorkbenchLayoutService,
 	) {
 		super(viewType, id, name, options, state, events, extension, partService);

@@ -67,30 +67,19 @@ export const IExplorerService = createDecorator<IExplorerService>('explorerServi
 /**
  * Context Keys to use with keybindings for the Explorer and Open Editors view
  */
-const explorerViewletVisibleId = 'explorerViewletVisible';
-const filesExplorerFocusId = 'filesExplorerFocus';
-const openEditorsVisibleId = 'openEditorsVisible';
-const openEditorsFocusId = 'openEditorsFocus';
-const explorerViewletFocusId = 'explorerViewletFocus';
-const explorerResourceIsFolderId = 'explorerResourceIsFolder';
-const explorerResourceReadonly = 'explorerResourceReadonly';
-const explorerResourceIsRootId = 'explorerResourceIsRoot';
-const explorerResourceCutId = 'explorerResourceCut';
-
-export const ExplorerViewletVisibleContext = new RawContextKey<boolean>(explorerViewletVisibleId, true);
-export const ExplorerFolderContext = new RawContextKey<boolean>(explorerResourceIsFolderId, false);
-export const ExplorerResourceReadonlyContext = new RawContextKey<boolean>(explorerResourceReadonly, false);
+export const ExplorerViewletVisibleContext = new RawContextKey<boolean>('explorerViewletVisible', true);
+export const ExplorerFolderContext = new RawContextKey<boolean>('explorerResourceIsFolder', false);
+export const ExplorerResourceReadonlyContext = new RawContextKey<boolean>('explorerResourceReadonly', false);
 export const ExplorerResourceNotReadonlyContext = ExplorerResourceReadonlyContext.toNegated();
-export const ExplorerRootContext = new RawContextKey<boolean>(explorerResourceIsRootId, false);
-export const ExplorerResourceCut = new RawContextKey<boolean>(explorerResourceCutId, false);
-export const FilesExplorerFocusedContext = new RawContextKey<boolean>(filesExplorerFocusId, true);
-export const OpenEditorsVisibleContext = new RawContextKey<boolean>(openEditorsVisibleId, false);
-export const OpenEditorsFocusedContext = new RawContextKey<boolean>(openEditorsFocusId, true);
-export const ExplorerFocusedContext = new RawContextKey<boolean>(explorerViewletFocusId, true);
+export const ExplorerRootContext = new RawContextKey<boolean>('explorerResourceIsRoot', false);
+export const ExplorerResourceCut = new RawContextKey<boolean>('explorerResourceCut', false);
+export const FilesExplorerFocusedContext = new RawContextKey<boolean>('filesExplorerFocus', true);
+export const OpenEditorsVisibleContext = new RawContextKey<boolean>('openEditorsVisible', false);
+export const OpenEditorsFocusedContext = new RawContextKey<boolean>('openEditorsFocus', true);
+export const ExplorerFocusedContext = new RawContextKey<boolean>('explorerViewletFocus', true);
 
-export const OpenEditorsVisibleCondition = ContextKeyExpr.has(openEditorsVisibleId);
-export const FilesExplorerFocusCondition = ContextKeyExpr.and(ContextKeyExpr.has(explorerViewletVisibleId), ContextKeyExpr.has(filesExplorerFocusId), ContextKeyExpr.not(InputFocusedContextKey));
-export const ExplorerFocusCondition = ContextKeyExpr.and(ContextKeyExpr.has(explorerViewletVisibleId), ContextKeyExpr.has(explorerViewletFocusId), ContextKeyExpr.not(InputFocusedContextKey));
+export const FilesExplorerFocusCondition = ContextKeyExpr.and(ExplorerViewletVisibleContext, FilesExplorerFocusedContext, ContextKeyExpr.not(InputFocusedContextKey));
+export const ExplorerFocusCondition = ContextKeyExpr.and(ExplorerViewletVisibleContext, ExplorerFocusedContext, ContextKeyExpr.not(InputFocusedContextKey));
 
 /**
  * Text file editor id.

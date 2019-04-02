@@ -17,36 +17,12 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 import { DARK, ITheme, IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
 import { registerFileProtocol, WebviewProtocol } from 'vs/workbench/contrib/webview/electron-browser/webviewProtocols';
-import { areWebviewInputOptionsEqual } from './webviewEditorService';
-import { WebviewFindWidget } from './webviewFindWidget';
+import { areWebviewInputOptionsEqual } from '../browser/webviewEditorService';
+import { WebviewFindWidget } from '../browser/webviewFindWidget';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { WebviewContentOptions, WebviewPortMapping, WebviewOptions, Webview } from 'vs/workbench/contrib/webview/common/webview';
 
-export interface WebviewPortMapping {
-	readonly port: number;
-	readonly resolvedPort: number;
-}
-
-export interface WebviewPortMapping {
-	readonly port: number;
-	readonly resolvedPort: number;
-}
-
-export interface WebviewOptions {
-	readonly allowSvgs?: boolean;
-	readonly extension?: {
-		readonly location: URI;
-		readonly id?: ExtensionIdentifier;
-	};
-	readonly enableFindWidget?: boolean;
-}
-
-export interface WebviewContentOptions {
-	readonly allowScripts?: boolean;
-	readonly svgWhiteList?: string[];
-	readonly localResourceRoots?: ReadonlyArray<URI>;
-	readonly portMappings?: ReadonlyArray<WebviewPortMapping>;
-}
 
 interface IKeydownEvent {
 	key: string;
@@ -316,7 +292,7 @@ class WebviewKeyboardHandler extends Disposable {
 }
 
 
-export class WebviewElement extends Disposable {
+export class WebviewElement extends Disposable implements Webview {
 	private _webview: Electron.WebviewTag;
 	private _ready: Promise<void>;
 
@@ -539,10 +515,6 @@ export class WebviewElement extends Disposable {
 		});
 	}
 
-	public set baseUrl(value: string) {
-		this._send('baseUrl', value);
-	}
-
 	public focus(): void {
 		this._webview.focus();
 		this._send('focus');
@@ -640,12 +612,13 @@ export class WebviewElement extends Disposable {
 	 *
 	 * @param value The string to search for. Empty strings are ignored.
 	 */
-	public find(value: string, options?: Electron.FindInPageOptions): void {
+	public find(value: string, previous: boolean): void {
 		// Searching with an empty value will throw an exception
 		if (!value) {
 			return;
 		}
 
+		const options = { findNext: true, forward: !previous };
 		if (!this._findStarted) {
 			this.startFind(value, options);
 			return;

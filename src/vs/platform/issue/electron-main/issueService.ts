@@ -9,7 +9,7 @@ import { parseArgs } from 'vs/platform/environment/node/argv';
 import { IIssueService, IssueReporterData, IssueReporterFeatures, ProcessExplorerData } from 'vs/platform/issue/common/issue';
 import { BrowserWindow, ipcMain, screen, Event, dialog } from 'electron';
 import { ILaunchService } from 'vs/platform/launch/electron-main/launchService';
-import { PerformanceInfo, SystemInfo, IDiagnosticsService } from 'vs/platform/diagnostics/electron-main/diagnosticsService';
+import { PerformanceInfo, IDiagnosticsService } from 'vs/platform/diagnostics/electron-main/diagnosticsService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { isMacintosh, IProcessEnvironment } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -39,7 +39,7 @@ export class IssueService implements IIssueService {
 
 	private registerListeners(): void {
 		ipcMain.on('vscode:issueSystemInfoRequest', (event: Event) => {
-			this.getSystemInformation().then(msg => {
+			this.diagnosticsService.getSystemInfo(this.launchService).then(msg => {
 				event.sender.send('vscode:issueSystemInfoResponse', msg);
 			});
 		});
@@ -215,9 +215,7 @@ export class IssueService implements IIssueService {
 	}
 
 	public getSystemStatus(): Promise<string> {
-		return this.launchService.getMainProcessInfo().then(info => {
-			return this.diagnosticsService.getDiagnostics(info);
-		});
+		return this.diagnosticsService.getDiagnostics(this.launchService);
 	}
 
 	private getWindowPosition(parentWindow: BrowserWindow, defaultWidth: number, defaultHeight: number): IWindowState {
@@ -288,26 +286,16 @@ export class IssueService implements IIssueService {
 		return state;
 	}
 
-	private getSystemInformation(): Promise<SystemInfo> {
-		return new Promise((resolve, reject) => {
-			this.launchService.getMainProcessInfo().then(info => {
-				resolve(this.diagnosticsService.getSystemInfo(info));
-			});
-		});
-	}
-
 	private getPerformanceInfo(): Promise<PerformanceInfo> {
 		return new Promise((resolve, reject) => {
-			this.launchService.getMainProcessInfo().then(info => {
-				this.diagnosticsService.getPerformanceInfo(info)
-					.then(diagnosticInfo => {
-						resolve(diagnosticInfo);
-					})
-					.catch(err => {
-						this.logService.warn('issueService#getPerformanceInfo ', err.message);
-						reject(err);
-					});
-			});
+			this.diagnosticsService.getPerformanceInfo(this.launchService)
+				.then(diagnosticInfo => {
+					resolve(diagnosticInfo);
+				})
+				.catch(err => {
+					this.logService.warn('issueService#getPerformanceInfo ', err.message);
+					reject(err);
+				});
 		});
 	}
 

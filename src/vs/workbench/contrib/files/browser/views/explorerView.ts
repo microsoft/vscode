@@ -217,12 +217,8 @@ export class ExplorerView extends ViewletPanel {
 	getActions(): IAction[] {
 		const actions: Action[] = [];
 
-		const getFocus = () => {
-			const focus = this.tree.getFocus();
-			return focus.length > 0 ? focus[0] : undefined;
-		};
-		actions.push(this.instantiationService.createInstance(NewFileAction, getFocus));
-		actions.push(this.instantiationService.createInstance(NewFolderAction, getFocus));
+		actions.push(this.instantiationService.createInstance(NewFileAction));
+		actions.push(this.instantiationService.createInstance(NewFolderAction));
 		actions.push(this.instantiationService.createInstance(RefreshExplorerView, RefreshExplorerView.ID, RefreshExplorerView.LABEL));
 		actions.push(this.instantiationService.createInstance(CollapseAction, this.tree, true, 'explorer-action collapse-explorer'));
 
