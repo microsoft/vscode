@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IWindowsService, IURIToOpen, IOpenSettings } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IURIToOpen, IOpenSettings, isWorkspaceToOpen, isFolderToOpen } from 'vs/platform/windows/common/windows';
 import { reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { URI } from 'vs/base/common/uri';
 import { IRecent, isRecentFile, isRecentFolder } from 'vs/platform/history/common/history';
@@ -89,7 +89,15 @@ export class WindowsChannel implements IServerChannel {
 			case 'openWindow': {
 				const urisToOpen: IURIToOpen[] = arg[1];
 				const options: IOpenSettings = arg[2];
-				urisToOpen.forEach(r => { r.uri = URI.revive(r.uri); return r; });
+				urisToOpen.forEach(r => {
+					if (isWorkspaceToOpen(r)) {
+						r.workspaceUri = URI.revive(r.workspaceUri);
+					} else if (isFolderToOpen(r)) {
+						r.folderUri = URI.revive(r.folderUri);
+					} else {
+						r.fileUri = URI.revive(r.fileUri);
+					}
+				});
 				options.waitMarkerFileURI = options.waitMarkerFileURI && URI.revive(options.waitMarkerFileURI);
 				return this.service.openWindow(arg[0], urisToOpen, options);
 			}

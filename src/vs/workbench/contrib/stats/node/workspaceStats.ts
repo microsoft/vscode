@@ -558,7 +558,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 
 			this.notificationService.prompt(Severity.Info, localize('workspaceFound', "This folder contains a workspace file '{0}'. Do you want to open it? [Learn more]({1}) about workspace files.", workspaceFile, 'https://go.microsoft.com/fwlink/?linkid=2025315'), [{
 				label: localize('openWorkspace', "Open Workspace"),
-				run: () => this.windowService.openWindow([{ uri: joinPath(folder, workspaceFile), typeHint: 'file' }])
+				run: () => this.windowService.openWindow([{ workspaceUri: joinPath(folder, workspaceFile) }])
 			}, doNotShowAgain]);
 		}
 
@@ -571,7 +571,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 						workspaces.map(workspace => ({ label: workspace } as IQuickPickItem)),
 						{ placeHolder: localize('selectToOpen', "Select a workspace to open") }).then(pick => {
 							if (pick) {
-								this.windowService.openWindow([{ uri: joinPath(folder, pick.label), typeHint: 'file' }]);
+								this.windowService.openWindow([{ workspaceUri: joinPath(folder, pick.label) }]);
 							}
 						});
 				}

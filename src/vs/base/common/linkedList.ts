@@ -69,9 +69,15 @@ export class LinkedList<E> {
 			oldFirst.prev = newNode;
 		}
 		this._size += 1;
-		return this._remove.bind(this, newNode);
-	}
 
+		let didRemove = false;
+		return () => {
+			if (!didRemove) {
+				didRemove = true;
+				this._remove(newNode);
+			}
+		};
+	}
 
 	shift(): E | undefined {
 		if (this._first === Node.Undefined) {
@@ -94,38 +100,30 @@ export class LinkedList<E> {
 	}
 
 	private _remove(node: Node<E>): void {
-		let candidate: Node<E> = this._first;
-		while (candidate !== Node.Undefined) {
-			if (candidate !== node) {
-				candidate = candidate.next;
-				continue;
-			}
-			if (candidate.prev !== Node.Undefined && candidate.next !== Node.Undefined) {
-				// middle
-				const anchor = candidate.prev;
-				anchor.next = candidate.next;
-				candidate.next.prev = anchor;
+		if (node.prev !== Node.Undefined && node.next !== Node.Undefined) {
+			// middle
+			const anchor = node.prev;
+			anchor.next = node.next;
+			node.next.prev = anchor;
 
-			} else if (candidate.prev === Node.Undefined && candidate.next === Node.Undefined) {
-				// only node
-				this._first = Node.Undefined;
-				this._last = Node.Undefined;
+		} else if (node.prev === Node.Undefined && node.next === Node.Undefined) {
+			// only node
+			this._first = Node.Undefined;
+			this._last = Node.Undefined;
 
-			} else if (candidate.next === Node.Undefined) {
-				// last
-				this._last = this._last!.prev!;
-				this._last.next = Node.Undefined;
+		} else if (node.next === Node.Undefined) {
+			// last
+			this._last = this._last!.prev!;
+			this._last.next = Node.Undefined;
 
-			} else if (candidate.prev === Node.Undefined) {
-				// first
-				this._first = this._first!.next!;
-				this._first.prev = Node.Undefined;
-			}
-
-			// done
-			this._size -= 1;
-			break;
+		} else if (node.prev === Node.Undefined) {
+			// first
+			this._first = this._first!.next!;
+			this._first.prev = Node.Undefined;
 		}
+
+		// done
+		this._size -= 1;
 	}
 
 	iterator(): Iterator<E> {

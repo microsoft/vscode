@@ -73,6 +73,7 @@ export const ExplorerResourceReadonlyContext = new RawContextKey<boolean>('explo
 export const ExplorerResourceNotReadonlyContext = ExplorerResourceReadonlyContext.toNegated();
 export const ExplorerRootContext = new RawContextKey<boolean>('explorerResourceIsRoot', false);
 export const ExplorerResourceCut = new RawContextKey<boolean>('explorerResourceCut', false);
+export const ExplorerResourceMoveableToTrash = new RawContextKey<boolean>('explorerResourceMoveableToTrash', false);
 export const FilesExplorerFocusedContext = new RawContextKey<boolean>('filesExplorerFocus', true);
 export const OpenEditorsVisibleContext = new RawContextKey<boolean>('openEditorsVisible', false);
 export const OpenEditorsFocusedContext = new RawContextKey<boolean>('openEditorsFocus', true);

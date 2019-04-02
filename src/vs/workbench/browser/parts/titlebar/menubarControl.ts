@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { IMenubarMenu, IMenubarMenuItemAction, IMenubarMenuItemSubmenu, IMenubarKeybinding, IMenubarService, IMenubarData, MenubarMenuItem } from 'vs/platform/menubar/common/menubar';
 import { IMenuService, MenuId, IMenu, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { registerThemingParticipant, ITheme, ICssStyleCollector, IThemeService } from 'vs/platform/theme/common/themeService';
-import { IWindowService, MenuBarVisibility, IWindowsService, getTitleBarStyle, URIType } from 'vs/platform/windows/common/windows';
+import { IWindowService, MenuBarVisibility, IWindowsService, getTitleBarStyle, IURIToOpen } from 'vs/platform/windows/common/windows';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IAction, Action } from 'vs/base/common/actions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -355,33 +355,30 @@ export class MenubarControl extends Disposable {
 		let label: string;
 		let uri: URI;
 		let commandId: string;
-		let typeHint: URIType | undefined;
-		let forceOpenWorkspaceAsFile = false;
+		let uriToOpen: IURIToOpen;
 
 		if (isRecentFolder(recent)) {
 			uri = recent.folderUri;
 			label = recent.label || this.labelService.getWorkspaceLabel(uri, { verbose: true });
 			commandId = 'openRecentFolder';
-			typeHint = 'folder';
+			uriToOpen = { folderUri: uri };
 		} else if (isRecentWorkspace(recent)) {
 			uri = recent.workspace.configPath;
 			label = recent.label || this.labelService.getWorkspaceLabel(recent.workspace, { verbose: true });
 			commandId = 'openRecentWorkspace';
-			typeHint = 'file';
+			uriToOpen = { workspaceUri: uri };
 		} else {
 			uri = recent.fileUri;
 			label = recent.label || this.labelService.getUriLabel(uri);
 			commandId = 'openRecentFile';
-			typeHint = 'file';
-			forceOpenWorkspaceAsFile = true;
+			uriToOpen = { fileUri: uri };
 		}
 
 		const ret: IAction = new Action(commandId, unmnemonicLabel(label), undefined, undefined, (event) => {
 			const openInNewWindow = event && ((!isMacintosh && (event.ctrlKey || event.shiftKey)) || (isMacintosh && (event.metaKey || event.altKey)));
 
-			return this.windowService.openWindow([{ uri, typeHint }], {
-				forceNewWindow: openInNewWindow,
-				forceOpenWorkspaceAsFile
+			return this.windowService.openWindow([uriToOpen], {
+				forceNewWindow: openInNewWindow
 			});
 		});
 

@@ -13,7 +13,7 @@ import * as collections from 'vs/base/common/collections';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler, Delayer } from 'vs/base/common/async';
 import { FileChangeType, FileChangesEvent, IContent, IFileService } from 'vs/platform/files/common/files';
-import { ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
+import { ConfigurationModel, ConfigurationModelParser } from 'vs/platform/configuration/common/configurationModels';
 import { WorkspaceConfigurationModelParser, FolderSettingsModelParser, StandaloneConfigurationModelParser } from 'vs/workbench/services/configuration/common/configurationModels';
 import { FOLDER_SETTINGS_PATH, TASKS_CONFIGURATION_KEY, FOLDER_SETTINGS_NAME, LAUNCH_CONFIGURATION_KEY } from 'vs/workbench/services/configuration/common/configuration';
 import { IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
@@ -25,7 +25,7 @@ import { equals } from 'vs/base/common/objects';
 import { Schemas } from 'vs/base/common/network';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationModel, compare } from 'vs/platform/configuration/common/configuration';
-import { FileServiceBasedUserConfiguration, NodeBasedUserConfiguration } from 'vs/platform/configuration/node/configuration';
+import { NodeBasedUserConfiguration } from 'vs/platform/configuration/node/configuration';
 
 export class LocalUserConfiguration extends Disposable {
 
@@ -113,6 +113,54 @@ export class RemoteUserConfiguration extends Disposable {
 
 	private updateCache(configurationModel: ConfigurationModel): Promise<void> {
 		return this._cachedConfiguration.updateConfiguration(configurationModel);
+	}
+}
+
+export class FileServiceBasedUserConfiguration extends Disposable {
+
+	private readonly reloadConfigurationScheduler: RunOnceScheduler;
+	protected readonly _onDidChangeConfiguration: Emitter<ConfigurationModel> = this._register(new Emitter<ConfigurationModel>());
+	readonly onDidChangeConfiguration: Event<ConfigurationModel> = this._onDidChangeConfiguration.event;
+
+	constructor(
+		private readonly configurationResource: URI,
+		private readonly fileService: IFileService
+	) {
+		super();
+
+		this._register(fileService.onFileChanges(e => this.handleFileEvents(e)));
+		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.reload().then(configurationModel => this._onDidChangeConfiguration.fire(configurationModel)), 50));
+		this._register(this.fileService.watch(this.configurationResource));
+	}
+
+	initialize(): Promise<ConfigurationModel> {
+		return this.reload();
+	}
+
+	reload(): Promise<ConfigurationModel> {
+		return this.fileService.resolveContent(this.configurationResource)
+			.then(content => content.value, () => {
+				// File not found
+				return '';
+			}).then(content => {
+				const parser = new ConfigurationModelParser(this.configurationResource.toString());
+				parser.parse(content);
+				return parser.configurationModel;
+			});
+	}
+
+	private handleFileEvents(event: FileChangesEvent): void {
+		const events = event.changes;
+
+		let affectedByChanges = false;
+		// Find changes that affect workspace file
+		for (let i = 0, len = events.length; i < len && !affectedByChanges; i++) {
+			affectedByChanges = resources.isEqual(this.configurationResource, events[i].resource);
+		}
+
+		if (affectedByChanges) {
+			this.reloadConfigurationScheduler.schedule();
+		}
 	}
 }
 

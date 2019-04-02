@@ -488,7 +488,7 @@ export class Emitter<T> {
 	private readonly _leakageMon?: LeakageMonitor;
 	private _disposed: boolean = false;
 	private _event?: Event<T>;
-	private _deliveryQueue: [Listener<T>, T][];
+	private _deliveryQueue?: LinkedList<[Listener<T>, T]>;
 	protected _listeners?: LinkedList<Listener<T>>;
 
 	constructor(options?: EmitterOptions) {
@@ -570,14 +570,14 @@ export class Emitter<T> {
 			// the driver of this
 
 			if (!this._deliveryQueue) {
-				this._deliveryQueue = [];
+				this._deliveryQueue = new LinkedList();
 			}
 
 			for (let iter = this._listeners.iterator(), e = iter.next(); !e.done; e = iter.next()) {
 				this._deliveryQueue.push([e.value, event]);
 			}
 
-			while (this._deliveryQueue.length > 0) {
+			while (this._deliveryQueue.size > 0) {
 				const [listener, event] = this._deliveryQueue.shift()!;
 				try {
 					if (typeof listener === 'function') {
@@ -594,10 +594,10 @@ export class Emitter<T> {
 
 	dispose() {
 		if (this._listeners) {
-			this._listeners = undefined;
+			this._listeners.clear();
 		}
 		if (this._deliveryQueue) {
-			this._deliveryQueue.length = 0;
+			this._deliveryQueue.clear();
 		}
 		if (this._leakageMon) {
 			this._leakageMon.dispose();

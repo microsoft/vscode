@@ -79,11 +79,12 @@ export class IssueReporter extends Disposable {
 
 		this.initServices(configuration);
 
+		const isSnap = process.platform === 'linux' && process.env.SNAP && process.env.SNAP_REVISION;
 		this.issueReporterModel = new IssueReporterModel({
 			issueType: configuration.data.issueType || IssueType.Bug,
 			versionInfo: {
 				vscodeVersion: `${pkg.name} ${pkg.version} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})`,
-				os: `${os.type()} ${os.arch()} ${os.release()}`
+				os: `${os.type()} ${os.arch()} ${os.release()}${isSnap ? ' snap' : ''}`
 			},
 			extensionsDisabled: !!this.environmentService.disableExtensions,
 		});

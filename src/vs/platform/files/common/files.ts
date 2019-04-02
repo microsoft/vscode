@@ -60,7 +60,7 @@ export interface IFileService {
 	/**
 	 * Checks if the provider for the provided resource has the provided file system capability.
 	 */
-	hasCapability(resource: URI, capability: FileSystemProviderCapabilities): Promise<boolean>;
+	hasCapability(resource: URI, capability: FileSystemProviderCapabilities): boolean;
 
 	//#endregion
 
@@ -856,6 +856,7 @@ export interface IFilesConfiguration {
 		autoSave: string;
 		autoSaveDelay: number;
 		eol: string;
+		enableTrash: boolean;
 		hotExit: string;
 	};
 }

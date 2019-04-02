@@ -12,7 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import { isWindows } from 'vs/base/common/platform';
 import { ISaveDialogOptions, IOpenDialogOptions, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
-import { IWindowService, IURIToOpen, FileFilter } from 'vs/platform/windows/common/windows';
+import { IWindowService, FileFilter } from 'vs/platform/windows/common/windows';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -71,7 +71,7 @@ export class RemoteFileDialog {
 		this.contextKey = RemoteFileDialogContext.bindTo(contextKeyService);
 	}
 
-	public async showOpenDialog(options: IOpenDialogOptions = {}): Promise<IURIToOpen[] | undefined> {
+	public async showOpenDialog(options: IOpenDialogOptions = {}): Promise<URI | undefined> {
 		this.scheme = this.getScheme(options.defaultUri, options.availableFileSystems);
 		const newOptions = await this.getOptions(options);
 		if (!newOptions) {
@@ -85,14 +85,7 @@ export class RemoteFileDialog {
 		let fallbackLabel = options.canSelectFiles ? (options.canSelectFolders ? openFileFolderString : openFileString) : openFolderString;
 		this.fallbackListItem = this.getFallbackFileSystem(fallbackLabel);
 
-		return this.pickResource().then(async fileFolderUri => {
-			if (fileFolderUri) {
-				const stat = await this.fileService.resolve(fileFolderUri);
-				return <IURIToOpen[]>[{ uri: fileFolderUri, typeHint: stat.isDirectory ? 'folder' : 'file' }];
-
-			}
-			return Promise.resolve(undefined);
-		});
+		return this.pickResource();
 	}
 
 	public async showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
