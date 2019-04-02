@@ -307,17 +307,18 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 
 	//#region File Watching
 
-	private _onDidErrorOccur: Emitter<Error> = this._register(new Emitter<Error>());
-	get onDidErrorOccur(): Event<Error> { return this._onDidErrorOccur.event; }
+	private _onDidWatchErrorOccur: Emitter<Error> = this._register(new Emitter<Error>());
+	get onDidErrorOccur(): Event<Error> { return this._onDidWatchErrorOccur.event; }
 
 	private _onDidChangeFile: Emitter<IFileChange[]> = this._register(new Emitter<IFileChange[]>());
 	get onDidChangeFile(): Event<IFileChange[]> { return this._onDidChangeFile.event; }
 
-	private fileChangesDelayer: ThrottledDelayer<void> = new ThrottledDelayer<void>(50);
-	private fileChangesBuffer: IDiskFileChange[] = [];
+	private nonRecursiveFileChangesDelayer: ThrottledDelayer<void> = this._register(new ThrottledDelayer<void>(50));
+	private nonRecursiveFileChangesBuffer: IDiskFileChange[] = [];
 
-	private recursiveWatchRequestDelayer: ThrottledDelayer<void> = new ThrottledDelayer<void>(0);
-	private recursiveWatchRequestBuffer: { path: string, excludes: string[] }[] = [];
+	private recursiveWatcher: WindowsWatcherService | UnixWatcherService | NsfwWatcherService;
+	private recursiveFoldersToWatch: { path: string, excludes: string[] }[] = [];
+	private recursiveWatchRequestDelayer: ThrottledDelayer<void> = this._register(new ThrottledDelayer<void>(0));
 
 	watch(resource: URI, opts: IWatchOptions): IDisposable {
 		if (opts.recursive) {
@@ -328,20 +329,47 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 	}
 
 	private watchRecursive(resource: URI, excludes: string[]): IDisposable {
-		let disposed = false;
-		let disposable: IDisposable = toDisposable(() => disposed = true);
+
+		// Add to list of folders to watch recursively
+		const folderToWatch = { path: this.toFilePath(resource), excludes };
+		this.recursiveFoldersToWatch.push(folderToWatch);
+
+		// Trigger update
+		this.refreshRecursiveWatchers();
+
+		return toDisposable(() => {
+
+			// Remove from list of folders to watch recursively
+			this.recursiveFoldersToWatch.splice(this.recursiveFoldersToWatch.indexOf(folderToWatch), 1);
+
+			// Trigger update
+			this.refreshRecursiveWatchers();
+		});
+	}
+
+	private refreshRecursiveWatchers(): void {
 
 		// Buffer requests for recursive watching to decide on right watcher
 		// that supports potentially watching more than one folder at once
-		this.recursiveWatchRequestBuffer.push({ path: this.toFilePath(resource), excludes });
-
 		this.recursiveWatchRequestDelayer.trigger(() => {
-			const buffer = this.recursiveWatchRequestBuffer;
-			this.recursiveWatchRequestBuffer = [];
+			this.doRefreshRecursiveWatchers();
 
-			if (disposed) {
-				return Promise.resolve();
-			}
+			return Promise.resolve();
+		});
+	}
+
+	private doRefreshRecursiveWatchers(): void {
+
+		// Reuse existing
+		if (this.recursiveWatcher instanceof NsfwWatcherService) {
+			this.recursiveWatcher.setFolders(this.recursiveFoldersToWatch);
+		}
+
+		// Create new
+		else {
+
+			// Dispose old
+			this.recursiveWatcher = dispose(this.recursiveWatcher);
 
 			let watcherImpl: {
 				new(
@@ -353,7 +381,7 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 			};
 
 			// Single Folder Watcher
-			if (buffer.length === 1) {
+			if (this.recursiveFoldersToWatch.length === 1) {
 				if (isWindows) {
 					watcherImpl = WindowsWatcherService;
 				} else {
@@ -366,17 +394,14 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 				watcherImpl = NsfwWatcherService;
 			}
 
-			disposable = new watcherImpl(
-				buffer,
+			// Create and start watching
+			this.recursiveWatcher = new watcherImpl(
+				this.recursiveFoldersToWatch,
 				event => this._onDidChangeFile.fire(toFileChanges(event)),
-				error => this._onDidErrorOccur.fire(new Error(error)),
+				error => this._onDidWatchErrorOccur.fire(new Error(error)),
 				this.logService.getLevel() === LogLevel.Trace
-			).startWatching();
-
-			return Promise.resolve();
-		});
-
-		return toDisposable(() => dispose(disposable));
+			);
+		}
 	}
 
 	private watchNonRecursive(resource: URI): IDisposable {
@@ -389,7 +414,7 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 			}
 
 			disposable = watchNonRecursive({ path: resource.fsPath, isDirectory: fileStat.type === FileType.Directory }, (eventType: 'change' | 'delete', path: string) => {
-				this.onFileChange({
+				this.onNonRecursiveFileChange({
 					type: eventType === 'change' ? FileChangeType.UPDATED : FileChangeType.DELETED,
 					path
 				});
@@ -399,10 +424,10 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 		return toDisposable(() => dispose(disposable));
 	}
 
-	private onFileChange(event: IDiskFileChange): void {
+	private onNonRecursiveFileChange(event: IDiskFileChange): void {
 
 		// Add to buffer
-		this.fileChangesBuffer.push(event);
+		this.nonRecursiveFileChangesBuffer.push(event);
 
 		// Logging
 		if (this.logService.getLevel() === LogLevel.Trace) {
@@ -410,22 +435,22 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 		}
 
 		// Handle emit through delayer to accommodate for bulk changes and thus reduce spam
-		this.fileChangesDelayer.trigger(() => {
-			const buffer = this.fileChangesBuffer;
-			this.fileChangesBuffer = [];
+		this.nonRecursiveFileChangesDelayer.trigger(() => {
+			const nonRecursiveFileChanges = this.nonRecursiveFileChangesBuffer;
+			this.nonRecursiveFileChangesBuffer = [];
 
 			// Event normalization
-			const normalizedEvents = normalizeFileChanges(buffer);
+			const normalizedNonRecursiveFileChangesEvents = normalizeFileChanges(nonRecursiveFileChanges);
 
 			// Logging
 			if (this.logService.getLevel() === LogLevel.Trace) {
-				normalizedEvents.forEach(event => {
+				normalizedNonRecursiveFileChangesEvents.forEach(event => {
 					this.logService.trace(`[File Watcher (node.js)] >> normalized ${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.path}`);
 				});
 			}
 
 			// Fire
-			this._onDidChangeFile.fire(toFileChanges(normalizedEvents));
+			this._onDidChangeFile.fire(toFileChanges(normalizedNonRecursiveFileChangesEvents));
 
 			return Promise.resolve();
 		});
@@ -467,4 +492,10 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 	}
 
 	//#endregion
+
+	dispose(): void {
+		super.dispose();
+
+		this.recursiveWatcher = dispose(this.recursiveWatcher);
+	}
 }

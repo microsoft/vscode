@@ -7,9 +7,9 @@ import { getNextTickChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 import { IDiskFileChange } from 'vs/workbench/services/files2/node/watcher/normalizer';
 import { WatcherChannelClient } from 'vs/workbench/services/files2/node/watcher/nsfw/watcherIpc';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
-import { IWatchError } from 'vs/workbench/services/files2/node/watcher/nsfw/watcher';
+import { IWatchError, IWatcherRequest } from 'vs/workbench/services/files2/node/watcher/nsfw/watcher';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 export class FileWatcher extends Disposable {
@@ -20,7 +20,7 @@ export class FileWatcher extends Disposable {
 	private restartCounter: number;
 
 	constructor(
-		private folders: { path: string, excludes: string[] }[],
+		private folders: IWatcherRequest[],
 		private onFileChanges: (changes: IDiskFileChange[]) => void,
 		private errorLogger: (msg: string) => void,
 		private verboseLogging: boolean,
@@ -29,9 +29,11 @@ export class FileWatcher extends Disposable {
 
 		this.isDisposed = false;
 		this.restartCounter = 0;
+
+		this.startWatching();
 	}
 
-	startWatching(): IDisposable {
+	private startWatching(): void {
 		const client = this._register(new Client(
 			getPathFromAmdModule(require, 'bootstrap-fork'),
 			{
@@ -73,12 +75,13 @@ export class FileWatcher extends Disposable {
 		this._register(onFileChanges(e => this.onFileChanges(e)));
 
 		// Start watching
-		this.service.setRoots(this.folders.map(folder => ({
-			basePath: folder.path,
-			ignored: folder.excludes
-		})));
+		this.setFolders(this.folders);
+	}
 
-		return this;
+	setFolders(folders: IWatcherRequest[]): void {
+		this.folders = folders;
+
+		this.service.setRoots(folders);
 	}
 
 	dispose(): void {

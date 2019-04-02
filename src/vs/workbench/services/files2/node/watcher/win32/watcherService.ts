@@ -7,7 +7,7 @@ import { IDiskFileChange } from 'vs/workbench/services/files2/node/watcher/norma
 import { OutOfProcessWin32FolderWatcher } from 'vs/workbench/services/files2/node/watcher/win32/csharpWatcherService';
 import { posix } from 'vs/base/common/path';
 import { rtrim, endsWith } from 'vs/base/common/strings';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 export class FileWatcher extends Disposable {
 	private isDisposed: boolean;
@@ -30,9 +30,11 @@ export class FileWatcher extends Disposable {
 			// See also https://github.com/nodejs/io.js/issues/1765
 			this.folder.path = rtrim(this.folder.path, posix.sep);
 		}
+
+		this.startWatching();
 	}
 
-	startWatching(): IDisposable {
+	private startWatching(): void {
 		this._register(new OutOfProcessWin32FolderWatcher(
 			this.folder.path,
 			this.folder.excludes,
@@ -40,8 +42,6 @@ export class FileWatcher extends Disposable {
 			error => this.onError(error),
 			this.verboseLogging
 		));
-
-		return this;
 	}
 
 	private onFileEvents(events: IDiskFileChange[]): void {

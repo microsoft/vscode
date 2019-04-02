@@ -7,8 +7,8 @@ import { Event } from 'vs/base/common/event';
 import { IDiskFileChange } from 'vs/workbench/services/files2/node/watcher/normalizer';
 
 export interface IWatcherRequest {
-	basePath: string;
-	ignored: string[];
+	path: string;
+	excludes: string[];
 }
 
 export interface IWatcherOptions {
