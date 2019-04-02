@@ -41,6 +41,7 @@ import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-browser/remoteAuthorityResolverService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 
@@ -453,6 +454,7 @@ suite('WorkspaceService - Initialization', () => {
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
 	suiteSetup(() => {
+		setUnexpectedErrorHandler(() => null);
 		configurationRegistry.registerConfiguration({
 			'id': '_test',
 			'type': 'object',
@@ -710,6 +712,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
 	suiteSetup(() => {
+		setUnexpectedErrorHandler(() => null);
 		configurationRegistry.registerConfiguration({
 			'id': '_test',
 			'type': 'object',
@@ -998,6 +1001,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
 	suiteSetup(() => {
+		setUnexpectedErrorHandler(() => null);
 		configurationRegistry.registerConfiguration({
 			'id': '_test',
 			'type': 'object',

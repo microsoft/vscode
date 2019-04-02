@@ -38,6 +38,7 @@ import { createHash } from 'crypto';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 
@@ -58,6 +59,7 @@ suite('ConfigurationEditingService', () => {
 	let workspaceSettingsDir;
 
 	suiteSetup(() => {
+		setUnexpectedErrorHandler(() => null);
 		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 		configurationRegistry.registerConfiguration({
 			'id': '_test',
