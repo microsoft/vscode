@@ -300,7 +300,7 @@ export class DuplicateWorkspaceInNewWindowAction extends Action {
 
 		return this.workspacesService.createUntitledWorkspace(folders, remoteAuthority).then(newWorkspace => {
 			return this.workspaceEditingService.copyWorkspaceSettings(newWorkspace).then(() => {
-				return this.windowService.openWindow([{ uri: newWorkspace.configPath, typeHint: 'file' }], { forceNewWindow: true });
+				return this.windowService.openWindow([{ workspaceUri: newWorkspace.configPath }], { forceNewWindow: true });
 			});
 		});
 	}

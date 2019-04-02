@@ -4,13 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { IWindowService, IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IWindowConfiguration, IDevToolsOptions, IOpenSettings, IURIToOpen } from 'vs/platform/windows/common/windows';
+import { IWindowService, IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IWindowConfiguration, IDevToolsOptions, IOpenSettings, IURIToOpen, isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/windows/common/windows';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { URI } from 'vs/base/common/uri';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
 import { ILabelService } from 'vs/platform/label/common/label';
 
 export class WindowService extends Disposable implements IWindowService {
@@ -100,7 +99,7 @@ export class WindowService extends Disposable implements IWindowService {
 
 	openWindow(uris: IURIToOpen[], options: IOpenSettings = {}): Promise<void> {
 		if (!!this.configuration.remoteAuthority) {
-			uris.forEach(u => u.label = u.label || this.getRecentLabel(u, !!(options && options.forceOpenWorkspaceAsFile)));
+			uris.forEach(u => u.label = u.label || this.getRecentLabel(u));
 		}
 		return this.windowsService.openWindow(this.windowId, uris, options);
 	}
@@ -173,13 +172,13 @@ export class WindowService extends Disposable implements IWindowService {
 		return this.windowsService.resolveProxy(this.windowId, url);
 	}
 
-	private getRecentLabel(u: IURIToOpen, forceOpenWorkspaceAsFile: boolean): string {
-		if (u.typeHint === 'folder') {
-			return this.labelService.getWorkspaceLabel(u.uri, { verbose: true });
-		} else if (!forceOpenWorkspaceAsFile && hasWorkspaceFileExtension(u.uri.path)) {
-			return this.labelService.getWorkspaceLabel({ id: '', configPath: u.uri }, { verbose: true });
+	private getRecentLabel(u: IURIToOpen): string {
+		if (isFolderToOpen(u)) {
+			return this.labelService.getWorkspaceLabel(u.folderUri, { verbose: true });
+		} else if (isWorkspaceToOpen(u)) {
+			return this.labelService.getWorkspaceLabel({ id: '', configPath: u.workspaceUri }, { verbose: true });
 		} else {
-			return this.labelService.getUriLabel(u.uri);
+			return this.labelService.getUriLabel(u.fileUri);
 		}
 	}
 }

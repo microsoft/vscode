@@ -44,7 +44,7 @@ import { isUndefinedOrNull, withUndefinedAsNull } from 'vs/base/common/types';
 import { KeyboardLayoutMonitor } from 'vs/code/electron-main/keyboard';
 import { URI } from 'vs/base/common/uri';
 import { WorkspacesChannel } from 'vs/platform/workspaces/node/workspacesIpc';
-import { IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspacesMainService, hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
 import { getMachineId } from 'vs/base/node/id';
 import { Win32UpdateService } from 'vs/platform/update/electron-main/updateService.win32';
 import { LinuxUpdateService } from 'vs/platform/update/electron-main/updateService.linux';
@@ -82,6 +82,7 @@ import { WorkspacesMainService } from 'vs/platform/workspaces/electron-main/work
 import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { nodeWebSocketFactory } from 'vs/platform/remote/node/nodeWebSocketFactory';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { statSync } from 'fs';
 
 export class CodeApplication extends Disposable {
 
@@ -197,7 +198,7 @@ export class CodeApplication extends Disposable {
 			event.preventDefault();
 
 			// Keep in array because more might come!
-			macOpenFileURIs.push({ uri: URI.file(path) });
+			macOpenFileURIs.push(getURIToOpenFromPathSync(path));
 
 			// Clear previous handler if any
 			if (runningTimeout !== null) {
@@ -598,7 +599,7 @@ export class CodeApplication extends Disposable {
 			return this.windowsMainService.open({
 				context: OpenContext.DOCK,
 				cli: args,
-				urisToOpen: macOpenFiles.map(file => ({ uri: URI.file(file) })),
+				urisToOpen: macOpenFiles.map(getURIToOpenFromPathSync),
 				noRecentEntry,
 				waitMarkerFileURI,
 				initialStartup: true
@@ -775,5 +776,18 @@ export class CodeApplication extends Disposable {
 			}
 		});
 	}
+}
+
+function getURIToOpenFromPathSync(path: string): IURIToOpen {
+	try {
+		const fileStat = statSync(path);
+		if (fileStat.isDirectory()) {
+			return { folderUri: URI.file(path) };
+		} else if (hasWorkspaceFileExtension(path)) {
+			return { workspaceUri: URI.file(path) };
+		}
+	} catch (error) {
+	}
+	return { fileUri: URI.file(path) };
 }
 

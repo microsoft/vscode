@@ -290,7 +290,6 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 			cli: options.args ? { ...this.environmentService.args, ...options.args } : this.environmentService.args,
 			forceNewWindow: options.forceNewWindow,
 			forceReuseWindow: options.forceReuseWindow,
-			forceOpenWorkspaceAsFile: options.forceOpenWorkspaceAsFile,
 			diffMode: options.diffMode,
 			addMode: options.addMode,
 			noRecentEntry: options.noRecentEntry,
@@ -421,7 +420,7 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 
 		// Catch file URLs
 		if (uri.authority === Schemas.file && !!uri.path) {
-			this.openFileForURI({ uri: URI.file(uri.fsPath) }); // using fsPath on a non-file URI...
+			this.openFileForURI({ fileUri: URI.file(uri.fsPath) }); // using fsPath on a non-file URI...
 			return true;
 		}
 

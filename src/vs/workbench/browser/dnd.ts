@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
+import { hasWorkspaceFileExtension, IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { normalize } from 'vs/base/common/path';
 import { basename } from 'vs/base/common/resources';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -254,16 +254,14 @@ export class ResourcesDropHandler {
 	}
 
 	private handleWorkspaceFileDrop(fileOnDiskResources: URI[]): Promise<boolean> {
-		const workspaceResources: { workspaces: IURIToOpen[], folders: IURIToOpen[] } = {
-			workspaces: [],
-			folders: []
-		};
+		const urisToOpen: IURIToOpen[] = [];
+		const folderURIs: IWorkspaceFolderCreationData[] = [];
 
 		return Promise.all(fileOnDiskResources.map(fileOnDiskResource => {
 
 			// Check for Workspace
 			if (hasWorkspaceFileExtension(fileOnDiskResource.fsPath)) {
-				workspaceResources.workspaces.push({ uri: fileOnDiskResource, typeHint: 'file' });
+				urisToOpen.push({ workspaceUri: fileOnDiskResource });
 
 				return undefined;
 			}
@@ -271,14 +269,14 @@ export class ResourcesDropHandler {
 			// Check for Folder
 			return this.fileService.resolve(fileOnDiskResource).then(stat => {
 				if (stat.isDirectory) {
-					workspaceResources.folders.push({ uri: stat.resource, typeHint: 'folder' });
+					urisToOpen.push({ folderUri: stat.resource });
+					folderURIs.push({ uri: stat.resource });
 				}
 			}, error => undefined);
 		})).then(_ => {
-			const { workspaces, folders } = workspaceResources;
 
 			// Return early if no external resource is a folder or workspace
-			if (workspaces.length === 0 && folders.length === 0) {
+			if (urisToOpen.length === 0) {
 				return false;
 			}
 
@@ -286,12 +284,12 @@ export class ResourcesDropHandler {
 			this.windowService.focusWindow();
 
 			// Open in separate windows if we drop workspaces or just one folder
-			if (workspaces.length > 0 || folders.length === 1) {
-				return this.windowService.openWindow([...workspaces, ...folders], { forceReuseWindow: true }).then(_ => true);
+			if (urisToOpen.length > folderURIs.length || folderURIs.length === 1) {
+				return this.windowService.openWindow(urisToOpen, { forceReuseWindow: true }).then(_ => true);
 			}
 
 			// folders.length > 1: Multiple folders: Create new workspace with folders and open
-			return this.workspaceEditingService.createAndEnterWorkspace(folders).then(_ => true);
+			return this.workspaceEditingService.createAndEnterWorkspace(folderURIs).then(_ => true);
 		});
 	}
 }
