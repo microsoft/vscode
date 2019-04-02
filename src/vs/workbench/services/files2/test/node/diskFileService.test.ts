@@ -862,13 +862,21 @@ suite('Disk File Service', () => {
 	function assertWatch(toWatch: URI, expectedType: FileChangeType, expectedPath: URI, done: MochaDone): void {
 		const watcherDisposable = service.watch(toWatch);
 
+		function toString(type: FileChangeType): string {
+			switch (type) {
+				case FileChangeType.ADDED: return 'added';
+				case FileChangeType.DELETED: return 'deleted';
+				case FileChangeType.UPDATED: return 'updated';
+			}
+		}
+
 		const listenerDisposable = service.onFileChanges(event => {
 			watcherDisposable.dispose();
 			listenerDisposable.dispose();
 
 			try {
 				assert.equal(event.changes.length, 1);
-				assert.equal(event.changes[0].type, expectedType);
+				assert.equal(event.changes[0].type, expectedType, `Expected ${toString(expectedType)} but got ${toString(event.changes[0].type)}`);
 				assert.equal(event.changes[0].resource.fsPath, expectedPath.fsPath);
 
 				done();
