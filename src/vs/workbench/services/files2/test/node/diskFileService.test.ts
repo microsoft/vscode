@@ -14,7 +14,7 @@ import { join, basename, dirname, posix } from 'vs/base/common/path';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { copy, rimraf, symlink, RimRafMode } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
-import { existsSync, statSync, readdirSync, readFileSync, writeFileSync, renameSync, unlinkSync } from 'fs';
+import { existsSync, statSync, readdirSync, readFileSync, writeFileSync, renameSync, unlinkSync, mkdirSync } from 'fs';
 import { FileOperation, FileOperationEvent, IFileStat, FileOperationResult, FileSystemProviderCapabilities, FileChangeType } from 'vs/platform/files/common/files';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { isLinux, isWindows } from 'vs/base/common/platform';
@@ -786,11 +786,15 @@ suite('Disk File Service', () => {
 			watcherDisposable.dispose();
 			listenerDisposable.dispose();
 
-			assert.equal(event.changes.length, 1);
-			assert.equal(event.changes[0].type, FileChangeType.UPDATED);
-			assert.equal(event.changes[0].resource.fsPath, toWatch.fsPath);
+			try {
+				assert.equal(event.changes.length, 1);
+				assert.equal(event.changes[0].type, FileChangeType.UPDATED);
+				assert.equal(event.changes[0].resource.fsPath, toWatch.fsPath);
 
-			done();
+				done();
+			} catch (error) {
+				done(error);
+			}
 		});
 
 		setTimeout(() => {
@@ -808,11 +812,15 @@ suite('Disk File Service', () => {
 			watcherDisposable.dispose();
 			listenerDisposable.dispose();
 
-			assert.equal(event.changes.length, 1);
-			assert.equal(event.changes[0].type, FileChangeType.UPDATED);
-			assert.equal(event.changes[0].resource.fsPath, toWatch.fsPath);
+			try {
+				assert.equal(event.changes.length, 1);
+				assert.equal(event.changes[0].type, FileChangeType.UPDATED);
+				assert.equal(event.changes[0].resource.fsPath, toWatch.fsPath);
 
-			done();
+				done();
+			} catch (error) {
+				done(error);
+			}
 		});
 
 		setTimeout(() => {
@@ -825,24 +833,32 @@ suite('Disk File Service', () => {
 		}, 100);
 	});
 
-	// test('watch - folder (non recursive)', done => {
-	// 	const watchDir = join(testDir, 'watch3');
-	// 	mkdirSync(watchDir);
-	// 	const watcherDisposable = service.watch(URI.file(watchDir));
+	test('watch - folder (non recursive)', done => {
+		const watchDir = URI.file(join(testDir, 'watch3'));
+		mkdirSync(watchDir.fsPath);
 
-	// 	const listenerDisposable = service.onFileChanges(event => {
-	// 		watcherDisposable.dispose();
-	// 		listenerDisposable.dispose();
+		const file = URI.file(join(watchDir.fsPath, 'index.html'));
+		writeFileSync(file.fsPath, 'Init');
 
-	// 		assert.equal(event.changes.length, 1);
-	// 		assert.equal(event.changes[0].type, FileChangeType.UPDATED);
-	// 		assert.equal(event.changes[0].resource.fsPath, join(watchDir, 'index.html'));
+		const listenerDisposable = service.onFileChanges(event => {
+			watcherDisposable.dispose();
+			listenerDisposable.dispose();
 
-	// 		done();
-	// 	});
+			try {
+				assert.equal(event.changes.length, 1);
+				assert.equal(event.changes[0].type, FileChangeType.UPDATED);
+				assert.equal(event.changes[0].resource.fsPath, file.fsPath);
 
-	// 	setTimeout(() => {
-	// 		writeFileSync(join(watchDir, 'index.html'), 'Changes');
-	// 	}, 100);
-	// });
+				done();
+			} catch (error) {
+				done(error);
+			}
+		});
+
+		const watcherDisposable = service.watch(watchDir);
+
+		setTimeout(() => {
+			writeFileSync(file.fsPath, 'Changes');
+		}, 100);
+	});
 });
