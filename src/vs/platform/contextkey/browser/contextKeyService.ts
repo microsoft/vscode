@@ -95,7 +95,7 @@ class ConfigAwareContextValuesContainer extends Context {
 	constructor(
 		id: number,
 		private readonly _configurationService: IConfigurationService,
-		emitter: Emitter<string | string[]>
+		emitter: Emitter<IContextKeyChangeEvent>
 	) {
 		super(id, null);
 
@@ -104,7 +104,7 @@ class ConfigAwareContextValuesContainer extends Context {
 				// new setting, reset everything
 				const allKeys = keys(this._values);
 				this._values.clear();
-				emitter.fire(allKeys);
+				emitter.fire(new ArrayContextKeyChangeEvent(allKeys));
 			} else {
 				const changedKeys: string[] = [];
 				for (const configKey of event.affectedKeys) {
@@ -114,7 +114,7 @@ class ConfigAwareContextValuesContainer extends Context {
 						changedKeys.push(contextKey);
 					}
 				}
-				emitter.fire(changedKeys);
+				emitter.fire(new ArrayContextKeyChangeEvent(changedKeys));
 			}
 		});
 	}
@@ -215,14 +215,12 @@ export abstract class AbstractContextKeyService implements IContextKeyService {
 	public _serviceBrand: any;
 
 	protected _isDisposed: boolean;
-	protected _onDidChangeContext: Event<IContextKeyChangeEvent>;
-	protected _onDidChangeContextKey: Emitter<string | string[]>;
+	protected _onDidChangeContext = new Emitter<IContextKeyChangeEvent>();
 	protected _myContextId: number;
 
 	constructor(myContextId: number) {
 		this._isDisposed = false;
 		this._myContextId = myContextId;
-		this._onDidChangeContextKey = new Emitter<string>();
 	}
 
 	abstract dispose(): void;
@@ -235,21 +233,13 @@ export abstract class AbstractContextKeyService implements IContextKeyService {
 	}
 
 	public get onDidChangeContext(): Event<IContextKeyChangeEvent> {
-		if (!this._onDidChangeContext) {
-			this._onDidChangeContext = Event.map(this._onDidChangeContextKey.event, ((changedKeyOrKeys): IContextKeyChangeEvent => {
-				return typeof changedKeyOrKeys === 'string'
-					? new SimpleContextKeyChangeEvent(changedKeyOrKeys)
-					: new ArrayContextKeyChangeEvent(changedKeyOrKeys);
-			}));
-		}
-		return this._onDidChangeContext;
+		return this._onDidChangeContext.event;
 	}
-
 	public createScoped(domNode: IContextKeyServiceTarget): IContextKeyService {
 		if (this._isDisposed) {
 			throw new Error(`AbstractContextKeyService has been disposed`);
 		}
-		return new ScopedContextKeyService(this, this._onDidChangeContextKey, domNode);
+		return new ScopedContextKeyService(this, this._onDidChangeContext, domNode);
 	}
 
 	public contextMatchesRules(rules: ContextKeyExpr | undefined): boolean {
@@ -280,7 +270,7 @@ export abstract class AbstractContextKeyService implements IContextKeyService {
 			return;
 		}
 		if (myContext.setValue(key, value)) {
-			this._onDidChangeContextKey.fire(key);
+			this._onDidChangeContext.fire(new SimpleContextKeyChangeEvent(key));
 		}
 	}
 
@@ -289,7 +279,7 @@ export abstract class AbstractContextKeyService implements IContextKeyService {
 			return;
 		}
 		if (this.getContextValuesContainer(this._myContextId).removeValue(key)) {
-			this._onDidChangeContextKey.fire(key);
+			this._onDidChangeContext.fire(new SimpleContextKeyChangeEvent(key));
 		}
 	}
 
@@ -319,7 +309,7 @@ export class ContextKeyService extends AbstractContextKeyService implements ICon
 		this._lastContextId = 0;
 		this._contexts = Object.create(null);
 
-		const myContext = new ConfigAwareContextValuesContainer(this._myContextId, configurationService, this._onDidChangeContextKey);
+		const myContext = new ConfigAwareContextValuesContainer(this._myContextId, configurationService, this._onDidChangeContext);
 		this._contexts[String(this._myContextId)] = myContext;
 		this._toDispose.push(myContext);
 
@@ -369,10 +359,10 @@ class ScopedContextKeyService extends AbstractContextKeyService {
 	private _parent: AbstractContextKeyService;
 	private _domNode: IContextKeyServiceTarget | undefined;
 
-	constructor(parent: AbstractContextKeyService, emitter: Emitter<string | string[]>, domNode?: IContextKeyServiceTarget) {
+	constructor(parent: AbstractContextKeyService, emitter: Emitter<IContextKeyChangeEvent>, domNode?: IContextKeyServiceTarget) {
 		super(parent.createChildContext());
 		this._parent = parent;
-		this._onDidChangeContextKey = emitter;
+		this._onDidChangeContext = emitter;
 
 		if (domNode) {
 			this._domNode = domNode;
