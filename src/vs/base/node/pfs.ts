@@ -673,7 +673,15 @@ export async function mkdirp(path: string, mode?: number, token?: CancellationTo
 	}
 }
 
-export function watchNonRecursive(file: { path: string, isDirectory: boolean }, onChange: (type: 'added' | 'changed' | 'deleted', path: string) => void, onError: (error: string) => void): IDisposable {
+export function watchFile(path: string, onChange: (type: 'changed' | 'deleted', path: string) => void, onError: (error: string) => void): IDisposable {
+	return doWatchNonRecursive({ path, isDirectory: false }, onChange, onError);
+}
+
+export function watchFolder(path: string, onChange: (type: 'added' | 'changed' | 'deleted', path: string) => void, onError: (error: string) => void): IDisposable {
+	return doWatchNonRecursive({ path, isDirectory: true }, onChange, onError);
+}
+
+function doWatchNonRecursive(file: { path: string, isDirectory: boolean }, onChange: (type: 'added' | 'changed' | 'deleted', path: string) => void, onError: (error: string) => void): IDisposable {
 	const mapPathToStatDisposable = new Map<string, IDisposable>();
 
 	let disposed = false;
@@ -746,7 +754,7 @@ export function watchNonRecursive(file: { path: string, isDirectory: boolean }, 
 					if (fileExists) {
 						onChange('changed', changedFilePath);
 
-						watcherDisposables = [watchNonRecursive(file, onChange, onError)];
+						watcherDisposables = [doWatchNonRecursive(file, onChange, onError)];
 					}
 
 					// File seems to be really gone, so emit a deleted event

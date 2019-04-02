@@ -10,7 +10,7 @@ import { IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatc
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { isLinux, isWindows } from 'vs/base/common/platform';
-import { statLink, readdir, unlink, move, copy, readFile, writeFile, fileExists, truncate, rimraf, RimRafMode, watchNonRecursive } from 'vs/base/node/pfs';
+import { statLink, readdir, unlink, move, copy, readFile, writeFile, fileExists, truncate, rimraf, RimRafMode, watchFolder, watchFile } from 'vs/base/node/pfs';
 import { normalize, basename, dirname } from 'vs/base/common/path';
 import { joinPath } from 'vs/base/common/resources';
 import { isEqual } from 'vs/base/common/extpath';
@@ -413,12 +413,19 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 				return;
 			}
 
-			disposable = watchNonRecursive({ path: resource.fsPath, isDirectory: fileStat.type === FileType.Directory }, (eventType: 'added' | 'changed' | 'deleted', path: string) => {
-				this.onNonRecursiveFileChange({
-					type: eventType === 'changed' ? FileChangeType.UPDATED : eventType === 'added' ? FileChangeType.ADDED : FileChangeType.DELETED,
-					path
-				});
-			}, error => this.logService.error(error));
+			// Watch Folder
+			if (fileStat.type === FileType.Directory) {
+				disposable = watchFolder(resource.fsPath, (eventType, path) => {
+					this.onNonRecursiveFileChange({ type: eventType === 'changed' ? FileChangeType.UPDATED : eventType === 'added' ? FileChangeType.ADDED : FileChangeType.DELETED, path });
+				}, error => this.logService.error(error));
+			}
+
+			// Watch File
+			else {
+				disposable = watchFile(resource.fsPath, (eventType, path) => {
+					this.onNonRecursiveFileChange({ type: eventType === 'changed' ? FileChangeType.UPDATED : FileChangeType.DELETED, path });
+				}, error => this.logService.error(error));
+			}
 		}, error => this.logService.error(error));
 
 		return toDisposable(() => dispose(disposable));

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { watchNonRecursive } from 'vs/base/node/pfs';
+import { watchFolder } from 'vs/base/node/pfs';
 import { dirname, join } from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import { ITextModel } from 'vs/editor/common/model';
@@ -29,7 +29,7 @@ let callbacks: ((eventType: string, fileName?: string) => void)[] = [];
 function watchOutputDirectory(outputDir: string, logService: ILogService, onChange: (eventType: 'added' | 'changed' | 'deleted', path: string) => void): IDisposable {
 	callbacks.push(onChange);
 	if (!watchingOutputDir) {
-		const watcherDisposable = watchNonRecursive({ path: outputDir, isDirectory: true }, (eventType, path) => {
+		const watcherDisposable = watchFolder(outputDir, (eventType, path) => {
 			for (const callback of callbacks) {
 				callback(eventType, path);
 			}

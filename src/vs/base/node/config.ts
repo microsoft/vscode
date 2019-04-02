@@ -9,7 +9,7 @@ import * as objects from 'vs/base/common/objects';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as json from 'vs/base/common/json';
-import { watchNonRecursive } from 'vs/base/node/pfs';
+import { watchFolder, watchFile } from 'vs/base/node/pfs';
 
 export interface IConfigurationChangeEvent<T> {
 	config: T;
@@ -146,10 +146,11 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 			return; // avoid watchers that will never get disposed by checking for being disposed
 		}
 
-		this.disposables.push(watchNonRecursive({ path, isDirectory: isParentFolder },
-			(type, path) => this.onConfigFileChange(type, path, isParentFolder),
-			(error: string) => this.options.onError(error)
-		));
+		if (isParentFolder) {
+			this.disposables.push(watchFolder(path, (type, path) => this.onConfigFileChange(type, path, isParentFolder), error => this.options.onError(error)));
+		} else {
+			this.disposables.push(watchFile(path, (type, path) => this.onConfigFileChange(type, path, isParentFolder), error => this.options.onError(error)));
+		}
 	}
 
 	private onConfigFileChange(eventType: 'added' | 'changed' | 'deleted', path: string, isParentFolder: boolean): void {
