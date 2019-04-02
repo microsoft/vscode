@@ -852,6 +852,7 @@ export interface IFilesConfiguration {
 		autoSave: string;
 		autoSaveDelay: number;
 		eol: string;
+		enableTrash: boolean;
 		hotExit: string;
 		useExperimentalFileWatcher: boolean;
 	};

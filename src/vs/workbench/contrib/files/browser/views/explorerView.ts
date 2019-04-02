@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import * as perf from 'vs/base/common/performance';
 import { Action, IAction } from 'vs/base/common/actions';
 import { memoize } from 'vs/base/common/decorators';
-import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, IExplorerService, ExplorerResourceCut } from 'vs/workbench/contrib/files/common/files';
+import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, IExplorerService, ExplorerResourceCut, ExplorerResourceMoveableToTrash } from 'vs/workbench/contrib/files/common/files';
 import { NewFolderAction, NewFileAction, FileCopiedContext, RefreshExplorerView } from 'vs/workbench/contrib/files/browser/fileActions';
 import { toResource } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -49,6 +49,7 @@ import { isEqualOrParent } from 'vs/base/common/resources';
 import { values } from 'vs/base/common/map';
 import { first } from 'vs/base/common/arrays';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 
 export class ExplorerView extends ViewletPanel {
 	static readonly ID: string = 'workbench.explorer.fileView';
@@ -61,6 +62,7 @@ export class ExplorerView extends ViewletPanel {
 	private folderContext: IContextKey<boolean>;
 	private readonlyContext: IContextKey<boolean>;
 	private rootContext: IContextKey<boolean>;
+	private resourceMoveableToTrash: IContextKey<boolean>;
 
 	// Refresh is needed on the initial explorer open
 	private shouldRefresh = true;
@@ -85,7 +87,8 @@ export class ExplorerView extends ViewletPanel {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IExplorerService private readonly explorerService: IExplorerService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IClipboardService private clipboardService: IClipboardService
+		@IClipboardService private clipboardService: IClipboardService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		super({ ...(options as IViewletPanelOptions), id: ExplorerView.ID, ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService);
 
@@ -94,6 +97,7 @@ export class ExplorerView extends ViewletPanel {
 		this.folderContext = ExplorerFolderContext.bindTo(contextKeyService);
 		this.readonlyContext = ExplorerResourceReadonlyContext.bindTo(contextKeyService);
 		this.rootContext = ExplorerRootContext.bindTo(contextKeyService);
+		this.resourceMoveableToTrash = ExplorerResourceMoveableToTrash.bindTo(contextKeyService);
 
 		const decorationProvider = new ExplorerDecorationsProvider(this.explorerService, contextService);
 		decorationService.registerDecorationsProvider(decorationProvider);
@@ -401,6 +405,14 @@ export class ExplorerView extends ViewletPanel {
 		this.folderContext.set((isSingleFolder && !stat) || !!stat && stat.isDirectory);
 		this.readonlyContext.set(!!stat && stat.isReadonly);
 		this.rootContext.set(!stat || (stat && stat.isRoot));
+
+		if (stat) {
+			const enableTrash = this.configurationService.getValue<IFilesConfiguration>().files.enableTrash;
+			const hasCapability = this.fileService.hasCapability(stat.resource, FileSystemProviderCapabilities.Trash);
+			this.resourceMoveableToTrash.set(enableTrash && hasCapability);
+		} else {
+			this.resourceMoveableToTrash.reset();
+		}
 	}
 
 	// General methods
