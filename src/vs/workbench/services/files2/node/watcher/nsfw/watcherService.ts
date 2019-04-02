@@ -52,11 +52,11 @@ export class FileWatcher extends Disposable {
 			// that the watcher process died and we want to restart it here. we only do it a max number of times
 			if (!this.isDisposed) {
 				if (this.restartCounter <= FileWatcher.MAX_RESTARTS) {
-					this.errorLogger('[FileWatcher (nsfw)] terminated unexpectedly and is restarted again...');
+					this.errorLogger('[File Watcher (nsfw)] terminated unexpectedly and is restarted again...');
 					this.restartCounter++;
 					this.startWatching();
 				} else {
-					this.errorLogger('[FileWatcher (nsfw)] failed to start after retrying for some time, giving up. Please report this as a bug report!');
+					this.errorLogger('[File Watcher (nsfw)] failed to start after retrying for some time, giving up. Please report this as a bug report!');
 				}
 			}
 		}));
@@ -69,7 +69,7 @@ export class FileWatcher extends Disposable {
 		const onWatchEvent = Event.filter(this.service.watch(options), () => !this.isDisposed);
 
 		const onError = Event.filter<any, IWatchError>(onWatchEvent, (e): e is IWatchError => typeof e.message === 'string');
-		this._register(onError(err => this.errorLogger(err.message)));
+		this._register(onError(err => this.errorLogger(`[File Watcher (nsfw)] ${err.message}`)));
 
 		const onFileChanges = Event.filter<any, IDiskFileChange[]>(onWatchEvent, (e): e is IDiskFileChange[] => Array.isArray(e) && e.length > 0);
 		this._register(onFileChanges(e => this.onFileChanges(e)));

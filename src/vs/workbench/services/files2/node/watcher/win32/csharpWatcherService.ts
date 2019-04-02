@@ -36,6 +36,11 @@ export class OutOfProcessWin32FolderWatcher {
 			this.ignored = [];
 		}
 
+		// Logging
+		if (this.verboseLogging) {
+			console.log('%c[File Watcher (C#)]', 'color: blue', `Start watching: ${watchedFolder}`);
+		}
+
 		this.startWatcher();
 	}
 
