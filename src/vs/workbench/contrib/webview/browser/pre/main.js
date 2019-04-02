@@ -3,72 +3,104 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 // @ts-check
-(function () {
-	'use strict';
+'use strict';
 
-	// @ts-ignore
-	const ipcRenderer = require('electron').ipcRenderer;
+/**
+ * Use polling to track focus of main webview and iframes within the webview
+ *
+ * @param {Object} handlers
+ * @param {() => void} handlers.onFocus
+ * @param {() => void} handlers.onBlur
+ */
+const trackFocus = ({ onFocus, onBlur }) => {
+	const interval = 50;
+	let isFocused = document.hasFocus();
+	setInterval(() => {
+		const isCurrentlyFocused = document.hasFocus();
+		if (isCurrentlyFocused === isFocused) {
+			return;
+		}
+		isFocused = isCurrentlyFocused;
+		if (isCurrentlyFocused) {
+			onFocus();
+		} else {
+			onBlur();
+		}
+	}, interval);
+};
 
-	/**
-	 * @param {string} channel
-	 * @param {*} data
-	 */
-	const postMessageToHost = (channel, data) => {
-		ipcRenderer.sendToHost(channel, data);
-	};
+const getActiveFrame = () => {
+	return /** @type {HTMLIFrameElement} */ (document.getElementById('active-frame'));
+};
 
-	/**
-	 * @param {string} channel
-	 * @param {*} handler
-	 */
-	const onHostMessage = (channel, handler) => {
-		ipcRenderer.on(channel, handler);
-	};
+const getPendingFrame = () => {
+	return /** @type {HTMLIFrameElement} */ (document.getElementById('pending-frame'));
+};
 
-	const registerVscodeResourceScheme = (function () {
-		let hasRegistered = false;
-		return () => {
-			if (hasRegistered) {
-				return;
-			}
+const defaultCssRules = `
+	body {
+		background-color: var(--vscode-editor-background);
+		color: var(--vscode-editor-foreground);
+		font-family: var(--vscode-editor-font-family);
+		font-weight: var(--vscode-editor-font-weight);
+		font-size: var(--vscode-editor-font-size);
+		margin: 0;
+		padding: 0 20px;
+	}
 
-			hasRegistered = true;
+	img {
+		max-width: 100%;
+		max-height: 100%;
+	}
 
-			// @ts-ignore
-			require('electron').webFrame.registerURLSchemeAsPrivileged('vscode-resource', {
-				secure: true,
-				bypassCSP: false,
-				allowServiceWorkers: false,
-				supportFetchAPI: true,
-				corsEnabled: true
-			});
-		};
-	}());
+	a {
+		color: var(--vscode-textLink-foreground);
+	}
 
-	/**
-	 * Use polling to track focus of main webview and iframes within the webview
-	 *
-	 * @param {Object} handlers
-	 * @param {() => void} handlers.onFocus
-	 * @param {() => void} handlers.onBlur
-	 */
-	const trackFocus = ({ onFocus, onBlur }) => {
-		const interval = 50;
-		let isFocused = document.hasFocus();
-		setInterval(() => {
-			const isCurrentlyFocused = document.hasFocus();
-			if (isCurrentlyFocused === isFocused) {
-				return;
-			}
-			isFocused = isCurrentlyFocused;
-			if (isCurrentlyFocused) {
-				onFocus();
-			} else {
-				onBlur();
-			}
-		}, interval);
-	};
+	a:hover {
+		color: var(--vscode-textLink-activeForeground);
+	}
 
+	a:focus,
+	input:focus,
+	select:focus,
+	textarea:focus {
+		outline: 1px solid -webkit-focus-ring-color;
+		outline-offset: -1px;
+	}
+
+	code {
+		color: var(--vscode-textPreformat-foreground);
+	}
+
+	blockquote {
+		background: var(--vscode-textBlockQuote-background);
+		border-color: var(--vscode-textBlockQuote-border);
+	}
+
+	::-webkit-scrollbar {
+		width: 10px;
+		height: 10px;
+	}
+
+	::-webkit-scrollbar-thumb {
+		background-color: var(--vscode-scrollbarSlider-background);
+	}
+	::-webkit-scrollbar-thumb:hover {
+		background-color: var(--vscode-scrollbarSlider-hoverBackground);
+	}
+	::-webkit-scrollbar-thumb:active {
+		background-color: var(--vscode-scrollbarSlider-activeBackground);
+	}`;
+
+/**
+ * @typedef {{ postMessage: (channel: string, data?: any) => void, onMessage: (channel: string, handler: any) => void }} HostCommunications
+ */
+
+/**
+ * @param {HostCommunications} host
+ */
+module.exports = function createWebviewManager(host) {
 	// state
 	let firstLoad = true;
 	let loadTimeout;
@@ -98,14 +130,6 @@
 		}
 	};
 
-	const getActiveFrame = () => {
-		return /** @type {HTMLIFrameElement} */ (document.getElementById('active-frame'));
-	};
-
-	const getPendingFrame = () => {
-		return /** @type {HTMLIFrameElement} */ (document.getElementById('pending-frame'));
-	};
-
 	/**
 	 * @param {MouseEvent} event
 	 */
@@ -127,7 +151,7 @@
 						scrollTarget.scrollIntoView();
 					}
 				} else {
-					postMessageToHost('did-click-link', node.href);
+					host.postMessage('did-click-link', node.href);
 				}
 				event.preventDefault();
 				break;
@@ -140,7 +164,7 @@
 	 * @param {KeyboardEvent} e
 	 */
 	const handleInnerKeydown = (e) => {
-		postMessageToHost('did-keydown', {
+		host.postMessage('did-keydown', {
 			key: e.key,
 			keyCode: e.keyCode,
 			code: e.code,
@@ -153,7 +177,7 @@
 	};
 
 	const onMessage = (message) => {
-		postMessageToHost(message.data.command, message.data.data);
+		host.postMessage(message.data.command, message.data.data);
 	};
 
 	let isHandlingScroll = false;
@@ -170,7 +194,7 @@
 		isHandlingScroll = true;
 		window.requestAnimationFrame(() => {
 			try {
-				postMessageToHost('did-scroll', progress);
+				host.postMessage('did-scroll', progress);
 			} catch (e) {
 				// noop
 			}
@@ -179,7 +203,7 @@
 	};
 
 	document.addEventListener('DOMContentLoaded', () => {
-		onHostMessage('styles', (_event, variables, activeTheme) => {
+		host.onMessage('styles', (_event, variables, activeTheme) => {
 			initData.styles = variables;
 			initData.activeTheme = activeTheme;
 
@@ -192,7 +216,7 @@
 		});
 
 		// propagate focus
-		onHostMessage('focus', () => {
+		host.onMessage('focus', () => {
 			const target = getActiveFrame();
 			if (target) {
 				target.contentWindow.focus();
@@ -200,10 +224,8 @@
 		});
 
 		// update iframe-contents
-		onHostMessage('content', (_event, data) => {
+		host.onMessage('content', (_event, data) => {
 			const options = data.options;
-
-			registerVscodeResourceScheme();
 
 			const text = data.contents;
 			const newDocument = new DOMParser().parseFromString(text, 'text/html');
@@ -304,7 +326,7 @@
 			newFrame.contentWindow.addEventListener('keydown', handleInnerKeydown);
 			newFrame.contentWindow.onbeforeunload = () => {
 				if (isInDevelopmentMode) { // Allow reloads while developing a webview
-					postMessageToHost('do-reload');
+					host.postMessage('do-reload');
 					return false;
 				}
 
@@ -366,11 +388,11 @@
 			newFrame.contentDocument.write(newDocument.documentElement.innerHTML);
 			newFrame.contentDocument.close();
 
-			postMessageToHost('did-set-content');
+			host.postMessage('did-set-content', undefined);
 		});
 
 		// Forward message to the embedded iframe
-		onHostMessage('message', (_event, data) => {
+		host.onMessage('message', (_event, data) => {
 			const pending = getPendingFrame();
 			if (!pending) {
 				const target = getActiveFrame();
@@ -382,79 +404,23 @@
 			pendingMessages.push(data);
 		});
 
-		onHostMessage('initial-scroll-position', (_event, progress) => {
+		host.onMessage('initial-scroll-position', (_event, progress) => {
 			initData.initialScrollProgress = progress;
 		});
 
-		onHostMessage('devtools-opened', () => {
+		host.onMessage('devtools-opened', () => {
 			isInDevelopmentMode = true;
 		});
 
 		trackFocus({
-			onFocus: () => postMessageToHost('did-focus'),
-			onBlur: () => postMessageToHost('did-blur')
+			onFocus: () => host.postMessage('did-focus'),
+			onBlur: () => host.postMessage('did-blur')
 		});
 
 		// Forward messages from the embedded iframe
 		window.onmessage = onMessage;
 
 		// signal ready
-		postMessageToHost('webview-ready', process.pid);
+		host.postMessage('webview-ready', process.pid);
 	});
-
-	const defaultCssRules = `
-		body {
-			background-color: var(--vscode-editor-background);
-			color: var(--vscode-editor-foreground);
-			font-family: var(--vscode-editor-font-family);
-			font-weight: var(--vscode-editor-font-weight);
-			font-size: var(--vscode-editor-font-size);
-			margin: 0;
-			padding: 0 20px;
-		}
-
-		img {
-			max-width: 100%;
-			max-height: 100%;
-		}
-
-		a {
-			color: var(--vscode-textLink-foreground);
-		}
-
-		a:hover {
-			color: var(--vscode-textLink-activeForeground);
-		}
-
-		a:focus,
-		input:focus,
-		select:focus,
-		textarea:focus {
-			outline: 1px solid -webkit-focus-ring-color;
-			outline-offset: -1px;
-		}
-
-		code {
-			color: var(--vscode-textPreformat-foreground);
-		}
-
-		blockquote {
-			background: var(--vscode-textBlockQuote-background);
-			border-color: var(--vscode-textBlockQuote-border);
-		}
-
-		::-webkit-scrollbar {
-			width: 10px;
-			height: 10px;
-		}
-
-		::-webkit-scrollbar-thumb {
-			background-color: var(--vscode-scrollbarSlider-background);
-		}
-		::-webkit-scrollbar-thumb:hover {
-			background-color: var(--vscode-scrollbarSlider-hoverBackground);
-		}
-		::-webkit-scrollbar-thumb:active {
-			background-color: var(--vscode-scrollbarSlider-activeBackground);
-		}`;
-}());
+};
