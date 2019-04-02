@@ -780,48 +780,16 @@ suite('Disk File Service', () => {
 		const toWatch = URI.file(join(testDir, 'index-watch1.html'));
 		writeFileSync(toWatch.fsPath, 'Init');
 
-		const watcherDisposable = service.watch(toWatch);
+		assertWatch(toWatch, FileChangeType.UPDATED, toWatch, done);
 
-		const listenerDisposable = service.onFileChanges(event => {
-			watcherDisposable.dispose();
-			listenerDisposable.dispose();
-
-			try {
-				assert.equal(event.changes.length, 1);
-				assert.equal(event.changes[0].type, FileChangeType.UPDATED);
-				assert.equal(event.changes[0].resource.fsPath, toWatch.fsPath);
-
-				done();
-			} catch (error) {
-				done(error);
-			}
-		});
-
-		setTimeout(() => {
-			writeFileSync(toWatch.fsPath, 'Changes');
-		}, 50);
+		setTimeout(() => writeFileSync(toWatch.fsPath, 'Changes'), 50);
 	});
 
-	test('watch - file (support atomic save)', function (done) {
+	test('watch - file (atomic save)', function (done) {
 		const toWatch = URI.file(join(testDir, 'index-watch2.html'));
 		writeFileSync(toWatch.fsPath, 'Init');
 
-		const watcherDisposable = service.watch(toWatch);
-
-		const listenerDisposable = service.onFileChanges(event => {
-			watcherDisposable.dispose();
-			listenerDisposable.dispose();
-
-			try {
-				assert.equal(event.changes.length, 1);
-				assert.equal(event.changes[0].type, FileChangeType.UPDATED);
-				assert.equal(event.changes[0].resource.fsPath, toWatch.fsPath);
-
-				done();
-			} catch (error) {
-				done(error);
-			}
-		});
+		assertWatch(toWatch, FileChangeType.UPDATED, toWatch, done);
 
 		setTimeout(() => {
 			// Simulate atomic save by deleting the file, creating it under different name
@@ -840,26 +808,9 @@ suite('Disk File Service', () => {
 		const file = URI.file(join(watchDir.fsPath, 'index.html'));
 		writeFileSync(file.fsPath, 'Init');
 
-		const listenerDisposable = service.onFileChanges(event => {
-			watcherDisposable.dispose();
-			listenerDisposable.dispose();
+		assertWatch(watchDir, FileChangeType.UPDATED, file, done);
 
-			try {
-				assert.equal(event.changes.length, 1);
-				assert.equal(event.changes[0].type, FileChangeType.UPDATED);
-				assert.equal(event.changes[0].resource.fsPath, file.fsPath);
-
-				done();
-			} catch (error) {
-				done(error);
-			}
-		});
-
-		const watcherDisposable = service.watch(watchDir);
-
-		setTimeout(() => {
-			writeFileSync(file.fsPath, 'Changes');
-		}, 50);
+		setTimeout(() => writeFileSync(file.fsPath, 'Changes'), 50);
 	});
 
 	test('watch - folder (non recursive) - add file', done => {
@@ -868,26 +819,9 @@ suite('Disk File Service', () => {
 
 		const file = URI.file(join(watchDir.fsPath, 'index.html'));
 
-		const listenerDisposable = service.onFileChanges(event => {
-			watcherDisposable.dispose();
-			listenerDisposable.dispose();
+		assertWatch(watchDir, FileChangeType.ADDED, file, done);
 
-			try {
-				assert.equal(event.changes.length, 1);
-				assert.equal(event.changes[0].type, FileChangeType.ADDED);
-				assert.equal(event.changes[0].resource.fsPath, file.fsPath);
-
-				done();
-			} catch (error) {
-				done(error);
-			}
-		});
-
-		const watcherDisposable = service.watch(watchDir);
-
-		setTimeout(() => {
-			writeFileSync(file.fsPath, 'Changes');
-		}, 50);
+		setTimeout(() => writeFileSync(file.fsPath, 'Changes'), 50);
 	});
 
 	test('watch - folder (non recursive) - delete file', done => {
@@ -897,26 +831,9 @@ suite('Disk File Service', () => {
 		const file = URI.file(join(watchDir.fsPath, 'index.html'));
 		writeFileSync(file.fsPath, 'Init');
 
-		const listenerDisposable = service.onFileChanges(event => {
-			watcherDisposable.dispose();
-			listenerDisposable.dispose();
+		assertWatch(watchDir, FileChangeType.DELETED, file, done);
 
-			try {
-				assert.equal(event.changes.length, 1);
-				assert.equal(event.changes[0].type, FileChangeType.DELETED);
-				assert.equal(event.changes[0].resource.fsPath, file.fsPath);
-
-				done();
-			} catch (error) {
-				done(error);
-			}
-		});
-
-		const watcherDisposable = service.watch(watchDir);
-
-		setTimeout(() => {
-			unlinkSync(file.fsPath);
-		}, 50);
+		setTimeout(() => unlinkSync(file.fsPath), 50);
 	});
 
 	test('watch - folder (non recursive) - add folder', done => {
@@ -925,26 +842,9 @@ suite('Disk File Service', () => {
 
 		const folder = URI.file(join(watchDir.fsPath, 'folder'));
 
-		const listenerDisposable = service.onFileChanges(event => {
-			watcherDisposable.dispose();
-			listenerDisposable.dispose();
+		assertWatch(watchDir, FileChangeType.ADDED, folder, done);
 
-			try {
-				assert.equal(event.changes.length, 1);
-				assert.equal(event.changes[0].type, FileChangeType.ADDED);
-				assert.equal(event.changes[0].resource.fsPath, folder.fsPath);
-
-				done();
-			} catch (error) {
-				done(error);
-			}
-		});
-
-		const watcherDisposable = service.watch(watchDir);
-
-		setTimeout(() => {
-			mkdirSync(folder.fsPath);
-		}, 50);
+		setTimeout(() => mkdirSync(folder.fsPath), 50);
 	});
 
 	test('watch - folder (non recursive) - delete folder', done => {
@@ -954,25 +854,27 @@ suite('Disk File Service', () => {
 		const folder = URI.file(join(watchDir.fsPath, 'folder'));
 		mkdirSync(folder.fsPath);
 
+		assertWatch(watchDir, FileChangeType.DELETED, folder, done);
+
+		setTimeout(() => rimrafSync(folder.fsPath), 50);
+	});
+
+	function assertWatch(toWatch: URI, expectedType: FileChangeType, expectedPath: URI, done: MochaDone): void {
+		const watcherDisposable = service.watch(toWatch);
+
 		const listenerDisposable = service.onFileChanges(event => {
 			watcherDisposable.dispose();
 			listenerDisposable.dispose();
 
 			try {
 				assert.equal(event.changes.length, 1);
-				assert.equal(event.changes[0].type, FileChangeType.DELETED);
-				assert.equal(event.changes[0].resource.fsPath, folder.fsPath);
+				assert.equal(event.changes[0].type, expectedType);
+				assert.equal(event.changes[0].resource.fsPath, expectedPath.fsPath);
 
 				done();
 			} catch (error) {
 				done(error);
 			}
 		});
-
-		const watcherDisposable = service.watch(watchDir);
-
-		setTimeout(() => {
-			rimrafSync(folder.fsPath);
-		}, 50);
-	});
+	}
 });
