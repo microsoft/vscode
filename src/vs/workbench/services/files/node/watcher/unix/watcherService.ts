@@ -5,7 +5,7 @@
 
 import { getNextTickChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
-import { toFileChangesEvent, IRawFileChange } from 'vs/workbench/services/files2/node/watcher/normalizer';
+import { toFileChangesEvent, IDiskFileChange } from 'vs/workbench/services/files2/node/watcher/normalizer';
 import { WatcherChannelClient } from 'vs/workbench/services/files/node/watcher/unix/watcherIpc';
 import { FileChangesEvent, IFilesConfiguration } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -76,7 +76,7 @@ export class FileWatcher {
 		const onError = Event.filter<any, IWatchError>(onWatchEvent, (e): e is IWatchError => typeof e.message === 'string');
 		onError(err => this.errorLogger(err.message), null, this.toDispose);
 
-		const onFileChanges = Event.filter<any, IRawFileChange[]>(onWatchEvent, (e): e is IRawFileChange[] => Array.isArray(e) && e.length > 0);
+		const onFileChanges = Event.filter<any, IDiskFileChange[]>(onWatchEvent, (e): e is IDiskFileChange[] => Array.isArray(e) && e.length > 0);
 		onFileChanges(e => this.onFileChanges(toFileChangesEvent(e)), null, this.toDispose);
 
 		// Start watching

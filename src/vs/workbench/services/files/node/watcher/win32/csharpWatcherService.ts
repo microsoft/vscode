@@ -7,7 +7,7 @@ import * as cp from 'child_process';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import * as decoder from 'vs/base/node/decoder';
 import * as glob from 'vs/base/common/glob';
-import { IRawFileChange } from 'vs/workbench/services/files2/node/watcher/normalizer';
+import { IDiskFileChange } from 'vs/workbench/services/files2/node/watcher/normalizer';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 export class OutOfProcessWin32FolderWatcher {
@@ -24,7 +24,7 @@ export class OutOfProcessWin32FolderWatcher {
 	constructor(
 		private watchedFolder: string,
 		ignored: string[],
-		private eventCallback: (events: IRawFileChange[]) => void,
+		private eventCallback: (events: IDiskFileChange[]) => void,
 		private errorCallback: (error: string) => void,
 		private verboseLogging: boolean
 	) {
@@ -53,7 +53,7 @@ export class OutOfProcessWin32FolderWatcher {
 		this.handle.stdout.on('data', (data: Buffer) => {
 
 			// Collect raw events from output
-			const rawEvents: IRawFileChange[] = [];
+			const rawEvents: IDiskFileChange[] = [];
 			stdoutLineDecoder.write(data).forEach((line) => {
 				const eventParts = line.split('|');
 				if (eventParts.length === 2) {

@@ -11,7 +11,7 @@ import { normalizeRoots, ChokidarWatcherService } from '../chokidarWatcherServic
 import { IWatcherRequest } from '../watcher';
 import * as platform from 'vs/base/common/platform';
 import { Delayer } from 'vs/base/common/async';
-import { IRawFileChange } from 'vs/workbench/services/files2/node/watcher/normalizer';
+import { IDiskFileChange } from 'vs/workbench/services/files2/node/watcher/normalizer';
 import { FileChangeType } from 'vs/platform/files/common/files';
 
 function newRequest(basePath: string, ignored: string[] = []): IWatcherRequest {
@@ -36,7 +36,7 @@ function assertNormalizedRequests(inputRequests: IWatcherRequest[], expectedRequ
 	}
 }
 
-function sort(changes: IRawFileChange[]) {
+function sort(changes: IDiskFileChange[]) {
 	return changes.sort((c1, c2) => {
 		return c1.path.localeCompare(c2.path);
 	});
@@ -46,7 +46,7 @@ function wait(time: number) {
 	return new Delayer<void>(time).trigger(() => { });
 }
 
-async function assertFileEvents(actuals: IRawFileChange[], expected: IRawFileChange[]) {
+async function assertFileEvents(actuals: IDiskFileChange[], expected: IDiskFileChange[]) {
 	let repeats = 40;
 	while ((actuals.length < expected.length) && repeats-- > 0) {
 		await wait(50);
@@ -124,7 +124,7 @@ suite.skip('Chockidar watching', () => {
 	const b2Folder = path.join(bFolder, 'b2');
 
 	const service = new ChokidarWatcherService();
-	const result: IRawFileChange[] = [];
+	const result: IDiskFileChange[] = [];
 	let error: string | null = null;
 
 	suiteSetup(async () => {

@@ -7,23 +7,23 @@ import { URI as uri } from 'vs/base/common/uri';
 import { FileChangeType, FileChangesEvent, isParent, IFileChange } from 'vs/platform/files/common/files';
 import { isLinux } from 'vs/base/common/platform';
 
-export interface IRawFileChange {
+export interface IDiskFileChange {
 	type: FileChangeType;
 	path: string;
 }
 
-export function toFileChangesEvent(changes: IRawFileChange[]): FileChangesEvent {
+export function toFileChangesEvent(changes: IDiskFileChange[]): FileChangesEvent {
 	return new FileChangesEvent(toFileChanges(changes));
 }
 
-export function toFileChanges(changes: IRawFileChange[]): IFileChange[] {
+export function toFileChanges(changes: IDiskFileChange[]): IFileChange[] {
 	return changes.map(change => ({
 		type: change.type,
 		resource: uri.file(change.path)
 	}));
 }
 
-export function normalizeFileChanges(changes: IRawFileChange[]): IRawFileChange[] {
+export function normalizeFileChanges(changes: IDiskFileChange[]): IDiskFileChange[] {
 
 	// Build deltas
 	const normalizer = new EventNormalizer();
@@ -35,10 +35,10 @@ export function normalizeFileChanges(changes: IRawFileChange[]): IRawFileChange[
 }
 
 class EventNormalizer {
-	private normalized: IRawFileChange[] = [];
-	private mapPathToChange: Map<string, IRawFileChange> = new Map();
+	private normalized: IDiskFileChange[] = [];
+	private mapPathToChange: Map<string, IDiskFileChange> = new Map();
 
-	processEvent(event: IRawFileChange): void {
+	processEvent(event: IDiskFileChange): void {
 		const existingEvent = this.mapPathToChange.get(event.path);
 
 		// Event path already exists
@@ -73,8 +73,8 @@ class EventNormalizer {
 		}
 	}
 
-	normalize(): IRawFileChange[] {
-		const addedChangeEvents: IRawFileChange[] = [];
+	normalize(): IDiskFileChange[] {
+		const addedChangeEvents: IDiskFileChange[] = [];
 		const deletedPaths: string[] = [];
 
 		// This algorithm will remove all DELETE events up to the root folder

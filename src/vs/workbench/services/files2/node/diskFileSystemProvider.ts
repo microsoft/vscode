@@ -17,7 +17,7 @@ import { isEqual } from 'vs/base/common/extpath';
 import { retry, ThrottledDelayer } from 'vs/base/common/async';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { localize } from 'vs/nls';
-import { IRawFileChange, normalizeFileChanges, toFileChanges } from 'vs/workbench/services/files2/node/watcher/normalizer';
+import { IDiskFileChange, normalizeFileChanges, toFileChanges } from 'vs/workbench/services/files2/node/watcher/normalizer';
 
 export class DiskFileSystemProvider extends Disposable implements IFileSystemProvider {
 
@@ -308,7 +308,7 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 	get onDidChangeFile(): Event<IFileChange[]> { return this._onDidChangeFile.event; }
 
 	private fileChangesDelayer: ThrottledDelayer<void> = new ThrottledDelayer<void>(50);
-	private fileChangesBuffer: IRawFileChange[] = [];
+	private fileChangesBuffer: IDiskFileChange[] = [];
 
 	watch(resource: URI, opts: IWatchOptions): IDisposable {
 		if (opts.recursive) {
@@ -337,12 +337,12 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 					path
 				});
 			}, error => this.logService.error(error));
-		});
+		}, error => this.logService.error(error));
 
 		return toDisposable(() => dispose(disposable));
 	}
 
-	private onFileChange(event: IRawFileChange): void {
+	private onFileChange(event: IDiskFileChange): void {
 
 		// Add to buffer
 		this.fileChangesBuffer.push(event);

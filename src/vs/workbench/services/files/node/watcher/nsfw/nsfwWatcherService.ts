@@ -7,7 +7,7 @@ import * as glob from 'vs/base/common/glob';
 import * as extpath from 'vs/base/common/extpath';
 import * as path from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
-import { IRawFileChange, normalizeFileChanges } from 'vs/workbench/services/files2/node/watcher/normalizer';
+import { IDiskFileChange, normalizeFileChanges } from 'vs/workbench/services/files2/node/watcher/normalizer';
 import * as nsfw from 'vscode-nsfw';
 import { IWatcherService, IWatcherRequest, IWatcherOptions, IWatchError } from 'vs/workbench/services/files/node/watcher/nsfw/watcher';
 import { ThrottledDelayer } from 'vs/base/common/async';
@@ -39,16 +39,16 @@ export class NsfwWatcherService implements IWatcherService {
 	private _verboseLogging: boolean;
 	private enospcErrorLogged: boolean;
 
-	private _onWatchEvent = new Emitter<IRawFileChange[] | IWatchError>();
+	private _onWatchEvent = new Emitter<IDiskFileChange[] | IWatchError>();
 	readonly onWatchEvent = this._onWatchEvent.event;
 
-	watch(options: IWatcherOptions): Event<IRawFileChange[] | IWatchError> {
+	watch(options: IWatcherOptions): Event<IDiskFileChange[] | IWatchError> {
 		this._verboseLogging = options.verboseLogging;
 		return this.onWatchEvent;
 	}
 
 	private _watch(request: IWatcherRequest): void {
-		let undeliveredFileEvents: IRawFileChange[] = [];
+		let undeliveredFileEvents: IDiskFileChange[] = [];
 		const fileEventDelayer = new ThrottledDelayer<void>(NsfwWatcherService.FS_EVENT_DELAY);
 
 		let readyPromiseResolve: (watcher: IWatcherObjet) => void;

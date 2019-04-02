@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { IRawFileChange } from 'vs/workbench/services/files2/node/watcher/normalizer';
+import { IDiskFileChange } from 'vs/workbench/services/files2/node/watcher/normalizer';
 
 export interface IWatcherRequest {
 	basePath: string;
@@ -20,7 +20,7 @@ export interface IWatchError {
 }
 
 export interface IWatcherService {
-	watch(options: IWatcherOptions): Event<IRawFileChange[] | IWatchError>;
+	watch(options: IWatcherOptions): Event<IDiskFileChange[] | IWatchError>;
 	setRoots(roots: IWatcherRequest[]): Promise<void>;
 	setVerboseLogging(enabled: boolean): Promise<void>;
 	stop(): Promise<void>;
