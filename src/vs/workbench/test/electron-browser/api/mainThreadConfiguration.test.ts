@@ -15,6 +15,7 @@ import { SingleProxyRPCProtocol } from './testRPCProtocol';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
 
 suite('MainThreadConfiguration', function () {
 
@@ -25,6 +26,7 @@ suite('MainThreadConfiguration', function () {
 	let target: sinon.SinonSpy;
 
 	suiteSetup(() => {
+		setUnexpectedErrorHandler(() => null);
 		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
 			'id': 'extHostConfiguration',
 			'title': 'a',

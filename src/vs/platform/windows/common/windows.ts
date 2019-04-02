@@ -24,7 +24,7 @@ export interface INativeOpenDialogOptions {
 	windowId?: number;
 	forceNewWindow?: boolean;
 
-	dialogOptions?: OpenDialogOptions;
+	defaultPath?: string;
 
 	telemetryEventName?: string;
 	telemetryExtraData?: ITelemetryData;

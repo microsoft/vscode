@@ -40,6 +40,7 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import { Schemas } from 'vs/base/common/network';
 import { DiskFileSystemProvider } from 'vs/workbench/services/files2/node/diskFileSystemProvider';
 import { IFileService } from 'vs/platform/files/common/files';
+import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 
@@ -60,6 +61,7 @@ suite('ConfigurationEditingService', () => {
 	let workspaceSettingsDir;
 
 	suiteSetup(() => {
+		setUnexpectedErrorHandler(() => null);
 		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 		configurationRegistry.registerConfiguration({
 			'id': '_test',

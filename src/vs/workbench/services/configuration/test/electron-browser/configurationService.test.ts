@@ -43,6 +43,7 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { FileService2 } from 'vs/workbench/services/files2/common/fileService2';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { DiskFileSystemProvider } from 'vs/workbench/services/files2/node/diskFileSystemProvider';
+import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 
@@ -459,6 +460,7 @@ suite('WorkspaceService - Initialization', () => {
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
 	suiteSetup(() => {
+		setUnexpectedErrorHandler(() => null);
 		configurationRegistry.registerConfiguration({
 			'id': '_test',
 			'type': 'object',
@@ -723,6 +725,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
 	suiteSetup(() => {
+		setUnexpectedErrorHandler(() => null);
 		configurationRegistry.registerConfiguration({
 			'id': '_test',
 			'type': 'object',
@@ -1018,6 +1021,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
 	suiteSetup(() => {
+		setUnexpectedErrorHandler(() => null);
 		configurationRegistry.registerConfiguration({
 			'id': '_test',
 			'type': 'object',
