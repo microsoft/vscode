@@ -25,7 +25,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Emitter, Event } from 'vs/base/common/event';
 
 let watchingOutputDir = false;
-let callbacks: ((eventType: string, fileName?: string) => void)[] = [];
+let callbacks: ((eventType: 'added' | 'changed' | 'deleted', path: string) => void)[] = [];
 function watchOutputDirectory(outputDir: string, logService: ILogService, onChange: (eventType: 'added' | 'changed' | 'deleted', path: string) => void): IDisposable {
 	callbacks.push(onChange);
 	if (!watchingOutputDir) {
@@ -72,7 +72,7 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannelModel implement
 
 		const rotatingFilePathDirectory = dirname(this.file.fsPath);
 		this.rotatingFilePath = join(rotatingFilePathDirectory, `${id}.1.log`);
-		this._register(watchOutputDirectory(rotatingFilePathDirectory, logService, (eventType, path) => this.onFileChangedInOutputDirector(eventType, path)));
+		this._register(watchOutputDirectory(rotatingFilePathDirectory, logService, (eventType, path) => this.onFileChangedInOutputDirectory(eventType, path)));
 
 		this.resettingDelayer = new ThrottledDelayer<void>(50);
 	}
@@ -145,7 +145,7 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannelModel implement
 		}
 	}
 
-	private onFileChangedInOutputDirector(eventType: 'added' | 'changed' | 'deleted', path: string): void {
+	private onFileChangedInOutputDirectory(eventType: 'added' | 'changed' | 'deleted', path: string): void {
 		// Check if rotating file has changed. It changes only when the main file exceeds its limit.
 		if (this.rotatingFilePath === path) {
 			this.resettingDelayer.trigger(() => this.resetModel());
