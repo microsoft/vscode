@@ -30,7 +30,7 @@ import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKe
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
@@ -44,6 +44,9 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { TestBackupFileService, TestContextService, TestEditorGroupsService, TestEditorService, TestEnvironmentService, TestLifecycleService, TestLogService, TestStorageService, TestTextFileService, TestTextResourceConfigurationService, TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTestServices';
+import { FileService2 } from 'vs/workbench/services/files2/common/fileService2';
+import { Schemas } from 'vs/base/common/network';
+import { DiskFileSystemProvider } from 'vs/workbench/services/files2/node/diskFileSystemProvider';
 
 interface Modifiers {
 	metaKey?: boolean;
@@ -81,7 +84,10 @@ suite('KeybindingsEditing', () => {
 			instantiationService.stub(ILogService, new TestLogService());
 			instantiationService.stub(ITextResourcePropertiesService, new TestTextResourcePropertiesService(instantiationService.get(IConfigurationService)));
 			instantiationService.stub(IModelService, instantiationService.createInstance(ModelServiceImpl));
-			instantiationService.stub(IFileService, new FileService(
+			const fileService = new FileService2(new NullLogService());
+			fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
+			fileService.setLegacyService(new FileService(
+				fileService,
 				new TestContextService(new Workspace(testDir, toWorkspaceFolders([{ path: testDir }]))),
 				TestEnvironmentService,
 				new TestTextResourceConfigurationService(),
@@ -91,6 +97,7 @@ suite('KeybindingsEditing', () => {
 				new TestNotificationService(),
 				{ disableWatcher: true })
 			);
+			instantiationService.stub(IFileService, fileService);
 			instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
 			instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 			instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
@@ -106,7 +113,7 @@ suite('KeybindingsEditing', () => {
 	}
 
 	teardown(() => {
-		return new Promise<void>((c, e) => {
+		return new Promise<void>((c) => {
 			if (testDir) {
 				rimraf(testDir, RimRafMode.MOVE).then(c, c);
 			} else {

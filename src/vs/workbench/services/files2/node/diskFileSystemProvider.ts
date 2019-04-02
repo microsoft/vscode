@@ -312,13 +312,13 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 
 	watch(resource: URI, opts: IWatchOptions): IDisposable {
 		if (opts.recursive) {
-			return this.watchRecursive(resource, opts);
+			return this.watchRecursive(resource, opts.excludes);
 		}
 
 		return this.watchNonRecursive(resource); // TODO@ben ideally the same watcher can be used in both cases
 	}
 
-	private watchRecursive(resource: URI, opts: IWatchOptions): IDisposable {
+	private watchRecursive(resource: URI, excludes: string[]): IDisposable {
 		throw new Error('Method not implemented.');
 	}
 

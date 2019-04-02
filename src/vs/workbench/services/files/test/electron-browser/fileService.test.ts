@@ -21,6 +21,10 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { IEncodingOverride } from 'vs/workbench/services/files/node/encoding';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { FileService2 } from 'vs/workbench/services/files2/common/fileService2';
+import { NullLogService } from 'vs/platform/log/common/log';
+import { Schemas } from 'vs/base/common/network';
+import { DiskFileSystemProvider } from 'vs/workbench/services/files2/node/diskFileSystemProvider';
 
 suite('FileService', () => {
 	let service: FileService;
@@ -32,8 +36,11 @@ suite('FileService', () => {
 		testDir = path.join(parentDir, id);
 		const sourceDir = getPathFromAmdModule(require, './fixtures/service');
 
+		const fileService = new FileService2(new NullLogService());
+		fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
+
 		return pfs.copy(sourceDir, testDir).then(() => {
-			service = new FileService(new TestContextService(new Workspace(testDir, toWorkspaceFolders([{ path: testDir }]))), TestEnvironmentService, new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), new TestStorageService(), new TestNotificationService(), { disableWatcher: true });
+			service = new FileService(fileService, new TestContextService(new Workspace(testDir, toWorkspaceFolders([{ path: testDir }]))), TestEnvironmentService, new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), new TestStorageService(), new TestNotificationService(), { disableWatcher: true });
 		});
 	});
 
@@ -348,28 +355,6 @@ suite('FileService', () => {
 		});
 	});
 
-	// test('watch - support atomic save', function (done) {
-	// 	const toWatch = uri.file(path.join(testDir, 'index.html'));
-
-	// 	service.watch(toWatch);
-
-	// 	service.onFileChanges((e: FileChangesEvent) => {
-	// 		assert.ok(e);
-
-	// 		service.unwatch(toWatch);
-	// 		done();
-	// 	});
-
-	// 	setTimeout(() => {
-	// 		// Simulate atomic save by deleting the file, creating it under different name
-	// 		// and then replacing the previously deleted file with those contents
-	// 		const renamed = `${toWatch.fsPath}.bak`;
-	// 		fs.unlinkSync(toWatch.fsPath);
-	// 		fs.writeFileSync(renamed, 'Changes');
-	// 		fs.renameSync(renamed, toWatch.fsPath);
-	// 	}, 100);
-	// });
-
 	test('options - encoding override (parent)', function () {
 
 		// setup
@@ -389,7 +374,12 @@ suite('FileService', () => {
 
 			const textResourceConfigurationService = new TestTextResourceConfigurationService(configurationService);
 
+			const fileService = new FileService2(new NullLogService());
+			fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
+
+
 			const _service = new FileService(
+				fileService,
 				new TestContextService(new Workspace(_testDir, toWorkspaceFolders([{ path: _testDir }]))),
 				TestEnvironmentService,
 				textResourceConfigurationService,
@@ -434,7 +424,11 @@ suite('FileService', () => {
 
 			const textResourceConfigurationService = new TestTextResourceConfigurationService(configurationService);
 
+			const fileService = new FileService2(new NullLogService());
+			fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
+
 			const _service = new FileService(
+				fileService,
 				new TestContextService(new Workspace(_testDir, toWorkspaceFolders([{ path: _testDir }]))),
 				TestEnvironmentService,
 				textResourceConfigurationService,
@@ -468,7 +462,11 @@ suite('FileService', () => {
 		const _sourceDir = getPathFromAmdModule(require, './fixtures/service');
 		const resource = uri.file(path.join(testDir, 'index.html'));
 
+		const fileService = new FileService2(new NullLogService());
+		fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
+
 		const _service = new FileService(
+			fileService,
 			new TestContextService(new Workspace(_testDir, toWorkspaceFolders([{ path: _testDir }]))),
 			TestEnvironmentService,
 			new TestTextResourceConfigurationService(),

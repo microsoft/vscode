@@ -1115,7 +1115,7 @@ export function etag(mtime: number | undefined, size: number | undefined): strin
 
 // TODO@ben remove traces of legacy file service
 export const ILegacyFileService = createDecorator<ILegacyFileService>('legacyFileService');
-export interface ILegacyFileService {
+export interface ILegacyFileService extends IDisposable {
 	_serviceBrand: any;
 
 	encoding: IResourceEncodings;
@@ -1123,11 +1123,13 @@ export interface ILegacyFileService {
 	onFileChanges: Event<FileChangesEvent>;
 	onAfterOperation: Event<FileOperationEvent>;
 
+	registerProvider(scheme: string, provider: IFileSystemProvider): IDisposable;
+
 	resolveContent(resource: URI, options?: IResolveContentOptions): Promise<IContent>;
 
 	resolveStreamContent(resource: URI, options?: IResolveContentOptions): Promise<IStreamContent>;
 
-	updateContent(resource: URI, value: string | ITextSnapshot, options?: IUpdateContentOptions): Promise<IFileStat>;
+	updateContent(resource: URI, value: string | ITextSnapshot, options?: IUpdateContentOptions): Promise<IFileStatWithMetadata>;
 
-	createFile(resource: URI, content?: string, options?: ICreateFileOptions): Promise<IFileStat>;
+	createFile(resource: URI, content?: string, options?: ICreateFileOptions): Promise<IFileStatWithMetadata>;
 }

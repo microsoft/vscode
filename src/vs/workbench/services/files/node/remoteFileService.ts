@@ -26,7 +26,7 @@ export class RemoteFileService extends FileService {
 	private readonly _provider: Map<string, IFileSystemProvider>;
 
 	constructor(
-		@IFileService private readonly _fileService: IFileService,
+		@IFileService fileService: IFileService,
 		@IStorageService storageService: IStorageService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -36,6 +36,7 @@ export class RemoteFileService extends FileService {
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 	) {
 		super(
+			fileService,
 			contextService,
 			environmentService,
 			textResourceConfigurationService,
@@ -73,7 +74,7 @@ export class RemoteFileService extends FileService {
 		}
 
 		return Promise.all([
-			this._fileService.activateProvider(resource.scheme)
+			this.fileService.activateProvider(resource.scheme)
 		]).then(() => {
 			const provider = this._provider.get(resource.scheme);
 			if (!provider) {
@@ -107,7 +108,7 @@ export class RemoteFileService extends FileService {
 	private _readFile(resource: URI, options: IResolveContentOptions = Object.create(null)): Promise<IStreamContent> {
 		return this._withProvider(resource).then(provider => {
 
-			return this._fileService.resolve(resource).then(fileStat => {
+			return this.fileService.resolve(resource).then(fileStat => {
 
 				if (fileStat.isDirectory) {
 					// todo@joh cannot copy a folder
@@ -176,7 +177,7 @@ export class RemoteFileService extends FileService {
 
 			return this._withProvider(resource).then(RemoteFileService._throwIfFileSystemIsReadonly).then(provider => {
 
-				return this._fileService.createFolder(resources.dirname(resource)).then(() => {
+				return this.fileService.createFolder(resources.dirname(resource)).then(() => {
 					const { encoding } = this.encoding.getWriteEncoding(resource);
 					return this._writeFile(provider, resource, new StringSnapshot(content || ''), encoding, { create: true, overwrite: Boolean(options && options.overwrite) });
 				});
@@ -197,7 +198,7 @@ export class RemoteFileService extends FileService {
 			return super.updateContent(resource, value, options);
 		} else {
 			return this._withProvider(resource).then(RemoteFileService._throwIfFileSystemIsReadonly).then(provider => {
-				return this._fileService.createFolder(resources.dirname(resource)).then(() => {
+				return this.fileService.createFolder(resources.dirname(resource)).then(() => {
 					const snapshot = typeof value === 'string' ? new StringSnapshot(value) : value;
 					return this._writeFile(provider, resource, snapshot, options && options.encoding, { create: true, overwrite: true });
 				});
@@ -215,7 +216,7 @@ export class RemoteFileService extends FileService {
 			target.once('error', err => reject(err));
 			target.once('finish', (_: unknown) => resolve(undefined));
 		}).then(_ => {
-			return this._fileService.resolve(resource, { resolveMetadata: true }) as Promise<IFileStatWithMetadata>;
+			return this.fileService.resolve(resource, { resolveMetadata: true }) as Promise<IFileStatWithMetadata>;
 		});
 	}
 

@@ -26,7 +26,6 @@ import { TestNotificationService } from 'vs/platform/notification/test/common/te
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { URI } from 'vs/base/common/uri';
 import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { IFileService } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IPager } from 'vs/base/common/paging';
@@ -48,6 +47,11 @@ import { TestExperimentService } from 'vs/workbench/contrib/experiments/test/ele
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
+import { FileService2 } from 'vs/workbench/services/files2/common/fileService2';
+import { NullLogService } from 'vs/platform/log/common/log';
+import { Schemas } from 'vs/base/common/network';
+import { DiskFileSystemProvider } from 'vs/workbench/services/files2/node/diskFileSystemProvider';
+import { IFileService } from 'vs/platform/files/common/files';
 
 const mockExtensionGallery: IGalleryExtension[] = [
 	aGalleryExtension('MockExtension1', {
@@ -279,7 +283,20 @@ suite('ExtensionsTipsService Test', () => {
 		const myWorkspace = testWorkspace(URI.from({ scheme: 'file', path: folderDir }));
 		workspaceService = new TestContextService(myWorkspace);
 		instantiationService.stub(IWorkspaceContextService, workspaceService);
-		instantiationService.stub(IFileService, new FileService(workspaceService, TestEnvironmentService, new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), new TestStorageService(), new TestNotificationService(), { disableWatcher: true }));
+		const fileService = new FileService2(new NullLogService());
+		fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
+		fileService.setLegacyService(new FileService(
+			fileService,
+			workspaceService,
+			TestEnvironmentService,
+			new TestTextResourceConfigurationService(),
+			new TestConfigurationService(),
+			new TestLifecycleService(),
+			new TestStorageService(),
+			new TestNotificationService(),
+			{ disableWatcher: true })
+		);
+		instantiationService.stub(IFileService, fileService);
 	}
 
 	function testNoPromptForValidRecommendations(recommendations: string[]) {

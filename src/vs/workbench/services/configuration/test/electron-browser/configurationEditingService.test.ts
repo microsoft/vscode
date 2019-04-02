@@ -21,7 +21,6 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'v
 import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
 import { ConfigurationEditingService, ConfigurationEditingError, ConfigurationEditingErrorCode } from 'vs/workbench/services/configuration/common/configurationEditingService';
-import { IFileService } from 'vs/platform/files/common/files';
 import { WORKSPACE_STANDALONE_CONFIGURATIONS } from 'vs/workbench/services/configuration/common/configuration';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -38,6 +37,11 @@ import { createHash } from 'crypto';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { FileService2 } from 'vs/workbench/services/files2/common/fileService2';
+import { NullLogService } from 'vs/platform/log/common/log';
+import { Schemas } from 'vs/base/common/network';
+import { DiskFileSystemProvider } from 'vs/workbench/services/files2/node/diskFileSystemProvider';
+import { IFileService } from 'vs/platform/files/common/files';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 
@@ -107,7 +111,20 @@ suite('ConfigurationEditingService', () => {
 		instantiationService.stub(IWorkspaceContextService, workspaceService);
 		return workspaceService.initialize(noWorkspace ? { id: '' } : { folder: URI.file(workspaceDir), id: createHash('md5').update(URI.file(workspaceDir).toString()).digest('hex') }).then(() => {
 			instantiationService.stub(IConfigurationService, workspaceService);
-			instantiationService.stub(IFileService, new FileService(workspaceService, TestEnvironmentService, new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), new TestStorageService(), new TestNotificationService(), { disableWatcher: true }));
+			const fileService = new FileService2(new NullLogService());
+			fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
+			fileService.setLegacyService(new FileService(
+				fileService,
+				workspaceService,
+				TestEnvironmentService,
+				new TestTextResourceConfigurationService(),
+				new TestConfigurationService(),
+				new TestLifecycleService(),
+				new TestStorageService(),
+				new TestNotificationService(),
+				{ disableWatcher: true })
+			);
+			instantiationService.stub(IFileService, fileService);
 			instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 			instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
 			instantiationService.stub(ICommandService, CommandService);

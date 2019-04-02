@@ -23,6 +23,9 @@ import { DefaultEndOfLine } from 'vs/editor/common/model';
 import { snapshotToString } from 'vs/platform/files/common/files';
 import { Schemas } from 'vs/base/common/network';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { FileService2 } from 'vs/workbench/services/files2/common/fileService2';
+import { NullLogService } from 'vs/platform/log/common/log';
+import { DiskFileSystemProvider } from 'vs/workbench/services/files2/node/diskFileSystemProvider';
 
 const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backupfileservice');
 const backupHome = path.join(parentDir, 'Backups');
@@ -55,7 +58,19 @@ class TestBackupWindowService extends TestWindowService {
 
 class TestBackupFileService extends BackupFileService {
 	constructor(workspace: Uri, backupHome: string, workspacesJsonPath: string) {
-		const fileService = new FileService(new TestContextService(new Workspace(workspace.fsPath, toWorkspaceFolders([{ path: workspace.fsPath }]))), TestEnvironmentService, new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), new TestStorageService(), new TestNotificationService(), { disableWatcher: true });
+		const fileService = new FileService2(new NullLogService());
+		fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
+		fileService.setLegacyService(new FileService(
+			fileService,
+			new TestContextService(new Workspace(workspace.fsPath, toWorkspaceFolders([{ path: workspace.fsPath }]))),
+			TestEnvironmentService,
+			new TestTextResourceConfigurationService(),
+			new TestConfigurationService(),
+			new TestLifecycleService(),
+			new TestStorageService(),
+			new TestNotificationService(),
+			{ disableWatcher: true })
+		);
 		const windowService = new TestBackupWindowService(workspaceBackupPath);
 
 		super(windowService, fileService);

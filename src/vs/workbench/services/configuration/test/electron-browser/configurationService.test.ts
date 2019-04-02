@@ -32,7 +32,7 @@ import { TextModelResolverService } from 'vs/workbench/services/textmodelResolve
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { JSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditingService';
 import { createHash } from 'crypto';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
 import { originalFSPath } from 'vs/base/common/resources';
 import { isLinux } from 'vs/base/common/platform';
@@ -41,6 +41,9 @@ import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-browser/remoteAuthorityResolverService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { FileService2 } from 'vs/workbench/services/files2/common/fileService2';
+import { NullLogService } from 'vs/platform/log/common/log';
+import { DiskFileSystemProvider } from 'vs/workbench/services/files2/node/diskFileSystemProvider';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 
@@ -224,10 +227,19 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 				instantiationService.stub(IEnvironmentService, environmentService);
 
 				return workspaceService.initialize(getWorkspaceIdentifier(configPath)).then(() => {
-
-					const fileService = new (class TestFileService extends FileService {
-						get onFileChanges(): Event<FileChangesEvent> { return fileChangeEvent.event; }
-					})(<IWorkspaceContextService>workspaceService, TestEnvironmentService, new TestTextResourceConfigurationService(), workspaceService, new TestLifecycleService(), new TestStorageService(), new TestNotificationService(), { disableWatcher: true });
+					const fileService = new FileService2(new NullLogService());
+					fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
+					fileService.setLegacyService(new FileService(
+						fileService,
+						workspaceService,
+						TestEnvironmentService,
+						new TestTextResourceConfigurationService(),
+						workspaceService,
+						new TestLifecycleService(),
+						new TestStorageService(),
+						new TestNotificationService(),
+						{ disableWatcher: true })
+					);
 					instantiationService.stub(IFileService, fileService);
 					instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 					instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
@@ -489,7 +501,19 @@ suite('WorkspaceService - Initialization', () => {
 				instantiationService.stub(IEnvironmentService, environmentService);
 
 				return workspaceService.initialize({ id: '' }).then(() => {
-					const fileService = new FileService(<IWorkspaceContextService>workspaceService, TestEnvironmentService, new TestTextResourceConfigurationService(), workspaceService, new TestLifecycleService(), new TestStorageService(), new TestNotificationService(), { disableWatcher: true });
+					const fileService = new FileService2(new NullLogService());
+					fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
+					fileService.setLegacyService(new FileService(
+						fileService,
+						workspaceService,
+						TestEnvironmentService,
+						new TestTextResourceConfigurationService(),
+						workspaceService,
+						new TestLifecycleService(),
+						new TestStorageService(),
+						new TestNotificationService(),
+						{ disableWatcher: true })
+					);
 					instantiationService.stub(IFileService, fileService);
 					instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 					instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
@@ -746,7 +770,19 @@ suite('WorkspaceConfigurationService - Folder', () => {
 				instantiationService.stub(IEnvironmentService, environmentService);
 
 				return workspaceService.initialize(convertToWorkspacePayload(URI.file(folderDir))).then(() => {
-					const fileService = new FileService(<IWorkspaceContextService>workspaceService, TestEnvironmentService, new TestTextResourceConfigurationService(), workspaceService, new TestLifecycleService(), new TestStorageService(), new TestNotificationService(), { disableWatcher: true });
+					const fileService = new FileService2(new NullLogService());
+					fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
+					fileService.setLegacyService(new FileService(
+						fileService,
+						workspaceService,
+						TestEnvironmentService,
+						new TestTextResourceConfigurationService(),
+						workspaceService,
+						new TestLifecycleService(),
+						new TestStorageService(),
+						new TestNotificationService(),
+						{ disableWatcher: true })
+					);
 					instantiationService.stub(IFileService, fileService);
 					instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 					instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
@@ -1037,8 +1073,19 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 				instantiationService.stub(IEnvironmentService, environmentService);
 
 				return workspaceService.initialize(getWorkspaceIdentifier(configPath)).then(() => {
-
-					const fileService = new FileService(<IWorkspaceContextService>workspaceService, TestEnvironmentService, new TestTextResourceConfigurationService(), workspaceService, new TestLifecycleService(), new TestStorageService(), new TestNotificationService(), { disableWatcher: true });
+					const fileService = new FileService2(new NullLogService());
+					fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
+					fileService.setLegacyService(new FileService(
+						fileService,
+						workspaceService,
+						TestEnvironmentService,
+						new TestTextResourceConfigurationService(),
+						workspaceService,
+						new TestLifecycleService(),
+						new TestStorageService(),
+						new TestNotificationService(),
+						{ disableWatcher: true })
+					);
 					instantiationService.stub(IFileService, fileService);
 					instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 					instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
