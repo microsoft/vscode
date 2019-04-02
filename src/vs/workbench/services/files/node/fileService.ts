@@ -254,8 +254,8 @@ export class FileService extends Disposable implements ILegacyFileService, IFile
 		return resource.scheme === Schemas.file;
 	}
 
-	hasCapability(resource: uri, capability: FileSystemProviderCapabilities): Promise<boolean> {
-		return Promise.resolve(false);
+	hasCapability(resource: uri, capability: FileSystemProviderCapabilities): boolean {
+		return false;
 	}
 
 	resolveContent(resource: uri, options?: IResolveContentOptions): Promise<IContent> {

@@ -798,7 +798,7 @@ export class SimpleRemoteFileService implements IFileService {
 
 	canHandleResource(resource: URI): boolean { return resource.scheme === 'file'; }
 
-	hasCapability(resource: URI, capability: FileSystemProviderCapabilities): Promise<boolean> { return Promise.resolve(false); }
+	hasCapability(resource: URI, capability: FileSystemProviderCapabilities): boolean { return false; }
 
 	del(_resource: URI, _options?: { useTrash?: boolean, recursive?: boolean }): Promise<void> { return Promise.resolve(); }
 

@@ -50,8 +50,8 @@ suite('File Service 2', () => {
 		await service.activateProvider('test');
 		assert.equal(callCount, 2); // activation is called again
 
-		assert.equal(await service.hasCapability(resource, FileSystemProviderCapabilities.Readonly), true);
-		assert.equal(await service.hasCapability(resource, FileSystemProviderCapabilities.FileOpenReadWriteClose), false);
+		assert.equal(service.hasCapability(resource, FileSystemProviderCapabilities.Readonly), true);
+		assert.equal(service.hasCapability(resource, FileSystemProviderCapabilities.FileOpenReadWriteClose), false);
 
 		registrationDisposable!.dispose();
 

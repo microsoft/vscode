@@ -116,10 +116,10 @@ export class FileService2 extends Disposable implements IFileService {
 		return this.provider.has(resource.scheme);
 	}
 
-	async hasCapability(resource: URI, capability: FileSystemProviderCapabilities): Promise<boolean> {
-		const provider = await this.withProvider(resource);
+	hasCapability(resource: URI, capability: FileSystemProviderCapabilities): boolean {
+		const provider = this.provider.get(resource.scheme);
 
-		return !!(provider.capabilities & capability);
+		return !!(provider && (provider.capabilities & capability));
 	}
 
 	private async withProvider(resource: URI): Promise<IFileSystemProvider> {

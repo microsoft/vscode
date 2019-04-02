@@ -60,7 +60,7 @@ export interface IFileService {
 	/**
 	 * Checks if the provider for the provided resource has the provided file system capability.
 	 */
-	hasCapability(resource: URI, capability: FileSystemProviderCapabilities): Promise<boolean>;
+	hasCapability(resource: URI, capability: FileSystemProviderCapabilities): boolean;
 
 	//#endregion
 
