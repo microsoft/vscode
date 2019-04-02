@@ -81,6 +81,7 @@ import { URLService } from 'vs/platform/url/common/urlService';
 import { WorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { nodeWebSocketFactory } from 'vs/platform/remote/node/nodeWebSocketFactory';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 export class CodeApplication extends Disposable {
 
@@ -763,8 +764,8 @@ export class CodeApplication extends Disposable {
 					const channel = rawClient.getChannel(REMOTE_FILE_SYSTEM_CHANNEL_NAME);
 
 					// TODO@alex don't use call directly, wrap it around a `RemoteExtensionsFileSystemProvider`
-					const fileContents = await channel.call<Uint8Array>('readFile', [uri]);
-					callback(Buffer.from(fileContents));
+					const fileContents = await channel.call<VSBuffer>('readFile', [uri]);
+					callback(<Buffer>fileContents.buffer);
 				} else {
 					callback(undefined);
 				}
