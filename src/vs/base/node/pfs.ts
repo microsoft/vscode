@@ -15,7 +15,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { isRootOrDriveLetter } from 'vs/base/common/extpath';
 import { generateUuid } from 'vs/base/common/uuid';
 import { normalizeNFC } from 'vs/base/common/normalization';
-import { toDisposable, Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { toDisposable, IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { encode, encodeStream } from 'vs/base/node/encoding';
 
 export enum RimRafMode {
@@ -674,6 +674,7 @@ export async function mkdirp(path: string, mode?: number, token?: CancellationTo
 }
 
 export function watchNonRecursive(file: { path: string, isDirectory: boolean }, onChange: (type: 'change' | 'delete', path: string) => void, onError: (error: string) => void): IDisposable {
+	let disposed = false;
 	let watcherDisposable: IDisposable = Disposable.None;
 
 	try {
@@ -685,9 +686,16 @@ export function watchNonRecursive(file: { path: string, isDirectory: boolean }, 
 			watcher.close();
 		});
 
-		watcher.on('error', (code: number, signal: string) => onError(`Failed to watch ${file.path} for changes using fs.watch() (${code}, ${signal})`));
+		watcher.on('error', (code: number, signal: string) => {
+			if (!disposed) {
+				onError(`Failed to watch ${file.path} for changes using fs.watch() (${code}, ${signal})`);
+			}
+		});
 
 		watcher.on('change', (type, raw) => {
+			if (disposed) {
+				return; // ignore if already disposed
+			}
 
 			// Normalize file name
 			let changedFileName: string | undefined;
@@ -704,6 +712,7 @@ export function watchNonRecursive(file: { path: string, isDirectory: boolean }, 
 				return; // ignore unexpected events
 			}
 
+			// File rename/delete
 			if (!file.isDirectory && (type === 'rename' || changedFileName !== originalFileName)) {
 				// The file was either deleted or renamed. Many tools apply changes to files in an
 				// atomic way ("Atomic Save") by first renaming the file to a temporary name and then
@@ -714,15 +723,18 @@ export function watchNonRecursive(file: { path: string, isDirectory: boolean }, 
 				// In addition, we send out a delete event if after a timeout we detect that the file
 				// does indeed not exist anymore.
 
-				// Very important to dispose the watcher which now points to a stale inode
-				dispose(watcherDisposable);
-				watcherDisposable = Disposable.None;
-
 				// Wait a bit and try to install watcher again, assuming that the file was renamed quickly ("Atomic Save")
-				setTimeout(async () => {
+				const timeoutHandle = setTimeout(async () => {
+					const fileExists = await exists(file.path);
 
-					// File still exists, so reapply the watcher
-					if (await exists(file.path)) {
+					if (disposed) {
+						return; // ignore if disposed by now
+					}
+
+					// File still exists, so emit as change event and reapply the watcher
+					if (fileExists) {
+						onChange('change', file.path);
+
 						watcherDisposable = watchNonRecursive(file, onChange, onError);
 					}
 
@@ -731,20 +743,31 @@ export function watchNonRecursive(file: { path: string, isDirectory: boolean }, 
 						onChange('delete', file.path);
 					}
 				}, 300);
+
+				// Very important to dispose the watcher which now points to a stale inode
+				// and wire in a new disposable that tracks our timeout that is installed
+				dispose(watcherDisposable);
+				watcherDisposable = toDisposable(() => clearTimeout(timeoutHandle));
 			}
 
-			// Send as event
-			// File: use the path directly in the event
-			// Folder: join the given file name with the parent path
-			onChange('change', file.isDirectory ? join(file.path, changedFileName) : file.path);
+			// Other events
+			else {
+				// Send as event
+				// File: use the path directly in the event
+				// Folder: join the given file name with the parent path
+				onChange('change', file.isDirectory ? join(file.path, changedFileName) : file.path);
+			}
 		});
 	} catch (error) {
 		fs.exists(file.path, exists => {
-			if (exists) {
+			if (exists && !disposed) {
 				onError(`Failed to watch ${file.path} for changes using fs.watch() (${error.toString()})`);
 			}
 		});
 	}
 
-	return toDisposable(() => dispose(watcherDisposable));
+	return toDisposable(() => {
+		disposed = true;
+		dispose(watcherDisposable);
+	});
 }
