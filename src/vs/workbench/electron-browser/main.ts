@@ -50,6 +50,9 @@ import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME, RemoteExtensionsFileSystemProvider } from 'vs/platform/remote/common/remoteAgentFileSystemChannel';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { DefaultConfigurationExportHelper } from 'vs/workbench/services/configuration/node/configurationExportHelper';
+import { HashService } from 'vs/workbench/services/hash/node/hashService';
+import { IHashService } from 'vs/workbench/services/hash/common/hashService';
+import { ConfigurationCache } from 'vs/workbench/services/configuration/node/configurationCache';
 
 class CodeRendererMain extends Disposable {
 
@@ -198,8 +201,12 @@ class CodeRendererMain extends Disposable {
 			fileService.registerProvider(REMOTE_HOST_SCHEME, new RemoteExtensionsFileSystemProvider(channel, remoteAgentService.getEnvironment()));
 		}
 
+		// Hash Service
+		const hashService = new HashService();
+		serviceCollection.set(IHashService, hashService);
+
 		return this.resolveWorkspaceInitializationPayload(environmentService).then(payload => Promise.all([
-			this.createWorkspaceService(payload, environmentService, remoteAgentService, logService).then(service => {
+			this.createWorkspaceService(payload, environmentService, hashService, remoteAgentService, logService).then(service => {
 
 				// Workspace
 				serviceCollection.set(IWorkspaceContextService, service);
@@ -290,8 +297,8 @@ class CodeRendererMain extends Disposable {
 		}, error => onUnexpectedError(error));
 	}
 
-	private createWorkspaceService(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService, remoteAgentService: IRemoteAgentService, logService: ILogService): Promise<WorkspaceService> {
-		const workspaceService = new WorkspaceService(this.configuration, environmentService, remoteAgentService);
+	private createWorkspaceService(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService, hashService: IHashService, remoteAgentService: IRemoteAgentService, logService: ILogService): Promise<WorkspaceService> {
+		const workspaceService = new WorkspaceService({ userSettingsPath: environmentService.appSettingsPath, remoteAuthority: this.configuration.remoteAuthority, configurationCache: new ConfigurationCache(environmentService) }, hashService, remoteAgentService);
 
 		return workspaceService.initialize(payload).then(() => workspaceService, error => {
 			onUnexpectedError(error);

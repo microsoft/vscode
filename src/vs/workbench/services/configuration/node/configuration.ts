@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { createHash } from 'crypto';
 import * as resources from 'vs/base/common/resources';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as pfs from 'vs/base/node/pfs';
@@ -15,7 +14,7 @@ import { RunOnceScheduler, Delayer } from 'vs/base/common/async';
 import { FileChangeType, FileChangesEvent, IContent, IFileService } from 'vs/platform/files/common/files';
 import { ConfigurationModel, ConfigurationModelParser } from 'vs/platform/configuration/common/configurationModels';
 import { WorkspaceConfigurationModelParser, FolderSettingsModelParser, StandaloneConfigurationModelParser } from 'vs/workbench/services/configuration/common/configurationModels';
-import { FOLDER_SETTINGS_PATH, TASKS_CONFIGURATION_KEY, FOLDER_SETTINGS_NAME, LAUNCH_CONFIGURATION_KEY } from 'vs/workbench/services/configuration/common/configuration';
+import { FOLDER_SETTINGS_PATH, TASKS_CONFIGURATION_KEY, FOLDER_SETTINGS_NAME, LAUNCH_CONFIGURATION_KEY, IConfigurationCache, ConfigurationKey } from 'vs/workbench/services/configuration/common/configuration';
 import { IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import { JSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditingService';
 import { WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -23,9 +22,9 @@ import { ConfigurationScope } from 'vs/platform/configuration/common/configurati
 import { extname, join } from 'vs/base/common/path';
 import { equals } from 'vs/base/common/objects';
 import { Schemas } from 'vs/base/common/network';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationModel, compare } from 'vs/platform/configuration/common/configuration';
 import { NodeBasedUserConfiguration } from 'vs/platform/configuration/node/configuration';
+import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 
 export class LocalUserConfiguration extends Disposable {
 
@@ -37,12 +36,11 @@ export class LocalUserConfiguration extends Disposable {
 	public readonly onDidChangeConfiguration: Event<ConfigurationModel> = this._onDidChangeConfiguration.event;
 
 	constructor(
-		environmentService: IEnvironmentService
+		userSettingsPath: string
 	) {
 		super();
-		this.userConfigurationResource = URI.file(environmentService.appSettingsPath);
-		this.userConfiguration = this._register(new NodeBasedUserConfiguration(environmentService.appSettingsPath));
-		this.changeDisposable = this._register(this.userConfiguration.onDidChangeConfiguration(configurationModel => this._onDidChangeConfiguration.fire(configurationModel)));
+		this.userConfigurationResource = URI.file(userSettingsPath);
+		this.userConfiguration = this._register(new NodeBasedUserConfiguration(userSettingsPath));
 	}
 
 	initialize(): Promise<ConfigurationModel> {
@@ -74,10 +72,10 @@ export class RemoteUserConfiguration extends Disposable {
 
 	constructor(
 		remoteAuthority: string,
-		environmentService: IEnvironmentService
+		configurationCache: IConfigurationCache
 	) {
 		super();
-		this._userConfiguration = this._cachedConfiguration = new CachedUserConfiguration(remoteAuthority, environmentService);
+		this._userConfiguration = this._cachedConfiguration = new CachedUserConfiguration(remoteAuthority, configurationCache);
 	}
 
 	initialize(): Promise<ConfigurationModel> {
@@ -236,17 +234,15 @@ class CachedUserConfiguration extends Disposable {
 	private readonly _onDidChange: Emitter<ConfigurationModel> = this._register(new Emitter<ConfigurationModel>());
 	readonly onDidChange: Event<ConfigurationModel> = this._onDidChange.event;
 
-	private readonly cachedFolderPath: string;
-	private readonly cachedConfigurationPath: string;
+	private readonly key: ConfigurationKey;
 	private configurationModel: ConfigurationModel;
 
 	constructor(
 		remoteAuthority: string,
-		private environmentService: IEnvironmentService
+		private readonly configurationCache: IConfigurationCache
 	) {
 		super();
-		this.cachedFolderPath = join(this.environmentService.userDataPath, 'CachedConfigurations', 'user', remoteAuthority);
-		this.cachedConfigurationPath = join(this.cachedFolderPath, 'configuration.json');
+		this.key = { type: 'user', key: remoteAuthority };
 		this.configurationModel = new ConfigurationModel();
 	}
 
@@ -258,33 +254,22 @@ class CachedUserConfiguration extends Disposable {
 		return this.reload();
 	}
 
-	reload(): Promise<ConfigurationModel> {
-		return pfs.readFile(this.cachedConfigurationPath)
-			.then(content => content.toString(), () => '')
-			.then(content => {
-				try {
-					const parsed: IConfigurationModel = JSON.parse(content);
-					this.configurationModel = new ConfigurationModel(parsed.contents, parsed.keys, parsed.overrides);
-				} catch (e) {
-				}
-				return this.configurationModel;
-			});
+	async reload(): Promise<ConfigurationModel> {
+		const content = await this.configurationCache.read(this.key);
+		try {
+			const parsed: IConfigurationModel = JSON.parse(content);
+			this.configurationModel = new ConfigurationModel(parsed.contents, parsed.keys, parsed.overrides);
+		} catch (e) {
+		}
+		return this.configurationModel;
 	}
 
 	updateConfiguration(configurationModel: ConfigurationModel): Promise<void> {
-		const raw = JSON.stringify(configurationModel.toJSON());
-		return this.createCachedFolder().then(created => {
-			if (created) {
-				return configurationModel.keys.length ? pfs.writeFile(this.cachedConfigurationPath, raw) : pfs.rimraf(this.cachedFolderPath);
-			}
-			return undefined;
-		});
-	}
-
-	private createCachedFolder(): Promise<boolean> {
-		return Promise.resolve(pfs.exists(this.cachedFolderPath))
-			.then(undefined, () => false)
-			.then(exists => exists ? exists : pfs.mkdirp(this.cachedFolderPath).then(() => true, () => false));
+		if (configurationModel.keys.length) {
+			return this.configurationCache.write(this.key, JSON.stringify(configurationModel.toJSON()));
+		} else {
+			return this.configurationCache.remove(this.key);
+		}
 	}
 }
 
@@ -304,10 +289,10 @@ export class WorkspaceConfiguration extends Disposable {
 	public readonly onDidUpdateConfiguration: Event<void> = this._onDidUpdateConfiguration.event;
 
 	constructor(
-		environmentService: IEnvironmentService
+		configurationCache: IConfigurationCache
 	) {
 		super();
-		this._cachedConfiguration = new CachedWorkspaceConfiguration(environmentService);
+		this._cachedConfiguration = new CachedWorkspaceConfiguration(configurationCache);
 		this._workspaceConfiguration = this._cachedConfiguration;
 	}
 
@@ -537,25 +522,24 @@ class CachedWorkspaceConfiguration extends Disposable implements IWorkspaceConfi
 	private readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
-	private cachedWorkspacePath: string;
-	private cachedConfigurationPath: string;
 	workspaceConfigurationModelParser: WorkspaceConfigurationModelParser;
 	workspaceSettings: ConfigurationModel;
 
-	constructor(private environmentService: IEnvironmentService) {
+	constructor(private readonly configurationCache: IConfigurationCache) {
 		super();
 		this.workspaceConfigurationModelParser = new WorkspaceConfigurationModelParser('');
 		this.workspaceSettings = new ConfigurationModel();
 	}
 
-	load(workspaceIdentifier: IWorkspaceIdentifier): Promise<void> {
-		this.createPaths(workspaceIdentifier);
-		return pfs.readFile(this.cachedConfigurationPath)
-			.then(contents => {
-				this.workspaceConfigurationModelParser = new WorkspaceConfigurationModelParser(this.cachedConfigurationPath);
-				this.workspaceConfigurationModelParser.parse(contents.toString());
-				this.workspaceSettings = this.workspaceConfigurationModelParser.settingsModel.merge(this.workspaceConfigurationModelParser.launchModel);
-			}, () => { });
+	async load(workspaceIdentifier: IWorkspaceIdentifier): Promise<void> {
+		try {
+			const key = this.getKey(workspaceIdentifier);
+			const contents = await this.configurationCache.read(key);
+			this.workspaceConfigurationModelParser = new WorkspaceConfigurationModelParser(key.key);
+			this.workspaceConfigurationModelParser.parse(contents);
+			this.workspaceSettings = this.workspaceConfigurationModelParser.settingsModel.merge(this.workspaceConfigurationModelParser.launchModel);
+		} catch (e) {
+		}
 	}
 
 	get workspaceIdentifier(): IWorkspaceIdentifier | null {
@@ -580,25 +564,21 @@ class CachedWorkspaceConfiguration extends Disposable implements IWorkspaceConfi
 
 	async updateWorkspace(workspaceIdentifier: IWorkspaceIdentifier, configurationModel: ConfigurationModel): Promise<void> {
 		try {
-			this.createPaths(workspaceIdentifier);
+			const key = this.getKey(workspaceIdentifier);
 			if (configurationModel.keys.length) {
-				const exists = await pfs.exists(this.cachedWorkspacePath);
-				if (!exists) {
-					await pfs.mkdirp(this.cachedWorkspacePath);
-				}
-				const raw = JSON.stringify(configurationModel.toJSON().contents);
-				await pfs.writeFile(this.cachedConfigurationPath, raw);
+				await this.configurationCache.write(key, JSON.stringify(configurationModel.toJSON().contents));
 			} else {
-				pfs.rimraf(this.cachedWorkspacePath);
+				await this.configurationCache.remove(key);
 			}
 		} catch (error) {
-			errors.onUnexpectedError(error);
 		}
 	}
 
-	private createPaths(workspaceIdentifier: IWorkspaceIdentifier) {
-		this.cachedWorkspacePath = join(this.environmentService.userDataPath, 'CachedConfigurations', 'workspaces', workspaceIdentifier.id);
-		this.cachedConfigurationPath = join(this.cachedWorkspacePath, 'workspace.json');
+	private getKey(workspaceIdentifier: IWorkspaceIdentifier): ConfigurationKey {
+		return {
+			type: 'workspaces',
+			key: workspaceIdentifier.id
+		};
 	}
 }
 
@@ -822,45 +802,45 @@ export class FileServiceBasedFolderConfiguration extends AbstractFolderConfigura
 	}
 }
 
-export class CachedFolderConfiguration extends Disposable implements IFolderConfiguration {
+class CachedFolderConfiguration extends Disposable implements IFolderConfiguration {
 
 	private readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
-	private readonly cachedFolderPath: string;
-	private readonly cachedConfigurationPath: string;
 	private configurationModel: ConfigurationModel;
-
+	private readonly key: Thenable<ConfigurationKey>;
 	loaded: boolean = false;
 
 	constructor(
 		folder: URI,
 		configFolderRelativePath: string,
-		environmentService: IEnvironmentService) {
+		hashService: IHashService,
+		private readonly configurationCache: IConfigurationCache
+	) {
 		super();
-		this.cachedFolderPath = join(environmentService.userDataPath, 'CachedConfigurations', 'folders', createHash('md5').update(join(folder.path, configFolderRelativePath)).digest('hex'));
-		this.cachedConfigurationPath = join(this.cachedFolderPath, 'configuration.json');
+		this.key = hashService.createSHA1(join(folder.path, configFolderRelativePath)).then(key => (<ConfigurationKey>{ type: 'folder', key }));
 		this.configurationModel = new ConfigurationModel();
 	}
 
-	loadConfiguration(): Promise<ConfigurationModel> {
-		return pfs.readFile(this.cachedConfigurationPath)
-			.then(contents => {
-				const parsed: IConfigurationModel = JSON.parse(contents.toString());
-				this.configurationModel = new ConfigurationModel(parsed.contents, parsed.keys, parsed.overrides);
-				this.loaded = true;
-				return this.configurationModel;
-			}, () => this.configurationModel);
+	async loadConfiguration(): Promise<ConfigurationModel> {
+		try {
+			const key = await this.key;
+			const contents = await this.configurationCache.read(key);
+			const parsed: IConfigurationModel = JSON.parse(contents.toString());
+			this.configurationModel = new ConfigurationModel(parsed.contents, parsed.keys, parsed.overrides);
+			this.loaded = true;
+		} catch (e) {
+		}
+		return this.configurationModel;
 	}
 
-	updateConfiguration(configurationModel: ConfigurationModel): Promise<void> {
-		const raw = JSON.stringify(configurationModel.toJSON());
-		return this.createCachedFolder().then(created => {
-			if (created) {
-				return configurationModel.keys.length ? pfs.writeFile(this.cachedConfigurationPath, raw) : pfs.rimraf(this.cachedFolderPath);
-			}
-			return undefined;
-		});
+	async updateConfiguration(configurationModel: ConfigurationModel): Promise<void> {
+		const key = await this.key;
+		if (configurationModel.keys.length) {
+			await this.configurationCache.write(key, JSON.stringify(configurationModel.toJSON()));
+		} else {
+			await this.configurationCache.remove(key);
+		}
 	}
 
 	reprocess(): ConfigurationModel {
@@ -869,12 +849,6 @@ export class CachedFolderConfiguration extends Disposable implements IFolderConf
 
 	getUnsupportedKeys(): string[] {
 		return [];
-	}
-
-	private createCachedFolder(): Promise<boolean> {
-		return Promise.resolve(pfs.exists(this.cachedFolderPath))
-			.then(undefined, () => false)
-			.then(exists => exists ? exists : pfs.mkdirp(this.cachedFolderPath).then(() => true, () => false));
 	}
 }
 
@@ -891,12 +865,13 @@ export class FolderConfiguration extends Disposable implements IFolderConfigurat
 		readonly workspaceFolder: IWorkspaceFolder,
 		private readonly configFolderRelativePath: string,
 		private readonly workbenchState: WorkbenchState,
-		private environmentService: IEnvironmentService,
+		hashService: IHashService,
+		configurationCache: IConfigurationCache,
 		fileService?: IFileService
 	) {
 		super();
 
-		this.cachedFolderConfiguration = new CachedFolderConfiguration(this.workspaceFolder.uri, this.configFolderRelativePath, this.environmentService);
+		this.cachedFolderConfiguration = new CachedFolderConfiguration(this.workspaceFolder.uri, this.configFolderRelativePath, hashService, configurationCache);
 		this.folderConfiguration = this.cachedFolderConfiguration;
 		if (fileService) {
 			this.folderConfiguration = new FileServiceBasedFolderConfiguration(this.workspaceFolder.uri, this.configFolderRelativePath, this.workbenchState, fileService);

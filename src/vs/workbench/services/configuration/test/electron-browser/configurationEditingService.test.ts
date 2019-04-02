@@ -35,10 +35,11 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CommandService } from 'vs/workbench/services/commands/common/commandService';
 import { URI } from 'vs/base/common/uri';
 import { createHash } from 'crypto';
-import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
+import { HashService } from 'vs/workbench/services/hash/node/hashService';
+import { ConfigurationCache } from 'vs/workbench/services/configuration/node/configurationCache';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 
@@ -105,7 +106,7 @@ suite('ConfigurationEditingService', () => {
 		instantiationService.stub(IEnvironmentService, environmentService);
 		const remoteAgentService = instantiationService.createInstance(RemoteAgentService, {});
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
-		const workspaceService = new WorkspaceService(<IWindowConfiguration>{}, environmentService, remoteAgentService);
+		const workspaceService = new WorkspaceService({ userSettingsPath: environmentService.appSettingsPath, configurationCache: new ConfigurationCache(environmentService) }, new HashService(), remoteAgentService);
 		instantiationService.stub(IWorkspaceContextService, workspaceService);
 		return workspaceService.initialize(noWorkspace ? { id: '' } : { folder: URI.file(workspaceDir), id: createHash('md5').update(URI.file(workspaceDir).toString()).digest('hex') }).then(() => {
 			instantiationService.stub(IConfigurationService, workspaceService);

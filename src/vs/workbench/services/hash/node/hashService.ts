@@ -5,7 +5,6 @@
 
 import { createHash } from 'crypto';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class HashService implements IHashService {
 
@@ -15,5 +14,3 @@ export class HashService implements IHashService {
 		return Promise.resolve(createHash('sha1').update(content).digest('hex'));
 	}
 }
-
-registerSingleton(IHashService, HashService, true);

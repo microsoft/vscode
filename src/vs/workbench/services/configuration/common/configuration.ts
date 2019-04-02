@@ -19,3 +19,14 @@ export const LAUNCH_CONFIGURATION_KEY = 'launch';
 export const WORKSPACE_STANDALONE_CONFIGURATIONS = Object.create(null);
 WORKSPACE_STANDALONE_CONFIGURATIONS[TASKS_CONFIGURATION_KEY] = `${FOLDER_CONFIG_FOLDER_NAME}/${TASKS_CONFIGURATION_KEY}.json`;
 WORKSPACE_STANDALONE_CONFIGURATIONS[LAUNCH_CONFIGURATION_KEY] = `${FOLDER_CONFIG_FOLDER_NAME}/${LAUNCH_CONFIGURATION_KEY}.json`;
+
+
+export type ConfigurationKey = { type: 'user' | 'workspaces' | 'folder', key: string };
+
+export interface IConfigurationCache {
+
+	read(key: ConfigurationKey): Promise<string>;
+	write(key: ConfigurationKey, content: string): Promise<void>;
+	remove(key: ConfigurationKey): Promise<void>;
+
+}
