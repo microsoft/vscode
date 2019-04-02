@@ -62,6 +62,8 @@ export const PASTE_FILE_LABEL = nls.localize('pasteFile', "Paste");
 
 export const FileCopiedContext = new RawContextKey<boolean>('fileCopied', false);
 
+const CONFIRM_DELETE_SETTING_KEY = 'explorer.confirmDelete';
+
 function onError(notificationService: INotificationService, error: any): void {
 	if (error.message === 'string') {
 		error = error.message;
@@ -153,212 +155,194 @@ export class GlobalNewUntitledFileAction extends Action {
 	}
 }
 
-class BaseDeleteFileAction extends Action {
-
-	private static readonly CONFIRM_DELETE_SETTING_KEY = 'explorer.confirmDelete';
-
-	private skipConfirm: boolean;
-
-	constructor(
-		private elements: ExplorerItem[],
-		private useTrash: boolean,
-		@IFileService private readonly fileService: IFileService,
-		@IDialogService private readonly dialogService: IDialogService,
-		@ITextFileService private readonly textFileService: ITextFileService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
-	) {
-		super('moveFileToTrash', MOVE_FILE_TO_TRASH_LABEL);
-
-		this.useTrash = useTrash && elements.every(e => !extpath.isUNC(e.resource.fsPath)); // on UNC shares there is no trash
-		this.enabled = this.elements && this.elements.every(e => !e.isReadonly);
+function deleteFiles(serviceAccesor: ServicesAccessor, elements: ExplorerItem[], useTrash: boolean, skipConfirm = false): Promise<void> {
+	let primaryButton: string;
+	if (useTrash) {
+		primaryButton = isWindows ? nls.localize('deleteButtonLabelRecycleBin', "&&Move to Recycle Bin") : nls.localize({ key: 'deleteButtonLabelTrash', comment: ['&& denotes a mnemonic'] }, "&&Move to Trash");
+	} else {
+		primaryButton = nls.localize({ key: 'deleteButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Delete");
 	}
 
-	public run(): Promise<any> {
+	const distinctElements = resources.distinctParents(elements, e => e.resource);
+	const textFileService = serviceAccesor.get(ITextFileService);
+	const dialogService = serviceAccesor.get(IDialogService);
+	const configurationService = serviceAccesor.get(IConfigurationService);
+	const fileService = serviceAccesor.get(IFileService);
 
-		let primaryButton: string;
-		if (this.useTrash) {
-			primaryButton = isWindows ? nls.localize('deleteButtonLabelRecycleBin', "&&Move to Recycle Bin") : nls.localize({ key: 'deleteButtonLabelTrash', comment: ['&& denotes a mnemonic'] }, "&&Move to Trash");
-		} else {
-			primaryButton = nls.localize({ key: 'deleteButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Delete");
-		}
-
-		const distinctElements = resources.distinctParents(this.elements, e => e.resource);
-
-		// Handle dirty
-		let confirmDirtyPromise: Promise<boolean> = Promise.resolve(true);
-		const dirty = this.textFileService.getDirty().filter(d => distinctElements.some(e => resources.isEqualOrParent(d, e.resource, !isLinux /* ignorecase */)));
-		if (dirty.length) {
-			let message: string;
-			if (distinctElements.length > 1) {
-				message = nls.localize('dirtyMessageFilesDelete', "You are deleting files with unsaved changes. Do you want to continue?");
-			} else if (distinctElements[0].isDirectory) {
-				if (dirty.length === 1) {
-					message = nls.localize('dirtyMessageFolderOneDelete', "You are deleting a folder with unsaved changes in 1 file. Do you want to continue?");
-				} else {
-					message = nls.localize('dirtyMessageFolderDelete', "You are deleting a folder with unsaved changes in {0} files. Do you want to continue?", dirty.length);
-				}
+	// Handle dirty
+	let confirmDirtyPromise: Promise<boolean> = Promise.resolve(true);
+	const dirty = textFileService.getDirty().filter(d => distinctElements.some(e => resources.isEqualOrParent(d, e.resource, !isLinux /* ignorecase */)));
+	if (dirty.length) {
+		let message: string;
+		if (distinctElements.length > 1) {
+			message = nls.localize('dirtyMessageFilesDelete', "You are deleting files with unsaved changes. Do you want to continue?");
+		} else if (distinctElements[0].isDirectory) {
+			if (dirty.length === 1) {
+				message = nls.localize('dirtyMessageFolderOneDelete', "You are deleting a folder with unsaved changes in 1 file. Do you want to continue?");
 			} else {
-				message = nls.localize('dirtyMessageFileDelete', "You are deleting a file with unsaved changes. Do you want to continue?");
+				message = nls.localize('dirtyMessageFolderDelete', "You are deleting a folder with unsaved changes in {0} files. Do you want to continue?", dirty.length);
 			}
-
-			confirmDirtyPromise = this.dialogService.confirm({
-				message,
-				type: 'warning',
-				detail: nls.localize('dirtyWarning', "Your changes will be lost if you don't save them."),
-				primaryButton
-			}).then(res => {
-				if (!res.confirmed) {
-					return false;
-				}
-
-				this.skipConfirm = true; // since we already asked for confirmation
-				return this.textFileService.revertAll(dirty).then(() => true);
-			});
+		} else {
+			message = nls.localize('dirtyMessageFileDelete', "You are deleting a file with unsaved changes. Do you want to continue?");
 		}
 
-		// Check if file is dirty in editor and save it to avoid data loss
-		return confirmDirtyPromise.then(confirmed => {
-			if (!confirmed) {
-				return null;
+		confirmDirtyPromise = dialogService.confirm({
+			message,
+			type: 'warning',
+			detail: nls.localize('dirtyWarning', "Your changes will be lost if you don't save them."),
+			primaryButton
+		}).then(res => {
+			if (!res.confirmed) {
+				return false;
 			}
 
-			let confirmDeletePromise: Promise<IConfirmationResult>;
-
-			// Check if we need to ask for confirmation at all
-			if (this.skipConfirm || (this.useTrash && this.configurationService.getValue<boolean>(BaseDeleteFileAction.CONFIRM_DELETE_SETTING_KEY) === false)) {
-				confirmDeletePromise = Promise.resolve({ confirmed: true });
-			}
-
-			// Confirm for moving to trash
-			else if (this.useTrash) {
-				const message = this.getMoveToTrashMessage(distinctElements);
-
-				confirmDeletePromise = this.dialogService.confirm({
-					message,
-					detail: isWindows ? nls.localize('undoBin', "You can restore from the Recycle Bin.") : nls.localize('undoTrash', "You can restore from the Trash."),
-					primaryButton,
-					checkbox: {
-						label: nls.localize('doNotAskAgain', "Do not ask me again")
-					},
-					type: 'question'
-				});
-			}
-
-			// Confirm for deleting permanently
-			else {
-				const message = this.getDeleteMessage(distinctElements);
-				confirmDeletePromise = this.dialogService.confirm({
-					message,
-					detail: nls.localize('irreversible', "This action is irreversible!"),
-					primaryButton,
-					type: 'warning'
-				});
-			}
-
-			return confirmDeletePromise.then(confirmation => {
-
-				// Check for confirmation checkbox
-				let updateConfirmSettingsPromise: Promise<void> = Promise.resolve(undefined);
-				if (confirmation.confirmed && confirmation.checkboxChecked === true) {
-					updateConfirmSettingsPromise = this.configurationService.updateValue(BaseDeleteFileAction.CONFIRM_DELETE_SETTING_KEY, false, ConfigurationTarget.USER);
-				}
-
-				return updateConfirmSettingsPromise.then(() => {
-
-					// Check for confirmation
-					if (!confirmation.confirmed) {
-						return Promise.resolve(null);
-					}
-
-					// Call function
-					const servicePromise = Promise.all(distinctElements.map(e => this.fileService.del(e.resource, { useTrash: this.useTrash, recursive: true })))
-						.then(undefined, (error: any) => {
-							// Handle error to delete file(s) from a modal confirmation dialog
-							let errorMessage: string;
-							let detailMessage: string | undefined;
-							let primaryButton: string;
-							if (this.useTrash) {
-								errorMessage = isWindows ? nls.localize('binFailed', "Failed to delete using the Recycle Bin. Do you want to permanently delete instead?") : nls.localize('trashFailed', "Failed to delete using the Trash. Do you want to permanently delete instead?");
-								detailMessage = nls.localize('irreversible', "This action is irreversible!");
-								primaryButton = nls.localize({ key: 'deletePermanentlyButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Delete Permanently");
-							} else {
-								errorMessage = toErrorMessage(error, false);
-								primaryButton = nls.localize({ key: 'retryButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Retry");
-							}
-
-							return this.dialogService.confirm({
-								message: errorMessage,
-								detail: detailMessage,
-								type: 'warning',
-								primaryButton
-							}).then(res => {
-
-								if (res.confirmed) {
-									if (this.useTrash) {
-										this.useTrash = false; // Delete Permanently
-									}
-
-									this.skipConfirm = true;
-
-									return this.run();
-								}
-
-								return Promise.resolve(undefined);
-							});
-						});
-
-					return servicePromise;
-				});
-			});
+			skipConfirm = true; // since we already asked for confirmation
+			return textFileService.revertAll(dirty).then(() => true);
 		});
 	}
 
-	private getMoveToTrashMessage(distinctElements: ExplorerItem[]): string {
-		if (this.containsBothDirectoryAndFile(distinctElements)) {
-			return getConfirmMessage(nls.localize('confirmMoveTrashMessageFilesAndDirectories', "Are you sure you want to delete the following {0} files/directories and their contents?", distinctElements.length), distinctElements.map(e => e.resource));
+	// Check if file is dirty in editor and save it to avoid data loss
+	return confirmDirtyPromise.then(confirmed => {
+		if (!confirmed) {
+			return undefined;
 		}
 
-		if (distinctElements.length > 1) {
-			if (distinctElements[0].isDirectory) {
-				return getConfirmMessage(nls.localize('confirmMoveTrashMessageMultipleDirectories', "Are you sure you want to delete the following {0} directories and their contents?", distinctElements.length), distinctElements.map(e => e.resource));
+		let confirmDeletePromise: Promise<IConfirmationResult>;
+
+		// Check if we need to ask for confirmation at all
+		if (skipConfirm || (useTrash && configurationService.getValue<boolean>(CONFIRM_DELETE_SETTING_KEY) === false)) {
+			confirmDeletePromise = Promise.resolve({ confirmed: true });
+		}
+
+		// Confirm for moving to trash
+		else if (useTrash) {
+			const message = getMoveToTrashMessage(distinctElements);
+
+			confirmDeletePromise = dialogService.confirm({
+				message,
+				detail: isWindows ? nls.localize('undoBin', "You can restore from the Recycle Bin.") : nls.localize('undoTrash', "You can restore from the Trash."),
+				primaryButton,
+				checkbox: {
+					label: nls.localize('doNotAskAgain', "Do not ask me again")
+				},
+				type: 'question'
+			});
+		}
+
+		// Confirm for deleting permanently
+		else {
+			const message = getDeleteMessage(distinctElements);
+			confirmDeletePromise = dialogService.confirm({
+				message,
+				detail: nls.localize('irreversible', "This action is irreversible!"),
+				primaryButton,
+				type: 'warning'
+			});
+		}
+
+		return confirmDeletePromise.then(confirmation => {
+
+			// Check for confirmation checkbox
+			let updateConfirmSettingsPromise: Promise<void> = Promise.resolve(undefined);
+			if (confirmation.confirmed && confirmation.checkboxChecked === true) {
+				updateConfirmSettingsPromise = configurationService.updateValue(CONFIRM_DELETE_SETTING_KEY, false, ConfigurationTarget.USER);
 			}
 
-			return getConfirmMessage(nls.localize('confirmMoveTrashMessageMultiple', "Are you sure you want to delete the following {0} files?", distinctElements.length), distinctElements.map(e => e.resource));
-		}
+			return updateConfirmSettingsPromise.then(() => {
 
+				// Check for confirmation
+				if (!confirmation.confirmed) {
+					return Promise.resolve(undefined);
+				}
+
+				// Call function
+				const servicePromise = Promise.all(distinctElements.map(e => fileService.del(e.resource, { useTrash: useTrash, recursive: true })))
+					.then(undefined, (error: any) => {
+						// Handle error to delete file(s) from a modal confirmation dialog
+						let errorMessage: string;
+						let detailMessage: string | undefined;
+						let primaryButton: string;
+						if (useTrash) {
+							errorMessage = isWindows ? nls.localize('binFailed', "Failed to delete using the Recycle Bin. Do you want to permanently delete instead?") : nls.localize('trashFailed', "Failed to delete using the Trash. Do you want to permanently delete instead?");
+							detailMessage = nls.localize('irreversible', "This action is irreversible!");
+							primaryButton = nls.localize({ key: 'deletePermanentlyButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Delete Permanently");
+						} else {
+							errorMessage = toErrorMessage(error, false);
+							primaryButton = nls.localize({ key: 'retryButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Retry");
+						}
+
+						return dialogService.confirm({
+							message: errorMessage,
+							detail: detailMessage,
+							type: 'warning',
+							primaryButton
+						}).then(res => {
+
+							if (res.confirmed) {
+								if (useTrash) {
+									useTrash = false; // Delete Permanently
+								}
+
+								skipConfirm = true;
+
+								return deleteFiles(serviceAccesor, elements, useTrash, skipConfirm);
+							}
+
+							return Promise.resolve();
+						});
+					});
+
+				return servicePromise;
+			});
+		});
+	});
+}
+
+function getMoveToTrashMessage(distinctElements: ExplorerItem[]): string {
+	if (containsBothDirectoryAndFile(distinctElements)) {
+		return getConfirmMessage(nls.localize('confirmMoveTrashMessageFilesAndDirectories', "Are you sure you want to delete the following {0} files/directories and their contents?", distinctElements.length), distinctElements.map(e => e.resource));
+	}
+
+	if (distinctElements.length > 1) {
 		if (distinctElements[0].isDirectory) {
-			return nls.localize('confirmMoveTrashMessageFolder', "Are you sure you want to delete '{0}' and its contents?", distinctElements[0].name);
+			return getConfirmMessage(nls.localize('confirmMoveTrashMessageMultipleDirectories', "Are you sure you want to delete the following {0} directories and their contents?", distinctElements.length), distinctElements.map(e => e.resource));
 		}
 
-		return nls.localize('confirmMoveTrashMessageFile', "Are you sure you want to delete '{0}'?", distinctElements[0].name);
+		return getConfirmMessage(nls.localize('confirmMoveTrashMessageMultiple', "Are you sure you want to delete the following {0} files?", distinctElements.length), distinctElements.map(e => e.resource));
 	}
 
-	private getDeleteMessage(distinctElements: ExplorerItem[]): string {
-		if (this.containsBothDirectoryAndFile(distinctElements)) {
-			return getConfirmMessage(nls.localize('confirmDeleteMessageFilesAndDirectories', "Are you sure you want to permanently delete the following {0} files/directories and their contents?", distinctElements.length), distinctElements.map(e => e.resource));
-		}
+	if (distinctElements[0].isDirectory) {
+		return nls.localize('confirmMoveTrashMessageFolder', "Are you sure you want to delete '{0}' and its contents?", distinctElements[0].name);
+	}
 
-		if (distinctElements.length > 1) {
-			if (distinctElements[0].isDirectory) {
-				return getConfirmMessage(nls.localize('confirmDeleteMessageMultipleDirectories', "Are you sure you want to permanently delete the following {0} directories and their contents?", distinctElements.length), distinctElements.map(e => e.resource));
-			}
+	return nls.localize('confirmMoveTrashMessageFile', "Are you sure you want to delete '{0}'?", distinctElements[0].name);
+}
 
-			return getConfirmMessage(nls.localize('confirmDeleteMessageMultiple', "Are you sure you want to permanently delete the following {0} files?", distinctElements.length), distinctElements.map(e => e.resource));
-		}
+function getDeleteMessage(distinctElements: ExplorerItem[]): string {
+	if (containsBothDirectoryAndFile(distinctElements)) {
+		return getConfirmMessage(nls.localize('confirmDeleteMessageFilesAndDirectories', "Are you sure you want to permanently delete the following {0} files/directories and their contents?", distinctElements.length), distinctElements.map(e => e.resource));
+	}
 
+	if (distinctElements.length > 1) {
 		if (distinctElements[0].isDirectory) {
-			return nls.localize('confirmDeleteMessageFolder', "Are you sure you want to permanently delete '{0}' and its contents?", distinctElements[0].name);
+			return getConfirmMessage(nls.localize('confirmDeleteMessageMultipleDirectories', "Are you sure you want to permanently delete the following {0} directories and their contents?", distinctElements.length), distinctElements.map(e => e.resource));
 		}
 
-		return nls.localize('confirmDeleteMessageFile', "Are you sure you want to permanently delete '{0}'?", distinctElements[0].name);
+		return getConfirmMessage(nls.localize('confirmDeleteMessageMultiple', "Are you sure you want to permanently delete the following {0} files?", distinctElements.length), distinctElements.map(e => e.resource));
 	}
 
-	private containsBothDirectoryAndFile(distinctElements: ExplorerItem[]): boolean {
-		const directories = distinctElements.filter(element => element.isDirectory);
-		const files = distinctElements.filter(element => !element.isDirectory);
-
-		return directories.length > 0 && files.length > 0;
+	if (distinctElements[0].isDirectory) {
+		return nls.localize('confirmDeleteMessageFolder', "Are you sure you want to permanently delete '{0}' and its contents?", distinctElements[0].name);
 	}
+
+	return nls.localize('confirmDeleteMessageFile', "Are you sure you want to permanently delete '{0}'?", distinctElements[0].name);
+}
+
+function containsBothDirectoryAndFile(distinctElements: ExplorerItem[]): boolean {
+	const directories = distinctElements.filter(element => element.isDirectory);
+	const files = distinctElements.filter(element => !element.isDirectory);
+
+	return directories.length > 0 && files.length > 0;
 }
 
 let pasteShouldMove = false;
@@ -1064,29 +1048,25 @@ export const renameHandler = (accessor: ServicesAccessor) => {
 };
 
 export const moveFileToTrashHandler = (accessor: ServicesAccessor) => {
-	const instantiationService = accessor.get(IInstantiationService);
 	const listService = accessor.get(IListService);
 	if (!listService.lastFocusedList) {
 		return Promise.resolve();
 	}
 	const explorerContext = getContext(listService.lastFocusedList);
-	const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
+	const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat!];
 
-	const moveFileToTrashAction = instantiationService.createInstance(BaseDeleteFileAction, stats, true);
-	return moveFileToTrashAction.run();
+	return deleteFiles(accessor, stats, true);
 };
 
 export const deleteFileHandler = (accessor: ServicesAccessor) => {
-	const instantiationService = accessor.get(IInstantiationService);
 	const listService = accessor.get(IListService);
 	if (!listService.lastFocusedList) {
 		return Promise.resolve();
 	}
 	const explorerContext = getContext(listService.lastFocusedList);
-	const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
+	const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat!];
 
-	const deleteFileAction = instantiationService.createInstance(BaseDeleteFileAction, stats, false);
-	return deleteFileAction.run();
+	return deleteFiles(accessor, stats, false);
 };
 
 export const copyFileHandler = (accessor: ServicesAccessor) => {
