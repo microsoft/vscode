@@ -10,12 +10,8 @@ import { URI } from 'vs/base/common/uri';
 import { IDecodeStreamOptions, toDecodeStream, encodeStream } from 'vs/base/node/encoding';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FileWriteOptions, FileSystemProviderCapabilities, IContent, ICreateFileOptions, IFileSystemProvider, IResolveContentOptions, IStreamContent, ITextSnapshot, IUpdateContentOptions, StringSnapshot, ILegacyFileService, IFileService, toFileOperationResult, IFileStatWithMetadata } from 'vs/platform/files/common/files';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
 import { createReadableOfProvider, createReadableOfSnapshot, createWritableOfProvider } from 'vs/workbench/services/files/node/streams';
@@ -27,23 +23,15 @@ export class RemoteFileService extends FileService {
 
 	constructor(
 		@IFileService fileService: IFileService,
-		@IStorageService storageService: IStorageService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@ILifecycleService lifecycleService: ILifecycleService,
-		@INotificationService notificationService: INotificationService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 	) {
 		super(
 			fileService,
 			contextService,
 			environmentService,
-			textResourceConfigurationService,
-			configurationService,
-			lifecycleService,
-			storageService,
-			notificationService
+			textResourceConfigurationService
 		);
 
 		this._provider = new Map<string, IFileSystemProvider>();

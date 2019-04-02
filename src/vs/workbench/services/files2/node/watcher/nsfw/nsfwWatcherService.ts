@@ -9,7 +9,7 @@ import * as path from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
 import { IDiskFileChange, normalizeFileChanges } from 'vs/workbench/services/files2/node/watcher/normalizer';
 import * as nsfw from 'vscode-nsfw';
-import { IWatcherService, IWatcherRequest, IWatcherOptions, IWatchError } from 'vs/workbench/services/files/node/watcher/nsfw/watcher';
+import { IWatcherService, IWatcherRequest, IWatcherOptions, IWatchError } from 'vs/workbench/services/files2/node/watcher/nsfw/watcher';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { normalizeNFC } from 'vs/base/common/normalization';

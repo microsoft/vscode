@@ -26,7 +26,6 @@ export class FileService2 extends Disposable implements IFileService {
 	setLegacyService(legacy: ILegacyFileService): void {
 		this._legacy = this._register(legacy);
 
-		this._register(legacy.onFileChanges(e => this._onFileChanges.fire(e)));
 		this._register(legacy.onAfterOperation(e => this._onAfterOperation.fire(e)));
 
 		this.provider.forEach((provider, scheme) => {
@@ -74,15 +73,19 @@ export class FileService2 extends Disposable implements IFileService {
 		this.provider.set(scheme, provider);
 		this._onDidChangeFileSystemProviderRegistrations.fire({ added: true, scheme, provider });
 
-		// Forward change events from provider
-		const providerFileListener = provider.onDidChangeFile(changes => this._onFileChanges.fire(new FileChangesEvent(changes)));
+		// Forward events from provider
+		const providerDisposable: IDisposable[] = [];
+		providerDisposable.push(provider.onDidChangeFile(changes => this._onFileChanges.fire(new FileChangesEvent(changes))));
+		if (typeof provider.onDidErrorOccur === 'function') {
+			providerDisposable.push(provider.onDidErrorOccur(error => this._onError.fire(error)));
+		}
 
 		return combinedDisposable([
 			toDisposable(() => {
 				this._onDidChangeFileSystemProviderRegistrations.fire({ added: false, scheme, provider });
 				this.provider.delete(scheme);
 
-				providerFileListener.dispose();
+				dispose(combinedDisposable(providerDisposable));
 			}),
 			legacyDisposal
 		]);
@@ -148,6 +151,9 @@ export class FileService2 extends Disposable implements IFileService {
 
 	private _onAfterOperation: Emitter<FileOperationEvent> = this._register(new Emitter<FileOperationEvent>());
 	get onAfterOperation(): Event<FileOperationEvent> { return this._onAfterOperation.event; }
+
+	private _onError: Emitter<Error> = this._register(new Emitter<Error>());
+	get onError(): Event<Error> { return this._onError.event; }
 
 	//#region File Metadata Resolving
 

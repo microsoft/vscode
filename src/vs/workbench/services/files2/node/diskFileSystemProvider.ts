@@ -18,6 +18,9 @@ import { retry, ThrottledDelayer } from 'vs/base/common/async';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { localize } from 'vs/nls';
 import { IDiskFileChange, normalizeFileChanges, toFileChanges } from 'vs/workbench/services/files2/node/watcher/normalizer';
+import { FileWatcher as UnixWatcherService } from 'vs/workbench/services/files2/node/watcher/unix/watcherService';
+import { FileWatcher as WindowsWatcherService } from 'vs/workbench/services/files2/node/watcher/win32/watcherService';
+import { FileWatcher as NsfwWatcherService } from 'vs/workbench/services/files2/node/watcher/nsfw/watcherService';
 
 export class DiskFileSystemProvider extends Disposable implements IFileSystemProvider {
 
@@ -304,11 +307,17 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 
 	//#region File Watching
 
+	private _onDidErrorOccur: Emitter<Error> = this._register(new Emitter<Error>());
+	get onDidErrorOccur(): Event<Error> { return this._onDidErrorOccur.event; }
+
 	private _onDidChangeFile: Emitter<IFileChange[]> = this._register(new Emitter<IFileChange[]>());
 	get onDidChangeFile(): Event<IFileChange[]> { return this._onDidChangeFile.event; }
 
 	private fileChangesDelayer: ThrottledDelayer<void> = new ThrottledDelayer<void>(50);
 	private fileChangesBuffer: IDiskFileChange[] = [];
+
+	private recursiveWatchRequestDelayer: ThrottledDelayer<void> = new ThrottledDelayer<void>(0);
+	private recursiveWatchRequestBuffer: { path: string, excludes: string[] }[] = [];
 
 	watch(resource: URI, opts: IWatchOptions): IDisposable {
 		if (opts.recursive) {
@@ -319,7 +328,55 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 	}
 
 	private watchRecursive(resource: URI, excludes: string[]): IDisposable {
-		throw new Error('Method not implemented.');
+		let disposed = false;
+		let disposable: IDisposable = toDisposable(() => disposed = true);
+
+		// Buffer requests for recursive watching to decide on right watcher
+		// that supports potentially watching more than one folder at once
+		this.recursiveWatchRequestBuffer.push({ path: this.toFilePath(resource), excludes });
+
+		this.recursiveWatchRequestDelayer.trigger(() => {
+			const buffer = this.recursiveWatchRequestBuffer;
+			this.recursiveWatchRequestBuffer = [];
+
+			if (disposed) {
+				return Promise.resolve();
+			}
+
+			let watcherImpl: {
+				new(
+					folders: { path: string, excludes: string[] }[],
+					onChange: (changes: IDiskFileChange[]) => void,
+					onError: (msg: string) => void,
+					verboseLogging: boolean
+				): WindowsWatcherService | UnixWatcherService | NsfwWatcherService
+			};
+
+			// Single Folder Watcher
+			if (buffer.length === 1) {
+				if (isWindows) {
+					watcherImpl = WindowsWatcherService;
+				} else {
+					watcherImpl = UnixWatcherService;
+				}
+			}
+
+			// Multi Folder Watcher
+			else {
+				watcherImpl = NsfwWatcherService;
+			}
+
+			disposable = new watcherImpl(
+				buffer,
+				event => this._onDidChangeFile.fire(toFileChanges(event)),
+				error => this._onDidErrorOccur.fire(new Error(error)),
+				this.logService.getLevel() === LogLevel.Trace
+			).startWatching();
+
+			return Promise.resolve();
+		});
+
+		return toDisposable(() => dispose(disposable));
 	}
 
 	private watchNonRecursive(resource: URI): IDisposable {

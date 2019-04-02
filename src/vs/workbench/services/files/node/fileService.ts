@@ -7,29 +7,22 @@ import * as paths from 'vs/base/common/path';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as assert from 'assert';
-import { FileOperation, FileOperationEvent, IContent, IResolveContentOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IUpdateContentOptions, FileChangesEvent, ICreateFileOptions, IContentData, ITextSnapshot, IFilesConfiguration, ILegacyFileService, IFileStatWithMetadata, IFileService, IFileSystemProvider, etag } from 'vs/platform/files/common/files';
+import { FileOperation, FileOperationEvent, IContent, IResolveContentOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IUpdateContentOptions, ICreateFileOptions, IContentData, ITextSnapshot, ILegacyFileService, IFileStatWithMetadata, IFileService, IFileSystemProvider, etag } from 'vs/platform/files/common/files';
 import { MAX_FILE_SIZE, MAX_HEAP_SIZE } from 'vs/platform/files/node/fileConstants';
 import * as objects from 'vs/base/common/objects';
 import { timeout } from 'vs/base/common/async';
 import { URI as uri } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
-import { IDisposable, toDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import * as pfs from 'vs/base/node/pfs';
 import { detectEncodingFromBuffer, decodeStream, detectEncodingByBOM, UTF8 } from 'vs/base/node/encoding';
-import { FileWatcher as UnixWatcherService } from 'vs/workbench/services/files/node/watcher/unix/watcherService';
-import { FileWatcher as WindowsWatcherService } from 'vs/workbench/services/files/node/watcher/win32/watcherService';
 import { Event, Emitter } from 'vs/base/common/event';
-import { FileWatcher as NsfwWatcherService } from 'vs/workbench/services/files/node/watcher/nsfw/watcherService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import product from 'vs/platform/product/node/product';
 import { IEncodingOverride, ResourceEncodings } from 'vs/workbench/services/files/node/encoding';
@@ -37,7 +30,6 @@ import { createReadableOfSnapshot } from 'vs/workbench/services/files/node/strea
 import { withUndefinedAsNull } from 'vs/base/common/types';
 
 export interface IFileServiceTestOptions {
-	disableWatcher?: boolean;
 	encodingOverride?: IEncodingOverride[];
 }
 
@@ -45,148 +37,30 @@ export class FileService extends Disposable implements ILegacyFileService {
 
 	_serviceBrand: any;
 
-	private static readonly NET_VERSION_ERROR = 'System.MissingMethodException';
-	private static readonly NET_VERSION_ERROR_IGNORE_KEY = 'ignoreNetVersionError';
-
-	private static readonly ENOSPC_ERROR = 'ENOSPC';
-	private static readonly ENOSPC_ERROR_IGNORE_KEY = 'ignoreEnospcError';
-
-	protected readonly _onFileChanges: Emitter<FileChangesEvent> = this._register(new Emitter<FileChangesEvent>());
-	get onFileChanges(): Event<FileChangesEvent> { return this._onFileChanges.event; }
+	registerProvider(scheme: string, provider: IFileSystemProvider): IDisposable { return Disposable.None; }
 
 	protected readonly _onAfterOperation: Emitter<FileOperationEvent> = this._register(new Emitter<FileOperationEvent>());
 	get onAfterOperation(): Event<FileOperationEvent> { return this._onAfterOperation.event; }
-
-	private activeWorkspaceFileChangeWatcher: IDisposable | null;
 
 	private _encoding: ResourceEncodings;
 
 	constructor(
 		protected fileService: IFileService,
-		private contextService: IWorkspaceContextService,
+		contextService: IWorkspaceContextService,
 		private environmentService: IEnvironmentService,
 		private textResourceConfigurationService: ITextResourceConfigurationService,
-		private configurationService: IConfigurationService,
-		private lifecycleService: ILifecycleService,
-		private storageService: IStorageService,
-		private notificationService: INotificationService,
 		private options: IFileServiceTestOptions = Object.create(null)
 	) {
 		super();
 
 		this._encoding = new ResourceEncodings(textResourceConfigurationService, environmentService, contextService, this.options.encodingOverride);
-
-		this.registerListeners();
 	}
 
 	get encoding(): ResourceEncodings {
 		return this._encoding;
 	}
 
-	private registerListeners(): void {
-
-		// Wait until we are fully running before starting file watchers
-		this.lifecycleService.when(LifecyclePhase.Restored).then(() => {
-			this.setupFileWatching();
-		});
-
-		// Workbench State Change
-		this._register(this.contextService.onDidChangeWorkbenchState(() => {
-			if (this.lifecycleService.phase >= LifecyclePhase.Restored) {
-				this.setupFileWatching();
-			}
-		}));
-
-		// Lifecycle
-		this.lifecycleService.onShutdown(this.dispose, this);
-	}
-
-	private handleError(error: string | Error): void {
-		const msg = error ? error.toString() : undefined;
-		if (!msg) {
-			return;
-		}
-
-		// Forward to unexpected error handler
-		onUnexpectedError(msg);
-
-		// Detect if we run < .NET Framework 4.5 (TODO@ben remove with new watcher impl)
-		if (msg.indexOf(FileService.NET_VERSION_ERROR) >= 0 && !this.storageService.getBoolean(FileService.NET_VERSION_ERROR_IGNORE_KEY, StorageScope.WORKSPACE)) {
-			this.notificationService.prompt(
-				Severity.Warning,
-				nls.localize('netVersionError', "The Microsoft .NET Framework 4.5 is required. Please follow the link to install it."),
-				[{
-					label: nls.localize('installNet', "Download .NET Framework 4.5"),
-					run: () => window.open('https://go.microsoft.com/fwlink/?LinkId=786533')
-				},
-				{
-					label: nls.localize('neverShowAgain', "Don't Show Again"),
-					isSecondary: true,
-					run: () => this.storageService.store(FileService.NET_VERSION_ERROR_IGNORE_KEY, true, StorageScope.WORKSPACE)
-				}],
-				{ sticky: true }
-			);
-		}
-
-		// Detect if we run into ENOSPC issues
-		if (msg.indexOf(FileService.ENOSPC_ERROR) >= 0 && !this.storageService.getBoolean(FileService.ENOSPC_ERROR_IGNORE_KEY, StorageScope.WORKSPACE)) {
-			this.notificationService.prompt(
-				Severity.Warning,
-				nls.localize('enospcError', "{0} is unable to watch for file changes in this large workspace. Please follow the instructions link to resolve this issue.", product.nameLong),
-				[{
-					label: nls.localize('learnMore', "Instructions"),
-					run: () => window.open('https://go.microsoft.com/fwlink/?linkid=867693')
-				},
-				{
-					label: nls.localize('neverShowAgain', "Don't Show Again"),
-					isSecondary: true,
-					run: () => this.storageService.store(FileService.ENOSPC_ERROR_IGNORE_KEY, true, StorageScope.WORKSPACE)
-				}],
-				{ sticky: true }
-			);
-		}
-	}
-
-	private setupFileWatching(): void {
-
-		// dispose old if any
-		if (this.activeWorkspaceFileChangeWatcher) {
-			this.activeWorkspaceFileChangeWatcher.dispose();
-		}
-
-		// Return if not aplicable
-		const workbenchState = this.contextService.getWorkbenchState();
-		if (workbenchState === WorkbenchState.EMPTY || this.options.disableWatcher) {
-			return;
-		}
-
-		// new watcher: use it if setting tells us so or we run in multi-root environment
-		const configuration = this.configurationService.getValue<IFilesConfiguration>();
-		if ((configuration.files && configuration.files.useExperimentalFileWatcher) || workbenchState === WorkbenchState.WORKSPACE) {
-			const multiRootWatcher = new NsfwWatcherService(this.contextService, this.configurationService, e => this._onFileChanges.fire(e), err => this.handleError(err), this.environmentService.verbose);
-			this.activeWorkspaceFileChangeWatcher = toDisposable(multiRootWatcher.startWatching());
-		}
-
-		// legacy watcher
-		else {
-			let watcherIgnoredPatterns: string[] = [];
-			if (configuration.files && configuration.files.watcherExclude) {
-				watcherIgnoredPatterns = Object.keys(configuration.files.watcherExclude).filter(k => !!configuration.files.watcherExclude[k]);
-			}
-
-			if (isWindows) {
-				const legacyWindowsWatcher = new WindowsWatcherService(this.contextService, watcherIgnoredPatterns, e => this._onFileChanges.fire(e), err => this.handleError(err), this.environmentService.verbose);
-				this.activeWorkspaceFileChangeWatcher = toDisposable(legacyWindowsWatcher.startWatching());
-			} else {
-				const legacyUnixWatcher = new UnixWatcherService(this.contextService, this.configurationService, e => this._onFileChanges.fire(e), err => this.handleError(err), this.environmentService.verbose);
-				this.activeWorkspaceFileChangeWatcher = toDisposable(legacyUnixWatcher.startWatching());
-			}
-		}
-	}
-
-	registerProvider(scheme: string, provider: IFileSystemProvider): IDisposable {
-		return Disposable.None;
-	}
+	//#region Read File
 
 	resolveContent(resource: uri, options?: IResolveContentOptions): Promise<IContent> {
 		return this.resolveStreamContent(resource, options).then(streamContent => {
@@ -413,7 +287,7 @@ export class FileService extends Disposable implements ILegacyFileService {
 					if (fd) {
 						fs.close(fd, err => {
 							if (err) {
-								this.handleError(`resolveFileData#close(): ${err.toString()}`);
+								onUnexpectedError(`resolveFileData#close(): ${err.toString()}`);
 							}
 						});
 					}
@@ -503,6 +377,10 @@ export class FileService extends Disposable implements ILegacyFileService {
 			});
 		});
 	}
+
+	//#endregion
+
+	//#region File Writing
 
 	updateContent(resource: uri, value: string | ITextSnapshot, options: IUpdateContentOptions = Object.create(null)): Promise<IFileStatWithMetadata> {
 		if (options.writeElevated) {
@@ -670,7 +548,7 @@ export class FileService extends Disposable implements ILegacyFileService {
 			});
 		}).then(undefined, error => {
 			if (this.environmentService.verbose) {
-				this.handleError(`Unable to write to file '${resource.toString(true)}' as elevated user (${error})`);
+				onUnexpectedError(`Unable to write to file '${resource.toString(true)}' as elevated user (${error})`);
 			}
 
 			if (!FileOperationError.isFileOperationError(error)) {
@@ -684,6 +562,10 @@ export class FileService extends Disposable implements ILegacyFileService {
 			return Promise.reject(error);
 		});
 	}
+
+	//#endregion
+
+	//#region Create File
 
 	createFile(resource: uri, content: string = '', options: ICreateFileOptions = Object.create(null)): Promise<IFileStatWithMetadata> {
 		const absolutePath = this.toAbsolutePath(resource);
@@ -715,6 +597,10 @@ export class FileService extends Disposable implements ILegacyFileService {
 			});
 		});
 	}
+
+	//#endregion
+
+	//#region Helpers
 
 	private checkFileBeforeWriting(absolutePath: string, options: IUpdateContentOptions = Object.create(null), ignoreReadonly?: boolean): Promise<boolean /* exists */> {
 		return pfs.exists(absolutePath).then(exists => {
@@ -778,8 +664,6 @@ export class FileService extends Disposable implements ILegacyFileService {
 		));
 	}
 
-	// Helpers
-
 	private toAbsolutePath(arg1: uri | IFileStat): string {
 		let resource: uri;
 		if (arg1 instanceof uri) {
@@ -793,12 +677,5 @@ export class FileService extends Disposable implements ILegacyFileService {
 		return paths.normalize(resource.fsPath);
 	}
 
-	dispose(): void {
-		super.dispose();
-
-		if (this.activeWorkspaceFileChangeWatcher) {
-			this.activeWorkspaceFileChangeWatcher.dispose();
-			this.activeWorkspaceFileChangeWatcher = null;
-		}
-	}
+	//#endregion
 }

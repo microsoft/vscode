@@ -45,7 +45,7 @@ export class OutOfProcessWin32FolderWatcher {
 			args.push('-verbose');
 		}
 
-		this.handle = cp.spawn(getPathFromAmdModule(require, 'vs/workbench/services/files/node/watcher/win32/CodeHelper.exe'), args);
+		this.handle = cp.spawn(getPathFromAmdModule(require, 'vs/workbench/services/files2/node/watcher/win32/CodeHelper.exe'), args);
 
 		const stdoutLineDecoder = new decoder.LineDecoder();
 

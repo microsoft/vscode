@@ -81,6 +81,11 @@ export interface IFileService {
 	readonly onAfterOperation: Event<FileOperationEvent>;
 
 	/**
+	 * An event that is fired whenever an error occurs in the service or providers.
+	 */
+	readonly onError: Event<Error>;
+
+	/**
 	 * Resolve the properties of a file/folder identified by the resource.
 	 *
 	 * If the optional parameter "resolveTo" is specified in options, the stat service is asked
@@ -165,8 +170,10 @@ export interface IFileService {
 
 	/**
 	 * Allows to start a watcher that reports file/folder change events on the provided resource.
+	 *
+	 * Note: watching a folder does not report events recursively for child folders yet.
 	 */
-	watch(resource: URI, opts?: IWatchOptions): IDisposable;
+	watch(resource: URI): IDisposable;
 
 	/**
 	 * Frees up any resources occupied by this service.
@@ -226,6 +233,8 @@ export interface IFileSystemProvider {
 
 	readonly capabilities: FileSystemProviderCapabilities;
 	onDidChangeCapabilities: Event<void>;
+
+	onDidErrorOccur?: Event<Error>; // TODO@ben remove once file watchers are solid
 
 	onDidChangeFile: Event<IFileChange[]>;
 	watch(resource: URI, opts: IWatchOptions): IDisposable;
@@ -848,7 +857,6 @@ export interface IFilesConfiguration {
 		autoSaveDelay: number;
 		eol: string;
 		hotExit: string;
-		useExperimentalFileWatcher: boolean;
 	};
 }
 
@@ -1120,7 +1128,6 @@ export interface ILegacyFileService extends IDisposable {
 
 	encoding: IResourceEncodings;
 
-	onFileChanges: Event<FileChangesEvent>;
 	onAfterOperation: Event<FileOperationEvent>;
 
 	registerProvider(scheme: string, provider: IFileSystemProvider): IDisposable;

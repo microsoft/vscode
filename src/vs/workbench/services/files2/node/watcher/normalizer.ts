@@ -4,16 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI as uri } from 'vs/base/common/uri';
-import { FileChangeType, FileChangesEvent, isParent, IFileChange } from 'vs/platform/files/common/files';
+import { FileChangeType, isParent, IFileChange } from 'vs/platform/files/common/files';
 import { isLinux } from 'vs/base/common/platform';
 
 export interface IDiskFileChange {
 	type: FileChangeType;
 	path: string;
-}
-
-export function toFileChangesEvent(changes: IDiskFileChange[]): FileChangesEvent {
-	return new FileChangesEvent(toFileChanges(changes));
 }
 
 export function toFileChanges(changes: IDiskFileChange[]): IFileChange[] {

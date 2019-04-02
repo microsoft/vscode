@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Server } from 'vs/base/parts/ipc/node/ipc.cp';
-import { WatcherChannel } from 'vs/workbench/services/files/node/watcher/nsfw/watcherIpc';
-import { NsfwWatcherService } from 'vs/workbench/services/files/node/watcher/nsfw/nsfwWatcherService';
+import { WatcherChannel } from 'vs/workbench/services/files2/node/watcher/nsfw/watcherIpc';
+import { NsfwWatcherService } from 'vs/workbench/services/files2/node/watcher/nsfw/nsfwWatcherService';
 
 const server = new Server('watcher');
 const service = new NsfwWatcherService();

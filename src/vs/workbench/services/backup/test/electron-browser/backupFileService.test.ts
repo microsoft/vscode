@@ -14,11 +14,9 @@ import { URI as Uri } from 'vs/base/common/uri';
 import { BackupFileService, BackupFilesModel, hashPath } from 'vs/workbench/services/backup/node/backupFileService';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
 import { TextModel, createTextBufferFactory } from 'vs/editor/common/model/textModel';
-import { TestContextService, TestTextResourceConfigurationService, TestLifecycleService, TestEnvironmentService, TestStorageService, TestWindowService } from 'vs/workbench/test/workbenchTestServices';
+import { TestContextService, TestTextResourceConfigurationService, TestEnvironmentService, TestWindowService } from 'vs/workbench/test/workbenchTestServices';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { DefaultEndOfLine } from 'vs/editor/common/model';
 import { snapshotToString } from 'vs/platform/files/common/files';
 import { Schemas } from 'vs/base/common/network';
@@ -65,12 +63,7 @@ class TestBackupFileService extends BackupFileService {
 			new TestContextService(new Workspace(workspace.fsPath, toWorkspaceFolders([{ path: workspace.fsPath }]))),
 			TestEnvironmentService,
 			new TestTextResourceConfigurationService(),
-			new TestConfigurationService(),
-			new TestLifecycleService(),
-			new TestStorageService(),
-			new TestNotificationService(),
-			{ disableWatcher: true })
-		);
+		));
 		const windowService = new TestBackupWindowService(workspaceBackupPath);
 
 		super(windowService, fileService);

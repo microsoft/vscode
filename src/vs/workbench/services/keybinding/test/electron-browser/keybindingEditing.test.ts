@@ -20,7 +20,6 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -31,7 +30,6 @@ import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayo
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IWorkspaceContextService, Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
@@ -43,7 +41,7 @@ import { KeybindingsEditingService } from 'vs/workbench/services/keybinding/comm
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { TestBackupFileService, TestContextService, TestEditorGroupsService, TestEditorService, TestEnvironmentService, TestLifecycleService, TestLogService, TestStorageService, TestTextFileService, TestTextResourceConfigurationService, TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTestServices';
+import { TestBackupFileService, TestContextService, TestEditorGroupsService, TestEditorService, TestEnvironmentService, TestLifecycleService, TestLogService, TestTextFileService, TestTextResourceConfigurationService, TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTestServices';
 import { FileService2 } from 'vs/workbench/services/files2/common/fileService2';
 import { Schemas } from 'vs/base/common/network';
 import { DiskFileSystemProvider } from 'vs/workbench/services/files2/node/diskFileSystemProvider';
@@ -91,12 +89,7 @@ suite('KeybindingsEditing', () => {
 				new TestContextService(new Workspace(testDir, toWorkspaceFolders([{ path: testDir }]))),
 				TestEnvironmentService,
 				new TestTextResourceConfigurationService(),
-				new TestConfigurationService(),
-				lifecycleService,
-				new TestStorageService(),
-				new TestNotificationService(),
-				{ disableWatcher: true })
-			);
+			));
 			instantiationService.stub(IFileService, fileService);
 			instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
 			instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));

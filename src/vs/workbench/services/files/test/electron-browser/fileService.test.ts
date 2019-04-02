@@ -13,9 +13,8 @@ import { URI as uri } from 'vs/base/common/uri';
 import * as uuid from 'vs/base/common/uuid';
 import * as pfs from 'vs/base/node/pfs';
 import * as encodingLib from 'vs/base/node/encoding';
-import { TestEnvironmentService, TestContextService, TestTextResourceConfigurationService, TestLifecycleService, TestStorageService } from 'vs/workbench/test/workbenchTestServices';
+import { TestEnvironmentService, TestContextService, TestTextResourceConfigurationService } from 'vs/workbench/test/workbenchTestServices';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TextModel } from 'vs/editor/common/model/textModel';
@@ -40,7 +39,12 @@ suite('FileService', () => {
 		fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
 
 		return pfs.copy(sourceDir, testDir).then(() => {
-			service = new FileService(fileService, new TestContextService(new Workspace(testDir, toWorkspaceFolders([{ path: testDir }]))), TestEnvironmentService, new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), new TestStorageService(), new TestNotificationService(), { disableWatcher: true });
+			service = new FileService(
+				fileService,
+				new TestContextService(new Workspace(testDir, toWorkspaceFolders([{ path: testDir }]))),
+				TestEnvironmentService,
+				new TestTextResourceConfigurationService(),
+			);
 		});
 	});
 
@@ -383,14 +387,7 @@ suite('FileService', () => {
 				new TestContextService(new Workspace(_testDir, toWorkspaceFolders([{ path: _testDir }]))),
 				TestEnvironmentService,
 				textResourceConfigurationService,
-				configurationService,
-				new TestLifecycleService(),
-				new TestStorageService(),
-				new TestNotificationService(),
-				{
-					encodingOverride,
-					disableWatcher: true
-				});
+				{ encodingOverride });
 
 			return _service.resolveContent(uri.file(path.join(testDir, 'index.html'))).then(c => {
 				assert.equal(c.encoding, 'windows1252');
@@ -432,14 +429,7 @@ suite('FileService', () => {
 				new TestContextService(new Workspace(_testDir, toWorkspaceFolders([{ path: _testDir }]))),
 				TestEnvironmentService,
 				textResourceConfigurationService,
-				configurationService,
-				new TestLifecycleService(),
-				new TestStorageService(),
-				new TestNotificationService(),
-				{
-					encodingOverride,
-					disableWatcher: true
-				});
+				{ encodingOverride });
 
 			return _service.resolveContent(uri.file(path.join(testDir, 'index.html'))).then(c => {
 				assert.equal(c.encoding, 'windows1252');
@@ -469,14 +459,8 @@ suite('FileService', () => {
 			fileService,
 			new TestContextService(new Workspace(_testDir, toWorkspaceFolders([{ path: _testDir }]))),
 			TestEnvironmentService,
-			new TestTextResourceConfigurationService(),
-			new TestConfigurationService(),
-			new TestLifecycleService(),
-			new TestStorageService(),
-			new TestNotificationService(),
-			{
-				disableWatcher: true
-			});
+			new TestTextResourceConfigurationService()
+		);
 
 		return pfs.copy(_sourceDir, _testDir).then(() => {
 			return pfs.readFile(resource.fsPath).then(data => {

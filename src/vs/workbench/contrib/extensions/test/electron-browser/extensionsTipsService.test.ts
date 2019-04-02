@@ -21,7 +21,7 @@ import { Emitter } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { TestTextResourceConfigurationService, TestContextService, TestLifecycleService, TestEnvironmentService, TestStorageService, TestSharedProcessService } from 'vs/workbench/test/workbenchTestServices';
+import { TestTextResourceConfigurationService, TestContextService, TestLifecycleService, TestEnvironmentService, TestSharedProcessService } from 'vs/workbench/test/workbenchTestServices';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { URI } from 'vs/base/common/uri';
@@ -289,13 +289,8 @@ suite('ExtensionsTipsService Test', () => {
 			fileService,
 			workspaceService,
 			TestEnvironmentService,
-			new TestTextResourceConfigurationService(),
-			new TestConfigurationService(),
-			new TestLifecycleService(),
-			new TestStorageService(),
-			new TestNotificationService(),
-			{ disableWatcher: true })
-		);
+			new TestTextResourceConfigurationService()
+		));
 		instantiationService.stub(IFileService, fileService);
 	}
 

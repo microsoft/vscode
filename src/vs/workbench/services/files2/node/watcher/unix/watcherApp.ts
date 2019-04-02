@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Server } from 'vs/base/parts/ipc/node/ipc.cp';
-import { WatcherChannel } from 'vs/workbench/services/files/node/watcher/unix/watcherIpc';
-import { ChokidarWatcherService } from 'vs/workbench/services/files/node/watcher/unix/chokidarWatcherService';
+import { WatcherChannel } from 'vs/workbench/services/files2/node/watcher/unix/watcherIpc';
+import { ChokidarWatcherService } from 'vs/workbench/services/files2/node/watcher/unix/chokidarWatcherService';
 
 const server = new Server('watcher');
 const service = new ChokidarWatcherService();

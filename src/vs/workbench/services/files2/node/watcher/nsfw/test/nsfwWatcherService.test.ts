@@ -6,8 +6,8 @@
 import * as assert from 'assert';
 import * as platform from 'vs/base/common/platform';
 
-import { NsfwWatcherService } from 'vs/workbench/services/files/node/watcher/nsfw/nsfwWatcherService';
-import { IWatcherRequest } from 'vs/workbench/services/files/node/watcher/nsfw/watcher';
+import { NsfwWatcherService } from 'vs/workbench/services/files2/node/watcher/nsfw/nsfwWatcherService';
+import { IWatcherRequest } from 'vs/workbench/services/files2/node/watcher/nsfw/watcher';
 
 class TestNsfwWatcherService extends NsfwWatcherService {
 	public normalizeRoots(roots: string[]): string[] {

@@ -14,8 +14,7 @@ import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { TestTextFileService, TestTextResourceConfigurationService, workbenchInstantiationService, TestLifecycleService, TestEnvironmentService, TestStorageService } from 'vs/workbench/test/workbenchTestServices';
-import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
+import { TestTextFileService, TestTextResourceConfigurationService, workbenchInstantiationService, TestEnvironmentService } from 'vs/workbench/test/workbenchTestServices';
 import * as uuid from 'vs/base/common/uuid';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
@@ -27,7 +26,6 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { mkdirp, rimraf, RimRafMode } from 'vs/base/node/pfs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -118,12 +116,7 @@ suite('ConfigurationEditingService', () => {
 				workspaceService,
 				TestEnvironmentService,
 				new TestTextResourceConfigurationService(),
-				new TestConfigurationService(),
-				new TestLifecycleService(),
-				new TestStorageService(),
-				new TestNotificationService(),
-				{ disableWatcher: true })
-			);
+			));
 			instantiationService.stub(IFileService, fileService);
 			instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 			instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));

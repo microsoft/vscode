@@ -22,8 +22,7 @@ import { ConfigurationEditingErrorCode } from 'vs/workbench/services/configurati
 import { IFileService, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationTarget, IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { workbenchInstantiationService, TestTextResourceConfigurationService, TestTextFileService, TestLifecycleService, TestEnvironmentService, TestStorageService } from 'vs/workbench/test/workbenchTestServices';
-import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
+import { workbenchInstantiationService, TestTextResourceConfigurationService, TestTextFileService, TestEnvironmentService } from 'vs/workbench/test/workbenchTestServices';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -233,13 +232,8 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 						fileService,
 						workspaceService,
 						TestEnvironmentService,
-						new TestTextResourceConfigurationService(),
-						workspaceService,
-						new TestLifecycleService(),
-						new TestStorageService(),
-						new TestNotificationService(),
-						{ disableWatcher: true })
-					);
+						new TestTextResourceConfigurationService()
+					));
 					instantiationService.stub(IFileService, fileService);
 					instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 					instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
@@ -507,13 +501,8 @@ suite('WorkspaceService - Initialization', () => {
 						fileService,
 						workspaceService,
 						TestEnvironmentService,
-						new TestTextResourceConfigurationService(),
-						workspaceService,
-						new TestLifecycleService(),
-						new TestStorageService(),
-						new TestNotificationService(),
-						{ disableWatcher: true })
-					);
+						new TestTextResourceConfigurationService()
+					));
 					instantiationService.stub(IFileService, fileService);
 					instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 					instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
@@ -776,13 +765,8 @@ suite('WorkspaceConfigurationService - Folder', () => {
 						fileService,
 						workspaceService,
 						TestEnvironmentService,
-						new TestTextResourceConfigurationService(),
-						workspaceService,
-						new TestLifecycleService(),
-						new TestStorageService(),
-						new TestNotificationService(),
-						{ disableWatcher: true })
-					);
+						new TestTextResourceConfigurationService()
+					));
 					instantiationService.stub(IFileService, fileService);
 					instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 					instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
@@ -1079,13 +1063,8 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 						fileService,
 						workspaceService,
 						TestEnvironmentService,
-						new TestTextResourceConfigurationService(),
-						workspaceService,
-						new TestLifecycleService(),
-						new TestStorageService(),
-						new TestNotificationService(),
-						{ disableWatcher: true })
-					);
+						new TestTextResourceConfigurationService()
+					));
 					instantiationService.stub(IFileService, fileService);
 					instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 					instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
