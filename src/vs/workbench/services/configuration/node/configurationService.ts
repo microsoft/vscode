@@ -10,7 +10,6 @@ import { ResourceMap } from 'vs/base/common/map';
 import { equals, deepClone } from 'vs/base/common/objects';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Queue, Barrier } from 'vs/base/common/async';
-import { writeFile } from 'vs/base/node/pfs';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IWorkspaceContextService, Workspace, WorkbenchState, IWorkspaceFolder, toWorkspaceFolders, IWorkspaceFoldersChangeEvent, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { isLinux } from 'vs/base/common/platform';
@@ -21,11 +20,8 @@ import { IConfigurationChangeEvent, ConfigurationTarget, IConfigurationOverrides
 import { Configuration, WorkspaceConfigurationChangeEvent, AllKeysConfigurationChangeEvent } from 'vs/workbench/services/configuration/common/configurationModels';
 import { FOLDER_CONFIG_FOLDER_NAME, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationNode, IConfigurationRegistry, Extensions, IConfigurationPropertySchema, allSettings, windowSettings, resourceSettings, applicationSettings } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationRegistry, Extensions, allSettings, windowSettings, resourceSettings, applicationSettings } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkspaceIdentifier, isWorkspaceIdentifier, IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, isSingleFolderWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload, IEmptyWorkspaceInitializationPayload, useSlashForPath, getStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import product from 'vs/platform/product/node/product';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ConfigurationEditingService } from 'vs/workbench/services/configuration/common/configurationEditingService';
 import { WorkspaceConfiguration, FolderConfiguration, RemoteUserConfiguration, LocalUserConfiguration } from 'vs/workbench/services/configuration/node/configuration';
@@ -706,100 +702,5 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 				return this._configuration.workspaceConfiguration.contents;
 		}
 		return {};
-	}
-}
-
-interface IExportedConfigurationNode {
-	name: string;
-	description: string;
-	default: any;
-	type?: string | string[];
-	enum?: any[];
-	enumDescriptions?: string[];
-}
-
-interface IConfigurationExport {
-	settings: IExportedConfigurationNode[];
-	buildTime: number;
-	commit?: string;
-	buildNumber?: number;
-}
-
-export class DefaultConfigurationExportHelper {
-
-	constructor(
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@IExtensionService private readonly extensionService: IExtensionService,
-		@ICommandService private readonly commandService: ICommandService) {
-		if (environmentService.args['export-default-configuration']) {
-			this.writeConfigModelAndQuit(environmentService.args['export-default-configuration']);
-		}
-	}
-
-	private writeConfigModelAndQuit(targetPath: string): Promise<void> {
-		return Promise.resolve(this.extensionService.whenInstalledExtensionsRegistered())
-			.then(() => this.writeConfigModel(targetPath))
-			.then(() => this.commandService.executeCommand('workbench.action.quit'))
-			.then(() => { });
-	}
-
-	private writeConfigModel(targetPath: string): Promise<void> {
-		const config = this.getConfigModel();
-
-		const resultString = JSON.stringify(config, undefined, '  ');
-		return writeFile(targetPath, resultString);
-	}
-
-	private getConfigModel(): IConfigurationExport {
-		const configRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
-		const configurations = configRegistry.getConfigurations().slice();
-		const settings: IExportedConfigurationNode[] = [];
-
-		const processProperty = (name: string, prop: IConfigurationPropertySchema) => {
-			const propDetails: IExportedConfigurationNode = {
-				name,
-				description: prop.description || prop.markdownDescription || '',
-				default: prop.default,
-				type: prop.type
-			};
-
-			if (prop.enum) {
-				propDetails.enum = prop.enum;
-			}
-
-			if (prop.enumDescriptions || prop.markdownEnumDescriptions) {
-				propDetails.enumDescriptions = prop.enumDescriptions || prop.markdownEnumDescriptions;
-			}
-
-			settings.push(propDetails);
-		};
-
-		const processConfig = (config: IConfigurationNode) => {
-			if (config.properties) {
-				for (let name in config.properties) {
-					processProperty(name, config.properties[name]);
-				}
-			}
-
-			if (config.allOf) {
-				config.allOf.forEach(processConfig);
-			}
-		};
-
-		configurations.forEach(processConfig);
-
-		const excludedProps = configRegistry.getExcludedConfigurationProperties();
-		for (let name in excludedProps) {
-			processProperty(name, excludedProps[name]);
-		}
-
-		const result: IConfigurationExport = {
-			settings: settings.sort((a, b) => a.name.localeCompare(b.name)),
-			buildTime: Date.now(),
-			commit: product.commit,
-			buildNumber: product.settingsSearchBuildId
-		};
-
-		return result;
 	}
 }
