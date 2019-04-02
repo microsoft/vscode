@@ -78,9 +78,7 @@ export class FileDialogService implements IFileDialogService {
 		return {
 			forceNewWindow: options.forceNewWindow,
 			telemetryExtraData: options.telemetryExtraData,
-			dialogOptions: {
-				defaultPath: options.defaultUri && options.defaultUri.fsPath
-			}
+			defaultPath: options.defaultUri && options.defaultUri.fsPath
 		};
 	}
 

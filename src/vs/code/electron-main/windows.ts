@@ -7,22 +7,22 @@ import * as fs from 'fs';
 import { basename, normalize, join, dirname } from 'vs/base/common/path';
 import { localize } from 'vs/nls';
 import * as arrays from 'vs/base/common/arrays';
-import { assign, mixin, equals } from 'vs/base/common/objects';
+import { assign, mixin } from 'vs/base/common/objects';
 import { IBackupMainService, IEmptyWindowBackupInfo } from 'vs/platform/backup/common/backup';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IStateService } from 'vs/platform/state/common/state';
 import { CodeWindow, defaultWindowState } from 'vs/code/electron-main/window';
 import { hasArgs, asArray } from 'vs/platform/environment/node/argv';
-import { ipcMain as ipc, screen, BrowserWindow, dialog, systemPreferences } from 'electron';
+import { ipcMain as ipc, screen, BrowserWindow, dialog, systemPreferences, FileFilter } from 'electron';
 import { parseLineAndColumnAware } from 'vs/code/node/paths';
 import { ILifecycleService, UnloadReason, LifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IWindowSettings, OpenContext, IPath, IWindowConfiguration, INativeOpenDialogOptions, IPathsToWaitFor, IEnterWorkspaceResult, IMessageBoxResult, INewWindowOptions, IURIToOpen, URIType, OpenDialogOptions } from 'vs/platform/windows/common/windows';
+import { IWindowSettings, OpenContext, IPath, IWindowConfiguration, INativeOpenDialogOptions, IPathsToWaitFor, IEnterWorkspaceResult, IMessageBoxResult, INewWindowOptions, IURIToOpen, URIType } from 'vs/platform/windows/common/windows';
 import { getLastActiveWindow, findBestWindowOrFolderForFile, findWindowOnWorkspace, findWindowOnExtensionDevelopmentPath, findWindowOnWorkspaceOrFolderUri } from 'vs/code/node/windowsFinder';
 import { Event as CommonEvent, Emitter } from 'vs/base/common/event';
 import product from 'vs/platform/product/node/product';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { IWindowsMainService, IOpenConfiguration, IWindowsCountChangedEvent, ICodeWindow, IWindowState as ISingleWindowState, WindowMode } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService, IRecent } from 'vs/platform/history/common/history';
 import { IProcessEnvironment, isMacintosh, isWindows } from 'vs/base/common/platform';
@@ -206,7 +206,7 @@ export class WindowsManager implements IWindowsMainService {
 			this.windowsState.openedWindows = [];
 		}
 
-		this.dialogs = new Dialogs(environmentService, telemetryService, stateService, this);
+		this.dialogs = new Dialogs(stateService, this);
 		this.workspacesManager = new WorkspacesManager(workspacesMainService, backupMainService, this);
 	}
 
@@ -1537,10 +1537,6 @@ export class WindowsManager implements IWindowsMainService {
 		return result;
 	}
 
-	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): void {
-		this.workspacesManager.pickWorkspaceAndOpen(options);
-	}
-
 	focusLastActive(cli: ParsedArgs, context: OpenContext): ICodeWindow {
 		const lastActive = this.getLastActiveWindow();
 		if (lastActive) {
@@ -1717,47 +1713,90 @@ export class WindowsManager implements IWindowsMainService {
 		this._onWindowClose.fire(win.id);
 	}
 
-	pickFileFolderAndOpen(options: INativeOpenDialogOptions): void {
-		this.doPickAndOpen(options, true /* pick folders */, true /* pick files */);
+	async pickFileFolderAndOpen(options: INativeOpenDialogOptions): Promise<void> {
+		const title = localize('open', "Open");
+		const paths = await this.dialogs.pick({ ...options, pickFolders: true, pickFiles: true, title });
+		if (paths) {
+			this.sendPickerTelemetry(paths, options.telemetryEventName || 'openFileFolder', options.telemetryExtraData);
+			const urisToOpen: IURIToOpen[] = paths.map(path => {
+				if (fs.statSync(path).isDirectory()) {
+					return <IURIToOpen>{ uri: URI.file(path), typeHint: 'folder' };
+				} else {
+					return <IURIToOpen>{ uri: URI.file(path), typeHint: 'file' };
+				}
+			});
+			this.open({
+				context: OpenContext.DIALOG,
+				contextWindowId: options.windowId,
+				cli: this.environmentService.args,
+				urisToOpen,
+				forceNewWindow: options.forceNewWindow,
+				forceOpenWorkspaceAsFile: true
+			});
+		}
 	}
 
-	pickFolderAndOpen(options: INativeOpenDialogOptions): void {
-		this.doPickAndOpen(options, true /* pick folders */, false /* pick files */);
+	async pickFolderAndOpen(options: INativeOpenDialogOptions): Promise<void> {
+		const title = localize('openFolder', "Open Folder");
+		const paths = await this.dialogs.pick({ ...options, pickFiles: true, title });
+		if (paths) {
+			this.sendPickerTelemetry(paths, options.telemetryEventName || 'openFolder', options.telemetryExtraData);
+			this.open({
+				context: OpenContext.DIALOG,
+				contextWindowId: options.windowId,
+				cli: this.environmentService.args,
+				urisToOpen: paths.map(path => (<IURIToOpen>{ uri: URI.file(path), typeHint: 'folder' })),
+				forceNewWindow: options.forceNewWindow
+			});
+		}
 	}
 
-	pickFileAndOpen(options: INativeOpenDialogOptions): void {
-		this.doPickAndOpen(options, false /* pick folders */, true /* pick files */);
+	async pickFileAndOpen(options: INativeOpenDialogOptions): Promise<void> {
+		const title = localize('openFile', "Open File");
+		const paths = await this.dialogs.pick({ ...options, pickFolders: true, title });
+		if (paths) {
+			this.sendPickerTelemetry(paths, options.telemetryEventName || 'openFile', options.telemetryExtraData);
+			this.open({
+				context: OpenContext.DIALOG,
+				contextWindowId: options.windowId,
+				cli: this.environmentService.args,
+				urisToOpen: paths.map(path => (<IURIToOpen>{ uri: URI.file(path), typeHint: 'file' })),
+				forceNewWindow: options.forceNewWindow,
+				forceOpenWorkspaceAsFile: true
+			});
+		}
 	}
 
-	private doPickAndOpen(options: INativeOpenDialogOptions, pickFolders: boolean, pickFiles: boolean): void {
-		(options as IInternalNativeOpenDialogOptions).pickFolders = pickFolders;
-		(options as IInternalNativeOpenDialogOptions).pickFiles = pickFiles;
-
-		// Ensure dialog options
-		const dialogOptions: OpenDialogOptions = options.dialogOptions || Object.create(null);
-		options.dialogOptions = dialogOptions;
-		if (!dialogOptions.title) {
-			if (pickFolders && pickFiles) {
-				dialogOptions.title = localize('open', "Open");
-			} else if (pickFolders) {
-				dialogOptions.title = localize('openFolder', "Open Folder");
-			} else {
-				dialogOptions.title = localize('openFile', "Open File");
-			}
+	async pickWorkspaceAndOpen(options: INativeOpenDialogOptions): Promise<void> {
+		const title = localize('openWorkspaceTitle', "Open Workspace");
+		const buttonLabel = mnemonicButtonLabel(localize({ key: 'openWorkspace', comment: ['&& denotes a mnemonic'] }, "&&Open"));
+		const filters = WORKSPACE_FILTER;
+		const paths = await this.dialogs.pick({ ...options, pickFiles: true, title, filters, buttonLabel });
+		if (paths) {
+			this.sendPickerTelemetry(paths, options.telemetryEventName || 'openWorkspace', options.telemetryExtraData);
+			this.open({
+				context: OpenContext.DIALOG,
+				contextWindowId: options.windowId,
+				cli: this.environmentService.args,
+				urisToOpen: paths.map(path => (<IURIToOpen>{ uri: URI.file(path), typeHint: 'file' })),
+				forceNewWindow: options.forceNewWindow,
+				forceOpenWorkspaceAsFile: false
+			});
 		}
 
-		if (!options.telemetryEventName) {
-			if (pickFolders && pickFiles) {
-				// __GDPR__TODO__ classify event
-				options.telemetryEventName = 'openFileFolder';
-			} else if (pickFolders) {
-				options.telemetryEventName = 'openFolder';
-			} else {
-				options.telemetryEventName = 'openFile';
-			}
-		}
+	}
 
-		this.dialogs.pickAndOpen(options);
+	private sendPickerTelemetry(paths: string[], telemetryEventName: string, telemetryExtraData?: ITelemetryData) {
+
+		const numberOfPaths = paths ? paths.length : 0;
+
+		// Telemetry
+		// __GDPR__TODO__ Dynamic event names and dynamic properties. Can not be registered statically.
+		this.telemetryService.publicLog(telemetryEventName, {
+			...telemetryExtraData,
+			outcome: numberOfPaths ? 'success' : 'canceled',
+			numberOfPaths
+		});
 	}
 
 	showMessageBox(options: Electron.MessageBoxOptions, win?: ICodeWindow): Promise<IMessageBoxResult> {
@@ -1791,8 +1830,13 @@ export class WindowsManager implements IWindowsMainService {
 }
 
 interface IInternalNativeOpenDialogOptions extends INativeOpenDialogOptions {
+
 	pickFolders?: boolean;
 	pickFiles?: boolean;
+
+	title: string;
+	buttonLabel?: string;
+	filters?: FileFilter[];
 }
 
 class Dialogs {
@@ -1803,53 +1847,25 @@ class Dialogs {
 	private readonly noWindowDialogQueue: Queue<void>;
 
 	constructor(
-		private readonly environmentService: IEnvironmentService,
-		private readonly telemetryService: ITelemetryService,
 		private readonly stateService: IStateService,
-		private readonly windowsMainService: IWindowsMainService,
+		private readonly windowsMainService: IWindowsMainService
 	) {
 		this.mapWindowToDialogQueue = new Map<number, Queue<void>>();
 		this.noWindowDialogQueue = new Queue<void>();
 	}
 
-	pickAndOpen(options: INativeOpenDialogOptions): void {
-		this.getFileOrFolderUris(options).then(paths => {
-			const numberOfPaths = paths ? paths.length : 0;
-
-			// Telemetry
-			if (options.telemetryEventName) {
-				// __GDPR__TODO__ Dynamic event names and dynamic properties. Can not be registered statically.
-				this.telemetryService.publicLog(options.telemetryEventName, {
-					...options.telemetryExtraData,
-					outcome: numberOfPaths ? 'success' : 'canceled',
-					numberOfPaths
-				});
-			}
-
-			// Open
-			if (numberOfPaths) {
-				this.windowsMainService.open({
-					context: OpenContext.DIALOG,
-					contextWindowId: options.windowId,
-					cli: this.environmentService.args,
-					urisToOpen: paths,
-					forceNewWindow: options.forceNewWindow,
-					forceOpenWorkspaceAsFile: options.dialogOptions && !equals(options.dialogOptions.filters, WORKSPACE_FILTER)
-				});
-			}
-		});
-	}
-
-	private getFileOrFolderUris(options: IInternalNativeOpenDialogOptions): Promise<IURIToOpen[] | undefined> {
+	pick(options: IInternalNativeOpenDialogOptions): Promise<string[] | undefined> {
 
 		// Ensure dialog options
-		const dialogOptions = options.dialogOptions || Object.create(null);
-		options.dialogOptions = dialogOptions;
+		const dialogOptions: Electron.OpenDialogOptions = {
+			title: options.title,
+			buttonLabel: options.buttonLabel,
+			filters: options.filters
+		};
 
 		// Ensure defaultPath
-		if (!dialogOptions.defaultPath) {
-			dialogOptions.defaultPath = this.stateService.getItem<string>(Dialogs.workingDirPickerStorageKey);
-		}
+		dialogOptions.defaultPath = options.defaultPath || this.stateService.getItem<string>(Dialogs.workingDirPickerStorageKey);
+
 
 		// Ensure properties
 		if (typeof options.pickFiles === 'boolean' || typeof options.pickFolders === 'boolean') {
@@ -1876,13 +1892,7 @@ class Dialogs {
 
 				// Remember path in storage for next time
 				this.stateService.setItem(Dialogs.workingDirPickerStorageKey, dirname(paths[0]));
-
-				const result: IURIToOpen[] = [];
-				for (const path of paths) {
-					result.push({ uri: URI.file(path) });
-				}
-
-				return result;
+				return paths;
 			}
 
 			return undefined;
@@ -2055,21 +2065,4 @@ class WorkspacesManager {
 		return { workspace, backupPath };
 	}
 
-	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): void {
-		const window = (typeof options.windowId === 'number' ? this.windowsMainService.getWindowById(options.windowId) : undefined) || this.windowsMainService.getFocusedWindow() || this.windowsMainService.getLastActiveWindow();
-
-		this.windowsMainService.pickFileAndOpen({
-			windowId: window ? window.id : undefined,
-			dialogOptions: {
-				buttonLabel: mnemonicButtonLabel(localize({ key: 'openWorkspace', comment: ['&& denotes a mnemonic'] }, "&&Open")),
-				title: localize('openWorkspaceTitle', "Open Workspace"),
-				filters: WORKSPACE_FILTER,
-				properties: ['openFile'],
-				defaultPath: options.dialogOptions && options.dialogOptions.defaultPath
-			},
-			forceNewWindow: options.forceNewWindow,
-			telemetryEventName: options.telemetryEventName,
-			telemetryExtraData: options.telemetryExtraData
-		});
-	}
 }
