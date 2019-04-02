@@ -74,10 +74,10 @@ export class FileService2 extends Disposable implements IFileService {
 		this._onDidChangeFileSystemProviderRegistrations.fire({ added: true, scheme, provider });
 
 		// Forward events from provider
-		const providerDisposable: IDisposable[] = [];
-		providerDisposable.push(provider.onDidChangeFile(changes => this._onFileChanges.fire(new FileChangesEvent(changes))));
+		const providerDisposables: IDisposable[] = [];
+		providerDisposables.push(provider.onDidChangeFile(changes => this._onFileChanges.fire(new FileChangesEvent(changes))));
 		if (typeof provider.onDidErrorOccur === 'function') {
-			providerDisposable.push(provider.onDidErrorOccur(error => this._onError.fire(error)));
+			providerDisposables.push(provider.onDidErrorOccur(error => this._onError.fire(error)));
 		}
 
 		return combinedDisposable([
@@ -85,7 +85,7 @@ export class FileService2 extends Disposable implements IFileService {
 				this._onDidChangeFileSystemProviderRegistrations.fire({ added: false, scheme, provider });
 				this.provider.delete(scheme);
 
-				dispose(combinedDisposable(providerDisposable));
+				dispose(providerDisposables);
 			}),
 			legacyDisposal
 		]);

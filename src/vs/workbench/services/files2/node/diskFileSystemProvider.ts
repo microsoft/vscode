@@ -413,9 +413,9 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 				return;
 			}
 
-			disposable = watchNonRecursive({ path: resource.fsPath, isDirectory: fileStat.type === FileType.Directory }, (eventType: 'change' | 'delete', path: string) => {
+			disposable = watchNonRecursive({ path: resource.fsPath, isDirectory: fileStat.type === FileType.Directory }, (eventType: 'added' | 'changed' | 'deleted', path: string) => {
 				this.onNonRecursiveFileChange({
-					type: eventType === 'change' ? FileChangeType.UPDATED : FileChangeType.DELETED,
+					type: eventType === 'changed' ? FileChangeType.UPDATED : eventType === 'added' ? FileChangeType.ADDED : FileChangeType.DELETED,
 					path
 				});
 			}, error => this.logService.error(error));

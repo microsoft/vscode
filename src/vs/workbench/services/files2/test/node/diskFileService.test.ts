@@ -12,7 +12,7 @@ import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { generateUuid } from 'vs/base/common/uuid';
 import { join, basename, dirname, posix } from 'vs/base/common/path';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
-import { copy, rimraf, symlink, RimRafMode } from 'vs/base/node/pfs';
+import { copy, rimraf, symlink, RimRafMode, rimrafSync } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { existsSync, statSync, readdirSync, readFileSync, writeFileSync, renameSync, unlinkSync, mkdirSync } from 'fs';
 import { FileOperation, FileOperationEvent, IFileStat, FileOperationResult, FileSystemProviderCapabilities, FileChangeType } from 'vs/platform/files/common/files';
@@ -799,7 +799,7 @@ suite('Disk File Service', () => {
 
 		setTimeout(() => {
 			writeFileSync(toWatch.fsPath, 'Changes');
-		}, 100);
+		}, 50);
 	});
 
 	test('watch - file (support atomic save)', function (done) {
@@ -830,10 +830,10 @@ suite('Disk File Service', () => {
 			unlinkSync(toWatch.fsPath);
 			writeFileSync(renamed, 'Changes');
 			renameSync(renamed, toWatch.fsPath);
-		}, 100);
+		}, 50);
 	});
 
-	test('watch - folder (non recursive)', done => {
+	test('watch - folder (non recursive) - change file', done => {
 		const watchDir = URI.file(join(testDir, 'watch3'));
 		mkdirSync(watchDir.fsPath);
 
@@ -859,6 +859,120 @@ suite('Disk File Service', () => {
 
 		setTimeout(() => {
 			writeFileSync(file.fsPath, 'Changes');
-		}, 100);
+		}, 50);
+	});
+
+	test('watch - folder (non recursive) - add file', done => {
+		const watchDir = URI.file(join(testDir, 'watch4'));
+		mkdirSync(watchDir.fsPath);
+
+		const file = URI.file(join(watchDir.fsPath, 'index.html'));
+
+		const listenerDisposable = service.onFileChanges(event => {
+			watcherDisposable.dispose();
+			listenerDisposable.dispose();
+
+			try {
+				assert.equal(event.changes.length, 1);
+				assert.equal(event.changes[0].type, FileChangeType.ADDED);
+				assert.equal(event.changes[0].resource.fsPath, file.fsPath);
+
+				done();
+			} catch (error) {
+				done(error);
+			}
+		});
+
+		const watcherDisposable = service.watch(watchDir);
+
+		setTimeout(() => {
+			writeFileSync(file.fsPath, 'Changes');
+		}, 50);
+	});
+
+	test('watch - folder (non recursive) - delete file', done => {
+		const watchDir = URI.file(join(testDir, 'watch5'));
+		mkdirSync(watchDir.fsPath);
+
+		const file = URI.file(join(watchDir.fsPath, 'index.html'));
+		writeFileSync(file.fsPath, 'Init');
+
+		const listenerDisposable = service.onFileChanges(event => {
+			watcherDisposable.dispose();
+			listenerDisposable.dispose();
+
+			try {
+				assert.equal(event.changes.length, 1);
+				assert.equal(event.changes[0].type, FileChangeType.DELETED);
+				assert.equal(event.changes[0].resource.fsPath, file.fsPath);
+
+				done();
+			} catch (error) {
+				done(error);
+			}
+		});
+
+		const watcherDisposable = service.watch(watchDir);
+
+		setTimeout(() => {
+			unlinkSync(file.fsPath);
+		}, 50);
+	});
+
+	test('watch - folder (non recursive) - add folder', done => {
+		const watchDir = URI.file(join(testDir, 'watch6'));
+		mkdirSync(watchDir.fsPath);
+
+		const folder = URI.file(join(watchDir.fsPath, 'folder'));
+
+		const listenerDisposable = service.onFileChanges(event => {
+			watcherDisposable.dispose();
+			listenerDisposable.dispose();
+
+			try {
+				assert.equal(event.changes.length, 1);
+				assert.equal(event.changes[0].type, FileChangeType.ADDED);
+				assert.equal(event.changes[0].resource.fsPath, folder.fsPath);
+
+				done();
+			} catch (error) {
+				done(error);
+			}
+		});
+
+		const watcherDisposable = service.watch(watchDir);
+
+		setTimeout(() => {
+			mkdirSync(folder.fsPath);
+		}, 50);
+	});
+
+	test('watch - folder (non recursive) - delete folder', done => {
+		const watchDir = URI.file(join(testDir, 'watch7'));
+		mkdirSync(watchDir.fsPath);
+
+		const folder = URI.file(join(watchDir.fsPath, 'folder'));
+		mkdirSync(folder.fsPath);
+
+		const listenerDisposable = service.onFileChanges(event => {
+			watcherDisposable.dispose();
+			listenerDisposable.dispose();
+
+			try {
+				assert.equal(event.changes.length, 1);
+				assert.equal(event.changes[0].type, FileChangeType.DELETED);
+				assert.equal(event.changes[0].resource.fsPath, folder.fsPath);
+
+				done();
+			} catch (error) {
+				done(error);
+			}
+		});
+
+		const watcherDisposable = service.watch(watchDir);
+
+		setTimeout(() => {
+			rimrafSync(folder.fsPath);
+		}, 50);
 	});
 });

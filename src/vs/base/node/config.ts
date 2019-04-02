@@ -152,7 +152,7 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 		));
 	}
 
-	private onConfigFileChange(eventType: 'change' | 'delete', path: string, isParentFolder: boolean): void {
+	private onConfigFileChange(eventType: 'added' | 'changed' | 'deleted', path: string, isParentFolder: boolean): void {
 		if (isParentFolder) {
 			if (path !== this._path) {
 				return; // a change to a sibling file that is not our config file

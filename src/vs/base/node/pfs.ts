@@ -15,7 +15,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { isRootOrDriveLetter } from 'vs/base/common/extpath';
 import { generateUuid } from 'vs/base/common/uuid';
 import { normalizeNFC } from 'vs/base/common/normalization';
-import { toDisposable, IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
+import { toDisposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { encode, encodeStream } from 'vs/base/node/encoding';
 
 export enum RimRafMode {
@@ -673,18 +673,26 @@ export async function mkdirp(path: string, mode?: number, token?: CancellationTo
 	}
 }
 
-export function watchNonRecursive(file: { path: string, isDirectory: boolean }, onChange: (type: 'change' | 'delete', path: string) => void, onError: (error: string) => void): IDisposable {
+export function watchNonRecursive(file: { path: string, isDirectory: boolean }, onChange: (type: 'added' | 'changed' | 'deleted', path: string) => void, onError: (error: string) => void): IDisposable {
+	const mapPathToStatDisposable = new Map<string, IDisposable>();
+
 	let disposed = false;
-	let watcherDisposable: IDisposable = Disposable.None;
+	let watcherDisposables: IDisposable[] = [];
 
 	try {
 		const originalFileName = basename(file.path);
 
 		const watcher = fs.watch(file.path);
-		watcherDisposable = toDisposable(() => {
+		watcherDisposables.push(toDisposable(() => {
 			watcher.removeAllListeners();
 			watcher.close();
-		});
+		}));
+
+		// Folder: resolve children to emit proper events
+		const folderChildren: Set<string> = new Set<string>();
+		if (file.isDirectory) {
+			readdir(file.path).then(children => children.forEach(child => folderChildren.add(child)));
+		}
 
 		watcher.on('error', (code: number, signal: string) => {
 			if (!disposed) {
@@ -698,7 +706,7 @@ export function watchNonRecursive(file: { path: string, isDirectory: boolean }, 
 			}
 
 			// Normalize file name
-			let changedFileName: string | undefined;
+			let changedFileName: string = '';
 			if (raw) { // https://github.com/Microsoft/vscode/issues/38191
 				changedFileName = raw.toString();
 				if (platform.isMacintosh) {
@@ -712,7 +720,10 @@ export function watchNonRecursive(file: { path: string, isDirectory: boolean }, 
 				return; // ignore unexpected events
 			}
 
-			// File rename/delete
+			// File path: use path directly for files and join with changed file name otherwise
+			const changedFilePath = file.isDirectory ? join(file.path, changedFileName) : file.path;
+
+			// File: rename/delete
 			if (!file.isDirectory && (type === 'rename' || changedFileName !== originalFileName)) {
 				// The file was either deleted or renamed. Many tools apply changes to files in an
 				// atomic way ("Atomic Save") by first renaming the file to a temporary name and then
@@ -725,7 +736,7 @@ export function watchNonRecursive(file: { path: string, isDirectory: boolean }, 
 
 				// Wait a bit and try to install watcher again, assuming that the file was renamed quickly ("Atomic Save")
 				const timeoutHandle = setTimeout(async () => {
-					const fileExists = await exists(file.path);
+					const fileExists = await exists(changedFilePath);
 
 					if (disposed) {
 						return; // ignore if disposed by now
@@ -733,29 +744,67 @@ export function watchNonRecursive(file: { path: string, isDirectory: boolean }, 
 
 					// File still exists, so emit as change event and reapply the watcher
 					if (fileExists) {
-						onChange('change', file.path);
+						onChange('changed', changedFilePath);
 
-						watcherDisposable = watchNonRecursive(file, onChange, onError);
+						watcherDisposables = [watchNonRecursive(file, onChange, onError)];
 					}
 
 					// File seems to be really gone, so emit a deleted event
 					else {
-						onChange('delete', file.path);
+						onChange('deleted', changedFilePath);
 					}
 				}, 300);
 
 				// Very important to dispose the watcher which now points to a stale inode
 				// and wire in a new disposable that tracks our timeout that is installed
-				dispose(watcherDisposable);
-				watcherDisposable = toDisposable(() => clearTimeout(timeoutHandle));
+				dispose(watcherDisposables);
+				watcherDisposables = [toDisposable(() => clearTimeout(timeoutHandle))];
+			}
+
+			// Folder: add/delete
+			else if (file.isDirectory && type === 'rename') {
+
+				// Cancel any previous stats for this file path if existing
+				const statDisposable = mapPathToStatDisposable.get(changedFilePath);
+				if (statDisposable) {
+					dispose(statDisposable);
+				}
+
+				// Wait a bit and try see if the file still exists on disk to decide on the resulting event
+				const timeoutHandle = setTimeout(async () => {
+					mapPathToStatDisposable.delete(changedFilePath);
+
+					const fileExists = await exists(changedFilePath);
+
+					if (disposed) {
+						return; // ignore if disposed by now
+					}
+
+					// Figure out the correct event type:
+					// File Exists: either 'added' or 'changed' if known before
+					// File Does not Exist: always 'deleted'
+					let type: 'added' | 'deleted' | 'changed';
+					if (fileExists) {
+						if (folderChildren.has(changedFileName)) {
+							type = 'changed';
+						} else {
+							type = 'added';
+							folderChildren.add(changedFileName);
+						}
+					} else {
+						folderChildren.delete(changedFileName);
+						type = 'deleted';
+					}
+
+					onChange(type, changedFilePath);
+				}, 100);
+
+				mapPathToStatDisposable.set(changedFilePath, toDisposable(() => clearTimeout(timeoutHandle)));
 			}
 
 			// Other events
 			else {
-				// Send as event
-				// File: use the path directly in the event
-				// Folder: join the given file name with the parent path
-				onChange('change', file.isDirectory ? join(file.path, changedFileName) : file.path);
+				onChange('changed', changedFilePath);
 			}
 		});
 	} catch (error) {
@@ -768,6 +817,10 @@ export function watchNonRecursive(file: { path: string, isDirectory: boolean }, 
 
 	return toDisposable(() => {
 		disposed = true;
-		dispose(watcherDisposable);
+
+		watcherDisposables = dispose(watcherDisposables);
+
+		mapPathToStatDisposable.forEach(disposable => dispose(disposable));
+		mapPathToStatDisposable.clear();
 	});
 }

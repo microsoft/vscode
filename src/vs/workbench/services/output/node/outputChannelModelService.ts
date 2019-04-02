@@ -26,7 +26,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 
 let watchingOutputDir = false;
 let callbacks: ((eventType: string, fileName?: string) => void)[] = [];
-function watchOutputDirectory(outputDir: string, logService: ILogService, onChange: (eventType: string, path: string) => void): IDisposable {
+function watchOutputDirectory(outputDir: string, logService: ILogService, onChange: (eventType: 'added' | 'changed' | 'deleted', path: string) => void): IDisposable {
 	callbacks.push(onChange);
 	if (!watchingOutputDir) {
 		const watcherDisposable = watchNonRecursive({ path: outputDir, isDirectory: true }, (eventType, path) => {
@@ -145,7 +145,7 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannelModel implement
 		}
 	}
 
-	private onFileChangedInOutputDirector(eventType: string, path: string): void {
+	private onFileChangedInOutputDirector(eventType: 'added' | 'changed' | 'deleted', path: string): void {
 		// Check if rotating file has changed. It changes only when the main file exceeds its limit.
 		if (this.rotatingFilePath === path) {
 			this.resettingDelayer.trigger(() => this.resetModel());
