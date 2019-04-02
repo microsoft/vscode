@@ -16,6 +16,8 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { asText } from 'vs/base/node/request';
 import { join } from 'path';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import Severity from 'vs/base/common/severity';
 
 abstract class RepoInfo {
 	readonly base: string;
@@ -91,6 +93,7 @@ export async function createSlowExtensionAction(
 	}
 
 	const requestService = accessor.get(IRequestService);
+	const instaService = accessor.get(IInstantiationService);
 	const url = `https://api.github.com/search/issues?q=is:issue+state:open+in:title+repo:${info.owner}/${info.repo}+%22Extension+causes+high+cpu+load%22`;
 	const res = await requestService.request({ url }, CancellationToken.None);
 	const rawText = await asText(res);
@@ -102,9 +105,9 @@ export async function createSlowExtensionAction(
 	if (!data || typeof data.total_count !== 'number') {
 		return undefined;
 	} else if (data.total_count === 0) {
-		return new ReportExtensionSlowAction(extension, info, profile);
+		return instaService.createInstance(ReportExtensionSlowAction, extension, info, profile);
 	} else {
-		return new ShowExtensionSlowAction(extension, info);
+		return instaService.createInstance(ShowExtensionSlowAction, extension, info, profile);
 	}
 }
 
@@ -114,6 +117,7 @@ class ReportExtensionSlowAction extends Action {
 		readonly extension: IExtensionDescription,
 		readonly repoInfo: RepoInfo,
 		readonly profile: IExtensionHostProfile,
+		@IDialogService private readonly _dialogService: IDialogService,
 	) {
 		super('report.slow', localize('cmd.report', "Report Issue"));
 	}
@@ -138,6 +142,13 @@ class ReportExtensionSlowAction extends Action {
 
 		const url = `${this.repoInfo.base}/${this.repoInfo.owner}/${this.repoInfo.repo}/issues/new/?body=${body}&title=${title}`;
 		window.open(url);
+
+		this._dialogService.show(
+			Severity.Info,
+			localize('attach.title', "Did you attach the CPU-Profile?"),
+			[localize('ok', 'OK')],
+			{ detail: localize('attach.msg', "This is a reminder to make sure that you have not forgotten to attach '{0}' to the issue you have just created.", path) }
+		);
 	}
 }
 
@@ -146,12 +157,29 @@ class ShowExtensionSlowAction extends Action {
 	constructor(
 		readonly extension: IExtensionDescription,
 		readonly repoInfo: RepoInfo,
+		readonly profile: IExtensionHostProfile,
+		@IDialogService private readonly _dialogService: IDialogService,
 	) {
 		super('show.slow', localize('cmd.show', "Show Issues"));
 	}
 
 	async run(): Promise<void> {
+
+		// rewrite pii (paths) and store on disk
+		const profiler = await import('v8-inspect-profiler');
+		const data = profiler.rewriteAbsolutePaths({ profile: <any>this.profile.data }, 'pii_removed');
+		const path = join(os.homedir(), `${this.extension.identifier.value}-unresponsive.cpuprofile.txt`);
+		await profiler.writeProfile(data, path).then(undefined, onUnexpectedError);
+
+		// show issues
 		const url = `${this.repoInfo.base}/${this.repoInfo.owner}/${this.repoInfo.repo}/issues?utf8=✓&q=is%3Aissue+state%3Aopen+%22Extension+causes+high+cpu+load%22`;
 		window.open(url);
+
+		this._dialogService.show(
+			Severity.Info,
+			localize('attach.title', "Did you attach the CPU-Profile?"),
+			[localize('ok', 'OK')],
+			{ detail: localize('attach.msg2', "This is a reminder to make sure that you have not forgotten to attach '{0}' to an existing performance issue.", path) }
+		);
 	}
 }
