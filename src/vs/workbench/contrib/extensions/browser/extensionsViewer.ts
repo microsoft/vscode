@@ -173,7 +173,6 @@ class OpenExtensionAction extends Action {
 	}
 }
 
-//TODO: Ctrl Enter, Indentation
 export class ExtensionsTree extends WorkbenchAsyncDataTree<IExtensionData, any> {
 
 	constructor(
@@ -213,9 +212,7 @@ export class ExtensionsTree extends WorkbenchAsyncDataTree<IExtensionData, any> 
 		this.setInput(input);
 
 		this.disposables.push(this.onDidChangeSelection(event => {
-			if (event.browserEvent && event.browserEvent instanceof KeyboardEvent) {
-				extensionsWorkdbenchService.open(event.elements[0], false);
-			}
+			extensionsWorkdbenchService.open(event.elements[0], event.browserEvent instanceof MouseEvent && (event.browserEvent.ctrlKey || event.browserEvent.metaKey || event.browserEvent.altKey));
 		}));
 	}
 }
