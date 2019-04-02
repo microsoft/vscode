@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as strings from 'vs/base/common/strings';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 export const enum CodeEditorStateFlag {
 	Value = 1,
@@ -68,6 +70,35 @@ export class EditorState {
 
 	public validate(editor: ICodeEditor): boolean {
 		return this._equals(new EditorState(editor, this.flags));
+	}
+}
+
+
+export class EditorStateCancellationTokenSource extends CancellationTokenSource {
+
+	private readonly _listener: IDisposable[] = [];
+
+	constructor(readonly editor: IActiveCodeEditor, flags: CodeEditorStateFlag) {
+		super();
+
+		if (flags & CodeEditorStateFlag.Position) {
+			this._listener.push(editor.onDidChangeCursorPosition(_ => this.cancel()));
+		}
+		if (flags & CodeEditorStateFlag.Selection) {
+			this._listener.push(editor.onDidChangeCursorSelection(_ => this.cancel()));
+		}
+		if (flags & CodeEditorStateFlag.Scroll) {
+			this._listener.push(editor.onDidScrollChange(_ => this.cancel()));
+		}
+		if (flags & CodeEditorStateFlag.Value) {
+			this._listener.push(editor.onDidChangeModel(_ => this.cancel()));
+			this._listener.push(editor.onDidChangeModelContent(_ => this.cancel()));
+		}
+	}
+
+	dispose() {
+		dispose(this._listener);
+		super.dispose();
 	}
 }
 
