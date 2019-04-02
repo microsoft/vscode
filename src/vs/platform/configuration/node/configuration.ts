@@ -10,8 +10,9 @@ import { ConfigWatcher } from 'vs/base/node/config';
 import { Event, Emitter } from 'vs/base/common/event';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
-import { IFileService, FileChangesEvent } from 'vs/platform/files/common/files';
+import { IFileService, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
 import * as resources from 'vs/base/common/resources';
+import { IDisposable } from 'vscode-xterm';
 
 export class NodeBasedUserConfiguration extends Disposable {
 
@@ -62,6 +63,10 @@ export class FileServiceBasedUserConfiguration extends Disposable {
 	protected readonly _onDidChangeConfiguration: Emitter<ConfigurationModel> = this._register(new Emitter<ConfigurationModel>());
 	readonly onDidChangeConfiguration: Event<ConfigurationModel> = this._onDidChangeConfiguration.event;
 
+	private fileWatcherDisposable: IDisposable = Disposable.None;
+	private directoryWatcherDisposable: IDisposable = Disposable.None;
+	private exists: boolean = false;
+
 	constructor(
 		private readonly configurationResource: URI,
 		private readonly fileService: IFileService
@@ -70,8 +75,44 @@ export class FileServiceBasedUserConfiguration extends Disposable {
 
 		this._register(fileService.onFileChanges(e => this.handleFileEvents(e)));
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.reload().then(configurationModel => this._onDidChangeConfiguration.fire(configurationModel)), 50));
+
+		this.watchResource();
+		this._register(toDisposable(() => this.stopWatchingResource()));
+		this.watchDirectory();
+		this._register(toDisposable(() => this.stopWatchingDirectory()));
+
+		fileService.exists(this.configurationResource)
+			.then(exists => {
+				this.exists = exists;
+				if (this.exists) {
+					// If exists stop watching directory
+					this.stopWatchingDirectory();
+				} else {
+					// Otherwise stop watching resource
+					this.stopWatchingResource();
+				}
+			});
+	}
+
+	private watchResource(): void {
 		this.fileService.watch(this.configurationResource);
-		this._register(toDisposable(() => this.fileService.unwatch(this.configurationResource)));
+		this.fileWatcherDisposable = toDisposable(() => this.fileService.unwatch(this.configurationResource));
+	}
+
+	private stopWatchingResource(): void {
+		this.fileWatcherDisposable.dispose();
+		this.fileWatcherDisposable = Disposable.None;
+	}
+
+	private watchDirectory(): void {
+		const directory = resources.dirname(this.configurationResource);
+		this.fileService.watch(directory);
+		this.directoryWatcherDisposable = toDisposable(() => this.fileService.unwatch(directory));
+	}
+
+	private stopWatchingDirectory(): void {
+		this.directoryWatcherDisposable.dispose();
+		this.directoryWatcherDisposable = Disposable.None;
 	}
 
 	initialize(): Promise<ConfigurationModel> {
@@ -90,13 +131,39 @@ export class FileServiceBasedUserConfiguration extends Disposable {
 			});
 	}
 
-	private handleFileEvents(event: FileChangesEvent): void {
+	private async handleFileEvents(event: FileChangesEvent): Promise<void> {
 		const events = event.changes;
 
 		let affectedByChanges = false;
-		// Find changes that affect workspace file
-		for (let i = 0, len = events.length; i < len && !affectedByChanges; i++) {
-			affectedByChanges = resources.isEqual(this.configurationResource, events[i].resource);
+
+		// Find changes that affect the resource
+		for (const event of events) {
+			affectedByChanges = resources.isEqual(this.configurationResource, event.resource);
+			if (affectedByChanges) {
+				if (event.type !== FileChangeType.DELETED) {
+					this.exists = false;
+					// Resource deleted. Stop watching resource and start watching directory
+					this.stopWatchingResource();
+					this.watchDirectory();
+				}
+				break;
+			}
+		}
+
+		if (!affectedByChanges && !this.exists) {
+			// Find changes if resource is added
+			const directory = resources.dirname(this.configurationResource);
+			for (const { resource } of events) {
+				if (resources.isEqual(directory, resource)) {
+					this.exists = affectedByChanges = await this.fileService.exists(this.configurationResource);
+					if (affectedByChanges) {
+						// Resource is created. Stop watching directory and start watching resource
+						this.stopWatchingDirectory();
+						this.watchResource();
+					}
+					break;
+				}
+			}
 		}
 
 		if (affectedByChanges) {
