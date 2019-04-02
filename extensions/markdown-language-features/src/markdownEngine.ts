@@ -47,6 +47,11 @@ class TokenCache {
 		};
 		this.tokens = tokens;
 	}
+
+	public clean(): void {
+		this.cachedDocument = undefined;
+		this.tokens = undefined;
+	}
 }
 
 export class MarkdownEngine {
@@ -145,6 +150,10 @@ export class MarkdownEngine {
 		const config = this.getConfig(document.uri);
 		const engine = await this.getEngine(config);
 		return this.tokenize(document, config, engine);
+	}
+
+	public cleanCache(): void {
+		this._tokenCache.clean();
 	}
 
 	private getConfig(resource: vscode.Uri): MarkdownItConfig {
