@@ -325,8 +325,8 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 
 		// Hide those that match Hidden Patterns
 		const cached = this.hiddenExpressionPerRoot.get(stat.root.resource.toString());
-		if (cached && cached.parsed(path.normalize(path.relative(stat.root.resource.path, stat.resource.path)), stat.name, name => !!(stat.parent && stat.parent.getChild(name)))) {
-			// review (isidor): is path.normalize necessary? path.relative already returns an os path
+		const relativeTo = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? path.dirname(stat.root.resource.path) : stat.root.resource.path;
+		if (cached && cached.parsed(path.relative(relativeTo, stat.resource.path), stat.name, name => !!(stat.parent && stat.parent.getChild(name)))) {
 			return false; // hidden through pattern
 		}
 
