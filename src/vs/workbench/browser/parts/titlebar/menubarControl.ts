@@ -350,12 +350,13 @@ export class MenubarControl extends Disposable {
 		return label;
 	}
 
-	private createOpenRecentMenuAction(recent: IRecent, isFile: boolean): IAction & { uri: URI } {
+	private createOpenRecentMenuAction(recent: IRecent): IAction & { uri: URI } {
 
 		let label: string;
 		let uri: URI;
 		let commandId: string;
 		let typeHint: URIType | undefined;
+		let forceOpenWorkspaceAsFile = false;
 
 		if (isRecentFolder(recent)) {
 			uri = recent.folderUri;
@@ -372,6 +373,7 @@ export class MenubarControl extends Disposable {
 			label = recent.label || this.labelService.getUriLabel(uri);
 			commandId = 'openRecentFile';
 			typeHint = 'file';
+			forceOpenWorkspaceAsFile = true;
 		}
 
 		const ret: IAction = new Action(commandId, unmnemonicLabel(label), undefined, undefined, (event) => {
@@ -379,7 +381,7 @@ export class MenubarControl extends Disposable {
 
 			return this.windowService.openWindow([{ uri, typeHint }], {
 				forceNewWindow: openInNewWindow,
-				forceOpenWorkspaceAsFile: isFile
+				forceOpenWorkspaceAsFile
 			});
 		});
 
@@ -398,7 +400,7 @@ export class MenubarControl extends Disposable {
 
 		if (workspaces.length > 0) {
 			for (let i = 0; i < MenubarControl.MAX_MENU_RECENT_ENTRIES && i < workspaces.length; i++) {
-				result.push(this.createOpenRecentMenuAction(workspaces[i], false));
+				result.push(this.createOpenRecentMenuAction(workspaces[i]));
 			}
 
 			result.push(new Separator());
@@ -406,7 +408,7 @@ export class MenubarControl extends Disposable {
 
 		if (files.length > 0) {
 			for (let i = 0; i < MenubarControl.MAX_MENU_RECENT_ENTRIES && i < files.length; i++) {
-				result.push(this.createOpenRecentMenuAction(files[i], true));
+				result.push(this.createOpenRecentMenuAction(files[i]));
 			}
 
 			result.push(new Separator());

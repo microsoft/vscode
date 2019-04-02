@@ -7,7 +7,7 @@ import 'vs/css!./media/actions';
 
 import { URI } from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
-import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowService, IWindowsService, IURIToOpen } from 'vs/platform/windows/common/windows';
 import * as nls from 'vs/nls';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { isMacintosh } from 'vs/base/common/platform';
@@ -339,38 +339,32 @@ export abstract class BaseOpenRecentAction extends Action {
 	private openRecent(recentWorkspaces: Array<IRecentWorkspace | IRecentFolder>, recentFiles: IRecentFile[]): void {
 
 		const toPick = (recent: IRecent, labelService: ILabelService, buttons: IQuickInputButton[] | undefined) => {
-			let resource: URI | undefined;
+			let uriToOpen: IURIToOpen | undefined;
 			let fullLabel: string | undefined;
 			let fileKind: FileKind | undefined;
 			if (isRecentFolder(recent)) {
-				resource = recent.folderUri;
+				uriToOpen = { uri: recent.folderUri, typeHint: 'folder' };
 				fullLabel = recent.label || labelService.getWorkspaceLabel(recent.folderUri, { verbose: true });
 				fileKind = FileKind.FOLDER;
 			} else if (isRecentWorkspace(recent)) {
-				resource = recent.workspace.configPath;
+				uriToOpen = { uri: recent.workspace.configPath, typeHint: 'file' };
 				fullLabel = recent.label || labelService.getWorkspaceLabel(recent.workspace, { verbose: true });
 				fileKind = FileKind.ROOT_FOLDER;
 			} else {
-				resource = recent.fileUri;
+				uriToOpen = { uri: recent.fileUri, typeHint: 'file' };
 				fullLabel = recent.label || labelService.getUriLabel(recent.fileUri);
 				fileKind = FileKind.FILE;
 			}
 			const { name, parentPath } = splitName(fullLabel);
 			return {
-				iconClasses: getIconClasses(this.modelService, this.modeService, resource, fileKind),
+				iconClasses: getIconClasses(this.modelService, this.modeService, uriToOpen.uri, fileKind),
 				label: name,
 				description: parentPath,
 				buttons,
-				resource,
+				uriToOpen,
 				fileKind,
 			};
 		};
-
-		const runPick = (uri: URI, isFile: boolean, keyMods: IKeyMods) => {
-			const forceNewWindow = keyMods.ctrlCmd;
-			return this.windowService.openWindow([{ uri, typeHint: isFile ? 'file' : 'folder' }], { forceNewWindow, forceOpenWorkspaceAsFile: isFile });
-		};
-
 		const workspacePicks = recentWorkspaces.map(workspace => toPick(workspace, this.labelService, !this.isQuickNavigate() ? [this.removeFromRecentlyOpened] : undefined));
 		const filePicks = recentFiles.map(p => toPick(p, this.labelService, !this.isQuickNavigate() ? [this.removeFromRecentlyOpened] : undefined));
 
@@ -390,11 +384,13 @@ export abstract class BaseOpenRecentAction extends Action {
 			onKeyMods: mods => keyMods = mods,
 			quickNavigate: this.isQuickNavigate() ? { keybindings: this.keybindingService.lookupKeybindings(this.id) } : undefined,
 			onDidTriggerItemButton: context => {
-				this.windowsService.removeFromRecentlyOpened([context.item.resource]).then(() => context.removeItem());
+				this.windowsService.removeFromRecentlyOpened([context.item.uriToOpen.uri]).then(() => context.removeItem());
 			}
 		}).then((pick): Promise<void> | void => {
 			if (pick) {
-				return runPick(pick.resource, pick.fileKind === FileKind.FILE, keyMods);
+				const forceNewWindow = keyMods.ctrlCmd;
+				const forceOpenWorkspaceAsFile = pick.fileKind === FileKind.FILE;
+				return this.windowService.openWindow([pick.uriToOpen], { forceNewWindow, forceOpenWorkspaceAsFile });
 			}
 		});
 	}
