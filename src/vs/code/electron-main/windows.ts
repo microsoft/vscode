@@ -1738,7 +1738,7 @@ export class WindowsManager implements IWindowsMainService {
 
 	async pickFolderAndOpen(options: INativeOpenDialogOptions): Promise<void> {
 		const title = localize('openFolder', "Open Folder");
-		const paths = await this.dialogs.pick({ ...options, pickFiles: true, title });
+		const paths = await this.dialogs.pick({ ...options, pickFolders: true, title });
 		if (paths) {
 			this.sendPickerTelemetry(paths, options.telemetryEventName || 'openFolder', options.telemetryExtraData);
 			this.open({
@@ -1753,7 +1753,7 @@ export class WindowsManager implements IWindowsMainService {
 
 	async pickFileAndOpen(options: INativeOpenDialogOptions): Promise<void> {
 		const title = localize('openFile', "Open File");
-		const paths = await this.dialogs.pick({ ...options, pickFolders: true, title });
+		const paths = await this.dialogs.pick({ ...options, pickFiles: true, title });
 		if (paths) {
 			this.sendPickerTelemetry(paths, options.telemetryEventName || 'openFile', options.telemetryExtraData);
 			this.open({
