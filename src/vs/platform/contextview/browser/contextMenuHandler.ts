@@ -101,7 +101,7 @@ export class ContextMenuHandler {
 						element = element.parentElement;
 					}
 
-					this.contextViewService.hideContextView();
+					this.contextViewService.hideContextView(true);
 				}, null, menuDisposables);
 
 				return combinedDisposable([...menuDisposables, menu]);
