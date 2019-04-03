@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { join, basename } from 'vs/base/common/path';
-import * as fs from 'fs';
-import * as platform from 'vs/base/common/platform';
+import { watch } from 'fs';
+import { isMacintosh } from 'vs/base/common/platform';
 import { normalizeNFC } from 'vs/base/common/normalization';
 import { toDisposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { exists, readdir } from 'vs/base/node/pfs';
@@ -33,7 +33,7 @@ function doWatchNonRecursive(file: { path: string, isDirectory: boolean }, onCha
 	try {
 
 		// Creating watcher can fail with an exception
-		const watcher = fs.watch(file.path);
+		const watcher = watch(file.path);
 		watcherDisposables.push(toDisposable(() => {
 			watcher.removeAllListeners();
 			watcher.close();
@@ -60,7 +60,7 @@ function doWatchNonRecursive(file: { path: string, isDirectory: boolean }, onCha
 			let changedFileName: string = '';
 			if (raw) { // https://github.com/Microsoft/vscode/issues/38191
 				changedFileName = raw.toString();
-				if (platform.isMacintosh) {
+				if (isMacintosh) {
 					// Mac: uses NFD unicode form on disk, but we want NFC
 					// See also https://github.com/nodejs/node/issues/2165
 					changedFileName = normalizeNFC(changedFileName);
@@ -177,7 +177,7 @@ function doWatchNonRecursive(file: { path: string, isDirectory: boolean }, onCha
 			}
 		});
 	} catch (error) {
-		fs.exists(file.path, exists => {
+		exists(file.path).then(exists => {
 			if (exists && !disposed) {
 				onError(`Failed to watch ${file.path} for changes using fs.watch() (${error.toString()})`);
 			}
