@@ -298,19 +298,17 @@ export abstract class AbstractContextKeyService implements IContextKeyService {
 export class ContextKeyService extends AbstractContextKeyService implements IContextKeyService {
 
 	private _lastContextId: number;
-	private _contexts: {
-		[contextId: string]: Context;
-	};
+	private readonly _contexts = new Map<number, Context>();
 
 	private _toDispose: IDisposable[] = [];
 
 	constructor(@IConfigurationService configurationService: IConfigurationService) {
 		super(0);
 		this._lastContextId = 0;
-		this._contexts = Object.create(null);
+
 
 		const myContext = new ConfigAwareContextValuesContainer(this._myContextId, configurationService, this._onDidChangeContext);
-		this._contexts[String(this._myContextId)] = myContext;
+		this._contexts.set(this._myContextId, myContext);
 		this._toDispose.push(myContext);
 
 		// Uncomment this to see the contexts continuously logged
@@ -334,7 +332,7 @@ export class ContextKeyService extends AbstractContextKeyService implements ICon
 		if (this._isDisposed) {
 			return NullContext.INSTANCE;
 		}
-		return this._contexts[String(contextId)];
+		return this._contexts.get(contextId) || NullContext.INSTANCE;
 	}
 
 	public createChildContext(parentContextId: number = this._myContextId): number {
@@ -342,15 +340,14 @@ export class ContextKeyService extends AbstractContextKeyService implements ICon
 			throw new Error(`ContextKeyService has been disposed`);
 		}
 		let id = (++this._lastContextId);
-		this._contexts[String(id)] = new Context(id, this.getContextValuesContainer(parentContextId));
+		this._contexts.set(id, new Context(id, this.getContextValuesContainer(parentContextId)));
 		return id;
 	}
 
 	public disposeContext(contextId: number): void {
-		if (this._isDisposed) {
-			return;
+		if (!this._isDisposed) {
+			this._contexts.delete(contextId);
 		}
-		delete this._contexts[String(contextId)];
 	}
 }
 
