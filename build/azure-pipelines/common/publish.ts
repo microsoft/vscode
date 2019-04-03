@@ -139,20 +139,7 @@ async function uploadBlob(blobService: azure.BlobService, quality: string, blobN
 		}
 	};
 
-	console.log(`Uploading blob: ${blobService.getUrl(quality, blobName)}...`);
-
-	let timer: NodeJS.Timer | undefined;
-
-	await new Promise((c, e) => {
-		const summary = blobService.createBlockBlobFromLocalFile(quality, blobName, file, blobOptions, err => err ? e(err) : c());
-		timer = setInterval(() => console.log(`Done ${summary.getCompletePercent(1)}% with blob: ${blobService.getUrl(quality, blobName)}`), 10000);
-	});
-
-	if (typeof timer !== 'undefined') {
-		clearInterval(timer);
-	}
-
-	console.log(`Done with blob: ${blobService.getUrl(quality, blobName)}...`);
+	await new Promise((c, e) => blobService.createBlockBlobFromLocalFile(quality, blobName, file, blobOptions, err => err ? e(err) : c()));
 }
 
 interface PublishOptions {
