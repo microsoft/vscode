@@ -9,7 +9,8 @@ import * as objects from 'vs/base/common/objects';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as json from 'vs/base/common/json';
-import { watchFolder, watchFile, lstat, readlink } from 'vs/base/node/pfs';
+import { lstat, readlink } from 'vs/base/node/pfs';
+import { watchFolder, watchFile } from 'vs/base/node/watcher';
 
 export interface IConfigurationChangeEvent<T> {
 	config: T;

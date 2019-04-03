@@ -10,7 +10,8 @@ import { IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatc
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { isLinux, isWindows } from 'vs/base/common/platform';
-import { statLink, readdir, unlink, move, copy, readFile, writeFile, fileExists, truncate, rimraf, RimRafMode, watchFolder, watchFile } from 'vs/base/node/pfs';
+import { statLink, readdir, unlink, move, copy, readFile, writeFile, fileExists, truncate, rimraf, RimRafMode } from 'vs/base/node/pfs';
+import { watchFolder, watchFile } from 'vs/base/node/watcher';
 import { normalize, basename, dirname } from 'vs/base/common/path';
 import { joinPath } from 'vs/base/common/resources';
 import { isEqual } from 'vs/base/common/extpath';

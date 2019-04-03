@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { watchFolder } from 'vs/base/node/pfs';
+import { watchFolder } from 'vs/base/node/watcher';
 import { dirname, join } from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import { ITextModel } from 'vs/editor/common/model';
