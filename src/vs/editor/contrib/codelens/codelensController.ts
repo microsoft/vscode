@@ -17,6 +17,7 @@ import { ICodeLensData, getCodeLensData } from 'vs/editor/contrib/codelens/codel
 import { CodeLens, CodeLensHelper } from 'vs/editor/contrib/codelens/codelensWidget';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { ICodeLensCache } from 'vs/editor/contrib/codelens/codeLensCache';
 
 export class CodeLensContribution implements editorCommon.IEditorContribution {
 
@@ -35,7 +36,8 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 	constructor(
 		private readonly _editor: editorBrowser.ICodeEditor,
 		@ICommandService private readonly _commandService: ICommandService,
-		@INotificationService private readonly _notificationService: INotificationService
+		@INotificationService private readonly _notificationService: INotificationService,
+		@ICodeLensCache private readonly _codeLensCache: ICodeLensCache
 	) {
 		this._isEnabled = this._editor.getConfiguration().contribInfo.codeLens;
 
@@ -104,6 +106,11 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 			}
 		}
 
+		const cachedLenses = this._codeLensCache.get(model);
+		if (cachedLenses) {
+			this._renderCodeLensSymbols(cachedLenses);
+		}
+
 		this._detectVisibleLenses = new RunOnceScheduler(() => {
 			this._onViewportChanged();
 		}, 500);
@@ -116,8 +123,9 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 
 			this._currentFindCodeLensSymbolsPromise = createCancelablePromise(token => getCodeLensData(model, token));
 
-			this._currentFindCodeLensSymbolsPromise.then((result) => {
+			this._currentFindCodeLensSymbolsPromise.then(result => {
 				if (counterValue === this._modelChangeCounter) { // only the last one wins
+					this._codeLensCache.put(model, result);
 					this._renderCodeLensSymbols(result);
 					this._detectVisibleLenses.schedule();
 				}
