@@ -7,7 +7,7 @@ import { Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
-import { IWindowConfiguration, IWindowService } from 'vs/platform/windows/common/windows';
+import { IWindowService, IWindowsConfiguration } from 'vs/platform/windows/common/windows';
 import { ActiveEditorContext, EditorsVisibleContext, TextCompareEditorVisibleContext, TextCompareEditorActiveContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, TEXT_DIFF_EDITOR_ID, SplitEditorsVertically, InEditorZenModeContext } from 'vs/workbench/common/editor';
 import { IsMacContext, IsLinuxContext, IsWindowsContext, HasMacNativeTabsContext, IsDevelopmentContext, SupportsWorkspacesContext, SupportsOpenFileFolderContext, WorkbenchStateContext, WorkspaceFolderCountContext, IsRemoteContext } from 'vs/workbench/common/contextkeys';
 import { trackFocus, addDisposableListener, EventType } from 'vs/base/browser/dom';
@@ -91,7 +91,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		IsRemoteContext.bindTo(this.contextKeyService).set(!!this.windowService.getConfiguration().remoteAuthority);
 
 		// macOS Native Tabs
-		const windowConfig = this.configurationService.getValue<IWindowConfiguration>();
+		const windowConfig = this.configurationService.getValue<IWindowsConfiguration>();
 		HasMacNativeTabsContext.bindTo(this.contextKeyService).set(windowConfig && windowConfig.window && windowConfig.window.nativeTabs);
 
 		// Development

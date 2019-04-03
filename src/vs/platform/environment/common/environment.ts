@@ -7,7 +7,6 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { URI } from 'vs/base/common/uri';
 
 export interface ParsedArgs {
-	[arg: string]: any;
 	_: string[];
 	'folder-uri'?: string | string[];
 	'file-uri'?: string | string[];
