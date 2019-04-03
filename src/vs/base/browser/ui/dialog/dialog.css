@@ -19,6 +19,7 @@
 .monaco-workbench .dialog-box {
 	display: flex;
 	flex-direction: column-reverse;
+	width: min-content;
 	min-width: 500px;
 	max-width: 90%;
 	min-height: 75px;
