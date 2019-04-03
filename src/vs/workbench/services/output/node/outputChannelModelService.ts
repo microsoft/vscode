@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { watchFolder } from 'vs/base/node/watcher';
-import { dirname, join } from 'vs/base/common/path';
+import { join } from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import { ITextModel } from 'vs/editor/common/model';
 import { URI } from 'vs/base/common/uri';
@@ -13,7 +12,7 @@ import { ThrottledDelayer } from 'vs/base/common/async';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { toDisposable, IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IOutputChannelModel, AbstractFileOutputChannelModel, IOutputChannelModelService, AsbtractOutputChannelModelService, BufferredOutputChannel } from 'vs/workbench/services/output/common/outputChannelModel';
 import { OutputAppender } from 'vs/workbench/services/output/node/outputAppender';
@@ -24,34 +23,13 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Emitter, Event } from 'vs/base/common/event';
 
-let watchingOutputDir = false;
-let callbacks: ((eventType: 'added' | 'changed' | 'deleted', path: string) => void)[] = [];
-function watchOutputDirectory(outputDir: string, logService: ILogService, onChange: (eventType: 'added' | 'changed' | 'deleted', path: string) => void): IDisposable {
-	callbacks.push(onChange);
-	if (!watchingOutputDir) {
-		const watcherDisposable = watchFolder(outputDir, (eventType, path) => {
-			for (const callback of callbacks) {
-				callback(eventType, path);
-			}
-		}, (error: string) => {
-			logService.error(error);
-		});
-		watchingOutputDir = true;
-		return toDisposable(() => {
-			callbacks = [];
-			watcherDisposable.dispose();
-		});
-	}
-	return toDisposable(() => { });
-}
-
 class OutputChannelBackedByFile extends AbstractFileOutputChannelModel implements IOutputChannelModel {
 
 	private appender: OutputAppender;
 	private appendedMessage: string;
 	private loadingFromFileInProgress: boolean;
 	private resettingDelayer: ThrottledDelayer<void>;
-	private readonly rotatingFilePath: string;
+	private readonly rotatingFilePath: URI;
 
 	constructor(
 		id: string,
@@ -70,9 +48,15 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannelModel implement
 		// Use one rotating file to check for main file reset
 		this.appender = new OutputAppender(id, this.file.fsPath);
 
-		const rotatingFilePathDirectory = dirname(this.file.fsPath);
-		this.rotatingFilePath = join(rotatingFilePathDirectory, `${id}.1.log`);
-		this._register(watchOutputDirectory(rotatingFilePathDirectory, logService, (eventType, path) => this.onFileChangedInOutputDirectory(eventType, path)));
+		const rotatingFilePathDirectory = resources.dirname(this.file);
+		this.rotatingFilePath = resources.joinPath(rotatingFilePathDirectory, `${id}.1.log`);
+
+		this._register(fileService.watch(rotatingFilePathDirectory));
+		this._register(fileService.onFileChanges(e => {
+			if (e.contains(this.rotatingFilePath)) {
+				this.resettingDelayer.trigger(() => this.resetModel());
+			}
+		}));
 
 		this.resettingDelayer = new ThrottledDelayer<void>(50);
 	}
@@ -142,13 +126,6 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannelModel implement
 		if (this.model && this.appendedMessage) {
 			this.appendToModel(this.appendedMessage);
 			this.appendedMessage = '';
-		}
-	}
-
-	private onFileChangedInOutputDirectory(eventType: 'added' | 'changed' | 'deleted', path: string): void {
-		// Check if rotating file has changed. It changes only when the main file exceeds its limit.
-		if (this.rotatingFilePath === path) {
-			this.resettingDelayer.trigger(() => this.resetModel());
 		}
 	}
 
