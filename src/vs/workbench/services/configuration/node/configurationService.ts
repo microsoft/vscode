@@ -299,7 +299,12 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 		this.fileService = fileService;
 		const changedWorkspaceFolders: IWorkspaceFolder[] = [];
 		if (this.localUserConfiguration) {
-			this.localUserConfiguration.adopt(fileService);
+			this.localUserConfiguration.adopt(fileService)
+				.then(changedModel => {
+					if (changedModel) {
+						this.onLocalUserConfigurationChanged(changedModel);
+					}
+				});
 		}
 		Promise.all([this.workspaceConfiguration.adopt(fileService), ...this.cachedFolderConfigs.values()
 			.map(folderConfiguration => folderConfiguration.adopt(fileService)

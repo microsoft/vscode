@@ -9,7 +9,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import * as pfs from 'vs/base/node/pfs';
 import * as errors from 'vs/base/common/errors';
 import * as collections from 'vs/base/common/collections';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler, Delayer } from 'vs/base/common/async';
 import { FileChangeType, FileChangesEvent, IContent, IFileService } from 'vs/platform/files/common/files';
 import { ConfigurationModel, ConfigurationModelParser } from 'vs/platform/configuration/common/configurationModels';
@@ -53,10 +53,19 @@ export class LocalUserConfiguration extends Disposable {
 
 	async adopt(fileService: IFileService): Promise<ConfigurationModel | null> {
 		if (this.userConfiguration instanceof NodeBasedUserConfiguration) {
+			const oldConfigurationModel = this.userConfiguration.getConfigurationModel();
 			this.userConfiguration.dispose();
 			dispose(this.changeDisposable);
+
+			let newConfigurationModel = new ConfigurationModel();
 			this.userConfiguration = this._register(new FileServiceBasedUserConfiguration(this.userConfigurationResource, fileService));
 			this.changeDisposable = this._register(this.userConfiguration.onDidChangeConfiguration(configurationModel => this._onDidChangeConfiguration.fire(configurationModel)));
+			newConfigurationModel = await this.userConfiguration.initialize();
+
+			const { added, updated, removed } = compare(oldConfigurationModel, newConfigurationModel);
+			if (added.length > 0 || updated.length > 0 || removed.length > 0) {
+				return newConfigurationModel;
+			}
 		}
 		return null;
 	}
@@ -120,6 +129,9 @@ export class FileServiceBasedUserConfiguration extends Disposable {
 	protected readonly _onDidChangeConfiguration: Emitter<ConfigurationModel> = this._register(new Emitter<ConfigurationModel>());
 	readonly onDidChangeConfiguration: Event<ConfigurationModel> = this._onDidChangeConfiguration.event;
 
+	private fileWatcherDisposable: IDisposable = Disposable.None;
+	private directoryWatcherDisposable: IDisposable = Disposable.None;
+
 	constructor(
 		private readonly configurationResource: URI,
 		private readonly fileService: IFileService
@@ -128,36 +140,78 @@ export class FileServiceBasedUserConfiguration extends Disposable {
 
 		this._register(fileService.onFileChanges(e => this.handleFileEvents(e)));
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.reload().then(configurationModel => this._onDidChangeConfiguration.fire(configurationModel)), 50));
-		this._register(this.fileService.watch(this.configurationResource));
+		this._register(toDisposable(() => {
+			this.stopWatchingResource();
+			this.stopWatchingDirectory();
+		}));
 	}
 
-	initialize(): Promise<ConfigurationModel> {
+	private watchResource(): void {
+		this.fileWatcherDisposable = this.fileService.watch(this.configurationResource);
+	}
+
+	private stopWatchingResource(): void {
+		this.fileWatcherDisposable.dispose();
+		this.fileWatcherDisposable = Disposable.None;
+	}
+
+	private watchDirectory(): void {
+		const directory = resources.dirname(this.configurationResource);
+		this.directoryWatcherDisposable = this.fileService.watch(directory);
+	}
+
+	private stopWatchingDirectory(): void {
+		this.directoryWatcherDisposable.dispose();
+		this.directoryWatcherDisposable = Disposable.None;
+	}
+
+	async initialize(): Promise<ConfigurationModel> {
+		const exists = await this.fileService.exists(this.configurationResource);
+		this.onResourceExists(exists);
 		return this.reload();
 	}
 
-	reload(): Promise<ConfigurationModel> {
-		return this.fileService.resolveContent(this.configurationResource)
-			.then(content => content.value, () => {
-				// File not found
-				return '';
-			}).then(content => {
-				const parser = new ConfigurationModelParser(this.configurationResource.toString());
-				parser.parse(content);
-				return parser.configurationModel;
-			});
+	async reload(): Promise<ConfigurationModel> {
+		try {
+			const content = await this.fileService.resolveContent(this.configurationResource);
+			const parser = new ConfigurationModelParser(this.configurationResource.toString());
+			parser.parse(content.value);
+			return parser.configurationModel;
+		} catch (e) {
+			return new ConfigurationModel();
+		}
 	}
 
-	private handleFileEvents(event: FileChangesEvent): void {
+	private async handleFileEvents(event: FileChangesEvent): Promise<void> {
 		const events = event.changes;
 
 		let affectedByChanges = false;
-		// Find changes that affect workspace file
-		for (let i = 0, len = events.length; i < len && !affectedByChanges; i++) {
-			affectedByChanges = resources.isEqual(this.configurationResource, events[i].resource);
+
+		// Find changes that affect the resource
+		for (const event of events) {
+			affectedByChanges = resources.isEqual(this.configurationResource, event.resource);
+			if (affectedByChanges) {
+				if (event.type === FileChangeType.ADDED) {
+					this.onResourceExists(true);
+				} else if (event.type === FileChangeType.DELETED) {
+					this.onResourceExists(false);
+				}
+				break;
+			}
 		}
 
 		if (affectedByChanges) {
 			this.reloadConfigurationScheduler.schedule();
+		}
+	}
+
+	private onResourceExists(exists: boolean): void {
+		if (exists) {
+			this.stopWatchingDirectory();
+			this.watchResource();
+		} else {
+			this.stopWatchingResource();
+			this.watchDirectory();
 		}
 	}
 }

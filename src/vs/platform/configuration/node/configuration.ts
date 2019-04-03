@@ -49,4 +49,8 @@ export class NodeBasedUserConfiguration extends Disposable {
 	reload(): Promise<ConfigurationModel> {
 		return this.initialize().then(() => new Promise<ConfigurationModel>(c => this.userConfigModelWatcher.reload(userConfigModelParser => c(userConfigModelParser.configurationModel))));
 	}
+
+	getConfigurationModel(): ConfigurationModel {
+		return this.userConfigModelWatcher.getConfig().configurationModel;
+	}
 }
