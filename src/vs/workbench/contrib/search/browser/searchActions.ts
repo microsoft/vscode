@@ -160,25 +160,41 @@ export abstract class FindOrReplaceInFilesAction extends Action {
 		});
 	}
 }
-
-export const FindInFilesCommand: ICommandHandler = (accessor,
-	query?: string,
-	replace?: string,
-	triggerSearch?: boolean,
-	filesToInclude?: string,
-	filesToExclude?: string,
-	isRegex?: boolean,
-	isCaseSensitive?: boolean,
-	matchWholeWord?: boolean) => {
+export interface IFindInFilesArgs {
+	query?: string;
+	replace?: string;
+	triggerSearch?: boolean;
+	filesToInclude?: string;
+	filesToExclude?: string;
+	isRegex?: boolean;
+	isCaseSensitive?: boolean;
+	matchWholeWord?: boolean;
+}
+export const FindInFilesCommand: ICommandHandler = (accessor, args: IFindInFilesArgs = {}) => {
+	const {
+		query,
+		replace,
+		triggerSearch,
+		filesToInclude,
+		filesToExclude,
+		isRegex,
+		isCaseSensitive,
+		matchWholeWord
+	} = args;
 	const viewletService = accessor.get(IViewletService);
 	const panelService = accessor.get(IPanelService);
 	const configurationService = accessor.get(IConfigurationService);
 	openSearchView(viewletService, panelService, configurationService, false).then(openedView => {
 		if (openedView) {
 			const searchAndReplaceWidget = openedView.searchAndReplaceWidget;
-			searchAndReplaceWidget.toggleReplace(!(replace === undefined || replace === null));
-			openedView.searchReplace(query, replace, triggerSearch, isCaseSensitive, matchWholeWord, isRegex, filesToInclude, filesToExclude);
-			openedView.searchAndReplaceWidget.focus(undefined, false, false);
+			searchAndReplaceWidget.toggleReplace(typeof replace === 'string');
+			let updatedText = false;
+			if (typeof query === 'string') {
+				openedView.searchReplace(query, replace, triggerSearch, isCaseSensitive, matchWholeWord, isRegex, filesToInclude, filesToExclude);
+			} else {
+				updatedText = openedView.updateTextFromSelection((typeof replace !== 'string'));
+			}
+			openedView.searchAndReplaceWidget.focus(undefined, updatedText, updatedText);
 		}
 	});
 };

@@ -1044,29 +1044,32 @@ export class SearchView extends ViewletPanel {
 	}
 
 	searchReplace(query?: string, replace?: string, triggerSearch?: boolean, caseSensitive?: boolean, wholeWords?: boolean, regex?: boolean, filesToInclude?: string, filesToExclude?: string): void {
-		if (caseSensitive !== undefined && caseSensitive !== null) {
+		if (typeof caseSensitive === 'boolean') {
 			this.searchWidget.searchInput.setCaseSensitive(caseSensitive);
 		}
-		if (wholeWords !== undefined && wholeWords !== null) {
+		if (typeof wholeWords === 'boolean') {
 			this.searchWidget.searchInput.setWholeWords(wholeWords);
 		}
-		if (regex !== undefined && regex !== null) {
+		if (typeof regex === 'boolean') {
 			this.searchWidget.searchInput.setRegex(regex);
 		}
-		if (filesToInclude !== undefined && filesToInclude !== null) {
+		if (typeof filesToInclude === 'string') {
 			this.searchIncludePattern.setValue(String(filesToInclude));
 		}
-		if (filesToExclude !== undefined && filesToExclude !== null) {
+		if (typeof filesToExclude === 'string') {
 			this.searchExcludePattern.setValue(String(filesToExclude));
 		}
-		if (query !== undefined && query !== null) {
+		if (typeof query === 'string') {
 			this.searchWidget.searchInput.setValue(query);
 		}
-		if (replace !== undefined && replace !== null) {
+		if (typeof replace === 'string') {
 			this.searchWidget.replaceInput.value = replace;
+		} else {
+			if (this.searchWidget.replaceInput.value !== '') {
+				this.searchWidget.replaceInput.value = '';
+			}
 		}
-
-		if (triggerSearch !== undefined && triggerSearch !== null && triggerSearch) {
+		if (typeof triggerSearch === 'boolean' && triggerSearch) {
 			this.onQueryChanged(true);
 		}
 	}
