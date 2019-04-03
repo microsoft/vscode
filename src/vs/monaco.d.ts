@@ -38,6 +38,7 @@ declare namespace monaco {
 	}
 
 	export class CancellationTokenSource {
+		constructor(parent?: CancellationToken);
 		readonly token: CancellationToken;
 		cancel(): void;
 		dispose(): void;
