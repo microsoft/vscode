@@ -96,21 +96,12 @@ export class FileWatcher extends Disposable {
 			}
 
 			// Fire
-			this.onFileEvents(normalizedFileChanges);
+			if (normalizedFileChanges.length > 0) {
+				this.onFileChanges(normalizedFileChanges);
+			}
 
 			return Promise.resolve();
 		});
-	}
-
-	private onFileEvents(events: IDiskFileChange[]): void {
-		if (this.isDisposed) {
-			return;
-		}
-
-		// Emit through event emitter
-		if (events.length > 0) {
-			this.onFileChanges(events);
-		}
 	}
 
 	private onError(error: string): void {
