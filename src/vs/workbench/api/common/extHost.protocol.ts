@@ -253,6 +253,13 @@ export interface MainThreadConsoleShape extends IDisposable {
 	$logExtensionHostMessage(msg: IRemoteConsoleLog): void;
 }
 
+export interface MainThreadKeytarShape extends IDisposable {
+	$getPassword(service: string, account: string): Promise<string | null>;
+	$setPassword(service: string, account: string, password: string): Promise<void>;
+	$deletePassword(service: string, account: string): Promise<boolean>;
+	$findPassword(service: string): Promise<string | null>;
+}
+
 export interface ISerializedRegExp {
 	pattern: string;
 	flags?: string;
@@ -1197,6 +1204,7 @@ export const MainContext = {
 	MainThreadTextEditors: createMainId<MainThreadTextEditorsShape>('MainThreadTextEditors'),
 	MainThreadErrors: createMainId<MainThreadErrorsShape>('MainThreadErrors'),
 	MainThreadTreeViews: createMainId<MainThreadTreeViewsShape>('MainThreadTreeViews'),
+	MainThreadKeytar: createMainId<MainThreadKeytarShape>('MainThreadKeytar'),
 	MainThreadLanguageFeatures: createMainId<MainThreadLanguageFeaturesShape>('MainThreadLanguageFeatures'),
 	MainThreadLanguages: createMainId<MainThreadLanguagesShape>('MainThreadLanguages'),
 	MainThreadMessageService: createMainId<MainThreadMessageServiceShape>('MainThreadMessageService'),
