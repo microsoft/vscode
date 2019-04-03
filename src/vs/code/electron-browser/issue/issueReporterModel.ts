@@ -5,13 +5,14 @@
 
 import { assign } from 'vs/base/common/objects';
 import { IssueType, ISettingSearchResult, IssueReporterExtensionData } from 'vs/platform/issue/common/issue';
+import { SystemInfo } from 'vs/platform/diagnostics/common/diagnosticsService';
 
 export interface IssueReporterData {
 	issueType: IssueType;
 	issueDescription?: string;
 
 	versionInfo?: any;
-	systemInfo?: any;
+	systemInfo?: SystemInfo;
 	processInfo?: any;
 	workspaceInfo?: any;
 
@@ -148,13 +149,16 @@ ${this.getInfos()}
 |---|---|
 `;
 
-		Object.keys(this._data.systemInfo).forEach(k => {
-			const data = typeof this._data.systemInfo[k] === 'object'
-				? Object.keys(this._data.systemInfo[k]).map(key => `${key}: ${this._data.systemInfo[k][key]}`).join('<br>')
-				: this._data.systemInfo[k];
+		if (this._data.systemInfo) {
 
-			md += `|${k}|${data}|\n`;
-		});
+			md += `|CPUs|${this._data.systemInfo.cpus}|
+|GPU Status|${Object.keys(this._data.systemInfo.gpuStatus).map(key => `${key}: ${this._data.systemInfo!.gpuStatus[key]}`).join('<br>')}|
+|Load (avg)|${this._data.systemInfo.load}|
+|Memory (System)|${this._data.systemInfo.memory}|
+|Process Argv|${this._data.systemInfo.processArgs}|
+|Screen Reader|${this._data.systemInfo.screenReader}|
+|VM|${this._data.systemInfo.vmHint}|`;
+		}
 
 		md += '\n</details>';
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/processExplorer';
-import { listProcesses, ProcessItem } from 'vs/base/node/ps';
+import { listProcesses } from 'vs/base/node/ps';
 import { webFrame, ipcRenderer, clipboard } from 'electron';
 import { repeat } from 'vs/base/common/strings';
 import { totalmem } from 'os';
@@ -15,6 +15,7 @@ import * as browser from 'vs/base/browser/browser';
 import * as platform from 'vs/base/common/platform';
 import { IContextMenuItem } from 'vs/base/parts/contextmenu/common/contextmenu';
 import { popup } from 'vs/base/parts/contextmenu/electron-browser/contextmenu';
+import { ProcessItem } from 'vs/base/common/processes';
 
 let processList: any[];
 let mapPidToWindowTitle = new Map<number, string>();

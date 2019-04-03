@@ -4,18 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IMainProcessInfo, ILaunchService } from 'vs/platform/launch/electron-main/launchService';
-import { ProcessItem, listProcesses } from 'vs/base/node/ps';
+import { listProcesses } from 'vs/base/node/ps';
 import product from 'vs/platform/product/node/product';
 import pkg from 'vs/platform/product/node/package';
-import * as os from 'os';
+import * as osLib from 'os';
 import { virtualMachineHint } from 'vs/base/node/id';
 import { repeat, pad } from 'vs/base/common/strings';
 import { isWindows } from 'vs/base/common/platform';
 import { app } from 'electron';
-import { basename, join } from 'vs/base/common/path';
+import { basename } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { readdir, stat } from 'fs';
+import { WorkspaceStats, SystemInfo } from 'vs/platform/diagnostics/common/diagnosticsService';
+import { collectWorkspaceStats, getMachineInfo } from 'vs/platform/diagnostics/node/diagnosticsService';
+import { ProcessItem } from 'vs/base/common/processes';
 
 export const ID = 'diagnosticsService';
 export const IDiagnosticsService = createDecorator<IDiagnosticsService>(ID);
@@ -31,16 +33,6 @@ export interface IDiagnosticsService {
 export interface VersionInfo {
 	vscodeVersion: string;
 	os: string;
-}
-
-export interface SystemInfo {
-	CPUs?: string;
-	'Memory (System)': string;
-	'Load (avg)'?: string;
-	VM: string;
-	'Screen Reader': string;
-	'Process Argv': string;
-	'GPU Status': Electron.GPUFeatureStatus;
 }
 
 export interface ProcessInfo {
@@ -65,14 +57,14 @@ export class DiagnosticsService implements IDiagnosticsService {
 
 		const output: string[] = [];
 		output.push(`Version:          ${pkg.name} ${pkg.version} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})`);
-		output.push(`OS Version:       ${os.type()} ${os.arch()} ${os.release()}`);
-		const cpus = os.cpus();
+		output.push(`OS Version:       ${osLib.type()} ${osLib.arch()} ${osLib.release()}`);
+		const cpus = osLib.cpus();
 		if (cpus && cpus.length > 0) {
 			output.push(`CPUs:             ${cpus[0].model} (${cpus.length} x ${cpus[0].speed})`);
 		}
-		output.push(`Memory (System):  ${(os.totalmem() / GB).toFixed(2)}GB (${(os.freemem() / GB).toFixed(2)}GB free)`);
+		output.push(`Memory (System):  ${(osLib.totalmem() / GB).toFixed(2)}GB (${(osLib.freemem() / GB).toFixed(2)}GB free)`);
 		if (!isWindows) {
-			output.push(`Load (avg):       ${os.loadavg().map(l => Math.round(l)).join(', ')}`); // only provided on Linux/macOS
+			output.push(`Load (avg):       ${osLib.loadavg().map(l => Math.round(l)).join(', ')}`); // only provided on Linux/macOS
 		}
 		output.push(`VM:               ${Math.round((virtualMachineHint.value() * 100))}%`);
 		output.push(`Screen Reader:    ${app.isAccessibilitySupportEnabled() ? 'yes' : 'no'}`);
@@ -95,24 +87,20 @@ export class DiagnosticsService implements IDiagnosticsService {
 
 	async getSystemInfo(launchService: ILaunchService): Promise<SystemInfo> {
 		const info = await launchService.getMainProcessInfo();
-		const MB = 1024 * 1024;
-		const GB = 1024 * MB;
-
+		const { memory, vmHint, os, cpus } = getMachineInfo();
 		const systemInfo: SystemInfo = {
-			'Memory (System)': `${(os.totalmem() / GB).toFixed(2)}GB (${(os.freemem() / GB).toFixed(2)}GB free)`,
-			VM: `${Math.round((virtualMachineHint.value() * 100))}%`,
-			'Screen Reader': `${app.isAccessibilitySupportEnabled() ? 'yes' : 'no'}`,
-			'Process Argv': `${info.mainArguments.join(' ')}`,
-			'GPU Status': app.getGPUFeatureStatus()
+			os,
+			memory,
+			cpus,
+			vmHint,
+			processArgs: `${info.mainArguments.join(' ')}`,
+			gpuStatus: app.getGPUFeatureStatus(),
+			screenReader: `${app.isAccessibilitySupportEnabled() ? 'yes' : 'no'}`
 		};
 
-		const cpus = os.cpus();
-		if (cpus && cpus.length > 0) {
-			systemInfo.CPUs = `${cpus[0].model} (${cpus.length} x ${cpus[0].speed})`;
-		}
 
 		if (!isWindows) {
-			systemInfo['Load (avg)'] = `${os.loadavg().map(l => Math.round(l)).join(', ')}`;
+			systemInfo.load = `${osLib.loadavg().map(l => Math.round(l)).join(', ')}`;
 		}
 
 		return Promise.resolve(systemInfo);
@@ -270,7 +258,7 @@ export class DiagnosticsService implements IDiagnosticsService {
 				name = `${name} (${mapPidToWindowTitle.get(item.pid)})`;
 			}
 		}
-		const memory = process.platform === 'win32' ? item.mem : (os.totalmem() * (item.mem / 100));
+		const memory = process.platform === 'win32' ? item.mem : (osLib.totalmem() * (item.mem / 100));
 		output.push(`${pad(Number(item.load.toFixed(0)), 5, ' ')}\t${pad(Number((memory / MB).toFixed(0)), 6, ' ')}\t${pad(Number((item.pid).toFixed(0)), 6, ' ')}\t${name}`);
 
 		// Recurse into children if any
@@ -278,25 +266,6 @@ export class DiagnosticsService implements IDiagnosticsService {
 			item.children.forEach(child => this.formatProcessItem(mapPidToWindowTitle, output, child, indent + 1));
 		}
 	}
-}
-
-interface WorkspaceStatItem {
-	name: string;
-	count: number;
-}
-
-interface WorkspaceStats {
-	fileTypes: WorkspaceStatItem[];
-	configFiles: WorkspaceStatItem[];
-	fileCount: number;
-	maxFilesReached: boolean;
-	// launchConfigFiles: WorkspaceStatItem[];
-}
-
-function asSortedItems(map: Map<string, number>): WorkspaceStatItem[] {
-	const a: WorkspaceStatItem[] = [];
-	map.forEach((value, index) => a.push({ name: index, count: value }));
-	return a.sort((a, b) => b.count - a.count);
 }
 
 // function collectLaunchConfigs(folder: string): Promise<WorkspaceStatItem[]> {
@@ -339,137 +308,3 @@ function asSortedItems(map: Map<string, number>): WorkspaceStatItem[] {
 // 		});
 // 	});
 // }
-
-function collectWorkspaceStats(folder: string, filter: string[]): Promise<WorkspaceStats> {
-	const configFilePatterns = [
-		{ 'tag': 'grunt.js', 'pattern': /^gruntfile\.js$/i },
-		{ 'tag': 'gulp.js', 'pattern': /^gulpfile\.js$/i },
-		{ 'tag': 'tsconfig.json', 'pattern': /^tsconfig\.json$/i },
-		{ 'tag': 'package.json', 'pattern': /^package\.json$/i },
-		{ 'tag': 'jsconfig.json', 'pattern': /^jsconfig\.json$/i },
-		{ 'tag': 'tslint.json', 'pattern': /^tslint\.json$/i },
-		{ 'tag': 'eslint.json', 'pattern': /^eslint\.json$/i },
-		{ 'tag': 'tasks.json', 'pattern': /^tasks\.json$/i },
-		{ 'tag': 'launch.json', 'pattern': /^launch\.json$/i },
-		{ 'tag': 'settings.json', 'pattern': /^settings\.json$/i },
-		{ 'tag': 'webpack.config.js', 'pattern': /^webpack\.config\.js$/i },
-		{ 'tag': 'project.json', 'pattern': /^project\.json$/i },
-		{ 'tag': 'makefile', 'pattern': /^makefile$/i },
-		{ 'tag': 'sln', 'pattern': /^.+\.sln$/i },
-		{ 'tag': 'csproj', 'pattern': /^.+\.csproj$/i },
-		{ 'tag': 'cmake', 'pattern': /^.+\.cmake$/i }
-	];
-
-	const fileTypes = new Map<string, number>();
-	const configFiles = new Map<string, number>();
-
-	const MAX_FILES = 20000;
-
-	function walk(dir: string, filter: string[], token: { count: any; maxReached: any; }, done: (allFiles: string[]) => void): void {
-		let results: string[] = [];
-		readdir(dir, async (err, files) => {
-			// Ignore folders that can't be read
-			if (err) {
-				return done(results);
-			}
-
-			let pending = files.length;
-			if (pending === 0) {
-				return done(results);
-			}
-
-			for (const file of files) {
-				if (token.maxReached) {
-					return done(results);
-				}
-
-				stat(join(dir, file), (err, stats) => {
-					// Ignore files that can't be read
-					if (err) {
-						if (--pending === 0) {
-							return done(results);
-						}
-					} else {
-						if (stats.isDirectory()) {
-							if (filter.indexOf(file) === -1) {
-								walk(join(dir, file), filter, token, (res: string[]) => {
-									results = results.concat(res);
-
-									if (--pending === 0) {
-										return done(results);
-									}
-								});
-							} else {
-								if (--pending === 0) {
-									done(results);
-								}
-							}
-						} else {
-							if (token.count >= MAX_FILES) {
-								token.maxReached = true;
-							}
-
-							token.count++;
-							results.push(file);
-
-							if (--pending === 0) {
-								done(results);
-							}
-						}
-					}
-				});
-			}
-		});
-	}
-
-	const addFileType = (fileType: string) => {
-		if (fileTypes.has(fileType)) {
-			fileTypes.set(fileType, fileTypes.get(fileType)! + 1);
-		}
-		else {
-			fileTypes.set(fileType, 1);
-		}
-	};
-
-	const addConfigFiles = (fileName: string) => {
-		for (const each of configFilePatterns) {
-			if (each.pattern.test(fileName)) {
-				if (configFiles.has(each.tag)) {
-					configFiles.set(each.tag, configFiles.get(each.tag)! + 1);
-				} else {
-					configFiles.set(each.tag, 1);
-				}
-			}
-		}
-	};
-
-	const acceptFile = (name: string) => {
-		if (name.lastIndexOf('.') >= 0) {
-			const suffix: string | undefined = name.split('.').pop();
-			if (suffix) {
-				addFileType(suffix);
-			}
-		}
-		addConfigFiles(name);
-	};
-
-	const token: { count: number, maxReached: boolean } = { count: 0, maxReached: false };
-
-	return new Promise((resolve, reject) => {
-		walk(folder, filter, token, async (files) => {
-			files.forEach(acceptFile);
-
-			// TODO@rachel commented out due to severe performance issues
-			// see https://github.com/Microsoft/vscode/issues/70563
-			// const launchConfigs = await collectLaunchConfigs(folder);
-
-			resolve({
-				configFiles: asSortedItems(configFiles),
-				fileTypes: asSortedItems(fileTypes),
-				fileCount: token.count,
-				maxFilesReached: token.maxReached,
-				// launchConfigFiles: launchConfigs
-			});
-		});
-	});
-}
