@@ -8,10 +8,9 @@ import * as resources from 'vs/base/common/resources';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as pfs from 'vs/base/node/pfs';
 import * as errors from 'vs/base/common/errors';
-import * as collections from 'vs/base/common/collections';
 import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import { RunOnceScheduler, Delayer } from 'vs/base/common/async';
-import { FileChangeType, FileChangesEvent, IContent, IFileService } from 'vs/platform/files/common/files';
+import { RunOnceScheduler } from 'vs/base/common/async';
+import { FileChangeType, FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
 import { ConfigurationModel, ConfigurationModelParser } from 'vs/platform/configuration/common/configurationModels';
 import { WorkspaceConfigurationModelParser, FolderSettingsModelParser, StandaloneConfigurationModelParser } from 'vs/workbench/services/configuration/common/configurationModels';
 import { FOLDER_SETTINGS_PATH, TASKS_CONFIGURATION_KEY, FOLDER_SETTINGS_NAME, LAUNCH_CONFIGURATION_KEY, IConfigurationCache, ConfigurationKey } from 'vs/workbench/services/configuration/common/configuration';
@@ -572,16 +571,6 @@ class CachedWorkspaceConfiguration extends Disposable implements IWorkspaceConfi
 	}
 }
 
-function isFolderConfigurationFile(resource: URI): boolean {
-	const configurationNameResource = URI.from({ scheme: resource.scheme, path: resources.basename(resource) });
-	return [`${FOLDER_SETTINGS_NAME}.json`, `${TASKS_CONFIGURATION_KEY}.json`, `${LAUNCH_CONFIGURATION_KEY}.json`].some(configurationFileName =>
-		resources.isEqual(configurationNameResource, URI.from({ scheme: resource.scheme, path: configurationFileName })));  // only workspace config files
-}
-
-function isFolderSettingsConfigurationFile(resource: URI): boolean {
-	return resources.isEqual(URI.from({ scheme: resource.scheme, path: resources.basename(resource) }), URI.from({ scheme: resource.scheme, path: `${FOLDER_SETTINGS_NAME}.json` }));
-}
-
 export interface IFolderConfiguration extends IDisposable {
 	readonly onDidChange: Event<void>;
 	readonly loaded: boolean;
@@ -596,12 +585,16 @@ export abstract class AbstractFolderConfiguration extends Disposable implements 
 	private _cache: ConfigurationModel;
 	private _loaded: boolean = false;
 
+	private readonly configurationNames: string[];
+	protected readonly configurationResources: URI[];
 	protected readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
-	constructor(protected readonly folder: URI, workbenchState: WorkbenchState, from?: AbstractFolderConfiguration) {
+	constructor(protected readonly configurationFolder: URI, workbenchState: WorkbenchState, from?: AbstractFolderConfiguration) {
 		super();
 
+		this.configurationNames = [FOLDER_SETTINGS_NAME  /*First one should be settings */, TASKS_CONFIGURATION_KEY, LAUNCH_CONFIGURATION_KEY];
+		this.configurationResources = this.configurationNames.map(name => resources.joinPath(this.configurationFolder, `${name}.json`));
 		this._folderSettingsModelParser = from ? from._folderSettingsModelParser : new FolderSettingsModelParser(FOLDER_SETTINGS_PATH, WorkbenchState.WORKSPACE === workbenchState ? [ConfigurationScope.RESOURCE] : [ConfigurationScope.WINDOW, ConfigurationScope.RESOURCE]);
 		this._standAloneConfigurations = from ? from._standAloneConfigurations : [];
 		this._cache = from ? from._cache : new ConfigurationModel();
@@ -611,23 +604,37 @@ export abstract class AbstractFolderConfiguration extends Disposable implements 
 		return this._loaded;
 	}
 
-	loadConfiguration(): Promise<ConfigurationModel> {
-		return this.loadFolderConfigurationContents()
-			.then((contents) => {
+	async loadConfiguration(): Promise<ConfigurationModel> {
+		const configurationContents = await Promise.all(this.configurationResources.map(resource =>
+			this.loadConfigurationResourceContents(resource)
+				.then(undefined, error => {
+					/* never fail */
+					errors.onUnexpectedError(error);
+					return undefined;
+				})));
 
-				// reset
-				this._standAloneConfigurations = [];
-				this._folderSettingsModelParser.parse('');
+		// reset
+		this._standAloneConfigurations = [];
+		this._folderSettingsModelParser.parse('');
 
-				// parse
-				this.parseContents(contents);
+		// parse
+		if (configurationContents[0]) {
+			this._folderSettingsModelParser.parse(configurationContents[0]);
+		}
+		for (let index = 1; index < configurationContents.length; index++) {
+			const contents = configurationContents[index];
+			if (contents) {
+				const standAloneConfigurationModelParser = new StandaloneConfigurationModelParser(this.configurationResources[index].toString(), this.configurationNames[index]);
+				standAloneConfigurationModelParser.parse(contents);
+				this._standAloneConfigurations.push(standAloneConfigurationModelParser.configurationModel);
+			}
+		}
 
-				// Consolidate (support *.json files in the workspace settings folder)
-				this.consolidate();
+		// Consolidate (support *.json files in the workspace settings folder)
+		this.consolidate();
 
-				this._loaded = true;
-				return this._cache;
-			});
+		this._loaded = true;
+		return this._cache;
 	}
 
 	reprocess(): ConfigurationModel {
@@ -643,105 +650,41 @@ export abstract class AbstractFolderConfiguration extends Disposable implements 
 		this._cache = this._folderSettingsModelParser.configurationModel.merge(...this._standAloneConfigurations);
 	}
 
-	private parseContents(contents: { resource: URI, value: string }[]): void {
-		for (const content of contents) {
-			if (isFolderSettingsConfigurationFile(content.resource)) {
-				this._folderSettingsModelParser.parse(content.value);
-			} else {
-				const name = resources.basename(content.resource);
-				const matches = /([^\.]*)*\.json/.exec(name);
-				if (matches && matches[1]) {
-					const standAloneConfigurationModelParser = new StandaloneConfigurationModelParser(content.resource.toString(), matches[1]);
-					standAloneConfigurationModelParser.parse(content.value);
-					this._standAloneConfigurations.push(standAloneConfigurationModelParser.configurationModel);
-				}
-			}
-		}
-	}
-
-	protected abstract loadFolderConfigurationContents(): Promise<{ resource: URI, value: string }[]>;
+	protected abstract loadConfigurationResourceContents(configurationResource: URI): Promise<string | undefined>;
 }
 
 export class NodeBasedFolderConfiguration extends AbstractFolderConfiguration {
 
-	private readonly folderConfigurationPath: URI;
-
-	constructor(folder: URI, configFolderRelativePath: string, workbenchState: WorkbenchState) {
-		super(folder, workbenchState);
-		this.folderConfigurationPath = resources.joinPath(folder, configFolderRelativePath);
-	}
-
-	protected loadFolderConfigurationContents(): Promise<{ resource: URI, value: string }[]> {
-		return this.resolveStat(this.folderConfigurationPath).then(stat => {
-			if (!stat.isDirectory || !stat.children) {
-				return Promise.resolve([]);
+	protected async loadConfigurationResourceContents(configurationResource: URI): Promise<string | undefined> {
+		try {
+			const contents = await pfs.readFile(configurationResource.fsPath);
+			return contents.toString();
+		} catch (e) {
+			if (e.code === 'ENOENT') {
+				return undefined;
 			}
-			return this.resolveContents(stat.children.filter(stat => isFolderConfigurationFile(stat.resource))
-				.map(stat => stat.resource));
-		}, err => [] /* never fail this call */)
-			.then(undefined, e => {
-				errors.onUnexpectedError(e);
-				return [];
-			});
-	}
-
-	private resolveContents(resources: URI[]): Promise<{ resource: URI, value: string }[]> {
-		return Promise.all(resources.map(resource =>
-			pfs.readFile(resource.fsPath)
-				.then(contents => ({ resource, value: contents.toString() }))));
-	}
-
-	private resolveStat(resource: URI): Promise<{ resource: URI, isDirectory?: boolean, children?: { resource: URI; }[] }> {
-		return pfs.readdir(resource.fsPath).then(children => {
-			return {
-				resource,
-				isDirectory: true,
-				children: children.map(child => { return { resource: resources.joinPath(resource, child) }; })
-			};
-		}, error => {
-			if ((<any>error).code === 'ENOTDIR') {
-				return Promise.resolve({ resource });
-			} else {
-				return Promise.reject(error);
-			}
-		});
+			throw e;
+		}
 	}
 }
 
 export class FileServiceBasedFolderConfiguration extends AbstractFolderConfiguration {
 
-	private reloadConfigurationScheduler: RunOnceScheduler;
-	private readonly folderConfigurationPath: URI;
-	private readonly loadConfigurationDelayer = new Delayer<Array<{ resource: URI, value: string }>>(50);
+	private changeEventTriggerScheduler: RunOnceScheduler;
 
-	constructor(folder: URI, private configFolderRelativePath: string, workbenchState: WorkbenchState, private fileService: IFileService, from?: AbstractFolderConfiguration) {
-		super(folder, workbenchState, from);
-		this.folderConfigurationPath = resources.joinPath(folder, configFolderRelativePath);
-		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this._onDidChange.fire(), 50));
+	constructor(configurationFolder: URI, workbenchState: WorkbenchState, private fileService: IFileService, from?: AbstractFolderConfiguration) {
+		super(configurationFolder, workbenchState, from);
+		this.changeEventTriggerScheduler = this._register(new RunOnceScheduler(() => this._onDidChange.fire(), 50));
 		this._register(fileService.onFileChanges(e => this.handleWorkspaceFileEvents(e)));
 	}
 
-	protected loadFolderConfigurationContents(): Promise<Array<{ resource: URI, value: string }>> {
-		return Promise.resolve(this.loadConfigurationDelayer.trigger(() => this.doLoadFolderConfigurationContents()));
-	}
-
-	private doLoadFolderConfigurationContents(): Promise<Array<{ resource: URI, value: string }>> {
-		const workspaceFilePathToConfiguration: { [relativeWorkspacePath: string]: Promise<IContent | undefined> } = Object.create(null);
-		const bulkContentFetchromise = Promise.resolve(this.fileService.resolve(this.folderConfigurationPath))
-			.then(stat => {
-				if (stat.isDirectory && stat.children) {
-					stat.children
-						.filter(child => isFolderConfigurationFile(child.resource))
-						.forEach(child => {
-							const folderRelativePath = this.toFolderRelativePath(child.resource);
-							if (folderRelativePath) {
-								workspaceFilePathToConfiguration[folderRelativePath] = Promise.resolve(this.fileService.resolveContent(child.resource)).then(undefined, errors.onUnexpectedError);
-							}
-						});
-				}
-			}).then(undefined, err => [] /* never fail this call */);
-
-		return bulkContentFetchromise.then(() => Promise.all<IContent>(collections.values(workspaceFilePathToConfiguration))).then(contents => contents.filter(content => content !== undefined));
+	protected async loadConfigurationResourceContents(configurationResource: URI): Promise<string | undefined> {
+		const exists = await this.fileService.exists(configurationResource);
+		if (exists) {
+			const contents = await this.fileService.resolveContent(configurationResource);
+			return contents.value;
+		}
+		return undefined;
 	}
 
 	private handleWorkspaceFileEvents(event: FileChangesEvent): void {
@@ -753,9 +696,9 @@ export class FileServiceBasedFolderConfiguration extends AbstractFolderConfigura
 			const resource = events[i].resource;
 			const basename = resources.basename(resource);
 			const isJson = extname(basename) === '.json';
-			const isDeletedSettingsFolder = (events[i].type === FileChangeType.DELETED && basename === this.configFolderRelativePath);
+			const isConfigurationFolderDeleted = (events[i].type === FileChangeType.DELETED && resources.isEqual(resource, this.configurationFolder));
 
-			if (!isJson && !isDeletedSettingsFolder) {
+			if (!isJson && !isConfigurationFolderDeleted) {
 				continue; // only JSON files or the actual settings folder
 			}
 
@@ -765,28 +708,26 @@ export class FileServiceBasedFolderConfiguration extends AbstractFolderConfigura
 			}
 
 			// Handle case where ".vscode" got deleted
-			if (isDeletedSettingsFolder) {
+			if (isConfigurationFolderDeleted) {
 				affectedByChanges = true;
 				break;
 			}
 
 			// only valid workspace config files
-			if (!isFolderConfigurationFile(resource)) {
-				continue;
+			if (this.configurationResources.some(configurationResource => resources.isEqual(configurationResource, resource))) {
+				affectedByChanges = true;
+				break;
 			}
-
-			affectedByChanges = true;
-			break;
 		}
 
 		if (affectedByChanges) {
-			this.reloadConfigurationScheduler.schedule();
+			this.changeEventTriggerScheduler.schedule();
 		}
 	}
 
 	private toFolderRelativePath(resource: URI): string | undefined {
-		if (resources.isEqualOrParent(resource, this.folderConfigurationPath)) {
-			return resources.relativePath(this.folderConfigurationPath, resource);
+		if (resources.isEqualOrParent(resource, this.configurationFolder)) {
+			return resources.relativePath(this.configurationFolder, resource);
 		}
 		return undefined;
 	}
@@ -848,12 +789,13 @@ export class FolderConfiguration extends Disposable implements IFolderConfigurat
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	private folderConfiguration: IFolderConfiguration;
+	private readonly configurationFolder: URI;
 	private cachedFolderConfiguration: CachedFolderConfiguration;
 	private _loaded: boolean = false;
 
 	constructor(
 		readonly workspaceFolder: IWorkspaceFolder,
-		private readonly configFolderRelativePath: string,
+		configFolderRelativePath: string,
 		private readonly workbenchState: WorkbenchState,
 		hashService: IHashService,
 		configurationCache: IConfigurationCache,
@@ -861,12 +803,13 @@ export class FolderConfiguration extends Disposable implements IFolderConfigurat
 	) {
 		super();
 
-		this.cachedFolderConfiguration = new CachedFolderConfiguration(this.workspaceFolder.uri, this.configFolderRelativePath, hashService, configurationCache);
+		this.configurationFolder = resources.joinPath(workspaceFolder.uri, configFolderRelativePath);
+		this.cachedFolderConfiguration = new CachedFolderConfiguration(workspaceFolder.uri, configFolderRelativePath, hashService, configurationCache);
 		this.folderConfiguration = this.cachedFolderConfiguration;
 		if (fileService) {
-			this.folderConfiguration = new FileServiceBasedFolderConfiguration(this.workspaceFolder.uri, this.configFolderRelativePath, this.workbenchState, fileService);
-		} else if (this.workspaceFolder.uri.scheme === Schemas.file) {
-			this.folderConfiguration = new NodeBasedFolderConfiguration(this.workspaceFolder.uri, this.configFolderRelativePath, this.workbenchState);
+			this.folderConfiguration = new FileServiceBasedFolderConfiguration(this.configurationFolder, this.workbenchState, fileService);
+		} else if (workspaceFolder.uri.scheme === Schemas.file) {
+			this.folderConfiguration = new NodeBasedFolderConfiguration(this.configurationFolder, this.workbenchState);
 		}
 		this._register(this.folderConfiguration.onDidChange(e => this.onDidFolderConfigurationChange()));
 	}
@@ -901,7 +844,7 @@ export class FolderConfiguration extends Disposable implements IFolderConfigurat
 	}
 
 	private adoptFromCachedConfiguration(fileService: IFileService): Promise<boolean> {
-		const folderConfiguration = new FileServiceBasedFolderConfiguration(this.workspaceFolder.uri, this.configFolderRelativePath, this.workbenchState, fileService);
+		const folderConfiguration = new FileServiceBasedFolderConfiguration(this.configurationFolder, this.workbenchState, fileService);
 		return folderConfiguration.loadConfiguration()
 			.then(() => {
 				this.folderConfiguration = folderConfiguration;
@@ -913,7 +856,7 @@ export class FolderConfiguration extends Disposable implements IFolderConfigurat
 
 	private adoptFromNodeBasedConfiguration(fileService: IFileService): Promise<boolean> {
 		const oldFolderConfiguration = this.folderConfiguration;
-		this.folderConfiguration = new FileServiceBasedFolderConfiguration(this.workspaceFolder.uri, this.configFolderRelativePath, this.workbenchState, fileService, <AbstractFolderConfiguration>oldFolderConfiguration);
+		this.folderConfiguration = new FileServiceBasedFolderConfiguration(this.configurationFolder, this.workbenchState, fileService, <AbstractFolderConfiguration>oldFolderConfiguration);
 		oldFolderConfiguration.dispose();
 		this._register(this.folderConfiguration.onDidChange(e => this.onDidFolderConfigurationChange()));
 		return Promise.resolve(false);
@@ -925,7 +868,7 @@ export class FolderConfiguration extends Disposable implements IFolderConfigurat
 	}
 
 	private updateCache(): Promise<void> {
-		if (this.workspaceFolder.uri.scheme !== Schemas.file && this.folderConfiguration instanceof FileServiceBasedFolderConfiguration) {
+		if (this.configurationFolder.scheme !== Schemas.file && this.folderConfiguration instanceof FileServiceBasedFolderConfiguration) {
 			return this.folderConfiguration.loadConfiguration()
 				.then(configurationModel => this.cachedFolderConfiguration.updateConfiguration(configurationModel));
 		}
