@@ -56,9 +56,7 @@ export function getCodeActions(
 		trigger: trigger.type === 'manual' ? CodeActionTriggerKind.Manual : CodeActionTriggerKind.Automatic
 	};
 
-	const cts = new TextModelCancellationTokenSource(model);
-	token.onCancellationRequested(() => cts.cancel());
-
+	const cts = new TextModelCancellationTokenSource(model, token);
 	const providers = getCodeActionProviders(model, filter);
 
 	const promises = providers.map(provider => {

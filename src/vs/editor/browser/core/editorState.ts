@@ -7,7 +7,7 @@ import * as strings from 'vs/base/common/strings';
 import { ICodeEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ITextModel } from 'vs/editor/common/model';
 
@@ -74,13 +74,16 @@ export class EditorState {
 	}
 }
 
-
+/**
+ * A cancellation token source that cancels when the editor changes as expressed
+ * by the provided flags
+ */
 export class EditorStateCancellationTokenSource extends CancellationTokenSource {
 
 	private readonly _listener: IDisposable[] = [];
 
-	constructor(readonly editor: IActiveCodeEditor, flags: CodeEditorStateFlag) {
-		super();
+	constructor(readonly editor: IActiveCodeEditor, flags: CodeEditorStateFlag, parent?: CancellationToken) {
+		super(parent);
 
 		if (flags & CodeEditorStateFlag.Position) {
 			this._listener.push(editor.onDidChangeCursorPosition(_ => this.cancel()));
@@ -103,12 +106,15 @@ export class EditorStateCancellationTokenSource extends CancellationTokenSource 
 	}
 }
 
+/**
+ * A cancellation token source that cancels when the provided model changes
+ */
 export class TextModelCancellationTokenSource extends CancellationTokenSource {
 
 	private _listener: IDisposable;
 
-	constructor(model: ITextModel) {
-		super();
+	constructor(model: ITextModel, parent?: CancellationToken) {
+		super(parent);
 		this._listener = model.onDidChangeContent(() => this.cancel());
 	}
 
