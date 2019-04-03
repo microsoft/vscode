@@ -669,6 +669,8 @@ export class SimpleRemoteAuthorityResolverService implements IRemoteAuthorityRes
 		return Promise.resolve(undefined);
 	}
 
+	clearResolvedAuthority(authority: string): void { }
+
 	setResolvedAuthority(resolvedAuthority: ResolvedAuthority): void { }
 
 	setResolvedAuthorityError(authority: string, err: any): void { }
