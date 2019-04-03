@@ -618,7 +618,7 @@
 	"tipsAndTricksUrl": "https://go.microsoft.com/fwlink/?linkid=852118",
 	"twitterUrl": "https://go.microsoft.com/fwlink/?LinkID=533687",
 	"requestFeatureUrl": "https://go.microsoft.com/fwlink/?LinkID=533482",
-	"reportIssueUrl": "https://github.com/Microsoft/vscode/issues/new",
+	"reportIssueUrl": "https://github.com/Microsoft/vscode-remote/issues/new",
 	"licenseUrl": "https://go.microsoft.com/fwlink/?LinkID=761088",
 	"privacyStatementUrl": "https://go.microsoft.com/fwlink/?LinkId=786907",
 	"telemetryOptOutUrl": "https://go.microsoft.com/fwlink/?linkid=870136",
