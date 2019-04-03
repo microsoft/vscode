@@ -259,6 +259,13 @@ export class CodeApplication extends Disposable {
 			}
 		});
 
+		ipc.on('vscode:extensionHostDebug', (_: Event, windowId: number, broadcast: any) => {
+			if (this.windowsMainService) {
+				// Send to all windows (except sender window)
+				this.windowsMainService.sendToAll('vscode:extensionHostDebug', broadcast, [windowId]);
+			}
+		});
+
 		ipc.on('vscode:toggleDevTools', (event: Event) => event.sender.toggleDevTools());
 		ipc.on('vscode:openDevTools', (event: Event) => event.sender.openDevTools());
 
@@ -790,4 +797,3 @@ function getURIToOpenFromPathSync(path: string): IURIToOpen {
 	}
 	return { fileUri: URI.file(path) };
 }
-

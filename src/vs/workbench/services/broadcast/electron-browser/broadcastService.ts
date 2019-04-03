@@ -11,7 +11,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IBroadcastService, IBroadcast } from 'vs/workbench/services/broadcast/common/broadcast';
 
-export class BroadcastService extends Disposable implements IBroadcastService {
+class BroadcastService extends Disposable implements IBroadcastService {
 	_serviceBrand: any;
 
 	private readonly _onBroadcast: Emitter<IBroadcast> = this._register(new Emitter<IBroadcast>());
