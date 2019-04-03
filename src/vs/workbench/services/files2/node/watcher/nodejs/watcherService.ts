@@ -5,10 +5,11 @@
 
 import { IDiskFileChange, normalizeFileChanges } from 'vs/workbench/services/files2/node/watcher/normalizer';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { stat } from 'vs/base/node/pfs';
+import { statLink, readlink } from 'vs/base/node/pfs';
 import { watchFolder, watchFile } from 'vs/base/node/watcher';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { ThrottledDelayer } from 'vs/base/common/async';
+import { join, basename } from 'vs/base/common/path';
 
 export class FileWatcher extends Disposable {
 	private isDisposed: boolean;
@@ -30,23 +31,38 @@ export class FileWatcher extends Disposable {
 
 	private async startWatching(): Promise<void> {
 		try {
-			const fileStat = await stat(this.path);
+			const { stat, isSymbolicLink } = await statLink(this.path);
 
 			if (this.isDisposed) {
 				return;
 			}
 
+			let pathToWatch = this.path;
+			if (isSymbolicLink) {
+				try {
+					pathToWatch = await readlink(pathToWatch);
+				} catch (error) {
+					this.onError(error);
+				}
+			}
+
 			// Watch Folder
-			if (fileStat.isDirectory()) {
-				this._register(watchFolder(this.path, (eventType, path) => {
-					this.onFileChange({ type: eventType === 'changed' ? FileChangeType.UPDATED : eventType === 'added' ? FileChangeType.ADDED : FileChangeType.DELETED, path });
+			if (stat.isDirectory()) {
+				this._register(watchFolder(pathToWatch, (eventType, path) => {
+					this.onFileChange({
+						type: eventType === 'changed' ? FileChangeType.UPDATED : eventType === 'added' ? FileChangeType.ADDED : FileChangeType.DELETED,
+						path: join(this.path, basename(path)) // ensure path is identical with what was passed in
+					});
 				}, error => this.onError(error)));
 			}
 
 			// Watch File
 			else {
-				this._register(watchFile(this.path, (eventType, path) => {
-					this.onFileChange({ type: eventType === 'changed' ? FileChangeType.UPDATED : FileChangeType.DELETED, path });
+				this._register(watchFile(pathToWatch, eventType => {
+					this.onFileChange({
+						type: eventType === 'changed' ? FileChangeType.UPDATED : FileChangeType.DELETED,
+						path: this.path // ensure path is identical with what was passed in
+					});
 				}, error => this.onError(error)));
 			}
 		} catch (error) {

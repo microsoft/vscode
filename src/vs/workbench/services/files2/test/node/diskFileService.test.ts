@@ -785,6 +785,39 @@ suite('Disk File Service', () => {
 		setTimeout(() => writeFileSync(toWatch.fsPath, 'Changes'), 50);
 	});
 
+	test('watch - file symbolic link', async done => {
+		if (isWindows) {
+			return; // not happy
+		}
+
+		const toWatch = URI.file(join(testDir, 'lorem.txt-linked'));
+		await symlink(join(testDir, 'lorem.txt'), toWatch.fsPath);
+
+		assertWatch(toWatch, FileChangeType.UPDATED, toWatch, done);
+
+		setTimeout(() => writeFileSync(toWatch.fsPath, 'Changes'), 50);
+	});
+
+	test('watch - file - multiple writes', done => {
+		const toWatch = URI.file(join(testDir, 'index-watch1.html'));
+		writeFileSync(toWatch.fsPath, 'Init');
+
+		assertWatch(toWatch, FileChangeType.UPDATED, toWatch, done);
+
+		setTimeout(() => writeFileSync(toWatch.fsPath, 'Changes 1'), 0);
+		setTimeout(() => writeFileSync(toWatch.fsPath, 'Changes 2'), 10);
+		setTimeout(() => writeFileSync(toWatch.fsPath, 'Changes 3'), 20);
+	});
+
+	test('watch - file - delete file', done => {
+		const toWatch = URI.file(join(testDir, 'index-watch1.html'));
+		writeFileSync(toWatch.fsPath, 'Init');
+
+		assertWatch(toWatch, FileChangeType.DELETED, toWatch, done);
+
+		setTimeout(() => unlinkSync(toWatch.fsPath), 50);
+	});
+
 	test('watch - file (atomic save)', function (done) {
 		const toWatch = URI.file(join(testDir, 'index-watch2.html'));
 		writeFileSync(toWatch.fsPath, 'Init');
@@ -857,6 +890,22 @@ suite('Disk File Service', () => {
 		assertWatch(watchDir, FileChangeType.DELETED, folder, done);
 
 		setTimeout(() => rimrafSync(folder.fsPath), 50);
+	});
+
+	test('watch - folder (non recursive) - symbolic link - change file', async done => {
+		if (isWindows) {
+			return; // not happy
+		}
+
+		const watchDir = URI.file(join(testDir, 'deep-link'));
+		await symlink(join(testDir, 'deep'), watchDir.fsPath);
+
+		const file = URI.file(join(watchDir.fsPath, 'index.html'));
+		writeFileSync(file.fsPath, 'Init');
+
+		assertWatch(watchDir, FileChangeType.UPDATED, file, done);
+
+		setTimeout(() => writeFileSync(file.fsPath, 'Changes'), 50);
 	});
 
 	function assertWatch(toWatch: URI, expectedType: FileChangeType, expectedPath: URI, done: MochaDone): void {
