@@ -4,13 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import { dirname, basename } from 'vs/base/common/path';
+import { dirname } from 'vs/base/common/path';
 import * as objects from 'vs/base/common/objects';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as json from 'vs/base/common/json';
-import { watch } from 'vs/base/node/pfs';
-import { isWindows } from 'vs/base/common/platform';
+import { watchFolder, watchFile, lstat, readlink } from 'vs/base/node/pfs';
 
 export interface IConfigurationChangeEvent<T> {
 	config: T;
@@ -48,11 +47,9 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 	private timeoutHandle: NodeJS.Timer | null;
 	private disposables: IDisposable[];
 	private readonly _onDidUpdateConfiguration: Emitter<IConfigurationChangeEvent<T>>;
-	private configName: string;
 
 	constructor(private _path: string, private options: IConfigOptions<T> = { defaultConfig: Object.create(null), onError: error => console.error(error) }) {
 		this.disposables = [];
-		this.configName = basename(this._path);
 
 		this._onDidUpdateConfiguration = new Emitter<IConfigurationChangeEvent<T>>();
 		this.disposables.push(this._onDidUpdateConfiguration);
@@ -126,50 +123,31 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 		this.watch(parentFolder, true);
 
 		// Check if the path is a symlink and watch its target if so
-		fs.lstat(this._path, (err, stat) => {
-			if (err || stat.isDirectory()) {
-				return; // path is not a valid file
-			}
-
-			// We found a symlink
-			if (stat.isSymbolicLink()) {
-				fs.readlink(this._path, (err, realPath) => {
-					if (err) {
-						return; // path is not a valid symlink
-					}
-
-					this.watch(realPath, false);
-				});
-			}
-		});
+		this.handleSymbolicLink();
 	}
 
-	private watch(path: string, isParentFolder: boolean): void {
+	private async handleSymbolicLink(): Promise<void> {
+		const stat = await lstat(this._path);
+		if (stat.isSymbolicLink() && !stat.isDirectory()) {
+			const realPath = await readlink(this._path);
+
+			this.watch(realPath, false);
+		}
+	}
+
+	private watch(path: string, isFolder: boolean): void {
 		if (this.disposed) {
 			return; // avoid watchers that will never get disposed by checking for being disposed
 		}
 
-		this.disposables.push(watch(path,
-			(type, file) => this.onConfigFileChange(type, file, isParentFolder),
-			(error: string) => this.options.onError(error)
-		));
+		if (isFolder) {
+			this.disposables.push(watchFolder(path, (type, path) => path === this._path ? this.onConfigFileChange() : undefined, error => this.options.onError(error)));
+		} else {
+			this.disposables.push(watchFile(path, (type, path) => this.onConfigFileChange(), error => this.options.onError(error)));
+		}
 	}
 
-	private onConfigFileChange(eventType: string, filename: string | undefined, isParentFolder: boolean): void {
-		if (isParentFolder) {
-
-			// Windows: in some cases the filename contains artifacts from the absolute path
-			// see https://github.com/nodejs/node/issues/19170
-			// As such, we have to ensure that the filename basename is used for comparison.
-			if (isWindows && filename && filename !== this.configName) {
-				filename = basename(filename);
-			}
-
-			if (filename !== this.configName) {
-				return; // a change to a sibling file that is not our config file
-			}
-		}
-
+	private onConfigFileChange(): void {
 		if (this.timeoutHandle) {
 			global.clearTimeout(this.timeoutHandle);
 			this.timeoutHandle = null;

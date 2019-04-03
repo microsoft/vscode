@@ -897,6 +897,7 @@ export class TestFileService implements IFileService {
 	private readonly _onAfterOperation: Emitter<FileOperationEvent>;
 
 	readonly onWillActivateFileSystemProvider = Event.None;
+	readonly onError: Event<Error> = Event.None;
 
 	private content = 'Hello Html';
 
@@ -1032,10 +1033,8 @@ export class TestFileService implements IFileService {
 		return Promise.resolve();
 	}
 
-	watch(_resource: URI): void {
-	}
-
-	unwatch(_resource: URI): void {
+	watch(_resource: URI): IDisposable {
+		return Disposable.None;
 	}
 
 	getWriteEncoding(_resource: URI): IResourceEncoding {
@@ -1582,7 +1581,9 @@ export class NullFileSystemProvider implements IFileSystemProvider {
 	onDidChangeCapabilities: Event<void> = Event.None;
 	onDidChangeFile: Event<IFileChange[]> = Event.None;
 
-	watch(resource: URI, opts: IWatchOptions): IDisposable { return Disposable.None; }
+	constructor(private disposableFactory: () => IDisposable = () => Disposable.None) { }
+
+	watch(resource: URI, opts: IWatchOptions): IDisposable { return this.disposableFactory(); }
 	stat(resource: URI): Promise<IStat> { return Promise.resolve(undefined!); }
 	mkdir(resource: URI): Promise<void> { return Promise.resolve(undefined!); }
 	readdir(resource: URI): Promise<[string, FileType][]> { return Promise.resolve(undefined!); }

@@ -164,14 +164,11 @@ export interface IFileService {
 	del(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): Promise<void>;
 
 	/**
-	 * Allows to start a watcher that reports file change events on the provided resource.
+	 * Allows to start a watcher that reports file/folder change events on the provided resource.
+	 *
+	 * Note: watching a folder does not report events recursively for child folders yet.
 	 */
-	watch(resource: URI): void;
-
-	/**
-	 * Allows to stop a watcher on the provided resource or absolute fs path.
-	 */
-	unwatch(resource: URI): void;
+	watch(resource: URI): IDisposable;
 
 	/**
 	 * Frees up any resources occupied by this service.
@@ -231,6 +228,8 @@ export interface IFileSystemProvider {
 
 	readonly capabilities: FileSystemProviderCapabilities;
 	onDidChangeCapabilities: Event<void>;
+
+	onDidErrorOccur?: Event<Error>; // TODO@ben remove once file watchers are solid
 
 	onDidChangeFile: Event<IFileChange[]>;
 	watch(resource: URI, opts: IWatchOptions): IDisposable;
@@ -854,7 +853,6 @@ export interface IFilesConfiguration {
 		eol: string;
 		enableTrash: boolean;
 		hotExit: string;
-		useExperimentalFileWatcher: boolean;
 	};
 }
 
@@ -1121,23 +1119,20 @@ export function etag(mtime: number | undefined, size: number | undefined): strin
 
 // TODO@ben remove traces of legacy file service
 export const ILegacyFileService = createDecorator<ILegacyFileService>('legacyFileService');
-export interface ILegacyFileService {
+export interface ILegacyFileService extends IDisposable {
 	_serviceBrand: any;
 
 	encoding: IResourceEncodings;
 
-	onFileChanges: Event<FileChangesEvent>;
 	onAfterOperation: Event<FileOperationEvent>;
+
+	registerProvider(scheme: string, provider: IFileSystemProvider): IDisposable;
 
 	resolveContent(resource: URI, options?: IResolveContentOptions): Promise<IContent>;
 
 	resolveStreamContent(resource: URI, options?: IResolveContentOptions): Promise<IStreamContent>;
 
-	updateContent(resource: URI, value: string | ITextSnapshot, options?: IUpdateContentOptions): Promise<IFileStat>;
+	updateContent(resource: URI, value: string | ITextSnapshot, options?: IUpdateContentOptions): Promise<IFileStatWithMetadata>;
 
-	createFile(resource: URI, content?: string, options?: ICreateFileOptions): Promise<IFileStat>;
-
-	watch(resource: URI): void;
-
-	unwatch(resource: URI): void;
+	createFile(resource: URI, content?: string, options?: ICreateFileOptions): Promise<IFileStatWithMetadata>;
 }

@@ -88,6 +88,7 @@ class CodeRendererMain extends Disposable {
 		if (this.configuration.folderUri) {
 			this.configuration.folderUri = URI.revive(this.configuration.folderUri);
 		}
+
 		if (this.configuration.workspace) {
 			this.configuration.workspace = reviveWorkspaceIdentifier(this.configuration.workspace);
 		}
@@ -103,6 +104,7 @@ class CodeRendererMain extends Disposable {
 				});
 			}
 		});
+
 		if (filesToWait) {
 			filesToWait.waitMarkerFileUri = URI.revive(filesToWait.waitMarkerFileUri);
 		}
@@ -186,19 +188,21 @@ class CodeRendererMain extends Disposable {
 		const remoteAuthorityResolverService = new RemoteAuthorityResolverService();
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
 
-		const remoteAgentService = new RemoteAgentService(this.configuration, environmentService, remoteAuthorityResolverService);
+		const remoteAgentService = this._register(new RemoteAgentService(this.configuration, environmentService, remoteAuthorityResolverService));
 		serviceCollection.set(IRemoteAgentService, remoteAgentService);
 
 		// Files
-		const fileService = new FileService2(logService);
+		const fileService = this._register(new FileService2(logService));
 		serviceCollection.set(IFileService, fileService);
 
-		fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(logService));
+		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(logService));
+		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
 		const connection = remoteAgentService.getConnection();
 		if (connection) {
 			const channel = connection.getChannel<IChannel>(REMOTE_FILE_SYSTEM_CHANNEL_NAME);
-			fileService.registerProvider(REMOTE_HOST_SCHEME, new RemoteExtensionsFileSystemProvider(channel, remoteAgentService.getEnvironment()));
+			const remoteFileSystemProvider = this._register(new RemoteExtensionsFileSystemProvider(channel, remoteAgentService.getEnvironment()));
+			fileService.registerProvider(REMOTE_HOST_SCHEME, remoteFileSystemProvider);
 		}
 
 		// Hash Service

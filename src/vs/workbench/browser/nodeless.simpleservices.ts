@@ -694,6 +694,7 @@ export class SimpleRemoteFileService implements IFileService {
 	readonly onAfterOperation = Event.None;
 	readonly onDidChangeFileSystemProviderRegistrations = Event.None;
 	readonly onWillActivateFileSystemProvider = Event.None;
+	readonly onError = Event.None;
 
 	resolve(resource: URI, options?: IResolveFileOptions): Promise<IFileStatWithMetadata> {
 		// @ts-ignore
@@ -802,9 +803,7 @@ export class SimpleRemoteFileService implements IFileService {
 
 	del(_resource: URI, _options?: { useTrash?: boolean, recursive?: boolean }): Promise<void> { return Promise.resolve(); }
 
-	watch(_resource: URI): void { }
-
-	unwatch(_resource: URI): void { }
+	watch(_resource: URI): IDisposable { return Disposable.None; }
 
 	getWriteEncoding(_resource: URI): IResourceEncoding { return { encoding: 'utf8', hasBOM: false }; }
 

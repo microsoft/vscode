@@ -4,12 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-
 import * as platform from 'vs/base/common/platform';
 import { FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
 import { URI as uri } from 'vs/base/common/uri';
-import { IRawFileChange, toFileChangesEvent, normalize } from 'vs/workbench/services/files/node/watcher/common';
+import { IDiskFileChange, normalizeFileChanges, toFileChanges } from 'vs/workbench/services/files2/node/watcher/normalizer';
 import { Event, Emitter } from 'vs/base/common/event';
+
+function toFileChangesEvent(changes: IDiskFileChange[]): FileChangesEvent {
+	return new FileChangesEvent(toFileChanges(changes));
+}
 
 class TestFileWatcher {
 	private readonly _onFileChanges: Emitter<FileChangesEvent>;
@@ -18,18 +21,18 @@ class TestFileWatcher {
 		this._onFileChanges = new Emitter<FileChangesEvent>();
 	}
 
-	public get onFileChanges(): Event<FileChangesEvent> {
+	get onFileChanges(): Event<FileChangesEvent> {
 		return this._onFileChanges.event;
 	}
 
-	public report(changes: IRawFileChange[]): void {
+	report(changes: IDiskFileChange[]): void {
 		this.onRawFileEvents(changes);
 	}
 
-	private onRawFileEvents(events: IRawFileChange[]): void {
+	private onRawFileEvents(events: IDiskFileChange[]): void {
 
 		// Normalize
-		let normalizedEvents = normalize(events);
+		let normalizedEvents = normalizeFileChanges(events);
 
 		// Emit through event emitter
 		if (normalizedEvents.length > 0) {
@@ -44,16 +47,16 @@ enum Path {
 	UNC
 }
 
-suite('Watcher', () => {
+suite('Normalizer', () => {
 
-	test('watching - simple add/update/delete', function (done: () => void) {
+	test('simple add/update/delete', function (done: () => void) {
 		const watch = new TestFileWatcher();
 
 		const added = uri.file('/users/data/src/added.txt');
 		const updated = uri.file('/users/data/src/updated.txt');
 		const deleted = uri.file('/users/data/src/deleted.txt');
 
-		const raw: IRawFileChange[] = [
+		const raw: IDiskFileChange[] = [
 			{ path: added.fsPath, type: FileChangeType.ADDED },
 			{ path: updated.fsPath, type: FileChangeType.UPDATED },
 			{ path: deleted.fsPath, type: FileChangeType.DELETED },
@@ -74,7 +77,7 @@ suite('Watcher', () => {
 
 	let pathSpecs = platform.isWindows ? [Path.WINDOWS, Path.UNC] : [Path.UNIX];
 	pathSpecs.forEach((p) => {
-		test('watching - delete only reported for top level folder (' + p + ')', function (done: () => void) {
+		test('delete only reported for top level folder (' + p + ')', function (done: () => void) {
 			const watch = new TestFileWatcher();
 
 			const deletedFolderA = uri.file(p === Path.UNIX ? '/users/data/src/todelete1' : p === Path.WINDOWS ? 'C:\\users\\data\\src\\todelete1' : '\\\\localhost\\users\\data\\src\\todelete1');
@@ -87,7 +90,7 @@ suite('Watcher', () => {
 			const addedFile = uri.file(p === Path.UNIX ? '/users/data/src/added.txt' : p === Path.WINDOWS ? 'C:\\users\\data\\src\\added.txt' : '\\\\localhost\\users\\data\\src\\added.txt');
 			const updatedFile = uri.file(p === Path.UNIX ? '/users/data/src/updated.txt' : p === Path.WINDOWS ? 'C:\\users\\data\\src\\updated.txt' : '\\\\localhost\\users\\data\\src\\updated.txt');
 
-			const raw: IRawFileChange[] = [
+			const raw: IDiskFileChange[] = [
 				{ path: deletedFolderA.fsPath, type: FileChangeType.DELETED },
 				{ path: deletedFolderB.fsPath, type: FileChangeType.DELETED },
 				{ path: deletedFolderBF1.fsPath, type: FileChangeType.DELETED },
@@ -115,14 +118,14 @@ suite('Watcher', () => {
 		});
 	});
 
-	test('watching - event normalization: ignore CREATE followed by DELETE', function (done: () => void) {
+	test('event normalization: ignore CREATE followed by DELETE', function (done: () => void) {
 		const watch = new TestFileWatcher();
 
 		const created = uri.file('/users/data/src/related');
 		const deleted = uri.file('/users/data/src/related');
 		const unrelated = uri.file('/users/data/src/unrelated');
 
-		const raw: IRawFileChange[] = [
+		const raw: IDiskFileChange[] = [
 			{ path: created.fsPath, type: FileChangeType.ADDED },
 			{ path: deleted.fsPath, type: FileChangeType.DELETED },
 			{ path: unrelated.fsPath, type: FileChangeType.UPDATED },
@@ -140,14 +143,14 @@ suite('Watcher', () => {
 		watch.report(raw);
 	});
 
-	test('watching - event normalization: flatten DELETE followed by CREATE into CHANGE', function (done: () => void) {
+	test('event normalization: flatten DELETE followed by CREATE into CHANGE', function (done: () => void) {
 		const watch = new TestFileWatcher();
 
 		const deleted = uri.file('/users/data/src/related');
 		const created = uri.file('/users/data/src/related');
 		const unrelated = uri.file('/users/data/src/unrelated');
 
-		const raw: IRawFileChange[] = [
+		const raw: IDiskFileChange[] = [
 			{ path: deleted.fsPath, type: FileChangeType.DELETED },
 			{ path: created.fsPath, type: FileChangeType.ADDED },
 			{ path: unrelated.fsPath, type: FileChangeType.UPDATED },
@@ -166,14 +169,14 @@ suite('Watcher', () => {
 		watch.report(raw);
 	});
 
-	test('watching - event normalization: ignore UPDATE when CREATE received', function (done: () => void) {
+	test('event normalization: ignore UPDATE when CREATE received', function (done: () => void) {
 		const watch = new TestFileWatcher();
 
 		const created = uri.file('/users/data/src/related');
 		const updated = uri.file('/users/data/src/related');
 		const unrelated = uri.file('/users/data/src/unrelated');
 
-		const raw: IRawFileChange[] = [
+		const raw: IDiskFileChange[] = [
 			{ path: created.fsPath, type: FileChangeType.ADDED },
 			{ path: updated.fsPath, type: FileChangeType.UPDATED },
 			{ path: unrelated.fsPath, type: FileChangeType.UPDATED },
@@ -193,7 +196,7 @@ suite('Watcher', () => {
 		watch.report(raw);
 	});
 
-	test('watching - event normalization: apply DELETE', function (done: () => void) {
+	test('event normalization: apply DELETE', function (done: () => void) {
 		const watch = new TestFileWatcher();
 
 		const updated = uri.file('/users/data/src/related');
@@ -201,7 +204,7 @@ suite('Watcher', () => {
 		const deleted = uri.file('/users/data/src/related');
 		const unrelated = uri.file('/users/data/src/unrelated');
 
-		const raw: IRawFileChange[] = [
+		const raw: IDiskFileChange[] = [
 			{ path: updated.fsPath, type: FileChangeType.UPDATED },
 			{ path: updated2.fsPath, type: FileChangeType.UPDATED },
 			{ path: unrelated.fsPath, type: FileChangeType.UPDATED },

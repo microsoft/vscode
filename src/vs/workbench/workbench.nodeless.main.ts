@@ -191,6 +191,9 @@ import 'vs/workbench/browser/parts/statusbar/statusbarPart';
 
 //#region --- workbench contributions
 
+// Workspace File Watching
+import 'vs/workbench/services/files2/common/workspaceWatcher';
+
 // Telemetry
 import 'vs/workbench/contrib/telemetry/browser/telemetry.contribution';
 

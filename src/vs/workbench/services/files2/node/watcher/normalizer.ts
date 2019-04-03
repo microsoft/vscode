@@ -4,32 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI as uri } from 'vs/base/common/uri';
-import { FileChangeType, FileChangesEvent, isParent } from 'vs/platform/files/common/files';
+import { FileChangeType, isParent, IFileChange } from 'vs/platform/files/common/files';
 import { isLinux } from 'vs/base/common/platform';
 
-export interface IRawFileChange {
+export interface IDiskFileChange {
 	type: FileChangeType;
 	path: string;
 }
 
-export function toFileChangesEvent(changes: IRawFileChange[]): FileChangesEvent {
-
-	// map to file changes event that talks about URIs
-	return new FileChangesEvent(changes.map((c) => {
-		return {
-			type: c.type,
-			resource: uri.file(c.path)
-		};
+export function toFileChanges(changes: IDiskFileChange[]): IFileChange[] {
+	return changes.map(change => ({
+		type: change.type,
+		resource: uri.file(change.path)
 	}));
 }
 
-/**
- * Given events that occurred, applies some rules to normalize the events
- */
-export function normalize(changes: IRawFileChange[]): IRawFileChange[] {
+export function normalizeFileChanges(changes: IDiskFileChange[]): IDiskFileChange[] {
 
 	// Build deltas
-	let normalizer = new EventNormalizer();
+	const normalizer = new EventNormalizer();
 	for (const event of changes) {
 		normalizer.processEvent(event);
 	}
@@ -38,25 +31,20 @@ export function normalize(changes: IRawFileChange[]): IRawFileChange[] {
 }
 
 class EventNormalizer {
-	private normalized: IRawFileChange[];
-	private mapPathToChange: { [path: string]: IRawFileChange };
+	private normalized: IDiskFileChange[] = [];
+	private mapPathToChange: Map<string, IDiskFileChange> = new Map();
 
-	constructor() {
-		this.normalized = [];
-		this.mapPathToChange = Object.create(null);
-	}
-
-	public processEvent(event: IRawFileChange): void {
+	processEvent(event: IDiskFileChange): void {
+		const existingEvent = this.mapPathToChange.get(event.path);
 
 		// Event path already exists
-		let existingEvent = this.mapPathToChange[event.path];
 		if (existingEvent) {
-			let currentChangeType = existingEvent.type;
-			let newChangeType = event.type;
+			const currentChangeType = existingEvent.type;
+			const newChangeType = event.type;
 
 			// ignore CREATE followed by DELETE in one go
 			if (currentChangeType === FileChangeType.ADDED && newChangeType === FileChangeType.DELETED) {
-				delete this.mapPathToChange[event.path];
+				this.mapPathToChange.delete(event.path);
 				this.normalized.splice(this.normalized.indexOf(existingEvent), 1);
 			}
 
@@ -66,8 +54,7 @@ class EventNormalizer {
 			}
 
 			// Do nothing. Keep the created event
-			else if (currentChangeType === FileChangeType.ADDED && newChangeType === FileChangeType.UPDATED) {
-			}
+			else if (currentChangeType === FileChangeType.ADDED && newChangeType === FileChangeType.UPDATED) { }
 
 			// Otherwise apply change type
 			else {
@@ -75,16 +62,16 @@ class EventNormalizer {
 			}
 		}
 
-		// Otherwise Store
+		// Otherwise store new
 		else {
 			this.normalized.push(event);
-			this.mapPathToChange[event.path] = event;
+			this.mapPathToChange.set(event.path, event);
 		}
 	}
 
-	public normalize(): IRawFileChange[] {
-		let addedChangeEvents: IRawFileChange[] = [];
-		let deletedPaths: string[] = [];
+	normalize(): IDiskFileChange[] {
+		const addedChangeEvents: IDiskFileChange[] = [];
+		const deletedPaths: string[] = [];
 
 		// This algorithm will remove all DELETE events up to the root folder
 		// that got deleted if any. This ensures that we are not producing
@@ -96,6 +83,7 @@ class EventNormalizer {
 		return this.normalized.filter(e => {
 			if (e.type !== FileChangeType.DELETED) {
 				addedChangeEvents.push(e);
+
 				return false; // remove ADD / CHANGE
 			}
 

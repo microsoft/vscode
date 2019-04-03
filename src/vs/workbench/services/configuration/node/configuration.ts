@@ -9,7 +9,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import * as pfs from 'vs/base/node/pfs';
 import * as errors from 'vs/base/common/errors';
 import * as collections from 'vs/base/common/collections';
-import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler, Delayer } from 'vs/base/common/async';
 import { FileChangeType, FileChangesEvent, IContent, IFileService } from 'vs/platform/files/common/files';
 import { ConfigurationModel, ConfigurationModelParser } from 'vs/platform/configuration/common/configurationModels';
@@ -120,10 +120,6 @@ export class FileServiceBasedUserConfiguration extends Disposable {
 	protected readonly _onDidChangeConfiguration: Emitter<ConfigurationModel> = this._register(new Emitter<ConfigurationModel>());
 	readonly onDidChangeConfiguration: Event<ConfigurationModel> = this._onDidChangeConfiguration.event;
 
-	private fileWatcherDisposable: IDisposable = Disposable.None;
-	private directoryWatcherDisposable: IDisposable = Disposable.None;
-	private exists: boolean = false;
-
 	constructor(
 		private readonly configurationResource: URI,
 		private readonly fileService: IFileService
@@ -132,44 +128,7 @@ export class FileServiceBasedUserConfiguration extends Disposable {
 
 		this._register(fileService.onFileChanges(e => this.handleFileEvents(e)));
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.reload().then(configurationModel => this._onDidChangeConfiguration.fire(configurationModel)), 50));
-
-		this.watchResource();
-		this._register(toDisposable(() => this.stopWatchingResource()));
-		this.watchDirectory();
-		this._register(toDisposable(() => this.stopWatchingDirectory()));
-
-		fileService.exists(this.configurationResource)
-			.then(exists => {
-				this.exists = exists;
-				if (this.exists) {
-					// If exists stop watching directory
-					this.stopWatchingDirectory();
-				} else {
-					// Otherwise stop watching resource
-					this.stopWatchingResource();
-				}
-			});
-	}
-
-	private watchResource(): void {
-		this.fileService.watch(this.configurationResource);
-		this.fileWatcherDisposable = toDisposable(() => this.fileService.unwatch(this.configurationResource));
-	}
-
-	private stopWatchingResource(): void {
-		this.fileWatcherDisposable.dispose();
-		this.fileWatcherDisposable = Disposable.None;
-	}
-
-	private watchDirectory(): void {
-		const directory = resources.dirname(this.configurationResource);
-		this.fileService.watch(directory);
-		this.directoryWatcherDisposable = toDisposable(() => this.fileService.unwatch(directory));
-	}
-
-	private stopWatchingDirectory(): void {
-		this.directoryWatcherDisposable.dispose();
-		this.directoryWatcherDisposable = Disposable.None;
+		this._register(this.fileService.watch(this.configurationResource));
 	}
 
 	initialize(): Promise<ConfigurationModel> {
@@ -188,39 +147,13 @@ export class FileServiceBasedUserConfiguration extends Disposable {
 			});
 	}
 
-	private async handleFileEvents(event: FileChangesEvent): Promise<void> {
+	private handleFileEvents(event: FileChangesEvent): void {
 		const events = event.changes;
 
 		let affectedByChanges = false;
-
-		// Find changes that affect the resource
-		for (const event of events) {
-			affectedByChanges = resources.isEqual(this.configurationResource, event.resource);
-			if (affectedByChanges) {
-				if (event.type !== FileChangeType.DELETED) {
-					this.exists = false;
-					// Resource deleted. Stop watching resource and start watching directory
-					this.stopWatchingResource();
-					this.watchDirectory();
-				}
-				break;
-			}
-		}
-
-		if (!affectedByChanges && !this.exists) {
-			// Find changes if resource is added
-			const directory = resources.dirname(this.configurationResource);
-			for (const { resource } of events) {
-				if (resources.isEqual(directory, resource)) {
-					this.exists = affectedByChanges = await this.fileService.exists(this.configurationResource);
-					if (affectedByChanges) {
-						// Resource is created. Stop watching directory and start watching resource
-						this.stopWatchingDirectory();
-						this.watchResource();
-					}
-					break;
-				}
-			}
+		// Find changes that affect workspace file
+		for (let i = 0, len = events.length; i < len && !affectedByChanges; i++) {
+			affectedByChanges = resources.isEqual(this.configurationResource, events[i].resource);
 		}
 
 		if (affectedByChanges) {
@@ -464,6 +397,8 @@ class NodeBasedWorkspaceConfiguration extends AbstractWorkspaceConfiguration {
 class FileServiceBasedWorkspaceConfiguration extends AbstractWorkspaceConfiguration {
 
 	private workspaceConfig: URI | null = null;
+	private workspaceConfigWatcher: IDisposable;
+
 	private readonly reloadConfigurationScheduler: RunOnceScheduler;
 
 	constructor(private fileService: IFileService, from?: IWorkspaceConfiguration) {
@@ -471,27 +406,22 @@ class FileServiceBasedWorkspaceConfiguration extends AbstractWorkspaceConfigurat
 		this.workspaceConfig = from && from.workspaceIdentifier ? from.workspaceIdentifier.configPath : null;
 		this._register(fileService.onFileChanges(e => this.handleWorkspaceFileEvents(e)));
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this._onDidChange.fire(), 50));
-		this.watchWorkspaceConfigurationFile();
-		this._register(toDisposable(() => this.unWatchWorkspaceConfigurtionFile()));
+		this.workspaceConfigWatcher = this.watchWorkspaceConfigurationFile();
 	}
 
-	private watchWorkspaceConfigurationFile(): void {
+	private watchWorkspaceConfigurationFile(): IDisposable {
 		if (this.workspaceConfig) {
-			this.fileService.watch(this.workspaceConfig);
+			return this.fileService.watch(this.workspaceConfig);
 		}
-	}
 
-	private unWatchWorkspaceConfigurtionFile(): void {
-		if (this.workspaceConfig) {
-			this.fileService.unwatch(this.workspaceConfig);
-		}
+		return Disposable.None;
 	}
 
 	protected loadWorkspaceConfigurationContents(workspaceIdentifier: IWorkspaceIdentifier): Promise<string> {
 		if (!(this.workspaceConfig && resources.isEqual(this.workspaceConfig, workspaceIdentifier.configPath))) {
-			this.unWatchWorkspaceConfigurtionFile();
+			this.workspaceConfigWatcher = dispose(this.workspaceConfigWatcher);
 			this.workspaceConfig = workspaceIdentifier.configPath;
-			this.watchWorkspaceConfigurationFile();
+			this.workspaceConfigWatcher = this.watchWorkspaceConfigurationFile();
 		}
 		return this.fileService.resolveContent(this.workspaceConfig)
 			.then(content => content.value, e => {
@@ -514,6 +444,12 @@ class FileServiceBasedWorkspaceConfiguration extends AbstractWorkspaceConfigurat
 				this.reloadConfigurationScheduler.schedule();
 			}
 		}
+	}
+
+	dispose(): void {
+		super.dispose();
+
+		this.workspaceConfigWatcher = dispose(this.workspaceConfigWatcher);
 	}
 }
 

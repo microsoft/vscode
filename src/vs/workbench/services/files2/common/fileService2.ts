@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable, toDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
-import { IFileService, IResolveFileOptions, IResourceEncodings, FileChangesEvent, FileOperationEvent, IFileSystemProviderRegistrationEvent, IFileSystemProvider, IFileStat, IResolveFileResult, IResolveContentOptions, IContent, IStreamContent, ITextSnapshot, IUpdateContentOptions, ICreateFileOptions, IFileSystemProviderActivationEvent, FileOperationError, FileOperationResult, FileOperation, FileSystemProviderCapabilities, FileType, toFileSystemProviderErrorCode, FileSystemProviderErrorCode, IStat, IFileStatWithMetadata, IResolveMetadataFileOptions, etag, hasReadWriteCapability, hasFileFolderCopyCapability, hasOpenReadWriteCloseCapability, toFileOperationResult, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadWriteCapability, IResolveFileResultWithMetadata } from 'vs/platform/files/common/files';
+import { Disposable, IDisposable, toDisposable, combinedDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IFileService, IResolveFileOptions, IResourceEncodings, FileChangesEvent, FileOperationEvent, IFileSystemProviderRegistrationEvent, IFileSystemProvider, IFileStat, IResolveFileResult, IResolveContentOptions, IContent, IStreamContent, ITextSnapshot, IUpdateContentOptions, ICreateFileOptions, IFileSystemProviderActivationEvent, FileOperationError, FileOperationResult, FileOperation, FileSystemProviderCapabilities, FileType, toFileSystemProviderErrorCode, FileSystemProviderErrorCode, IStat, IFileStatWithMetadata, IResolveMetadataFileOptions, etag, hasReadWriteCapability, hasFileFolderCopyCapability, hasOpenReadWriteCloseCapability, toFileOperationResult, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadWriteCapability, IResolveFileResultWithMetadata, IWatchOptions, ILegacyFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
@@ -19,12 +19,13 @@ export class FileService2 extends Disposable implements IFileService {
 
 	//#region TODO@Ben HACKS
 
-	private _legacy: IFileService | null;
+	private _legacy: ILegacyFileService | null;
+	private joinOnLegacy: Promise<ILegacyFileService>;
+	private joinOnImplResolve: (service: ILegacyFileService) => void;
 
-	setLegacyService(legacy: IFileService): void {
+	setLegacyService(legacy: ILegacyFileService): void {
 		this._legacy = this._register(legacy);
 
-		this._register(legacy.onFileChanges(e => this._onFileChanges.fire(e)));
 		this._register(legacy.onAfterOperation(e => this._onAfterOperation.fire(e)));
 
 		this.provider.forEach((provider, scheme) => {
@@ -37,9 +38,6 @@ export class FileService2 extends Disposable implements IFileService {
 	//#endregion
 
 	_serviceBrand: ServiceIdentifier<any>;
-
-	private joinOnLegacy: Promise<IFileService>;
-	private joinOnImplResolve: (service: IFileService) => void;
 
 	constructor(@ILogService private logService: ILogService) {
 		super();
@@ -75,15 +73,19 @@ export class FileService2 extends Disposable implements IFileService {
 		this.provider.set(scheme, provider);
 		this._onDidChangeFileSystemProviderRegistrations.fire({ added: true, scheme, provider });
 
-		// Forward change events from provider
-		const providerFileListener = provider.onDidChangeFile(changes => this._onFileChanges.fire(new FileChangesEvent(changes)));
+		// Forward events from provider
+		const providerDisposables: IDisposable[] = [];
+		providerDisposables.push(provider.onDidChangeFile(changes => this._onFileChanges.fire(new FileChangesEvent(changes))));
+		if (typeof provider.onDidErrorOccur === 'function') {
+			providerDisposables.push(provider.onDidErrorOccur(error => this._onError.fire(error)));
+		}
 
 		return combinedDisposable([
 			toDisposable(() => {
 				this._onDidChangeFileSystemProviderRegistrations.fire({ added: false, scheme, provider });
 				this.provider.delete(scheme);
 
-				providerFileListener.dispose();
+				dispose(providerDisposables);
 			}),
 			legacyDisposal
 		]);
@@ -149,6 +151,9 @@ export class FileService2 extends Disposable implements IFileService {
 
 	private _onAfterOperation: Emitter<FileOperationEvent> = this._register(new Emitter<FileOperationEvent>());
 	get onAfterOperation(): Event<FileOperationEvent> { return this._onAfterOperation.event; }
+
+	private _onError: Emitter<Error> = this._register(new Emitter<Error>());
+	get onError(): Event<Error> { return this._onError.event; }
 
 	//#region File Metadata Resolving
 
@@ -586,12 +591,66 @@ export class FileService2 extends Disposable implements IFileService {
 	private _onFileChanges: Emitter<FileChangesEvent> = this._register(new Emitter<FileChangesEvent>());
 	get onFileChanges(): Event<FileChangesEvent> { return this._onFileChanges.event; }
 
-	watch(resource: URI): void {
-		this.joinOnLegacy.then(legacy => legacy.watch(resource));
+	private activeWatchers = new Map<string, { disposable: IDisposable, count: number }>();
+
+	watch(resource: URI, options: IWatchOptions = { recursive: false, excludes: [] }): IDisposable {
+		let watchDisposed = false;
+		let watchDisposable = toDisposable(() => watchDisposed = true);
+
+		// Watch and wire in disposable which is async but
+		// check if we got disposed meanwhile and forward
+		this.doWatch(resource, options).then(disposable => {
+			if (watchDisposed) {
+				dispose(disposable);
+			} else {
+				watchDisposable = disposable;
+			}
+		}, error => this.logService.error(error));
+
+		return toDisposable(() => dispose(watchDisposable));
 	}
 
-	unwatch(resource: URI): void {
-		this.joinOnLegacy.then(legacy => legacy.unwatch(resource));
+	async doWatch(resource: URI, options: IWatchOptions): Promise<IDisposable> {
+		const provider = await this.withProvider(resource);
+		const key = this.toWatchKey(provider, resource, options);
+
+		// Only start watching if we are the first for the given key
+		const watcher = this.activeWatchers.get(key) || { count: 0, disposable: provider.watch(resource, options) };
+		if (!this.activeWatchers.has(key)) {
+			this.activeWatchers.set(key, watcher);
+		}
+
+		// Increment usage counter
+		watcher.count += 1;
+
+		return toDisposable(() => {
+
+			// Unref
+			watcher.count--;
+
+			// Dispose only when last user is reached
+			if (watcher.count === 0) {
+				dispose(watcher.disposable);
+				this.activeWatchers.delete(key);
+			}
+		});
+	}
+
+	private toWatchKey(provider: IFileSystemProvider, resource: URI, options: IWatchOptions): string {
+		const isPathCaseSensitive = !!(provider.capabilities & FileSystemProviderCapabilities.PathCaseSensitive);
+
+		return [
+			isPathCaseSensitive ? resource.toString() : resource.toString().toLowerCase(), 	// lowercase path is the provider is case insensitive
+			String(options.recursive),														// use recursive: true | false as part of the key
+			options.excludes.join()															// use excludes as part of the key
+		].join();
+	}
+
+	dispose(): void {
+		super.dispose();
+
+		this.activeWatchers.forEach(watcher => dispose(watcher.disposable));
+		this.activeWatchers.clear();
 	}
 
 	//#endregion
