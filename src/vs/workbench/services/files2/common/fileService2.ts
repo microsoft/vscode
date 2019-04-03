@@ -14,6 +14,7 @@ import { TernarySearchTree } from 'vs/base/common/map';
 import { isNonEmptyArray, coalesce } from 'vs/base/common/arrays';
 import { getBaseLabel } from 'vs/base/common/labels';
 import { ILogService } from 'vs/platform/log/common/log';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 export class FileService2 extends Disposable implements IFileService {
 
@@ -38,6 +39,8 @@ export class FileService2 extends Disposable implements IFileService {
 	//#endregion
 
 	_serviceBrand: ServiceIdentifier<any>;
+
+	private readonly BUFFER_SIZE = 16 * 1024;
 
 	constructor(@ILogService private logService: ILogService) {
 		super();
@@ -316,12 +319,12 @@ export class FileService2 extends Disposable implements IFileService {
 
 			// create file: buffered
 			if (hasOpenReadWriteCloseCapability(provider)) {
-				await this.doWriteBuffered(provider, resource, new TextEncoder().encode(content));
+				await this.doWriteBuffered(provider, resource, VSBuffer.fromString(content || ''));
 			}
 
 			// create file: unbuffered
 			else if (hasReadWriteCapability(provider)) {
-				await this.doWriteUnbuffered(provider, resource, new TextEncoder().encode(content), overwrite);
+				await this.doWriteUnbuffered(provider, resource, VSBuffer.fromString(content || ''), overwrite);
 			}
 
 			// give up if provider has insufficient capabilities
@@ -657,7 +660,7 @@ export class FileService2 extends Disposable implements IFileService {
 
 	//#region Helpers
 
-	private async doWriteBuffered(provider: IFileSystemProviderWithOpenReadWriteCloseCapability, resource: URI, buffer: Uint8Array): Promise<void> {
+	private async doWriteBuffered(provider: IFileSystemProviderWithOpenReadWriteCloseCapability, resource: URI, buffer: VSBuffer): Promise<void> {
 
 		// open handle
 		const handle = await provider.open(resource, { create: true });
@@ -672,16 +675,16 @@ export class FileService2 extends Disposable implements IFileService {
 		}
 	}
 
-	private async doWriteBuffer(provider: IFileSystemProviderWithOpenReadWriteCloseCapability, handle: number, buffer: Uint8Array, length: number, posInFile: number, posInBuffer: number): Promise<void> {
+	private async doWriteBuffer(provider: IFileSystemProviderWithOpenReadWriteCloseCapability, handle: number, buffer: VSBuffer, length: number, posInFile: number, posInBuffer: number): Promise<void> {
 		let totalBytesWritten = 0;
 		while (totalBytesWritten < length) {
-			const bytesWritten = await provider.write(handle, posInFile + totalBytesWritten, buffer, posInBuffer + totalBytesWritten, length - totalBytesWritten);
+			const bytesWritten = await provider.write(handle, posInFile + totalBytesWritten, buffer.buffer, posInBuffer + totalBytesWritten, length - totalBytesWritten);
 			totalBytesWritten += bytesWritten;
 		}
 	}
 
-	private async doWriteUnbuffered(provider: IFileSystemProviderWithFileReadWriteCapability, resource: URI, buffer: Uint8Array, overwrite: boolean): Promise<void> {
-		return provider.writeFile(resource, buffer, { create: true, overwrite });
+	private async doWriteUnbuffered(provider: IFileSystemProviderWithFileReadWriteCapability, resource: URI, buffer: VSBuffer, overwrite: boolean): Promise<void> {
+		return provider.writeFile(resource, buffer.buffer, { create: true, overwrite });
 	}
 
 	private async doPipeBuffered(sourceProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, source: URI, targetProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, target: URI): Promise<void> {
@@ -694,7 +697,7 @@ export class FileService2 extends Disposable implements IFileService {
 			sourceHandle = await sourceProvider.open(source, { create: false });
 			targetHandle = await targetProvider.open(target, { create: true });
 
-			const buffer = new Uint8Array(16 * 1024);
+			const buffer = VSBuffer.alloc(this.BUFFER_SIZE);
 
 			let posInFile = 0;
 			let posInBuffer = 0;
@@ -702,7 +705,7 @@ export class FileService2 extends Disposable implements IFileService {
 			do {
 				// read from source (sourceHandle) at current position (posInFile) into buffer (buffer) at
 				// buffer position (posInBuffer) up to the size of the buffer (buffer.byteLength).
-				bytesRead = await sourceProvider.read(sourceHandle, posInFile, buffer, posInBuffer, buffer.byteLength - posInBuffer);
+				bytesRead = await sourceProvider.read(sourceHandle, posInFile, buffer.buffer, posInBuffer, buffer.byteLength - posInBuffer);
 
 				// write into target (targetHandle) at current position (posInFile) from buffer (buffer) at
 				// buffer position (posInBuffer) all bytes we read (bytesRead).
@@ -712,7 +715,7 @@ export class FileService2 extends Disposable implements IFileService {
 				posInBuffer += bytesRead;
 
 				// when buffer full, fill it again from the beginning
-				if (posInBuffer === buffer.length) {
+				if (posInBuffer === buffer.byteLength) {
 					posInBuffer = 0;
 				}
 			} while (bytesRead > 0);
@@ -738,7 +741,7 @@ export class FileService2 extends Disposable implements IFileService {
 		// Read entire buffer from source and write buffered
 		try {
 			const buffer = await sourceProvider.readFile(source);
-			await this.doWriteBuffer(targetProvider, targetHandle, buffer, buffer.byteLength, 0, 0);
+			await this.doWriteBuffer(targetProvider, targetHandle, VSBuffer.wrap(buffer), buffer.byteLength, 0, 0);
 		} catch (error) {
 			throw error;
 		} finally {
@@ -748,27 +751,38 @@ export class FileService2 extends Disposable implements IFileService {
 
 	private async doPipeBufferedToUnbuffered(sourceProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, source: URI, targetProvider: IFileSystemProviderWithFileReadWriteCapability, target: URI, overwrite: boolean): Promise<void> {
 
-		// Determine file size
-		const size = (await this.resolve(source, { resolveMetadata: true })).size;
-
 		// Open handle
 		const sourceHandle = await sourceProvider.open(source, { create: false });
 
 		try {
-			const buffer = new Uint8Array(size);
+			const buffers: VSBuffer[] = [];
 
-			let pos = 0;
+			let buffer = VSBuffer.alloc(this.BUFFER_SIZE);
+
+			let posInFile = 0;
+			let totalBytesRead = 0;
 			let bytesRead = 0;
+			let posInBuffer = 0;
 			do {
-				// read from source (sourceHandle) at current position (posInFile) into buffer (buffer) at
+				// read from source (sourceHandle) at current position (pos) into buffer (buffer) at
 				// buffer position (posInBuffer) up to the size of the buffer (buffer.byteLength).
-				bytesRead = await sourceProvider.read(sourceHandle, pos, buffer, pos, buffer.byteLength - pos);
+				bytesRead = await sourceProvider.read(sourceHandle, posInFile, buffer.buffer, posInBuffer, buffer.byteLength - posInBuffer);
 
-				pos += bytesRead;
-			} while (bytesRead > 0 && pos < size);
+				posInFile += bytesRead;
+				posInBuffer += bytesRead;
+				totalBytesRead += bytesRead;
+
+				// when buffer full, create a new one
+				if (posInBuffer === buffer.byteLength) {
+					buffers.push(buffer);
+					buffer = VSBuffer.alloc(this.BUFFER_SIZE);
+
+					posInBuffer = 0;
+				}
+			} while (bytesRead > 0);
 
 			// Write buffer into target at once
-			await this.doWriteUnbuffered(targetProvider, target, buffer, overwrite);
+			await this.doWriteUnbuffered(targetProvider, target, VSBuffer.concat([...buffers, buffer.slice(0, posInBuffer)], totalBytesRead), overwrite);
 		} catch (error) {
 			throw error;
 		} finally {

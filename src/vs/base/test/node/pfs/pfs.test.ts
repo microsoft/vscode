@@ -15,6 +15,7 @@ import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isWindows, isLinux } from 'vs/base/common/platform';
 import { canNormalize } from 'vs/base/common/normalization';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 const chunkSize = 64 * 1024;
 const readError = 'Error while reading';
@@ -403,7 +404,7 @@ suite('PFS', () => {
 		const smallData = 'Hello World';
 		const bigData = (new Array(100 * 1024)).join('Large String\n');
 
-		return testWriteFileAndFlush(new TextEncoder().encode(smallData), smallData, new TextEncoder().encode(bigData), bigData);
+		return testWriteFileAndFlush(VSBuffer.fromString(smallData).buffer, smallData, VSBuffer.fromString(bigData).buffer, bigData);
 	});
 
 	test('writeFile (stream)', async () => {
