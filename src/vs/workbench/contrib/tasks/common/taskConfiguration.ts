@@ -534,7 +534,7 @@ interface MetaData<T, U> {
 }
 
 
-function _isEmpty<T>(this: void, value: T, properties: MetaData<T, any>[] | undefined): boolean {
+function _isEmpty<T>(this: void, value: T | undefined, properties: MetaData<T, any>[] | undefined): boolean {
 	if (value === undefined || value === null || properties === undefined) {
 		return true;
 	}
@@ -551,11 +551,11 @@ function _isEmpty<T>(this: void, value: T, properties: MetaData<T, any>[] | unde
 	return true;
 }
 
-function _assignProperties<T>(this: void, target: T, source: T, properties: MetaData<T, any>[]): T {
-	if (_isEmpty(source, properties)) {
+function _assignProperties<T>(this: void, target: T | undefined, source: T | undefined, properties: MetaData<T, any>[]): T | undefined {
+	if (!source || _isEmpty(source, properties)) {
 		return target;
 	}
-	if (_isEmpty(target, properties)) {
+	if (!target || _isEmpty(target, properties)) {
 		return source;
 	}
 	for (let meta of properties) {
@@ -573,11 +573,11 @@ function _assignProperties<T>(this: void, target: T, source: T, properties: Meta
 	return target;
 }
 
-function _fillProperties<T>(this: void, target: T, source: T, properties: MetaData<T, any>[] | undefined): T {
-	if (_isEmpty(source, properties)) {
+function _fillProperties<T>(this: void, target: T | undefined, source: T | undefined, properties: MetaData<T, any>[] | undefined): T | undefined {
+	if (!source || _isEmpty(source, properties)) {
 		return target;
 	}
-	if (_isEmpty(target, properties)) {
+	if (!target || _isEmpty(target, properties)) {
 		return source;
 	}
 	for (let meta of properties!) {
@@ -595,11 +595,11 @@ function _fillProperties<T>(this: void, target: T, source: T, properties: MetaDa
 	return target;
 }
 
-function _fillDefaults<T>(this: void, target: T, defaults: T, properties: MetaData<T, any>[], context: ParseContext): T | undefined {
+function _fillDefaults<T>(this: void, target: T | undefined, defaults: T | undefined, properties: MetaData<T, any>[], context: ParseContext): T | undefined {
 	if (target && Object.isFrozen(target)) {
 		return target;
 	}
-	if (target === undefined || target === null) {
+	if (target === undefined || target === null || defaults === undefined || defaults === null) {
 		if (defaults !== undefined && defaults !== null) {
 			return Objects.deepClone(defaults);
 		} else {
@@ -715,7 +715,7 @@ namespace ShellConfiguration {
 		return _assignProperties(target, source, properties);
 	}
 
-	export function fillProperties(this: void, target: Tasks.ShellConfiguration, source: Tasks.ShellConfiguration): Tasks.ShellConfiguration {
+	export function fillProperties(this: void, target: Tasks.ShellConfiguration, source: Tasks.ShellConfiguration): Tasks.ShellConfiguration | undefined {
 		return _fillProperties(target, source, properties);
 	}
 
@@ -1016,7 +1016,7 @@ namespace CommandConfiguration {
 		return target;
 	}
 
-	export function fillProperties(target: Tasks.CommandConfiguration, source: Tasks.CommandConfiguration): Tasks.CommandConfiguration {
+	export function fillProperties(target: Tasks.CommandConfiguration, source: Tasks.CommandConfiguration): Tasks.CommandConfiguration | undefined {
 		return _fillProperties(target, source, properties);
 	}
 
