@@ -400,14 +400,17 @@ abstract class AbstractWorkspaceConfiguration extends Disposable implements IWor
 		return this._workspaceIdentifier;
 	}
 
-	load(workspaceIdentifier: IWorkspaceIdentifier): Promise<void> {
+	async load(workspaceIdentifier: IWorkspaceIdentifier): Promise<void> {
 		this._workspaceIdentifier = workspaceIdentifier;
-		return this.loadWorkspaceConfigurationContents(workspaceIdentifier)
-			.then(contents => {
-				this.workspaceConfigurationModelParser = new WorkspaceConfigurationModelParser(workspaceIdentifier.id);
-				this.workspaceConfigurationModelParser.parse(contents);
-				this.consolidate();
-			});
+		this.workspaceConfigurationModelParser = new WorkspaceConfigurationModelParser(workspaceIdentifier.id);
+		let contents = '';
+		try {
+			contents = (await this.loadWorkspaceConfigurationContents(workspaceIdentifier.configPath)) || '';
+		} catch (e) {
+			errors.onUnexpectedError(e);
+		}
+		this.workspaceConfigurationModelParser.parse(contents);
+		this.consolidate();
 	}
 
 	getConfigurationModel(): ConfigurationModel {
@@ -432,17 +435,21 @@ abstract class AbstractWorkspaceConfiguration extends Disposable implements IWor
 		this.workspaceSettings = this.workspaceConfigurationModelParser.settingsModel.merge(this.workspaceConfigurationModelParser.launchModel);
 	}
 
-	protected abstract loadWorkspaceConfigurationContents(workspaceIdentifier: IWorkspaceIdentifier): Promise<string>;
+	protected abstract loadWorkspaceConfigurationContents(workspaceConfigurationResource: URI): Promise<string | undefined>;
 }
 
 class NodeBasedWorkspaceConfiguration extends AbstractWorkspaceConfiguration {
 
-	protected loadWorkspaceConfigurationContents(workspaceIdentifier: IWorkspaceIdentifier): Promise<string> {
-		return pfs.readFile(workspaceIdentifier.configPath.fsPath)
-			.then(contents => contents.toString(), e => {
-				errors.onUnexpectedError(e);
-				return '';
-			});
+	protected async loadWorkspaceConfigurationContents(workspaceConfigurationResource: URI): Promise<string | undefined> {
+		try {
+			const contents = await pfs.readFile(workspaceConfigurationResource.fsPath);
+			return contents.toString();
+		} catch (e) {
+			if (e.code === 'ENOENT') {
+				return undefined;
+			}
+			throw e;
+		}
 	}
 
 }
@@ -470,17 +477,13 @@ class FileServiceBasedWorkspaceConfiguration extends AbstractWorkspaceConfigurat
 		return Disposable.None;
 	}
 
-	protected loadWorkspaceConfigurationContents(workspaceIdentifier: IWorkspaceIdentifier): Promise<string> {
-		if (!(this.workspaceConfig && resources.isEqual(this.workspaceConfig, workspaceIdentifier.configPath))) {
+	protected loadWorkspaceConfigurationContents(workspaceConfigurationResource: URI): Promise<string> {
+		if (!(this.workspaceConfig && resources.isEqual(this.workspaceConfig, workspaceConfigurationResource))) {
 			this.workspaceConfigWatcher = dispose(this.workspaceConfigWatcher);
-			this.workspaceConfig = workspaceIdentifier.configPath;
+			this.workspaceConfig = workspaceConfigurationResource;
 			this.workspaceConfigWatcher = this.watchWorkspaceConfigurationFile();
 		}
-		return this.fileService.resolveContent(this.workspaceConfig)
-			.then(content => content.value, e => {
-				errors.onUnexpectedError(e);
-				return '';
-			});
+		return this.fileService.resolveContent(this.workspaceConfig).then(content => content.value);
 	}
 
 	private handleWorkspaceFileEvents(event: FileChangesEvent): void {
