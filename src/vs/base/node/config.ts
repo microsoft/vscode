@@ -123,7 +123,7 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 		this.watch(parentFolder, true);
 
 		// Check if the path is a symlink and watch its target if so
-		this.handleSymbolicLink();
+		this.handleSymbolicLink().then(undefined, error => { /* ignore error */ });
 	}
 
 	private async handleSymbolicLink(): Promise<void> {
