@@ -220,7 +220,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 
 		// Revived webviews may not have an actively registered reviver but we still want to presist them
 		// since a reviver should exist when it is actually needed.
-		return !(webview instanceof RevivedWebviewEditorInput);
+		return webview instanceof RevivedWebviewEditorInput;
 	}
 
 	private async tryRevive(
