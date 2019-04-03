@@ -6,22 +6,22 @@
 import { mkdir, open, close, read, write } from 'fs';
 import { promisify } from 'util';
 import { IDisposable, Disposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, FileSystemProviderErrorCode, createFileSystemProviderError, FileSystemProviderError, FileChangeType } from 'vs/platform/files/common/files';
+import { IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, FileSystemProviderErrorCode, createFileSystemProviderError, FileSystemProviderError } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { statLink, readdir, unlink, move, copy, readFile, writeFile, fileExists, truncate, rimraf, RimRafMode } from 'vs/base/node/pfs';
-import { watchFolder, watchFile } from 'vs/base/node/watcher';
 import { normalize, basename, dirname } from 'vs/base/common/path';
 import { joinPath } from 'vs/base/common/resources';
 import { isEqual } from 'vs/base/common/extpath';
 import { retry, ThrottledDelayer } from 'vs/base/common/async';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { localize } from 'vs/nls';
-import { IDiskFileChange, normalizeFileChanges, toFileChanges } from 'vs/workbench/services/files2/node/watcher/normalizer';
+import { IDiskFileChange, toFileChanges } from 'vs/workbench/services/files2/node/watcher/normalizer';
 import { FileWatcher as UnixWatcherService } from 'vs/workbench/services/files2/node/watcher/unix/watcherService';
 import { FileWatcher as WindowsWatcherService } from 'vs/workbench/services/files2/node/watcher/win32/watcherService';
 import { FileWatcher as NsfwWatcherService } from 'vs/workbench/services/files2/node/watcher/nsfw/watcherService';
+import { FileWatcher as NodeJSWatcherService } from 'vs/workbench/services/files2/node/watcher/nodejs/watcherService';
 
 export class DiskFileSystemProvider extends Disposable implements IFileSystemProvider {
 
@@ -314,9 +314,6 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 	private _onDidChangeFile: Emitter<IFileChange[]> = this._register(new Emitter<IFileChange[]>());
 	get onDidChangeFile(): Event<IFileChange[]> { return this._onDidChangeFile.event; }
 
-	private nonRecursiveFileChangesDelayer: ThrottledDelayer<void> = this._register(new ThrottledDelayer<void>(50));
-	private nonRecursiveFileChangesBuffer: IDiskFileChange[] = [];
-
 	private recursiveWatcher: WindowsWatcherService | UnixWatcherService | NsfwWatcherService;
 	private recursiveFoldersToWatch: { path: string, excludes: string[] }[] = [];
 	private recursiveWatchRequestDelayer: ThrottledDelayer<void> = this._register(new ThrottledDelayer<void>(0));
@@ -406,62 +403,13 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 	}
 
 	private watchNonRecursive(resource: URI): IDisposable {
-		let disposed = false;
-		let disposable = toDisposable(() => disposed = true);
-
-		this.stat(resource).then(fileStat => {
-			if (disposed) {
-				return;
-			}
-
-			// Watch Folder
-			if (fileStat.type === FileType.Directory) {
-				disposable = watchFolder(resource.fsPath, (eventType, path) => {
-					this.onNonRecursiveFileChange({ type: eventType === 'changed' ? FileChangeType.UPDATED : eventType === 'added' ? FileChangeType.ADDED : FileChangeType.DELETED, path });
-				}, error => this.logService.error(error));
-			}
-
-			// Watch File
-			else {
-				disposable = watchFile(resource.fsPath, (eventType, path) => {
-					this.onNonRecursiveFileChange({ type: eventType === 'changed' ? FileChangeType.UPDATED : FileChangeType.DELETED, path });
-				}, error => this.logService.error(error));
-			}
-		}, error => this.logService.error(error));
-
-		return toDisposable(() => dispose(disposable));
-	}
-
-	private onNonRecursiveFileChange(event: IDiskFileChange): void {
-
-		// Add to buffer
-		this.nonRecursiveFileChangesBuffer.push(event);
-
-		// Logging
-		if (this.logService.getLevel() === LogLevel.Trace) {
-			this.logService.trace(`[File Watcher (node.js)] ${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.path}`);
-		}
-
-		// Handle emit through delayer to accommodate for bulk changes and thus reduce spam
-		this.nonRecursiveFileChangesDelayer.trigger(() => {
-			const nonRecursiveFileChanges = this.nonRecursiveFileChangesBuffer;
-			this.nonRecursiveFileChangesBuffer = [];
-
-			// Event normalization
-			const normalizedNonRecursiveFileChangesEvents = normalizeFileChanges(nonRecursiveFileChanges);
-
-			// Logging
-			if (this.logService.getLevel() === LogLevel.Trace) {
-				normalizedNonRecursiveFileChangesEvents.forEach(event => {
-					this.logService.trace(`[File Watcher (node.js)] >> normalized ${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.path}`);
-				});
-			}
-
-			// Fire
-			this._onDidChangeFile.fire(toFileChanges(normalizedNonRecursiveFileChangesEvents));
-
-			return Promise.resolve();
-		});
+		return new NodeJSWatcherService(
+			this.toFilePath(resource),
+			changes => this._onDidChangeFile.fire(toFileChanges(changes)),
+			error => this._onDidWatchErrorOccur.fire(new Error(error)),
+			info => this.logService.trace(info),
+			this.logService.getLevel() === LogLevel.Trace
+		);
 	}
 
 	//#endregion
