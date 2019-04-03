@@ -12,7 +12,7 @@ import { Selection } from '../../../../common/core/selection.js';
 import { Handler } from '../../../../common/editorCommon.js';
 import { ITextModel } from '../../../../common/model.js';
 import { ViewModel } from '../../../../common/viewModel/viewModelImpl.js';
-import { CamelCaseAction, PascalCaseAction, DeleteAllLeftAction, DeleteAllRightAction, DeleteDuplicateLinesAction, DeleteLinesAction, IndentLinesAction, InsertLineAfterAction, InsertLineBeforeAction, JoinLinesAction, KebabCaseAction, LowerCaseAction, SnakeCaseAction, SortLinesAscendingAction, SortLinesDescendingAction, TitleCaseAction, TransposeAction, UpperCaseAction } from '../../browser/linesOperations.js';
+import { CamelCaseAction, PascalCaseAction, DeleteAllLeftAction, DeleteAllRightAction, DeleteDuplicateLinesAction, DeleteLinesAction, IndentLinesAction, InsertLineAfterAction, InsertLineBeforeAction, JoinLinesAction, KebabCaseAction, LowerCaseAction, SnakeCaseAction, SortLinesAscendingAction, SortLinesDescendingAction, TitleCaseAction, TransposeAction, UpperCaseAction, MoveLinesUpAction, MoveLinesDownAction } from '../../browser/linesOperations.js';
 import { withTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
 import { createTextModel } from '../../../../test/common/testTextModel.js';
 
@@ -1639,5 +1639,134 @@ suite('Editor Contrib - Line Operations', () => {
 				new Selection(14, 1, 14, 1),
 			]
 		);
+	});
+
+	suite('Issue #68694 Move consequitive lines with multiple selections', () => {
+		test('Move lines down', () => {
+			const TEXT = [
+				'Line 1',
+				'Line 2',
+				'Line 3',
+				'Line 4',
+				'Line 5'
+			];
+			withTestCodeEditor(TEXT, {}, (editor) => {
+				editor.setSelections([
+					new Selection(1, 1, 1, 1),
+					new Selection(2, 1, 2, 1),
+				]);
+
+				const moveLinesDownAction = new MoveLinesDownAction();
+				moveLinesDownAction.run(null!, editor);
+
+				let model = editor.getModel()!;
+
+				assert.deepStrictEqual(model.getLinesContent(), [
+					'Line 3',
+					'Line 1',
+					'Line 2',
+					'Line 4',
+					'Line 5'
+				]);
+
+				assert.deepStrictEqual(
+					editor.getSelections()!.toString(), [
+						new Selection(2, 1, 2, 1),
+						new Selection(3, 1, 3, 1),
+					].toString());
+			});
+		});
+
+		test('Move lines up', () => {
+			const TEXT = [
+				'Line 1',
+				'Line 2',
+				'Line 3',
+				'Line 4',
+				'Line 5'
+			];
+			withTestCodeEditor(TEXT, {}, (editor) => {
+				editor.setSelections([
+					new Selection(3, 1, 3, 1),
+					new Selection(4, 1, 4, 1),
+				]);
+
+				const moveLinesUpAction = new MoveLinesUpAction();
+				moveLinesUpAction.run(null!, editor);
+
+				let model = editor.getModel()!;
+
+				assert.deepStrictEqual(model.getLinesContent(), [
+					'Line 1',
+					'Line 3',
+					'Line 4',
+					'Line 2',
+					'Line 5'
+				]);
+
+				assert.deepStrictEqual(
+					editor.getSelections()!.toString(), [
+						new Selection(2, 1, 2, 1),
+						new Selection(3, 1, 3, 1),
+					].toString());
+			});
+		});
+
+		test('Combining up and down', () => {
+			const TEXT = [
+				'Line 1',
+				'Line 2',
+				'Line 3',
+				'Line 4',
+				'Line 5'
+			];
+			withTestCodeEditor(TEXT, {}, (editor) => {
+				editor.setSelections([
+					new Selection(1, 1, 1, 1),
+					new Selection(2, 1, 2, 1),
+				]);
+
+				const moveLinesUpAction = new MoveLinesUpAction();
+				const moveLinesDownAction = new MoveLinesDownAction();
+
+				let model = editor.getModel()!;
+
+				moveLinesUpAction.run(null!, editor); // no change since selections are already at top
+
+				assert.deepStrictEqual(model.getLinesContent(), [
+					'Line 1',
+					'Line 2',
+					'Line 3',
+					'Line 4',
+					'Line 5'
+				]);
+
+				moveLinesDownAction.run(null!, editor);
+
+				assert.deepStrictEqual(model.getLinesContent(), [
+					'Line 3',
+					'Line 1',
+					'Line 2',
+					'Line 4',
+					'Line 5'
+				]);
+
+				moveLinesDownAction.run(null!, editor);
+
+				assert.deepStrictEqual(model.getLinesContent(), [
+					'Line 3',
+					'Line 4',
+					'Line 1',
+					'Line 2',
+					'Line 5'
+				]);
+
+				assert.deepStrictEqual(
+					editor.getSelections()!.toString(), [
+						new Selection(3, 1, 3, 1),
+						new Selection(4, 1, 4, 1),
+					].toString());
+			});
+		});
 	});
 });
