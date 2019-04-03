@@ -621,6 +621,9 @@ export interface IContextKeyService {
 	dispose(): void;
 
 	onDidChangeContext: Event<IContextKeyChangeEvent>;
+	bufferChangeEvents(callback: Function): void;
+
+
 	createKey<T>(key: string, defaultValue: T | undefined): IContextKey<T>;
 	contextMatchesRules(rules: ContextKeyExpr | undefined): boolean;
 	getContextKeyValue<T>(key: string): T | undefined;

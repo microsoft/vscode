@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { keys } from 'vs/base/common/map';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -165,45 +165,58 @@ class ConfigAwareContextValuesContainer extends Context {
 
 class ContextKey<T> implements IContextKey<T> {
 
-	private _parent: AbstractContextKeyService;
+	private _service: AbstractContextKeyService;
 	private _key: string;
 	private _defaultValue: T | undefined;
 
-	constructor(parent: AbstractContextKeyService, key: string, defaultValue: T | undefined) {
-		this._parent = parent;
+	constructor(service: AbstractContextKeyService, key: string, defaultValue: T | undefined) {
+		this._service = service;
 		this._key = key;
 		this._defaultValue = defaultValue;
 		this.reset();
 	}
 
 	public set(value: T): void {
-		this._parent.setContext(this._key, value);
+		this._service.setContext(this._key, value);
 	}
 
 	public reset(): void {
 		if (typeof this._defaultValue === 'undefined') {
-			this._parent.removeContext(this._key);
+			this._service.removeContext(this._key);
 		} else {
-			this._parent.setContext(this._key, this._defaultValue);
+			this._service.setContext(this._key, this._defaultValue);
 		}
 	}
 
 	public get(): T | undefined {
-		return this._parent.getContextKeyValue<T>(this._key);
+		return this._service.getContextKeyValue<T>(this._key);
 	}
 }
 
 class SimpleContextKeyChangeEvent implements IContextKeyChangeEvent {
-	constructor(private readonly _key: string) { }
+	constructor(readonly key: string) { }
 	affectsSome(keys: IReadableSet<string>): boolean {
-		return keys.has(this._key);
+		return keys.has(this.key);
 	}
 }
+
 class ArrayContextKeyChangeEvent implements IContextKeyChangeEvent {
-	constructor(private readonly _keys: string[]) { }
+	constructor(readonly keys: string[]) { }
 	affectsSome(keys: IReadableSet<string>): boolean {
-		for (const key of this._keys) {
+		for (const key of this.keys) {
 			if (keys.has(key)) {
+				return true;
+			}
+		}
+		return false;
+	}
+}
+
+class CompositeContextKeyChangeEvent implements IContextKeyChangeEvent {
+	constructor(readonly events: IContextKeyChangeEvent[]) { }
+	affectsSome(keys: IReadableSet<string>): boolean {
+		for (const e of this.events) {
+			if (e.affectsSome(keys)) {
 				return true;
 			}
 		}
@@ -215,7 +228,7 @@ export abstract class AbstractContextKeyService implements IContextKeyService {
 	public _serviceBrand: any;
 
 	protected _isDisposed: boolean;
-	protected _onDidChangeContext = new Emitter<IContextKeyChangeEvent>();
+	protected _onDidChangeContext = new PauseableEmitter<IContextKeyChangeEvent>({ merge: input => new CompositeContextKeyChangeEvent(input) });
 	protected _myContextId: number;
 
 	constructor(myContextId: number) {
@@ -235,6 +248,16 @@ export abstract class AbstractContextKeyService implements IContextKeyService {
 	public get onDidChangeContext(): Event<IContextKeyChangeEvent> {
 		return this._onDidChangeContext.event;
 	}
+
+	bufferChangeEvents(callback: Function): void {
+		this._onDidChangeContext.pause();
+		try {
+			callback();
+		} finally {
+			this._onDidChangeContext.resume();
+		}
+	}
+
 	public createScoped(domNode: IContextKeyServiceTarget): IContextKeyService {
 		if (this._isDisposed) {
 			throw new Error(`AbstractContextKeyService has been disposed`);
@@ -356,7 +379,7 @@ class ScopedContextKeyService extends AbstractContextKeyService {
 	private _parent: AbstractContextKeyService;
 	private _domNode: IContextKeyServiceTarget | undefined;
 
-	constructor(parent: AbstractContextKeyService, emitter: Emitter<IContextKeyChangeEvent>, domNode?: IContextKeyServiceTarget) {
+	constructor(parent: AbstractContextKeyService, emitter: PauseableEmitter<IContextKeyChangeEvent>, domNode?: IContextKeyServiceTarget) {
 		super(parent.createChildContext());
 		this._parent = parent;
 		this._onDidChangeContext = emitter;
