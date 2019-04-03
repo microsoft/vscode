@@ -882,7 +882,7 @@ interface INodeModuleFactory {
 	load(request: string, parent: { filename: string; }): any;
 }
 
-class NodeModuleRequireInterceptor {
+export class NodeModuleRequireInterceptor {
 	public static INSTANCE = new NodeModuleRequireInterceptor();
 
 	private readonly _factories: Map<string, INodeModuleFactory>;
@@ -908,13 +908,7 @@ class NodeModuleRequireInterceptor {
 	}
 }
 
-export function initializeExtensionApi(extensionService: ExtHostExtensionService, apiFactory: IExtensionApiFactory, extensionRegistry: ExtensionDescriptionRegistry, configProvider: ExtHostConfigProvider): Promise<void> {
-	return extensionService.getExtensionPathIndex().then(extensionPaths => {
-		NodeModuleRequireInterceptor.INSTANCE.register(new VSCodeNodeModuleFactory(apiFactory, extensionPaths, extensionRegistry, configProvider));
-	});
-}
-
-class VSCodeNodeModuleFactory implements INodeModuleFactory {
+export class VSCodeNodeModuleFactory implements INodeModuleFactory {
 	public readonly nodeModuleName = 'vscode';
 
 	private readonly _extApiImpl = new Map<string, typeof vscode>();
