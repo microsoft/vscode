@@ -411,17 +411,6 @@ declare namespace monaco {
 		stopPropagation(): void;
 	}
 
-	export interface IMouseWheelEvent extends MouseEvent {
-		readonly wheelDelta: number;
-		readonly wheelDeltaX: number;
-		readonly wheelDeltaY: number;
-
-		readonly deltaX: number;
-		readonly deltaY: number;
-		readonly deltaZ: number;
-		readonly deltaMode: number;
-	}
-
 	export interface IScrollEvent {
 		readonly scrollTop: number;
 		readonly scrollLeft: number;
@@ -3896,11 +3885,6 @@ declare namespace monaco.editor {
 		 * @event
 		 */
 		onMouseLeave(listener: (e: IPartialEditorMouseEvent) => void): IDisposable;
-		/**
-		 * An event emitted on a "mousewheel"
-		 * @event
-		 */
-		onMouseWheel(listener: (e: IMouseWheelEvent) => void): IDisposable;
 		/**
 		 * An event emitted on a "keyup".
 		 * @event

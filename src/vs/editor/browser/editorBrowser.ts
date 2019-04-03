@@ -464,6 +464,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	/**
 	 * An event emitted on a "mousewheel"
 	 * @event
+	 * @internal
 	 */
 	onMouseWheel(listener: (e: IMouseWheelEvent) => void): IDisposable;
 	/**
