@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as crypto from 'crypto';
 import { coalesce, equals } from 'vs/base/common/arrays';
 import { illegalArgument } from 'vs/base/common/errors';
 import { IRelativePattern } from 'vs/base/common/glob';
@@ -1545,6 +1544,14 @@ export class TaskGroup implements vscode.TaskGroup {
 	}
 }
 
+function computeTaskExecutionId(values: string[]): string {
+	let id: string = '';
+	for (let i = 0; i < values.length; i++) {
+		id += values[i].replace(/,/g, ',,') + ',';
+	}
+	return id;
+}
+
 @es5ClassCompat
 export class ProcessExecution implements vscode.ProcessExecution {
 
@@ -1604,17 +1611,17 @@ export class ProcessExecution implements vscode.ProcessExecution {
 	}
 
 	public computeId(): string {
-		const hash = crypto.createHash('md5');
-		hash.update('process');
+		const props: string[] = [];
+		props.push('process');
 		if (this._process !== undefined) {
-			hash.update(this._process);
+			props.push(this._process);
 		}
 		if (this._args && this._args.length > 0) {
 			for (let arg of this._args) {
-				hash.update(arg);
+				props.push(arg);
 			}
 		}
-		return hash.digest('hex');
+		return computeTaskExecutionId(props);
 	}
 }
 
@@ -1687,20 +1694,20 @@ export class ShellExecution implements vscode.ShellExecution {
 	}
 
 	public computeId(): string {
-		const hash = crypto.createHash('md5');
-		hash.update('shell');
+		const props: string[] = [];
+		props.push('shell');
 		if (this._commandLine !== undefined) {
-			hash.update(this._commandLine);
+			props.push(this._commandLine);
 		}
 		if (this._command !== undefined) {
-			hash.update(typeof this._command === 'string' ? this._command : this._command.value);
+			props.push(typeof this._command === 'string' ? this._command : this._command.value);
 		}
 		if (this._args && this._args.length > 0) {
 			for (let arg of this._args) {
-				hash.update(typeof arg === 'string' ? arg : arg.value);
+				props.push(typeof arg === 'string' ? arg : arg.value);
 			}
 		}
-		return hash.digest('hex');
+		return computeTaskExecutionId(props);
 	}
 }
 
@@ -1723,10 +1730,7 @@ export class CustomExecution implements vscode.CustomExecution {
 	}
 
 	public computeId(): string {
-		const hash = crypto.createHash('md5');
-		hash.update('customExecution');
-		hash.update(generateUuid());
-		return hash.digest('hex');
+		return 'customExecution' + generateUuid();
 	}
 
 	public set callback(value: (args: vscode.TerminalRenderer, cancellationToken: vscode.CancellationToken) => Thenable<number>) {
