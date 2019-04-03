@@ -18,7 +18,7 @@ import { TestTextFileService, TestTextResourceConfigurationService, workbenchIns
 import * as uuid from 'vs/base/common/uuid';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
-import { FileService } from 'vs/workbench/services/files/node/fileService';
+import { LegacyFileService } from 'vs/workbench/services/files/node/fileService';
 import { ConfigurationEditingService, ConfigurationEditingError, ConfigurationEditingErrorCode } from 'vs/workbench/services/configuration/common/configurationEditingService';
 import { WORKSPACE_STANDALONE_CONFIGURATIONS } from 'vs/workbench/services/configuration/common/configuration';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
@@ -112,7 +112,7 @@ suite('ConfigurationEditingService', () => {
 			instantiationService.stub(IConfigurationService, workspaceService);
 			const fileService = new FileService2(new NullLogService());
 			fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
-			fileService.setLegacyService(new FileService(
+			fileService.setLegacyService(new LegacyFileService(
 				fileService,
 				workspaceService,
 				TestEnvironmentService,

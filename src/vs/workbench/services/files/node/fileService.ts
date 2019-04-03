@@ -33,7 +33,7 @@ export interface IFileServiceTestOptions {
 	encodingOverride?: IEncodingOverride[];
 }
 
-export class FileService extends Disposable implements ILegacyFileService {
+export class LegacyFileService extends Disposable implements ILegacyFileService {
 
 	_serviceBrand: any;
 

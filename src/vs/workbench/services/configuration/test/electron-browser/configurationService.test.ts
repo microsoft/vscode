@@ -23,7 +23,7 @@ import { IFileService, FileChangesEvent, FileChangeType } from 'vs/platform/file
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationTarget, IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { workbenchInstantiationService, TestTextResourceConfigurationService, TestTextFileService, TestEnvironmentService } from 'vs/workbench/test/workbenchTestServices';
-import { FileService } from 'vs/workbench/services/files/node/fileService';
+import { LegacyFileService } from 'vs/workbench/services/files/node/fileService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -230,7 +230,7 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 				return workspaceService.initialize(getWorkspaceIdentifier(configPath)).then(() => {
 					const fileService = new FileService2(new NullLogService());
 					fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
-					fileService.setLegacyService(new FileService(
+					fileService.setLegacyService(new LegacyFileService(
 						fileService,
 						workspaceService,
 						TestEnvironmentService,
@@ -499,7 +499,7 @@ suite('WorkspaceService - Initialization', () => {
 				return workspaceService.initialize({ id: '' }).then(() => {
 					const fileService = new FileService2(new NullLogService());
 					fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
-					fileService.setLegacyService(new FileService(
+					fileService.setLegacyService(new LegacyFileService(
 						fileService,
 						workspaceService,
 						TestEnvironmentService,
@@ -763,7 +763,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 				return workspaceService.initialize(convertToWorkspacePayload(URI.file(folderDir))).then(() => {
 					const fileService = new FileService2(new NullLogService());
 					fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
-					fileService.setLegacyService(new FileService(
+					fileService.setLegacyService(new LegacyFileService(
 						fileService,
 						workspaceService,
 						TestEnvironmentService,
@@ -1061,7 +1061,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 				return workspaceService.initialize(getWorkspaceIdentifier(configPath)).then(() => {
 					const fileService = new FileService2(new NullLogService());
 					fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
-					fileService.setLegacyService(new FileService(
+					fileService.setLegacyService(new LegacyFileService(
 						fileService,
 						workspaceService,
 						TestEnvironmentService,

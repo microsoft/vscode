@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import * as path from 'vs/base/common/path';
 import * as os from 'os';
 import * as assert from 'assert';
-import { FileService } from 'vs/workbench/services/files/node/fileService';
+import { LegacyFileService } from 'vs/workbench/services/files/node/fileService';
 import { FileOperation, FileOperationEvent, FileOperationResult, FileOperationError } from 'vs/platform/files/common/files';
 import { URI as uri } from 'vs/base/common/uri';
 import * as uuid from 'vs/base/common/uuid';
@@ -25,8 +25,8 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import { Schemas } from 'vs/base/common/network';
 import { DiskFileSystemProvider } from 'vs/workbench/services/files2/node/diskFileSystemProvider';
 
-suite('FileService', () => {
-	let service: FileService;
+suite('LegacyFileService', () => {
+	let service: LegacyFileService;
 	const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'fileservice');
 	let testDir: string;
 
@@ -39,7 +39,7 @@ suite('FileService', () => {
 		fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
 
 		return pfs.copy(sourceDir, testDir).then(() => {
-			service = new FileService(
+			service = new LegacyFileService(
 				fileService,
 				new TestContextService(new Workspace(testDir, toWorkspaceFolders([{ path: testDir }]))),
 				TestEnvironmentService,
@@ -382,7 +382,7 @@ suite('FileService', () => {
 			fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
 
 
-			const _service = new FileService(
+			const _service = new LegacyFileService(
 				fileService,
 				new TestContextService(new Workspace(_testDir, toWorkspaceFolders([{ path: _testDir }]))),
 				TestEnvironmentService,
@@ -424,7 +424,7 @@ suite('FileService', () => {
 			const fileService = new FileService2(new NullLogService());
 			fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
 
-			const _service = new FileService(
+			const _service = new LegacyFileService(
 				fileService,
 				new TestContextService(new Workspace(_testDir, toWorkspaceFolders([{ path: _testDir }]))),
 				TestEnvironmentService,
@@ -455,7 +455,7 @@ suite('FileService', () => {
 		const fileService = new FileService2(new NullLogService());
 		fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
 
-		const _service = new FileService(
+		const _service = new LegacyFileService(
 			fileService,
 			new TestContextService(new Workspace(_testDir, toWorkspaceFolders([{ path: _testDir }]))),
 			TestEnvironmentService,

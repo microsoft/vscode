@@ -13,11 +13,11 @@ import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FileWriteOptions, FileSystemProviderCapabilities, IContent, ICreateFileOptions, IFileSystemProvider, IResolveContentOptions, IStreamContent, ITextSnapshot, IUpdateContentOptions, StringSnapshot, ILegacyFileService, IFileService, toFileOperationResult, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { FileService } from 'vs/workbench/services/files/node/fileService';
+import { LegacyFileService } from 'vs/workbench/services/files/node/fileService';
 import { createReadableOfProvider, createReadableOfSnapshot, createWritableOfProvider } from 'vs/workbench/services/files/node/streams';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
-export class RemoteFileService extends FileService {
+export class LegacyRemoteFileService extends LegacyFileService {
 
 	private readonly _provider: Map<string, IFileSystemProvider>;
 
@@ -81,7 +81,7 @@ export class RemoteFileService extends FileService {
 		if (resource.scheme === Schemas.file) {
 			return super.resolveContent(resource, options);
 		} else {
-			return this._readFile(resource, options).then(RemoteFileService._asContent);
+			return this._readFile(resource, options).then(LegacyRemoteFileService._asContent);
 		}
 	}
 
@@ -163,7 +163,7 @@ export class RemoteFileService extends FileService {
 			return super.createFile(resource, content, options);
 		} else {
 
-			return this._withProvider(resource).then(RemoteFileService._throwIfFileSystemIsReadonly).then(provider => {
+			return this._withProvider(resource).then(LegacyRemoteFileService._throwIfFileSystemIsReadonly).then(provider => {
 
 				return this.fileService.createFolder(resources.dirname(resource)).then(() => {
 					const { encoding } = this.encoding.getWriteEncoding(resource);
@@ -185,7 +185,7 @@ export class RemoteFileService extends FileService {
 		if (resource.scheme === Schemas.file) {
 			return super.updateContent(resource, value, options);
 		} else {
-			return this._withProvider(resource).then(RemoteFileService._throwIfFileSystemIsReadonly).then(provider => {
+			return this._withProvider(resource).then(LegacyRemoteFileService._throwIfFileSystemIsReadonly).then(provider => {
 				return this.fileService.createFolder(resources.dirname(resource)).then(() => {
 					const snapshot = typeof value === 'string' ? new StringSnapshot(value) : value;
 					return this._writeFile(provider, resource, snapshot, options && options.encoding, { create: true, overwrite: true });
@@ -227,4 +227,4 @@ export class RemoteFileService extends FileService {
 	}
 }
 
-registerSingleton(ILegacyFileService, RemoteFileService);
+registerSingleton(ILegacyFileService, LegacyRemoteFileService);

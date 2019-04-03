@@ -26,7 +26,7 @@ import { TestNotificationService } from 'vs/platform/notification/test/common/te
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { URI } from 'vs/base/common/uri';
 import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { FileService } from 'vs/workbench/services/files/node/fileService';
+import { LegacyFileService } from 'vs/workbench/services/files/node/fileService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IPager } from 'vs/base/common/paging';
 import { assign } from 'vs/base/common/objects';
@@ -285,7 +285,7 @@ suite('ExtensionsTipsService Test', () => {
 		instantiationService.stub(IWorkspaceContextService, workspaceService);
 		const fileService = new FileService2(new NullLogService());
 		fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
-		fileService.setLegacyService(new FileService(
+		fileService.setLegacyService(new LegacyFileService(
 			fileService,
 			workspaceService,
 			TestEnvironmentService,

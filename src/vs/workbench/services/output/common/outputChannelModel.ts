@@ -129,6 +129,7 @@ export abstract class AbstractFileOutputChannelModel extends Disposable implemen
 	}
 }
 
+// TODO@ben see if new watchers can cope with spdlog and avoid polling then
 class OutputFileListener extends Disposable {
 
 	private readonly _onDidContentChange = new Emitter<number | undefined>();
