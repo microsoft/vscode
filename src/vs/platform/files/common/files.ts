@@ -81,11 +81,6 @@ export interface IFileService {
 	readonly onAfterOperation: Event<FileOperationEvent>;
 
 	/**
-	 * An event that is fired whenever an error occurs in the service or providers.
-	 */
-	readonly onError: Event<Error>;
-
-	/**
 	 * Resolve the properties of a file/folder identified by the resource.
 	 *
 	 * If the optional parameter "resolveTo" is specified in options, the stat service is asked

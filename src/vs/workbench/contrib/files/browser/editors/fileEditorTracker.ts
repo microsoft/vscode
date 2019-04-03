@@ -33,7 +33,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 
 	private closeOnFileDelete: boolean;
 	private modelLoadQueue = new ResourceQueue();
-	private activeOutOfWorkspaceWatchers = new Map<URI, IDisposable>();
+	private activeOutOfWorkspaceWatchers = new ResourceMap<IDisposable>();
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
@@ -346,9 +346,9 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 		});
 
 		// Handle no longer visible out of workspace resources
-		this.activeOutOfWorkspaceWatchers.forEach((disposable, resource) => {
+		this.activeOutOfWorkspaceWatchers.keys().forEach(resource => {
 			if (!visibleOutOfWorkspacePaths.get(resource)) {
-				dispose(disposable);
+				dispose(this.activeOutOfWorkspaceWatchers.get(resource));
 				this.activeOutOfWorkspaceWatchers.delete(resource);
 			}
 		});

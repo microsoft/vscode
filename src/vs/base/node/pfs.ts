@@ -687,9 +687,11 @@ function doWatchNonRecursive(file: { path: string, isDirectory: boolean }, onCha
 	let disposed = false;
 	let watcherDisposables: IDisposable[] = [];
 
-	try {
-		const originalFileName = basename(file.path);
+	const originalFileName = basename(file.path);
 
+	try {
+
+		// Creating watcher can fail with an exception
 		const watcher = fs.watch(file.path);
 		watcherDisposables.push(toDisposable(() => {
 			watcher.removeAllListeners();
