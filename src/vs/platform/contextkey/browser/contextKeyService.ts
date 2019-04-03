@@ -262,7 +262,7 @@ export abstract class AbstractContextKeyService implements IContextKeyService {
 		if (this._isDisposed) {
 			throw new Error(`AbstractContextKeyService has been disposed`);
 		}
-		return new ScopedContextKeyService(this, this._onDidChangeContext, domNode);
+		return new ScopedContextKeyService(this, domNode);
 	}
 
 	public contextMatchesRules(rules: ContextKeyExpr | undefined): boolean {
@@ -379,10 +379,9 @@ class ScopedContextKeyService extends AbstractContextKeyService {
 	private _parent: AbstractContextKeyService;
 	private _domNode: IContextKeyServiceTarget | undefined;
 
-	constructor(parent: AbstractContextKeyService, emitter: PauseableEmitter<IContextKeyChangeEvent>, domNode?: IContextKeyServiceTarget) {
+	constructor(parent: AbstractContextKeyService, domNode?: IContextKeyServiceTarget) {
 		super(parent.createChildContext());
 		this._parent = parent;
-		this._onDidChangeContext = emitter;
 
 		if (domNode) {
 			this._domNode = domNode;
@@ -400,7 +399,7 @@ class ScopedContextKeyService extends AbstractContextKeyService {
 	}
 
 	public get onDidChangeContext(): Event<IContextKeyChangeEvent> {
-		return this._parent.onDidChangeContext;
+		return Event.any(this._parent.onDidChangeContext, this._onDidChangeContext.event);
 	}
 
 	public getContextValuesContainer(contextId: number): Context {
