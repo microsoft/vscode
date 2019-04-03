@@ -43,7 +43,7 @@ import { OpenFileFolderAction, OpenFolderAction } from 'vs/workbench/browser/act
 import { ResourceLabels, IResourceLabelsContainer } from 'vs/workbench/browser/labels';
 import { IEditor } from 'vs/workbench/common/editor';
 import { ExcludePatternInputWidget, PatternInputWidget } from 'vs/workbench/contrib/search/browser/patternInputWidget';
-import { CancelSearchAction, ClearSearchResultsAction, CollapseDeepestExpandedLevelAction, RefreshAction } from 'vs/workbench/contrib/search/browser/searchActions';
+import { CancelSearchAction, ClearSearchResultsAction, CollapseDeepestExpandedLevelAction, RefreshAction, IFindInFilesArgs } from 'vs/workbench/contrib/search/browser/searchActions';
 import { FileMatchRenderer, FolderMatchRenderer, MatchRenderer, SearchAccessibilityProvider, SearchDelegate, SearchDND } from 'vs/workbench/contrib/search/browser/searchResultsView';
 import { ISearchWidgetOptions, SearchWidget } from 'vs/workbench/contrib/search/browser/searchWidget';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
@@ -1043,33 +1043,33 @@ export class SearchView extends ViewletPanel {
 		this.onQueryChanged(true);
 	}
 
-	searchReplace(query?: string, replace?: string, triggerSearch?: boolean, caseSensitive?: boolean, wholeWords?: boolean, regex?: boolean, filesToInclude?: string, filesToExclude?: string): void {
-		if (typeof caseSensitive === 'boolean') {
-			this.searchWidget.searchInput.setCaseSensitive(caseSensitive);
+	setSearchParameters(args: IFindInFilesArgs = {}): void {
+		if (typeof args.isCaseSensitive === 'boolean') {
+			this.searchWidget.searchInput.setCaseSensitive(args.isCaseSensitive);
 		}
-		if (typeof wholeWords === 'boolean') {
-			this.searchWidget.searchInput.setWholeWords(wholeWords);
+		if (typeof args.matchWholeWord === 'boolean') {
+			this.searchWidget.searchInput.setWholeWords(args.matchWholeWord);
 		}
-		if (typeof regex === 'boolean') {
-			this.searchWidget.searchInput.setRegex(regex);
+		if (typeof args.isRegex === 'boolean') {
+			this.searchWidget.searchInput.setRegex(args.isRegex);
 		}
-		if (typeof filesToInclude === 'string') {
-			this.searchIncludePattern.setValue(String(filesToInclude));
+		if (typeof args.filesToInclude === 'string') {
+			this.searchIncludePattern.setValue(String(args.filesToInclude));
 		}
-		if (typeof filesToExclude === 'string') {
-			this.searchExcludePattern.setValue(String(filesToExclude));
+		if (typeof args.filesToExclude === 'string') {
+			this.searchExcludePattern.setValue(String(args.filesToExclude));
 		}
-		if (typeof query === 'string') {
-			this.searchWidget.searchInput.setValue(query);
+		if (typeof args.query === 'string') {
+			this.searchWidget.searchInput.setValue(args.query);
 		}
-		if (typeof replace === 'string') {
-			this.searchWidget.replaceInput.value = replace;
+		if (typeof args.replace === 'string') {
+			this.searchWidget.replaceInput.value = args.replace;
 		} else {
 			if (this.searchWidget.replaceInput.value !== '') {
 				this.searchWidget.replaceInput.value = '';
 			}
 		}
-		if (typeof triggerSearch === 'boolean' && triggerSearch) {
+		if (typeof args.triggerSearch === 'boolean' && args.triggerSearch) {
 			this.onQueryChanged(true);
 		}
 	}

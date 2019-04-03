@@ -171,28 +171,19 @@ export interface IFindInFilesArgs {
 	matchWholeWord?: boolean;
 }
 export const FindInFilesCommand: ICommandHandler = (accessor, args: IFindInFilesArgs = {}) => {
-	const {
-		query,
-		replace,
-		triggerSearch,
-		filesToInclude,
-		filesToExclude,
-		isRegex,
-		isCaseSensitive,
-		matchWholeWord
-	} = args;
+
 	const viewletService = accessor.get(IViewletService);
 	const panelService = accessor.get(IPanelService);
 	const configurationService = accessor.get(IConfigurationService);
 	openSearchView(viewletService, panelService, configurationService, false).then(openedView => {
 		if (openedView) {
 			const searchAndReplaceWidget = openedView.searchAndReplaceWidget;
-			searchAndReplaceWidget.toggleReplace(typeof replace === 'string');
+			searchAndReplaceWidget.toggleReplace(typeof args.replace === 'string');
 			let updatedText = false;
-			if (typeof query === 'string') {
-				openedView.searchReplace(query, replace, triggerSearch, isCaseSensitive, matchWholeWord, isRegex, filesToInclude, filesToExclude);
+			if (typeof args.query === 'string') {
+				openedView.setSearchParameters(args);
 			} else {
-				updatedText = openedView.updateTextFromSelection((typeof replace !== 'string'));
+				updatedText = openedView.updateTextFromSelection((typeof args.replace !== 'string'));
 			}
 			openedView.searchAndReplaceWidget.focus(undefined, updatedText, updatedText);
 		}
