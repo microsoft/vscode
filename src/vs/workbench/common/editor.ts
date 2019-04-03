@@ -91,7 +91,7 @@ export interface IEditor {
 	/**
 	 * Returns the underlying control of this editor.
 	 */
-	getControl(): IEditorControl | null;
+	getControl(): IEditorControl | undefined;
 
 	/**
 	 * Asks the underlying control to focus.

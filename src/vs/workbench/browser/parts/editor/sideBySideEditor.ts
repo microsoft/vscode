@@ -141,12 +141,12 @@ export class SideBySideEditor extends BaseEditor {
 		this.splitview.layout(dimension.width);
 	}
 
-	getControl(): IEditorControl | null {
+	getControl(): IEditorControl | undefined {
 		if (this.masterEditor) {
 			return this.masterEditor.getControl();
 		}
 
-		return null;
+		return undefined;
 	}
 
 	getMasterEditor(): IEditor | undefined {
