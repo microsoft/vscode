@@ -787,7 +787,7 @@ suite('Disk File Service', () => {
 
 	test('watch - file symbolic link', async done => {
 		if (isWindows) {
-			return; // not happy
+			return done(); // not happy
 		}
 
 		const toWatch = URI.file(join(testDir, 'lorem.txt-linked'));
@@ -894,7 +894,7 @@ suite('Disk File Service', () => {
 
 	test('watch - folder (non recursive) - symbolic link - change file', async done => {
 		if (isWindows) {
-			return; // not happy
+			return done(); // not happy
 		}
 
 		const watchDir = URI.file(join(testDir, 'deep-link'));
