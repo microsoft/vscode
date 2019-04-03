@@ -113,7 +113,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 
 		this._detectVisibleLenses = new RunOnceScheduler(() => {
 			this._onViewportChanged();
-		}, 500);
+		}, 250);
 
 		const scheduler = new RunOnceScheduler(() => {
 			const counterValue = ++this._modelChangeCounter;
