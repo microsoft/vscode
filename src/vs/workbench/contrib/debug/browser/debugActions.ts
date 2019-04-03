@@ -414,7 +414,7 @@ export class CopyRawValueAction extends Action {
 		@IDebugService private readonly debugService: IDebugService,
 		@IClipboardService private readonly clipboardService: IClipboardService
 	) {
-		super(id, label, 'debug-action copy-value');
+		super(id, label, 'debug-action copy-raw-value');
 		this._enabled = typeof this.value === 'string' || (this.value instanceof Variable && !!this.value.evaluateName);
 	}
 
