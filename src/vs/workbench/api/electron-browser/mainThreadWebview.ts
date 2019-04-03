@@ -112,7 +112,6 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		};
 
 		this._webviews.set(handle, webview);
-		this._activeWebview = handle;
 
 		/* __GDPR__
 			"webviews:createWebviewPanel" : {

@@ -72,7 +72,6 @@ export class WebviewEditorInput extends EditorInput {
 
 	constructor(
 		public readonly viewType: string,
-		id: number,
 		name: string,
 		options: WebviewInputOptions,
 		state: any,
@@ -85,8 +84,7 @@ export class WebviewEditorInput extends EditorInput {
 	) {
 		super();
 
-		this._id = id;
-		WebviewEditorInput.handlePool = Math.max(id, WebviewEditorInput.handlePool) + 1;
+		this._id = WebviewEditorInput.handlePool++;
 
 		this._name = name;
 		this._options = options;
@@ -97,10 +95,6 @@ export class WebviewEditorInput extends EditorInput {
 
 	public getTypeId(): string {
 		return WebviewEditorInput.typeId;
-	}
-
-	public getId(): number {
-		return this._id;
 	}
 
 	private readonly _onDidChangeIcon = this._register(new Emitter<void>());
@@ -157,7 +151,7 @@ export class WebviewEditorInput extends EditorInput {
 	}
 
 	public matches(other: IEditorInput): boolean {
-		return other === this || (other instanceof WebviewEditorInput && other._id === this._id);
+		return other === this;
 	}
 
 	public get group(): GroupIdentifier | undefined {
@@ -312,7 +306,6 @@ export class RevivedWebviewEditorInput extends WebviewEditorInput {
 
 	constructor(
 		viewType: string,
-		id: number,
 		name: string,
 		options: WebviewInputOptions,
 		state: any,
@@ -324,7 +317,7 @@ export class RevivedWebviewEditorInput extends WebviewEditorInput {
 		private readonly reviver: (input: WebviewEditorInput) => Promise<void>,
 		@IWorkbenchLayoutService partService: IWorkbenchLayoutService,
 	) {
-		super(viewType, id, name, options, state, events, extension, partService);
+		super(viewType, name, options, state, events, extension, partService);
 	}
 
 	public async resolve(): Promise<IEditorModel> {

@@ -17,7 +17,6 @@ interface SerializedIconPath {
 
 interface SerializedWebview {
 	readonly viewType: string;
-	readonly id: number;
 	readonly title: string;
 	readonly options: WebviewInputOptions;
 	readonly extensionLocation: string | UriComponents | undefined;
@@ -44,7 +43,6 @@ export class WebviewEditorInputFactory implements IEditorInputFactory {
 
 		const data: SerializedWebview = {
 			viewType: input.viewType,
-			id: input.getId(),
 			title: input.getName(),
 			options: input.options,
 			extensionLocation: input.extension ? input.extension.location : undefined,
@@ -69,7 +67,7 @@ export class WebviewEditorInputFactory implements IEditorInputFactory {
 		const extensionLocation = reviveUri(data.extensionLocation);
 		const extensionId = data.extensionId ? new ExtensionIdentifier(data.extensionId) : undefined;
 		const iconPath = reviveIconPath(data.iconPath);
-		return this._webviewService.reviveWebview(data.viewType, data.id, data.title, iconPath, data.state, data.options, extensionLocation ? {
+		return this._webviewService.reviveWebview(data.viewType, data.title, iconPath, data.state, data.options, extensionLocation ? {
 			location: extensionLocation,
 			id: extensionId
 		} : undefined, data.group);

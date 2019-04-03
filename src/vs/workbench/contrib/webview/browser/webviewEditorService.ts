@@ -39,7 +39,6 @@ export interface IWebviewEditorService {
 
 	reviveWebview(
 		viewType: string,
-		id: number,
 		title: string,
 		iconPath: { light: URI, dark: URI } | undefined,
 		state: any,
@@ -143,7 +142,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 		},
 		events: WebviewEvents
 	): WebviewEditorInput {
-		const webviewInput = this._instantiationService.createInstance(WebviewEditorInput, viewType, undefined, title, options, {}, events, extension);
+		const webviewInput = this._instantiationService.createInstance(WebviewEditorInput, viewType, title, options, {}, events, extension);
 		this._editorService.openEditor(webviewInput, { pinned: true, preserveFocus: showOptions.preserveFocus }, showOptions.group);
 		return webviewInput;
 	}
@@ -165,7 +164,6 @@ export class WebviewEditorService implements IWebviewEditorService {
 
 	public reviveWebview(
 		viewType: string,
-		id: number,
 		title: string,
 		iconPath: { light: URI, dark: URI } | undefined,
 		state: any,
@@ -176,7 +174,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 		},
 		group: number | undefined,
 	): WebviewEditorInput {
-		const webviewInput = this._instantiationService.createInstance(RevivedWebviewEditorInput, viewType, id, title, options, state, {}, extension, async (webview: WebviewEditorInput): Promise<void> => {
+		const webviewInput = this._instantiationService.createInstance(RevivedWebviewEditorInput, viewType, title, options, state, {}, extension, async (webview: WebviewEditorInput): Promise<void> => {
 			const didRevive = await this.tryRevive(webview);
 			if (didRevive) {
 				return Promise.resolve(undefined);
@@ -220,7 +218,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 
 		// Revived webviews may not have an actively registered reviver but we still want to presist them
 		// since a reviver should exist when it is actually needed.
-		return !(webview instanceof RevivedWebviewEditorInput);
+		return webview instanceof RevivedWebviewEditorInput;
 	}
 
 	private async tryRevive(
