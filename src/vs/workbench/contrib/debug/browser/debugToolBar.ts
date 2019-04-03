@@ -23,7 +23,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { registerColor, contrastBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -67,7 +67,6 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IThemeService themeService: IThemeService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IContextViewService contextViewService: IContextViewService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IMenuService menuService: IMenuService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -89,7 +88,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 			orientation: ActionsOrientation.HORIZONTAL,
 			actionItemProvider: (action: IAction) => {
 				if (action.id === FocusSessionAction.ID) {
-					return new FocusSessionActionItem(action, this.debugService, this.themeService, contextViewService);
+					return this.instantiationService.createInstance(FocusSessionActionItem, action);
 				}
 				if (action instanceof MenuItemAction) {
 					return new MenuItemActionItem(action, this.keybindingService, this.notificationService, contextMenuService);
