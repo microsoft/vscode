@@ -312,9 +312,9 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 		return control.saveViewState();
 	}
 
-	private toDiffEditorViewStateResource(modelOrInput: IDiffEditorModel | DiffEditorInput): URI | null {
-		let original: URI | null;
-		let modified: URI | null;
+	private toDiffEditorViewStateResource(modelOrInput: IDiffEditorModel | DiffEditorInput): URI | undefined {
+		let original: URI | undefined;
+		let modified: URI | undefined;
 
 		if (modelOrInput instanceof DiffEditorInput) {
 			original = modelOrInput.originalInput.getResource();
@@ -325,7 +325,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 		}
 
 		if (!original || !modified) {
-			return null;
+			return undefined;
 		}
 
 		// create a URI that is the Base64 concatenation of original + modified resource

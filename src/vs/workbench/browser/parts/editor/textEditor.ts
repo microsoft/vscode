@@ -306,7 +306,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 		}
 	}
 
-	protected getResource(): URI | null {
+	protected getResource(): URI | undefined {
 		const codeEditor = getCodeEditor(this.editorControl);
 		if (codeEditor) {
 			const model = codeEditor.getModel();
@@ -319,7 +319,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 			return this.input.getResource();
 		}
 
-		return null;
+		return undefined;
 	}
 
 	protected abstract getAriaLabel(): string;

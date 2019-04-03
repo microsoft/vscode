@@ -279,7 +279,7 @@ export interface IEditorInput extends IDisposable {
 	/**
 	 * Returns the associated resource of this input.
 	 */
-	getResource(): URI | null;
+	getResource(): URI | undefined;
 
 	/**
 	 * Unique type identifier for this inpput.
@@ -347,8 +347,8 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	/**
 	 * Returns the associated resource of this input if any.
 	 */
-	getResource(): URI | null {
-		return null;
+	getResource(): URI | undefined {
+		return undefined;
 	}
 
 	/**
@@ -996,7 +996,7 @@ export function toResource(editor: IEditorInput | null | undefined, options?: IR
 
 	const resource = editor.getResource();
 	if (!options || !options.filter) {
-		return resource; // return early if no filter is specified
+		return types.withUndefinedAsNull(resource); // return early if no filter is specified
 	}
 
 	if (!resource) {

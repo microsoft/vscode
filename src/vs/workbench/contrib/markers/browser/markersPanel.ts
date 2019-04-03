@@ -43,6 +43,7 @@ import { domEvent } from 'vs/base/browser/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ResourceLabels } from 'vs/workbench/browser/labels';
 import { IMarker } from 'vs/platform/markers/common/markers';
+import { withUndefinedAsNull } from 'vs/base/common/types';
 
 function createModelIterator(model: MarkersModel): Iterator<ITreeElement<TreeElement>> {
 	const resourcesIt = Iterator.fromArray(model.resourceMarkers);
@@ -459,7 +460,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 
 	private setCurrentActiveEditor(): void {
 		const activeEditor = this.editorService.activeEditor;
-		this.currentActiveResource = activeEditor ? activeEditor.getResource() : null;
+		this.currentActiveResource = activeEditor ? withUndefinedAsNull(activeEditor.getResource()) : null;
 	}
 
 	private onSelected(): void {
