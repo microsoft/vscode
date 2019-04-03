@@ -6,7 +6,7 @@
 import { IDiskFileChange, normalizeFileChanges } from 'vs/workbench/services/files2/node/watcher/normalizer';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { statLink, readlink } from 'vs/base/node/pfs';
-import { watchFolder, watchFile } from 'vs/base/node/watcher';
+import { watchFolder, watchFile, CHANGE_BUFFER_DELAY } from 'vs/base/node/watcher';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { join, basename } from 'vs/base/common/path';
@@ -14,7 +14,7 @@ import { join, basename } from 'vs/base/common/path';
 export class FileWatcher extends Disposable {
 	private isDisposed: boolean;
 
-	private fileChangesDelayer: ThrottledDelayer<void> = this._register(new ThrottledDelayer<void>(50));
+	private fileChangesDelayer: ThrottledDelayer<void> = this._register(new ThrottledDelayer<void>(CHANGE_BUFFER_DELAY * 2 /* sync on delay from underlying library */));
 	private fileChangesBuffer: IDiskFileChange[] = [];
 
 	constructor(
