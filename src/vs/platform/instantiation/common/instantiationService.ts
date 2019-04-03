@@ -39,7 +39,7 @@ export class InstantiationService implements IInstantiationService {
 		return new InstantiationService(services, this._strict, this);
 	}
 
-	invokeFunction<R, TS extends any[]=[]>(fn: (accessor: ServicesAccessor, ...args: TS) => R, ...args: TS): R {
+	invokeFunction<R, TS extends any[] = []>(fn: (accessor: ServicesAccessor, ...args: TS) => R, ...args: TS): R {
 		let _trace = Trace.traceInvocation(fn);
 		let _done = false;
 		try {
