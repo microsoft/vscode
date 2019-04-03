@@ -877,41 +877,77 @@ class Extension<T> implements vscode.Extension<T> {
 	}
 }
 
-export function initializeExtensionApi(extensionService: ExtHostExtensionService, apiFactory: IExtensionApiFactory, extensionRegistry: ExtensionDescriptionRegistry, configProvider: ExtHostConfigProvider): Promise<void> {
-	return extensionService.getExtensionPathIndex().then(trie => defineAPI(apiFactory, trie, extensionRegistry, configProvider));
+interface INodeModuleFactory {
+	readonly nodeModuleName: string;
+	load(request: string, parent: { filename: string; }): any;
 }
 
-function defineAPI(factory: IExtensionApiFactory, extensionPaths: TernarySearchTree<IExtensionDescription>, extensionRegistry: ExtensionDescriptionRegistry, configProvider: ExtHostConfigProvider): void {
+class NodeModuleRequireInterceptor {
+	public static INSTANCE = new NodeModuleRequireInterceptor();
 
-	// each extension is meant to get its own api implementation
-	const extApiImpl = new Map<string, typeof vscode>();
-	let defaultApiImpl: typeof vscode;
+	private readonly _factories: Map<string, INodeModuleFactory>;
 
-	const node_module = <any>require.__$__nodeRequire('module');
-	const original = node_module._load;
-	node_module._load = function load(request: string, parent: any, isMain: any) {
-		if (request !== 'vscode') {
-			return original.apply(this, arguments);
-		}
+	constructor() {
+		this._factories = new Map<string, INodeModuleFactory>();
+		this._installInterceptor(this._factories);
+	}
+
+	private _installInterceptor(factories: Map<string, INodeModuleFactory>): void {
+		const node_module = <any>require.__$__nodeRequire('module');
+		const original = node_module._load;
+		node_module._load = function load(request: string, parent: { filename: string; }, isMain: any) {
+			if (!factories.has(request)) {
+				return original.apply(this, arguments);
+			}
+			return factories.get(request)!.load(request, parent);
+		};
+	}
+
+	public register(interceptor: INodeModuleFactory): void {
+		this._factories.set(interceptor.nodeModuleName, interceptor);
+	}
+}
+
+export function initializeExtensionApi(extensionService: ExtHostExtensionService, apiFactory: IExtensionApiFactory, extensionRegistry: ExtensionDescriptionRegistry, configProvider: ExtHostConfigProvider): Promise<void> {
+	return extensionService.getExtensionPathIndex().then(extensionPaths => {
+		NodeModuleRequireInterceptor.INSTANCE.register(new VSCodeNodeModuleFactory(apiFactory, extensionPaths, extensionRegistry, configProvider));
+	});
+}
+
+class VSCodeNodeModuleFactory implements INodeModuleFactory {
+	public readonly nodeModuleName = 'vscode';
+
+	private readonly _extApiImpl = new Map<string, typeof vscode>();
+	private _defaultApiImpl: typeof vscode;
+
+	constructor(
+		private readonly _apiFactory: IExtensionApiFactory,
+		private readonly _extensionPaths: TernarySearchTree<IExtensionDescription>,
+		private readonly _extensionRegistry: ExtensionDescriptionRegistry,
+		private readonly _configProvider: ExtHostConfigProvider
+	) {
+	}
+
+	public load(request: string, parent: { filename: string; }): any {
 
 		// get extension id from filename and api for extension
-		const ext = extensionPaths.findSubstr(URI.file(parent.filename).fsPath);
+		const ext = this._extensionPaths.findSubstr(URI.file(parent.filename).fsPath);
 		if (ext) {
-			let apiImpl = extApiImpl.get(ExtensionIdentifier.toKey(ext.identifier));
+			let apiImpl = this._extApiImpl.get(ExtensionIdentifier.toKey(ext.identifier));
 			if (!apiImpl) {
-				apiImpl = factory(ext, extensionRegistry, configProvider);
-				extApiImpl.set(ExtensionIdentifier.toKey(ext.identifier), apiImpl);
+				apiImpl = this._apiFactory(ext, this._extensionRegistry, this._configProvider);
+				this._extApiImpl.set(ExtensionIdentifier.toKey(ext.identifier), apiImpl);
 			}
 			return apiImpl;
 		}
 
 		// fall back to a default implementation
-		if (!defaultApiImpl) {
+		if (!this._defaultApiImpl) {
 			let extensionPathsPretty = '';
-			extensionPaths.forEach((value, index) => extensionPathsPretty += `\t${index} -> ${value.identifier.value}\n`);
+			this._extensionPaths.forEach((value, index) => extensionPathsPretty += `\t${index} -> ${value.identifier.value}\n`);
 			console.warn(`Could not identify extension for 'vscode' require call from ${parent.filename}. These are the extension path mappings: \n${extensionPathsPretty}`);
-			defaultApiImpl = factory(nullExtensionDescription, extensionRegistry, configProvider);
+			this._defaultApiImpl = this._apiFactory(nullExtensionDescription, this._extensionRegistry, this._configProvider);
 		}
-		return defaultApiImpl;
-	};
+		return this._defaultApiImpl;
+	}
 }
