@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { illegalState } from 'vs/base/common/errors';
-import { create } from 'vs/base/common/types';
 import { Graph } from 'vs/platform/instantiation/common/graph';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceIdentifier, IInstantiationService, ServicesAccessor, _util, optional } from 'vs/platform/instantiation/common/instantiation';
@@ -108,7 +107,7 @@ export class InstantiationService implements IInstantiationService {
 		}
 
 		// now create the instance
-		return <T>create.apply(null, [ctor].concat(args, serviceArgs));
+		return <T>new ctor(...[...args, ...serviceArgs]);
 	}
 
 	private _setServiceInstance<T>(id: ServiceIdentifier<T>, instance: T): void {
