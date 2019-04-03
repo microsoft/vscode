@@ -404,3 +404,52 @@ export class CopyValueAction extends Action {
 		return Promise.resolve(undefined);
 	}
 }
+
+export class CopyRawValueAction extends Action {
+	static readonly ID = 'workbench.debug.viewlet.action.copyRawValue';
+	static LABEL = nls.localize('copyRawValue', "Copy Raw Value");
+
+	constructor(
+		id: string, label: string, private value: any, private context: string,
+		@IDebugService private readonly debugService: IDebugService,
+		@IClipboardService private readonly clipboardService: IClipboardService
+	) {
+		super(id, label, 'debug-action copy-value');
+		this._enabled = typeof this.value === 'string' || (this.value instanceof Variable && !!this.value.evaluateName);
+	}
+
+	public run(): Promise<any> {
+		const stackFrame = this.debugService.getViewModel().focusedStackFrame;
+		const session = this.debugService.getViewModel().focusedSession;
+
+		if (this.value instanceof Variable && stackFrame && session && this.value.evaluateName) {
+			return session.evaluate(this.value.evaluateName, stackFrame.frameId, this.context).then(result => {
+				this.clipboardService.writeText(this._raw(result.body.result));
+			}, err => this.clipboardService.writeText(this._raw(this.value.value)));
+		}
+
+		this.clipboardService.writeText(this._raw(this.value));
+		return Promise.resolve(undefined);
+	}
+
+	private _raw(value: string): string {
+		const escapeSequences = {
+			'0': '\0',
+			'b': '\b',
+			'f': '\f',
+			'n': '\n',
+			'r': '\r',
+			't': '\t',
+			'v': '\v',
+			'\'': '\'',
+			'"': '"',
+			'\\': '\\'
+		};
+
+		value = value.replace(/\\(['"tbrnfv0\\])/g, (_, specialCharacter) => {
+			return escapeSequences[specialCharacter];
+		});
+
+		return value;
+	}
+}

@@ -10,7 +10,7 @@ import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDebugService, IExpression, CONTEXT_WATCH_EXPRESSIONS_FOCUSED } from 'vs/workbench/contrib/debug/common/debug';
 import { Expression, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
-import { AddWatchExpressionAction, RemoveAllWatchExpressionsAction, CopyValueAction } from 'vs/workbench/contrib/debug/browser/debugActions';
+import { AddWatchExpressionAction, RemoveAllWatchExpressionsAction, CopyValueAction, CopyRawValueAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -150,6 +150,7 @@ export class WatchExpressionsView extends ViewletPanel {
 			}));
 			if (!expression.hasChildren) {
 				actions.push(this.instantiationService.createInstance(CopyValueAction, CopyValueAction.ID, CopyValueAction.LABEL, expression.value, 'watch', this.debugService));
+				actions.push(this.instantiationService.createInstance(CopyRawValueAction, CopyRawValueAction.ID, CopyRawValueAction.LABEL, expression.value, 'watch', this.debugService));
 			}
 			actions.push(new Separator());
 
@@ -164,6 +165,7 @@ export class WatchExpressionsView extends ViewletPanel {
 				const variable = element as Variable;
 				if (!variable.hasChildren) {
 					actions.push(this.instantiationService.createInstance(CopyValueAction, CopyValueAction.ID, CopyValueAction.LABEL, variable, 'watch', this.debugService));
+					actions.push(this.instantiationService.createInstance(CopyRawValueAction, CopyRawValueAction.ID, CopyRawValueAction.LABEL, variable, 'watch', this.debugService));
 				}
 				actions.push(new Separator());
 			}
