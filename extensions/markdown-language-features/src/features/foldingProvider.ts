@@ -7,6 +7,7 @@ import { Token } from 'markdown-it';
 import * as vscode from 'vscode';
 import { MarkdownEngine } from '../markdownEngine';
 import { TableOfContentsProvider } from '../tableOfContentsProvider';
+import { flatten } from '../util/arrays';
 
 const rangeLimit = 5000;
 
@@ -53,7 +54,7 @@ export default class MarkdownFoldingProvider implements vscode.FoldingRangeProvi
 			this.getRegions(document),
 			this.getHeaderFoldingRanges(document),
 			this.getBlockFoldingRanges(document)]);
-		return ([] as vscode.FoldingRange[]).concat.apply([], foldables).slice(0, rangeLimit);
+		return flatten(foldables).slice(0, rangeLimit);
 	}
 
 	private async getHeaderFoldingRanges(document: vscode.TextDocument) {

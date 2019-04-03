@@ -49,7 +49,7 @@ export function resolveCommonProperties(commit: string | undefined, version: str
 	});
 
 	if (process.platform === 'linux' && process.env.SNAP && process.env.SNAP_REVISION) {
-		// __GDPR__COMMON__ "common.nodeArch" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+		// __GDPR__COMMON__ "common.snap" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		result['common.snap'] = 'true';
 	}
 

@@ -19,7 +19,9 @@
 .monaco-workbench .dialog-box {
 	display: flex;
 	flex-direction: column-reverse;
+	width: min-content;
 	min-width: 500px;
+	max-width: 90%;
 	min-height: 75px;
 	padding: 5px;
 }
@@ -134,12 +136,13 @@
 	overflow: hidden; /* buttons row should never overflow */
 }
 
-.monaco-workbench .monaco-workbench .dialog-box > .dialog-buttons-row {
+.monaco-workbench .dialog-box > .dialog-buttons-row {
 	display: flex;
+	white-space: nowrap;
 }
 
 /** Dialog: Buttons */
-.monaco-workbench .monaco-workbench .dialog-box > .dialog-buttons-row > .dialog-buttons {
+.monaco-workbench .dialog-box > .dialog-buttons-row > .dialog-buttons {
 	display: flex;
 	overflow: hidden;
 }

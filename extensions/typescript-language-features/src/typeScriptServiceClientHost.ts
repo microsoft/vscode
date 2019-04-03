@@ -29,6 +29,7 @@ import VersionStatus from './utils/versionStatus';
 const styleCheckDiagnostics = [
 	6133, 	// variable is declared but never used
 	6138, 	// property is declared but its value is never read
+	6192, 	// All imports are unused
 	7027,	// unreachable code detected
 	7028,	// unused label
 	7029,	// fall through case in switch
