@@ -38,9 +38,9 @@ export class FileWatcher extends Disposable {
 
 			// Watch Folder
 			if (fileStat.isDirectory()) {
-				watchFolder(this.path, (eventType, path) => {
+				this._register(watchFolder(this.path, (eventType, path) => {
 					this.onFileChange({ type: eventType === 'changed' ? FileChangeType.UPDATED : eventType === 'added' ? FileChangeType.ADDED : FileChangeType.DELETED, path });
-				}, error => this.onError(error));
+				}, error => this.onError(error)));
 			}
 
 			// Watch File
